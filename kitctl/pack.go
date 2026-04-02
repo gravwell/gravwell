@@ -169,7 +169,7 @@ func readUserFile(dir, name string) (x types.UserFile, err error) {
  * Search Library
  **************************************************************************/
 
-func writeSearchLibrary(dir string, name string, x types.WireSearchLibrary) error {
+func writeSearchLibrary(dir string, name string, x types.SavedQuery) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -183,14 +183,14 @@ func writeSearchLibrary(dir string, name string, x types.WireSearchLibrary) erro
 		return err
 	}
 	x.Query = ``
-	mb, err := json.MarshalIndent(x.SearchLibrary, "", "	")
+	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) {
+func readSearchLibrary(dir, name string) (x types.SavedQuery, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
@@ -218,7 +218,7 @@ func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) 
  * Extractors
  **************************************************************************/
 
-func writeExtractor(dir string, name string, x types.AXDefinition) error {
+func writeExtractor(dir string, name string, x types.AX) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -244,7 +244,7 @@ func writeExtractor(dir string, name string, x types.AXDefinition) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readExtractor(dir, name string) (x types.AXDefinition, err error) {
+func readExtractor(dir, name string) (x types.AX, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
 	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
@@ -289,10 +289,10 @@ func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
 	// Now drop two files: .meta and .query
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := os.WriteFile(queryPath, []byte(x.Data.Query), 0644); err != nil {
+	if err := os.WriteFile(queryPath, []byte(x.Query), 0644); err != nil {
 		return err
 	}
-	x.Data.Query = ``
+	x.Query = ``
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -317,7 +317,7 @@ func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
 	// Now read the contents and insert it
 	bts, err = os.ReadFile(queryPath)
 	if err == nil {
-		x.Data.Query = string(bts)
+		x.Query = string(bts)
 	} else if os.IsNotExist(err) {
 		err = nil
 	}
@@ -401,23 +401,13 @@ func writeScheduledSearch(dir string, name string, x kits.PackedScheduledSearch)
 		return err
 	}
 
-	// Now drop files: .meta, .search, .flow, and .script
+	// Now drop files
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", name))
-	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
-	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
 	if err := os.WriteFile(searchPath, []byte(x.SearchString), 0644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(scriptPath, []byte(x.Script), 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(flowPath, []byte(x.Flow), 0644); err != nil {
-		return err
-	}
 	x.SearchString = ``
-	x.Script = ``
-	x.Flow = ``
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -429,7 +419,98 @@ func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err er
 	p := filepath.Join(dir, "scheduled")
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", name))
+	// Read the metadata file first
+	var bts []byte
+	bts, err = os.ReadFile(metaPath)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	bts, err = os.ReadFile(searchPath)
+	if err != nil {
+		return
+	}
+	x.SearchString = string(bts)
+	return
+}
+
+/**************************************************************************
+ * Scheduled Script
+ **************************************************************************/
+
+func writeScheduledScript(dir string, name string, x kits.PackedScheduledScript) error {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "scheduled")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+
+	// Now drop files
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
+	if err := os.WriteFile(scriptPath, []byte(x.Script), 0644); err != nil {
+		return err
+	}
+	x.Script = ``
+	mb, err := json.MarshalIndent(x, "", "	")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(metaPath, mb, 0644)
+}
+
+func readScheduledScript(dir, name string) (x kits.PackedScheduledScript, err error) {
+	p := filepath.Join(dir, "scheduled")
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
+	// Read the metadata file first
+	var bts []byte
+	bts, err = os.ReadFile(metaPath)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	// Now read script file
+	bts, err = os.ReadFile(scriptPath)
+	if err != nil {
+		return
+	}
+	x.Script = string(bts)
+	return
+}
+
+/**************************************************************************
+ * Flow
+ **************************************************************************/
+
+func writeFlow(dir string, name string, x kits.PackedFlow) error {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "scheduled")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+
+	// Now drop files
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
+	if err := os.WriteFile(flowPath, []byte(x.Flow), 0644); err != nil {
+		return err
+	}
+	x.Flow = ``
+	mb, err := json.MarshalIndent(x, "", "	")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(metaPath, mb, 0644)
+}
+
+func readFlow(dir, name string) (x kits.PackedFlow, err error) {
+	p := filepath.Join(dir, "scheduled")
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
 	// Read the metadata file first
 	var bts []byte
@@ -440,25 +521,9 @@ func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err er
 	if err = json.Unmarshal(bts, &x); err != nil {
 		return
 	}
-	// Now read search, flow, and script files
-	bts, err = os.ReadFile(searchPath)
-	if err != nil {
-		return
-	}
-	x.SearchString = string(bts)
-	bts, err = os.ReadFile(scriptPath)
-	if err != nil {
-		return
-	}
-	x.Script = string(bts)
 	bts, err = os.ReadFile(flowPath)
 	if err != nil {
-		// Flows are newer, so they might not exist in older stuff.
-		if os.IsNotExist(err) {
-			err = nil
-		} else {
-			return
-		}
+		return
 	}
 	x.Flow = string(bts)
 	return

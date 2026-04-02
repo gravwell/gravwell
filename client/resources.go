@@ -20,47 +20,41 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// GetResourceList returns information about all resources the user can access.
-func (c *Client) GetResourceList() (rm []types.ResourceMetadata, err error) {
-	if err = c.getStaticURL(resourcesUrl(), &rm); err != nil {
-		rm = nil
-	}
-	return
-}
-
-// GetAllResourceList is an admin-only API to pull back the entire resource list.
-// Non-administrators will receive the same list as returned by GetResourceList.
-func (c *Client) GetAllResourceList() (rm []types.ResourceMetadata, err error) {
-	c.SetAdminMode()
-	if err = c.getStaticURL(resourcesUrl(), &rm); err != nil {
-		rm = nil
-	}
-	c.ClearAdminMode()
-
-	return
-}
-
 // CreateResource makes a new resource. The resource name and description are specified at
 // creation time, as are the Global flag and an optional list of groups with which to
 // share it. The return value contains information about the newly-created resource.
-func (c *Client) CreateResource(name, description string, global bool, groups []int32) (*types.ResourceMetadata, error) {
-	spec := types.ResourceMetadata{
-		ResourceName: name,
-		Description:  description,
-		Global:       global,
-		GroupACL:     groups,
+func (c *Client) CreateResource(r types.Resource) (types.Resource, error) {
+	var resp types.Resource
+	if err := c.postStaticURL(resourcesUrl(), r, &resp); err != nil {
+		return resp, err
 	}
-	var resp types.ResourceMetadata
-	if err := c.postStaticURL(resourcesUrl(), spec, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
+	return resp, nil
 }
 
-// PopulateResource updates the contents of the resource with the specified GUID.
-func (c *Client) PopulateResource(guid string, data []byte) error {
-	//	return c.putStaticRawURL(resourcesGuidRawUrl(guid), data)
-	return c.PopulateResourceFromReader(guid, bytes.NewReader(data))
+// ListResources returns information about all resources the user can access.
+func (c *Client) ListResources(opts *types.QueryOptions) (rm types.ResourceListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err = c.postStaticURL(RESOURCES_LIST_URL, opts, &rm)
+	return
+}
+
+// ListAllResources is an admin-only API to pull back the entire resource list.
+// Non-administrators will receive the same list as returned by ListResources.
+func (c *Client) ListAllResources(opts *types.QueryOptions) (rm types.ResourceListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true
+	err = c.postStaticURL(RESOURCES_LIST_URL, opts, &rm)
+
+	return
+}
+
+// PopulateResource updates the contents of the resource with the specified ID.
+func (c *Client) PopulateResource(id string, data []byte) error {
+	return c.PopulateResourceFromReader(id, bytes.NewReader(data))
 }
 
 type mpWriter struct {
@@ -94,7 +88,7 @@ func (mpw *mpWriter) Close() (err error) {
 
 // PopulateResourceFromReader updates the contents of the specified resource using
 // data read from an io.Reader rather than a slice of bytes.
-func (c *Client) PopulateResourceFromReader(guid string, data io.Reader) (err error) {
+func (c *Client) PopulateResourceFromReader(id string, data io.Reader) (err error) {
 	var part io.Writer
 	var resp *http.Response
 
@@ -121,7 +115,7 @@ func (c *Client) PopulateResourceFromReader(guid string, data io.Reader) (err er
 		}
 	}()
 
-	resp, err = c.methodRequestURL(http.MethodPut, resourcesGuidRawUrl(guid), contentType, rdr)
+	resp, err = c.methodRequestURL(http.MethodPut, resourcesIdRawUrl(id), contentType, rdr)
 	if err != nil {
 		return err
 	}
@@ -141,38 +135,48 @@ func (c *Client) PopulateResourceFromReader(guid string, data io.Reader) (err er
 	return
 }
 
-// DeleteResource removes a resource by GUID.
-func (c *Client) DeleteResource(guid string) error {
-	return c.deleteStaticURL(resourcesGuidUrl(guid), nil)
+// DeleteResource removes a resource by ID by marking it deleted in the database.
+func (c *Client) DeleteResource(id string) error {
+	return c.deleteStaticURL(resourcesIdUrl(id), nil)
 }
 
-// UpdateMetadata sets the specified resource's metadata.
-func (c *Client) UpdateMetadata(guid string, metadata types.ResourceMetadata) error {
-	return c.putStaticURL(resourcesGuidUrl(guid), metadata)
+// PurgeResource removes a resource by ID entirely.
+func (c *Client) PurgeResource(id string) error {
+	return c.deleteStaticURL(resourcesIdUrl(id), nil, ezParam("purge", "true"))
+}
+
+// CleanupResources (admin-only) purges all deleted resources for all users.
+func (c *Client) CleanupResources() error {
+	return c.deleteStaticURL(RESOURCES_URL, nil)
+}
+
+// UpdateResourceMetadata sets the specified resource's metadata.
+func (c *Client) UpdateResourceMetadata(id string, metadata types.Resource) error {
+	return c.putStaticURL(resourcesIdUrl(id), metadata)
 }
 
 // GetResourceMetadata gets the specified resource's metadata.
-func (c *Client) GetResourceMetadata(guid string) (*types.ResourceMetadata, error) {
-	var metadata types.ResourceMetadata
-	err := c.getStaticURL(resourcesGuidUrl(guid), &metadata)
-	return &metadata, err
+func (c *Client) GetResourceMetadata(id string) (types.Resource, error) {
+	var metadata types.Resource
+	err := c.getStaticURL(resourcesIdUrl(id), &metadata)
+	return metadata, err
 }
 
 // GetResource returns the contents of the resource with the specified name. The
-// name can be either the user-friendly Name field, or a stringified GUID. Because
+// name can be either the user-friendly Name field, or an ID. Because
 // resources can be shared, and resources are not required to have globally-unique names,
 // the following precedence is used when selecting a resource by user-friendly name:
 // 1. Resources owned by the user always have highest priority
 // 2. Resources shared with a group to which the user belongs are next
 // 3. Global resources are the lowest priority
 func (c *Client) GetResource(name string) ([]byte, error) {
-	var guid string
-	err := c.getStaticURL(resourcesLookupUrl(name), &guid)
+	var meta types.Resource
+	err := c.getStaticURL(resourcesLookupUrl(name), &meta)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.methodRequestURL(http.MethodGet, resourcesGuidRawUrl(guid), ``, nil)
+	resp, err := c.methodRequestURL(http.MethodGet, resourcesIdRawUrl(meta.ID), ``, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -180,26 +184,26 @@ func (c *Client) GetResource(name string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-// LookupResourceGUID attempts to resolve the GUID for a resource with the specified
+// LookupResource attempts to resolve the resource with the specified
 // user-friendly name. It follows precedence as defined on the GetResource method.
-func (c *Client) LookupResourceGUID(name string) (string, error) {
-	var guid string
-	err := c.getStaticURL(resourcesLookupUrl(name), &guid)
+func (c *Client) LookupResource(name string) (string, error) {
+	var id string
+	err := c.getStaticURL(resourcesLookupUrl(name), &id)
 	if err != nil {
 		return "", err
 	}
-	return guid, nil
+	return id, nil
 }
 
-// CloneResource creates a copy of an existing resource (specified by GUID) with the
+// CloneResource creates a copy of an existing resource (specified by ID) with the
 // Name field set to the newName parameter.
-func (c *Client) CloneResource(guid string, newName string) (*types.ResourceMetadata, error) {
+func (c *Client) CloneResource(id string, newName string) (types.Resource, error) {
 	spec := struct{ Name string }{
 		Name: newName,
 	}
-	var resp types.ResourceMetadata
-	if err := c.postStaticURL(resourcesCloneUrl(guid), spec, &resp); err != nil {
-		return nil, err
+	var resp types.Resource
+	if err := c.postStaticURL(resourcesCloneUrl(id), spec, &resp); err != nil {
+		return resp, err
 	}
-	return &resp, nil
+	return resp, nil
 }

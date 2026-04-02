@@ -76,7 +76,7 @@ import (
 
 const (
 	listHeightMax  = 40 // lines
-	successStringF = "Successfully updated %v %v"
+	successStringF = "successfully updated %v %v"
 )
 
 // NewEditAction composes a usable edit action, returning its action pair.
@@ -389,7 +389,7 @@ func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeySpace || msg.Type == tea.KeyEnter {
-			item := em.data[em.list.Index()]
+			item := em.data[em.list.GlobalIndex()]
 			if err := em.enterEditMode(item); err != nil {
 				em.mode = quitting
 				clilog.Writer.Errorf("%v", err)
@@ -448,7 +448,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 	es := stateEdit[S]{
 		item:        item,
 		tiCount:     len(em.cfg),
-		orderedKTIs: make([]scaffold.KeyedTI, len(em.cfg)),
+		orderedKTIs: make([]KeyedTI, len(em.cfg)),
 	}
 
 	// use the get function to pull current values for each field and display them in their
@@ -480,15 +480,12 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 		}
 
 		// attach TI to list
-		es.orderedKTIs[i] = scaffold.KeyedTI{
-			Key:        k,
-			FieldTitle: fieldCfg.Title,
-			TI:         ti,
-			Required:   fieldCfg.Required}
+		es.orderedKTIs[i] = NewKTI(k, fieldCfg.Title, fieldCfg.Required)
+		es.orderedKTIs[i].TI = ti
 		i += 1
 
 		// check width
-		es.longestWidth = max(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestWidth)
+		es.longestLineWidth = max(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestLineWidth)
 	}
 
 	if len(es.orderedKTIs) < 1 {
@@ -496,7 +493,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 	}
 
 	// order TIs from highest to lowest orders
-	slices.SortFunc(es.orderedKTIs, func(a, b scaffold.KeyedTI) int {
+	slices.SortFunc(es.orderedKTIs, func(a, b KeyedTI) int {
 		return em.cfg[b.Key].Order - em.cfg[a.Key].Order
 	})
 

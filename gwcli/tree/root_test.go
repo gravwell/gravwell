@@ -15,7 +15,11 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -110,6 +114,152 @@ func Test_checkNoColor(t *testing.T) {
 
 			if gotColorEnabled := isNoColor(fs); gotColorEnabled != tt.wantNoColor {
 				t.Errorf("checkNoColor() = %v, want %v", gotColorEnabled, tt.wantNoColor)
+			}
+		})
+	}
+}
+
+func TestGatherCredentials(t *testing.T) {
+	tDir := t.TempDir()
+	tests := []struct {
+		name              string // description of this test case
+		args              []string
+		setupFunc         func(t *testing.T)
+		wantUsername      string
+		wantPasswordNil   bool
+		wantPassword      string
+		wantAPIKeyNil     bool
+		wantAPIKey        string
+		wantNoInteractive bool
+		wantErr           bool
+	}{
+		{"zilch should return no data and no error",
+			nil, nil,
+			"",
+			true, "",
+			true, "",
+			false,
+			false,
+		},
+		{"only username",
+			[]string{"--username=naru"}, nil,
+			"naru", true, "",
+			true, "",
+			false,
+			false,
+		},
+		{"apikey",
+			[]string{"--api", "mykey", "--no-interactive"}, nil,
+			"",
+			true, "",
+			false, "mykey",
+			true,
+			false,
+		},
+		{"username, passfile, eapikey",
+			[]string{"--eapi", "-p", path.Join(tDir, "pass.txt"), "-u=user"},
+			func(t *testing.T) {
+				// set apikey in environment
+				t.Setenv(cfgdir.EnvKeyAPI, "mykey2")
+				// create and fill password file
+				if f, err := os.Create(path.Join(tDir, "pass.txt")); err != nil {
+					t.Fatal(err)
+				} else if _, err := f.WriteString("mypass"); err != nil {
+					t.Fatal(err)
+				}
+			},
+			"user",
+			false, "mypass",
+			false, "mykey2",
+			false,
+			false,
+		},
+		{"epass",
+			[]string{"-u=user"},
+			func(t *testing.T) {
+				// set apikey in environment
+				t.Setenv(cfgdir.EnvKeyPassword, "enviropass")
+			},
+			"user",
+			false, "enviropass",
+			true, "",
+			false,
+			false,
+		},
+		{"epass but no username supplied", // shouldn't error, but also shouldn't pick up the password
+			[]string{""},
+			func(t *testing.T) {
+				// set apikey in environment
+				t.Setenv(cfgdir.EnvKeyPassword, "enviropass")
+			},
+			"",
+			true, "",
+			true, "",
+			false,
+			false,
+		},
+		{"passfile but no username supplied",
+			[]string{"-p=" + path.Join(tDir, "pass.txt")}, // shouldn't matter if this file actually exists
+			nil,
+			"",
+			true, "",
+			true, "",
+			false,
+			true,
+		},
+		{"passfile DNE",
+			[]string{"-p=" + path.Join(tDir, "dne.txt")}, // shouldn't matter if this file actually exists
+			nil,
+			"",
+			true, "",
+			true, "",
+			false,
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// prepare the environment
+			if tt.setupFunc != nil {
+				tt.setupFunc(t)
+			}
+
+			cmd := &cobra.Command{}
+			uniques.AttachPersistentFlags(cmd)
+			if err := cmd.ParseFlags(tt.args); err != nil {
+				t.Fatal(err)
+			}
+			gotUsername, gotPassword, gotAPIKey, gotNoInteractive, gotErr := GatherCredentials(cmd.Flags())
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("GatherCredentials() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("GatherCredentials() succeeded unexpectedly")
+			}
+
+			if gotUsername != tt.wantUsername {
+				t.Error("incorrect username", testsupport.ExpectedActual(tt.wantUsername, gotUsername))
+			}
+			if tt.wantPasswordNil && gotPassword != nil {
+				t.Error("expected nil password, got", gotPassword)
+			} else if !tt.wantPasswordNil && gotPassword == nil {
+				t.Error("did not expect nil password")
+			} else if !tt.wantPasswordNil && (tt.wantPassword != *gotPassword) {
+				t.Error("incorrect password", testsupport.ExpectedActual(tt.wantPassword, *gotPassword))
+			}
+			if tt.wantAPIKeyNil && gotAPIKey != nil {
+				t.Error("expected nil api key, got", gotAPIKey)
+			} else if !tt.wantAPIKeyNil && gotAPIKey == nil {
+				t.Error("did not expect nil api key")
+			} else if !tt.wantAPIKeyNil && (tt.wantAPIKey != *gotAPIKey) {
+				t.Error("incorrect api key", testsupport.ExpectedActual(tt.wantPassword, *gotAPIKey))
+			}
+
+			if tt.wantNoInteractive != gotNoInteractive {
+				t.Error("incorrect no interactive", testsupport.ExpectedActual(tt.wantNoInteractive, gotNoInteractive))
 			}
 		})
 	}
