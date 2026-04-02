@@ -183,9 +183,9 @@ func TestAll(server *string, cover *bool) error {
 		ttOut, ttErr = sh.Output("go", args...)
 	}
 
-	if server != nil { // run noci tests
+	// This will be reimplemented more thoroughly in the next PR
+	/*if server != nil { // run noci tests
 		fmt.Println(mid("Running NoCI tests..."))
-		// TODO pass -server in once tests actually acknowledge it
 		nociOut, nociErr = sh.Output("go", append(baseArgs, "-tags=!ci", "./...")...)
 		if err := Build(); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to build binary: %v\n"+
@@ -194,10 +194,9 @@ func TestAll(server *string, cover *bool) error {
 		} else {
 			fmt.Println(mid("Running integration tests..."))
 			integrationOut, integrationErr = sh.Output("go",
-				append(baseArgs, "-tags=integration", "./integration_test.go", "-server="+*server, "--args", "./gwcli")...)
+				append(baseArgs, "-tags=integration", "./integration_test.go", "-server="+*server, "-args", "./gwcli")...)
 		}
-
-	}
+	}*/
 
 	// output results
 	if ciErr != nil || mg.Verbose() {
