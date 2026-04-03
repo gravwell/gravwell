@@ -171,7 +171,7 @@ func TestAll(server *string, cover *bool) error {
 
 	if server != nil { // run noci tests
 		verboseln(mid("Running NoCI tests against " + *server + "..."))
-		_, nociErr = sh.Exec(map[string]string{testsupport.ENV_SERVER: *server}, &nociOut, &nociOut, "go", append(baseArgs, "-tags=!ci", "./...")...)
+		_, nociErr = sh.Exec(map[string]string{testsupport.ENV_SERVER: *server}, &nociOut, &nociOut, "go", append(baseArgs, "-tags=noci", "./...")...)
 
 		if err := build("./gwcli"); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to build binary: %v\n"+
