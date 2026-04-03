@@ -93,7 +93,7 @@ func download() action.Pair {
 				clilog.LogFlagFailedGet(ft.Output.Name(), err)
 			}
 			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_id", Value: id})
-			ff, err := connection.Client.GetFile(id)
+			b, err := connection.Client.GetFile(id)
 			if err != nil {
 				return err.Error(), nil
 			}
@@ -104,13 +104,13 @@ func download() action.Pair {
 					return err.Error(), nil
 				}
 				defer out.Close()
-				n, err := out.WriteString(string(ff.Content))
+				n, err := out.Write(b)
 				if err != nil {
 					return err.Error(), nil
 				}
 				return phrases.SuccessfullyWroteToFile(n, outPath), nil
 			}
-			return string(ff.Content), nil
+			return string(b), nil
 		}, scaffold.BasicOptions{
 			AddtlFlagFunc: func() pflag.FlagSet {
 				var fs pflag.FlagSet
@@ -156,21 +156,23 @@ func create() action.Pair {
 				return 0, "", err
 			}
 
-			var ff = types.FileFull{
-				File: types.File{
-					CommonFields: types.CommonFields{
-						Name:        name,
-						Description: desc,
-						Labels:      labels,
-					},
+			var ff = types.File{
+				CommonFields: types.CommonFields{
+					Name:        name,
+					Description: desc,
+					Labels:      labels,
 				},
-				Content: content,
 			}
 
 			f, err := connection.Client.CreateFile(ff)
 			if err != nil {
-				return 0, "", err
+				return 0, "", fmt.Errorf("failed to create empty file: %w", err)
 			}
+			// populate the file
+			if _, err := connection.Client.PopulateFile(f.ID, content); err != nil {
+				return 0, "", fmt.Errorf("failed to populate file: %w", err)
+			}
+
 			return f.ID, "", nil
 		}, scaffoldcreate.Options{})
 }
@@ -231,13 +233,10 @@ func edit() action.Pair {
 				return item.Description
 			},
 			UpdateSub: func(data *types.File) (identifier string, err error) {
-				err = connection.Client.UpdateFileMetadata(data.ID, types.File{
-					CommonFields: types.CommonFields{
-						Name:        data.Name,
-						Description: data.Description,
-						Labels:      data.Labels,
-					},
-				})
+				if data == nil {
+					return "", errors.New("cannot update nil item")
+				}
+				_, err = connection.Client.UpdateFileMetadata(data.ID, *data)
 				return data.ID, err
 			},
 		},
