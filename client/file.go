@@ -167,7 +167,7 @@ func (c *Client) ListFiles(opts *types.QueryOptions) (ret types.FileListResponse
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(FILES_URL, opts, &ret)
+	err = c.postStaticURL(FILES_LIST_URL, opts, &ret)
 	return
 }
 
