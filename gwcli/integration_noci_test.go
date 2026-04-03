@@ -1,4 +1,4 @@
-//go:build !ci && integration
+//go:build noci && integration
 
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
