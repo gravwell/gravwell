@@ -180,7 +180,7 @@ func TestAll(server *string, cover *bool) error {
 		} else {
 			verboseln(mid("Running integration tests against " + *server + "..."))
 			_, integrationErr = sh.Exec(map[string]string{testsupport.ENV_SERVER: *server}, &integrationOut, &integrationOut, "go",
-				append(baseArgs, "-tags=integration", "./integration_test.go", "-args", "-binary=./gwcli")...)
+				append(baseArgs, "-tags=integration", "./integration_noci_test.go", "-args", "-binary=./gwcli")...)
 		}
 
 	}
