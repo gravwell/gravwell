@@ -38,7 +38,7 @@ func (c *Client) CleanupFiles() error {
 // The name and description are specified at creation time,
 // as are the Global flag and an optional list of groups with which to share it.
 //
-// The return value contains information about the newly-created file, but does not echo its contents.
+// The return value contains information about the newly-created file.
 func (c *Client) CreateFile(f types.File) (result types.File, err error) {
 	err = c.postStaticURL(filesUrl(), f, &result)
 	return result, err
