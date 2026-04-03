@@ -54,7 +54,7 @@ func TestCreateEditDownload(t *testing.T) {
 		"-v", secretValue,
 		"--labels", strings.Join(secretLabels, ","),
 	}...)); ec != 0 {
-		t.Error("bad error code: ", ec)
+		t.Fatal("bad error code: ", ec)
 	}
 
 	// check that list pulls back the new secret
