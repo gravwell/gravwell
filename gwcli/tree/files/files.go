@@ -150,13 +150,13 @@ func create() action.Pair {
 				labels = strings.Split(lbls, ",")
 			}
 
-			// slurp file contents from path
-			content, err := os.ReadFile(path)
+			// get a reader on the file
+			f, err := os.Open(path)
 			if err != nil {
 				return 0, "", err
 			}
 
-			var ff = types.File{
+			var inMeta = types.File{
 				CommonFields: types.CommonFields{
 					Name:        name,
 					Description: desc,
@@ -164,16 +164,16 @@ func create() action.Pair {
 				},
 			}
 
-			f, err := connection.Client.CreateFile(ff)
+			outMeta, err := connection.Client.CreateFile(inMeta)
 			if err != nil {
 				return 0, "", fmt.Errorf("failed to create empty file: %w", err)
 			}
 			// populate the file
-			if _, err := connection.Client.PopulateFile(f.ID, content); err != nil {
+			if _, err := connection.Client.PopulateFileFromReader(outMeta.ID, f); err != nil {
 				return 0, "", fmt.Errorf("failed to populate file: %w", err)
 			}
 
-			return f.ID, "", nil
+			return outMeta.ID, "", nil
 		}, scaffoldcreate.Options{})
 }
 
