@@ -164,7 +164,9 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 				rt.Error("error writing entry", log.KV("api", "audit"), log.KVErr(err))
 				continue
 			}
-			last = ets
+			if ets.After(last) {
+				last = ets
+			}
 			rt.Debug("wrote audit entry", log.KV("ts", e.TS))
 		}
 
