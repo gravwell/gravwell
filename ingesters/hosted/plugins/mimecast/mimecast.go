@@ -168,15 +168,13 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			rt.Debug("wrote audit entry", log.KV("ts", e.TS))
 		}
 
+		rt.PutString(m.cursor(AuditApi), r.Meta.Pagination.Next)
 		// don't advance time until we process the entire timespan
-		if r.Meta.Pagination.Next != "" {
-			rt.Debug("got another page of events", log.KV("api", AuditApi))
-			rt.PutString(m.cursor(AuditApi), r.Meta.Pagination.Next)
-		} else {
+		if len(r.Data) > 0 {
 			rt.Debug("no more pages, moving forward in time", log.KV("api", AuditApi), log.KV("to", last))
-			rt.PutString(m.cursor(AuditApi), "")
 			rt.PutTime(m.timestamp(AuditApi), last)
 		}
+
 	}
 
 	return nil
