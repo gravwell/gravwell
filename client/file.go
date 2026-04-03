@@ -126,7 +126,7 @@ func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, 
 
 	go func() {
 		//perform the copy, any read errors are shoved into the writer so the reader gets them too
-		if _, lerr := io.Copy(part, data); lerr != nil {
+		if _, lerr := io.CopyN(part, data, int64(maxFileSize)); lerr != nil {
 			wtr.CloseWithError(lerr)
 		}
 
