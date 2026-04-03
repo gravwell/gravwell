@@ -32,19 +32,19 @@ type PackedFile struct {
 	Data          []byte
 }
 
-// PackFileFull takes a FileFull (which contains a complete description of a file, including contents) and converts it into a PackedFile.
-func PackFileFull(ff types.FileFull) (p PackedFile) {
+// PackFile takes a File and its contents and converts them into a PackedFile.
+func PackFile(f types.File, content []byte) (p PackedFile) {
 	p = PackedFile{
-		ID:            ff.ID,
-		VersionNumber: ff.Version,
-		Name:          ff.Name,
-		Description:   ff.Description,
-		Labels:        ff.Labels,
-		Size:          ff.Size,
-		Data:          ff.Content,
+		ID:            f.ID,
+		VersionNumber: f.Version,
+		Name:          f.Name,
+		Description:   f.Description,
+		Labels:        f.Labels,
+		Size:          f.Size,
+		Data:          content,
 	}
-	if ff.File.Hash != "" {
-		p.Hash, _ = hex.DecodeString(ff.File.Hash)
+	if f.Hash != "" {
+		p.Hash, _ = hex.DecodeString(f.Hash)
 	}
 	if p.VersionNumber == 0 {
 		p.VersionNumber = 1

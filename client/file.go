@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingest"
@@ -38,31 +39,38 @@ func (c *Client) CleanupFiles() error {
 // as are the Global flag and an optional list of groups with which to share it.
 //
 // The return value contains information about the newly-created file, but does not echo its contents.
-func (c *Client) CreateFile(ff types.FileFull) (result types.File, err error) {
-	err = c.postStaticURL(filesUrl(), ff, &result)
+func (c *Client) CreateFile(f types.File) (result types.File, err error) {
+	err = c.postStaticURL(filesUrl(), f, &result)
 	return result, err
 }
 
 // GetFile returns the specified file and its contents.
-func (c *Client) GetFile(id string) (ff types.FileFull, _ error) {
+func (c *Client) GetFile(id string) ([]byte, error) {
 	return c.GetFileEx(id, nil)
 }
 
 // GetFileEx returns the specified file and its contents.
 // If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
-func (c *Client) GetFileEx(id string, opts *types.QueryOptions) (ff types.FileFull, _ error) {
+func (c *Client) GetFileEx(id string, opts *types.QueryOptions) ([]byte, error) {
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err := c.getStaticURL(filesIdRawUrl(id), &ff, ezParam("include_deleted", opts.IncludeDeleted))
-	return ff, err
+
+	resp, err := c.methodParamRequestURL(http.MethodGet, filesIdRawUrl(id), map[string]string{"include_deleted": strconv.FormatBool(opts.IncludeDeleted)}, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return io.ReadAll(resp.Body)
 }
 
 // UpdateFileMetadata clobber's the specified file's existing metadata in favour of the given struct.
 //
 // Changes to ID, size, and/or hash will be ignored.
-func (c *Client) UpdateFileMetadata(id string, metadata types.File) (err error) {
-	return c.putStaticURL(filesIdUrl(id), metadata)
+func (c *Client) UpdateFileMetadata(id string, metadata types.File) (updated types.File, err error) {
+	err = c.methodStaticPushURL(http.MethodPut, filesIdUrl(id), metadata, &updated, nil, nil)
+	return updated, err
+	//return c.putStaticURL(filesIdUrl(id), &metadata)
 }
 
 // GetFileMetadata gets the specified file sans contents.
@@ -73,6 +81,8 @@ func (c *Client) GetFileMetadata(id string) (types.File, error) {
 }
 
 // PopulateFile sets the content of the specified file to the given data.
+//
+// Returns the metadata of the populated/updated file.
 func (c *Client) PopulateFile(id string, data []byte) (types.File, error) {
 	if uint64(len(data)) > maxFileSize {
 		return types.File{}, ErrOversizedFile
@@ -81,6 +91,8 @@ func (c *Client) PopulateFile(id string, data []byte) (types.File, error) {
 }
 
 // PopulateFileFromReader sets the contents of the specified file to that of the given reader.
+//
+// Returns the metadata of the populated/updated file.
 func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, error) {
 	// This is functionally the same as PopulateResourceFromReader
 
@@ -118,13 +130,14 @@ func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, 
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
-		err = ErrNotAuthed
+		return types.File{}, ErrNotAuthed
 	} else if resp.StatusCode != http.StatusOK {
 		if s := getBodyErr(resp.Body); len(s) > 0 {
 			err = errors.New(s)
 		} else {
 			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
 		}
+		return types.File{}, err
 	}
 
 	// decode the metadata response
@@ -141,7 +154,7 @@ func (c *Client) ListFiles(opts *types.QueryOptions) (ret types.FileListResponse
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.getStaticURL(FILES_URL, &ret)
+	err = c.postStaticURL(FILES_URL, opts, &ret)
 	return
 }
 
