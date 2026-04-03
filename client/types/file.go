@@ -16,12 +16,6 @@ type File struct {
 	Hash string
 }
 
-// FileFull is the complete representation of a file, contents included.
-type FileFull struct {
-	File
-	Content []byte
-}
-
 type FileListResponse struct {
 	BaseListResponse
 	Results []File `json:"results"`
