@@ -850,13 +850,13 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	// files
-	if lfr, err := nc.ListFiles(nil); err != nil {
-		return fmt.Errorf("Failed to get user files %d %w", id, err)
+	if lfr, err := nc.ListFiles(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
+		return fmt.Errorf("Failed to get files %d %w", id, err)
 	} else if lfr.TotalCount > 0 {
-		for _, uf := range lfr.Results {
-			if uf.OwnerID == id {
-				if err := nc.PurgeFile(uf.ID); err != nil {
-					return fmt.Errorf("Failed to purge user file %v %w", uf.ID, err)
+		for _, f := range lfr.Results {
+			if f.OwnerID == id {
+				if err := nc.PurgeFile(f.ID); err != nil {
+					return fmt.Errorf("Failed to purge file %v %w", f.ID, err)
 				}
 			}
 
