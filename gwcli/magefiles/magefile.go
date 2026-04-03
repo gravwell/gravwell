@@ -92,10 +92,7 @@ func Build(target *string) error {
 	}
 	verboseln("Building " + o + "...")
 	if err := build(o); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to build binary '%s': %v", o, err)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("failed to build binary '%s': %v", o, err)
 	}
 	verboseln(good("done."))
 
