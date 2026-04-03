@@ -27,7 +27,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
 
@@ -76,6 +79,7 @@ var (
 	serverString  string
 	binaryPath    string
 	metaArguments []string
+	client        *grav.Client
 )
 
 func init() {
@@ -97,13 +101,44 @@ func TestMain(m *testing.M) {
 	serverString = testsupport.Server()
 	fmt.Println("connecting to test server @", serverString)
 
+	// create an admin client to test data against
+	var err error
+	client, err = grav.New(serverString, false, false)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to generate a standalone client for server '%v': %v\n", serverString, err)
+		os.Exit(1)
+	}
+	if err := client.Login("admin", "changeme"); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to login standalone client with default admin credentials: %v\n", err)
+		os.Exit(1)
+	}
+	// generate an API token with all capabilities we can provide to our tests
+	caps, err := client.CapabilityList()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to retrieve capabilities list: %v\n", err)
+		os.Exit(1)
+	}
+	set := make([]string, len(caps))
+	for i, cap := range caps {
+		set[i] = cap.Name
+	}
+	tkn, err := client.CreateToken(types.TokenCreate{
+		Name:         "integration_test_login_token",
+		Description:  "grants all capabilities",
+		ExpiresAt:    time.Now().Add(time.Hour),
+		Capabilities: set,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to generate full admin token: %v\n", err)
+		os.Exit(1)
+	}
+
 	// compose meta args
 	metaArguments = []string{"--server=" + serverString,
 		"--insecure",
 		"-x",
-		// username is attached inside of Execute // TODO
+		"--api=" + tkn.Value,
 	}
-	// TODO set passwords into env or require API keys.
 
 	os.Exit(m.Run())
 }
