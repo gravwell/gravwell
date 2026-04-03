@@ -44,12 +44,12 @@ func (c *Client) CreateFile(f types.File) (result types.File, err error) {
 	return result, err
 }
 
-// GetFile returns the specified file and its contents.
+// GetFile returns the specified file's contents.
 func (c *Client) GetFile(id string) ([]byte, error) {
 	return c.GetFileEx(id, nil)
 }
 
-// GetFileEx returns the specified file and its contents.
+// GetFileEx returns the specified file's contents.
 // If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
 func (c *Client) GetFileEx(id string, opts *types.QueryOptions) ([]byte, error) {
 	if opts == nil {
@@ -58,6 +58,19 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions) ([]byte, error) 
 
 	resp, err := c.methodParamRequestURL(http.MethodGet, filesIdRawUrl(id), map[string]string{"include_deleted": strconv.FormatBool(opts.IncludeDeleted)}, nil)
 	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		c.state = STATE_LOGGED_OFF
+		drainResponse(resp)
+		return nil, ErrNotAuthed
+	} else if resp.StatusCode != http.StatusOK {
+		if s := getBodyErr(resp.Body); len(s) > 0 {
+			err = errors.New(s)
+		} else {
+			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
+		}
+		drainResponse(resp)
 		return nil, err
 	}
 	defer resp.Body.Close()
