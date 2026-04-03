@@ -1,3 +1,5 @@
+//go:build ci
+
 package pathtextinput_test
 
 import (
