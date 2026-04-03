@@ -635,9 +635,9 @@ func (c Capability) String() string {
 	case ExtractorWrite:
 		return `Extractor Write`
 	case FileRead:
-		return `User File Read`
+		return `File Read`
 	case FileWrite:
-		return `User File Write`
+		return `File Write`
 	case KitRead:
 		return `Kit Read`
 	case KitWrite:
@@ -744,9 +744,9 @@ func (c Capability) Description() string {
 	case ExtractorWrite:
 		return `User can create and modify auto extractors`
 	case FileRead:
-		return `User can view user files`
+		return `User can view files`
 	case FileWrite:
-		return `User can create and update user files`
+		return `User can create and update files`
 	case KitRead:
 		return `User can view kits`
 	case KitWrite:
