@@ -200,6 +200,15 @@ flowchart
     Done --true--> ExitHandoff>Exit<br>Handoff Mode] --> Reset[child.Reset]
 ```
 
+## Custom Suggestion and Tab-Completion Engine
+
+To improve the flexibility and power of completions in interactive mode, gwcli uses a custom engine for identifying what a user is attempting to type at the prompt.
+This engine is powered by `traverse.DeriveSuggestions()` and triggered whenever a key pressed is detected in Mother's `Update()` subroutine. See [DeriveSuggestions](gwcli/mother/traverse/traverse.go) for more details on how it operates.
+
+### Why?
+
+Bubble Tea's TextInput bubbles are great and their native suggestions and tab completion are plenty for most projects. However, gwcli stretches BubbleTea quite far. To facilitate performant suggestions with type-specific colorings, context-sensitive completions, and the possibility of adding flag completions, it makes more sense to roll our own rather than trying to bend the native capabilities to our will.
+
 # Design & Philosophy
 
 This section is a deep dive on the design philosophy and problems that arose while building gwcli from scratch. You probably don't need to read this section unless you intend to make more dramatic changes to the structure of Mother/gwcli.
