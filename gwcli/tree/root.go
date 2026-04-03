@@ -153,6 +153,12 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 		if err = connection.Initialize(server, !insecure, insecure, ""); err != nil {
 			return err
 		}
+		if err := connection.Client.Test(); err != nil { // make the errors user-friendly
+			// ECONNREFUSED relies on the syscalls packages which I really don't want to import so let's just make a string check
+			if strings.Contains(err.Error(), "connection refused") {
+				return fmt.Errorf("%s: connection refused", server)
+			}
+		}
 	}
 	username, password, apiToken, noInteractive, err := GatherCredentials(cmd.Flags())
 	if err != nil {
