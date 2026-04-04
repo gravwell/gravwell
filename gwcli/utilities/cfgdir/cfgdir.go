@@ -25,6 +25,7 @@ const (
 const (
 	EnvKeyPassword string = "GRAVWELL_PASSWORD" // environment variable potentially holding a password
 	EnvKeyAPI      string = "GRAVWELL_API_KEY"
+	EnvCfgDir      string = "GWCLI_CONFIG_DIR"
 )
 
 const (
@@ -42,12 +43,17 @@ var ( // set by init
 
 // on startup, identify and cache the config directory
 func init() {
-	const cfgSubFolder = "gwcli"
-	cd, err := os.UserConfigDir()
-	if err != nil {
-		cd = "."
+	// check if config dir exists in the environment
+	cfgDir, _ = os.LookupEnv(EnvCfgDir)
+
+	if cfgDir == "" {
+		const cfgSubFolder = "gwcli"
+		cd, err := os.UserConfigDir()
+		if err != nil {
+			cd = "."
+		}
+		cfgDir = path.Join(cd, cfgSubFolder)
 	}
-	cfgDir = path.Join(cd, cfgSubFolder)
 
 	// ensure directory's existence
 	if err := os.MkdirAll(cfgDir, 0700); err != nil {
