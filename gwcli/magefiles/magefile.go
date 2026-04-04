@@ -183,78 +183,32 @@ func TestAll(server *string, cover *bool) error {
 	}
 
 	// output results
-	if ciErr != nil || mg.Verbose() {
-		fmt.Print("CI tests ")
-		if ciErr != nil {
-			fmt.Println(bad("failed"))
-			fmt.Println(ciOut.String())
-		} else {
-			fmt.Println(good("passed"))
-		}
+	printResults("CI tests", ciErr, ciOut.String())
+	printResults("TeaTests", ttErr, ttOut.String())
+	if server != nil {
+		printResults("NoCI tests", nociErr, nociOut.String())
+		printResults("Integration tests", integrationErr, integrationOut.String())
 	}
-	if ttErr != nil || mg.Verbose() {
-		fmt.Print("TeaTests ")
-		if ttErr != nil {
-			fmt.Println(bad("failed"))
-			fmt.Println(ttOut.String())
-		} else {
-			fmt.Println(good("passed"))
-		}
+	if ciErr != nil || ttErr != nil || nociErr != nil || integrationErr != nil {
+		return errors.New("some tests failed")
 	}
-	if server != nil && (nociErr != nil || mg.Verbose()) {
-		fmt.Print("NoCI tests ")
-		if nociErr != nil {
-			fmt.Println(bad("failed"))
-			fmt.Println(nociOut.String())
-		} else {
-			fmt.Println(good("passed"))
-		}
 
-		fmt.Print("Integration tests ")
-		if integrationErr != nil {
-			fmt.Println(bad("failed"))
-			fmt.Println(integrationOut.String())
-		} else {
-			fmt.Println(good("passed"))
-		}
-	}
 	return nil
 }
 
-// TestIntegration calls the tests in script_test for targeting external, automated usage (via --script).
-/*func TestIntegration() error {
-	coverdirPath := path.Join(os.TempDir(), "coverout")
-	if err := os.Mkdir(coverdirPath, 0660); err != nil {
-		return err
-	}
+const pad int = 20
 
-	v := ""
-	if mg.Verbose() {
-		v = "-v"
-	}
-
-	// build a cover-instrumented binary
-	out, err := sh.OutputWith(map[string]string{"GOCOVERDIR": coverdirPath},
-		"go", "build", v, "-cover", "-o=test_gwcli", ".")
-	if mg.Verbose() || err != nil {
-		fmt.Println(out)
+func printResults(prefix string, err error, stdout string) {
+	if err != nil || mg.Verbose() {
+		fmt.Print(strings.Repeat(" ", pad-len(prefix)), prefix, " ")
 		if err != nil {
-			return err
+			fmt.Println(bad("failed"))
+			fmt.Println(stdout)
+		} else {
+			fmt.Println(good("passed"))
 		}
 	}
-
-	// run integration tests external to the binary
-	fmt.Println("NYI") // TODO
-
-	// spit out coverage data
-	out, err = sh.Output("go", "tool", "covdata", "percent", "-i="+coverdirPath)
-	fmt.Println(out)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}*/
+}
 
 // Clean up the binary and any and all logs.
 // Does not destroy login token.
