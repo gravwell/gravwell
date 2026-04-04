@@ -131,16 +131,97 @@ func Vet() error {
 
 }
 
-// TestAll runs all gwcli tests.
+type Test mg.Namespace
+
+// CI runs ci-safe tests: tests that do not require a backend to execute against.
+func (Test) CI(coverage *bool) error {
+	o, err := runCITests(coverage)
+	printResults("CI tests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
+	}
+	return nil
+}
+
+func runCITests(coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	verboseln(mid("Running CI tests..."))
+	_, err := sh.Exec(nil, &sb, &sb, "go", "test", "-race", "-vet=all", "-tags=ci", "./...")
+	return sb.String(), err
+}
+
+// TeaTests runs tests that rely on TeaTest and golden files (currently just DataScope tests).
+// These are run without -race.
+func (Test) TeaTests(coverage *bool) error {
+	o, err := runTeaTests(coverage)
+	printResults("TeaTests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
+	}
+	return nil
+}
+
+func runTeaTests(coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
+	// These files should have the !race build condition, omitting them from normal processing.
+	args := []string{"test", "-vet=all"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./tree/query/datascope")
+	verboseln(mid("Running TeaTests..."))
+	_, err := sh.Exec(nil, &sb, &sb, "go", args...)
+	return sb.String(), err
+}
+
+func (Test) NoCI(server string, coverage *bool) error {
+	o, err := runNoCITests(server, coverage)
+	printResults("NoCI tests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
+	}
+	return nil
+}
+
+func runNoCITests(server string, coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	verboseln(mid("Running NoCI tests against " + server + "..."))
+	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb, "go", "test", "-race", "-vet=all", "-tags=noci", "./...")
+	return sb.String(), err
+}
+
+func (Test) Integration(server string, coverage *bool) error {
+	o, err := runIntegrationTests(server, coverage)
+	printResults("Integration tests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
+	}
+	return nil
+}
+
+func runIntegrationTests(server string, coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	if err := build("./gwcli"); err != nil {
+		fmt.Fprintf(&sb, "failed to build binary: %v\n", err)
+		//"Integration tests will be skipped.", err)
+		return sb.String(), errors.New("failed to build binary")
+	}
+	verboseln(mid("Running integration tests against " + server + "..."))
+	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb,
+		"go", "test", "-race", "-vet=all", "-count=1", "-tags=integration", "./integration_noci_test.go", "-args", "-binary=./gwcli",
+	)
+	return sb.String(), err
+
+}
+
+// All runs all gwcli tests.
 // If run with -v or an error occurs, prints outcome to stdout.
 // NoCI and integration tests will be skipped if -server is not provided.
-func TestAll(server *string, cover *bool) error {
-	var (
-		baseArgs                              = []string{"test", "-race", "-vet=all"}
-		ciOut, ttOut, nociOut, integrationOut strings.Builder
-		ciErr, ttErr, nociErr, integrationErr error
-	)
-	if cover != nil && *cover {
+func (Test) All(server *string, coverage *bool) error {
+	var baseArgs = []string{"test", "-race", "-vet=all"}
+
+	if coverage != nil && *coverage {
 		baseArgs = append(baseArgs, "-cover")
 	}
 
@@ -150,44 +231,23 @@ func TestAll(server *string, cover *bool) error {
 			return errors.New("-server must be a valid url, likely akin to \"localhost:80\"")
 		}
 	}
-	// run ci tests
-	verboseln(mid("Running CI tests..."))
-	_, ciErr = sh.Exec(nil, &ciOut, &ciOut, "go", append(baseArgs, "-tags=ci", "./...")...)
-	// run tea tests
-	{
-		// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
-		// These files should have the !race build condition, omitting them from normal processing.
-		args := []string{"test", "-vet=all"}
-		if cover != nil && *cover {
-			args = append(args, "-cover")
-		}
-		args = append(args, "./tree/query/datascope")
-		verboseln(mid("Running TeaTests..."))
-		_, ttErr = sh.Exec(nil, &ttOut, &ttOut, "go", args...)
-	}
-
+	ciOut, ciErr := runCITests(coverage)
+	ttOut, ttErr := runTeaTests(coverage)
+	var (
+		nociOut, integrationOut string
+		nociErr, integrationErr error
+	)
 	if server != nil { // run noci tests
-		verboseln(mid("Running NoCI tests against " + *server + "..."))
-		_, nociErr = sh.Exec(map[string]string{testsupport.ENV_SERVER: *server}, &nociOut, &nociOut, "go", append(baseArgs, "-tags=noci", "./...")...)
-
-		if err := build("./gwcli"); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to build binary: %v\n"+
-				"Integration tests will be skipped.", err)
-			integrationErr = errors.New("failed to build binary")
-		} else {
-			verboseln(mid("Running integration tests against " + *server + "..."))
-			_, integrationErr = sh.Exec(map[string]string{testsupport.ENV_SERVER: *server}, &integrationOut, &integrationOut, "go",
-				append(baseArgs, "-tags=integration", "./integration_noci_test.go", "-args", "-binary=./gwcli")...)
-		}
-
+		nociOut, nociErr = runNoCITests(*server, coverage)
+		integrationOut, integrationErr = runIntegrationTests(*server, coverage)
 	}
 
 	// output results
-	printResults("CI tests", ciErr, ciOut.String())
-	printResults("TeaTests", ttErr, ttOut.String())
+	printResults("CI tests", ciErr, ciOut)
+	printResults("TeaTests", ttErr, ttOut)
 	if server != nil {
-		printResults("NoCI tests", nociErr, nociOut.String())
-		printResults("Integration tests", integrationErr, integrationOut.String())
+		printResults("NoCI tests", nociErr, nociOut)
+		printResults("Integration tests", integrationErr, integrationOut)
 	}
 	if ciErr != nil || ttErr != nil || nociErr != nil || integrationErr != nil {
 		return errors.New("some tests failed")
