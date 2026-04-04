@@ -83,7 +83,7 @@ func init() {
 // If not set, running mage will list available targets
 //var Default = Build
 
-// Build compiles gwcli.
+// Build the gwcli binary.
 // -target defaults to ./gwcli.
 func Build(target *string) error {
 	o := "./gwcli"
@@ -133,7 +133,7 @@ func Vet() error {
 
 type Test mg.Namespace
 
-// CI runs ci-safe tests: tests that do not require a backend to execute against.
+// CI runs tests that do not require a backend to execute against.
 func (Test) CI(coverage *bool) error {
 	o, err := runCITests(coverage)
 	printResults("CI tests", err, o)
@@ -150,8 +150,7 @@ func runCITests(coverage *bool) (combinedOut string, _ error) {
 	return sb.String(), err
 }
 
-// TeaTests runs tests that rely on TeaTest and golden files (currently just DataScope tests).
-// These are run without -race.
+// TeaTests runs tests that rely on TeaTest and golden files.
 func (Test) TeaTests(coverage *bool) error {
 	o, err := runTeaTests(coverage)
 	printResults("TeaTests", err, o)
