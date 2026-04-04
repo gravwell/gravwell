@@ -113,20 +113,16 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	// generate an API token with all capabilities we can provide to our tests
-	caps, err := client.CapabilityList()
+	caps, err := client.TokenCapabilities()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to retrieve capabilities list: %v\n", err)
 		os.Exit(1)
-	}
-	set := make([]string, len(caps))
-	for i, cap := range caps {
-		set[i] = cap.Name
 	}
 	tkn, err := client.CreateToken(types.TokenCreate{
 		Name:         "integration_test_login_token",
 		Description:  "grants all capabilities",
 		ExpiresAt:    time.Now().Add(time.Hour),
-		Capabilities: set,
+		Capabilities: caps,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to generate full admin token: %v\n", err)
