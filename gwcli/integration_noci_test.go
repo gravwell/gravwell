@@ -32,6 +32,7 @@ import (
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 )
 
 /* // TODO remove me?
@@ -74,12 +75,21 @@ do not account for parallelism at a test level
 	"github.com/gravwell/gravwell/v4/utils/weave"
 )*/
 
+type authMethod uint
+
+const (
+	admin_u_p authMethod = iota // login with admin username and password
+	api                         // login with the api token
+)
+
 // All of these are set by Main.
 var (
-	serverString  string
-	binaryPath    string
-	metaArguments []string
-	client        *grav.Client
+	serverString string
+	tCfgDir      string // path to the temporary config dir
+	binaryPath   string
+	argMetaBase  []string // basic arguments passed to every command (server, no-interactive, insecure)
+	argAPI       string   // --api argument
+	client       *grav.Client
 )
 
 func init() {
@@ -130,10 +140,17 @@ func TestMain(m *testing.M) {
 	}
 
 	// compose meta args
-	metaArguments = []string{"--server=" + serverString,
+	argMetaBase = []string{"--server=" + serverString,
 		"--insecure",
 		"-x",
-		"--api=" + tkn.Value,
+	}
+	argAPI = "--api=" + tkn.Value
+
+	// set up the configuration directory
+	tCfgDir, err = os.MkdirTemp("", "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to generate temporary config directory: %v\n", err)
+		os.Exit(1)
 	}
 
 	os.Exit(m.Run())
@@ -147,8 +164,12 @@ func TestSelfSessionsMatchAdminSessions(t *testing.T) {
 	)
 	var wg sync.WaitGroup
 	columnsArg := "--columns=UID,ID" // declare consistent columns
-	wg.Go(func() { selfOut, selfErr = execute(t, "self", "sessions", "--csv", columnsArg) })
-	wg.Go(func() { adminOut, adminErr = execute(t, "admin", "users", "sessions", "--csv", columnsArg, "1") })
+	wg.Go(func() {
+		selfOut, selfErr = execute(t, admin_u_p, "self", "sessions", "--csv", columnsArg)
+	})
+	wg.Go(func() {
+		adminOut, adminErr = execute(t, admin_u_p, "admin", "users", "sessions", "--csv", columnsArg, "1")
+	})
 	wg.Wait()
 
 	// both stderrs should be empty
@@ -187,11 +208,25 @@ func TestSelfSessionsMatchAdminSessions(t *testing.T) {
 }
 
 // Fatal if the run fails.
-func execute(t *testing.T, args ...string) (stdout, stderr string) {
+func execute(t *testing.T, authMethod authMethod, args ...string) (stdout, stderr string) {
+	var (
+		metaArgs = argMetaBase
+		env      = []string{cfgdir.EnvCfgDir + "=" + tCfgDir}
+	)
+	switch authMethod {
+	case admin_u_p:
+		metaArgs = append(metaArgs, "-u=admin")
+		env = append(env, "GRAVWELL_PASSWORD=changeme")
+	case api:
+		metaArgs = append(metaArgs, argAPI)
+	}
+
 	var sbOut, sbErr strings.Builder
-	cmd := exec.CommandContext(t.Context(), binaryPath, append(metaArguments, args...)...)
+	cmd := exec.CommandContext(t.Context(), binaryPath, append(metaArgs, args...)...)
 	cmd.Stdout = &sbOut
 	cmd.Stderr = &sbErr
+	cmd.Env = env
+	t.Log(cmd.String())
 	if err := cmd.Run(); err != nil {
 		t.Log("failed to execute binary: ", err)
 		t.Log("STDERR: ", sbErr.String())
