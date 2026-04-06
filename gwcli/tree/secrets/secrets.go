@@ -97,12 +97,11 @@ func create() action.Pair {
 		"name": scaffoldcreate.FieldName("secret"),
 		"desc": scaffoldcreate.FieldDescription("secret"),
 		"value": scaffoldcreate.Field{
-			Required:      true,
-			Title:         "Value",
-			Usage:         "the secret itself",
-			Type:          scaffoldcreate.Text,
-			FlagShorthand: 'v',
-			Order:         80,
+			Required: true,
+			Title:    "Value",
+			Flag:     scaffoldcreate.FlagConfig{Usage: "the secret itself", Shorthand: 'v'},
+			Type:     scaffoldcreate.Text,
+			Order:    80,
 		},
 		"labels": scaffoldcreate.FieldLabels(),
 	}

@@ -113,19 +113,17 @@ const ( // field keys
 func create() action.Pair {
 	fields := scaffoldcreate.Config{
 		createQryKey: scaffoldcreate.Field{
-			Required:      true,
-			Title:         "query",
-			Usage:         "query to schedule",
-			Type:          scaffoldcreate.Text,
-			FlagShorthand: 'q',
-			Order:         150,
+			Required: true,
+			Title:    "query",
+			Flag:     scaffoldcreate.FlagConfig{Usage: "query to schedule", Shorthand: 'q'},
+			Type:     scaffoldcreate.Text,
+			Order:    150,
 		},
 		createDurationKey: scaffoldcreate.Field{
 			Required:         true,
 			Title:            "duration",
-			Usage:            "the time span the query will look back over",
+			Flag:             scaffoldcreate.FlagConfig{Name: "duration", Usage: "the time span the query will look back over"},
 			Type:             scaffoldcreate.Text,
-			FlagName:         "duration",
 			Order:            140,
 			CustomTIFuncInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
 		},
@@ -135,10 +133,9 @@ func create() action.Pair {
 		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
 			Required:     true,
 			Title:        "frequency",
-			Usage:        ft.Frequency.Usage(),
+			Flag:         scaffoldcreate.FlagConfig{Name: ft.Frequency.Name(), Usage: ft.Frequency.Usage()},
 			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Frequency.Name(), // custom flag name
-			DefaultValue: "",                  // no default value
+			DefaultValue: "",  // no default value
 			Order:        50,
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)

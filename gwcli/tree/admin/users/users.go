@@ -123,21 +123,21 @@ func create() action.Pair {
 			"username": {
 				Required: true,
 				Title:    "Username",
-				Usage:    "unique username to assign",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "unique username to assign"},
 				Type:     scaffoldcreate.Text,
 				Order:    200,
 			},
 			"name": {
 				Required: true,
 				Title:    "Name",
-				Usage:    "actual name of the user",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "actual name of the user"},
 				Type:     scaffoldcreate.Text,
 				Order:    180,
 			},
 			"email": {
 				Required: true,
 				Title:    "Email",
-				Usage:    "email associated to this user",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "email associated to this user"},
 				Type:     scaffoldcreate.Text,
 				Order:    160,
 			},
@@ -145,7 +145,7 @@ func create() action.Pair {
 			"password": {
 				Required: true,
 				Title:    "Password",
-				Usage:    "initial password for the user",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "initial password for the user"},
 				Type:     scaffoldcreate.Text,
 				Order:    140,
 				CustomTIFuncInit: func() textinput.Model {
