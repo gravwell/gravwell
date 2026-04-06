@@ -47,3 +47,11 @@ func InteractivityNYI() tea.Cmd {
 func SuccessfullyCreatedItem(itemSingular string, ID string) string {
 	return "successfully created " + itemSingular + " (ID: " + ID + ")"
 }
+
+// NounNumerosity is basically a ternary shorthand for picking singular or plural based on if count==1.
+func NounNumerosity(count int, singularForm, pluralForm string) string {
+	if count == 1 {
+		return singularForm
+	}
+	return pluralForm
+}
