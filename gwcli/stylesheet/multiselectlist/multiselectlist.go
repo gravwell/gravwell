@@ -16,6 +16,7 @@ package multiselectlist
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -162,6 +163,36 @@ func (msl *Model) GetSelectedItems() []list.DefaultItem {
 
 	}
 	return slices.Clip(sel)
+}
+
+// SelectItems selects each item with a title in toSelect.
+// Returns the first item with no matches.
+//
+// Operates in O(toSelect * len(msl)) time.
+func (msl *Model) SelectItems(toSelect []string) (cmd tea.Cmd, notFound string) {
+	// TODO when we replace DefaultList, would be nice to have a UniqueIdentifier field in the delegate we match against instead.
+
+	var cmds []tea.Cmd
+	itms := msl.Items()
+	for _, sel := range toSelect {
+		found := false
+		for i, itm := range itms {
+			selectable, ok := itm.(selectableItem)
+			if !ok {
+				panicFailedAssert(itm)
+			}
+			if strings.ToLower(selectable.Title()) == sel {
+				selectable.selected = true
+				// reinsert the item
+				cmds = append(cmds, msl.Model.SetItem(i, selectable))
+				found = true
+			}
+		}
+		if !found {
+			return nil, sel
+		}
+	}
+	return tea.Batch(cmds...), ""
 }
 
 //#region selectable item
