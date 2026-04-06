@@ -241,6 +241,9 @@ func (Test) All(server *string, coverage *bool) error {
 	if server != nil {
 		printResults("NoCI tests", nociErr, nociOut)
 		printResults("Integration tests", integrationErr, integrationOut)
+	} else {
+		verboseln(strings.Repeat(" ", pad-len("NoCI tests")) + "NoCI tests " + mid("skipped"))
+		verboseln(strings.Repeat(" ", pad-len("Integration tests")) + "Integration tests " + mid("skipped"))
 	}
 	if ciErr != nil || ttErr != nil || nociErr != nil || integrationErr != nil {
 		return errors.New("some tests failed")
