@@ -128,7 +128,13 @@ func create() action.Pair {
 			}
 
 			if caps, found := fieldValues["capabilities"]; found && strings.TrimSpace(caps) != "" {
-				tc.Capabilities = strings.Split(strings.TrimSpace(caps), ",")
+				raw := strings.Split(strings.TrimSpace(caps), ",")
+				tc.Capabilities = make([]string, 0, len(raw))
+				for _, c := range raw {
+					if trimmed := strings.TrimSpace(c); trimmed != "" {
+						tc.Capabilities = append(tc.Capabilities, trimmed)
+					}
+				}
 			}
 
 			if exp, found := fieldValues["expires"]; found && strings.TrimSpace(exp) != "" {
