@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -69,19 +70,13 @@ func list() action.Pair {
 }
 
 func get() action.Pair {
+	var tokens []types.Token // tokens for the current run; reset by ValidateArgs
 	return scaffoldlist.NewListAction(
 		"get token details",
 		"Retrieves details about specified tokens, based on list of IDs provided as arguments.",
 		types.Token{},
 		func(fs *pflag.FlagSet) ([]types.Token, error) {
-			var tokens []types.Token
-			for _, id := range fs.Args() {
-				t, err := connection.Client.GetToken(id)
-				if err != nil {
-					return nil, fmt.Errorf("failed to get token %v: %w", id, err)
-				}
-				tokens = append(tokens, t)
-			}
+
 			return tokens, nil
 		},
 		scaffoldlist.Options{
@@ -90,8 +85,20 @@ func get() action.Pair {
 				c.Example = "get ID1 ID2"
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				tokens = []types.Token{} // clear cache
 				if len(fs.Args()) < 1 {
 					return "you must provide at least one token ID", nil
+				}
+				// fetch and cache the tokens
+				for _, id := range fs.Args() {
+					t, err := connection.Client.GetToken(id)
+					if err != nil {
+						if errors.Is(err, client.ErrNotFound) || strings.Contains(err.Error(), "Not Found") {
+							return "unknown token ID: " + id, nil
+						}
+						return "", fmt.Errorf("failed to get token %v: %w", id, err)
+					}
+					tokens = append(tokens, t)
 				}
 				return "", nil
 			},
@@ -240,9 +247,9 @@ func regenerate() action.Pair {
 				}
 				tf, err := connection.Client.RegenToken(data.ID, tr)
 				if err != nil {
-					return data.ID, err
+					return "", err
 				}
-				return tf.ID, nil
+				return fmt.Sprintf("%s(full token:%s)", tf.ID, tf.Value), nil
 			},
 		},
 	)
