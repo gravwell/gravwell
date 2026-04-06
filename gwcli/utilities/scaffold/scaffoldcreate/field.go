@@ -31,17 +31,23 @@ const (
 	File FieldType = "file" // takes a path as a string. In interactive mode, uses a pathtextinput.Model
 	// TODO add boolean, add label
 )
+// FlagConfig defines settings for customizing how the flag for this field is displayed and handled.
+type FlagConfig struct {
+	Name      string // Longform flag (ex: --flagname). Defaults to DeriveFlagName() if unset.
+	Usage     string // Description displayed with -h.
+	Shorthand rune   // Shortform flag (ex: -f). Omitted if unset.
+}
 
 // A Field defines a single data point that will be passed to the create function.
 type Field struct {
-	Required      bool      // this field must be populated prior to calling createFunc
-	Title         string    // field name displayed next to prompt and as flag name
-	Usage         string    // OPTIONAL. Flag usage displayed via -h
-	Type          FieldType // type of field, dictating how it is presented to the user
-	FlagName      string    // OPTIONAL. Defaults to DeriveFlagName() result.
-	FlagShorthand rune      // OPTIONAL. '-x' form of FlagName.
-	DefaultValue  string    // OPTIONAL. Default flag and TI value
-	Order         int       // OPTIONAL. Top-Down (highest to lowest) display order of this field.
+	Required     bool       // this field must be populated prior to calling createFunc
+	Title        string     // field name displayed next to prompt and as flag name // TODO remove
+	Type         FieldType  // type of field, dictating how it is presented to the user // TODO remove
+	Flag         FlagConfig // OPTIONAL. Control how this field's flag is handled.
+	DefaultValue string     // OPTIONAL. Default flag and TI value
+	Order        int        // OPTIONAL. Top-Down (highest to lowest) display order of this field.
+
+	Provider FieldProvider
 
 	// OPTIONAL. USED ONLY FOR TEXT TYPE.
 	// Called once, at program start to generate a TI instead of using a generalize newTI().
@@ -72,21 +78,21 @@ func (f *Field) Valid() error {
 func installFlagsFromFields(fields Config) pflag.FlagSet {
 	var flags pflag.FlagSet
 	for key, f := range fields {
-		if f.FlagName == "" {
-			f.FlagName = ft.DeriveFlagName(f.Title)
+		if f.Flag.Name == "" {
+			f.Flag.Name = ft.DeriveFlagName(f.Title)
 			fields[key] = f
 		}
 
 		// map fields to their flags
 		switch f.Type {
 		case Text, File:
-			if f.FlagShorthand != 0 {
-				flags.StringP(f.FlagName, string(f.FlagShorthand), f.DefaultValue, f.Usage)
+			if f.Flag.Shorthand != 0 {
+				flags.StringP(f.Flag.Name, string(f.Flag.Shorthand), f.DefaultValue, f.Flag.Usage)
 			} else {
 				flags.String(
-					f.FlagName,
+					f.Flag.Name,
 					f.DefaultValue, // default flag value
-					f.Usage)
+					f.Flag.Usage)
 			}
 		default:
 			clilog.Writer.Error("failed to install flag for field next input: unknown field type",
@@ -108,26 +114,26 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[string]string, missingRequireds []string, err error) {
 	fieldValues = make(map[string]string)
 	for key, f := range fields {
-		if f.FlagName == "" {
+		if f.Flag.Name == "" {
 			return nil, nil, fmt.Errorf("field %s has an empty flag name", key)
 		}
 		// if this value is required, but unset, add it to the list and move on.
 		// NOTE(rlandau): this uses fs.Changed(), which will fail default values.
 		// I am assuming that if you need a value, a default is irrelevant.
-		if f.Required && !fs.Changed(f.FlagName) {
-			missingRequireds = append(missingRequireds, f.FlagName)
+		if f.Required && !fs.Changed(f.Flag.Name) {
+			missingRequireds = append(missingRequireds, f.Flag.Name)
 			continue
 		}
 
 		switch f.Type {
 		case File:
-			v, err := fs.GetString(f.FlagName)
+			v, err := fs.GetString(f.Flag.Name)
 			if err != nil {
 				return nil, nil, err
 			}
 			fieldValues[key] = v
 		case Text:
-			v, err := fs.GetString(f.FlagName)
+			v, err := fs.GetString(f.Flag.Name)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -144,13 +150,15 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 // Order == 100.
 func FieldName(singular string) Field {
 	return Field{
-		Required:      true,
-		Title:         "name",
-		Usage:         ft.Name.Usage(singular),
-		Type:          Text,
-		FlagName:      ft.Name.Name(),
-		FlagShorthand: rune(ft.Name.Shorthand()[0]),
-		Order:         100,
+		Required: true,
+		Flag: FlagConfig{
+			Name:      ft.Name.Name(),
+			Usage:     ft.Name.Usage(singular),
+			Shorthand: rune(ft.Name.Shorthand()[0]),
+		},
+		Type:     Text,
+		Order:    100,
+		Provider: &TextProvider{Title: ft.Name.Name()},
 	}
 }
 
@@ -158,13 +166,15 @@ func FieldName(singular string) Field {
 // Order == 90.
 func FieldDescription(singular string) Field {
 	return Field{
-		Required:      false,
-		Title:         "description",
-		Usage:         ft.Description.Usage(singular),
-		Type:          Text,
-		FlagName:      ft.Description.Name(),
-		FlagShorthand: rune(ft.Description.Shorthand()[0]),
-		Order:         90,
+		Required: false,
+		Flag: FlagConfig{
+			Name:      ft.Description.Name(),
+			Usage:     ft.Description.Usage(singular),
+			Shorthand: rune(ft.Description.Shorthand()[0]),
+		},
+		Type:     Text,
+		Order:    90,
+		Provider: &TextProvider{Title: ft.Description.Name()},
 	}
 }
 
@@ -172,12 +182,15 @@ func FieldDescription(singular string) Field {
 // Order == 80.
 func FieldPath(singular string) Field {
 	return Field{
-		Required:      true,
-		Title:         ft.Path.Name(),
-		Usage:         ft.Path.Usage(singular),
-		Type:          File,
-		FlagShorthand: rune(ft.Path.Shorthand()[0]),
-		Order:         80,
+		Required: true,
+		Flag: FlagConfig{
+			Name:      ft.Path.Name(),
+			Usage:     ft.Path.Usage(singular),
+			Shorthand: rune(ft.Path.Shorthand()[0]),
+		},
+		Type:     File,
+		Order:    80,
+		Provider: &TextProvider{Title: ft.Path.Name()},
 	}
 }
 
@@ -186,15 +199,19 @@ func FieldPath(singular string) Field {
 func FieldLabels() Field {
 	return Field{
 		Required: false,
-		Title:    "Labels",
-		Usage:    "comma-separated list of labels to apply",
-		Type:     Text,
-		FlagName: "labels",
-		Order:    70,
-		CustomTIFuncInit: func() textinput.Model {
+		Flag: FlagConfig{
+			Name:  "labels",
+			Usage: "comma-separated list of labels to apply",
+		},
+		Type:  Text,
+		Order: 70,
+		Provider: &TextProvider{
+			Title: "Labels",
+			CustomInit: func() textinput.Model {
 			ti := stylesheet.NewTI("", true)
 			ti.Placeholder = "label1,label2,label3,..."
 			return ti
+			},
 		},
 	}
 }
@@ -204,18 +221,24 @@ func FieldLabels() Field {
 // Order == 50.
 func FieldFrequency() Field {
 	return Field{
-		Required:      true,
-		Title:         "Frequency",
-		Usage:         ft.Frequency.Usage(),
-		Type:          Text,
-		FlagName:      ft.Frequency.Name(),
-		FlagShorthand: rune(ft.Frequency.Shorthand()[0]),
-		Order:         50,
-		CustomTIFuncInit: func() textinput.Model {
+		Required: true,
+		Flag: FlagConfig{
+			Name:      ft.Frequency.Name(),
+			Usage:     ft.Frequency.Usage(),
+			Shorthand: rune(ft.Frequency.Shorthand()[0]),
+		},
+
+		Type: Text,
+
+		Order: 50,
+		Provider: &TextProvider{
+			Title: "Frequency",
+			CustomInit: func() textinput.Model {
 			ti := stylesheet.NewTI("", false)
 			ti.Placeholder = "* * * * *"
 			ti.Validate = uniques.CronRuneValidator
 			return ti
+			},
 		},
 	}
 }

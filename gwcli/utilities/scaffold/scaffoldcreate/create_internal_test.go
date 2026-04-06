@@ -195,8 +195,8 @@ func Test_Full(t *testing.T) {
 
 	cm := newCreateModel(
 		Config{
-			"A": Field{Required: true, Type: Text, Title: "A", FlagName: "a", Order: 100},
-			"B": Field{Required: false, Type: Text, Title: "B", FlagName: "b", Order: 50},
+			"A": Field{Required: true, Type: Text, Title: "A", Flag: FlagConfig{Name: "a"}, Order: 100},
+			"B": Field{Required: false, Type: Text, Title: "B", Flag: FlagConfig{Name: "b"}, Order: 50},
 		}, "test",
 		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var bln bool

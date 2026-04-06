@@ -128,8 +128,8 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 	// pull required flags from cfg to set usage
 	requiredFlags := make([]string, 0)
 	for _, v := range fields {
-		if v.Required && v.FlagName != "" {
-			txt := "--" + v.FlagName + "=" + ft.Mandatory("string")
+		if v.Required && v.Flag.Name != "" {
+			txt := "--" + v.Flag.Name + "=" + ft.Mandatory("string")
 			requiredFlags = append(requiredFlags, txt)
 		}
 	}

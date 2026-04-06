@@ -67,13 +67,15 @@ func TestOptions(t *testing.T) {
 			"name": scaffoldcreate.FieldName("test"),
 			"path": scaffoldcreate.FieldPath("test"),
 			"cust": { // converted into an int
-				Required:      false,
-				Title:         "customs",
-				Usage:         "customs usage",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "custom",
-				FlagShorthand: 'c',
-				Order:         1,
+				Required: false,
+				Title:    "customs",
+				Flag: scaffoldcreate.FlagConfig{
+					Name:      "custom",
+					Usage:     "customs usage",
+					Shorthand: 'c',
+				},
+				Type:  scaffoldcreate.Text,
+				Order: 1,
 			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
