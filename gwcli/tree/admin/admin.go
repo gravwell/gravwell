@@ -13,7 +13,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/groups"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/tokens"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -31,7 +30,6 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, []string{"administrator"},
 		[]*cobra.Command{
 			groups.NewNav(),
-			tokens.NewNav(),
 			users.NewNav(),
 		},
 		[]action.Pair{

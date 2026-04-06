@@ -48,6 +48,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/tokens"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -344,6 +345,7 @@ func Execute(args []string) int {
 		self.NewSelfNav,
 		systemshealth.NewSystemsNav,
 		templates.NewNav,
+		tokens.NewNav,
 	}
 
 	var (
