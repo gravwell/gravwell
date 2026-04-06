@@ -138,14 +138,12 @@ func create() action.Pair {
 			fieldKeyName: scaffoldcreate.FieldName("extractor"),
 			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
 			fieldKeyModule: scaffoldcreate.Field{
-				Required:      true,
-				Title:         "module",
-				Usage:         "extraction module to use. Call `extractors modules` to list available options.",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "module",
-				FlagShorthand: 'm',
-				DefaultValue:  "",
-				Order:         80,
+				Required:     true,
+				Title:        "module",
+				Flag:         scaffoldcreate.FlagConfig{Name: "module", Usage: "extraction module to use. Call `extractors modules` to list available options.", Shorthand: 'm'},
+				Type:         scaffoldcreate.Text,
+				DefaultValue: "",
+				Order:        80,
 				CustomTIFuncInit: func() textinput.Model {
 					ti := stylesheet.NewTI("", false)
 					ti.ShowSuggestions = true
@@ -162,13 +160,11 @@ func create() action.Pair {
 				},
 			},
 			fieldKeyTags: scaffoldcreate.Field{
-				Required:      true,
-				Title:         "tags",
-				Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "tags",
-				FlagShorthand: 't',
-				Order:         70,
+				Required: true,
+				Title:    "tags",
+				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: "tags this ax will extract from. There can only be one extractor per tag.", Shorthand: 't'},
+				Type:     scaffoldcreate.Text,
+				Order:    70,
 				CustomTIFuncInit: func() textinput.Model {
 					ti := stylesheet.NewTI("", false)
 					ti.Placeholder = "tag1,tag2,tag3"
@@ -189,21 +185,17 @@ func create() action.Pair {
 			fieldKeyParams: scaffoldcreate.Field{
 				Required: true,
 				Title:    "Params/regex",
-				Usage:    fieldUsageParams,
+				Flag:     scaffoldcreate.FlagConfig{Name: "params", Usage: fieldUsageParams},
 				Type:     scaffoldcreate.Text,
-				FlagName: "params",
-
-				Order: 60,
+				Order:    60,
 			},
 			fieldKeyArgs: scaffoldcreate.Field{
 				Required:     false,
 				Title:        "arguments/options",
-				Usage:        fieldUsageArgs,
+				Flag:         scaffoldcreate.FlagConfig{Name: "args", Usage: fieldUsageArgs},
 				Type:         scaffoldcreate.Text,
-				FlagName:     "args",
 				DefaultValue: "",
-
-				Order: 50,
+				Order:        50,
 			},
 			fieldKeyLabels: fLabels,
 		},

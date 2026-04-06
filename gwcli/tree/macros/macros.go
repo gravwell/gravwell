@@ -134,9 +134,8 @@ func create() action.Pair {
 		"exp": scaffoldcreate.Field{
 			Required:     true,
 			Title:        "expansion",
-			Usage:        FlagExpansionUsage,
+			Flag:         scaffoldcreate.FlagConfig{Name: FlagExpansion, Usage: FlagExpansionUsage},
 			Type:         scaffoldcreate.Text,
-			FlagName:     FlagExpansion,
 			DefaultValue: "",
 			Order:        80,
 		},

@@ -72,13 +72,11 @@ func importCreate() action.Pair {
 			"frequency": scaffoldcreate.FieldFrequency(),
 			"path":      scaffoldcreate.FieldPath("file containing a flow in JSON form"),
 			"groups": scaffoldcreate.Field{
-				Required:      false,
-				Title:         "Groups",
-				Usage:         "comma-separated list of group IDs this flow is accessible to",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "groups",
-				FlagShorthand: 'g',
-				Order:         40,
+				Required: false,
+				Title:    "Groups",
+				Flag:     scaffoldcreate.FlagConfig{Name: "groups", Usage: "comma-separated list of group IDs this flow is accessible to", Shorthand: 'g'},
+				Type:     scaffoldcreate.Text,
+				Order:    40,
 				CustomTIFuncInit: func() textinput.Model {
 					ti := stylesheet.NewTI("", true)
 					ti.Validate = func(s string) error { // returns on first error
