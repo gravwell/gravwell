@@ -84,9 +84,17 @@ func get() action.Pair {
 		scaffoldlist.Options{
 			Use: "get",
 			Pretty: func(fs *pflag.FlagSet) (string, error) {
+				// find the longest ID to use as the width
+				var longestIDLen int
+				for _, tkn := range tokens {
+					if l := len(tkn.ID); l > longestIDLen {
+						longestIDLen = l
+					}
+				}
+
 				var sb strings.Builder
 				for _, tkn := range tokens {
-					sb.WriteString(prettyToken(tkn))
+					sb.WriteString(prettyToken(tkn, longestIDLen))
 				}
 				return sb.String(), nil
 			},
@@ -116,10 +124,9 @@ func get() action.Pair {
 
 // prettyTokens pretty-prints the given token and returns it.
 // Tokens are printed using the segmented border helper.
-func prettyToken(t types.Token) string {
+func prettyToken(t types.Token, longestIDLen int) string {
 	const (
 		fieldWidth = 12
-		width      = 60
 	)
 
 	var identitySb strings.Builder
@@ -183,7 +190,7 @@ func prettyToken(t types.Token) string {
 
 	s, err := stylesheet.SegmentedBorder(
 		stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()),
-		width,
+		fieldWidth+longestIDLen+3,
 		sections...,
 	)
 	if err != nil {
