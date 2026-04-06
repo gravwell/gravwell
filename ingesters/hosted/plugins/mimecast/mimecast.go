@@ -114,6 +114,7 @@ func (m *Mimecast) Run(ctx context.Context, rt hosted.Runtime) error {
 }
 
 func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
+	api := log.KV("api", AuditApi)
 	tag, err := rt.NegotiateTag(m.tag(AuditApi))
 	if err != nil {
 		return err
@@ -121,7 +122,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 	for !rt.Sleep(m.interval) {
 		cursor, lts, err := m.get(rt, AuditApi, m.start)
 		if err != nil {
-			rt.Error("error getting storage data", log.KVErr(err))
+			rt.Error("error getting storage data", api, log.KVErr(err))
 			continue
 		}
 
@@ -129,20 +130,19 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 
 		ts := time.Now()
 		if cursor != "" {
-			rt.Debug("fetching next page of events", log.KV("api", AuditApi))
+			rt.Debug("fetching next page of events", api)
 		} else {
-			rt.Debug("fetching events between", log.KV("api", AuditApi), log.KV("start", lts), log.KV("end", ts))
+			rt.Debug("fetching events between", api, log.KV("start", lts), log.KV("end", ts))
 		}
 		r, err := m.c.GetRawAuditEvents(ctx, tr, cursor)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
-				rt.Error("request error", log.KV("api", AuditApi), log.KVErr(err))
+				rt.Error("request error", api, log.KVErr(err))
 			}
 			continue
 		}
 
-		last := tr.Start
-		rt.Debug("got events", log.KV("api", AuditApi), log.KV("count", len(r.Data)))
+		rt.Debug("got events", api, log.KV("count", len(r.Data)))
 		for _, d := range r.Data {
 			data, err := parse[AuditData](bytes.NewReader(d))
 			if err != nil {
@@ -151,7 +151,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			}
 			ets, err := time.Parse(AuditTimeFormat, data.EventTime)
 			if err != nil {
-				rt.Error("error parsing time for event", log.KVErr(err))
+				rt.Error("error parsing time for event", api, log.KVErr(err))
 				continue
 			}
 			e := entry.Entry{
@@ -161,20 +161,17 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			}
 			err = rt.Write(e)
 			if err != nil {
-				rt.Error("error writing entry", log.KV("api", "audit"), log.KVErr(err))
+				rt.Error("error writing entry", api, log.KVErr(err))
 				continue
 			}
-			if ets.After(last) {
-				last = ets
-			}
-			rt.Debug("wrote audit entry", log.KV("ts", e.TS))
+			rt.Debug("wrote audit entry", api, log.KV("ts", e.TS))
 		}
 
 		rt.PutString(m.cursor(AuditApi), r.Meta.Pagination.Next)
 		// don't advance time until we process the entire timespan
-		if len(r.Data) > 0 {
-			rt.Debug("no more pages, moving forward in time", log.KV("api", AuditApi), log.KV("to", last))
-			rt.PutTime(m.timestamp(AuditApi), last)
+		if len(r.Data) == 0 {
+			rt.Debug("moving forward in time", api, log.KV("to", tr.End))
+			rt.PutTime(m.timestamp(AuditApi), tr.End)
 		}
 
 	}
