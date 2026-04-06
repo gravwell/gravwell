@@ -218,12 +218,6 @@ func runIntegrationTests(server string, coverage *bool) (combinedOut string, _ e
 // If run with -v or an error occurs, prints outcome to stdout.
 // NoCI and integration tests will be skipped if -server is not provided.
 func (Test) All(server *string, coverage *bool) error {
-	var baseArgs = []string{"test", "-race", "-vet=all"}
-
-	if coverage != nil && *coverage {
-		baseArgs = append(baseArgs, "-cover")
-	}
-
 	// validate server, if given
 	if server != nil {
 		if *server = strings.TrimSpace(*server); *server == "" {
@@ -279,8 +273,11 @@ func printResults(prefix string, err error, stdout string) {
 // If an error occurs, it will immediately stop processing if !dryrun.
 func Clean(dryrun bool) (err error) {
 	if dryrun {
+		oldVerbose, _ := os.LookupEnv(mg.VerboseEnv)
 		if err := os.Setenv(mg.VerboseEnv, "1"); err != nil {
 			fmt.Println("failed to imply verbose from dryrun: ", err)
+		} else {
+			defer os.Setenv(mg.VerboseEnv, oldVerbose)
 		}
 	}
 
