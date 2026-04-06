@@ -123,14 +123,15 @@ const (
 )
 
 type ResultsRequest struct {
-	BinCount int         `json:"binCount,omitempty"`
-	BinWidth float64     `json:"binWidth,omitempty"`
-	End      time.Time   `json:"end,omitempty"`
-	Limit    uint64      `json:"limit,omitempty"`
-	Offset   uint64      `json:"offset,omitempty"`
-	Sort     ResultsSort `json:"sort,omitempty"`
-	Start    time.Time   `json:"start,omitempty"`
-	SID      string      `json:"sid"`
+	Fence    Geofence      `json:"fence,omitempty"`
+	BinCount int           `json:"binCount,omitempty"`
+	BinWidth float64       `json:"binWidth,omitempty"`
+	End      time.Time     `json:"end,omitempty"`
+	Limit    uint64        `json:"limit,omitempty"`
+	Offset   uint64        `json:"offset,omitempty"`
+	Sort     []ResultsSort `json:"sort,omitempty"`
+	Start    time.Time     `json:"start,omitempty"`
+	SID      string        `json:"sid"`
 }
 
 type ResultsSort struct {
