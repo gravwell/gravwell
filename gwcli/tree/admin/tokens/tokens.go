@@ -18,7 +18,9 @@ import (
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -81,6 +83,13 @@ func get() action.Pair {
 		},
 		scaffoldlist.Options{
 			Use: "get",
+			Pretty: func(fs *pflag.FlagSet) (string, error) {
+				var sb strings.Builder
+				for _, tkn := range tokens {
+					sb.WriteString(prettyToken(tkn))
+				}
+				return sb.String(), nil
+			},
 			CmdMods: func(c *cobra.Command) {
 				c.Example = "get ID1 ID2"
 			},
@@ -103,6 +112,85 @@ func get() action.Pair {
 				return "", nil
 			},
 		})
+}
+
+// prettyTokens pretty-prints the given token and returns it.
+// Tokens are printed using the segmented border helper.
+func prettyToken(t types.Token) string {
+	const (
+		fieldWidth = 12
+		width      = 60
+	)
+
+	var identitySb strings.Builder
+	identitySb.WriteString(stylesheet.Cur.Field("ID", fieldWidth) + t.ID + "\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Name", fieldWidth) + t.Name + "\n")
+	if t.Description != "" {
+		identitySb.WriteString(stylesheet.Cur.Field("Description", fieldWidth) + t.Description + "\n")
+	}
+	identitySb.WriteString(stylesheet.Cur.Field("Owner", fieldWidth) + fmt.Sprintf("%v", t.Owner.Name) + "\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Created", fieldWidth) + t.CreatedAt.Format("2006-01-02 15:04:05 UTC") + "\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Updated", fieldWidth) + t.UpdatedAt.Format("2006-01-02 15:04:05 UTC"))
+
+	var expirySb strings.Builder
+	expirySb.WriteString(stylesheet.Cur.Field("Expires", fieldWidth) + t.ExpiresString())
+	if t.Expired() {
+		expirySb.WriteString(" " + stylesheet.Cur.ErrorText.Render("(EXPIRED)"))
+	} else if !t.ExpiresAt.IsZero() {
+		expirySb.WriteString(" " + stylesheet.Cur.SecondaryText.Render("(active)"))
+	}
+
+	var capsSb strings.Builder
+	if len(t.Capabilities) == 0 {
+		capsSb.WriteString(stylesheet.Cur.TertiaryText.Render("(none)"))
+	} else {
+		for i, cap := range t.Capabilities {
+			capsSb.WriteString(stylesheet.Cur.PrimaryText.Render(cap))
+			if i < len(t.Capabilities)-1 {
+				capsSb.WriteString("\n")
+			}
+		}
+	}
+
+	type section = struct {
+		StylizedTitle string
+		Contents      string
+	}
+
+	sectionHeader := func(str string) string {
+		return stylesheet.Cur.TertiaryText.Bold(true).Render(str)
+	}
+	subSectionHeader := func(str string) string {
+		return stylesheet.Cur.SecondaryText.Bold(true).Render(str)
+	}
+
+	sections := []section{
+		{StylizedTitle: sectionHeader(" " + t.Name + " ")},
+		{StylizedTitle: " " + subSectionHeader("Identity") + " ", Contents: identitySb.String()},
+		{StylizedTitle: " " + subSectionHeader("Expiry") + " ", Contents: expirySb.String()},
+		{
+			StylizedTitle: " " + subSectionHeader(fmt.Sprintf("Capabilities[%d]", len(t.Capabilities))) + " ",
+			Contents:      capsSb.String(),
+		},
+	}
+
+	if len(t.Labels) > 0 {
+		sections = append(sections, section{
+			StylizedTitle: " " + subSectionHeader("Labels") + " ",
+			Contents:      stylesheet.Cur.TertiaryText.Render(strings.Join(t.Labels, ", ")),
+		})
+	}
+
+	s, err := stylesheet.SegmentedBorder(
+		stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()),
+		width,
+		sections...,
+	)
+	if err != nil {
+		clilog.Writer.Warnf("failed to generate token view: %v", err)
+		return "failed to display token"
+	}
+	return s
 }
 
 func create() action.Pair {
