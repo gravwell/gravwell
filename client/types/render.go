@@ -122,15 +122,23 @@ const (
 	TransformOperatorUniqueCount TransformOperator = "unique_count"
 )
 
-type ResultsOptions struct {
-	Fence    Geofence
-	BinCount int               `json:"binCount,omitempty"`
-	BinWidth int               `json:"binWidth,omitempty"`
-	Op       string            `json:"op,omitempty"`
-	Sort     []string          `json:"sort,omitempty"`
-	Operator TransformOperator `json:"operator,omitempty"`
-	Operand  string            `json:"operand,omitempty"`
-	Keys     []string          `json:"keys,omitempty"`
+type ResultsRequest struct {
+	BinCount int         `json:"binCount,omitempty"`
+	BinWidth float64     `json:"binWidth,omitempty"`
+	End      time.Time   `json:"end,omitempty"`
+	Limit    uint64      `json:"limit,omitempty"`
+	Offset   uint64      `json:"offset,omitempty"`
+	Sort     ResultsSort `json:"sort,omitempty"`
+	Start    time.Time   `json:"start,omitempty"`
+	SID      string      `json:"sid"`
+}
+
+type ResultsSort struct {
+	Column string `json:"column"`
+	// One of "asc" | "desc"
+	Direction string `json:"direction,omitempty"`
+	// One of "string" | "number" | "IP" | "time"
+	SortAs string `json:"sortAs,omitempty"`
 }
 
 // ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
@@ -143,7 +151,7 @@ type ResultsTable struct {
 	Kind             string                         `json:"kind"`
 	BinCount         int                            `json:"binCount"`
 	BinWidth         float64                        `json:"binWidth"`
-	Columns          []string                       `json:"columns"`
+	Columns          []ResultsEvDescription         `json:"columns"`
 	Rows             []map[string]*ResultsTableCell `json:"rows"`
 	TotalResultCount int                            `json:"totalResultCount"`
 }
@@ -157,11 +165,11 @@ type ResultsTableCell struct {
 }
 
 type ResultsGraph struct {
-	Kind                     string             `json:"kind"`
-	Links                    []ResultsGraphLink `json:"links"`
-	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
-	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
-	Nodes                    []ResultsGraphNode `json:"nodes"`
+	Kind                     string                 `json:"kind"`
+	Links                    []ResultsGraphLink     `json:"links"`
+	NodeEnumeratedValueNames []ResultsEvDescription `json:"nodeEnumeratedValueNames"`
+	LinkEnumeratedValueNames []ResultsEvDescription `json:"linkEnumeratedValueNames"`
+	Nodes                    []ResultsGraphNode     `json:"nodes"`
 }
 
 type ResultsGraphLink struct {
@@ -185,6 +193,12 @@ type EntryRange struct {
 	EndTS   entry.Timestamp `json:",omitempty"`
 	First   uint64
 	Last    uint64
+}
+
+type ResultsEvDescription struct {
+	// one of "string" | "number" | "IP" | "time" | "location"
+	GuessedType string `json:"guessedType"`
+	Name        string `json:"name"`
 }
 
 // BaseRequest contains elements common to all renderer requests.
