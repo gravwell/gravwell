@@ -77,13 +77,6 @@ func importCreate() action.Pair {
 				Flag:     scaffoldcreate.FlagConfig{Name: "groups", Usage: "comma-separated list of group IDs this flow is accessible to", Shorthand: 'g'},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
-						// refresh cached group IDs at initialization time
-						gm, err := connection.Client.GetGroupMap()
-						if err != nil {
-							clilog.Writer.Warnf("failed to cache group IDs: %v", err)
-						}
-						validGIDs = gm
-
 						ti := stylesheet.NewTI("", true)
 						ti.Validate = func(s string) error { // returns on first error
 							for strGID := range strings.SplitSeq(s, ",") {
@@ -107,6 +100,15 @@ func importCreate() action.Pair {
 							return nil
 						}
 						ti.Placeholder = "1,2,5,3,..."
+						return ti
+					},
+					CustomSetArgs: func(ti textinput.Model) textinput.Model {
+						// refresh cached group IDs at each invocation
+						gm, err := connection.Client.GetGroupMap()
+						if err != nil {
+							clilog.Writer.Warnf("failed to cache group IDs: %v", err)
+						}
+						validGIDs = gm
 						return ti
 					},
 				},

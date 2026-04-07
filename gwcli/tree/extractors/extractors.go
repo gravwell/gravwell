@@ -145,6 +145,9 @@ func create() action.Pair {
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
 						ti.ShowSuggestions = true
+						return ti
+					},
+					CustomSetArgs: func(ti textinput.Model) textinput.Model {
 						if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
 							clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
 						} else if len(engines) > 0 {
@@ -165,8 +168,12 @@ func create() action.Pair {
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
 						ti.Placeholder = "tag1,tag2,tag3"
+						return ti
+					},
+					CustomSetArgs: func(ti textinput.Model) textinput.Model {
 						if tags, err := connection.Client.GetTags(); err != nil {
 							clilog.Writer.Warnf("failed to fetch tags: %v", err)
+							ti.ShowSuggestions = false
 						} else {
 							ti.ShowSuggestions = true
 							ti.SetSuggestions(tags)
