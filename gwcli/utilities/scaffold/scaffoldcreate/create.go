@@ -76,6 +76,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -404,48 +405,6 @@ func (c *createModel) focusInput(focus bool) {
 	}
 	key := c.inputs.ordered[c.inputs.selected]
 	c.fields[key].Provider.ToggleFocus(focus)
-}
-
-// Generates the corollary value map from the inputs.
-//
-// Returns:
-//
-// - key -> input value
-//
-// - a list of required fields (as their keys) with empty values
-//
-// - an error (if applicable)
-func (c *createModel) extractFieldValues() (fieldValues map[string]string, unsatisfied string) { // TODO
-	fieldValues = make(map[string]string, len(c.inputs.ordered))
-	// call Get against every field
-	for _, o := range c.inputs.ordered {
-		// fetch respective input's value
-		var val string
-		switch o.Type {
-		case File:
-			val = c.inputs.PTIs[o.Key].Value()
-		case Text:
-			val = c.inputs.TIs[o.Key].Value()
-		default:
-			clilog.Writer.Error("failed to fetch next input: unknown field type",
-				attachLogInfo(o.Key, o.Type)...)
-			continue
-		}
-
-		val = strings.TrimSpace(val)
-		field, ok := c.fields[o.Key]
-		if !ok {
-			clilog.Writer.Error("failed to extract input values: failed to find field associated to key " + o.Key)
-			continue
-		}
-		if field.Required && val == "" { // check for missing required
-			missingRequiredFields = append(missingRequiredFields, o.Key)
-		}
-
-		fieldValues[o.Key] = val
-	}
-
-	return fieldValues, missingRequiredFields
 }
 
 var rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
