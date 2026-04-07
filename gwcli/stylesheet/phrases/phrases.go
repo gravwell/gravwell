@@ -55,3 +55,8 @@ func NounNumerosity(count int, singularForm, pluralForm string) string {
 	}
 	return pluralForm
 }
+
+// MissingRequiredField returns text stating the given field must be populated.
+func MissingRequiredField(fieldName string) string {
+	return "field " + fieldName + " is required"
+}
