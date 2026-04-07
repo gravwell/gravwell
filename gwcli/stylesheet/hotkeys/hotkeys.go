@@ -9,8 +9,8 @@ import (
 
 var (
 	interact   = key.NewBinding(key.WithKeys(tea.KeyEnter.String()))
-	cursorUp   = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftUp.String()))
-	cursorDown = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftDown.String()))
+	cursorUp   = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftUp.String(), tea.KeyShiftTab.String()))
+	cursorDown = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftDown.String(), tea.KeyTab.String()))
 )
 
 // IsInteract returns whether or not the given tea.Msg was an interact/invoke keystroke.
