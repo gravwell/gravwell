@@ -72,6 +72,8 @@ type TextProvider struct {
 func (p *TextProvider) Initialize(defaultValue string, required bool) {
 	if p.CustomInit != nil {
 		p.ti = p.CustomInit()
+		// set default value
+		p.ti.SetValue(defaultValue)
 	} else {
 		p.ti = stylesheet.NewTI(defaultValue, !required)
 		p.ti.Width = 30
@@ -136,8 +138,8 @@ func (p *PathProvider) Initialize(defaultValue string, required bool) {
 			return ti
 		}
 	}
-
 	p.pti = pathtextinput.New(p.Options)
+	p.pti.SetValue(defaultValue)
 }
 
 func (p *PathProvider) Reset() {
@@ -216,6 +218,10 @@ func (p *PathProvider) ToggleFocus(focus bool) {
 	p.pti.Blur()
 }
 
+// MSLProvider provides a multiselect list field.
+// Use NewMSLProvider() constructor.
+//
+// ! MSLProviders ignore default value.
 type MSLProvider struct {
 	singular, plural string
 
@@ -237,6 +243,9 @@ type MSLProvider struct {
 	RequireAtMost uint
 }
 
+// NewMSLProvider constructs a new multiselect list with the given items and options.
+//
+// ! MSLProviders ignore default value.
 func NewMSLProvider(items []list.DefaultItem, opts multiselectlist.Options) *MSLProvider {
 	return &MSLProvider{Items: items, Options: opts}
 }
