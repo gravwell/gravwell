@@ -83,7 +83,6 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions) ([]byte, error) 
 func (c *Client) UpdateFileMetadata(id string, metadata types.File) (updated types.File, err error) {
 	err = c.methodStaticPushURL(http.MethodPut, filesIdUrl(id), metadata, &updated, nil, nil)
 	return updated, err
-	//return c.putStaticURL(filesIdUrl(id), &metadata)
 }
 
 // GetFileMetadata gets the specified file sans contents.
