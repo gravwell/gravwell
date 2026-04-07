@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
@@ -31,23 +32,27 @@ const (
 type FieldProvider interface {
 	// initialize the instance, fetching required data.
 	// This is only called once, at tree-construction time.
-	Initialize()
+	Initialize(defaultValue string, required bool)
 	// Reset the instance back to its initial, ready-for-use state.
 	// Called after the action's invocation completes.
 	Reset()
 	Update(selected bool, msg tea.Msg) tea.Cmd
 	// View for the Provider.
 	// Kind tells scaffoldcreate how to display this view and if it should continue to process the Views of other fields.
-	// Title will only be used if ViewKind == TitleValue.
 	//
 	// SecondLine contains content that will be displayed below the title+value or single line.
 	// It is not shown if Kind == Takeover or if secondLine == "".
-	View(selected bool, width int) (_ ViewKind, title, value, secondLine string)
+	View(selected bool, width int) (_ ViewKind, value, secondLine string)
 	// Is this field done and ready to be submitted or is something about it invalid?
 	Satisfied() (invalid string)
 
 	// Try to set val into this provider.
 	Set(val string) (invalid string)
+
+	// Get the current value of the field as a string.
+	Get() string
+	// ToggleFocus focuses or blurs this provider.
+	ToggleFocus(focus bool)
 }
 
 var _ FieldProvider = &TextProvider{}
@@ -55,8 +60,7 @@ var _ FieldProvider = &PathProvider{}
 var _ FieldProvider = &MSLProvider{}
 
 type TextProvider struct {
-	Title string
-	ti    textinput.Model
+	ti textinput.Model
 
 	// Function to use to create the base textinput instead of stylesheet.NewTI().
 	// Useful for setting validator funcs.
@@ -65,11 +69,12 @@ type TextProvider struct {
 	CustomReset func(textinput.Model) textinput.Model
 }
 
-func (p *TextProvider) Initialize() {
+func (p *TextProvider) Initialize(defaultValue string, required bool) {
 	if p.CustomInit != nil {
 		p.ti = p.CustomInit()
 	} else {
-		p.ti = stylesheet.NewTI("", false)
+		p.ti = stylesheet.NewTI(defaultValue, !required)
+		p.ti.Width = 30
 	}
 }
 
@@ -86,8 +91,8 @@ func (p *TextProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
 	return
 }
 
-func (p *TextProvider) View(_ bool, _ int) (_ ViewKind, title, value, _ string) {
-	return TitleValue, p.Title, p.ti.View(), ""
+func (p *TextProvider) View(_ bool, _ int) (_ ViewKind, value, _ string) {
+	return TitleValue, p.ti.View(), ""
 }
 
 func (p *TextProvider) Satisfied() (invalid string) {
@@ -105,14 +110,33 @@ func (p *TextProvider) Set(val string) (invalid string) {
 	return ""
 }
 
+func (p *TextProvider) Get() string {
+	return p.ti.Value()
+}
+
+func (p *TextProvider) ToggleFocus(focus bool) {
+	if focus {
+		p.ti.Focus()
+		return
+	}
+	p.ti.Blur()
+}
+
 type PathProvider struct {
-	Title string
-	pti   pathtextinput.Model
+	pti pathtextinput.Model
 
 	Options pathtextinput.Options
 }
 
-func (p *PathProvider) Initialize() {
+func (p *PathProvider) Initialize(defaultValue string, required bool) {
+	if p.Options.CustomTI == nil {
+		p.Options.CustomTI = func() textinput.Model {
+			ti := stylesheet.NewTI(defaultValue, !required)
+			ti.Width = 30 // override TI width
+			return ti
+		}
+	}
+
 	p.pti = pathtextinput.New(p.Options)
 }
 
@@ -129,7 +153,7 @@ func (p *PathProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
 // If fewer suggestions are available than populate these lines, View will pad vertically
 const pathSuggestionLineCount int = 2
 
-func (p *PathProvider) View(_ bool, width int) (_ ViewKind, title, value, secondLine string) {
+func (p *PathProvider) View(_ bool, width int) (_ ViewKind, value, secondLine string) {
 	sgts := TrimSuggestsToFile(p.pti.MatchedSuggestions(), p.pti.Value())
 	// truncate suggestions to a single line, within the max size of field+input
 	secondLine = lipgloss.NewStyle().
@@ -137,7 +161,7 @@ func (p *PathProvider) View(_ bool, width int) (_ ViewKind, title, value, second
 		MaxHeight(pathSuggestionLineCount).
 		Height(pathSuggestionLineCount).
 		Render(strings.Join(sgts, " "))
-	return TitleValue, p.Title, p.pti.View(), secondLine
+	return TitleValue, p.pti.View(), secondLine
 }
 
 // TrimSuggestsToFile is a helper function for View that returns only the file chunk of each suggestion, with matching runes colourized.
@@ -180,9 +204,19 @@ func (p *PathProvider) Set(val string) (invalid string) {
 	return ""
 }
 
-type MSLProvider struct {
-	Title string // the field title selection will be associated to
+func (p *PathProvider) Get() string {
+	return p.pti.Value()
+}
 
+func (p *PathProvider) ToggleFocus(focus bool) {
+	if focus {
+		p.pti.Focus()
+		return
+	}
+	p.pti.Blur()
+}
+
+type MSLProvider struct {
 	singular, plural string
 
 	msl multiselectlist.Model
@@ -203,11 +237,11 @@ type MSLProvider struct {
 	RequireAtMost uint
 }
 
-func NewMSLProvider(fieldTitle string, items []list.DefaultItem, opts multiselectlist.Options) *MSLProvider {
-	return &MSLProvider{Title: fieldTitle, Items: items, Options: opts}
+func NewMSLProvider(items []list.DefaultItem, opts multiselectlist.Options) *MSLProvider {
+	return &MSLProvider{Items: items, Options: opts}
 }
 
-func (p *MSLProvider) Initialize() {
+func (p *MSLProvider) Initialize(_ string, _ bool) {
 	p.msl = multiselectlist.New(p.Items, 80, 60, p.Options)
 }
 
@@ -216,12 +250,23 @@ func (p *MSLProvider) Reset() {
 	p.msl.Undone()
 }
 
-func (p *MSLProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
-	p.msl, cmd = p.msl.Update(msg)
-	return
+func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd) {
+	// if we are already in takeover mode, just hand off control
+	if p.takeover {
+		p.msl, cmd = p.msl.Update(msg)
+		return cmd
+	}
+
+	// check for takeover mode invocation
+	if selected && hotkeys.IsInteract(msg) {
+		p.takeover = true
+		return nil
+	}
+
+	return nil
 }
 
-func (p *MSLProvider) View(selected bool, _ int) (_ ViewKind, title, value, secondLine string) {
+func (p *MSLProvider) View(selected bool, _ int) (_ ViewKind, value, secondLine string) {
 	// if the msl is currently in selection mode, we need to return a takeover
 	if p.takeover {
 		// sanity check that we are currently selected;
@@ -229,7 +274,7 @@ func (p *MSLProvider) View(selected bool, _ int) (_ ViewKind, title, value, seco
 		if !selected {
 			clilog.Writer.Warnf("MSL provider is in takeover mode, but is not selected!")
 		}
-		return Takeover, "", p.msl.View(), ""
+		return Takeover, p.msl.View(), ""
 	}
 	// otherwise, we return "<title>: ->select<-" and the number of selected items
 
@@ -240,7 +285,7 @@ func (p *MSLProvider) View(selected bool, _ int) (_ ViewKind, title, value, seco
 
 	secondLine = fmt.Sprintf("%d %s currently selected", p.numSelected, phrases.NounNumerosity(p.numSelected, p.singular, p.plural))
 
-	return TitleValue, p.Title, value, secondLine
+	return TitleValue, value, secondLine
 }
 
 func (p *MSLProvider) Satisfied() (invalid string) {
@@ -265,4 +310,18 @@ func (p *MSLProvider) Set(val string) (invalid string) {
 		return firstNotFound + " is not an available " + p.singular
 	}
 	return ""
+}
+
+// Get returns the set of selected items as a comma-separated list.
+func (p *MSLProvider) Get() string {
+	dis := p.msl.GetSelectedItems()
+	var ss = make([]string, len(dis))
+	for i, di := range dis {
+		ss[i] = di.Title() // TODO this probably has to be the identifier, not title
+	}
+	return strings.Join(ss, ",")
+}
+
+func (p *MSLProvider) ToggleFocus(_ bool) {
+	// MSL doesn't actually care if it is in focus
 }

@@ -31,26 +31,19 @@ type FlagConfig struct {
 
 // A Field defines a single data point that will be passed to the create function.
 type Field struct {
+	// user-facing identifier of this field.
+	Title        string
 	Required     bool       // this field must be populated prior to calling createFunc
 	Flag         FlagConfig // OPTIONAL. Control how this field's flag is handled.
 	DefaultValue string     // OPTIONAL. Default flag and TI value
 	Order        int        // OPTIONAL. Top-Down (highest to lowest) display order of this field.
 
 	Provider FieldProvider
-
-	// OPTIONAL. USED ONLY FOR TEXT TYPE.
-	// Called once, at program start to generate a TI instead of using a generalize newTI().
-	// Can be used to add a ValidateFunc to the TI.
-	CustomTIFuncInit func() textinput.Model
-	// OPTIONAL. USED ONLY FOR TEXT TYPE.
-	// Called every SetArg() (prior to passing control to the child create action), if not nil.
-	// The associated TI will be replaced by the returned Model.
-	CustomTIFuncSetArg func(*textinput.Model) textinput.Model
 }
 
 // NewField composes a Field from the required parameters.
-func NewField(required bool, provider FieldProvider) Field {
-	return Field{Required: required, Provider: provider}
+func NewField(title string, required bool, provider FieldProvider) Field {
+	return Field{Title: title, Required: required, Provider: provider}
 }
 
 // Returns a FlagSet built from the given fields.
