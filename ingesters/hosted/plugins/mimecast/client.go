@@ -61,17 +61,6 @@ func (tr *TimeRange) Err() error {
 	return nil
 }
 
-func (tr *TimeRange) Valid() bool {
-	if tr == nil {
-		return false
-	}
-	return tr.Err() == nil
-}
-
-func (tr *TimeRange) Contains(t time.Time) bool {
-	return t.After(tr.Start) && t.Before(tr.End)
-}
-
 type doer interface {
 	Do(*http.Request) (*http.Response, error)
 }
