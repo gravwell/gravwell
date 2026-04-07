@@ -116,6 +116,14 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 		singular = "UNKNOWN"
 	}
 
+	// check that every field has a provider
+	for key := range fields {
+		if fields[key].Provider == nil {
+			clilog.Writer.Error("field is missing a provider", attachLogInfo(key)...)
+			delete(fields, key)
+		}
+	}
+
 	// pull flags from provided fields
 	var flags = installFlagsFromFields(fields)
 	if opts.AddtlFlags != nil {
