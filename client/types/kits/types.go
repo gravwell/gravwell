@@ -22,41 +22,34 @@ import (
 
 // PackedFile is a stripped-down representation of a file for inclusion in a kit.
 type PackedFile struct {
-	ID            string
-	VersionNumber int // file version #, increment at each Write
-	Name          string
-	Description   string
-	Labels        []string
-	Size          uint64
-	Hash          []byte
-	Data          []byte
+	ID          string
+	Name        string
+	Description string
+	Labels      []string
+	Size        uint64
+	Hash        []byte
+	Data        []byte
 }
 
 // PackFile takes a File and its contents and converts them into a PackedFile.
 func PackFile(f types.File, content []byte) (p PackedFile) {
 	p = PackedFile{
-		ID:            f.ID,
-		VersionNumber: f.Version,
-		Name:          f.Name,
-		Description:   f.Description,
-		Labels:        f.Labels,
-		Size:          f.Size,
-		Data:          content,
+		ID:          f.ID,
+		Name:        f.Name,
+		Description: f.Description,
+		Labels:      f.Labels,
+		Size:        f.Size,
+		Data:        content,
 	}
 	if f.Hash != "" {
 		p.Hash, _ = hex.DecodeString(f.Hash)
-	}
-	if p.VersionNumber == 0 {
-		p.VersionNumber = 1
 	}
 	return
 }
 
 // Validate checks the contents of a PackedFile for validity.
 func (p *PackedFile) Validate() error {
-	if p.VersionNumber <= 0 {
-		return errors.New("Invalid version number")
-	} else if len(p.Name) == 0 {
+	if len(p.Name) == 0 {
 		return errors.New("Invalid file name")
 	} else if p.Size != uint64(len(p.Data)) {
 		return errors.New("mismatched data and data size")
@@ -80,17 +73,15 @@ func (p *PackedFile) Validate() error {
 // JSONMetadata returns additional information about the file.
 func (p *PackedFile) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
-		VersionNumber int
-		Name          string
-		Description   string
-		Size          uint64
-		Labels        []string
+		Name        string
+		Description string
+		Size        uint64
+		Labels      []string
 	}{
-		VersionNumber: p.VersionNumber,
-		Name:          p.Name,
-		Description:   p.Description,
-		Size:          p.Size,
-		Labels:        p.Labels,
+		Name:        p.Name,
+		Description: p.Description,
+		Size:        p.Size,
+		Labels:      p.Labels,
 	})
 	return json.RawMessage(b), err
 }
