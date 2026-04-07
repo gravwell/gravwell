@@ -20,18 +20,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// FieldType (though currently not utilized) is intended as an expandable way to add new data inputs,
-// such as checkboxes or radio buttons. It alters the draw in .View and how data is parsed from the
-// Field's flag.
-type FieldType = string
-
-const (
-	Text        FieldType = "text"        // string inputs, consumed via flag.String & textinput.Model
-	File        FieldType = "file"        // takes a path as a string. In interactive mode, uses a pathtextinput.Model
-	MultiSelect FieldType = "multiselect" // enables the user to select any number of items from a list
-	// TODO add boolean, add label
-)
-
 // FlagConfig defines settings for customizing how the flag for this field is displayed and handled.
 // All flag configuration is optional
 // However, if Name is not specified, this field will not have an associated flag and all other fields will be ignored.
