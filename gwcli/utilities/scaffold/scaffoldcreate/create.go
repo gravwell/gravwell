@@ -320,7 +320,12 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	} else if hotkeys.IsCursorDown(msg) {
 		c.focusNext()
 		return textinput.Blink
-	} else if hotkeys.IsInteract(msg) && c.SubmitSelected() && c.inputs.err == "" {
+	} else if hotkeys.IsInteract(msg) && c.SubmitSelected() {
+		// double check that all fields are satisfied
+		c.checkSatisfaction()
+		if c.inputs.err != "" {
+			return nil
+		}
 		id, invalid, err := c.cf(c.fields, &c.fs)
 		if err != nil {
 			c.createErr = err.Error()
@@ -355,8 +360,15 @@ func (c *createModel) selectedField() Field {
 // Empties inputs.err out iff every field is satisfied.
 func (c *createModel) checkSatisfaction() {
 	for _, key := range c.inputs.ordered {
-		if invalid := c.fields[key].Provider.Satisfied(); invalid != "" {
+		f := c.fields[key]
+		if f.Required && f.Provider.Get() == "" {
+			c.inputs.err = phrases.MissingRequiredField(f.Title)
+			return
+		}
+
+		if invalid := f.Provider.Satisfied(); invalid != "" {
 			c.inputs.err = invalid
+			return
 		}
 	}
 	c.inputs.err = ""
