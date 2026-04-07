@@ -7,13 +7,32 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-var Interact = key.NewBinding(key.WithKeys(tea.KeyEnter.String()))
+var (
+	interact   = key.NewBinding(key.WithKeys(tea.KeyEnter.String()))
+	cursorUp   = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftUp.String()))
+	cursorDown = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftDown.String()))
+)
 
 // IsInteract returns whether or not the given tea.Msg was an interact/invoke keystroke.
 func IsInteract(msg tea.Msg) bool {
+	return match(msg, interact)
+}
+
+// IsCursorUp returns whether or not the given tea.Msg indicated moving the cursor up.
+func IsCursorUp(msg tea.Msg) bool {
+	return match(msg, cursorUp)
+}
+
+// IsCursorDown returns whether or not the given tea.Msg indicated moving the cursor down.
+func IsCursorDown(msg tea.Msg) bool {
+	return match(msg, cursorDown)
+}
+
+// helper function to check if the given msg is a keymsg and that key is bound.
+func match(msg tea.Msg, b key.Binding) bool {
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return false
 	}
-	return key.Matches(keyMsg, Interact)
+	return key.Matches(keyMsg, b)
 }
