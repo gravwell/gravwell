@@ -61,11 +61,11 @@ func (c *Client) UnlockUserAccount(id int32) error {
 // email address. If 'admin' is set to true, the user will be flagged as an administrator.
 func (c *Client) AddUser(user, pass, name, email string, admin bool) error {
 	userDetails := types.AddUser{
-		User:  user,
-		Pass:  pass,
-		Name:  name,
-		Email: email,
-		Admin: admin,
+		Username: user,
+		Password: pass,
+		Name:     name,
+		Email:    email,
+		Admin:    admin,
 	}
 	if err := c.postStaticURL(ADD_USER_URL, userDetails, nil); err != nil {
 		return err
@@ -73,31 +73,13 @@ func (c *Client) AddUser(user, pass, name, email string, admin bool) error {
 	return nil
 }
 
-// GetUserInfo (admin-only) gets information about a specific user, including CBAC info.
-func (c *Client) GetUserInfo(id int32) (types.UserWithCBAC, error) {
-	udet := types.UserWithCBAC{}
-	if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
-		return udet, err
+// AddGroup (admin-only) creates a new group with the given name and description.
+func (c *Client) AddGroup(name, desc string) error {
+	gpInfo := types.AddGroup{
+		Name:        name,
+		Description: desc,
 	}
-	return udet, nil
-}
-
-// SetAdmin (admin-only) changes the admin status for the user with the given ID.
-func (c *Client) SetAdmin(id int32, admin bool) error {
-	var method string
-	resp := types.AdminActionResp{}
-	if admin {
-		method = http.MethodPut
-	} else {
-		method = http.MethodDelete
-	}
-	if err := c.methodStaticURL(method, usersAdminUrl(id), &resp); err != nil {
-		return err
-	}
-	if resp.UID != id || resp.Admin != admin {
-		return errors.New("Server responded with state other than requested")
-	}
-	return nil
+	return c.postStaticURL(groupUrl(), gpInfo, nil)
 }
 
 // changePass will change a users password

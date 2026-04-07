@@ -164,16 +164,16 @@ type GroupDetails struct {
 }
 
 type AddUser struct {
-	User  string
-	Pass  string
-	Name  string
-	Email string
-	Admin bool
+	Username string
+	Password string
+	Name     string
+	Email    string
+	Admin    bool
 }
 
 type AddGroup struct {
-	Name string
-	Desc string
+	Name        string
+	Description string
 }
 
 type UpdateUser struct {

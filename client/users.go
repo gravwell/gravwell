@@ -48,8 +48,8 @@ func (c *Client) GetUserMap() (map[int32]string, error) {
 }
 
 // GetUser returns a particular user.
-func (c *Client) GetUser(id int32) (types.User, error) {
-	var user types.User
+func (c *Client) GetUser(id int32) (types.UserWithCBAC, error) {
+	var user types.UserWithCBAC
 	err := c.getStaticURL(usersInfoUrl(id), &user)
 	return user, err
 }
@@ -57,8 +57,8 @@ func (c *Client) GetUser(id int32) (types.User, error) {
 // GetUserEx returns a particular user. If the QueryOptions arg is
 // not nil, applicable parameters (currently only IncludeDeleted) will
 // be applied to the query.
-func (c *Client) GetUserEx(id int32, opts *types.QueryOptions) (types.User, error) {
-	var user types.User
+func (c *Client) GetUserEx(id int32, opts *types.QueryOptions) (types.UserWithCBAC, error) {
+	var user types.UserWithCBAC
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
@@ -73,8 +73,10 @@ func (c *Client) DeleteUser(id int32) error {
 
 // PurgeUser is implemented in admin.go and also deletes the user's assets.
 
-// CreateUser creates a new user, returning the newly-created user.
-func (c *Client) CreateUser(m types.User) (result types.User, err error) {
+// CreateUser creates a new user, returning the newly-created
+// user. Note that unlike most Create* types, this takes a special
+// type which includes the password and leaves out other fields.
+func (c *Client) CreateUser(m types.AddUser) (result types.User, err error) {
 	err = c.postStaticURL(USERS_URL, m, &result)
 	return
 }
@@ -120,4 +122,22 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 // CleanupUsers (admin-only) purges all deleted users for all users.
 func (c *Client) CleanupUsers() error {
 	return c.deleteStaticURL(USERS_URL, nil)
+}
+
+// LookupUser looks up a User object given a username
+// if the username is not found, ErrNotFound is returned
+func (c *Client) LookupUser(username string) (ud types.User, err error) {
+	var lst types.UserListResponse
+	if lst, err = c.ListAllUsers(nil); err != nil {
+		return
+	}
+	for _, l := range lst.Results {
+		if l.Username == username {
+			ud = l
+			return
+		}
+	}
+
+	err = ErrNotFound
+	return
 }

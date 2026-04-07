@@ -157,10 +157,10 @@ func create() action.Pair {
 			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			if err := connection.Client.AddUser(
-				fieldValues["username"], fieldValues["password"],
-				fieldValues["name"], fieldValues["email"],
-				false, // TODO admin
+			if _, err := connection.Client.CreateUser(
+				types.AddUser{Username: fieldValues["username"], Password: fieldValues["password"],
+					Name: fieldValues["name"], Email: fieldValues["email"],
+					Admin: false}, // TODO admin
 			); err != nil {
 				return 0, "", err
 			}
@@ -178,7 +178,7 @@ func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("user", "users",
 		func(dryrun bool, id int32) error {
 			if dryrun {
-				_, err := connection.Client.GetUserInfo(id)
+				_, err := connection.Client.GetUser(id)
 				return err
 			}
 			return connection.Client.DeleteUser(id)
@@ -222,7 +222,7 @@ func edit() action.Pair {
 		},
 		scaffoldedit.SubroutineSet[int32, types.User]{
 			SelectSub: func(id int32) (item types.User, err error) {
-				userCBAC, err := connection.Client.GetUserInfo(id)
+				userCBAC, err := connection.Client.GetUser(id)
 				if err != nil {
 					return types.User{}, err
 				}
