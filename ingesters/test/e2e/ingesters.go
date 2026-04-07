@@ -76,5 +76,6 @@ func Terminate(t *testing.T, con *tc.DockerContainer) {
 	if con == nil {
 		return
 	}
+	WriteLogs(t, con)
 	_ = con.Terminate(context.Background())
 }

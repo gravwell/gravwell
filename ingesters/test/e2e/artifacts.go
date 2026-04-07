@@ -2,13 +2,16 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/client/types"
+	tc "github.com/testcontainers/testcontainers-go"
 )
 
 // ArtifactType is used to control what folder files written are into as they are saved
@@ -41,4 +44,29 @@ func WriteQueryResults(t *testing.T, name string, ent []types.StringTagEntry) {
 		fmt.Fprintf(&buf, "tag: %s, ts: %s, data: %s\n", e.Tag, e.TS.Format(time.RFC3339), e.String())
 	}
 	WriteArtifact(t, SearchResults, name, buf.Bytes())
+}
+
+func WriteLogs(t *testing.T, c *tc.DockerContainer) {
+	if c == nil {
+		return
+	}
+
+	t.Helper()
+	ctx := t.Context()
+	if ctx.Err() != nil { // create new context if during shutdown
+		ctx = context.Background()
+	}
+	info, err := c.Inspect(ctx)
+	if err != nil {
+		t.Fatalf("failed to inspect docker container: %v", err)
+	}
+	r, err := c.Logs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	WriteArtifact(t, Log, info.Name+"/logs", b)
 }

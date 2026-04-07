@@ -11,6 +11,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ const (
 type gen struct {
 	start    time.Time
 	end      time.Time
+	count    int
 	pages    int
 	clientID string
 }
@@ -57,10 +59,10 @@ type ConfigRequest struct {
 	Config   ClientConfig `json:"config"`
 }
 
-// clientSession tracks the bearer token for a client
-type clientSession struct {
-	token    string
-	clientID string
+// session tracks the bearer token for a client
+type session struct {
+	token  string
+	client string
 }
 
 // paginationState tracks pagination progress for a client+cursor
@@ -71,22 +73,29 @@ type paginationState struct {
 	totalPages  int
 }
 
-// storageData maps storage IDs to their time ranges
+// cursor is used by all apis, except auth, to ensure that no data is ever returned a second time.
+// when a cursor is in a request all generated data MUST be after t.
+type cursor struct {
+	value  string
+	client string
+	t      time.Time
+}
+
+func (c *cursor) key() string {
+	return c.client + ":" + c.value
+}
+
+// init datastores
 var (
-	storageData = make(map[string]gen)
-	storageMtx  sync.RWMutex
+	cursors  = newStore[cursor]()
+	sessions = newStore[session]()
+	batches  = newStore[gen]()
 )
 
 // clientConfigs maps client IDs to their configurations
 var (
 	clientConfigs = make(map[string]ClientConfig)
 	configMtx     sync.RWMutex
-)
-
-// tokenSessions maps bearer tokens to client sessions
-var (
-	tokenSessions = make(map[string]clientSession)
-	sessionMtx    sync.RWMutex
 )
 
 // paginationStates tracks pagination state per client+cursor
@@ -109,7 +118,6 @@ func main() {
 	mux.HandleFunc("POST /oauth/token", auth)
 	mux.HandleFunc("POST /config", configHandler)
 	mux.HandleFunc("GET /siem/v1/batch/events/cg", siemBatch)
-	mux.HandleFunc("GET /siem/v1/events/cg", siem)
 	mux.HandleFunc("POST /api/audit/get-audit-events", audit)
 	mux.HandleFunc("GET /storage/{id}/json.gz", storage)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", *port), mux); err != nil {
@@ -137,16 +145,11 @@ func auth(w http.ResponseWriter, r *http.Request) {
 	bearerToken := generateID()
 
 	// Store the session
-	sessionMtx.Lock()
-	tokenSessions[bearerToken] = clientSession{
-		token:    bearerToken,
-		clientID: clientIDParam,
-	}
-	sessionMtx.Unlock()
+	sessions.set(bearerToken, &session{token: bearerToken, client: clientIDParam})
 
 	token := mimecast.AuthToken{
 		AccessToken: bearerToken,
-		ExpireIn:    300,
+		ExpireIn:    30 * 60,
 	}
 	body, err := json.Marshal(token)
 	if err != nil {
@@ -156,31 +159,6 @@ func auth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(body)
-}
-
-// getClientID extracts the client ID from the Authorization header
-func getClientID(r *http.Request) string {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return ""
-	}
-
-	// Expected format: "Bearer <token>"
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return ""
-	}
-
-	token := parts[1]
-	sessionMtx.RLock()
-	session, ok := tokenSessions[token]
-	sessionMtx.RUnlock()
-
-	if !ok {
-		return ""
-	}
-
-	return session.clientID
 }
 
 // configHandler handles POST /config to set client-specific mock behavior
@@ -239,186 +217,61 @@ func siemBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate query params exist
-	query := r.URL.Query()
-	cursor := query.Get("nextPage")
-	startStr := query.Get("dateRangeStartsAt")
-	endStr := query.Get("dateRangeEndsAt")
-	if cursor == "" && (startStr == "" || endStr == "") {
-		w.WriteHeader(http.StatusBadRequest)
+	start, end, c, valid := validateSiem(w, r, SIEMBatchTimeFormat)
+	if !valid {
 		return
 	}
-	if cursor == "" {
-		var start, end time.Time
-		var err error
-		// Parse the time range
-		if start, err = time.Parse(SIEMBatchTimeFormat, startStr); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+
+	batchIds := make([]string, 0)
+
+	if c == nil {
+		cid := generateID()
+		c = &cursor{value: cid, client: clientID, t: start}
+		cursors.set(c.key(), c)
+	}
+	// Determine number of pages based on client config
+	numPages := rand.Intn(3) + 1 // 1-3 pages
+	count := 100
+	if clientID != "" {
+		configMtx.RLock()
+		if config, ok := clientConfigs[clientID]; ok {
+			numPages = config.SiemBatch.NumPages
+			count = config.SiemBatch.EventsPerPage
 		}
-		if end, err = time.Parse(SIEMBatchTimeFormat, endStr); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		cursor = generateID()
-
-		// Determine number of pages based on client config
-		numPages := 0
-		if clientID != "" {
-			configMtx.RLock()
-			if config, ok := clientConfigs[clientID]; ok {
-				numPages = config.SiemBatch.NumPages
-			}
-			configMtx.RUnlock()
-		}
-
-		// If no config, use random behavior
-		if numPages == 0 {
-			numPages = rand.Intn(3) + 1 // 1-3 pages
-		}
-
-		storageMtx.Lock()
-		storageData[cursor] = gen{start: start, end: end, pages: numPages, clientID: clientID}
-		storageMtx.Unlock()
-
-		// Initialize pagination state
-		paginationMtx.Lock()
-		paginationStates[cursor] = paginationState{start: start, end: end, currentPage: 1, totalPages: numPages}
-		paginationMtx.Unlock()
-
-		fmt.Printf("SIEM Batch: Generated ID %s for range %s to %s (client=%s, pages=%d)\n",
-			cursor, start.Format(time.RFC3339), end.Format(time.RFC3339), clientID, numPages)
+		configMtx.RUnlock()
 	}
 
-	// Check pagination state
-	paginationMtx.RLock()
-	state, ok := paginationStates[cursor]
-	paginationMtx.RUnlock()
+	spanSize := end.Sub(start) / time.Duration(numPages)
+	for range numPages - 1 {
+		c.t = c.t.Add(spanSize)
+		sid := generateID()
+		batches.set(sid, &gen{start: start, end: c.t, count: count})
+		batchIds = append(batchIds, sid)
+		fmt.Printf(
+			"SIEM Batch: Generated ID %s for range %s to %s (client=%s)\n",
+			sid,
+			start.Format(time.RFC3339),
+			c.t.Format(time.RFC3339),
+			clientID,
+		)
+	}
 
-	hasNextPage := false
-	nextPage := ""
-
-	if ok && state.currentPage < state.totalPages {
-		hasNextPage = true
-		nextPage = cursor
-
-		// Update pagination state
-		paginationMtx.Lock()
-		state.currentPage++
-		paginationStates[cursor] = state
-		paginationMtx.Unlock()
+	value := make([]mimecast.SIEMBatchEvent, 0)
+	for _, sid := range batchIds {
+		value = append(value, mimecast.SIEMBatchEvent{
+			URL:  fmt.Sprintf("http://%s/storage/%s/json.gz", r.Host, sid),
+			Size: 1024,
+		})
 	}
 
 	response := mimecast.SIEMBatchEventResponse{
-		Value: []mimecast.SIEMBatchEvent{
-			{
-				URL:  fmt.Sprintf("http://%s/storage/%s/json.gz", r.Host, cursor),
-				Size: 1024,
-			},
-		},
-		NextPage:   nextPage,
-		IsCaughtUp: !hasNextPage,
+		Value:    value,
+		NextPage: c.value,
 	}
 
 	body, err := json.Marshal(response)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(body)
-}
-
-// siem responds with a mimecast.SIEMEventResponse.
-// It validates the query params for dates.
-func siem(w http.ResponseWriter, r *http.Request) {
-	clientID, ok := authed(w, r)
-	if !ok {
-		return
-	}
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	start, end, cursor, valid := validateSiem(w, r)
-	if !valid {
-		return
-	}
-
-	// Check for config
-	numPages := 0
-	eventsPerPage := 20 // default
-	if clientID != "" {
-		configMtx.RLock()
-		if config, ok := clientConfigs[clientID]; ok {
-			numPages = config.Siem.NumPages
-			if config.Siem.EventsPerPage > 0 {
-				eventsPerPage = config.Siem.EventsPerPage
-			}
-		}
-		configMtx.RUnlock()
-	}
-
-	if cursor == "" {
-		cursor = generateID()
-
-		// If no config, use random behavior
-		if numPages == 0 {
-			numPages = rand.Intn(3) + 1 // 1-3 pages
-		}
-
-		// Initialize pagination state
-		paginationMtx.Lock()
-		paginationStates[cursor] = paginationState{start: start, end: end, currentPage: 1, totalPages: numPages}
-		paginationMtx.Unlock()
-
-		fmt.Printf("SIEM: Generated cursor %s (client=%s, pages=%d, eventsPerPage=%d)\n",
-			cursor, clientID, numPages, eventsPerPage)
-	}
-
-	// Check pagination state
-	paginationMtx.RLock()
-	state, ok := paginationStates[cursor]
-	paginationMtx.RUnlock()
-
-	hasNextPage := false
-	nextPage := ""
-
-	if ok && state.currentPage < state.totalPages {
-		hasNextPage = true
-		nextPage = cursor
-
-		// Update pagination state
-		paginationMtx.Lock()
-		state.currentPage++
-		paginationStates[cursor] = state
-		paginationMtx.Unlock()
-	}
-
-	events, err := genSiemEvents(eventsPerPage, state.start, state.end)
-	if err != nil {
-		siemError(w, http.StatusInternalServerError, mimecast.Error{
-			Code:    "Server Error",
-			Message: "Error generation SIEM events: " + err.Error(),
-		})
-		return
-	}
-
-	response := mimecast.SIEMEventResponse{
-		Value:      events,
-		NextPage:   nextPage,
-		IsCaughtUp: !hasNextPage,
-	}
-
-	body, err := json.Marshal(response)
-	if err != nil {
-		siemError(w, http.StatusInternalServerError, mimecast.Error{
-			Code:    "Server Error",
-			Message: "Error marshaling response: " + err.Error(),
-		})
 		return
 	}
 
@@ -445,6 +298,7 @@ var (
 
 // audit responds with a mimecast.Response where data is an encoded mimecast.AuditData
 // this data should contain an additional field called 'message' and have content in it.
+// the data is returned in date DESC order (why? who can say.)
 func audit(w http.ResponseWriter, r *http.Request) {
 	clientID, ok := authed(w, r)
 	if !ok {
@@ -569,6 +423,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		}
 		events = append(events, dataBytes)
 	}
+	slices.Reverse(events) // this api is wack...
 
 	// Check pagination state
 	paginationMtx.RLock()
@@ -619,29 +474,13 @@ func storage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up the time range for this ID
-	storageMtx.RLock()
-	tr, ok := storageData[id]
-	storageMtx.RUnlock()
-
+	data, ok := batches.get(id)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	// Get events per page from batch config
-	eventsPerPage := 1000 // default
-	if tr.clientID != "" {
-		configMtx.RLock()
-		if config, ok := clientConfigs[tr.clientID]; ok {
-			if config.SiemBatch.EventsPerPage > 0 {
-				eventsPerPage = config.SiemBatch.EventsPerPage
-			}
-		}
-		configMtx.RUnlock()
-	}
-
-	events, err := genSiemEvents(eventsPerPage, tr.start, tr.end)
+	events, err := genSiemEvents(data.count, data.start, data.end)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -674,15 +513,11 @@ func storage(w http.ResponseWriter, r *http.Request) {
 	w.Write(gzBuf.Bytes())
 }
 
-func validateSiem(w http.ResponseWriter, r *http.Request) (start time.Time, end time.Time, cursor string, valid bool) {
-	// Validate query params exist
+func validateSiem(w http.ResponseWriter, r *http.Request, format string) (start time.Time, end time.Time, c *cursor, valid bool) {
+	cid, _ := authed(w, r)
+
 	query := r.URL.Query()
-	cursor = query.Get("nextPage")
-	// the cursor stores the start/end time so no need to pull from request
-	if cursor != "none" {
-		valid = true
-		return
-	}
+	c, _ = cursors.get(cid + ":" + query.Get("nextPage"))
 
 	startStr := query.Get("dateRangeStartsAt")
 	endStr := query.Get("dateRangeEndsAt")
@@ -697,26 +532,31 @@ func validateSiem(w http.ResponseWriter, r *http.Request) (start time.Time, end 
 
 	var err error
 	// Parse the time range
-	if start, err = time.Parse(SIEMTimeFormat, startStr); err != nil {
+	if start, err = time.Parse(format, startStr); err != nil {
 		siemError(w, http.StatusBadRequest, mimecast.Error{
 			Code:    "Request Validation Failed",
-			Message: "Invalid date: `dateRangeStartsAt` does not match format: " + SIEMTimeFormat,
+			Message: "Invalid date: `dateRangeStartsAt` does not match format: " + format,
 		})
 		return
 	}
-	if end, err = time.Parse(SIEMTimeFormat, endStr); err != nil {
+	if end, err = time.Parse(format, endStr); err != nil {
 		siemError(w, http.StatusBadRequest, mimecast.Error{
 			Code:    "Request Validation Failed",
-			Message: "Invalid date: `dateRangeEndsAt` does not match format: " + SIEMTimeFormat,
+			Message: "Invalid date: `dateRangeEndsAt` does not match format: " + format,
 		})
 		return
 	}
-	if start.Before(time.Now().Add(-24 * time.Hour)) {
+	if start.Before(time.Now().Add(7 * -24 * time.Hour)) {
 		siemError(w, http.StatusBadRequest, mimecast.Error{
 			Code:    "Request Validation Failed",
-			Message: "Invalid date range: 'from' must be within the 24-hour retention period",
+			Message: "Invalid date range: 'from' must be within the 7-day retention period",
 		})
 		return
+	}
+
+	// clamp the start time to be before cursor time.
+	if c != nil && start.Before(c.t) {
+		start = c.t
 	}
 
 	valid = true
@@ -784,15 +624,12 @@ func authed(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	token := parts[1]
-
-	sessionMtx.RLock()
-	defer sessionMtx.RUnlock()
-	id, ok := tokenSessions[token]
+	id, ok := sessions.get(token)
 	if !ok {
 		authError(w, "Invalid Token")
 		return "", false
 	}
-	return id.clientID, ok
+	return id.client, ok
 }
 
 func authError(w http.ResponseWriter, message string) {
