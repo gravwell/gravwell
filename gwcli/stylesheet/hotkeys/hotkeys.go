@@ -8,24 +8,24 @@ import (
 )
 
 var (
-	interact   = key.NewBinding(key.WithKeys(tea.KeyEnter.String(), tea.KeySpace.String()))
-	cursorUp   = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftUp.String(), tea.KeyShiftTab.String()))
-	cursorDown = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftDown.String(), tea.KeyTab.String()))
+	Interact   = key.NewBinding(key.WithKeys(tea.KeyEnter.String(), tea.KeySpace.String()))
+	CursorUp   = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftUp.String(), tea.KeyShiftTab.String()))
+	CursorDown = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftDown.String(), tea.KeyTab.String()))
 )
 
 // IsInteract returns whether or not the given tea.Msg was an interact/invoke/submit keystroke.
 func IsInteract(msg tea.Msg) bool {
-	return match(msg, interact)
+	return match(msg, Interact)
 }
 
 // IsCursorUp returns whether or not the given tea.Msg indicated moving the cursor up.
 func IsCursorUp(msg tea.Msg) bool {
-	return match(msg, cursorUp)
+	return match(msg, CursorUp)
 }
 
 // IsCursorDown returns whether or not the given tea.Msg indicated moving the cursor down.
 func IsCursorDown(msg tea.Msg) bool {
-	return match(msg, cursorDown)
+	return match(msg, CursorDown)
 }
 
 // helper function to check if the given msg is a keymsg and that key is bound.
@@ -34,5 +34,6 @@ func match(msg tea.Msg, b key.Binding) bool {
 	if !ok {
 		return false
 	}
+
 	return key.Matches(keyMsg, b)
 }
