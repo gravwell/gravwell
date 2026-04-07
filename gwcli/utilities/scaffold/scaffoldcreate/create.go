@@ -487,6 +487,11 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 
 	c.width = width
 
+	// call SetArg hooks
+	for _, key := range c.inputs.ordered {
+		c.fields[key].Provider.SetArg(width, height)
+	}
+
 	// set the error immediately based on starting satisfaction states.
 	// This is really just to set the error to the first missing required field's error.
 	c.checkSatisfaction()
