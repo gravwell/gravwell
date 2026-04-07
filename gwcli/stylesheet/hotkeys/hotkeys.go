@@ -7,25 +7,34 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// the set of primary keybinds.
+// You probably don't want to use these directly unless you are sending keys.
+// You probably aren't sending keys unless you are writing tests.
+const (
+	Interact   = tea.KeyEnter
+	CursorDown = tea.KeyShiftDown
+	CursorUp   = tea.KeyShiftUp
+)
+
 var (
-	Interact   = key.NewBinding(key.WithKeys(tea.KeyEnter.String(), tea.KeySpace.String()))
-	CursorUp   = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftUp.String(), tea.KeyShiftTab.String()))
-	CursorDown = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftDown.String(), tea.KeyTab.String()))
+	interact   = key.NewBinding(key.WithKeys(Interact.String(), tea.KeySpace.String()))
+	cursorUp   = key.NewBinding(key.WithKeys(CursorUp.String(), tea.KeyShiftTab.String()))
+	cursorDown = key.NewBinding(key.WithKeys(CursorDown.String(), tea.KeyTab.String()))
 )
 
 // IsInteract returns whether or not the given tea.Msg was an interact/invoke/submit keystroke.
 func IsInteract(msg tea.Msg) bool {
-	return match(msg, Interact)
+	return match(msg, interact)
 }
 
 // IsCursorUp returns whether or not the given tea.Msg indicated moving the cursor up.
 func IsCursorUp(msg tea.Msg) bool {
-	return match(msg, CursorUp)
+	return match(msg, cursorUp)
 }
 
 // IsCursorDown returns whether or not the given tea.Msg indicated moving the cursor down.
 func IsCursorDown(msg tea.Msg) bool {
-	return match(msg, CursorDown)
+	return match(msg, cursorDown)
 }
 
 // helper function to check if the given msg is a keymsg and that key is bound.
