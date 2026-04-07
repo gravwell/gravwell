@@ -16,6 +16,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/spf13/pflag"
 )
@@ -74,17 +75,15 @@ func TestOptions(t *testing.T) {
 					Usage:     "customs usage",
 					Shorthand: 'c',
 				},
-				Type:  scaffoldcreate.Text,
-				Order: 1,
+				Order:    1,
+				Provider: &scaffoldcreate.TextProvider{},
 			},
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			setName = fieldValues["name"]
-			setPath = fieldValues["path"]
-			if s, ok := fieldValues["cust"]; ok {
-				i, _ := strconv.ParseInt(s, 10, 64)
-				setCust = int(i)
-			}
+		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			setName = cfg["name"].Provider.Get()
+			setPath = cfg["path"].Provider.Get()
+			i, _ := strconv.ParseInt(cfg["cust"].Provider.Get(), 10, 64)
+			setCust = int(i)
 			setTestbool, err = fs.GetBool("testbool")
 			return 1, "", err
 		},
@@ -127,7 +126,7 @@ func TestOptions(t *testing.T) {
 				wantCmd     bool
 				wantErr     bool
 			}{"", false, false},
-			[]tea.Msg{tea.KeyMsg{Type: tea.KeyUp}, tea.KeyMsg{Type: tea.KeyEnter}},
+			[]tea.Msg{tea.KeyMsg{Type: hotkeys.CursorUp}, tea.KeyMsg{Type: hotkeys.Interact}},
 			"nm", "/tmp", 1, true,
 		},
 	}
