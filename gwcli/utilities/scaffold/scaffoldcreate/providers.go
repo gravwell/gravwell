@@ -36,6 +36,9 @@ type FieldProvider interface {
 	// Reset the instance back to its initial, ready-for-use state.
 	// Called after the action's invocation completes.
 	Reset()
+	// Hijack SetArg to alter/set data before the user can interact with/see the provider.
+	// Does not pass in flagset or tokens as we don't want fields interacting with raw data: complexity management.
+	SetArg(width, height int)
 	Update(selected bool, msg tea.Msg) tea.Cmd
 	// View for the Provider.
 	// Kind tells scaffoldcreate how to display this view and if it should continue to process the Views of other fields.
@@ -63,10 +66,13 @@ type TextProvider struct {
 	ti textinput.Model
 
 	// Function to use to create the base textinput instead of stylesheet.NewTI().
-	// Useful for setting validator funcs.
+	// Useful for setting validator func that do not rely on external data.
 	CustomInit func() textinput.Model
 	// Function to call each Reset instead of textinput.Reset().
 	CustomReset func(textinput.Model) textinput.Model
+	// Used to hook SetArgs for custom alterations at each action invocation.
+	// Useful for setting suggestions/validation based on current data.
+	CustomSetArgs func(textinput.Model) textinput.Model
 }
 
 func (p *TextProvider) Initialize(defaultValue string, required bool) {
@@ -86,6 +92,12 @@ func (p *TextProvider) Reset() {
 		return
 	}
 	p.ti.Reset()
+}
+
+func (p *TextProvider) SetArg(_, _ int) {
+	if p.CustomSetArgs != nil {
+		p.ti = p.CustomSetArgs(p.ti)
+	}
 }
 
 func (p *TextProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
@@ -145,6 +157,8 @@ func (p *PathProvider) Initialize(defaultValue string, required bool) {
 func (p *PathProvider) Reset() {
 	p.pti.Reset()
 }
+
+func (p *PathProvider) SetArg(_, _ int) {}
 
 func (p *PathProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
 	p.pti, cmd = p.pti.Update(msg)
@@ -257,6 +271,11 @@ func (p *MSLProvider) Initialize(_ string, _ bool) {
 func (p *MSLProvider) Reset() {
 	p.msl = multiselectlist.New(p.Items, p.msl.Width(), p.msl.Height(), p.Options)
 	p.msl.Undone()
+}
+
+func (p *MSLProvider) SetArg(width, height int) {
+	p.msl.SetWidth(width)
+	p.msl.SetHeight(height)
 }
 
 func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd) {
