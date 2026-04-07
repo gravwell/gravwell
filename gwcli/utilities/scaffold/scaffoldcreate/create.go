@@ -68,7 +68,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -77,7 +76,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -293,73 +291,67 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	} else if c.inputs.takeover != "" {
 		return c.fields[c.inputs.takeover].Provider.Update(true, msg) // takeover mode implies selected
 	}
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		c.createErr = "" // clear error from last create attempt
-		switch {
-		case hotkeys.IsCursorUp(keyMsg):
-			c.focusPrevious()
-			return textinput.Blink
-		case tea.KeyDown:
-			c.focusNext()
-			return textinput.Blink
-		case tea.KeyEnter:
-			if c.SubmitSelected() {
-				// extract values from TIs
-				values, mr := c.extractInputValues()
-				if mr != nil {
-					if len(mr) == 1 {
-						c.inputs.err = fmt.Sprintf("%v is required", mr[0])
-					} else {
-						c.inputs.err = fmt.Sprintf("%v are required", mr)
-					}
-					return nil
-				}
-				id, invalid, err := c.cf(c.fields, &c.fs)
-				if err != nil {
-					c.createErr = err.Error()
-					return nil
-				} else if invalid != "" {
-					c.inputs.err = invalid
-					return nil
-				}
-				// done, die
-				c.mode = quitting
-				return tea.Println(fmt.Sprintf(createdSuccessfully, c.singular, id))
-			} else {
-				c.focusNext()
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		c.width = sizeMsg.Width
+		// forward this message to each field
+		var cmds []tea.Cmd
+		for i, key := range c.inputs.ordered {
+			cmd := c.fields[key].Provider.Update(i == int(c.inputs.selected), msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+
 			}
 		}
-	} else if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		c.width = sizeMsg.Width
+		if len(cmds) > 0 {
+			return tea.Batch(cmds...)
+		}
+		return nil
+	} else if hotkeys.IsCursorUp(msg) {
+		c.focusPrevious()
+		return textinput.Blink
+	} else if hotkeys.IsCursorDown(msg) {
+		c.focusNext()
+		return textinput.Blink
+	} else if hotkeys.IsInteract(msg) && c.SubmitSelected() && c.inputs.err == "" {
+		id, invalid, err := c.cf(c.fields, &c.fs)
+		if err != nil {
+			c.createErr = err.Error()
+			return nil
+		} else if invalid != "" {
+			c.inputs.err = invalid
+			return nil
+		}
+		// done, die
+		c.mode = quitting
+		return tea.Println(fmt.Sprintf(createdSuccessfully, c.singular, id))
+	}
+	if c.SubmitSelected() { // if submit is selected and it wasn't handled above, we don't care about it
 		return nil
 	}
-	var cmd tea.Cmd
-	if !c.SubmitSelected() {
-		var iErr error // input error from this cycle, if applicable
-		// pass message to currently focused input
-		switch c.curInputType() {
-		case File:
-			pti := c.inputs.PTIs[c.curInputKey()]
-			var npti pathtextinput.Model
-			npti, cmd = pti.Update(msg)
-			iErr = npti.Err
-			c.inputs.PTIs[c.curInputKey()] = &npti // replace pti
-		case Text:
-			ti := c.inputs.TIs[c.curInputKey()]
-			var nti textinput.Model
-			nti, cmd = ti.Update(msg)
-			iErr = nti.Err
-			c.inputs.TIs[c.curInputKey()] = &nti // replace pti
-		}
 
-		if iErr != nil {
-			c.inputs.err = iErr.Error()
-		} else {
-			c.inputs.err = ""
-		}
+	// pass the message to the currently selected input
 
+	p := c.selectedField().Provider
+	cmd := p.Update(true, msg)
+	if invalid := c.selectedField().Provider.Satisfied(); invalid != "" { // don't clobber other errors
+		c.inputs.err = invalid
 	}
 	return cmd
+}
+
+func (c *createModel) selectedField() Field {
+	return c.fields[c.inputs.ordered[c.inputs.selected]]
+}
+
+// sets inputs.err to the reason of the first invalid field, then exits.
+// Empties inputs.err out iff every field is satisfied.
+func (c *createModel) checkSatisfaction() {
+	for _, key := range c.inputs.ordered {
+		if invalid := c.fields[key].Provider.Satisfied(); invalid != "" {
+			c.inputs.err = invalid
+		}
+	}
+	c.inputs.err = ""
 }
 
 // Blurs the current input, selects and focuses the next one c.inputs.ordered.
@@ -390,27 +382,8 @@ func (c *createModel) focusInput(focus bool) {
 	if c.SubmitSelected() {
 		return
 	}
-	switch c.curInputType() {
-	case File:
-		if focus {
-			c.inputs.PTIs[c.curInputKey()].Focus()
-		} else {
-			c.inputs.PTIs[c.curInputKey()].Blur()
-		}
-	case Text:
-		if focus {
-			c.inputs.TIs[c.curInputKey()].Focus()
-		} else {
-			c.inputs.TIs[c.curInputKey()].Blur()
-		}
-	default:
-		s := "focus"
-		if !focus {
-			s = "blur"
-		}
-		clilog.Writer.Error("failed to "+s+" next input: unknown field type",
-			attachLogInfo(c.inputs.ordered[c.inputs.selected].Key, c.inputs.ordered[c.inputs.selected].Type)...)
-	}
+	key := c.inputs.ordered[c.inputs.selected]
+	c.fields[key].Provider.ToggleFocus(focus)
 }
 
 // Generates the corollary value map from the inputs.
@@ -422,8 +395,9 @@ func (c *createModel) focusInput(focus bool) {
 // - a list of required fields (as their keys) with empty values
 //
 // - an error (if applicable)
-func (c *createModel) extractInputValues() (fieldValues map[string]string, missingRequiredFields []string) {
+func (c *createModel) extractFieldValues() (fieldValues map[string]string, unsatisfied string) { // TODO
 	fieldValues = make(map[string]string, len(c.inputs.ordered))
+	// call Get against every field
 	for _, o := range c.inputs.ordered {
 		// fetch respective input's value
 		var val string
@@ -458,40 +432,39 @@ var rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
 
 // Iterates through the inputs in order, composing as "titles:input".
 func (c *createModel) View() string {
+	if c.inputs.takeover != "" {
+		_, v, _ := c.fields[c.inputs.takeover].Provider.View(true, c.width)
+		return v
+	}
+
 	// total amount of space we are taking of for this View. Should be <= c.width.
 	modalWidth := c.longestFieldLength + 1 + c.longestTILength // field + ":" + ti
 
 	var lines []string
 	var sb strings.Builder // to build titles; reused each cycle
-	for i, o := range c.inputs.ordered {
+	for i, key := range c.inputs.ordered {
 		sb.Reset()
-		field, ok := c.fields[o.Key]
-		if !ok {
-			clilog.Writer.Error("failed to generate field view: failed to find field associated to key " + o.Key)
-			continue
-		}
-		// left-pad so all titles are all the same width
-		sb.WriteString(strings.Repeat(" ", c.longestFieldLength-len(field.Title)))
-		sb.WriteString(stylesheet.Pip(c.inputs.selected, uint(i)))
-		// coloruize and attach titles
-		if field.Required {
-			sb.WriteString(stylesheet.RequiredTitle(field.Title))
-		} else {
-			sb.WriteString(stylesheet.OptionalTitle(field.Title))
-		}
-		title := rightAlignSty.Render(sb.String())
+		field := c.fields[key]
+		kind, value, secondLine := c.fields[key].Provider.View(i == int(c.inputs.selected), c.width)
 
-		// attach input view and any additional lines
-		switch o.Type {
-		case File:
-			pti := c.inputs.PTIs[o.Key]
-			lines = append(lines, title+pti.View())
-			// gather suggestions into a following line
-			var sgts = TrimSuggestsToFile(pti.AvailableSuggestions(), pti.Value())
-			k, title, value, followup := o.Field.Provider.View(c.inputs.selected == uint(i), modalWidth)
-			lines = append(lines, l)
-		case Text:
-			lines = append(lines, title+c.inputs.TIs[o.Key].View())
+		switch kind {
+		case TitleValue:
+			var sb strings.Builder
+			// left-pad so all titles are all the same width
+			//sb.WriteString(strings.Repeat(" ", c.longestFieldLength-len(field.Title)))
+			sb.WriteString(stylesheet.Pip(c.inputs.selected, uint(i)))
+			if field.Required {
+				sb.WriteString(stylesheet.RequiredTitle(field.Title))
+			} else {
+				sb.WriteString(stylesheet.OptionalTitle(field.Title))
+			}
+			lines = append(lines, sb.String()+value)
+		case Line:
+			lines = append(lines, stylesheet.Pip(c.inputs.selected, uint(i))+value)
+		}
+		// attach second line, if provided
+		if secondLine != "" {
+			lines = append(lines, secondLine)
 		}
 	}
 	// compose the titles and inputs
@@ -511,29 +484,9 @@ func (c *createModel) Done() bool {
 func (c *createModel) Reset() error {
 	c.mode = inputting
 
-	var wg sync.WaitGroup
-	// reset TIs
-	wg.Go(func() {
-		for _, pti := range c.inputs.PTIs {
-			pti.Reset()
-			pti.Blur()
-		}
-	})
-	wg.Go(func() {
-		for _, ti := range c.inputs.TIs {
-			ti.Reset()
-			ti.Blur()
-		}
-	})
-	wg.Go(func() { // refresh flags to their original, unparsed and unvalued state
-		c.fs = installFlagsFromFields(c.fields)
-		if c.addtlFlagFunc != nil {
-			addtlFlags := c.addtlFlagFunc()
-			c.fs.AddFlagSet(&addtlFlags)
-		}
-	})
-
-	wg.Wait()
+	for _, key := range c.inputs.ordered {
+		c.fields[key].Provider.Reset()
+	}
 
 	c.createErr = ""
 	c.inputs.err = ""
@@ -549,108 +502,22 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	}
 
 	// we do not need to check missing requires when run from mother
-	flagVals, _, err := setValuesFromFlags(&c.fs, c.fields)
-	if err != nil {
+	if _, err := setValuesFromFlags(&c.fs, c.fields); err != nil {
 		return "", nil, err
 	}
 
-	// iterate fields to check for customTIconf and values
-	for key, field := range c.fields {
-		// check for and set flag values
-		if v, found := flagVals[key]; found {
-			switch field.Type {
-			case File:
-				c.inputs.PTIs[key].SetValue(v)
-			case Text:
-				c.inputs.TIs[key].SetValue(v)
-			}
-		}
-		// check for customTIs to call
-		if field.CustomTIFuncSetArg != nil {
-			ti := c.inputs.TIs[key]
-			nti := field.CustomTIFuncSetArg(ti)
-			c.inputs.TIs[key] = &nti
-		}
-
-	}
-
-	for key, fval := range flagVals {
-		// figure out type by searching fields
-		field := c.fields[key]
-		switch field.Type {
-		case File:
-			c.inputs.PTIs[key].SetValue(fval)
-		}
-	}
 	c.width = width
 
+	// set the error immediately based on starting satisfaction states.
+	// This is really just to set the error to the first missing required field's error.
+	c.checkSatisfaction()
 	return "", nil, nil
 }
 
-//#region getter/setter helper functions
-
-// Returns the key of the current input.
-//
-// Returns "" if submit is selected.
-func (c *createModel) curInputKey() string {
-	if c.SubmitSelected() {
-		return ""
-	}
-	return c.inputs.ordered[c.inputs.selected].Key
-}
-
-// Returns the key of the current input.
-//
-// Returns "" if submit is selected.
-func (c *createModel) curInputType() FieldType {
-	if c.SubmitSelected() {
-		return ""
-	}
-	return c.inputs.ordered[c.inputs.selected].Type
-}
-
-// getInputValue is a helper function for fetching the .Value of an input.
-// If type is given, only the associated map will be checked (providing a meager time-cost reduction).
-//
-// Returns empty and logs and error if the key is not found.
-func (c *createModel) getInputValue(key string, typ FieldType) string {
-	switch typ {
-	case File:
-		pti, ok := c.inputs.PTIs[key]
-		if ok {
-			return pti.Value()
-		}
-	case Text:
-		ti, ok := c.inputs.TIs[key]
-		if ok {
-			return ti.Value()
-		}
-	default:
-		// check both: file, then text
-		pti, ok := c.inputs.PTIs[key]
-		if ok {
-			return pti.Value()
-		}
-		ti, ok := c.inputs.TIs[key]
-		if ok {
-			return ti.Value()
-		}
-
-	}
-
-	// if we made it this far, the key was not found. Log an error and return.
-	clilog.Writer.Warn("failed to find input value associated to key", attachLogInfo(key, typ)...)
-
-	return ""
-}
-
-//#endregion
-
 // attachLogInfo returns 3 SDParams that are useful to attach to most/every log: key, type, and caller identity.
-func attachLogInfo(key string, typ FieldType) []rfc5424.SDParam {
+func attachLogInfo(key string) []rfc5424.SDParam {
 	return []rfc5424.SDParam{
 		{Name: "field_key", Value: key},
-		{Name: "type", Value: typ},
 		scaffold.IdentifyCaller(),
 	}
 }

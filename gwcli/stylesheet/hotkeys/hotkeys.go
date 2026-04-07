@@ -8,12 +8,12 @@ import (
 )
 
 var (
-	interact   = key.NewBinding(key.WithKeys(tea.KeyEnter.String()))
+	interact   = key.NewBinding(key.WithKeys(tea.KeyEnter.String(), tea.KeySpace.String()))
 	cursorUp   = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftUp.String(), tea.KeyShiftTab.String()))
 	cursorDown = key.NewBinding(key.WithKeys(tea.KeyCtrlShiftDown.String(), tea.KeyTab.String()))
 )
 
-// IsInteract returns whether or not the given tea.Msg was an interact/invoke keystroke.
+// IsInteract returns whether or not the given tea.Msg was an interact/invoke/submit keystroke.
 func IsInteract(msg tea.Msg) bool {
 	return match(msg, interact)
 }
