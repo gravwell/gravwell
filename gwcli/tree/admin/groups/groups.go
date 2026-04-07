@@ -45,10 +45,10 @@ func create() action.Pair {
 			"name": scaffoldcreate.FieldName("group"),
 			"desc": scaffoldcreate.FieldDescription("group"),
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			err = connection.Client.AddGroup(fieldValues["name"], fieldValues["desc"])
+		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			err = connection.Client.AddGroup(cfg["name"].Provider.Get(), cfg["desc"].Provider.Get())
 			// use name as id
-			return fieldValues["name"], "", err
+			return cfg["name"].Provider.Get(), "", err
 		}, scaffoldcreate.Options{})
 }
 

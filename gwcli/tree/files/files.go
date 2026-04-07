@@ -123,25 +123,15 @@ func create() action.Pair {
 			"path":   scaffoldcreate.FieldPath("file"),
 			"labels": scaffoldcreate.FieldLabels(),
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var (
-				name, desc, path string
-				labels           []string
+				name, desc, filePath string
+				labels               []string
 			)
-			// fetch and sanity check values
-			var found bool
-			if name, found = fieldValues["name"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"name\" field")
-			}
-			if desc, found = fieldValues["desc"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"desc\" field")
-			}
-			if path, found = fieldValues["path"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"path\" field")
-			}
-			if lbls, found := fieldValues["labels"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"labels\" field")
-			} else {
+			name = cfg["name"].Provider.Get()
+			desc = cfg["desc"].Provider.Get()
+			filePath = cfg["path"].Provider.Get()
+			if lbls := cfg["labels"].Provider.Get(); lbls != "" {
 				labels = strings.Split(lbls, ",")
 			}
 
@@ -151,7 +141,7 @@ func create() action.Pair {
 				Labels: labels,
 			}
 
-			id, err = connection.Client.AddUserFileDetails(m, path)
+			id, err = connection.Client.AddUserFileDetails(m, filePath)
 			return
 		}, scaffoldcreate.Options{})
 }

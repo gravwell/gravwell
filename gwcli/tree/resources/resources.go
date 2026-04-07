@@ -166,12 +166,13 @@ func create() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			filePath := cfg["path"].Provider.Get()
 			// check that path is valid and the file exists
-			if fi, err := os.Stat(fieldValues["path"]); err != nil {
+			if fi, err := os.Stat(filePath); err != nil {
 				switch {
 				case errors.Is(err, filesystem.ErrNotExist):
-					return "", fmt.Sprintf("file '%v' not found", fieldValues["path"]), nil
+					return "", fmt.Sprintf("file '%v' not found", filePath), nil
 				}
 				return "", fmt.Sprintf("failed to access path: %v", err), nil
 			} else if fi.IsDir() {
@@ -179,23 +180,21 @@ func create() action.Pair {
 			}
 			// transmute to resource struct
 			var labels []string
-			if lbls, found := fieldValues["labels"]; !found {
-				return "", "", errors.New("failed to find \"labels\" field")
-			} else if lbls = strings.TrimSpace(lbls); lbls != "" {
-				labels = strings.Split(lbls, ",")
+			if lbls := cfg["labels"].Provider.Get(); strings.TrimSpace(lbls) != "" {
+				labels = strings.Split(strings.TrimSpace(lbls), ",")
 			}
 
 			data := types.Resource{
 				CommonFields: types.CommonFields{
-					Name:        fieldValues["name"],
-					Description: fieldValues["desc"],
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
 					Labels:      labels,
 				},
 			}
 
 			resp, err := connection.Client.CreateResource(data)
 			// upload the file
-			f, err := os.Open(fieldValues["path"])
+			f, err := os.Open(filePath)
 			if err != nil {
 				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
 				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "open file"})

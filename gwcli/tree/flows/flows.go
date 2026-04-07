@@ -75,49 +75,48 @@ func importCreate() action.Pair {
 				Required: false,
 				Title:    "Groups",
 				Flag:     scaffoldcreate.FlagConfig{Name: "groups", Usage: "comma-separated list of group IDs this flow is accessible to", Shorthand: 'g'},
-				Type:     scaffoldcreate.Text,
-				Order:    40,
-				CustomTIFuncInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", true)
-					ti.Validate = func(s string) error { // returns on first error
-						for strGID := range strings.SplitSeq(s, ",") {
-							// check for numeric only
-							for _, r := range strGID {
-								if r >= 48 && r <= 57 { // 0-9 in ASCII
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						// refresh cached group IDs at initialization time
+						gm, err := connection.Client.GetGroupMap()
+						if err != nil {
+							clilog.Writer.Warnf("failed to cache group IDs: %v", err)
+						}
+						validGIDs = gm
+
+						ti := stylesheet.NewTI("", true)
+						ti.Validate = func(s string) error { // returns on first error
+							for strGID := range strings.SplitSeq(s, ",") {
+								// check for numeric only
+								for _, r := range strGID {
+									if r >= 48 && r <= 57 { // 0-9 in ASCII
+										continue
+									}
+									return errors.New("group IDs may only contain numbers")
+								}
+								// check that the group exists
+								gid, err := strconv.ParseInt(strGID, 10, 32)
+								if err != nil {
+									clilog.Writer.Infof("failed to parse gid %v as int32: %v", strGID, err)
 									continue
 								}
-								return errors.New("group IDs may only contain numbers")
+								if _, found := validGIDs[int32(gid)]; !found {
+									return fmt.Errorf("%v is not a known group ID", gid)
+								}
 							}
-							// check that the group exists
-							gid, err := strconv.ParseInt(strGID, 10, 32)
-							if err != nil {
-								clilog.Writer.Infof("failed to parse gid %v as int32: %v", strGID, err)
-								continue
-							}
-							if _, found := validGIDs[int32(gid)]; !found {
-								return fmt.Errorf("%v is not a known group ID", gid)
-							}
+							return nil
 						}
-						return nil
-					}
-					ti.Placeholder = "1,2,5,3,..."
-					return ti
+						ti.Placeholder = "1,2,5,3,..."
+						return ti
+					},
 				},
-				CustomTIFuncSetArg: func(m *textinput.Model) textinput.Model {
-					// hijack SetArg to refresh cached group IDs
-					gm, err := connection.Client.GetGroupMap()
-					if err != nil {
-						clilog.Writer.Warnf("failed to cache group IDs: %v", err)
-					}
-					validGIDs = gm
-					return *m
-				},
+				Order: 40,
 			},
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// slurp the json file
 			var json string
-			if b, err := os.ReadFile(fieldValues["path"]); err != nil {
+			if b, err := os.ReadFile(cfg["path"].Provider.Get()); err != nil {
 				return 0, err.Error(), nil // this is probably a file permission or exist error so return as invalid
 			} else {
 				json = strings.TrimSpace(string(b))
@@ -125,7 +124,7 @@ func importCreate() action.Pair {
 
 			// coerce groups
 			var groups []int32
-			for _, s := range strings.Split(fieldValues["groups"], ",") {
+			for _, s := range strings.Split(cfg["groups"].Provider.Get(), ",") {
 				group, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
 					clilog.Writer.Warnf("failed to parse %v as int32 for groupID: %v", s, err)
@@ -136,12 +135,12 @@ func importCreate() action.Pair {
 
 			spec := types.Flow{
 				CommonFields: types.CommonFields{
-					Name:        fieldValues["name"],
-					Description: fieldValues["desc"],
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
 					Readers:     types.ACL{GIDs: groups},
 				},
 				AutomationCommonFields: types.AutomationCommonFields{
-					Schedule: fieldValues["frequency"],
+					Schedule: cfg["frequency"].Provider.Get(),
 				},
 				Flow: json,
 			}
