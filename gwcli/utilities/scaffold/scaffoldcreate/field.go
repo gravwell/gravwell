@@ -21,8 +21,7 @@ import (
 )
 
 // FlagConfig defines settings for customizing how the flag for this field is displayed and handled.
-// All flag configuration is optional
-// However, if Name is not specified, this field will not have an associated flag and all other fields will be ignored.
+// All flag configuration is optional.
 type FlagConfig struct {
 	Name      string // Longform flag (ex: --flagname).
 	Usage     string // Description displayed with -h.
@@ -55,10 +54,11 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 	var flags pflag.FlagSet
 	for key, f := range fields {
 		if f.Flag.Name == "" {
-			continue
+			f.Flag.Name = ft.DeriveFlagName(f.Title) // sanitize
+		} else {
+			f.Flag.Name = ft.DeriveFlagName(f.Flag.Name) // sanitize
 		}
 
-		f.Flag.Name = ft.DeriveFlagName(f.Flag.Name) // sanitize
 		fields[key] = f
 
 		// install flag
@@ -107,6 +107,7 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields Config) (missingRequireds []st
 // Order == 100.
 func FieldName(singular string) Field {
 	return Field{
+		Title:    ft.Name.Name(),
 		Required: true,
 		Flag: FlagConfig{
 			Name:      ft.Name.Name(),
@@ -114,7 +115,7 @@ func FieldName(singular string) Field {
 			Shorthand: rune(ft.Name.Shorthand()[0]),
 		},
 		Order:    100,
-		Provider: &TextProvider{Title: ft.Name.Name()},
+		Provider: &TextProvider{},
 	}
 }
 
@@ -122,6 +123,7 @@ func FieldName(singular string) Field {
 // Order == 90.
 func FieldDescription(singular string) Field {
 	return Field{
+		Title:    ft.Description.Name(),
 		Required: false,
 		Flag: FlagConfig{
 			Name:      ft.Description.Name(),
@@ -129,7 +131,7 @@ func FieldDescription(singular string) Field {
 			Shorthand: rune(ft.Description.Shorthand()[0]),
 		},
 		Order:    90,
-		Provider: &TextProvider{Title: ft.Description.Name()},
+		Provider: &TextProvider{},
 	}
 }
 
@@ -137,6 +139,7 @@ func FieldDescription(singular string) Field {
 // Order == 80.
 func FieldPath(singular string) Field {
 	return Field{
+		Title:    ft.Path.Name(),
 		Required: true,
 		Flag: FlagConfig{
 			Name:      ft.Path.Name(),
@@ -144,7 +147,7 @@ func FieldPath(singular string) Field {
 			Shorthand: rune(ft.Path.Shorthand()[0]),
 		},
 		Order:    80,
-		Provider: &TextProvider{Title: ft.Path.Name()},
+		Provider: &TextProvider{},
 	}
 }
 
@@ -152,6 +155,7 @@ func FieldPath(singular string) Field {
 // Order == 70.
 func FieldLabels() Field {
 	return Field{
+		Title:    "Labels",
 		Required: false,
 		Flag: FlagConfig{
 			Name:  "labels",
@@ -159,7 +163,6 @@ func FieldLabels() Field {
 		},
 		Order: 70,
 		Provider: &TextProvider{
-			Title: "Labels",
 			CustomInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", true)
 				ti.Placeholder = "label1,label2,label3,..."
@@ -174,6 +177,7 @@ func FieldLabels() Field {
 // Order == 50.
 func FieldFrequency() Field {
 	return Field{
+		Title:    "Frequency",
 		Required: true,
 		Flag: FlagConfig{
 			Name:      ft.Frequency.Name(),
@@ -182,7 +186,6 @@ func FieldFrequency() Field {
 		},
 		Order: 50,
 		Provider: &TextProvider{
-			Title: "Frequency",
 			CustomInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
 				ti.Placeholder = "* * * * *"
