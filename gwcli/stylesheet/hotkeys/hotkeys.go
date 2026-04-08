@@ -14,12 +14,14 @@ const (
 	Interact   = tea.KeyEnter
 	CursorDown = tea.KeyShiftDown
 	CursorUp   = tea.KeyShiftUp
+	Complete   = tea.KeyTab
 )
 
 var (
 	interact   = key.NewBinding(key.WithKeys(Interact.String(), tea.KeySpace.String()))
-	cursorUp   = key.NewBinding(key.WithKeys(CursorUp.String(), tea.KeyShiftTab.String()))
-	cursorDown = key.NewBinding(key.WithKeys(CursorDown.String(), tea.KeyTab.String()))
+	cursorUp   = key.NewBinding(key.WithKeys(CursorUp.String()))
+	cursorDown = key.NewBinding(key.WithKeys(CursorDown.String()))
+	complete   = key.NewBinding(key.WithKeys(Complete.String()))
 )
 
 // IsInteract returns whether or not the given tea.Msg was an interact/invoke/submit keystroke.
