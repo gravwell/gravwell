@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -243,18 +242,9 @@ func (put *PackedPivot) JSONMetadata() (json.RawMessage, error) {
 	return json.RawMessage(b), err
 }
 
-// UserFile is what is actually stored in the thing object, it is encoded into contents
-type UserFile struct {
-	GUID     uuid.UUID
-	Name     string
-	Desc     string
-	Contents []byte `json:",omitempty"`
-	Labels   []string
-}
-
 type WireUserFile struct {
 	ThingHeader
-	UserFile
+	File
 	Updated time.Time
 }
 
@@ -269,58 +259,8 @@ func (w WireUserFile) Thing() (t Thing, err error) {
 	}
 	t.Updated = w.Updated
 	//do not set the synced value
-	err = t.EncodeContents(w.UserFile)
+	err = t.EncodeContents(w.File)
 	return
-}
-
-// UserFileDetails is a structure that is used to relay additional ownership information about a UserFile object
-// This structure is populated via the things metadata, and does not contain any of the contents
-type UserFileDetails struct {
-	GUID        uuid.UUID
-	ThingUUID   uuid.UUID
-	UID         int32
-	GIDs        []int32
-	Global      bool
-	WriteAccess Access
-	Size        int64  //size of the file
-	Type        string //content type as determined by the http content type detector
-	Name        string
-	Desc        string
-	Updated     time.Time
-	Labels      []string
-}
-
-func (ufd *UserFileDetails) String() string {
-	if ufd.Name != `` {
-		return ufd.Name
-	}
-	return ufd.GUID.String()
-}
-
-func (uf *UserFile) Info() (sz int64, tp string) {
-	if sz = int64(len(uf.Contents)); sz > 0 {
-		tp = http.DetectContentType(uf.Contents)
-	} else {
-		tp = emptyContentType
-	}
-	return
-}
-
-func (uf *UserFile) JSONMetadata() (json.RawMessage, error) {
-	st := &struct {
-		UUID        string
-		Name        string
-		Description string
-		Size        int64
-		ContentType string
-	}{
-		UUID:        uf.GUID.String(),
-		Name:        uf.Name,
-		Description: uf.Desc,
-	}
-	st.Size, st.ContentType = uf.Info()
-	b, err := json.Marshal(st)
-	return json.RawMessage(b), err
 }
 
 type Actions struct {

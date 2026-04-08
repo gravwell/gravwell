@@ -117,10 +117,10 @@ func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
 }
 
 /**************************************************************************
- * User Files
+ * Files
  **************************************************************************/
 
-func writeUserFile(dir string, name string, x types.UserFile) error {
+func writeFile(dir string, x kits.PackedFile) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "file")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -128,12 +128,12 @@ func writeUserFile(dir string, name string, x types.UserFile) error {
 	}
 
 	// Now drop two files: .meta and .contents
-	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := os.WriteFile(contentsPath, x.Contents, 0644); err != nil {
+	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", x.Name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", x.Name))
+	if err := os.WriteFile(contentsPath, x.Data, 0644); err != nil {
 		return err
 	}
-	x.Contents = []byte{}
+	x.Data = []byte{}
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -141,27 +141,27 @@ func writeUserFile(dir string, name string, x types.UserFile) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readUserFile(dir, name string) (x types.UserFile, err error) {
+func readFile(dir, name string) (pf kits.PackedFile, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "file")
-	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
+	contentPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &pf); err != nil {
 		return
 	}
-	// Now read the contents and insert it
-	bts, err = os.ReadFile(contentsPath)
-	if err == nil {
-		x.Contents = bts
-	} else if os.IsNotExist(err) {
-		err = nil
-	}
+	// Now read the contents into the file
+	pf.Data, err = os.ReadFile(contentPath)
+	hsh := md5.New()
+	hsh.Write(pf.Data)
+	pf.Hash = hsh.Sum(nil)
+	pf.Size = uint64(len(pf.Data))
 	return
 }
 
