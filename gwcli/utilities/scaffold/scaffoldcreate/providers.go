@@ -36,9 +36,9 @@ type FieldProvider interface {
 	// Reset the instance back to its initial, ready-for-use state.
 	// Called after the action's invocation completes.
 	Reset()
-	// Hijack SetArg to alter/set data before the user can interact with/see the provider.
+	// Hijack SetArgs to alter/set data before the user can interact with/see the provider.
 	// Does not pass in flagset or tokens as we don't want fields interacting with raw data: complexity management.
-	SetArg(width, height int)
+	SetArgs(width, height int)
 	Update(selected bool, msg tea.Msg) tea.Cmd
 	// View for the Provider.
 	// Kind tells scaffoldcreate how to display this view and if it should continue to process the Views of other fields.
@@ -94,7 +94,7 @@ func (p *TextProvider) Reset() {
 	p.ti.Reset()
 }
 
-func (p *TextProvider) SetArg(_, _ int) {
+func (p *TextProvider) SetArgs(_, _ int) {
 	if p.CustomSetArgs != nil {
 		p.ti = p.CustomSetArgs(p.ti)
 	}
@@ -158,7 +158,7 @@ func (p *PathProvider) Reset() {
 	p.pti.Reset()
 }
 
-func (p *PathProvider) SetArg(_, _ int) {}
+func (p *PathProvider) SetArgs(_, _ int) {}
 
 func (p *PathProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
 	p.pti, cmd = p.pti.Update(msg)
@@ -273,7 +273,7 @@ func (p *MSLProvider) Reset() {
 	p.msl.Undone()
 }
 
-func (p *MSLProvider) SetArg(width, height int) {
+func (p *MSLProvider) SetArgs(width, height int) {
 	p.msl.SetWidth(width)
 	p.msl.SetHeight(height)
 }

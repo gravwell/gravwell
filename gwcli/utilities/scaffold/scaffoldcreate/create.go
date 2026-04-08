@@ -489,7 +489,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 
 	// call SetArg hooks
 	for _, key := range c.inputs.ordered {
-		c.fields[key].Provider.SetArg(width, height)
+		c.fields[key].Provider.SetArgs(width, height)
 	}
 
 	// set the error immediately based on starting satisfaction states.
