@@ -27,7 +27,7 @@ func TestMimecast(t *testing.T) {
 	mockDockerfile.Context = filepath.Join(e2e.RepoRoot(), "tools/mock/mimecast")
 
 	// test containers doesn't pull well with buildkit
-	if err := exec.Command("docker", "pull", "golang:latest").Run(); err != nil {
+	if err := exec.Command("docker", "pull", "golang:1.26.2").Run(); err != nil {
 		t.Fatal(err)
 	}
 	if err := exec.Command("docker", "pull", "busybox:latest").Run(); err != nil {
