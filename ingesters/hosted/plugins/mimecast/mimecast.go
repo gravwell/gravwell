@@ -224,6 +224,9 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			}
 		}
 
+		// Unlike audit the mta cursor ensures we never get dupes even if we request the same time range.
+		// We track the last timestamp as there is lag in the batch api so just because no events were returned
+		// does not mean that all events have been sent to us for a given time range.
 		if last == nil || last.IsZero() { // there were no events in the range
 			last = &tr.End
 		}
@@ -294,12 +297,6 @@ func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag en
 			continue
 		}
 		ts := time.UnixMilli(data.Timestamp)
-		//if ts.Before(tr.Start) { // the batch can contain events from the entire day, we only care about the current range.
-		//	continue // we want to skip the first/last logic as this entry was skipped on this run.
-		//}
-		//if ts.After(tr.End) {
-		//	break // no more so don't even process them
-		//}
 		if first == nil {
 			first = &ts
 		}
