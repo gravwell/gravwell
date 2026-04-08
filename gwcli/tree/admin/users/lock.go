@@ -60,10 +60,10 @@ func lockAction() action.Pair {
 					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(i)+"\" is not a valid integer; no accounts were locked")
 					return
 				}
-				// if the user attempts to lock their own account and did not specify --self, skip
+				// if the user attempts to lock their own account and did not specify --include-self, skip
 				if !self && uid == int64(connection.CurrentUser().ID) {
 					fmt.Fprintf(c.ErrOrStderr(), "refusing to lock the account of the caller.\n"+
-						"If you actually intended to lock your current account, rerun with --self\n")
+						"If you actually intended to lock your current account, rerun with --include-self\n")
 					continue
 				}
 				uids = append(uids, int32(uid))
