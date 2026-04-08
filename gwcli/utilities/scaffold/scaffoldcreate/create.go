@@ -323,7 +323,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		return textinput.Blink
 	} else if hotkeys.IsInteract(msg) && c.SubmitSelected() {
 		// double check that all fields are satisfied
-		c.checkSatisfaction()
+		c.checkSatisfaction(false)
 		if c.inputs.err != "" {
 			return nil
 		}
@@ -347,9 +347,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 
 	p := c.selectedField().Provider
 	cmd := p.Update(true, msg)
-	if invalid := c.selectedField().Provider.Satisfied(); invalid != "" { // don't clobber other errors
-		c.inputs.err = invalid
-	}
+	c.checkSatisfaction(false)
 	return cmd
 }
 
@@ -359,20 +357,31 @@ func (c *createModel) selectedField() Field {
 
 // sets inputs.err to the reason of the first invalid field, then exits.
 // Empties inputs.err out iff every field is satisfied.
-func (c *createModel) checkSatisfaction() {
-	for _, key := range c.inputs.ordered {
-		f := c.fields[key]
+//
+// If selcetedOnly is set, only the currently selected field is checked.
+func (c *createModel) checkSatisfaction(selectedOnly bool) {
+	check := func(f Field) bool {
 		if f.Required && f.Provider.Get() == "" {
 			c.inputs.err = phrases.MissingRequiredField(f.Title)
-			return
+			return true
 		}
 
 		if invalid := f.Provider.Satisfied(); invalid != "" {
 			c.inputs.err = invalid
+			return true
+		}
+		c.inputs.err = ""
+		return false
+	}
+	if selectedOnly {
+		check(c.selectedField())
+		return
+	}
+	for _, key := range c.inputs.ordered {
+		if check(c.fields[key]) {
 			return
 		}
 	}
-	c.inputs.err = ""
 }
 
 // Blurs the current input, selects and focuses the next one c.inputs.ordered.
@@ -493,7 +502,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 
 	// set the error immediately based on starting satisfaction states.
 	// This is really just to set the error to the first missing required field's error.
-	c.checkSatisfaction()
+	c.checkSatisfaction(false)
 	return "", nil, nil
 }
 
