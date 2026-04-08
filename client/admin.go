@@ -849,17 +849,16 @@ func (c *Client) PurgeUser(id int32) error {
 		}
 	}
 
-	// files
-	if lfr, err := nc.ListFiles(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get files %d %w", id, err)
-	} else if lfr.TotalCount > 0 {
-		for _, f := range lfr.Results {
-			if f.OwnerID == id {
-				if err := nc.PurgeFile(f.ID); err != nil {
-					return fmt.Errorf("Failed to purge file %v %w", f.ID, err)
+	//user files
+	if ufs, err := nc.UserFiles(); err != nil {
+		return fmt.Errorf("Failed to get user files %d %w", id, err)
+	} else if len(ufs) > 0 {
+		for _, uf := range ufs {
+			if uf.UID == id {
+				if err := nc.DeleteUserFile(uf.GUID); err != nil {
+					return fmt.Errorf("Failed to purge user file %v %w", uf.GUID, err)
 				}
 			}
-
 		}
 	}
 

@@ -45,8 +45,8 @@ const (
 	LibraryWrite       Capability = 21
 	ExtractorRead      Capability = 22
 	ExtractorWrite     Capability = 23
-	FileRead           Capability = 24
-	FileWrite          Capability = 25
+	UserFileRead       Capability = 24
+	UserFileWrite      Capability = 25
 	KitRead            Capability = 26
 	KitWrite           Capability = 27
 	KitBuild           Capability = 28
@@ -286,10 +286,10 @@ func (c Capability) Name() string {
 		return `ExtractorRead`
 	case ExtractorWrite:
 		return `ExtractorWrite`
-	case FileRead:
-		return `FileRead`
-	case FileWrite:
-		return `FileWrite`
+	case UserFileRead:
+		return `UserFileRead`
+	case UserFileWrite:
+		return `UserFileWrite`
 	case KitRead:
 		return `KitRead`
 	case KitWrite:
@@ -386,9 +386,9 @@ func (c Capability) Category() CapabilityCategory {
 	case ExtractorWrite:
 		return ExtractorsCat
 
-	case FileRead:
+	case UserFileRead:
 		return FilesCat
-	case FileWrite:
+	case UserFileWrite:
 		return FilesCat
 
 	case KitRead:
@@ -523,10 +523,10 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = ExtractorRead
 	case `extractorwrite`:
 		*c = ExtractorWrite
-	case `fileread`:
-		*c = FileRead
-	case `filewrite`:
-		*c = FileWrite
+	case `userfileread`:
+		*c = UserFileRead
+	case `userfilewrite`:
+		*c = UserFileWrite
 	case `kitread`:
 		*c = KitRead
 	case `kitwrite`:
@@ -634,10 +634,10 @@ func (c Capability) String() string {
 		return `Extractor Read`
 	case ExtractorWrite:
 		return `Extractor Write`
-	case FileRead:
-		return `File Read`
-	case FileWrite:
-		return `File Write`
+	case UserFileRead:
+		return `User File Read`
+	case UserFileWrite:
+		return `User File Write`
 	case KitRead:
 		return `Kit Read`
 	case KitWrite:
@@ -743,10 +743,10 @@ func (c Capability) Description() string {
 		return `User can view and use auto extractors`
 	case ExtractorWrite:
 		return `User can create and modify auto extractors`
-	case FileRead:
-		return `User can view files`
-	case FileWrite:
-		return `User can create and update files`
+	case UserFileRead:
+		return `User can view user files`
+	case UserFileWrite:
+		return `User can create and update user files`
 	case KitRead:
 		return `User can view kits`
 	case KitWrite:
