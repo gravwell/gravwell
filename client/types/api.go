@@ -53,6 +53,17 @@ type ErrorObject struct {
 	Info string `json:"info,omitempty"`
 }
 
+// BaseListResponse contains the common set of fields returned when
+// querying lists of assets.
+type BaseListResponse struct {
+	CursorNext       string            `json:"cursor_next"`
+	CursorPrev       string            `json:"cursor_prev"`
+	Offset           int               `json:"offset"`
+	TotalCount       int               `json:"total_count"`
+	Type             string            `json:"type"`
+	AvailableFilters []AvailableFilter `json:"available_filters"`
+}
+
 type VersionInfo struct {
 	API   ApiInfo
 	Build BuildInfo
@@ -137,7 +148,7 @@ func ParseCanonicalVersion(s string) (r CanonicalVersion, err error) {
 	return
 }
 
-// NewerVersion returns true if the incoming version is newer than coming
+// NewerVersion returns true if the argument is newer than the receiver.
 func (cv CanonicalVersion) NewerVersion(ncv CanonicalVersion) bool {
 	return cv.Compare(ncv) > 0
 }
@@ -311,13 +322,13 @@ type SearchAgentConfig struct {
 	Disable_Network_Script_Functions bool // disables "risky" scripting functions (network stuff)
 	Disable_Self_Ingest              bool // disables ingesting search agent logs to indexers
 	HTTP_Proxy                       string
-}
 
-type SearchAgentCheckin struct {
-	LastCheckin     string
-	Warning         bool
-	SearchAgentUUID string
-	SearchAgentIP   string
+	Search_Rate  int64 // searches launched per second
+	Search_Burst int64 // allows some burst
+	Script_Rate  int64
+	Script_Burst int64
+	Flow_Rate    int64
+	Flow_Burst   int64
 }
 
 type emptyInts []int32

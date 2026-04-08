@@ -12,6 +12,8 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 )
 
 func TestTee(t *testing.T) {
@@ -118,6 +120,86 @@ func TestTee(t *testing.T) {
 				t.Fatalf("expected log entry %v to contain %v", i, tests[i].args.str)
 			}
 			i += 1
+		}
+	})
+}
+
+func TestInitializeFromArgs(t *testing.T) {
+	// ensure the singleton does not exist
+	clilog.Destroy()
+
+	t.Run("nil args uses default level", func(t *testing.T) {
+		clilog.InitializeFromArgs(nil)
+		// check
+		if lvl := strings.ToUpper(clilog.Writer.GetLevel().String()); lvl != cfgdir.DefaultLogLevel {
+			t.Error(testsupport.ExpectedActual(cfgdir.DefaultLogLevel, lvl))
+		}
+	})
+	// ensure the singleton does not exist
+	if err := clilog.Destroy(); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("both flags provided overwrites log path and level", func(t *testing.T) {
+		// prep for outpath
+		pth := path.Join(t.TempDir(), "t.log")
+
+		args := []string{"--" + ft.LogPath.Name() + "=" + pth, "--" + ft.LogLevel.Name() + "=DEBUG"}
+		t.Log("args: \"", args, "\"")
+		clilog.InitializeFromArgs(args)
+		// check level
+		if lvl := strings.ToUpper(clilog.Writer.GetLevel().String()); lvl != "DEBUG" {
+			t.Error(testsupport.ExpectedActual("DEBUG", lvl))
+		}
+		msg := "test message"
+		clilog.Writer.Debug(msg)
+		if err := clilog.Destroy(); err != nil {
+			t.Fatal(err)
+		}
+		// check that the file was properly written to
+		if b, err := os.ReadFile(pth); err != nil {
+			t.Error(err)
+		} else if !strings.Contains(string(b), msg) {
+			t.Errorf("did not find message \"%v\" inside of file:\"%v\"", msg, string(b))
+		}
+	})
+
+	t.Run("help flag should be ignored", func(t *testing.T) {
+		pth := path.Join(t.TempDir(), "t.log")
+
+		args := []string{"-h", "--log=" + pth}
+		t.Log(args)
+		clilog.InitializeFromArgs(args)
+
+		msg := "test message"
+		clilog.Writer.Info(msg)
+		if err := clilog.Destroy(); err != nil {
+			t.Fatal(err)
+		}
+		// check that the file was properly written to
+		if b, err := os.ReadFile(pth); err != nil {
+			t.Error(err)
+		} else if !strings.Contains(string(b), msg) {
+			t.Errorf("did not find message \"%v\" inside of file:\"%v\"", msg, string(b))
+		}
+	})
+
+	t.Run("help action should be ignored", func(t *testing.T) {
+		pth := path.Join(t.TempDir(), "t.log")
+
+		args := []string{"help", "--log=" + pth}
+		t.Log(args)
+		clilog.InitializeFromArgs(args)
+
+		msg := "test message"
+		clilog.Writer.Info(msg)
+		if err := clilog.Destroy(); err != nil {
+			t.Fatal(err)
+		}
+		// check that the file was properly written to
+		if b, err := os.ReadFile(pth); err != nil {
+			t.Error(err)
+		} else if !strings.Contains(string(b), msg) {
+			t.Errorf("did not find message \"%v\" inside of file:\"%v\"", msg, string(b))
 		}
 	})
 }

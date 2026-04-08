@@ -17,6 +17,7 @@ import (
 	"io"
 	"maps"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,17 +58,24 @@ func Type(prog *tea.Program, text string) {
 	}
 }
 
-// TTMatchGolden compares the output (final View) of tm against the test's associated output file.
+// TTMatchGolden is a convenience function to check FinalOutput or Output of tm against its golden.
 //
-// ! This blocks until tm returns.
-func TTMatchGolden(t *testing.T, tm *teatest.TestModel) {
+// ! If final, this blocks until tm returns.
+func TTMatchGolden(t *testing.T, tm *teatest.TestModel, final bool, finalWait time.Duration) []byte {
 	t.Helper()
-	out, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(3*time.Second)))
+	var o io.Reader
+	if !final {
+		o = tm.Output()
+	} else {
+		o = tm.FinalOutput(t, teatest.WithFinalTimeout(finalWait))
+	}
+	out, err := io.ReadAll(o)
 	if err != nil {
 		t.Error(err)
 	}
 	// matches on the golden file with the test function's name
 	teatest.RequireEqualOutput(t, out)
+	return out
 }
 
 //#endregion TeaTest
@@ -76,6 +84,18 @@ func TTMatchGolden(t *testing.T, tm *teatest.TestModel) {
 // ! Prefixes the string with a newline.
 func ExpectedActual(expected, actual any) string {
 	return fmt.Sprintf("\n\tExpected:'%+v'\n\tGot:'%+v'", expected, actual)
+}
+
+// Uncloak replaces whitespace characters with visible representations.
+//
+// \t 		-> ↹ (U+21B9)
+// \n 		-> ↵ (U+21B5) (newline will be retained, not replaced)
+// (space) 	-> · (U+B7)
+func Uncloak(s string) string {
+	s = strings.ReplaceAll(s, " ", "·")
+	s = strings.ReplaceAll(s, "\n", "↵\n")
+	s = strings.ReplaceAll(s, "\t", "↹")
+	return s
 }
 
 // NonZeroExit calls Fatal if code is <> 0.
