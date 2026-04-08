@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"github.com/google/uuid"
 )
@@ -44,7 +44,7 @@ func (c *Client) NewTemplate(guid uuid.UUID, name, description string, contents 
 		return
 	}
 	template := types.UserTemplate{GUID: guid, Contents: ct, Name: name, Description: description}
-	err = c.methodStaticPushURL(http.MethodPost, templatesUrl(), template, &details)
+	err = c.methodStaticPushURL(http.MethodPost, templatesUrl(), template, &details, nil, nil)
 	return
 }
 
@@ -62,7 +62,7 @@ func (c *Client) GetTemplate(guid uuid.UUID) (template types.WireUserTemplate, e
 // SetTemplate allows the owner of a template (or an admin) to update
 // the contents of the template.
 func (c *Client) SetTemplate(guid uuid.UUID, template types.WireUserTemplate) (details types.WireUserTemplate, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, templatesGuidUrl(guid), template, &details)
+	err = c.methodStaticPushURL(http.MethodPut, templatesGuidUrl(guid), template, &details, nil, nil)
 	return
 }
 
