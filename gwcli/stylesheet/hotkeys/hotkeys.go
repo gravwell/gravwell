@@ -11,32 +11,39 @@ import (
 // You probably don't want to use these directly unless you are sending keys.
 // You probably aren't sending keys unless you are writing tests.
 const (
-	Interact   = tea.KeyEnter
+	Invoke     = tea.KeyEnter // move onto the next stage/submit current data
+	Select     = tea.KeySpace // select/toggle an item
 	CursorDown = tea.KeyShiftDown
 	CursorUp   = tea.KeyShiftUp
 	Complete   = tea.KeyTab
 )
 
 var (
-	interact   = key.NewBinding(key.WithKeys(Interact.String(), tea.KeySpace.String()))
-	cursorUp   = key.NewBinding(key.WithKeys(CursorUp.String()))
-	cursorDown = key.NewBinding(key.WithKeys(CursorDown.String()))
-	complete   = key.NewBinding(key.WithKeys(Complete.String()))
+	invokeBindings     = key.NewBinding(key.WithKeys(Invoke.String()))
+	selectBindings     = key.NewBinding(key.WithKeys(Select.String()))
+	cursorUpBindings   = key.NewBinding(key.WithKeys(CursorUp.String()))
+	cursorDownBindings = key.NewBinding(key.WithKeys(CursorDown.String()))
+	completeBindings   = key.NewBinding(key.WithKeys(Complete.String()))
 )
 
-// IsInteract returns whether or not the given tea.Msg was an interact/invoke/submit keystroke.
-func IsInteract(msg tea.Msg) bool {
-	return match(msg, interact)
+// IsSelect returns whether or not the given tea.Msg is a select/minor-invoke keystroke.
+func IsSelect(msg tea.Msg) bool {
+	return match(msg, invokeBindings)
 }
 
-// IsCursorUp returns whether or not the given tea.Msg indicated moving the cursor up.
+// IsInvoke returns whether or not the given tea.Msg is an invocation/submission keystroke.
+func IsInvoke(msg tea.Msg) bool {
+	return match(msg, selectBindings)
+}
+
+// IsCursorUp returns whether or not the given tea.Msg indicates moving the cursor up.
 func IsCursorUp(msg tea.Msg) bool {
-	return match(msg, cursorUp)
+	return match(msg, cursorUpBindings)
 }
 
-// IsCursorDown returns whether or not the given tea.Msg indicated moving the cursor down.
+// IsCursorDown returns whether or not the given tea.Msg indicates moving the cursor down.
 func IsCursorDown(msg tea.Msg) bool {
-	return match(msg, cursorDown)
+	return match(msg, cursorDownBindings)
 }
 
 // helper function to check if the given msg is a keymsg and that key is bound.
