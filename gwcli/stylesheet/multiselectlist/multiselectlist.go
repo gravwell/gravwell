@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 // Model bolts additional functionality onto the list bubble such that multiple items can be selected.
@@ -84,16 +85,15 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return msl, nil
 	}
 
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.Type {
-		case tea.KeySpace:
-			cmd := msl.ToggleCurrentItem()
-			return msl, cmd
-		case tea.KeyEnter:
-			msl.done = true
-			return msl, nil
-		}
+	switch {
+	case hotkeys.IsSelect(msg):
+		cmd := msl.ToggleCurrentItem()
+		return msl, cmd
+	case hotkeys.IsInvoke(msg):
+		msl.done = true
+		return msl, nil
 	}
+
 	var cmd tea.Cmd
 	msl.Model, cmd = msl.Model.Update(msg)
 	return msl, cmd
