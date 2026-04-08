@@ -1,6 +1,8 @@
 package scaffoldcreate_test
 
 import (
+	"os"
+	"path"
 	"strings"
 	"testing"
 
@@ -98,6 +100,66 @@ func TestTextProvider(t *testing.T) {
 			t.Fatal("bad value after second SetArgs", testsupport.ExpectedActual("Yun", x))
 		}
 
+	})
+}
+
+func TestPathProvider(t *testing.T) {
+	t.Run("accept completion", func(t *testing.T) {
+		// set PWD and create some files to test path completion against
+		tDir := t.TempDir()
+		t.Chdir(tDir)
+		{
+			f, err := os.Create("f1.txt")
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+		}
+		{
+			f, err := os.Create("f2.txt")
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+		}
+		{
+			// directory with 3 files inside of it:
+			// x1
+			// x2
+			// x3
+			if err := os.Mkdir("xdir", 0755); err != nil {
+				t.Fatal(err)
+			}
+			f, err := os.Create(path.Join("xdir", "x1.txt"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+			f, err = os.Create(path.Join("xdir", "x2.txt"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+			f, err = os.Create(path.Join("xdir", "x3.txt"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+		}
+
+		provider := &scaffoldcreate.PathProvider{}
+		f := scaffoldcreate.NewField("path", false, provider)
+		pair := scaffoldcreate.NewCreateAction("test",
+			scaffoldcreate.Config{"path": f},
+			func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				return 0, "", nil
+			}, scaffoldcreate.Options{})
+		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, nil, 0, 0, "", nil, nil)
+		testsupport.TypeModel(pair.Model, "f1")
+		pair.Model.Update(tea.KeyMsg{Type: hotkeys.Complete})
+		if val := provider.Get(); val != "f1.txt" {
+			t.Fatal("autocomplete failed", testsupport.ExpectedActual("f1.txt", val))
+		}
 	})
 }
 
