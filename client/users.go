@@ -15,7 +15,9 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// ListUsers returns a list of users accessible to the current user.
+// ListUsers returns a list of users. If CBAC is enabled, regular
+// users must possess the ListUsers capability or the function will
+// return an error.
 func (c *Client) ListUsers(opts *types.QueryOptions) (ret types.UserListResponse, err error) {
 	if opts == nil {
 		opts = &types.QueryOptions{}
@@ -24,19 +26,9 @@ func (c *Client) ListUsers(opts *types.QueryOptions) (ret types.UserListResponse
 	return
 }
 
-// ListAllUsers (admin-only) returns all users on the system.
-func (c *Client) ListAllUsers(opts *types.QueryOptions) (ret types.UserListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	err = c.postStaticURL(USERS_LIST_URL, opts, &ret)
-	return
-}
-
-// GetUserMap returns a map of UID to username for every user on the system.
+// GetUserMap returns a map of UID to username for every user on the system. This calls ListUsers under the hood, so the user must have the ListUsers capability enabled.
 func (c *Client) GetUserMap() (map[int32]string, error) {
-	users, err := c.ListAllUsers(nil)
+	users, err := c.ListUsers(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -124,11 +116,13 @@ func (c *Client) CleanupUsers() error {
 	return c.deleteStaticURL(USERS_URL, nil)
 }
 
-// LookupUser looks up a User object given a username
-// if the username is not found, ErrNotFound is returned
+// LookupUser looks up a User object given a username.  If the
+// username is not found, ErrNotFound is returned.  This calls
+// ListUsers under the hood, so the user must have the ListUsers
+// capability enabled.
 func (c *Client) LookupUser(username string) (ud types.User, err error) {
 	var lst types.UserListResponse
-	if lst, err = c.ListAllUsers(nil); err != nil {
+	if lst, err = c.ListUsers(nil); err != nil {
 		return
 	}
 	for _, l := range lst.Results {

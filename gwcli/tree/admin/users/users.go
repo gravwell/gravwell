@@ -44,7 +44,7 @@ func NewNav() *cobra.Command {
 func list() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet) ([]types.User, error) {
-			resp, err := connection.Client.ListAllUsers(nil)
+			resp, err := connection.Client.ListUsers(nil)
 			return resp.Results, err
 		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
 }
@@ -184,7 +184,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteUser(id)
 		},
 		func() ([]scaffolddelete.Item[int32], error) {
-			users, err := connection.Client.ListAllUsers(nil)
+			users, err := connection.Client.ListUsers(nil)
 			if err != nil {
 				return nil, err
 			}
@@ -229,7 +229,7 @@ func edit() action.Pair {
 				return userCBAC.User, nil
 			},
 			FetchSub: func() (items []types.User, err error) {
-				resp, err := connection.Client.ListAllUsers(nil)
+				resp, err := connection.Client.ListUsers(nil)
 				return resp.Results, err
 			},
 			GetFieldSub: func(item types.User, fieldKey string) (value string, err error) {

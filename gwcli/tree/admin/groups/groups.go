@@ -34,7 +34,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list groups", "Retrieves a list of groups available on the system",
 		types.Group{},
 		func(fs *pflag.FlagSet) ([]types.Group, error) {
-			resp, err := connection.Client.ListAllGroups(nil)
+			resp, err := connection.Client.ListGroups(nil)
 			return resp.Results, err
 		},
 		scaffoldlist.Options{})

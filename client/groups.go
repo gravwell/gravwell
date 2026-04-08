@@ -12,7 +12,9 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// ListGroups returns a list of groups accessible to the current user.
+// ListGroups returns a list of groups on the system. If CBAC is
+// enabled, regular users must possess the ListGroups capability or
+// the function will return an error.
 func (c *Client) ListGroups(opts *types.QueryOptions) (ret types.GroupListResponse, err error) {
 	if opts == nil {
 		opts = &types.QueryOptions{}
@@ -21,19 +23,11 @@ func (c *Client) ListGroups(opts *types.QueryOptions) (ret types.GroupListRespon
 	return
 }
 
-// ListAllGroups (admin-only) returns all groups on the system.
-func (c *Client) ListAllGroups(opts *types.QueryOptions) (ret types.GroupListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true
-	err = c.postStaticURL(GROUP_LIST_URL, opts, &ret)
-	return
-}
-
-// GetGroupMap returns a map of GID to group name for every group on the system.
+// GetGroupMap returns a map of GID to group name for every group on
+// the system. This calls ListGroups under the hood, so the user must
+// have the ListGroups capability enabled.
 func (c *Client) GetGroupMap() (map[int32]string, error) {
-	groups, err := c.ListAllGroups(nil)
+	groups, err := c.ListGroups(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +80,13 @@ func (c *Client) CleanupGroups() error {
 	return c.deleteStaticURL(GROUP_URL, nil)
 }
 
-// LookupGroup looks up a Group object given a group name
-// if the group name is not found, ErrNotFound is returned
+// LookupGroup looks up a Group object given a group name.  If the
+// group name is not found, ErrNotFound is returned. This calls
+// ListGroups under the hood, so the user must have the ListGroups
+// capability enabled.
 func (c *Client) LookupGroup(groupname string) (gd types.Group, err error) {
 	var lst types.GroupListResponse
-	if lst, err = c.ListAllGroups(nil); err != nil {
+	if lst, err = c.ListGroups(nil); err != nil {
 		return
 	}
 	for _, l := range lst.Results {
