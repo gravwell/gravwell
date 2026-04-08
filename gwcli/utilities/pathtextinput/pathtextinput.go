@@ -9,7 +9,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
@@ -97,10 +96,6 @@ func deriveCompletions(root, input string) (completions []string) {
 			// to actually match and tab-complete, we need to ensure input is included
 			completions = append(completions, input+unmatchedRunes)
 		}
-	}
-	// underline the first suggestion
-	if len(completions) > 0 {
-		completions[0] = lipgloss.NewStyle().Underline(true).Render(completions[0])
 	}
 	return completions
 }
