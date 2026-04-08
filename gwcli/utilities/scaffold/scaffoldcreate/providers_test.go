@@ -3,6 +3,7 @@ package scaffoldcreate_test
 import (
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"testing"
 
@@ -86,7 +87,7 @@ func TestTextProvider(t *testing.T) {
 			}
 		}
 		pair.Model.Update(tea.KeyMsg{Type: hotkeys.CursorDown}) // submit
-		pair.Model.Update(tea.KeyMsg{Type: hotkeys.Interact})
+		pair.Model.Update(tea.KeyMsg{Type: hotkeys.Invoke})
 
 		if create != "ab" { // create should have been set as part of submission
 			t.Fatal("bad value from createFunc", testsupport.ExpectedActual("ab", create))
@@ -148,18 +149,50 @@ func TestPathProvider(t *testing.T) {
 		}
 
 		provider := &scaffoldcreate.PathProvider{}
-		f := scaffoldcreate.NewField("path", false, provider)
+		f := scaffoldcreate.NewField("path", true, provider)
 		pair := scaffoldcreate.NewCreateAction("test",
 			scaffoldcreate.Config{"path": f},
 			func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
 				return 0, "", nil
 			}, scaffoldcreate.Options{})
-		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, nil, 0, 0, "", nil, nil)
-		testsupport.TypeModel(pair.Model, "f1")
-		pair.Model.Update(tea.KeyMsg{Type: hotkeys.Complete})
-		if val := provider.Get(); val != "f1.txt" {
-			t.Fatal("autocomplete failed", testsupport.ExpectedActual("f1.txt", val))
+		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, nil, 80, 60, "", nil, nil)
+
+		// before we enter anything, check for suggestions
+		pair.Model.Update(nil)
+		{
+			v := pair.Model.View()
+			lines := strings.Split(v, "\n")
+			if len(lines) < 3 {
+				t.Fatalf("unexpected line count while parsing view '%s'", testsupport.Uncloak(v))
+			}
+			// first line should be our field
+			if _, _, found := strings.Cut(lines[0], "path:"); !found {
+				t.Fatal("first line does not contain expected title. Line: ", lines[0])
+			}
+			// second line should contain our completions
+			lines[1] = strings.TrimSpace(lines[1])
+			wantSuggestions := []string{"f1.txt", "f2.txt", "xdir"}
+			if suggestions := strings.Split(lines[1], " "); !slices.Equal(suggestions, wantSuggestions) {
+				t.Fatal(testsupport.ExpectedActual(wantSuggestions, suggestions))
+			}
 		}
+
+		t.Run("completion of partial values", func(t *testing.T) {
+			testsupport.TypeModel(pair.Model, "f1")
+			pair.Model.Update(tea.KeyMsg{Type: hotkeys.Complete})
+			if val := provider.Get(); val != "f1.txt" {
+				t.Fatal("autocomplete failed", testsupport.ExpectedActual("f1.txt", val))
+			}
+			// clear
+			provider.Set("")
+			// test manual autocompletion to a file in a subdirectory
+			testsupport.TypeModel(pair.Model, "xdir/x1")
+			pair.Model.Update(tea.KeyMsg{Type: hotkeys.Complete})
+			if val := provider.Get(); val != "xdir/x1.txt" {
+				t.Fatal("autocomplete failed", testsupport.ExpectedActual("xdir/x1.txt", val))
+			}
+		})
+
 	})
 }
 
