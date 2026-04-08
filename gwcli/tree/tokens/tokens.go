@@ -208,26 +208,26 @@ func create() action.Pair {
 			Required: false,
 			Title:    "Capabilities",
 			Flag:     scaffoldcreate.FlagConfig{Usage: "comma-separated list of capabilities to grant the token", Shorthand: 'c'},
-			Type:     scaffoldcreate.Text,
+			Provider: &scaffoldcreate.TextProvider{},
 			Order:    80,
 		},
 		"expires": {
 			Required: false,
 			Title:    "Expires At",
 			Flag:     scaffoldcreate.FlagConfig{Usage: "expiration date for the token (RFC3339 format, e.g. 2026-01-01T00:00:00Z); leave blank for no expiry", Shorthand: 'e'},
-			Type:     scaffoldcreate.Text,
+			Provider: &scaffoldcreate.TextProvider{},
 			Order:    60,
 		},
 	}
 
 	return scaffoldcreate.NewCreateAction("token", fields,
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			tc := types.TokenCreate{
-				Name:        fieldValues["name"],
-				Description: fieldValues["desc"],
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
 			}
 
-			if caps, found := fieldValues["capabilities"]; found && strings.TrimSpace(caps) != "" {
+			if caps := cfg["capabilities"].Provider.Get(); strings.TrimSpace(caps) != "" {
 				raw := strings.Split(strings.TrimSpace(caps), ",")
 				tc.Capabilities = make([]string, 0, len(raw))
 				for _, c := range raw {
@@ -237,7 +237,7 @@ func create() action.Pair {
 				}
 			}
 
-			if exp, found := fieldValues["expires"]; found && strings.TrimSpace(exp) != "" {
+			if exp := cfg["expires"].Provider.Get(); strings.TrimSpace(exp) != "" {
 				t, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(exp))
 				if parseErr != nil {
 					return "", "expires must be in RFC3339 format (e.g. 2026-01-01T00:00:00Z)", nil

@@ -86,23 +86,23 @@ const (
 
 func create() action.Pair {
 	fields := scaffoldcreate.Config{
-		createNameKey:  scaffoldcreate.FieldName("saved query"),
-		createDescKey:  scaffoldcreate.FieldDescription("saved query"),
+		createNameKey: scaffoldcreate.FieldName("saved query"),
+		createDescKey: scaffoldcreate.FieldDescription("saved query"),
 		createQueryKey: scaffoldcreate.Field{
 			Required: true,
 			Title:    "query",
 			Flag:     scaffoldcreate.FlagConfig{Name: "query", Usage: "the query to save"},
-			Type:     scaffoldcreate.Text,
+			Provider: &scaffoldcreate.TextProvider{},
 			Order:    80,
 		},
 	}
 
 	return scaffoldcreate.NewCreateAction("saved query", fields,
-		func(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
+		func(cfg scaffoldcreate.Config, _ *pflag.FlagSet) (any, string, error) {
 			sq := types.SavedQuery{}
-			sq.Name = fieldValues[createNameKey]
-			sq.Description = fieldValues[createDescKey]
-			sq.Query = fieldValues[createQueryKey]
+			sq.Name = cfg[createNameKey].Provider.Get()
+			sq.Description = cfg[createDescKey].Provider.Get()
+			sq.Query = cfg[createQueryKey].Provider.Get()
 
 			result, err := connection.Client.CreateSavedQuery(sq)
 			return result.ID, "", err

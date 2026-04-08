@@ -124,21 +124,21 @@ func create() action.Pair {
 				Required: true,
 				Title:    "Username",
 				Flag:     scaffoldcreate.FlagConfig{Usage: "unique username to assign"},
-				Type:     scaffoldcreate.Text,
+				Provider: &scaffoldcreate.TextProvider{},
 				Order:    200,
 			},
 			"name": {
 				Required: true,
 				Title:    "Name",
 				Flag:     scaffoldcreate.FlagConfig{Usage: "actual name of the user"},
-				Type:     scaffoldcreate.Text,
+				Provider: &scaffoldcreate.TextProvider{},
 				Order:    180,
 			},
 			"email": {
 				Required: true,
 				Title:    "Email",
 				Flag:     scaffoldcreate.FlagConfig{Usage: "email associated to this user"},
-				Type:     scaffoldcreate.Text,
+				Provider: &scaffoldcreate.TextProvider{},
 				Order:    160,
 			},
 			// TODO include admin bool
@@ -146,25 +146,26 @@ func create() action.Pair {
 				Required: true,
 				Title:    "Password",
 				Flag:     scaffoldcreate.FlagConfig{Usage: "initial password for the user"},
-				Type:     scaffoldcreate.Text,
-				Order:    140,
-				CustomTIFuncInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", true)
-					ti.EchoMode = textinput.EchoPassword
-					return ti
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("", true)
+						ti.EchoMode = textinput.EchoPassword
+						return ti
+					},
 				},
+				Order: 140,
 			},
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			if err := connection.Client.AddUser(
-				fieldValues["username"], fieldValues["password"],
-				fieldValues["name"], fieldValues["email"],
+				cfg["username"].Provider.Get(), cfg["password"].Provider.Get(),
+				cfg["name"].Provider.Get(), cfg["email"].Provider.Get(),
 				false, // TODO admin
 			); err != nil {
 				return 0, "", err
 			}
 			// verify the user can be found
-			u, err := connection.Client.LookupUser(fieldValues["username"])
+			u, err := connection.Client.LookupUser(cfg["username"].Provider.Get())
 			if err != nil {
 				return 0, "", fmt.Errorf("failed to find user after creation: %w\nThe user may or may not exist.", err)
 			}
