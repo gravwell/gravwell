@@ -73,7 +73,7 @@ func lockAction() action.Pair {
 					clilog.Tee(clilog.INFO, c.ErrOrStderr(), fmt.Sprintf("failed to lock user account %d: %v", uid, err))
 					return
 				}
-				fmt.Fprintf(c.OutOrStdout(), "User %v locked", uid)
+				fmt.Fprintf(c.OutOrStdout(), "User %v locked\n", uid)
 			}
 		}, treeutils.GenerateActionOptions{
 			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
