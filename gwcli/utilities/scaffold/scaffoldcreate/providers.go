@@ -37,6 +37,7 @@ type FieldProvider interface {
 	// Called after the action's invocation completes.
 	Reset()
 	// Hijack SetArgs to alter/set data before the user can interact with/see the provider.
+	// This is called BEFORE flags are parsed into their fields.
 	// Does not pass in flagset or tokens as we don't want fields interacting with raw data: complexity management.
 	SetArgs(width, height int)
 	Update(selected bool, msg tea.Msg) tea.Cmd

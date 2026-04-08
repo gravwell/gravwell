@@ -480,17 +480,16 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		return err.Error(), nil, nil
 	}
 
-	// we do not need to check missing requires when run from mother
+	// call SetArg hooks
+	for _, key := range c.inputs.ordered {
+		c.fields[key].Provider.SetArgs(width, height)
+	}
+
 	if _, err := setValuesFromFlags(&c.fs, c.fields); err != nil {
 		return "", nil, err
 	}
 
 	c.width = width
-
-	// call SetArg hooks
-	for _, key := range c.inputs.ordered {
-		c.fields[key].Provider.SetArgs(width, height)
-	}
 
 	// set the error immediately based on starting satisfaction states.
 	// This is really just to set the error to the first missing required field's error.
