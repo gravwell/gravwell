@@ -34,7 +34,7 @@ var (
 		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
 		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
 		"\n" +
-		"In non-interactive mode, data can also be ingested via STDIN (requires --stdin). If this data is not Gravwell JSON, --default-tag must by specified." +
+		"In non-interactive mode, data can also be ingested via STDIN (requires --stdin). If this data is not Gravwell JSON, --default-tag must be specified." +
 		"\n" +
 		"Calling ingest with no arguments will spin up a file picker (unless --" + ft.NoInteractive.Name() + " is specified in which case it will fail out).\n"
 )

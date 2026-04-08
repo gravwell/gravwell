@@ -280,12 +280,9 @@ func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) str
 			// no matching field
 			// do nothing
 		} else {
-			// walk the indicies to find value
+			// walk the indices to find value
 			// NOTE(rlandau): do NOT use FieldByIndex, as it panics if the indices walk a nil.
 			row.WriteString(valueToString(fieldByIndexNoPanic(structVals, findices)))
-			//fmt.Fprintf(&row, "%v", s)
-
-			//fmt.Fprintf(&row, "%v", data)
 		}
 		row.WriteString(",") // append comma to token
 	}

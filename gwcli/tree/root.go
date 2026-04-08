@@ -157,6 +157,7 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 			if strings.Contains(err.Error(), "connection refused") {
 				return fmt.Errorf("%s: connection refused", server)
 			}
+			return fmt.Errorf("failed to login: %w", err)
 		}
 	}
 	username, password, apiToken, noInteractive, err := GatherCredentials(cmd.Flags())
