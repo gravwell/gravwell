@@ -122,13 +122,13 @@ func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	// unlock has no local flags
 
 	// stuff all locked users into the list.
-	users, err := connection.Client.GetAllUsers()
+	users, err := connection.Client.ListUsers(nil)
 	if err != nil {
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")
 	}
-	var itms = make([]list.DefaultItem, 0, len(users))
-	for _, user := range users {
+	var itms = make([]list.DefaultItem, 0, len(users.Results))
+	for _, user := range users.Results {
 		if user.Locked {
 			itms = append(itms, item{
 				id:       user.ID,

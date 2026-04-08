@@ -151,13 +151,13 @@ func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int
 	}
 
 	// stuff all users into the list, except the caller. Probably don't want the caller to be able to lock themselves easily.
-	users, err := connection.Client.GetAllUsers()
+	users, err := connection.Client.ListUsers(nil)
 	if err != nil {
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")
 	}
-	var itms = make([]list.DefaultItem, 0, len(users))
-	for _, user := range users {
+	var itms = make([]list.DefaultItem, 0, len(users.Results))
+	for _, user := range users.Results {
 		if !self && user.ID == connection.CurrentUser().ID {
 			continue
 		}
