@@ -143,7 +143,7 @@ type KitBuildRequest struct {
 	Flows             []string          `json:",omitempty"`
 	Macros            []string          `json:",omitempty"`
 	Extractors        []string          `json:",omitempty"`
-	Files             []string          `json:",omitempty"`
+	Files             []uuid.UUID       `json:",omitempty"`
 	SearchLibraries   []string          `json:",omitempty"` // Saved Queries go here... compatibility for now.
 	Playbooks         []uuid.UUID       `json:",omitempty"`
 	Alerts            []uuid.UUID       `json:",omitempty"`
@@ -218,16 +218,20 @@ func (ps *KitState) RemoveItem(name, tp string) error {
 }
 
 func (pbr *KitBuildRequest) validateReferencedFile(val, name string) error {
+	guid, err := uuid.Parse(val)
+	if err != nil {
+		return fmt.Errorf("Invalid %s ID: %v", name, err)
+	}
 	//iterate through the files and make sure the file exists
 	var ok bool
 	for _, v := range pbr.Files {
-		if v == val {
+		if v == guid {
 			ok = true
 			break
 		}
 	}
 	if !ok {
-		return fmt.Errorf("The %s file ID %s is not included in the kit", name, val)
+		return fmt.Errorf("The %s file ID %s is not included in the kit", name, guid)
 	}
 	return nil
 }
@@ -284,8 +288,8 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 	for i := range pbr.Files {
-		if pbr.Files[i] == "" {
-			return errors.New("invalid file ID")
+		if pbr.Files[i] == uuid.Nil {
+			return errors.New("zero UUID in file list")
 		}
 	}
 	for i := range pbr.Playbooks {

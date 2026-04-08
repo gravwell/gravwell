@@ -99,7 +99,7 @@ func (c *Client) PopulateResourceFromReader(id string, data io.Reader) (err erro
 
 	mpw := newMpWriter(wtr)
 	//write the file portion (the name is ignored)
-	if part, err = mpw.CreateFormFile(fileField, `file`); err != nil {
+	if part, err = mpw.CreateFormFile(userFileField, `file`); err != nil {
 		return
 	}
 	contentType := mpw.FormDataContentType()
