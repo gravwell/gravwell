@@ -9,13 +9,10 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
 
-	"github.com/gravwell/gravwell/v3/ingesters/hosted"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins"
 )
 
@@ -63,19 +60,4 @@ func (c cfgType) AttachConfig() attach.AttachConfig {
 // IngesterBaseConfig implements the required interface for base.cfgHelper which is used during startup
 func (c cfgType) IngestBaseConfig() config.IngestConfig {
 	return c.Global
-}
-
-func (c cfgType) forEachIngester(tn hosted.TagNegotiator, nrt plugins.NewRuntimeCallback, cb plugins.NewIngesterCallback) (err error) {
-	if tn == nil {
-		err = fmt.Errorf("nil tag negotiator")
-		return
-	} else if nrt == nil {
-		err = fmt.Errorf("nil new runtime function")
-		return
-	} else if cb == nil {
-		err = fmt.Errorf("nil new ingester callback")
-		return
-	}
-	err = c.Configs.ForEachIngester(tn, nrt, cb)
-	return
 }
