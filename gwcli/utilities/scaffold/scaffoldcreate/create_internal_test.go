@@ -252,7 +252,7 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(tea.KeyMsg{Type: hotkeys.Interact})
+	cm.Update(tea.KeyMsg{Type: hotkeys.Invoke})
 	// check for errors
 	if cm.inputs.err == "" { // A is required and was not set
 		t.Fatal("expected inputErr to be set due to missing requireds.")
@@ -264,7 +264,7 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(tea.KeyMsg{Type: hotkeys.Interact})
+	cm.Update(tea.KeyMsg{Type: hotkeys.Invoke})
 	if cm.inputs.err != "" {
 		t.Fatalf("unexpected input error: %v", cm.inputs.err)
 	} else if cm.createErr != "" {

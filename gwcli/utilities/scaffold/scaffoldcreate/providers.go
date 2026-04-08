@@ -287,7 +287,7 @@ func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd) {
 	}
 
 	// check for takeover mode invocation
-	if selected && hotkeys.IsInteract(msg) {
+	if selected && hotkeys.IsSelect(msg) {
 		p.takeover = true
 		return nil
 	}
