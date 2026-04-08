@@ -54,7 +54,7 @@ func TestCreateEditDownload(t *testing.T) {
 		fileDesc = "from " + t.Name()
 	)
 
-	{ // create the new userfile
+	{ // create the new file
 		if ec := tree.Execute(append(meta, []string{"files", "create",
 			"-n", fileName,
 			"-d", fileDesc,

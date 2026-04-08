@@ -16,9 +16,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-  	"slices"
+	"slices"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
@@ -168,33 +167,18 @@ func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) 
 
 	// check the files and include banner, icon, and cover if not in the file set
 	if kbr.Icon != "" {
-		var icon uuid.UUID
-		if icon, err = uuid.Parse(kbr.Icon); err != nil {
-			err = fmt.Errorf("invalid Icon UUID %s: %w", kbr.Icon, err)
-			return
-		}
-		if !slices.Contains(kbr.Files, icon) {
-			kbr.Files = append(kbr.Files, icon)
+		if !slices.Contains(kbr.Files, kbr.Icon) {
+			kbr.Files = append(kbr.Files, kbr.Icon)
 		}
 	}
 	if kbr.Banner != "" {
-		var banner uuid.UUID
-		if banner, err = uuid.Parse(kbr.Banner); err != nil {
-			err = fmt.Errorf("invalid Banner UUID %s: %w", kbr.Banner, err)
-			return
-		}
-		if !slices.Contains(kbr.Files, banner) {
-			kbr.Files = append(kbr.Files, banner)
+		if !slices.Contains(kbr.Files, kbr.Banner) {
+			kbr.Files = append(kbr.Files, kbr.Banner)
 		}
 	}
 	if kbr.Cover != "" {
-		var cover uuid.UUID
-		if cover, err = uuid.Parse(kbr.Cover); err != nil {
-			err = fmt.Errorf("invalid Cover UUID %s: %w", kbr.Cover, err)
-			return
-		}
-		if !slices.Contains(kbr.Files, cover) {
-			kbr.Files = append(kbr.Files, cover)
+		if !slices.Contains(kbr.Files, kbr.Cover) {
+			kbr.Files = append(kbr.Files, kbr.Cover)
 		}
 	}
 
@@ -370,14 +354,14 @@ func getKitExtractors(cli *client.Client, label string, orig types.KitBuildReque
 }
 
 func getKitFiles(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var files []types.UserFileDetails
-	if files, err = cli.UserFiles(); err != nil {
+	flr, err := cli.ListFiles(nil)
+	if err != nil {
 		err = fmt.Errorf("failed to get files: %w", err)
 		return
 	}
-	for _, f := range files {
-		if slices.Contains(f.Labels, label) || slices.Contains(orig.Files, f.ThingUUID) {
-			kbr.Files = append(kbr.Files, f.ThingUUID)
+	for _, f := range flr.Results {
+		if slices.Contains(f.Labels, label) || slices.Contains(orig.Files, f.ID) {
+			kbr.Files = append(kbr.Files, f.ID)
 		}
 	}
 	return
