@@ -282,8 +282,8 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts
 
 	// compute longestFieldLength for title column alignment in View()
 	for _, field := range fields {
-		if l := len(field.Title); l > c.longestFieldLength {
-			c.longestFieldLength = l
+		if titleLen := len(field.Title); titleLen > c.longestFieldLength {
+			c.longestFieldLength = titleLen
 		}
 	}
 
@@ -448,13 +448,13 @@ func (c *createModel) View() string {
 			// left-pad so all titles are right-aligned to a consistent column width
 			padding := strings.Repeat(" ", c.longestFieldLength-len(field.Title))
 			pip := stylesheet.Pip(c.inputs.selected, uint(i))
-			var titlePart string
+			var styledTitle string
 			if field.Required {
-				titlePart = padding + pip + stylesheet.RequiredTitle(field.Title)
+				styledTitle = stylesheet.RequiredTitle(field.Title)
 			} else {
-				titlePart = padding + pip + stylesheet.OptionalTitle(field.Title)
+				styledTitle = stylesheet.OptionalTitle(field.Title)
 			}
-			line := titlePart + value
+			line := padding + pip + styledTitle + value
 			pending = append(pending, pendingEntry{content: line, center: false})
 			if w := lipgloss.Width(line); w > modalWidth {
 				modalWidth = w
