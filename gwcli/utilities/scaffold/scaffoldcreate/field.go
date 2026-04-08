@@ -147,7 +147,7 @@ func FieldPath(singular string) Field {
 			Shorthand: rune(ft.Path.Shorthand()[0]),
 		},
 		Order:    80,
-		Provider: &TextProvider{},
+		Provider: &PathProvider{},
 	}
 }
 
