@@ -38,12 +38,91 @@ func NewNav() *cobra.Command {
 
 	return treeutils.GenerateNav(use, short, long, nil, []*cobra.Command{},
 		[]action.Pair{
+			list(),
+			get(),
 			create(),
 			delete(),
 			edit(),
 			lockAction(),
 			unlockAction(),
 			sessionsAction(),
+		})
+}
+
+func list() action.Pair {
+	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
+		func(fs *pflag.FlagSet) ([]types.User, error) {
+			resp, err := connection.Client.ListUsers(nil)
+			return resp.Results, err
+		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
+}
+
+// local wrapper struct to contain all data related to a single user
+type userDetails struct {
+	types.User
+	Admin struct { // details that will only be retrieved if the calling user is an admin
+		Capabilities []string
+	}
+}
+
+// get returns all information about a specified user or users.
+func get() action.Pair {
+	return scaffoldlist.NewListAction("get user details",
+		"Retrieves details about specified users, based on list of usernames provided as arguments.\n"+
+			"Fetches additional information if you are an admin.",
+		userDetails{},
+		func(fs *pflag.FlagSet) ([]userDetails, error) {
+			var users = []userDetails{}
+			// map each username to get its id
+			for _, username := range fs.Args() {
+				userInfo, err := connection.Client.LookupUser(username)
+				if err != nil {
+					if !errors.Is(err, grav.ErrNotFound) {
+						return nil, err
+					}
+					clilog.Writer.Infof("failed to find a user with username %v", username)
+					continue
+				}
+				item := userDetails{User: userInfo}
+				if connection.CurrentUser().Admin {
+					//item.Admin = struct{ types.CapabilityState }{}
+					if caps, err := connection.Client.GetUserCapabilities(userInfo.ID); err != nil {
+						clilog.Writer.Warn("failed to fetch user capabilities",
+							rfc5424.SDParam{Name: "user id", Value: strconv.FormatInt(int64(userInfo.ID), 10)},
+							rfc5424.SDParam{Name: "error", Value: err.Error()},
+						)
+					} else {
+						item.Admin.Capabilities = caps.Grants
+					}
+				}
+				users = append(users, item)
+
+			}
+
+			/*connection.Client.GetUserGroups()
+
+			// try to fetch admin-only info
+			if connection.CurrentUser().Admin {
+
+			}
+			connection.Client.GetUserCapabilities()
+			*/
+			return users, nil
+		}, scaffoldlist.Options{
+			Use: "get",
+			CmdMods: func(c *cobra.Command) {
+				c.SetUsageFunc(func(c *cobra.Command) error {
+					fmt.Fprint(c.OutOrStdout(), "get "+ft.Optional("flags")+" USERNAME USERNAME ...")
+					return nil
+				})
+				c.Example = "get --csv bart homer lisa maggie marge"
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if len(fs.Args()) < 1 {
+					return "you must provide at least one username", nil
+				}
+				return "", nil
+			},
 		})
 }
 
@@ -86,10 +165,10 @@ func create() action.Pair {
 			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			if err := connection.Client.AddUser(
-				fieldValues["username"], fieldValues["password"],
-				fieldValues["name"], fieldValues["email"],
-				false, // TODO admin
+			if _, err := connection.Client.CreateUser(
+				types.AddUser{Username: fieldValues["username"], Password: fieldValues["password"],
+					Name: fieldValues["name"], Email: fieldValues["email"],
+					Admin: false}, // TODO admin
 			); err != nil {
 				return 0, "", err
 			}
@@ -107,18 +186,18 @@ func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("user", "users",
 		func(dryrun bool, id int32) error {
 			if dryrun {
-				_, err := connection.Client.GetUserInfo(id)
+				_, err := connection.Client.GetUser(id)
 				return err
 			}
 			return connection.Client.DeleteUser(id)
 		},
 		func() ([]scaffolddelete.Item[int32], error) {
-			users, err := connection.Client.GetAllUsers()
+			users, err := connection.Client.ListUsers(nil)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]scaffolddelete.Item[int32], len(users))
-			for i, user := range users {
+			var items = make([]scaffolddelete.Item[int32], len(users.Results))
+			for i, user := range users.Results {
 
 				items[i] = scaffolddelete.NewItem(user.Name, descriptionLine(user.Admin, user.Email), user.ID)
 			}
@@ -151,14 +230,15 @@ func edit() action.Pair {
 		},
 		scaffoldedit.SubroutineSet[int32, types.User]{
 			SelectSub: func(id int32) (item types.User, err error) {
-				userCBAC, err := connection.Client.GetUserInfo(id)
+				userCBAC, err := connection.Client.GetUser(id)
 				if err != nil {
 					return types.User{}, err
 				}
 				return userCBAC.User, nil
 			},
 			FetchSub: func() (items []types.User, err error) {
-				return connection.Client.GetAllUsers()
+				resp, err := connection.Client.ListUsers(nil)
+				return resp.Results, err
 			},
 			GetFieldSub: func(item types.User, fieldKey string) (value string, err error) {
 				switch fieldKey {
@@ -194,16 +274,7 @@ func edit() action.Pair {
 				return descriptionLine(item.Admin, item.Email)
 			},
 			UpdateSub: func(data *types.User) (identifier string, err error) {
-				// transmute user -> user details
-				ud := types.UserDetails{
-					UID:   data.ID,
-					User:  data.Username,
-					Name:  data.Name,
-					Email: data.Email,
-					Admin: data.Admin,
-				}
-
-				return strconv.FormatInt(int64(data.ID), 10), connection.Client.UpdateUser(data.ID, ud)
+				return strconv.FormatInt(int64(data.ID), 10), connection.Client.UpdateUser(*data)
 			},
 		},
 	)

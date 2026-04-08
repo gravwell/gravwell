@@ -164,16 +164,16 @@ type GroupDetails struct {
 }
 
 type AddUser struct {
-	User  string
-	Pass  string
-	Name  string
-	Email string
-	Admin bool
+	Username string
+	Password string
+	Name     string
+	Email    string
+	Admin    bool
 }
 
 type AddGroup struct {
-	Name string
-	Desc string
+	Name        string
+	Description string
 }
 
 type UpdateUser struct {
@@ -536,4 +536,14 @@ type UserPreference struct {
 type UserPreferenceResponse struct {
 	BaseListResponse
 	Results []UserPreference `json:"results"`
+}
+
+type UserListResponse struct {
+	BaseListResponse
+	Results []User `json:"results"`
+}
+
+type GroupListResponse struct {
+	BaseListResponse
+	Results []Group `json:"results"`
 }
