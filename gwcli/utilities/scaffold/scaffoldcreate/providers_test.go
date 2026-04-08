@@ -16,6 +16,7 @@ import (
 )
 
 func TestGetSet(t *testing.T) {
+	t.Parallel()
 	var customInitCalled bool
 	p := scaffoldcreate.NewField("title0", false, &scaffoldcreate.TextProvider{
 		CustomInit: func() textinput.Model {
@@ -39,6 +40,7 @@ func TestGetSet(t *testing.T) {
 
 func TestTextProvider(t *testing.T) {
 	t.Run("full mother cycle + hook set args to alter the TI", func(t *testing.T) {
+		t.Parallel()
 		// tests that TextProvider both successfully applies a CustomSetArgs and operates as expected over the course of a full Mother cycle
 		var invocationCount = 0
 		provider := &scaffoldcreate.TextProvider{CustomSetArgs: func(m textinput.Model) textinput.Model {
@@ -65,14 +67,7 @@ func TestTextProvider(t *testing.T) {
 		}
 
 		// manually execute Mother cycle
-		invalid, onStart, err := pair.Model.SetArgs(&pflag.FlagSet{}, nil, 0, 0)
-		if invalid != "" || onStart != nil || err != nil {
-			t.Fatal("bad SetArgs results."+
-				"\nInvalid:", testsupport.ExpectedActual("", invalid),
-				"\nonStart:", testsupport.ExpectedActual(nil, onStart),
-				"\nerr:", testsupport.ExpectedActual(nil, err),
-			)
-		}
+		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, nil, 0, 0, "", nil, nil)
 		pair.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}) // enter some characters into the field
 		pair.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
 		pair.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
@@ -98,15 +93,7 @@ func TestTextProvider(t *testing.T) {
 		if x := provider.Get(); x != "" {
 			t.Fatal("provider value not destroyed by Reset. Lingering value: ", x)
 		}
-		if invalid, onStart, err := pair.Model.SetArgs(&pflag.FlagSet{}, []string{"-t=YungVenuz"}, 0, 0); invalid != "" ||
-			onStart != nil ||
-			err != nil {
-			t.Fatal("bad SetArgs results."+
-				"\nInvalid:", testsupport.ExpectedActual("", invalid),
-				"\nonStart:", testsupport.ExpectedActual(nil, onStart),
-				"\nerr:", testsupport.ExpectedActual(nil, err),
-			)
-		}
+		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, []string{"-t=YungVenuz"}, 0, 0, "", nil, nil)
 		if x := provider.Get(); x != "Yun" { // should be limited by our CharLimit
 			t.Fatal("bad value after second SetArgs", testsupport.ExpectedActual("Yun", x))
 		}
@@ -115,6 +102,7 @@ func TestTextProvider(t *testing.T) {
 }
 
 func TestMSLProvider(t *testing.T) {
+	t.Parallel()
 	items := []list.DefaultItem{
 		testItem{"ttl1", "desc1"},
 		testItem{"ttl2", "desc2"},
