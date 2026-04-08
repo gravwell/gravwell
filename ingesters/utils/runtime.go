@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -9,6 +9,7 @@
 package utils
 
 import (
+	"context"
 	"os"
 	"runtime"
 	"time"
@@ -25,4 +26,13 @@ func MaxProcTune(val int) bool {
 		return runtime.GOMAXPROCS(val) != val
 	}
 	return false
+}
+
+func QuitableSleep(ctx context.Context, to time.Duration) (quit bool) {
+	select {
+	case <-time.After(to):
+	case <-ctx.Done():
+		quit = true
+	}
+	return
 }
