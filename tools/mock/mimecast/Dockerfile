@@ -1,4 +1,4 @@
-FROM golang:latest AS builder
+FROM golang:1.26.2 AS builder
 
 #WORKDIR /src
 #COPY go.* ./
