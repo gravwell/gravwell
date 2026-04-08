@@ -1,6 +1,6 @@
 module mimecast
 
-go 1.26.1
+go 1.26.2
 
 require github.com/gravwell/gravwell/v3 v3.8.78-0.20260312222324-ac287a136610
 
