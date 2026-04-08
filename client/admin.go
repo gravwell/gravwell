@@ -61,11 +61,11 @@ func (c *Client) UnlockUserAccount(id int32) error {
 // email address. If 'admin' is set to true, the user will be flagged as an administrator.
 func (c *Client) AddUser(user, pass, name, email string, admin bool) error {
 	userDetails := types.AddUser{
-		User:  user,
-		Pass:  pass,
-		Name:  name,
-		Email: email,
-		Admin: admin,
+		Username: user,
+		Password: pass,
+		Name:     name,
+		Email:    email,
+		Admin:    admin,
 	}
 	if err := c.postStaticURL(ADD_USER_URL, userDetails, nil); err != nil {
 		return err
@@ -73,39 +73,13 @@ func (c *Client) AddUser(user, pass, name, email string, admin bool) error {
 	return nil
 }
 
-// DeleteUser (admin-only) deletes the specified user.
-func (c *Client) DeleteUser(id int32) error {
-	if err := c.deleteStaticURL(usersInfoUrl(id), nil); err != nil {
-		return err
+// AddGroup (admin-only) creates a new group with the given name and description.
+func (c *Client) AddGroup(name, desc string) error {
+	gpInfo := types.AddGroup{
+		Name:        name,
+		Description: desc,
 	}
-	return nil
-}
-
-// GetUserInfo (admin-only) gets information about a specific user, including CBAC info.
-func (c *Client) GetUserInfo(id int32) (types.UserWithCBAC, error) {
-	udet := types.UserWithCBAC{}
-	if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
-		return udet, err
-	}
-	return udet, nil
-}
-
-// SetAdmin (admin-only) changes the admin status for the user with the given ID.
-func (c *Client) SetAdmin(id int32, admin bool) error {
-	var method string
-	resp := types.AdminActionResp{}
-	if admin {
-		method = http.MethodPut
-	} else {
-		method = http.MethodDelete
-	}
-	if err := c.methodStaticURL(method, usersAdminUrl(id), &resp); err != nil {
-		return err
-	}
-	if resp.UID != id || resp.Admin != admin {
-		return errors.New("Server responded with state other than requested")
-	}
-	return nil
+	return c.postStaticURL(groupUrl(), gpInfo, nil)
 }
 
 // changePass will change a users password
@@ -196,72 +170,6 @@ func (c *Client) DeleteDefaultSearchGroups(uid int32) error {
 	return c.SetDefaultSearchGroups(uid, []int32{})
 }
 
-// UpdateUserInfo changes basic information about the specified user.
-// Admins can set any user's info, but regular users can only set their own.
-func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
-	me, err := c.MyInfo()
-	if err != nil {
-		return err
-	}
-	udet := me
-	if id != me.ID {
-		if !me.Admin {
-			return errors.New("Only admins can change another user's info")
-		} else {
-			if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
-				return err
-			}
-		}
-	}
-
-	var gids []int32
-	for _, g := range udet.DefaultSearchGroups {
-		gids = append(gids, g.ID)
-	}
-	req := types.UpdateUser{
-		Username:            user,
-		Name:                name,
-		Email:               email,
-		Admin:               udet.Admin,
-		Locked:              udet.Locked,
-		DefaultSearchGroups: gids,
-	}
-	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil, nil, nil)
-}
-
-// UpdateUser (admin-only) will update the specified user's details.
-func (c *Client) UpdateUser(uid int32, udet types.UserDetails) error {
-	return c.putStaticURL(usersInfoUrl(uid), udet)
-}
-
-// AddGroup (admin-only) creates a new group with the given name and description.
-func (c *Client) AddGroup(name, desc string) error {
-	gpInfo := types.AddGroup{
-		Name: name,
-		Desc: desc,
-	}
-	return c.postStaticURL(groupUrl(), gpInfo, nil)
-}
-
-// DeleteGroup (admin-only) will delete a group.
-func (c *Client) DeleteGroup(gid int32) error {
-	return c.deleteStaticURL(groupIdUrl(gid), nil)
-}
-
-// UpdateGroup (admin-only) will update the specified group's details.
-func (c *Client) UpdateGroup(gid int32, gdet types.Group) error {
-	return c.putStaticURL(groupIdUrl(gid), gdet)
-}
-
-// GetAllUsers returns information about all users on the system.
-func (c *Client) GetAllUsers() ([]types.User, error) {
-	var users []types.User
-	if err := c.getStaticURL(allUsersUrl(), &users); err != nil {
-		return nil, err
-	}
-	return users, nil
-}
-
 // AddUserToGroup adds a user to a group.
 func (c *Client) AddUserToGroup(uid, gid int32) error {
 	uag := types.UserAddGroups{
@@ -282,50 +190,6 @@ func (c *Client) GetUserGroups(uid int32) ([]types.Group, error) {
 		return nil, err
 	}
 	return udet.Groups, nil
-}
-
-// GetGroups returns information about all groups on the system.
-func (c *Client) GetGroups() ([]types.Group, error) {
-	var gps []types.Group
-	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
-		return nil, err
-	}
-	return gps, nil
-}
-
-// GetGroupMap returns a map of GID to group name for every group on the system.
-func (c *Client) GetGroupMap() (map[int32]string, error) {
-	var gps []types.Group
-	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
-		return nil, err
-	}
-	m := make(map[int32]string, len(gps))
-	for _, g := range gps {
-		m[g.ID] = g.Name
-	}
-	return m, nil
-}
-
-// GetUserMap returns a map of UID to username for every user on the system.
-func (c *Client) GetUserMap() (map[int32]string, error) {
-	var uds []types.User
-	if err := c.getStaticURL(allUsersUrl(), &uds); err != nil {
-		return nil, err
-	}
-	m := make(map[int32]string, len(uds))
-	for _, u := range uds {
-		m[u.ID] = u.Username
-	}
-	return m, nil
-}
-
-// GetGroup returns information about the specified group.
-func (c *Client) GetGroup(id int32) (types.GroupWithCBAC, error) {
-	var gp types.GroupWithCBAC
-	if err := c.getStaticURL(groupIdUrl(id), &gp); err != nil {
-		return gp, err
-	}
-	return gp, nil
 }
 
 // GetGroupUsers will return user details for all members of a group.
@@ -1020,7 +884,7 @@ func (c *Client) PurgeUser(id int32) error {
 		return fmt.Errorf("Failed to close impersonated client during purge %w", err)
 	}
 
-	return c.DeleteUser(id) //finally, delete the user
+	return c.deleteStaticURL(usersInfoUrl(id), nil, ezParam("purge", "true")) //finally, delete the user
 }
 
 func (c *Client) ForgetIngester(id uuid.UUID) (err error) {

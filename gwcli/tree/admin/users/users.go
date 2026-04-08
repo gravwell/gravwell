@@ -44,7 +44,8 @@ func NewNav() *cobra.Command {
 func list() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet) ([]types.User, error) {
-			return connection.Client.GetAllUsers()
+			resp, err := connection.Client.ListUsers(nil)
+			return resp.Results, err
 		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
 }
 
@@ -156,10 +157,10 @@ func create() action.Pair {
 			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			if err := connection.Client.AddUser(
-				fieldValues["username"], fieldValues["password"],
-				fieldValues["name"], fieldValues["email"],
-				false, // TODO admin
+			if _, err := connection.Client.CreateUser(
+				types.AddUser{Username: fieldValues["username"], Password: fieldValues["password"],
+					Name: fieldValues["name"], Email: fieldValues["email"],
+					Admin: false}, // TODO admin
 			); err != nil {
 				return 0, "", err
 			}
@@ -177,18 +178,18 @@ func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("user", "users",
 		func(dryrun bool, id int32) error {
 			if dryrun {
-				_, err := connection.Client.GetUserInfo(id)
+				_, err := connection.Client.GetUser(id)
 				return err
 			}
 			return connection.Client.DeleteUser(id)
 		},
 		func() ([]scaffolddelete.Item[int32], error) {
-			users, err := connection.Client.GetAllUsers()
+			users, err := connection.Client.ListUsers(nil)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]scaffolddelete.Item[int32], len(users))
-			for i, user := range users {
+			var items = make([]scaffolddelete.Item[int32], len(users.Results))
+			for i, user := range users.Results {
 
 				items[i] = scaffolddelete.NewItem(user.Name, descriptionLine(user.Admin, user.Email), user.ID)
 			}
@@ -221,14 +222,15 @@ func edit() action.Pair {
 		},
 		scaffoldedit.SubroutineSet[int32, types.User]{
 			SelectSub: func(id int32) (item types.User, err error) {
-				userCBAC, err := connection.Client.GetUserInfo(id)
+				userCBAC, err := connection.Client.GetUser(id)
 				if err != nil {
 					return types.User{}, err
 				}
 				return userCBAC.User, nil
 			},
 			FetchSub: func() (items []types.User, err error) {
-				return connection.Client.GetAllUsers()
+				resp, err := connection.Client.ListUsers(nil)
+				return resp.Results, err
 			},
 			GetFieldSub: func(item types.User, fieldKey string) (value string, err error) {
 				switch fieldKey {
@@ -264,16 +266,7 @@ func edit() action.Pair {
 				return descriptionLine(item.Admin, item.Email)
 			},
 			UpdateSub: func(data *types.User) (identifier string, err error) {
-				// transmute user -> user details
-				ud := types.UserDetails{
-					UID:   data.ID,
-					User:  data.Username,
-					Name:  data.Name,
-					Email: data.Email,
-					Admin: data.Admin,
-				}
-
-				return strconv.FormatInt(int64(data.ID), 10), connection.Client.UpdateUser(data.ID, ud)
+				return strconv.FormatInt(int64(data.ID), 10), connection.Client.UpdateUser(*data)
 			},
 		},
 	)
