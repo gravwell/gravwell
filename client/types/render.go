@@ -152,7 +152,7 @@ type ResultsTable struct {
 	Kind             string                         `json:"kind"`
 	BinCount         int                            `json:"binCount"`
 	BinWidth         float64                        `json:"binWidth"`
-	Columns          []ResultsEvDescription         `json:"columns"`
+	Columns          []string                       `json:"columns"`
 	Rows             []map[string]*ResultsTableCell `json:"rows"`
 	TotalResultCount int                            `json:"totalResultCount"`
 }
@@ -166,11 +166,11 @@ type ResultsTableCell struct {
 }
 
 type ResultsGraph struct {
-	Kind                     string                 `json:"kind"`
-	Links                    []ResultsGraphLink     `json:"links"`
-	NodeEnumeratedValueNames []ResultsEvDescription `json:"nodeEnumeratedValueNames"`
-	LinkEnumeratedValueNames []ResultsEvDescription `json:"linkEnumeratedValueNames"`
-	Nodes                    []ResultsGraphNode     `json:"nodes"`
+	Kind                     string             `json:"kind"`
+	Links                    []ResultsGraphLink `json:"links"`
+	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
+	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
+	Nodes                    []ResultsGraphNode `json:"nodes"`
 }
 
 type ResultsGraphLink struct {
@@ -194,12 +194,6 @@ type EntryRange struct {
 	EndTS   entry.Timestamp `json:",omitempty"`
 	First   uint64
 	Last    uint64
-}
-
-type ResultsEvDescription struct {
-	// one of "string" | "number" | "IP" | "time" | "location"
-	GuessedType string `json:"guessedType"`
-	Name        string `json:"name"`
 }
 
 // BaseRequest contains elements common to all renderer requests.
