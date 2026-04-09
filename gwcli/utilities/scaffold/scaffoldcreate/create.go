@@ -232,7 +232,7 @@ type createModel struct {
 	fields Config // RO configuration provided by the caller
 
 	inputs             inputs
-	longestFieldLength int // max len(field.Title) across all fields; set at create time for title alignment
+	longestTitleLength int // max len(field.Title) across all fields; set at create time for title alignment
 
 	createErr string // the reason the last create failed (not for invalid parameters)
 
@@ -282,8 +282,8 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts
 
 	// compute longestFieldLength for title column alignment in View()
 	for _, field := range fields {
-		if titleLen := len(field.Title); titleLen > c.longestFieldLength {
-			c.longestFieldLength = titleLen
+		if titleLen := len(field.Title); titleLen > c.longestTitleLength {
+			c.longestTitleLength = titleLen
 		}
 	}
 
@@ -422,23 +422,54 @@ func (c *createModel) focusInput(focus bool) {
 	c.fields[key].Provider.ToggleFocus(focus)
 }
 
-// Iterates through the inputs in order, composing as "titles:input".
+// View composes each field's view into a set, using the total width of TitleValue views to center Line and second-line views.
 func (c *createModel) View() string {
 	if c.inputs.takeover != "" {
 		_, v, _ := c.fields[c.inputs.takeover].Provider.View(true, c.width)
 		return v
 	}
 
-	// We need two passes: first collect TitleValue lines to compute the modal width
-	// from the longest rendered line, then center Line/secondLine entries under that width.
-	type pendingEntry struct {
-		content string
-		center  bool // true means this line should be centered under modalWidth
+	// View operates in two passes:
+	// one to collect and measure the width of TitleValue views
+	// one to center remaining views and compose the final, returned view.
+
+	views, setWidth := c.collectViewValues()
+	if setWidth == 0 { // if we somehow have no TitleValues, use the entire pane
+		setWidth = c.width
 	}
-	pending := make([]pendingEntry, 0, len(c.inputs.ordered))
 
-	var modalWidth int
+	// build final lines, centering Line/secondLine entries under modalWidth
+	centerSty := lipgloss.NewStyle().Width(setWidth).AlignHorizontal(lipgloss.Center)
+	lines := make([]string, 0, len(views))
+	for _, v := range views {
+		if v.toCenter {
+			lines = append(lines, centerSty.Render(v.content))
+		} else {
+			lines = append(lines, v.content)
+		}
+	}
 
+	// compose the titles and inputs
+	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
+
+	// generate submit button centered under the modal
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), setWidth, c.inputs.err, c.createErr)
+	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
+
+}
+
+// a material is a component view, collected from a Field.
+type material struct {
+	content  string
+	toCenter bool // should this line be centered in the final composition
+}
+
+// collectViewValues gathers the material views, composes TitleValues, and measures the greatest line-width seen amongst the TitleValues.
+//
+// Returns the views (ordered as c.inputs.ordered) and the widest TitleView seen in the set.
+// The width should be used to center lines tagged with toCenter.
+func (c *createModel) collectViewValues() (views []material, setWidth int) {
+	views = make([]material, 0, len(c.inputs.ordered))
 	for i, key := range c.inputs.ordered {
 		field := c.fields[key]
 		kind, value, secondLine := c.fields[key].Provider.View(i == int(c.inputs.selected), c.width)
@@ -446,7 +477,7 @@ func (c *createModel) View() string {
 		switch kind {
 		case TitleValue:
 			// left-pad so all titles are right-aligned to a consistent column width
-			padding := strings.Repeat(" ", c.longestFieldLength-len(field.Title))
+			padding := strings.Repeat(" ", c.longestTitleLength-len(field.Title))
 			pip := stylesheet.Pip(c.inputs.selected, uint(i))
 			var styledTitle string
 			if field.Required {
@@ -455,44 +486,23 @@ func (c *createModel) View() string {
 				styledTitle = stylesheet.OptionalTitle(field.Title)
 			}
 			line := padding + pip + styledTitle + value
-			pending = append(pending, pendingEntry{content: line, center: false})
-			if w := lipgloss.Width(line); w > modalWidth {
-				modalWidth = w
+			views = append(views, material{content: line, toCenter: false})
+			if w := lipgloss.Width(line); w > setWidth {
+				setWidth = w
 			}
 		case Line:
-			pending = append(pending, pendingEntry{
-				content: stylesheet.Pip(c.inputs.selected, uint(i)) + value,
-				center:  true,
+			views = append(views, material{
+				content:  stylesheet.Pip(c.inputs.selected, uint(i)) + value,
+				toCenter: true,
 			})
 		}
 		// attach second line, if provided; always centered
 		if secondLine != "" {
-			pending = append(pending, pendingEntry{content: secondLine, center: true})
+			views = append(views, material{content: secondLine, toCenter: true})
 		}
 	}
 
-	if modalWidth == 0 {
-		modalWidth = c.width
-	}
-
-	// build final lines, centering Line/secondLine entries under modalWidth
-	centerSty := lipgloss.NewStyle().Width(modalWidth).AlignHorizontal(lipgloss.Center)
-	lines := make([]string, 0, len(pending))
-	for _, pe := range pending {
-		if pe.center {
-			lines = append(lines, centerSty.Render(pe.content))
-		} else {
-			lines = append(lines, pe.content)
-		}
-	}
-
-	// compose the titles and inputs
-	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
-
-	// generate submit button centered under the modal
-	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), modalWidth, c.inputs.err, c.createErr)
-	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
-
+	return views, setWidth
 }
 
 func (c *createModel) Done() bool {
