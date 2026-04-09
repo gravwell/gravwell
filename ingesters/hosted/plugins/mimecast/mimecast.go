@@ -214,7 +214,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			}
 			continue
 		}
-		var last *time.Time
+		var last time.Time
 		rt.Debug("got batches", log.KV("api", api), log.KV("count", len(events.Value)))
 		for _, batch := range events.Value {
 			last, err = m.handleMtaBatch(ctx, rt, tag, tr, batch, api)
@@ -227,25 +227,25 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		// Unlike audit the mta cursor ensures we never get dupes even if we request the same time range.
 		// We track the last timestamp as there is lag in the batch api so just because no events were returned
 		// does not mean that all events have been sent to us for a given time range.
-		if last == nil || last.IsZero() { // there were no events in the range
-			last = &tr.End
+		if last.IsZero() { // there were no events in the range
+			last = tr.End
 		}
 		rt.PutString(m.cursor(api), events.NextPage)
 		if events.IsCaughtUp { // Progress forward in time
-			rt.Debug("caught up, moving forward in time", log.KV("api", api), log.KV("to", *last))
-			rt.PutTime(m.timestamp(api), *last)
+			rt.Debug("caught up, moving forward in time", log.KV("api", api), log.KV("to", last))
+			rt.PutTime(m.timestamp(api), last)
 		}
 	}
 
 	return nil
 }
 
-func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []json.RawMessage, api Api) (*time.Time, error) {
+func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []json.RawMessage, api Api) (time.Time, error) {
+	var first time.Time
+	var last time.Time
 	if len(page) == 0 {
-		return nil, nil
+		return last, nil
 	}
-	var first *time.Time
-	var last *time.Time
 	count := 0
 	for _, event := range page {
 		if len(event) == 0 {
@@ -258,8 +258,8 @@ func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []j
 			continue
 		}
 		ts := time.UnixMilli(data.Timestamp)
-		if first == nil {
-			first = &ts
+		if first.IsZero() {
+			first = ts
 		}
 
 		e := entry.Entry{
@@ -271,20 +271,20 @@ func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []j
 			rt.Error("failed to write mta event", log.KVErr(err))
 			continue
 		}
-		last = &ts
+		last = ts
 		count++
 	}
 	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last), log.KV("api", api))
 	return last, nil
 }
 
-func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, tr *TimeRange, event SIEMBatchEvent, api Api) (*time.Time, error) {
+func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, tr *TimeRange, event SIEMBatchEvent, api Api) (time.Time, error) {
+	var first time.Time
+	var last time.Time
 	entries, err := m.entries(ctx, event.URL)
 	if err != nil {
-		return nil, err
+		return last, err
 	}
-	var first *time.Time
-	var last *time.Time
 	count := 0
 	for line := range entries {
 		if len(line) == 0 {
@@ -297,8 +297,8 @@ func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag en
 			continue
 		}
 		ts := time.UnixMilli(data.Timestamp)
-		if first == nil {
-			first = &ts
+		if first.IsZero() {
+			first = ts
 		}
 
 		e := entry.Entry{
@@ -310,7 +310,7 @@ func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag en
 			rt.Error("failed to write mta event", log.KVErr(err))
 			continue
 		}
-		last = &ts
+		last = ts
 		count++
 	}
 	if count == 0 {
