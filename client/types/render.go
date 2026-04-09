@@ -122,15 +122,24 @@ const (
 	TransformOperatorUniqueCount TransformOperator = "unique_count"
 )
 
-type ResultsOptions struct {
-	Fence    Geofence
-	BinCount int               `json:"binCount,omitempty"`
-	BinWidth int               `json:"binWidth,omitempty"`
-	Op       string            `json:"op,omitempty"`
-	Sort     []string          `json:"sort,omitempty"`
-	Operator TransformOperator `json:"operator,omitempty"`
-	Operand  string            `json:"operand,omitempty"`
-	Keys     []string          `json:"keys,omitempty"`
+type ResultsRequest struct {
+	Fence    Geofence      `json:"fence,omitempty"`
+	BinCount int           `json:"binCount,omitempty"`
+	BinWidth float64       `json:"binWidth,omitempty"`
+	End      time.Time     `json:"end,omitempty"`
+	Limit    uint64        `json:"limit,omitempty"`
+	Offset   uint64        `json:"offset,omitempty"`
+	Sort     []ResultsSort `json:"sort,omitempty"`
+	Start    time.Time     `json:"start,omitempty"`
+	SID      string        `json:"sid"`
+}
+
+type ResultsSort struct {
+	Column string `json:"column"`
+	// One of "asc" | "desc"
+	Direction string `json:"direction,omitempty"`
+	// One of "string" | "number" | "IP" | "time"
+	SortAs string `json:"sortAs,omitempty"`
 }
 
 // ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
