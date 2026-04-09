@@ -443,7 +443,7 @@ func (c *createModel) View() string {
 	lines := make([]string, 0, len(views))
 	for _, v := range views {
 		if v.toCenter {
-			lines = append(lines, centerSty.Render(v.content))
+			lines = append(lines, centerSty.MaxHeight(2).Render(v.content))
 		} else {
 			lines = append(lines, v.content)
 		}
