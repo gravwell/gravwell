@@ -9,11 +9,10 @@
 package main
 
 import (
+	"github.com/gravwell/gravwell/v3/hosted/plugins"
+	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
-
-	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins"
 )
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {

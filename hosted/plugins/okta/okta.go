@@ -22,9 +22,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/hosted"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"golang.org/x/time/rate"
 )
