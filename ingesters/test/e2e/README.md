@@ -115,6 +115,7 @@ Place the template in `testdata/`. For example, `testdata/myingester.conf`:
 ```
 [Global]
     Ingest-Secret = "{{ .Ingest_Secret }}"
+    Connection-Timeout = "{{ .Connection_Timeout }}"
     Cleartext-Backend-Target={{ index .Cleartext_Backend_Target 0 }}
     Log-Level=DEBUG
     Log-File=/opt/gravwell/log/myingester.log

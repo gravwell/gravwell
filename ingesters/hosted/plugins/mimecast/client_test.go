@@ -58,7 +58,7 @@ func TestAuthenticate(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			body, _ := json.Marshal(AuthToken{
 				AccessToken: "token",
-				ExpireIn:    10,
+				ExpireIn:    30 * 60,
 			})
 			w.Write(body)
 		})

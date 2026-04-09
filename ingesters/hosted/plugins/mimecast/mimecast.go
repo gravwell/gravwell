@@ -114,6 +114,7 @@ func (m *Mimecast) Run(ctx context.Context, rt hosted.Runtime) error {
 }
 
 func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
+	api := log.KV("api", AuditApi)
 	tag, err := rt.NegotiateTag(m.tag(AuditApi))
 	if err != nil {
 		return err
@@ -121,26 +122,27 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 	for !rt.Sleep(m.interval) {
 		cursor, lts, err := m.get(rt, AuditApi, m.start)
 		if err != nil {
-			rt.Error("error getting storage data", log.KVErr(err))
+			rt.Error("error getting storage data", api, log.KVErr(err))
 			continue
 		}
 
+		tr := NewTimeRange(lts, time.Now())
+
 		ts := time.Now()
 		if cursor != "" {
-			rt.Debug("fetching next page of events", log.KV("api", AuditApi))
+			rt.Debug("fetching next page of events", api)
 		} else {
-			rt.Debug("fetching events between", log.KV("api", AuditApi), log.KV("start", lts), log.KV("end", ts))
+			rt.Debug("fetching events between", api, log.KV("start", lts), log.KV("end", ts))
 		}
-		r, err := m.c.GetRawAuditEvents(ctx, lts, ts, cursor)
+		r, err := m.c.GetRawAuditEvents(ctx, tr, cursor)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
-				rt.Error("request error", log.KV("api", AuditApi), log.KVErr(err))
+				rt.Error("request error", api, log.KVErr(err))
 			}
 			continue
 		}
 
-		last := ts
-		rt.Debug("got events", log.KV("api", AuditApi), log.KV("count", len(r.Data)))
+		rt.Debug("got events", api, log.KV("count", len(r.Data)))
 		for _, d := range r.Data {
 			data, err := parse[AuditData](bytes.NewReader(d))
 			if err != nil {
@@ -149,7 +151,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			}
 			ets, err := time.Parse(AuditTimeFormat, data.EventTime)
 			if err != nil {
-				rt.Error("error parsing time for event", log.KVErr(err))
+				rt.Error("error parsing time for event", api, log.KVErr(err))
 				continue
 			}
 			e := entry.Entry{
@@ -159,23 +161,19 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			}
 			err = rt.Write(e)
 			if err != nil {
-				rt.Error("error writing entry", log.KV("api", "audit"), log.KVErr(err))
+				rt.Error("error writing entry", api, log.KVErr(err))
 				continue
 			}
-			last = ets
-			rt.Debug("wrote audit entry", log.KV("ts", e.TS))
-			// save progress on current cursor?
+			rt.Debug("wrote audit entry", api, log.KV("ts", e.TS))
 		}
 
+		rt.PutString(m.cursor(AuditApi), r.Meta.Pagination.Next)
 		// don't advance time until we process the entire timespan
-		if r.Meta.Pagination.Next != "" {
-			rt.Debug("got another page of events", log.KV("api", AuditApi))
-			rt.PutString(m.cursor(AuditApi), r.Meta.Pagination.Next)
-		} else {
-			rt.Debug("no more pages, moving forward in time", log.KV("api", AuditApi), log.KV("to", last))
-			rt.PutString(m.cursor(AuditApi), "")
-			rt.PutTime(m.timestamp(AuditApi), last)
+		if len(r.Data) == 0 {
+			rt.Debug("moving forward in time", api, log.KV("to", tr.End))
+			rt.PutTime(m.timestamp(AuditApi), tr.End)
 		}
+
 	}
 
 	return nil
@@ -204,41 +202,50 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			continue
 		}
 
-		ts := time.Now()
-		if cursor != "" {
-			rt.Debug("fetching next page of batch", log.KV("api", api))
-		} else {
-			rt.Debug("fetching batch between", log.KV("api", api), log.KV("start", lts), log.KV("end", ts))
-		}
-		r, err := m.c.GetRawSIEMEvents(ctx, event, lts, ts, cursor)
+		tr := NewTimeRange(lts, time.Now())
+		tr.ClampStart(7*24*time.Hour, time.Minute)
+
+		rt.Debug("fetching batch between", log.KV("api", api), log.KV("start", tr.Start), log.KV("end", tr.End))
+
+		events, err := m.c.GetSIEMEventBatch(ctx, event, tr, cursor)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				rt.Error("request error", log.KV("api", api), log.KVErr(err))
 			}
 			continue
 		}
-		rt.Debug("got events", log.KV("api", api), log.KV("count", len(r.Value)))
-		last, err := m.handleMtaPage(rt, tag, r.Value)
-		if err != nil {
-			rt.Error("error handling mta page", log.KV("api", api), log.KVErr(err))
-			continue
+		var last time.Time
+		rt.Debug("got batches", log.KV("api", api), log.KV("count", len(events.Value)))
+		for _, batch := range events.Value {
+			last, err = m.handleMtaBatch(ctx, rt, tag, tr, batch, api)
+			if err != nil {
+				rt.Error("error handling mta batch", log.KV("api", api), log.KVErr(err))
+				continue
+			}
 		}
-		if r.IsCaughtUp { // Progress forward in time
-			rt.Debug("no more pages, moving forward in time", log.KV("api", api), log.KV("to", *last))
-			rt.PutString(m.cursor(api), "")
-			rt.PutTime(m.timestamp(api), *last)
-		} else {
-			rt.Debug("got another page of events", log.KV("api", api))
-			rt.PutString(m.cursor(api), r.NextPage)
+
+		// Unlike audit the mta cursor ensures we never get dupes even if we request the same time range.
+		// We track the last timestamp as there is lag in the batch api so just because no events were returned
+		// does not mean that all events have been sent to us for a given time range.
+		if last.IsZero() { // there were no events in the range
+			last = tr.End
+		}
+		rt.PutString(m.cursor(api), events.NextPage)
+		if events.IsCaughtUp { // Progress forward in time
+			rt.Debug("caught up, moving forward in time", log.KV("api", api), log.KV("to", last))
+			rt.PutTime(m.timestamp(api), last)
 		}
 	}
 
 	return nil
 }
 
-func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []json.RawMessage) (*time.Time, error) {
-	var first *time.Time
+func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []json.RawMessage, api Api) (time.Time, error) {
+	var first time.Time
 	var last time.Time
+	if len(page) == 0 {
+		return last, nil
+	}
 	count := 0
 	for _, event := range page {
 		if len(event) == 0 {
@@ -251,8 +258,8 @@ func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []j
 			continue
 		}
 		ts := time.UnixMilli(data.Timestamp)
-		if first == nil {
-			first = &ts
+		if first.IsZero() {
+			first = ts
 		}
 
 		e := entry.Entry{
@@ -267,17 +274,17 @@ func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []j
 		last = ts
 		count++
 	}
-	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
-	return &last, nil
+	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last), log.KV("api", api))
+	return last, nil
 }
 
-func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMBatchEvent) (*time.Time, error) {
+func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, tr *TimeRange, event SIEMBatchEvent, api Api) (time.Time, error) {
+	var first time.Time
+	var last time.Time
 	entries, err := m.entries(ctx, event.URL)
 	if err != nil {
-		return nil, err
+		return last, err
 	}
-	var first *time.Time
-	var last time.Time
 	count := 0
 	for line := range entries {
 		if len(line) == 0 {
@@ -290,8 +297,8 @@ func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag en
 			continue
 		}
 		ts := time.UnixMilli(data.Timestamp)
-		if first == nil {
-			first = &ts
+		if first.IsZero() {
+			first = ts
 		}
 
 		e := entry.Entry{
@@ -306,8 +313,12 @@ func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag en
 		last = ts
 		count++
 	}
-	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
-	return &last, nil
+	if count == 0 {
+		rt.Debug("no new events to ingest in range", log.KV("start", tr.Start), log.KV("end", tr.End), log.KV("api", api))
+	} else {
+		rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last), log.KV("api", api))
+	}
+	return last, nil
 }
 
 func (m *Mimecast) entries(ctx context.Context, url string) (iter.Seq[[]byte], error) {
@@ -318,26 +329,30 @@ func (m *Mimecast) entries(ctx context.Context, url string) (iter.Seq[[]byte], e
 	// The DefaultClient is used here as the event.URL is a presigned URL (generally to an aws S3 bucket).
 	// Rate Limits don't apply, and using m.client would pass credentials to AWS,
 	response, err := http.DefaultClient.Do(request)
+	// can't defer drain since we return an iterator
 	if err != nil {
+		utils.DrainResponse(response)
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
 	if response.StatusCode != http.StatusOK {
+		utils.DrainResponse(response)
 		return nil, fmt.Errorf("request failed: %s", response.Status)
 	}
 
 	gzreader, err := gzip.NewReader(response.Body)
 	if err != nil {
+		utils.DrainResponse(response)
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 
 	scanner := bufio.NewScanner(gzreader)
 
 	return func(yield func([]byte) bool) {
+		defer utils.DrainResponse(response)
+		defer gzreader.Close()
 		for scanner.Scan() {
 			if !yield(scanner.Bytes()) {
-				utils.DrainResponse(response)
-				gzreader.Close()
 				return
 			}
 		}

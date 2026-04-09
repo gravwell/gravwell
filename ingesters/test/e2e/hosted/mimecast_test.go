@@ -1,6 +1,9 @@
 package hosted
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -36,9 +39,26 @@ func TestMimecast(t *testing.T) {
 	mock, err := tc.Run(t.Context(), "",
 		e2e.WithDefaults(t, "mimecast-mock",
 			tc.WithDockerfile(mockDockerfile),
+			tc.WithExposedPorts("8080/tcp"),
 			tc.WithWaitStrategy(wait.ForLog("starting server")),
 		)...,
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint, _ := mock.PortEndpoint(t.Context(), "8080/tcp", "http")
+	pageConfig := map[string]int{
+		"num_pages":       5,
+		"events_per_page": 20,
+	}
+	body, _ := json.Marshal(map[string]any{
+		"client_id": "mta",
+		"config": map[string]any{
+			"siem":       pageConfig,
+			"siem_batch": pageConfig,
+		},
+	})
+	_, err = http.Post(endpoint+"/config", "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,9 +85,16 @@ func TestMimecast(t *testing.T) {
 	c := e2e.GetClient(t)
 	// run for the artifact, help debugging
 	_ = e2e.RunSearch(t, c, "tag=gravwell syslog Appname==mimecast", time.Hour)
-	ent := e2e.RunSearch(t, c, "tag=mimecast-audit", time.Hour)
+	if ent := e2e.RunSearch(t, c, "tag=mimecast-audit", time.Hour*24); len(ent) == 0 {
+		e2e.Fatal(t, "no audit entries found")
+	}
 
-	if len(ent) == 0 {
-		t.Fatal("No entries found")
+	if ent := e2e.RunSearch(t, c, "tag=mimecast-mta-delivery", time.Hour*24); len(ent) < 100 {
+		e2e.Fatalf(t, "got %d entries, less than expected 100 mta entries ", len(ent))
+	}
+
+	errors := e2e.RunSearch(t, c, "tag=gravwell syslog Appname==mimecast Severity<=3", time.Hour)
+	if len(errors) > 0 {
+		e2e.Fatal(t, "found errors:", errors)
 	}
 }

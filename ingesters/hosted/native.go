@@ -301,17 +301,17 @@ func (nr *NativeRuntime) Write(ent entry.Entry) (err error) {
 // This should eventually be handled and potentially surface through an Alive check failure.
 
 func (nr *NativeRuntime) Debug(msg string, sds ...rfc5424.SDParam) {
-	nr.Logger.Debug(msg, sds...)
+	nr.Logger.DebugWithDepth(log.DEFAULT_DEPTH+1, msg, sds...)
 }
 func (nr *NativeRuntime) Info(msg string, sds ...rfc5424.SDParam) {
-	nr.Logger.Info(msg, sds...)
+	nr.Logger.InfoWithDepth(log.DEFAULT_DEPTH+1, msg, sds...)
 }
 func (nr *NativeRuntime) Warn(msg string, sds ...rfc5424.SDParam) {
-	nr.Logger.Warn(msg, sds...)
+	nr.Logger.WarnWithDepth(log.DEFAULT_DEPTH+1, msg, sds...)
 }
 func (nr *NativeRuntime) Error(msg string, sds ...rfc5424.SDParam) {
-	nr.Logger.Error(msg, sds...)
+	nr.Logger.ErrorWithDepth(log.DEFAULT_DEPTH+1, msg, sds...)
 }
 func (nr *NativeRuntime) Critical(msg string, sds ...rfc5424.SDParam) {
-	nr.Logger.Critical(msg, sds...)
+	nr.Logger.CriticalWithDepth(log.DEFAULT_DEPTH+1, msg, sds...)
 }
