@@ -232,8 +232,7 @@ type createModel struct {
 	fields Config // RO configuration provided by the caller
 
 	inputs             inputs
-	longestFieldLength int // set at create time
-	longestTILength    int // set at create time
+	longestTitleLength int // max len(field.Title) across all fields; set at create time for title alignment
 
 	createErr string // the reason the last create failed (not for invalid parameters)
 
@@ -280,6 +279,13 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts
 		}
 		return strings.Compare(fields[aKey].Title, fields[bKey].Title)
 	})
+
+	// compute longestFieldLength for title column alignment in View()
+	for _, field := range fields {
+		if titleLen := len(field.Title); titleLen > c.longestTitleLength {
+			c.longestTitleLength = titleLen
+		}
+	}
 
 	// focus the first input
 	if len(c.inputs.ordered) > 0 {
@@ -416,53 +422,87 @@ func (c *createModel) focusInput(focus bool) {
 	c.fields[key].Provider.ToggleFocus(focus)
 }
 
-var rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
-
-// Iterates through the inputs in order, composing as "titles:input".
+// View composes each field's view into a set, using the total width of TitleValue views to center Line and second-line views.
 func (c *createModel) View() string {
 	if c.inputs.takeover != "" {
 		_, v, _ := c.fields[c.inputs.takeover].Provider.View(true, c.width)
 		return v
 	}
 
-	// total amount of space we are taking of for this View. Should be <= c.width.
-	modalWidth := c.longestFieldLength + 1 + c.longestTILength // field + ":" + ti
+	// View operates in two passes:
+	// one to collect and measure the width of TitleValue views
+	// one to center remaining views and compose the final, returned view.
 
-	var lines []string
-	var sb strings.Builder // to build titles; reused each cycle
+	views, setWidth := c.collectViewValues()
+	if setWidth == 0 { // if we somehow have no TitleValues, use the entire pane
+		setWidth = c.width
+	}
+
+	// build final lines, centering Line/secondLine entries under modalWidth
+	centerSty := lipgloss.NewStyle().Width(setWidth).AlignHorizontal(lipgloss.Center)
+	lines := make([]string, 0, len(views))
+	for _, v := range views {
+		if v.toCenter {
+			lines = append(lines, centerSty.Render(v.content))
+		} else {
+			lines = append(lines, v.content)
+		}
+	}
+
+	// compose the titles and inputs
+	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
+
+	// generate submit button centered under the modal
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), setWidth, c.inputs.err, c.createErr)
+	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
+
+}
+
+// a material is a component view, collected from a Field.
+type material struct {
+	content  string
+	toCenter bool // should this line be centered in the final composition
+}
+
+// collectViewValues gathers the material views, composes TitleValues, and measures the greatest line-width seen amongst the TitleValues.
+//
+// Returns the views (ordered as c.inputs.ordered) and the widest TitleView seen in the set.
+// The width should be used to center lines tagged with toCenter.
+func (c *createModel) collectViewValues() (views []material, setWidth int) {
+	views = make([]material, 0, len(c.inputs.ordered))
 	for i, key := range c.inputs.ordered {
-		sb.Reset()
 		field := c.fields[key]
 		kind, value, secondLine := c.fields[key].Provider.View(i == int(c.inputs.selected), c.width)
 
 		switch kind {
 		case TitleValue:
-			var sb strings.Builder
-			// left-pad so all titles are all the same width
-			//sb.WriteString(strings.Repeat(" ", c.longestFieldLength-len(field.Title)))
-			sb.WriteString(stylesheet.Pip(c.inputs.selected, uint(i)))
+			// left-pad so all titles are right-aligned to a consistent column width
+			padding := strings.Repeat(" ", c.longestTitleLength-len(field.Title))
+			pip := stylesheet.Pip(c.inputs.selected, uint(i))
+			var styledTitle string
 			if field.Required {
-				sb.WriteString(stylesheet.RequiredTitle(field.Title))
+				styledTitle = stylesheet.RequiredTitle(field.Title)
 			} else {
-				sb.WriteString(stylesheet.OptionalTitle(field.Title))
+				styledTitle = stylesheet.OptionalTitle(field.Title)
 			}
-			lines = append(lines, sb.String()+value)
+			line := padding + pip + styledTitle + value
+			views = append(views, material{content: line, toCenter: false})
+			if w := lipgloss.Width(line); w > setWidth {
+				setWidth = w
+			}
 		case Line:
-			lines = append(lines, stylesheet.Pip(c.inputs.selected, uint(i))+value)
+			views = append(views, material{
+				content:  stylesheet.Pip(c.inputs.selected, uint(i)) + value,
+				toCenter: true,
+			})
 		}
-		// attach second line, if provided
+		// attach second line, if provided; always centered
 		if secondLine != "" {
-			lines = append(lines, secondLine)
+			views = append(views, material{content: secondLine, toCenter: true})
 		}
 	}
-	// compose the titles and inputs
-	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
-	// generate submit button and align it with the center
-	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), modalWidth, c.inputs.err, c.createErr)
-	// align the submit to roughly the end of the field titles
-	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
-
+	return views, setWidth
 }
 
 func (c *createModel) Done() bool {
