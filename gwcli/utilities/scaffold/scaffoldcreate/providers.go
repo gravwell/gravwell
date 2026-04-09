@@ -170,12 +170,12 @@ func (p *PathProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
 // If fewer suggestions are available than populate these lines, View will pad vertically
 const pathSuggestionLineCount int = 2
 
-func (p *PathProvider) View(_ bool, width int) (_ ViewKind, value, secondLine string) {
+func (p *PathProvider) View(_ bool, _ int) (_ ViewKind, value, secondLine string) {
 	sgts := TrimSuggestsToFile(p.pti.AvailableSuggestions(), p.pti.Value())
 	// truncate suggestions to a single line, within the max size of field+input
 	secondLine = lipgloss.NewStyle().
-		Width(width).
-		MaxHeight(pathSuggestionLineCount).
+		//Width(width).
+		//MaxHeight(pathSuggestionLineCount).
 		Height(pathSuggestionLineCount).
 		Render(strings.Join(sgts, " "))
 	return TitleValue, p.pti.View(), secondLine
