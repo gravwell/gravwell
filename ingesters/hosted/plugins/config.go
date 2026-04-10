@@ -71,9 +71,6 @@ func (c Configs) IngesterCount() (count int) {
 	return
 }
 
-type NewIngesterCallback func(id, name string, runner hosted.Runner) error
-type NewRuntimeCallback func(id, name string, ingesterUUID uuid.UUID) (hosted.Runtime, error)
-
 type IngesterBuilder interface {
 	UUID() uuid.UUID
 	Kind() string
