@@ -17,12 +17,12 @@ func TestTesterPlugin(t *testing.T) {
 				10*time.Second,
 				wait.ForLog("Successfully connected to ingesters"),
 			),
-			e2e.WithConfig(t, "testdata/tester.conf", "hosted_ingester.conf", e2e.DefaultConfig),
+			e2e.WithConfig(t, "testdata/tester.conf", "hosted_runner.conf", e2e.DefaultConfig),
 		)...,
 	)
 	t.Cleanup(func() {
 		e2e.SaveTestFiles(t, fetcher, e2e.Log, []string{
-			"/opt/gravwell/log/hosted_ingesters.log",
+			"/opt/gravwell/log/hosted_runner.log",
 		})
 		e2e.Terminate(t, fetcher)
 	})
