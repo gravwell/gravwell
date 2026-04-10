@@ -20,6 +20,11 @@ type BuilderConfig interface {
 	UUID() uuid.UUID
 }
 
+// Builder is provided as a generic way to implement the IngesterBuilder interface.
+// This can't be truly generic to every config as IngesterBuilder.Build does break standards and returns an interface.
+// To use this a new struct can embed Builder with the same type used in Configs.
+// The Build method will need to be implemented manually. This is done to pivot the types to the interface.
+// And a NewThingBuilder method should be created as well.
 type Builder[T BuilderConfig] struct {
 	config  T
 	kind    string

@@ -90,6 +90,9 @@ type IngesterBuilder interface {
 	Config() any
 }
 
+// Builders returns an iter.Seq2 for use in iterating over each of configured plugins generically.
+// The intention is to not couple the plugins to directly to the runtime or runner.
+// Any new plugins MUST add another loop here returning an IngesterBuilder for each config entry.
 func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 	return func(yield func(string, IngesterBuilder) bool) {
 		for name, config := range c.Tester {
