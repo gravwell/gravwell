@@ -71,8 +71,8 @@ func (rm *runtimeManager) stop() (err error) {
 }
 
 func (rm *runtimeManager) createRunners(c *cfgType, ib base.IngesterBase) (err error) {
-	if rm == nil {
-		return fmt.Errorf("nil runtime manager")
+	if c == nil {
+		return fmt.Errorf("nil config, can't create runners")
 	}
 	for name, builder := range c.Builders() {
 		var ig hosted.Ingester
