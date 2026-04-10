@@ -70,6 +70,40 @@ func (rm *runtimeManager) stop() (err error) {
 	return
 }
 
+func (rm *runtimeManager) createRunners(c *cfgType, ib base.IngesterBase) (err error) {
+	if c == nil {
+		return fmt.Errorf("nil config, can't create runners")
+	}
+	for name, builder := range c.Builders() {
+		var ig hosted.Ingester
+		if ig, err = builder.Build(rm.igst); err != nil {
+			return fmt.Errorf("failed to build %s plugin %s: %w", builder.Kind(), name, err)
+		}
+		rt, err := rm.createNativeRuntime(builder.Kind(), name, builder.UUID())
+		if err != nil {
+			return fmt.Errorf("failed to create runtime for %s plugin %s: %w", builder.Kind(), name, err)
+		}
+		runner, err := hosted.NewNativeRunner(builder.ID(), name, builder.Version(), builder.UUID(), ig, rt)
+		if err != nil {
+			return fmt.Errorf("failed to create runner for %s plugin %s: %w", builder.Kind(), name, err)
+		}
+		if existing, exists := rm.mp[builder.UUID()]; exists {
+			ib.Logger.Error("hosted runner UUID collision",
+				log.KV("existing-uuid", existing.UUID()),
+				log.KV("colliding-type", existing.ID()),
+				log.KV("colliding-name", name),
+				log.KV("colliding-uuid", builder.UUID()))
+			continue // just skip it
+		}
+		rm.mp[builder.UUID()] = wrappedRunner{Runner: runner}
+		// TODO(2073): Register individual plugins as child ingesters
+		//rm.igst.RegisterChild(builder.UUID().String(), ingest.IngesterState{
+		//	Configuration:
+		//})
+	}
+	return nil
+}
+
 // createNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context
 func (rm *runtimeManager) createNativeRuntime(kind, name string, ingesterUUID uuid.UUID) (rt hosted.Runtime, err error) {
 	// grab a new native runtime based on the kind, name, and UUID
@@ -88,31 +122,6 @@ func (rm *runtimeManager) createNativeRuntime(kind, name string, ingesterUUID uu
 	}
 	// create the native runtime
 	rt, err = hosted.NewNativeRuntime(rm.ctx, ingesterID, bw, rm.igst, lgr)
-	return
-}
-
-// createIngesters loads up all of the ingesters specified in the config and then goes after any ingesters that may
-// have been pulled
-func (rm *runtimeManager) createIngesters(cfg *cfgType, ib base.IngesterBase) (err error) {
-	// load up the native ingesters
-	err = cfg.forEachIngester(rm.igst, rm.createNativeRuntime, func(name, id string, runner hosted.Runner) error {
-		ingesterUUID := runner.UUID()
-		if existing, ok := rm.mp[ingesterUUID]; ok {
-			ib.Logger.Error("hosted ingester UUID collision",
-				log.KV("existing-uuid", existing.UUID()),
-				log.KV("colliding-type", existing.ID()),
-				log.KV("colliding-name", name),
-				log.KV("colliding-uuid", ingesterUUID))
-			return nil // just skip it
-		}
-
-		wr := wrappedRunner{
-			Runner: runner,
-		}
-		rm.mp[ingesterUUID] = wr
-		return nil
-	})
-
 	return
 }
 

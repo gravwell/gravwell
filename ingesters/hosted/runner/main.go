@@ -90,7 +90,7 @@ func main() {
 	}
 
 	// Fire up native hosted ingesters first
-	if err = rm.createIngesters(cfg, ib); err != nil {
+	if err = rm.createRunners(cfg, ib); err != nil {
 		rm.stop()  // best effort close
 		sh.Close() // ignore return, but no writes should have occurred
 		ib.Logger.FatalCode(1, "failed to create ingesters", log.KVErr(err))

@@ -12,6 +12,7 @@ package plugins
 
 import (
 	"fmt"
+	"iter"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
@@ -32,19 +33,29 @@ type Configs struct {
 func (c Configs) Verify() (err error) {
 	// verify Okta configs
 	for k, v := range c.Okta {
-		if v != nil {
-			if err = v.Verify(); err != nil {
-				err = fmt.Errorf("Okta config %q failed validation %w", k, err)
-				return
-			}
+		if v == nil {
+			err = fmt.Errorf("Okta config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Okta config %q failed validation %w", k, err)
+			return
+		}
+	}
+	for k, v := range c.Tester {
+		if v == nil {
+			err = fmt.Errorf("Tester config %q is nil", k)
+			return
 		}
 	}
 	for k, v := range c.Mimecast {
-		if v != nil {
-			if err = v.Verify(); err != nil {
-				err = fmt.Errorf("Mimecast config %q failed validation %w", k, err)
-				return
-			}
+		if v == nil {
+			err = fmt.Errorf("Mimecast config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Mimecast config %q failed validation %w", k, err)
+			return
 		}
 	}
 	return
@@ -70,76 +81,34 @@ func (c Configs) IngesterCount() (count int) {
 	return
 }
 
-type NewIngesterCallback func(id, name string, runner hosted.Runner) error
-type NewRuntimeCallback func(id, name string, ingesterUUID uuid.UUID) (hosted.Runtime, error)
-
-func (c Configs) ForEachIngester(tn hosted.TagNegotiator, nrt NewRuntimeCallback, cb NewIngesterCallback) (err error) {
-	// native tester
-	for k, v := range c.Tester {
-		// this shouldn't happen, but scream about it anyway
-		if v == nil {
-			err = fmt.Errorf("%v ingester %q has a nil config", tester.ID, k)
-			return
-		}
-		// get a new ingester
-		var ig *tester.TesterIngester
-		if ig, err = tester.NewTesterIngester(*v, tn); err != nil {
-			err = fmt.Errorf("failed to create new %q ingester %q: %w", tester.ID, k, err)
-			continue
-		}
-		if err = c.buildIngester(k, tester.ID, tester.Name, tester.Version, v.UUID(), ig, nrt, cb); err != nil {
-			return
-		}
-	}
-	// native Okta
-	for k, v := range c.Okta {
-		// this shouldn't happen, but scream about it anyway
-		if v == nil {
-			err = fmt.Errorf("%v ingester %q has a nil config", okta.ID, k)
-			return
-		}
-		// get a new ingester
-		var ig *okta.OktaIngester
-		if ig, err = okta.NewOktaIngester(*v, tn); err != nil {
-			err = fmt.Errorf("failed to create new %q ingester %q: %w", okta.ID, k, err)
-			continue
-		}
-		if err = c.buildIngester(k, okta.ID, okta.Name, okta.Version, v.UUID(), ig, nrt, cb); err != nil {
-			return
-		}
-	}
-	for k, v := range c.Mimecast {
-		// this shouldn't happen, but scream about it anyway
-		if v == nil {
-			err = fmt.Errorf("mimecast ingester %q has a nil config", k)
-			return
-		}
-		// get a new ingester
-		ig := mimecast.New(v)
-
-		if err = c.buildIngester(k, mimecast.ID, mimecast.Name, mimecast.Version, v.UUID(), ig, nrt, cb); err != nil {
-			return
-		}
-	}
-	return
+type IngesterBuilder interface {
+	UUID() uuid.UUID
+	Kind() string
+	ID() string
+	Version() string
+	Build(hosted.TagNegotiator) (hosted.Ingester, error)
+	Config() any
 }
 
-func (c Configs) buildIngester(name, id, kind, ver string, ingesterUUID uuid.UUID, ig hosted.Ingester, nrt NewRuntimeCallback, cb NewIngesterCallback) (err error) {
-	//create a new runtime for this ingester
-	var rt hosted.Runtime
-	if rt, err = nrt(kind, name, ingesterUUID); err != nil {
-		err = fmt.Errorf("failed to create new runtime for %s ingester %q: %w", kind, name, err)
-		return
+// Builders returns an iter.Seq2 for use in iterating over each of configured plugins generically.
+// The intention is to not couple the plugins to directly to the runtime or runner.
+// Any new plugins MUST add another loop here returning an IngesterBuilder for each config entry.
+func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
+	return func(yield func(string, IngesterBuilder) bool) {
+		for name, config := range c.Tester {
+			if !yield(name, NewTesterBuilder(config, tester.Name, tester.ID, tester.Version)) {
+				return
+			}
+		}
+		for name, config := range c.Okta {
+			if !yield(name, NewOktaBuilder(config, okta.Name, okta.ID, okta.Version)) {
+				return
+			}
+		}
+		for name, config := range c.Mimecast {
+			if !yield(name, NewMimecastBuilder(config, mimecast.Name, mimecast.ID, mimecast.Version)) {
+				return
+			}
+		}
 	}
-	// create a new hosted native runner
-	var runner *hosted.NativeRunner
-	if runner, err = hosted.NewNativeRunner(id, name, ver, ingesterUUID, ig, rt); err != nil {
-		err = fmt.Errorf("failed to create new native %s runner %w", kind, err)
-		runner = nil
-		return
-	}
-
-	// create the ingester and ask for the runtime associated with this ingester uuid
-	err = cb(kind, name, runner)
-	return
 }
