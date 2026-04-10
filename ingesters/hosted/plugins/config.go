@@ -33,19 +33,29 @@ type Configs struct {
 func (c Configs) Verify() (err error) {
 	// verify Okta configs
 	for k, v := range c.Okta {
-		if v != nil {
-			if err = v.Verify(); err != nil {
-				err = fmt.Errorf("Okta config %q failed validation %w", k, err)
-				return
-			}
+		if v == nil {
+			err = fmt.Errorf("Okta config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Okta config %q failed validation %w", k, err)
+			return
+		}
+	}
+	for k, v := range c.Tester {
+		if v == nil {
+			err = fmt.Errorf("Tester config %q is nil", k)
+			return
 		}
 	}
 	for k, v := range c.Mimecast {
-		if v != nil {
-			if err = v.Verify(); err != nil {
-				err = fmt.Errorf("Mimecast config %q failed validation %w", k, err)
-				return
-			}
+		if v == nil {
+			err = fmt.Errorf("Mimecast config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Mimecast config %q failed validation %w", k, err)
+			return
 		}
 	}
 	return
