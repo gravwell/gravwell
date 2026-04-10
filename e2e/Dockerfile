@@ -8,7 +8,7 @@ WORKDIR /src
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     mkdir -p /bin/ingesters && \
-    for i in $(sed '/^$/d' "./ingesters/test/e2e/include"); do go build -o /bin/ingesters/$i ./ingesters/$i; done;
+    for i in $(sed '/^$/d' "./e2e/ingesters/include"); do go build -o /bin/ingesters/$i ./ingesters/$i; done;
 
 FROM busybox AS runtime
 COPY --from=builder /bin/ingesters/ /opt/gravwell/bin/

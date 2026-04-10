@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os/exec"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,7 +17,8 @@ import (
 
 var (
 	mockDockerfile = tc.FromDockerfile{
-		Dockerfile: "Dockerfile",
+		Dockerfile: "./tools/mock/mimecast/Dockerfile",
+		Context:    e2e.RepoRoot(),
 		Repo:       "mimecast-mock",
 		BuildOptionsModifier: func(options *build.ImageBuildOptions) {
 			options.Version = build.BuilderBuildKit
@@ -27,8 +27,6 @@ var (
 )
 
 func TestMimecast(t *testing.T) {
-	mockDockerfile.Context = filepath.Join(e2e.RepoRoot(), "tools/mock/mimecast")
-
 	// test containers doesn't pull well with buildkit
 	if err := exec.Command("docker", "pull", "golang:1.26.2").Run(); err != nil {
 		t.Fatal(err)
@@ -63,8 +61,12 @@ func TestMimecast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fetcher, err := tc.Run(t.Context(), "",
-		e2e.Ingester(t, "hosted-mimecast", "hosted/runner",
+	fetcher, err := tc.Run(t.Context(), "gravwell/hosted:e2e",
+		e2e.WithDefaults(t, "hosted-mimecast",
+			tc.WithWaitStrategyAndDeadline(
+				10*time.Second,
+				wait.ForLog("Successfully connected to ingesters"),
+			),
 			e2e.WithConfig(t, "testdata/mimecast.conf", "hosted_ingester.conf", e2e.DefaultConfig),
 		)...,
 	)

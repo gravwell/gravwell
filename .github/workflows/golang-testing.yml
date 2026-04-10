@@ -94,7 +94,7 @@ jobs:
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
-        govulncheck -test ./ingesters/hosted/...
+        govulncheck -test ./hosted/...
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
 
@@ -114,7 +114,7 @@ jobs:
         go vet ./ingest/log
         go vet ./timegrinder
         go vet ./filewatch
-        go vet ./ingesters/hosted/...
+        go vet ./hosted/...
         go vet ./ingesters/utils
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
@@ -135,7 +135,7 @@ jobs:
         go test -v ./ingest/log
         go test -v ./timegrinder
         go test -v ./filewatch
-        go test -v ./ingesters/hosted/...
+        go test -v ./hosted/...
         go test -v ./ingesters/utils
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
@@ -173,7 +173,7 @@ jobs:
         staticcheck ./client/...
         staticcheck ./ingesters/args/...
         staticcheck ./ingesters/base/...
-        staticcheck ./ingesters/hosted/...
+        staticcheck ./hosted/...
         staticcheck ./ingesters/AzureEventHubs/...
         staticcheck ./ingesters/canbus/...
         staticcheck ./ingesters/utils/...
@@ -216,6 +216,7 @@ jobs:
         go build -o /dev/null ./timegrinder/cmd
         go build -o /dev/null ./ipexist/textinput
         go build -o /dev/null ./kitctl
+        go build -o /dev/null ./hosted/runner
         GOOS=windows go build -o /dev/null ./ingesters/fileFollow
         GOOS=windows go build -o /dev/null ./ingesters/winevents
         GOOS=windows go build ./generators/windowsEventGenerator
@@ -233,7 +234,6 @@ jobs:
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
-        go build -o /dev/null ./ingesters/hosted/runner
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
@@ -269,7 +269,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
       with:
-        go-version-file: ingesters/test/e2e/go.mod
+        go-version-file: e2e/go.mod
         cache: false
 
     - name: Go Mod Download
@@ -277,7 +277,7 @@ jobs:
 
     - name: Run e2e tests
       run: |
-        cd ./ingesters/test/e2e
+        cd ./e2e
         go test -v -artifacts ./...
 
     - name: Upload test artifacts
@@ -285,7 +285,7 @@ jobs:
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
         name: e2e-test-artifacts
-        path: ingesters/test/e2e/_artifacts/
+        path: e2e/_artifacts/
         if-no-files-found: ignore
         retention-days: 7
 

@@ -51,7 +51,7 @@ var started bool
 
 func buildIngesters() {
 	var stdout, stderr bytes.Buffer
-	docker := exec.Command("docker", "buildx", "build", "-t", "gravwell/ingesters:e2e", "-f", "./ingesters/test/e2e/Dockerfile", "--platform", *ingestPlatform, ".")
+	docker := exec.Command("docker", "buildx", "build", "-t", "gravwell/ingesters:e2e", "-f", "./e2e/Dockerfile", "--platform", *ingestPlatform, ".")
 	docker.Dir = RepoRoot()
 	docker.Stdout = &stdout
 	docker.Stderr = &stderr
@@ -132,7 +132,7 @@ func Start() {
 	}
 
 	config := tc.ContainerFile{
-		HostFilePath:      RepoRoot() + "/ingesters/test/e2e/testdata/gravwell.conf",
+		HostFilePath:      RepoRoot() + "/e2e/testdata/gravwell.conf",
 		ContainerFilePath: "/opt/gravwell/etc/gravwell.conf",
 		FileMode:          0o644,
 	}

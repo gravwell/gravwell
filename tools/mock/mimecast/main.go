@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 )
 
 var (
