@@ -302,33 +302,53 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	return nil
 }
 
-// SearchDownloadRequest initiates a download of search results. The id parameter specifies
-// the search to download. The format should be a supported download format for the search's
-// renderer ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive"). The tr
-// parameter is the time frame over which results should be downloaded.
-func (c *Client) SearchDownloadRequest(id, format string, tr types.TimeRange) (resp *http.Response, err error) {
-	return c.SearchDownloadRequestWithContext(id, format, tr, context.TODO())
+// SearchDownloadRequest initiates a download of search results for the search
+// identified by id and returns a [types.SearchDownloadResponse] describing the
+// prepared download. It is a convenience wrapper around
+// [Client.SearchDownloadRequestWithContext] using [context.Background].
+//
+// The req parameter specifies the download format and optional result selection
+// (see [types.SearchDownloadRequest]). The format must be supported by the
+// search's renderer (e.g. "json", "csv", "text", "pcap", "lookupdata",
+// "ipexist", "archive"). An optional set of [types.RowSelection] values may
+// narrow results to specific ranges or individual rows, and an optional
+// [types.Timeframe] may restrict results to a particular time window.
+//
+// On success, the returned [types.SearchDownloadResponse] includes a
+// DownloadResourceURL for retrieving the prepared results, the number of
+// matching entries, an expiration time, and the search ID.
+func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (types.SearchDownloadResponse, error) {
+	return c.SearchDownloadRequestWithContext(context.Background(), id, req)
 }
 
-// SearchDownloadRequestWithContext initiates a download of search results. The id parameter specifies
-// the search to download. The format should be a supported download format for the search's
-// renderer ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive"). The tr
-// parameter is the time frame over which results should be downloaded.
-func (c *Client) SearchDownloadRequestWithContext(id, format string, tr types.TimeRange, ctx context.Context) (resp *http.Response, err error) {
+// SearchDownloadRequestWithContext initiates a download of search results for
+// the search identified by searchID and returns a [types.SearchDownloadResponse]
+// describing the prepared download. The ctx parameter controls cancellation and
+// deadline.
+//
+// The sdr parameter specifies the download format and optional result selection
+// (see [types.SearchDownloadRequest]). The format must be supported by the
+// search's renderer ("json", "csv", "text", "pcap", "lookupdata", "ipexist",
+// "archive"). An optional set of [types.RowSelection] values may narrow results
+// to specific ranges or individual rows, and an optional [types.Timeframe] may
+// restrict results to a particular time window.
+//
+// On success, the returned [types.SearchDownloadResponse] includes a
+// DownloadResourceURL for retrieving the prepared results, the number of
+// matching entries, an expiration time, and the search ID.
+func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (res types.SearchDownloadResponse, err error) {
 	var data []byte
 	var req *http.Request
-	if !tr.IsEmpty() {
-		if data, err = json.Marshal(tr); err != nil {
-			return
-		}
+	if data, err = json.Marshal(sdr); err != nil {
+		return
 	}
 
 	var u *url.URL
-	if u, err = url.Parse(searchCtrlDownloadUrl(id, format)); err != nil {
+	if u, err = url.Parse(searchCtrlDownloadUrl(searchID)); err != nil {
 		return
 	}
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, u.String())
-	if req, err = http.NewRequestWithContext(ctx, http.MethodGet, uri, bytes.NewBuffer(data)); err != nil {
+	if req, err = http.NewRequestWithContext(ctx, http.MethodPost, uri, bytes.NewBuffer(data)); err != nil {
 		return
 	}
 
@@ -338,10 +358,21 @@ func (c *Client) SearchDownloadRequestWithContext(id, format string, tr types.Ti
 		return
 	}
 
-	resp, err = c.clnt.Do(req)
-	if err == nil {
-		c.objLog.Log("GET "+resp.Status, u.String(), nil)
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		return
 	}
+	defer resp.Body.Close()
+
+	c.objLog.Log("POST "+resp.Status, u.String(), nil)
+
+	if resp.StatusCode != http.StatusOK {
+		err = &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&res)
+
 	return
 }
 
@@ -353,9 +384,9 @@ func (c *Client) DownloadRequest(url string) (resp *http.Response, err error) {
 
 // DownloadRequestWithContext performs an authenticated GET request on the specified URL
 // and hands back the http.Response object for the request.
-func (c *Client) DownloadRequestWithContext(url string, ctx context.Context) (resp *http.Response, err error) {
+func (c *Client) DownloadRequestWithContext(path string, ctx context.Context) (resp *http.Response, err error) {
 	var req *http.Request
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
+	uri := c.serverURL.ResolveReference(&url.URL{Path: path}).String()
 	if req, err = http.NewRequestWithContext(ctx, http.MethodGet, uri, nil); err != nil {
 		return
 	}
@@ -369,7 +400,7 @@ func (c *Client) DownloadRequestWithContext(url string, ctx context.Context) (re
 
 	resp, err = c.clnt.Do(req)
 	if err == nil {
-		c.objLog.Log("GET "+resp.Status, url, nil)
+		c.objLog.Log("GET "+resp.Status, path, nil)
 	}
 	return
 }
