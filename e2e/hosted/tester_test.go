@@ -7,11 +7,16 @@ import (
 	"gravwell/e2e"
 
 	tc "github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 func TestTesterPlugin(t *testing.T) {
-	fetcher, err := tc.Run(t.Context(), "",
-		e2e.Ingester(t, "hosted-tester", "hosted/runner",
+	fetcher, err := tc.Run(t.Context(), "gravwell/hosted:e2e",
+		e2e.WithDefaults(t, "hosted-tester",
+			tc.WithWaitStrategyAndDeadline(
+				10*time.Second,
+				wait.ForLog("Successfully connected to ingesters"),
+			),
 			e2e.WithConfig(t, "testdata/tester.conf", "hosted_ingester.conf", e2e.DefaultConfig),
 		)...,
 	)

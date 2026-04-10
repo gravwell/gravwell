@@ -11,20 +11,20 @@ No other dependencies are required — everything else runs inside containers.
 
 ## Running Tests
 
-From anywhere within the repository:
+From within the `./e2e` folder:
 
 ```sh
 # Run all e2e tests
-go test ./ingesters/test/e2e/...
+go test ./...
 
 # Run a specific test package
-go test ./ingesters/test/e2e/HttpIngester/
+go test ./ingesters/HttpIngester/
 
 # Run a single test
-go test ./ingesters/test/e2e/HttpIngester/ -run TestHttp
+go test ./HttpIngester/ -run TestHttp
 
 # Preserve artifacts (logs, configs, search results) after the run
-go test -artifacts ./ingesters/test/e2e/HttpIngester/
+go test -artifacts ./ingesters/HttpIngester/
 ```
 
 ### Flags
@@ -42,18 +42,20 @@ These flags are passed directly to `go test`:
 Example:
 
 ```sh
-go test ./ingesters/test/e2e/HttpIngester/ -version v5.7.0 -license ./license.key
+go test ./ingesters/HttpIngester/ -version v5.7.0 -license ./license.key
 ```
 
 ## Project Layout
 
 ```
 e2e/
-├── ingester/       # matching the name in ../../ingesters
-│   ├── main_test.go
-│   ├── ingester_test.go
-│   └── testdata/
-│       └── ingester.conf   # Ingester config (Go template)
+├── ingesters/
+│   ├── ingester/ # matching the name in ./ingesters
+│   │   ├── main_test.go
+│   │   ├── ingester_test.go
+│   │   └── testdata/
+│   │       └── ingester.conf   # Ingester config (Go template)
+├── hosted/ # tests for the hosted runner
 └── .../
 ```
 
@@ -67,7 +69,6 @@ Add your ingester's path (relative to the repo root `ingesters/` directory) to t
 
 ```
 HttpIngester
-hosted/runner
 MyNewIngester        # add a new line
 ```
 
@@ -77,11 +78,12 @@ This tells the Dockerfile to `go build` your ingester into the shared image.
 
 ```
 e2e/
-└── MyNewIngester/
-    ├── main_test.go
-    ├── myingester_test.go
-    └── testdata/
-        └── myingester.conf
+└── ingesters/
+    └── MyNewIngester/
+        ├── main_test.go
+        ├── myingester_test.go
+        └── testdata/
+            └── myingester.conf
 ```
 
 ### 3. Write `main_test.go`
@@ -94,7 +96,7 @@ package MyNewIngester
 import (
     "testing"
 
-    "github.com/gravwell/gravwell/v3/ingesters/test/e2e"
+    "gravwell/e2e"
 )
 
 func TestMain(m *testing.M) {
@@ -135,7 +137,7 @@ import (
     "testing"
     "time"
 
-    "github.com/gravwell/gravwell/v3/ingesters/test/e2e"
+    "gravwell/e2e"
     tc "github.com/testcontainers/testcontainers-go"
 )
 
