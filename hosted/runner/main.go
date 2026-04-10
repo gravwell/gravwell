@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	defaultConfigLoc  = `/opt/gravwell/etc/hosted_ingester.conf`
-	defaultConfigDLoc = `/opt/gravwell/etc/hosted_ingester.conf.d`
+	defaultConfigLoc  = `/opt/gravwell/etc/hosted_runner.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/hosted_runner.conf.d`
 	ingesterName      = `hosted-runner`
 	appName           = `hosted-runner`
 
