@@ -25,6 +25,7 @@ var (
 	ErrMissingModule error = errors.New("extraction module name is missing")
 	ErrMissingParams error = errors.New("extraction parameters missing")
 	ErrMissingTag    error = errors.New("extraction tag assignment missing")
+	ErrMissingName   error = errors.New("extraction name missing")
 )
 
 // AXDefinition object, when setting an AutoExtractor, only Name, Module,
@@ -48,6 +49,9 @@ type AXDefinition struct {
 
 // Validate verifies all required fields in an AXDefinition object are valid.
 func (dc *AXDefinition) Validate() error {
+	if dc.Name == `` {
+		return ErrMissingName
+	}
 	if dc.Module == `` {
 		return ErrMissingModule
 	}
