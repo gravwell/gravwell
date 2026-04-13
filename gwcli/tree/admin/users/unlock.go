@@ -60,7 +60,7 @@ func unlockAction() action.Pair {
 					clilog.Tee(clilog.INFO, c.ErrOrStderr(), fmt.Sprintf("failed to unlock user account %d: %v", uid, err))
 					return
 				}
-				fmt.Fprintf(c.OutOrStdout(), "User %v unlocked", uid)
+				fmt.Fprintf(c.OutOrStdout(), "User %v unlocked\n", uid)
 			}
 		}, treeutils.GenerateActionOptions{
 			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
