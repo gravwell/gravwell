@@ -43,10 +43,8 @@ type cfgType struct {
 	Preprocessor processors.ProcessorConfig
 	DuoConf      map[string]*duoConf
 	ThinkstConf  map[string]*ThinkstConf
-	OktaConf     map[string]*OktaConf
 	AsanaConf    map[string]*asanaConf
 	ShodanConf   map[string]*ShodanConf
-	MimecastConf map[string]*MimecastConf
 }
 
 func (c cfgType) Verify() error {
@@ -90,13 +88,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	if err := c.ThinkstVerify(); err != nil {
 		return nil, err
 	}
-	if err := c.OktaVerify(); err != nil {
-		return nil, err
-	}
 	if err := c.ShodanVerify(); err != nil {
-		return nil, err
-	}
-	if err := c.MimecastVerify(); err != nil {
 		return nil, err
 	}
 
@@ -146,30 +138,7 @@ func (c *cfgType) Tags() ([]string, error) {
 			tagMp[v.Tag_Name] = true
 		}
 	}
-	//Special one for okta since it can have two tags
-	for _, v := range c.OktaConf {
-		if len(v.Tag_Name) == 0 {
-			continue
-		}
-		if _, ok := tagMp[v.Tag_Name]; !ok {
-			tags = append(tags, v.Tag_Name)
-			tagMp[v.Tag_Name] = true
-		}
-		if _, ok := tagMp[v.UserTag]; !ok {
-			tags = append(tags, v.UserTag)
-			tagMp[v.UserTag] = true
-		}
-	}
 	for _, v := range c.ShodanConf {
-		if len(v.Tag_Name) == 0 {
-			continue
-		}
-		if _, ok := tagMp[v.Tag_Name]; !ok {
-			tags = append(tags, v.Tag_Name)
-			tagMp[v.Tag_Name] = true
-		}
-	}
-	for _, v := range c.MimecastConf {
 		if len(v.Tag_Name) == 0 {
 			continue
 		}
