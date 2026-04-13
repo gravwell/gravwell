@@ -119,7 +119,7 @@ func listOutput[retStruct any](
 }
 
 // buildFlagSet constructs and returns a flagset composed of the default list flags, additional flags defined for this action, and --pretty if a prettyFunc was defined.
-func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
+func buildFlagSet(prettyDefined bool) *pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	ft.CSV.Register(&fs)
 	ft.JSON.Register(&fs)
@@ -136,11 +136,6 @@ func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+
 			"Takes precedence over other format flags.")
-	}
-	// if additional flags are warranted, add them
-	if afs != nil {
-		a := afs()
-		fs.AddFlagSet(&a)
 	}
 
 	return &fs

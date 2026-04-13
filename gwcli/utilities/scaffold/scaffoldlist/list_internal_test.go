@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/pflag"
 )
@@ -49,7 +50,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path", func(t *testing.T) {
-		fs := buildFlagSet(nil, false)
+		fs := buildFlagSet(false)
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -58,7 +59,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path with pretty defined", func(t *testing.T) {
-		fs := buildFlagSet(nil, true)
+		fs := buildFlagSet(true)
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -78,7 +79,7 @@ func Test_initOutFile(t *testing.T) {
 		orig.Sync()
 		orig.Close()
 
-		fs := buildFlagSet(nil, false)
+		fs := buildFlagSet(false)
 		fs.Parse([]string{"-o", path})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -129,7 +130,7 @@ func Test_determineFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// generate flagset
-			fs := buildFlagSet(nil, tt.prettyDefined)
+			fs := buildFlagSet(tt.prettyDefined)
 			fs.Parse(tt.args)
 			if got := determineFormat(fs, tt.prettyDefined); got != tt.want {
 				t.Errorf("determineFormat() = %v, want %v", got, tt.want)
@@ -188,7 +189,9 @@ func TestNewListAction(t *testing.T) {
 			recover()
 			recovered = true
 		}()
-		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, Options{Use: use})
+		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, Options{
+			CommonOptions: scaffold.CommonOptions{Use: use},
+		})
 	})
 	t.Run("default columns and exclude columns given", func(t *testing.T) {
 		type st struct {
@@ -215,7 +218,7 @@ func TestNewListAction(t *testing.T) {
 					privateSubCol2 float32
 				}{true, 3.14}},
 			}, nil
-		}, Options{Use: "validUse"})
+		}, Options{CommonOptions: scaffold.CommonOptions{Use: "validUse"}})
 		filepath := path.Join(tDir, "specific_columns.csv")
 		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.SelectColumns.Name(), "Col1,Col3", "-" + ft.Output.Shorthand(), filepath})
 		// capture output
@@ -269,7 +272,7 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
 		}, Options{
-			Use:           "validUse",
+			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
 			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
 		})
 		pair.Action.SetArgs([]string{})
@@ -309,7 +312,7 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
 		}, Options{
-			Use:           "validUse",
+			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
 			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
 		})
 		pair.Action.SetArgs([]string{})
@@ -352,7 +355,7 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
 		}, Options{
-			Use:                       "validUse",
+			CommonOptions:             scaffold.CommonOptions{Use: "validUse"},
 			ExcludeColumnsFromDefault: []string{"Col1"},
 		})
 
@@ -400,7 +403,7 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
 		}, Options{
-			Use:           "validUse",
+			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
 			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
 		})
 		pair.Action.SetArgs([]string{})
@@ -441,7 +444,7 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
 		}, Options{
-			Use:           "validUse",
+			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
 			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
 		})
 		pair.Action.SetArgs([]string{"--" + ft.ShowColumns.Name()})
@@ -572,7 +575,9 @@ func TestNewListAction(t *testing.T) {
 					privateSubCol2 float32
 				}{true, 3.14}},
 			}, nil
-		}, Options{Use: "validU53"})
+		}, Options{
+			CommonOptions: scaffold.CommonOptions{Use: "validU53"},
+		})
 		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.ShowColumns.Name()})
 		// capture output
 		var sb strings.Builder
@@ -603,7 +608,9 @@ func TestNewListAction(t *testing.T) {
 					privateSubCol2 float32
 				}{true, 3.14}},
 			}, nil
-		}, Options{Use: "validU53"})
+		}, Options{
+			CommonOptions: scaffold.CommonOptions{Use: "validU53"},
+		})
 		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.SelectColumns.Name() + "=Xol1"})
 		// capture output
 		var sb strings.Builder
@@ -709,11 +716,15 @@ func TestNewListAction(t *testing.T) {
 	t.Run("additional flags", func(t *testing.T) {
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{}, nil
-		}, Options{AddtlFlags: func() pflag.FlagSet {
-			fs := pflag.FlagSet{}
-			fs.IPP("ipp", "p", nil, "")
-			return fs
-		}},
+		}, Options{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.IPP("ipp", "p", nil, "")
+					return fs
+				},
+			},
+		},
 		)
 
 		pair.Action.ParseFlags([]string{"-p", "127.0.0.1"})
@@ -728,11 +739,14 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{}, nil
 		}, Options{
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.IPP("ipp", "p", nil, "must be an ip in the 127.0.0.0/8 block")
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.IPP("ipp", "p", nil, "must be an ip in the 127.0.0.0/8 block")
+					return fs
+				},
 			},
+
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				ip, err := fs.GetIP("ipp")
 				if err != nil {
@@ -826,30 +840,41 @@ func TestModel(t *testing.T) {
 			wantInvalidArgs: false,
 		},
 		{name: "additional flags",
-			options: Options{AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("test", false, "")
-				return fs
-			}},
+			options: Options{
+				CommonOptions: scaffold.CommonOptions{
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Bool("test", false, "")
+						return fs
+					},
+				},
+			},
 			flags:           flags{},
 			wantInvalidArgs: false,
 		},
 		{name: "invalid flags, no extra validation",
-			options: Options{AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Int("invalid", 0, "")
-				return fs
-			},
+			options: Options{
+				CommonOptions: scaffold.CommonOptions{
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Int("invalid", 0, "")
+						return fs
+					},
+				},
 			},
 			flags:           flags{},
 			freeformArgs:    []string{"--invalid=inv"},
 			wantInvalidArgs: true},
 		{name: "invalid flags, w/ extra validation",
-			options: Options{AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Int("invalid", 0, "can only be set to 5")
-				return fs
-			},
+			options: Options{
+				CommonOptions: scaffold.CommonOptions{
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Int("invalid", 0, "can only be set to 5")
+						return fs
+					},
+				},
+
 				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 					inv, err := fs.GetInt("invalid")
 					if err != nil {
@@ -866,11 +891,14 @@ func TestModel(t *testing.T) {
 			wantInvalidArgs: true},
 		{name: "valid flags, w/ extra validation",
 			options: Options{
-				AddtlFlags: func() pflag.FlagSet {
-					fs := pflag.FlagSet{}
-					fs.Int("valid", 0, "can only be set to 5")
-					return fs
+				CommonOptions: scaffold.CommonOptions{
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Int("valid", 0, "can only be set to 5")
+						return fs
+					},
 				},
+
 				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 					inv, err := fs.GetInt("valid")
 					if err != nil {
@@ -1013,9 +1041,6 @@ func TestModel(t *testing.T) {
 				}
 				if !testsupport.SlicesUnorderedEqual(la.columns, la.defaultColumns) {
 					t.Error(pfx+"list action columns were not reset to defaults.", testsupport.ExpectedActual(la.defaultColumns, la.columns))
-				}
-				if la.fs.Parsed() {
-					t.Error(pfx + "flagset should not be parsed")
 				}
 				// if additional flags were given, ensure they were bolted back on
 				if la.options.AddtlFlags != nil {

@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -70,6 +71,12 @@ func list() action.Pair {
 			return resp.Results, nil
 		},
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
+				addtlFlags := &pflag.FlagSet{}
+				ft.GetAll.Register(addtlFlags, true, "templates")
+				return addtlFlags
+			}},
+
 			DefaultColumns: []string{
 				"ID",
 				"Name",
@@ -78,14 +85,7 @@ func list() action.Pair {
 				"Variables",
 				"Labels",
 			},
-			AddtlFlags: flags,
 		})
-}
-
-func flags() pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "templates")
-	return addtlFlags
 }
 
 // TODO we will need a submodule to handle variables. Create currently cannot handle this.

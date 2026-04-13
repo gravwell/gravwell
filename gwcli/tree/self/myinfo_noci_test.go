@@ -102,7 +102,7 @@ func nonInteractive(t *testing.T, action *cobra.Command) (normalOut, csvOut stri
 func model(t *testing.T, mdl action.Model) (normalOut, csvOut string) {
 	{
 		fs := flags()
-		if inv, cmd, err := mdl.SetArgs(&fs, nil, 80, 50); err != nil {
+		if inv, cmd, err := mdl.SetArgs(fs, nil, 80, 50); err != nil {
 			t.Fatal(err)
 		} else if inv != "" {
 			t.Fatal("failed to set args due invalid arguments: ", inv)
@@ -131,7 +131,7 @@ func model(t *testing.T, mdl action.Model) (normalOut, csvOut string) {
 	// run it back, but for CSV
 	{
 		fs := flags()
-		if inv, cmd, err := mdl.SetArgs(&fs, []string{"--csv"}, 80, 50); err != nil {
+		if inv, cmd, err := mdl.SetArgs(fs, []string{"--csv"}, 80, 50); err != nil {
 			t.Fatal(err)
 		} else if inv != "" {
 			t.Fatal("failed to set args due invalid arguments: ", inv)

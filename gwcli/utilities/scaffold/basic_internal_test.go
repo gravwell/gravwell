@@ -212,11 +212,16 @@ func TestModel(t *testing.T) {
 				s := fmt.Sprintf("testbool: %v", testbool)
 				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
 			}, BasicOptions{
-				AddtlFlagFunc: func() pflag.FlagSet {
-					fs := pflag.FlagSet{}
-					fs.Bool("testbool", false, "a boolean for testing")
-					return fs
+				CommonOptions: CommonOptions{
+					Usage:   "The Regent",
+					Example: "an example of test command",
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Bool("testbool", false, "a boolean for testing")
+						return fs
+					},
 				},
+
 				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 					if fs.NArg() > 3 {
 						return "please provide fewer than 3 bare arguments", nil
@@ -225,8 +230,6 @@ func TestModel(t *testing.T) {
 					}
 					return "", nil
 				},
-				Usage:   "The Regent",
-				Example: "an example of test command",
 			},
 		)
 
@@ -403,16 +406,19 @@ func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example str
 			s := fmt.Sprintf("testbool: %v", testbool)
 			return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
 		}, BasicOptions{
-			// define a boolean that can be set by the actFunc and a couple ints to test ValidateArgs
-			AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("testbool", false, "a boolean for testing")
-				fs.Int("negative-five", 0, "must be set to -5")
-				fs.Uint("five", 0, "must be set to 5")
-				return fs
+			CommonOptions: CommonOptions{
+				Example: example,
+				Aliases: aliases,
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("testbool", false, "a boolean for testing")
+					fs.Int("negative-five", 0, "must be set to -5")
+					fs.Uint("five", 0, "must be set to 5")
+					return fs
+				},
 			},
-			Aliases: aliases,
-			Example: example,
+			// define a boolean that can be set by the actFunc and a couple ints to test ValidateArgs
+
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if nfive, err := fs.GetInt("negative-five"); err != nil {
 					return "", err

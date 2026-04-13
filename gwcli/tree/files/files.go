@@ -60,10 +60,12 @@ func list() action.Pair {
 			return connection.Client.UserFiles()
 		},
 		scaffoldlist.Options{
-			AddtlFlags: func() pflag.FlagSet {
-				var fs = pflag.FlagSet{}
-				ft.GetAll.Register(&fs, true, "files")
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					var fs = &pflag.FlagSet{}
+					ft.GetAll.Register(fs, true, "files")
+					return fs
+				},
 			},
 			// TODO update column names once userfiles get the registry treatment
 			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
@@ -107,10 +109,12 @@ func download() action.Pair {
 			}
 			return string(data), nil
 		}, scaffold.BasicOptions{
-			AddtlFlagFunc: func() pflag.FlagSet {
-				var fs pflag.FlagSet
-				ft.Output.Register(&fs)
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					var fs = &pflag.FlagSet{}
+					ft.Output.Register(fs)
+					return fs
+				},
 			},
 		})
 }

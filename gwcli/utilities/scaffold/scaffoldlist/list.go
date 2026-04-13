@@ -141,22 +141,6 @@ func NewListAction[dataStruct_t any](short, long string,
 		panic("long description cannot be empty")
 	}
 
-	// generate the command
-	var use = "list"
-	if options.Use != "" {
-		// validate use and override default
-		for i := 0; i < len(options.Use); i++ { // check each rune for non-alphanumerics
-			if options.Use[i] >= 48 && options.Use[i] <= 57 { // 0-9 in ASCII
-				continue
-			} else if options.Use[i] >= 65 && options.Use[i] <= 122 { //A-z in ASCII
-				continue
-			}
-			panic("non-alphanumeric character found: " + string(options.Use[i]))
-		}
-
-		use = options.Use
-	}
-
 	// cache the struct fields so we can save some reflection cycles later
 	availDSColumns, err := weave.StructFields(dataStruct, exportedColumnsOnly)
 	if err != nil {
@@ -228,10 +212,11 @@ func NewListAction[dataStruct_t any](short, long string,
 		actionOptions.Example = "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()
 	}
 
-	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns),
+	cmd := treeutils.GenerateAction("list", short, long, nil, generateRun(dataFn, options, availDSColumns),
 		actionOptions)
+	options.Apply(cmd)
 
-	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
+	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 	// apply command modifiers

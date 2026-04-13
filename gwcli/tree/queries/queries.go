@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/attach"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/scheduled"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -76,7 +77,7 @@ func past() action.Pair {
 			return resp.Results, nil
 		},
 		scaffoldlist.Options{
-			Use: pastUse, AddtlFlags: flags,
+			CommonOptions: scaffold.CommonOptions{Use: pastUse, AddtlFlags: flags},
 			DefaultColumns: []string{
 				"ID",
 				"UserQuery",
@@ -86,11 +87,11 @@ func past() action.Pair {
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	addtlFlags.Int("count", 0, "the number of past searches to display.\n"+
 		"If negative or 0, fetches entire history")
-	return addtlFlags
+	return &addtlFlags
 }
 
 //#endregion past queries

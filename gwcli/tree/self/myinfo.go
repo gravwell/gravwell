@@ -97,11 +97,15 @@ func MyInfo() action.Pair {
 				clilog.Writer.Warnf("failed to generate segmented border: %v", err)
 			}
 			return res, nil
-		}, scaffold.BasicOptions{AddtlFlagFunc: flags})
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: flags,
+			},
+		})
 }
 
-func flags() pflag.FlagSet {
-	fs := pflag.FlagSet{}
+func flags() *pflag.FlagSet {
+	fs := &pflag.FlagSet{}
 	fs.Bool(ft.CSV.Name(), false, "display results as CSV")
 	fs.BoolP("refresh", "r", false, "refresh the local user cache prior to display")
 	return fs

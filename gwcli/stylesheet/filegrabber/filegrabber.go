@@ -101,8 +101,8 @@ func newfp() filepicker.Model {
 	fp.KeyMap = filepicker.KeyMap{
 		GoToTop:  key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "first")),
 		GoToLast: key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "last")),
-		Down:     key.NewBinding(key.WithKeys("j", "down", "ctrl+n"), key.WithHelp("j/"+stylesheet.UpSigil, "down")),
-		Up:       key.NewBinding(key.WithKeys("k", "up", "ctrl+p"), key.WithHelp("k/"+stylesheet.DownSigil, "up")),
+		Down:     key.NewBinding(key.WithKeys("j", "down", "ctrl+n"), key.WithHelp("j/"+stylesheet.DownSigil, "down")),
+		Up:       key.NewBinding(key.WithKeys("k", "up", "ctrl+p"), key.WithHelp("k/"+stylesheet.UpSigil, "up")),
 		PageUp:   key.NewBinding(key.WithKeys("K", "pgup"), key.WithHelp("K/pgup", "page up")),
 		PageDown: key.NewBinding(key.WithKeys("J", "pgdown"), key.WithHelp("J/pgdown", "page down")),
 		Back:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/"+stylesheet.LeftSigil, "parent dir")),
