@@ -119,7 +119,7 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	ft.NoInteractive.Register(cmd.PersistentFlags())
 	// login flags
 	cmd.PersistentFlags().StringP("username", "u", "", "login credential. Requires either -p or \""+cfgdir.EnvKeyPassword+"\"."+
-		"If your account has MFA enabled, you must use an API token (--api or --eapi) or login interactively.")
+		" If your account has MFA enabled, you must use an API token (--api or --eapi) or login interactively.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
 	cmd.MarkPersistentFlagFilename("passfile")
 	ft.API.Register(cmd.PersistentFlags())

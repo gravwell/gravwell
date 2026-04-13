@@ -1,4 +1,4 @@
-//go:build !ci
+//go:build noci
 
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	grav "github.com/gravwell/gravwell/v4/client"
@@ -25,8 +26,13 @@ import (
 const ( // mock credentials
 	user     = "admin"
 	password = "changeme"
-	server   = "localhost:80"
 )
+
+var server string
+
+func init() {
+	server = testsupport.Server()
+}
 
 // Tests that the KeepAlive function is actually able to... well... keep a query alive.
 // Wakes every so often to check that we can still re-download our search (aka: that it has not expired yet).

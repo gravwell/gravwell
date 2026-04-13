@@ -1,3 +1,5 @@
+//go:build ci
+
 package stylesheet_test
 
 import (
