@@ -1,3 +1,5 @@
+//go:build ci
+
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>

@@ -1,3 +1,5 @@
+//go:build ci
+
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -174,7 +176,8 @@ func TestNewListAction(t *testing.T) {
 		}()
 		NewListAction(short, long, struct{}{}, nil, Options{})
 	})
-	t.Run("non alphanumerics in use", func(t *testing.T) {
+	// This test does not apply anymore as we do not force "Use" validation anymore
+	/*t.Run("non alphanumerics in use", func(t *testing.T) {
 		use := "<action|"
 		type st struct {
 		}
@@ -189,10 +192,13 @@ func TestNewListAction(t *testing.T) {
 			recover()
 			recovered = true
 		}()
-		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, Options{
-			CommonOptions: scaffold.CommonOptions{Use: use},
-		})
-	})
+		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil },
+			Options{
+				CommonOptions: scaffold.CommonOptions{
+					Use: use,
+				},
+			})
+	})*/
 	t.Run("default columns and exclude columns given", func(t *testing.T) {
 		type st struct {
 		}

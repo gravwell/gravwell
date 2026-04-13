@@ -1,7 +1,7 @@
-//go:build !ci
+//go:build noci
 
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -24,10 +24,17 @@ import (
 
 const (
 	username, password string = "admin", "changeme"
-	server             string = "localhost:8080"
 )
 
-var meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+var (
+	server string
+	meta   []string
+)
+
+func init() {
+	server = testsupport.Server()
+	meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+}
 
 // Check that we can 1) create a new secret, 2) confirm we created that secret, 3) alter that secret, and 4) download that secret
 func TestCreateEditDownload(t *testing.T) {
@@ -47,7 +54,7 @@ func TestCreateEditDownload(t *testing.T) {
 		"-v", secretValue,
 		"--labels", strings.Join(secretLabels, ","),
 	}...)); ec != 0 {
-		t.Error("bad error code: ", ec)
+		t.Fatal("bad error code: ", ec)
 	}
 
 	// check that list pulls back the new secret
@@ -93,6 +100,7 @@ func TestCreateEditDownload(t *testing.T) {
 
 // listForItem executes "list", identifies a row with the given name, and returns its details.
 func listForItem(t *testing.T, name string) (id, description string, labels []string) {
+	t.Helper()
 	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
 	// execute spins up singletons for us
 	if ec := tree.Execute(append(meta, []string{"secrets", "list",

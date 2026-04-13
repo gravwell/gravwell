@@ -1,4 +1,4 @@
-//go:build !ci
+//go:build noci
 
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
@@ -27,11 +27,17 @@ import (
 )
 
 const (
-	server   string = "localhost:80"
 	username string = "admin"
 )
 
-var password string = "changeme"
+var (
+	password string = "changeme"
+	server   string
+)
+
+func init() {
+	server = testsupport.Server()
+}
 
 func Test_autoingest(t *testing.T) {
 	dir := t.TempDir()

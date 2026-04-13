@@ -1,4 +1,4 @@
-//go:build !ci
+//go:build noci
 
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
@@ -25,10 +25,17 @@ import (
 
 const (
 	username, password string = "admin", "changeme"
-	server             string = "localhost:8080"
 )
 
-var meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+var ( // set by init
+	server string
+	meta   []string
+)
+
+func init() {
+	server = testsupport.Server()
+	meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+}
 
 // Check that we can 1) create a new resource, 2) confirm we created that resource, and 3) download that resource
 func TestCreateEditDownload(t *testing.T) {
