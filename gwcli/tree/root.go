@@ -47,7 +47,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
-	std_users "github.com/gravwell/gravwell/v4/gwcli/tree/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -152,6 +151,13 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 		}
 		if err = connection.Initialize(server, !insecure, insecure, ""); err != nil {
 			return err
+		}
+		if err := connection.Client.Test(); err != nil { // make the errors user-friendly
+			// ECONNREFUSED relies on the syscalls packages which I really don't want to import so let's just make a string check
+			if strings.Contains(err.Error(), "connection refused") {
+				return fmt.Errorf("%s: connection refused", server)
+			}
+			return fmt.Errorf("failed to login: %w", err)
 		}
 	}
 	username, password, apiToken, noInteractive, err := GatherCredentials(cmd.Flags())
@@ -343,7 +349,6 @@ func Execute(args []string) int {
 		self.NewSelfNav,
 		systemshealth.NewSystemsNav,
 		templates.NewNav,
-		std_users.NewNav,
 	}
 
 	var (

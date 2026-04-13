@@ -53,27 +53,27 @@ func lockAction() action.Pair {
 			}
 
 			// at least one ID was specified, attempt to lock each account
-			var uids = make([]int32, c.Flags().NArg())
+			var uids = make([]int32, 0)
 			for i, s := range c.Flags().Args() {
 				uid, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
-					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(0)+"\" is not a valid integer; no accounts were locked")
+					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(i)+"\" is not a valid integer; no accounts were locked")
 					return
 				}
-				// if the user attempts to lock their own account and did not specify --self, skip
+				// if the user attempts to lock their own account and did not specify --include-self, skip
 				if !self && uid == int64(connection.CurrentUser().ID) {
 					fmt.Fprintf(c.ErrOrStderr(), "refusing to lock the account of the caller.\n"+
-						"If you actually intended to lock your current account, rerun with --self\n")
+						"If you actually intended to lock your current account, rerun with --include-self\n")
 					continue
 				}
-				uids[i] = int32(uid)
+				uids = append(uids, int32(uid))
 			}
 			for _, uid := range uids {
 				if err := connection.Client.LockUserAccount(int32(uid)); err != nil {
 					clilog.Tee(clilog.INFO, c.ErrOrStderr(), fmt.Sprintf("failed to lock user account %d: %v", uid, err))
 					return
 				}
-				fmt.Fprintf(c.OutOrStdout(), "User %v locked", uid)
+				fmt.Fprintf(c.OutOrStdout(), "User %v locked\n", uid)
 			}
 		}, treeutils.GenerateActionOptions{
 			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
@@ -151,13 +151,13 @@ func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int
 	}
 
 	// stuff all users into the list, except the caller. Probably don't want the caller to be able to lock themselves easily.
-	users, err := connection.Client.GetAllUsers()
+	users, err := connection.Client.ListUsers(nil)
 	if err != nil {
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")
 	}
-	var itms = make([]list.DefaultItem, 0, len(users))
-	for _, user := range users {
+	var itms = make([]list.DefaultItem, 0, len(users.Results))
+	for _, user := range users.Results {
 		if !self && user.ID == connection.CurrentUser().ID {
 			continue
 		}

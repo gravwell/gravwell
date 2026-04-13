@@ -50,7 +50,7 @@ func unlockAction() action.Pair {
 			for i, s := range c.Flags().Args() {
 				uid, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
-					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(0)+"\" is not a valid integer; no accounts were unlocked")
+					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(i)+"\" is not a valid integer; no accounts were unlocked")
 					return
 				}
 				uids[i] = int32(uid)
@@ -66,7 +66,6 @@ func unlockAction() action.Pair {
 			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
 			Example: "7",
 		})
-	cmd.Flags().AddFlagSet(createFlagSet())
 
 	return action.NewPair(cmd, &unlockModel{})
 }
@@ -123,13 +122,13 @@ func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	// unlock has no local flags
 
 	// stuff all locked users into the list.
-	users, err := connection.Client.GetAllUsers()
+	users, err := connection.Client.ListUsers(nil)
 	if err != nil {
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")
 	}
-	var itms = make([]list.DefaultItem, 0, len(users))
-	for _, user := range users {
+	var itms = make([]list.DefaultItem, 0, len(users.Results))
+	for _, user := range users.Results {
 		if user.Locked {
 			itms = append(itms, item{
 				id:       user.ID,

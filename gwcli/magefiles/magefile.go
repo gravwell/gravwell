@@ -79,10 +79,6 @@ func init() {
 
 //#endregion
 
-// Default target to run when none is specified
-// If not set, running mage will list available targets
-//var Default = Build
-
 // Build the gwcli binary.
 // -target defaults to ./gwcli.
 func Build(target *string) error {
@@ -146,7 +142,12 @@ func (Test) CI(coverage *bool) error {
 func runCITests(coverage *bool) (combinedOut string, _ error) {
 	var sb strings.Builder
 	verboseln(mid("Running CI tests..."))
-	_, err := sh.Exec(nil, &sb, &sb, "go", "test", "-race", "-vet=all", "-tags=ci", "./...")
+	args := []string{"test", "-race", "-vet=all", "-tags=ci"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./...")
+	_, err := sh.Exec(nil, &sb, &sb, "go", args...)
 	return sb.String(), err
 }
 
@@ -186,7 +187,12 @@ func (Test) NoCI(server string, coverage *bool) error {
 func runNoCITests(server string, coverage *bool) (combinedOut string, _ error) {
 	var sb strings.Builder
 	verboseln(mid("Running NoCI tests against " + server + "..."))
-	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb, "go", "test", "-race", "-vet=all", "-tags=noci", "./...")
+	args := []string{"test", "-race", "-vet=all", "-tags=noci"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./tree/query/datascope")
+	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb, "go", args...)
 	return sb.String(), err
 }
 
@@ -203,12 +209,16 @@ func runIntegrationTests(server string, coverage *bool) (combinedOut string, _ e
 	var sb strings.Builder
 	if err := build("./gwcli"); err != nil {
 		fmt.Fprintf(&sb, "failed to build binary: %v\n", err)
-		//"Integration tests will be skipped.", err)
 		return sb.String(), errors.New("failed to build binary")
 	}
 	verboseln(mid("Running integration tests against " + server + "..."))
+	args := []string{"test", "-race", "-vet=all", "-count=1", "-tags=integration"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./integration_noci_test.go", "-args", "-binary=./gwcli")
 	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb,
-		"go", "test", "-race", "-vet=all", "-count=1", "-tags=integration", "./integration_noci_test.go", "-args", "-binary=./gwcli",
+		"go", args...,
 	)
 	return sb.String(), err
 

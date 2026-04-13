@@ -280,12 +280,9 @@ func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) str
 			// no matching field
 			// do nothing
 		} else {
-			// walk the indicies to find value
+			// walk the indices to find value
 			// NOTE(rlandau): do NOT use FieldByIndex, as it panics if the indices walk a nil.
 			row.WriteString(valueToString(fieldByIndexNoPanic(structVals, findices)))
-			//fmt.Fprintf(&row, "%v", s)
-
-			//fmt.Fprintf(&row, "%v", data)
 		}
 		row.WriteString(",") // append comma to token
 	}
@@ -438,6 +435,11 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 		g := gabs.New()
 		structVO := reflect.ValueOf(s)
 		structTO := reflect.TypeOf(s)
+		// deref the top level
+		if structVO.Kind() == reflect.Pointer {
+			structVO = structVO.Elem()
+			structTO = structTO.Elem()
+		}
 		for _, col := range columns {
 			// get value associated to this column
 			fIndex := columnMap[col]
@@ -668,6 +670,9 @@ func FindQualifiedField[Any any](qualCol string, st any) (field reflect.StructFi
 		return reflect.StructField{}, false, nil, errors.New(ErrStructIsNil)
 	}
 	t := reflect.TypeOf(st)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
 	if t.Kind() != reflect.Struct {
 		return reflect.StructField{}, false, nil, errors.New(ErrNotAStruct)
 	}
