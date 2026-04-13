@@ -175,6 +175,7 @@ func runTeaTests(coverage *bool) (combinedOut string, _ error) {
 	return sb.String(), err
 }
 
+// NoCI runs tests that do require a dummy gravwell instace to run against.
 func (Test) NoCI(server string, coverage *bool) error {
 	o, err := runNoCITests(server, coverage)
 	printResults("NoCI tests", err, o)
@@ -196,6 +197,7 @@ func runNoCITests(server string, coverage *bool) (combinedOut string, _ error) {
 	return sb.String(), err
 }
 
+// Integration runs tests e2e tests against a compiled gwcli binary.
 func (Test) Integration(server string, coverage *bool) error {
 	o, err := runIntegrationTests(server, coverage)
 	printResults("Integration tests", err, o)
@@ -284,8 +286,10 @@ func printResults(prefix string, err error, stdout string) {
 // dryrun implies -v.
 //
 // If an error occurs, it will immediately stop processing if !dryrun.
-func Clean(dryrun bool) (err error) {
-	if dryrun {
+func Clean(dryrun *bool) (err error) {
+	dr := (dryrun != nil && *dryrun)
+
+	if dr {
 		oldVerbose, _ := os.LookupEnv(mg.VerboseEnv)
 		if err := os.Setenv(mg.VerboseEnv, "1"); err != nil {
 			fmt.Println("failed to imply verbose from dryrun: ", err)
@@ -296,15 +300,15 @@ func Clean(dryrun bool) (err error) {
 
 	// destroy the binary
 	binPath := path.Join(".", _BINARY_TARGET)
-	if err := dryRM(binPath, dryrun); err != nil {
+	if err := dryRM(binPath, dr); err != nil {
 		return err
 	}
 
 	// Destroy log files in the config directory
-	if err := dryRM(cfgdir.DefaultStdLogPath, dryrun); err != nil {
+	if err := dryRM(cfgdir.DefaultStdLogPath, dr); err != nil {
 		return err
 	}
-	if err := dryRM(cfgdir.DefaultRestLogPath, dryrun); err != nil {
+	if err := dryRM(cfgdir.DefaultRestLogPath, dr); err != nil {
 		return err
 	}
 
