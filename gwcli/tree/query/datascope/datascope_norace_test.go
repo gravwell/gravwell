@@ -1,5 +1,4 @@
-//go:build !race
-// +build !race
+//go:build ci && !race
 
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.

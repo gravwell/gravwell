@@ -1,3 +1,5 @@
+//go:build ci
+
 /*************************************************************************
  * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -46,7 +48,7 @@ func TestDeriveSuggestions(t *testing.T) {
 		nil, // subnavs
 		[]action.Pair{
 			scaffold.NewBasicAction("action_ba_1", "action_ba_1 short", "action_ba_1 long", dummyActionFunc, scaffold.BasicOptions{}),
-			scaffold.NewBasicAction("action_ba_2", "action_ba_2 short", "action_ba_2 long", dummyActionFunc, scaffold.BasicOptions{Aliases: []string{"aBA2"}}),
+			scaffold.NewBasicAction("action_ba_2", "action_ba_2 short", "action_ba_2 long", dummyActionFunc, scaffold.BasicOptions{CommonOptions: scaffold.CommonOptions{Aliases: []string{"aBA2"}}}),
 		}, // sub-actions
 	)
 	nav_b := treeutils.GenerateNav("nav_b", "nav_b short", "nav_b long", nil,

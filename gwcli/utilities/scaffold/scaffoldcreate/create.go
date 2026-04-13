@@ -118,12 +118,8 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 		singular = "UNKNOWN"
 	}
 
-	// pull flags from provided fields
-	var flags = installFlagsFromFields(fields)
-	if opts.AddtlFlags != nil {
-		afs := opts.AddtlFlags()
-		flags.AddFlagSet(&afs)
-	}
+	// pull createFlags from provided fields
+	var createFlags = installFlagsFromFields(fields)
 
 	// pull required flags from cfg to set usage
 	requiredFlags := make([]string, 0)
@@ -177,16 +173,10 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 			}
 		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
 
-	// apply options
-	if opts.Use != "" {
-		cmd.Use = opts.Use
-	}
-	if len(opts.Aliases) > 0 {
-		cmd.Aliases = opts.Aliases
-	}
+	opts.Apply(cmd)
 
 	// attach mined flags to cmd
-	cmd.Flags().AddFlagSet(&flags)
+	cmd.Flags().AddFlagSet(&createFlags)
 
 	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, opts))
 }
@@ -230,7 +220,7 @@ type createModel struct {
 	createErr string // the reason the last create failed (not for invalid parameters)
 
 	// function to provide additional flags for this specific create instance
-	addtlFlagFunc func() pflag.FlagSet
+	addtlFlagFunc func() *pflag.FlagSet
 	// current state of the flagset, Reset to addtlFlagFunc + installFlags
 	fs pflag.FlagSet
 	cf CreateFuncT // function to create the new entity
@@ -264,7 +254,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts
 	c.fs = installFlagsFromFields(fields)
 	if c.addtlFlagFunc != nil {
 		addtlFlags := c.addtlFlagFunc()
-		c.fs.AddFlagSet(&addtlFlags)
+		c.fs.AddFlagSet(addtlFlags)
 	}
 	// pre-sort fields so they can be added to inputs.ordered easily
 	var keys = slices.Collect(maps.Keys(fields))
@@ -615,7 +605,7 @@ func (c *createModel) Reset() error {
 		c.fs = installFlagsFromFields(c.fields)
 		if c.addtlFlagFunc != nil {
 			addtlFlags := c.addtlFlagFunc()
-			c.fs.AddFlagSet(&addtlFlags)
+			c.fs.AddFlagSet(addtlFlags)
 		}
 	})
 

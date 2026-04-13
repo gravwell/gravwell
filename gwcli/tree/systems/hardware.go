@@ -126,7 +126,11 @@ func newHardwareAction() action.Pair {
 
 			sb.WriteString(constructOverview(o, llw))
 			return sb.String(), nil
-		}, scaffold.BasicOptions{Aliases: []string{"hw"}})
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"hw"},
+			},
+		})
 }
 
 // constructOverview generates a segmented border containing the overview information.

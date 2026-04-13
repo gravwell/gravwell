@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -55,7 +56,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
 		types.ScheduledSearch{}, listScheduledSearch,
 		scaffoldlist.Options{
-			AddtlFlags: flags,
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
 				"ID",
 				"GUID",
@@ -70,14 +71,14 @@ func list() action.Pair {
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all schedule searches on the system.\n"+
 		"Supersedes --id.")
 	addtlFlags.String("id", "", "fetches the scheduled search associated to the given id."+
 		"This id can be a standard, numeric ID or a uuid.")
 
-	return addtlFlags
+	return &addtlFlags
 }
 
 func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {

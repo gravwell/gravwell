@@ -8,13 +8,10 @@
 
 package scaffoldcreate
 
-import "github.com/spf13/pflag"
+import (
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+)
 
 type Options struct {
-	// Overrides the default "create" action name.
-	Use string
-	// Other names for this action.
-	Aliases []string
-	// Defines a function to generate a fresh flagset to bolt onto the default flags.
-	AddtlFlags func() pflag.FlagSet
+	scaffold.CommonOptions
 }

@@ -1,4 +1,4 @@
-//go:build !ci
+//go:build noci
 
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
@@ -27,11 +27,17 @@ import (
 )
 
 const (
-	server   string = "localhost:80"
 	username string = "admin"
 )
 
-var password string = "changeme"
+var (
+	password string = "changeme"
+	server   string
+)
+
+func init() {
+	server = testsupport.Server()
+}
 
 func Test_autoingest(t *testing.T) {
 	dir := t.TempDir()
@@ -453,4 +459,114 @@ func TestNewIngestActionRun(t *testing.T) {
 			t.Errorf("bad output. Expected to contain the path %v", jsonpath)
 		}
 	})
+	t.Run("stdin, embedded tag", func(t *testing.T) {
+		var (
+			tag1, tag2, tag3 = "Millhouse", randomdata.Digits(5), randomdata.LastName()
+			gwjson           = `{"TS":"2025-06-26T23:26:56.100667099Z","Tag":"` + tag1 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRD","Enumerated":null}
+{"TS":"2025-06-26T23:26:56.100640318Z","Tag":"` + tag2 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRB","Enumerated":null}
+{"TS":"2025-06-26T23:26:56.100091382Z","Tag":"` + tag3 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRC","Enumerated":null}`
+			args = []string{"--stdin"}
+		)
+
+		t.Log("tags: ", tag1, tag2, tag3)
+
+		// create the action
+		ap := NewIngestAction()
+
+		// perform root's actions
+		uniques.AttachPersistentFlags(ap.Action)
+		if err := ap.Action.Flags().Parse(args); err != nil {
+			t.Fatal(err)
+		}
+
+		// capture output
+		outBuf := &bytes.Buffer{}
+		ap.Action.SetOut(outBuf)
+		errBuf := &bytes.Buffer{}
+		ap.Action.SetErr(errBuf)
+
+		// run and feed data into stdin
+		origSTDIN, curSTDIN := writeSTDIN(t, gwjson)
+		ap.Action.Run(ap.Action, args)
+		curSTDIN.Close()
+		os.Stdin = origSTDIN
+
+		t.Log("stdout:\n", outBuf.String())
+		t.Log("stderr:\n", errBuf.String())
+
+		// check output
+		if errBuf.String() != "" {
+			t.Errorf("expected no error output; found %v", errBuf.String())
+		}
+		if !(strings.Contains(outBuf.String(), "STDIN") &&
+			strings.Contains(outBuf.String(), "success") &&
+			strings.Contains(outBuf.String(), tag1) &&
+			strings.Contains(outBuf.String(), tag2) &&
+			strings.Contains(outBuf.String(), tag3)) {
+			t.Errorf("bad output. Expected to contain \"STDIN\"")
+		}
+	})
+	t.Run("stdin, default tag", func(t *testing.T) {
+		var (
+			args = []string{"--stdin", "--default-tag=nuts"}
+		)
+
+		// create the action
+		ap := NewIngestAction()
+
+		// perform root's actions
+		uniques.AttachPersistentFlags(ap.Action)
+		if err := ap.Action.Flags().Parse(args); err != nil {
+			t.Fatal(err)
+		}
+
+		// capture output
+		outBuf := &bytes.Buffer{}
+		ap.Action.SetOut(outBuf)
+		errBuf := &bytes.Buffer{}
+		ap.Action.SetErr(errBuf)
+
+		// run and feed data into stdin
+		origSTDIN, curSTDIN := writeSTDIN(t, "some garbage data")
+		ap.Action.Run(ap.Action, args)
+		curSTDIN.Close()
+		os.Stdin = origSTDIN
+
+		t.Log("stdout:\n", outBuf.String())
+		t.Log("stderr:\n", errBuf.String())
+
+		// check output
+		if errBuf.String() != "" {
+			t.Errorf("expected no error output; found %v", errBuf.String())
+		}
+		if !(strings.Contains(outBuf.String(), "STDIN") &&
+			strings.Contains(outBuf.String(), "success") &&
+			strings.Contains(outBuf.String(), "nuts")) {
+			t.Errorf("bad output. Expected to contain \"STDIN\"")
+		}
+	})
+}
+
+// writeSTDIN writes the given data into a file and pipes that file into stdin.
+// Remember to reset (curSTDIN.Close(); os.Stdin = origSTDIN) when you are done!
+//
+// Based on: https://stackoverflow.com/a/46365584
+func writeSTDIN(t *testing.T, data string) (origSTDIN *os.File, curSTDIN *os.File) {
+	tmpfile, err := os.Create(path.Join(t.TempDir(), "stdin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := tmpfile.WriteString(data); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := tmpfile.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	oldStdin := os.Stdin
+
+	os.Stdin = tmpfile
+	return oldStdin, tmpfile
 }

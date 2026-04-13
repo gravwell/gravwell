@@ -9,10 +9,10 @@
  **************************************************************************/
 
 /*
-The build system for gwcli, built on Mage.
+The build system for gwcli.
 Manages testing, code generation, and (obviously) compilation.
-
 You can use the envvar MAGEFILE_ENABLE_COLOR if you want pretty colors.
+Use mage -h <target> to learn more about a given command.
 */
 package main
 
@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
-	"time"
+	"strings"
 
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -65,24 +65,6 @@ func mid(txt string) string {
 	return yellow + txt + reset
 }
 
-// Runs the given test and outputs (verbose-dependent) its error log (or "ok").
-// If testPattern is empty, runs all tests found in testPath (omitting "-run").
-// Returns the error that occurred (if applicable).
-func runTest(timeout time.Duration, testPattern, testPath string) error {
-	var cmd *exec.Cmd
-	if testPattern == "" {
-		cmd = exec.Command("go", "test", "-race", "-v", "-timeout", timeout.String(), testPath)
-	} else {
-		cmd = exec.Command("go", "test", "-race", "-v", "-timeout", timeout.String(), "-run", testPattern, testPath)
-	}
-	verboseln(cmd.String())
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("%s", out)
-		return err
-	}
-	return nil
-}
-
 //#endregion
 
 //#region setup
@@ -99,29 +81,27 @@ func init() {
 
 //#endregion
 
-// Default target to run when none is specified
-// If not set, running mage will list available targets
-//var Default = Build
-
-// Build compiles gwcli for your local architecture and outputs it to pwd.
-func Build() error {
-	pwd, err := os.Getwd()
-	if err != nil {
-		verboseln(fmt.Sprintf("failed to get pwd: %s. Defaulting to local directory.", err))
-		pwd = "."
+// Build the gwcli binary.
+// -target defaults to ./gwcli.
+func Build(target *string) error {
+	o := "./gwcli"
+	if target != nil && *target != "" {
+		o = *target
 	}
-
-	output := path.Join(pwd, _BINARY_TARGET)
-	verboseln("Building " + output + "...")
-	if out, err := sh.Output("go", "build", "-o", output, "."); mg.Verbose() || err != nil {
-		fmt.Print(out)
-		if err != nil {
-			return err
-		}
+	verboseln("Building " + o + "...")
+	if err := build(o); err != nil {
+		return fmt.Errorf("failed to build binary '%s': %v", o, err)
 	}
 	verboseln(good("done."))
 
 	return nil
+}
+
+// internal build command for constructing gwcli.
+// Returns where the compiled binary was placed or an error.
+func build(target string) error {
+	_, err := sh.Output("go", "build", "-o", target, ".")
+	return err
 }
 
 // Vet runs go vet and staticcheck and should be called prior to the CI/CD pipeline.
@@ -149,83 +129,155 @@ func Vet() error {
 
 }
 
-// TestAll runs all gwcli tests via `./...` expansion.
-// If run with -v or an error occurs, prints outcome to stdout.
-func TestAll(cover, noCache bool) error {
-	args := []string{"test", "-race", "-vet=all"}
-	if cover {
-		args = append(args, "-cover")
-	}
-	if noCache {
-		args = append(args, "-count=1")
-	}
+type Test mg.Namespace
 
-	args = append(args, "./...")
-
-	if out, err := sh.Output("go", args...); mg.Verbose() || err != nil {
-		fmt.Println(out)
-		return err
+// CI runs tests that do not require a backend to execute against.
+func (Test) CI(coverage *bool) error {
+	o, err := runCITests(coverage)
+	printResults("CI tests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
 	}
-
-	// run tea tests
-	return TeaTests(cover, noCache)
+	return nil
 }
 
-// TestIntegration calls the tests in script_test for targeting external, automated usage (via --script).
-/*func TestIntegration() error {
-	coverdirPath := path.Join(os.TempDir(), "coverout")
-	if err := os.Mkdir(coverdirPath, 0660); err != nil {
-		return err
+func runCITests(coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	verboseln(mid("Running CI tests..."))
+	args := []string{"test", "-race", "-vet=all", "-tags=ci"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
 	}
+	args = append(args, "./...")
+	_, err := sh.Exec(nil, &sb, &sb, "go", args...)
+	return sb.String(), err
+}
 
-	v := ""
-	if mg.Verbose() {
-		v = "-v"
+// TeaTests runs tests that rely on TeaTest and golden files.
+func (Test) TeaTests(coverage *bool) error {
+	o, err := runTeaTests(coverage)
+	printResults("TeaTests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
 	}
+	return nil
+}
 
-	// build a cover-instrumented binary
-	out, err := sh.OutputWith(map[string]string{"GOCOVERDIR": coverdirPath},
-		"go", "build", v, "-cover", "-o=test_gwcli", ".")
-	if mg.Verbose() || err != nil {
-		fmt.Println(out)
-		if err != nil {
-			return err
+func runTeaTests(coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
+	// These files should have the !race build condition, omitting them from normal processing.
+	args := []string{"test", "-vet=all", "-tags=ci"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./tree/query/datascope")
+	verboseln(mid("Running TeaTests..."))
+	_, err := sh.Exec(nil, &sb, &sb, "go", args...)
+	return sb.String(), err
+}
+
+// NoCI runs tests that do require a dummy gravwell instace to run against.
+func (Test) NoCI(server string, coverage *bool) error {
+	o, err := runNoCITests(server, coverage)
+	printResults("NoCI tests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
+	}
+	return nil
+}
+
+func runNoCITests(server string, coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	verboseln(mid("Running NoCI tests against " + server + "..."))
+	args := []string{"test", "-race", "-vet=all", "-tags=noci"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./...")
+	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb, "go", args...)
+	return sb.String(), err
+}
+
+// Integration runs tests e2e tests against a compiled gwcli binary.
+func (Test) Integration(server string, coverage *bool) error {
+	o, err := runIntegrationTests(server, coverage)
+	printResults("Integration tests", err, o)
+	if err != nil {
+		return errors.New("tests failed")
+	}
+	return nil
+}
+
+func runIntegrationTests(server string, coverage *bool) (combinedOut string, _ error) {
+	var sb strings.Builder
+	if err := build("./gwcli"); err != nil {
+		fmt.Fprintf(&sb, "failed to build binary: %v\n", err)
+		return sb.String(), errors.New("failed to build binary")
+	}
+	verboseln(mid("Running integration tests against " + server + "..."))
+	args := []string{"test", "-race", "-vet=all", "-count=1", "-tags=integration,noci"}
+	if coverage != nil && *coverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./integration_noci_test.go", "-args", "-binary=./gwcli")
+	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb,
+		"go", args...,
+	)
+	return sb.String(), err
+
+}
+
+// All runs all gwcli tests.
+// If run with -v or an error occurs, prints outcome to stdout.
+// NoCI and integration tests will be skipped if -server is not provided.
+func (Test) All(server *string, coverage *bool) error {
+	// validate server, if given
+	if server != nil {
+		if *server = strings.TrimSpace(*server); *server == "" {
+			return errors.New("-server must be a valid url, likely akin to \"localhost:80\"")
 		}
 	}
+	ciOut, ciErr := runCITests(coverage)
+	ttOut, ttErr := runTeaTests(coverage)
+	var (
+		nociOut, integrationOut string
+		nociErr, integrationErr error
+	)
+	if server != nil { // run noci tests
+		nociOut, nociErr = runNoCITests(*server, coverage)
+		integrationOut, integrationErr = runIntegrationTests(*server, coverage)
+	}
 
-	// run integration tests external to the binary
-	fmt.Println("NYI") // TODO
-
-	// spit out coverage data
-	out, err = sh.Output("go", "tool", "covdata", "percent", "-i="+coverdirPath)
-	fmt.Println(out)
-	if err != nil {
-		return err
+	// output results
+	printResults("CI tests", ciErr, ciOut)
+	printResults("TeaTests", ttErr, ttOut)
+	if server != nil {
+		printResults("NoCI tests", nociErr, nociOut)
+		printResults("Integration tests", integrationErr, integrationOut)
+	} else {
+		verboseln(strings.Repeat(" ", pad-len("NoCI tests")) + "NoCI tests " + mid("skipped"))
+		verboseln(strings.Repeat(" ", pad-len("Integration tests")) + "Integration tests " + mid("skipped"))
+	}
+	if ciErr != nil || ttErr != nil || nociErr != nil || integrationErr != nil {
+		return errors.New("some tests failed")
 	}
 
 	return nil
-}*/
+}
 
-// Runs the test packages that rely on teatest and golden files.
-func TeaTests(cover, noCache bool) error {
-	// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
-	// These files should have the !race build condition, omitting them from normal processing.
-	args := []string{"test", "-vet=all"}
-	if cover {
-		args = append(args, "-cover")
+const pad int = 20
+
+func printResults(prefix string, err error, stdout string) {
+	if err != nil || mg.Verbose() {
+		fmt.Print(strings.Repeat(" ", pad-len(prefix)), prefix, " ")
+		if err != nil {
+			fmt.Println(bad("failed"))
+			fmt.Println(stdout)
+		} else {
+			fmt.Println(good("passed"))
+		}
 	}
-	if noCache {
-		args = append(args, "-count=1")
-	}
-
-	args = append(args, "./tree/query/datascope")
-
-	out, err := sh.Output("go", args...)
-	if mg.Verbose() || err != nil {
-		fmt.Println(out)
-	}
-	return err
-
 }
 
 // Clean up the binary and any and all logs.
@@ -236,24 +288,29 @@ func TeaTests(cover, noCache bool) error {
 // dryrun implies -v.
 //
 // If an error occurs, it will immediately stop processing if !dryrun.
-func Clean(dryrun bool) (err error) {
-	if dryrun {
+func Clean(dryrun *bool) (err error) {
+	dr := (dryrun != nil && *dryrun)
+
+	if dr {
+		oldVerbose, _ := os.LookupEnv(mg.VerboseEnv)
 		if err := os.Setenv(mg.VerboseEnv, "1"); err != nil {
 			fmt.Println("failed to imply verbose from dryrun: ", err)
+		} else {
+			defer os.Setenv(mg.VerboseEnv, oldVerbose)
 		}
 	}
 
 	// destroy the binary
 	binPath := path.Join(".", _BINARY_TARGET)
-	if err := dryRM(binPath, dryrun); err != nil {
+	if err := dryRM(binPath, dr); err != nil {
 		return err
 	}
 
 	// Destroy log files in the config directory
-	if err := dryRM(cfgdir.DefaultStdLogPath, dryrun); err != nil {
+	if err := dryRM(cfgdir.DefaultStdLogPath, dr); err != nil {
 		return err
 	}
-	if err := dryRM(cfgdir.DefaultRestLogPath, dryrun); err != nil {
+	if err := dryRM(cfgdir.DefaultRestLogPath, dr); err != nil {
 		return err
 	}
 

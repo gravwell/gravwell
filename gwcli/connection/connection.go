@@ -212,7 +212,10 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			}
 			// failing to login via JWT is non-fatal in interactive mode
 			if noInteractive {
-				return ErrAPITokenRequired
+				return errors.New("non-interactive mode requires one of the following login methods:\n" +
+					"1) explicit username and password (-u)\n" +
+					"2) an API token (--api/--eapi)\n" +
+					"3) or a valid session from a prior, successful login")
 			}
 			if mfa, err := promptForMissingCredentials(username); err != nil {
 				return err
@@ -377,30 +380,28 @@ func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFrien
 		return false, nil
 	}
 
-	// if a non-MFA error occurred, dig into it
-	if !errors.Is(rawErr, grav.ErrMFARequired) {
-		if strings.Contains(rawErr.Error(), "401") {
-			return false, ErrInvalidCredentials
+	// handle these errors only enough to make them user friendly
+	if errors.Is(rawErr, grav.ErrLoginFail) || strings.Contains(rawErr.Error(), "401") {
+		return false, ErrInvalidCredentials
+	} else if errors.Is(rawErr, grav.ErrAccountLocked) {
+		return false, grav.ErrAccountLocked
+	} else if errors.Is(rawErr, grav.ErrMFARequired) {
+		// sanity checks
+		if resp.MFASetupRequired {
+			return false, ErrMFASetupRequired // local error has better readability than grav.ErrMFASetupRequired
+		} else if !resp.MFARequired {
+			// we aren't logged in, but it isn't because MFARequired
+			// unknown state, fail out
+			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+			return false, uniques.ErrGeneric
 		}
-		// unknown error, log it
-		clilog.Writer.Warnf("failed to login: %v", rawErr)
-		return false, nil
-	}
-	if resp.LoginStatus { // successful login, no need to continue to continue to MFA
-		return false, nil
+
+		return true, nil // fetch MFA from the user
 	}
 
-	// not yet logged in, likely due to required MFA
-	if resp.MFASetupRequired {
-		return false, ErrMFASetupRequired
-	} else if !resp.MFARequired {
-		// we aren't logged in, but it isn't because MFARequired
-		// unknown state, fail out
-		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-		return false, uniques.ErrGeneric
-	}
-
-	return true, nil
+	// unhandled error states
+	clilog.Writer.Errorf("an unhandled error occurred during login: %v", rawErr)
+	return false, rawErr
 }
 
 // writeOutJWT writes a login token (JWT) to the default path for easier future logins.
