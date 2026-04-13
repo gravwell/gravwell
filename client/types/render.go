@@ -147,7 +147,7 @@ type ResultsRequestStats struct {
 
 type ResultsRequestStatsOperationList = []StatsOperation
 
-// Only one of the properties is populated at a time
+// ResultsRequestStatsOver only one of the properties is populated at a time.
 type ResultsRequestStatsOver struct {
 	OverWidth *ResultsRequestStatsOverWidth
 	OverCount *ResultsRequestStatsOverCount
