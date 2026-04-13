@@ -17,11 +17,11 @@ import (
 
 	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 	"golang.org/x/sync/errgroup"
 )
 

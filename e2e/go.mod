@@ -5,11 +5,11 @@ go 1.26.2
 require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/gosimple/slug v1.15.0
-	github.com/gravwell/gravwell/v3 v3.0.0-00010101000000-000000000000
+	github.com/gravwell/gravwell/v4 v4.0.0-00010101000000-000000000000
 	github.com/testcontainers/testcontainers-go v0.41.0
 )
 
-replace github.com/gravwell/gravwell/v3 => ..
+replace github.com/gravwell/gravwell/v4 => ..
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
@@ -40,7 +40,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
-	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018 // indirect
+	github.com/gravwell/gcfg v1.2.10-0.20251024173739-a5ba5db9985f // indirect
 	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
@@ -66,7 +66,7 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.66.0 // indirect
 	go.opentelemetry.io/otel v1.42.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect

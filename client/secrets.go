@@ -12,7 +12,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // ListSecrets returns a list of all Secret objects the user has access to.
@@ -40,20 +40,20 @@ func (c *Client) SecretInfo(id uuid.UUID) (s types.Secret, err error) {
 // The actual secret string will not be returned.
 func (c *Client) UpdateSecret(id uuid.UUID, value string) (s types.Secret, err error) {
 	sc := types.SecretCreate{Value: value}
-	err = c.methodStaticPushURL(http.MethodPut, secretIdUrl(id), sc, &s)
+	err = c.methodStaticPushURL(http.MethodPut, secretIdUrl(id), sc, &s, nil, nil)
 	return
 }
 
 // UpdateSecretDetails changes the details (not the value) of a particular secret.
 // The actual secret string will not be returned.
 func (c *Client) UpdateSecretDetails(id uuid.UUID, sc types.SecretCreate) (s types.Secret, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, secretIdDetailsUrl(id), sc, &s)
+	err = c.methodStaticPushURL(http.MethodPut, secretIdDetailsUrl(id), sc, &s, nil, nil)
 	return
 }
 
 // DeleteSecret deletes a Secret.
 func (c *Client) DeleteSecret(id uuid.UUID) (err error) {
-	return c.methodStaticPushURL(http.MethodDelete, secretIdUrl(id), nil, nil, http.StatusNoContent)
+	return c.methodStaticPushURL(http.MethodDelete, secretIdUrl(id), nil, nil, []int{http.StatusNoContent}, nil)
 }
 
 // GetFullSecret fetches the entire Secret, including the value.
