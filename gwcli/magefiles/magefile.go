@@ -165,7 +165,7 @@ func runTeaTests(coverage *bool) (combinedOut string, _ error) {
 	var sb strings.Builder
 	// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
 	// These files should have the !race build condition, omitting them from normal processing.
-	args := []string{"test", "-vet=all"}
+	args := []string{"test", "-vet=all", "-tags=ci"}
 	if coverage != nil && *coverage {
 		args = append(args, "-cover")
 	}
@@ -192,7 +192,7 @@ func runNoCITests(server string, coverage *bool) (combinedOut string, _ error) {
 	if coverage != nil && *coverage {
 		args = append(args, "-cover")
 	}
-	args = append(args, "./tree/query/datascope")
+	args = append(args, "./...")
 	_, err := sh.Exec(map[string]string{testsupport.ENV_SERVER: server}, &sb, &sb, "go", args...)
 	return sb.String(), err
 }
@@ -214,7 +214,7 @@ func runIntegrationTests(server string, coverage *bool) (combinedOut string, _ e
 		return sb.String(), errors.New("failed to build binary")
 	}
 	verboseln(mid("Running integration tests against " + server + "..."))
-	args := []string{"test", "-race", "-vet=all", "-count=1", "-tags=integration"}
+	args := []string{"test", "-race", "-vet=all", "-count=1", "-tags=integration,noci"}
 	if coverage != nil && *coverage {
 		args = append(args, "-cover")
 	}
