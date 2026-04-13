@@ -9,22 +9,19 @@
 package scaffoldlist
 
 import (
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 // The Options struct allows developers to tweak parameters of an action's specific implementation.
 type Options struct {
-	// Overrides the default "list" action name.
-	Use string
-	// Other names for this action.
-	Aliases []string
+	scaffold.CommonOptions
+
 	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly (albeit likely script-unfriendly) way.
 	// If !nil, --pretty will also be defined and set as the default.
 	Pretty PrettyPrinterFunc
-	// AddtlFlags defines a function that generates a fresh flagset to be bolted on to the default list flagset.
-	// NOTE(rlandau): It must be a function returning a fresh struct because FlagSets are shallow copies, even when passed by reference.
-	AddtlFlags AddtlFlagFunction
+
 	// Sets the default columns to display if --columns is not specified.
 	// Column names must be dot-qualified exact matches, not aliases.
 	// If set, only these columns will be displayed by default.

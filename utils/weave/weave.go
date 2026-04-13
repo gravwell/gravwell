@@ -267,7 +267,7 @@ func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 
 // helper function for ToCSVHash
 // returns a string of a CSV row populated by the data in the struct that corresponds to the columns
-func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]int) string {
+func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) string {
 	var row strings.Builder
 
 	// deconstruct the struct
@@ -280,17 +280,44 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 			// no matching field
 			// do nothing
 		} else {
-			// use field index to retrieve value
-			data := structVals.FieldByIndex(findices)
-			if data.Kind() == reflect.Pointer {
-				data = data.Elem()
-			}
-			row.WriteString(fmt.Sprintf("%v", data))
+			// walk the indices to find value
+			// NOTE(rlandau): do NOT use FieldByIndex, as it panics if the indices walk a nil.
+			row.WriteString(valueToString(fieldByIndexNoPanic(structVals, findices)))
 		}
 		row.WriteString(",") // append comma to token
 	}
 
 	return strings.TrimSuffix(row.String(), ",")
+}
+
+// a custom version of reflect.Value.FieldByIndex that halts traversal on nil, rather than panicking.
+func fieldByIndexNoPanic(start reflect.Value, index []int) reflect.Value {
+	step := start
+	for _, fidx := range index {
+		if step.Kind() == reflect.Pointer {
+			if step.IsNil() {
+				break
+			}
+			step = step.Elem()
+		}
+		step = step.Field(fidx)
+	}
+	// we have reached the end of the indices or a nil
+	return step
+}
+
+// valueToString is a helper function to coerce a reflect value into a user-friendly, printable string of its actual value or "nil".
+func valueToString(v reflect.Value) string {
+	var s string
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return "nil"
+		}
+		v = v.Elem()
+	}
+	s = fmt.Sprintf("%v", v)
+
+	return s
 }
 
 // ToTable when given an array of an arbitrary struct and the list of *fully-qualified* fields,
@@ -386,10 +413,15 @@ type gComplex[t float32 | float64] struct {
 	Imaginary t
 }
 
-// ToJSON when given an array of an arbitrary struct and the list of *fully-qualified* fields,
-// outputs a JSON array containing the data in the array of the struct.
+// ToJSON transforms an array of instances of an arbitrary struct into a JSON array containing the data in the array.
 // Output is sorted alphabetically.
+//
+// Columns is a list of *fully-dot-qualified* fields (ex: a.b.c, z.d, z.e) to include.
+//
 // If no valid data is given, prints "[]".
+//
+// NOTE(rlandau): specifying both a parent and a child in the list of columns is considered undefined.
+// It may work. It may omit data. It may error.
 func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, error) {
 	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
 		return "[]", nil
@@ -402,18 +434,53 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 	for _, s := range st {
 		g := gabs.New()
 		structVO := reflect.ValueOf(s)
+		structTO := reflect.TypeOf(s)
+		// deref the top level
+		if structVO.Kind() == reflect.Pointer {
+			structVO = structVO.Elem()
+			structTO = structTO.Elem()
+		}
 		for _, col := range columns {
 			// get value associated to this column
 			fIndex := columnMap[col]
 			if fIndex != nil {
-				data := structVO.FieldByIndex(fIndex)
+				data := fieldByIndexNoPanic(structVO, fIndex)
+
 				if data.Kind() == reflect.Pointer {
-					data = data.Elem()
+					// if we hit a nil pointer, we need to add special handling to ensure the struct still gets built and values are zeroed
+					if data.IsNil() {
+						sf := structTO.FieldByIndex(fIndex)
+						// generate a zero value of the type
+						data = reflect.New(sf.Type)
+						if data.Kind() == reflect.Pointer {
+							data = data.Elem()
+						}
+
+						// if the underlying type is struct, construct it
+						if data.Kind() == reflect.Struct {
+							if _, err := g.SetP(data.Interface(), col); err != nil {
+								return "", err
+							}
+							continue
+						} else if data.Kind() == reflect.Pointer && data.IsNil() { // if still nil, just write "nil"
+							if _, err := g.SetP("nil", col); err != nil {
+								return "", err
+							}
+							continue
+						}
+						// allow processing to resume
+					} else { // just dereference and return to normal handling
+						data = data.Elem()
+					}
 				}
 				// if there is an alias, we write that as the key instead
 				if alias, found := options.Aliases[col]; found {
 					col = alias
 				}
+
+				// path collisions should only occur if a parent and its child where specified AND the parent is nil.
+				// The best way to handle this would be to treat the parent as a zero struct
+				// TODO perform or remove me
 
 				switch data.Type().Kind() {
 				case reflect.Float32:
@@ -603,6 +670,9 @@ func FindQualifiedField[Any any](qualCol string, st any) (field reflect.StructFi
 		return reflect.StructField{}, false, nil, errors.New(ErrStructIsNil)
 	}
 	t := reflect.TypeOf(st)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
 	if t.Kind() != reflect.Struct {
 		return reflect.StructField{}, false, nil, errors.New(ErrNotAStruct)
 	}

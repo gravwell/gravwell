@@ -34,6 +34,12 @@ func Exactly1ArgRequired(argName string) string {
 	return "you must specify exactly 1 argument (" + argName + ")"
 }
 
+// AtLeast1ArgRequired states the user must at least one bare argument.
+// argNamePlural should be what these arguments are (ex: "flow IDs", "resource IDs", "macro names", ...).
+func AtLeast1ArgRequired(argNamePlural string) string {
+	return "you must specify at least 1 argument (" + argNamePlural + ")"
+}
+
 // InteractivityNYI returns a coloured tea.Println stating that interactivity for this action is not ready yet.
 //
 // Should be returned by SetArgs' onStart return.

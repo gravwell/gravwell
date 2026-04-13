@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -46,7 +47,7 @@ func get() action.Pair {
 			return []deepIndexerInfo{dii}, nil
 		},
 		scaffoldlist.Options{
-			Use: use,
+			CommonOptions: scaffold.CommonOptions{Use: use},
 			ExcludeColumnsFromDefault: []string{
 				"Ingest.EntriesHourTail",
 				"Ingest.EntriesMinuteTail",
@@ -300,11 +301,11 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 		defer wg.Done()
 		stats, err := connection.Client.GetSystemStats()
 		if err != nil {
-			clilog.Writer.Warnf("failed to fetch system descriptions: %v", err)
+			clilog.Writer.Warnf("failed to fetch system stats: %v", err)
 			return
 		}
 		if stat, ok := stats[dii.Name]; !ok {
-			clilog.Writer.Warnf("did not find a system description associated with indexer %v", dii.Name)
+			clilog.Writer.Warnf("did not find system stats associated with indexer %v", dii.Name)
 		} else {
 			mu.Lock()
 			defer mu.Unlock()

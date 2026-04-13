@@ -1,5 +1,3 @@
-//go:build mage
-
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -23,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
@@ -149,26 +148,93 @@ func Vet() error {
 
 }
 
-// TestAll runs all gwcli tests via `./...` expansion.
+// TestAll runs all gwcli tests.
 // If run with -v or an error occurs, prints outcome to stdout.
-func TestAll(cover, noCache bool) error {
-	args := []string{"test", "-race", "-vet=all"}
-	if cover {
-		args = append(args, "-cover")
-	}
-	if noCache {
-		args = append(args, "-count=1")
-	}
-
-	args = append(args, "./...")
-
-	if out, err := sh.Output("go", args...); mg.Verbose() || err != nil {
-		fmt.Println(out)
-		return err
+// NoCI and integration tests will be skipped if -server is not provided.
+func TestAll(server *string, cover *bool) error {
+	var (
+		baseArgs                              = []string{"test", "-race", "-vet=all"}
+		ciOut, ttOut, nociOut, integrationOut string
+		ciErr, ttErr, nociErr, integrationErr error
+	)
+	if cover != nil && *cover {
+		baseArgs = append(baseArgs, "-cover")
 	}
 
+	// validate server, if given
+	if server != nil {
+		if *server = strings.TrimSpace(*server); *server == "" {
+			return errors.New("-server must be a valid url, likely something akin to \"localhost:80\"")
+		}
+	}
+	// run ci tests
+	fmt.Println(mid("Running CI tests..."))
+	ciOut, ciErr = sh.Output("go", append(baseArgs, "-tags=ci", "./...")...)
 	// run tea tests
-	return TeaTests(cover, noCache)
+	{
+		// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
+		// These files should have the !race build condition, omitting them from normal processing.
+		args := []string{"test", "-vet=all"}
+		if cover != nil && *cover {
+			args = append(args, "-cover")
+		}
+		args = append(args, "./tree/query/datascope")
+		fmt.Println(mid("Running TeaTests..."))
+		ttOut, ttErr = sh.Output("go", args...)
+	}
+
+	// This will be reimplemented more thoroughly in the next PR
+	/*if server != nil { // run noci tests
+		fmt.Println(mid("Running NoCI tests..."))
+		nociOut, nociErr = sh.Output("go", append(baseArgs, "-tags=!ci", "./...")...)
+		if err := Build(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to build binary: %v\n"+
+				"Integration tests will be skipped.", err)
+			integrationErr = errors.New("failed to build binary")
+		} else {
+			fmt.Println(mid("Running integration tests..."))
+			integrationOut, integrationErr = sh.Output("go",
+				append(baseArgs, "-tags=integration", "./integration_test.go", "-server="+*server, "-args", "./gwcli")...)
+		}
+	}*/
+
+	// output results
+	if ciErr != nil || mg.Verbose() {
+		fmt.Print("CI tests ")
+		if ciErr != nil {
+			fmt.Println(bad("failed"))
+			fmt.Println(ciOut)
+		} else {
+			fmt.Println(good("passed"))
+		}
+	}
+	if ttErr != nil || mg.Verbose() {
+		fmt.Print("TeaTests ")
+		if ttErr != nil {
+			fmt.Println(bad("failed"))
+			fmt.Println(ttOut)
+		} else {
+			fmt.Println(good("passed"))
+		}
+	}
+	if server != nil && (nociErr != nil || mg.Verbose()) {
+		fmt.Print("NoCI tests ")
+		if nociErr != nil {
+			fmt.Println(bad("failed"))
+			fmt.Println(nociOut)
+		} else {
+			fmt.Println(good("passed"))
+		}
+
+		fmt.Print("Integration tests ")
+		if integrationErr != nil {
+			fmt.Println(bad("failed"))
+			fmt.Println(integrationOut)
+		} else {
+			fmt.Println(good("passed"))
+		}
+	}
+	return nil
 }
 
 // TestIntegration calls the tests in script_test for targeting external, automated usage (via --script).
@@ -205,28 +271,6 @@ func TestAll(cover, noCache bool) error {
 
 	return nil
 }*/
-
-// Runs the test packages that rely on teatest and golden files.
-func TeaTests(cover, noCache bool) error {
-	// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
-	// These files should have the !race build condition, omitting them from normal processing.
-	args := []string{"test", "-vet=all"}
-	if cover {
-		args = append(args, "-cover")
-	}
-	if noCache {
-		args = append(args, "-count=1")
-	}
-
-	args = append(args, "./tree/query/datascope")
-
-	out, err := sh.Output("go", args...)
-	if mg.Verbose() || err != nil {
-		fmt.Println(out)
-	}
-	return err
-
-}
 
 // Clean up the binary and any and all logs.
 // Does not destroy login token.

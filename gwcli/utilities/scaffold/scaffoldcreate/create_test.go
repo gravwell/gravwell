@@ -16,6 +16,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/spf13/pflag"
 )
@@ -87,12 +88,14 @@ func TestOptions(t *testing.T) {
 			return 1, "", err
 		},
 		scaffoldcreate.Options{
-			Use:     "alt",
-			Aliases: aliases,
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.BoolP("testbool", "k", false, "")
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "alt",
+				Aliases: aliases,
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.BoolP("testbool", "k", false, "")
+					return fs
+				},
 			},
 		},
 	)

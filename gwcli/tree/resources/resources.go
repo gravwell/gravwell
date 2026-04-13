@@ -94,14 +94,14 @@ func list() action.Pair {
 			ColumnAliases: map[string]string{
 				"Size": "SizeBytes",
 			},
-			AddtlFlags: flags,
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "resources")
-	return addtlFlags
+	return &addtlFlags
 }
 
 func download() action.Pair {
@@ -141,12 +141,15 @@ func download() action.Pair {
 			return string(data), nil
 		},
 		scaffold.BasicOptions{
-			AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				ft.Output.Register(&fs)
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Output.Register(fs)
+					return fs
+				},
 			},
-			Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
+
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("resource ID"), nil

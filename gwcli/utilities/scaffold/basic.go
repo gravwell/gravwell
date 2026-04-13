@@ -94,14 +94,13 @@ func NewBasicAction(use, short, long string,
 		})
 	ba := basicAction{options: options, fn: act}
 
+	options.Apply(cmd)
+
 	// operate on the given options, if any
 
 	// if flags were given, add them to the command in case we are run non-interactively.
-	if options.AddtlFlagFunc != nil {
-		f := options.AddtlFlagFunc()
-		cmd.Flags().AddFlagSet(&f)
-		f2 := options.AddtlFlagFunc()
-		ba.fs.AddFlagSet(&f2)
+	if options.AddtlFlags != nil {
+		ba.fs.AddFlagSet(options.AddtlFlags())
 	}
 	if options.Usage != "" {
 		cmd.SetUsageFunc(func(c *cobra.Command) error {
@@ -132,8 +131,8 @@ var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(&ba.fs) // TODO remove cmd entirely
-	if cmd != nil {         // no point in sequencing with nil
+	s, cmd := ba.fn(&ba.fs)
+	if cmd != nil { // no point in sequencing with nil
 		return tea.Sequence(tea.Println(s), cmd)
 	}
 	return tea.Println(s)
@@ -151,9 +150,8 @@ func (ba *basicAction) Reset() error {
 	ba.done = false
 	ba.fs = pflag.FlagSet{} // kill flag set, as there are no native flags to worry about
 	// reattach extra flags
-	if ba.options.AddtlFlagFunc != nil {
-		addtlFlags := ba.options.AddtlFlagFunc()
-		ba.fs.AddFlagSet(&addtlFlags)
+	if ba.options.AddtlFlags != nil {
+		ba.fs.AddFlagSet(ba.options.AddtlFlags())
 	}
 	return nil
 }
