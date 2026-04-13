@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -101,6 +101,88 @@ const (
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
 )
+
+const (
+	ResultsKindTable = "table"
+	ResultsKindGraph = "graph"
+)
+
+// TransformOperator represents the operator to apply to results
+type TransformOperator string
+
+const (
+	TransformOperatorCount       TransformOperator = "count"
+	TransformOperatorSum         TransformOperator = "sum"
+	TransformOperatorTotal       TransformOperator = "total"
+	TransformOperatorMean        TransformOperator = "mean"
+	TransformOperatorStddev      TransformOperator = "stddev"
+	TransformOperatorVariance    TransformOperator = "variance"
+	TransformOperatorMin         TransformOperator = "min"
+	TransformOperatorMax         TransformOperator = "max"
+	TransformOperatorUniqueCount TransformOperator = "unique_count"
+)
+
+type ResultsRequest struct {
+	Fence    Geofence      `json:"fence,omitempty"`
+	BinCount int           `json:"binCount,omitempty"`
+	BinWidth float64       `json:"binWidth,omitempty"`
+	End      time.Time     `json:"end,omitempty"`
+	Limit    uint64        `json:"limit,omitempty"`
+	Offset   uint64        `json:"offset,omitempty"`
+	Sort     []ResultsSort `json:"sort,omitempty"`
+	Start    time.Time     `json:"start,omitempty"`
+	SID      string        `json:"sid"`
+}
+
+type ResultsSort struct {
+	Column string `json:"column"`
+	// One of "asc" | "desc"
+	Direction string `json:"direction,omitempty"`
+	// One of "string" | "number" | "IP" | "time"
+	SortAs string `json:"sortAs,omitempty"`
+}
+
+// ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
+type ResultsResponse struct {
+	Table *ResultsTable
+	Graph *ResultsGraph
+}
+
+type ResultsTable struct {
+	Kind             string                         `json:"kind"`
+	BinCount         int                            `json:"binCount"`
+	BinWidth         float64                        `json:"binWidth"`
+	Columns          []string                       `json:"columns"`
+	Rows             []map[string]*ResultsTableCell `json:"rows"`
+	TotalResultCount int                            `json:"totalResultCount"`
+}
+
+type ResultsTableCell struct {
+	Elements    []Element `json:",omitempty"`
+	Module      string    `json:",omitempty"`
+	Tag         string
+	Value       string
+	WordOffsets []WordOffset `json:",omitempty"`
+}
+
+type ResultsGraph struct {
+	Kind                     string             `json:"kind"`
+	Links                    []ResultsGraphLink `json:"links"`
+	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
+	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
+	Nodes                    []ResultsGraphNode `json:"nodes"`
+}
+
+type ResultsGraphLink struct {
+	Source           string            `json:"source"`
+	Target           string            `json:"target"`
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
+}
+
+type ResultsGraphNode struct {
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
+	ID               string            `json:"id"`
+}
 
 type TimeRange struct {
 	StartTS entry.Timestamp `json:",omitempty"`
@@ -693,4 +775,16 @@ func tsPointer(t entry.Timestamp) *entry.Timestamp {
 		return nil
 	}
 	return &t
+}
+
+func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
+	if rr.Table != nil {
+		return json.Marshal(rr.Table)
+	}
+
+	if rr.Graph != nil {
+		return json.Marshal(rr.Graph)
+	}
+
+	return nil, errors.New("Results has no variant set")
 }
