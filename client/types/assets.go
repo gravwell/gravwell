@@ -15,16 +15,7 @@ type QueryOptions struct {
 	CursorID       string `json:"cursor"`    // Return assets whose ID is greater than the given ID.
 	Limit          int    `json:"page_size"` // Max number of assets to return
 
-	// Filtering by permissions
-	OwnerID           int32   `json:"owner_id"`
-	GlobalRead        bool    `json:"global_read"`
-	NotGlobalRead     bool    `json:"not_global_read"`
-	GlobalWrite       bool    `json:"global_write"`
-	NotGlobalWrite    bool    `json:"not_global_write"`
-	IncludesReadGIDs  []int32 `json:"includes_read_gids"`
-	IncludesWriteGIDs []int32 `json:"includes_write_gids"`
-
-	// Filtering on other fields
+	// Filtering on fields of assets
 	Filters []Filter `json:"filters"`
 }
 
