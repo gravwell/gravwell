@@ -714,7 +714,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	// files
-	if lfr, err := nc.ListFiles(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
+	if lfr, err := nc.ListFiles(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get files %d %w", id, err)
 	} else if lfr.TotalCount > 0 {
 		for _, f := range lfr.Results {
