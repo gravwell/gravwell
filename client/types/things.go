@@ -242,27 +242,6 @@ func (put *PackedPivot) JSONMetadata() (json.RawMessage, error) {
 	return json.RawMessage(b), err
 }
 
-type WireUserFile struct {
-	ThingHeader
-	File
-	Updated time.Time
-}
-
-func (w WireUserFile) Thing() (t Thing, err error) {
-	t.UUID = w.ThingUUID
-	t.UID = w.UID
-	t.GIDs = w.GIDs
-	t.Global = w.Global
-	t.WriteAccess = w.WriteAccess
-	if t.WriteAccess.GIDs == nil {
-		t.WriteAccess.GIDs = []int32{}
-	}
-	t.Updated = w.Updated
-	//do not set the synced value
-	err = t.EncodeContents(w.File)
-	return
-}
-
 type Actions struct {
 	Delete bool
 	Modify bool
