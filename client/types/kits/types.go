@@ -28,7 +28,7 @@ type PackedFile struct {
 	Labels      []string
 	Size        uint64
 	Hash        []byte
-	Data        []byte
+	Data        []byte `json:",omitempty"`
 }
 
 // PackFile takes a File and its contents and converts them into a PackedFile.
