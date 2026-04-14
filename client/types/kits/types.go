@@ -26,8 +26,8 @@ type PackedFile struct {
 	Name        string
 	Description string
 	Labels      []string
-	Size        uint64
-	Hash        []byte
+	Size        uint64 `json:",omitempty"`
+	Hash        []byte `json:",omitempty"`
 	Data        []byte `json:",omitempty"`
 }
 

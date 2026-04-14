@@ -127,9 +127,9 @@ func writeFile(dir string, x kits.PackedFile) error {
 		return err
 	}
 
-	// Now drop two files: .meta and .contents
-	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", x.Name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", x.Name))
+	// Now drop two files: .meta and .contents, using ID as item name
+	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", x.ID))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", x.ID))
 	if err := os.WriteFile(contentsPath, x.Data, 0644); err != nil {
 		return err
 	}
