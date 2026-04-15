@@ -154,11 +154,14 @@ func create() action.Pair {
 				labels = strings.Split(lbls, ",")
 			}
 
+			// TODO make file content/path non-mandatory
+
 			// get a reader on the file
 			f, err := os.Open(path)
 			if err != nil {
 				return 0, "", err
 			}
+			defer f.Close()
 
 			var inMeta = types.File{
 				CommonFields: types.CommonFields{
