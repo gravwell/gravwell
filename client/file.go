@@ -124,9 +124,17 @@ func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, 
 	contentType := mpw.FormDataContentType()
 
 	go func() {
-		//perform the copy, any read errors are shoved into the writer so the reader gets them too
-		if _, lerr := io.CopyN(part, data, int64(maxFileSize)); lerr != nil && !errors.Is(lerr, io.EOF) {
+		// Perform the copy, but read one extra byte so oversized payloads are detected
+		// instead of being silently truncated at maxFileSize.
+		lr := io.LimitReader(data, int64(maxFileSize)+1)
+		n, lerr := io.Copy(part, lr)
+		if lerr != nil {
 			wtr.CloseWithError(lerr)
+			return
+		}
+		if uint64(n) > maxFileSize {
+			wtr.CloseWithError(ErrOversizedFile)
+			return
 		}
 
 		if lerr := mpw.Close(); lerr != nil {
