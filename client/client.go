@@ -285,6 +285,14 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 		return loginResp, errors.New("Invalid username")
 	}
 
+	// before doing anything else, check version.
+	// CheckApiVersion actually sends back version mismatches as a string, so we much test both.
+	if mismatch, err := c.CheckApiVersion(); err != nil {
+		return loginResp, err
+	} else if mismatch != "" {
+		return loginResp, errors.New(mismatch)
+	}
+
 	//build up URL we are going to throw at
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LOGIN_URL)
 
