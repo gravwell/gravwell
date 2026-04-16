@@ -301,13 +301,7 @@ func edit() action.Pair {
 			return item.Description
 		},
 		UpdateSub: func(data *types.Resource) (identifier string, err error) {
-			err = connection.Client.UpdateResourceMetadata(data.ID, types.Resource{
-				CommonFields: types.CommonFields{
-					Name:        data.Name,
-					Description: data.Description,
-				},
-			})
-			return data.ID, err
+			return data.ID, connection.Client.UpdateResourceMetadata(data.ID, *data)
 		},
 	})
 }
