@@ -75,8 +75,9 @@ import (
 )
 
 const (
-	listHeightMax  = 40 // lines
-	successStringF = "successfully updated %v %v"
+	listHeightMax   = 40 // lines
+	successStringF  = "successfully updated %v %v"
+	initialMinWidth = 20 // lower clamp for startup width
 )
 
 // NewEditAction composes a usable edit action, returning its action pair.
@@ -338,13 +339,14 @@ func (em *editModel[I, S]) SetArgs(fs *pflag.FlagSet, tokens []string, width, he
 		itms[i] = item{em.funcs.GetTitleSub(s), em.funcs.GetDescriptionSub(s)}
 	}
 
+	// cache term size, apply a minimum on width to ensure everything is rendered
+	em.width = max(width, initialMinWidth)
+	em.height = height
+
 	// generate list
-	em.list = stylesheet.NewList(itms, 80, listHeightMax, em.singular, em.plural)
+	em.list = stylesheet.NewList(itms, em.width, em.height, em.singular, em.plural)
 	em.listInitialized = true
 	em.mode = selecting
-
-	em.width = width
-	em.height = height
 
 	return "", nil, nil
 }
@@ -355,7 +357,8 @@ func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
 		em.height = wsMsg.Height
 		// if we skipped directly to edit mode, list will be nil
 		if em.listInitialized {
-			em.list.SetHeight(min(wsMsg.Height-2, listHeightMax))
+			em.list.SetHeight(min(wsMsg.Height-6, listHeightMax))
+			em.list.SetWidth(em.width)
 		}
 	} else if _, ok := msg.(tea.KeyMsg); ok {
 		em.updateErr = ""
