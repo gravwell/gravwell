@@ -216,13 +216,14 @@ func edit() action.Pair {
 			return item.Description
 		},
 		UpdateSub: func(data *types.Secret) (identifier string, err error) {
-			s, err := connection.Client.UpdateSecret(data.ID, types.SecretCreate{
-				CommonFields: types.CommonFields{
-					Name:        data.Name,
-					Description: data.Description,
-					Labels:      data.Labels,
-				},
-			})
+			// build the secret create off the selected secret; update only what can be set
+			var sc types.SecretCreate
+			sc.CommonFields = data.CommonFields
+			sc.CommonFields.Name = data.Name
+			sc.CommonFields.Description = data.Description
+			sc.CommonFields.Labels = data.Labels
+
+			s, err := connection.Client.UpdateSecret(data.ID, sc)
 			return s.ID, err
 		},
 	})
