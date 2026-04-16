@@ -301,7 +301,7 @@ func edit() action.Pair {
 			return item.Description
 		},
 		UpdateSub: func(data *types.Resource) (identifier string, err error) {
-			return data.ID, connection.Client.UpdateResourceMetadata(data.ID, *data)
+			return data.Name, connection.Client.UpdateResourceMetadata(data.ID, *data)
 		},
 	})
 }

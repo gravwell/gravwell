@@ -224,7 +224,7 @@ func edit() action.Pair {
 			sc.CommonFields.Labels = data.Labels
 
 			s, err := connection.Client.UpdateSecret(data.ID, sc)
-			return s.ID, err
+			return s.Name, err
 		},
 	})
 }
