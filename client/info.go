@@ -103,15 +103,15 @@ func (c *Client) getMyInfo() (types.UserDetails, error) {
 
 // CheckApiVersion assert the REST API version of the webserver is compatible
 // with the client.
-func (c *Client) CheckApiVersion() (string, error) {
+func (c *Client) CheckApiVersion() error {
 	var version types.VersionInfo
 	if err := c.getStaticURL(API_VERSION_URL, &version); err != nil {
-		return "", err
+		return err
 	}
 	if err := types.CheckApiVersion(version.API); err != nil {
-		return err.Error(), nil
+		return err
 	}
-	return "", nil
+	return nil
 }
 
 // GetApiVersion returns the REST API version of the webserver.
