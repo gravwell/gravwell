@@ -16,7 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-  	"slices"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client"
@@ -328,14 +328,14 @@ func getKitFlows(cli *client.Client, label string, orig types.KitBuildRequest, k
 }
 
 func getKitAlerts(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var alerts []types.AlertDefinition
-	if alerts, err = cli.GetAlerts(); err != nil {
+	var alerts types.AlertListResponse
+	if alerts, err = cli.ListAllAlerts(nil); err != nil {
 		err = fmt.Errorf("failed to get alerts: %w", err)
 		return
 	}
-	for _, a := range alerts {
-		if slices.Contains(a.Labels, label) || slices.Contains(orig.Alerts, a.ThingUUID) {
-			kbr.Alerts = append(kbr.Alerts, a.ThingUUID)
+	for _, a := range alerts.Results {
+		if slices.Contains(a.Labels, label) || slices.Contains(orig.Alerts, a.ID) {
+			kbr.Alerts = append(kbr.Alerts, a.ID)
 		}
 	}
 	return

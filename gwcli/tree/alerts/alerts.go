@@ -12,11 +12,9 @@ package alerts
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -59,16 +57,35 @@ func alertsList() action.Pair {
 		long  string = "lists alerts associated to your user. If admin mode is active, returns all alerts for all users."
 	)
 
-	return scaffoldlist.NewListAction(short, long, types.AlertDefinition{},
-		func(fs *pflag.FlagSet) ([]types.AlertDefinition, error) {
+	return scaffoldlist.NewListAction(short, long, types.Alert{},
+		func(fs *pflag.FlagSet) ([]types.Alert, error) {
 			if listConsumerID != "" {
-				return connection.Client.GetAlertsByConsumer(listConsumerID, types.ALERTCONSUMERTYPE_FLOW) // there is currently only 1 type
+				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
+					Filters: []types.Filter{
+						types.Filter{
+							Key:       "Consumers.ID",
+							Operation: "=",
+							Values:    []any{listConsumerID},
+						},
+					},
+				})
+				return resp.Results, err
 
 			} else if listDispatcherID != "" {
-				return connection.Client.GetAlertsByDispatcher(listDispatcherID, types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH) // there is currently only 1 type
+				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
+					Filters: []types.Filter{
+						types.Filter{
+							Key:       "Dispatchers.ID",
+							Operation: "=",
+							Values:    []any{listDispatcherID},
+						},
+					},
+				})
+				return resp.Results, err
 			}
 
-			return connection.Client.GetAlerts()
+			resp, err := connection.Client.ListAlerts(nil)
+			return resp.Results, err
 		},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -109,17 +126,10 @@ func alertsList() action.Pair {
 }
 
 // helper function for list's ValidateArgs.
-// Tests that, if the flag was set, it is a valid uint.
 func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid string) {
 	s, err := fs.GetString(flagName)
 	if err != nil {
 		clilog.LogFlagFailedGet(flagName, err)
-	} else if s != "" {
-		if _, err := uuid.Parse(s); err == nil {
-			return "", "--" + flagName + " expects a numeric id, not a UUID"
-		} else if _, err := strconv.ParseUint(s, 10, 64); err != nil {
-			return "", "--" + flagName + " must be a valid number > 0"
-		}
 	}
 	return s, ""
 }
@@ -131,11 +141,7 @@ func toggle() action.Pair {
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
 			// find the alert in question
 			id := fs.Arg(0)
-			uid, err := uuid.Parse(id)
-			if err != nil {
-				return err.Error(), nil
-			}
-			alert, err := connection.Client.GetAlert(uid)
+			alert, err := connection.Client.GetAlert(id)
 			if err != nil {
 				return err.Error(), nil
 			}
@@ -163,7 +169,7 @@ func toggle() action.Pair {
 				state = "disabled"
 			}
 
-			return fmt.Sprintf("alert '%s' (ID: %s) %s", alert.Name, uid.String(), state), nil
+			return fmt.Sprintf("alert '%s' (ID: %s) %s", alert.Name, id, state), nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -190,26 +196,26 @@ func toggle() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("alert", "alerts",
-		func(dryrun bool, id uuid.UUID) error {
+		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetAlert(id)
 				return err
 			}
 			return connection.Client.DeleteAlert(id)
 		},
-		func() ([]scaffolddelete.Item[uuid.UUID], error) {
-			alerts, err := connection.Client.GetAlerts()
+		func() ([]scaffolddelete.Item[string], error) {
+			alerts, err := connection.Client.ListAlerts(nil)
 			if err != nil {
 				return nil, err
 			}
 			// sort on name
-			slices.SortStableFunc(alerts,
-				func(a, b types.AlertDefinition) int {
+			slices.SortStableFunc(alerts.Results,
+				func(a, b types.Alert) int {
 					return strings.Compare(a.Name, b.Name)
 				})
-			var items = make([]scaffolddelete.Item[uuid.UUID], len(alerts))
-			for i, a := range alerts {
-				items[i] = scaffolddelete.NewItem(a.Name, a.Description, a.ThingUUID)
+			var items = make([]scaffolddelete.Item[string], len(alerts.Results))
+			for i, a := range alerts.Results {
+				items[i] = scaffolddelete.NewItem(a.Name, a.Description, a.ID)
 			}
 			return items, nil
 		})

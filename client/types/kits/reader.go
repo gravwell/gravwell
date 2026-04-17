@@ -342,7 +342,7 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 			}
 		}
 	case Alert:
-		var def types.AlertDefinition
+		var def types.Alert
 		if err = json.NewDecoder(rdr).Decode(&def); err == nil {
 			itm.AdditionalInfo, err = def.JSONMetadata()
 		}
