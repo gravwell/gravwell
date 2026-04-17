@@ -21,8 +21,8 @@ import (
 const (
 	//MAJOR API VERSIONS should always be compatible, there just may be
 	//additional features
-	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 2
+	API_VERSION_MAJOR uint32 = 1
+	API_VERSION_MINOR uint32 = 0
 
 	AUTH_TYPE_NONE     AuthType = `None` // for when you don't have MFA set up at all yet.
 	AUTH_TYPE_TOTP     AuthType = `TOTP`
