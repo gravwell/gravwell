@@ -197,31 +197,40 @@ func TestPathProvider(t *testing.T) {
 }
 
 func TestMSLProvider(t *testing.T) {
+	// Spin up an MSL as a Field and test that it can:
+	// 1. enter takeover mode
+	// 2. select and deselect items
+	// 3. exit takeover mode
+	// 4. and fetch selected items
 	t.Parallel()
 	items := []list.DefaultItem{
 		testItem{"ttl1", "desc1"},
 		testItem{"ttl2", "desc2"},
+		testItem{"ttl3", "desc3"},
 	}
 
 	var f scaffoldcreate.Field
 	{
 		baseProvider := scaffoldcreate.NewMSLProvider(items,
-			multiselectlist.Options{Preselected: map[uint]bool{0: true}})
+			multiselectlist.Options{Preselected: map[uint]bool{2: true}})
 		baseProvider.RequireAtLeast = 2
 		f = scaffoldcreate.NewField("msl", true, baseProvider)
 	}
 
 	f.Provider.Initialize(f.DefaultValue, f.Required)
 
+	// initial get should only return the preselected item
 	selected := f.Provider.Get()
-	if selected != "ttl1" {
+	if selected != "ttl3" {
 		t.Fatal()
 	}
 	// with only a single item selected, the field should be unsatisfied
 	if invalid := f.Provider.Satisfied(); invalid == "" {
 		t.Fatal("Provider should be unsatisfied due to only having a single item selected")
 	}
-	// try to set takeover mode
+	// an update that *would* invoke takeover mode should be ignored if not selected
+	f.Provider.Update(false, tea.KeyMsg{Type: hotkeys.Select})
+	a, b, c := f.Provider.View(false, 80) // TODO
 
 }
 

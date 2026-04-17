@@ -23,7 +23,7 @@ const (
 	// default view kind. Returns bifurcated data: title text and value.
 	TitleValue ViewKind = iota
 	Line                // data is displayed as a single block, centered relative to other fields
-	// this view wants to take over the entire view for this cycle.
+	// This provider is in takeover mode and will provide the view for the entire pane.
 	// View processing stops on the first takeover.
 	Takeover
 )
@@ -40,7 +40,12 @@ type FieldProvider interface {
 	// This is called BEFORE flags are parsed into their fields.
 	// Does not pass in flagset or tokens as we don't want fields interacting with raw data: complexity management.
 	SetArgs(width, height int)
-	Update(selected bool, msg tea.Msg) tea.Cmd
+	// Update for the Provider.
+	// Takeover tells scaffoldcreate that this field would like to assert control over the action.
+	// This bool takes effect immediately and will be reflected in the following view.
+	// In takeover mode, all updates will be passed directly to this Provider.
+	// scaffoldcreate will reassert control as soon as takeover returns false or the user provides a soft kill key (soft kill keys NYI).
+	Update(selected bool, msg tea.Msg) tea.Cmd // TODO
 	// View for the Provider.
 	// Kind tells scaffoldcreate how to display this view and if it should continue to process the Views of other fields.
 	//
