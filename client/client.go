@@ -246,6 +246,10 @@ func (c *Client) TestLogin() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	if err := c.CheckApiVersion(); err != nil {
+		return err
+	}
+
 	return c.getStaticURL(TEST_AUTH_URL, nil)
 }
 
@@ -267,6 +271,10 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 	}
 	if user == "" {
 		return loginResp, errors.New("Invalid username")
+	}
+
+	if err := c.CheckApiVersion(); err != nil {
+		return loginResp, err
 	}
 
 	//build up URL we are going to throw at
@@ -327,6 +335,9 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 	if user == "" {
 		return loginResp, errors.New("Invalid username")
 	}
+	if err := c.CheckApiVersion(); err != nil {
+		return loginResp, err
+	}
 
 	//build up URL we are going to throw at
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, MFA_LOGIN_URL)
@@ -381,6 +392,11 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
+
+	if err := c.CheckApiVersion(); err != nil {
+		return err
+	}
+
 	c.token = token
 	c.hm.add(apiTokenHeader, token)
 	//assume we are logged in and test
