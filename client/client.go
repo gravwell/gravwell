@@ -112,22 +112,6 @@ func New(server string, enforceCertificate, useHttps bool) (*Client, error) {
 	return NewOpts(opts)
 }
 
-// NewClient connects to the specified server and returns a new Client object.
-// The useHttps parameter enables or disables SSL.
-// Setting enforceCertificate to false will disable SSL certificate validation,
-// allowing self-signed certs.
-//
-// Deprecated: Use New() or NewOpts() instead
-func NewClient(server string, enforceCertificate, useHttps bool, objLogger objlog.ObjLog) (*Client, error) {
-	opts := Opts{
-		Server:                 server,
-		InsecureNoEnforceCerts: !enforceCertificate,
-		UseHttps:               useHttps,
-		ObjLogger:              objLogger,
-	}
-	return NewOpts(opts)
-}
-
 func NewOpts(opts Opts) (*Client, error) {
 	var wsScheme string
 	var httpScheme string
