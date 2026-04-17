@@ -146,10 +146,12 @@ func (st CapabilityState) MarshalJSON() ([]byte, error) {
 
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
 type CapabilityDesc struct {
-	Cap      Capability
-	Name     string
-	Desc     string
-	Category CapabilityCategory
+	Cap       Capability
+	Name      string
+	Desc      string
+	Category  CapabilityCategory
+	TokenOnly bool
+	AdminOnly bool
 }
 
 // CapabilityExplanation wraps a CapabilityDesc with information about if and
@@ -180,6 +182,15 @@ func (cs CapabilitySet) check(c Capability) (grant bool) {
 // Has checks if a capability is allowed given the default value and grants
 func (cs CapabilitySet) Has(c Capability) bool {
 	return cs.check(c)
+}
+
+func (cs CapabilitySet) HasOneOf(c []Capability) (has bool) {
+	for _, i := range c {
+		if cs.Has(i) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsSet checks if a capability grant is set
@@ -222,13 +233,32 @@ func (cs *CapabilitySet) CapabilityList() (r []CapabilityDesc) {
 	return
 }
 
+// IsAdminCap returns if this Capability is an AdminOnlyCap
+func (c Capability) IsAdminCap() bool {
+	switch c.Category() {
+	case KitsCat:
+		return true
+	}
+	return false
+}
+
+func (c Capability) IsTokenCap() bool {
+	switch c.Category() {
+	case KitsCat:
+		return true
+	}
+	return false
+}
+
 // CapabilityDesc converts a Capability into a CapabilityDescription
 func (c Capability) CapabilityDesc() CapabilityDesc {
 	return CapabilityDesc{
-		Cap:      c,
-		Name:     c.Name(),
-		Desc:     c.Description(),
-		Category: c.Category(),
+		Cap:       c,
+		Name:      c.Name(),
+		Desc:      c.Description(),
+		Category:  c.Category(),
+		AdminOnly: c.IsAdminCap(),
+		TokenOnly: c.IsTokenCap(),
 	}
 }
 
@@ -944,6 +974,10 @@ func (ud *UserDetails) FilterTags(all []string) (r []string) {
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
 func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
+	if c.IsAdminCap() && !ud.Admin {
+		return false
+	}
+
 	if allowed = ud.CBAC.Capabilities.check(c); allowed {
 		return
 	}

@@ -18,12 +18,13 @@ const (
 )
 
 var (
-	fullTagAccess       = TagAccess{Grants: []string{`*`}}
-	fullCapabilityState CapabilityState
-	fullCapStringList   []string
-	fullCapList         []Capability
-	templateSet         []CapabilityTemplate
-	capabilitySet       = [...]CapabilityDesc{
+	fullTagAccess            = TagAccess{Grants: []string{`*`}}
+	fullCapabilityState      CapabilityState
+	adminOnlyCapabilityState CapabilityState
+	fullCapStringList        []string
+	fullCapList              []Capability
+	templateSet              []CapabilityTemplate
+	capabilitySet            = [...]CapabilityDesc{
 		Search.CapabilityDesc(),
 		Download.CapabilityDesc(),
 		AttachSearch.CapabilityDesc(),
@@ -93,7 +94,6 @@ var (
 		LibraryRead,
 		ExtractorRead,
 		UserFileRead,
-		KitRead,
 		PlaybookRead,
 		LicenseRead,
 		Stats,
@@ -104,12 +104,27 @@ var (
 		AlertRead,
 		LogbotAI,
 	}
+	adminOnlyCapList = []Capability{
+		KitRead,
+		KitWrite,
+		KitBuild,
+		KitDownload,
+	}
+	tokenOnlyCapList = []Capability{
+		KitRead,
+		KitWrite,
+		KitBuild,
+		KitDownload,
+	}
 )
 
 func init() {
 	fullCapList = make([]Capability, 0, len(capabilitySet))
 	fullCapStringList = make([]string, 0, len(capabilitySet))
 	for _, v := range capabilitySet {
+		if v.TokenOnly || v.AdminOnly {
+			continue
+		}
 		fullCapList = append(fullCapList, v.Cap)
 		fullCapStringList = append(fullCapStringList, v.Cap.Name())
 	}
@@ -131,6 +146,13 @@ func init() {
 	for _, c := range fullCapList {
 		fullCapabilityState.Grants = append(fullCapabilityState.Grants, c.Name())
 	}
+	adminOnlyCapabilityState = CapabilityState{
+		Grants: make([]string, 0, len(adminOnlyCapList)),
+	}
+	for _, c := range adminOnlyCapList {
+		adminOnlyCapabilityState.Grants = append(adminOnlyCapabilityState.Grants, c.Name())
+	}
+
 }
 
 func AllTagAccess() TagAccess {
@@ -141,7 +163,33 @@ func AllCapabilityAccess() CapabilityState {
 	return fullCapabilityState
 }
 
-func CapabilityDescriptions() (r []CapabilityDesc) {
+func AdminOnlyCapabilityList() []Capability {
+	return adminOnlyCapList
+}
+
+func TokenOnlyCapabilityList() []Capability {
+	return tokenOnlyCapList
+}
+
+func CapabilityDescriptions(admin bool, token bool) (r []CapabilityDesc) {
+	for _, desc := range capabilitySet {
+		if !desc.AdminOnly && !desc.TokenOnly { // include all plain caps
+			r = append(r, desc)
+			continue
+		}
+		if desc.AdminOnly && admin { // if admin caps requested and user is admin include admin caps
+			if desc.TokenOnly && !token { // unless it's also a token cap and those weren't requested
+				continue
+			}
+			r = append(r, desc)
+		}
+		if desc.TokenOnly && token { // if token caps requests include token caps
+			if desc.AdminOnly && !admin { // unless it's also an admin cap and those weren't requested
+				continue
+			}
+			r = append(r, desc)
+		}
+	}
 	return capabilitySet[:]
 }
 
