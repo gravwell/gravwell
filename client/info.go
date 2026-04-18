@@ -105,6 +105,7 @@ func (c *Client) getMyInfo() (types.UserDetails, error) {
 // with the client.
 func (c *Client) CheckApiVersion() error {
 	var version types.VersionInfo
+	// TODO manually craft the request, as getStaticURL requires login
 	if err := c.getStaticURL(API_VERSION_URL, &version); err != nil {
 		return err
 	}

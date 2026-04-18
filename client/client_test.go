@@ -10,12 +10,14 @@ package client_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 func TestServerIP(t *testing.T) {
@@ -100,5 +102,60 @@ func TestMockPing(t *testing.T) {
 	failReq = true // check that we gracefuly handle
 	if err := c.Test(); !errors.Is(err, client.ErrInvalidTestStatus) {
 		t.Fatal("expected ErrInvalidTestStatus error; got ", err)
+	}
+}
+
+// Ensure major version mismatches are caught prior to login attempts (and that minor mismatches are allowed).
+func TestAPIVersionCheck(t *testing.T) {
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	srv := http.Server{}
+	var (
+		mockMajor = types.API_VERSION_MAJOR
+		mockMinor = types.API_VERSION_MINOR
+	)
+	http.HandleFunc(client.API_VERSION_URL, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		vi := types.VersionInfo{
+			API: types.ApiInfo{Major: mockMajor, Minor: mockMinor},
+		}
+
+		if err := json.NewEncoder(w).Encode(vi); err != nil {
+			w.WriteHeader(500)
+		}
+	})
+	go srv.Serve(l)
+	defer srv.Shutdown(context.Background())
+
+	c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name      string
+		major     uint32
+		minor     uint32
+		wantError bool
+	}{
+		{"exact match major and minor", types.API_VERSION_MAJOR, types.API_VERSION_MINOR, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// test bare API check
+			if err := c.CheckApiVersion(); (err != nil) != tt.wantError {
+				t.Fatalf("unexpected error state. Wanted Error? %v | Actual Error: %v", tt.wantError, err)
+			}
+			// test u/p login
+			// TODO
+
+			// test mfa login
+			// TODO
+
+			// test API key login
+			// TODO
+		})
 	}
 }
