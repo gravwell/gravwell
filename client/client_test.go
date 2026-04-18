@@ -71,35 +71,34 @@ func TestServerIP(t *testing.T) {
 	} else if !c.ServerIP().IsUnspecified() {
 		t.Fatalf("Invalid IP address, expected unspecified got %v", c.ServerIP())
 	}
+}
 
-	// check that the client can issue and receive pings (positive and negative)
-	t.Run("TEST ping success against mock", func(t *testing.T) {
-		l, err := net.Listen("tcp", "[::1]:0")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer l.Close()
-		srv := http.Server{}
-		var failReq bool
-		http.HandleFunc(client.TEST_URL, func(w http.ResponseWriter, r *http.Request) {
-			if failReq {
-				w.WriteHeader(500)
-			}
-		})
-		go srv.Serve(l)
-		defer srv.Shutdown(context.Background())
-		// test we can make a successful ping against a mock
-		c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := c.Test(); err != nil {
-			t.Fatal("bad status returned from endpoint, expected 200: ", err)
-		}
-		failReq = true // check that we gracefuly handle
-		if err := c.Test(); !errors.Is(err, client.ErrInvalidTestStatus) {
-			t.Fatal("expected ErrInvalidTestStatus error; got ", err)
+// check that the client can issue and receive pings (positive and negative)
+func TestMockPing(t *testing.T) {
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	srv := http.Server{}
+	var failReq bool
+	http.HandleFunc(client.TEST_URL, func(w http.ResponseWriter, r *http.Request) {
+		if failReq {
+			w.WriteHeader(500)
 		}
 	})
-
+	go srv.Serve(l)
+	defer srv.Shutdown(context.Background())
+	// test we can make a successful ping against a mock
+	c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Test(); err != nil {
+		t.Fatal("bad status returned from endpoint, expected 200: ", err)
+	}
+	failReq = true // check that we gracefuly handle
+	if err := c.Test(); !errors.Is(err, client.ErrInvalidTestStatus) {
+		t.Fatal("expected ErrInvalidTestStatus error; got ", err)
+	}
 }
