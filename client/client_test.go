@@ -131,24 +131,33 @@ func TestAPIVersionCheck(t *testing.T) {
 	go srv.Serve(l)
 	defer srv.Shutdown(t.Context())
 
-	c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// use a short timeout window, as we don't actually care about anything past the version check.
-	c.SetRequestTimeout(100 * time.Millisecond)
-
 	tests := []struct {
 		name             string
 		major            uint32
 		minor            uint32
 		wantVersionError bool
 	}{
-		{"exact match major and minor", types.API_VERSION_MAJOR, types.API_VERSION_MINOR, false},
+		{"match major | match minor", types.API_VERSION_MAJOR, types.API_VERSION_MINOR, false},
+		{"match major | mismatch minor", types.API_VERSION_MAJOR, types.API_VERSION_MINOR + 1, false},
+		{"mismatch major | match minor", types.API_VERSION_MAJOR + 1, types.API_VERSION_MINOR, true},
+		{"mismatch major | mismatch minor", types.API_VERSION_MAJOR + 1, types.API_VERSION_MINOR + 1, true},
+		{"higher client version than remote version", 0, 0, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
+			c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// use a short timeout window, as we don't actually care about anything past the version check.
+			c.SetRequestTimeout(100 * time.Millisecond)
+			defer c.Close()
+
+			// update mock server's version
+			mockMajor = tt.major
+			mockMinor = tt.minor
 
 			// test bare API check
 			if err := c.CheckApiVersion(); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
