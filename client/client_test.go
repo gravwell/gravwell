@@ -77,7 +77,7 @@ func TestServerIP(t *testing.T) {
 }
 
 // check that the client can issue and receive pings (positive and negative)
-func TestMockPing(t *testing.T) {
+func TestPing(t *testing.T) {
 	l, err := net.Listen("tcp", "[::1]:0")
 	if err != nil {
 		t.Fatal(err)
@@ -108,6 +108,7 @@ func TestMockPing(t *testing.T) {
 
 // Ensure major version mismatches are caught prior to login attempts (and that minor mismatches are allowed).
 func TestAPIVersionCheck(t *testing.T) {
+	// spool up a mock endpoint to fire tests against
 	l, err := net.Listen("tcp", "[::1]:0")
 	if err != nil {
 		t.Fatal(err)
@@ -116,9 +117,10 @@ func TestAPIVersionCheck(t *testing.T) {
 		l.Close()
 	})
 	srv := http.Server{}
-	var (
-		mockMajor = types.API_VERSION_MAJOR
-		mockMinor = types.API_VERSION_MINOR
+
+	var ( // each tests sets major and minor
+		mockMajor uint32
+		mockMinor uint32
 	)
 	http.HandleFunc(client.API_VERSION_URL, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -178,6 +180,13 @@ func TestAPIVersionCheck(t *testing.T) {
 
 			// test API key login
 			if err := c.LoginWithAPIToken("myfancyapitoken"); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
+				t.Fatalf("unexpected error state. Wanted version error? %v | Actual error: %v", tt.wantVersionError, err)
+			}
+
+			// test JWT login
+			if err := c.ImportLoginToken("alogintokenImadeup"); err != nil {
+				t.Fatal()
+			} else if err := c.TestLogin(); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
 				t.Fatalf("unexpected error state. Wanted version error? %v | Actual error: %v", tt.wantVersionError, err)
 			}
 		})
