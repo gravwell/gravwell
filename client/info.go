@@ -107,6 +107,10 @@ func (c *Client) CheckApiVersion() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	return c.checkApiVersionNoLock()
+}
+
+func (c *Client) checkApiVersionNoLock() error {
 	// manually operate the request as helper functions like methodStaticURL expect authentication
 
 	//build up URL we are going to throw at
