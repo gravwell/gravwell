@@ -112,7 +112,9 @@ func TestAPIVersionCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	t.Cleanup(func() {
+		l.Close()
+	})
 	srv := http.Server{}
 	var (
 		mockMajor = types.API_VERSION_MAJOR
@@ -129,7 +131,7 @@ func TestAPIVersionCheck(t *testing.T) {
 		}
 	})
 	go srv.Serve(l)
-	defer srv.Shutdown(t.Context())
+	t.Cleanup(func() { srv.Shutdown(t.Context()) })
 
 	tests := []struct {
 		name             string
