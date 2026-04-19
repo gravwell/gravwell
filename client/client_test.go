@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -128,34 +129,46 @@ func TestAPIVersionCheck(t *testing.T) {
 		}
 	})
 	go srv.Serve(l)
-	defer srv.Shutdown(context.Background())
+	defer srv.Shutdown(t.Context())
 
 	c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// use a short timeout window, as we don't actually care about anything past the version check.
+	c.SetRequestTimeout(100 * time.Millisecond)
+
 	tests := []struct {
-		name      string
-		major     uint32
-		minor     uint32
-		wantError bool
+		name             string
+		major            uint32
+		minor            uint32
+		wantVersionError bool
 	}{
 		{"exact match major and minor", types.API_VERSION_MAJOR, types.API_VERSION_MINOR, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
 			// test bare API check
-			if err := c.CheckApiVersion(); (err != nil) != tt.wantError {
-				t.Fatalf("unexpected error state. Wanted Error? %v | Actual Error: %v", tt.wantError, err)
+			if err := c.CheckApiVersion(); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
+				t.Fatalf("unexpected error state. Wanted version error? %v | Actual error: %v", tt.wantVersionError, err)
 			}
+
 			// test u/p login
-			// TODO
+			if err := c.Login("someusername", "somepassword"); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
+				t.Fatalf("unexpected error state. Wanted version error? %v | Actual error: %v", tt.wantVersionError, err)
+			}
 
 			// test mfa login
-			// TODO
+			if _, err := c.MFALogin("someusername", "somepassword", types.AUTH_TYPE_TOTP, "1111"); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
+				t.Fatalf("unexpected error state. Wanted version error? %v | Actual error: %v", tt.wantVersionError, err)
+			}
 
 			// test API key login
-			// TODO
+			if err := c.LoginWithAPIToken("myfancyapitoken"); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
+				t.Fatalf("unexpected error state. Wanted version error? %v | Actual error: %v", tt.wantVersionError, err)
+			}
 		})
 	}
 }
