@@ -246,7 +246,7 @@ func (c *Client) TestLogin() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if err := c.CheckApiVersion(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
 	}
 
@@ -273,7 +273,7 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 		return loginResp, errors.New("Invalid username")
 	}
 
-	if err := c.CheckApiVersion(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
 	}
 
@@ -335,7 +335,7 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 	if user == "" {
 		return loginResp, errors.New("Invalid username")
 	}
-	if err := c.CheckApiVersion(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
 	}
 
@@ -393,7 +393,7 @@ func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if err := c.CheckApiVersion(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
 	}
 
