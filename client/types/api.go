@@ -76,6 +76,24 @@ type CanonicalVersion struct {
 	Point uint32
 }
 
+// ErrVersionMismatch returns an error stating that the local client and the remote server are running different major API versions and thus
+// are not compatible.
+type ErrVersionMismatch struct {
+	Local  ApiInfo
+	Remote ApiInfo
+}
+
+func (e ErrVersionMismatch) Error() string {
+	return fmt.Sprintf("Version mismatch!\nLocal: %d.%d\nRemote %d.%d\n",
+		e.Local.Major, e.Local.Minor, e.Remote.Major, e.Remote.Minor)
+}
+
+// Is tests only that the error is a VersionMismatchError without any concern for the numbers themselves.
+func (ErrVersionMismatch) Is(err error) bool {
+	_, ok := err.(ErrVersionMismatch)
+	return ok
+}
+
 func ApiVersion() ApiInfo {
 	return ApiInfo{
 		Major: API_VERSION_MAJOR,
@@ -98,13 +116,13 @@ func (bi BuildInfo) NewerVersion(nbi BuildInfo) bool {
 	return bi.CanonicalVersion.NewerVersion(nbi.CanonicalVersion)
 }
 
+// CheckApiVersion returns an error iff the remote's major version != the caller's major version.
 func CheckApiVersion(remote ApiInfo) error {
 	local := ApiVersion()
 	if local.Major == remote.Major {
 		return nil //we match
 	}
-	return fmt.Errorf("Version mismatch!\nLocal: %d.%d\nRemote %d.%d\n",
-		local.Major, local.Minor, remote.Major, remote.Minor)
+	return ErrVersionMismatch{Local: local, Remote: remote}
 
 }
 
