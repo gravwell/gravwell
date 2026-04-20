@@ -173,7 +173,7 @@ func TokenOnlyCapabilityList() []Capability {
 
 func CapabilityDescriptions(admin bool, token bool) (r []CapabilityDesc) {
 	for _, desc := range capabilitySet {
-		if !desc.AdminOnly && !desc.TokenOnly { // include all plain caps
+		if !(desc.AdminOnly || desc.TokenOnly) { // include all plain caps
 			r = append(r, desc)
 			continue
 		}
@@ -182,15 +182,17 @@ func CapabilityDescriptions(admin bool, token bool) (r []CapabilityDesc) {
 				continue
 			}
 			r = append(r, desc)
+			continue
 		}
 		if desc.TokenOnly && token { // if token caps requests include token caps
 			if desc.AdminOnly && !admin { // unless it's also an admin cap and those weren't requested
 				continue
 			}
 			r = append(r, desc)
+			continue
 		}
 	}
-	return capabilitySet[:]
+	return r
 }
 
 func TemplateList() []CapabilityTemplate {
