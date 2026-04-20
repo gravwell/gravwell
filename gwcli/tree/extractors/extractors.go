@@ -448,7 +448,7 @@ func edit() action.Pair {
 
 					clilog.Writer.Warn("extractor update caused warnings", params...)
 				}
-				return data.ID, nil
+				return data.Name, nil
 			},
 		},
 	)
