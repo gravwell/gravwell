@@ -125,7 +125,7 @@ func createFlagSet() *pflag.FlagSet {
 }
 
 // validateFlagValues validates the given state, returning on the first invalidity found.
-// If no invalidities are found, returns an alert definition suitable for NewAlert().
+// If no invalidities are found, it returns a validated types.Alert definition.
 func validateFlagValues(availableConsumers map[string]types.Flow, availableDispatchers map[string]types.ScheduledSearch, flagVals alertFlags) (invalid string, alert types.Alert) {
 	// check that mandatory flags have values
 	if flagVals.name == "" {
