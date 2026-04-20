@@ -85,9 +85,9 @@ func TestPing(t *testing.T) {
 	t.Cleanup(func() { l.Close() })
 
 	srv := http.Server{}
-	var failReq bool
+	var failReq atomic.Bool
 	http.HandleFunc(client.TEST_URL, func(w http.ResponseWriter, r *http.Request) {
-		if failReq {
+		if failReq.Load() {
 			w.WriteHeader(500)
 		}
 	})
@@ -101,7 +101,7 @@ func TestPing(t *testing.T) {
 	if err := c.Test(); err != nil {
 		t.Fatal("bad status returned from endpoint, expected 200: ", err)
 	}
-	failReq = true // check that we gracefuly handle
+	failReq.Store(true) // check that we gracefully handle
 	if err := c.Test(); !errors.Is(err, client.ErrInvalidTestStatus) {
 		t.Fatal("expected ErrInvalidTestStatus error; got ", err)
 	}
