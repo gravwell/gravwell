@@ -222,9 +222,6 @@ func getClient() (cli *client.Client, err error) {
 	if err = cli.LoginWithAPIToken(authToken); err != nil {
 		cli.Close()
 		cli = nil
-	} else if err = cli.CheckApiVersion(); err != nil {
-		cli.Close()
-		cli = nil
 	}
 
 	return
