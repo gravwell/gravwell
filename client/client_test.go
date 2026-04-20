@@ -9,7 +9,6 @@
 package client_test
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -83,7 +82,8 @@ func TestPing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	t.Cleanup(func() { l.Close() })
+
 	srv := http.Server{}
 	var failReq bool
 	http.HandleFunc(client.TEST_URL, func(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +92,7 @@ func TestPing(t *testing.T) {
 		}
 	})
 	go srv.Serve(l)
-	defer srv.Shutdown(context.Background())
+	t.Cleanup(func() { srv.Shutdown(t.Context()) })
 	// test we can make a successful ping against a mock
 	c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
 	if err != nil {
@@ -114,9 +114,7 @@ func TestAPIVersionCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		l.Close()
-	})
+	t.Cleanup(func() { l.Close() })
 	srv := http.Server{}
 
 	var ( // each tests sets major and minor
