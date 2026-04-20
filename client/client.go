@@ -264,7 +264,7 @@ func (c *Client) TestLogin() error {
 
 	// before doing anything else, check version.
 	// CheckApiVersion actually sends back version mismatches as a string, so we much test both.
-	if mismatch, err := c.CheckApiVersion(); err != nil {
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
 		return err
 	} else if mismatch != "" {
 		return errors.New(mismatch)
@@ -293,9 +293,7 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 		return loginResp, errors.New("Invalid username")
 	}
 
-	// before doing anything else, check version.
-	// CheckApiVersion actually sends back version mismatches as a string, so we much test both.
-	if mismatch, err := c.CheckApiVersion(); err != nil {
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
 	} else if mismatch != "" {
 		return loginResp, errors.New(mismatch)
@@ -360,9 +358,7 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 		return loginResp, errors.New("Invalid username")
 	}
 
-	// before doing anything else, check version.
-	// CheckApiVersion actually sends back version mismatches as a string, so we much test both.
-	if mismatch, err := c.CheckApiVersion(); err != nil {
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
 	} else if mismatch != "" {
 		return loginResp, errors.New(mismatch)
@@ -422,9 +418,7 @@ func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	// before doing anything else, check version.
-	// CheckApiVersion actually sends back version mismatches as a string, so we much test both.
-	if mismatch, err := c.CheckApiVersion(); err != nil {
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
 		return err
 	} else if mismatch != "" {
 		return errors.New(mismatch)
