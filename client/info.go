@@ -117,7 +117,7 @@ func (c *Client) checkApiVersionNoLock() error {
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, API_VERSION_URL)
 
 	//build up the request
-	req, err := http.NewRequest(http.MethodPost, uri, nil)
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return err
 	}
