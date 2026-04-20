@@ -91,8 +91,8 @@ func alertsList() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					fs.String("consumer", "", "Filter to alerts that refer to this consumer. Should be the ID of the a flow, not the GUID. Used to answer: which alerts will launch this specific flow")
-					fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search, not the GUID. Used to answer: which alerts will be invoked by this specific scheduled search")
+					fs.String("consumer", "", "Filter to alerts that refer to this consumer. Should be the ID of the a flow. Used to answer: which alerts will launch this specific flow")
+					fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search. Used to answer: which alerts will be invoked by this specific scheduled search")
 					return fs
 				},
 			},
@@ -102,12 +102,10 @@ func alertsList() action.Pair {
 				"Disabled",
 				"Consumers",
 				"Dispatchers",
-				"GUID",
-				"Global",
+				"ID",
 				"Labels",
 				"TargetTag",
-				"ThingUUID",
-				"UID",
+				"OwnerID",
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, _ error) {
 				if listConsumerID, invalid = validateListID("consumer", fs); invalid != "" {
