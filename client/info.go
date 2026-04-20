@@ -138,7 +138,7 @@ func (c *Client) checkApiVersionNoLock() (string, error) {
 	case http.StatusUnauthorized:
 		c.state = STATE_LOGGED_OFF
 		return "", ErrNotAuthed
-	case http.StatusFound:
+	case http.StatusNotFound:
 		return "", ErrNotFound
 	default:
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)

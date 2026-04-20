@@ -263,7 +263,7 @@ func (c *Client) TestLogin() error {
 	defer c.mtx.Unlock()
 
 	// before doing anything else, check version.
-	// CheckApiVersion actually sends back version mismatches as a string, so we much test both.
+	// CheckApiVersion actually sends back version mismatches as a string, so we must test both.
 	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
 		return err
 	} else if mismatch != "" {
