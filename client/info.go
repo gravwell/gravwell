@@ -19,7 +19,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 var (
@@ -101,17 +101,61 @@ func (c *Client) getMyInfo() (types.UserDetails, error) {
 	return dets, nil
 }
 
-// CheckApiVersion assert the REST API version of the webserver is compatible
+// CheckApiVersion asserts the REST API version of the webserver is compatible
 // with the client.
-func (c *Client) CheckApiVersion() (string, error) {
+func (c *Client) CheckApiVersion() error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	return c.checkApiVersionNoLock()
+}
+
+func (c *Client) checkApiVersionNoLock() error {
+	// manually operate the request as helper functions like methodStaticURL expect authentication
+
+	//build up URL we are going to throw at
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, API_VERSION_URL)
+
+	//build up the request
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return err
+	}
+
+	c.hm.populateRequest(req.Header) // add in the headers
+
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		c.objLog.Log("WEB "+req.Method+" Error "+err.Error(), req.URL.String(), nil)
+		return err
+	}
+	if resp == nil {
+		return errors.New("Invalid response")
+	}
+	defer drainResponse(resp)
+	switch resp.StatusCode {
+	case http.StatusOK: // do nothing
+	case http.StatusUnauthorized:
+		c.state = STATE_LOGGED_OFF
+		return ErrNotAuthed
+	case http.StatusNotFound:
+		return ErrNotFound
+	default:
+		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+	}
+
 	var version types.VersionInfo
-	if err := c.getStaticURL(API_VERSION_URL, &version); err != nil {
-		return "", err
+	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
+		return err
 	}
+
+	c.objLog.Log("WEB "+req.Method, req.URL.String(), &version)
+
 	if err := types.CheckApiVersion(version.API); err != nil {
-		return err.Error(), nil
+		return err
 	}
-	return "", nil
+	return nil
 }
 
 // GetApiVersion returns the REST API version of the webserver.
@@ -170,7 +214,7 @@ func (c *Client) SetLogLevel(level string) error {
 	l := types.LogLevel{
 		Level: level,
 	}
-	return c.methodStaticPushURL(http.MethodPut, LOGGING_PATH_URL, l, nil)
+	return c.methodStaticPushURL(http.MethodPut, LOGGING_PATH_URL, l, nil, nil, nil)
 }
 
 // GetTags returns an array of strings representing the tags on the Gravwell system.
@@ -297,7 +341,7 @@ func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, n
 // DeleteMailConfig removes a users mail configuration fom preferences
 // this completely uninstalls any mail configs
 func (c *Client) DeleteMailConfig() error {
-	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, http.StatusOK, http.StatusNotFound)
+	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, []int{http.StatusOK, http.StatusNotFound}, nil)
 }
 
 // MailConfig retrieves the current mail config
@@ -312,6 +356,13 @@ func (c *Client) MailConfig() (mc types.UserMailConfig, err error) {
 // The return value is a map of indexer name strings to IndexerWellData objects.
 func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
 	err = c.getStaticURL(wellDataUrl(), &mp)
+	return
+}
+
+// SearchQueue returns information about the search queue. If rate limiting is
+// disabled, all values will be zero.
+func (c *Client) SearchQueue() (s types.SearchQueue, err error) {
+	err = c.getStaticURL(searchQueueUrl(), &s)
 	return
 }
 
