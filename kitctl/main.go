@@ -498,7 +498,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.Alert:
-			var x types.AlertDefinition
+			var x types.Alert
 			if err = genericRead(wd, itm, &x); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -811,7 +811,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.Alert:
-			var p types.AlertDefinition
+			var p types.Alert
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}

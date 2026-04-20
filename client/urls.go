@@ -210,6 +210,7 @@ const (
 	CBAC_DEFAULT_CAPABILITIES_URL    = `/api/cbac/default/capabilities`
 	CBAC_DEFAULT_TAGS_URL            = `/api/cbac/default/tags`
 	ALERTS_URL                       = `/api/alerts`
+	ALERTS_LIST_URL                  = `/api/alerts/list`
 	ALERTS_ID_URL                    = `/api/alerts/%s`
 	ALERTS_ID_SAMPLE_URL             = `/api/alerts/%s/sample`
 	ALERTS_VALIDATE_DISPATCHER_URL   = `/api/alerts/validate/dispatcher`
@@ -704,12 +705,12 @@ func alertsUrl() string {
 	return ALERTS_URL
 }
 
-func alertsIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(ALERTS_ID_URL, id.String())
+func alertsIdUrl(id string) string {
+	return fmt.Sprintf(ALERTS_ID_URL, id)
 }
 
-func alertsIdSampleEventUrl(id uuid.UUID) string {
-	return fmt.Sprintf(ALERTS_ID_SAMPLE_URL, id.String())
+func alertsIdSampleEventUrl(id string) string {
+	return fmt.Sprintf(ALERTS_ID_SAMPLE_URL, id)
 }
 
 func alertsValidateDispatcherUrl() string {

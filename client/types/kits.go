@@ -146,7 +146,7 @@ type KitBuildRequest struct {
 	Files             []string          `json:",omitempty"`
 	SearchLibraries   []string          `json:",omitempty"` // Saved Queries go here... compatibility for now.
 	Playbooks         []uuid.UUID       `json:",omitempty"`
-	Alerts            []uuid.UUID       `json:",omitempty"`
+	Alerts            []string          `json:",omitempty"`
 	EmbeddedItems     []KitEmbeddedItem `json:",omitempty"`
 	Icon              string            `json:",omitempty"`
 	Banner            string            `json:",omitempty"`
@@ -294,8 +294,8 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 	for i := range pbr.Alerts {
-		if pbr.Alerts[i] == uuid.Nil {
-			return errors.New("zero UUID in alert list")
+		if pbr.Alerts[i] == "" {
+			return errors.New("empty alert ID")
 		}
 	}
 

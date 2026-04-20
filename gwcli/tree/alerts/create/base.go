@@ -49,12 +49,12 @@ func Action() action.Pair {
 				return
 			}
 
-			res, err := connection.Client.NewAlert(ad)
+			res, err := connection.Client.CreateAlert(ad)
 			if err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), "failed to create alert: "+err.Error()+"\n")
 				return
 			}
-			fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem("alert", res.ThingUUID.String()))
+			fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem("alert", res.ID))
 		},
 		treeutils.GenerateActionOptions{
 			Usage: ft.Mandatory("--name=NAME") + ft.Optional("FLAGS"),
@@ -125,11 +125,11 @@ func createFlagSet() *pflag.FlagSet {
 }
 
 // validateFlagValues validates the given state, returning on the first invalidity found.
-// If no invalidities are found, returns an alert definition suitable for NewAlert().
-func validateFlagValues(availableConsumers map[string]types.Flow, availableDispatchers map[string]types.ScheduledSearch, flagVals alertFlags) (invalid string, alert types.AlertDefinition) {
+// If no invalidities are found, it returns a validated types.Alert definition.
+func validateFlagValues(availableConsumers map[string]types.Flow, availableDispatchers map[string]types.ScheduledSearch, flagVals alertFlags) (invalid string, alert types.Alert) {
 	// check that mandatory flags have values
 	if flagVals.name == "" {
-		return "you must provide a name for the new alert", types.AlertDefinition{}
+		return "you must provide a name for the new alert", types.Alert{}
 	}
 
 	// validate that all given IDs are known and transmute the IDs
@@ -137,7 +137,7 @@ func validateFlagValues(availableConsumers map[string]types.Flow, availableDispa
 	for i, ID := range flagVals.dispatcherIDs {
 		_, found := availableDispatchers[ID]
 		if !found {
-			return ID + " is not a known scheduled search", types.AlertDefinition{}
+			return ID + " is not a known scheduled search", types.Alert{}
 		}
 		dispatchers[i] = types.AlertDispatcher{
 			ID:   ID,
@@ -147,18 +147,20 @@ func validateFlagValues(availableConsumers map[string]types.Flow, availableDispa
 	consumers := make([]types.AlertConsumer, len(flagVals.consumerIDs))
 	for i, ID := range flagVals.consumerIDs {
 		if _, found := availableConsumers[ID]; !found {
-			return ID + " is not a known flow", types.AlertDefinition{}
+			return ID + " is not a known flow", types.Alert{}
 		}
 		consumers[i] = types.AlertConsumer{
 			ID:   ID,
 			Type: types.ALERTCONSUMERTYPE_FLOW,
 		}
 	}
-	return "", types.AlertDefinition{
-		Name:        flagVals.name,
-		Description: flagVals.description,
-		TargetTag:   flagVals.tag,
-		UID:         connection.CurrentUser().ID,
+	return "", types.Alert{
+		CommonFields: types.CommonFields{
+			OwnerID:     connection.CurrentUser().ID,
+			Name:        flagVals.name,
+			Description: flagVals.description,
+		},
+		TargetTag: flagVals.tag,
 
 		Consumers:          consumers,
 		Dispatchers:        dispatchers,

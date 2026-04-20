@@ -212,7 +212,7 @@ func edit() action.Pair {
 				return descriptionLine(item.Admin, item.Email)
 			},
 			UpdateSub: func(data *types.User) (identifier string, err error) {
-				return strconv.FormatInt(int64(data.ID), 10), connection.Client.UpdateUser(*data)
+				return data.Name, connection.Client.UpdateUser(*data)
 			},
 		},
 	)
