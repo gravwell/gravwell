@@ -14,6 +14,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -119,13 +120,13 @@ func TestAPIVersionCheck(t *testing.T) {
 	srv := http.Server{}
 
 	var ( // each tests sets major and minor
-		mockMajor uint32
-		mockMinor uint32
+		mockMajor atomic.Uint32
+		mockMinor atomic.Uint32
 	)
 	http.HandleFunc(client.API_VERSION_URL, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		vi := types.VersionInfo{
-			API: types.ApiInfo{Major: mockMajor, Minor: mockMinor},
+			API: types.ApiInfo{Major: mockMajor.Load(), Minor: mockMinor.Load()},
 		}
 
 		if err := json.NewEncoder(w).Encode(vi); err != nil {
@@ -160,8 +161,8 @@ func TestAPIVersionCheck(t *testing.T) {
 			defer c.Close()
 
 			// update mock server's version
-			mockMajor = tt.major
-			mockMinor = tt.minor
+			mockMajor.Store(tt.major)
+			mockMinor.Store(tt.minor)
 
 			// test bare API check
 			if err := c.CheckApiVersion(); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
