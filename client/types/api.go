@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	//MAJOR API VERSIONS should always be compatible, there just may be
-	//additional features
+	// Equal major versions should always be compatible
 	API_VERSION_MAJOR uint32 = 1
+	// Minor versions define features sets, but have no bearing on compatibility.
 	API_VERSION_MINOR uint32 = 0
 
 	AUTH_TYPE_NONE     AuthType = `None` // for when you don't have MFA set up at all yet.
