@@ -89,9 +89,13 @@ func (e ErrVersionMismatch) Error() string {
 }
 
 // Is tests only that the error is a VersionMismatchError without any concern for the numbers themselves.
-func (ErrVersionMismatch) Is(err error) bool {
-	_, ok := err.(ErrVersionMismatch)
-	return ok
+func (ErrVersionMismatch) Is(target error) bool {
+	switch target.(type) {
+	case ErrVersionMismatch, *ErrVersionMismatch:
+		return true
+	default:
+		return false
+	}
 }
 
 func ApiVersion() ApiInfo {
