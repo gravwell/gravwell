@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -84,13 +84,14 @@ func TestPing(t *testing.T) {
 	}
 	t.Cleanup(func() { l.Close() })
 
-	srv := http.Server{}
+	mux := http.NewServeMux()
 	var failReq atomic.Bool
-	http.HandleFunc(client.TEST_URL, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(client.TEST_URL, func(w http.ResponseWriter, r *http.Request) {
 		if failReq.Load() {
 			w.WriteHeader(500)
 		}
 	})
+	srv := http.Server{Handler: mux}
 	go srv.Serve(l)
 	t.Cleanup(func() { srv.Shutdown(t.Context()) })
 	// test we can make a successful ping against a mock
@@ -115,13 +116,13 @@ func TestAPIVersionCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { l.Close() })
-	srv := http.Server{}
 
+	mux := http.NewServeMux()
 	var ( // each tests sets major and minor
 		mockMajor atomic.Uint32
 		mockMinor atomic.Uint32
 	)
-	http.HandleFunc(client.API_VERSION_URL, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(client.API_VERSION_URL, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		vi := types.VersionInfo{
 			API: types.ApiInfo{Major: mockMajor.Load(), Minor: mockMinor.Load()},
@@ -131,6 +132,7 @@ func TestAPIVersionCheck(t *testing.T) {
 			w.WriteHeader(500)
 		}
 	})
+	srv := http.Server{Handler: mux}
 	go srv.Serve(l)
 	t.Cleanup(func() { srv.Shutdown(t.Context()) })
 
