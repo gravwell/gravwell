@@ -186,7 +186,7 @@ func TestAPIVersionCheck(t *testing.T) {
 
 			// test JWT login
 			if err := c.ImportLoginToken("alogintokenImadeup"); err != nil {
-				t.Fatal()
+				t.Fatal(err)
 			} else if err := c.TestLogin(); errors.Is(err, types.ErrVersionMismatch{}) != tt.wantVersionError {
 				t.Fatalf("unexpected error state. Wanted version error? %v | Actual error: %v", tt.wantVersionError, err)
 			}
