@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
+const (
 	ACTIONABLE_COMMAND_QUERY       ActionableCommandType = "query"
 	ACTIONABLE_COMMAND_TEMPLATE    ActionableCommandType = "template"
 	ACTIONABLE_COMMAND_DASHBOARD   ActionableCommandType = "dashboard"
@@ -55,7 +55,7 @@ type ActionableAction struct {
 	Placeholder string                `json:"placeholder,omitempty"`
 	Start       *ActionableTimeOption `json:"start,omitempty"`
 	End         *ActionableTimeOption `json:"end,omitempty"`
-	Command     ActionableCommand     `json:"command,omitempty"`
+	Command     ActionableCommand     `json:"command"`
 }
 
 // ActionableTimeOption describes time-range options for an action's start or end.
@@ -77,6 +77,6 @@ type ActionableCommandOptions struct {
 
 	// For URL commands
 	Modal            string `json:"modal,omitempty"`
-	ModalWidth       string `json:"modalWith,omitempty"`
+	ModalWidth       string `json:"modalWidth,omitempty"`
 	NoValueURLEncode string `json:"noValueUrlEncode,omitempty"`
 }
