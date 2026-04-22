@@ -57,16 +57,11 @@ func (p *PackedFile) Validate() error {
 	if len(p.Data) == 0 && len(p.Hash) == 0 {
 		return nil //short circuit, if its empty there is no hash
 	}
+	// recompute hash and size and use the new data,
+	// per https://github.com/gravwell/gravwell/pull/2305#discussion_r3126385394
 	hsh := md5.Sum(p.Data)
-	if len(hsh) != len(p.Hash) {
-		return errors.New("invalid data hash")
-	} else {
-		for i := range p.Hash {
-			if p.Hash[i] != hsh[i] {
-				return errors.New("Bad data hash")
-			}
-		}
-	}
+	p.Hash = hsh[:]
+	p.Size = uint64(len(p.Data))
 	return nil
 }
 
