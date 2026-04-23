@@ -61,6 +61,10 @@ func Now() Timestamp {
 
 // FromStandard converts the time.Time datatype to our Timestamp format
 func FromStandard(ts time.Time) Timestamp {
+	if ts.IsZero() {
+		return Timestamp{}
+	}
+
 	ts = ts.UTC()
 	return Timestamp{
 		Sec:  ts.Unix() + unixToInternal,
