@@ -9,6 +9,8 @@
 package types
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 )
 
@@ -38,47 +40,73 @@ type StrictPivot struct {
 // including its menu label, triggers, and actions.
 type ActionableContent struct {
 	MenuLabel string              `json:"menuLabel"`
-	Actions   []ActionableAction  `json:"actions"`
-	Triggers  []ActionableTrigger `json:"triggers"`
+	Actions   []ActionableAction  `json:"actions,omitempty"`
+	Triggers  []ActionableTrigger `json:"triggers,omitempty"`
 }
 
 // ActionableTrigger defines a pattern that activates an actionable.
+// On the wire, a trigger may be either a plain string (the pattern)
+// or an object with pattern, hyperlink, and disabled fields.
+// A plain string trigger is normalized to Hyperlink=true, Disabled=false.
 type ActionableTrigger struct {
 	// Pattern is a JS regex to match against
 	Pattern   string `json:"pattern"`
 	Hyperlink bool   `json:"hyperlink"`
+	Disabled  bool   `json:"disabled"`
+}
+
+// UnmarshalJSON handles both string and object representations of a trigger.
+func (t *ActionableTrigger) UnmarshalJSON(data []byte) error {
+	// Try plain string first (legacy format).
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		t.Pattern = s
+		t.Hyperlink = true
+		t.Disabled = false
+		return nil
+	}
+	// Otherwise decode as an object.
+	type alias ActionableTrigger
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*t = ActionableTrigger(a)
+	return nil
 }
 
 // ActionableAction defines an action that can be performed when an actionable is triggered.
 type ActionableAction struct {
-	Name        string                `json:"name,omitempty"`
-	Description string                `json:"description,omitempty"`
-	Placeholder string                `json:"placeholder,omitempty"`
-	Start       *ActionableTimeOption `json:"start,omitempty"`
-	End         *ActionableTimeOption `json:"end,omitempty"`
-	Command     ActionableCommand     `json:"command"`
+	Name             string                  `json:"name"`
+	Description      string                  `json:"description"`
+	Placeholder      string                  `json:"placeholder"`
+	NoValueURLEncode bool                    `json:"noValueUrlEncode,omitempty"`
+	Start            *ActionableTimeVariable `json:"start,omitempty"`
+	End              *ActionableTimeVariable `json:"end,omitempty"`
+	Command          ActionableCommand       `json:"command"`
 }
 
-// ActionableTimeOption describes time-range options for an action's start or end.
-type ActionableTimeOption struct {
-	Type        string `json:"type,omitempty"`
-	Format      string `json:"format,omitempty"`
-	Placeholder string `json:"placeholder,omitempty"`
+// ActionableTimeVariable describes time-range options for an action's start or end.
+// Type is either "timestamp" or "string".
+type ActionableTimeVariable struct {
+	Type        string `json:"type"`
+	Format      string `json:"format"`
+	Placeholder string `json:"placeholder"`
 }
 
-// ActionableCommand defines an activity performed when an action is activated.
+// ActionableCommand defines the command performed when an action is activated.
 type ActionableCommand struct {
 	Type      ActionableCommandType     `json:"type"`
 	Reference string                    `json:"reference"`
 	Options   *ActionableCommandOptions `json:"options,omitempty"`
 }
 
+// ActionableCommandOptions holds type-specific options for a command.
+// Template and dashboard commands use Variable.
+// URL commands use Modal, ModalWidth, and NoValueURLEncode.
 type ActionableCommandOptions struct {
-	// For template or dashboard commands, the variable to fill in.
-	Variable string `json:"variable,omitempty"`
-
-	// For URL commands
-	Modal            string `json:"modal,omitempty"`
+	Variable         string `json:"variable,omitempty"`
+	Modal            bool   `json:"modal,omitempty"`
 	ModalWidth       string `json:"modalWidth,omitempty"`
-	NoValueURLEncode string `json:"noValueUrlEncode,omitempty"`
+	NoValueURLEncode bool   `json:"noValueUrlEncode,omitempty"`
 }
