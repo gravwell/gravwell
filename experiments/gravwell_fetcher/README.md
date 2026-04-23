@@ -1,6 +1,6 @@
 # Gravwell Fetcher
 
-A powerful data fetcher ingester for Gravwell that collects data from various security and productivity services including Duo, Thinkst Canary, Okta, and Asana.
+A powerful data fetcher ingester for Gravwell that collects data from various security and productivity services including Duo, Thinkst Canary, and Asana.
 
 ## Overview
 
@@ -18,14 +18,6 @@ Gravwell Fetcher is a Go-based ingester that collects data from multiple externa
   - Audit logs
   - Incident data
 
-- **Okta**
-  - User data
-  - System logs
-  - Batch processing support
-
-- **Asana** In-Progress
-  - Workspace data
-  - Project information
 
 ## Prerequisites
 
@@ -130,32 +122,6 @@ Multiple Duo API endpoints can be configured:
     Domain="XXXXXXXX.canary.tools"
     StartTime="2025-01-01T00:00:01.000Z"
     Tag-Name="thinkst"
-```
-
-### Okta Configuration
-
-```ini
-[OktaConf "okta1"]
-    StartTime="2025-01-01T00:00:01.000Z"  # Initial fetch time
-    OktaDomain=""                         # Your Okta domain
-    OktaToken=""                          # Okta API token
-    UserTag=""                            # User-specific tag
-    BatchSize=1000                        # Number of records per batch
-    MaxBurstSize=100                      # Maximum burst size
-    SeedUsers=true                        # Whether to seed user data
-    SeedUserStart="2025-01-01T00:00:01.000Z"  # User data start time
-    Tag_Name=okta                         # Tag for Gravwell
-```
-
-### Asana Configuration - In Progress
-
-```ini
-[AsanaConf "default"]
-    RateLimit = 6                         # API rate limit
-    StartTime = "2025-01-01T00:00:01.000Z"  # Initial fetch time
-    Token = ""                            # Asana API token
-    Workspace = ""                        # Asana workspace ID
-    Tag-Name = "asana"                    # Tag for Gravwell
 ```
 
 ## Usage
