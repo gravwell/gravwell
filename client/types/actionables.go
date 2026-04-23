@@ -44,11 +44,8 @@ type ActionableContent struct {
 
 // ActionableTrigger defines a pattern that activates an actionable.
 type ActionableTrigger struct {
-	Name string `json:"name"`
 	// Pattern is a JS regex to match against
-	Pattern string `json:"pattern"`
-	// Reference, if populated, names a pre-built regex to be used instead of Pattern
-	Reference string `json:"reference"`
+	Pattern   string `json:"pattern"`
 	Hyperlink bool   `json:"hyperlink"`
 }
 
