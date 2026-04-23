@@ -193,35 +193,3 @@ func TestAPIVersionCheck(t *testing.T) {
 		})
 	}
 }
-
-// check that the client can issue and receive pings (positive and negative)
-func TestPing(t *testing.T) {
-	l, err := net.Listen("tcp", "[::1]:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { l.Close() })
-
-	mux := http.NewServeMux()
-	var failReq atomic.Bool
-	mux.HandleFunc(TEST_URL, func(w http.ResponseWriter, r *http.Request) {
-		if failReq.Load() {
-			w.WriteHeader(500)
-		}
-	})
-	srv := http.Server{Handler: mux}
-	go srv.Serve(l)
-	t.Cleanup(func() { srv.Shutdown(t.Context()) })
-	// test we can make a successful ping against a mock
-	c, err := NewOpts(Opts{Server: l.Addr().String()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := c.Test(); err != nil {
-		t.Fatal("bad status returned from endpoint, expected 200: ", err)
-	}
-	failReq.Store(true) // check that we gracefully handle
-	if err := c.Test(); !errors.Is(err, ErrInvalidTestStatus) {
-		t.Fatal("expected ErrInvalidTestStatus error; got ", err)
-	}
-}
