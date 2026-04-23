@@ -15,13 +15,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/sqs_common"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/sqs_common"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 type TimeConfig struct {
@@ -70,7 +70,7 @@ type global struct {
 
 type cfgReadType struct {
 	Global          global
-	Attach          attach.AttachConfig
+	Attach          attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Bucket          map[string]*bucket
 	SQS_S3_Listener map[string]*sqsS3
 	Preprocessor    processors.ProcessorConfig
@@ -79,7 +79,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
-	Attach               attach.AttachConfig
+	Attach               attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	State_Store_Location string
 	Worker_Pool_Size     int
 	Bucket               map[string]*bucket
