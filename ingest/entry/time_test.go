@@ -54,7 +54,7 @@ func TestTimestamp_StandardTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.ts.StandardTime()
-			if got.Equal(tt.want) {
+			if !got.Equal(tt.want) {
 				t.Errorf("StandardTime() = %v, want %v", got, tt.want)
 			}
 		})
