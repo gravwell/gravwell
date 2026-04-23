@@ -54,7 +54,7 @@ func TestTimestamp_StandardTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.ts.StandardTime()
-			if got != tt.want {
+			if got.Equal(tt.want) {
 				t.Errorf("StandardTime() = %v, want %v", got, tt.want)
 			}
 		})
@@ -80,7 +80,7 @@ func TestFromStandard(t *testing.T) {
 		})
 	}
 
-	t.Run("duration equity across multiple calls", func(t *testing.T) {
+	t.Run("duration equality across multiple calls", func(t *testing.T) {
 		tmBD := time.Date(1997, 10, 05, 10, 04, 02, 00, time.UTC)
 		tsBD := entry.FromStandard(tmBD)
 
