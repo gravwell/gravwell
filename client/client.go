@@ -339,12 +339,6 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 		return loginResp, err
 	}
 
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
-		return loginResp, err
-	} else if mismatch != "" {
-		return loginResp, errors.New(mismatch)
-	}
-
 	//build up URL we are going to throw at
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, MFA_LOGIN_URL)
 
