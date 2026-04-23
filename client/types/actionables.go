@@ -37,7 +37,11 @@ type ActionableContent struct {
 
 // ActionableTrigger defines a pattern that activates an actionable.
 type ActionableTrigger struct {
-	Pattern   string `json:"pattern"`
+	Name string `json:"name"`
+	// Pattern is a JS regex to match against
+	Pattern string `json:"pattern"`
+	// Reference, if populated, names a pre-built regex to be used instead of Pattern
+	Reference string `json:"reference"`
 	Hyperlink bool   `json:"hyperlink"`
 }
 
@@ -58,6 +62,7 @@ type ActionableTimeOption struct {
 	Placeholder string `json:"placeholder,omitempty"`
 }
 
+// ActionableCommand defines an activity performed when an action is activated.
 type ActionableCommand struct {
 	Type      ActionableCommandType     `json:"type"`
 	Reference string                    `json:"reference"`
@@ -65,7 +70,7 @@ type ActionableCommand struct {
 }
 
 type ActionableCommandOptions struct {
-	// For template or dashboard commands
+	// For template or dashboard commands, the variable to fill in.
 	Variable string `json:"variable,omitempty"`
 
 	// For URL commands
