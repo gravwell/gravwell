@@ -60,3 +60,38 @@ func TestTimestamp_StandardTime(t *testing.T) {
 		})
 	}
 }
+
+func TestFromStandard(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for receiver constructor.
+		tm   time.Time
+		want entry.Timestamp
+	}{
+		{"zero", time.Time{}, entry.Timestamp{}},
+		{"unix", time.Unix(0, 0), entry.UnixTime(0, 0)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := entry.FromStandard(tt.tm)
+			if got != tt.want {
+				t.Errorf("StandardTime() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("duration equity across multiple calls", func(t *testing.T) {
+		tmBD := time.Date(1997, 10, 05, 10, 04, 02, 00, time.UTC)
+		tsBD := entry.FromStandard(tmBD)
+
+		tmNow := time.Now().Round(time.Nanosecond)
+		tsNow := entry.FromStandard(tmNow)
+
+		tmSince := tmBD.Sub(tmNow)
+		tsSince := tsBD.Sub(tsNow)
+		if tmSince != tsSince {
+			t.Errorf("since mismatch! tm: %v | ts: %v", tmSince, tsSince)
+		}
+	})
+
+}
