@@ -276,6 +276,51 @@ func TestMSLProvider(t *testing.T) {
 			if inv := f.Provider.Satisfied(); inv != "" {
 				t.Errorf("provider is not satisfied despite 2 items being selected. Reason: %s", inv)
 			}
+			// ensure view agrees we are in takeover mode
+			kind, _, _ := f.Provider.View(false, 80)
+			if kind != scaffoldcreate.Takeover {
+				t.Error("view did not believe it was in takeover mode")
+			}
+		})
+		t.Run("invoke to exit; ensure we can reenter", func(t *testing.T) {
+			// exit the list
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Invoke}); takeover {
+				t.Fatal("invoke hotkey did not trigger an exit")
+			}
+			// ensure view agrees we have left takeover mode
+			if kind, _, _ := f.Provider.View(false, 80); kind == scaffoldcreate.Takeover {
+				t.Error("view believes it is still in takeover mode")
+			}
+			// reenter the list
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+				t.Fatal("failed to reenter takeover mode")
+			}
+			// ensure view agrees we are in takeover mode
+			if kind, _, _ := f.Provider.View(false, 80); kind != scaffoldcreate.Takeover {
+				t.Error("view did not believe it was in takeover mode")
+			}
+			// move around a bit
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorUp}); !takeover {
+				t.Fatal("incorrect time to leave takeover mode")
+			}
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorUp}); !takeover {
+				t.Fatal("incorrect time to leave takeover mode")
+			}
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorDown}); !takeover {
+				t.Fatal("incorrect time to leave takeover mode")
+			}
+			// ensure view agrees we are in takeover mode
+			if kind, _, _ := f.Provider.View(false, 80); kind != scaffoldcreate.Takeover {
+				t.Error("view did not believe it was in takeover mode")
+			}
+			// exit the list
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Invoke}); takeover {
+				t.Fatal("invoke hotkey did not trigger an exit")
+			}
+			// ensure view agrees we have left takeover mode
+			if kind, _, _ := f.Provider.View(false, 80); kind == scaffoldcreate.Takeover {
+				t.Error("view believes it is still in takeover mode")
+			}
 		})
 	})
 
