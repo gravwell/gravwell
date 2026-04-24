@@ -281,6 +281,9 @@ func TestMSLProvider(t *testing.T) {
 			if kind != scaffoldcreate.Takeover {
 				t.Error("view did not believe it was in takeover mode")
 			}
+			if x := f.Provider.Get(); x != "ttl1,ttl2" {
+				t.Error("incorrect selected items.", testsupport.ExpectedActual("ttl1,ttl2", x))
+			}
 		})
 		t.Run("invoke to exit; ensure we can reenter", func(t *testing.T) {
 			// exit the list
