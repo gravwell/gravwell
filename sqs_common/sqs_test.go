@@ -221,3 +221,9 @@ func TestSQS_Queue(t *testing.T) {
 	s := &SQS{conf: &Config{Queue: "foo"}}
 	assert.Equal(t, "foo", s.Queue())
 }
+
+func TestSQS_Endpoint(t *testing.T) {
+	t.Parallel()
+	s := &SQS{conf: &Config{Endpoint: "http://localhost:9324"}}
+	assert.Equal(t, "http://localhost:9324", s.Endpoint())
+}

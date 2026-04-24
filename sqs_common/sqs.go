@@ -162,6 +162,12 @@ func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
 	return c, nil
 }
 
+// Queue returns the SQS queue its configured to use.
 func (s *SQS) Queue() string {
 	return s.conf.Queue
+}
+
+// Endpoint returns the custom endpoint its configured to use (empty if not specified).
+func (s *SQS) Endpoint() string {
+	return s.conf.Endpoint
 }
