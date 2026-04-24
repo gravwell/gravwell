@@ -174,6 +174,9 @@ func TestModel(t *testing.T) {
 		if v := msl.View(); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
+		if numSel := len(msl.GetSelectedItems()); numSel != 1 {
+			t.Error("incorrect number of items selected.", testsupport.ExpectedActual(1, numSel))
+		}
 	})
 	t.Run("done", func(t *testing.T) {
 		msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyEnter})
