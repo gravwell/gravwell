@@ -289,7 +289,7 @@ func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, takeover 
 	if p.takeover {
 		p.msl, cmd = p.msl.Update(msg)
 		// if we are done, exit takeover mode and undone (so a user can access this field again)
-		takeover = p.msl.Done()
+		takeover = !p.msl.Done()
 		p.msl.Undone()
 		return cmd, takeover
 	}
