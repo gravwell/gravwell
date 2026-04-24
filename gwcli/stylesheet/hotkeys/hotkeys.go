@@ -105,8 +105,18 @@ func (m Model) View() string {
 
 // DefaultView displays the help view of the standard hotkeys.
 // Intended for use in actions that don't need to modify the hotkey map (such as disabling keys or changing help text).
-func DefaultView() string {
-	return defaultHotkeys.View()
+//
+// If width > 0, the given width will be factored into this view (and only this view).
+func DefaultView(width int) string {
+	var t int
+	if width > 0 {
+		t = defaultHotkeys.help.Width
+		defaultHotkeys.help.Width = width
+		defer func() { defaultHotkeys.help.Width = t }()
+	}
+	v := defaultHotkeys.View()
+
+	return v
 }
 
 // ApplyToList greedily applies hotkey bindings to the given keymap.

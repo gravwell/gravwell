@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -100,18 +101,15 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, tea.Quit
 	}
 
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.Type {
-		case tea.KeyTab, tea.KeyShiftTab, tea.KeyUp, tea.KeyDown: // swap
+	switch {
+	case hotkeys.IsCursorUp(msg), hotkeys.IsCursorDown(msg): // swap
+		return c.swap(), textinput.Blink
+	case hotkeys.IsInvoke(msg): // submit or swap
+		if c.userSelected {
 			return c.swap(), textinput.Blink
-		case tea.KeyEnter: // submit or swap
-			if c.userSelected {
-				return c.swap(), textinput.Blink
-			}
-			c.done = true
-			return c, tea.Quit
 		}
-
+		c.done = true
+		return c, tea.Quit
 	}
 	var (
 		usercmd tea.Cmd
@@ -124,9 +122,11 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c credModel) View() string {
-	return fmt.Sprintf("%v%v\n%v%v\n\n",
+	return fmt.Sprintf("%v%v\n%v%v\n\n%v",
 		stylesheet.Cur.Prompt("username", false), c.UserTI.View(),
-		stylesheet.Cur.Prompt("password", false), c.PassTI.View())
+		stylesheet.Cur.Prompt("password", false), c.PassTI.View(),
+		hotkeys.DefaultView(0),
+	)
 }
 
 // select the next TI
