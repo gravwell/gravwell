@@ -228,9 +228,17 @@ func TestMSLProvider(t *testing.T) {
 	if invalid := f.Provider.Satisfied(); invalid == "" {
 		t.Fatal("Provider should be unsatisfied due to only having a single item selected")
 	}
-	// an update that *would* invoke takeover mode should be ignored if not selected
-	f.Provider.Update(false, tea.KeyMsg{Type: hotkeys.Select})
-	a, b, c := f.Provider.View(false, 80) // TODO
+	t.Run("do not enter takeover mode if unselected", func(t *testing.T) {
+		// an update that *would* invoke takeover mode should be ignored if not selected
+		_, takeover := f.Provider.Update(false, tea.KeyMsg{Type: hotkeys.Select})
+		if takeover {
+			t.Error("takeover mode entered while not selected")
+		}
+		kind, _, _ := f.Provider.View(false, 80)
+		if kind == scaffoldcreate.Takeover {
+			t.Error("view believed it was in takeover mode")
+		}
+	})
 
 }
 

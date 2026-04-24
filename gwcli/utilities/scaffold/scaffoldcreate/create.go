@@ -304,17 +304,20 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	if c.mode == quitting {
 		return nil
 	} else if c.inputs.takeover != "" {
-		return c.fields[c.inputs.takeover].Provider.Update(true, msg) // takeover mode implies selected
+		cmd, takeover := c.fields[c.inputs.takeover].Provider.Update(true, msg) // takeover mode implies selected
+		if !takeover {
+			c.inputs.takeover = ""
+		}
+		return cmd
+
 	}
 	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		c.width = sizeMsg.Width
 		// forward this message to each field
 		var cmds []tea.Cmd
 		for i, key := range c.inputs.ordered {
-			cmd := c.fields[key].Provider.Update(i == int(c.inputs.selected), msg)
-			if cmd != nil {
+			if cmd, _ := c.fields[key].Provider.Update(i == int(c.inputs.selected), msg); cmd != nil {
 				cmds = append(cmds, cmd)
-
 			}
 		}
 		if len(cmds) > 0 {
@@ -352,7 +355,10 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	// pass the message to the currently selected input
 
 	p := c.selectedField().Provider
-	cmd := p.Update(true, msg)
+	cmd, takeover := p.Update(true, msg)
+	if takeover {
+		c.inputs.takeover = c.inputs.ordered[c.inputs.selected]
+	}
 	c.checkSatisfaction(false)
 	return cmd
 }

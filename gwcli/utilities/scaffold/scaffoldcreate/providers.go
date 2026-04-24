@@ -45,7 +45,7 @@ type FieldProvider interface {
 	// This bool takes effect immediately and will be reflected in the following view.
 	// In takeover mode, all updates will be passed directly to this Provider.
 	// scaffoldcreate will reassert control as soon as takeover returns false or the user provides a soft kill key (soft kill keys NYI).
-	Update(selected bool, msg tea.Msg) tea.Cmd // TODO
+	Update(selected bool, msg tea.Msg) (_ tea.Cmd, takeover bool)
 	// View for the Provider.
 	// Kind tells scaffoldcreate how to display this view and if it should continue to process the Views of other fields.
 	//
@@ -106,9 +106,9 @@ func (p *TextProvider) SetArgs(_, _ int) {
 	}
 }
 
-func (p *TextProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
+func (p *TextProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
 	p.ti, cmd = p.ti.Update(msg)
-	return
+	return cmd, false
 }
 
 func (p *TextProvider) View(_ bool, _ int) (_ ViewKind, value, _ string) {
@@ -166,9 +166,9 @@ func (p *PathProvider) Reset() {
 
 func (p *PathProvider) SetArgs(_, _ int) {}
 
-func (p *PathProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd) {
+func (p *PathProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
 	p.pti, cmd = p.pti.Update(msg)
-	return
+	return cmd, false
 }
 
 // the number of lines available for use when showing path suggestions.
@@ -284,20 +284,23 @@ func (p *MSLProvider) SetArgs(width, height int) {
 	p.msl.SetHeight(height)
 }
 
-func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd) {
+func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
 	// if we are already in takeover mode, just hand off control
 	if p.takeover {
 		p.msl, cmd = p.msl.Update(msg)
-		return cmd
+		// if we are done, exit takeover mode and undone (so a user can access this field again)
+		takeover = p.msl.Done()
+		p.msl.Undone()
+		return cmd, takeover
 	}
 
 	// check for takeover mode invocation
 	if selected && hotkeys.IsSelect(msg) {
 		p.takeover = true
-		return nil
+		return nil, true
 	}
 
-	return nil
+	return nil, false
 }
 
 func (p *MSLProvider) View(selected bool, _ int) (_ ViewKind, value, secondLine string) {
