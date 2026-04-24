@@ -16,10 +16,12 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
@@ -33,7 +35,7 @@ type Config struct {
 type SQS struct {
 	conf *Config
 	sess *session.Session
-	svc  *sqs.SQS
+	svc  sqsiface.SQSAPI
 }
 
 // SQSListener creates a new SQS connection from a given Config object.
@@ -82,6 +84,11 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	for out == nil || len(out.Messages) == 0 {
 		out, err = s.svc.ReceiveMessage(req)
 		if err != nil {
+			var aerr awserr.Error
+			if errors.As(err, &aerr) && aerr.Code() == sqs.ErrCodeQueueDoesNotExist {
+				// Wrap the queue name inside the error so we don't have to remember to log it.
+				return nil, fmt.Errorf("queue '%s': %w", s.Queue(), err)
+			}
 			return nil, err
 		}
 		if len(out.Messages) == 0 {
@@ -112,6 +119,13 @@ func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 			lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
 		}
 	}
+
+	var aerr awserr.Error
+	if errors.As(err, &aerr) && aerr.Code() == sqs.ErrCodeQueueDoesNotExist {
+		// Wrap the queue name inside the error so we don't have to remember to log it.
+		err = fmt.Errorf("queue '%s': %w", s.Queue(), err)
+	}
+
 	return err
 }
 
@@ -146,4 +160,8 @@ func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
 	}
 
 	return c, nil
+}
+
+func (s *SQS) Queue() string {
+	return s.conf.Queue
 }
