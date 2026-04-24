@@ -59,23 +59,27 @@ func New(items []list.DefaultItem, width, height int, opts Options) Model {
 		opts.Preselected = make(map[uint]bool)
 	}
 
-	// wrap each item in our select-enabled item type
-	wrapped := make([]list.Item, len(items))
-	for i, item := range items {
-		f := DefaultSelectedViewFunc
-		if opts.SelectedViewFunc != nil {
-			f = opts.SelectedViewFunc
-		}
-
-		wrapped[i] = selectableItem{
-			item, opts.Preselected[uint(i)], f}
+	svf := DefaultSelectedViewFunc
+	if opts.SelectedViewFunc != nil {
+		svf = opts.SelectedViewFunc
 	}
+
 	msl := Model{
-		Model:            list.New(wrapped, list.NewDefaultDelegate(), width, height),
-		selectedViewFunc: DefaultSelectedViewFunc,
+		Model:            list.New(wrapItems(items, svf, opts.Preselected), list.NewDefaultDelegate(), width, height),
+		selectedViewFunc: svf,
 	}
 
 	return msl
+}
+
+func wrapItems(bareItems []list.DefaultItem, svf func(set bool) string, preselected map[uint]bool) []list.Item {
+	// wrap each item in our select-enabled item type
+	wrapped := make([]list.Item, len(bareItems))
+	for i, item := range bareItems {
+		wrapped[i] = selectableItem{
+			item, preselected[uint(i)], svf}
+	}
+	return wrapped
 }
 
 func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
@@ -193,6 +197,11 @@ func (msl *Model) SelectItems(toSelect []string) (cmd tea.Cmd, notFound string) 
 		}
 	}
 	return tea.Batch(cmds...), ""
+}
+
+func (msl *Model) SetItems(items []list.DefaultItem, preselect map[uint]bool) tea.Cmd {
+	wrapped := wrapItems(items, msl.selectedViewFunc, preselect)
+	return msl.Model.SetItems(wrapped)
 }
 
 //#region selectable item
