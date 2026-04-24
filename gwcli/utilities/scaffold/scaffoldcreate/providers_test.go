@@ -212,7 +212,10 @@ func TestMSLProvider(t *testing.T) {
 	var f scaffoldcreate.Field
 	{
 		baseProvider := scaffoldcreate.NewMSLProvider(items,
-			multiselectlist.Options{Preselected: map[uint]bool{2: true}})
+			scaffoldcreate.MSLOptions{
+				ListOptions: multiselectlist.Options{Preselected: map[uint]bool{2: true}},
+			},
+		)
 		baseProvider.RequireAtLeast = 2
 		f = scaffoldcreate.NewField("msl", true, baseProvider)
 	}
@@ -326,6 +329,34 @@ func TestMSLProvider(t *testing.T) {
 			}
 		})
 	})
+}
+
+// tests thats MSLs operate as normal when no list is given at create time.
+// A common scenario: list is composed of options that are queried from the server and thus not available until SetArgs.
+func TestMSLProviderLateBinding(t *testing.T) {
+	t.Parallel()
+	var f scaffoldcreate.Field
+	items := []list.DefaultItem{ // starting list of items
+		testItem{title: "ttl1", description: "desc1"},
+	}
+	{
+		baseProvider := scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
+			SetArgsInsertItems: func(currentItems []list.DefaultItem) (_ []list.DefaultItem, preselected map[uint]bool) {
+				return items, nil
+			},
+		})
+		baseProvider.RequireAtMost = 2
+		f = scaffoldcreate.NewField("msl", true, baseProvider)
+	}
+
+	f.Provider.Initialize("", false)
+	if selected := f.Provider.Get(); selected != "" { // just making sure this doesn't panic
+		t.Errorf("selected contains data: %v", selected)
+	}
+	f.Provider.SetArgs(80, 60)
+	if invalid := f.Provider.Set("ttl1"); invalid != "" {
+		t.Error("failed to mark ttl1 as selected: ", invalid)
+	}
 
 }
 

@@ -255,7 +255,7 @@ type MSLProvider struct {
 	takeover bool
 
 	Items   []list.DefaultItem
-	Options multiselectlist.Options
+	Options MSLOptions
 	// Requires at least X items to be selected before this Provider is considered satisfied.
 	RequireAtLeast uint
 	// Requires no more than X items to be selected before this Provider is considered satisfied.
@@ -263,27 +263,42 @@ type MSLProvider struct {
 	RequireAtMost uint
 }
 
+type MSLOptions struct {
+	ListOptions multiselectlist.Options
+
+	// Called during SetArgs, this function allows you to alter the list of items displayed by this MSL.
+	// Called after height and width are set but before flags are parsed into the field.
+	//
+	// Returning nil will cause no items to be displayed.
+	SetArgsInsertItems func(currentItems []list.DefaultItem) (_ []list.DefaultItem, preselected map[uint]bool)
+}
+
 // NewMSLProvider constructs a new multiselect list with the given items and options.
 //
 // ! MSLProviders ignore default value.
-func NewMSLProvider(items []list.DefaultItem, opts multiselectlist.Options) *MSLProvider {
+func NewMSLProvider(items []list.DefaultItem, opts MSLOptions) *MSLProvider {
 	return &MSLProvider{Items: items, Options: opts}
 }
 
 func (p *MSLProvider) Initialize(_ string, _ bool) {
-	p.msl = multiselectlist.New(p.Items, 80, 60, p.Options)
+	p.msl = multiselectlist.New(p.Items, 80, 60, p.Options.ListOptions)
 	hotkeys.ApplyToList(&p.msl.KeyMap)
 	p.numSelected = len(p.msl.GetSelectedItems())
 }
 
 func (p *MSLProvider) Reset() {
-	p.msl = multiselectlist.New(p.Items, p.msl.Width(), p.msl.Height(), p.Options)
+	p.msl = multiselectlist.New(p.Items, p.msl.Width(), p.msl.Height(), p.Options.ListOptions)
 	p.msl.Undone()
 }
 
 func (p *MSLProvider) SetArgs(width, height int) {
 	p.msl.SetWidth(width)
 	p.msl.SetHeight(height)
+	if p.Options.SetArgsInsertItems != nil {
+		var preselected map[uint]bool
+		p.Items, preselected = p.Options.SetArgsInsertItems(p.Items)
+		_ = p.msl.SetItems(p.Items, preselected)
+	}
 }
 
 func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, tko bool) {
@@ -340,7 +355,9 @@ func (p *MSLProvider) Satisfied() (invalid string) {
 	return ""
 }
 
-// Set expects values to be passed as comma-separated values
+// Set selects items with matching titles. Expects values to be passed as comma-separated values.
+//
+// Ex: val1,val2,val3
 func (p *MSLProvider) Set(val string) (invalid string) {
 	val = strings.TrimSpace(val)
 	if val == "" {
