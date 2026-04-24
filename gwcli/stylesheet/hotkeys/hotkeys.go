@@ -28,12 +28,12 @@ var (
 
 // IsSelect returns whether or not the given tea.Msg is a select/minor-invoke keystroke.
 func IsSelect(msg tea.Msg) bool {
-	return match(msg, invokeBindings)
+	return match(msg, selectBindings)
 }
 
 // IsInvoke returns whether or not the given tea.Msg is an invocation/submission keystroke.
 func IsInvoke(msg tea.Msg) bool {
-	return match(msg, selectBindings)
+	return match(msg, invokeBindings)
 }
 
 // IsCursorUp returns whether or not the given tea.Msg indicates moving the cursor up.
