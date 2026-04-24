@@ -286,7 +286,7 @@ func (p *MSLProvider) SetArgs(width, height int) {
 	p.msl.SetHeight(height)
 }
 
-func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
+func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, tko bool) {
 	defer func() {
 		p.numSelected = len(p.msl.GetSelectedItems())
 	}()
@@ -294,9 +294,9 @@ func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, takeover 
 	if p.takeover {
 		p.msl, cmd = p.msl.Update(msg)
 		// if we are done, exit takeover mode and undone (so a user can access this field again)
-		takeover = !p.msl.Done()
+		p.takeover = !p.msl.Done()
 		p.msl.Undone()
-		return cmd, takeover
+		return cmd, p.takeover
 	}
 
 	// check for takeover mode invocation
