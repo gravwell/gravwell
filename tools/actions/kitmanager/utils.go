@@ -18,7 +18,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/objlog"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -296,51 +295,6 @@ func usage() {
 	fmt.Printf("  %s\tPath to kitctl binary (-kitctl)\n", envKitCtl)
 }
 
-func containsLabel(labels []string, target string) bool {
-	for _, l := range labels {
-		if l == target {
-			return true
-		}
-	}
-	return false
-}
-
-func containsUUID(set []uuid.UUID, target uuid.UUID) bool {
-	for _, u := range set {
-		if u == target {
-			return true
-		}
-	}
-	return false
-}
-
-func containsUint64(set []uint64, target uint64) bool {
-	for _, u := range set {
-		if u == target {
-			return true
-		}
-	}
-	return false
-}
-
-func containsString(set []string, target string) bool {
-	for _, s := range set {
-		if s == target {
-			return true
-		}
-	}
-	return false
-}
-
-func containsInt32(set []int32, target int32) bool {
-	for _, s := range set {
-		if s == target {
-			return true
-		}
-	}
-	return false
-}
-
 func targetLabel(kitID string) string {
 	return fmt.Sprintf("kit/%s", kitID)
 }
@@ -381,11 +335,12 @@ func getGroupsFromList(cli *client.Client, kitGroups string) (groups []int32, er
 		return
 	}
 	// go grab the group list from the remote server
-	var remoteGroups []types.GroupDetails
-	if remoteGroups, err = cli.GetGroups(); err != nil {
+	var remoteGroupsResp types.GroupListResponse
+	if remoteGroupsResp, err = cli.ListGroups(nil); err != nil {
 		err = fmt.Errorf("error getting remote group list: %w", err)
 		return
 	}
+	remoteGroups := remoteGroupsResp.Results
 
 	// swing through our set of groups and lookup the gid for each group
 	for _, gname := range strs {
@@ -407,10 +362,10 @@ func parseCSV(v string) (groups []string, err error) {
 	return
 }
 
-func getGidFromGroups(groups []types.GroupDetails, name string) (gid int32, err error) {
+func getGidFromGroups(groups []types.Group, name string) (gid int32, err error) {
 	for _, g := range groups {
 		if g.Name == name {
-			gid = g.GID
+			gid = g.ID
 			return
 		}
 	}

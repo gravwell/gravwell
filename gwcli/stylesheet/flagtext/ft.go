@@ -23,8 +23,11 @@ package ft
 import (
 	"fmt"
 	"go/types"
+	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -46,10 +49,11 @@ var _ flag = stringSliceRegister{}
 
 // a simple is the basic/standard implementation of the flag interface
 type simple struct {
-	name      string
-	shorthand rune
-	usage     string
-	typ       types.BasicKind
+	name         string
+	shorthand    rune
+	usage        string
+	defaultValue string // cast to the appropriate type if supplied
+	typ          types.BasicKind
 }
 
 // Name returns the name of the flag, with no dashes (--<name>).
@@ -84,9 +88,13 @@ func (s simple) Register(fs *pflag.FlagSet) {
 	// Therefore, this will do well enough for a helper function of this low priority.
 	switch s.typ {
 	case types.Bool:
-		fs.BoolP(s.name, s.Shorthand(), false, s.usage)
+		var defaultValue bool
+		if s.defaultValue != "" {
+			defaultValue, _ = strconv.ParseBool(s.defaultValue)
+		}
+		fs.BoolP(s.name, s.Shorthand(), defaultValue, s.usage)
 	case types.String:
-		fs.StringP(s.name, s.Shorthand(), "", s.usage)
+		fs.StringP(s.name, s.Shorthand(), s.defaultValue, s.usage)
 	default:
 		panic(fmt.Sprintf("unhandled type: %v", s.typ))
 	}
@@ -158,103 +166,132 @@ func (s singular) Register(fs *pflag.FlagSet, singular string) {
 	fs.StringP(s.Name(), s.Shorthand(), "", s.Usage(singular))
 }
 
-// NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
-var NoInteractive = simple{
-	name:      "no-interactive",
-	shorthand: 'x',
-	usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
-		"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode",
-	typ: types.Bool,
-}
+var (
+	LogPath = simple{
+		name:         "log",
+		shorthand:    'l',
+		usage:        "log location for developer logs",
+		defaultValue: cfgdir.DefaultStdLogPath,
+		typ:          types.String,
+	}
+	LogLevel = simple{
+		name: "loglevel",
+		usage: "log level for developer logs (-l).\n" +
+			"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n" +
+			"NOTE: DEBUG mode will enable additional validation checks and may have a minor performance impact.",
+		defaultValue: "INFO",
+		typ:          types.String,
+	}
+	// NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
+	NoInteractive = simple{
+		name:      "no-interactive",
+		shorthand: 'x',
+		usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
+			"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode",
+		typ: types.Bool,
+	}
+	// Dryrun (--dryrun) is a local flag implemented by actions (typically deletes) to describe actions that would have been taken had --dryrun not been set.
+	Dryrun = simple{
+		name:  "dryrun",
+		usage: "feigns the request action, instead displaying the effects that would have occurred",
+		typ:   types.Bool,
+	}
+	// NoColor is a global flag that disables color and stylization across the board.
+	// It is primarily handled by Mother, in ppre().
+	NoColor = simple{
+		name:  "no-color",
+		usage: "disables colourized output",
+		typ:   types.Bool,
+	}
 
-// Dryrun (--dryrun) is a local flag implemented by actions (typically deletes) to describe actions that would have been taken had --dryrun not been set.
-var Dryrun = simple{
-	name:  "dryrun",
-	usage: "feigns the request action, instead displaying the effects that would have occurred",
-	typ:   types.Bool,
-}
+	//#region authentication
+	API = simple{
+		name:  "api",
+		usage: "the path to a file containing an API key to authenticate with",
+		typ:   types.String,
+	}
+	EAPI = simple{
+		name:  "eapi",
+		usage: "read the API key from environment variable \"" + cfgdir.EnvKeyAPI + "\".",
+		typ:   types.Bool,
+	}
 
-// NoColor is a global flag that disables color and stylization across the board.
-// It is primarily handled by Mother, in ppre().
-var NoColor = simple{
-	name:  "no-color",
-	usage: "disables colourized output",
-	typ:   types.Bool,
-}
+	//#endregion
 
-//#region output manipulation
+	//#region output manipulation
 
-// Output (-o) is a local flag implemented by actions to redirect their results to a file.
-// Should be paired with --append; often also paired with --json and --csv.
-var Output = simple{
-	name:      "output",
-	shorthand: 'o',
-	usage: "file to write results to.\n" +
-		"Truncates file unless --" + Append.name + " is also given",
-	typ: types.String,
-}
+	// Output (-o) is a local flag implemented by actions to redirect their results to a file.
+	// Should be paired with --append; often also paired with --json and --csv.
+	Output = simple{
+		name:      "output",
+		shorthand: 'o',
+		usage: "file to write results to.\n" +
+			"Truncates file unless --" + Append.name + " is also given",
+		typ: types.String,
+	}
 
-// Append (--append) is a local flag implemented with --output to indicated that the target file should be appended to instead of truncated.
-var Append = simple{
-	name:  "append",
-	usage: "append to the given output file instead of truncating it",
-	typ:   types.Bool,
-}
+	// Append (--append) is a local flag implemented with --output to indicated that the target file should be appended to instead of truncated.
+	Append = simple{
+		name:  "append",
+		usage: "append to the given output file instead of truncating it",
+		typ:   types.Bool,
+	}
 
-// CSV (--csv) is a local flag implemented --output to indicated that results should be in csv format.
-var CSV = simple{
-	name: "csv",
-	usage: "display results as CSV.\n" +
-		"Mutually exclusive with --json, --table",
-	typ: types.Bool,
-}
+	// CSV (--csv) is a local flag implemented --output to indicated that results should be in csv format.
+	CSV = simple{
+		name: "csv",
+		usage: "display results as CSV.\n" +
+			"Mutually exclusive with --json, --table",
+		typ: types.Bool,
+	}
 
-// JSON (--json) is a local flag implemented --output to indicated that results should be in json format.
-var JSON = simple{
-	name: "json",
-	usage: "display results as JSON.\n" +
-		"Mutually exclusive with --csv, --table",
-	typ: types.Bool,
-}
+	// JSON (--json) is a local flag implemented --output to indicated that results should be in json format.
+	JSON = simple{
+		name: "json",
+		usage: "display results as JSON.\n" +
+			"Mutually exclusive with --csv, --table",
+		typ: types.Bool,
+	}
 
-// Table (--table) is a local flag implemented --output to indicated that results should be outputted as a fancy table.
-var Table = simple{
-	name: "table",
-	usage: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
-		"Default if no format flags are given",
-	typ: types.Bool,
-}
+	// Table (--table) is a local flag implemented --output to indicated that results should be outputted as a fancy table.
+	Table = simple{
+		name: "table",
+		usage: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
+			"Default if no format flags are given",
+		typ: types.Bool,
+	}
 
-//#endregion output manipulation
+	// #endregion output manipulation
 
-//#region scaffoldlist/columns
+	//#region scaffoldlist/columns
 
-// ShowColumns (--show-columns) is a local flag used by scaffold list to display all known columns.
-// Unlikely to be used outside of actions that implement scaffold list.
-var ShowColumns = simple{
-	name:  "show-columns",
-	usage: "display the list of fully qualified column names and exit",
-	typ:   types.Bool,
-}
+	// ShowColumns (--show-columns) is a local flag used by scaffold list to display all known columns.
+	// Unlikely to be used outside of actions that implement scaffold list.
+	ShowColumns = simple{
+		name:  "show-columns",
+		usage: "display the list of fully qualified column names and exit",
+		typ:   types.Bool,
+	}
 
-// SelectColumns (--columns) is a local flag used by scaffold list to select which columns to display, overriding the default.
-// Unlikely to be used outside of actions that implement scaffold list.
-var SelectColumns = stringSliceRegister{
-	name: "columns",
-	usage: "comma-separated list of columns to include in the results\n." +
-		"Use --" + ShowColumns.name + " to see the full list of columns",
-}
+	// SelectColumns (--columns) is a local flag used by scaffold list to select which columns to display, overriding the default.
+	// Unlikely to be used outside of actions that implement scaffold list.
+	SelectColumns = stringSliceRegister{
+		name: "columns",
+		usage: "comma-separated list of columns to include in the results\n." +
+			"Use --" + ShowColumns.name + " to see the full list of columns",
+	}
 
-// AllColumns (--all-columns) is a local flag used by scaffold list to force the action to display data from all available columns.
-// Unlikely to be used outside of actions that implement scaffold list.
-var AllColumns = simple{
-	name: "all-columns",
-	usage: "displays data from all columns, ignoring the default column set.\n" +
-		"Overrides --" + SelectColumns.name,
-	typ: types.Bool,
-}
+	// AllColumns (--all-columns) is a local flag used by scaffold list to force the action to display data from all available columns.
+	// Unlikely to be used outside of actions that implement scaffold list.
+	AllColumns = simple{
+		name: "all-columns",
+		usage: "displays data from all columns, ignoring the default column set.\n" +
+			"Overrides --" + SelectColumns.name,
+		typ: types.Bool,
+	}
 
-//#endregion scaffoldlist/columns
+	// #endregion scaffoldlist/columns
+)
 
 // need custom handling for GetAll.
 // Does not fit the flag interface, but it has similar enough usage so what's it matter?
@@ -302,7 +339,7 @@ func (gaf getAllFlag) Register(fs *pflag.FlagSet, requiresAdmin bool, plural str
 // Frequency is a local flag for defining a cron-style interval in which something occurs.
 var Frequency = simple{
 	name:      "frequency",
-	shorthand: 'f',
+	shorthand: 'c',
 	usage:     "cron-style scheduling for scheduled execution",
 }
 
@@ -318,6 +355,13 @@ var Name = singular{
 	name:        "name",
 	shorthand:   'n',
 	usagePrefix: "name of the",
+}
+
+// Path is a local flag to allow a user to specify a path to a thing (typically a file).
+var Path = singular{
+	name:        "path",
+	shorthand:   'f',
+	usagePrefix: "path to the",
 }
 
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
@@ -353,4 +397,17 @@ func Optional(text string) string {
 // MutuallyExclusive wraps and returns the given elements in curly braces to indicate that they are mutually exclusive with one another.
 func MutuallyExclusive(texts []string) string {
 	return "{" + strings.Join(texts, "|") + "}"
+}
+
+// flagCaveatStyle sets what extra notes on flag descriptions look like.
+var flagCaveatStyle = lipgloss.NewStyle().Italic(true)
+
+// InteractiveOnly returns a string to be prefixed to the description of flags that only have an effect in interactive mode.
+// These flags should simply be ignored in non-interactive mode.
+func InteractiveOnly() string {
+	return flagCaveatStyle.Render("Interactive only.")
+}
+
+func NonInteractiveOnly() string {
+	return flagCaveatStyle.Render("Non-Interactive only.")
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
@@ -72,13 +73,15 @@ func get() action.Pair {
 			// drop keys
 			return slices.Collect(maps.Values(ingesters)), nil
 		}, scaffoldlist.Options{
-			Use: use,
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.String(flagHostname, "", "prefix-match ingesters on hostname")
-				fs.String(flagUUID, "", "prefix-match ingesters on uuid")
-				fs.String(flagName, "", "prefix-match ingesters on name")
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				Use: use,
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.String(flagHostname, "", "prefix-match ingesters on hostname")
+					fs.String(flagUUID, "", "prefix-match ingesters on uuid")
+					fs.String(flagName, "", "prefix-match ingesters on name")
+					return fs
+				},
 			},
 			DefaultColumns: []string{"Indexer", "RemoteAddress", "Size", "Uptime", "Tags", "Name", "Version", "UUID", "Label", "IP", "Hostname", "Entries", "StateSize", "CacheState", "CacheSize", "Children"},
 			CmdMods: func(c *cobra.Command) {

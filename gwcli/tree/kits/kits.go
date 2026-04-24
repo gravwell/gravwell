@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -47,21 +48,27 @@ func newKitsListAction() action.Pair {
 		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
 			// if --all, use the admin version
 			if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-				uniques.ErrGetFlag("kist list", err)
+				uniques.ErrGetFlag("kits list", err)
 			} else if all {
 				return connection.Client.AdminListKits()
 			}
 
 			return connection.Client.ListKits()
 		},
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UUID", "KitState.Name", "KitState.Description", "KitState.Version"}})
+		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			DefaultColumns: []string{
+				"UUID",
+				"KitState.Name",
+				"KitState.Description",
+				"KitState.Version",
+			}})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "kist")
+	ft.GetAll.Register(&addtlFlags, true, "kits")
 
-	return addtlFlags
+	return &addtlFlags
 }
 
 //#endregion list

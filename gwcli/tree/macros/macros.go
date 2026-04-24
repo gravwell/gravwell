@@ -10,10 +10,14 @@
 package macros
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -23,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -39,77 +44,94 @@ const (
 
 // NewMacrosNav returns a nav with children relating to macro handling.
 func NewMacrosNav() *cobra.Command {
-	const (
-		use   = "macros"
-		short = "manage search macros"
-		long  = "Macros are search keywords that expand to set phrases on use within a query."
-	)
 	var aliases = []string{"macro", "m"}
-	return treeutils.GenerateNav(use, short, long, aliases, []*cobra.Command{},
-		[]action.Pair{newMacroListAction(),
-			newMacroCreateAction(),
-			newMacroDeleteAction(),
-			newMacroEditAction()})
+	return treeutils.GenerateNav("macros", "manage search macros", "Macros are search keywords that expand to set phrases on use within a query.", aliases, []*cobra.Command{},
+		[]action.Pair{
+			list(),
+			create(),
+			delete(),
+			edit(),
+		})
 }
 
 //#region list
 
-func newMacroListAction() action.Pair {
-	const (
-		listShort = "list your macros"
-		listLong  = "lists all macros associated to your user, a group," +
-			"or the system itself"
-	)
-	return scaffoldlist.NewListAction(listShort, listLong,
-		types.SearchMacro{}, listMacros,
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"ID", "Name", "Description", "Expansion"}})
+func list() action.Pair {
+	return scaffoldlist.NewListAction("list your macros", "lists all macros associated to your user, a group, or the system itself",
+		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
+			if all, err := fs.GetBool("all"); err != nil {
+				return nil, uniques.ErrGetFlag("macros list", err)
+			} else if all { // fetch all macros instead of just user macros
+				r, err := connection.Client.ListAllMacros(nil)
+				if err != nil {
+					return nil, err
+				}
+				return r.Results, nil
+			}
+			if gid, err := fs.GetInt32("group"); err != nil {
+				return nil, uniques.ErrGetFlag("macros list", err)
+			} else if gid != 0 { // fetch all macros our group ID can read
+				macros, err := connection.Client.ListAllMacros(nil)
+				if err != nil {
+					return nil, err
+				}
+				var macroResults []types.Macro
+				for _, m := range macros.Results {
+					if m.GroupCanRead(gid) {
+						macroResults = append(macroResults, m)
+					}
+				}
+				return macroResults, nil
+			}
+			r, err := connection.Client.ListMacros(nil)
+			if err != nil {
+				return nil, err
+			}
+			return r.Results, nil
+		},
+		scaffoldlist.Options{
+			CommonOptions:  scaffold.CommonOptions{AddtlFlags: flags},
+			DefaultColumns: []string{"Name", "Description", "Expansion"},
+		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "macros", "Supersedes --group")
 	addtlFlags.Int32("group", 0, "fetches all macros shared with the given group id")
-	return addtlFlags
+	return &addtlFlags
 }
 
-// lister subroutine for macros
-func listMacros(fs *pflag.FlagSet) ([]types.SearchMacro, error) {
-	if all, err := fs.GetBool("all"); err != nil {
-		uniques.ErrGetFlag("macros list", err)
-	} else if all {
-		return connection.Client.GetAllMacros()
+var macroNameRgx = regexp.MustCompile("^[a-zA-Z0-9_-]*$")
+
+// creates macros using 3 fields: name, description, and expansion.
+func create() action.Pair {
+
+	nameField := scaffoldcreate.FieldName("macro")
+	nameField.CustomTIFuncInit = func() textinput.Model {
+		ti := stylesheet.NewTI("", false)
+		ti.Prompt = "$"
+		ti.Validate = func(s string) error {
+			s = strings.ToUpper(s)
+			if !macroNameRgx.MatchString(s) {
+				return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
+			}
+
+			if len(s) > 0 {
+				char := []rune(s)[0]
+				if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
+					return errors.New("macro names must start with a letter or number")
+				}
+
+			}
+			return nil
+		}
+		return ti
 	}
-	if gid, err := fs.GetInt32("group"); err != nil {
-		uniques.ErrGetFlag("macros list", err)
-	} else if gid != 0 {
-		return connection.Client.GetGroupMacros(gid)
-	}
 
-	return connection.Client.GetUserMacros(connection.CurrentUser().UID)
-}
-
-//#region create
-
-func newMacroCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
-		"name": scaffoldcreate.Field{
-			Required:     true,
-			Title:        "name",
-			Usage:        ft.Name.Usage("macro"),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Name.Name(),
-			DefaultValue: "",
-			Order:        100,
-		},
-		"desc": scaffoldcreate.Field{
-			Required:     true,
-			Title:        "description",
-			Usage:        ft.Description.Usage("macro"),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Description.Name(),
-			DefaultValue: "",
-			Order:        90,
-		},
+		"name": nameField,
+		"desc": scaffoldcreate.FieldDescription("macro"),
 		"exp": scaffoldcreate.Field{
 			Required:     true,
 			Title:        "expansion",
@@ -121,43 +143,26 @@ func newMacroCreateAction() action.Pair {
 		},
 	}
 
-	return scaffoldcreate.NewCreateAction("macro", fields, create, nil)
+	return scaffoldcreate.NewCreateAction("macro", fields,
+		func(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
+			sm := types.Macro{}
+			// all three fields are required, no need to nil-check them
+			sm.Name = strings.ToUpper(fieldValues["name"])
+			sm.Description = fieldValues["desc"]
+			sm.Expansion = fieldValues["exp"]
+
+			macro, err := connection.Client.CreateMacro(sm)
+			return macro.ID, "", err
+
+		}, scaffoldcreate.Options{})
 }
 
-func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, _ *pflag.FlagSet) (any, string, error) {
-	sm := types.SearchMacro{}
-	// all three fields are required, no need to nil-check them
-	sm.Name = strings.ToUpper(vals["name"])
-	sm.Description = vals["desc"]
-	sm.Expansion = vals["exp"]
-
-	id, err := connection.Client.AddMacro(sm)
-	return id, "", err
-
-}
-
-//#endregion create
-
-//#region edit
-
-func newMacroEditAction() action.Pair {
+func edit() action.Pair {
 	const singular string = "macro"
 
 	cfg := scaffoldedit.Config{
-		"name": &scaffoldedit.Field{
-			Required: true,
-			Title:    "Name",
-			Usage:    ft.Name.Usage(singular),
-			FlagName: ft.Name.Name(),
-			Order:    100,
-		},
-		"description": &scaffoldedit.Field{
-			Required: false,
-			Title:    "Description",
-			Usage:    ft.Description.Usage(singular),
-			FlagName: ft.Description.Name(),
-			Order:    80,
-		},
+		"name":        scaffoldedit.FieldName("macro"),
+		"description": scaffoldedit.FieldDescription("macro"),
 		"expansion": &scaffoldedit.Field{
 			Required: true,
 			Title:    "Expansion",
@@ -167,14 +172,15 @@ func newMacroEditAction() action.Pair {
 		},
 	}
 
-	funcs := scaffoldedit.SubroutineSet[uint64, types.SearchMacro]{
-		SelectSub: func(id uint64) (item types.SearchMacro, err error) {
+	funcs := scaffoldedit.SubroutineSet[string, types.Macro]{
+		SelectSub: func(id string) (item types.Macro, err error) {
 			return connection.Client.GetMacro(id)
 		},
-		FetchSub: func() ([]types.SearchMacro, error) {
-			return connection.Client.GetUserMacros(connection.CurrentUser().UID)
+		FetchSub: func() ([]types.Macro, error) {
+			r, err := connection.Client.ListMacros(nil)
+			return r.Results, err
 		},
-		GetFieldSub: func(item types.SearchMacro, fieldKey string) (string, error) {
+		GetFieldSub: func(item types.Macro, fieldKey string) (string, error) {
 			switch fieldKey {
 			case "name":
 				return item.Name, nil
@@ -186,7 +192,7 @@ func newMacroEditAction() action.Pair {
 
 			return "", fmt.Errorf("unknown field key: %v", fieldKey)
 		},
-		SetFieldSub: func(item *types.SearchMacro, fieldKey, val string) (string, error) {
+		SetFieldSub: func(item *types.Macro, fieldKey, val string) (string, error) {
 			switch fieldKey {
 			case "name":
 				if strings.Contains(val, " ") {
@@ -203,11 +209,11 @@ func newMacroEditAction() action.Pair {
 			}
 			return "", nil
 		},
-		GetTitleSub: func(item types.SearchMacro) string {
+		GetTitleSub: func(item types.Macro) string {
 			return fmt.Sprintf("%s -> %v", item.Name, item.Expansion)
 		},
-		GetDescriptionSub: func(item types.SearchMacro) string { return item.Description },
-		UpdateSub: func(data *types.SearchMacro) (identifier string, err error) {
+		GetDescriptionSub: func(item types.Macro) string { return item.Description },
+		UpdateSub: func(data *types.Macro) (identifier string, err error) {
 			if err := connection.Client.UpdateMacro(*data); err != nil {
 				return "", err
 			}
@@ -218,22 +224,24 @@ func newMacroEditAction() action.Pair {
 	return scaffoldedit.NewEditAction(singular, "macros", cfg, funcs)
 }
 
-//#endregion edit
-
-//#region delete
-
-func newMacroDeleteAction() action.Pair {
-	return scaffolddelete.NewDeleteAction("macro", "macros", del,
-		func() ([]scaffolddelete.Item[uint64], error) {
-			ms, err := connection.Client.GetUserGroupsMacros()
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("macro", "macros", func(dryrun bool, id string) error {
+		if dryrun {
+			_, err := connection.Client.GetMacro(id)
+			return err
+		}
+		return connection.Client.DeleteMacro(id)
+	},
+		func() ([]scaffolddelete.Item[string], error) {
+			ms, err := connection.Client.ListMacros(nil)
 			if err != nil {
 				return nil, err
 			}
-			slices.SortFunc(ms, func(m1, m2 types.SearchMacro) int {
+			slices.SortFunc(ms.Results, func(m1, m2 types.Macro) int {
 				return strings.Compare(m1.Name, m2.Name)
 			})
-			var items = make([]scaffolddelete.Item[uint64], len(ms))
-			for i, m := range ms {
+			var items = make([]scaffolddelete.Item[string], len(ms.Results))
+			for i, m := range ms.Results {
 				items[i] = scaffolddelete.NewItem(
 					m.Name,
 					fmt.Sprintf("Expansion: '%v'\n%v",
@@ -243,13 +251,3 @@ func newMacroDeleteAction() action.Pair {
 			return items, nil
 		})
 }
-
-func del(dryrun bool, id uint64) error {
-	if dryrun {
-		_, err := connection.Client.GetMacro(id)
-		return err
-	}
-	return connection.Client.DeleteMacro(id)
-}
-
-//#endregion delete

@@ -117,20 +117,27 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 // This subroutine should ONLY be used by Mother when building the root command or by test suites that omit Mother.
 func AttachPersistentFlags(cmd *cobra.Command) {
 	ft.NoInteractive.Register(cmd.PersistentFlags())
-	cmd.PersistentFlags().StringP("username", "u", "", "login credential.")
-	cmd.PersistentFlags().String("password", "", "login credential.")
+	// login flags
+	cmd.PersistentFlags().StringP("username", "u", "", "login credential. Requires either -p or \""+cfgdir.EnvKeyPassword+"\"."+
+		" If your account has MFA enabled, you must use an API token (--api or --eapi) or login interactively.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
-	cmd.PersistentFlags().String("api", "", "log in via API key instead of credentials")
-
-	cmd.MarkFlagsMutuallyExclusive("password", "passfile", "api")
-	cmd.MarkFlagsMutuallyExclusive("api", "username")
+	cmd.MarkPersistentFlagFilename("passfile")
+	ft.API.Register(cmd.PersistentFlags())
+	ft.EAPI.Register(cmd.PersistentFlags())
+	cmd.MarkFlagsMutuallyExclusive("username", ft.API.Name(), ft.EAPI.Name())
 
 	ft.NoColor.Register(cmd.PersistentFlags())
 	cmd.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
-	cmd.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")
-	cmd.PersistentFlags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+
-		"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n")
 	cmd.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
 	cmd.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
 	cmd.PersistentFlags().MarkHidden("profile")
+
+	// NOTE: to enable clilog to come online immediately, these flags are never actually handled.
+	// Instead, clilog.InitializeFromArgs is used.
+	// These definitions are here to act as descriptor text for a user.
+	//
+	// This is distinction must be made because we cannot parse all flags early as we do not know the full list of acceptable flags until an action has been determined.
+	// However, we want the logger to come online early.
+	ft.LogPath.Register(cmd.PersistentFlags())
+	ft.LogLevel.Register(cmd.PersistentFlags())
 }

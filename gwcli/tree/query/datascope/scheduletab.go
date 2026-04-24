@@ -123,11 +123,10 @@ func viewSchedule(s *DataScope) string {
 	sel := s.schedule.selected // brevity
 
 	var (
-		titleSty       = stylesheet.Cur.PrimaryText
 		leftAlignerSty = lipgloss.NewStyle().
-				Width(20).
-				AlignHorizontal(lipgloss.Right).
-				PaddingRight(1)
+			Width(20).
+			AlignHorizontal(lipgloss.Right).
+			PaddingRight(1)
 	)
 
 	tabDesc := tabDescStyle(s.usableWidth()).Render("Schedule this search to be rerun at" +
@@ -136,11 +135,11 @@ func viewSchedule(s *DataScope) string {
 	// build the field names column
 	fields := lipgloss.JoinVertical(lipgloss.Right,
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			stylesheet.Pip(sel, schcronfreq), titleSty.Render("Frequency:"))),
+			stylesheet.Pip(sel, schcronfreq), stylesheet.RequiredTitle("Frequency"))),
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			stylesheet.Pip(sel, schname), titleSty.Render("Name:"))),
+			stylesheet.Pip(sel, schname), stylesheet.RequiredTitle("Name"))),
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			stylesheet.Pip(sel, schdesc), titleSty.Render("Description:"))),
+			stylesheet.Pip(sel, schdesc), stylesheet.RequiredTitle("Description"))),
 	)
 
 	// build the TIs column
@@ -162,6 +161,7 @@ func viewSchedule(s *DataScope) string {
 			"",
 			stylesheet.ViewSubmitButton(
 				s.schedule.selected == schsubmit,
+				s.usableWidth(),
 				s.schedule.resultString,
 				s.schedule.inputErrorString,
 			),

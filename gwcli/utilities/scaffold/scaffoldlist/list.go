@@ -53,10 +53,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -95,6 +97,7 @@ func (f outputFormat) String() string {
 const (
 	outFilePerm         os.FileMode = 0644
 	exportedColumnsOnly bool        = true // only allow users to query for exported fields as columns?
+	ShowColumnSep       rune        = ';'  // separator between column names when printing list of available columns
 )
 
 // ListDataFunction is a function that retrieves an array of structs of type dataStruct
@@ -138,41 +141,27 @@ func NewListAction[dataStruct_t any](short, long string,
 		panic("long description cannot be empty")
 	}
 
-	// generate the command
-	var use = "list"
-	if options.Use != "" {
-		// validate use and override default
-		for i := 0; i < len(options.Use); i++ { // check each rune for non-alphanumerics
-			if options.Use[i] >= 48 && options.Use[i] <= 57 { // 0-9 in ASCII
-				continue
-			} else if options.Use[i] >= 65 && options.Use[i] <= 122 { //A-z in ASCII
-				continue
-			}
-			panic("non-alphanumeric character found: " + string(options.Use[i]))
-		}
-
-		use = options.Use
-	}
-
-	// cache the struct fields so we do not need to reflect through them again later.
+	// cache the struct fields so we can save some reflection cycles later
 	availDSColumns, err := weave.StructFields(dataStruct, exportedColumnsOnly)
 	if err != nil {
 		panic(fmt.Sprintf("failed to cache available columns: %v", err))
 	}
 
-	// validate that all column aliases point to valid columns.
-	// Operates in O(n*m) time, unfortunately.
-	for dqcol := range options.ColumnAliases {
-		if !slices.Contains(availDSColumns, dqcol) {
-			panic("cannot alias unknown column '" + dqcol + "'")
+	if clilog.Active(clilog.DEBUG) { // validate that all column aliases point to valid columns.
+		for dqcol := range options.ColumnAliases {
+			if !slices.Contains(availDSColumns, dqcol) {
+				clilog.Writer.Warn("failed to alias column: unknown path",
+					scaffold.IdentifyCaller(),
+					rfc5424.SDParam{Name: "bad_column_path", Value: dqcol},
+				)
+			}
 		}
-
 	}
 
 	// set default columns from DefaultColumns or ExcludeColumnsFromDefault
 	if options.DefaultColumns != nil && options.ExcludeColumnsFromDefault != nil { // both were given
-		panic("DefautlColumns and ExcludeColumnsFromDefault are mutually exclusive")
-	} else if options.ExcludeColumnsFromDefault != nil { // exclude was given
+		panic("DefaultColumns and ExcludeColumnsFromDefault are mutually exclusive")
+	} else if options.ExcludeColumnsFromDefault != nil { // default excludes were given
 		// to exclude columns, traverse the data structure and skip excluded columns
 
 		// transmute the list to a hashset for faster look ups
@@ -180,12 +169,16 @@ func NewListAction[dataStruct_t any](short, long string,
 		for _, exCol := range options.ExcludeColumnsFromDefault {
 			// check that the column exists in dq
 			if !slices.Contains(availDSColumns, exCol) {
-				panic("cannot exclude unknown column '" + exCol + "'")
+				clilog.Writer.Warn("failed to exclude column from default set: unknown path",
+					scaffold.IdentifyCaller(),
+					rfc5424.SDParam{Name: "bad_column_path", Value: exCol},
+				)
+				continue
 			}
 			excludeMap[exCol] = true
 		}
 		// put available data struct columns into default, minus excludes
-		options.DefaultColumns = make([]string, len(availDSColumns)-len(options.ExcludeColumnsFromDefault))
+		options.DefaultColumns = make([]string, len(availDSColumns)-len(excludeMap))
 		var excluded int // track the # skipped to decrement insertion index by that much
 		for i := range availDSColumns {
 			if _, found := excludeMap[availDSColumns[i]]; found {
@@ -195,9 +188,14 @@ func NewListAction[dataStruct_t any](short, long string,
 			}
 		}
 		options.DefaultColumns = slices.Clip(options.DefaultColumns)
-	} else if options.DefaultColumns != nil { // defaults were given
-		if err := validateColumns(options.DefaultColumns, availDSColumns); err != nil { // otherwise, validate the given defaults
-			panic(err)
+	} else if options.DefaultColumns != nil {
+		if clilog.Active(clilog.DEBUG) { // default includes were given; take them verbatim
+			if badCols := validateColumns(options.DefaultColumns, availDSColumns); len(badCols) > 0 {
+				clilog.Writer.Warn("invalid default columns",
+					scaffold.IdentifyCaller(),
+					rfc5424.SDParam{Name: "bad_columns", Value: strings.Join(badCols, "_")},
+				)
+			}
 		}
 	} else { // nothing was given
 		options.DefaultColumns = availDSColumns
@@ -214,10 +212,11 @@ func NewListAction[dataStruct_t any](short, long string,
 		actionOptions.Example = "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()
 	}
 
-	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns),
+	cmd := treeutils.GenerateAction("list", short, long, nil, generateRun(dataFn, options, availDSColumns),
 		actionOptions)
+	options.Apply(cmd)
 
-	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
+	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 	// apply command modifiers
@@ -253,7 +252,7 @@ func generateRun[dataStruct_t any](
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
 			return
 		} else if sc {
-			fmt.Fprintln(c.OutOrStdout(), showColumnsString(availDataStructColumns, options.ColumnAliases))
+			fmt.Fprintln(c.OutOrStdout(), ShowColumns(availDataStructColumns, options.ColumnAliases))
 			return
 		}
 
@@ -309,8 +308,8 @@ func generateRun[dataStruct_t any](
 	}
 }
 
-// showColumnsString returns a comma-separated list of available column names.
-func showColumnsString(dqColumns []string, aliases map[string]string) string {
+// ShowColumns lists available columns, replacing the dot-qualified form with an alias if it exists in the alias map (dq -> alias).
+func ShowColumns(dqColumns []string, aliases map[string]string) string {
 	var sb strings.Builder
 	for _, dqCol := range dqColumns {
 		// check for an alias
@@ -319,7 +318,7 @@ func showColumnsString(dqColumns []string, aliases map[string]string) string {
 		} else {
 			sb.WriteString(dqCol)
 		}
-		sb.WriteRune(',')
+		sb.WriteRune(ShowColumnSep)
 	}
 
 	return sb.String()[:sb.Len()-1]
