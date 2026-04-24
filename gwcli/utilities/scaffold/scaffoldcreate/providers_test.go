@@ -239,6 +239,45 @@ func TestMSLProvider(t *testing.T) {
 			t.Error("view believed it was in takeover mode")
 		}
 	})
+	t.Run("enter takeover mode when selected", func(t *testing.T) {
+		_, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select})
+		if !takeover {
+			t.Fatal("failed to enter takeover mode while selected")
+		}
+		kind, _, _ := f.Provider.View(false, 80)
+		if kind != scaffoldcreate.Takeover {
+			t.Error("view did not believe it was in takeover mode")
+		}
+		t.Run("select all the first 2 items; deselect the last item", func(t *testing.T) {
+			// select the first item
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+				t.Fatal("update after first item exited takeover mode")
+			}
+			if inv := f.Provider.Satisfied(); inv != "" {
+				t.Errorf("provider is not satisfied despite 2 items being selected. Reason: %s", inv)
+			}
+			// select the second item
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorDown}); !takeover {
+				t.Fatal("update during second item exited takeover mode")
+			}
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+				t.Fatal("update after second item exited takeover mode")
+			}
+			if inv := f.Provider.Satisfied(); inv != "" {
+				t.Errorf("provider is not satisfied despite 3 items being selected. Reason: %s", inv)
+			}
+			// deselect the third item
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorDown}); !takeover {
+				t.Fatal("update during third item exited takeover mode")
+			}
+			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+				t.Fatal("update after third item exited takeover mode")
+			}
+			if inv := f.Provider.Satisfied(); inv != "" {
+				t.Errorf("provider is not satisfied despite 2 items being selected. Reason: %s", inv)
+			}
+		})
+	})
 
 }
 
