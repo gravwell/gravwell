@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -84,12 +83,7 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	for out == nil || len(out.Messages) == 0 {
 		out, err = s.svc.ReceiveMessage(req)
 		if err != nil {
-			var aerr awserr.Error
-			if errors.As(err, &aerr) && aerr.Code() == sqs.ErrCodeQueueDoesNotExist {
-				// Wrap the queue name inside the error so we don't have to remember to log it.
-				return nil, fmt.Errorf("queue '%s': %w", s.Queue(), err)
-			}
-			return nil, err
+			return nil, fmt.Errorf("queue '%s': %w", s.Queue(), err)
 		}
 		if len(out.Messages) == 0 {
 			time.Sleep(time.Second)
@@ -120,9 +114,7 @@ func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 		}
 	}
 
-	var aerr awserr.Error
-	if errors.As(err, &aerr) && aerr.Code() == sqs.ErrCodeQueueDoesNotExist {
-		// Wrap the queue name inside the error so we don't have to remember to log it.
+	if err != nil {
 		err = fmt.Errorf("queue '%s': %w", s.Queue(), err)
 	}
 
