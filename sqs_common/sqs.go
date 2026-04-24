@@ -26,6 +26,7 @@ import (
 type Config struct {
 	Queue       string
 	Region      string
+	Endpoint    string
 	Credentials *credentials.Credentials
 }
 
@@ -43,10 +44,14 @@ func SQSListener(c *Config) (*SQS, error) {
 		conf: c,
 	}
 
-	s.sess, err = session.NewSession(&aws.Config{
+	awsCfg := &aws.Config{
 		Region:      aws.String(c.Region),
 		Credentials: c.Credentials,
-	})
+	}
+	if c.Endpoint != "" {
+		awsCfg.Endpoint = aws.String(c.Endpoint)
+	}
+	s.sess, err = session.NewSession(awsCfg)
 	if err != nil {
 		return nil, err
 	}
