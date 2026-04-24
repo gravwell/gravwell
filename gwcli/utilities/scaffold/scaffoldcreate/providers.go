@@ -272,6 +272,8 @@ func NewMSLProvider(items []list.DefaultItem, opts multiselectlist.Options) *MSL
 
 func (p *MSLProvider) Initialize(_ string, _ bool) {
 	p.msl = multiselectlist.New(p.Items, 80, 60, p.Options)
+	hotkeys.ApplyToList(&p.msl.KeyMap)
+	p.numSelected = len(p.msl.GetSelectedItems())
 }
 
 func (p *MSLProvider) Reset() {
@@ -285,6 +287,9 @@ func (p *MSLProvider) SetArgs(width, height int) {
 }
 
 func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
+	defer func() {
+		p.numSelected = len(p.msl.GetSelectedItems())
+	}()
 	// if we are already in takeover mode, just hand off control
 	if p.takeover {
 		p.msl, cmd = p.msl.Update(msg)

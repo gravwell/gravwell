@@ -4,6 +4,7 @@ package hotkeys
 
 import (
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -25,6 +26,15 @@ var (
 	cursorDownBindings = key.NewBinding(key.WithKeys(CursorDown.String()))
 	completeBindings   = key.NewBinding(key.WithKeys(Complete.String()))
 )
+
+// ApplyToList greedily applies hotkey bindings to the given keymap.
+func ApplyToList(km *list.KeyMap) {
+	if km == nil { // nothing to be done
+		return
+	}
+	km.CursorDown = cursorDownBindings
+	km.CursorUp = cursorUpBindings
+}
 
 // IsSelect returns whether or not the given tea.Msg is a select/minor-invoke keystroke.
 func IsSelect(msg tea.Msg) bool {
