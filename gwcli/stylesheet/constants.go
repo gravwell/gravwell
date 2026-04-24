@@ -20,6 +20,8 @@ const (
 	UpDownSigils    = UpSigil + "/" + DownSigil
 	LeftSigil       = "←"
 	RightSigil      = "→"
+	EnterSigil      = "↵"
+	TabSigil        = "↹"
 	LeftRightSigils = LeftSigil + "/" + RightSigil
 	Indent          = "  "
 )
