@@ -57,6 +57,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -241,12 +242,11 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 		d.list.SetSize(d.width, d.height)
 		return nil
 	}
-	keyMsg, isKeyMsg := msg.(tea.KeyMsg)
 	var cmd tea.Cmd
 	// branch on current mode
 	switch d.mode {
 	case selecting:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter { // special handling for Enter key
+		if hotkeys.IsInvoke(msg) { // special handling for Enter key
 			baseitm := d.list.Items()[d.list.Index()]
 			if itm, ok := baseitm.(Item[I]); !ok {
 				clilog.Writer.Warnf("failed to type assert %#v as an item", baseitm)
@@ -268,7 +268,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 
 		d.list, cmd = d.list.Update(msg)
 	case confirming:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter {
+		if hotkeys.IsInvoke(msg) {
 			// check for confirmation (after cleaning up the input)
 			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
 				d.mode = quitting

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 // stateEdit is the collection of fields required to track and display an item currently being edited.
@@ -34,10 +35,10 @@ type stateEdit[S any] struct {
 func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubroutine[S], updateSub UpdateStructSubroutine[S]) (
 	_ tea.Cmd, identifier string,
 ) {
-	if keymsg, ok := msg.(tea.KeyMsg); ok {
+	if _, ok := msg.(tea.KeyMsg); ok {
 		se.err = "" // clear input errors on new key input
-		switch keymsg.Type {
-		case tea.KeyEnter:
+		switch {
+		case hotkeys.IsSubmit(msg):
 			if se.submitSelected() {
 				var missing []string
 				for _, kti := range se.orderedKTIs { // check all required fields are populated
@@ -80,9 +81,9 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 			} else {
 				se.nextTI()
 			}
-		case tea.KeyUp:
+		case hotkeys.IsCursorUp(msg):
 			se.previousTI()
-		case tea.KeyDown:
+		case hotkeys.IsCursorDown(msg):
 			se.nextTI()
 		}
 	}

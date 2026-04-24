@@ -65,3 +65,8 @@ func match(msg tea.Msg, b key.Binding) bool {
 
 	return key.Matches(keyMsg, b)
 }
+
+// IsSubmit tests if the given key message is a select OR an invoke and should be used for checking button presses.
+func IsSubmit(msg tea.Msg) bool {
+	return IsInvoke(msg) || IsSelect(msg)
+}

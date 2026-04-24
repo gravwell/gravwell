@@ -330,7 +330,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	} else if hotkeys.IsCursorDown(msg) {
 		c.focusNext()
 		return textinput.Blink
-	} else if (hotkeys.IsInvoke(msg) || hotkeys.IsSelect(msg)) && c.SubmitSelected() {
+	} else if hotkeys.IsSubmit(msg) && c.SubmitSelected() {
 		// double check that all fields are satisfied
 		c.checkSatisfaction(false)
 		if c.inputs.err != "" {
