@@ -66,9 +66,7 @@ func main() {
 	buildAsanaHandlerConfig(cfg, src, fetcherTracker, lg, igst, ib, ctx, &wg)
 	buildDuoHandlerConfig(cfg, src, fetcherTracker, lg, igst, ib, ctx, &wg)
 	buildThinkstHandlerConfig(cfg, src, fetcherTracker, lg, igst, ib, ctx, &wg)
-	buildOktaHandlerConfig(cfg, src, fetcherTracker, lg, igst, ib, ctx, &wg)
 	buildShodanHandlerConfig(cfg, src, fetcherTracker, lg, igst, ib, ctx, &wg)
-	buildMimecastHandlerConfig(cfg, src, fetcherTracker, lg, igst, ib, ctx, &wg)
 
 	// listen for signals so we can close gracefully
 	utils.WaitForQuit()
