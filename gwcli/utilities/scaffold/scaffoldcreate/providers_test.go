@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
@@ -18,30 +17,29 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func TestGetSet(t *testing.T) {
-	t.Parallel()
-	var customInitCalled bool
-	p := scaffoldcreate.NewField("title0", false, &scaffoldcreate.TextProvider{
-		CustomInit: func() textinput.Model {
-			ti := stylesheet.NewTI("", true)
-			ti.Width = 50
-			customInitCalled = true
-			return ti
-		},
-	})
-	p.Provider.Initialize("def", false)
-	if p.Provider.Get() != "def" {
-		t.Fatal("failed to get default value out of provider")
-	} else if !customInitCalled {
-		t.Fatal("custom init was not called")
-	}
-	p.Provider.Set("new val")
-	if p.Provider.Get() != "new val" {
-		t.Fatal("failed to get set value out of provider")
-	}
-}
-
 func TestTextProvider(t *testing.T) {
+	t.Run("simple get set", func(t *testing.T) {
+		t.Parallel()
+		var customInitCalled bool
+		p := scaffoldcreate.NewField("title0", false, &scaffoldcreate.TextProvider{
+			CustomInit: func() textinput.Model {
+				ti := stylesheet.NewTI("", true)
+				ti.Width = 50
+				customInitCalled = true
+				return ti
+			},
+		})
+		p.Provider.Initialize("def", false)
+		if p.Provider.Get() != "def" {
+			t.Fatal("failed to get default value out of provider")
+		} else if !customInitCalled {
+			t.Fatal("custom init was not called")
+		}
+		p.Provider.Set("new val")
+		if p.Provider.Get() != "new val" {
+			t.Fatal("failed to get set value out of provider")
+		}
+	})
 	t.Run("full mother cycle + hook set args to alter the TI", func(t *testing.T) {
 		t.Parallel()
 		// tests that TextProvider both successfully applies a CustomSetArgs and operates as expected over the course of a full Mother cycle
@@ -203,18 +201,16 @@ func TestMSLProvider(t *testing.T) {
 	// 3. exit takeover mode
 	// 4. and fetch selected items
 	t.Parallel()
-	items := []list.DefaultItem{
-		testItem{"ttl1", "desc1"},
-		testItem{"ttl2", "desc2"},
-		testItem{"ttl3", "desc3"},
+	items := []multiselectlist.SelectableItem[string]{
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1", Identifier: "one"},
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "2", Desc: "desc2", Identifier: "two"},
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "3", Desc: "desc3", Slctd: true, Identifier: "three"},
 	}
 
 	var f scaffoldcreate.Field
 	{
 		baseProvider := scaffoldcreate.NewMSLProvider(items,
-			scaffoldcreate.MSLOptions{
-				ListOptions: multiselectlist.Options{Preselected: map[uint]bool{2: true}},
-			},
+			scaffoldcreate.MSLOptions{ListOptions: multiselectlist.Options{}},
 		)
 		baseProvider.RequireAtLeast = 2
 		f = scaffoldcreate.NewField("msl", true, baseProvider)
@@ -222,10 +218,17 @@ func TestMSLProvider(t *testing.T) {
 
 	f.Provider.Initialize(f.DefaultValue, f.Required)
 
+	t.Run("set nonexistent value", func(t *testing.T) {
+		// set dne
+		if invalid := f.Provider.Set("does not exist"); invalid == "" {
+			t.Fatal("successfully set nonexistent value")
+		}
+	})
+
 	// initial get should only return the preselected item
 	selected := f.Provider.Get()
-	if selected != "ttl3" {
-		t.Fatal()
+	if selected != "three" {
+		t.Fatal("incorrect selected", testsupport.ExpectedActual("three", selected))
 	}
 	// with only a single item selected, the field should be unsatisfied
 	if invalid := f.Provider.Satisfied(); invalid == "" {
@@ -284,8 +287,8 @@ func TestMSLProvider(t *testing.T) {
 			if kind != scaffoldcreate.Takeover {
 				t.Error("view did not believe it was in takeover mode")
 			}
-			if x := f.Provider.Get(); x != "ttl1,ttl2" {
-				t.Error("incorrect selected items.", testsupport.ExpectedActual("ttl1,ttl2", x))
+			if x := f.Provider.Get(); x != "one,two" {
+				t.Error("incorrect selected items.", testsupport.ExpectedActual("one,two", x))
 			}
 		})
 		t.Run("invoke to exit; ensure we can reenter", func(t *testing.T) {
@@ -336,13 +339,13 @@ func TestMSLProvider(t *testing.T) {
 func TestMSLProviderLateBinding(t *testing.T) {
 	t.Parallel()
 	var f scaffoldcreate.Field
-	items := []list.DefaultItem{ // starting list of items
-		testItem{title: "ttl1", description: "desc1"},
+	items := []multiselectlist.SelectableItem[string]{
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1", Identifier: "one"},
 	}
 	{
 		baseProvider := scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
-			SetArgsInsertItems: func(currentItems []list.DefaultItem) (_ []list.DefaultItem, preselected map[uint]bool) {
-				return items, nil
+			SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+				return items // reset to current state of items array
 			},
 		})
 		baseProvider.RequireAtMost = 2
@@ -354,8 +357,31 @@ func TestMSLProviderLateBinding(t *testing.T) {
 		t.Errorf("selected contains data: %v", selected)
 	}
 	f.Provider.SetArgs(80, 60)
-	if invalid := f.Provider.Set("ttl1"); invalid != "" {
-		t.Error("failed to mark ttl1 as selected: ", invalid)
+	if invalid := f.Provider.Set("one"); invalid != "" {
+		t.Error("failed to mark \"one\" as selected: ", invalid)
+	} else if selected := f.Provider.Get(); selected != "one" {
+		t.Error("incorrect selected items after selecting item one")
+	}
+
+	// reroll, check that the list was updated properly
+	items = []multiselectlist.SelectableItem[string]{
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1", Identifier: "one"},
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "2", Desc: "desc2", Identifier: "two"},
+	}
+	f.Provider.Reset()
+	f.Provider.SetArgs(80, 60)
+	if selected := f.Provider.Get(); selected != "" { // one should have been reset to unselected
+		t.Error("incorrect selected state after setting args again", testsupport.ExpectedActual("", selected))
+	}
+	// try to set both
+	if invalid := f.Provider.Set("one"); invalid != "" {
+		t.Error("failed to mark \"one\" as selected: ", invalid)
+	}
+	if invalid := f.Provider.Set("two"); invalid != "" {
+		t.Error("failed to mark \"two\" as selected: ", invalid)
+	}
+	if selected := f.Provider.Get(); selected != "one,two" { // one should have been reset to unselected
+		t.Error("incorrect selected state after setting args again", testsupport.ExpectedActual("one,two", selected))
 	}
 
 }

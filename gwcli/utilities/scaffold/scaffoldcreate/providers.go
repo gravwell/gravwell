@@ -5,7 +5,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -245,7 +244,7 @@ func (p *PathProvider) ToggleFocus(focus bool) {
 type MSLProvider struct {
 	singular, plural string
 
-	msl multiselectlist.Model
+	msl multiselectlist.Model[string]
 
 	// number of items currently selected
 	// cached after we leave takeover so we don't have to recalculate each view
@@ -254,8 +253,8 @@ type MSLProvider struct {
 	// is the MSLProvider currently facilitating a user selecting items?
 	takeover bool
 
-	Items   []list.DefaultItem
-	Options MSLOptions
+	BaseItems []multiselectlist.SelectableItem[string]
+	Options   MSLOptions
 	// Requires at least X items to be selected before this Provider is considered satisfied.
 	RequireAtLeast uint
 	// Requires no more than X items to be selected before this Provider is considered satisfied.
@@ -270,24 +269,24 @@ type MSLOptions struct {
 	// Called after height and width are set but before flags are parsed into the field.
 	//
 	// Returning nil will cause no items to be displayed.
-	SetArgsInsertItems func(currentItems []list.DefaultItem) (_ []list.DefaultItem, preselected map[uint]bool)
+	SetArgsInsertItems func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string])
 }
 
 // NewMSLProvider constructs a new multiselect list with the given items and options.
 //
 // ! MSLProviders ignore default value.
-func NewMSLProvider(items []list.DefaultItem, opts MSLOptions) *MSLProvider {
-	return &MSLProvider{Items: items, Options: opts}
+func NewMSLProvider(items []multiselectlist.SelectableItem[string], opts MSLOptions) *MSLProvider {
+	return &MSLProvider{BaseItems: items, Options: opts}
 }
 
 func (p *MSLProvider) Initialize(_ string, _ bool) {
-	p.msl = multiselectlist.New(p.Items, 80, 60, p.Options.ListOptions)
+	p.msl = multiselectlist.New(p.BaseItems, 80, 60, p.Options.ListOptions)
 	hotkeys.ApplyToList(&p.msl.KeyMap)
 	p.numSelected = len(p.msl.GetSelectedItems())
 }
 
 func (p *MSLProvider) Reset() {
-	p.msl = multiselectlist.New(p.Items, p.msl.Width(), p.msl.Height(), p.Options.ListOptions)
+	p.msl = multiselectlist.New(p.BaseItems, p.msl.Width(), p.msl.Height(), p.Options.ListOptions)
 	p.msl.Undone()
 }
 
@@ -295,9 +294,8 @@ func (p *MSLProvider) SetArgs(width, height int) {
 	p.msl.SetWidth(width)
 	p.msl.SetHeight(height)
 	if p.Options.SetArgsInsertItems != nil {
-		var preselected map[uint]bool
-		p.Items, preselected = p.Options.SetArgsInsertItems(p.Items)
-		_ = p.msl.SetItems(p.Items, preselected)
+		p.BaseItems = p.Options.SetArgsInsertItems(p.BaseItems)
+		_ = p.msl.SetItems(p.BaseItems)
 	}
 }
 
@@ -364,9 +362,9 @@ func (p *MSLProvider) Set(val string) (invalid string) {
 		return ""
 	}
 	vals := strings.Split(val, ",")
-	_, firstNotFound := p.msl.SelectItems(vals)
-	if firstNotFound != "" {
-		return firstNotFound + " is not an available " + p.singular
+	_, notFound := p.msl.SelectItems(vals)
+	if len(notFound) > 0 {
+		return fmt.Sprintf("IDs %v not found", notFound)
 	}
 	return ""
 }
@@ -376,7 +374,7 @@ func (p *MSLProvider) Get() string {
 	dis := p.msl.GetSelectedItems()
 	var ss = make([]string, len(dis))
 	for i, di := range dis {
-		ss[i] = di.Title() // TODO this probably has to be the identifier, not title
+		ss[i] = di.ID()
 	}
 	return strings.Join(ss, ",")
 }
