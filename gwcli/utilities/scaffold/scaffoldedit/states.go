@@ -78,8 +78,6 @@ func (se *stateEdit[S]) update(msg tea.Msg, _ Config, setFieldSub SetFieldSubrou
 				}
 				// success
 				return nil, identifier
-			} else {
-				se.nextTI()
 			}
 		case hotkeys.IsCursorUp(msg):
 			se.previousTI()

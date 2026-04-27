@@ -82,7 +82,7 @@ type mfaModel struct {
 }
 
 func New() mfaModel {
-	c := mfaModel{codeSelected: true}
+	c := mfaModel{codeSelected: true, hotkeys: hotkeys.NewModel()}
 	c.codeTI = textinput.New()
 	c.codeTI.Prompt = ""
 	c.codeTI.Validate = func(s string) error {

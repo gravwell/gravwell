@@ -12,6 +12,8 @@
 package hotkeys
 
 import (
+	"sync"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -85,7 +87,12 @@ func NewModel() Model {
 	return s
 }
 
-var defaultHotkeys = NewModel()
+var (
+	defaultHotkeys = NewModel()
+	// as this is a TUI, we never expect defaultHotkeys to be used in multiple places at once.
+	// This is just to shut up -race as we are technically mutating a singleton in DefaultView().
+	defaultMu = sync.Mutex{}
+)
 var _ tea.Model = Model{}
 
 func (Model) Init() tea.Cmd {
@@ -108,6 +115,8 @@ func (m Model) View() string {
 //
 // If width > 0, the given width will be factored into this view (and only this view).
 func DefaultView(width int) string {
+	defaultMu.Lock()
+	defer defaultMu.Unlock()
 	var t int
 	if width > 0 {
 		t = defaultHotkeys.help.Width

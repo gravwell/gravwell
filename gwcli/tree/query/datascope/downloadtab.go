@@ -143,21 +143,23 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 				}
 			}
 		case hotkeys.Invoke:
-			// gather and validate selections
-			fn := strings.TrimSpace(s.download.outfileTI.Value())
-			if fn == "" {
-				str := "output file cannot be empty"
-				s.download.inputErrorString = str
+			if s.download.selected == dlsubmit {
+				// gather and validate selections
+				fn := strings.TrimSpace(s.download.outfileTI.Value())
+				if fn == "" {
+					str := "output file cannot be empty"
+					s.download.inputErrorString = str
+					return nil
+				}
+				res, success := s.dl(fn)
+				s.download.resultString = res
+				if !success {
+					clilog.Writer.Error(res)
+				} else {
+					clilog.Writer.Info(res)
+				}
 				return nil
 			}
-			res, success := s.dl(fn)
-			s.download.resultString = res
-			if !success {
-				clilog.Writer.Error(res)
-			} else {
-				clilog.Writer.Info(res)
-			}
-			return nil
 		}
 	}
 

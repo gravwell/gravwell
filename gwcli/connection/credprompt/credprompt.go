@@ -87,6 +87,7 @@ func New(initialUser string) credModel {
 
 	c.hotkeys.Invoke.SetHelp(stylesheet.EnterSigil, "submit")
 	c.hotkeys.Select.Unbind()
+	c.hotkeys.Complete.Unbind()
 	return c
 }
 
