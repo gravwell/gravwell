@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 // fieldnum identifies each field numerically so we can figure out which one is currently selected
@@ -104,17 +105,17 @@ func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToCons
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		m.submitErr = "" // clear error from last create attempt
 		switch keyMsg.Type {
-		case tea.KeyShiftTab, tea.KeyShiftUp:
+		case hotkeys.CursorUp:
 			m.focusPrevious()
 			return textinput.Blink, false, false, false
-		case tea.KeyTab, tea.KeyShiftDown:
+		case hotkeys.CursorDown:
 			m.focusNext()
 			return textinput.Blink, false, false, false
-		case tea.KeySpace:
+		case hotkeys.Select:
 			if m.selected == numEnable {
 				m.enable = !m.enable
 			}
-		case tea.KeyEnter:
+		case hotkeys.Invoke:
 			// handle buttons and booleans
 			switch m.selected {
 			case numBackToDispatchers:

@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 const (
@@ -206,14 +207,14 @@ func Test_Download(t *testing.T) {
 		tm.Type(outPath)
 		time.Sleep(500 * time.Millisecond)
 		// set record numbers
-		TTSendSpecial(tm, tea.KeyUp)
-		TTSendSpecial(tm, tea.KeyUp)
+		TTSendSpecial(tm, hotkeys.CursorUp)
+		TTSendSpecial(tm, hotkeys.CursorUp)
 		tm.Type(recordsText)
 		time.Sleep(SendSpecialPause)
 
 		// submit request
-		TTSendSpecial(tm, tea.KeyDown)
-		TTSendSpecial(tm, tea.KeyEnter)
+		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, hotkeys.Invoke)
 
 		// check the final output
 		TTSendSpecial(tm, tea.KeyCtrlC)
@@ -257,17 +258,17 @@ func Test_Download(t *testing.T) {
 		tm.Type(outPath)
 		time.Sleep(500 * time.Millisecond)
 		// set append-mode
-		TTSendSpecial(tm, tea.KeyDown)
-		TTSendSpecial(tm, tea.KeySpace)
+		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, hotkeys.Select)
 		// set record
-		TTSendSpecial(tm, tea.KeyUp)
-		TTSendSpecial(tm, tea.KeyUp)
-		TTSendSpecial(tm, tea.KeyUp)
+		TTSendSpecial(tm, hotkeys.CursorUp)
+		TTSendSpecial(tm, hotkeys.CursorUp)
+		TTSendSpecial(tm, hotkeys.CursorUp)
 		tm.Type(recordsText)
 		time.Sleep(500 * time.Millisecond)
 		// submit request
-		TTSendSpecial(tm, tea.KeyDown)
-		TTSendSpecial(tm, tea.KeyEnter)
+		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, hotkeys.Invoke)
 
 		// kill the bubble
 		TTSendSpecial(tm, tea.KeyCtrlC)
@@ -322,9 +323,9 @@ func Test_Download(t *testing.T) {
 			TTSendSpecial(tm, tea.KeyShiftTab)
 
 			// set JSON
-			TTSendSpecial(tm, tea.KeyDown)
-			TTSendSpecial(tm, tea.KeyDown)
-			TTSendSpecial(tm, tea.KeySpace)
+			TTSendSpecial(tm, hotkeys.CursorDown)
+			TTSendSpecial(tm, hotkeys.CursorDown)
+			TTSendSpecial(tm, hotkeys.Select)
 
 			// check the final output
 			TTSendSpecial(tm, tea.KeyCtrlC)
@@ -338,10 +339,10 @@ func Test_Download(t *testing.T) {
 			TTSendSpecial(tm, tea.KeyShiftTab)
 
 			// set JSON
-			TTSendSpecial(tm, tea.KeyDown)
-			TTSendSpecial(tm, tea.KeyDown)
-			TTSendSpecial(tm, tea.KeyDown)
-			TTSendSpecial(tm, tea.KeySpace)
+			TTSendSpecial(tm, hotkeys.CursorDown)
+			TTSendSpecial(tm, hotkeys.CursorDown)
+			TTSendSpecial(tm, hotkeys.CursorDown)
+			TTSendSpecial(tm, hotkeys.Select)
 
 			// check the final output
 			TTSendSpecial(tm, tea.KeyCtrlC)
@@ -383,15 +384,15 @@ func Test_Schedule(t *testing.T) {
 		// cron
 		tm.Type(cron)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, hotkeys.CursorDown)
 		// name
 		tm.Type(name)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, hotkeys.CursorDown)
 		// desc
 		tm.Type(desc)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, hotkeys.CursorDown)
 
 		// kill the bubble
 		TTSendSpecial(tm, tea.KeyCtrlC)
@@ -426,20 +427,20 @@ func Test_Schedule(t *testing.T) {
 		// cron
 		tm.Type(cron)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, hotkeys.CursorDown)
 		// name
 		tm.Type(name)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, hotkeys.CursorDown)
 		// desc
 		tm.Type(desc)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, hotkeys.CursorDown)
 
 		// attempt to submit
 		// this should have no lasting effect, as the search is invalid
-		TTSendSpecial(tm, tea.KeyDown)
-		TTSendSpecial(tm, tea.KeyEnter)
+		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, hotkeys.Invoke)
 
 		// kill the bubble
 		TTSendSpecial(tm, tea.KeyCtrlC)
