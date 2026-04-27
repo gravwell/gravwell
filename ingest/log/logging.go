@@ -185,6 +185,34 @@ func NewDiscardLogger() *Logger {
 	return New(dc)
 }
 
+// Clone creates a new logger based on an existing one, but allows
+// overriding the hostname and appname values
+// embedded WriteClosers are NOT cloned as this will just create a huge race
+// condition were we mux writes in really dumb ways.  This should really only be used in ingesters
+// that are writing up to the host logger.
+func (l *Logger) Clone(hostname, appname string) (r *Logger, err error) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	r = &Logger{
+		metadata: l.metadata,
+		rls:      make([]Relay, len(l.rls)),
+		lrls:     make([]LevelRelay, len(l.lrls)),
+		mtx:      sync.Mutex{},
+		lvl:      l.lvl,
+		hot:      l.hot,
+		raw:      l.raw,
+	}
+	copy(r.rls, l.rls)
+	copy(r.lrls, l.lrls)
+	if hostname != `` {
+		r.metadata.hostname = hostname
+	}
+	if appname != `` {
+		r.metadata.appname = appname
+	}
+	return
+}
+
 // Close closes the logger and all currently associated writers
 // writers that have been deleted are NOT closed
 func (l *Logger) Close() (err error) {

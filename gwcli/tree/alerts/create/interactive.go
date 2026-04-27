@@ -91,9 +91,11 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			for _, li := range c.consumersModel.GetSelectedItems() {
 				consumers = append(consumers, types.AlertConsumer{ID: li.ID(), Type: types.ALERTCONSUMERTYPE_FLOW})
 			}
-			ad := types.AlertDefinition{
-				Name:               c.metadata.name.Value(),
-				Description:        c.metadata.description.Value(),
+			ad := types.Alert{
+				CommonFields: types.CommonFields{
+					Name:        c.metadata.name.Value(),
+					Description: c.metadata.description.Value(),
+				},
 				TargetTag:          c.metadata.tag.Value(),
 				Disabled:           !c.metadata.enable,
 				MaxEvents:          int(maxEvents),
@@ -105,13 +107,13 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			}
 
 			// try to submit
-			res, err := connection.Client.NewAlert(ad)
+			res, err := connection.Client.CreateAlert(ad)
 			if err != nil {
 				c.metadata.submitErr = err.Error()
 				return nil
 			}
 			c.stage = quitting
-			return tea.Println(phrases.SuccessfullyCreatedItem("alert", res.GUID.String()))
+			return tea.Println(phrases.SuccessfullyCreatedItem("alert", res.ID))
 		} else if backToDispatchers {
 			c.stage = stageDispatchers
 			c.dispatchersModel.Undone()
@@ -174,12 +176,12 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	}
 	// check if we can complete this request without interactivity
 	if inv, alert := validateFlagValues(availConsumers, availDispatchers, flagVals); inv == "" {
-		res, err := connection.Client.NewAlert(alert)
+		res, err := connection.Client.CreateAlert(alert)
 		if err != nil {
 			return "", nil, err
 		}
 		c.stage = quitting
-		return "", tea.Println(phrases.SuccessfullyCreatedItem("alert", res.ThingUUID.String())), nil
+		return "", tea.Println(phrases.SuccessfullyCreatedItem("alert", res.ID)), nil
 	}
 
 	// push dispatchers into their respective lists by wrapping each entry as an item

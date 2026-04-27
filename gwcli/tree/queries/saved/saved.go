@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -63,14 +64,14 @@ func list() action.Pair {
 			return r.Results, nil
 		},
 		scaffoldlist.Options{
-			AddtlFlags:     flags,
+			CommonOptions:  scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{"ID", "Name", "Description", "Query"},
 		})
 }
 
-func flags() pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "saved queries", "")
+func flags() *pflag.FlagSet {
+	addtlFlags := &pflag.FlagSet{}
+	ft.GetAll.Register(addtlFlags, true, "saved queries", "")
 	return addtlFlags
 }
 

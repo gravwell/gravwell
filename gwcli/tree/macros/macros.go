@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -89,16 +90,16 @@ func list() action.Pair {
 			return r.Results, nil
 		},
 		scaffoldlist.Options{
-			AddtlFlags:     flags,
+			CommonOptions:  scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{"Name", "Description", "Expansion"},
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "macros", "Supersedes --group")
 	addtlFlags.Int32("group", 0, "fetches all macros shared with the given group id")
-	return addtlFlags
+	return &addtlFlags
 }
 
 var macroNameRgx = regexp.MustCompile("^[a-zA-Z0-9_-]*$")

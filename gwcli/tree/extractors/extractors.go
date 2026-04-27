@@ -106,7 +106,7 @@ func list() action.Pair {
 
 		},
 		scaffoldlist.Options{
-			AddtlFlags: flags,
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
 				// implies embedded namespace
 				"ID",
@@ -121,10 +121,10 @@ func list() action.Pair {
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	addtlFlags.String("id", "", "Fetch extractor by id")
-	return addtlFlags
+	return &addtlFlags
 }
 
 //#endregion list
@@ -247,10 +247,12 @@ func create() action.Pair {
 			return id, "", err
 		},
 		scaffoldcreate.Options{
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				ft.Dryrun.Register(&fs)
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Dryrun.Register(fs)
+					return fs
+				},
 			},
 		})
 }
@@ -310,7 +312,11 @@ func modules() action.Pair {
 			}
 			return strings.Join(engines, ", "), nil
 		},
-		scaffold.BasicOptions{Aliases: []string{"engines"}})
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"engines"},
+			},
+		})
 
 }
 
@@ -435,7 +441,7 @@ func edit() action.Pair {
 
 					clilog.Writer.Warn("extractor update caused warnings", params...)
 				}
-				return data.ID, nil
+				return data.Name, nil
 			},
 		},
 	)
@@ -471,12 +477,14 @@ func importUpload() action.Pair {
 			return sb.String(), nil
 		},
 		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: "import " + ft.Mandatory("path/to/file.toml"),
+			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("file path"), nil
 				}
 				return "", nil
 			},
-			Usage: "import " + ft.Mandatory("path/to/file.toml"),
 		})
 }

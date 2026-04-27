@@ -151,7 +151,7 @@ func importCreate() action.Pair {
 			id = result.ID
 			return
 		},
-		scaffoldcreate.Options{Use: "import"})
+		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{Use: "import"}})
 }
 
 func download() action.Pair {
@@ -183,11 +183,14 @@ func download() action.Pair {
 			return flow.Flow, nil
 		},
 		scaffold.BasicOptions{
-			AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				ft.Output.Register(&fs)
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Output.Register(fs)
+					return fs
+				},
 			},
+
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("flow ID/GUID"), nil

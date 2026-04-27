@@ -59,8 +59,8 @@ func (c *Client) GetUserPreferenceByName(name string) (types.UserPreference, err
 		return types.UserPreference{}, ErrNotSynced
 	}
 	opts := types.QueryOptions{
-		OwnerID: c.userDetails.ID,
 		Filters: []types.Filter{
+			{Key: "OwnerID", Operation: "=", Values: []any{c.userDetails.ID}},
 			{Key: "Name", Operation: "=", Values: []any{name}},
 		},
 	}

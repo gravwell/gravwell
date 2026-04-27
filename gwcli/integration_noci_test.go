@@ -1,4 +1,4 @@
-//go:build !ci
+//go:build noci && integration
 
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
@@ -8,9 +8,34 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package main
+// Package main_test provides integrations tests for gwcli, executing it as a standalone binary.
+// These tests requires the user to provide a path to the gwcli binary to be tested via -binary.
+// These tests also require a gravwell instance to target; the instance will be destructively altered.
+// This defaults to localhost:80, but can be specified via -server.
+//
+// Unless otherwise stated, these tests are executed in no-interactive mode (-x).
+package main_test
 
-/*
+import (
+	"encoding/csv"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+)
+
+/* // TODO remove me?
 This file covers tests for using gwcli in --no-interactive mode (from a user's shell or via an external script).
 
 These tests make destructive changes to the gravwell server; make sure you are targeting a safe, clean server!
@@ -49,6 +74,193 @@ do not account for parallelism at a test level
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 )*/
+
+type authMethod uint
+
+const (
+	noAuth    authMethod = iota // do not provide any login
+	admin_u_p                   // login with admin username and password
+	api                         // login with the api token
+)
+
+// All of these are set by Main.
+var (
+	serverString string
+	tCfgDir      string // path to the temporary config dir
+	binaryPath   string
+	argMetaBase  []string // basic arguments passed to every command (server, no-interactive, insecure)
+	argAPI       string   // --api argument
+	client       *grav.Client
+)
+
+func init() {
+	flag.StringVar(&binaryPath, "binary", "", "REQUIRED. Path to the gwcli binary")
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+	if binaryPath == "" {
+		fmt.Fprintln(os.Stderr, "you must set -binary")
+		os.Exit(1)
+	}
+	if _, err := exec.LookPath(binaryPath); err != nil && !errors.Is(err, exec.ErrDot) {
+		fmt.Fprintf(os.Stderr, "binary existence check failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("testing against binary", binaryPath)
+
+	serverString = testsupport.Server()
+	fmt.Println("connecting to test server @", serverString)
+
+	// create an admin client to test data against
+	var err error
+	client, err = grav.New(serverString, false, false)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to generate a standalone client for server '%v': %v\n", serverString, err)
+		os.Exit(1)
+	}
+	if err := client.Login("admin", "changeme"); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to login standalone client with default admin credentials: %v\n", err)
+		os.Exit(1)
+	}
+	// generate an API token with all capabilities we can provide to our tests
+	caps, err := client.TokenCapabilities()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to retrieve capabilities list: %v\n", err)
+		os.Exit(1)
+	}
+	tkn, err := client.CreateToken(types.TokenCreate{
+		Name:         "integration_test_login_token",
+		Description:  "grants all capabilities",
+		ExpiresAt:    time.Now().Add(time.Hour),
+		Capabilities: caps,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to generate full admin token: %v\n", err)
+		os.Exit(1)
+	}
+
+	// compose meta args
+	argMetaBase = []string{"--server=" + serverString,
+		"--insecure",
+		"-x",
+	}
+	argAPI = "--api=" + tkn.Value
+
+	// set up the configuration directory
+	tCfgDir, err = os.MkdirTemp("", "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to generate temporary config directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	os.Exit(m.Run())
+}
+
+func TestCompletionsDoNotRequireLogin(t *testing.T) {
+	// skim out the list of completions
+	selfOut, selfErr := execute(t, noAuth, "help", "completion")
+	if selfErr != "" {
+		t.Error("stderr contained data: ", selfErr)
+	}
+	_, after, found := strings.Cut(selfOut, "Actions")
+	if !found {
+		t.Fatal("failed to find subcommands by breaking on \"Actions\". stdout: ", selfOut)
+	}
+	_, after, _ = strings.Cut(after, "\n") // trim to JUST the actions
+	for subcmd := range strings.SplitSeq(after, "\n") {
+		subcmd = strings.TrimSpace(subcmd)
+		t.Logf("testing subcommand \"%v\"", subcmd)
+		selfOut, selfErr = execute(t, noAuth, "completion", subcmd)
+		if selfErr != "" {
+			t.Errorf("%v: stderr contained data: %v", subcmd, selfErr)
+		}
+		if selfOut == "" {
+			t.Errorf("%v: no data was produced to stdout", subcmd)
+		}
+	}
+}
+
+func TestSelfSessionsMatchAdminSessions(t *testing.T) {
+	// test that the `admin users sessions` action returns the same sessions as `self sessions`
+	var (
+		selfOut, selfErr   string
+		adminOut, adminErr string
+	)
+	var wg sync.WaitGroup
+	columnsArg := "--columns=UID,ID" // declare consistent columns
+	wg.Go(func() {
+		selfOut, selfErr = execute(t, admin_u_p, "self", "sessions", "--csv", columnsArg)
+	})
+	wg.Go(func() {
+		adminOut, adminErr = execute(t, admin_u_p, "admin", "users", "sessions", "--csv", columnsArg, "1")
+	})
+	wg.Wait()
+
+	// both stderrs should be empty
+	if selfErr != "" {
+		t.Errorf("self sessions's stderr is not empty: \"%s\"", selfErr)
+	}
+	if adminErr != "" {
+		t.Errorf("admin users sessions's stderr is not empty: \"%s\"", adminErr)
+	}
+	if t.Failed() {
+		t.FailNow()
+	}
+
+	// both stdouts should be csv-decodable
+	selfCSV, err := csv.NewReader(strings.NewReader(selfOut)).ReadAll()
+	if err != nil {
+		t.Error("failed to read self as CSV: ", err)
+	} else if len(selfCSV) < 1 {
+		t.Error("selfCSV has no data")
+	}
+	adminCSV, err := csv.NewReader(strings.NewReader(adminOut)).ReadAll()
+	if err != nil {
+		t.Error("failed to read admin as CSV: ", err)
+	} else if len(adminCSV) < 1 {
+		t.Error("adminCSV has no data")
+	}
+	if t.Failed() {
+		t.FailNow()
+	}
+	// compare headers
+	if !slices.Equal(selfCSV[0], adminCSV[0]) {
+		t.Error("headers mismatch", testsupport.ExpectedActual(selfCSV, adminCSV))
+	}
+	// compare bodies // TODO
+
+}
+
+// Fatal if the run fails.
+func execute(t *testing.T, authMethod authMethod, args ...string) (stdout, stderr string) {
+	var (
+		metaArgs = argMetaBase
+		env      = []string{cfgdir.EnvCfgDir + "=" + tCfgDir}
+	)
+	switch authMethod {
+	case noAuth: // attach nothing
+	case admin_u_p:
+		metaArgs = append(metaArgs, "-u=admin")
+		env = append(env, "GRAVWELL_PASSWORD=changeme")
+	case api:
+		metaArgs = append(metaArgs, argAPI)
+	}
+
+	var sbOut, sbErr strings.Builder
+	cmd := exec.CommandContext(t.Context(), binaryPath, append(metaArgs, args...)...)
+	cmd.Stdout = &sbOut
+	cmd.Stderr = &sbErr
+	cmd.Env = env
+	t.Log(cmd.String())
+	if err := cmd.Run(); err != nil {
+		t.Log("failed to execute binary: ", err)
+		t.Log("STDERR: ", sbErr.String())
+		t.FailNow()
+	}
+	cmd.Wait()
+	return sbOut.String(), sbErr.String()
+}
 
 /*const ( // testing server credentials
 	user     = "admin"

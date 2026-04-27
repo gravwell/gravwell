@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -89,8 +90,7 @@ func wells() action.Pair {
 		}
 		return toRet, nil
 	}, scaffoldlist.Options{
-		Use:            "wells",
-		Aliases:        []string{"well"},
+		CommonOptions:  scaffold.CommonOptions{Use: "wells", Aliases: []string{"well"}},
 		DefaultColumns: []string{"Indexer.UUID", "Indexer.Name", "ID", "Name", "Tags", "Accelerator", "Engine", "Path", "ColdPath"},
 	})
 }

@@ -34,7 +34,8 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list groups", "Retrieves a list of groups available on the system",
 		types.Group{},
 		func(fs *pflag.FlagSet) ([]types.Group, error) {
-			return connection.Client.GetGroupList()
+			resp, err := connection.Client.ListGroups(nil)
+			return resp.Results, err
 		},
 		scaffoldlist.Options{})
 }
@@ -45,10 +46,13 @@ func create() action.Pair {
 			"name": scaffoldcreate.FieldName("group"),
 			"desc": scaffoldcreate.FieldDescription("group"),
 		},
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			err = connection.Client.AddGroup(cfg["name"].Provider.Get(), cfg["desc"].Provider.Get())
-			// use name as id
-			return cfg["name"].Provider.Get(), "", err
+
+		func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			result, err := connection.Client.CreateGroup(types.Group{
+				Name:        fields["name"].Provider.Get(),
+				Description: fields["desc"].Provider.Get(),
+			})
+			return result.Name, "", err
 		}, scaffoldcreate.Options{})
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -84,7 +85,7 @@ func get() action.Pair {
 			return tokens, nil
 		},
 		scaffoldlist.Options{
-			Use: "get",
+			CommonOptions: scaffold.CommonOptions{Use: "get"},
 			Pretty: func(fs *pflag.FlagSet) (string, error) {
 				// find the longest ID to use as the width
 				var longestIDLen int

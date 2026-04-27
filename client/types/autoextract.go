@@ -19,6 +19,7 @@ var (
 	ErrMissingModule error = errors.New("extraction module name is missing")
 	ErrMissingParams error = errors.New("extraction parameters missing")
 	ErrMissingTag    error = errors.New("extraction tag assignment missing")
+	ErrMissingName   error = errors.New("extraction name missing")
 )
 
 // AX object, when setting an AutoExtractor, only Name, Module,

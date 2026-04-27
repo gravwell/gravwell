@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -82,14 +83,14 @@ func list() action.Pair {
 				"Description",
 				"Labels",
 			},
-			AddtlFlags: flags,
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "secrets")
-	return addtlFlags
+	return &addtlFlags
 }
 
 func create() action.Pair {
@@ -212,14 +213,15 @@ func edit() action.Pair {
 			return item.Description
 		},
 		UpdateSub: func(data *types.Secret) (identifier string, err error) {
-			s, err := connection.Client.UpdateSecret(data.ID, types.SecretCreate{
-				CommonFields: types.CommonFields{
-					Name:        data.Name,
-					Description: data.Description,
-					Labels:      data.Labels,
-				},
-			})
-			return s.ID, err
+			// build the secret create off the selected secret; update only what can be set
+			var sc types.SecretCreate
+			sc.CommonFields = data.CommonFields
+			sc.CommonFields.Name = data.Name
+			sc.CommonFields.Description = data.Description
+			sc.CommonFields.Labels = data.Labels
+
+			s, err := connection.Client.UpdateSecret(data.ID, sc)
+			return s.Name, err
 		},
 	})
 }

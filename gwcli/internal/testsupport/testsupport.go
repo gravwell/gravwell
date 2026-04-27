@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -88,6 +89,17 @@ func TTMatchGolden(t *testing.T, tm *teatest.TestModel, final bool, finalWait ti
 }
 
 //#endregion TeaTest
+
+const ENV_SERVER string = "GWCLI_TEST_SERVER"
+
+// Server attempts to pull the server string from the environment.
+// Returns localhost:80 if the env var is unset or empty
+func Server() string {
+	if s, found := os.LookupEnv(ENV_SERVER); found {
+		return s
+	}
+	return "localhost:80"
+}
 
 // ExpectedActual returns a string declaring what was expected and what we got instead.
 // ! Prefixes the string with a newline.

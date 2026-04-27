@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	//MAJOR API VERSIONS should always be compatible, there just may be
-	//additional features
-	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 2
+	// Equal major versions should always be compatible
+	API_VERSION_MAJOR uint32 = 1
+	// Minor versions define features sets, but have no bearing on compatibility.
+	API_VERSION_MINOR uint32 = 0
 
 	AUTH_TYPE_NONE     AuthType = `None` // for when you don't have MFA set up at all yet.
 	AUTH_TYPE_TOTP     AuthType = `TOTP`
@@ -58,7 +58,7 @@ type ErrorObject struct {
 type BaseListResponse struct {
 	CursorNext       string            `json:"cursor_next"`
 	CursorPrev       string            `json:"cursor_prev"`
-	CurrentPage      int               `json:"current_page"`
+	Offset           int               `json:"offset"`
 	TotalCount       int               `json:"total_count"`
 	Type             string            `json:"type"`
 	AvailableFilters []AvailableFilter `json:"available_filters"`
@@ -87,6 +87,28 @@ type CanonicalVersion struct {
 	Point uint32
 }
 
+// ErrVersionMismatch returns an error stating that the local client and the remote server are running different major API versions and thus
+// are not compatible.
+type ErrVersionMismatch struct {
+	Local  ApiInfo
+	Remote ApiInfo
+}
+
+func (e ErrVersionMismatch) Error() string {
+	return fmt.Sprintf("Version mismatch!\nLocal: %d.%d\nRemote %d.%d\n",
+		e.Local.Major, e.Local.Minor, e.Remote.Major, e.Remote.Minor)
+}
+
+// Is tests only that the error is a VersionMismatchError without any concern for the numbers themselves.
+func (ErrVersionMismatch) Is(target error) bool {
+	switch target.(type) {
+	case ErrVersionMismatch, *ErrVersionMismatch:
+		return true
+	default:
+		return false
+	}
+}
+
 func ApiVersion() ApiInfo {
 	return ApiInfo{
 		Major: API_VERSION_MAJOR,
@@ -109,13 +131,13 @@ func (bi BuildInfo) NewerVersion(nbi BuildInfo) bool {
 	return bi.CanonicalVersion.NewerVersion(nbi.CanonicalVersion)
 }
 
+// CheckApiVersion returns an error iff the remote's major version != the caller's major version.
 func CheckApiVersion(remote ApiInfo) error {
 	local := ApiVersion()
 	if local.Major == remote.Major {
 		return nil //we match
 	}
-	return fmt.Errorf("Version mismatch!\nLocal: %d.%d\nRemote %d.%d\n",
-		local.Major, local.Minor, remote.Major, remote.Minor)
+	return ErrVersionMismatch{Local: local, Remote: remote}
 
 }
 

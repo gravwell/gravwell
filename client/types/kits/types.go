@@ -20,6 +20,67 @@ import (
 	"github.com/google/uuid"
 )
 
+// PackedFile is a stripped-down representation of a file for inclusion in a kit.
+type PackedFile struct {
+	ID          string
+	Name        string
+	Description string
+	Labels      []string
+	Size        uint64 `json:",omitempty"`
+	Hash        []byte `json:",omitempty"`
+	Data        []byte `json:",omitempty"`
+}
+
+// PackFile takes a File and its contents and converts them into a PackedFile.
+func PackFile(f types.File, content []byte) (p PackedFile) {
+	p = PackedFile{
+		ID:          f.ID,
+		Name:        f.Name,
+		Description: f.Description,
+		Labels:      f.Labels,
+		Size:        f.Size,
+		Data:        content,
+	}
+	if f.Hash != "" {
+		p.Hash, _ = hex.DecodeString(f.Hash)
+	}
+	return
+}
+
+// Validate checks the contents of a PackedFile for validity.
+func (p *PackedFile) Validate() error {
+	if len(p.Name) == 0 {
+		return errors.New("Invalid file name")
+	} else if p.Size != uint64(len(p.Data)) {
+		return errors.New("mismatched data and data size")
+	}
+	if len(p.Data) == 0 && len(p.Hash) == 0 {
+		return nil //short circuit, if its empty there is no hash
+	}
+	// recompute hash and size and use the new data,
+	// per https://github.com/gravwell/gravwell/pull/2305#discussion_r3126385394
+	hsh := md5.Sum(p.Data)
+	p.Hash = hsh[:]
+	p.Size = uint64(len(p.Data))
+	return nil
+}
+
+// JSONMetadata returns additional information about the file.
+func (p *PackedFile) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		Name        string
+		Description string
+		Size        uint64
+		Labels      []string
+	}{
+		Name:        p.Name,
+		Description: p.Description,
+		Size:        p.Size,
+		Labels:      p.Labels,
+	})
+	return json.RawMessage(b), err
+}
+
 // PackedMacro is a stripped-down representation of a macro object for inclusion in a kit.
 type PackedMacro struct {
 	Name        string
