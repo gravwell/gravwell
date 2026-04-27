@@ -207,6 +207,50 @@ func TestMSLProvider(t *testing.T) {
 		&multiselectlist.DefaultSelectableItem[string]{Title_: "3", Description_: "desc3", Selected_: true, ID_: "three"},
 	}
 
+	t.Run("hide description", func(t *testing.T) {
+		baseProvider := scaffoldcreate.NewMSLProvider(items,
+			scaffoldcreate.MSLOptions{ListOptions: multiselectlist.Options{HideDescription: true}},
+		)
+		f := scaffoldcreate.NewField("msl", true, baseProvider)
+		f.Provider.Initialize("", false)
+		f.Provider.SetArgs(40, 20)
+		// enter takeover mode
+		_, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select})
+		if !takeover {
+			t.Fatal("failed to enter takeover mode")
+		}
+		kind, view, _ := f.Provider.View(true, 40)
+		if kind != scaffoldcreate.Takeover {
+			t.Error("incorrect view kind", testsupport.ExpectedActual(scaffoldcreate.Takeover, kind))
+		}
+		want := `    List                                                               
+                                                                      
+  3 items                                                             
+                                                                      
+│ [ ] 1                                                               
+                                                                      
+  [ ] 2                                                               
+                                                                      
+  [✓] 3                                                               
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+                                                                      
+  shift+↑ cursor up • shift+↓ cursor down • / filter • q quit • ? more
+  space select • ↲ continue
+		`
+		if view != want {
+
+		}
+
+	})
+
 	var f scaffoldcreate.Field
 	{
 		baseProvider := scaffoldcreate.NewMSLProvider(items,
