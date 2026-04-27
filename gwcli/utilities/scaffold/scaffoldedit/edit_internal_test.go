@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 type val struct {
@@ -144,7 +145,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 	// if id was specified, we should have jumped directly to edit mode
 	if id == -1 {
 		// enter edit mode for whichever item was listed first, don't care
-		em.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		em.Update(tea.KeyMsg{Type: hotkeys.Invoke})
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -164,7 +165,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 	// check the value of the TI
 
 	// make sure we can nav up to cycle to the submit button
-	em.Update(tea.KeyMsg{Type: tea.KeyUp})
+	em.Update(tea.KeyMsg{Type: hotkeys.CursorUp})
 	time.Sleep(50 * time.Millisecond)
 
 	if !em.editing.submitSelected() {
@@ -172,12 +173,12 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 			ExpectedActual(uint(em.editing.tiCount), em.editing.selected))
 	}
 	// return to top
-	em.Update(tea.KeyMsg{Type: tea.KeyDown})
+	em.Update(tea.KeyMsg{Type: hotkeys.CursorDown})
 	time.Sleep(50 * time.Millisecond)
 
 	for i := 0; i < len(em.cfg); i++ { // we should one TI for each field
 		// nav through each to the submit
-		em.Update(tea.KeyMsg{Type: tea.KeyDown})
+		em.Update(tea.KeyMsg{Type: hotkeys.CursorDown})
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -187,7 +188,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 	}
 
 	// test the update procedure
-	em.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	em.Update(tea.KeyMsg{Type: hotkeys.Invoke})
 	time.Sleep(50 * time.Millisecond)
 
 	if !(*updateCalled) {

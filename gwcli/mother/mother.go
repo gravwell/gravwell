@@ -30,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -246,20 +247,20 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyF1: // help
 			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		case tea.KeyUp: // history
+		case hotkeys.CursorUp: // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case tea.KeyDown: // history
+		case hotkeys.CursorDown: // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case tea.KeyEnter:
+		case hotkeys.Invoke:
 			m.history.unsetFetch()
 			return m, processInput(&m)
 		case tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
-		case tea.KeyTab:
+		case hotkeys.Complete:
 			if m.ti.Value() == "" {
 				m.ti.SetValue("help")
 			}

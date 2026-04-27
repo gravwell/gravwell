@@ -18,6 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -41,15 +42,15 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 	}{
 		{"normal u/p", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, hotkeys.Invoke)
 			tm.Type(expected.pass)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, hotkeys.Invoke)
 		}, output{"Blitzo", "TheOIsSilent", false, false}, 2 * time.Second, false},
 		{"garbage after submitting", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, hotkeys.Invoke)
 			tm.Type(expected.pass)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, hotkeys.Invoke)
 
 			// this should not be captured by the prompt
 			tm.Type("should not be caught")
@@ -57,7 +58,7 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		}, output{"Moxxie", "Milly", false, false}, 2 * time.Second, false},
 		{"global kill key", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyTab)
+			testsupport.TTSendSpecial(tm, hotkeys.CursorDown)
 			tm.Type(expected.pass)
 
 			// kill with a sigint
@@ -76,16 +77,16 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		}, output{"Loona", "", true, true}, 2 * time.Second, false},
 		{"wrap", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyDown)
+			testsupport.TTSendSpecial(tm, hotkeys.CursorDown)
 			tm.Type(expected.pass)
-			testsupport.TTSendSpecial(tm, tea.KeyDown)
-			testsupport.TTSendSpecial(tm, tea.KeyShiftTab)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, hotkeys.CursorDown)
+			testsupport.TTSendSpecial(tm, hotkeys.CursorUp)
+			testsupport.TTSendSpecial(tm, hotkeys.Invoke)
 		}, output{"Fizzarolli", "Oops", false, false}, 2 * time.Second, false},
 		{"timeout", func(tm *teatest.TestModel, expected output) {
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, hotkeys.Invoke)
 			tm.Type("some password that should not get returned")
-			testsupport.TTSendSpecial(tm, tea.KeyUp)
+			testsupport.TTSendSpecial(tm, hotkeys.CursorUp)
 		}, output{}, 3 * time.Second, true},
 	}
 
@@ -117,8 +118,8 @@ func Test_collect(t *testing.T) {
 	}{
 		{"normal u/p", func(prog *tea.Program) {
 			prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
-			testsupport.TTSendSpecial(prog, tea.KeyEnter)
-			testsupport.TTSendSpecial(prog, tea.KeyEnter)
+			testsupport.TTSendSpecial(prog, hotkeys.Invoke)
+			testsupport.TTSendSpecial(prog, hotkeys.Invoke)
 
 		}, "u", "", nil},
 		{"killed", func(prog *tea.Program) {
