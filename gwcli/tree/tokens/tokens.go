@@ -21,11 +21,13 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -208,8 +210,25 @@ func create() action.Pair {
 			Required: false,
 			Title:    "Capabilities",
 			Flag:     scaffoldcreate.FlagConfig{Usage: "comma-separated list of capabilities to grant the token", Shorthand: 'c'},
-			Provider: &scaffoldcreate.TextProvider{},
-			Order:    80,
+			Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
+				ListOptions: multiselectlist.Options{HideDescription: true},
+				SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+					caps, err := connection.Client.TokenCapabilities()
+					if err != nil {
+						clilog.Writer.Error("failed to fetch token capabilities:", log.KVErr(err))
+						return nil
+					}
+					itms := make([]multiselectlist.SelectableItem[string], 0, len(caps))
+					for i, cap := range caps {
+						itms[i] = &multiselectlist.Item{
+							Title_: cap,
+							ID_:    cap,
+						}
+					}
+					return itms
+				},
+			}),
+			Order: 80,
 		},
 		"expires": {
 			Required: false,
