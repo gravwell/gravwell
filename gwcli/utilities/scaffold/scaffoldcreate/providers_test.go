@@ -202,9 +202,9 @@ func TestMSLProvider(t *testing.T) {
 	// 4. and fetch selected items
 	t.Parallel()
 	items := []multiselectlist.SelectableItem[string]{
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1", Identifier: "one"},
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "2", Desc: "desc2", Identifier: "two"},
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "3", Desc: "desc3", Slctd: true, Identifier: "three"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "1", Description_: "desc1", ID_: "one"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "2", Description_: "desc2", ID_: "two"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "3", Description_: "desc3", Selected_: true, ID_: "three"},
 	}
 
 	var f scaffoldcreate.Field
@@ -340,7 +340,7 @@ func TestMSLProviderLateBinding(t *testing.T) {
 	t.Parallel()
 	var f scaffoldcreate.Field
 	items := []multiselectlist.SelectableItem[string]{
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1", Identifier: "one"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "1", Description_: "desc1", ID_: "one"},
 	}
 	{
 		baseProvider := scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
@@ -365,8 +365,8 @@ func TestMSLProviderLateBinding(t *testing.T) {
 
 	// reroll, check that the list was updated properly
 	items = []multiselectlist.SelectableItem[string]{
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1", Identifier: "one"},
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "2", Desc: "desc2", Identifier: "two"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "1", Description_: "desc1", ID_: "one"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "2", Description_: "desc2", ID_: "two"},
 	}
 	f.Provider.Reset()
 	f.Provider.SetArgs(80, 60)

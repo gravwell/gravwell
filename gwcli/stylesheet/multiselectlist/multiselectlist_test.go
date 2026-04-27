@@ -37,17 +37,17 @@ func (ti testItem) FilterValue() string {
 func TestPreSelection(t *testing.T) {
 	t.Run("pre-select items 1 and 3", func(t *testing.T) {
 		var items = []multiselectlist.SelectableItem[int]{
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Identifier: 0},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "1", Desc: "desc1", Slctd: true, Identifier: 1},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "2", Desc: "desc2", Identifier: 2},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "3", Desc: "desc3", Slctd: true, Identifier: 3},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", ID_: 0},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "1", Description_: "desc1", Selected_: true, ID_: 1},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "2", Description_: "desc2", ID_: 2},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "3", Description_: "desc3", Selected_: true, ID_: 3},
 		}
 
 		msl := multiselectlist.New(items, 80, 50,
 			multiselectlist.Options{})
 		want := []multiselectlist.SelectableItem[int]{
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "1", Desc: "desc1", Slctd: true, Identifier: 1},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "3", Desc: "desc3", Slctd: true, Identifier: 3},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "1", Description_: "desc1", Selected_: true, ID_: 1},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "3", Description_: "desc3", Selected_: true, ID_: 3},
 		}
 
 		selected := msl.GetSelectedItems()
@@ -59,10 +59,10 @@ func TestPreSelection(t *testing.T) {
 	})
 	t.Run("no pre-selections", func(t *testing.T) {
 		var items = []multiselectlist.SelectableItem[int]{
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Identifier: 0},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "1", Desc: "desc1", Identifier: 1},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "2", Desc: "desc2", Identifier: 2},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "3", Desc: "desc3", Identifier: 3},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", ID_: 0},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "1", Description_: "desc1", ID_: 1},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "2", Description_: "desc2", ID_: 2},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "3", Description_: "desc3", ID_: 3},
 		}
 
 		msl := multiselectlist.New(items, 80, 50, multiselectlist.Options{})
@@ -81,10 +81,10 @@ func TestToggleAndGetCurrentItems(t *testing.T) {
 	t.Run("pre-select items 1 and 3", func(t *testing.T) {
 		// pre-select items 1 and 3, then toggle item zero to selected manually
 		var items = []multiselectlist.SelectableItem[int]{
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Identifier: 0},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "1", Desc: "desc1", Slctd: true, Identifier: 1},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "2", Desc: "desc2", Identifier: 2},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "3", Desc: "desc3", Slctd: true, Identifier: 3},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", ID_: 0},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "1", Description_: "desc1", Selected_: true, ID_: 1},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "2", Description_: "desc2", ID_: 2},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "3", Description_: "desc3", Selected_: true, ID_: 3},
 		}
 		msl := multiselectlist.New(items, 80, 50,
 			multiselectlist.Options{})
@@ -94,9 +94,9 @@ func TestToggleAndGetCurrentItems(t *testing.T) {
 		msl.ToggleCurrentItem()
 
 		want := []multiselectlist.SelectableItem[int]{
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Identifier: 0},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "1", Desc: "desc1", Slctd: true, Identifier: 1},
-			&multiselectlist.DefaultSelectableItem[int]{Ttl: "3", Desc: "desc3", Slctd: true, Identifier: 3},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", ID_: 0},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "1", Description_: "desc1", Selected_: true, ID_: 1},
+			&multiselectlist.DefaultSelectableItem[int]{Title_: "3", Description_: "desc3", Selected_: true, ID_: 3},
 		}
 
 		selected := msl.GetSelectedItems()
@@ -111,10 +111,10 @@ func TestToggleAndGetCurrentItems(t *testing.T) {
 // TestModel runs a few key commands through Update and View to check that interactivity works.
 func TestModel(t *testing.T) {
 	var items = []multiselectlist.SelectableItem[string]{
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "0", Desc: "desc0"},
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1"},
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "2", Desc: "desc2", Slctd: true},
-		&multiselectlist.DefaultSelectableItem[string]{Ttl: "3", Desc: "desc3", Slctd: true},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "0", Description_: "desc0"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "1", Description_: "desc1"},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "2", Description_: "desc2", Selected_: true},
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "3", Description_: "desc3", Selected_: true},
 	}
 	// NOTE(rlandau): view wants can probably be replaced by teatest for cleaner interaction,
 	// but I haven't had much luck with teatest.
@@ -220,13 +220,13 @@ func TestModel(t *testing.T) {
 
 func TestModel_SelectItems(t *testing.T) {
 	var items = []multiselectlist.SelectableItem[int]{
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Identifier: 0},
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "1", Desc: "desc1", Identifier: 1},
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "2", Desc: "desc2", Identifier: 2},
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "3", Desc: "desc3", Identifier: 3},
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "4", Desc: "desc4", Identifier: 4},
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "5", Desc: "desc5", Identifier: 5},
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "6", Desc: "desc6", Identifier: 6},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", ID_: 0},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "1", Description_: "desc1", ID_: 1},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "2", Description_: "desc2", ID_: 2},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "3", Description_: "desc3", ID_: 3},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "4", Description_: "desc4", ID_: 4},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "5", Description_: "desc5", ID_: 5},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "6", Description_: "desc6", ID_: 6},
 	}
 
 	msl := multiselectlist.New(items, 80, 50, multiselectlist.Options{})
@@ -237,8 +237,8 @@ func TestModel_SelectItems(t *testing.T) {
 	}
 
 	want := []multiselectlist.SelectableItem[int]{
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Slctd: true, Identifier: 0},
-		&multiselectlist.DefaultSelectableItem[int]{Ttl: "6", Desc: "desc6", Slctd: true, Identifier: 6},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", Selected_: true, ID_: 0},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "6", Description_: "desc6", Selected_: true, ID_: 6},
 	}
 
 	selected := msl.GetSelectedItems()

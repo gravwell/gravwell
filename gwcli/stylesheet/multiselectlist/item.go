@@ -28,33 +28,33 @@ var _ SelectableItem[any] = &DefaultSelectableItem[any]{}
 
 // DefaultSelectableItem provides a struct for use in the SelectableItem interface for users that do not wish to customize at all.
 type DefaultSelectableItem[ID_t any] struct {
-	Ttl        string
-	Desc       string
-	Slctd      bool
-	Identifier ID_t
+	Title_       string
+	Description_ string
+	Selected_    bool
+	ID_          ID_t
 }
 
 // FilterValue filters on the concat of ttl and desc.
 func (i DefaultSelectableItem[ID_t]) FilterValue() string {
-	return i.Ttl + i.Desc
+	return i.Title_ + i.Description_
 }
 
 func (i DefaultSelectableItem[ID_t]) Title() string {
-	return i.Ttl
+	return i.Title_
 }
 
 func (i DefaultSelectableItem[ID_t]) ID() ID_t {
-	return i.Identifier
+	return i.ID_
 }
 
 func (i DefaultSelectableItem[ID_t]) Description() string {
-	return i.Desc
+	return i.Description_
 }
 
 func (i *DefaultSelectableItem[ID_t]) SetSelected(selected bool) {
-	i.Slctd = selected
+	i.Selected_ = selected
 }
 
 func (i DefaultSelectableItem[ID_t]) Selected() bool {
-	return i.Slctd
+	return i.Selected_
 }

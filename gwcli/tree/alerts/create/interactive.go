@@ -1,12 +1,10 @@
 package alertscreate
 
 import (
-	"slices"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -33,8 +31,8 @@ const (
 type createModel struct {
 	// stages
 	stage            stage
-	dispatchersModel multiselectlist.Model
-	consumersModel   multiselectlist.Model
+	dispatchersModel multiselectlist.Model[string]
+	consumersModel   multiselectlist.Model[string]
 	metadata         *metadata
 }
 
@@ -87,22 +85,11 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 
 			dispatchers := []types.AlertDispatcher{}
 			for _, li := range c.dispatchersModel.GetSelectedItems() {
-				dsp, ok := li.(item)
-				if !ok {
-					clilog.Writer.Errorf("failed to cast dispatcher from item. Bare item: %v", li)
-					continue
-				}
-				dispatchers = append(dispatchers, types.AlertDispatcher{ID: dsp.ID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
+				dispatchers = append(dispatchers, types.AlertDispatcher{ID: li.ID(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
 			}
 			consumers := []types.AlertConsumer{}
 			for _, li := range c.consumersModel.GetSelectedItems() {
-				cns, ok := li.(item)
-				if !ok {
-					clilog.Writer.Errorf("failed to cast consumer from item. Bare item: %v", li)
-					continue
-				}
-
-				consumers = append(consumers, types.AlertConsumer{ID: cns.ID, Type: types.ALERTCONSUMERTYPE_FLOW})
+				consumers = append(consumers, types.AlertConsumer{ID: li.ID(), Type: types.ALERTCONSUMERTYPE_FLOW})
 			}
 			ad := types.AlertDefinition{
 				Name:               c.metadata.name.Value(),
@@ -166,8 +153,8 @@ func (c *createModel) Reset() error {
 	// empty out the structs
 
 	// models will be rebuilt on the next SetArgs
-	c.dispatchersModel = multiselectlist.Model{}
-	c.consumersModel = multiselectlist.Model{}
+	c.dispatchersModel = multiselectlist.Model[string]{}
+	c.consumersModel = multiselectlist.Model[string]{}
 	c.metadata.Reset()
 	return nil
 }
@@ -198,49 +185,35 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	// push dispatchers into their respective lists by wrapping each entry as an item
 	var wg sync.WaitGroup
 
-	dispatchers := make([]list.DefaultItem, len(availDispatchers))
+	dispatchers := make([]multiselectlist.SelectableItem[string], len(availDispatchers))
 	wg.Go(func() {
-		preselected := make(map[uint]bool, len(flagVals.dispatcherIDs))
 		var i uint
 		for _, dsp := range availDispatchers {
-			dispatchers[i] = item{
-				Name: dsp.Name,
-				Desc: dsp.Description,
-				ID:   dsp.ID,
-			}
-			// this sucks from a time-complexity standpoint but ¯\_(ツ)_/¯
-			if slices.Contains(flagVals.dispatcherIDs, dsp.ID) {
-				preselected[i] = true
+			dispatchers[i] = &multiselectlist.DefaultSelectableItem[string]{
+				Title_:       dsp.Name,
+				Description_: dsp.Description,
+				ID_:          dsp.ID,
 			}
 			i += 1
 		}
 
-		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, multiselectlist.Options{
-			Preselected: preselected,
-		})
+		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, multiselectlist.Options{})
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.dispatchersModel.StatusMessageOnSelect = true
 	})
 
-	consumers := make([]list.DefaultItem, len(availConsumers))
+	consumers := make([]multiselectlist.SelectableItem[string], len(availConsumers))
 	wg.Go(func() {
-		preselected := make(map[uint]bool, len(flagVals.consumerIDs))
 		var i uint
 		for _, cns := range availConsumers {
-			consumers[i] = item{
-				Name: cns.Name,
-				Desc: cns.Description,
-				ID:   cns.ID,
-			}
-			// this sucks from a time-complexity standpoint but ¯\_(ツ)_/¯
-			if slices.Contains(flagVals.consumerIDs, cns.ID) {
-				preselected[i] = true
+			consumers[i] = &multiselectlist.DefaultSelectableItem[string]{
+				Title_:       cns.Name,
+				Description_: cns.Description,
+				ID_:          cns.ID,
 			}
 			i += 1
 		}
-		c.consumersModel = multiselectlist.New(consumers, width, height, multiselectlist.Options{
-			Preselected: preselected,
-		})
+		c.consumersModel = multiselectlist.New(consumers, width, height, multiselectlist.Options{})
 		c.consumersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.consumersModel.StatusMessageOnSelect = true
 	})
@@ -249,23 +222,4 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	// prepopulate metadata
 	c.metadata.Init(flagVals.name, flagVals.description, flagVals.tag, flagVals.enabled, flagVals.maxEvents, flagVals.retain)
 	return "", nil, nil
-}
-
-type item struct {
-	Name string
-	Desc string
-	ID   string
-}
-
-// FilterValue sets the string to include/disclude this item on when a user filters.
-func (i item) FilterValue() string {
-	return i.Name
-}
-
-func (i item) Title() string {
-	return i.Name
-}
-
-func (i item) Description() string {
-	return i.Desc
 }
