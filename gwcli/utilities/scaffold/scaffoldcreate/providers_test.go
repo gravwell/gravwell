@@ -385,18 +385,3 @@ func TestMSLProviderLateBinding(t *testing.T) {
 	}
 
 }
-
-type testItem struct {
-	title       string
-	description string
-}
-
-func (t testItem) Title() string {
-	return t.title
-}
-func (t testItem) Description() string {
-	return t.description
-}
-func (t testItem) FilterValue() string {
-	return t.title
-}
