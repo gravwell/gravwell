@@ -295,7 +295,10 @@ func (p *MSLProvider) Initialize(_ string, _ bool) {
 
 func (p *MSLProvider) Reset() {
 	p.msl = multiselectlist.New(p.BaseItems, p.msl.Width(), p.msl.Height(), p.Options.ListOptions)
+	hotkeys.ApplyToList(&p.msl.KeyMap)
+	p.numSelected = len(p.msl.GetSelectedItems())
 	p.msl.Undone()
+	p.takeover = false
 }
 
 func (p *MSLProvider) SetArgs(width, height int) {
