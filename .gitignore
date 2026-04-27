@@ -16,6 +16,7 @@
 
 # test files
 test.conf
+_artifacts/
 
 #vim files
 *.swp
@@ -28,9 +29,8 @@ test.conf
 manager/manager
 manager
 
-#idea files
-.idea/
-.idea
+#macOS
+.DS_Store
 
 # VSCode files
 .vscode/*
