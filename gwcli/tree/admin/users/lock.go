@@ -153,7 +153,7 @@ func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int
 		if !self && user.ID == connection.CurrentUser().ID {
 			continue
 		}
-		itms = append(itms, &UserItem{
+		itms = append(itms, &userItem{
 			ID_:      user.ID,
 			username: user.Username,
 			name:     user.Name,

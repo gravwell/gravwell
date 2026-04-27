@@ -5,8 +5,7 @@ import (
 	"strings"
 )
 
-// DefaultSelectableItem provides a struct for use in the SelectableItem interface for users that do not wish to customize at all.
-type UserItem struct {
+type userItem struct {
 	Selected_ bool
 	ID_       int32
 
@@ -17,7 +16,7 @@ type UserItem struct {
 }
 
 // FilterValue filters on the concat of ttl and desc.
-func (i UserItem) FilterValue() string {
+func (i userItem) FilterValue() string {
 	var adm string
 	if i.admin {
 		adm = "admin"
@@ -25,15 +24,15 @@ func (i UserItem) FilterValue() string {
 	return adm + fmt.Sprintf("%d %v %v", i.ID_, i.username, i.name)
 }
 
-func (i UserItem) Title() string {
+func (i userItem) Title() string {
 	return i.username
 }
 
-func (i UserItem) ID() int32 {
+func (i userItem) ID() int32 {
 	return i.ID_
 }
 
-func (i UserItem) Description() string {
+func (i userItem) Description() string {
 	var sb strings.Builder
 
 	if i.admin {
@@ -44,10 +43,10 @@ func (i UserItem) Description() string {
 	return sb.String()
 }
 
-func (i *UserItem) SetSelected(selected bool) {
+func (i *userItem) SetSelected(selected bool) {
 	i.Selected_ = selected
 }
 
-func (i UserItem) Selected() bool {
+func (i userItem) Selected() bool {
 	return i.Selected_
 }

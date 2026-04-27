@@ -254,7 +254,7 @@ func TestMSLProvider(t *testing.T) {
   space select • ↲ continue
 		`
 		if view != want {
-
+			t.Fatal("incorrect no descriptions view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(view)))
 		}
 
 	})

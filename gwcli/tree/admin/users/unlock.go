@@ -123,7 +123,7 @@ func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	var itms = make([]multiselectlist.SelectableItem[int32], 0, len(users.Results))
 	for _, user := range users.Results {
 		if user.Locked {
-			itms = append(itms, &UserItem{
+			itms = append(itms, &userItem{
 				ID_:      user.ID,
 				username: user.Username,
 				name:     user.Name,

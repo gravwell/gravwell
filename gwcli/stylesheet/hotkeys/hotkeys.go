@@ -42,17 +42,17 @@ type Model struct {
 	help help.Model
 }
 
-func (km Model) ShortHelp() []key.Binding {
-	return []key.Binding{km.CursorUp, km.CursorDown, km.Invoke}
+func (m Model) ShortHelp() []key.Binding {
+	return []key.Binding{m.CursorUp, m.CursorDown, m.Invoke}
 }
 
-func (km Model) FullHelp() [][]key.Binding {
+func (m Model) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{km.CursorUp},
-		{km.CursorDown},
-		{km.Invoke},
-		{km.Select},
-		{km.Complete},
+		{m.CursorUp},
+		{m.CursorDown},
+		{m.Invoke},
+		{m.Select},
+		{m.Complete},
 	}
 }
 
