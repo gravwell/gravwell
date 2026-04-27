@@ -8,8 +8,6 @@
 
 package multiselectlist
 
-//#region Item Wrappers
-
 type SelectableItem[ID_t comparable] interface {
 	// FilterValue is the value we use when filtering against this item when
 	// we're filtering the list.
@@ -33,6 +31,9 @@ type DefaultSelectableItem[ID_t any] struct {
 	Selected_    bool
 	ID_          ID_t
 }
+
+// Item is syntactic sugar for a string Selectable Item.
+type Item = DefaultSelectableItem[string]
 
 // FilterValue filters on the concat of ttl and desc.
 func (i DefaultSelectableItem[ID_t]) FilterValue() string {
