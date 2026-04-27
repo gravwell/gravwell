@@ -10,8 +10,6 @@ package types
 
 import (
 	"encoding/json"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -23,18 +21,6 @@ const (
 )
 
 type ActionableCommandType string
-
-// StrictPivot is a Pivot which actually decodes the Contents field,
-// rather than treating it as a RawObject. This is for migration to
-// the registry.
-type StrictPivot struct {
-	GUID        uuid.UUID
-	Name        string
-	Description string
-	Contents    ActionableContent
-	Labels      []string
-	Disabled    bool
-}
 
 // ActionableContent defines the content of an actionable (pivot),
 // including its menu label, triggers, and actions.
