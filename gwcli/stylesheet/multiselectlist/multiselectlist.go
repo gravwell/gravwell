@@ -43,7 +43,7 @@ type Model[ID_t comparable] struct {
 // New returns a Multi-Select enabled list with the default delegate used by list.
 func New[ID_t comparable](items []SelectableItem[ID_t], width, height int, opts Options) Model[ID_t] {
 	dd := NewDefaultDelegate[ID_t](opts.ShowSelectStateFunc)
-	dd.ShowDescription = opts.ShowDescription
+	dd.ShowDescription = !opts.HideDescription
 
 	msl := Model[ID_t]{
 		Model: list.New(wrapItems(items), dd, width, height),

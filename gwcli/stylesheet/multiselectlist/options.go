@@ -14,5 +14,5 @@ type Options struct {
 	// Uses DefaultSelectedViewFunc if nil.
 	ShowSelectStateFunc func(selected bool) string
 
-	ShowDescription bool
+	HideDescription bool
 }
