@@ -10,15 +10,13 @@
 //
 // TODO Generalize this package.
 //
-// - Do not rely on the default delegate and default delegate item.
+// - Allow users to pass in a delegate.
 //
 // - Enable overriding of enter and space as the interaction keys.
 //
 // - Properly display keys, rather than just attaching Enter and Space below View.
 //
-// - Do not import our stylesheet; enable setting of the checkbox function/style.
-//
-// - Use a different method for pre-selection; the current method assumes titles are unique and that is a bad assumption.
+// - Do not import our stylesheet.
 package multiselectlist
 
 import (
@@ -40,88 +38,19 @@ type Model[ID_t comparable] struct {
 
 	// if set, Update will batch an extra tea.Cmd with a status message stating that the item was selected.
 	StatusMessageOnSelect bool
-
-	selectedViewFunc func(set bool) string
 }
 
 type Options struct {
 	// Returns a string to be prefixed to each item in the list to show it's selected state.
 	//
 	// Uses DefaultSelectedViewFunc if nil.
-	ShowSelectStateViewFunc func(selected bool) string
-}
-
-//#region Item Wrappers
-
-type SelectableItem[ID_t comparable] interface {
-	// FilterValue is the value we use when filtering against this item when
-	// we're filtering the list.
-	FilterValue() string
-	Title() string
-	// unique identifier for this item
-	ID() ID_t
-	Description() string
-	// Toggle the selection state of this item.
-	SetSelected(selected bool)
-	// Is this item currently selected?
-	Selected() bool
-}
-
-var _ SelectableItem[any] = &DefaultSelectableItem[any]{}
-
-// DefaultSelectableItem provides a struct for use in the SelectableItem interface for users that do not wish to customize at all.
-type DefaultSelectableItem[ID_t any] struct {
-	Ttl        string
-	Desc       string
-	Slctd      bool
-	Identifier ID_t
-}
-
-// FilterValue filters on the concat of ttl and desc.
-func (i DefaultSelectableItem[ID_t]) FilterValue() string {
-	return i.Ttl + i.Desc
-}
-
-func (i DefaultSelectableItem[ID_t]) Title() string {
-	return i.Ttl
-}
-
-func (i DefaultSelectableItem[ID_t]) ID() ID_t {
-	return i.Identifier
-}
-
-func (i DefaultSelectableItem[ID_t]) Description() string {
-	return i.Desc
-}
-
-func (i *DefaultSelectableItem[ID_t]) SetSelected(selected bool) {
-	i.Slctd = selected
-}
-
-func (i DefaultSelectableItem[ID_t]) Selected() bool {
-	return i.Slctd
-}
-
-//#endregion Item Wrappers
-
-// DefaultShowSelectStateView sets the prefix if Options.ShowSelectStateViewFunc is not set.
-func DefaultShowSelectStateView(set bool) string {
-	if set {
-		return "[✓]"
-	}
-	return "[ ]"
+	ShowSelectStateFunc func(selected bool) string
 }
 
 // New returns a Multi-Select enabled list with the default delegate used by list.
 func New[ID_t comparable](items []SelectableItem[ID_t], width, height int, opts Options) Model[ID_t] {
-	svf := DefaultShowSelectStateView
-	if opts.ShowSelectStateViewFunc != nil {
-		svf = opts.ShowSelectStateViewFunc
-	}
-
 	msl := Model[ID_t]{
-		Model:            list.New(wrapItems(items), list.NewDefaultDelegate(), width, height),
-		selectedViewFunc: svf,
+		Model: list.New(wrapItems(items), NewDefaultDelegate[ID_t](opts.ShowSelectStateFunc), width, height),
 	}
 
 	return msl
@@ -283,6 +212,7 @@ func (msl *Model[ID_t]) SelectItems(toSelect []ID_t) (cmd tea.Cmd, notFound []ID
 	return tea.Batch(cmds...), slices.Collect(maps.Keys(nf))
 }
 
+// SetItems replaces the items in the list with the given items.
 func (msl *Model[ID_t]) SetItems(items []SelectableItem[ID_t]) tea.Cmd {
 	wrapped := wrapItems(items)
 	return msl.Model.SetItems(wrapped)

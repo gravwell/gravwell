@@ -12,6 +12,7 @@ import (
 	"slices"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 )
@@ -76,7 +77,7 @@ func TestPreSelection(t *testing.T) {
 	})
 }
 
-func TestSelectCurrentItem(t *testing.T) {
+func TestToggleAndGetCurrentItems(t *testing.T) {
 	t.Run("pre-select items 1 and 3", func(t *testing.T) {
 		// pre-select items 1 and 3, then toggle item zero to selected manually
 		var items = []multiselectlist.SelectableItem[int]{
@@ -108,41 +109,42 @@ func TestSelectCurrentItem(t *testing.T) {
 }
 
 // TestModel runs a few key commands through Update and View to check that interactivity works.
-/*func TestModel(t *testing.T) {
-	var items = []list.DefaultItem{
-		testItem{title: "0", description: "desc0"},
-		testItem{title: "1", description: "desc1"},
-		testItem{title: "2", description: "desc2"},
-		testItem{title: "3", description: "desc3"},
+func TestModel(t *testing.T) {
+	var items = []multiselectlist.SelectableItem[string]{
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "0", Desc: "desc0"},
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "1", Desc: "desc1"},
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "2", Desc: "desc2", Slctd: true},
+		&multiselectlist.DefaultSelectableItem[string]{Ttl: "3", Desc: "desc3", Slctd: true},
 	}
 	// NOTE(rlandau): view wants can probably be replaced by teatest for cleaner interaction,
 	// but I haven't had much luck with teatest.
 	msl := multiselectlist.New(items, 30, 20,
-		multiselectlist.Options{Preselected: map[uint]bool{
-			2: false,
-			3: true,
-		},
-		})
+		multiselectlist.Options{ShowSelectStateFunc: func(selected bool) string {
+			if selected {
+				return "(-)"
+			}
+			return "( )"
+		}})
 	t.Run("initial view", func(t *testing.T) {
-		want := `   List
-
-  4 items
-
-│ [ ] 0
-│ desc0
-
-  [ ] 1
-  desc1
-
-  [ ] 2
-  desc2
-
-  [✓] 3
-  desc3
-
-
-
-
+		want := `   List                                         
+                                                
+  4 items                                       
+                                                
+│ ( ) 0                                         
+│ desc0                                         
+                                                
+  ( ) 1                                         
+  desc1                                         
+                                                
+  (-) 2                                         
+  desc2                                         
+                                                
+  (-) 3                                         
+  desc3                                         
+                                                
+                                                
+                                                
+                                                
   ↑/k up • ↓/j down • / filter • q quit • ? more
   space select • ↲ continue`
 		if v := msl.View(); v != want {
@@ -156,63 +158,93 @@ func TestSelectCurrentItem(t *testing.T) {
 		msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyDown}) // should have the same result as .CursorDown()
 		msl.CursorDown()
 		msl.ToggleCurrentItem()
-		want := `   List
-
-  4 items
-
-  [✓] 0
-  desc0
-
-  [ ] 1
-  desc1
-
-  [ ] 2
-  desc2
-
-│ [ ] 3
-│ desc3
-
-
-
-
+		want := `   List                                         
+                                                
+  4 items                                       
+                                                
+  (-) 0                                         
+  desc0                                         
+                                                
+  ( ) 1                                         
+  desc1                                         
+                                                
+  (-) 2                                         
+  desc2                                         
+                                                
+│ ( ) 3                                         
+│ desc3                                         
+                                                
+                                                
+                                                
+                                                
   ↑/k up • ↓/j down • / filter • q quit • ? more
   space select • ↲ continue`
 		if v := msl.View(); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
-		if numSel := len(msl.GetSelectedItems()); numSel != 1 {
-			t.Error("incorrect number of items selected.", testsupport.ExpectedActual(1, numSel))
+		if numSel := len(msl.GetSelectedItems()); numSel != 2 {
+			t.Error("incorrect number of items selected.", testsupport.ExpectedActual(2, numSel))
 		}
-	})
-	t.Run("done", func(t *testing.T) {
-		msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyEnter})
-		want := `   List
-
-  4 items
-
-  [✓] 0
-  desc0
-
-  [ ] 1
-  desc1
-
-  [ ] 2
-  desc2
-
-│ [ ] 3
-│ desc3
-
-
-
-
+		t.Run("done", func(t *testing.T) {
+			msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			want := `   List                                         
+                                                
+  4 items                                       
+                                                
+  (-) 0                                         
+  desc0                                         
+                                                
+  ( ) 1                                         
+  desc1                                         
+                                                
+  (-) 2                                         
+  desc2                                         
+                                                
+│ ( ) 3                                         
+│ desc3                                         
+                                                
+                                                
+                                                
+                                                
   ↑/k up • ↓/j down • / filter • q quit • ? more
   space select • ↲ continue`
-		if v := msl.View(); v != want {
-			t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
-		}
-		if !msl.Done() {
-			t.Error("expected msl to be done after sending Enter.")
-		}
+			if v := msl.View(); v != want {
+				t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
+			}
+			if !msl.Done() {
+				t.Error("expected msl to be done after sending Enter.")
+			}
+		})
 	})
 }
-*/
+
+func TestModel_SelectItems(t *testing.T) {
+	var items = []multiselectlist.SelectableItem[int]{
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Identifier: 0},
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "1", Desc: "desc1", Identifier: 1},
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "2", Desc: "desc2", Identifier: 2},
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "3", Desc: "desc3", Identifier: 3},
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "4", Desc: "desc4", Identifier: 4},
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "5", Desc: "desc5", Identifier: 5},
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "6", Desc: "desc6", Identifier: 6},
+	}
+
+	msl := multiselectlist.New(items, 80, 50, multiselectlist.Options{})
+
+	_, notFound := msl.SelectItems([]int{0, 6, 8, 10})
+	if !slices.Equal(notFound, []int{8, 10}) {
+		t.Error("incorrect set of not found identifiers.", testsupport.ExpectedActual([]int{8, 10}, notFound))
+	}
+
+	want := []multiselectlist.SelectableItem[int]{
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "0", Desc: "desc0", Slctd: true, Identifier: 0},
+		&multiselectlist.DefaultSelectableItem[int]{Ttl: "6", Desc: "desc6", Slctd: true, Identifier: 6},
+	}
+
+	selected := msl.GetSelectedItems()
+	if !slices.EqualFunc(selected, want, func(a, b multiselectlist.SelectableItem[int]) bool {
+		return a.ID() == b.ID()
+	}) {
+		t.Fatal("incorrect selected items", testsupport.ExpectedActual(want, selected))
+	}
+}
