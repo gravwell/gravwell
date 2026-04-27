@@ -74,6 +74,8 @@ func New(items []list.DefaultItem, width, height int, opts Options) Model {
 		selectedViewFunc: DefaultSelectedViewFunc,
 	}
 
+	hotkeys.ApplyToList(&msl.KeyMap)
+
 	return msl
 }
 
