@@ -311,6 +311,12 @@ func (p *MSLProvider) SetArgs(width, height int) {
 }
 
 func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, tko bool) {
+	// if the message is a window size message, it should always be passed to the list
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		p.msl, cmd = p.msl.Update(wsm)
+		return cmd, p.takeover
+	}
+
 	defer func() {
 		p.numSelected = len(p.msl.GetSelectedItems())
 	}()
