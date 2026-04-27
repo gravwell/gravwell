@@ -40,17 +40,13 @@ type Model[ID_t comparable] struct {
 	StatusMessageOnSelect bool
 }
 
-type Options struct {
-	// Returns a string to be prefixed to each item in the list to show it's selected state.
-	//
-	// Uses DefaultSelectedViewFunc if nil.
-	ShowSelectStateFunc func(selected bool) string
-}
-
 // New returns a Multi-Select enabled list with the default delegate used by list.
 func New[ID_t comparable](items []SelectableItem[ID_t], width, height int, opts Options) Model[ID_t] {
+	dd := NewDefaultDelegate[ID_t](opts.ShowSelectStateFunc)
+	dd.ShowDescription = opts.ShowDescription
+
 	msl := Model[ID_t]{
-		Model: list.New(wrapItems(items), NewDefaultDelegate[ID_t](opts.ShowSelectStateFunc), width, height),
+		Model: list.New(wrapItems(items), dd, width, height),
 	}
 
 	return msl
