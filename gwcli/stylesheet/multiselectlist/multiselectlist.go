@@ -49,6 +49,8 @@ func New[ID_t comparable](items []SelectableItem[ID_t], width, height int, opts 
 		Model: list.New(wrapItems(items), dd, width, height),
 	}
 
+	hotkeys.ApplyToList(&msl.KeyMap)
+
 	return msl
 }
 

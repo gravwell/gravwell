@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -67,7 +68,7 @@ func Test_SuggestionCompletion_TeaTest(t *testing.T) {
 	})
 
 	t.Run("completion on empty input completes to help", func(t *testing.T) {
-		testsupport.TTSendSpecial(tm, tea.KeyTab)
+		testsupport.TTSendSpecial(tm, hotkeys.Complete)
 
 		out := testsupport.TTMatchGolden(t, tm, false, 0)
 		// should contain help exactly twice; once for the prompt, once for the suggestion bars
@@ -87,7 +88,7 @@ func Test_SuggestionCompletion_TeaTest(t *testing.T) {
 		// navs should be sorted alphanumerically, but always suggested before actions
 		tm.Type("top")
 		time.Sleep(100 * time.Millisecond)
-		testsupport.TTSendSpecial(tm, tea.KeyTab) // autocomplete topnav1
+		testsupport.TTSendSpecial(tm, hotkeys.Complete) // autocomplete topnav1
 
 		out := testsupport.TTMatchGolden(t, tm, false, 0)
 		// should contain help exactly twice; once for the prompt, once for the suggestion bars

@@ -12,6 +12,8 @@
 package hotkeys
 
 import (
+	"sync"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -25,8 +27,8 @@ import (
 const (
 	Invoke     = tea.KeyEnter // move onto the next stage/submit current data
 	Select     = tea.KeySpace // select/toggle an item
-	CursorDown = tea.KeyShiftDown
-	CursorUp   = tea.KeyShiftUp
+	CursorDown = tea.KeyDown
+	CursorUp   = tea.KeyUp
 	Complete   = tea.KeyTab
 )
 
@@ -60,11 +62,11 @@ func NewModel() Model {
 	s := Model{ // all keybindings start enabled
 		CursorUp: key.NewBinding(
 			key.WithKeys(CursorUp.String()),
-			key.WithHelp("shift+"+stylesheet.UpSigil, "cursor up"),
+			key.WithHelp(stylesheet.UpSigil, "cursor up"),
 		),
 		CursorDown: key.NewBinding(
 			key.WithKeys(CursorDown.String()),
-			key.WithHelp("shift+"+stylesheet.DownSigil, "cursor down"),
+			key.WithHelp(stylesheet.DownSigil, "cursor down"),
 		),
 		Invoke: key.NewBinding(
 			key.WithKeys(Invoke.String()),
@@ -85,7 +87,12 @@ func NewModel() Model {
 	return s
 }
 
-var defaultHotkeys = NewModel()
+var (
+	defaultHotkeys = NewModel()
+	// as this is a TUI, we never expect defaultHotkeys to be used in multiple places at once.
+	// This is just to shut up -race as we are technically mutating a singleton in DefaultView().
+	defaultMu = sync.Mutex{}
+)
 var _ tea.Model = Model{}
 
 func (Model) Init() tea.Cmd {
@@ -108,6 +115,8 @@ func (m Model) View() string {
 //
 // If width > 0, the given width will be factored into this view (and only this view).
 func DefaultView(width int) string {
+	defaultMu.Lock()
+	defer defaultMu.Unlock()
 	var t int
 	if width > 0 {
 		t = defaultHotkeys.help.Width

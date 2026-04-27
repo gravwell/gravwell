@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -111,13 +112,13 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 		s.download.inputErrorString = "" // clear input error on newest key message
 		s.download.resultString = ""
 		switch msg.Type {
-		case tea.KeyUp:
+		case hotkeys.CursorUp:
 			cycleUp(&s.download)
 			return textinput.Blink
-		case tea.KeyDown:
+		case hotkeys.CursorDown:
 			cycleDown(&s.download)
 			return textinput.Blink
-		case tea.KeySpace, tea.KeyEnter:
+		case hotkeys.Select:
 			// handle booleans
 			switch s.download.selected {
 			case dlappend:
@@ -140,24 +141,24 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 					s.download.format.json = false
 					s.download.format.csv = false
 				}
-			case dlsubmit:
-				if msg.Type == tea.KeyEnter { // only accept enter when submitting
-					// gather and validate selections
-					fn := strings.TrimSpace(s.download.outfileTI.Value())
-					if fn == "" {
-						str := "output file cannot be empty"
-						s.download.inputErrorString = str
-						return nil
-					}
-					res, success := s.dl(fn)
-					s.download.resultString = res
-					if !success {
-						clilog.Writer.Error(res)
-					} else {
-						clilog.Writer.Info(res)
-					}
+			}
+		case hotkeys.Invoke:
+			if s.download.selected == dlsubmit {
+				// gather and validate selections
+				fn := strings.TrimSpace(s.download.outfileTI.Value())
+				if fn == "" {
+					str := "output file cannot be empty"
+					s.download.inputErrorString = str
 					return nil
 				}
+				res, success := s.dl(fn)
+				s.download.resultString = res
+				if !success {
+					clilog.Writer.Error(res)
+				} else {
+					clilog.Writer.Info(res)
+				}
+				return nil
 			}
 		}
 	}

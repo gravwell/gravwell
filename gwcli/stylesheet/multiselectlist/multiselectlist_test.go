@@ -16,6 +16,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 )
 
@@ -128,58 +129,58 @@ func TestModel(t *testing.T) {
 			return "( )"
 		}})
 	t.Run("initial view", func(t *testing.T) {
-		want := `   List                                         
-                                                
-  4 items                                       
-                                                
-│ ( ) 0                                         
-│ desc0                                         
-                                                
-  ( ) 1                                         
-  desc1                                         
-                                                
-  (-) 2                                         
-  desc2                                         
-                                                
-  (-) 3                                         
-  desc3                                         
-                                                
-                                                
-                                                
-                                                
-  ↑/k up • ↓/j down • / filter • q quit • ? more
+		want := `   List                                                   
+                                                          
+  4 items                                                 
+                                                          
+│ ( ) 0                                                   
+│ desc0                                                   
+                                                          
+  ( ) 1                                                   
+  desc1                                                   
+                                                          
+  (-) 2                                                   
+  desc2                                                   
+                                                          
+  (-) 3                                                   
+  desc3                                                   
+                                                          
+                                                          
+                                                          
+                                                          
+  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
   space select • ↲ continue`
 		if v := msl.View(); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 	})
 	t.Run("toggle first and last items", func(t *testing.T) {
-		msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeySpace})
+		msl, _ = msl.Update(tea.KeyMsg{Type: hotkeys.Select})
 		// Reminder: lists do not natively support wrapping!
 		msl.CursorDown()
-		msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyDown}) // should have the same result as .CursorDown()
+		msl, _ = msl.Update(tea.KeyMsg{Type: hotkeys.CursorDown}) // should have the same result as .CursorDown()
 		msl.CursorDown()
 		msl.ToggleCurrentItem()
-		want := `   List                                         
-                                                
-  4 items                                       
-                                                
-  (-) 0                                         
-  desc0                                         
-                                                
-  ( ) 1                                         
-  desc1                                         
-                                                
-  (-) 2                                         
-  desc2                                         
-                                                
-│ ( ) 3                                         
-│ desc3                                         
-                                                
-                                                
-                                                
-                                                
-  ↑/k up • ↓/j down • / filter • q quit • ? more
+		want := `   List                                                   
+                                                          
+  4 items                                                 
+                                                          
+  (-) 0                                                   
+  desc0                                                   
+                                                          
+  ( ) 1                                                   
+  desc1                                                   
+                                                          
+  (-) 2                                                   
+  desc2                                                   
+                                                          
+│ ( ) 3                                                   
+│ desc3                                                   
+                                                          
+                                                          
+                                                          
+                                                          
+  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
   space select • ↲ continue`
 		if v := msl.View(); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
@@ -189,26 +190,26 @@ func TestModel(t *testing.T) {
 		}
 		t.Run("done", func(t *testing.T) {
 			msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			want := `   List                                         
-                                                
-  4 items                                       
-                                                
-  (-) 0                                         
-  desc0                                         
-                                                
-  ( ) 1                                         
-  desc1                                         
-                                                
-  (-) 2                                         
-  desc2                                         
-                                                
-│ ( ) 3                                         
-│ desc3                                         
-                                                
-                                                
-                                                
-                                                
-  ↑/k up • ↓/j down • / filter • q quit • ? more
+			want := `   List                                                   
+                                                          
+  4 items                                                 
+                                                          
+  (-) 0                                                   
+  desc0                                                   
+                                                          
+  ( ) 1                                                   
+  desc1                                                   
+                                                          
+  (-) 2                                                   
+  desc2                                                   
+                                                          
+│ ( ) 3                                                   
+│ desc3                                                   
+                                                          
+                                                          
+                                                          
+                                                          
+  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
   space select • ↲ continue`
 			if v := msl.View(); v != want {
 				t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))

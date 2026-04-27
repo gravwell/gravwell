@@ -63,6 +63,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -345,6 +346,7 @@ func (em *editModel[I, S]) SetArgs(fs *pflag.FlagSet, tokens []string, width, he
 
 	// generate list
 	em.list = stylesheet.NewList(itms, em.width, em.height, em.singular, em.plural)
+	hotkeys.ApplyToList(&em.list.KeyMap)
 	em.listInitialized = true
 	em.mode = selecting
 
@@ -389,17 +391,14 @@ func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
 // Update() handling for selecting mode.
 // Updates the list and transitions to editing mode if an item is selected.
 func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.Type == tea.KeySpace || msg.Type == tea.KeyEnter {
-			item := em.data[em.list.GlobalIndex()]
-			if err := em.enterEditMode(item); err != nil {
-				em.mode = quitting
-				clilog.Writer.Errorf("%v", err)
-				return tea.Println(err.Error())
-			}
-			return textinput.Blink
+	if hotkeys.IsInvoke(msg) {
+		item := em.data[em.list.GlobalIndex()]
+		if err := em.enterEditMode(item); err != nil {
+			em.mode = quitting
+			clilog.Writer.Errorf("%v", err)
+			return tea.Println(err.Error())
 		}
+		return textinput.Blink
 	}
 	var cmd tea.Cmd
 	em.list, cmd = em.list.Update(msg)

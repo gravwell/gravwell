@@ -32,7 +32,7 @@ type stateEdit[S any] struct {
 //
 // An item identifier, as returned by updateSub, is returned iff the item update subroutine was triggered and processed successfully.
 // The empty string means that an error occurred or the item update subroutine was not fired at all.
-func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubroutine[S], updateSub UpdateStructSubroutine[S]) (
+func (se *stateEdit[S]) update(msg tea.Msg, _ Config, setFieldSub SetFieldSubroutine[S], updateSub UpdateStructSubroutine[S]) (
 	_ tea.Cmd, identifier string,
 ) {
 	if _, ok := msg.(tea.KeyMsg); ok {
@@ -78,8 +78,6 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 				}
 				// success
 				return nil, identifier
-			} else {
-				se.nextTI()
 			}
 		case hotkeys.IsCursorUp(msg):
 			se.previousTI()

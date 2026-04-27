@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -115,27 +116,27 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyUp:
+		case hotkeys.CursorUp:
 			mv.selected -= 1
 			if mv.selected <= lowBound {
 				mv.selected = highBound - 1
 			}
 			mv.updateFocus()
 			return []tea.Cmd{textinput.Blink}, false
-		case tea.KeyDown:
+		case hotkeys.CursorDown:
 			mv.selected += 1
 			if mv.selected >= highBound {
 				mv.selected = lowBound + 1
 			}
 			mv.updateFocus()
 			return []tea.Cmd{textinput.Blink}, false
-		case tea.KeySpace, tea.KeyEnter:
-			switch mv.selected {
-			case background:
+		case hotkeys.Select:
+			if mv.selected == background {
 				mv.background = !mv.background
-			case submit:
+			}
+		case hotkeys.Invoke:
+			if mv.selected == submit {
 				return nil, true
-
 			}
 		}
 	}
