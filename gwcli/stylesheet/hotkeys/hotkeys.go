@@ -60,11 +60,11 @@ func NewModel() Model {
 	s := Model{ // all keybindings start enabled
 		CursorUp: key.NewBinding(
 			key.WithKeys(CursorUp.String()),
-			key.WithHelp(stylesheet.UpSigil, "up"),
+			key.WithHelp("shift+"+stylesheet.UpSigil, "cursor up"),
 		),
 		CursorDown: key.NewBinding(
 			key.WithKeys(CursorDown.String()),
-			key.WithHelp(stylesheet.DownSigil, "down"),
+			key.WithHelp("shift+"+stylesheet.DownSigil, "cursor down"),
 		),
 		Invoke: key.NewBinding(
 			key.WithKeys(Invoke.String()),
