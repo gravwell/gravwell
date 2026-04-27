@@ -301,7 +301,7 @@ func TestMSLProvider(t *testing.T) {
 		if !takeover {
 			t.Fatal("failed to enter takeover mode while selected")
 		}
-		kind, _, _ := f.Provider.View(false, 80)
+		kind, _, _ := f.Provider.View(true, 80)
 		if kind != scaffoldcreate.Takeover {
 			t.Error("view did not believe it was in takeover mode")
 		}
