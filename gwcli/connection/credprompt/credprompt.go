@@ -68,12 +68,14 @@ type credModel struct {
 	userSelected      bool
 	killed            bool
 	done              bool
+
+	hotkeys hotkeys.Model
 }
 
 // New creates a new credprompt, which satisfies the tea.Model interface.
 // You probably want Collect(), instead; this is mostly used internally and for testing.
 func New(initialUser string) credModel {
-	c := credModel{userStartingValue: initialUser, userSelected: true}
+	c := credModel{userStartingValue: initialUser, userSelected: true, hotkeys: hotkeys.NewModel()}
 	c.UserTI = textinput.New()
 	c.UserTI.Prompt = ""
 	c.UserTI.SetValue(c.userStartingValue)
@@ -82,6 +84,8 @@ func New(initialUser string) credModel {
 	c.PassTI.Prompt = ""
 	c.PassTI.EchoMode = textinput.EchoNone
 	c.PassTI.Blur()
+
+	c.hotkeys.Invoke.SetHelp(stylesheet.EnterSigil, "submit")
 	return c
 }
 
@@ -125,7 +129,7 @@ func (c credModel) View() string {
 	return fmt.Sprintf("%v%v\n%v%v\n\n%v",
 		stylesheet.Cur.Prompt("username", false), c.UserTI.View(),
 		stylesheet.Cur.Prompt("password", false), c.PassTI.View(),
-		hotkeys.DefaultView(0),
+		c.hotkeys.View(),
 	)
 }
 
