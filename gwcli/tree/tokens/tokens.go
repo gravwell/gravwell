@@ -218,7 +218,7 @@ func create() action.Pair {
 						clilog.Writer.Error("failed to fetch token capabilities:", log.KVErr(err))
 						return nil
 					}
-					itms := make([]multiselectlist.SelectableItem[string], 0, len(caps))
+					itms := make([]multiselectlist.SelectableItem[string], len(caps))
 					for i, cap := range caps {
 						itms[i] = &multiselectlist.Item{
 							Title_: cap,
