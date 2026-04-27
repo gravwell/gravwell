@@ -27,8 +27,8 @@ import (
 const (
 	Invoke     = tea.KeyEnter // move onto the next stage/submit current data
 	Select     = tea.KeySpace // select/toggle an item
-	CursorDown = tea.KeyShiftDown
-	CursorUp   = tea.KeyShiftUp
+	CursorDown = tea.KeyDown
+	CursorUp   = tea.KeyUp
 	Complete   = tea.KeyTab
 )
 
@@ -62,11 +62,11 @@ func NewModel() Model {
 	s := Model{ // all keybindings start enabled
 		CursorUp: key.NewBinding(
 			key.WithKeys(CursorUp.String()),
-			key.WithHelp("shift+"+stylesheet.UpSigil, "cursor up"),
+			key.WithHelp(stylesheet.UpSigil, "cursor up"),
 		),
 		CursorDown: key.NewBinding(
 			key.WithKeys(CursorDown.String()),
-			key.WithHelp("shift+"+stylesheet.DownSigil, "cursor down"),
+			key.WithHelp(stylesheet.DownSigil, "cursor down"),
 		),
 		Invoke: key.NewBinding(
 			key.WithKeys(Invoke.String()),
