@@ -101,3 +101,8 @@ type DashboardRendererOptionsValues struct {
 	Orientation string
 	Columns     []string `json:"columns,omitempty"`
 }
+
+type DashboardListResponse struct {
+	BaseListResponse
+	Results []Dashboard `json:"results"`
+}

@@ -16,8 +16,6 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/client/types"
-
-	"github.com/google/uuid"
 )
 
 // PackedMacro is a stripped-down representation of a macro object for inclusion in a kit.
@@ -360,18 +358,16 @@ func (pss *PackedFlow) JSONMetadata() (json.RawMessage, error) {
 
 // PackedDashboard is a stripped-down type used for dashboards in kits.
 type PackedDashboard struct {
-	UUID        string
+	ID          string
 	Name        string
 	Description string
-	Data        types.RawObject
+	Data        types.DashboardContents
 	Labels      []string
 }
 
 // PackDashboard converts a Dashboard into a PackedDashboard.
 func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
-	if pd.UUID = d.GUID; pd.UUID == `` {
-		pd.UUID = uuid.New().String()
-	}
+	pd.ID = d.ID
 	pd.Name = d.Name
 	pd.Description = d.Description
 	pd.Data = d.Data
@@ -384,8 +380,6 @@ func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
 func (pd *PackedDashboard) Validate() error {
 	if pd.Name == `` {
 		return fmt.Errorf("Missing dashboard name")
-	} else if len(pd.Data) == 0 {
-		return fmt.Errorf("Empty dashboard")
 	}
 	return nil
 }
@@ -393,11 +387,11 @@ func (pd *PackedDashboard) Validate() error {
 // JSONMetadata returns additional info about the PackedDashboard in JSON format.
 func (pd *PackedDashboard) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
-		UUID        string
+		ID          string
 		Name        string
 		Description string
 	}{
-		UUID:        pd.UUID,
+		ID:          pd.ID,
 		Name:        pd.Name,
 		Description: pd.Description,
 	})
