@@ -346,6 +346,7 @@ func (em *editModel[I, S]) SetArgs(fs *pflag.FlagSet, tokens []string, width, he
 
 	// generate list
 	em.list = stylesheet.NewList(itms, em.width, em.height, em.singular, em.plural)
+	hotkeys.ApplyToList(&em.list.KeyMap)
 	em.listInitialized = true
 	em.mode = selecting
 
