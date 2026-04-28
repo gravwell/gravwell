@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 )
 
 // fieldnum identifies each field numerically so we can figure out which one is currently selected
@@ -102,20 +103,20 @@ func (m *metadata) Init(name, description, tag string, enable bool, maxEvents in
 }
 
 func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToConsumers, trySubmit bool) {
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	if _, ok := msg.(tea.KeyMsg); ok {
 		m.submitErr = "" // clear error from last create attempt
-		switch keyMsg.Type {
-		case hotkeys.CursorUp:
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp):
 			m.focusPrevious()
 			return textinput.Blink, false, false, false
-		case hotkeys.CursorDown:
+		case hotkeys.Match(msg, hotkeys.CursorDown):
 			m.focusNext()
 			return textinput.Blink, false, false, false
-		case hotkeys.Select:
+		case hotkeys.Match(msg, hotkeys.Select):
 			if m.selected == numEnable {
 				m.enable = !m.enable
 			}
-		case hotkeys.Invoke:
+		case hotkeys.Match(msg, hotkeys.Invoke):
 			// handle buttons and booleans
 			switch m.selected {
 			case numBackToDispatchers:
@@ -268,7 +269,7 @@ func (m *metadata) View() string {
 	// TODO at some point, we should replace this with actual help and real key binds.
 	sb.WriteString("\n\n" +
 		stylesheet.Cur.DisabledText.Render(
-			"shift+"+stylesheet.UpDownSigils+": scroll • space: toggle • enter: interact"+
+			"shift+"+sigils.UpDown+": scroll • space: toggle • enter: interact"+
 				"\nesc: quit"))
 	return sb.String()
 }

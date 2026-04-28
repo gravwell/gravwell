@@ -143,7 +143,7 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		// clear any existing error
 		sv.errString = ""
 
-		if hotkeys.IsSubmit(msg) { // attach to the current item
+		if hotkeys.Match(msg, hotkeys.Select, hotkeys.Invoke) { // attach to the current item
 			if err := sv.attachToQuery(); err != nil {
 				return nil, nil, err
 			}

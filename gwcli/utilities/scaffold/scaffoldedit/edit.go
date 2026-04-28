@@ -391,7 +391,7 @@ func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
 // Update() handling for selecting mode.
 // Updates the list and transitions to editing mode if an item is selected.
 func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
-	if hotkeys.IsInvoke(msg) {
+	if hotkeys.Match(msg, hotkeys.Invoke) {
 		item := em.data[em.list.GlobalIndex()]
 		if err := em.enterEditMode(item); err != nil {
 			em.mode = quitting

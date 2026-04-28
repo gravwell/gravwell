@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -102,7 +103,7 @@ func New() mfaModel {
 	c.recoveryTI.Prompt = ""
 	c.recoveryTI.Blur()
 
-	c.hotkeys.Invoke.SetHelp(stylesheet.EnterSigil, "submit")
+	c.hotkeys.Invoke.SetHelp(sigils.Enter, "submit")
 	c.hotkeys.Select.Unbind()
 	return c
 }
@@ -122,10 +123,10 @@ func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.Type {
-		case hotkeys.CursorUp, hotkeys.CursorDown, tea.KeyTab, tea.KeyShiftTab: // swap
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
 			return m.swap(), textinput.Blink
-		case hotkeys.Invoke: // submit
+		case hotkeys.Match(msg, hotkeys.Invoke): // submit
 			m.done = true
 			return m, tea.Quit
 		}

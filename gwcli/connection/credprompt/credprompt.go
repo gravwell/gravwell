@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -85,7 +86,7 @@ func New(initialUser string) credModel {
 	c.PassTI.EchoMode = textinput.EchoNone
 	c.PassTI.Blur()
 
-	c.hotkeys.Invoke.SetHelp(stylesheet.EnterSigil, "submit")
+	c.hotkeys.Invoke.SetHelp(sigils.Enter, "submit")
 	c.hotkeys.Select.Unbind()
 	c.hotkeys.Complete.Unbind()
 	return c
@@ -108,9 +109,9 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch {
-	case hotkeys.IsCursorUp(msg), hotkeys.IsCursorDown(msg): // swap
+	case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
 		return c.swap(), textinput.Blink
-	case hotkeys.IsInvoke(msg): // submit or swap
+	case hotkeys.Match(msg, hotkeys.Invoke): // submit or swap
 		if c.userSelected {
 			return c.swap(), textinput.Blink
 		}

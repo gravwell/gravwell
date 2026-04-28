@@ -68,7 +68,7 @@ func Test_SuggestionCompletion_TeaTest(t *testing.T) {
 	})
 
 	t.Run("completion on empty input completes to help", func(t *testing.T) {
-		testsupport.TTSendSpecial(tm, hotkeys.Complete)
+		testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Complete).Type)
 
 		out := testsupport.TTMatchGolden(t, tm, false, 0)
 		// should contain help exactly twice; once for the prompt, once for the suggestion bars
@@ -88,7 +88,7 @@ func Test_SuggestionCompletion_TeaTest(t *testing.T) {
 		// navs should be sorted alphanumerically, but always suggested before actions
 		tm.Type("top")
 		time.Sleep(100 * time.Millisecond)
-		testsupport.TTSendSpecial(tm, hotkeys.Complete) // autocomplete topnav1
+		testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Complete).Type) // autocomplete topnav1
 
 		out := testsupport.TTMatchGolden(t, tm, false, 0)
 		// should contain help exactly twice; once for the prompt, once for the suggestion bars

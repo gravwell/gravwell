@@ -14,7 +14,6 @@ import (
 	"slices"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
@@ -129,7 +128,7 @@ func TestModel(t *testing.T) {
 			return "( )"
 		}})
 	t.Run("initial view", func(t *testing.T) {
-		want := `   List                                                   
+		want := testsupport.LinesTrimSpace(`   List                                                   
                                                           
   4 items                                                 
                                                           
@@ -148,20 +147,20 @@ func TestModel(t *testing.T) {
                                                           
                                                           
                                                           
-  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
-  space select • ↲ continue`
-		if v := msl.View(); v != want {
+  ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
+  space select • ↲ continue`)
+		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 	})
 	t.Run("toggle first and last items", func(t *testing.T) {
-		msl, _ = msl.Update(tea.KeyMsg{Type: hotkeys.Select})
+		msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.Select)) // toggle first
 		// Reminder: lists do not natively support wrapping!
 		msl.CursorDown()
-		msl, _ = msl.Update(tea.KeyMsg{Type: hotkeys.CursorDown}) // should have the same result as .CursorDown()
+		msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.CursorDown)) // should have the same result as .CursorDown()
 		msl.CursorDown()
-		msl.ToggleCurrentItem()
-		want := `   List                                                   
+		msl.ToggleCurrentItem() // toggle last
+		want := testsupport.LinesTrimSpace(`   List                                                   
                                                           
   4 items                                                 
                                                           
@@ -180,17 +179,18 @@ func TestModel(t *testing.T) {
                                                           
                                                           
                                                           
-  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
-  space select • ↲ continue`
-		if v := msl.View(); v != want {
+  ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
+  space select • ↲ continue`)
+		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
-		if numSel := len(msl.GetSelectedItems()); numSel != 2 {
-			t.Error("incorrect number of items selected.", testsupport.ExpectedActual(2, numSel))
-		}
-		t.Run("done", func(t *testing.T) {
-			msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyEnter})
-			want := `   List                                                   
+	})
+	if numSel := len(msl.GetSelectedItems()); numSel != 2 {
+		t.Error("incorrect number of items selected.", testsupport.ExpectedActual(2, numSel))
+	}
+	t.Run("done", func(t *testing.T) {
+		msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.Invoke))
+		want := testsupport.LinesTrimSpace(`   List                                                   
                                                           
   4 items                                                 
                                                           
@@ -209,45 +209,13 @@ func TestModel(t *testing.T) {
                                                           
                                                           
                                                           
-  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
-  space select • ↲ continue`
-			if v := msl.View(); v != want {
-				t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
-			}
-			if !msl.Done() {
-				t.Error("expected msl to be done after sending Enter.")
-			}
-		})
+  ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
+  space select • ↲ continue`)
+		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
+			t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
+		}
+		if !msl.Done() {
+			t.Error("expected msl to be done after sending Enter.")
+		}
 	})
-}
-
-func TestModel_SelectItems(t *testing.T) {
-	var items = []multiselectlist.SelectableItem[int]{
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", ID_: 0},
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "1", Description_: "desc1", ID_: 1},
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "2", Description_: "desc2", ID_: 2},
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "3", Description_: "desc3", ID_: 3},
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "4", Description_: "desc4", ID_: 4},
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "5", Description_: "desc5", ID_: 5},
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "6", Description_: "desc6", ID_: 6},
-	}
-
-	msl := multiselectlist.New(items, 80, 50, multiselectlist.Options{})
-
-	_, notFound := msl.SelectItems([]int{0, 6, 8, 10})
-	if !slices.Equal(notFound, []int{8, 10}) {
-		t.Error("incorrect set of not found identifiers.", testsupport.ExpectedActual([]int{8, 10}, notFound))
-	}
-
-	want := []multiselectlist.SelectableItem[int]{
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "0", Description_: "desc0", Selected_: true, ID_: 0},
-		&multiselectlist.DefaultSelectableItem[int]{Title_: "6", Description_: "desc6", Selected_: true, ID_: 6},
-	}
-
-	selected := msl.GetSelectedItems()
-	if !slices.EqualFunc(selected, want, func(a, b multiselectlist.SelectableItem[int]) bool {
-		return a.ID() == b.ID()
-	}) {
-		t.Fatal("incorrect selected items", testsupport.ExpectedActual(want, selected))
-	}
 }

@@ -207,14 +207,14 @@ func Test_Download(t *testing.T) {
 		tm.Type(outPath)
 		time.Sleep(500 * time.Millisecond)
 		// set record numbers
-		TTSendSpecial(tm, hotkeys.CursorUp)
-		TTSendSpecial(tm, hotkeys.CursorUp)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorUp).Type)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorUp).Type)
 		tm.Type(recordsText)
 		time.Sleep(SendSpecialPause)
 
 		// submit request
-		TTSendSpecial(tm, hotkeys.CursorDown)
-		TTSendSpecial(tm, hotkeys.Invoke)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+		TTSendSpecial(tm, SendHotkey(hotkeys.Invoke).Type)
 
 		// check the final output
 		TTSendSpecial(tm, tea.KeyCtrlC)
@@ -258,17 +258,17 @@ func Test_Download(t *testing.T) {
 		tm.Type(outPath)
 		time.Sleep(500 * time.Millisecond)
 		// set append-mode
-		TTSendSpecial(tm, hotkeys.CursorDown)
-		TTSendSpecial(tm, hotkeys.Select)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+		TTSendSpecial(tm, SendHotkey(hotkeys.Select).Type)
 		// set record
-		TTSendSpecial(tm, hotkeys.CursorUp)
-		TTSendSpecial(tm, hotkeys.CursorUp)
-		TTSendSpecial(tm, hotkeys.CursorUp)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorUp).Type)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorUp).Type)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorUp).Type)
 		tm.Type(recordsText)
 		time.Sleep(500 * time.Millisecond)
 		// submit request
-		TTSendSpecial(tm, hotkeys.CursorDown)
-		TTSendSpecial(tm, hotkeys.Invoke)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+		TTSendSpecial(tm, SendHotkey(hotkeys.Invoke).Type)
 
 		// kill the bubble
 		TTSendSpecial(tm, tea.KeyCtrlC)
@@ -323,9 +323,9 @@ func Test_Download(t *testing.T) {
 			TTSendSpecial(tm, tea.KeyShiftTab)
 
 			// set JSON
-			TTSendSpecial(tm, hotkeys.CursorDown)
-			TTSendSpecial(tm, hotkeys.CursorDown)
-			TTSendSpecial(tm, hotkeys.Select)
+			TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+			TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+			TTSendSpecial(tm, SendHotkey(hotkeys.Select).Type)
 
 			// check the final output
 			TTSendSpecial(tm, tea.KeyCtrlC)
@@ -339,10 +339,10 @@ func Test_Download(t *testing.T) {
 			TTSendSpecial(tm, tea.KeyShiftTab)
 
 			// set JSON
-			TTSendSpecial(tm, hotkeys.CursorDown)
-			TTSendSpecial(tm, hotkeys.CursorDown)
-			TTSendSpecial(tm, hotkeys.CursorDown)
-			TTSendSpecial(tm, hotkeys.Select)
+			TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+			TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+			TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+			TTSendSpecial(tm, SendHotkey(hotkeys.Select).Type)
 
 			// check the final output
 			TTSendSpecial(tm, tea.KeyCtrlC)
@@ -384,15 +384,15 @@ func Test_Schedule(t *testing.T) {
 		// cron
 		tm.Type(cron)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
 		// name
 		tm.Type(name)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
 		// desc
 		tm.Type(desc)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
 
 		// kill the bubble
 		TTSendSpecial(tm, tea.KeyCtrlC)
@@ -427,20 +427,20 @@ func Test_Schedule(t *testing.T) {
 		// cron
 		tm.Type(cron)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
 		// name
 		tm.Type(name)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
 		// desc
 		tm.Type(desc)
 		time.Sleep(500 * time.Millisecond)
-		TTSendSpecial(tm, hotkeys.CursorDown)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
 
 		// attempt to submit
 		// this should have no lasting effect, as the search is invalid
-		TTSendSpecial(tm, hotkeys.CursorDown)
-		TTSendSpecial(tm, hotkeys.Invoke)
+		TTSendSpecial(tm, SendHotkey(hotkeys.CursorDown).Type)
+		TTSendSpecial(tm, SendHotkey(hotkeys.Invoke).Type)
 
 		// kill the bubble
 		TTSendSpecial(tm, tea.KeyCtrlC)
