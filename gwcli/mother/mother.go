@@ -254,12 +254,12 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case km.Type == tea.KeyF1: // help
 			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		case km.Type == tea.KeyUp: // history
+		case hotkeys.Match(msg, hotkeys.CursorUp): // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
 			return m, textinput.Blink
-		case km.Type == tea.KeyDown: // history
+		case hotkeys.Match(msg, hotkeys.CursorDown): // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
@@ -273,7 +273,6 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.ti.Value() == "" {
 				m.ti.SetValue("help")
 			}
-			return m, textinput.Blink
 		case km.Type == tea.KeyCtrlU:
 			m.ti.SetValue("")
 			return m, textinput.Blink
