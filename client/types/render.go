@@ -149,6 +149,7 @@ type ResultsResponse struct {
 }
 
 type ResultsTable struct {
+	HasExplore       bool                           `json:"hasExplore"`
 	Kind             string                         `json:"kind"`
 	BinCount         int                            `json:"binCount"`
 	BinWidth         float64                        `json:"binWidth"`
