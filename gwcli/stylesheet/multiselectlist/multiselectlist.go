@@ -24,6 +24,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -50,6 +51,7 @@ func New[ID_t comparable](items []SelectableItem[ID_t], width, height int, opts 
 	}
 
 	hotkeys.ApplyToList(&msl.KeyMap)
+	msl.KeyMap.AcceptWhileFiltering = key.NewBinding(key.WithKeys(tea.KeyEnter.String()))
 
 	return msl
 }
@@ -70,11 +72,12 @@ func (msl Model[ID_t]) Update(msg tea.Msg) (Model[ID_t], tea.Cmd) {
 		return msl, nil
 	}
 
+	// handle special inputs
 	switch {
 	case hotkeys.IsSelect(msg):
 		cmd := msl.ToggleCurrentItem()
 		return msl, cmd
-	case hotkeys.IsInvoke(msg):
+	case hotkeys.IsInvoke(msg) && !msl.FilteringEnabled():
 		msl.done = true
 		return msl, nil
 	}
