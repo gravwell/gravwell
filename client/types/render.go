@@ -195,7 +195,6 @@ type ResultsTable struct {
 
 type ResultsTableCell struct {
 	Elements    []Element `json:",omitempty"`
-	Tag         string
 	Value       string
 	WordOffsets []WordOffset `json:",omitempty"`
 }
