@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
@@ -121,7 +120,7 @@ func TestModel(t *testing.T) {
 		},
 		})
 	t.Run("initial view", func(t *testing.T) {
-		want := `   List                                                   
+		want := testsupport.LinesTrimSpace(`   List                                                   
                                                           
   4 items                                                 
                                                           
@@ -140,20 +139,20 @@ func TestModel(t *testing.T) {
                                                           
                                                           
                                                           
-  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
-  space select • ↲ continue`
-		if v := msl.View(); v != want {
+  ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
+  space select • ↲ continue`)
+		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 	})
 	t.Run("toggle first and last items", func(t *testing.T) {
-		msl, _ = msl.Update(tea.KeyMsg{Type: hotkeys.Select})
+		msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.Select)) // toggle first
 		// Reminder: lists do not natively support wrapping!
 		msl.CursorDown()
-		msl, _ = msl.Update(tea.KeyMsg{Type: hotkeys.CursorDown}) // should have the same result as .CursorDown()
+		msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.CursorDown)) // should have the same result as .CursorDown()
 		msl.CursorDown()
-		msl.ToggleCurrentItem()
-		want := `   List                                                   
+		msl.ToggleCurrentItem() // toggle last
+		want := testsupport.LinesTrimSpace(`   List                                                   
                                                           
   4 items                                                 
                                                           
@@ -172,15 +171,15 @@ func TestModel(t *testing.T) {
                                                           
                                                           
                                                           
-  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
-  space select • ↲ continue`
-		if v := msl.View(); v != want {
+  ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
+  space select • ↲ continue`)
+		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 	})
 	t.Run("done", func(t *testing.T) {
-		msl, _ = msl.Update(tea.KeyMsg{Type: hotkeys.Invoke})
-		want := `   List                                                   
+		msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.Invoke))
+		want := testsupport.LinesTrimSpace(`   List                                                   
                                                           
   4 items                                                 
                                                           
@@ -199,9 +198,9 @@ func TestModel(t *testing.T) {
                                                           
                                                           
                                                           
-  ↑ cursor up • ↓ cursor down • / filter • q quit • ? more
-  space select • ↲ continue`
-		if v := msl.View(); v != want {
+  ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
+  space select • ↲ continue`)
+		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 		if !msl.Done() {
