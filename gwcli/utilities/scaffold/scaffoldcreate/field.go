@@ -47,7 +47,7 @@ func NewField(title string, required bool, provider FieldProvider) Field {
 
 // Returns a FlagSet built from the given fields.
 //
-// If Flag.Name is empty, the entry will be skipped.
+// If Flag.Name is empty, it will be derived from Title.
 //
 // All flags are read as strings (subject to change).
 func installFlagsFromFields(fields Config) pflag.FlagSet {
