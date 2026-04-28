@@ -231,7 +231,7 @@ func TestMSLProvider(t *testing.T) {
 		if kind != scaffoldcreate.Takeover {
 			t.Error("incorrect view kind", testsupport.ExpectedActual(scaffoldcreate.Takeover, kind))
 		}
-		want := `   List                                                               
+		want := testsupport.LinesTrimSpace(`   List                                                               
                                                                       
   3 items                                                             
                                                                       
@@ -250,9 +250,9 @@ func TestMSLProvider(t *testing.T) {
                                                                       
                                                                       
                                                                       
-  shift+↑ cursor up • shift+↓ cursor down • / filter • q quit • ? more
-  space select • ↲ continue`
-		if view != want {
+  ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
+  space select • ↲ continue`)
+		if view = testsupport.LinesTrimSpace(view); view != want {
 			t.Fatal("incorrect no descriptions view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(view)))
 		}
 
