@@ -18,19 +18,74 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 )
 
-// the set of primary keybinds.
-// You probably don't want to use these directly unless you are sending keys.
-// You probably aren't sending keys unless you are writing tests.
-const (
-	Invoke     = tea.KeyEnter // move onto the next stage/submit current data
-	Select     = tea.KeySpace // select/toggle an item
-	CursorDown = tea.KeyDown
-	CursorUp   = tea.KeyUp
-	Complete   = tea.KeyTab
+var (
+	// move onto the next stage/submit current data
+	Invoke = key.NewBinding(
+		key.WithKeys(tea.KeyEnter.String()),
+		key.WithHelp(sigils.Enter, "invoke"),
+	)
+	// select/toggle an item
+	Select = key.NewBinding(
+		key.WithKeys(tea.KeySpace.String()),
+		key.WithHelp("space", "select"),
+	)
+	CursorDown = key.NewBinding(
+		key.WithKeys(tea.KeyDown.String(), "j"),
+		key.WithHelp(sigils.Down, "cursor down"),
+	)
+	CursorUp = key.NewBinding(
+		key.WithKeys(tea.KeyUp.String(), "k"),
+		key.WithHelp(sigils.Up, "cursor up"),
+	)
+	// complete current partial string
+	Complete = key.NewBinding(
+		key.WithKeys(tea.KeyTab.String()),
+		key.WithHelp(sigils.Tab, "complete"),
+	)
+	// soft kill children
+	SoftQuit = key.NewBinding(
+		key.WithKeys(tea.KeyEsc.String()),
+		key.WithHelp("esc", "quit"),
+	)
 )
+
+// list-specific hotkeys
+var (
+	Filter = key.NewBinding(
+		key.WithKeys("\\"),
+		key.WithHelp("\\", "clear filter"),
+	)
+	CancelWhileFiltering = key.NewBinding(
+		key.WithKeys(tea.KeyCtrlBackslash.String()),
+		key.WithHelp("ctrl+\\", "clear filter"),
+	)
+	AcceptWhileFiltering = key.NewBinding(
+		key.WithKeys(tea.KeyTab.String()),
+		key.WithHelp(sigils.Tab, "accept"),
+	)
+	ClearFilter = key.NewBinding(
+		key.WithKeys(tea.KeyShiftLeft.String()),
+		key.WithHelp("shift"+sigils.Left, "clear filter"),
+	)
+)
+
+// ApplyToList greedily applies hotkey bindings to the given keymap.
+func ApplyToList(km *list.KeyMap) {
+	if km == nil { // nothing to be done
+		return
+	}
+	km.CursorDown = CursorDown
+	km.CursorUp = CursorUp
+	km.Quit = SoftQuit
+
+	km.Filter = Filter
+	km.CancelWhileFiltering = CancelWhileFiltering
+	km.AcceptWhileFiltering = AcceptWhileFiltering
+	km.ClearFilter = ClearFilter
+}
 
 // A Model is the standard set of keybindings with help prepared.
 // Actions should include a Model in their data and append its View to the bottom of their views.
@@ -40,12 +95,14 @@ type Model struct {
 	Invoke     key.Binding
 	Select     key.Binding
 	Complete   key.Binding
+	SoftAction key.Binding
 
 	help help.Model
 }
 
+// ShortHelp shows combined cursor up/down.
 func (m Model) ShortHelp() []key.Binding {
-	return []key.Binding{m.CursorUp, m.CursorDown, m.Invoke}
+	return []key.Binding{key.NewBinding(key.WithHelp(sigils.UpDown, "up/down")), m.Invoke}
 }
 
 func (m Model) FullHelp() [][]key.Binding {
@@ -55,31 +112,18 @@ func (m Model) FullHelp() [][]key.Binding {
 		{m.Invoke},
 		{m.Select},
 		{m.Complete},
+		{m.SoftAction},
 	}
 }
 
 func NewModel() Model {
 	s := Model{ // all keybindings start enabled
-		CursorUp: key.NewBinding(
-			key.WithKeys(CursorUp.String()),
-			key.WithHelp(stylesheet.UpSigil, "cursor up"),
-		),
-		CursorDown: key.NewBinding(
-			key.WithKeys(CursorDown.String()),
-			key.WithHelp(stylesheet.DownSigil, "cursor down"),
-		),
-		Invoke: key.NewBinding(
-			key.WithKeys(Invoke.String()),
-			key.WithHelp(stylesheet.EnterSigil, "invoke"),
-		),
-		Select: key.NewBinding(
-			key.WithKeys(Select.String()),
-			key.WithHelp("space", "select"),
-		),
-		Complete: key.NewBinding(
-			key.WithKeys(Complete.String()),
-			key.WithHelp(stylesheet.TabSigil, "complete"),
-		),
+		CursorUp:   CursorUp,
+		CursorDown: CursorDown,
+		Invoke:     Invoke,
+		Select:     Select,
+		Complete:   Complete,
+		SoftAction: SoftQuit,
 
 		help: help.New(),
 	}
@@ -128,46 +172,12 @@ func DefaultView(width int) string {
 	return v
 }
 
-// ApplyToList greedily applies hotkey bindings to the given keymap.
-func ApplyToList(km *list.KeyMap) {
-	if km == nil { // nothing to be done
-		return
-	}
-	km.CursorDown = defaultHotkeys.CursorDown
-	km.CursorUp = defaultHotkeys.CursorUp
-}
-
-// IsSelect returns whether or not the given tea.Msg is a select/minor-invoke keystroke.
-func IsSelect(msg tea.Msg) bool {
-	return match(msg, defaultHotkeys.Select)
-}
-
-// IsInvoke returns whether or not the given tea.Msg is an invocation/submission keystroke.
-func IsInvoke(msg tea.Msg) bool {
-	return match(msg, defaultHotkeys.Invoke)
-}
-
-// IsCursorUp returns whether or not the given tea.Msg indicates moving the cursor up.
-func IsCursorUp(msg tea.Msg) bool {
-	return match(msg, defaultHotkeys.CursorUp)
-}
-
-// IsCursorDown returns whether or not the given tea.Msg indicates moving the cursor down.
-func IsCursorDown(msg tea.Msg) bool {
-	return match(msg, defaultHotkeys.CursorDown)
-}
-
-// helper function to check if the given msg is a keymsg and that key is bound.
-func match(msg tea.Msg, b key.Binding) bool {
+// Match is just a wrapper for matching an incoming message against any number of bindings.
+func Match(msg tea.Msg, b ...key.Binding) bool {
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return false
 	}
 
-	return key.Matches(keyMsg, b)
-}
-
-// IsSubmit tests if the given key message is a select OR an invoke and should be used for checking button presses.
-func IsSubmit(msg tea.Msg) bool {
-	return IsInvoke(msg) || IsSelect(msg)
+	return key.Matches(keyMsg, b...)
 }
