@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 )
 
@@ -330,7 +331,7 @@ func (p *MSLProvider) Update(selected bool, msg tea.Msg) (cmd tea.Cmd, tko bool)
 	}
 
 	// check for takeover mode invocation
-	if selected && hotkeys.IsSelect(msg) {
+	if selected && hotkeys.Match(msg, hotkeys.Select) {
 		p.takeover = true
 		return nil, true
 	}
@@ -352,7 +353,7 @@ func (p *MSLProvider) View(selected bool, _ int) (_ ViewKind, value, secondLine 
 
 	value = "select"
 	if selected {
-		value = stylesheet.RightSigil + value + stylesheet.LeftSigil
+		value = sigils.Right + value + sigils.Left
 	}
 
 	secondLine = fmt.Sprintf("%d %s currently selected", p.numSelected, phrases.NounNumerosity(p.numSelected, p.singular, p.plural))

@@ -131,7 +131,7 @@ func TestOptions(t *testing.T) {
 				wantCmd     bool
 				wantErr     bool
 			}{"", false, false},
-			[]tea.Msg{tea.KeyMsg{Type: hotkeys.CursorUp}, tea.KeyMsg{Type: hotkeys.Invoke}},
+			[]tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)},
 			"nm", "/tmp", 1, true,
 		},
 	}

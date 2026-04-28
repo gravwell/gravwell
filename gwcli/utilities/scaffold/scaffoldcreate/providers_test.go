@@ -92,8 +92,8 @@ func TestTextProvider(t *testing.T) {
 				t.Fatal("bad value after \"invoke\" field title:", testsupport.ExpectedActual("ab", before))
 			}
 		}
-		pair.Model.Update(tea.KeyMsg{Type: hotkeys.CursorDown}) // submit
-		pair.Model.Update(tea.KeyMsg{Type: hotkeys.Invoke})
+		pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorDown))
+		pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke)) // submit
 
 		if create != "ab" { // create should have been set as part of submission
 			t.Fatal("bad value from createFunc", testsupport.ExpectedActual("ab", create))
@@ -185,7 +185,7 @@ func TestPathProvider(t *testing.T) {
 
 		t.Run("completion of partial values", func(t *testing.T) {
 			testsupport.TypeModel(pair.Model, "f1")
-			pair.Model.Update(tea.KeyMsg{Type: hotkeys.Complete})
+			pair.Model.Update(testsupport.SendHotkey(hotkeys.Complete))
 			if val := provider.Get(); val != "f1.txt" {
 				t.Fatal("autocomplete failed", testsupport.ExpectedActual("f1.txt", val))
 			}
@@ -193,7 +193,7 @@ func TestPathProvider(t *testing.T) {
 			provider.Set("")
 			// test manual autocompletion to a file in a subdirectory
 			testsupport.TypeModel(pair.Model, "xdir/x1")
-			pair.Model.Update(tea.KeyMsg{Type: hotkeys.Complete})
+			pair.Model.Update(testsupport.SendHotkey(hotkeys.Complete))
 			if val := provider.Get(); val != "xdir/x1.txt" {
 				t.Fatal("autocomplete failed", testsupport.ExpectedActual("xdir/x1.txt", val))
 			}
@@ -223,7 +223,7 @@ func TestMSLProvider(t *testing.T) {
 		f.Provider.Initialize("", false)
 		f.Provider.SetArgs(40, 20)
 		// enter takeover mode
-		_, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select})
+		_, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
 		if !takeover {
 			t.Fatal("failed to enter takeover mode")
 		}
@@ -287,7 +287,7 @@ func TestMSLProvider(t *testing.T) {
 	}
 	t.Run("do not enter takeover mode if unselected", func(t *testing.T) {
 		// an update that *would* invoke takeover mode should be ignored if not selected
-		_, takeover := f.Provider.Update(false, tea.KeyMsg{Type: hotkeys.Select})
+		_, takeover := f.Provider.Update(false, testsupport.SendHotkey(hotkeys.Select))
 		if takeover {
 			t.Error("takeover mode entered while not selected")
 		}
@@ -297,7 +297,7 @@ func TestMSLProvider(t *testing.T) {
 		}
 	})
 	t.Run("enter takeover mode when selected", func(t *testing.T) {
-		_, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select})
+		_, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
 		if !takeover {
 			t.Fatal("failed to enter takeover mode while selected")
 		}
@@ -307,27 +307,27 @@ func TestMSLProvider(t *testing.T) {
 		}
 		t.Run("select all the first 2 items; deselect the last item", func(t *testing.T) {
 			// select the first item
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select)); !takeover {
 				t.Fatal("update after first item exited takeover mode")
 			}
 			if inv := f.Provider.Satisfied(); inv != "" {
 				t.Errorf("provider is not satisfied despite 2 items being selected. Reason: %s", inv)
 			}
 			// select the second item
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorDown}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorDown)); !takeover {
 				t.Fatal("update during second item exited takeover mode")
 			}
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select)); !takeover {
 				t.Fatal("update after second item exited takeover mode")
 			}
 			if inv := f.Provider.Satisfied(); inv != "" {
 				t.Errorf("provider is not satisfied despite 3 items being selected. Reason: %s", inv)
 			}
 			// deselect the third item
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorDown}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorDown)); !takeover {
 				t.Fatal("update during third item exited takeover mode")
 			}
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select)); !takeover {
 				t.Fatal("update after third item exited takeover mode")
 			}
 			if inv := f.Provider.Satisfied(); inv != "" {
@@ -344,7 +344,7 @@ func TestMSLProvider(t *testing.T) {
 		})
 		t.Run("invoke to exit; ensure we can reenter", func(t *testing.T) {
 			// exit the list
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Invoke}); takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Invoke)); takeover {
 				t.Fatal("invoke hotkey did not trigger an exit")
 			}
 			// ensure view agrees we have left takeover mode
@@ -352,7 +352,7 @@ func TestMSLProvider(t *testing.T) {
 				t.Error("view believes it is still in takeover mode")
 			}
 			// reenter the list
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Select}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select)); !takeover {
 				t.Fatal("failed to reenter takeover mode")
 			}
 			// ensure view agrees we are in takeover mode
@@ -360,13 +360,13 @@ func TestMSLProvider(t *testing.T) {
 				t.Error("view did not believe it was in takeover mode")
 			}
 			// move around a bit
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorUp}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorUp)); !takeover {
 				t.Fatal("incorrect time to leave takeover mode")
 			}
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorUp}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorUp)); !takeover {
 				t.Fatal("incorrect time to leave takeover mode")
 			}
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.CursorDown}); !takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorDown)); !takeover {
 				t.Fatal("incorrect time to leave takeover mode")
 			}
 			// ensure view agrees we are in takeover mode
@@ -374,7 +374,7 @@ func TestMSLProvider(t *testing.T) {
 				t.Error("view did not believe it was in takeover mode")
 			}
 			// exit the list
-			if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: hotkeys.Invoke}); takeover {
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Invoke)); takeover {
 				t.Fatal("invoke hotkey did not trigger an exit")
 			}
 			// ensure view agrees we have left takeover mode

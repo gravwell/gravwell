@@ -251,30 +251,30 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// handle special keys
 	if km, ok := msg.(tea.KeyMsg); ok {
 		// NOTE: kill keys are handled above
-		switch km.Type {
-		case tea.KeyF1: // help
+		switch {
+		case km.Type == tea.KeyF1: // help
 			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		case msg.Type == tea.KeyUp: // history
+		case km.Type == tea.KeyUp: // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
 			return m, textinput.Blink
-		case tea.KeyDown: // history
+		case km.Type == tea.KeyDown: // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
 			return m, textinput.Blink
-		case hotkeys.Invoke:
+		case hotkeys.Match(km, hotkeys.Invoke):
 			m.history.unsetFetch()
 			return m, processInput(&m)
-		case msg.Type == tea.KeyCtrlL:
+		case km.Type == tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
 		case hotkeys.Match(msg, hotkeys.Complete):
 			if m.ti.Value() == "" {
 				m.ti.SetValue("help")
 			}
 			return m, textinput.Blink
-		case tea.KeyCtrlU:
+		case km.Type == tea.KeyCtrlU:
 			m.ti.SetValue("")
 			return m, textinput.Blink
 		}

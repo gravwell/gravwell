@@ -20,6 +20,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -227,9 +228,7 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 		t.Fatal("failed to validate valid args:", inv)
 	}
 
-	cm.Update(tea.KeyMsg{
-		Type: hotkeys.CursorDown,
-	})
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorDown))
 
 	// split the output to check for the fields
 	var out []string
@@ -252,24 +251,24 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	}
 
 	// navigate to the submit button by underflowing
-	cm.Update(tea.KeyMsg{Type: hotkeys.CursorUp})
-	cm.Update(tea.KeyMsg{Type: hotkeys.CursorUp})
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(tea.KeyMsg{Type: hotkeys.Invoke})
+	cm.Update(testsupport.SendHotkey(hotkeys.Invoke))
 	// check for errors
 	if cm.inputs.err == "" { // A is required and was not set
 		t.Fatal("expected inputErr to be set due to missing requireds.")
 	}
 	// set A
-	cm.Update(tea.KeyMsg{Type: hotkeys.CursorDown})
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorDown))
 	cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	cm.Update(tea.KeyMsg{Type: hotkeys.CursorUp})
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(tea.KeyMsg{Type: hotkeys.Invoke})
+	cm.Update(testsupport.SendHotkey(hotkeys.Invoke))
 	if cm.inputs.err != "" {
 		t.Fatalf("unexpected input error: %v", cm.inputs.err)
 	} else if cm.createErr != "" {
