@@ -11,9 +11,9 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/spf13/pflag"
 )
 
@@ -220,7 +220,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, multiselectlist.Options{
 			Preselected: preselected,
 		})
-		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+		c.dispatchersModel.StatusMessageLifetime = sigils.StatusMessageLifetime
 		c.dispatchersModel.StatusMessageOnSelect = true
 	})
 
@@ -243,7 +243,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		c.consumersModel = multiselectlist.New(consumers, width, height, multiselectlist.Options{
 			Preselected: preselected,
 		})
-		c.consumersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+		c.consumersModel.StatusMessageLifetime = sigils.StatusMessageLifetime
 		c.consumersModel.StatusMessageOnSelect = true
 	})
 	wg.Wait()

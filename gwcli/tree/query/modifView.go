@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -67,7 +68,7 @@ func initialModifView(height, width uint) modifView {
 		selected: duration, // default to duration
 		keys: []key.Binding{
 			key.NewBinding(
-				key.WithKeys(stylesheet.UpDownSigils),
+				key.WithKeys(sigils.UpDown),
 				// help is not necessary when there is only one option
 				// key.WithHelp(stylesheet.UpDown, "select input"),
 			)},
@@ -116,28 +117,28 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 
 	switch {
 	case hotkeys.Match(msg, hotkeys.CursorUp):
-			mv.selected -= 1
-			if mv.selected <= lowBound {
-				mv.selected = highBound - 1
-			}
-			mv.updateFocus()
-			return []tea.Cmd{textinput.Blink}, false
+		mv.selected -= 1
+		if mv.selected <= lowBound {
+			mv.selected = highBound - 1
+		}
+		mv.updateFocus()
+		return []tea.Cmd{textinput.Blink}, false
 	case hotkeys.Match(msg, hotkeys.CursorDown):
 		mv.selected += 1
-			if mv.selected >= highBound {
-				mv.selected = lowBound + 1
-			}
-			mv.updateFocus()
-			return []tea.Cmd{textinput.Blink}, false
-	case hotkeys.Match(msg, hotkeys.Select):
-			if mv.selected == background {
-				mv.background = !mv.background
-			}
-	case hotkeys.Match(msg, hotkeys.Invoke):
-			if mv.selected == submit {
-				return nil, true
-			}
+		if mv.selected >= highBound {
+			mv.selected = lowBound + 1
 		}
+		mv.updateFocus()
+		return []tea.Cmd{textinput.Blink}, false
+	case hotkeys.Match(msg, hotkeys.Select):
+		if mv.selected == background {
+			mv.background = !mv.background
+		}
+	case hotkeys.Match(msg, hotkeys.Invoke):
+		if mv.selected == submit {
+			return nil, true
+		}
+	}
 
 	var cmds = make([]tea.Cmd, 2)
 	mv.durationTI, cmds[0] = mv.durationTI.Update(msg)
