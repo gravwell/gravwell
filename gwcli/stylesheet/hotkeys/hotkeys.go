@@ -33,11 +33,11 @@ var (
 		key.WithHelp("space", "select"),
 	)
 	CursorDown = key.NewBinding(
-		key.WithKeys(tea.KeyDown.String(), "j"),
+		key.WithKeys(tea.KeyDown.String()),
 		key.WithHelp(sigils.Down, "cursor down"),
 	)
 	CursorUp = key.NewBinding(
-		key.WithKeys(tea.KeyUp.String(), "k"),
+		key.WithKeys(tea.KeyUp.String()),
 		key.WithHelp(sigils.Up, "cursor up"),
 	)
 	// complete current partial string
