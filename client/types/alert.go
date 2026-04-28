@@ -10,9 +10,6 @@ package types
 
 import (
 	"encoding/json"
-	"time"
-
-	"github.com/google/uuid"
 )
 
 // AlertConsumerType : Possible types for an Alert Consumer
@@ -28,44 +25,27 @@ type AlertDispatcherType string
 
 // List of AlertDispatcherType
 const (
-	ALERTDISPATCHERTYPE_SCHEDULEDSEARCH AlertDispatcherType = "scheduledsearch"
+	ALERTDISPATCHERTYPE_SCHEDULEDSEARCH AlertDispatcherType = "scheduled_search"
 )
 
-// AlertDefinition - A Gravwell Alert specification
-type AlertDefinition struct {
-	// The actions the user is allowed to take on this definition.
-	// Derived by the backend when requested by the user; any
-	// value sent in a request will be ignored.
-	Can Actions `json:"Can"`
+// Alert - A Gravwell Alert specification
+type Alert struct {
+	CommonFields
+
+	Disabled bool `json:"Disabled"`
 
 	// A list of flows which will be run when alerts are generated.
 	Consumers []AlertConsumer `json:"Consumers"`
 
-	Description string `json:"Description"`
-
-	Disabled bool `json:"Disabled"`
-
 	// A list of things which create alerts (currently only scheduled searches).
 	Dispatchers []AlertDispatcher `json:"Dispatchers"`
 
-	GIDs []int32 `json:"GIDs"`
-
-	GUID uuid.UUID `json:"GUID"`
-
-	Global bool `json:"Global"`
-
 	IngestBlocked bool `json:"IngestBlocked"`
-
-	Labels []string `json:"Labels"`
-
-	LastUpdated time.Time `json:"LastUpdated"`
 
 	// Maximum number of events allowed per firing of the alert. This is
 	// intended as a safety valve to avoid thousands of emails. If zero,
 	// a (low) default value will be used.
 	MaxEvents int `json:"MaxEvents"`
-
-	Name string `json:"Name"`
 
 	// How long, in seconds, we should save searches which trigger this alert.
 	SaveSearchDuration int32 `json:"SaveSearchDuration"`
@@ -79,16 +59,8 @@ type AlertDefinition struct {
 	// The tag into which alerts will be ingested
 	TargetTag string `json:"TargetTag"`
 
-	ThingUUID uuid.UUID `json:"ThingUUID"`
-
-	// The owner of the Alert
-	UID int32 `json:"UID"`
-
 	// Arbitrary user-defined metadata which will be injected into the events
 	UserMetadata map[string]interface{} `json:"UserMetadata"`
-
-	// Sharing rules for this alert.
-	WriteAccess Access `json:"WriteAccess"`
 }
 
 // AlertConsumer - Something which consumes alerts.
@@ -171,7 +143,7 @@ type AlertDispatcherValidateResponse struct {
 type AlertConsumerValidateRequest struct {
 	Consumer AlertConsumer
 
-	Alert AlertDefinition
+	Alert Alert
 }
 
 // AlertConsumerValidateResponse - Indicates whether a consumer is valid for a given alert or not.
@@ -181,18 +153,23 @@ type AlertConsumerValidateResponse struct {
 	Error string
 }
 
-func (alert *AlertDefinition) JSONMetadata() (json.RawMessage, error) {
+func (alert *Alert) JSONMetadata() (json.RawMessage, error) {
 	st := &struct {
-		UUID        string
+		ID          string
 		Name        string
 		Description string
 	}{
-		UUID:        alert.GUID.String(),
+		ID:          alert.ID,
 		Name:        alert.Name,
 		Description: alert.Description,
 	}
 	b, err := json.Marshal(st)
 	return json.RawMessage(b), err
+}
+
+type AlertListResponse struct {
+	BaseListResponse
+	Results []Alert `json:"results"`
 }
 
 // FindMostRelevantAutomation resolves the appropriate automation

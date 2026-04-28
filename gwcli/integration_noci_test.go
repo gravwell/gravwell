@@ -78,7 +78,8 @@ do not account for parallelism at a test level
 type authMethod uint
 
 const (
-	admin_u_p authMethod = iota // login with admin username and password
+	noAuth    authMethod = iota // do not provide any login
+	admin_u_p                   // login with admin username and password
 	api                         // login with the api token
 )
 
@@ -156,6 +157,30 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestCompletionsDoNotRequireLogin(t *testing.T) {
+	// skim out the list of completions
+	selfOut, selfErr := execute(t, noAuth, "help", "completion")
+	if selfErr != "" {
+		t.Error("stderr contained data: ", selfErr)
+	}
+	_, after, found := strings.Cut(selfOut, "Actions")
+	if !found {
+		t.Fatal("failed to find subcommands by breaking on \"Actions\". stdout: ", selfOut)
+	}
+	_, after, _ = strings.Cut(after, "\n") // trim to JUST the actions
+	for subcmd := range strings.SplitSeq(after, "\n") {
+		subcmd = strings.TrimSpace(subcmd)
+		t.Logf("testing subcommand \"%v\"", subcmd)
+		selfOut, selfErr = execute(t, noAuth, "completion", subcmd)
+		if selfErr != "" {
+			t.Errorf("%v: stderr contained data: %v", subcmd, selfErr)
+		}
+		if selfOut == "" {
+			t.Errorf("%v: no data was produced to stdout", subcmd)
+		}
+	}
+}
+
 func TestSelfSessionsMatchAdminSessions(t *testing.T) {
 	// test that the `admin users sessions` action returns the same sessions as `self sessions`
 	var (
@@ -214,6 +239,7 @@ func execute(t *testing.T, authMethod authMethod, args ...string) (stdout, stder
 		env      = []string{cfgdir.EnvCfgDir + "=" + tCfgDir}
 	)
 	switch authMethod {
+	case noAuth: // attach nothing
 	case admin_u_p:
 		metaArgs = append(metaArgs, "-u=admin")
 		env = append(env, "GRAVWELL_PASSWORD=changeme")

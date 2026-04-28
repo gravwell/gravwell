@@ -68,8 +68,8 @@ func ppre(cmd *cobra.Command, args []string) error {
 		stylesheet.NoColor = true
 	}
 
-	// if this is a 'complete' request, do not enforce login
-	if cmd.Name() == cobra.ShellCompRequestCmd || cmd.Name() == cobra.ShellCompNoDescRequestCmd {
+	// if this is the 'completion' command or any of its children, do not enforce login
+	if cmd.Name() == "completion" || (cmd.HasParent() && cmd.Parent().Name() == "completion") {
 		return nil
 	}
 

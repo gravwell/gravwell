@@ -174,9 +174,10 @@ const (
 	PIVOTS_URL                       = "/api/pivots"
 	PIVOTS_ID_URL                    = "/api/pivots/%s"
 	PIVOTS_ID_DETAILS_URL            = "/api/pivots/%s/details"
-	USER_FILES_URL                   = "/api/files"
-	USER_FILES_ID_URL                = "/api/files/%s"
-	USER_FILES_ID_DETAILS_URL        = "/api/files/%s/details"
+	FILES_URL                        = "/api/files"
+	FILES_LIST_URL                   = "/api/files/list"
+	FILES_ID_URL                     = "/api/files/%s"
+	FILES_ID_RAW_URL                 = "/api/files/%s/raw"
 	LIBRARY_URL                      = "/api/library"
 	LIBRARY_ID_URL                   = "/api/library/%s"
 	LIBRARY_LIST_URL                 = "/api/library/list"
@@ -209,6 +210,7 @@ const (
 	CBAC_DEFAULT_CAPABILITIES_URL    = `/api/cbac/default/capabilities`
 	CBAC_DEFAULT_TAGS_URL            = `/api/cbac/default/tags`
 	ALERTS_URL                       = `/api/alerts`
+	ALERTS_LIST_URL                  = `/api/alerts/list`
 	ALERTS_ID_URL                    = `/api/alerts/%s`
 	ALERTS_ID_SAMPLE_URL             = `/api/alerts/%s/sample`
 	ALERTS_VALIDATE_DISPATCHER_URL   = `/api/alerts/validate/dispatcher`
@@ -603,16 +605,16 @@ func pivotsGuidUrl(guid uuid.UUID) string {
 	return fmt.Sprintf(PIVOTS_ID_URL, guid)
 }
 
-func userFilesUrl() string {
-	return USER_FILES_URL
+func filesUrl() string {
+	return FILES_URL
 }
 
-func userFilesIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(USER_FILES_ID_URL, id)
+func filesIdUrl(id string) string {
+	return fmt.Sprintf(FILES_ID_URL, id)
 }
 
-func userFilesIdDetailsUrl(id uuid.UUID) string {
-	return fmt.Sprintf(USER_FILES_ID_DETAILS_URL, id)
+func filesIdRawUrl(id string) string {
+	return fmt.Sprintf(FILES_ID_RAW_URL, id)
 }
 
 func searchLibUrl() string {
@@ -703,12 +705,12 @@ func alertsUrl() string {
 	return ALERTS_URL
 }
 
-func alertsIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(ALERTS_ID_URL, id.String())
+func alertsIdUrl(id string) string {
+	return fmt.Sprintf(ALERTS_ID_URL, id)
 }
 
-func alertsIdSampleEventUrl(id uuid.UUID) string {
-	return fmt.Sprintf(ALERTS_ID_SAMPLE_URL, id.String())
+func alertsIdSampleEventUrl(id string) string {
+	return fmt.Sprintf(ALERTS_ID_SAMPLE_URL, id)
 }
 
 func alertsValidateDispatcherUrl() string {
