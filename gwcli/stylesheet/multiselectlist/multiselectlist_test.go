@@ -215,7 +215,7 @@ func TestModel(t *testing.T) {
 			t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 		if !msl.Done() {
-			t.Error("expected msl to be done after sending Enter.")
+			t.Error("expected msl to be done after sending invoke.")
 		}
 	})
 }
