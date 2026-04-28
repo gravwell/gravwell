@@ -133,7 +133,7 @@ func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 	}
 	ti.Prompt = "" // replicated externally
 	ti.Focus()
-	ti.Width = sigils.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
+	ti.Width = stylesheet.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
 	// add ctrl+left/right to the word traversal keys
 	ti.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
 	ti.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")

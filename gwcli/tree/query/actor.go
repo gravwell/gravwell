@@ -27,7 +27,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 
@@ -117,8 +116,8 @@ func Initial() *query {
 	q.width = 80
 	q.height = 6
 
-	q.editor = initialEditorView(q.height, sigils.TIWidth)
-	q.modifiers = initialModifView(q.height, q.width-sigils.TIWidth)
+	q.editor = initialEditorView(q.height, stylesheet.TIWidth)
+	q.modifiers = initialModifView(q.height, q.width-stylesheet.TIWidth)
 
 	q.focusedEditor = true
 

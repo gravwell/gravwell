@@ -13,6 +13,8 @@ package stylesheet
  */
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -20,6 +22,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+)
+
+const TIWidth = 60
+
+const ( // list bubble modifiers
+	// How long should a status message appear in a list bubble
+	StatusMessageLifetime = 3 * time.Second
 )
 
 // NewTI creates a textinput with common attributes that respect the current stylesheet.

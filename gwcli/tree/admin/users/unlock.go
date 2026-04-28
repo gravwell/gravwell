@@ -11,10 +11,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -145,7 +145,7 @@ func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		return "There are no locked users", nil, nil
 	}
 	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
-	c.m.StatusMessageLifetime = sigils.StatusMessageLifetime
+	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 	c.m.StatusMessageOnSelect = true
 	return "", nil, nil
 }

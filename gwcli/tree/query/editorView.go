@@ -61,5 +61,5 @@ func (ev *editorView) view() string {
 	return fmt.Sprintf("%s\n%s\n%s",
 		stylesheet.Cur.PrimaryText.Render("Query:"),
 		ev.ta.View(),
-		stylesheet.Cur.ErrorText.Width(sigils.TIWidth).Render(ev.err)) // add a width style for wrapping
+		stylesheet.Cur.ErrorText.Width(stylesheet.TIWidth).Render(ev.err)) // add a width style for wrapping
 }
