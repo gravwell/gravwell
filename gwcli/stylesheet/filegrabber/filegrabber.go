@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 )
 
 // FileGrabber is a wrapper around the FilePicker bubble that bolts on additional functionality.
@@ -101,12 +102,12 @@ func newfp() filepicker.Model {
 	fp.KeyMap = filepicker.KeyMap{
 		GoToTop:  key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "first")),
 		GoToLast: key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "last")),
-		Down:     key.NewBinding(key.WithKeys("j", "down", "ctrl+n"), key.WithHelp("j/"+stylesheet.DownSigil, "down")),
-		Up:       key.NewBinding(key.WithKeys("k", "up", "ctrl+p"), key.WithHelp("k/"+stylesheet.UpSigil, "up")),
+		Down:     key.NewBinding(key.WithKeys("j", "down", "ctrl+n"), key.WithHelp("j/"+sigils.Down, "down")),
+		Up:       key.NewBinding(key.WithKeys("k", "up", "ctrl+p"), key.WithHelp("k/"+sigils.Up, "up")),
 		PageUp:   key.NewBinding(key.WithKeys("K", "pgup"), key.WithHelp("K/pgup", "page up")),
 		PageDown: key.NewBinding(key.WithKeys("J", "pgdown"), key.WithHelp("J/pgdown", "page down")),
-		Back:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/"+stylesheet.LeftSigil, "parent dir")),
-		Open:     key.NewBinding(key.WithKeys("l", "right", "enter"), key.WithHelp("l/"+stylesheet.RightSigil, "open file/dir")),
+		Back:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/"+sigils.Left, "parent dir")),
+		Open:     key.NewBinding(key.WithKeys("l", "right", "enter"), key.WithHelp("l/"+sigils.Right, "open file/dir")),
 		Select:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
 	}
 

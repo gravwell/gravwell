@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 )
 
 // fieldnum identifies each field numerically so we can figure out which one is currently selected
@@ -268,7 +269,7 @@ func (m *metadata) View() string {
 	// TODO at some point, we should replace this with actual help and real key binds.
 	sb.WriteString("\n\n" +
 		stylesheet.Cur.DisabledText.Render(
-			"shift+"+stylesheet.UpDownSigils+": scroll • space: toggle • enter: interact"+
+			"shift+"+sigils.UpDown+": scroll • space: toggle • enter: interact"+
 				"\nesc: quit"))
 	return sb.String()
 }

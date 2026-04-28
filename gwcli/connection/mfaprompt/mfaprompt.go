@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -102,7 +103,7 @@ func New() mfaModel {
 	c.recoveryTI.Prompt = ""
 	c.recoveryTI.Blur()
 
-	c.hotkeys.Invoke.SetHelp(stylesheet.EnterSigil, "submit")
+	c.hotkeys.Invoke.SetHelp(sigils.Enter, "submit")
 	c.hotkeys.Select.Unbind()
 	return c
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -132,7 +133,7 @@ func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 	}
 	ti.Prompt = "" // replicated externally
 	ti.Focus()
-	ti.Width = stylesheet.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
+	ti.Width = sigils.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
 	// add ctrl+left/right to the word traversal keys
 	ti.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
 	ti.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")
@@ -576,9 +577,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 		// write .. and / if we are below root
 		if c.HasParent() {
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render(traverse.UpToken), "step up")
+				sigils.Indent, specialStyle.Render(traverse.UpToken), "step up")
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render(traverse.RootToken), "return to root")
+				sigils.Indent, specialStyle.Render(traverse.RootToken), "return to root")
 		}
 		children := c.Commands()
 		for _, child := range children {
@@ -603,9 +604,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 			}
 			// generate the output
 			trimmedSubChildren := strings.TrimSpace(subchildren.String())
-			s.WriteString(fmt.Sprintf("%s%s - %s\n", stylesheet.Indent, name, child.Short))
+			s.WriteString(fmt.Sprintf("%s%s - %s\n", sigils.Indent, name, child.Short))
 			if trimmedSubChildren != "" {
-				s.WriteString(stylesheet.Indent + stylesheet.Indent + trimmedSubChildren + "\n")
+				s.WriteString(sigils.Indent + sigils.Indent + trimmedSubChildren + "\n")
 			}
 		}
 	}
