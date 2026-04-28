@@ -111,14 +111,14 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		s.download.inputErrorString = "" // clear input error on newest key message
 		s.download.resultString = ""
-		switch msg.Type {
-		case hotkeys.CursorUp:
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp):
 			cycleUp(&s.download)
 			return textinput.Blink
-		case hotkeys.CursorDown:
+		case hotkeys.Match(msg, hotkeys.CursorDown):
 			cycleDown(&s.download)
 			return textinput.Blink
-		case hotkeys.Select:
+		case hotkeys.Match(msg, hotkeys.Select):
 			// handle booleans
 			switch s.download.selected {
 			case dlappend:
@@ -142,7 +142,7 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 					s.download.format.csv = false
 				}
 			}
-		case hotkeys.Invoke:
+		case hotkeys.Match(msg, hotkeys.Invoke):
 			if s.download.selected == dlsubmit {
 				// gather and validate selections
 				fn := strings.TrimSpace(s.download.outfileTI.Value())

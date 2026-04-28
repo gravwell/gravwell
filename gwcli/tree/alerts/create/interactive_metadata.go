@@ -103,20 +103,20 @@ func (m *metadata) Init(name, description, tag string, enable bool, maxEvents in
 }
 
 func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToConsumers, trySubmit bool) {
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+	if _, ok := msg.(tea.KeyMsg); ok {
 		m.submitErr = "" // clear error from last create attempt
-		switch keyMsg.Type {
-		case hotkeys.CursorUp:
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp):
 			m.focusPrevious()
 			return textinput.Blink, false, false, false
-		case hotkeys.CursorDown:
+		case hotkeys.Match(msg, hotkeys.CursorDown):
 			m.focusNext()
 			return textinput.Blink, false, false, false
-		case hotkeys.Select:
+		case hotkeys.Match(msg, hotkeys.Select):
 			if m.selected == numEnable {
 				m.enable = !m.enable
 			}
-		case hotkeys.Invoke:
+		case hotkeys.Match(msg, hotkeys.Invoke):
 			// handle buttons and booleans
 			switch m.selected {
 			case numBackToDispatchers:

@@ -109,9 +109,9 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch {
-	case hotkeys.IsCursorUp(msg), hotkeys.IsCursorDown(msg): // swap
+	case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
 		return c.swap(), textinput.Blink
-	case hotkeys.IsInvoke(msg): // submit or swap
+	case hotkeys.Match(msg, hotkeys.Invoke): // submit or swap
 		if c.userSelected {
 			return c.swap(), textinput.Blink
 		}

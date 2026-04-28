@@ -246,7 +246,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 	// branch on current mode
 	switch d.mode {
 	case selecting:
-		if hotkeys.IsInvoke(msg) { // special handling for Enter key
+		if hotkeys.Match(msg, hotkeys.Invoke) { // special handling for Enter key
 			baseitm := d.list.Items()[d.list.Index()]
 			if itm, ok := baseitm.(Item[I]); !ok {
 				clilog.Writer.Warnf("failed to type assert %#v as an item", baseitm)
@@ -268,7 +268,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 
 		d.list, cmd = d.list.Update(msg)
 	case confirming:
-		if hotkeys.IsInvoke(msg) {
+		if hotkeys.Match(msg, hotkeys.Invoke) {
 			// check for confirmation (after cleaning up the input)
 			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
 				d.mode = quitting

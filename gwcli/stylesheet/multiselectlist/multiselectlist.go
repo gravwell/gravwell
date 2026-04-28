@@ -87,10 +87,10 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	switch {
-	case hotkeys.IsSelect(msg):
+	case hotkeys.Match(msg, hotkeys.Select):
 		cmd := msl.ToggleCurrentItem()
 		return msl, cmd
-	case hotkeys.IsInvoke(msg):
+	case hotkeys.Match(msg, hotkeys.Invoke):
 		msl.done = true
 		return msl, nil
 	}

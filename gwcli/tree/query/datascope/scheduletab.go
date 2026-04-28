@@ -75,22 +75,22 @@ func updateSchedule(s *DataScope, msg tea.Msg) tea.Cmd {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		s.schedule.inputErrorString = ""
 		s.schedule.resultString = ""
-		switch msg.Type {
-		case hotkeys.CursorUp:
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp):
 			s.schedule.selected -= 1
 			if s.schedule.selected <= schlowBound {
 				s.schedule.selected = schhighBound - 1
 			}
 			s.schedule.focusSelected()
 			return textinput.Blink
-		case hotkeys.CursorDown:
+		case hotkeys.Match(msg, hotkeys.CursorDown):
 			s.schedule.selected += 1
 			if s.schedule.selected >= schhighBound {
 				s.schedule.selected = schlowBound + 1
 			}
 			s.schedule.focusSelected()
 			return textinput.Blink
-		case hotkeys.Invoke:
+		case hotkeys.Match(msg, hotkeys.Invoke):
 			if s.schedule.selected == schsubmit {
 				s.sch()
 			}

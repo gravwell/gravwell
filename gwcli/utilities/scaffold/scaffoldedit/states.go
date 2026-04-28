@@ -38,7 +38,7 @@ func (se *stateEdit[S]) update(msg tea.Msg, _ Config, setFieldSub SetFieldSubrou
 	if _, ok := msg.(tea.KeyMsg); ok {
 		se.err = "" // clear input errors on new key input
 		switch {
-		case hotkeys.IsSubmit(msg):
+		case hotkeys.Match(msg, hotkeys.Invoke, hotkeys.Select):
 			if se.submitSelected() {
 				var missing []string
 				for _, kti := range se.orderedKTIs { // check all required fields are populated
@@ -79,9 +79,9 @@ func (se *stateEdit[S]) update(msg tea.Msg, _ Config, setFieldSub SetFieldSubrou
 				// success
 				return nil, identifier
 			}
-		case hotkeys.IsCursorUp(msg):
+		case hotkeys.Match(msg, hotkeys.CursorUp):
 			se.previousTI()
-		case hotkeys.IsCursorDown(msg):
+		case hotkeys.Match(msg, hotkeys.CursorDown):
 			se.nextTI()
 		}
 	}

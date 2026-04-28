@@ -188,6 +188,16 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 	return voMessageBody.String()
 }
 
+// LinesTrimSpace calls strings.TrimSpace on each line of the given string, allowing multiline strings to be compared white-space-agnostic.
+func LinesTrimSpace(v string) string {
+	var sb strings.Builder
+	for line := range strings.SplitSeq(v, "\n") {
+		sb.WriteString(strings.TrimSpace(line) + "\n")
+	}
+
+	return sb.String()
+}
+
 // SendHotkey converts a key.Binding into a tea.KeyMsg.
 //
 // Sends the first key in a binding, ignoring any others.

@@ -245,27 +245,27 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			3 // include a padding
 	case tea.KeyMsg:
 		// NOTE kill keys are handled above
-		switch msg.Type {
-		case tea.KeyF1: // help
+		switch {
+		case msg.Type == tea.KeyF1: // help
 			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		case tea.KeyUp: // history
+		case msg.Type == tea.KeyUp: // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case tea.KeyDown: // history
+		case msg.Type == tea.KeyDown: // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case hotkeys.Invoke:
+		case hotkeys.Match(msg, hotkeys.Invoke):
 			m.history.unsetFetch()
 			return m, processInput(&m)
-		case tea.KeyCtrlL:
+		case msg.Type == tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
-		case hotkeys.Complete:
+		case hotkeys.Match(msg, hotkeys.Complete):
 			if m.ti.Value() == "" {
 				m.ti.SetValue("help")
 			}
-		case tea.KeyCtrlU:
+		case msg.Type == tea.KeyCtrlU:
 			m.ti.SetValue("")
 		}
 	}

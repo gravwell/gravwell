@@ -56,11 +56,11 @@ var (
 var (
 	Filter = key.NewBinding(
 		key.WithKeys("\\"),
-		key.WithHelp("\\", "clear filter"),
+		key.WithHelp("\\", "filter"),
 	)
 	CancelWhileFiltering = key.NewBinding(
 		key.WithKeys(tea.KeyCtrlBackslash.String()),
-		key.WithHelp("ctrl+\\", "clear filter"),
+		key.WithHelp("ctrl+\\", "cancel filter"),
 	)
 	AcceptWhileFiltering = key.NewBinding(
 		key.WithKeys(tea.KeyTab.String()),
@@ -68,7 +68,7 @@ var (
 	)
 	ClearFilter = key.NewBinding(
 		key.WithKeys(tea.KeyShiftLeft.String()),
-		key.WithHelp("shift"+sigils.Left, "clear filter"),
+		key.WithHelp("shift+"+sigils.Left, "clear filter"),
 	)
 )
 

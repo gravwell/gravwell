@@ -123,10 +123,10 @@ func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.Type {
-		case hotkeys.CursorUp, hotkeys.CursorDown, tea.KeyTab, tea.KeyShiftTab: // swap
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
 			return m.swap(), textinput.Blink
-		case hotkeys.Invoke: // submit
+		case hotkeys.Match(msg, hotkeys.Invoke): // submit
 			m.done = true
 			return m, tea.Quit
 		}
