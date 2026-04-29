@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -435,4 +436,100 @@ func TestMSLProviderLateBinding(t *testing.T) {
 		t.Error("incorrect selected state after setting args again", testsupport.ExpectedActual("one,two", selected))
 	}
 
+}
+
+func TestBooleanProvider(t *testing.T) {
+	t.Run("get/set, satisfied", func(t *testing.T) {
+		t.Parallel()
+		p := scaffoldcreate.NewField("reaper", false, &scaffoldcreate.BooleanProvider{})
+		p.Provider.Initialize("unused", false)
+
+		if invalid := p.Provider.Satisfied(); invalid != "" {
+			t.Error("bool providers should never be unsatisfied")
+		}
+
+		// get default
+		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+			t.Fatal(err)
+		} else if b {
+			t.Error("checkbox should be false")
+		}
+
+		if invalid := p.Provider.Set("true"); invalid != "" {
+			t.Fatalf("failed to set: %s", invalid)
+		}
+		// get the set value
+		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+			t.Fatal(err)
+		} else if !b {
+			t.Error("checkbox should be true")
+		}
+
+		if invalid := p.Provider.Satisfied(); invalid != "" {
+			t.Error("bool providers should never be unsatisfied")
+		}
+	})
+	t.Run("full mother cycle with initial value", func(t *testing.T) {
+		t.Parallel()
+		initial := true
+		p := scaffoldcreate.NewField("chelicerate", false, &scaffoldcreate.BooleanProvider{Initial: initial})
+		p.Provider.Initialize("unused", false)
+
+		// get default
+		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+			t.Fatal(err)
+		} else if !b {
+			t.Error("checkbox should be true")
+		}
+		// run a cycle
+		p.Provider.SetArgs(0, 0)
+		p.Provider.Update(false, nil)
+		p.Provider.View(false, 0)
+		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+			t.Fatal(err)
+		} else if b != initial {
+			t.Fatal("provider is no longer initial value", testsupport.ExpectedActual(initial, b))
+		}
+		p.Provider.Reset()
+		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+			t.Fatal(err)
+		} else if b != initial {
+			t.Fatal("provider is no longer initial value", testsupport.ExpectedActual(initial, b))
+		}
+		// run a cycle, but change the value this time
+		p.Provider.SetArgs(0, 0)
+		p.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
+		p.Provider.View(false, 0)
+		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+			t.Fatal(err)
+		} else if b == initial {
+			t.Fatal("provider is still initial value after toggling", testsupport.ExpectedActual(initial, b))
+		}
+		p.Provider.Reset()
+		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+			t.Fatal(err)
+		} else if b != initial {
+			t.Fatal("provider is not initial value after reset", testsupport.ExpectedActual(initial, b))
+		}
+	})
+	t.Run("view", func(t *testing.T) {
+		t.Parallel()
+		p := scaffoldcreate.NewField("ghost", false, &scaffoldcreate.BooleanProvider{})
+		p.Provider.Initialize("unused", false)
+		p.Provider.SetArgs(0, 0)
+		p.Provider.Update(false, nil)
+
+		kind, view, sl := p.Provider.View(false, 0)
+		want := stylesheet.Checkbox(false) // reminder: titles are added later, by scaffoldcreate
+		if kind != scaffoldcreate.TitleValue {
+			t.Error("bad kind", testsupport.ExpectedActual(scaffoldcreate.TitleValue, kind))
+		}
+		if sl != "" {
+			t.Errorf("why does second line have a value? '%s'", sl)
+		}
+		if want != view {
+			t.Error("incorrect view (whitespace stripped)", testsupport.ExpectedActual(want, view))
+		}
+
+	})
 }

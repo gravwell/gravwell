@@ -11,6 +11,7 @@ package scaffoldcreate
 import (
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -75,6 +76,7 @@ type FieldProvider interface {
 var _ FieldProvider = &TextProvider{}
 var _ FieldProvider = &PathProvider{}
 var _ FieldProvider = &MSLProvider{}
+var _ FieldProvider = &BooleanProvider{}
 
 type TextProvider struct {
 	ti textinput.Model
@@ -400,3 +402,49 @@ func (p *MSLProvider) Get() string {
 func (p *MSLProvider) ToggleFocus(_ bool) {
 	// MSL doesn't actually care if it is in focus
 }
+
+type BooleanProvider struct {
+	Initial bool // starter value to be .Reset() to
+	state   bool
+}
+
+// Sets state to .Initial
+func (p *BooleanProvider) Initialize(_ string, _ bool) { p.Reset() }
+
+// Resets state to .Initial
+func (p *BooleanProvider) Reset() { p.state = p.Initial }
+
+func (p *BooleanProvider) SetArgs(_, _ int) {}
+
+func (p *BooleanProvider) Update(selected bool, msg tea.Msg) (_ tea.Cmd, takeover bool) {
+	if selected && hotkeys.Match(msg, hotkeys.Select) {
+		p.state = !p.state
+	}
+	return nil, false
+}
+
+func (p *BooleanProvider) View(selected bool, width int) (_ ViewKind, value, secondLine string) {
+	return TitleValue, stylesheet.Checkbox(p.state), ""
+}
+
+// These fields cannot be unsatisfied because what would the point be?
+func (p *BooleanProvider) Satisfied() (invalid string) {
+	return ""
+}
+
+// Uses strconv.ParseBool.
+func (p *BooleanProvider) Set(val string) (invalid string) {
+	b, err := strconv.ParseBool(val)
+	if err != nil {
+		return err.Error()
+	}
+	p.state = b
+	return
+}
+
+// Uses strconv.FormatBool.
+func (p *BooleanProvider) Get() string {
+	return strconv.FormatBool(p.state)
+}
+
+func (p *BooleanProvider) ToggleFocus(focus bool) {}
