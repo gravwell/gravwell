@@ -408,12 +408,13 @@ type BooleanProvider struct {
 	state   bool
 }
 
-// Sets state to .Initial
+// Initialize sets value to BooleanProvider.Initial.
 func (p *BooleanProvider) Initialize(_ string, _ bool) { p.Reset() }
 
-// Resets state to .Initial
+// Reset returns value to .Initial
 func (p *BooleanProvider) Reset() { p.state = p.Initial }
 
+// SetArgs has no effect.
 func (p *BooleanProvider) SetArgs(_, _ int) {}
 
 func (p *BooleanProvider) Update(selected bool, msg tea.Msg) (_ tea.Cmd, takeover bool) {
@@ -427,12 +428,12 @@ func (p *BooleanProvider) View(selected bool, width int) (_ ViewKind, value, sec
 	return TitleValue, stylesheet.Checkbox(p.state), ""
 }
 
-// These fields cannot be unsatisfied because what would the point be?
+// Satisfied is never false for Booleans; what would be the point of that?
 func (p *BooleanProvider) Satisfied() (invalid string) {
 	return ""
 }
 
-// Uses strconv.ParseBool.
+// Set uses strconv.ParseBool.
 func (p *BooleanProvider) Set(val string) (invalid string) {
 	if val = strings.TrimSpace(val); val == "" {
 		return ""
@@ -445,7 +446,7 @@ func (p *BooleanProvider) Set(val string) (invalid string) {
 	return
 }
 
-// Uses strconv.FormatBool.
+// Get uses strconv.FormatBool.
 func (p *BooleanProvider) Get() string {
 	return strconv.FormatBool(p.state)
 }
