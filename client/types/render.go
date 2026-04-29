@@ -184,6 +184,7 @@ type ResultsResponse struct {
 }
 
 type ResultsTable struct {
+	HasExplore       bool                           `json:"hasExplore"`
 	Kind             string                         `json:"kind"`
 	BinCount         int                            `json:"binCount"`
 	BinWidth         float64                        `json:"binWidth"`
@@ -194,8 +195,6 @@ type ResultsTable struct {
 
 type ResultsTableCell struct {
 	Elements    []Element `json:",omitempty"`
-	Module      string    `json:",omitempty"`
-	Tag         string
 	Value       string
 	WordOffsets []WordOffset `json:",omitempty"`
 }
