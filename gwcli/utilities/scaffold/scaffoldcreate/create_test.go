@@ -82,7 +82,7 @@ func TestOptions(t *testing.T) {
 				Provider: &scaffoldcreate.TextProvider{},
 			},
 		},
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			setName = cfg["name"].Provider.Get()
 			setPath = cfg["path"].Provider.Get()
 			i, _ := strconv.ParseInt(cfg["cust"].Provider.Get(), 10, 64)
@@ -267,11 +267,11 @@ func TestBoolean(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pair := scaffoldcreate.NewCreateAction("bool_action", scaffoldcreate.Config{
+			pair := scaffoldcreate.NewCreateAction("bool_action", map[string]scaffoldcreate.Field{
 				"b1": b1,
 				"b2": b2,
 			},
-				func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 					b1Value, err = strconv.ParseBool(fields["b1"].Provider.Get())
 					if err != nil {
 						return 0, "", err

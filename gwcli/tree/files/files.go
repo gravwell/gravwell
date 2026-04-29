@@ -131,7 +131,7 @@ func create() action.Pair {
 			"path":   scaffoldcreate.FieldPath("file"),
 			"labels": scaffoldcreate.FieldLabels(),
 		},
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var (
 				name, desc, filePath string
 				labels               []string

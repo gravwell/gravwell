@@ -169,7 +169,7 @@ func create() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			filePath := cfg["path"].Provider.Get()
 			// check that path is valid and the file exists
 			if fi, err := os.Stat(filePath); err != nil {

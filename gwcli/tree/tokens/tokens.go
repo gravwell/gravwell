@@ -241,7 +241,7 @@ func create() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("token", fields,
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			tc := types.TokenCreate{
 				Name:        cfg["name"].Provider.Get(),
 				Description: cfg["desc"].Provider.Get(),

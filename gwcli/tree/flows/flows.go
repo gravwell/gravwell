@@ -66,7 +66,7 @@ var validGIDs map[int32]string // cached each SetArg so we don't hit the backend
 // importCreate is the create function for flows, but the flow itself is created from JSON slurped from a file
 func importCreate() action.Pair {
 	return scaffoldcreate.NewCreateAction("flow",
-		scaffoldcreate.Config{
+		map[string]scaffoldcreate.Field{
 			"name":      scaffoldcreate.FieldName("flow"),
 			"desc":      scaffoldcreate.FieldDescription("flow"),
 			"frequency": scaffoldcreate.FieldFrequency(),
@@ -115,7 +115,7 @@ func importCreate() action.Pair {
 				Order: 40,
 			},
 		},
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// slurp the json file
 			var json string
 			if b, err := os.ReadFile(cfg["path"].Provider.Get()); err != nil {

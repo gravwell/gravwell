@@ -50,7 +50,7 @@ func NewField(title string, required bool, provider FieldProvider) Field {
 // If Flag.Name is empty, it will be derived from Title.
 //
 // All flags are read as strings (subject to change).
-func installFlagsFromFields(fields Config) pflag.FlagSet {
+func installFlagsFromFields(fields map[string]Field) pflag.FlagSet {
 	var flags pflag.FlagSet
 	for key, f := range fields {
 		if f.Flag.Name == "" {
@@ -77,7 +77,7 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 
 // Attempts to set flag values into their respective fields.
 // Returns a list of required fields that did not recieve values and the first Set error that occurred (if one did).
-func setValuesFromFlags(fs *pflag.FlagSet, fields Config) (missingRequireds []string, err error) {
+func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequireds []string, err error) {
 	if !fs.Parsed() {
 		clilog.Writer.Errorf("attempted to set values from unparsed flagset")
 		return nil, uniques.ErrGeneric

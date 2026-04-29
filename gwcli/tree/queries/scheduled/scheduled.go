@@ -112,7 +112,7 @@ const ( // field keys
 
 // create creates the action for creating new scheduled queries.
 func create() action.Pair {
-	fields := scaffoldcreate.Config{
+	fields := map[string]scaffoldcreate.Field{
 		createQryKey: scaffoldcreate.Field{
 			Required: true,
 			Title:    "query",
@@ -153,7 +153,7 @@ func create() action.Pair {
 }
 
 // driver function for scheduled create
-func createFunc(cfg scaffoldcreate.Config, _ *pflag.FlagSet) (any, string, error) {
+func createFunc(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 	var (
 		name      = cfg[createNameKey].Provider.Get()
 		desc      = cfg[createDescKey].Provider.Get()

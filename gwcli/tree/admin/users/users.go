@@ -109,7 +109,7 @@ func create() action.Pair {
 				Order:    120,
 			},
 		},
-		func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			admin, err := strconv.ParseBool(fields["admin"].Provider.Get())
 			if err != nil {
 				clilog.Writer.Error("failed to parse bool provider", log.KVErr(err))

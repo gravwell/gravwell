@@ -32,7 +32,7 @@ Example implementation:
 	func NewCreateAction() action.Pair {
 		n := scaffoldcreate.NewField(true, "name", 100)
 		d := scaffoldcreate.NewField(true, "value", 90)
-		fields := scaffoldcreate.Config{
+		fields := map[string]scaffoldcreate.Field{
 			"name":  n,
 			"value": d,
 			"field3": scaffoldcreate.Field{
@@ -56,7 +56,7 @@ Example implementation:
 		return scaffoldcreate.NewCreateAction("", fields, create)
 	}
 
-	func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values) (any, string, error) {
+	func create(_ map[string]scaffoldcreate.Field, vals scaffoldcreate.Values) (any, string, error) {
 		id, err := connection.Client.X()
 		return id, "", err
 	}
@@ -92,9 +92,6 @@ const (
 	createdSuccessfully     string = "Successfully created %v (ID: %v)."
 )
 
-// A Config maps keys -> Field; used as (ReadOnly) configuration for this creation instance
-type Config = map[string]Field
-
 // CreateFuncT defines the format of the subroutine that must be passed for creating data.
 // The function's return values must be:
 //
@@ -103,14 +100,14 @@ type Config = map[string]Field
 // a reason the create attempt was invalid (or the empty string)
 //
 // and an error that occurred (or nil). This is different than an invalid reason and is likely a bubbling up of an error from the client library.
-type CreateFuncT func(fields Config, fs *pflag.FlagSet) (id any, invalid string, err error)
+type CreateFuncT func(fields map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error)
 
 // NewCreateAction returns an action pair (covering interactive and non-interactive use) capable of creating new data based on user input.
 // You must tell the create action what kind of data it accepts (in the form of fields) and
 // what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
 //
 // Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
-func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opts Options) action.Pair {
+func NewCreateAction(singular string, fields map[string]Field, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
 	if singular == "" {
 		clilog.Writer.Error("singular noun cannot be empty. Defaulting to \"UNKNOWN\"", scaffold.IdentifyCaller())
@@ -217,7 +214,7 @@ type createModel struct {
 
 	singular string // "macro", "search", etc
 
-	fields Config // RO configuration provided by the caller
+	fields map[string]Field // RO configuration provided by the caller
 
 	inputs             inputs
 	longestTitleLength int // max len(field.Title) across all fields; set at create time for title alignment
@@ -237,7 +234,7 @@ func (c *createModel) SubmitSelected() bool {
 }
 
 // Creates and returns a create Model, ready for interactive usage via Mother.
-func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts Options) *createModel {
+func newCreateModel(fields map[string]Field, singular string, createFunc CreateFuncT, opts Options) *createModel {
 	c := &createModel{
 		mode:     inputting,
 		width:    defaultWidth,

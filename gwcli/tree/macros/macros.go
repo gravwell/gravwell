@@ -131,7 +131,7 @@ func create() action.Pair {
 		},
 	}
 
-	fields := scaffoldcreate.Config{
+	fields := map[string]scaffoldcreate.Field{
 		"name": nameField,
 		"desc": scaffoldcreate.FieldDescription("macro"),
 		"exp": scaffoldcreate.Field{
@@ -145,7 +145,7 @@ func create() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("macro", fields,
-		func(cfg scaffoldcreate.Config, _ *pflag.FlagSet) (any, string, error) {
+		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 			sm := types.Macro{}
 			// all three fields are required, no need to nil-check them
 			sm.Name = strings.ToUpper(cfg["name"].Provider.Get())

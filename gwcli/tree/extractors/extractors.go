@@ -134,7 +134,7 @@ func create() action.Pair {
 	fLabels.Order = 40
 
 	return scaffoldcreate.NewCreateAction("extractor",
-		scaffoldcreate.Config{
+		map[string]scaffoldcreate.Field{
 			fieldKeyName: scaffoldcreate.FieldName("extractor"),
 			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
 			fieldKeyModule: scaffoldcreate.Field{
@@ -200,7 +200,7 @@ func create() action.Pair {
 			},
 			fieldKeyLabels: fLabels,
 		},
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (any, string, error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
 			// no need to nil check; Required boolean enforces that for us
 
 			// map fields back into the underlying type

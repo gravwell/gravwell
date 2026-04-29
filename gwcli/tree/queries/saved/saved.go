@@ -86,7 +86,7 @@ const (
 )
 
 func create() action.Pair {
-	fields := scaffoldcreate.Config{
+	fields := map[string]scaffoldcreate.Field{
 		createNameKey: scaffoldcreate.FieldName("saved query"),
 		createDescKey: scaffoldcreate.FieldDescription("saved query"),
 		createQueryKey: scaffoldcreate.Field{
@@ -99,7 +99,7 @@ func create() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("saved query", fields,
-		func(cfg scaffoldcreate.Config, _ *pflag.FlagSet) (any, string, error) {
+		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 			sq := types.SavedQuery{}
 			sq.Name = cfg[createNameKey].Provider.Get()
 			sq.Description = cfg[createDescKey].Provider.Get()

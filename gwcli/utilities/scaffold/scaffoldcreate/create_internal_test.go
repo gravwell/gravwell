@@ -55,7 +55,7 @@ func Test_createModel_basics(t *testing.T) {
 		"A": {Required: true, Title: "A", Order: 10, Provider: &TextProvider{}},
 		"B": {Required: true, Title: "B", Order: 0, Provider: &PathProvider{}},
 	}
-	ca := NewCreateAction("test", cfg, func(cfg Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+	ca := NewCreateAction("test", cfg, func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
 	}, Options{})
 	cm, ok := ca.Model.(*createModel)
@@ -122,7 +122,7 @@ func Test_Ordering(t *testing.T) {
 	}
 
 	cm := newCreateModelInitialize(cfg,
-		func(cfg Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			return 0, "", nil
 		}, Options{})
 
@@ -139,11 +139,13 @@ func Test_Ordering(t *testing.T) {
 // Tests that we can successfully set values into each field.
 func Test_ValueSetting(t *testing.T) {
 	t.Run("all set", func(t *testing.T) {
-		pair := NewCreateAction("test", Config{
+		pair := NewCreateAction("test", map[string]Field{
 			"A": Field{Required: true, Title: "A", Order: 0, Provider: &TextProvider{}},
 			"B": Field{Required: false, Title: "B", Order: 10, Provider: &PathProvider{}},
 			"C": Field{Required: true, Title: "C", Order: -10, Provider: &TextProvider{}},
-		}, func(fields Config, fs *pflag.FlagSet) (id any, invalid string, err error) { return 0, "", nil }, Options{})
+		}, func(fields map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			return 0, "", nil
+		}, Options{})
 
 		cm, ok := pair.Model.(*createModel)
 		if !ok {
@@ -183,11 +185,11 @@ func Test_Full(t *testing.T) {
 	var createdCalled bool
 
 	cm := newCreateModelInitialize(
-		Config{
+		map[string]Field{
 			"A": Field{Required: true, Title: "A", Flag: FlagConfig{Name: "a"}, Order: 100, Provider: &TextProvider{}},
 			"B": Field{Required: false, Title: "B", Flag: FlagConfig{Name: "b"}, Order: 50, Provider: &TextProvider{}},
 		},
-		func(cfg Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var bln bool
 			if !fs.Parsed() {
 				t.Errorf("flagset should be parsed")
@@ -283,14 +285,14 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	}
 }
 
-func setup(t *testing.T, cfg Config) *createModel {
+func setup(t *testing.T, cfg map[string]Field) *createModel {
 	t.Helper()
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
 	}
 	// use a consistent color scheme
 	stylesheet.Cur = stylesheet.Plain()
-	cm := newCreateModelInitialize(cfg, func(cfg Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+	cm := newCreateModelInitialize(cfg, func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
 	}, Options{})
 	return cm
@@ -298,8 +300,8 @@ func setup(t *testing.T, cfg Config) *createModel {
 
 // wrapper around newCreateModel to initialize fields, as would normally be done by newCreateModel's caller.
 func newCreateModelInitialize(
-	fields Config,
-	createFunc func(cfg Config, fs *pflag.FlagSet) (id any, invalid string, err error),
+	fields map[string]Field,
+	createFunc func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error),
 	options Options,
 ) *createModel {
 	for _, f := range fields {

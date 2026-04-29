@@ -108,7 +108,7 @@ func create() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("secret", fields,
-		func(cfg scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// transmute to resource struct
 			var labels []string
 			if lbls := cfg["labels"].Provider.Get(); strings.TrimSpace(lbls) != "" {

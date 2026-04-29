@@ -192,10 +192,10 @@ func licenseSerial() action.Pair {
 
 func licenseUpdate() action.Pair {
 	return scaffoldcreate.NewCreateAction("license",
-		scaffoldcreate.Config{
+		map[string]scaffoldcreate.Field{
 			"path": scaffoldcreate.FieldPath("license file"),
 		},
-		func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			path := fields["path"].Provider.Get()
 
 			warnings, err := connection.Client.UploadLicenseFile(path)

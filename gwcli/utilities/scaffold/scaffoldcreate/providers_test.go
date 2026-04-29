@@ -63,8 +63,8 @@ func TestTextProvider(t *testing.T) {
 		f.Flag.Shorthand = 't'
 		var create string
 		pair := scaffoldcreate.NewCreateAction("test",
-			scaffoldcreate.Config{"t": f},
-			func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			map[string]scaffoldcreate.Field{"t": f},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 				create = fields["t"].Provider.Get()
 				return 0, "", nil
 			},
@@ -158,8 +158,8 @@ func TestPathProvider(t *testing.T) {
 		provider := &scaffoldcreate.PathProvider{}
 		f := scaffoldcreate.NewField("path", true, provider)
 		pair := scaffoldcreate.NewCreateAction("test",
-			scaffoldcreate.Config{"path": f},
-			func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			map[string]scaffoldcreate.Field{"path": f},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 				return 0, "", nil
 			}, scaffoldcreate.Options{})
 		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, nil, 80, 60, "", nil, nil)
