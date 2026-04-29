@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -88,7 +89,6 @@ func create() action.Pair {
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    160,
 			},
-			// TODO include admin bool
 			"password": {
 				Required: true,
 				Title:    "Password",
@@ -102,12 +102,23 @@ func create() action.Pair {
 				},
 				Order: 140,
 			},
+			"admin": {
+				Required: false,
+				Title:    "admin",
+				Provider: &scaffoldcreate.BooleanProvider{},
+				Order:    120,
+			},
 		},
 		func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			admin, err := strconv.ParseBool(fields["admin"].Provider.Get())
+			if err != nil {
+				clilog.Writer.Error("failed to parse bool provider", log.KVErr(err))
+				return 0, "", uniques.ErrGeneric
+			}
 			if _, err := connection.Client.CreateUser(
 				types.AddUser{Username: fields["username"].Provider.Get(), Password: fields["password"].Provider.Get(),
 					Name: fields["name"].Provider.Get(), Email: fields["email"].Provider.Get(),
-					Admin: false}, // TODO admin
+					Admin: admin},
 			); err != nil {
 				return 0, "", err
 			}
