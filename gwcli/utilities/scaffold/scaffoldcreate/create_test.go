@@ -187,3 +187,104 @@ func TestOptions(t *testing.T) {
 		})
 	}
 }
+
+// Tests that boolean providers operate as we expect.
+func TestBoolean(t *testing.T) {
+	var b1Value, b2Value bool
+
+	var (
+		b1 = scaffoldcreate.Field{
+			Title:    "b1",
+			Required: false, // TODO omit from missingRequired to make ineffectual
+			Order:    100,
+			Provider: &scaffoldcreate.BooleanProvider{},
+		}
+		b2 = scaffoldcreate.Field{
+			Title:    "b2",
+			Required: false,
+			Order:    100,
+			Provider: &scaffoldcreate.BooleanProvider{Initial: true},
+		}
+	)
+
+	tests := []struct {
+		name string
+		args []string
+		// the main cycle of inputs (via update) and view checks (via view);
+		// this is where the core testing occurs
+		mainCycle func(update func(msg tea.Msg) tea.Cmd, view func() string)
+	}{
+		{"no bool changes prior to submit",
+			nil,
+			func(update func(msg tea.Msg) tea.Cmd, view func() string) {
+				// navigate down to, and press, submit
+				update(testsupport.SendHotkey(hotkeys.CursorUp))
+				wantV := testsupport.LinesTrimSpace(` b1:[ ]
+         b2:[✓]
+         ╭──────╮
+        >│submit│
+         ╰──────╯`)
+				if v := testsupport.LinesTrimSpace(view()); v != wantV {
+					t.Error("incorrect view after wrap to submit button", testsupport.ExpectedActual(wantV, v))
+				}
+				update(testsupport.SendHotkey(hotkeys.Invoke))
+				// check that create was called and our fields have the values we expect
+				if get, _ := strconv.ParseBool(b1.Provider.Get()); b1Value != false && b1Value != get {
+					t.Errorf("incorrect field b1 values:\nExpected: false | set value: %v | provider get value: %v", b1Value, get)
+				}
+				if get, _ := strconv.ParseBool(b2.Provider.Get()); b2Value != true && b2Value != get {
+					t.Errorf("incorrect field b2 values:\nExpected: false | set value: %v | provider get value: %v", b2Value, get)
+				}
+			},
+		},
+		{"invert each bool",
+			nil,
+			func(update func(msg tea.Msg) tea.Cmd, view func() string) {
+				update(testsupport.SendHotkey(hotkeys.Select))
+				update(testsupport.SendHotkey(hotkeys.CursorDown))
+				update(testsupport.SendHotkey(hotkeys.Select))
+				update(testsupport.SendHotkey(hotkeys.CursorDown))
+				update(testsupport.SendHotkey(hotkeys.Invoke))
+				wantV := testsupport.LinesTrimSpace(` b1:[✓]
+         b2:[ ]
+         ╭──────╮
+        >│submit│
+         ╰──────╯`)
+				if v := testsupport.LinesTrimSpace(view()); v != wantV {
+					t.Error("incorrect view after wrap to submit button", testsupport.ExpectedActual(wantV, v))
+				}
+				update(testsupport.SendHotkey(hotkeys.Invoke))
+				// check that create was called and our fields have the values we expect
+				if get, _ := strconv.ParseBool(b1.Provider.Get()); b1Value != true && b1Value != get {
+					t.Errorf("incorrect field b1 values:\nExpected: false | set value: %v | provider get value: %v", b1Value, get)
+				}
+				if get, _ := strconv.ParseBool(b2.Provider.Get()); b2Value != false && b2Value != get {
+					t.Errorf("incorrect field b2 values:\nExpected: false | set value: %v | provider get value: %v", b2Value, get)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pair := scaffoldcreate.NewCreateAction("bool_action", scaffoldcreate.Config{
+				"b1": b1,
+				"b2": b2,
+			},
+				func(fields scaffoldcreate.Config, fs *pflag.FlagSet) (id any, invalid string, err error) {
+					b1Value, err = strconv.ParseBool(fields["b1"].Provider.Get())
+					if err != nil {
+						return 0, "", err
+					}
+					b2Value, err = strconv.ParseBool(fields["b2"].Provider.Get())
+					return 0, "", err
+				}, scaffoldcreate.Options{})
+			if inv, _, err := pair.Model.SetArgs(&pflag.FlagSet{}, tt.args, 80, 60); err != nil || inv != "" {
+				t.Fatalf("set args failed:\nerr: '%v' | invalid: '%v'", err, inv)
+			}
+			tt.mainCycle(pair.Model.Update, pair.Model.View)
+
+		})
+	}
+
+}
