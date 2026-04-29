@@ -195,15 +195,16 @@ func TestBoolean(t *testing.T) {
 	var (
 		b1 = scaffoldcreate.Field{
 			Title:    "b1",
-			Required: false, // TODO omit from missingRequired to make ineffectual
+			Required: false,
 			Order:    100,
 			Provider: &scaffoldcreate.BoolProvider{},
 		}
 		b2 = scaffoldcreate.Field{
-			Title:    "b2",
-			Required: false,
-			Order:    100,
-			Provider: &scaffoldcreate.BoolProvider{Initial: true},
+			Title:        "b2",
+			Required:     false,
+			DefaultValue: "true",
+			Order:        100,
+			Provider:     &scaffoldcreate.BoolProvider{},
 		}
 	)
 

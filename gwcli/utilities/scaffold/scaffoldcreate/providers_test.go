@@ -441,7 +441,7 @@ func TestMSLProviderLateBinding(t *testing.T) {
 func TestBooleanProvider(t *testing.T) {
 	t.Run("get/set, satisfied", func(t *testing.T) {
 		t.Parallel()
-		p := scaffoldcreate.NewField("reaper", false, &scaffoldcreate.BooleanProvider{})
+		p := scaffoldcreate.NewField("reaper", false, &scaffoldcreate.BoolProvider{})
 		p.Provider.Initialize("unused", false)
 
 		if invalid := p.Provider.Satisfied(); invalid != "" {
@@ -472,41 +472,41 @@ func TestBooleanProvider(t *testing.T) {
 	t.Run("full mother cycle with initial value", func(t *testing.T) {
 		t.Parallel()
 		initial := true
-		p := scaffoldcreate.NewField("chelicerate", false, &scaffoldcreate.BooleanProvider{Initial: initial})
-		p.Provider.Initialize("unused", false)
+		f := scaffoldcreate.Field{Title: "chelicerate", Required: false, DefaultValue: strconv.FormatBool(initial), Provider: &scaffoldcreate.BoolProvider{}}
+		f.Provider.Initialize(f.DefaultValue, false)
 
 		// get default
-		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+		if b, err := strconv.ParseBool(f.Provider.Get()); err != nil {
 			t.Fatal(err)
 		} else if !b {
 			t.Error("checkbox should be true")
 		}
 		// run a cycle
-		p.Provider.SetArgs(0, 0)
-		p.Provider.Update(false, nil)
-		p.Provider.View(false, 0)
-		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+		f.Provider.SetArgs(0, 0)
+		f.Provider.Update(false, nil)
+		f.Provider.View(false, 0)
+		if b, err := strconv.ParseBool(f.Provider.Get()); err != nil {
 			t.Fatal(err)
 		} else if b != initial {
 			t.Fatal("provider is no longer initial value", testsupport.ExpectedActual(initial, b))
 		}
-		p.Provider.Reset()
-		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+		f.Provider.Reset()
+		if b, err := strconv.ParseBool(f.Provider.Get()); err != nil {
 			t.Fatal(err)
 		} else if b != initial {
 			t.Fatal("provider is no longer initial value", testsupport.ExpectedActual(initial, b))
 		}
 		// run a cycle, but change the value this time
-		p.Provider.SetArgs(0, 0)
-		p.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
-		p.Provider.View(false, 0)
-		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+		f.Provider.SetArgs(0, 0)
+		f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
+		f.Provider.View(false, 0)
+		if b, err := strconv.ParseBool(f.Provider.Get()); err != nil {
 			t.Fatal(err)
 		} else if b == initial {
 			t.Fatal("provider is still initial value after toggling", testsupport.ExpectedActual(initial, b))
 		}
-		p.Provider.Reset()
-		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
+		f.Provider.Reset()
+		if b, err := strconv.ParseBool(f.Provider.Get()); err != nil {
 			t.Fatal(err)
 		} else if b != initial {
 			t.Fatal("provider is not initial value after reset", testsupport.ExpectedActual(initial, b))
@@ -514,12 +514,12 @@ func TestBooleanProvider(t *testing.T) {
 	})
 	t.Run("view", func(t *testing.T) {
 		t.Parallel()
-		p := scaffoldcreate.NewField("ghost", false, &scaffoldcreate.BooleanProvider{})
-		p.Provider.Initialize("unused", false)
-		p.Provider.SetArgs(0, 0)
-		p.Provider.Update(false, nil)
+		f := scaffoldcreate.Field{Title: "ghost", Required: false, Provider: &scaffoldcreate.BoolProvider{}}
+		f.Provider.Initialize("unused", false)
+		f.Provider.SetArgs(0, 0)
+		f.Provider.Update(false, nil)
 
-		kind, view, sl := p.Provider.View(false, 0)
+		kind, view, sl := f.Provider.View(false, 0)
 		want := stylesheet.Checkbox(false) // reminder: titles are added later, by scaffoldcreate
 		if kind != scaffoldcreate.TitleValue {
 			t.Error("bad kind", testsupport.ExpectedActual(scaffoldcreate.TitleValue, kind))
