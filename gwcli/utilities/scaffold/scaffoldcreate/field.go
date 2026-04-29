@@ -101,6 +101,7 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 	}
 	for key := range fields {
 		flagName := fields[key].Flag.Name
+		changed := fs.Changed(flagName)
 		// BoolProviders require special handling:
 		// 1. They cannot be required as what would the point be?
 		// 2. Bool flags must be handled as standalones; they must not interfere with other flags.
@@ -109,18 +110,20 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 		//
 		// NOTE(rlandau): this uses fs.Changed(), which will fail default values.
 		// I am assuming that if you need a value, a default is irrelevant.
-		if fields[key].Required && !isBoolProvider && !fs.Changed(flagName) {
+		if fields[key].Required && !isBoolProvider && !changed {
 			missingRequireds = append(missingRequireds, fields[key].Flag.Name)
 			continue
 		}
 
 		var v string
 		if isBoolProvider { // get as bool
-			b, err := fs.GetBool(flagName)
-			if err != nil {
-				return nil, err
+			if changed { // only bother with changed flags so we don't clobber initial values unnecessarily
+				b, err := fs.GetBool(flagName)
+				if err != nil {
+					return nil, err
+				}
+				v = strconv.FormatBool(b)
 			}
-			v = strconv.FormatBool(b)
 		} else if v, err = fs.GetString(flagName); err != nil { // get everything else as string
 			return nil, err
 		}
