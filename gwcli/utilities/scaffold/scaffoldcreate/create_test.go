@@ -197,13 +197,13 @@ func TestBoolean(t *testing.T) {
 			Title:    "b1",
 			Required: false, // TODO omit from missingRequired to make ineffectual
 			Order:    100,
-			Provider: &scaffoldcreate.BooleanProvider{},
+			Provider: &scaffoldcreate.BoolProvider{},
 		}
 		b2 = scaffoldcreate.Field{
 			Title:    "b2",
 			Required: false,
 			Order:    100,
-			Provider: &scaffoldcreate.BooleanProvider{Initial: true},
+			Provider: &scaffoldcreate.BoolProvider{Initial: true},
 		}
 	)
 

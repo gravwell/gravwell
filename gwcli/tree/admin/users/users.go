@@ -105,7 +105,7 @@ func create() action.Pair {
 			"admin": {
 				Required: false,
 				Title:    "admin",
-				Provider: &scaffoldcreate.BooleanProvider{},
+				Provider: &scaffoldcreate.BoolProvider{},
 				Order:    120,
 			},
 		},

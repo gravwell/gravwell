@@ -444,7 +444,7 @@ func TestMSLProviderLateBinding(t *testing.T) {
 func TestBooleanProvider(t *testing.T) {
 	t.Run("get/set, satisfied", func(t *testing.T) {
 		t.Parallel()
-		p := scaffoldcreate.NewField("reaper", false, &scaffoldcreate.BooleanProvider{})
+		p := scaffoldcreate.NewField("reaper", false, &scaffoldcreate.BoolProvider{})
 		p.Provider.Initialize(false)
 
 		if invalid := p.Provider.Satisfied(); invalid != "" {
@@ -475,7 +475,7 @@ func TestBooleanProvider(t *testing.T) {
 	t.Run("full mother cycle with initial value", func(t *testing.T) {
 		t.Parallel()
 		initial := true
-		p := scaffoldcreate.NewField("chelicerate", false, &scaffoldcreate.BooleanProvider{Initial: initial})
+		p := scaffoldcreate.NewField("chelicerate", false, &scaffoldcreate.BoolProvider{Initial: initial})
 		p.Provider.Initialize(false)
 
 		// get default
@@ -517,7 +517,7 @@ func TestBooleanProvider(t *testing.T) {
 	})
 	t.Run("view", func(t *testing.T) {
 		t.Parallel()
-		p := scaffoldcreate.NewField("ghost", false, &scaffoldcreate.BooleanProvider{})
+		p := scaffoldcreate.NewField("ghost", false, &scaffoldcreate.BoolProvider{})
 		p.Provider.Initialize(false)
 		p.Provider.SetArgs(0, 0)
 		p.Provider.Update(false, nil)

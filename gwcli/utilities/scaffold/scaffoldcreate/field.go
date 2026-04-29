@@ -31,8 +31,10 @@ type FlagConfig struct {
 // A Field defines a single data point that will be passed to the create function.
 type Field struct {
 	// user-facing identifier of this field.
-	Title        string
-	Required     bool       // this field must be populated prior to calling createFunc
+	Title string
+	// This field must be populated prior to calling createFunc.
+	// Ineffectual for BoolParams.
+	Required     bool
 	Flag         FlagConfig // OPTIONAL. Control how this field's flag is handled.
 	DefaultValue string     // OPTIONAL. Default flag and TI value
 	Order        int        // OPTIONAL. Top-Down (highest to lowest) display order of this field.
