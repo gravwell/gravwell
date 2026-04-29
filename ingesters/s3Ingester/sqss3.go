@@ -28,6 +28,7 @@ type SQSS3Config struct {
 	FileFilters      []string
 	Region           string
 	Queue            string
+	Endpoint         string
 	Reader           string
 	ID               string `json:"-"` //do not ship this as part of a config report
 	Secret           string `json:"-"` //do not ship this as part of a config report
@@ -71,10 +72,15 @@ func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 		return nil, err
 	}
 
-	sess, err = session.NewSession(&aws.Config{
+	awsCfg := &aws.Config{
 		Region:      aws.String(cfg.Region),
 		Credentials: c,
-	})
+	}
+	if cfg.Endpoint != "" {
+		awsCfg.Endpoint = aws.String(cfg.Endpoint)
+	}
+
+	sess, err = session.NewSession(awsCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +88,7 @@ func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 	sqs, err := sqs_common.SQSListener(&sqs_common.Config{
 		Queue:       cfg.Queue,
 		Region:      cfg.Region,
+		Endpoint:    cfg.Endpoint,
 		Credentials: c,
 	})
 	if err != nil {
