@@ -18,7 +18,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -32,7 +31,6 @@ func TestTextProvider(t *testing.T) {
 		t.Parallel()
 		var customInitCalled bool
 		p := scaffoldcreate.NewField("title0", false, &scaffoldcreate.TextProvider{
-			InitialValue: "def",
 			CustomInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", true)
 				ti.Width = 50
@@ -40,7 +38,7 @@ func TestTextProvider(t *testing.T) {
 				return ti
 			},
 		})
-		p.Provider.Initialize(false)
+		p.Provider.Initialize("def", false)
 		if p.Provider.Get() != "def" {
 			t.Fatal("failed to get default value out of provider")
 		} else if !customInitCalled {
@@ -206,7 +204,6 @@ func TestPathProvider(t *testing.T) {
 }
 
 func TestMSLProvider(t *testing.T) {
-	clilog.InitializeFromArgs(nil)
 	// Spin up an MSL as a Field and test that it can:
 	// 1. enter takeover mode
 	// 2. select and deselect items
@@ -224,7 +221,7 @@ func TestMSLProvider(t *testing.T) {
 			scaffoldcreate.MSLOptions{ListOptions: multiselectlist.Options{HideDescription: true}},
 		)
 		f := scaffoldcreate.NewField("msl", true, baseProvider)
-		f.Provider.Initialize(false)
+		f.Provider.Initialize("", false)
 		f.Provider.SetArgs(40, 20)
 		// enter takeover mode
 		_, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
@@ -271,7 +268,7 @@ func TestMSLProvider(t *testing.T) {
 		f = scaffoldcreate.NewField("msl", true, baseProvider)
 	}
 
-	f.Provider.Initialize(f.Required)
+	f.Provider.Initialize(f.DefaultValue, f.Required)
 
 	t.Run("set nonexistent value", func(t *testing.T) {
 		// set dne
@@ -407,7 +404,7 @@ func TestMSLProviderLateBinding(t *testing.T) {
 		f = scaffoldcreate.NewField("msl", true, baseProvider)
 	}
 
-	f.Provider.Initialize(false)
+	f.Provider.Initialize("", false)
 	if selected := f.Provider.Get(); selected != "" { // just making sure this doesn't panic
 		t.Errorf("selected contains data: %v", selected)
 	}
@@ -444,8 +441,8 @@ func TestMSLProviderLateBinding(t *testing.T) {
 func TestBooleanProvider(t *testing.T) {
 	t.Run("get/set, satisfied", func(t *testing.T) {
 		t.Parallel()
-		p := scaffoldcreate.NewField("reaper", false, &scaffoldcreate.BoolProvider{})
-		p.Provider.Initialize(false)
+		p := scaffoldcreate.NewField("reaper", false, &scaffoldcreate.BooleanProvider{})
+		p.Provider.Initialize("unused", false)
 
 		if invalid := p.Provider.Satisfied(); invalid != "" {
 			t.Error("bool providers should never be unsatisfied")
@@ -475,8 +472,8 @@ func TestBooleanProvider(t *testing.T) {
 	t.Run("full mother cycle with initial value", func(t *testing.T) {
 		t.Parallel()
 		initial := true
-		p := scaffoldcreate.NewField("chelicerate", false, &scaffoldcreate.BoolProvider{Initial: initial})
-		p.Provider.Initialize(false)
+		p := scaffoldcreate.NewField("chelicerate", false, &scaffoldcreate.BooleanProvider{Initial: initial})
+		p.Provider.Initialize("unused", false)
 
 		// get default
 		if b, err := strconv.ParseBool(p.Provider.Get()); err != nil {
@@ -517,8 +514,8 @@ func TestBooleanProvider(t *testing.T) {
 	})
 	t.Run("view", func(t *testing.T) {
 		t.Parallel()
-		p := scaffoldcreate.NewField("ghost", false, &scaffoldcreate.BoolProvider{})
-		p.Provider.Initialize(false)
+		p := scaffoldcreate.NewField("ghost", false, &scaffoldcreate.BooleanProvider{})
+		p.Provider.Initialize("unused", false)
 		p.Provider.SetArgs(0, 0)
 		p.Provider.Update(false, nil)
 

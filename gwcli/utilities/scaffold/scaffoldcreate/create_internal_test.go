@@ -305,7 +305,7 @@ func newCreateModelInitialize(
 	options Options,
 ) *createModel {
 	for _, f := range fields {
-		f.Provider.Initialize(f.Required)
+		f.Provider.Initialize(f.DefaultValue, f.Required)
 	}
 
 	return newCreateModel(fields, "test", createFunc, options)
