@@ -41,7 +41,7 @@ const (
 type FieldProvider interface {
 	// initialize the instance, fetching required data.
 	// This is only called once, at tree-construction time.
-	Initialize(defaultValue string, required bool)
+	Initialize(required bool)
 	// Reset the instance back to its initial, ready-for-use state.
 	// Called after the action's invocation completes.
 	Reset()
@@ -79,7 +79,9 @@ var _ FieldProvider = &MSLProvider{}
 var _ FieldProvider = &BooleanProvider{}
 
 type TextProvider struct {
-	ti textinput.Model
+	// value to default the TI to
+	InitialValue string
+	ti           textinput.Model
 
 	// Function to use to create the base textinput instead of stylesheet.NewTI().
 	// Useful for setting validator func that do not rely on external data.
@@ -91,13 +93,13 @@ type TextProvider struct {
 	CustomSetArgs func(textinput.Model) textinput.Model
 }
 
-func (p *TextProvider) Initialize(defaultValue string, required bool) {
+func (p *TextProvider) Initialize(required bool) {
 	if p.CustomInit != nil {
 		p.ti = p.CustomInit()
 		// set default value
-		p.ti.SetValue(defaultValue)
+		p.ti.SetValue(p.InitialValue)
 	} else {
-		p.ti = stylesheet.NewTI(defaultValue, !required)
+		p.ti = stylesheet.NewTI(p.InitialValue, !required)
 		p.ti.Width = 30
 	}
 }
@@ -155,19 +157,20 @@ func (p *TextProvider) ToggleFocus(focus bool) {
 type PathProvider struct {
 	pti pathtextinput.Model
 
-	Options pathtextinput.Options
+	InitialValue string
+	Options      pathtextinput.Options
 }
 
-func (p *PathProvider) Initialize(defaultValue string, required bool) {
+func (p *PathProvider) Initialize(required bool) {
 	if p.Options.CustomTI == nil {
 		p.Options.CustomTI = func() textinput.Model {
-			ti := stylesheet.NewTI(defaultValue, !required)
+			ti := stylesheet.NewTI(p.InitialValue, !required)
 			ti.Width = 30 // override TI width
 			return ti
 		}
 	}
 	p.pti = pathtextinput.New(p.Options)
-	p.pti.SetValue(defaultValue)
+	p.pti.SetValue(p.InitialValue)
 }
 
 func (p *PathProvider) Reset() {
@@ -290,7 +293,7 @@ func NewMSLProvider(items []multiselectlist.SelectableItem[string], opts MSLOpti
 	return &MSLProvider{BaseItems: items, Options: opts}
 }
 
-func (p *MSLProvider) Initialize(_ string, _ bool) {
+func (p *MSLProvider) Initialize(_ bool) {
 	p.msl = multiselectlist.New(p.BaseItems, 80, 60, p.Options.ListOptions)
 	hotkeys.ApplyToList(&p.msl.KeyMap)
 	p.numSelected = len(p.msl.GetSelectedItems())
@@ -409,7 +412,7 @@ type BooleanProvider struct {
 }
 
 // Initialize sets value to BooleanProvider.Initial.
-func (p *BooleanProvider) Initialize(_ string, _ bool) { p.Reset() }
+func (p *BooleanProvider) Initialize(_ bool) { p.Reset() }
 
 // Reset returns value to .Initial
 func (p *BooleanProvider) Reset() { p.state = p.Initial }

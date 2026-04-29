@@ -182,7 +182,7 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 
 	// initialize every field
 	for key := range fields {
-		fields[key].Provider.Initialize(fields[key].DefaultValue, fields[key].Required)
+		fields[key].Provider.Initialize(fields[key].Required)
 	}
 
 	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, opts))
