@@ -15,12 +15,12 @@ import (
 	"iter"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 
 	// include all the native hosted ingesters
-	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/tester"
 )
 
 type Configs struct {

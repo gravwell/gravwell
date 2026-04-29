@@ -21,11 +21,19 @@ _artifacts/
 
 #vim files
 *.swp
-manager
-
 
 #idea files
 .idea/
-.idea
+
 #macOS
 .DS_Store
+
+# binaries
+manager/manager
+manager
+
+#macOS
+.DS_Store
+
+# VSCode files
+.vscode/*
