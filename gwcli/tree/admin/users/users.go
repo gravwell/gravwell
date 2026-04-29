@@ -95,7 +95,7 @@ func create() action.Pair {
 				Flag:     scaffoldcreate.FlagConfig{Usage: "initial password for the user"},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
-						ti := stylesheet.NewTI("", true)
+						ti := stylesheet.NewTI("", false)
 						ti.EchoMode = textinput.EchoPassword
 						return ti
 					},
