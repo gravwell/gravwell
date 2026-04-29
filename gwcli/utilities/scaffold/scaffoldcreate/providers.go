@@ -11,6 +11,7 @@ package scaffoldcreate
 import (
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -37,7 +38,7 @@ const (
 )
 
 // A FieldProvider defines the contract fields must provide to be usable with create.
-type FieldProvider[GetSet_t any] interface {
+type FieldProvider interface {
 	// initialize the instance, fetching required data.
 	// This is only called once, at tree-construction time.
 	Initialize(defaultValue string, required bool)
@@ -64,18 +65,18 @@ type FieldProvider[GetSet_t any] interface {
 	Satisfied() (invalid string)
 
 	// Try to set val into this provider.
-	Set(val GetSet_t) (invalid string)
+	Set(val string) (invalid string)
 
 	// Get the current value of the field as a string.
-	Get() GetSet_t
+	Get() string
 	// ToggleFocus focuses or blurs this provider.
 	ToggleFocus(focus bool)
 }
 
-var _ FieldProvider[string] = &TextProvider{}
-var _ FieldProvider[string] = &PathProvider{}
-var _ FieldProvider[[]string] = &MSLProvider{}
-var _ FieldProvider[bool] = &BooleanProvider{}
+var _ FieldProvider = &TextProvider{}
+var _ FieldProvider = &PathProvider{}
+var _ FieldProvider = &MSLProvider{}
+var _ FieldProvider = &BooleanProvider{}
 
 type TextProvider struct {
 	ti textinput.Model
@@ -372,8 +373,16 @@ func (p *MSLProvider) Satisfied() (invalid string) {
 	return ""
 }
 
-func (p *MSLProvider) Set(IDs []string) (invalid string) {
-	_, notFound := p.msl.SelectItems(IDs)
+// Set selects items with matching titles. Expects values to be passed as comma-separated values.
+//
+// Ex: val1,val2,val3
+func (p *MSLProvider) Set(val string) (invalid string) {
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return ""
+	}
+	vals := strings.Split(val, ",")
+	_, notFound := p.msl.SelectItems(vals)
 	if len(notFound) > 0 {
 		return fmt.Sprintf("IDs %v not found", notFound)
 	}
@@ -381,13 +390,13 @@ func (p *MSLProvider) Set(IDs []string) (invalid string) {
 }
 
 // Get returns the set of selected items as a comma-separated list.
-func (p *MSLProvider) Get() []string {
+func (p *MSLProvider) Get() string {
 	dis := p.msl.GetSelectedItems()
 	var ss = make([]string, len(dis))
 	for i, di := range dis {
 		ss[i] = di.ID()
 	}
-	return ss
+	return strings.Join(ss, ",")
 }
 
 func (p *MSLProvider) ToggleFocus(_ bool) {
@@ -423,13 +432,19 @@ func (p *BooleanProvider) Satisfied() (invalid string) {
 	return ""
 }
 
-func (p *BooleanProvider) Set(val bool) (invalid string) {
-	p.state = val
+// Uses strconv.ParseBool.
+func (p *BooleanProvider) Set(val string) (invalid string) {
+	b, err := strconv.ParseBool(val)
+	if err != nil {
+		return err.Error()
+	}
+	p.state = b
 	return
 }
 
-func (p *BooleanProvider) Get() bool {
-	return p.state
+// Uses strconv.FormatBool.
+func (p *BooleanProvider) Get() string {
+	return strconv.FormatBool(p.state)
 }
 
 func (p *BooleanProvider) ToggleFocus(focus bool) {}
