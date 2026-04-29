@@ -83,7 +83,7 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	for out == nil || len(out.Messages) == 0 {
 		out, err = s.svc.ReceiveMessage(req)
 		if err != nil {
-			return nil, fmt.Errorf("queue '%s': %w", s.Queue(), err)
+			return nil, fmt.Errorf("error getting messages on queue %q: %w", s.Queue(), err)
 		}
 		if len(out.Messages) == 0 {
 			time.Sleep(time.Second)
@@ -115,7 +115,7 @@ func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 	}
 
 	if err != nil {
-		err = fmt.Errorf("queue '%s': %w", s.Queue(), err)
+		err = fmt.Errorf("error deleting messages on queue %q: %w", s.Queue(), err)
 	}
 
 	return err
