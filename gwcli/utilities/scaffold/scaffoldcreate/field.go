@@ -10,6 +10,7 @@ package scaffoldcreate
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -33,7 +34,7 @@ type Field struct {
 	// user-facing identifier of this field.
 	Title string
 	// This field must be populated prior to calling createFunc.
-	// Ineffectual for BoolParams.
+	// Ineffectual for BoolProviders.
 	Required     bool
 	Flag         FlagConfig // OPTIONAL. Control how this field's flag is handled.
 	DefaultValue string     // OPTIONAL. Default flag and TI value
@@ -64,14 +65,28 @@ func installFlagsFromFields(fields map[string]Field) pflag.FlagSet {
 		fields[key] = f
 
 		// install flag
-		if f.Flag.Shorthand != 0 {
-			flags.StringP(f.Flag.Name, string(f.Flag.Shorthand), f.DefaultValue, f.Flag.Usage)
-		} else {
-			flags.String(
-				f.Flag.Name,
-				f.DefaultValue, // default flag value
-				f.Flag.Usage)
+		if _, isBoolParam := f.Provider.(*BoolProvider); isBoolParam { // as bool
+			// install flag
+			if f.Flag.Shorthand != 0 {
+				flags.BoolP(f.Flag.Name, string(f.Flag.Shorthand), false, f.Flag.Usage)
+			} else {
+				flags.Bool(
+					f.Flag.Name,
+					false,
+					f.Flag.Usage)
+			}
+		} else { // as string
+			// install flag
+			if f.Flag.Shorthand != 0 {
+				flags.StringP(f.Flag.Name, string(f.Flag.Shorthand), f.DefaultValue, f.Flag.Usage)
+			} else {
+				flags.String(
+					f.Flag.Name,
+					f.DefaultValue, // default flag value
+					f.Flag.Usage)
+			}
 		}
+
 	}
 
 	return flags
@@ -86,18 +101,30 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 	}
 	for key := range fields {
 		flagName := fields[key].Flag.Name
+		// BoolProviders require special handling:
+		// 1. They cannot be required as what would the point be?
+		// 2. Bool flags must be handled as standalones; they must not interfere with other flags.
+		_, isBoolProvider := fields[key].Provider.(*BoolProvider)
 		// if this value is required, but unset, add it to the list and move on.
+		//
 		// NOTE(rlandau): this uses fs.Changed(), which will fail default values.
 		// I am assuming that if you need a value, a default is irrelevant.
-		if fields[key].Required && !fs.Changed(flagName) {
+		if fields[key].Required && !isBoolProvider && !fs.Changed(flagName) {
 			missingRequireds = append(missingRequireds, fields[key].Flag.Name)
 			continue
 		}
 
-		v, err := fs.GetString(flagName)
-		if err != nil {
+		var v string
+		if isBoolProvider { // get as bool
+			b, err := fs.GetBool(flagName)
+			if err != nil {
+				return nil, err
+			}
+			v = strconv.FormatBool(b)
+		} else if v, err = fs.GetString(flagName); err != nil { // get everything else as string
 			return nil, err
 		}
+
 		if invalid := fields[key].Provider.Set(v); invalid != "" {
 			return nil, fmt.Errorf("%s is not a valid input to --%s: %s", v, fields[key].Flag.Name, invalid)
 		}
