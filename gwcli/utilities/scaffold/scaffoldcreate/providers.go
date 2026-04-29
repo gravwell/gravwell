@@ -434,6 +434,9 @@ func (p *BooleanProvider) Satisfied() (invalid string) {
 
 // Uses strconv.ParseBool.
 func (p *BooleanProvider) Set(val string) (invalid string) {
+	if val = strings.TrimSpace(val); val == "" {
+		return ""
+	}
 	b, err := strconv.ParseBool(val)
 	if err != nil {
 		return err.Error()
