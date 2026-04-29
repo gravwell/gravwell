@@ -137,6 +137,7 @@ func main() {
 		s, err := sqs_common.SQSListener(&sqs_common.Config{
 			Queue:       v.Queue_URL,
 			Region:      v.Region,
+			Endpoint:    v.Endpoint,
 			Credentials: c,
 		})
 
