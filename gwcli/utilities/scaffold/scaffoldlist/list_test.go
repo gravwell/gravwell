@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-type NuclearThrone struct {
+type nuclearThrone struct {
 	Plant    string
 	Robot    []int
 	unexport struct {
@@ -40,7 +40,7 @@ type NuclearThrone struct {
 }
 
 // The dot-qual map of the NuclearThrone struct as constructed by Weave.StructFields()
-var NTDQs = map[string]string{
+var ntDQs = map[string]string{
 	"Export.YV.YungCuz": "",
 	"Plant":             "",
 	"Robot":             "",
@@ -64,14 +64,14 @@ func TestShowColumns_AllFlag(t *testing.T) {
 
 	// now test it from the outside
 	t.Run("via --"+ft.ShowColumns.Name(), func(t *testing.T) {
-		data := []NuclearThrone{} // the data itself doesn't matter
+		data := []nuclearThrone{} // the data itself doesn't matter
 
-		aliased := maps.Clone(NTDQs)
+		aliased := maps.Clone(ntDQs)
 		// add some aliases
 		aliased["Export.YV.YungCuz"] = "YC"
 
 		pair := scaffoldlist.NewListAction("test function", "this is a test function",
-			NuclearThrone{}, func(fs *pflag.FlagSet) ([]NuclearThrone, error) {
+			nuclearThrone{}, func(fs *pflag.FlagSet) ([]nuclearThrone, error) {
 				return data, nil
 			},
 			maps.Clone(aliased), scaffoldlist.Options{})
@@ -108,7 +108,7 @@ func TestShowColumns_AllFlag(t *testing.T) {
 func TestMotherCycle(t *testing.T) {
 	// generate data the tests can test against
 	yc := "yung cuz"
-	data := []NuclearThrone{
+	data := []nuclearThrone{
 		{
 			Plant: "plant",
 			Robot: []int{1, 2, 3},
@@ -136,7 +136,7 @@ func TestMotherCycle(t *testing.T) {
 	}
 
 	// generate aliases we can test against
-	aliased := maps.Clone(NTDQs)
+	aliased := maps.Clone(ntDQs)
 	aliased["Plant"] = "Fast"
 
 	// generate the set of expected outcomes tests can glom onto
@@ -147,12 +147,12 @@ func TestMotherCycle(t *testing.T) {
 		}
 	}
 
-	expectedCSV := weave.ToCSV(data, slices.Collect(maps.Keys(NTDQs)), weave.CSVOptions{Aliases: aliasedMinusEmpty})
-	expectedJSON, err := weave.ToJSON(data, slices.Collect(maps.Keys(NTDQs)), weave.JSONOptions{Aliases: aliasedMinusEmpty})
+	expectedCSV := weave.ToCSV(data, slices.Collect(maps.Keys(ntDQs)), weave.CSVOptions{Aliases: aliasedMinusEmpty})
+	expectedJSON, err := weave.ToJSON(data, slices.Collect(maps.Keys(ntDQs)), weave.JSONOptions{Aliases: aliasedMinusEmpty})
 	if err != nil {
 		t.Fatal("failed to generated expected JSON")
 	}
-	expectedTable := weave.ToTable(data, slices.Collect(maps.Keys(NTDQs)), weave.TableOptions{Aliases: aliasedMinusEmpty})
+	expectedTable := weave.ToTable(data, slices.Collect(maps.Keys(ntDQs)), weave.TableOptions{Aliases: aliasedMinusEmpty})
 
 	tests := []struct {
 		name string
@@ -194,7 +194,7 @@ func TestMotherCycle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				NuclearThrone{}, func(fs *pflag.FlagSet) ([]NuclearThrone, error) {
+				nuclearThrone{}, func(fs *pflag.FlagSet) ([]nuclearThrone, error) {
 					return data, nil
 				},
 				maps.Clone(aliased),
