@@ -98,16 +98,24 @@ func listOutput[struct_t any](
 		return "", err
 	}
 
+	// weave takes aliases verbatim, so we need to dump out empty aliases from the column list
+	aliases := maps.Clone(DQToAlias)
+	for dq, alias := range aliases {
+		if alias == "" {
+			delete(aliases, dq)
+		}
+	}
+
 	// hand off control
 	clilog.Writer.Debugf("List: format %s | row count: %d", format, len(data))
 	toRet, err := "", nil
 	switch format {
 	case csv:
-		toRet = weave.ToCSV(data, columns, weave.CSVOptions{Aliases: DQToAlias})
+		toRet = weave.ToCSV(data, columns, weave.CSVOptions{Aliases: aliases})
 	case json:
-		toRet, err = weave.ToJSON(data, columns, weave.JSONOptions{Aliases: DQToAlias})
+		toRet, err = weave.ToJSON(data, columns, weave.JSONOptions{Aliases: aliases})
 	case tbl:
-		toRet = weave.ToTable(data, columns, weave.TableOptions{Base: stylesheet.Table, Aliases: DQToAlias})
+		toRet = weave.ToTable(data, columns, weave.TableOptions{Base: stylesheet.Table, Aliases: aliases})
 	default:
 		toRet = ""
 		err = fmt.Errorf("unknown output format (%d)", format)
