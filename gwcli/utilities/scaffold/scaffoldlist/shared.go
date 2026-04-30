@@ -11,7 +11,9 @@ package scaffoldlist
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -74,43 +76,38 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 
 // Driver function to fetch the list output.
 // Determines what (pre)processing is required to retrieve output for the given format and does so, returning the formatted string.
-func listOutput[retStruct any](
+func listOutput[struct_t any](
 	fs *pflag.FlagSet,
 	format outputFormat,
 	columns []string,
-	dataFn ListDataFunction[retStruct],
+	dataFunc ListDataFunc[struct_t],
 	prettyFunc PrettyPrinterFunc,
-	aliases map[string]string,
+	DQToAlias map[string]string,
 ) (string, error) {
 	// hand off control to pretty
 	if format == pretty {
 		if prettyFunc == nil {
 			return "", errors.New("format is pretty, but prettyFunc is nil")
 		}
-		return prettyFunc(fs)
+		return prettyFunc(columns, DQToAlias)
 	}
 
 	// massage the data for weave
-	data, err := dataFn(fs)
+	data, err := dataFunc(fs)
 	if err != nil {
 		return "", err
-	} /*else if len(data) < 1 {
-		return "", nil
-	}*/
+	}
 
 	// hand off control
 	clilog.Writer.Debugf("List: format %s | row count: %d", format, len(data))
 	toRet, err := "", nil
 	switch format {
 	case csv:
-		toRet = weave.ToCSV(data, columns, weave.CSVOptions{Aliases: aliases})
+		toRet = weave.ToCSV(data, columns, weave.CSVOptions{Aliases: DQToAlias})
 	case json:
-		toRet, err = weave.ToJSON(data, columns, weave.JSONOptions{Aliases: aliases})
+		toRet, err = weave.ToJSON(data, columns, weave.JSONOptions{Aliases: DQToAlias})
 	case tbl:
-		toRet = weave.ToTable(data, columns, weave.TableOptions{
-			Base:    stylesheet.Table,
-			Aliases: aliases,
-		})
+		toRet = weave.ToTable(data, columns, weave.TableOptions{Base: stylesheet.Table, Aliases: DQToAlias})
 	default:
 		toRet = ""
 		err = fmt.Errorf("unknown output format (%d)", format)
@@ -135,7 +132,8 @@ func buildFlagSet(prettyDefined bool) *pflag.FlagSet {
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+
-			"Takes precedence over other format flags.")
+			"Takes precedence over other format flags.\n"+
+			"May or may not respect columns, default or selected via --"+ft.SelectColumns.Name()+".")
 	}
 
 	return &fs
@@ -165,28 +163,56 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 	return os.OpenFile(outPath, flags, outFilePerm)
 }
 
-// getColumns checks for --columns then validates and returns them if found and returns the default columns otherwise.
-func getColumns(fs *pflag.FlagSet, defaultColumns []string, availDSColumns []string) ([]string, error) {
+// normalize columns takes a list of columns (which may be a mixture of DQ and alias) and returns the dot-qualified version of each column.
+//
+// DQToAlias is a map of all DQ fields mapped to their alias; DQs without an alias map to "".
+//
+// AliasToDQ is a map of all aliases mapped to their underlying DQ version.
+//
+// Returns the set of normalized (as DQ) columns. If a column is not found in either map, it is returned as unknown.
+func normalizeColumns(columns []string, DQToAlias map[string]string, AliasToDQ map[string]string) (normalized, unknown []string) {
+	normalized = make([]string, 0, len(columns))
+	for _, col := range columns {
+		if _, found := DQToAlias[col]; found {
+			normalized = append(normalized, col)
+			continue
+		}
+		if dq, found := AliasToDQ[col]; found {
+			normalized = append(normalized, dq)
+			continue
+		}
+		// not found in either map
+		unknown = append(unknown, col)
+	}
+	return normalized, unknown
+}
+
+// getColumns figures out which columns should be used for this request.
+// In order of priority:
+//
+//  1. all columns (if --all)
+//
+//  2. selected columns (if --columns=<>)
+//
+//  3. default columns
+func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, defaultColumns []string) ([]string, error) {
 	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
-		return availDSColumns, nil
+		return slices.Collect(maps.Keys(DQToAlias)), nil
 	}
-	cols, err := fs.GetStringSlice(ft.SelectColumns.Name())
-	if err != nil {
+	if selectedCols, err := fs.GetStringSlice(ft.SelectColumns.Name()); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
-	} else if len(cols) < 1 {
-		return defaultColumns, nil
+	} else if len(selectedCols) > 0 { // if columns were selected, validate the request and return the set
+		normalized, unknown := normalizeColumns(selectedCols, DQToAlias, AliasToDQ)
+		if len(unknown) > 0 {
+			return nil, fmt.Errorf("--%s has unknown columns/aliases: %v", ft.SelectColumns.Name(), unknown)
+		}
+		return normalized, nil
 	}
 
-	if badCols := validateColumns(cols, availDSColumns); len(badCols) > 0 {
-		plural := ""
-		if len(badCols) != 1 {
-			plural = "s"
-		}
-		return nil, fmt.Errorf("unknown column%s: %v", plural, badCols)
-	}
-	return cols, nil
+	// neither --all nor --columns=<> was not specified; return defaults
+	return defaultColumns, nil
 }
 
 // validateColumns tests that every given column exists within the given struct.
