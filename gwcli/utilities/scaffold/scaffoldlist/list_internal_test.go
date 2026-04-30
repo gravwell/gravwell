@@ -10,13 +10,15 @@
 
 package scaffoldlist
 
-// Tests that do not require a backend and thus can be run from a pipeline
+// This file covers testing unexported helper functions.
 
 import (
 	ecsv "encoding/csv"
+	"maps"
 	"os"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,107 +42,6 @@ type st struct {
 	}
 }
 
-func Test_initOutFile(t *testing.T) {
-	tDir := t.TempDir()
-	t.Run("undefined output", func(t *testing.T) {
-		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-		fs.Parse([]string{})
-		if f, err := initOutFile(fs); err == nil {
-			t.Error("nil error")
-		} else if f != nil {
-			t.Errorf("a file was created: %+v", f)
-		}
-	})
-	t.Run("whitespace path", func(t *testing.T) {
-		fs := buildFlagSet(false)
-		fs.Parse([]string{"-o", ""})
-		if f, err := initOutFile(fs); err != nil {
-			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
-		} else if f != nil {
-			t.Errorf("a file was created: %+v", f)
-		}
-	})
-	t.Run("whitespace path with pretty defined", func(t *testing.T) {
-		fs := buildFlagSet(true)
-		fs.Parse([]string{"-o", ""})
-		if f, err := initOutFile(fs); err != nil {
-			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
-		} else if f != nil {
-			t.Errorf("a file was created: %+v", f)
-		}
-	})
-
-	t.Run("truncate", func(t *testing.T) {
-		var path = path.Join(tDir, "hello.world")
-		orig, err := os.Create(path)
-		if err != nil {
-			t.Skip("failed to create file to be truncated:", err)
-		}
-		t.Cleanup(func() { os.Remove(path) })
-		orig.WriteString("Hello World")
-		orig.Sync()
-		orig.Close()
-
-		fs := buildFlagSet(false)
-		fs.Parse([]string{"-o", path})
-		if f, err := initOutFile(fs); err != nil {
-			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
-		} else if f == nil {
-			t.Error("a file was not created, but should have been")
-		} else if stat, err := f.Stat(); err != nil {
-			t.Fatal("failed to stat file:", err)
-		} else if stat.Size() != 0 {
-			t.Fatalf("file was not truncated (size: %v)", stat.Size())
-		}
-	})
-}
-
-func Test_ShowColumns(t *testing.T) {
-	cols, aliases := []string{"A.1", "B", "C.1.⌚"}, map[string]string{"C.1.⌚": "Clock", "nonexistent": "some_alias"}
-	actual := ShowColumns(cols, aliases)
-	expected := strings.Join([]string{"A.1", "B", "Clock"}, string(ShowColumnSep))
-
-	if actual != expected {
-		t.Fatal(testsupport.ExpectedActual(expected, actual))
-	}
-}
-
-func Test_determineFormat(t *testing.T) {
-	// spin up the logger
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-		t.Fatal("failed to spawn logger:", err)
-	}
-
-	tests := []struct {
-		name          string
-		args          []string
-		prettyDefined bool
-		want          outputFormat
-	}{
-		{"default, pretty", []string{}, true, pretty},
-		{"default, no pretty", []string{}, false, tbl},
-		{"explicit pretty, pretty", []string{"--pretty"}, true, pretty},
-		{"explicit pretty, no pretty", []string{"--pretty"}, false, tbl},
-		{"csv, pretty", []string{"--" + ft.CSV.Name()}, true, csv},
-		{"csv, no pretty", []string{"--" + ft.CSV.Name()}, false, csv},
-		{"json, pretty", []string{"--" + ft.JSON.Name()}, true, json},
-		{"json, no pretty", []string{"--" + ft.JSON.Name()}, false, json},
-		{"csv precedence over json", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name()}, false, csv},
-		{"pretty precedence over all", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name(), "--pretty", "--" + ft.Table.Name()}, true, pretty},
-		{"pretty defined, but --table requested", []string{"--" + ft.Table.Name()}, true, tbl},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// generate flagset
-			fs := buildFlagSet(tt.prettyDefined)
-			fs.Parse(tt.args)
-			if got := determineFormat(fs, tt.prettyDefined); got != tt.want {
-				t.Errorf("determineFormat() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // Mostly just tests that options are properly reflected in the returned command and model.
 func TestNewListAction(t *testing.T) {
 	tDir := t.TempDir()
@@ -161,7 +62,7 @@ func TestNewListAction(t *testing.T) {
 			recover()
 			recovered = true
 		}()
-		NewListAction(short, long, 5, func(fs *pflag.FlagSet) ([]int, error) { return nil, nil }, Options{})
+		NewListAction(short, long, 5, func(fs *pflag.FlagSet) ([]int, error) { return nil, nil }, nil, Options{})
 	})
 	t.Run("nil data function", func(t *testing.T) {
 		var recovered bool
@@ -174,31 +75,8 @@ func TestNewListAction(t *testing.T) {
 			recover()
 			recovered = true
 		}()
-		NewListAction(short, long, struct{}{}, nil, Options{})
+		NewListAction(short, long, struct{}{}, nil, nil, Options{})
 	})
-	// This test does not apply anymore as we do not force "Use" validation anymore
-	/*t.Run("non alphanumerics in use", func(t *testing.T) {
-		use := "<action|"
-		type st struct {
-		}
-
-		var recovered bool
-		defer func() {
-			if !recovered {
-				t.Errorf("test did not recover from panic")
-			}
-		}()
-		defer func() { // recover from the expected panic and note that we recovered
-			recover()
-			recovered = true
-		}()
-		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil },
-			Options{
-				CommonOptions: scaffold.CommonOptions{
-					Use: use,
-				},
-			})
-	})*/
 	t.Run("default columns and exclude columns given", func(t *testing.T) {
 		type st struct {
 		}
@@ -213,7 +91,7 @@ func TestNewListAction(t *testing.T) {
 			recover()
 			recovered = true
 		}()
-		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, Options{DefaultColumns: []string{}, ExcludeColumnsFromDefault: []string{}})
+		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, nil, Options{DefaultColumns: []string{}, ExcludeColumnsFromDefault: []string{}})
 	})
 	t.Run("specific columns to outfile", func(t *testing.T) {
 		// generate the pair
@@ -224,7 +102,7 @@ func TestNewListAction(t *testing.T) {
 					privateSubCol2 float32
 				}{true, 3.14}},
 			}, nil
-		}, Options{CommonOptions: scaffold.CommonOptions{Use: "validUse"}})
+		}, nil, Options{CommonOptions: scaffold.CommonOptions{Use: "validUse"}})
 		filepath := path.Join(tDir, "specific_columns.csv")
 		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.SelectColumns.Name(), "Col1,Col3", "-" + ft.Output.Shorthand(), filepath})
 		// capture output
@@ -277,10 +155,11 @@ func TestNewListAction(t *testing.T) {
 		// generate the pair
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
-		}, Options{
-			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
-			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
-		})
+		},
+			map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+			Options{
+				CommonOptions: scaffold.CommonOptions{Use: "validUse"},
+			})
 		pair.Action.SetArgs([]string{})
 		// capture output
 		var sb strings.Builder
@@ -317,10 +196,11 @@ func TestNewListAction(t *testing.T) {
 		// generate the pair
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
-		}, Options{
-			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
-			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
-		})
+		},
+			map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+			Options{
+				CommonOptions: scaffold.CommonOptions{Use: "validUse"},
+			})
 		pair.Action.SetArgs([]string{})
 		// capture output
 		var sb strings.Builder
@@ -360,7 +240,7 @@ func TestNewListAction(t *testing.T) {
 		// generate the pair
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
-		}, Options{
+		}, nil, Options{
 			CommonOptions:             scaffold.CommonOptions{Use: "validUse"},
 			ExcludeColumnsFromDefault: []string{"Col1"},
 		})
@@ -368,8 +248,8 @@ func TestNewListAction(t *testing.T) {
 		// check default columns
 		if la, ok := pair.Model.(*ListAction[st]); !ok {
 			t.Fatal("failed to assert model to listAction")
-		} else if !testsupport.SlicesUnorderedEqual(la.defaultColumns, []string{"Col2", "Col3", "Col4.SubCol1"}) {
-			t.Fatal("bad default columns.", testsupport.ExpectedActual([]string{"Col2", "Col3", "Col4.SubCol1"}, la.defaultColumns))
+		} else if !testsupport.SlicesUnorderedEqual(la.defaultColumnsDQ, []string{"Col2", "Col3", "Col4.SubCol1"}) {
+			t.Fatal("bad default columns.", testsupport.ExpectedActual([]string{"Col2", "Col3", "Col4.SubCol1"}, la.defaultColumnsDQ))
 		}
 
 		pair.Action.SetArgs([]string{})
@@ -406,12 +286,8 @@ func TestNewListAction(t *testing.T) {
 		}
 
 		// generate the pair
-		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
-			return data, nil
-		}, Options{
-			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
-			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
-		})
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return data, nil },
+			nil, Options{CommonOptions: scaffold.CommonOptions{Use: "validUse"}})
 		pair.Action.SetArgs([]string{})
 		// capture output
 		var sb strings.Builder
@@ -449,10 +325,7 @@ func TestNewListAction(t *testing.T) {
 		// generate the pair
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return data, nil
-		}, Options{
-			CommonOptions: scaffold.CommonOptions{Use: "validUse"},
-			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
-		})
+		}, map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"}, Options{CommonOptions: scaffold.CommonOptions{Use: "validUse"}})
 		pair.Action.SetArgs([]string{"--" + ft.ShowColumns.Name()})
 		// capture output
 		var sb strings.Builder
@@ -510,7 +383,7 @@ func TestNewListAction(t *testing.T) {
 						privateSubCol2 float32
 					}{true, 3.14}},
 				}, nil
-			}, tt.options)
+			}, nil, tt.options)
 			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name(), "--"+ft.CSV.Name()))
 			// capture output
 			var sb strings.Builder
@@ -553,7 +426,7 @@ func TestNewListAction(t *testing.T) {
 			recovered = true
 		}()
 		NewListAction(short, long, st{},
-			func(fs *pflag.FlagSet) ([]st, error) { return nil, nil },
+			func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, nil,
 			Options{DefaultColumns: []string{"Xol1"}})
 	})
 	t.Run("unknown default column -- lowercase", func(t *testing.T) {
@@ -568,7 +441,7 @@ func TestNewListAction(t *testing.T) {
 			recovered = true
 		}()
 		NewListAction(short, long, st{},
-			func(fs *pflag.FlagSet) ([]st, error) { return nil, nil },
+			func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, nil,
 			Options{DefaultColumns: []string{"col1"}})
 	})
 
@@ -581,7 +454,7 @@ func TestNewListAction(t *testing.T) {
 					privateSubCol2 float32
 				}{true, 3.14}},
 			}, nil
-		}, Options{
+		}, nil, Options{
 			CommonOptions: scaffold.CommonOptions{Use: "validU53"},
 		})
 		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.ShowColumns.Name()})
@@ -614,7 +487,7 @@ func TestNewListAction(t *testing.T) {
 					privateSubCol2 float32
 				}{true, 3.14}},
 			}, nil
-		}, Options{
+		}, nil, Options{
 			CommonOptions: scaffold.CommonOptions{Use: "validU53"},
 		})
 		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.SelectColumns.Name() + "=Xol1"})
@@ -638,45 +511,53 @@ func TestNewListAction(t *testing.T) {
 
 	jsonTests := []struct {
 		name       string
+		aliases    map[string]string
 		options    Options
 		args       []string
 		wantedJSON string
 	}{
 		{"default to all columns",
+			nil,
 			Options{},
 			[]string{},
 			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
 		},
 		{"respect defaults option",
+			nil,
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
 			[]string{}, // --no-interactive and --json are attached in the test
 			`[{"Col1":"1","Col4":{"SubCol1":"true"}}]`,
 		},
 		{"all overrides default columns",
+			nil,
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
 			[]string{"--" + ft.AllColumns.Name()}, // --no-interactive and --json are attached in the test
 			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
 		},
 		{"explicit columns overrides default columns",
+			nil,
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
 			[]string{"--" + ft.SelectColumns.Name(), "Col3"}, // --no-interactive and --json are attached in the test
 			`[{"Col3":-1}]`,
 		},
 		{"bad default column is ignored",
+			nil,
 			Options{DefaultColumns: []string{"Col1", "Col2", "Col5"}},
 			[]string{},
 			`[{"Col1":"1","Col2":1}]`,
 		},
 		{"bad exclude column is ignored",
+			nil,
 			Options{ExcludeColumnsFromDefault: []string{"Col1", "Col5"}},
 			[]string{},
 			`[{"Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
 		},
 		{"bad column alias is ignored",
-			Options{ColumnAliases: map[string]string{
+			map[string]string{
 				"Col1": "NewCol1",
 				"Col5": "DNE",
-			}},
+			},
+			Options{},
 			[]string{},
 			`[{"Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"},"NewCol1":"1"}]`,
 		},
@@ -691,7 +572,7 @@ func TestNewListAction(t *testing.T) {
 						privateSubCol2 float32
 					}{true, 3.14}},
 				}, nil
-			}, tt.options)
+			}, tt.aliases, tt.options)
 			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name(), "--"+ft.JSON.Name()))
 			// capture output
 			var sb strings.Builder
@@ -720,17 +601,20 @@ func TestNewListAction(t *testing.T) {
 	}
 
 	t.Run("additional flags", func(t *testing.T) {
-		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
-			return []st{}, nil
-		}, Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.IPP("ipp", "p", nil, "")
-					return fs
+		pair := NewListAction(
+			"short", "long",
+			st{}, func(fs *pflag.FlagSet) ([]st, error) {
+				return []st{}, nil
+			},
+			nil, Options{
+				CommonOptions: scaffold.CommonOptions{
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.IPP("ipp", "p", nil, "")
+						return fs
+					},
 				},
 			},
-		},
 		)
 
 		pair.Action.ParseFlags([]string{"-p", "127.0.0.1"})
@@ -744,7 +628,7 @@ func TestNewListAction(t *testing.T) {
 	t.Run("extra argument validation", func(t *testing.T) {
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{}, nil
-		}, Options{
+		}, nil, Options{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
@@ -778,7 +662,7 @@ func TestNewListAction(t *testing.T) {
 		prettyReturn := "pretty string"
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{}, nil
-		}, Options{Pretty: func(c *pflag.FlagSet) (string, error) { return prettyReturn, nil }})
+		}, nil, Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return prettyReturn, nil }})
 		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name()})
 		// capture output
 		var sb strings.Builder
@@ -930,7 +814,7 @@ func TestModel(t *testing.T) {
 					}{SubCol1: false}},
 					{Col1: "different column", Col3: -901},
 				}, nil
-			}, tt.options)
+			}, nil, tt.options)
 
 			// generate arguments list
 			args := []string{}
@@ -966,17 +850,19 @@ func TestModel(t *testing.T) {
 					t.Error(pfx + "flagset should be parsed")
 				}
 
+				allDQs := slices.Collect(maps.Keys(la.dqToAlias))
+
 				// ensure available DS columns matches actual available columns
 				if allColumns, err := weave.StructFields(st{}, exportedColumnsOnly); err != nil {
 					t.Fatal(err)
-				} else if !testsupport.SlicesUnorderedEqual(la.availDSColumns, allColumns) {
-					t.Error("derived columns saved in list do not match externally derived columns.", testsupport.ExpectedActual(allColumns, la.availDSColumns))
+				} else if !testsupport.SlicesUnorderedEqual(allDQs, allColumns) {
+					t.Error("derived columns saved in list do not match externally derived columns.", testsupport.ExpectedActual(allColumns, allDQs))
 				}
 
 				// confirm columns were set properly
 				if tt.flags.all { // prioritize all above all else
-					if !testsupport.SlicesUnorderedEqual(la.columns, la.availDSColumns) {
-						t.Error("derived columns saved in list do not match externally derived columns.", testsupport.ExpectedActual(la.availDSColumns, la.columns))
+					if !testsupport.SlicesUnorderedEqual(la.columns, allDQs) {
+						t.Error("derived columns saved in list do not match externally derived columns.", testsupport.ExpectedActual(allDQs, la.columns))
 					}
 				} else if len(tt.flags.columns) > 0 { // --columns was specified
 					if !testsupport.SlicesUnorderedEqual(tt.flags.columns, la.columns) {
@@ -987,8 +873,8 @@ func TestModel(t *testing.T) {
 						t.Error("action columns do not match default columns.", testsupport.ExpectedActual(tt.options.DefaultColumns, la.columns))
 					}
 				} else { // nothing was specified, check for all columns again
-					if !testsupport.SlicesUnorderedEqual(la.columns, la.availDSColumns) {
-						t.Error("true default columns is not all columns.", testsupport.ExpectedActual(la.availDSColumns, la.columns))
+					if dqs := slices.Collect(maps.Keys(la.dqToAlias)); !testsupport.SlicesUnorderedEqual(la.columns, dqs) {
+						t.Error("true default columns is not all columns.", testsupport.ExpectedActual(dqs, la.columns))
 					}
 				}
 
@@ -1045,8 +931,8 @@ func TestModel(t *testing.T) {
 				if la.done {
 					t.Errorf(pfx + "list action done was not reset properly")
 				}
-				if !testsupport.SlicesUnorderedEqual(la.columns, la.defaultColumns) {
-					t.Error(pfx+"list action columns were not reset to defaults.", testsupport.ExpectedActual(la.defaultColumns, la.columns))
+				if !testsupport.SlicesUnorderedEqual(la.columns, la.defaultColumnsDQ) {
+					t.Error(pfx+"list action columns were not reset to defaults.", testsupport.ExpectedActual(la.defaultColumnsDQ, la.columns))
 				}
 				// if additional flags were given, ensure they were bolted back on
 				if la.options.AddtlFlags != nil {
@@ -1066,18 +952,14 @@ func TestModel(t *testing.T) {
 		})
 	}
 	t.Run("interactive show columns", func(t *testing.T) {
-		availableColumns := []string{"Column1", "column2", "sub.column.1", "Sub.column.2"}
-		columnAliases := map[string]string{"Column1": "C1", "Sub.column.2": "Sc2"}
+		DQtoAlias := map[string]string{"Column1": "C1", "column2": "", "sub.column.1": "", "Sub.column.2": "Sc2"}
 
 		// only sets and calls the bare minimum to test an Update that displays column
 		la := ListAction[st]{
-			showColumns:    true,
-			availDSColumns: availableColumns,
-			options: Options{
-				ColumnAliases: columnAliases,
-			},
+			showColumns: true,
+			options:     Options{},
 		}
-		expected := ShowColumns(availableColumns, columnAliases)
+		expected := ShowColumns(DQtoAlias)
 
 		tCmd := la.Update(nil)
 		if tCmd == nil {

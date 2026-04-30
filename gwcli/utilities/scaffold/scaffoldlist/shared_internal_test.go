@@ -1,0 +1,251 @@
+//go:build ci
+
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+package scaffoldlist
+
+import (
+	"os"
+	"path"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/spf13/pflag"
+)
+
+// Testing for unexported functions in shared, as many of these are critical.
+
+func Test_initOutFile(t *testing.T) {
+	tDir := t.TempDir()
+	t.Run("undefined output", func(t *testing.T) {
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		fs.Parse([]string{})
+		if f, err := initOutFile(fs); err == nil {
+			t.Error("nil error")
+		} else if f != nil {
+			t.Errorf("a file was created: %+v", f)
+		}
+	})
+	t.Run("whitespace path", func(t *testing.T) {
+		fs := buildFlagSet(false)
+		fs.Parse([]string{"-o", ""})
+		if f, err := initOutFile(fs); err != nil {
+			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
+		} else if f != nil {
+			t.Errorf("a file was created: %+v", f)
+		}
+	})
+	t.Run("whitespace path with pretty defined", func(t *testing.T) {
+		fs := buildFlagSet(true)
+		fs.Parse([]string{"-o", ""})
+		if f, err := initOutFile(fs); err != nil {
+			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
+		} else if f != nil {
+			t.Errorf("a file was created: %+v", f)
+		}
+	})
+
+	t.Run("truncate", func(t *testing.T) {
+		var path = path.Join(tDir, "hello.world")
+		orig, err := os.Create(path)
+		if err != nil {
+			t.Skip("failed to create file to be truncated:", err)
+		}
+		t.Cleanup(func() { os.Remove(path) })
+		orig.WriteString("Hello World")
+		orig.Sync()
+		orig.Close()
+
+		fs := buildFlagSet(false)
+		fs.Parse([]string{"-o", path})
+		if f, err := initOutFile(fs); err != nil {
+			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
+		} else if f == nil {
+			t.Error("a file was not created, but should have been")
+		} else if stat, err := f.Stat(); err != nil {
+			t.Fatal("failed to stat file:", err)
+		} else if stat.Size() != 0 {
+			t.Fatalf("file was not truncated (size: %v)", stat.Size())
+		}
+	})
+}
+
+func Test_determineFormat(t *testing.T) {
+	// spin up the logger
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal("failed to spawn logger:", err)
+	}
+
+	tests := []struct {
+		name          string
+		args          []string
+		prettyDefined bool
+		want          outputFormat
+	}{
+		{"default, pretty", []string{}, true, pretty},
+		{"default, no pretty", []string{}, false, tbl},
+		{"explicit pretty, pretty", []string{"--pretty"}, true, pretty},
+		{"explicit pretty, no pretty", []string{"--pretty"}, false, tbl},
+		{"csv, pretty", []string{"--" + ft.CSV.Name()}, true, csv},
+		{"csv, no pretty", []string{"--" + ft.CSV.Name()}, false, csv},
+		{"json, pretty", []string{"--" + ft.JSON.Name()}, true, json},
+		{"json, no pretty", []string{"--" + ft.JSON.Name()}, false, json},
+		{"csv precedence over json", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name()}, false, csv},
+		{"pretty precedence over all", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name(), "--pretty", "--" + ft.Table.Name()}, true, pretty},
+		{"pretty defined, but --table requested", []string{"--" + ft.Table.Name()}, true, tbl},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// generate flagset
+			fs := buildFlagSet(tt.prettyDefined)
+			fs.Parse(tt.args)
+			if got := determineFormat(fs, tt.prettyDefined); got != tt.want {
+				t.Errorf("determineFormat() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_normalizeToDQ(t *testing.T) {
+	defDQToAlias := map[string]string{
+		"a":   "",
+		"b":   "",
+		"c":   "C",
+		"z.1": "one",
+		"z.2": "two",
+	}
+	defAliasToDQ := map[string]string{} // invert
+	for dq, alias := range defDQToAlias {
+		if alias == "" {
+			continue
+		}
+		defAliasToDQ[alias] = dq
+	}
+
+	tests := []struct {
+		name               string
+		columnsToNormalize []string
+		DQToAlias          map[string]string
+		AliasToDQ          map[string]string
+		wantNormalized     []string
+		wantUnknown        []string
+	}{
+		{"simple",
+			[]string{"a"}, defDQToAlias, defAliasToDQ,
+			[]string{"a"}, nil},
+		{"all DQs",
+			[]string{"a", "b", "c", "z.1", "z.2"}, defDQToAlias, defAliasToDQ,
+			[]string{"a", "b", "c", "z.1", "z.2"}, nil},
+		{"all aliases",
+			[]string{"C", "one", "two"}, defDQToAlias, defAliasToDQ,
+			[]string{"c", "z.1", "z.2"}, nil},
+		{"mixed, duplicated, and unknown",
+			[]string{"C", "h", "z.2", "two", "a", "b", "u"}, defDQToAlias, defAliasToDQ,
+			[]string{"c", "z.2", "z.2", "a", "b"}, []string{"h", "u"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotNormalized, gotUnknown := normalizeToDQ(tt.columnsToNormalize, tt.DQToAlias, tt.AliasToDQ)
+			if !slices.Equal(gotNormalized, tt.wantNormalized) {
+				t.Error("bad normalized columns", testsupport.ExpectedActual(tt.wantNormalized, gotNormalized))
+			}
+			if !slices.Equal(gotUnknown, tt.wantUnknown) {
+				t.Error("bad unknown columns", testsupport.ExpectedActual(tt.wantUnknown, gotUnknown))
+			}
+		})
+	}
+}
+
+// Testing to ensure:
+//
+// 1) all three gets operate in order of priority
+//
+// 2) that all columns are fetched as DQ
+//
+// 3) that all columns are properly sorted
+func Test_getColumns(t *testing.T) {
+	DQToAlias, AliasToDQ := map[string]string{
+		"Marika":    "Radagon",
+		"Morgot":    "Margit",
+		"Ranni":     "",
+		"Alexander": "",
+	}, map[string]string{
+		"Radagon": "Marika",
+		"Margit":  "Morgot",
+	}
+
+	t.Run("--all", func(t *testing.T) {
+		fs := buildFlagSet(false)
+		if err := fs.Parse([]string{"--" + ft.AllColumns.Name()}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := getColumns(fs, DQToAlias, AliasToDQ, nil) // default cols shouldn't matter for this
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"Alexander", "Marika", "Morgot", "Ranni"} // aliases don't affect all
+		if !slices.Equal(got, want) {
+			t.Fatal(testsupport.ExpectedActual(want, got))
+		}
+	})
+	t.Run("--columns selects only DQ, duplicate columns", func(t *testing.T) {
+		fs := buildFlagSet(false)
+
+		requestedColumns := []string{"Alexander", "Ranni", "Ranni", "Marika"}
+
+		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := getColumns(fs, DQToAlias, AliasToDQ, nil) // default cols shouldn't matter for this
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(got, requestedColumns) {
+			t.Fatal(testsupport.ExpectedActual(requestedColumns, got))
+		}
+	})
+	t.Run("--columns selects DQ+Alias mix", func(t *testing.T) {
+		fs := buildFlagSet(false)
+
+		requestedColumns := []string{"Radagon", "Alexander", "Ranni", "Margit"}
+
+		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := getColumns(fs, DQToAlias, AliasToDQ, nil) // default cols shouldn't matter for this
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"Marika", "Alexander", "Ranni", "Morgot"}
+		if !slices.Equal(got, want) {
+			t.Fatal(testsupport.ExpectedActual(want, got))
+		}
+	})
+	t.Run("default columns", func(t *testing.T) {
+		fs := buildFlagSet(false)
+
+		// default columns are expected to be DQ
+		defaultColumns := []string{"Morgot"}
+
+		if err := fs.Parse([]string{}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := getColumns(fs, DQToAlias, AliasToDQ, defaultColumns)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(got, defaultColumns) {
+			t.Fatal(testsupport.ExpectedActual(defaultColumns, got))
+		}
+	})
+}
