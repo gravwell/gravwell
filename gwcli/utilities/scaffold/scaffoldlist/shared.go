@@ -19,7 +19,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/pflag"
 )
@@ -195,24 +197,36 @@ func normalizeToDQ(columns []string, DQToAlias map[string]string, AliasToDQ map[
 	return normalized, unknown
 }
 
-// getColumns figures out which columns should be used for this request.
+// getColumns figures out which columns this request should receive and returns the DQ version of each.
+//
 // In order of priority:
 //
-//  1. all columns (if --all)
+//  1. all columns (if --all), sorted alphabetically
 //
-//  2. selected columns (if --columns=<>)
+//  2. selected columns (if --columns=<>), retaining given order
 //
-//  3. default columns
+//  3. default columns, sorted alphabetically
+//
+// ! default columns are *not* normalized; they are expected to already be DQ'd.
 func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, defaultColumns []string) ([]string, error) {
 	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
-		return slices.Collect(maps.Keys(DQToAlias)), nil
+		// normalize all
+		normal, unknown := normalizeToDQ(sortColumns(slices.Collect(maps.Keys(DQToAlias))), DQToAlias, AliasToDQ)
+		// we should never get unknown columns when giving the full set; this is a developer error
+		if len(unknown) > 0 {
+			clilog.Writer.Error("got unknown columns while normalizing the full column set.",
+				log.KV("unknown columns", unknown),
+				scaffold.IdentifyCaller())
+			return nil, uniques.ErrGeneric
+		}
+		return normal, nil
 	}
 	if selectedCols, err := fs.GetStringSlice(ft.SelectColumns.Name()); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if len(selectedCols) > 0 { // if columns were selected, validate the request and return the set
-		normalized, unknown := normalizeColumns(selectedCols, DQToAlias, AliasToDQ)
+		normalized, unknown := normalizeToDQ(selectedCols, DQToAlias, AliasToDQ)
 		if len(unknown) > 0 {
 			return nil, fmt.Errorf("--%s has unknown columns/aliases: %v", ft.SelectColumns.Name(), unknown)
 		}
@@ -220,24 +234,18 @@ func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, defau
 	}
 
 	// neither --all nor --columns=<> was not specified; return defaults
-	return defaultColumns, nil
+	return sortColumns(defaultColumns), nil // defaults should already be sorted, but just in case
 }
 
-// validateColumns tests that every given column exists within the given struct.
-// Returns the list of unknown columns.
-func validateColumns(cols []string, availDSColumns []string) (unknown []string) {
-	// transform the DS columns into a map for faster access
-	m := make(map[string]bool, len(availDSColumns))
-	for _, col := range availDSColumns {
-		m[col] = true
-	}
+// The sorting mechanism list uses when an order is not specified (ex: --columns is not given).
+//
+// Sorts in-place, but returns the given columns so it can be inlined.
+func sortColumns(columns []string) (sorted []string) {
+	slices.SortStableFunc(columns, func(a, b string) int {
+		a = strings.ToLower(a)
+		b = strings.ToLower(b)
+		return strings.Compare(a, b)
+	})
 
-	// confirm that each column is an existing column
-	for _, col := range cols {
-		if _, found := m[col]; !found {
-			unknown = append(unknown, col)
-		}
-	}
-
-	return unknown
+	return columns
 }

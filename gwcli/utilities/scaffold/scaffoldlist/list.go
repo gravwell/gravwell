@@ -175,7 +175,7 @@ func NewListAction[dataStruct_t any](short, long string,
 		clilog.Writer.Warn("unknown DQ column", log.KV("DQ", dq), log.KV("alias", alias), scaffold.IdentifyCaller())
 	}
 
-	var defaultColumnsDQ = findDefaultColumns(options, DQToAlias)
+	var defaultColumnsDQ = sortColumns(findDefaultColumns(options, DQToAlias))
 
 	// generate a non-interactive action
 	run := generateRun(dataFunc, options, DQToAlias, AliasToDQ, defaultColumnsDQ)
@@ -332,11 +332,7 @@ func ShowColumns(DQToAlias map[string]string) string {
 		i += 1
 	}
 
-	slices.SortStableFunc(cols, func(a, b string) int {
-		a = strings.ToLower(a)
-		b = strings.ToLower(b)
-		return strings.Compare(a, b)
-	})
+	sortColumns(cols)
 
 	return strings.Join(cols, string(ShowColumnSep))
 }
