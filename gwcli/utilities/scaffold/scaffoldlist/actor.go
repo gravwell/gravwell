@@ -38,7 +38,6 @@ type ListAction[dataStruct any] struct {
 	dqToAlias        map[string]string        // DQ column names -> alias (alias will be "" if a column does not have an alias)
 	aliasToDQ        map[string]string        // inverse of dqToAlias
 	options          Options                  // modifiers for the list action
-	availDSColumns   []string                 // set of all columns, fully-dot-qualified, in the data struct
 	dataFunc         ListDataFunc[dataStruct] // function for fetching data for table/json/csv}
 }
 
