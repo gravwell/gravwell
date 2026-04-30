@@ -37,16 +37,16 @@ import (
 func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	if !fs.Parsed() {
 		clilog.Writer.Warnf("flags must be parsed prior to determining format")
-		return tbl
+		return formatTable
 	}
-	var format = tbl   // default to tbl
-	if prettyDefined { // if defined, default to pretty and check for explicit flag
-		format = pretty
+	var format = formatTable // default to tbl
+	if prettyDefined {       // if defined, default to pretty and check for explicit flag
+		format = formatPretty
 		if fm, err := fs.GetBool("pretty"); err != nil {
 			clilog.Writer.Criticalf("failed to fetch --pretty despite believing prettyFunc to be defined: %v", err)
 		} else if fm {
 			// manually declared, use it
-			return pretty
+			return formatPretty
 		}
 	}
 	// check for CSV
@@ -54,14 +54,14 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 		uniques.ErrGetFlag("list", err)
 		// non-fatal
 	} else if fm {
-		return csv
+		return formatCSV
 	}
 
 	// check for JSON
 	if fm, err := fs.GetBool(ft.JSON.Name()); err != nil {
 		uniques.ErrGetFlag("list", err)
 	} else if fm {
-		return json
+		return formatJSON
 	}
 
 	// check for explicit table
@@ -69,7 +69,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 		uniques.ErrGetFlag("list", err)
 		// non-fatal
 	} else if fm {
-		return tbl
+		return formatTable
 	}
 
 	// if we made it this far, return the default
@@ -81,17 +81,17 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 func listOutput[struct_t any](
 	fs *pflag.FlagSet,
 	format outputFormat,
-	columns []string,
+	dqColumns []string,
 	dataFunc ListDataFunc[struct_t],
 	prettyFunc PrettyPrinterFunc,
 	DQToAlias map[string]string,
 ) (string, error) {
 	// hand off control to pretty
-	if format == pretty {
+	if format == formatPretty {
 		if prettyFunc == nil {
 			return "", errors.New("format is pretty, but prettyFunc is nil")
 		}
-		return prettyFunc(columns, DQToAlias)
+		return prettyFunc(dqColumns, DQToAlias)
 	}
 
 	// massage the data for weave
@@ -112,12 +112,12 @@ func listOutput[struct_t any](
 	clilog.Writer.Debugf("List: format %s | row count: %d", format, len(data))
 	toRet, err := "", nil
 	switch format {
-	case csv:
-		toRet = weave.ToCSV(data, columns, weave.CSVOptions{Aliases: aliases})
-	case json:
-		toRet, err = weave.ToJSON(data, columns, weave.JSONOptions{Aliases: aliases})
-	case tbl:
-		toRet = weave.ToTable(data, columns, weave.TableOptions{Base: stylesheet.Table, Aliases: aliases})
+	case formatCSV:
+		toRet = weave.ToCSV(data, dqColumns, weave.CSVOptions{Aliases: aliases})
+	case formatJSON:
+		toRet, err = weave.ToJSON(data, dqColumns, weave.JSONOptions{Aliases: aliases})
+	case formatTable:
+		toRet = weave.ToTable(data, dqColumns, weave.TableOptions{Base: stylesheet.Table, Aliases: aliases})
 	default:
 		toRet = ""
 		err = fmt.Errorf("unknown output format (%d)", format)

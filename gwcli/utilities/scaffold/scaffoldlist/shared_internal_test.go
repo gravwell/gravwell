@@ -92,17 +92,17 @@ func Test_determineFormat(t *testing.T) {
 		prettyDefined bool
 		want          outputFormat
 	}{
-		{"default, pretty", []string{}, true, pretty},
-		{"default, no pretty", []string{}, false, tbl},
-		{"explicit pretty, pretty", []string{"--pretty"}, true, pretty},
-		{"explicit pretty, no pretty", []string{"--pretty"}, false, tbl},
-		{"csv, pretty", []string{"--" + ft.CSV.Name()}, true, csv},
-		{"csv, no pretty", []string{"--" + ft.CSV.Name()}, false, csv},
-		{"json, pretty", []string{"--" + ft.JSON.Name()}, true, json},
-		{"json, no pretty", []string{"--" + ft.JSON.Name()}, false, json},
-		{"csv precedence over json", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name()}, false, csv},
-		{"pretty precedence over all", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name(), "--pretty", "--" + ft.Table.Name()}, true, pretty},
-		{"pretty defined, but --table requested", []string{"--" + ft.Table.Name()}, true, tbl},
+		{"default, pretty", []string{}, true, formatPretty},
+		{"default, no pretty", []string{}, false, formatTable},
+		{"explicit pretty, pretty", []string{"--pretty"}, true, formatPretty},
+		{"explicit pretty, no pretty", []string{"--pretty"}, false, formatTable},
+		{"csv, pretty", []string{"--" + ft.CSV.Name()}, true, formatCSV},
+		{"csv, no pretty", []string{"--" + ft.CSV.Name()}, false, formatCSV},
+		{"json, pretty", []string{"--" + ft.JSON.Name()}, true, formatJSON},
+		{"json, no pretty", []string{"--" + ft.JSON.Name()}, false, formatJSON},
+		{"csv precedence over json", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name()}, false, formatCSV},
+		{"pretty precedence over all", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name(), "--pretty", "--" + ft.Table.Name()}, true, formatPretty},
+		{"pretty defined, but --table requested", []string{"--" + ft.Table.Name()}, true, formatTable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

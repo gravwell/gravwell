@@ -77,21 +77,21 @@ import (
 type outputFormat uint
 
 const (
-	json outputFormat = iota
-	csv
-	tbl
-	pretty
+	formatJSON outputFormat = iota
+	formatCSV
+	formatTable
+	formatPretty
 )
 
 func (f outputFormat) String() string {
 	switch f {
-	case json:
+	case formatJSON:
 		return "JSON"
-	case csv:
+	case formatCSV:
 		return "CSV"
-	case tbl:
+	case formatTable:
 		return "table"
-	case pretty:
+	case formatPretty:
 		return "pretty"
 	}
 	return fmt.Sprintf("unknown format (%d)", f)
