@@ -178,7 +178,7 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 // AliasToDQ is a map of all aliases mapped to their underlying DQ version.
 //
 // Returns the set of normalized (as DQ) columns. If a column is not found in either map, it is returned as unknown.
-func normalizeColumns(columns []string, DQToAlias map[string]string, AliasToDQ map[string]string) (normalized, unknown []string) {
+func normalizeToDQ(columns []string, DQToAlias map[string]string, AliasToDQ map[string]string) (normalized, unknown []string) {
 	normalized = make([]string, 0, len(columns))
 	for _, col := range columns {
 		if _, found := DQToAlias[col]; found {
