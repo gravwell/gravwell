@@ -4,7 +4,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Update PR Labels
-        uses: "gravwell/pr-labels@03fa9a6580b7f678d4d09ccb662c17bc6e7fb8d5"
+        uses: "gravwell/pr-labels@03fa9a6580b7f678d4d09ccb662c17bc6e7fb8d5" # v2.0.0
         with:
           GITHUB_TOKEN: "${{ github.token }}"
 name: Update PR Labels
