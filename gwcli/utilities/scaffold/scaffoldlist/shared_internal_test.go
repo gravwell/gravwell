@@ -11,9 +11,11 @@
 package scaffoldlist
 
 import (
+	"maps"
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -248,4 +250,93 @@ func Test_getColumns(t *testing.T) {
 			t.Fatal(testsupport.ExpectedActual(defaultColumns, got))
 		}
 	})
+}
+
+type nuclearThrone struct {
+	Plant    string
+	Robot    []int
+	unexport struct {
+		Fish int
+		Eyes float32
+	}
+	Export struct {
+		YV *struct {
+			YungCuz *string
+		}
+	}
+	m     map[string]uint
+	Rogue complex64
+}
+
+// The dot-qual map of the NuclearThrone struct as constructed by Weave.StructFields()
+var ntDQs = map[string]string{
+	"Export.YV.YungCuz": "",
+	"Plant":             "",
+	"Robot":             "",
+	"Rogue":             "",
+}
+
+func Test_listOutput(t *testing.T) {
+	t.Run("pretty", func(t *testing.T) {
+		ppf := func(_ []string, _ map[string]string) (string, error) {
+			return "pretty", nil
+		}
+		out, err := listOutput[struct{}](buildFlagSet(true), formatPretty, nil, nil, ppf, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out != "pretty" {
+			t.Error(testsupport.ExpectedActual("pretty", out))
+		}
+	})
+	s := "yung fam"
+
+	data := []nuclearThrone{
+		{Plant: "vines", Robot: nil},
+		{Export: struct{ YV *struct{ YungCuz *string } }{&struct{ YungCuz *string }{YungCuz: &s}}},
+		{Plant: "no popo", Rogue: complex64(9i + -1)},
+	}
+
+	dataFunc := func(fs *pflag.FlagSet) ([]nuclearThrone, error) { return data, nil }
+
+	aliased := maps.Clone(ntDQs)
+	aliased["Robot"] = "munch"
+
+	tests := []struct {
+		dqColumns []string
+		format    outputFormat
+		want      string
+	}{
+		{[]string{"Plant"}, formatCSV, "Plant\n" + "vines\n" + "\n" + "no popo"},
+		{[]string{"Plant", "Robot"}, formatCSV, "Plant,munch\n" + "vines,[]\n" + ",[]\n" + "no popo,[]"},
+		{[]string{"Export.YV.YungCuz", "Robot", "Rogue"}, formatJSON, `[` +
+			`{"Export":{"YV":{"YungCuz":"nil"}},"Rogue":{"Real":0,"Imaginary":0},"munch":[]},` +
+			`{"Export":{"YV":{"YungCuz":"yung fam"}},"Rogue":{"Real":0,"Imaginary":0},"munch":[]},` +
+			`{"Export":{"YV":{"YungCuz":"nil"}},"Rogue":{"Real":-1,"Imaginary":9},"munch":[]}` +
+			`]`,
+		},
+		{[]string{"Rogue", "Plant", "Robot", "Export.YV.YungCuz"}, formatTable,
+			"┌───────────────┬───────────────┬───────────────┬───────────────┐\n" +
+				"│ Rogue         │ Plant         │ munch         │ Export.YV.Yun │\n" +
+				"├───────────────┼───────────────┼───────────────┼───────────────┤\n" +
+				"│ (0+0i)        │ vines         │ []            │ nil           │\n" +
+				"├───────────────┼───────────────┼───────────────┼───────────────┤\n" +
+				"│ (0+0i)        │               │ []            │ yung fam      │\n" +
+				"├───────────────┼───────────────┼───────────────┼───────────────┤\n" +
+				"│ (-1+9i)       │ no popo       │ []            │ nil           │\n" +
+				"└───────────────┴───────────────┴───────────────┴───────────────┘"},
+	}
+	for i, tt := range tests {
+		t.Run(strconv.FormatInt(int64(i+1), 10), func(t *testing.T) {
+			out, err := listOutput(buildFlagSet(false), tt.format, tt.dqColumns, dataFunc, nil, aliased)
+			if err != nil {
+				t.Error(err)
+			}
+			if out != tt.want {
+				t.Error(testsupport.ExpectedActual(tt.want, out))
+			}
+
+		})
+	}
+
 }
