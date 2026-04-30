@@ -46,6 +46,9 @@ Implementations will probably look a lot like:
 */
 package scaffoldlist
 
+// NOTE(rlandau): if you are modifying scaffoldlist, keep in mind that aliases should be handled at all ingress/egress points.
+// For the sake of clarity, we try to work in DQ names only internally.
+
 import (
 	"fmt"
 	"maps"
@@ -313,18 +316,27 @@ func generateRun[dataStruct_t any](
 }
 
 // ShowColumns lists available columns, preferring column aliases if they exist.
+// Columns are sorted alphabetically.
 func ShowColumns(DQToAlias map[string]string) string {
-	var sb strings.Builder
+	var cols = make([]string, len(DQToAlias))
+	var i uint
 	for dq, alias := range DQToAlias {
 		// if an alias exists, use it
+		var c string
 		if alias != "" {
-			sb.WriteString(alias)
+			c = alias
 		} else {
-			sb.WriteString(dq)
+			c = dq
 		}
-
-		sb.WriteRune(ShowColumnSep)
+		cols[i] = c
+		i += 1
 	}
 
-	return sb.String()[:sb.Len()-1]
+	slices.SortStableFunc(cols, func(a, b string) int {
+		a = strings.ToLower(a)
+		b = strings.ToLower(b)
+		return strings.Compare(a, b)
+	})
+
+	return strings.Join(cols, string(ShowColumnSep))
 }
