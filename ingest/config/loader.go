@@ -115,10 +115,17 @@ func LoadConfigOverlays(v interface{}, pth string) (err error) {
 }
 
 // LoadConfigBytes parses the contents of b into the given interface v.
-func LoadConfigBytes(v interface{}, b []byte) error {
+func LoadConfigBytes(v any, b []byte) (err error) {
+	// We're using a named return in this function so the deferred func below can assign to it.
+	// In the case of `gcfg.ReadStringInto`, it can panic (see tests) so we want to handle that gracefully.
 	if int64(len(b)) > maxConfigSize {
 		return ErrConfigFileTooLarge
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("config parse error: %v", r)
+		}
+	}()
 	return gcfg.ReadStringInto(v, string(b))
 }
 

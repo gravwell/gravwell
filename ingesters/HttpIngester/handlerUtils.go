@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 var (
@@ -21,33 +23,44 @@ var (
 
 // loadConfig is used during the initial configuration load at startup, the individual include calls perform
 // locking on the main handler as needed, do NOT lock the handler at the top level of this function, it will just deadlock
-func (h *handler) loadConfig(cfg *cfgType) (err error) {
+func (h *handler) loadConfig(cfg *cfgType) error {
 	if cfg == nil {
 		return ErrInvalidParameter
-	} else if err = cfg.Verify(); err != nil {
-		return
 	}
+
+	if err := cfg.Verify(); err != nil {
+		return err
+	}
+
 	if hcurl, ok := cfg.HealthCheck(); ok {
 		h.Lock()
 		h.healthCheckURL = path.Clean(hcurl)
 		h.Unlock()
 	}
 
-	if err = includeStdListeners(h, h.igst, cfg); err != nil {
-		err = fmt.Errorf("failed to include std listeners %w", err)
-	} else if err = includeHecListeners(h, h.igst, cfg); err != nil {
-		err = fmt.Errorf("failed to include HEC Listeners %w", err)
-	} else if err = includeAFHListeners(h, h.igst, cfg, h.lgr); err != nil {
-		err = fmt.Errorf("failed to include Amazon Firehose Listeners %w", err)
+	if err := includeStdListeners(h, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include std listeners %w", err)
 	}
-	return
+	if err := includeHecListeners(h, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include HEC Listeners %w", err)
+	}
+	if err := includeAFHListeners(h, h.igst, cfg, h.lgr); err != nil {
+		return fmt.Errorf("failed to include Amazon Firehose Listeners %w", err)
+	}
+	if err := h.igst.SetRawConfiguration(cfg); err != nil {
+		return fmt.Errorf("failed to set raw configuration %w", err)
+	}
+
+	return nil
 }
 
-func (h *handler) hotReload(cfg *cfgType) (err error) {
+func (h *handler) hotReload(cfg *cfgType) error {
 	if cfg == nil {
 		return ErrInvalidParameter
-	} else if err = cfg.Verify(); err != nil {
-		return
+	}
+
+	if err := cfg.Verify(); err != nil {
+		return err
 	}
 
 	//check healthCheck URL and load it if set
@@ -68,15 +81,14 @@ func (h *handler) hotReload(cfg *cfgType) (err error) {
 		custom: make(map[route]http.Handler),
 	}
 
-	if err = includeStdListeners(tempHandler, h.igst, cfg); err != nil {
-		err = fmt.Errorf("failed to include std listeners %w", err)
-		return
-	} else if err = includeHecListeners(tempHandler, h.igst, cfg); err != nil {
-		err = fmt.Errorf("failed to include HEC Listeners %w", err)
-		return
-	} else if err = includeAFHListeners(tempHandler, h.igst, cfg, h.lgr); err != nil {
-		err = fmt.Errorf("failed to include Amazon Firehose Listeners %w", err)
-		return
+	if err := includeStdListeners(tempHandler, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include std listeners %w", err)
+	}
+	if err := includeHecListeners(tempHandler, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include HEC Listeners %w", err)
+	}
+	if err := includeAFHListeners(tempHandler, h.igst, cfg, h.lgr); err != nil {
+		return fmt.Errorf("failed to include Amazon Firehose Listeners %w", err)
 	}
 
 	// we got a good reload, lock and swap
@@ -86,5 +98,24 @@ func (h *handler) hotReload(cfg *cfgType) (err error) {
 	h.custom = tempHandler.custom
 	h.Unlock()
 
-	return
+	if err := h.igst.SetRawConfiguration(cfg); err != nil {
+		// At this point, the reload is already committed.
+		// Let's not signal a failed reload and just log the error instead of returning it.
+		_ = h.lgr.Error("error setting raw configuration during hot reload", log.KVErr(err))
+	}
+
+	tags, err := cfg.Tags()
+	if err != nil {
+		// Tag negotiation during hot reload shouldn't stop the whole thing, so just log the error.
+		_ = h.lgr.Error("error getting tags from config", log.KVErr(err))
+	} else {
+		for _, t := range tags {
+			if _, err := h.igst.NegotiateTag(t); err != nil {
+				// Tag negotiation during hot reload shouldn't stop the whole thing, so just log the error.
+				_ = h.lgr.Error("error negotiating tag", log.KVErr(err), log.KV("tag", t))
+			}
+		}
+	}
+
+	return nil
 }
