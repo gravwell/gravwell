@@ -22,7 +22,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -44,7 +43,7 @@ func newHardwareAction() action.Pair {
 			"This action is intended for human consumption; most of this information is available in JSON/CSV via the indexer and ingester actions if you need better script support."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			var sb strings.Builder
 
 			var (
@@ -127,7 +126,11 @@ func newHardwareAction() action.Pair {
 
 			sb.WriteString(constructOverview(o, llw))
 			return sb.String(), nil
-		}, scaffold.BasicOptions{Aliases: []string{"hw"}})
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"hw"},
+			},
+		})
 }
 
 // constructOverview generates a segmented border containing the overview information.

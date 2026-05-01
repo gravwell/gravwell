@@ -424,6 +424,22 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
+		case kits.ScheduledScript:
+			x, err := readScheduledScript(wd, itm.Name)
+			if err != nil {
+				log.Fatalf("Could not read scheduled script %v: %v", itm.Name, err)
+			}
+			if err := marshallAdd(itm, x); err != nil {
+				log.Fatal(err)
+			}
+		case kits.Flow:
+			x, err := readFlow(wd, itm.Name)
+			if err != nil {
+				log.Fatalf("Could not read flow %v: %v", itm.Name, err)
+			}
+			if err := marshallAdd(itm, x); err != nil {
+				log.Fatal(err)
+			}
 		case kits.Dashboard:
 			x, err := readDashboard(wd, itm.Name)
 			if err != nil {
@@ -450,7 +466,7 @@ func packKit(args []string) {
 			}
 		// Other types just ship as-is
 		case kits.Extractor:
-			var x types.AXDefinition
+			var x types.AX
 			if x, err = readExtractor(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -458,15 +474,15 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.File:
-			var x types.UserFile
-			if x, err = readUserFile(wd, itm.Name); err != nil {
+			var x kits.PackedFile
+			if x, err = readFile(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
 		case kits.SearchLibrary:
-			var x types.WireSearchLibrary
+			var x types.SavedQuery
 			if x, err = readSearchLibrary(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -482,7 +498,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.Alert:
-			var x types.AlertDefinition
+			var x types.Alert
 			if err = genericRead(wd, itm, &x); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -708,6 +724,28 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			if err := writeScheduledSearch(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out scheduled search %v: %v", name, err)
 			}
+		case kits.ScheduledScript:
+			var p kits.PackedScheduledScript
+			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+				return fmt.Errorf("Failed to decode scheduled script %v: %v", name, err)
+			}
+			if err = p.Validate(); err != nil {
+				return fmt.Errorf("Failed to validate scheduled script %v: %v", name, err)
+			}
+			if err := writeScheduledScript(wd, name, p); err != nil {
+				return fmt.Errorf("Failed to write out scheduled script %v: %v", name, err)
+			}
+		case kits.Flow:
+			var p kits.PackedFlow
+			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+				return fmt.Errorf("Failed to decode flow %v: %v", name, err)
+			}
+			if err = p.Validate(); err != nil {
+				return fmt.Errorf("Failed to validate flow %v: %v", name, err)
+			}
+			if err := writeFlow(wd, name, p); err != nil {
+				return fmt.Errorf("Failed to write out flow %v: %v", name, err)
+			}
 		case kits.Dashboard:
 			var p kits.PackedDashboard
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
@@ -737,26 +775,27 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		// Other types just ship as-is
 		case kits.Extractor:
-			var p types.AXDefinition
+			var p types.AX
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode extractor %v: %v", name, err)
-			}
-			if err = p.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate extractor %v: %v", name, err)
 			}
 			if err := writeExtractor(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.File:
-			var p types.UserFile
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+			var pf kits.PackedFile
+			if err = json.NewDecoder(rdr).Decode(&pf); err != nil {
+				return fmt.Errorf("Failed to decode file %v: %v", name, err)
 			}
-			if err := writeUserFile(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			pf.Name = name
+			if err = pf.Validate(); err != nil {
+				return fmt.Errorf("Failed to validate file %v: %v", name, err)
+			}
+			if err := writeFile(wd, pf); err != nil {
+				return fmt.Errorf("Failed to write out file %v: %v", name, err)
 			}
 		case kits.SearchLibrary:
-			var p types.WireSearchLibrary
+			var p types.SavedQuery
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
@@ -772,7 +811,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.Alert:
-			var p types.AlertDefinition
+			var p types.Alert
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}

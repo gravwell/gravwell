@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -72,7 +73,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 
 	// check for --show-columns
 	if la.showColumns {
-		return tea.Println(showColumnsString(la.availDSColumns, la.options.ColumnAliases))
+		return tea.Println(ShowColumns(la.availDSColumns, la.options.ColumnAliases))
 	}
 
 	// fetch the list data
@@ -99,8 +100,13 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 
 	// output the results to a file, if given
 	if la.outFile != nil {
-		fmt.Fprint(la.outFile, s)
-		return tea.Println("Successfully output results to " + la.outFile.Name())
+		n, err := fmt.Fprint(la.outFile, s)
+		if err != nil {
+			str := fmt.Sprint("failed to write results to file: ", err)
+			clilog.Writer.Warn(str)
+			return tea.Println(str)
+		}
+		return tea.Println(phrases.SuccessfullyWroteToFile(n, la.outFile.Name()))
 	}
 
 	return tea.Println(s)
@@ -122,11 +128,12 @@ func (la *ListAction[T]) Reset() error {
 	la.done = false
 	la.columns = la.defaultColumns
 	la.showColumns = false
-	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
 	if la.outFile != nil {
 		la.outFile.Close()
 	}
 	la.outFile = nil
+
+	// flags are refreshed in SetArgs to guarantee they are built even on first run
 
 	return nil
 }
@@ -137,9 +144,11 @@ var _ action.Model = &ListAction[any]{}
 // Mother parses flags and provides us a handle to check against.
 func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
-	// attach flags
-	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
-
+	// refresh flags
+	la.fs = buildFlagSet(la.options.Pretty != nil)
+	if la.options.AddtlFlags != nil {
+		la.fs.AddFlagSet(la.options.AddtlFlags())
+	}
 	err = la.fs.Parse(tokens)
 	if err != nil {
 		return err.Error(), nil, nil

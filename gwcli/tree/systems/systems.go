@@ -10,11 +10,15 @@
 package systemshealth
 
 import (
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/indexers"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/ingesters"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -37,6 +41,7 @@ func NewSystemsNav() *cobra.Command {
 		[]action.Pair{
 			newStorageAction(),
 			newHardwareAction(),
+			state(),
 		})
 }
 
@@ -73,7 +78,7 @@ func newStorageAction() action.Pair {
 
 			return wrap, nil
 		}, scaffoldlist.Options{
-			Use: use,
+			CommonOptions: scaffold.CommonOptions{Use: use},
 			// should match the aliases used in the systems indexers list action
 			ColumnAliases: map[string]string{
 				"Stats.DataIngestedHot":  "Hot.Ingested",
@@ -87,3 +92,71 @@ func newStorageAction() action.Pair {
 }
 
 //#endregion storage
+
+type idxrState struct {
+	Name  string
+	State string
+}
+
+// state simply returns the error state (or lack thereof) of each indexer.
+func state() action.Pair {
+	return scaffoldlist.NewListAction("display indexer state", "Displays the current error state of each indexer.",
+		idxrState{},
+		func(fs *pflag.FlagSet) ([]idxrState, error) {
+			idxrs, err := connection.Client.GetSystemDescriptions()
+			if err != nil {
+				return nil, err
+			}
+			data := make([]idxrState, len(idxrs))
+			var i int
+			for idxr, stats := range idxrs {
+				data[i] = idxrState{
+					Name:  idxr,
+					State: "OK",
+				}
+				if stats.Error != "" {
+					data[i].State = stats.Error
+				}
+				i += 1
+			}
+
+			return data, nil
+		},
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "state"},
+			Pretty: func(fs *pflag.FlagSet) (string, error) {
+				idxrs, err := connection.Client.GetSystemDescriptions()
+				if err != nil {
+					return "", err
+				}
+
+				// determine indexer padding
+				var longestNameLength int
+				for idxr := range idxrs {
+					if len(idxr) > longestNameLength {
+						longestNameLength = len(idxr)
+					}
+				}
+
+				// ensure we left pad at least 1 space
+				longestNameLength += 1
+
+				// generate output
+				var sb strings.Builder
+				for idxr, stats := range idxrs {
+					// pad indexers to all the same length
+					sb.WriteString(strings.Repeat(" ", longestNameLength-len(idxr)) + idxr + " ")
+
+					// colourize state based on whether or not it is in error
+					if stats.Error == "" {
+						sb.WriteString("is " + stylesheet.Cur.PrimaryText.Render("OK"))
+					} else {
+						sb.WriteString("is " + stylesheet.Cur.ErrorText.Render("in error!") + "\n")
+						sb.WriteString(stylesheet.Cur.ErrorText.Render(stats.Error))
+					}
+					sb.WriteRune('\n')
+				}
+				return sb.String()[:sb.Len()-1], nil
+			},
+		})
+}

@@ -47,8 +47,14 @@ type Model interface {
 	View() string               // action displaying
 	Done() bool                 // should Mother reassert control?
 	Reset() error               // clean up action post-run
-	SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
-		invalid string, onStart tea.Cmd, err error) // prepare an action for hand-off
+	// prepare an action for hand-off.
+	//
+	// parentFS provides global, persistent flags. In 99% of cases, interactivity does not need these.
+	//
+	// tokens contains space-split tokens after the action passed on Mother's prompt.
+	// These should be parsed against this action's local flagset.
+	SetArgs(parentFS *pflag.FlagSet, tokens []string, width, height int) (
+		invalid string, onStart tea.Cmd, err error)
 }
 
 // Pair is a duple used to construct the Action Map.
