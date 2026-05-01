@@ -103,14 +103,14 @@ func (c *Client) getMyInfo() (types.UserDetails, error) {
 
 // CheckApiVersion asserts the REST API version of the webserver is compatible
 // with the client.
-func (c *Client) CheckApiVersion() (string, error) {
+func (c *Client) CheckApiVersion() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	return c.checkApiVersionNoLock()
 }
 
-func (c *Client) checkApiVersionNoLock() (string, error) {
+func (c *Client) checkApiVersionNoLock() error {
 	// manually operate the request as helper functions like methodStaticURL expect authentication
 
 	//build up URL we are going to throw at
@@ -119,7 +119,7 @@ func (c *Client) checkApiVersionNoLock() (string, error) {
 	//build up the request
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	c.hm.populateRequest(req.Header) // add in the headers
@@ -127,35 +127,35 @@ func (c *Client) checkApiVersionNoLock() (string, error) {
 	resp, err := c.clnt.Do(req)
 	if err != nil {
 		c.objLog.Log("WEB "+req.Method+" Error "+err.Error(), req.URL.String(), nil)
-		return "", err
+		return err
 	}
 	if resp == nil {
-		return "", errors.New("Invalid response")
+		return errors.New("Invalid response")
 	}
 	defer drainResponse(resp)
 	switch resp.StatusCode {
 	case http.StatusOK: // do nothing
 	case http.StatusUnauthorized:
 		c.state = STATE_LOGGED_OFF
-		return "", ErrNotAuthed
+		return ErrNotAuthed
 	case http.StatusNotFound:
-		return "", ErrNotFound
+		return ErrNotFound
 	default:
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
-		return "", &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
 
 	var version types.VersionInfo
 	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
-		return "", err
+		return err
 	}
 
 	c.objLog.Log("WEB "+req.Method, req.URL.String(), &version)
 
 	if err := types.CheckApiVersion(version.API); err != nil {
-		return err.Error(), nil
+		return err
 	}
-	return "", nil
+	return nil
 }
 
 // GetApiVersion returns the REST API version of the webserver.

@@ -24,19 +24,13 @@ _artifacts/
 
 #idea files
 .idea/
-.idea
-<<<<<<< HEAD
 
 # binaries
 manager/manager
 manager
 
-#idea files
-.idea/
-.idea
+#macOS
+.DS_Store
 
 # VSCode files
 .vscode/*
-
-#macOS
-.DS_Store

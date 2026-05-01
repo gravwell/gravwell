@@ -219,17 +219,9 @@ func getClient() (cli *client.Client, err error) {
 	}
 
 	// login with the API token and check API versions
-	var wrn string // warning message that comes back if we can get the API version but it is not compatible
 	if err = cli.LoginWithAPIToken(authToken); err != nil {
 		cli.Close()
 		cli = nil
-	} else if wrn, err = cli.CheckApiVersion(); err != nil {
-		cli.Close()
-		cli = nil
-	} else if wrn != `` {
-		cli.Close()
-		cli = nil
-		err = fmt.Errorf("API version mismatch: %s", wrn)
 	}
 
 	return

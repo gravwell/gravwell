@@ -112,22 +112,6 @@ func New(server string, enforceCertificate, useHttps bool) (*Client, error) {
 	return NewOpts(opts)
 }
 
-// NewClient connects to the specified server and returns a new Client object.
-// The useHttps parameter enables or disables SSL.
-// Setting enforceCertificate to false will disable SSL certificate validation,
-// allowing self-signed certs.
-//
-// Deprecated: Use New() or NewOpts() instead
-func NewClient(server string, enforceCertificate, useHttps bool, objLogger objlog.ObjLog) (*Client, error) {
-	opts := Opts{
-		Server:                 server,
-		InsecureNoEnforceCerts: !enforceCertificate,
-		UseHttps:               useHttps,
-		ObjLogger:              objLogger,
-	}
-	return NewOpts(opts)
-}
-
 func NewOpts(opts Opts) (*Client, error) {
 	var wsScheme string
 	var httpScheme string
@@ -262,12 +246,8 @@ func (c *Client) TestLogin() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	// before doing anything else, check version.
-	// CheckApiVersion actually sends back version mismatches as a string, so we must test both.
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
-	} else if mismatch != "" {
-		return errors.New(mismatch)
 	}
 
 	return c.getStaticURL(TEST_AUTH_URL, nil)
@@ -293,10 +273,8 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 		return loginResp, errors.New("Invalid username")
 	}
 
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
-	} else if mismatch != "" {
-		return loginResp, errors.New(mismatch)
 	}
 
 	//build up URL we are going to throw at
@@ -357,11 +335,8 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 	if user == "" {
 		return loginResp, errors.New("Invalid username")
 	}
-
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
-	} else if mismatch != "" {
-		return loginResp, errors.New(mismatch)
 	}
 
 	//build up URL we are going to throw at
@@ -418,10 +393,8 @@ func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
-	} else if mismatch != "" {
-		return errors.New(mismatch)
 	}
 
 	c.token = token

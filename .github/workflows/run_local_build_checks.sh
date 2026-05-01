@@ -199,8 +199,8 @@ echo "Running build tests"
         GOOS=linux go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
-        go build -o /dev/null ./gwcli
         go build -o /dev/null ./hosted/runner
+        go build -o /dev/null ./gwcli
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
