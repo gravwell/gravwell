@@ -4,13 +4,17 @@ package scaffoldlist_test
 
 import (
 	"maps"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
@@ -262,5 +266,130 @@ func TestMotherCycle(t *testing.T) {
 		})
 
 	}
+}
 
+// Collection of tests to check that the "CommonFields." prefix is not visible to a user.
+func TestAutoAliasCommonFieldsPrefix(t *testing.T) {
+	tests := []struct {
+		name string
+
+		opts scaffoldlist.Options
+
+		SetArgsTokens  []string
+		wantSetArgsInv bool
+		wantSetArgsErr bool
+
+		wantOut string // the string output we want
+	}{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pair := scaffoldlist.NewListAction("test function", "this is a test function",
+				types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
+					// generate some garbage data
+					ms := make([]types.Macro, 5)
+					for i := range 5 {
+						iStr := strconv.FormatInt(int64(i), 10)
+						ms[i] = types.Macro{
+							CommonFields: types.CommonFields{
+								Name:      "Name_" + iStr,
+								CreatedAt: time.Unix(17500000, 0),
+								ID:        iStr,
+								Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+							},
+							Expansion: "Expansion_" + iStr}
+					}
+
+					return ms, nil
+				},
+				map[string]string{"CommonFields.ID": "ItemID"},
+				tt.opts)
+
+			uniques.AttachPersistentFlags(pair.Action)
+			inv, _, err := pair.Model.SetArgs(pair.Action.Flags(), tt.SetArgsTokens, 80, 60)
+			if (err != nil) != tt.wantSetArgsErr {
+				t.Errorf("bad error state. error: \"%v\"%v", err, testsupport.ExpectedActual(tt.wantSetArgsErr, (err != nil)))
+			}
+			if (inv != "") != tt.wantSetArgsInv {
+				t.Errorf("bad invalid state. invalid: \"%v\"%v", inv, testsupport.ExpectedActual(tt.wantSetArgsInv, (inv != "")))
+			}
+
+			if tt.wantSetArgsErr || tt.wantSetArgsInv {
+				return
+			}
+
+			var gotOut = testsupport.ExtractPrintLineMessageString(t, pair.Model.Update(nil), false, 0)
+			// out should be a table
+			if gotOut != tt.wantOut {
+				t.Error("bad Update output", testsupport.ExpectedActual(tt.wantOut, gotOut))
+			}
+		})
+	}
+}
+
+// Tests to check that the generated help text properly reflects the options of each modifier.
+func TestHelpGeneration(t *testing.T) {
+	// generate help text we can parse
+	pair := scaffoldlist.NewListAction("test function", "this is a test function",
+		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
+			// generate some garbage data
+			ms := make([]types.Macro, 5)
+			for i := range 5 {
+				iStr := strconv.FormatInt(int64(i), 10)
+				ms[i] = types.Macro{
+					CommonFields: types.CommonFields{
+						Name:      "Name_" + iStr,
+						CreatedAt: time.Unix(17500000, 0),
+						ID:        iStr,
+						Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+					},
+					Expansion: "Expansion_" + iStr}
+			}
+
+			return ms, nil
+		},
+		map[string]string{"CommonFields.ID": "ItemID"},
+		scaffoldlist.Options{
+			CommonOptions:  scaffold.CommonOptions{Example: "use tkn1 tkn2 --csv"},
+			DefaultColumns: []string{"CommonFields.ID", "CommonFields.Name", "Expansion"},
+		},
+	)
+
+	var help string
+	{
+		var sb strings.Builder
+		pair.Action.SetOut(&sb)
+		uniques.Help(pair.Action, nil)
+		help = sb.String()
+	}
+	if help == "" {
+		t.Fatal("no help was returned")
+	}
+
+	t.Run("default columns are shown inline with --columns", func(t *testing.T) {
+		// identify the end of flag usage, as default values should be listed directly after
+		usageLines := strings.Split(ft.SelectColumns.Usage(), "\n")
+		_, after, found := strings.Cut(help, usageLines[len(usageLines)-1])
+		if !found {
+			t.Fatal("failed to find the end of the usage line")
+		}
+		// we should find defaults appended to this line
+
+		wantDefaultColumns := "ItemID,Name,Expansion" // should be aliases, including auto-aliasing for "CommonFields."
+		if !strings.Contains(after, wantDefaultColumns) {
+			t.Fatalf("default columns are not properly represented."+
+				"Substring \"%v\" not found in default columns chunk \"%v\"",
+				wantDefaultColumns, after)
+		}
+	})
+	t.Run("custom example shown", func(t *testing.T) {
+		// find the "example" line
+		_, after, found := strings.Cut(help, "Example")
+		if !found {
+			t.Fatal("failed to find \"Example\" in help text")
+		}
+		exampleLine, _, _ := strings.Cut(after, "\n")
+		if !strings.Contains(exampleLine, "use tkn1 tkn2 --csv") {
+			t.Fatalf("custom example text not found in example line: %v", exampleLine)
+		}
+	})
 }
