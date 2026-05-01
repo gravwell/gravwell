@@ -281,7 +281,7 @@ var (
 	// Unlikely to be used outside of actions that implement scaffold list.
 	SelectColumns = stringSliceRegister{
 		name: "columns",
-		usage: "comma-separated list of columns to include in the results\n." +
+		usage: "comma-separated list of columns to include in the results.\n" +
 			"Use --" + ShowColumns.name + " to see the full list of columns",
 	}
 
