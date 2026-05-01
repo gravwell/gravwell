@@ -43,6 +43,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -142,14 +143,12 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		// clear any existing error
 		sv.errString = ""
 
-		switch msg.Type {
-		case tea.KeySpace, tea.KeyEnter: // attach to the current item
+		if hotkeys.Match(msg, hotkeys.Select, hotkeys.Invoke) { // attach to the current item
 			if err := sv.attachToQuery(); err != nil {
 				return nil, nil, err
 			}
 			return sv.spnr.Tick, nil, nil
 		}
-
 	}
 	// pass all other messages into the list
 	sv.list, cmd = sv.list.Update(msg)

@@ -209,6 +209,8 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			clilog.Writer.Warnf("failed to login via JWT: %v", err)
 			if errors.Is(err, ErrBadPermissions{}) {
 				fmt.Fprintf(os.Stderr, "Your login token has incorrect permissions and was ignored. Expected %[1]s(%[1]o)\n", jwtPermissions)
+			} else if errors.Is(err, types.ErrVersionMismatch{}) { // this is non-recoverable
+				return err
 			}
 			// failing to login via JWT is non-fatal in interactive mode
 			if noInteractive {

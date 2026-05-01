@@ -19,6 +19,8 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -67,12 +69,14 @@ type credModel struct {
 	userSelected      bool
 	killed            bool
 	done              bool
+
+	hotkeys hotkeys.Model
 }
 
 // New creates a new credprompt, which satisfies the tea.Model interface.
 // You probably want Collect(), instead; this is mostly used internally and for testing.
 func New(initialUser string) credModel {
-	c := credModel{userStartingValue: initialUser, userSelected: true}
+	c := credModel{userStartingValue: initialUser, userSelected: true, hotkeys: hotkeys.NewModel()}
 	c.UserTI = textinput.New()
 	c.UserTI.Prompt = ""
 	c.UserTI.SetValue(c.userStartingValue)
@@ -81,6 +85,10 @@ func New(initialUser string) credModel {
 	c.PassTI.Prompt = ""
 	c.PassTI.EchoMode = textinput.EchoNone
 	c.PassTI.Blur()
+
+	c.hotkeys.Invoke.SetHelp(sigils.Enter, "submit")
+	c.hotkeys.Select.Unbind()
+	c.hotkeys.Complete.Unbind()
 	return c
 }
 
@@ -100,18 +108,15 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, tea.Quit
 	}
 
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.Type {
-		case tea.KeyTab, tea.KeyShiftTab, tea.KeyUp, tea.KeyDown: // swap
+	switch {
+	case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
+		return c.swap(), textinput.Blink
+	case hotkeys.Match(msg, hotkeys.Invoke): // submit or swap
+		if c.userSelected {
 			return c.swap(), textinput.Blink
-		case tea.KeyEnter: // submit or swap
-			if c.userSelected {
-				return c.swap(), textinput.Blink
-			}
-			c.done = true
-			return c, tea.Quit
 		}
-
+		c.done = true
+		return c, tea.Quit
 	}
 	var (
 		usercmd tea.Cmd
@@ -124,9 +129,11 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c credModel) View() string {
-	return fmt.Sprintf("%v%v\n%v%v\n\n",
+	return fmt.Sprintf("%v%v\n%v%v\n\n%v",
 		stylesheet.Cur.Prompt("username", false), c.UserTI.View(),
-		stylesheet.Cur.Prompt("password", false), c.PassTI.View())
+		stylesheet.Cur.Prompt("password", false), c.PassTI.View(),
+		c.hotkeys.View(),
+	)
 }
 
 // select the next TI

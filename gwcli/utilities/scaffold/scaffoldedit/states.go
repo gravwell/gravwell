@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 // stateEdit is the collection of fields required to track and display an item currently being edited.
@@ -31,13 +32,13 @@ type stateEdit[S any] struct {
 //
 // An item identifier, as returned by updateSub, is returned iff the item update subroutine was triggered and processed successfully.
 // The empty string means that an error occurred or the item update subroutine was not fired at all.
-func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubroutine[S], updateSub UpdateStructSubroutine[S]) (
+func (se *stateEdit[S]) update(msg tea.Msg, _ Config, setFieldSub SetFieldSubroutine[S], updateSub UpdateStructSubroutine[S]) (
 	_ tea.Cmd, identifier string,
 ) {
-	if keymsg, ok := msg.(tea.KeyMsg); ok {
+	if _, ok := msg.(tea.KeyMsg); ok {
 		se.err = "" // clear input errors on new key input
-		switch keymsg.Type {
-		case tea.KeyEnter:
+		switch {
+		case hotkeys.Match(msg, hotkeys.Invoke, hotkeys.Select):
 			if se.submitSelected() {
 				var missing []string
 				for _, kti := range se.orderedKTIs { // check all required fields are populated
@@ -77,12 +78,10 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 				}
 				// success
 				return nil, identifier
-			} else {
-				se.nextTI()
 			}
-		case tea.KeyUp:
+		case hotkeys.Match(msg, hotkeys.CursorUp):
 			se.previousTI()
-		case tea.KeyDown:
+		case hotkeys.Match(msg, hotkeys.CursorDown):
 			se.nextTI()
 		}
 	}

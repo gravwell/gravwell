@@ -23,6 +23,8 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -76,10 +78,12 @@ type mfaModel struct {
 	codeSelected bool // code or recovery TI focused
 	killed       bool
 	done         bool
+
+	hotkeys hotkeys.Model
 }
 
 func New() mfaModel {
-	c := mfaModel{codeSelected: true}
+	c := mfaModel{codeSelected: true, hotkeys: hotkeys.NewModel()}
 	c.codeTI = textinput.New()
 	c.codeTI.Prompt = ""
 	c.codeTI.Validate = func(s string) error {
@@ -99,6 +103,8 @@ func New() mfaModel {
 	c.recoveryTI.Prompt = ""
 	c.recoveryTI.Blur()
 
+	c.hotkeys.Invoke.SetHelp(sigils.Enter, "submit")
+	c.hotkeys.Select.Unbind()
 	return c
 }
 
@@ -117,10 +123,10 @@ func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.Type {
-		case tea.KeyTab, tea.KeyShiftTab, tea.KeyUp, tea.KeyDown: // swap
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
 			return m.swap(), textinput.Blink
-		case tea.KeyEnter: // submit
+		case hotkeys.Match(msg, hotkeys.Invoke): // submit
 			m.done = true
 			return m, tea.Quit
 		}
@@ -142,7 +148,7 @@ func (m mfaModel) View() string {
 		"%v%v\n"+
 		"Once a recovery code has been used, it cannot be used again!\n",
 		stylesheet.Cur.Prompt("TOTP", false), m.codeTI.View(),
-		stylesheet.Cur.Prompt("recovery", false), m.recoveryTI.View())
+		stylesheet.Cur.Prompt("recovery", false), m.recoveryTI.View()) + m.hotkeys.View()
 }
 
 // select the next TI
