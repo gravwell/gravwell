@@ -21,6 +21,7 @@ echo "Running go vet"
         go vet ./ingest/log
         go vet ./timegrinder
         go vet ./filewatch
+        go vet ./hosted/...
         go vet ./ingesters/utils
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
@@ -41,6 +42,7 @@ echo "Running go test -v"
         go test -v ./ingest/log
         go test -v ./timegrinder
         go test -v ./filewatch
+        go test -v ./hosted
         go test -v ./ingesters/utils
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
@@ -78,6 +80,7 @@ echo "running staticcheck"
 	staticcheck ./client/...
 	staticcheck ./ingesters/args/...
 	staticcheck ./ingesters/base/...
+	staticcheck ./hosted/...
 	staticcheck ./ingesters/utils/...
 	staticcheck ./ingesters/AzureEventHubs/...
 	GOOS=linux staticcheck ./ingesters/canbus/...
@@ -165,6 +168,7 @@ echo "running govulncheck on everything"
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./hosted/...
         #govulncheck -test ./gwcli
         GOOS=windows GOARCH=amd64 govulncheck -test ./ingesters/winevents
         GOOS=windows GOARCH=amd64 govulncheck -test ./winevent/...
@@ -196,6 +200,7 @@ echo "Running build tests"
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
         go build -o /dev/null ./gwcli
+        go build -o /dev/null ./hosted/runner
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow

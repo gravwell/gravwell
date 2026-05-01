@@ -20,19 +20,21 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 type Config struct {
 	Queue       string
 	Region      string
+	Endpoint    string
 	Credentials *credentials.Credentials
 }
 
 type SQS struct {
 	conf *Config
 	sess *session.Session
-	svc  *sqs.SQS
+	svc  sqsiface.SQSAPI
 }
 
 // SQSListener creates a new SQS connection from a given Config object.
@@ -43,10 +45,14 @@ func SQSListener(c *Config) (*SQS, error) {
 		conf: c,
 	}
 
-	s.sess, err = session.NewSession(&aws.Config{
+	awsCfg := &aws.Config{
 		Region:      aws.String(c.Region),
 		Credentials: c.Credentials,
-	})
+	}
+	if c.Endpoint != "" {
+		awsCfg.Endpoint = aws.String(c.Endpoint)
+	}
+	s.sess, err = session.NewSession(awsCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +83,7 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	for out == nil || len(out.Messages) == 0 {
 		out, err = s.svc.ReceiveMessage(req)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting messages on queue %q: %w", s.Queue(), err)
 		}
 		if len(out.Messages) == 0 {
 			time.Sleep(time.Second)
@@ -107,6 +113,11 @@ func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 			lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
 		}
 	}
+
+	if err != nil {
+		err = fmt.Errorf("error deleting messages on queue %q: %w", s.Queue(), err)
+	}
+
 	return err
 }
 
@@ -141,4 +152,14 @@ func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
 	}
 
 	return c, nil
+}
+
+// Queue returns the SQS queue its configured to use.
+func (s *SQS) Queue() string {
+	return s.conf.Queue
+}
+
+// Endpoint returns the custom endpoint its configured to use (empty if not specified).
+func (s *SQS) Endpoint() string {
+	return s.conf.Endpoint
 }

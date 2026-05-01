@@ -101,13 +101,57 @@ func (c *Client) getMyInfo() (types.UserDetails, error) {
 	return dets, nil
 }
 
-// CheckApiVersion assert the REST API version of the webserver is compatible
+// CheckApiVersion asserts the REST API version of the webserver is compatible
 // with the client.
 func (c *Client) CheckApiVersion() (string, error) {
-	var version types.VersionInfo
-	if err := c.getStaticURL(API_VERSION_URL, &version); err != nil {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	return c.checkApiVersionNoLock()
+}
+
+func (c *Client) checkApiVersionNoLock() (string, error) {
+	// manually operate the request as helper functions like methodStaticURL expect authentication
+
+	//build up URL we are going to throw at
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, API_VERSION_URL)
+
+	//build up the request
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
 		return "", err
 	}
+
+	c.hm.populateRequest(req.Header) // add in the headers
+
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		c.objLog.Log("WEB "+req.Method+" Error "+err.Error(), req.URL.String(), nil)
+		return "", err
+	}
+	if resp == nil {
+		return "", errors.New("Invalid response")
+	}
+	defer drainResponse(resp)
+	switch resp.StatusCode {
+	case http.StatusOK: // do nothing
+	case http.StatusUnauthorized:
+		c.state = STATE_LOGGED_OFF
+		return "", ErrNotAuthed
+	case http.StatusNotFound:
+		return "", ErrNotFound
+	default:
+		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
+		return "", &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+	}
+
+	var version types.VersionInfo
+	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
+		return "", err
+	}
+
+	c.objLog.Log("WEB "+req.Method, req.URL.String(), &version)
+
 	if err := types.CheckApiVersion(version.API); err != nil {
 		return err.Error(), nil
 	}
