@@ -55,5 +55,5 @@ func list() action.Pair {
 				}
 			}
 			return wrap, nil
-		}, scaffoldlist.Options{})
+		}, nil, scaffoldlist.Options{})
 }

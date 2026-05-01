@@ -37,6 +37,7 @@ func list() action.Pair {
 			resp, err := connection.Client.ListGroups(nil)
 			return resp.Results, err
 		},
+		nil,
 		scaffoldlist.Options{})
 }
 

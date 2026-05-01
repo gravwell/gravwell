@@ -72,7 +72,7 @@ func get() action.Pair {
 
 			// drop keys
 			return slices.Collect(maps.Values(ingesters)), nil
-		}, scaffoldlist.Options{
+		}, nil, scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: use,
 				AddtlFlags: func() *pflag.FlagSet {

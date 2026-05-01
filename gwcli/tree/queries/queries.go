@@ -77,6 +77,7 @@ func past() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: pastUse, AddtlFlags: flags},
 			DefaultColumns: []string{

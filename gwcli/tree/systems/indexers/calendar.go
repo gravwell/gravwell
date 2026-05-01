@@ -48,6 +48,7 @@ func newCalendarAction() action.Pair {
 	var aliases = []string{"entries"}
 
 	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, data,
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:        useCalendar,

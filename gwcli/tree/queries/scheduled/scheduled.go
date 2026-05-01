@@ -55,6 +55,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.ScheduledSearch{}, listScheduledSearch,
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{

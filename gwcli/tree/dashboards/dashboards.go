@@ -54,6 +54,7 @@ func newDashboardsListAction() action.Pair {
 
 	return scaffoldlist.NewListAction(short, long,
 		types.Dashboard{}, list,
+		nil,
 		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags}, DefaultColumns: []string{
 			"ID",
 			"Name",

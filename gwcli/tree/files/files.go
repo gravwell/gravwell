@@ -67,6 +67,7 @@ func list() action.Pair {
 			}
 			return flr.Results, nil
 		},
+		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
@@ -77,7 +78,6 @@ func list() action.Pair {
 			},
 			// TODO update column names once files get the registry treatment
 			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
-			ColumnAliases:  map[string]string{"Size": "SizeBytes"},
 		})
 }
 

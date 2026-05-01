@@ -76,6 +76,7 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			DefaultColumns: []string{
 				"ID",

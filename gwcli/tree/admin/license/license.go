@@ -63,6 +63,7 @@ func licenseInfo() action.Pair {
 			}
 			return []types.LicenseInfo{li}, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "info"},
 			DefaultColumns: []string{
@@ -74,7 +75,7 @@ func licenseInfo() action.Pair {
 				"MaxNodes",
 				"NFR",
 			},
-			Pretty: func(fs *pflag.FlagSet) (string, error) {
+			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				li, err := connection.Client.GetLicenseInfo()
 				if err != nil {
 					return "", err

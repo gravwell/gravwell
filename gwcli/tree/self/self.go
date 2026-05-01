@@ -161,6 +161,7 @@ func sessions() action.Pair {
 
 			return ss, nil
 		},
+		map[string]string{"ID": "SessionID"},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
@@ -175,7 +176,6 @@ func sessions() action.Pair {
 				},
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
-			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				since = time.Time{} // ensure it is reset
 				snc, err := fs.GetString("since")
@@ -207,9 +207,10 @@ func groups() action.Pair {
 		func(fs *pflag.FlagSet) ([]types.Group, error) {
 			return connection.Client.Groups()
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "groups"},
-			Pretty: func(fs *pflag.FlagSet) (string, error) {
+			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				groups, err := connection.Client.Groups()
 				if err != nil {
 					return "", err

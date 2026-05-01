@@ -70,6 +70,7 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
 				addtlFlags := &pflag.FlagSet{}
