@@ -78,6 +78,13 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 		return err.Error(), nil, nil
 	}
 
+	// check for --show-columns
+	if la.showColumns, err = la.fs.GetBool(ft.ShowColumns.Name()); err != nil {
+		return "", nil, err
+	} else if la.showColumns { // all done
+		return "", nil, nil
+	}
+
 	// run custom validation
 	if la.options.ValidateArgs != nil {
 		if invalid, err := la.options.ValidateArgs(la.fs); err != nil {
@@ -85,13 +92,6 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 		} else if invalid != "" {
 			return invalid, nil, nil
 		}
-	}
-
-	// check for --show-columns
-	if la.showColumns, err = la.fs.GetBool(ft.ShowColumns.Name()); err != nil {
-		return "", nil, err
-	} else if la.showColumns { // all done
-		return "", nil, nil
 	}
 
 	if la.columns, err = getColumns(la.fs, la.dqToAlias, la.aliasToDQ, la.defaultColumnsDQ); err != nil {

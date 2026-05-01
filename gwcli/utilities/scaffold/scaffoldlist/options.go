@@ -45,5 +45,7 @@ type Options struct {
 	CmdMods func(*cobra.Command) // TODO can we junk this?
 	// Free-form function called in SetArgs or at the start of run to validate the given flags.
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
+	//
+	// Will not be called if --show-columns is specified.
 	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
 }
