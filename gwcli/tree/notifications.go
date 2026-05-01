@@ -31,6 +31,7 @@ func notifications() action.Pair {
 			}
 			return slices.Collect(maps.Values(notifs)), nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "notifications",

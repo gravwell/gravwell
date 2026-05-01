@@ -54,7 +54,7 @@ func listAction() action.Pair {
 		func(fs *pflag.FlagSet) ([]types.User, error) {
 			resp, err := connection.Client.ListUsers(nil)
 			return resp.Results, err
-		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
+		}, nil, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
 }
 
 // local wrapper struct to contain all data related to a single user
@@ -305,6 +305,7 @@ func sessionsAction() action.Pair {
 
 			return ss, nil
 		},
+		map[string]string{"ID": "SessionID"},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
@@ -321,7 +322,6 @@ func sessionsAction() action.Pair {
 				},
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
-			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// check for since override and set default if not
 				since = time.Time{} // ensure it is reset

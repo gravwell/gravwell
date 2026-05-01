@@ -105,6 +105,7 @@ func list() action.Pair {
 			return lr.Results, err
 
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{

@@ -46,6 +46,14 @@ func get() action.Pair {
 
 			return []deepIndexerInfo{dii}, nil
 		},
+		map[string]string{
+			"Storage.DataIngestedHot":  "Storage.Hot.Ingested",
+			"Storage.DataIngestedCold": "Storage.Cold.Ingested",
+			"Storage.DataStoredHot":    "Storage.Hot.Stored",
+			"Storage.DataStoredCold":   "Storage.Cold.Stored",
+			"Storage.EntryCountHot":    "Storage.Hot.Count",
+			"Storage.EntryCountCold":   "Storage.Cold.Count",
+		},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: use},
 			ExcludeColumnsFromDefault: []string{
@@ -68,14 +76,6 @@ func get() action.Pair {
 					return "did not find indexer '" + fs.Arg(0) + "'", nil
 				}
 				return "", nil
-			},
-			ColumnAliases: map[string]string{
-				"Storage.DataIngestedHot":  "Storage.Hot.Ingested",
-				"Storage.DataIngestedCold": "Storage.Cold.Ingested",
-				"Storage.DataStoredHot":    "Storage.Hot.Stored",
-				"Storage.DataStoredCold":   "Storage.Cold.Stored",
-				"Storage.EntryCountHot":    "Storage.Hot.Count",
-				"Storage.EntryCountCold":   "Storage.Cold.Count",
 			},
 		})
 }

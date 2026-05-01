@@ -64,6 +64,7 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			DefaultColumns: []string{
 				"ID",
@@ -84,9 +85,10 @@ func get() action.Pair {
 
 			return tokens, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "get"},
-			Pretty: func(fs *pflag.FlagSet) (string, error) {
+			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				// find the longest ID to use as the width
 				var longestIDLen int
 				for _, tkn := range tokens {

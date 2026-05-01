@@ -87,6 +87,7 @@ func alertsList() action.Pair {
 			resp, err := connection.Client.ListAlerts(nil)
 			return resp.Results, err
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {

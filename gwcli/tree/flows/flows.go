@@ -53,6 +53,7 @@ func list() action.Pair {
 			}
 			return baseList.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			DefaultColumns: []string{"Name", "Description", "ID", "GUID", "Groups", "Global", "Labels", "Owner", "Schedule", "Disabled"},
 		},
