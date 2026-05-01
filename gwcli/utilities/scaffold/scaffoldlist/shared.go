@@ -217,7 +217,7 @@ func normalizeToDQ(columns []string, DQToAlias map[string]string, AliasToDQ map[
 //  3. default columns, sorted alphabetically
 //
 // ! default columns are *not* normalized; they are expected to already be DQ'd.
-func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, defaultColumns []string) ([]string, error) {
+func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) ([]string, error) {
 	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
@@ -232,18 +232,16 @@ func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, defau
 		}
 		return normal, nil
 	}
-	if selectedCols, err := fs.GetStringSlice(ft.SelectColumns.Name()); err != nil {
+	// even if --columns was not specified, we can use it to fetch defaults
+	selectedCols, err := fs.GetStringSlice(ft.SelectColumns.Name())
+	if err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
-	} else if len(selectedCols) > 0 { // if columns were selected, validate the request and return the set
-		normalized, unknown := normalizeToDQ(selectedCols, DQToAlias, AliasToDQ)
-		if len(unknown) > 0 {
-			return nil, fmt.Errorf("--%s has unknown columns/aliases: %v", ft.SelectColumns.Name(), unknown)
-		}
-		return normalized, nil
 	}
-
-	// neither --all nor --columns=<> was not specified; return defaults
-	return sortColumns(defaultColumns), nil // defaults should already be sorted, but just in case
+	normalized, unknown := normalizeToDQ(selectedCols, DQToAlias, AliasToDQ)
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("--%s has unknown columns/aliases: %v", ft.SelectColumns.Name(), unknown)
+	}
+	return normalized, nil
 }
 
 // The sorting mechanism list uses when an order is not specified (ex: --columns is not given).

@@ -52,9 +52,8 @@ func newListAction[dataStruct_t any](
 		done: false,
 		fs:   nil, // set in SetArgs
 
-		defaultColumnsDQ: defaultColumnsDQ,
-		dqToAlias:        DQToAlias,
-		aliasToDQ:        AliasToDQ,
+		dqToAlias: DQToAlias,
+		aliasToDQ: AliasToDQ,
 
 		options: options,
 
@@ -94,7 +93,7 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 		}
 	}
 
-	if la.columns, err = getColumns(la.fs, la.dqToAlias, la.aliasToDQ, la.defaultColumnsDQ); err != nil {
+	if la.columns, err = getColumns(la.fs, la.dqToAlias, la.aliasToDQ); err != nil {
 		// treat these errors as invalids
 		return err.Error(), nil, nil
 	}

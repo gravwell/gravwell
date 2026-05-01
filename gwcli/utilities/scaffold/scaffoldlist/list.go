@@ -178,7 +178,7 @@ func NewListAction[dataStruct_t any](short, long string,
 	var defaultColumnsDQ = sortColumns(findDefaultColumns(options, DQToAlias))
 
 	// generate a non-interactive action
-	run := generateRun(dataFunc, options, DQToAlias, AliasToDQ, defaultColumnsDQ)
+	run := generateRun(dataFunc, options, DQToAlias, AliasToDQ)
 
 	// generate usage and example
 	actionOptions := treeutils.GenerateActionOptions{}
@@ -237,8 +237,7 @@ func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 // generateRun builds and returns a function to be run when this action is invoked via Cobra.
 func generateRun[dataStruct_t any](
 	dataFn ListDataFunc[dataStruct_t], opts Options,
-	DQToAlias, AliasToDQ map[string]string,
-	defaultColumns []string) func(c *cobra.Command, _ []string) {
+	DQToAlias, AliasToDQ map[string]string) func(c *cobra.Command, _ []string) {
 	return func(c *cobra.Command, _ []string) {
 		// run custom validation
 		if opts.ValidateArgs != nil {
@@ -282,7 +281,7 @@ func generateRun[dataStruct_t any](
 			// ensure color is disabled.
 			stylesheet.Cur = stylesheet.Plain()
 		}
-		columns, err = getColumns(c.Flags(), DQToAlias, AliasToDQ, defaultColumns)
+		columns, err = getColumns(c.Flags(), DQToAlias, AliasToDQ)
 		if err != nil {
 			fmt.Fprintln(c.ErrOrStderr(), err)
 			return

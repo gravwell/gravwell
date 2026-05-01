@@ -191,7 +191,7 @@ func Test_getColumns(t *testing.T) {
 		if err := fs.Parse([]string{"--" + ft.AllColumns.Name()}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ, nil) // default cols shouldn't matter for this
+		got, err := getColumns(fs, DQToAlias, AliasToDQ)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,7 +208,7 @@ func Test_getColumns(t *testing.T) {
 		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ, nil) // default cols shouldn't matter for this
+		got, err := getColumns(fs, DQToAlias, AliasToDQ)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -224,7 +224,7 @@ func Test_getColumns(t *testing.T) {
 		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ, nil) // default cols shouldn't matter for this
+		got, err := getColumns(fs, DQToAlias, AliasToDQ)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -242,7 +242,7 @@ func Test_getColumns(t *testing.T) {
 		if err := fs.Parse([]string{}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ, defaultColumns)
+		got, err := getColumns(fs, DQToAlias, AliasToDQ)
 		if err != nil {
 			t.Fatal(err)
 		}
