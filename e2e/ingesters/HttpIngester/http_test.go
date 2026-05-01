@@ -17,7 +17,7 @@ func TestHttp(t *testing.T) {
 		e2e.Ingester(t, "http", "HttpIngester",
 			e2e.WithConfig(t, "testdata/http.conf", "gravwell_http_ingester.conf", e2e.DefaultConfig),
 			tc.WithExposedPorts("80/tcp"),
-			tc.WithWaitStrategy(wait.NewHTTPStrategy("/health/check")),
+			tc.WithAdditionalWaitStrategyAndDeadline(10*time.Second, wait.NewHTTPStrategy("/health/check")),
 		)...,
 	)
 	t.Cleanup(func() {
