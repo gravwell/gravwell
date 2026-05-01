@@ -52,8 +52,9 @@ func newListAction[dataStruct_t any](
 		done: false,
 		fs:   nil, // set in SetArgs
 
-		dqToAlias: DQToAlias,
-		aliasToDQ: AliasToDQ,
+		defaultColumnsDQ: defaultColumnsDQ,
+		dqToAlias:        DQToAlias,
+		aliasToDQ:        AliasToDQ,
 
 		options: options,
 
