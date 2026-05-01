@@ -197,10 +197,6 @@ func NewListAction[dataStruct_t any](short, long string,
 	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
-	// apply command modifiers
-	if options.CmdMods != nil {
-		options.CmdMods(cmd)
-	}
 
 	// generate the interactive action
 	la := newListAction(defaultColumnsDQ, DQToAlias, AliasToDQ, dataFunc, options)

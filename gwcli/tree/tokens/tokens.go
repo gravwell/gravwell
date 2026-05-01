@@ -87,7 +87,10 @@ func get() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "get"},
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "get",
+				Example: "get ID1 ID2",
+			},
 			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				// find the longest ID to use as the width
 				var longestIDLen int
@@ -102,9 +105,6 @@ func get() action.Pair {
 					sb.WriteString(prettyToken(tkn, longestIDLen))
 				}
 				return sb.String(), nil
-			},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = "get ID1 ID2"
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				tokens = []types.Token{} // clear cache

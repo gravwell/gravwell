@@ -10,7 +10,6 @@ package scaffoldlist
 
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -37,12 +36,6 @@ type Options struct {
 	//
 	// Mutually exclusive with DefaultColumns.
 	ExcludeColumnsFromDefault []string
-	// A free-form function allowing implementations to directly alter properties on the command scaffold list creates.
-	// Applied after all other options, so changes made here may override prior options (such as Use and Aliases).
-	//
-	// ! Do not rely on cobra.Args, as they will not be respected in interactive mode.
-	// Use the ValidateArgs option instead.
-	CmdMods func(*cobra.Command) // TODO can we junk this?
 	// Free-form function called in SetArgs or at the start of run to validate the given flags.
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
 	//

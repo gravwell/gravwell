@@ -2,7 +2,6 @@ package indexers
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -15,27 +14,20 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 // get fetches all available information about the named ingester.
 // Currently requires a UUID, but could be upgraded to prefix match, like ingesters.
 func get() action.Pair {
-	const (
-		use   string = "get"
-		short string = "get details about a specific indexer"
-	)
-
 	var (
 		long = "Review detailed information about a single indexer.\n" +
 			"Does not include calendar data; use the calendar action for that.\n" +
 			"Indexer is specified by name; use the " + stylesheet.Cur.Nav.Render("indexers") + " " + stylesheet.Cur.Action.Render("list") + " command.\n" +
 			"If an error occurs, processing will continue, skipping queries related to or cascading from the error source."
-		example = fmt.Sprintf("%v 127.0.0.1:9404", use)
 	)
 
-	return scaffoldlist.NewListAction(short, long, deepIndexerInfo{},
+	return scaffoldlist.NewListAction("get details about a specific indexer", long, deepIndexerInfo{},
 		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
 			dii := deepIndexerInfo{Name: strings.TrimSpace(fs.Arg(0))}
 
@@ -55,15 +47,15 @@ func get() action.Pair {
 			"Storage.EntryCountCold":   "Storage.Cold.Count",
 		},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: use},
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "get",
+				Example: "get 127.0.0.1:9404",
+			},
 			ExcludeColumnsFromDefault: []string{
 				"Ingest.EntriesHourTail",
 				"Ingest.EntriesMinuteTail",
 				"Ingest.BytesHourTail",
 				"Ingest.BytesMinuteTail",
-			},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = example
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
