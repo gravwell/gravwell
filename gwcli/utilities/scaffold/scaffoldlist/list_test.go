@@ -183,11 +183,17 @@ func TestMotherCycle(t *testing.T) {
 				"│ yung cuz      │ plant2        │ [2 3 4]       │ (3.14-2.4i)   │\n" +
 				"└───────────────┴───────────────┴───────────────┴───────────────┘",
 		},
-		{"as JSON with excluded defaults",
-			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
-			[]string{}, // TODO
+		{"as JSON with excluded defaults and pretty defined",
+			scaffoldlist.Options{
+				Pretty:                    func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil },
+				ExcludeColumnsFromDefault: []string{"Plant"},
+			},
+			[]string{"--json"}, // TODO
 			false, false,
-			"pretty",
+			`[` +
+				`{"Export":{"YV":{"YungCuz":"yung cuz"}},"Robot":[1,2,3],"Rogue":{"Real":0,"Imaginary":3.14}},` +
+				`{"Export":{"YV":{"YungCuz":"yung cuz"}},"Robot":[2,3,4],"Rogue":{"Real":3.14,"Imaginary":-2.4}}` +
+				`]`, // should prefer the explicitly provided --json
 		},
 		{"validate args: requires exactly 1 bare arg (fail)",
 			scaffoldlist.Options{ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -224,19 +230,6 @@ func TestMotherCycle(t *testing.T) {
 				"yung cuz\n" +
 				"yung cuz",
 		},
-		/*
-			{"as JSON",
-				scaffoldlist.Options{},
-				[]string{"--json"},
-				false, false,
-				expectedJSON,
-			},
-			{"as Table",
-				scaffoldlist.Options{},
-				[]string{"--table"},
-				false, false,
-				expectedTable,
-			},*/
 	}
 
 	for _, tt := range tests {
