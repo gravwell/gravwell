@@ -17,12 +17,6 @@ If a pretty printer function is defined, --pretty is also available.
 
 Implementations will probably look a lot like:
 
-	type someData struct {
-		Name             string // IP address or "webserver", typically
-		A				 int
-		B                []string
-	}
-
 	func listAction() action.Pair {
 		const (
 			short string = "list all data about X"
@@ -41,6 +35,7 @@ Implementations will probably look a lot like:
 
 				return d, nil
 			},
+			map[string]string{"dot.qualified.field": "alias"}
 			scaffoldlist.Options{})
 	}
 */
@@ -154,14 +149,19 @@ func NewListAction[dataStruct_t any](short, long string,
 		)
 	}
 
-	// map DQs to their aliases
-
+	// map DQs to their aliases and install aliases for CommonFields
 	DQToAlias := make(map[string]string, len(DQ))
 	AliasToDQ := make(map[string]string)
 	for _, dq := range DQ {
 		alias, hasAlias := columnAliases[dq]
 		if !hasAlias {
-			DQToAlias[dq] = ""
+			// cloak "CommonFields."
+			if cloaked, found := strings.CutPrefix(dq, "CommonFields."); found {
+				DQToAlias[dq] = cloaked
+			} else {
+				DQToAlias[dq] = ""
+			}
+
 			continue
 		}
 		DQToAlias[dq] = alias
@@ -194,7 +194,7 @@ func NewListAction[dataStruct_t any](short, long string,
 	cmd := treeutils.GenerateAction("list", short, long, nil, run, actionOptions)
 	options.Apply(cmd)
 
-	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil))
+	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias)))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 
@@ -213,7 +213,7 @@ func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 	} else if opts.ExcludeColumnsFromDefault != nil { // use the set of all columns, minus those excluded
 		var defaultColumns []string = make([]string, 0, len(DQToAlias)-len(opts.ExcludeColumnsFromDefault))
 		// if a column is NOT in the list of excluded, add it to the default
-		for dq := range maps.Keys(DQToAlias) {
+		for dq := range DQToAlias {
 			if !slices.Contains(opts.ExcludeColumnsFromDefault, dq) {
 				defaultColumns = append(defaultColumns, dq)
 			}
