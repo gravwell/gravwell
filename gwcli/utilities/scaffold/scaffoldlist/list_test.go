@@ -58,7 +58,7 @@ func TestShowColumns_AllFlag(t *testing.T) {
 		actual := scaffoldlist.ShowColumns(dqToAlias)
 
 		// we expect that aliases are preferred (if they exist) and that columns are sorted alphabetically
-		expected := strings.Join([]string{"a", "Clock", "long.dq.field"}, string(scaffoldlist.ShowColumnSep))
+		expected := strings.Join([]string{"a", "Clock", "long.dq.field"}, scaffoldlist.ShowColumnSep)
 
 		if actual != expected {
 			t.Fatal(testsupport.ExpectedActual(expected, actual))
@@ -219,7 +219,7 @@ func TestMotherCycle(t *testing.T) {
 			}},
 			[]string{"--show-columns"}, // this should pass the validate
 			false, false,
-			strings.Join([]string{"Export.YV.YungCuz", "Fast", "Robot", "Rogue"}, string(scaffoldlist.ShowColumnSep)),
+			strings.Join([]string{"Export.YV.YungCuz", "Fast", "Robot", "Rogue"}, scaffoldlist.ShowColumnSep),
 		},
 		{"validate args: requires exactly 1 bare arg; should pass",
 			scaffoldlist.Options{ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

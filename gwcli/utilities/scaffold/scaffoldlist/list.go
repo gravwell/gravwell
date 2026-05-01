@@ -97,7 +97,7 @@ func (f outputFormat) String() string {
 const (
 	outFilePerm         os.FileMode = 0644
 	exportedColumnsOnly bool        = true // only allow users to query for exported fields as columns?
-	ShowColumnSep       rune        = ';'  // separator between column names when printing list of available columns
+	ShowColumnSep       string      = "; " // separator between column names when printing list of available columns
 )
 
 // ListDataFunc is a function that retrieves an array of structs of type dataStruct

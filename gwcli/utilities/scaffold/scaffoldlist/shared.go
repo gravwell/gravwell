@@ -262,7 +262,7 @@ func sortColumns(columns []string) (sorted []string) {
 func ShowColumns(DQToAlias map[string]string) string {
 	aliased := aliasColumns(slices.Collect(maps.Keys(DQToAlias)), DQToAlias)
 	sortColumns(aliased)
-	return strings.Join(aliased, string(ShowColumnSep))
+	return strings.Join(aliased, ShowColumnSep)
 }
 
 // aliasColumns returns columnsDQ with aliases applied when they exist.
