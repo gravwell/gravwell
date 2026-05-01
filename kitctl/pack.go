@@ -335,7 +335,7 @@ func writePlaybook(dir string, name string, x types.Playbook) error {
 		return err
 	}
 
-	// Now drop three files: .meta, .playbook_metadata, and .body
+	// Now drop two files: .meta and .body
 	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	if err := os.WriteFile(bodyPath, []byte(x.Body), 0644); err != nil {
