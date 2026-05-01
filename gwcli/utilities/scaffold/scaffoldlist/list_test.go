@@ -234,6 +234,17 @@ func TestMotherCycle(t *testing.T) {
 				"yung cuz\n" +
 				"yung cuz",
 		},
+		{"user selected unknown columns",
+			scaffoldlist.Options{ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("token"), nil
+				}
+				return
+			}},
+			[]string{"--columns=Export.YungVenuz,Fast,Rogue,Fish", "--csv", "tokens"}, // this should pass the validate
+			true, false,
+			"",
+		},
 	}
 
 	for _, tt := range tests {
