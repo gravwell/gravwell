@@ -123,6 +123,10 @@ func (s stringSliceRegister) Shorthand() string {
 	return string(s.shorthand)
 }
 
+func (s stringSliceRegister) Usage() string {
+	return s.usage
+}
+
 // Register installs this flag (with its standard type) in the given flagset.
 // Sets the default to the zero value of the type.
 // Only supports a subset of types; expand as need be.
