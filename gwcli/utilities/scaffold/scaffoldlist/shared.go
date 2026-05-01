@@ -125,14 +125,23 @@ func listOutput[struct_t any](
 	return toRet, err
 }
 
-// buildFlagSet constructs and returns a flagset composed of the default list flags, additional flags defined for this action, and --pretty if a prettyFunc was defined.
-func buildFlagSet(prettyDefined bool) *pflag.FlagSet {
+// buildFlagSet returns a flagset composed of the default list flags,
+// additional flags defined for this action,
+// and --pretty if a prettyFunc was defined.
+//
+// defaultColumnsAliased are the columns to display as defaults alongside --columns.
+// They are expected to have aliases applied and will not be coerced.
+func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string) *pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	ft.CSV.Register(&fs)
 	ft.JSON.Register(&fs)
 	ft.Table.Register(&fs)
-	//fs.Bool(ft.Table.Name(), true, ft.Table.Usage()) // default
-	ft.SelectColumns.Register(&fs)
+	fs.StringSliceP( // manually register string slice so we can set a default
+		ft.SelectColumns.Name(),
+		ft.SelectColumns.Shorthand(),
+		defaultColumnsAliased,
+		ft.SelectColumns.Usage())
+
 	ft.ShowColumns.Register(&fs)
 
 	ft.Output.Register(&fs)

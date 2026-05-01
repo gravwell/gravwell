@@ -69,7 +69,7 @@ func newListAction[dataStruct_t any](
 func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
 	// refresh flags
-	la.fs = buildFlagSet(la.options.Pretty != nil)
+	la.fs = buildFlagSet(la.options.Pretty != nil, aliasColumns(la.defaultColumnsDQ, la.dqToAlias))
 	if la.options.AddtlFlags != nil {
 		la.fs.AddFlagSet(la.options.AddtlFlags())
 	}

@@ -39,7 +39,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path", func(t *testing.T) {
-		fs := buildFlagSet(false)
+		fs := buildFlagSet(false, nil)
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -48,7 +48,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path with pretty defined", func(t *testing.T) {
-		fs := buildFlagSet(true)
+		fs := buildFlagSet(true, nil)
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -68,7 +68,7 @@ func Test_initOutFile(t *testing.T) {
 		orig.Sync()
 		orig.Close()
 
-		fs := buildFlagSet(false)
+		fs := buildFlagSet(false, nil)
 		fs.Parse([]string{"-o", path})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -109,7 +109,7 @@ func Test_determineFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// generate flagset
-			fs := buildFlagSet(tt.prettyDefined)
+			fs := buildFlagSet(tt.prettyDefined, nil)
 			fs.Parse(tt.args)
 			if got := determineFormat(fs, tt.prettyDefined); got != tt.want {
 				t.Errorf("determineFormat() = %v, want %v", got, tt.want)
@@ -187,7 +187,7 @@ func Test_getColumns(t *testing.T) {
 	}
 
 	t.Run("--all", func(t *testing.T) {
-		fs := buildFlagSet(false)
+		fs := buildFlagSet(false, nil) // default cols shouldn't matter for this
 		if err := fs.Parse([]string{"--" + ft.AllColumns.Name()}); err != nil {
 			t.Fatal(err)
 		}
@@ -201,7 +201,7 @@ func Test_getColumns(t *testing.T) {
 		}
 	})
 	t.Run("--columns selects only DQ, duplicate columns", func(t *testing.T) {
-		fs := buildFlagSet(false)
+		fs := buildFlagSet(false, nil) // default cols shouldn't matter for this
 
 		requestedColumns := []string{"Alexander", "Ranni", "Ranni", "Marika"}
 
@@ -217,7 +217,7 @@ func Test_getColumns(t *testing.T) {
 		}
 	})
 	t.Run("--columns selects DQ+Alias mix", func(t *testing.T) {
-		fs := buildFlagSet(false)
+		fs := buildFlagSet(false, nil)
 
 		requestedColumns := []string{"Radagon", "Alexander", "Ranni", "Margit"}
 
@@ -234,10 +234,10 @@ func Test_getColumns(t *testing.T) {
 		}
 	})
 	t.Run("default columns", func(t *testing.T) {
-		fs := buildFlagSet(false)
-
 		// default columns are expected to be DQ
 		defaultColumns := []string{"Morgot"}
+
+		fs := buildFlagSet(false, defaultColumns)
 
 		if err := fs.Parse([]string{}); err != nil {
 			t.Fatal(err)
@@ -281,7 +281,7 @@ func Test_listOutput(t *testing.T) {
 		ppf := func(_ []string, _ map[string]string) (string, error) {
 			return "pretty", nil
 		}
-		out, err := listOutput[struct{}](buildFlagSet(true), formatPretty, nil, nil, ppf, nil)
+		out, err := listOutput[struct{}](buildFlagSet(true, nil), formatPretty, nil, nil, ppf, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -328,7 +328,7 @@ func Test_listOutput(t *testing.T) {
 	}
 	for i, tt := range tests {
 		t.Run(strconv.FormatInt(int64(i+1), 10), func(t *testing.T) {
-			out, err := listOutput(buildFlagSet(false), tt.format, tt.dqColumns, dataFunc, nil, aliased)
+			out, err := listOutput(buildFlagSet(false, nil), tt.format, tt.dqColumns, dataFunc, nil, aliased)
 			if err != nil {
 				t.Error(err)
 			}
