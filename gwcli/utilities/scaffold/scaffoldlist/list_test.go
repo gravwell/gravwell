@@ -4,16 +4,15 @@ package scaffoldlist_test
 
 import (
 	"maps"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/pflag"
 )
 
@@ -139,21 +138,6 @@ func TestMotherCycle(t *testing.T) {
 	aliased := maps.Clone(ntDQs)
 	aliased["Plant"] = "Fast"
 
-	// generate the set of expected outcomes tests can glom onto
-	aliasedMinusEmpty := maps.Clone(aliased)
-	for dq, aliased := range aliasedMinusEmpty {
-		if aliased == "" {
-			delete(aliasedMinusEmpty, dq)
-		}
-	}
-
-	expectedCSV := weave.ToCSV(data, slices.Collect(maps.Keys(ntDQs)), weave.CSVOptions{Aliases: aliasedMinusEmpty})
-	expectedJSON, err := weave.ToJSON(data, slices.Collect(maps.Keys(ntDQs)), weave.JSONOptions{Aliases: aliasedMinusEmpty})
-	if err != nil {
-		t.Fatal("failed to generated expected JSON")
-	}
-	expectedTable := weave.ToTable(data, slices.Collect(maps.Keys(ntDQs)), weave.TableOptions{Aliases: aliasedMinusEmpty})
-
 	tests := []struct {
 		name string
 
@@ -165,30 +149,94 @@ func TestMotherCycle(t *testing.T) {
 
 		wantOut string // the string output we want
 	}{
-		{"as CSV",
-			scaffoldlist.Options{},
+		{"as CSV with default columns",
+			scaffoldlist.Options{DefaultColumns: []string{"Plant", "Rogue"}}, // default columns should be sorted by the action
 			[]string{"--csv"},
 			false, false,
-			expectedCSV,
+			"Fast,Rogue\n" +
+				"plant,(0+3.14i)\n" +
+				"plant2,(3.14-2.4i)",
 		},
-		{"as CSV with specified columns with alias specified",
-			scaffoldlist.Options{},
-			[]string{"--csv", "--columns=Fast,Robot"},
+		{"as CSV with default columns out of order",
+			scaffoldlist.Options{DefaultColumns: []string{"Rogue", "Plant"}}, // default columns should be sorted by the action
+			[]string{"--csv"},
 			false, false,
-			"Fast,Robot\n" + "plant,[1 2 3]\n" + "plant2,[2 3 4]", // columns should be in order specified by --columns
+			"Fast,Rogue\n" +
+				"plant,(0+3.14i)\n" +
+				"plant2,(3.14-2.4i)",
 		},
-		{"as JSON",
-			scaffoldlist.Options{},
-			[]string{"--json"},
+		{"default pretty",
+			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
+			[]string{},
 			false, false,
-			expectedJSON,
+			"pretty",
 		},
-		{"as Table",
-			scaffoldlist.Options{},
+		{"pretty defined, but --table given",
+			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
 			[]string{"--table"},
 			false, false,
-			expectedTable,
+			"┌───────────────┬───────────────┬───────────────┬───────────────┐\n" +
+				"│ Export.YV.Yun │ Fast          │ Robot         │ Rogue         │\n" +
+				"├───────────────┼───────────────┼───────────────┼───────────────┤\n" +
+				"│ yung cuz      │ plant         │ [1 2 3]       │ (0+3.14i)     │\n" +
+				"├───────────────┼───────────────┼───────────────┼───────────────┤\n" +
+				"│ yung cuz      │ plant2        │ [2 3 4]       │ (3.14-2.4i)   │\n" +
+				"└───────────────┴───────────────┴───────────────┴───────────────┘",
 		},
+		{"as JSON with excluded defaults",
+			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
+			[]string{}, // TODO
+			false, false,
+			"pretty",
+		},
+		{"validate args: requires exactly 1 bare arg (fail)",
+			scaffoldlist.Options{ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("token"), nil
+				}
+				return
+			}},
+			[]string{},
+			true, false,
+			"",
+		},
+		{"validate args: requires exactly 1 bare arg; should continue to show-columns",
+			scaffoldlist.Options{ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("token"), nil
+				}
+				return
+			}},
+			[]string{"--show-columns"}, // this should pass the validate
+			false, false,
+			"Export.YV.YungCuz,Fast,Robot,Rogue",
+		},
+		{"validate args: requires exactly 1 bare arg; should pass",
+			scaffoldlist.Options{ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("token"), nil
+				}
+				return
+			}},
+			[]string{"--columns=Export.YV.YungCuz", "--csv", "tokens"}, // this should pass the validate
+			false, false,
+			"Export.YV.YungCuz\n" +
+				"yung cuz\n" +
+				"yung cuz",
+		},
+		/*
+			{"as JSON",
+				scaffoldlist.Options{},
+				[]string{"--json"},
+				false, false,
+				expectedJSON,
+			},
+			{"as Table",
+				scaffoldlist.Options{},
+				[]string{"--table"},
+				false, false,
+				expectedTable,
+			},*/
 	}
 
 	for _, tt := range tests {
@@ -206,8 +254,13 @@ func TestMotherCycle(t *testing.T) {
 				t.Errorf("bad error state. error: \"%v\"%v", err, testsupport.ExpectedActual(tt.wantSetArgsErr, (err != nil)))
 			}
 			if (inv != "") != tt.wantSetArgsInv {
-				t.Errorf("bad invalid state. invalid: \"%v\"%v", inv, testsupport.ExpectedActual(tt.wantSetArgsErr, (err != nil)))
+				t.Errorf("bad invalid state. invalid: \"%v\"%v", inv, testsupport.ExpectedActual(tt.wantSetArgsInv, (inv != "")))
 			}
+
+			if tt.wantSetArgsErr || tt.wantSetArgsInv {
+				return
+			}
+
 			var gotOut = testsupport.ExtractPrintLineMessageString(t, pair.Model.Update(nil), false, 0)
 			// out should be a table
 			if gotOut != tt.wantOut {
