@@ -310,25 +310,3 @@ func generateRun[dataStruct_t any](
 		}
 	}
 }
-
-// ShowColumns lists available columns, preferring column aliases if they exist.
-// Columns are sorted alphabetically.
-func ShowColumns(DQToAlias map[string]string) string {
-	aliased := aliasColumns(slices.Collect(maps.Keys(DQToAlias)), DQToAlias)
-	sortColumns(aliased)
-	return strings.Join(aliased, string(ShowColumnSep))
-}
-
-// aliasColumns returns columnsDQ with aliases applied when they exist.
-// Columns order is maintained.
-func aliasColumns(columnsDQ []string, DQToAlias map[string]string) []string {
-	aliased := make([]string, len(columnsDQ))
-	for i, colDQ := range columnsDQ {
-		if alias, found := DQToAlias[colDQ]; found && alias != "" {
-			aliased[i] = alias
-		} else {
-			aliased[i] = colDQ
-		}
-	}
-	return aliased
-}
