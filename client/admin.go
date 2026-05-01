@@ -830,13 +830,13 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//playbooks
-	if pbs, err := nc.GetUserPlaybooks(); err != nil {
+	if pbs, err := nc.ListPlaybooks(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get user playbooks %d %w", id, err)
-	} else if len(pbs) > 0 {
-		for _, pb := range pbs {
-			if pb.UID == id {
-				if err := nc.DeletePlaybook(pb.GUID); err != nil {
-					return fmt.Errorf("Failed to purge user playbook %v %w", pb.GUID, err)
+	} else if len(pbs.Results) > 0 {
+		for _, pb := range pbs.Results {
+			if pb.OwnerID == id {
+				if err := nc.PurgePlaybook(pb.ID); err != nil {
+					return fmt.Errorf("Failed to purge user playbook %v %w", pb.ID, err)
 				}
 			}
 		}

@@ -368,14 +368,14 @@ func getKitFiles(cli *client.Client, label string, orig types.KitBuildRequest, k
 }
 
 func getKitPlaybooks(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var playbooks []types.Playbook
-	if playbooks, err = cli.GetUserPlaybooks(); err != nil {
+	var playbooks types.PlaybookListResponse
+	if playbooks, err = cli.ListPlaybooks(nil); err != nil {
 		err = fmt.Errorf("failed to get playbooks: %w", err)
 		return
 	}
-	for _, p := range playbooks {
-		if slices.Contains(p.Labels, label) || slices.Contains(orig.Playbooks, p.GUID) {
-			kbr.Playbooks = append(kbr.Playbooks, p.GUID)
+	for _, p := range playbooks.Results {
+		if slices.Contains(p.Labels, label) || slices.Contains(orig.Playbooks, p.ID) {
+			kbr.Playbooks = append(kbr.Playbooks, p.ID)
 		}
 	}
 	return

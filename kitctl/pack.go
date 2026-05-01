@@ -337,17 +337,12 @@ func writePlaybook(dir string, name string, x types.Playbook) error {
 
 	// Now drop three files: .meta, .playbook_metadata, and .body
 	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
-	pbMetaPath := filepath.Join(p, fmt.Sprintf("%v.playbook_metadata", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := os.WriteFile(bodyPath, x.Body, 0644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(pbMetaPath, x.Metadata, 0644); err != nil {
+	if err := os.WriteFile(bodyPath, []byte(x.Body), 0644); err != nil {
 		return err
 	}
 	// Now write out the rest to the meta file
-	x.Body = []byte{}
-	x.Metadata = []byte{}
+	x.Body = ``
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -359,7 +354,6 @@ func readPlaybook(dir, name string) (x types.Playbook, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "playbook")
 	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
-	pbMetaPath := filepath.Join(p, fmt.Sprintf("%v.playbook_metadata", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file first
 	var bts []byte
@@ -373,18 +367,11 @@ func readPlaybook(dir, name string) (x types.Playbook, err error) {
 	// Now read the body and insert it
 	bts, err = os.ReadFile(bodyPath)
 	if err == nil {
-		x.Body = bts
+		x.Body = string(bts)
 	} else if os.IsNotExist(err) {
 		err = nil
 	} else {
 		return
-	}
-	// And read the playbook_metadata file
-	bts, err = os.ReadFile(pbMetaPath)
-	if err == nil {
-		x.Metadata = bts
-	} else if os.IsNotExist(err) {
-		err = nil
 	}
 
 	return
