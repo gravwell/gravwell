@@ -209,7 +209,7 @@ func TestMotherCycle(t *testing.T) {
 			}},
 			[]string{"--show-columns"}, // this should pass the validate
 			false, false,
-			"Export.YV.YungCuz,Fast,Robot,Rogue",
+			strings.Join([]string{"Export.YV.YungCuz", "Fast", "Robot", "Rogue"}, string(scaffoldlist.ShowColumnSep)),
 		},
 		{"validate args: requires exactly 1 bare arg; should pass",
 			scaffoldlist.Options{ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
