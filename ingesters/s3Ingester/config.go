@@ -52,6 +52,7 @@ type sqsS3 struct {
 	Tag_Name         string
 	Queue_URL        string
 	Region           string
+	Endpoint         string
 	Credentials_Type string
 	ID               string `json:"-"` // DO NOT send this when marshalling
 	Secret           string `json:"-"` // DO NOT send this when marshalling
