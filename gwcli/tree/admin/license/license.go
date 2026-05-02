@@ -69,11 +69,7 @@ func licenseInfo() action.Pair {
 			DefaultColumns: []string{
 				"Type",
 				"Version",
-				"CustomerUUID",
-				"CustomerNumber",
 				"Expiration",
-				"MaxNodes",
-				"NFR",
 			},
 			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				li, err := connection.Client.GetLicenseInfo()
