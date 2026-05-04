@@ -149,25 +149,26 @@ func NewListAction[dataStruct_t any](short, long string,
 		)
 	}
 
-	// map DQs to their aliases and install aliases for CommonFields
+	// map DQs to their aliases,
+	// install aliases for CommonFields,
+	// install aliases for AutomationCommonFields
 	DQToAlias := make(map[string]string, len(DQ))
 	AliasToDQ := make(map[string]string)
 	for _, dq := range DQ {
 		alias, hasAlias := columnAliases[dq]
 		if !hasAlias {
-			// cloak "CommonFields."
-			if cloaked, found := strings.CutPrefix(dq, "CommonFields."); found {
-				DQToAlias[dq] = cloaked
-			} else {
-				DQToAlias[dq] = ""
+			var found bool
+			// cloak CommonFields prefix
+			if alias, found = strings.CutPrefix(dq, "CommonFields."); !found {
+				alias, _ = strings.CutPrefix(dq, "AutomationCommonFields.")
 			}
-
-			continue
 		}
+
 		DQToAlias[dq] = alias
 		delete(columnAliases, dq)
-		// create the reverse mapping
-		AliasToDQ[alias] = dq
+		if alias != "" { // create the reverse mapping
+			AliasToDQ[alias] = dq
+		}
 	}
 
 	// any aliases that remain are for unknown DQs
