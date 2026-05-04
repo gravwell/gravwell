@@ -155,7 +155,7 @@ func SlicesUnorderedEqual(a []string, b []string) bool {
 func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequenceIndex uint) string {
 	t.Helper()
 	voMsg := reflect.ValueOf(cmd())
-	t.Logf("Update msg kind: %v", voMsg.Kind())
+	//t.Logf("Update msg kind: %v", voMsg.Kind())
 	// this will be a slice if it is a sequence or a struct if a single msg
 	var voPLM reflect.Value
 	if voMsg.Kind() == reflect.Slice {
