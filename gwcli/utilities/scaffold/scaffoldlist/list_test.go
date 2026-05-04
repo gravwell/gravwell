@@ -303,12 +303,12 @@ func TestAutoAliasPrefix(t *testing.T) {
 				}},
 			[]string{"--csv"},
 			false, false,
-			"BackfillEnabled,Disabled,Schedule,Description,ItemID,Labels,Name,Owner.Admin,Owner.DefaultSearchGroups,Owner.Email,Owner.Groups,Owner.ID,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,Version,Writers.GIDs,Writers.Global,Flow\n" +
-				"false,false,,,0,[],Name_0,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_0\n" +
-				"false,false,,,1,[],Name_1,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_1\n" +
-				"false,false,,,2,[],Name_2,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_2\n" +
-				"false,false,,,3,[],Name_3,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_3\n" +
-				"false,false,,,4,[],Name_4,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_4",
+			"BackfillEnabled,Disabled,Schedule,CreatedAt,DeletedAt,Description,ItemID,Labels,Name,Owner.Admin,Owner.CreatedAt,Owner.DefaultSearchGroups,Owner.DeletedAt,Owner.Email,Owner.Groups,Owner.ID,Owner.LastLogin,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Generated,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.UpdatedAt,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,UpdatedAt,Version,Writers.GIDs,Writers.Global,Flow\n" +
+				"false,false,,1970-07-22 06:06:40 -0700 PDT,0001-01-01 00:00:00 +0000 UTC,,0,[],Name_0,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_0\n" +
+				"false,false,,1970-07-22 06:06:40 -0700 PDT,0001-01-01 00:00:00 +0000 UTC,,1,[],Name_1,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_1\n" +
+				"false,false,,1970-07-22 06:06:40 -0700 PDT,0001-01-01 00:00:00 +0000 UTC,,2,[],Name_2,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_2\n" +
+				"false,false,,1970-07-22 06:06:40 -0700 PDT,0001-01-01 00:00:00 +0000 UTC,,3,[],Name_3,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_3\n" +
+				"false,false,,1970-07-22 06:06:40 -0700 PDT,0001-01-01 00:00:00 +0000 UTC,,4,[],Name_4,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_4",
 		},
 		{"csv with exclude default CommonFields.* (should exclude all CommonFields and AutomationCommonFields)",
 			scaffoldlist.Options{
