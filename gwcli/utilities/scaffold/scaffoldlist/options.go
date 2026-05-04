@@ -42,6 +42,8 @@ type Options struct {
 	// - CommonFields.* will omit ALL CommonFields and ALL AutomationCommonFields from the set of default columns.
 	//
 	// Because this option matches against DQs, it WILL omit columns irrelevant of their alias!
+	//
+	// Remaining columns will be sorted alphabetically.
 	DefaultColumnsFromExcludeRegex []*regexp.Regexp
 	// Free-form function when this action is called.
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.

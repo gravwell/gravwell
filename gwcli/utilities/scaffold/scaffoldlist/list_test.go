@@ -166,9 +166,9 @@ func TestMotherCycle(t *testing.T) {
 			scaffoldlist.Options{DefaultColumns: []string{"Rogue", "Plant"}}, // default columns should be sorted by the action
 			[]string{"--csv"},
 			false, false,
-			"Fast,Rogue\n" +
-				"plant,(0+3.14i)\n" +
-				"plant2,(3.14-2.4i)",
+			"Rogue,Fast\n" +
+				"(0+3.14i),plant\n" +
+				"(3.14-2.4i),plant2",
 		},
 		{"default pretty",
 			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},

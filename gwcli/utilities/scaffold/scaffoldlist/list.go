@@ -178,7 +178,7 @@ func NewListAction[dataStruct_t any](short, long string,
 		clilog.Writer.Warn("unknown DQ column", log.KV("DQ", dq), log.KV("alias", alias), scaffold.IdentifyCaller())
 	}
 
-	var defaultColumnsDQ = sortColumns(findDefaultColumns(options, DQToAlias))
+	var defaultColumnsDQ = findDefaultColumns(options, DQToAlias)
 
 	// generate a non-interactive action
 	run := generateRun(dataFunc, options, DQToAlias, AliasToDQ)
@@ -228,7 +228,7 @@ func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 				defaultColumns = append(defaultColumns, dq)
 			}
 		}
-		return slices.Clip(defaultColumns)
+		return sortColumns(slices.Clip(defaultColumns))
 	} else if opts.DefaultColumns != nil { // validate and use the set of default columns
 		var defaultColumns = make([]string, 0, len(opts.DefaultColumns))
 		for _, col := range opts.DefaultColumns {
@@ -241,7 +241,7 @@ func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 		return slices.Clip(defaultColumns)
 	}
 	// nothing was given, use the set of all columns
-	return slices.Collect(maps.Keys(DQToAlias))
+	return sortColumns(slices.Collect(maps.Keys(DQToAlias)))
 }
 
 // generateRun builds and returns a function to be run when this action is invoked via Cobra.
