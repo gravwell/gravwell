@@ -296,9 +296,9 @@ func TestAutoAliasPrefix(t *testing.T) {
 		{"csv with exclude default",
 			scaffoldlist.Options{
 				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
-					regexp.MustCompile("^CommonFields.LastModifiedBy"),
-					regexp.MustCompile("^CommonFields.Can.*"),
-					regexp.MustCompile("AutomationCommonFields.Timezone"),
+					regexp.MustCompile(`^CommonFields\.LastModifiedBy`),
+					regexp.MustCompile(`^CommonFields\.Can.*`),
+					regexp.MustCompile(`^AutomationCommonFields\.Timezone`),
 					regexp.MustCompile("^LatestResults.*"),
 				}},
 			[]string{"--csv"},
@@ -313,7 +313,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 		{"csv with exclude default CommonFields.* (should exclude all CommonFields and AutomationCommonFields)",
 			scaffoldlist.Options{
 				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
-					regexp.MustCompile("CommonFields.*"),
+					regexp.MustCompile(`CommonFields\..*`),
 					regexp.MustCompile("^LatestResults.*"),
 				}},
 			[]string{"--csv"},
