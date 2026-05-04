@@ -79,12 +79,11 @@ func list() action.Pair {
 			}},
 
 			DefaultColumns: []string{
-				"ID",
-				"Name",
-				"Description",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 				"Query",
 				"Variables",
-				"Labels",
 			},
 		})
 }

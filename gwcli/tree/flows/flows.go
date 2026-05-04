@@ -59,7 +59,7 @@ func list() action.Pair {
 				"CommonFields.ID",
 				"CommonFields.Name",
 				"CommonFields.Description",
-				"CommonFields.Schedule",
+				"AutomationCommonFields.Schedule",
 				"AutomationCommonFields.Disabled"},
 		},
 	)
@@ -77,7 +77,7 @@ func importCreate() action.Pair {
 			"desc":      scaffoldcreate.FieldDescription("flow"),
 			"frequency": scaffoldcreate.FieldFrequency(),
 			"path":      scaffoldcreate.FieldPath("file containing a flow in JSON form"),
-			"groups": scaffoldcreate.Field{
+			"groups": {
 				Required: false,
 				Title:    "Groups",
 				Flag:     scaffoldcreate.FlagConfig{Name: "groups", Usage: "comma-separated list of group IDs this flow is accessible to", Shorthand: 'g'},
@@ -86,6 +86,9 @@ func importCreate() action.Pair {
 						ti := stylesheet.NewTI("", true)
 						ti.Validate = func(s string) error { // returns on first error
 							for strGID := range strings.SplitSeq(s, ",") {
+								if strGID == "" {
+									continue
+								}
 								// check for numeric only
 								for _, r := range strGID {
 									if r >= 48 && r <= 57 { // 0-9 in ASCII

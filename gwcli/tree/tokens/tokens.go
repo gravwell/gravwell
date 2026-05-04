@@ -67,9 +67,9 @@ func list() action.Pair {
 		nil,
 		scaffoldlist.Options{
 			DefaultColumns: []string{
-				"ID",
-				"Name",
-				"Description",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 				"ExpiresAt",
 			},
 		})

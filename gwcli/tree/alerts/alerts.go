@@ -101,9 +101,9 @@ func alertsList() action.Pair {
 				"CommonFields.ID",
 				"CommonFields.Name",
 				"CommonFields.Description",
-				"CommonFields.Disabled",
-				"CommonFields.Consumers",
-				"CommonFields.Dispatchers",
+				"Disabled",
+				"Consumers",
+				"Dispatchers",
 				"TargetTag",
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, _ error) {

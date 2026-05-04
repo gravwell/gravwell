@@ -62,8 +62,8 @@ func list() action.Pair {
 				"CommonFields.ID",
 				"CommonFields.Name",
 				"CommonFields.Description",
-				"AutomationCommonFieldsSchedule",
-				"AutomationCommonFieldsDisabled",
+				"AutomationCommonFields.Schedule",
+				"AutomationCommonFields.Disabled",
 				"SearchString",
 			},
 		})
