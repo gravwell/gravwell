@@ -42,7 +42,9 @@ func notifications() action.Pair {
 				},
 			},
 
-			DefaultColumns: []string{"Broadcast", "Msg"},
+			DefaultColumns: []string{
+				"Sender", "Msg", "Broadcast", "Level",
+			},
 		},
 	)
 }

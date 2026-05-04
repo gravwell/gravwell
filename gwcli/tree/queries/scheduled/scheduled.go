@@ -59,15 +59,12 @@ func list() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
-				"ID",
-				"GUID",
-				"Name",
-				"Description",
-				"Schedule",
-				"Disabled",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"AutomationCommonFieldsSchedule",
+				"AutomationCommonFieldsDisabled",
 				"SearchString",
-				"Duration",
-				"Groups",
 			},
 		})
 }

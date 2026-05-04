@@ -76,8 +76,14 @@ func list() action.Pair {
 					return fs
 				},
 			},
-			// TODO update column names once files get the registry treatment
-			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Type",
+				"CommonFields.Labels",
+
+				"Size",
+			},
 		})
 }
 

@@ -81,8 +81,7 @@ func past() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: pastUse, AddtlFlags: flags},
 			DefaultColumns: []string{
-				"ID",
-				"UserQuery",
+				"CommonFields.ID",
 				"EffectiveQuery",
 				"Launched",
 			},

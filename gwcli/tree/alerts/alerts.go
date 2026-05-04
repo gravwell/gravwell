@@ -62,7 +62,7 @@ func alertsList() action.Pair {
 			if listConsumerID != "" {
 				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
 					Filters: []types.Filter{
-						types.Filter{
+						{
 							Key:       "Consumers.ID",
 							Operation: "=",
 							Values:    []any{listConsumerID},
@@ -74,7 +74,7 @@ func alertsList() action.Pair {
 			} else if listDispatcherID != "" {
 				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
 					Filters: []types.Filter{
-						types.Filter{
+						{
 							Key:       "Dispatchers.ID",
 							Operation: "=",
 							Values:    []any{listDispatcherID},
@@ -98,15 +98,13 @@ func alertsList() action.Pair {
 				},
 			},
 			DefaultColumns: []string{
-				"Name",
-				"Description",
-				"Disabled",
-				"Consumers",
-				"Dispatchers",
-				"ID",
-				"Labels",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"CommonFields.Disabled",
+				"CommonFields.Consumers",
+				"CommonFields.Dispatchers",
 				"TargetTag",
-				"OwnerID",
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, _ error) {
 				if listConsumerID, invalid = validateListID("consumer", fs); invalid != "" {

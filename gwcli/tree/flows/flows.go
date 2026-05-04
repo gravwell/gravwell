@@ -55,7 +55,12 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			DefaultColumns: []string{"Name", "Description", "ID", "GUID", "Groups", "Global", "Labels", "Owner", "Schedule", "Disabled"},
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"CommonFields.Schedule",
+				"AutomationCommonFields.Disabled"},
 		},
 	)
 }

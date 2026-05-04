@@ -17,7 +17,8 @@ import (
 type Options struct {
 	scaffold.CommonOptions
 
-	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly (albeit likely script-unfriendly) way.
+	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly
+	// (albeit likely script-unfriendly) way.
 	// If !nil, --pretty will also be defined and set as the default.
 	//
 	// Pretty functions may or may not respect columns.
@@ -25,7 +26,9 @@ type Options struct {
 
 	// Sets the default columns to display if --columns is not specified.
 	// Column names must be dot-qualified exact matches, not aliases.
-	// If set, only these columns will be displayed by default.
+	// Column names must include the "CommonFields." prefix, if applicable.
+	//
+	// Order is respected.
 	//
 	// Mutually exclusive with ExcludeColumnsFromDefault.
 	DefaultColumns []string
@@ -36,7 +39,7 @@ type Options struct {
 	//
 	// Mutually exclusive with DefaultColumns.
 	ExcludeColumnsFromDefault []string
-	// Free-form function called in SetArgs or at the start of run to validate the given flags.
+	// Free-form function when this action is called.
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
 	//
 	// Will not be called if --show-columns is specified.
