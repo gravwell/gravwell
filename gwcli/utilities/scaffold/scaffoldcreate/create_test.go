@@ -100,10 +100,18 @@ func TestOptions(t *testing.T) {
 					return fs
 				},
 			},
+			Short: "my short description",
+			Long:  "my long description",
 		},
 	)
 	if act.Action.Use != "alt" {
 		t.Error("use option was not applied", testsupport.ExpectedActual("alt", act.Action.Use))
+	}
+	if act.Action.Short != "my short description" {
+		t.Error("short option was not applied", testsupport.ExpectedActual("my short description", act.Action.Short))
+	}
+	if act.Action.Long != "my long description" {
+		t.Error("long option was not applied", testsupport.ExpectedActual("my long description", act.Action.Long))
 	}
 	if !testsupport.SlicesUnorderedEqual(act.Action.Aliases, aliases) {
 		t.Error("incorrect aliases", testsupport.ExpectedActual(aliases, act.Action.Aliases))
