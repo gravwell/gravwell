@@ -2,6 +2,7 @@ package indexers
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -51,11 +52,9 @@ func get() action.Pair {
 				Use:     "get",
 				Example: "get 127.0.0.1:9404",
 			},
-			ExcludeColumnsFromDefault: []string{
-				"Ingest.EntriesHourTail",
-				"Ingest.EntriesMinuteTail",
-				"Ingest.BytesHourTail",
-				"Ingest.BytesMinuteTail",
+			DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
+				regexp.MustCompile(`^Ingest\.Entries.*Tail`),
+				regexp.MustCompile(`^Ingest\.Bytes.*Tail`),
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
