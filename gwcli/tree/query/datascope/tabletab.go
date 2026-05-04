@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -215,7 +216,7 @@ func (tt *tableTab) renderFooter() string {
 	return lipgloss.JoinVertical(lipgloss.Center,
 		scrollPercentLine(tt.vp.Width, tt.vp.ScrollPercent()),
 		lipgloss.JoinVertical(lipgloss.Center,
-			helpSty.Render(stylesheet.UpDownSigils+" scroll • home: jump top • end: jump bottom"),
+			helpSty.Render(sigils.UpDown+" scroll • home: jump top • end: jump bottom"),
 			helpSty.Render("alt+[1-9]: increase column size • shift+alt+[1-9]: decrease column size"),
 			helpSty.Render("tab: cycle • esc: quit"),
 		))

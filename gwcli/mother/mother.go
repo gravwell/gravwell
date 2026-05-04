@@ -30,6 +30,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -243,27 +245,27 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			3 // include a padding
 	case tea.KeyMsg:
 		// NOTE kill keys are handled above
-		switch msg.Type {
-		case tea.KeyF1: // help
+		switch {
+		case msg.Type == tea.KeyF1: // help
 			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		case tea.KeyUp: // history
+		case msg.Type == tea.KeyUp: // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case tea.KeyDown: // history
+		case msg.Type == tea.KeyDown: // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case tea.KeyEnter:
+		case hotkeys.Match(msg, hotkeys.Invoke):
 			m.history.unsetFetch()
 			return m, processInput(&m)
-		case tea.KeyCtrlL:
+		case msg.Type == tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
-		case tea.KeyTab:
+		case hotkeys.Match(msg, hotkeys.Complete):
 			if m.ti.Value() == "" {
 				m.ti.SetValue("help")
 			}
-		case tea.KeyCtrlU:
+		case msg.Type == tea.KeyCtrlU:
 			m.ti.SetValue("")
 		}
 	}
@@ -575,9 +577,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 		// write .. and / if we are below root
 		if c.HasParent() {
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render(traverse.UpToken), "step up")
+				sigils.Indent, specialStyle.Render(traverse.UpToken), "step up")
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render(traverse.RootToken), "return to root")
+				sigils.Indent, specialStyle.Render(traverse.RootToken), "return to root")
 		}
 		children := c.Commands()
 		for _, child := range children {
@@ -602,9 +604,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 			}
 			// generate the output
 			trimmedSubChildren := strings.TrimSpace(subchildren.String())
-			s.WriteString(fmt.Sprintf("%s%s - %s\n", stylesheet.Indent, name, child.Short))
+			s.WriteString(fmt.Sprintf("%s%s - %s\n", sigils.Indent, name, child.Short))
 			if trimmedSubChildren != "" {
-				s.WriteString(stylesheet.Indent + stylesheet.Indent + trimmedSubChildren + "\n")
+				s.WriteString(sigils.Indent + sigils.Indent + trimmedSubChildren + "\n")
 			}
 		}
 	}
