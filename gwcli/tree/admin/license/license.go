@@ -12,6 +12,7 @@ package license
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -49,19 +50,49 @@ func NewNav() *cobra.Command {
 	)
 }
 
+// Wrap LicenseInfo so we can tweak what is available and how it is displayed.
+//
+// Ex: we want to expose Expiration as a time.Time{}.
+type LicenseInfo struct {
+	Version        uint64
+	CustomerUUID   string `json:",omitempty"`
+	CustomerNumber uint64
+	Expiration     time.Time
+	Type           types.LicenseType
+	//MaxNodes is either maximum machines for cluster type, or sockets for single type
+	MaxNodes  uint32
+	Overrides types.FeatureOverride
+	//Metadata  []byte
+	//NFR       bool //non-commercial license override
+	Hash []byte
+}
+
+func (wrapped LicenseInfo) FromTypes(li types.LicenseInfo) {
+	wrapped.Version = li.Version
+	wrapped.CustomerUUID = li.CustomerUUID
+	wrapped.CustomerNumber = li.CustomerNumber
+	wrapped.Expiration = li.Expiration.StandardTime()
+	wrapped.Type = li.Type
+
+	wrapped.MaxNodes = li.MaxNodes
+	wrapped.Overrides = li.Overrides
+
+	wrapped.Hash = li.Hash
+}
+
 func licenseInfo() action.Pair {
-	const (
-		short string = "display information about the current license"
-		long  string = "Displays details about the currently installed Gravwell license."
-	)
-	return scaffoldlist.NewListAction(short, long,
-		types.LicenseInfo{},
-		func(fs *pflag.FlagSet) ([]types.LicenseInfo, error) {
+	return scaffoldlist.NewListAction(
+		"display information about the current license",
+		"Displays details about the currently installed Gravwell license.",
+		LicenseInfo{},
+		func(fs *pflag.FlagSet) ([]LicenseInfo, error) {
 			li, err := connection.Client.GetLicenseInfo()
 			if err != nil {
 				return nil, err
 			}
-			return []types.LicenseInfo{li}, nil
+			var wrapped LicenseInfo
+			wrapped.FromTypes(li)
+			return []LicenseInfo{wrapped}, nil
 		},
 		nil,
 		scaffoldlist.Options{
