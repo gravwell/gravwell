@@ -18,31 +18,33 @@ If a pretty printer function is defined, --pretty is also available.
 Implementations will probably look a lot like:
 
 	func listAction() action.Pair {
-		const (
-			short string = "list all data about X"
-			long  string = "List data about X but this has more words."
-		)
-
-		return scaffoldlist.NewListAction(short, long, someData{},
-			func(fs *pflag.FlagSet) ([]someData, error) {
-				sd := []someData{}
-
-				if stuff, err := fetchData(); err != nil {
+		return scaffoldlist.NewListAction(
+			"<one-line description of the action>",
+			"<long description of the action>",
+			MyListType{},
+			func(fs *pflag.FlagSet) ([]MyListType, error) {
+				li, err := connection.Client.ListMyType()
+				if err != nil {
 					return nil, err
-				} else {
-					sd = stuff.transmute()
 				}
-
-				return d, nil
+				return li.Results, nil
 			},
-			map[string]string{"dot.qualified.field": "alias"}
-			scaffoldlist.Options{})
+			map[string]string{"dq1": "alias1"},
+			scaffoldlist.Options{
+				CommonOptions: scaffold.CommonOptions{},
+				DefaultColumns: []string{
+					"Field1",
+					"Field2",
+					"Dot.Qualified.Field3",
+				},
+			},
+		)
 	}
 */
 package scaffoldlist
 
 // NOTE(rlandau): if you are modifying scaffoldlist, keep in mind that aliases should be handled at all ingress/egress points.
-// For the sake of clarity, we try to work in DQ names only internally.
+// For the sake of clarity, we try to work in DQ-names-only internally.
 
 import (
 	"fmt"
