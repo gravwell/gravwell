@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -80,6 +81,55 @@ func Test_initOutFile(t *testing.T) {
 			t.Fatalf("file was not truncated (size: %v)", stat.Size())
 		}
 	})
+}
+
+// Tests that NewListAction
+func TestInvertedMaps(t *testing.T) {
+	// spin up the logger
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal("failed to spawn logger:", err)
+	}
+	pair := NewListAction("test", "test", types.Flow{},
+		func(fs *pflag.FlagSet) ([]types.Flow, error) {
+			return nil, nil
+		},
+		map[string]string{"CommonFields.Can.Delete": "DeleteCap", "AutomationCommonFields.Timezone": "TZ"},
+		Options{})
+	la, ok := pair.Model.(*ListAction[types.Flow])
+	if !ok {
+		t.Fatal("failed to cast actor")
+	}
+	// check that our custom aliases were respected and overrode the defaults
+	if can := la.dqToAlias["CommonFields.Can.Delete"]; can != "DeleteCap" {
+		t.Error("bad value for custom alias.", testsupport.ExpectedActual("DeleteCap", can))
+	}
+	if tz := la.dqToAlias["AutomationCommonFields.Timezone"]; tz != "TZ" {
+		t.Error("bad value for custom alias.", testsupport.ExpectedActual("TZ", tz))
+	}
+	// check custom aliases in inverse map
+	if can := la.aliasToDQ["DeleteCap"]; can != "CommonFields.Can.Delete" {
+		t.Error("bad value for custom alias in inverted map.", testsupport.ExpectedActual("CommonFields.Can.Delete", can))
+	}
+	if tz := la.aliasToDQ["TZ"]; tz != "AutomationCommonFields.Timezone" {
+		t.Error("bad value for custom alias in inverted map.", testsupport.ExpectedActual("AutomationCommonFields.Timezone", tz))
+	}
+	// check all remaining values.
+	// DQtoAlias should have the same number of values as AliasToDQ has keys
+	var aliasCount int
+	for dq, alias := range la.dqToAlias {
+		invertedDQ, found := la.aliasToDQ[alias]
+		if alias != "" {
+			aliasCount += 1
+		} else if found { // inverse mappings should not exist for empty aliases
+			t.Errorf("the empty alias returned in inverse mapping to %s", invertedDQ)
+		}
+		if dq != invertedDQ {
+			t.Error("dq and inverted dq inequal!", testsupport.ExpectedActual(dq, invertedDQ))
+		}
+	}
+	if inverseLen := len(la.aliasToDQ); inverseLen != aliasCount {
+		t.Errorf("The number of populated aliases in DQToAlias (%d) should equal the number of items in AliasToDQ (%d)", aliasCount, inverseLen)
+	}
 }
 
 func Test_determineFormat(t *testing.T) {
