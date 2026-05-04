@@ -4,6 +4,7 @@ package scaffoldlist_test
 
 import (
 	"maps"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -189,8 +190,8 @@ func TestMotherCycle(t *testing.T) {
 		},
 		{"as JSON with excluded defaults and pretty defined",
 			scaffoldlist.Options{
-				Pretty:                    func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil },
-				ExcludeColumnsFromDefault: []string{"Plant"},
+				Pretty:                         func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil },
+				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{regexp.MustCompile("Plant")},
 			},
 			[]string{"--json"}, // TODO
 			false, false,
@@ -279,8 +280,8 @@ func TestMotherCycle(t *testing.T) {
 	}
 }
 
-// Collection of tests to check that the "CommonFields." prefix is not visible to a user.
-func TestAutoAliasCommonFieldsPrefix(t *testing.T) {
+// Collection of tests to check that the "CommonFields." and "AutomationCommonFields." prefixes are not visible to a user.
+func TestAutoAliasPrefix(t *testing.T) {
 	tests := []struct {
 		name string
 
@@ -291,23 +292,86 @@ func TestAutoAliasCommonFieldsPrefix(t *testing.T) {
 		wantSetArgsErr bool
 
 		wantOut string // the string output we want
-	}{}
+	}{
+		{"csv with exclude default",
+			scaffoldlist.Options{
+				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
+					regexp.MustCompile("^CommonFields.LastModifiedBy"),
+					regexp.MustCompile("^CommonFields.Can.*"),
+					regexp.MustCompile("AutomationCommonFields.Timezone"),
+					regexp.MustCompile("^LatestResults.*"),
+				}},
+			[]string{"--csv"},
+			false, false,
+			"BackfillEnabled,Disabled,Schedule,Description,ItemID,Labels,Name,Owner.Admin,Owner.DefaultSearchGroups,Owner.Email,Owner.Groups,Owner.ID,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,Version,Writers.GIDs,Writers.Global,Flow\n" +
+				"false,false,,,0,[],Name_0,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_0\n" +
+				"false,false,,,1,[],Name_1,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_1\n" +
+				"false,false,,,2,[],Name_2,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_2\n" +
+				"false,false,,,3,[],Name_3,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_3\n" +
+				"false,false,,,4,[],Name_4,false,[],,[],0,false,[],false,0,false,,,,0,false,,0,,[1 100],true,,0,[],false,Flow_4",
+		},
+		{"csv with exclude default CommonFields.* (should exclude all CommonFields and AutomationCommonFields)",
+			scaffoldlist.Options{
+				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
+					regexp.MustCompile("CommonFields.*"),
+					regexp.MustCompile("^LatestResults.*"),
+				}},
+			[]string{"--csv"},
+			false, false,
+			"Flow\n" +
+				"Flow_0\n" +
+				"Flow_1\n" +
+				"Flow_2\n" +
+				"Flow_3\n" +
+				"Flow_4",
+		},
+		{"json with exclude default CommonFields.* (should exclude all CommonFields and AutomationCommonFields)",
+			scaffoldlist.Options{
+				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
+					regexp.MustCompile("CommonFields.*"),
+					regexp.MustCompile("^LatestResults.*"),
+				}},
+			[]string{"--json"},
+			false, false,
+			`[` +
+				`{"Flow":"Flow_0"},` +
+				`{"Flow":"Flow_1"},` +
+				`{"Flow":"Flow_2"},` +
+				`{"Flow":"Flow_3"},` +
+				`{"Flow":"Flow_4"}` + `]`,
+		},
+		{"json exclude defaults ignored by --columns",
+			scaffoldlist.Options{
+				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
+					regexp.MustCompile("CommonFields.*"),
+					regexp.MustCompile("^LatestResults.*"),
+				}},
+			[]string{"--json", "--columns=ItemID,Name,Flow"},
+			false, false,
+			`[` +
+				`{"Flow":"Flow_0","ItemID":"0","Name":"Name_0"},` +
+				`{"Flow":"Flow_1","ItemID":"1","Name":"Name_1"},` +
+				`{"Flow":"Flow_2","ItemID":"2","Name":"Name_2"},` +
+				`{"Flow":"Flow_3","ItemID":"3","Name":"Name_3"},` +
+				`{"Flow":"Flow_4","ItemID":"4","Name":"Name_4"}` + `]`,
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
+				types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
 					// generate some garbage data
-					ms := make([]types.Macro, 5)
+					ms := make([]types.Flow, 5)
 					for i := range 5 {
 						iStr := strconv.FormatInt(int64(i), 10)
-						ms[i] = types.Macro{
+						ms[i] = types.Flow{
 							CommonFields: types.CommonFields{
 								Name:      "Name_" + iStr,
 								CreatedAt: time.Unix(17500000, 0),
 								ID:        iStr,
 								Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
 							},
-							Expansion: "Expansion_" + iStr}
+							Flow: "Flow_" + iStr}
 					}
 
 					return ms, nil
