@@ -208,11 +208,11 @@ func NewListAction[dataStruct_t any](short, long string,
 }
 
 // findDefaultColumns returns the set of columns to use as defaults,
-// based on the state of options.DefaultColumns and options.ExcludeColumnsFromDefault.
+// based on the state of options.DefaultColumns and options.DefaultColumnsFromExcludeRegex.
 func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 	// set default columns from DefaultColumns or ExcludeColumnsFromDefault
 	if opts.DefaultColumns != nil && opts.DefaultColumnsFromExcludeRegex != nil { // both were given
-		panic("DefaultColumns and ExcludeColumnsFromDefault are mutually exclusive")
+		panic("DefaultColumns and DefaultColumnsFromExcludeRegex are mutually exclusive")
 	} else if opts.DefaultColumnsFromExcludeRegex != nil { // use the set of all columns, minus those excluded
 		var defaultColumns = make([]string, 0)
 		// if a column matches NONE of the exclude regexes, include it as default
