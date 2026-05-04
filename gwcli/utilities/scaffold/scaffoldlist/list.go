@@ -228,7 +228,7 @@ func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 		}
 		return slices.Clip(defaultColumns)
 	} else if opts.DefaultColumns != nil { // validate and use the set of default columns
-		var defaultColumns []string = make([]string, 0, len(opts.DefaultColumns))
+		var defaultColumns = make([]string, 0, len(opts.DefaultColumns))
 		for _, col := range opts.DefaultColumns {
 			if _, found := DQToAlias[col]; !found { // ensure the column exists
 				clilog.Writer.Warn("unknown default column", log.KV("column", col), scaffold.IdentifyCaller())
