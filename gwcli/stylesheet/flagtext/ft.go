@@ -166,8 +166,8 @@ func (s singular) Usage(singular string) string {
 
 // Register installs this flag as a string in the given flagset.
 // It is a helper function to provide consistent usage.
-func (s singular) Register(fs *pflag.FlagSet, singular string) {
-	fs.StringP(s.Name(), s.Shorthand(), "", s.Usage(singular))
+func (s singular) Register(fs *pflag.FlagSet, defaultVal string, singular string) {
+	fs.StringP(s.Name(), s.Shorthand(), defaultVal, s.Usage(singular))
 }
 
 var (
