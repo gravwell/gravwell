@@ -50,10 +50,10 @@ func NewNav() *cobra.Command {
 	)
 }
 
-// Wrap LicenseInfo so we can tweak what is available and how it is displayed.
+// Wrap wrappedLicenseInfo so we can tweak what is available and how it is displayed.
 //
 // Ex: we want to expose Expiration as a time.Time{}.
-type LicenseInfo struct {
+type wrappedLicenseInfo struct {
 	Version        uint64
 	CustomerUUID   string `json:",omitempty"`
 	CustomerNumber uint64
@@ -67,7 +67,7 @@ type LicenseInfo struct {
 	Hash []byte
 }
 
-func (wrapped LicenseInfo) FromTypes(li types.LicenseInfo) {
+func (wrapped *wrappedLicenseInfo) FromTypes(li types.LicenseInfo) {
 	wrapped.Version = li.Version
 	wrapped.CustomerUUID = li.CustomerUUID
 	wrapped.CustomerNumber = li.CustomerNumber
@@ -84,15 +84,15 @@ func licenseInfo() action.Pair {
 	return scaffoldlist.NewListAction(
 		"display information about the current license",
 		"Displays details about the currently installed Gravwell license.",
-		LicenseInfo{},
-		func(fs *pflag.FlagSet) ([]LicenseInfo, error) {
+		wrappedLicenseInfo{},
+		func(fs *pflag.FlagSet) ([]wrappedLicenseInfo, error) {
 			li, err := connection.Client.GetLicenseInfo()
 			if err != nil {
 				return nil, err
 			}
-			var wrapped LicenseInfo
+			var wrapped wrappedLicenseInfo
 			wrapped.FromTypes(li)
-			return []LicenseInfo{wrapped}, nil
+			return []wrappedLicenseInfo{wrapped}, nil
 		},
 		nil,
 		scaffoldlist.Options{
