@@ -12,9 +12,11 @@ package tokens
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -205,6 +207,8 @@ func prettyToken(t types.Token, longestIDLen int) string {
 	return s
 }
 
+const defaultTokenPath = "token"
+
 func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		"name": scaffoldcreate.FieldName("token"),
@@ -267,13 +271,40 @@ func create() action.Pair {
 				tc.ExpiresAt = t
 			}
 
+			// open up the output file
+			out, err := fs.GetString("out")
+			if err != nil {
+				return "", "", err
+			}
+			// check if a file already exists; we definitely don't want to clobber it.
+			if _, err := os.Stat(out); !errors.Is(err, os.ErrNotExist) {
+				return "", "", err
+			}
+
+			outFile, err := os.Create(out)
+			if err != nil {
+				return "", "", err
+			}
 			tf, err := connection.Client.CreateToken(tc)
 			if err != nil {
 				return "", "", err
 			}
-
-			return tf.ID, "", nil
-		}, scaffoldcreate.Options{})
+			_, err = outFile.WriteString(tf.Value)
+			return tf.ID, "", err
+		}, scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := pflag.NewFlagSet("TokenOut", pflag.ContinueOnError)
+					// ! does not use the standard path or out ft flags because this one has special requirements
+					fs.StringP("out", "o", defaultTokenPath, "file to write the token value to. "+
+						"To prevent the accidental loss of a token, token creation will be aborted if a file is found at this path. "+
+						lipgloss.NewStyle().Italic(true).Render("-o will not clobber existing files."))
+					return fs
+					// long: "Create a new token." +
+					// "The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless -o is specified."
+				},
+			},
+		})
 }
 
 func delete() action.Pair {
