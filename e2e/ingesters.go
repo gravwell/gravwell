@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/log"
 	"github.com/testcontainers/testcontainers-go/network"
