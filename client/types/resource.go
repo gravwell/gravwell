@@ -30,6 +30,7 @@ type ResourceMetadata struct {
 	Hash          []byte
 	Synced        bool     // Set to true if this version is on the datastore, false otherwise
 	Labels        []string // the backend doesn't really care about these, it's the GUI's problem
+	FileExtension string   // The extension of the uploaded file, with the dot (ex: ".csv").
 }
 
 type ResourceUpdate struct {
