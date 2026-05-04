@@ -501,7 +501,7 @@ func PackPlaybook(pb *types.Playbook) (p PackedPlaybook) {
 // Validate checks the fields of the PackedPlaybook.
 func (pp *PackedPlaybook) Validate() error {
 	if pp.Name == `` {
-		return fmt.Errorf("Missing playbook name")
+		return fmt.Errorf("missing playbook name")
 	}
 	return nil
 }
