@@ -18,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -298,6 +299,7 @@ func TestMSLProvider(t *testing.T) {
 		}
 	})
 	t.Run("enter takeover mode when selected", func(t *testing.T) {
+		clilog.InitializeFromArgs(nil) // ensure the logger is spinning
 		_, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
 		if !takeover {
 			t.Fatal("failed to enter takeover mode while selected")
