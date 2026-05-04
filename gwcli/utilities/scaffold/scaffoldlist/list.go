@@ -209,13 +209,20 @@ func NewListAction[dataStruct_t any](short, long string,
 // based on the state of options.DefaultColumns and options.ExcludeColumnsFromDefault.
 func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 	// set default columns from DefaultColumns or ExcludeColumnsFromDefault
-	if opts.DefaultColumns != nil && opts.ExcludeColumnsFromDefault != nil { // both were given
+	if opts.DefaultColumns != nil && opts.DefaultColumnsFromExcludeRegex != nil { // both were given
 		panic("DefaultColumns and ExcludeColumnsFromDefault are mutually exclusive")
-	} else if opts.ExcludeColumnsFromDefault != nil { // use the set of all columns, minus those excluded
-		var defaultColumns []string = make([]string, 0, len(DQToAlias)-len(opts.ExcludeColumnsFromDefault))
-		// if a column is NOT in the list of excluded, add it to the default
+	} else if opts.DefaultColumnsFromExcludeRegex != nil { // use the set of all columns, minus those excluded
+		var defaultColumns = make([]string, 0)
+		// if a column matches NONE of the exclude regexes, include it as default
 		for dq := range DQToAlias {
-			if !slices.Contains(opts.ExcludeColumnsFromDefault, dq) {
+			var match bool
+			for _, rgx := range opts.DefaultColumnsFromExcludeRegex {
+				if rgx.MatchString(dq) {
+					match = true
+					break
+				}
+			}
+			if !match {
 				defaultColumns = append(defaultColumns, dq)
 			}
 		}

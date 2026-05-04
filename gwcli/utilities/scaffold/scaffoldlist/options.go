@@ -9,6 +9,8 @@
 package scaffoldlist
 
 import (
+	"regexp"
+
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
@@ -23,7 +25,6 @@ type Options struct {
 	//
 	// Pretty functions may or may not respect columns.
 	Pretty PrettyPrinterFunc
-
 	// Sets the default columns to display if --columns is not specified.
 	// Column names must be dot-qualified exact matches, not aliases.
 	// Column names must include the "CommonFields." prefix, if applicable.
@@ -32,13 +33,16 @@ type Options struct {
 	//
 	// Mutually exclusive with ExcludeColumnsFromDefault.
 	DefaultColumns []string
-	// Sets the list to display all columns EXCEPT for these by default.
-	// Column names must be dot-qualified exact matches, not aliases.
-	// Unknown columns will be ignored.
-	// Overridden by --columns.
+	// A list of regex patterns that OMIT matching dot-qualified columns from the set of defaults.
+	// Unlike DefaultColumns, DefaultColumnsFromExcludeRegex regex matches each value against each column;
+	// if a column matches any value, that column is omitted.
 	//
-	// Mutually exclusive with DefaultColumns.
-	ExcludeColumnsFromDefault []string
+	// Ex:
+	// - ^CommonFields.* will omit ALL CommonFields from the set of default columns.
+	// - CommonFields.* will omit ALL CommonFields and ALL AutomationCommonFields from the set of default columns.
+	//
+	// Because this option matches against DQs, it WILL omit columns irrelevant of their alias!
+	DefaultColumnsFromExcludeRegex []*regexp.Regexp
 	// Free-form function when this action is called.
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
 	//
