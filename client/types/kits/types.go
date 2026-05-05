@@ -464,3 +464,76 @@ func (pd *PackedDashboard) JSONMetadata() (json.RawMessage, error) {
 	})
 	return json.RawMessage(b), err
 }
+
+// PackedPlaybook is a stripped-down representation of a playbook for inclusion in a kit.
+type PackedPlaybook struct {
+	ID            string
+	Name          string
+	Description   string
+	Body          string
+	Cover         string
+	Banner        string
+	AuthorName    string
+	AuthorEmail   string
+	AuthorCompany string
+	AuthorURL     string
+	Labels        []string
+}
+
+// PackPlaybook converts a Playbook into a PackedPlaybook for inclusion in a kit.
+func PackPlaybook(pb *types.Playbook) (p PackedPlaybook) {
+	p = PackedPlaybook{
+		ID:            pb.ID,
+		Name:          pb.Name,
+		Description:   pb.Description,
+		Body:          pb.Body,
+		Cover:         pb.Cover,
+		Banner:        pb.Banner,
+		AuthorName:    pb.AuthorName,
+		AuthorEmail:   pb.AuthorEmail,
+		AuthorCompany: pb.AuthorCompany,
+		AuthorURL:     pb.AuthorURL,
+		Labels:        pb.Labels,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedPlaybook.
+func (pp *PackedPlaybook) Validate() error {
+	if pp.Name == `` {
+		return fmt.Errorf("missing playbook name")
+	}
+	return nil
+}
+
+// Unpackage expands a PackedPlaybook into a Playbook.
+func (pp *PackedPlaybook) Unpackage(uid int32, gids []int32) (pb types.Playbook) {
+	pb.ID = pp.ID
+	pb.OwnerID = uid
+	pb.Readers.GIDs = gids
+	pb.Name = pp.Name
+	pb.Description = pp.Description
+	pb.Body = pp.Body
+	pb.Cover = pp.Cover
+	pb.Banner = pp.Banner
+	pb.Labels = pp.Labels
+	pb.AuthorName = pp.AuthorName
+	pb.AuthorEmail = pp.AuthorEmail
+	pb.AuthorCompany = pp.AuthorCompany
+	pb.AuthorURL = pp.AuthorURL
+	return
+}
+
+// JSONMetadata returns additional info about the PackedPlaybook in JSON format.
+func (pp *PackedPlaybook) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		ID          string
+		Name        string
+		Description string
+	}{
+		ID:          pp.ID,
+		Name:        pp.Name,
+		Description: pp.Description,
+	})
+	return json.RawMessage(b), err
+}

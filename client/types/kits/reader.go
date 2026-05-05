@@ -328,7 +328,7 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 			itm.AdditionalInfo, err = sl.JSONMetadata()
 		}
 	case Playbook:
-		var pb types.Playbook
+		var pb PackedPlaybook
 		if err = json.NewDecoder(rdr).Decode(&pb); err == nil {
 			itm.AdditionalInfo, err = pb.JSONMetadata()
 		}
