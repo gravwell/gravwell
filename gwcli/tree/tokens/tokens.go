@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -24,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -250,12 +252,19 @@ func create() action.Pair {
 			Flag: scaffoldcreate.FlagConfig{
 				Usage: "file to write the token value to. " +
 					"To prevent the accidental loss of a token, token creation will be aborted if a file is found at this path. " +
-					lipgloss.NewStyle().Italic(true).Render("-o will not clobber existing files."),
-				Shorthand: 'o',
+					lipgloss.NewStyle().Italic(true).Render("--path will not clobber existing files."),
 			},
 			DefaultValue: defaultTokenPath,
 			Order:        40,
-			Provider:     &scaffoldcreate.PathProvider{},
+			Provider: &scaffoldcreate.PathProvider{
+				Options: pathtextinput.Options{
+					CustomTI: func() textinput.Model {
+						ti := stylesheet.NewTI(defaultTokenPath, false)
+						ti.Placeholder = defaultTokenPath
+						return ti
+					},
+				},
+			},
 		},
 	}
 
@@ -285,16 +294,16 @@ func create() action.Pair {
 			}
 
 			// open up the output file
-			out, err := fs.GetString("out")
-			if err != nil {
-				return "", "", err
+			outPath := cfg["out"].Provider.Get()
+			if outPath == "" {
+				outPath = defaultTokenPath
 			}
 			// check if a file already exists; we definitely don't want to clobber it.
-			if _, err := os.Stat(out); !errors.Is(err, os.ErrNotExist) {
+			if _, err := os.Stat(outPath); !errors.Is(err, os.ErrNotExist) {
 				return "", "", err
 			}
 
-			outFile, err := os.Create(out)
+			outFile, err := os.Create(outPath)
 			if err != nil {
 				return "", "", err
 			}
@@ -305,8 +314,8 @@ func create() action.Pair {
 			_, err = outFile.WriteString(tf.Value)
 			return tf.ID, "", err
 		}, scaffoldcreate.Options{
-			Long: "Create a new token." +
-				"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless -o is specified.",
+			Long: "Create a new token. " +
+				"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless --path is specified.",
 		})
 }
 
