@@ -244,6 +244,19 @@ func create() action.Pair {
 			Provider: &scaffoldcreate.TextProvider{},
 			Order:    60,
 		},
+		"out": {
+			Required: true,
+			Title:    "Path",
+			Flag: scaffoldcreate.FlagConfig{
+				Usage: "file to write the token value to. " +
+					"To prevent the accidental loss of a token, token creation will be aborted if a file is found at this path. " +
+					lipgloss.NewStyle().Italic(true).Render("-o will not clobber existing files."),
+				Shorthand: 'o',
+			},
+			DefaultValue: defaultTokenPath,
+			Order:        40,
+			Provider:     &scaffoldcreate.PathProvider{},
+		},
 	}
 
 	return scaffoldcreate.NewCreateAction("token", fields,
@@ -296,9 +309,7 @@ func create() action.Pair {
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := pflag.NewFlagSet("TokenOut", pflag.ContinueOnError)
 					// ! does not use the standard path or out ft flags because this one has special requirements
-					fs.StringP("out", "o", defaultTokenPath, "file to write the token value to. "+
-						"To prevent the accidental loss of a token, token creation will be aborted if a file is found at this path. "+
-						lipgloss.NewStyle().Italic(true).Render("-o will not clobber existing files."))
+					//fs.StringP("out", "o", ))
 					return fs
 					// long: "Create a new token." +
 					// "The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless -o is specified."
