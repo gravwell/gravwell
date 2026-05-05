@@ -376,6 +376,7 @@ func Execute(args []string) int {
 
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Fprintln(rootCmd.ErrOrStderr(), err)
 		return 1
 	}
 
