@@ -271,12 +271,139 @@ func TestMotherCycle(t *testing.T) {
 			}
 
 			var gotOut = testsupport.ExtractPrintLineMessageString(t, pair.Model.Update(nil), false, 0)
-			// out should be a table
 			if gotOut != tt.wantOut {
 				t.Error("bad Update output", testsupport.ExpectedActual(tt.wantOut, gotOut))
 			}
 		})
 
+	}
+}
+
+func TestNonInteractive(t *testing.T) {
+	tests := []struct {
+		name string
+
+		opts scaffoldlist.Options
+
+		args []string
+
+		wantOut string // the string output we want; whitespace trimmed
+	}{
+		{"show columns",
+			scaffoldlist.Options{},
+			[]string{"-x", "--show-columns"},
+			"BackfillEnabled; Can.Delete; Can.Modify; Can.Share; CreatedAt; DeletedAt; Description; Disabled; Flow; FlowName; " +
+				"ID; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
+				"LastModifiedBy.DeletedAt; LastModifiedBy.Email; LastModifiedBy.Groups; LastModifiedBy.ID; LastModifiedBy.LastLogin; " +
+				"LastModifiedBy.Locked; LastModifiedBy.MFA.RecoveryCodes.Codes; LastModifiedBy.MFA.RecoveryCodes.Enabled; " +
+				"LastModifiedBy.MFA.RecoveryCodes.Generated; LastModifiedBy.MFA.RecoveryCodes.Remaining; LastModifiedBy.MFA.TOTP.Enabled; " +
+				"LastModifiedBy.MFA.TOTP.Seed; LastModifiedBy.MFA.TOTP.URL; LastModifiedBy.Name; LastModifiedBy.SearchPriority; " +
+				"LastModifiedBy.SSOUser; LastModifiedBy.UpdatedAt; LastModifiedBy.Username; LastModifiedByID; " +
+				"LatestResults.AutomationResultsCommonFields.LastError; LatestResults.AutomationResultsCommonFields.LastRun; " +
+				"LatestResults.AutomationResultsCommonFields.LastRunDuration; LatestResults.AutomationResultsCommonFields.LastSearchIDs; " +
+				"LatestResults.CommonFields.Can.Delete; LatestResults.CommonFields.Can.Modify; LatestResults.CommonFields.Can.Share; " +
+				"LatestResults.CommonFields.CreatedAt; LatestResults.CommonFields.DeletedAt; LatestResults.CommonFields.Description; " +
+				"LatestResults.CommonFields.ID; LatestResults.CommonFields.Labels; LatestResults.CommonFields.LastModifiedBy.Admin; " +
+				"LatestResults.CommonFields.LastModifiedBy.CreatedAt; LatestResults.CommonFields.LastModifiedBy.DefaultSearchGroups; " +
+				"LatestResults.CommonFields.LastModifiedBy.DeletedAt; LatestResults.CommonFields.LastModifiedBy.Email; " +
+				"LatestResults.CommonFields.LastModifiedBy.Groups; LatestResults.CommonFields.LastModifiedBy.ID; " +
+				"LatestResults.CommonFields.LastModifiedBy.LastLogin; LatestResults.CommonFields.LastModifiedBy.Locked; " +
+				"LatestResults.CommonFields.LastModifiedBy.MFA.RecoveryCodes.Codes; " +
+				"LatestResults.CommonFields.LastModifiedBy.MFA.RecoveryCodes.Enabled; " +
+				"LatestResults.CommonFields.LastModifiedBy.MFA.RecoveryCodes.Generated; " +
+				"LatestResults.CommonFields.LastModifiedBy.MFA.RecoveryCodes.Remaining; " +
+				"LatestResults.CommonFields.LastModifiedBy.MFA.TOTP.Enabled; " +
+				"LatestResults.CommonFields.LastModifiedBy.MFA.TOTP.Seed; LatestResults.CommonFields.LastModifiedBy.MFA.TOTP.URL; " +
+				"LatestResults.CommonFields.LastModifiedBy.Name; LatestResults.CommonFields.LastModifiedBy.SearchPriority; " +
+				"LatestResults.CommonFields.LastModifiedBy.SSOUser; LatestResults.CommonFields.LastModifiedBy.UpdatedAt; " +
+				"LatestResults.CommonFields.LastModifiedBy.Username; LatestResults.CommonFields.LastModifiedByID; " +
+				"LatestResults.CommonFields.Name; LatestResults.CommonFields.Owner.Admin; LatestResults.CommonFields.Owner.CreatedAt; " +
+				"LatestResults.CommonFields.Owner.DefaultSearchGroups; LatestResults.CommonFields.Owner.DeletedAt; " +
+				"LatestResults.CommonFields.Owner.Email; LatestResults.CommonFields.Owner.Groups; LatestResults.CommonFields.Owner.ID; " +
+				"LatestResults.CommonFields.Owner.LastLogin; LatestResults.CommonFields.Owner.Locked; " +
+				"LatestResults.CommonFields.Owner.MFA.RecoveryCodes.Codes; LatestResults.CommonFields.Owner.MFA.RecoveryCodes.Enabled; " +
+				"LatestResults.CommonFields.Owner.MFA.RecoveryCodes.Generated; " +
+				"LatestResults.CommonFields.Owner.MFA.RecoveryCodes.Remaining; LatestResults.CommonFields.Owner.MFA.TOTP.Enabled; " +
+				"LatestResults.CommonFields.Owner.MFA.TOTP.Seed; LatestResults.CommonFields.Owner.MFA.TOTP.URL; " +
+				"LatestResults.CommonFields.Owner.Name; LatestResults.CommonFields.Owner.SearchPriority; " +
+				"LatestResults.CommonFields.Owner.SSOUser; LatestResults.CommonFields.Owner.UpdatedAt; " +
+				"LatestResults.CommonFields.Owner.Username; LatestResults.CommonFields.OwnerID; LatestResults.CommonFields.ParentID; " +
+				"LatestResults.CommonFields.Readers.GIDs; LatestResults.CommonFields.Readers.Global; LatestResults.CommonFields.Type; " +
+				"LatestResults.CommonFields.UpdatedAt; LatestResults.CommonFields.Version; LatestResults.CommonFields.Writers.GIDs; " +
+				"LatestResults.CommonFields.Writers.Global; LatestResults.DebugOutput; LatestResults.FlowID; " +
+				"LatestResults.FlowNodeResults; LatestResults.PersistentMaps; Owner.Admin; Owner.CreatedAt; Owner.DefaultSearchGroups; " +
+				"Owner.DeletedAt; Owner.Email; Owner.Groups; Owner.ID; Owner.LastLogin; Owner.Locked; Owner.MFA.RecoveryCodes.Codes; " +
+				"Owner.MFA.RecoveryCodes.Enabled; Owner.MFA.RecoveryCodes.Generated; Owner.MFA.RecoveryCodes.Remaining; " +
+				"Owner.MFA.TOTP.Enabled; Owner.MFA.TOTP.Seed; Owner.MFA.TOTP.URL; Owner.Name; Owner.SearchPriority; Owner.SSOUser; " +
+				"Owner.UpdatedAt; Owner.Username; OwnerID; ParentID; Readers.GIDs; Readers.Global; Schedule; Timezone; Type; UpdatedAt; " +
+				"Version; Writers.GIDs; Writers.Global",
+		},
+		{"csv",
+			scaffoldlist.Options{
+				DefaultColumns: []string{"CommonFields.ID", "CommonFields.OwnerID", "CommonFields.Name"},
+			},
+			[]string{"-x", "--csv"},
+			"ID,OwnerID,FlowName\n" +
+				"0,0,Name_0\n" +
+				"1,0,Name_1\n" +
+				"2,0,Name_2\n" +
+				"3,0,Name_3\n" +
+				"4,0,Name_4",
+		},
+		{"json failing validate args",
+			scaffoldlist.Options{
+				DefaultColumns: []string{"CommonFields.ID", "CommonFields.OwnerID", "AutomationCommonFields.Disabled"},
+				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+					if fs.NArg() != 1 {
+						return "requires exactly 1 bare arg", nil
+					}
+					return "", nil
+				},
+			},
+			[]string{"-x", "--json"},
+			"requires exactly 1 bare arg",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pair := scaffoldlist.NewListAction("test function", "this is a test function",
+				types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+					// generate some garbage data
+					ms := make([]types.Flow, 5)
+					for i := range 5 {
+						iStr := strconv.FormatInt(int64(i), 10)
+						ms[i] = types.Flow{
+							CommonFields: types.CommonFields{
+								Name:      "Name_" + iStr,
+								CreatedAt: time.Unix(5, 0).UTC(),
+								ID:        iStr,
+								Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+							},
+							Flow: "Flow_" + iStr}
+					}
+
+					return ms, nil
+				},
+				map[string]string{"CommonFields.Name": "FlowName"},
+				tt.opts)
+
+			var sbOut, sbErr strings.Builder
+			pair.Action.SetOut(&sbOut)
+			pair.Action.SetErr(&sbErr)
+			uniques.AttachPersistentFlags(pair.Action)
+			pair.Action.ParseFlags(tt.args)
+			pair.Action.Run(pair.Action, nil)
+
+			out, err := strings.TrimSpace(sbOut.String()), strings.TrimSpace(sbErr.String())
+
+			if err != "" {
+				t.Errorf("found data on stderr: '%v'", err)
+			}
+
+			if out != tt.wantOut {
+				t.Error("bad output", testsupport.ExpectedActual(tt.wantOut, out))
+			}
+		})
 	}
 }
 
