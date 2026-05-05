@@ -192,6 +192,7 @@ const (
 	GROUP_TAG_ACCESS_URL             = `/api/groups/%d/tags`
 	USER_TAG_ACCESS_URL              = `/api/users/%d/tags`
 	PLAYBOOKS_URL                    = `/api/playbooks`
+	PLAYBOOKS_LIST_URL               = `/api/playbooks/list`
 	PLAYBOOKS_ID_URL                 = `/api/playbooks/%s`
 	BACKUP_URL                       = `/api/backup`
 	DEPLOYMENT_URL                   = `/api/deployment`
@@ -518,7 +519,7 @@ func macroUrl(id string) string {
 	return fmt.Sprintf(MACROS_ID_URL, id)
 }
 
-func playbookUrl(id uuid.UUID) string {
+func playbookUrl(id string) string {
 	return fmt.Sprintf(PLAYBOOKS_ID_URL, id)
 }
 
