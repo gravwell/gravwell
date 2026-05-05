@@ -287,7 +287,8 @@ func TestNonInteractive(t *testing.T) {
 
 		args []string
 
-		wantOut string // the string output we want; whitespace trimmed
+		wantOut          string // the string output we want; whitespace trimmed
+		wantErrSubstring string // string to search for in the returned error; errors if empty and an error is returned
 	}{
 		{"show columns",
 			scaffoldlist.Options{},
@@ -337,6 +338,7 @@ func TestNonInteractive(t *testing.T) {
 				"Owner.MFA.TOTP.Enabled; Owner.MFA.TOTP.Seed; Owner.MFA.TOTP.URL; Owner.Name; Owner.SearchPriority; Owner.SSOUser; " +
 				"Owner.UpdatedAt; Owner.Username; OwnerID; ParentID; Readers.GIDs; Readers.Global; Schedule; Timezone; Type; UpdatedAt; " +
 				"Version; Writers.GIDs; Writers.Global",
+			"",
 		},
 		{"csv",
 			scaffoldlist.Options{
@@ -349,6 +351,7 @@ func TestNonInteractive(t *testing.T) {
 				"2,0,Name_2\n" +
 				"3,0,Name_3\n" +
 				"4,0,Name_4",
+			"",
 		},
 		{"json failing validate args",
 			scaffoldlist.Options{
@@ -361,6 +364,7 @@ func TestNonInteractive(t *testing.T) {
 				},
 			},
 			[]string{"-x", "--json"},
+			"",
 			"requires exactly 1 bare arg",
 		},
 	}
@@ -391,16 +395,14 @@ func TestNonInteractive(t *testing.T) {
 			pair.Action.SetOut(&sbOut)
 			pair.Action.SetErr(&sbErr)
 			uniques.AttachPersistentFlags(pair.Action)
-			pair.Action.ParseFlags(tt.args)
-			pair.Action.Run(pair.Action, nil)
+			pair.Action.SetArgs(tt.args)
+			_ = pair.Action.Execute()
 
 			out, err := strings.TrimSpace(sbOut.String()), strings.TrimSpace(sbErr.String())
 
-			if err != "" {
-				t.Errorf("found data on stderr: '%v'", err)
-			}
-
-			if out != tt.wantOut {
+			if !strings.Contains(err, tt.wantErrSubstring) {
+				t.Errorf("bad stderr. Expected '%s' to contain '%s'", err, tt.wantErrSubstring)
+			} else if out != tt.wantOut {
 				t.Error("bad output", testsupport.ExpectedActual(tt.wantOut, out))
 			}
 		})

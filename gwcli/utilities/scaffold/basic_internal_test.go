@@ -153,8 +153,8 @@ func TestNonInteractive(t *testing.T) {
 			pair.Action.SetErr(&sbErr)
 
 			pair.Action.SetArgs([]string{"--testbool", "--five", "5"})
-			if err := pair.Action.Execute(); err != nil {
-				t.Fatal(err)
+			if err := pair.Action.Execute(); err == nil {
+				t.Error("expected bad flag error")
 			}
 			// check outputs
 			if strErr := strings.TrimSpace(sbErr.String()); strErr == "" {
@@ -164,7 +164,7 @@ func TestNonInteractive(t *testing.T) {
 				t.Fatal("expected stdout to failure due to validate error")
 			}
 		})
-		t.Run("--five unset", func(t *testing.T) {
+		t.Run("--five not set", func(t *testing.T) {
 			pair, _, _ := newPairWithRequiredFlags()
 			var (
 				sbOut strings.Builder
@@ -174,8 +174,8 @@ func TestNonInteractive(t *testing.T) {
 			pair.Action.SetErr(&sbErr)
 
 			pair.Action.SetArgs([]string{"--testbool", "--negative-five=-5"})
-			if err := pair.Action.Execute(); err != nil {
-				t.Fatal(err)
+			if err := pair.Action.Execute(); err == nil {
+				t.Error("expected bad flag error")
 			}
 			// check outputs
 			if strErr := strings.TrimSpace(sbErr.String()); strErr == "" {
