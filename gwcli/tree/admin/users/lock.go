@@ -1,6 +1,7 @@
 package admin_users
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -27,7 +28,7 @@ func lockAction() action.Pair {
 		"Locks a user account.\n"+
 			"The user will be unable to log in until unlocked, and all existing sessions will be terminated.",
 		nil,
-		func(c *cobra.Command, args []string) {
+		func(c *cobra.Command, args []string) error {
 			if c.Flags().NArg() == 0 { // none specified; boot mother or fail out
 				ni, err := c.Flags().GetBool(ft.NoInteractive.Name())
 				if err != nil {
@@ -35,14 +36,9 @@ func lockAction() action.Pair {
 					ni = true // better we assume no-interactive
 				}
 				if !ni {
-					if err := mother.Spawn(c.Root(), c, args); err != nil {
-						clilog.Tee(clilog.CRITICAL, c.ErrOrStderr(),
-							"failed to spawn a mother instance: "+err.Error()+"\n")
-					}
-					return
+					return mother.Spawn(c.Root(), c, args)
 				}
-				fmt.Fprintln(c.ErrOrStderr(), phrases.AtLeast1ArgRequired("user IDs"))
-				return
+				return errors.New(phrases.AtLeast1ArgRequired("user IDs"))
 			}
 
 			self, err := c.Flags().GetBool("include-self")
@@ -55,24 +51,23 @@ func lockAction() action.Pair {
 			for i, s := range c.Flags().Args() {
 				uid, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
-					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(i)+"\" is not a valid integer; no accounts were locked")
-					return
+					return errors.New("\"" + c.Flags().Arg(i) + "\" is not a valid integer; no accounts were locked")
 				}
 				// if the user attempts to lock their own account and did not specify --include-self, skip
 				if !self && uid == int64(connection.CurrentUser().ID) {
 					fmt.Fprintf(c.ErrOrStderr(), "refusing to lock the account of the caller.\n"+
-						"If you actually intended to lock your current account, rerun with --include-self\n")
+						"If you actually intended to lock your current account, rerun with --include-self")
 					continue
 				}
 				uids = append(uids, int32(uid))
 			}
 			for _, uid := range uids {
 				if err := connection.Client.LockUserAccount(int32(uid)); err != nil {
-					clilog.Tee(clilog.INFO, c.ErrOrStderr(), fmt.Sprintf("failed to lock user account %d: %v", uid, err))
-					return
+					return fmt.Errorf("failed to lock user account %d: %w", uid, err)
 				}
 				fmt.Fprintf(c.OutOrStdout(), "User %v locked\n", uid)
 			}
+			return nil
 		}, treeutils.GenerateActionOptions{
 			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
 			Example: "7",
