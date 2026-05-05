@@ -111,7 +111,7 @@ func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, 
 				return err
 			}
 			if noInteractive {
-				runNonInteractive(cmd, cfg, funcs, singular)
+				return runNonInteractive(cmd, cfg, funcs, singular)
 			}
 			return runInteractive(cmd, args)
 
