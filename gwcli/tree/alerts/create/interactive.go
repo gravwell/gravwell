@@ -1,6 +1,7 @@
 package alertscreate
 
 import (
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -194,6 +195,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			dispatchers[i] = &multiselectlist.DefaultSelectableItem[string]{
 				Title_:       dsp.Name,
 				Description_: dsp.Description,
+				Selected_:    slices.Contains(flagVals.dispatcherIDs, dsp.ID),
 				ID_:          dsp.ID,
 			}
 			i += 1
@@ -211,6 +213,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			consumers[i] = &multiselectlist.DefaultSelectableItem[string]{
 				Title_:       cns.Name,
 				Description_: cns.Description,
+				Selected_:    slices.Contains(flagVals.consumerIDs, cns.ID),
 				ID_:          cns.ID,
 			}
 			i += 1
