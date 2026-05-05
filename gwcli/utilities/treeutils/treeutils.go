@@ -98,14 +98,14 @@ type GenerateActionOptions struct {
 //
 // ! Does NOT add this action to the action map or add the Action to a parent.
 func GenerateAction(use, short, long string, aliases []string,
-	runFunc func(*cobra.Command, []string), options ...GenerateActionOptions) *cobra.Command {
+	runEFunc func(*cobra.Command, []string) error, options ...GenerateActionOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     use,
 		Short:   short,
 		Long:    long,
 		Aliases: aliases,
 		GroupID: group.ActionID,
-		Run:     runFunc,
+		RunE:    runEFunc,
 	}
 
 	// possibly overwritten by options
