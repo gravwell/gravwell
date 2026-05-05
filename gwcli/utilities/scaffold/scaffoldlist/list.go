@@ -255,7 +255,6 @@ func generateRunE[dataStruct_t any](
 			if invalid, err := opts.ValidateArgs(c.Flags()); err != nil {
 				return err
 			} else if invalid != "" {
-				fmt.Fprintln(c.OutOrStdout(), invalid)
 				return errors.New(invalid)
 			}
 		}
