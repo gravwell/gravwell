@@ -61,12 +61,13 @@ func TestCreateEditDownload(t *testing.T) {
 	)
 
 	{ // create the new file
+		var sbErr strings.Builder
 		if ec := tree.Execute(append(meta, []string{"files", "create",
 			"-n", fileName,
 			"-d", fileDesc,
 			"-f", filePath,
-		}...)); ec != 0 {
-			t.Fatal("bad error code: ", ec)
+		}...), nil, &sbErr); ec != 0 {
+			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 	}
 	// check for the new file
@@ -83,10 +84,11 @@ func TestCreateEditDownload(t *testing.T) {
 	// check that we can alter one of the properties
 	{
 		lbls := []string{"lbl1", "lbl2", "thirdthing"}
+		var sbErr strings.Builder
 		if ec := tree.Execute(append(meta, []string{"files", "edit", "-i", fileID,
 			"--labels=" + strings.Join(lbls, ","), // just add some labels
-		}...)); ec != 0 {
-			t.Fatal("bad error code: ", ec)
+		}...), nil, &sbErr); ec != 0 {
+			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 		id, setDesc, setLbls := listForItem(t, fileName, fileSize)
 		if id != fileID {
@@ -121,8 +123,9 @@ func TestCreateEditDownload(t *testing.T) {
 			fileID}...)
 		t.Logf("downloading file (ID: %v) via '%v'", fileID, args)
 		// execute spins up singletons for us
-		if ec := tree.Execute(args); ec != 0 {
-			t.Error("bad error code: ", ec)
+		var sbErr strings.Builder
+		if ec := tree.Execute(args, nil, &sbErr); ec != 0 {
+			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 		// check the file
 		dl, err := os.ReadFile(resultPath)
@@ -143,12 +146,13 @@ func TestCreateEditDownload(t *testing.T) {
 func listForItem(t *testing.T, name string, size int64) (id string, description string, labels []string) {
 	// create a file to write results to
 	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
+	var sbErr strings.Builder
 	if ec := tree.Execute(append(meta, []string{"files", "list",
 		"--csv",
 		"-o", resultPath,
 		"--columns", "ID,Name,Description,Size,Labels",
-	}...)); ec != 0 {
-		t.Error("bad error code: ", ec)
+	}...), nil, &sbErr); ec != 0 {
+		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 	// slurp the file we wrote to
 	var rows [][]string
