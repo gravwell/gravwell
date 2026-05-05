@@ -78,7 +78,7 @@ func TestTextProvider(t *testing.T) {
 		}
 
 		// manually execute Mother cycle
-		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, nil, 0, 0, "", nil, nil)
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, &pflag.FlagSet{}, nil, 0, 0, "", nil, nil)
 		pair.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}) // enter some characters into the field
 		pair.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
 		pair.Model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
@@ -104,7 +104,7 @@ func TestTextProvider(t *testing.T) {
 		if x := provider.Get(); x != "" {
 			t.Fatal("provider value not destroyed by Reset. Lingering value: ", x)
 		}
-		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, []string{"-t=YungVenuz"}, 0, 0, "", nil, nil)
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, &pflag.FlagSet{}, []string{"-t=YungVenuz"}, 0, 0, "", nil, nil)
 		if x := provider.Get(); x != "Yun" { // should be limited by our CharLimit
 			t.Fatal("bad value after second SetArgs", testsupport.ExpectedActual("Yun", x))
 		}
@@ -163,7 +163,7 @@ func TestPathProvider(t *testing.T) {
 			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 				return 0, "", nil
 			}, scaffoldcreate.Options{})
-		testsupport.CheckSetArgs(t, pair.Model, &pflag.FlagSet{}, nil, 80, 60, "", nil, nil)
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, &pflag.FlagSet{}, nil, 80, 60, "", nil, nil)
 
 		// before we enter anything, check for suggestions
 		pair.Model.Update(nil)
@@ -186,7 +186,7 @@ func TestPathProvider(t *testing.T) {
 		}
 
 		t.Run("completion of partial values", func(t *testing.T) {
-			testsupport.TypeModel(pair.Model, "f1")
+			testsupport.TypeUpdate(pair.Model.Update, "f1")
 			pair.Model.Update(testsupport.SendHotkey(hotkeys.Complete))
 			if val := provider.Get(); val != "f1.txt" {
 				t.Fatal("autocomplete failed", testsupport.ExpectedActual("f1.txt", val))
@@ -194,7 +194,7 @@ func TestPathProvider(t *testing.T) {
 			// clear
 			provider.Set("")
 			// test manual autocompletion to a file in a subdirectory
-			testsupport.TypeModel(pair.Model, "xdir/x1")
+			testsupport.TypeUpdate(pair.Model.Update, "xdir/x1")
 			pair.Model.Update(testsupport.SendHotkey(hotkeys.Complete))
 			if val := provider.Get(); val != "xdir/x1.txt" {
 				t.Fatal("autocomplete failed", testsupport.ExpectedActual("xdir/x1.txt", val))
