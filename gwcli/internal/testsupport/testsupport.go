@@ -202,16 +202,15 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 func CheckSetArgs(t *testing.T,
 	setArgsFunc func(parentFS *pflag.FlagSet, tokens []string, width int, height int) (invalid string, onStart tea.Cmd, err error),
 	flagset *pflag.FlagSet, tokens []string, width, height int,
-	wantInvalid string, wantOnStart tea.Cmd, wantErr error) {
+	wantInvalid bool, wantOnStart tea.Cmd, wantErr bool) {
 	t.Helper()
 	invalid, onStart, err := setArgsFunc(flagset, tokens, width, height)
 
-	if invalid != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || err != wantErr {
+	if (invalid != "") != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || (err != nil) != wantErr {
 		t.Fatal("bad SetArgs results."+
-			"\nInvalid:", ExpectedActual(wantInvalid, invalid),
+			"\nWantInvalid? ", wantInvalid, " | Invalid: ", invalid,
 			"\nonStart:", ExpectedActual(wantOnStart, onStart),
-			"\nerr:", ExpectedActual(wantErr, err),
-		)
+			"\nWantErr?", wantErr, " | err:", err)
 	}
 }
 

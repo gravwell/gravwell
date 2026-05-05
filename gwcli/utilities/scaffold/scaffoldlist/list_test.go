@@ -81,9 +81,8 @@ func TestShowColumns_AllFlag(t *testing.T) {
 			maps.Clone(aliased), scaffoldlist.Options{})
 
 		uniques.AttachPersistentFlags(pair.Action)
-		if inv, _, err := pair.Model.SetArgs(pair.Action.Flags(), []string{"--" + ft.ShowColumns.Name()}, 80, 60); err != nil || inv != "" {
-			t.Fatalf("bad SetArgs.\nInv: %v\nErr: %v", inv, err)
-		}
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, pair.Action.Flags(), []string{"--" + ft.ShowColumns.Name()}, 80, 80,
+			false, nil, false)
 		// all is returned from a tea.Cmd from Update
 		cmd := pair.Model.Update(nil)
 		if cmd == nil {
@@ -418,7 +417,6 @@ func TestAutoAliasPrefix(t *testing.T) {
 
 		SetArgsTokens  []string
 		wantSetArgsInv bool
-		wantSetArgsErr bool
 
 		wantOut string // the string output we want
 	}{
@@ -431,7 +429,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 					regexp.MustCompile("^LatestResults.*"),
 				}},
 			[]string{"--csv"},
-			false, false,
+			false,
 			"BackfillEnabled,Disabled,Schedule,CreatedAt,DeletedAt,Description,ItemID,Labels,Name,Owner.Admin,Owner.CreatedAt,Owner.DefaultSearchGroups,Owner.DeletedAt,Owner.Email,Owner.Groups,Owner.ID,Owner.LastLogin,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Generated,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.UpdatedAt,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,UpdatedAt,Version,Writers.GIDs,Writers.Global,Flow\n" +
 				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,0,[],Name_0,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_0\n" +
 				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,1,[],Name_1,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_1\n" +
@@ -446,7 +444,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 					regexp.MustCompile("^LatestResults.*"),
 				}},
 			[]string{"--csv"},
-			false, false,
+			false,
 			"Flow\n" +
 				"Flow_0\n" +
 				"Flow_1\n" +
@@ -461,7 +459,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 					regexp.MustCompile("^LatestResults.*"),
 				}},
 			[]string{"--json"},
-			false, false,
+			false,
 			`[` +
 				`{"Flow":"Flow_0"},` +
 				`{"Flow":"Flow_1"},` +
@@ -476,7 +474,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 					regexp.MustCompile("^LatestResults.*"),
 				}},
 			[]string{"--json", "--columns=ItemID,Name,Flow"},
-			false, false,
+			false,
 			`[` +
 				`{"Flow":"Flow_0","ItemID":"0","Name":"Name_0"},` +
 				`{"Flow":"Flow_1","ItemID":"1","Name":"Name_1"},` +
@@ -509,15 +507,8 @@ func TestAutoAliasPrefix(t *testing.T) {
 				tt.opts)
 
 			uniques.AttachPersistentFlags(pair.Action)
-			inv, _, err := pair.Model.SetArgs(pair.Action.Flags(), tt.SetArgsTokens, 80, 60)
-			if (err != nil) != tt.wantSetArgsErr {
-				t.Errorf("bad error state. error: \"%v\"%v", err, testsupport.ExpectedActual(tt.wantSetArgsErr, (err != nil)))
-			}
-			if (inv != "") != tt.wantSetArgsInv {
-				t.Errorf("bad invalid state. invalid: \"%v\"%v", inv, testsupport.ExpectedActual(tt.wantSetArgsInv, (inv != "")))
-			}
-
-			if tt.wantSetArgsErr || tt.wantSetArgsInv {
+			testsupport.CheckSetArgs(t, pair.Model.SetArgs, pair.Action.Flags(), tt.SetArgsTokens, 80, 60, tt.wantSetArgsInv, nil, false)
+			if tt.wantSetArgsInv {
 				return
 			}
 
