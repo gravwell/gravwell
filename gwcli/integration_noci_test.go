@@ -188,7 +188,7 @@ func TestSelfSessionsMatchAdminSessions(t *testing.T) {
 		adminOut, adminErr string
 	)
 	var wg sync.WaitGroup
-	columnsArg := "--columns=UID,ID" // declare consistent columns
+	columnsArg := "--columns=UID,SessionID" // declare consistent columns
 	wg.Go(func() {
 		selfOut, selfErr = execute(t, admin_u_p, "self", "sessions", "--csv", columnsArg)
 	})
