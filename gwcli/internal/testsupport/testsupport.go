@@ -25,7 +25,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
-	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/spf13/pflag"
 )
 
@@ -62,10 +61,10 @@ func Type(prog *tea.Program, text string) {
 	}
 }
 
-// TypeModel sends each character of text into model.Update, one by one.
-func TypeModel(model action.Model, text string) {
+// TypeUpdate sends each character of text into the given update function, one by one.
+func TypeUpdate(update func(msg tea.Msg) tea.Cmd, text string) {
 	for _, r := range text {
-		model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
 }
 
@@ -200,14 +199,14 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 // CheckSetArgs calls SetArgs on the given Model and tests that its return values are as expected.
 //
 // Calls fatal on failure.
-func CheckSetArgs(t *testing.T, model action.Model,
+func CheckSetArgs(t *testing.T,
+	setArgsFunc func(parentFS *pflag.FlagSet, tokens []string, width int, height int) (invalid string, onStart tea.Cmd, err error),
 	flagset *pflag.FlagSet, tokens []string, width, height int,
 	wantInvalid string, wantOnStart tea.Cmd, wantErr error) {
 	t.Helper()
-	invalid, onStart, err := model.SetArgs(flagset, tokens, width, height)
+	invalid, onStart, err := setArgsFunc(flagset, tokens, width, height)
 
 	if invalid != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || err != wantErr {
-
 		t.Fatal("bad SetArgs results."+
 			"\nInvalid:", ExpectedActual(wantInvalid, invalid),
 			"\nonStart:", ExpectedActual(wantOnStart, onStart),
