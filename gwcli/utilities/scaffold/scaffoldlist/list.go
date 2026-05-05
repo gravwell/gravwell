@@ -47,6 +47,7 @@ package scaffoldlist
 // For the sake of clarity, we try to work in DQ-names-only internally.
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -181,7 +182,7 @@ func NewListAction[dataStruct_t any](short, long string,
 	var defaultColumnsDQ = findDefaultColumns(options, DQToAlias)
 
 	// generate a non-interactive action
-	run := generateRun(dataFunc, options, DQToAlias, AliasToDQ)
+	run := generateRunE(dataFunc, options, DQToAlias, AliasToDQ)
 
 	// generate usage and example
 	actionOptions := treeutils.GenerateActionOptions{}
@@ -244,29 +245,28 @@ func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
 	return sortColumns(slices.Collect(maps.Keys(DQToAlias)))
 }
 
-// generateRun builds and returns a function to be run when this action is invoked via Cobra.
-func generateRun[dataStruct_t any](
+// generateRunE builds and returns a function to be run when this action is invoked via Cobra.
+func generateRunE[dataStruct_t any](
 	dataFn ListDataFunc[dataStruct_t], opts Options,
-	DQToAlias, AliasToDQ map[string]string) func(c *cobra.Command, _ []string) {
-	return func(c *cobra.Command, _ []string) {
+	DQToAlias, AliasToDQ map[string]string) func(c *cobra.Command, _ []string) error {
+	return func(c *cobra.Command, _ []string) error {
 		// run custom validation
 		if opts.ValidateArgs != nil {
 			if invalid, err := opts.ValidateArgs(c.Flags()); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
+				return err
 			} else if invalid != "" {
 				fmt.Fprintln(c.OutOrStdout(), invalid)
-				return
+				return errors.New(invalid)
 			}
 		}
 
 		// check for --show-columns
 		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name()); err != nil {
-			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
-			return
+			uniques.ErrGetFlag("list", err)
+			return err
 		} else if sc {
 			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
-			return
+			return nil
 		}
 
 		var (
@@ -279,13 +279,11 @@ func generateRun[dataStruct_t any](
 		var err error
 		noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
 		if err != nil {
-			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
-			return
+			uniques.ErrGetFlag(c.Use, err)
 		}
 		outFile, err = initOutFile(c.Flags())
 		if err != nil {
-			clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-			return
+			return err
 		} else if outFile != nil {
 			defer outFile.Close()
 			// ensure color is disabled.
@@ -293,23 +291,21 @@ func generateRun[dataStruct_t any](
 		}
 		columns, err = getColumns(c.Flags(), DQToAlias, AliasToDQ)
 		if err != nil {
-			fmt.Fprintln(c.ErrOrStderr(), err)
-			return
+			return err
 		}
 		format = determineFormat(c.Flags(), opts.Pretty != nil)
 
 		// execute the actual list and format call
 		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias)
 		if err != nil {
-			clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-			return
+			return err
 		}
 
 		if s == "" {
 			if outFile == nil && !noInteractive {
 				fmt.Fprintln(c.OutOrStdout(), "no data found")
 			}
-			return
+			return nil
 		}
 
 		if outFile != nil {
@@ -317,5 +313,6 @@ func generateRun[dataStruct_t any](
 		} else {
 			fmt.Fprintln(c.OutOrStdout(), s)
 		}
+		return nil
 	}
 }

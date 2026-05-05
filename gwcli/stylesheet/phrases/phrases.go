@@ -63,9 +63,14 @@ func NounNumerosity(count int, singularForm, pluralForm string) string {
 	return pluralForm
 }
 
-// MissingRequiredField returns text stating the given field must be populated.
-func MissingRequiredField(fieldName string) string {
-	return "field " + fieldName + " is required"
+// MissingRequiredFields returns text stating the given field(s) must be populated.
+func MissingRequiredFields(fieldNames []string) string {
+	var isare, plural = "is", ""
+	if len(fieldNames) != 1 {
+		isare = "are"
+		plural = "s"
+	}
+	return fmt.Sprintf("field%s %v %s required", plural, fieldNames, isare)
 }
 
 // ErrBinaryBlobCoward returns a user-facing error that the given format must be output to a file.
