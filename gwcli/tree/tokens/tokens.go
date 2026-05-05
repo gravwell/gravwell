@@ -305,16 +305,8 @@ func create() action.Pair {
 			_, err = outFile.WriteString(tf.Value)
 			return tf.ID, "", err
 		}, scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := pflag.NewFlagSet("TokenOut", pflag.ContinueOnError)
-					// ! does not use the standard path or out ft flags because this one has special requirements
-					//fs.StringP("out", "o", ))
-					return fs
-					// long: "Create a new token." +
-					// "The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless -o is specified."
-				},
-			},
+			Long: "Create a new token." +
+				"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless -o is specified.",
 		})
 }
 
