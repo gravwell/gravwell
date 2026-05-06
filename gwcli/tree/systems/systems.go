@@ -77,17 +77,18 @@ func newStorageAction() action.Pair {
 			}
 
 			return wrap, nil
-		}, scaffoldlist.Options{
+		},
+		// should match the aliases used in the systems indexers list action
+		map[string]string{
+			"Stats.DataIngestedHot":  "Hot.Ingested",
+			"Stats.DataIngestedCold": "Cold.Ingested",
+			"Stats.DataStoredHot":    "Hot.Stored",
+			"Stats.DataStoredCold":   "Cold.Stored",
+			"Stats.EntryCountHot":    "Hot.Count",
+			"Stats.EntryCountCold":   "Cold.Count",
+		},
+		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: use},
-			// should match the aliases used in the systems indexers list action
-			ColumnAliases: map[string]string{
-				"Stats.DataIngestedHot":  "Hot.Ingested",
-				"Stats.DataIngestedCold": "Cold.Ingested",
-				"Stats.DataStoredHot":    "Hot.Stored",
-				"Stats.DataStoredCold":   "Cold.Stored",
-				"Stats.EntryCountHot":    "Hot.Count",
-				"Stats.EntryCountCold":   "Cold.Count",
-			},
 		})
 }
 
@@ -122,9 +123,10 @@ func state() action.Pair {
 
 			return data, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "state"},
-			Pretty: func(fs *pflag.FlagSet) (string, error) {
+			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				idxrs, err := connection.Client.GetSystemDescriptions()
 				if err != nil {
 					return "", err

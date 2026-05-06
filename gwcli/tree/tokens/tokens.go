@@ -12,9 +12,12 @@ package tokens
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -22,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -64,11 +68,12 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			DefaultColumns: []string{
-				"ID",
-				"Name",
-				"Description",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 				"ExpiresAt",
 			},
 		})
@@ -84,9 +89,13 @@ func get() action.Pair {
 
 			return tokens, nil
 		},
+		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "get"},
-			Pretty: func(fs *pflag.FlagSet) (string, error) {
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "get",
+				Example: "get ID1 ID2",
+			},
+			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				// find the longest ID to use as the width
 				var longestIDLen int
 				for _, tkn := range tokens {
@@ -100,9 +109,6 @@ func get() action.Pair {
 					sb.WriteString(prettyToken(tkn, longestIDLen))
 				}
 				return sb.String(), nil
-			},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = "get ID1 ID2"
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				tokens = []types.Token{} // clear cache
@@ -203,6 +209,8 @@ func prettyToken(t types.Token, longestIDLen int) string {
 	return s
 }
 
+const defaultTokenPath = "token"
+
 func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		"name": scaffoldcreate.FieldName("token"),
@@ -238,6 +246,26 @@ func create() action.Pair {
 			Provider: &scaffoldcreate.TextProvider{},
 			Order:    60,
 		},
+		"out": {
+			Required: true,
+			Title:    "Path",
+			Flag: scaffoldcreate.FlagConfig{
+				Usage: "file to write the token value to. " +
+					"To prevent the accidental loss of a token, token creation will be aborted if a file is found at this path. " +
+					lipgloss.NewStyle().Italic(true).Render("--path will not clobber existing files."),
+			},
+			DefaultValue: defaultTokenPath,
+			Order:        40,
+			Provider: &scaffoldcreate.PathProvider{
+				Options: pathtextinput.Options{
+					CustomTI: func() textinput.Model {
+						ti := stylesheet.NewTI(defaultTokenPath, false)
+						ti.Placeholder = defaultTokenPath
+						return ti
+					},
+				},
+			},
+		},
 	}
 
 	return scaffoldcreate.NewCreateAction("token", fields,
@@ -265,13 +293,30 @@ func create() action.Pair {
 				tc.ExpiresAt = t
 			}
 
+			// open up the output file
+			outPath := cfg["out"].Provider.Get()
+			if outPath == "" {
+				outPath = defaultTokenPath
+			}
+			// check if a file already exists; we definitely don't want to clobber it.
+			if _, err := os.Stat(outPath); !errors.Is(err, os.ErrNotExist) {
+				return "", "", err
+			}
+
+			outFile, err := os.Create(outPath)
+			if err != nil {
+				return "", "", err
+			}
 			tf, err := connection.Client.CreateToken(tc)
 			if err != nil {
 				return "", "", err
 			}
-
-			return tf.ID, "", nil
-		}, scaffoldcreate.Options{})
+			_, err = outFile.WriteString(tf.Value)
+			return tf.ID, "", err
+		}, scaffoldcreate.Options{
+			Long: "Create a new token. " +
+				"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless --path is specified.",
+		})
 }
 
 func delete() action.Pair {

@@ -55,18 +55,16 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.ScheduledSearch{}, listScheduledSearch,
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
-				"ID",
-				"GUID",
-				"Name",
-				"Description",
-				"Schedule",
-				"Disabled",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"AutomationCommonFields.Schedule",
+				"AutomationCommonFields.Disabled",
 				"SearchString",
-				"Duration",
-				"Groups",
 			},
 		})
 }

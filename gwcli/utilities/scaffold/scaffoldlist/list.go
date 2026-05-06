@@ -17,37 +17,38 @@ If a pretty printer function is defined, --pretty is also available.
 
 Implementations will probably look a lot like:
 
-	type someData struct {
-		Name             string // IP address or "webserver", typically
-		A				 int
-		B                []string
-	}
-
 	func listAction() action.Pair {
-		const (
-			short string = "list all data about X"
-			long  string = "List data about X but this has more words."
-		)
-
-		return scaffoldlist.NewListAction(short, long, someData{},
-			func(fs *pflag.FlagSet) ([]someData, error) {
-				sd := []someData{}
-
-				if stuff, err := fetchData(); err != nil {
+		return scaffoldlist.NewListAction(
+			"<one-line description of the action>",
+			"<long description of the action>",
+			MyListType{},
+			func(fs *pflag.FlagSet) ([]MyListType, error) {
+				li, err := connection.Client.ListMyType()
+				if err != nil {
 					return nil, err
-				} else {
-					sd = stuff.transmute()
 				}
-
-				return d, nil
+				return li.Results, nil
 			},
-			scaffoldlist.Options{})
+			map[string]string{"dq1": "alias1"},
+			scaffoldlist.Options{
+				CommonOptions: scaffold.CommonOptions{},
+				DefaultColumns: []string{
+					"Field1",
+					"Field2",
+					"Dot.Qualified.Field3",
+				},
+			},
+		)
 	}
 */
 package scaffoldlist
 
+// NOTE(rlandau): if you are modifying scaffoldlist, keep in mind that aliases should be handled at all ingress/egress points.
+// For the sake of clarity, we try to work in DQ-names-only internally.
+
 import (
 	"fmt"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
@@ -72,21 +74,21 @@ import (
 type outputFormat uint
 
 const (
-	json outputFormat = iota
-	csv
-	tbl
-	pretty
+	formatJSON outputFormat = iota
+	formatCSV
+	formatTable
+	formatPretty
 )
 
 func (f outputFormat) String() string {
 	switch f {
-	case json:
+	case formatJSON:
 		return "JSON"
-	case csv:
+	case formatCSV:
 		return "CSV"
-	case tbl:
+	case formatTable:
 		return "table"
-	case pretty:
+	case formatPretty:
 		return "pretty"
 	}
 	return fmt.Sprintf("unknown format (%d)", f)
@@ -97,43 +99,42 @@ func (f outputFormat) String() string {
 const (
 	outFilePerm         os.FileMode = 0644
 	exportedColumnsOnly bool        = true // only allow users to query for exported fields as columns?
-	ShowColumnSep       rune        = ';'  // separator between column names when printing list of available columns
+	ShowColumnSep       string      = "; " // separator between column names when printing list of available columns
 )
 
-// ListDataFunction is a function that retrieves an array of structs of type dataStruct
-type ListDataFunction[dataStruct_t any] func(*pflag.FlagSet) ([]dataStruct_t, error)
+// ListDataFunc is a function that retrieves an array of structs of type dataStruct
+type ListDataFunc[dataStruct_t any] func(*pflag.FlagSet) ([]dataStruct_t, error)
 
-// AddtlFlagFunction (if not nil) bolts additional flags onto this action for later during the data func.
-type AddtlFlagFunction func() pflag.FlagSet
+// AddtlFlagFunc (if not nil) bolts additional flags onto this action for later during the data func.
+type AddtlFlagFunc func() pflag.FlagSet
 
 // A PrettyPrinterFunc defines a free-form function for outputting a pretty string for human consumption.
-type PrettyPrinterFunc func(*pflag.FlagSet) (string, error)
+type PrettyPrinterFunc func(DQColumns []string, DQToAlias map[string]string) (string, error)
 
 // NewListAction creates and returns a cobra.Command suitable for use as a list action,
-// complete with common flags and a generic run function operating off the given dataFunction.
+// complete with common flags and a generic run function operating off the given ListDataFunc.
 //
-// If no output module is given, defaults to --table (unless a PrettyFunc is given, in which case it defaults to --pretty).
+// Args:
 //
-// ! `dataFn` should be a static wrapper function for a method that returns an array of structures
-// containing the data to be listed.
+//   - short and long are short and long descriptions of the action.
 //
-// ! `dataStruct` must be the type of struct returned in array by dataFunc.
-// Its values do not matter.
+//   - dataStruct must be the type of struct returned in array by dataFunc. Its values do not matter.
 //
-// ! If use is not specified, it will default to "list".
+//   - dataFunc must be a function that returns an array of dataStruct_t containing the data to be listed.
+//     Any data massaging required to get the data into an array of structures should be performed in the data function.
 //
-// Any data massaging required to get the data into an array of structures should be performed in
-// the data function. Non-list-standard flags (ex: those passed to addtlFlags, if not nil) should
-// also be handled in the data function.
-// See tree/kits/list's ListKits() as an example.
+//   - columnAliases, if not nil, is a map from dot-qualified field name -> alias the user will see instead.
+//     It will be destructively edited, so pass in a clone if you care about the data.
 //
-// Go's Generics are a godsend.
+//   - options defines other modifiers and are detailed internally.
 func NewListAction[dataStruct_t any](short, long string,
-	dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], options Options) action.Pair {
+	dataStruct dataStruct_t, dataFunc ListDataFunc[dataStruct_t],
+	columnAliases map[string]string,
+	options Options) action.Pair {
 	// check for developer errors
 	if reflect.TypeOf(dataStruct).Kind() != reflect.Struct {
 		panic("dataStruct must be a struct")
-	} else if dataFn == nil {
+	} else if dataFunc == nil {
 		panic("data function cannot be nil")
 	} else if short == "" {
 		panic("short description cannot be empty")
@@ -142,64 +143,45 @@ func NewListAction[dataStruct_t any](short, long string,
 	}
 
 	// cache the struct fields so we can save some reflection cycles later
-	availDSColumns, err := weave.StructFields(dataStruct, exportedColumnsOnly)
+	DQ, err := weave.StructFields(dataStruct, exportedColumnsOnly)
 	if err != nil {
-		panic(fmt.Sprintf("failed to cache available columns: %v", err))
+		clilog.Writer.Error("failed to cache available columns",
+			log.KVErr(err),
+			rfc5424.SDParam{Name: "dataStruct", Value: fmt.Sprintf("%+v", dataStruct)},
+		)
 	}
 
-	if clilog.Active(clilog.DEBUG) { // validate that all column aliases point to valid columns.
-		for dqcol := range options.ColumnAliases {
-			if !slices.Contains(availDSColumns, dqcol) {
-				clilog.Writer.Warn("failed to alias column: unknown path",
-					scaffold.IdentifyCaller(),
-					rfc5424.SDParam{Name: "bad_column_path", Value: dqcol},
-				)
+	// map DQs to their aliases,
+	// install aliases for CommonFields,
+	// install aliases for AutomationCommonFields
+	DQToAlias := make(map[string]string, len(DQ))
+	AliasToDQ := make(map[string]string)
+	for _, dq := range DQ {
+		alias, hasAlias := columnAliases[dq]
+		if !hasAlias {
+			var found bool
+			// cloak CommonFields prefix
+			if alias, found = strings.CutPrefix(dq, "CommonFields."); !found {
+				alias, _ = strings.CutPrefix(dq, "AutomationCommonFields.")
 			}
+		}
+
+		DQToAlias[dq] = alias
+		delete(columnAliases, dq)
+		if alias != "" { // create the reverse mapping
+			AliasToDQ[alias] = dq
 		}
 	}
 
-	// set default columns from DefaultColumns or ExcludeColumnsFromDefault
-	if options.DefaultColumns != nil && options.ExcludeColumnsFromDefault != nil { // both were given
-		panic("DefaultColumns and ExcludeColumnsFromDefault are mutually exclusive")
-	} else if options.ExcludeColumnsFromDefault != nil { // default excludes were given
-		// to exclude columns, traverse the data structure and skip excluded columns
-
-		// transmute the list to a hashset for faster look ups
-		var excludeMap = make(map[string]bool, len(options.ExcludeColumnsFromDefault))
-		for _, exCol := range options.ExcludeColumnsFromDefault {
-			// check that the column exists in dq
-			if !slices.Contains(availDSColumns, exCol) {
-				clilog.Writer.Warn("failed to exclude column from default set: unknown path",
-					scaffold.IdentifyCaller(),
-					rfc5424.SDParam{Name: "bad_column_path", Value: exCol},
-				)
-				continue
-			}
-			excludeMap[exCol] = true
-		}
-		// put available data struct columns into default, minus excludes
-		options.DefaultColumns = make([]string, len(availDSColumns)-len(excludeMap))
-		var excluded int // track the # skipped to decrement insertion index by that much
-		for i := range availDSColumns {
-			if _, found := excludeMap[availDSColumns[i]]; found {
-				excluded += 1
-			} else {
-				options.DefaultColumns[i-excluded] = availDSColumns[i]
-			}
-		}
-		options.DefaultColumns = slices.Clip(options.DefaultColumns)
-	} else if options.DefaultColumns != nil {
-		if clilog.Active(clilog.DEBUG) { // default includes were given; take them verbatim
-			if badCols := validateColumns(options.DefaultColumns, availDSColumns); len(badCols) > 0 {
-				clilog.Writer.Warn("invalid default columns",
-					scaffold.IdentifyCaller(),
-					rfc5424.SDParam{Name: "bad_columns", Value: strings.Join(badCols, "_")},
-				)
-			}
-		}
-	} else { // nothing was given
-		options.DefaultColumns = availDSColumns
+	// any aliases that remain are for unknown DQs
+	for dq, alias := range columnAliases {
+		clilog.Writer.Warn("unknown DQ column", log.KV("DQ", dq), log.KV("alias", alias), scaffold.IdentifyCaller())
 	}
+
+	var defaultColumnsDQ = findDefaultColumns(options, DQToAlias)
+
+	// generate a non-interactive action
+	run := generateRun(dataFunc, options, DQToAlias, AliasToDQ)
 
 	// generate usage and example
 	actionOptions := treeutils.GenerateActionOptions{}
@@ -212,33 +194,64 @@ func NewListAction[dataStruct_t any](short, long string,
 		actionOptions.Example = "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()
 	}
 
-	cmd := treeutils.GenerateAction("list", short, long, nil, generateRun(dataFn, options, availDSColumns),
-		actionOptions)
+	cmd := treeutils.GenerateAction("list", short, long, nil, run, actionOptions)
 	options.Apply(cmd)
 
-	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil))
+	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias)))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
-	// apply command modifiers
-	if options.CmdMods != nil {
-		options.CmdMods(cmd)
-	}
 
-	// generate the list action.
-	la := newListAction(cmd, availDSColumns, dataFn, options)
+	// generate the interactive action
+	la := newListAction(defaultColumnsDQ, DQToAlias, AliasToDQ, dataFunc, options)
 
 	return action.NewPair(cmd, &la)
 }
 
+// findDefaultColumns returns the set of columns to use as defaults,
+// based on the state of options.DefaultColumns and options.DefaultColumnsFromExcludeRegex.
+func findDefaultColumns(opts Options, DQToAlias map[string]string) []string {
+	// set default columns from DefaultColumns or ExcludeColumnsFromDefault
+	if opts.DefaultColumns != nil && opts.DefaultColumnsFromExcludeRegex != nil { // both were given
+		panic("DefaultColumns and DefaultColumnsFromExcludeRegex are mutually exclusive")
+	} else if opts.DefaultColumnsFromExcludeRegex != nil { // use the set of all columns, minus those excluded
+		var defaultColumns = make([]string, 0)
+		// if a column matches NONE of the exclude regexes, include it as default
+		for dq := range DQToAlias {
+			var match bool
+			for _, rgx := range opts.DefaultColumnsFromExcludeRegex {
+				if rgx.MatchString(dq) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				defaultColumns = append(defaultColumns, dq)
+			}
+		}
+		return sortColumns(slices.Clip(defaultColumns))
+	} else if opts.DefaultColumns != nil { // validate and use the set of default columns
+		var defaultColumns = make([]string, 0, len(opts.DefaultColumns))
+		for _, col := range opts.DefaultColumns {
+			if _, found := DQToAlias[col]; !found { // ensure the column exists
+				clilog.Writer.Warn("unknown default column", log.KV("column", col), scaffold.IdentifyCaller())
+				continue
+			}
+			defaultColumns = append(defaultColumns, col)
+		}
+		return slices.Clip(defaultColumns)
+	}
+	// nothing was given, use the set of all columns
+	return sortColumns(slices.Collect(maps.Keys(DQToAlias)))
+}
+
 // generateRun builds and returns a function to be run when this action is invoked via Cobra.
 func generateRun[dataStruct_t any](
-	dataFn ListDataFunction[dataStruct_t],
-	options Options,
-	availDataStructColumns []string) func(c *cobra.Command, _ []string) {
+	dataFn ListDataFunc[dataStruct_t], opts Options,
+	DQToAlias, AliasToDQ map[string]string) func(c *cobra.Command, _ []string) {
 	return func(c *cobra.Command, _ []string) {
 		// run custom validation
-		if options.ValidateArgs != nil {
-			if invalid, err := options.ValidateArgs(c.Flags()); err != nil {
+		if opts.ValidateArgs != nil {
+			if invalid, err := opts.ValidateArgs(c.Flags()); err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
 				return
 			} else if invalid != "" {
@@ -252,7 +265,7 @@ func generateRun[dataStruct_t any](
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
 			return
 		} else if sc {
-			fmt.Fprintln(c.OutOrStdout(), ShowColumns(availDataStructColumns, options.ColumnAliases))
+			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
 			return
 		}
 
@@ -262,32 +275,31 @@ func generateRun[dataStruct_t any](
 			format        outputFormat
 			columns       []string
 		)
-		{ // gather flags and set up variables required for listOutput
-			var err error
-			noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
-			if err != nil {
-				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
-				return
-			}
-			outFile, err = initOutFile(c.Flags())
-			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
-			} else if outFile != nil {
-				defer outFile.Close()
-				// ensure color is disabled.
-				stylesheet.Cur = stylesheet.Plain()
-			}
-
-			columns, err = getColumns(c.Flags(), options.DefaultColumns, availDataStructColumns)
-			if err != nil {
-				fmt.Fprintln(c.ErrOrStderr(), err)
-				return
-			}
-			format = determineFormat(c.Flags(), options.Pretty != nil)
+		// gather flags and set up variables required for listOutput
+		var err error
+		noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
+		if err != nil {
+			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
+			return
 		}
+		outFile, err = initOutFile(c.Flags())
+		if err != nil {
+			clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
+			return
+		} else if outFile != nil {
+			defer outFile.Close()
+			// ensure color is disabled.
+			stylesheet.Cur = stylesheet.Plain()
+		}
+		columns, err = getColumns(c.Flags(), DQToAlias, AliasToDQ)
+		if err != nil {
+			fmt.Fprintln(c.ErrOrStderr(), err)
+			return
+		}
+		format = determineFormat(c.Flags(), opts.Pretty != nil)
 
-		s, err := listOutput(c.Flags(), format, columns, dataFn, options.Pretty, options.ColumnAliases)
+		// execute the actual list and format call
+		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias)
 		if err != nil {
 			clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
 			return
@@ -306,20 +318,4 @@ func generateRun[dataStruct_t any](
 			fmt.Fprintln(c.OutOrStdout(), s)
 		}
 	}
-}
-
-// ShowColumns lists available columns, replacing the dot-qualified form with an alias if it exists in the alias map (dq -> alias).
-func ShowColumns(dqColumns []string, aliases map[string]string) string {
-	var sb strings.Builder
-	for _, dqCol := range dqColumns {
-		// check for an alias
-		if alias, found := aliases[dqCol]; found {
-			sb.WriteString(alias)
-		} else {
-			sb.WriteString(dqCol)
-		}
-		sb.WriteRune(ShowColumnSep)
-	}
-
-	return sb.String()[:sb.Len()-1]
 }

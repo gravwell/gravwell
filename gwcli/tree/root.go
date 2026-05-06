@@ -368,7 +368,7 @@ func Execute(args []string) int {
 	}
 
 	// override the help command to just call usage
-	rootCmd.SetHelpFunc(help)
+	rootCmd.SetHelpFunc(uniques.Help)
 	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
 		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
 		return nil
@@ -380,82 +380,4 @@ func Execute(args []string) int {
 	}
 
 	return 0
-}
-
-// Help generates the full help text for a command and prints it on c.Out.
-// The specific command's Usage and Example are displayed, if provided, along with all available flags.
-func help(c *cobra.Command, _ []string) {
-	var sb strings.Builder
-
-	// write the description block
-	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0) + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
-
-	// write usage line, if available
-	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
-	if usage := c.UsageString(); usage != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Usage", 0), usage)
-	}
-
-	// write aliases line, if available
-	if aliases := strings.Join(c.Aliases, ", "); aliases != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Aliases", 0), aliases)
-	}
-
-	// write example line, if available
-	// NOTE(rlandau): assumes example is in the form "<cmd.Name> <following example>"
-	if ex := strings.TrimSpace(c.Example); ex != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Example", 0), c.Example) // use the untrimmed version
-	}
-
-	// write local flags
-	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf)
-	}
-
-	// write global flags (except for the completion command)
-	if c.Name() != "completion" && (!c.HasParent() || (c.HasParent() && c.Parent().Name() != "completion")) {
-		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
-			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
-		}
-	}
-
-	// attach children
-
-	// split children by group
-	navs := make([]*cobra.Command, 0)
-	actions := make([]*cobra.Command, 0)
-	children := c.Commands()
-	for _, c := range children {
-		if c.Hidden {
-			continue
-		}
-		if c.GroupID == group.NavID {
-			navs = append(navs, c)
-		} else {
-			actions = append(actions, c)
-		}
-	}
-
-	// output navs as submenus
-	if len(navs) > 0 {
-		var s strings.Builder
-		for _, n := range navs {
-			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
-		}
-		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Submenus"), s.String())
-	}
-
-	// output actions
-	if len(actions) > 0 {
-		if len(navs) > 0 {
-			sb.WriteString("\n")
-		}
-		var s strings.Builder
-		for _, a := range actions {
-			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
-		}
-		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Actions"), s.String())
-	}
-
-	fmt.Fprint(c.OutOrStdout(), sb.String())
 }

@@ -70,6 +70,7 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
 				addtlFlags := &pflag.FlagSet{}
@@ -78,12 +79,11 @@ func list() action.Pair {
 			}},
 
 			DefaultColumns: []string{
-				"ID",
-				"Name",
-				"Description",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 				"Query",
 				"Variables",
-				"Labels",
 			},
 		})
 }

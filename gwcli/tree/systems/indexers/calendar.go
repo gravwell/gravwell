@@ -26,11 +26,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
-
-const useCalendar string = "calendar"
 
 var ( // set and reset by ValidateArgs()
 	start    time.Time
@@ -48,9 +45,11 @@ func newCalendarAction() action.Pair {
 	var aliases = []string{"entries"}
 
 	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, data,
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use:        useCalendar,
+				Use:        "calendar",
+				Example:    "calendar 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default",
 				Aliases:    aliases,
 				AddtlFlags: calendarFlags,
 			},
@@ -88,9 +87,6 @@ func newCalendarAction() action.Pair {
 				}
 
 				return "", nil
-			},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = fmt.Sprintf("%v 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default", useCalendar)
 			},
 		})
 }
@@ -169,7 +165,7 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 
 	wells, err := fs.GetStringSlice("wells")
 	if err != nil {
-		return nil, uniques.ErrGetFlag(useCalendar, err)
+		return nil, uniques.ErrGetFlag("calendar", err)
 	}
 
 	// if an indexer was specified, get stats for that specific indexer

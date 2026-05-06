@@ -54,15 +54,7 @@ func listAction() action.Pair {
 		func(fs *pflag.FlagSet) ([]types.User, error) {
 			resp, err := connection.Client.ListUsers(nil)
 			return resp.Results, err
-		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
-}
-
-// local wrapper struct to contain all data related to a single user
-type userDetails struct {
-	types.User
-	Admin struct { // details that will only be retrieved if the calling user is an admin
-		Capabilities []string
-	}
+		}, nil, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
 }
 
 func create() action.Pair {
@@ -242,7 +234,7 @@ func descriptionLine(admin bool, email string) string {
 
 // wrapper for types.Session to limit the information sessions returns.
 type session struct {
-	ID          uint64 `json:",omitempty"`
+	SessionID   uint64 `json:",omitempty"`
 	UID         int32  `json:",omitempty"`
 	Origin      net.IP
 	LastHit     string // timestamp
@@ -294,7 +286,7 @@ func sessionsAction() action.Pair {
 			var ss = make([]session, len(allSessions))
 			for i, rs := range allSessions {
 				ss[i] = session{
-					ID:          rs.ID,
+					SessionID:   rs.ID,
 					UID:         rs.UID,
 					Origin:      rs.Origin,
 					LastHit:     rs.LastHit.Local().Format(time.RFC3339),
@@ -305,6 +297,7 @@ func sessionsAction() action.Pair {
 
 			return ss, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
@@ -320,8 +313,7 @@ func sessionsAction() action.Pair {
 					return fs
 				},
 			},
-			DefaultColumns: []string{"ID", "Origin", "LastHit"},
-			ColumnAliases:  map[string]string{"ID": "SessionID"},
+			DefaultColumns: []string{"SessionID", "Origin", "LastHit"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// check for since override and set default if not
 				since = time.Time{} // ensure it is reset

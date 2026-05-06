@@ -105,14 +105,13 @@ func list() action.Pair {
 			return lr.Results, err
 
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
-				// implies embedded namespace
-				"ID",
-				"Name",
-				"Description",
-
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 				"Module",
 				"Params",
 				"Args",

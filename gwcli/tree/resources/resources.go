@@ -83,16 +83,14 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
 			DefaultColumns: []string{
-				"ID",
-				"Name",
-				"Description",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 				"Size",
-				"Labels",
-			},
-			ColumnAliases: map[string]string{
-				"Size": "SizeBytes",
+				"ContentType",
 			},
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 		})

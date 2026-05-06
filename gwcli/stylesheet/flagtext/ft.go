@@ -123,6 +123,10 @@ func (s stringSliceRegister) Shorthand() string {
 	return string(s.shorthand)
 }
 
+func (s stringSliceRegister) Usage() string {
+	return s.usage
+}
+
 // Register installs this flag (with its standard type) in the given flagset.
 // Sets the default to the zero value of the type.
 // Only supports a subset of types; expand as need be.
@@ -162,8 +166,8 @@ func (s singular) Usage(singular string) string {
 
 // Register installs this flag as a string in the given flagset.
 // It is a helper function to provide consistent usage.
-func (s singular) Register(fs *pflag.FlagSet, singular string) {
-	fs.StringP(s.Name(), s.Shorthand(), "", s.Usage(singular))
+func (s singular) Register(fs *pflag.FlagSet, defaultVal string, singular string) {
+	fs.StringP(s.Name(), s.Shorthand(), defaultVal, s.Usage(singular))
 }
 
 var (
@@ -277,7 +281,7 @@ var (
 	// Unlikely to be used outside of actions that implement scaffold list.
 	SelectColumns = stringSliceRegister{
 		name: "columns",
-		usage: "comma-separated list of columns to include in the results\n." +
+		usage: "comma-separated list of columns to include in the results.\n" +
 			"Use --" + ShowColumns.name + " to see the full list of columns",
 	}
 

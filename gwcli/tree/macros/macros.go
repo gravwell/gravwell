@@ -89,9 +89,14 @@ func list() action.Pair {
 			}
 			return r.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{AddtlFlags: flags},
-			DefaultColumns: []string{"Name", "Description", "Expansion"},
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"Expansion"},
 		})
 }
 

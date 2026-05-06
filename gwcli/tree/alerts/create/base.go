@@ -106,13 +106,13 @@ func prerequisites() (availDispatchers map[string]types.ScheduledSearch, availCo
 func createFlagSet() *pflag.FlagSet {
 	fs := &pflag.FlagSet{}
 	// attach mandatory flags
-	ft.Name.Register(fs, "alert")
+	ft.Name.Register(fs, "", "alert")
 	// attach optional flags
 	fs.StringSlice("dispatchers", nil, "Comma-separated list of IDs of scheduled searches to use as dispatchers.\n"+
 		"Use `queries scheduled list` to view all available scheduled queries")
 	fs.StringSlice("consumers", nil, "Comma-separated list of IDs of flows to use as consumers.\n"+
 		"Use `flows list` to view all available flows")
-	ft.Description.Register(fs, "alert")
+	ft.Description.Register(fs, "", "alert")
 	fs.String("tag", "_alerts", "The tag to which alerts of this type will be ingested")
 	fs.Bool("enable", false, "Enable the new alert immediately")
 	fs.Int("max-events", 16, "Maximum number of events to process for a single alert.\n"+
