@@ -17,6 +17,8 @@ import (
 	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -156,4 +158,210 @@ func runCleanup(targetsToRun []string) (msgs []string) {
 		msgs = append(msgs, "successfully purged "+target)
 	}
 	return
+}
+
+// get/set log level
+func logLevel() action.Pair {
+	return scaffold.NewBasicAction("log-level", "get or set the server log level",
+		"Display the current server log level."+
+			"Use --set to change it.\n"+
+			"Valid levels are typically: OFF, ERROR, WARN, INFO, WEB ACCESS",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			if level, err := fs.GetString("set"); err != nil {
+				clilog.LogFlagFailedGet("set", err)
+			} else if level != "" { // set
+				if err := connection.Client.SetLogLevel(level); err != nil {
+					return err.Error(), nil
+				}
+				return "log level set to " + level, nil
+			}
+			// get
+			level, err := connection.Client.GetLogLevel()
+			if err != nil {
+				return err.Error(), nil
+			}
+			return "current log level: " + level, nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.String("set", "", "log level to set")
+					return fs
+				},
+			},
+		})
+}
+
+func addIndexer() action.Pair {
+	return scaffold.NewBasicAction("add-indexer", "add an indexer to the system",
+		"Tells the webserver to connect to a new indexer. "+
+			"The indexer will be added to the list of indexers in the webserver's config file and persist in the future.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			dialstring := fs.Arg(0)
+			errors, err := connection.Client.AddIndexer(dialstring)
+			if err != nil {
+				return err.Error(), nil
+			}
+			var sb strings.Builder
+			for k, v := range errors {
+				sb.WriteString(k + ": " + v + "\n")
+			}
+			out := strings.TrimRight(sb.String(), "\n")
+			if out == "" {
+				return "indexer added successfully", nil
+			}
+			return out, nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: fmt.Sprintf("add-indexer %s %s ", ft.Optional("Flags"), ft.Mandatory("host:port")),
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("dial string"), nil
+				}
+				return "", nil
+			},
+		})
+}
+
+func backup() action.Pair {
+	return scaffold.NewBasicAction("backup", "backup the system",
+		"Download a backup of the Gravwell system to a file.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			// ! failing to get ANY flag is fatal for this error; we don't want to screw up a user's backup.
+
+			output, err := fs.GetString("output")
+			if err != nil {
+				return uniques.ErrGetFlag("backup", err).Error(), nil
+			}
+			f, err := os.Create(output)
+			if err != nil {
+				return err.Error(), nil
+			}
+			defer f.Close()
+
+			ss, err := fs.GetBool("include-scheduled-searches")
+			if err != nil {
+				return uniques.ErrGetFlag("backup", err).Error(), nil
+			}
+			omitSensitive, err := fs.GetBool("omit-sensitive")
+			if err != nil {
+				return uniques.ErrGetFlag("backup", err).Error(), nil
+			}
+			pass, err := fs.GetString("encrypt")
+			if err != nil {
+				return uniques.ErrGeneric.Error(), nil
+			}
+
+			cfg := types.BackupConfig{
+				IncludeSS:     ss,
+				OmitSensitive: omitSensitive,
+				Password:      pass,
+			}
+			var logPass string // "password" to log
+			if pass != "" {
+				logPass = "*****"
+			}
+			clilog.Writer.Info("issuing backup command",
+				log.KV("IncludeSS", ss),
+				log.KV("OmitSensitive", omitSensitive),
+				log.KV("encryption", logPass))
+
+			if err := connection.Client.BackupWithConfig(f, cfg); err != nil {
+				return err.Error(), nil
+			}
+			return fmt.Sprintf("backup written to %s", output), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.StringP(ft.Output.Name(), ft.Output.Shorthand(), "", "path to write backup to")
+					fs.Bool("include-scheduled-searches", false, "include scheduled searches in the backup")
+					fs.Bool("omit-sensitive", false, "include scheduled searches in the backup")
+					fs.String("encrypt", "", "encrypt the backup with the given password. No encryption will be applied if unset.")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				output, err := fs.GetString(ft.Output.Name())
+				if err != nil {
+					return "", uniques.ErrGetFlag("backup", err)
+				}
+				output = strings.TrimSpace(output)
+				if output == "" {
+					return "--" + ft.Output.Name() + " must be non-empty", nil
+				}
+				return "", nil
+			},
+		})
+}
+
+func restore() action.Pair {
+	return scaffold.NewBasicAction("restore", "restore the system from a backup",
+		"Restore the Gravwell system from a backup file.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			path := fs.Arg(0)
+			f, err := os.Open(path)
+			if err != nil {
+				return err.Error(), nil
+			}
+			defer f.Close()
+			if err := connection.Client.Restore(f); err != nil {
+				return err.Error(), nil
+			}
+			return fmt.Sprintf("successfully restored from %s", path), nil
+		},
+		scaffold.BasicOptions{
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("backup file path"), nil
+				}
+				if _, err := os.Stat(fs.Arg(0)); err != nil {
+					return "file " + fs.Arg(0) + " does not exist or is not accessible", nil
+				}
+				return "", nil
+			},
+		})
+}
+
+func listQueries() action.Pair {
+	return scaffoldlist.NewListAction("list active searches", "List currently active/recent searches on the system.",
+		types.SearchCtrlStatus{},
+		func(fs *pflag.FlagSet) ([]types.SearchCtrlStatus, error) {
+			if connection.Client.AdminMode() {
+				return connection.Client.ListAllSearchStatuses()
+			}
+			return connection.Client.ListSearchStatuses()
+		},
+		nil,
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "list-queries",
+				Aliases: []string{"list-searches"},
+			},
+			DefaultColumns: []string{"ID", "UserQuery", "State"},
+		})
+}
+
+func deleteQuery() action.Pair {
+	return scaffold.NewBasicAction("delete-query", "delete an active search",
+		"Delete an active search by its ID.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			sid := fs.Arg(0)
+			if err := connection.Client.DeleteSearch(sid); err != nil {
+				return err.Error(), nil
+			}
+			return fmt.Sprintf("successfully deleted search %s", sid), nil
+		},
+		scaffold.BasicOptions{
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("search ID"), nil
+				}
+				return "", nil
+			},
+		})
 }
