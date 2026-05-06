@@ -94,6 +94,7 @@ var (
 		LibraryRead,
 		ExtractorRead,
 		FileRead,
+		KitRead,
 		PlaybookRead,
 		LicenseRead,
 		Stats,
@@ -105,13 +106,11 @@ var (
 		LogbotAI,
 	}
 	adminOnlyCapList = []Capability{
-		KitRead,
 		KitWrite,
 		KitBuild,
 		KitDownload,
 	}
 	tokenOnlyCapList = []Capability{
-		KitRead,
 		KitWrite,
 		KitBuild,
 		KitDownload,

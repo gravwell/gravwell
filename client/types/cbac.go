@@ -11,6 +11,7 @@ package types
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -235,19 +236,11 @@ func (cs *CapabilitySet) CapabilityList() (r []CapabilityDesc) {
 
 // IsAdminCap returns if this Capability is an AdminOnlyCap
 func (c Capability) IsAdminCap() bool {
-	switch c.Category() {
-	case KitsCat:
-		return true
-	}
-	return false
+	return slices.Contains(adminOnlyCapList, c)
 }
 
 func (c Capability) IsTokenCap() bool {
-	switch c.Category() {
-	case KitsCat:
-		return true
-	}
-	return false
+	return slices.Contains(tokenOnlyCapList, c)
 }
 
 // CapabilityDesc converts a Capability into a CapabilityDescription
