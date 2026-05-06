@@ -98,33 +98,30 @@ func create() action.Pair {
 		"name": scaffoldcreate.FieldName("secret"),
 		"desc": scaffoldcreate.FieldDescription("secret"),
 		"value": scaffoldcreate.Field{
-			Required:      true,
-			Title:         "Value",
-			Usage:         "the secret itself",
-			Type:          scaffoldcreate.Text,
-			FlagShorthand: 'v',
-			Order:         80,
+			Required: true,
+			Title:    "Value",
+			Flag:     scaffoldcreate.FlagConfig{Usage: "the secret itself", Shorthand: 'v'},
+			Provider: &scaffoldcreate.TextProvider{},
+			Order:    80,
 		},
 		"labels": scaffoldcreate.FieldLabels(),
 	}
 
 	return scaffoldcreate.NewCreateAction("secret", fields,
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// transmute to resource struct
 			var labels []string
-			if lbls, found := fieldValues["labels"]; !found {
-				return "", "", errors.New("failed to find \"labels\" field")
-			} else if lbls = strings.TrimSpace(lbls); lbls != "" {
-				labels = strings.Split(lbls, ",")
+			if lbls := cfg["labels"].Provider.Get(); strings.TrimSpace(lbls) != "" {
+				labels = strings.Split(strings.TrimSpace(lbls), ",")
 			}
 
 			data := types.SecretCreate{
 				CommonFields: types.CommonFields{
-					Name:        fieldValues["name"],
-					Description: fieldValues["desc"],
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
 					Labels:      labels,
 				},
-				Value: fieldValues["value"],
+				Value: cfg["value"].Provider.Get(),
 			}
 
 			resp, err := connection.Client.CreateSecret(data)

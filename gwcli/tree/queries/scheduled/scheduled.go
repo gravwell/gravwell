@@ -112,41 +112,40 @@ const ( // field keys
 
 // create creates the action for creating new scheduled queries.
 func create() action.Pair {
-	fields := scaffoldcreate.Config{
+	fields := map[string]scaffoldcreate.Field{
 		createQryKey: scaffoldcreate.Field{
-			Required:      true,
-			Title:         "query",
-			Usage:         "query to schedule",
-			Type:          scaffoldcreate.Text,
-			FlagShorthand: 'q',
-			Order:         150,
+			Required: true,
+			Title:    "query",
+			Flag:     scaffoldcreate.FlagConfig{Usage: "query to schedule", Shorthand: 'q'},
+			Provider: &scaffoldcreate.TextProvider{},
+			Order:    150,
 		},
 		createDurationKey: scaffoldcreate.Field{
-			Required:         true,
-			Title:            "duration",
-			Usage:            "the time span the query will look back over",
-			Type:             scaffoldcreate.Text,
-			FlagName:         "duration",
-			Order:            140,
-			CustomTIFuncInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
+			Required: true,
+			Title:    "duration",
+			Flag:     scaffoldcreate.FlagConfig{Name: "duration", Usage: "the time span the query will look back over"},
+			Provider: &scaffoldcreate.TextProvider{
+				CustomInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
+			},
+			Order: 140,
 		},
 		createNameKey: scaffoldcreate.FieldName("query"),
 		createDescKey: scaffoldcreate.FieldDescription("query"),
 
 		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
-			Required:     true,
-			Title:        "frequency",
-			Usage:        ft.Frequency.Usage(),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Frequency.Name(), // custom flag name
-			DefaultValue: "",                  // no default value
-			Order:        50,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				ti.Placeholder = "* * * * *"
-				ti.Validate = uniques.CronRuneValidator
-				return ti
+			Required: true,
+			Title:    "frequency",
+			Flag:     scaffoldcreate.FlagConfig{Name: ft.Frequency.Name(), Usage: ft.Frequency.Usage()},
+			Provider: &scaffoldcreate.TextProvider{
+				CustomInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "* * * * *"
+					ti.Validate = uniques.CronRuneValidator
+					return ti
+				},
 			},
+			DefaultValue: "", // no default value
+			Order:        50,
 		},
 	}
 
@@ -154,13 +153,13 @@ func create() action.Pair {
 }
 
 // driver function for scheduled create
-func createFunc(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
+func createFunc(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 	var (
-		name      = fieldValues[createNameKey]
-		desc      = fieldValues[createDescKey]
-		freq      = fieldValues[createFreqKey]
-		qry       = fieldValues[createQryKey]
-		durString = fieldValues[createDurationKey]
+		name      = cfg[createNameKey].Provider.Get()
+		desc      = cfg[createDescKey].Provider.Get()
+		freq      = cfg[createFreqKey].Provider.Get()
+		qry       = cfg[createQryKey].Provider.Get()
+		durString = cfg[createDurationKey].Provider.Get()
 	)
 	dur, err := time.ParseDuration(durString)
 	if err != nil { // report as invalid parameter, not an error

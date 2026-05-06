@@ -192,14 +192,11 @@ func licenseSerial() action.Pair {
 
 func licenseUpdate() action.Pair {
 	return scaffoldcreate.NewCreateAction("license",
-		scaffoldcreate.Config{
+		map[string]scaffoldcreate.Field{
 			"path": scaffoldcreate.FieldPath("license file"),
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			path, found := fieldValues["path"]
-			if !found {
-				return nil, "", fmt.Errorf("failed to find \"path\" field")
-			}
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			path := fields["path"].Provider.Get()
 
 			warnings, err := connection.Client.UploadLicenseFile(path)
 			if err != nil {

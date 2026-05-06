@@ -42,12 +42,16 @@ func list() action.Pair {
 
 func create() action.Pair {
 	return scaffoldcreate.NewCreateAction("group",
-		scaffoldcreate.Config{
+		map[string]scaffoldcreate.Field{
 			"name": scaffoldcreate.FieldName("group"),
 			"desc": scaffoldcreate.FieldDescription("group"),
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			result, err := connection.Client.CreateGroup(types.Group{Name: fieldValues["name"], Description: fieldValues["desc"]})
+
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			result, err := connection.Client.CreateGroup(types.Group{
+				Name:        fields["name"].Provider.Get(),
+				Description: fields["desc"].Provider.Get(),
+			})
 			return result.Name, "", err
 		}, scaffoldcreate.Options{})
 }

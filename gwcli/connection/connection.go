@@ -214,10 +214,7 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			}
 			// failing to login via JWT is non-fatal in interactive mode
 			if noInteractive {
-				return errors.New("non-interactive mode requires one of the following login methods:\n" +
-					"1) explicit username and password (-u)\n" +
-					"2) an API token (--api/--eapi)\n" +
-					"3) or a valid session from a prior, successful login")
+				return ErrNonInteractiveRequiresDifferentLogin
 			}
 			if mfa, err := promptForMissingCredentials(username); err != nil {
 				return err

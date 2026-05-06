@@ -95,10 +95,10 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		{"valid username and password", args{defaultUser, defaultPass, "", true}, nil},
 		{"valid APIToken", args{"", "", APITkn, true}, nil},
 		{"valid APIToken", args{"", "", APITkn, true}, nil}, // should be identical to script mode
-		{"no credentials", args{"", "", "", true}, connection.ErrAPITokenRequired},
+		{"no credentials", args{"", "", "", true}, connection.ErrNonInteractiveRequiresDifferentLogin},
 		{"invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
 		{"invalid APIToken", args{"", "", APITkn + "1234", true}, connection.ErrAPITokenInvalid},
-		{"only username", args{defaultUser, "", "", true}, connection.ErrAPITokenRequired},
+		{"only username", args{defaultUser, "", "", true}, connection.ErrNonInteractiveRequiresDifferentLogin},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -9,55 +9,51 @@
 /*
 Package scaffoldcreate provides a template for building actions that create new data or configuration.
 
-A create action creates a shallow list of inputs for the user to fill via flags or interactive
-TIs before being passed back to the progenitor to transform into usable data for their create
-function.
+Create actions are composed of Fields and a CreateFunc:
 
-The available fields are fairly configurable, the progenitor provides their own map of Field
-structs, and easily extensible, the struct can have more options or formats bolted on without too
-much trouble.
+1) Fields define the inputs users have access to and how they are displayed.
+Each field defines details (title, flag info, etc) and a provider.
+Providers are the heavy-lifters of fields and provide the logic and views of each field.
+Providers must fit the the Provider interface; a handful of common Providers are also provided.
+Similarly, prefer using the prebuilt fields (ex: scaffoldcreate.FieldName) for common fields as they have an appropriate Provider attached.
+
+2) CreateFunc is the function called when the user submits the create form.
+It can access field data via fields[<>].Provider.Get().
 
 This scaffold is a bit easier to extend than Delete and List, given it did not require generics.
 
-Look to the scheduled query creation action (external to the one built into DataScope) or macro
-creation action as two examples of implementation styles.
-
-! Once a Config is given by the caller, it should be considered ReadOnly.
-
-NOTE: More complex creation with nested options and mutli-stage flows should be built
-independently. This scaffold is intended for simple, handful-of-field creations.
+! The field map, once given to NewCreateAction, should be considered read-only.
 
 Example implementation:
 
 	func NewCreateAction() action.Pair {
-		n := scaffoldcreate.NewField(true, "name", 100)
-		d := scaffoldcreate.NewField(true, "value", 90)
-		fields := scaffoldcreate.Config{
-			"name":  n,
-			"value": d,
-			"field3": scaffoldcreate.Field{
-				Required:      true,
-				Title:         "field3",
-				Usage:         "field 3 usage",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "flagn",
-				FlagShorthand: 'f',
-				DefaultValue:  "",
-				TI: struct {
-					Order       int
-					Placeholder string
-					Validator   func(s string) error
-				}{
-					Order: 80,
-				},
+		fields := map[string]scaffoldcreate.Field{
+			"name":  scaffoldcreate.NewField(true, "name", 100),
+			"value": scaffoldcreate.NewField(true, "value", 90),
+			"capabilities": {
+				Required: false,
+				Title:    "capabilities",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "comma-separated list of capabilities to grant the token", Shorthand: 'c'},
+				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var itms []multiselectlist.SelectableItem[string]
+						// Hijack SetArgs to change the items available in the list.
+						// ...
+						return itms
+					},
+				}),
+				Order: 80,
 			},
 		}
 
 		return scaffoldcreate.NewCreateAction("", fields, create)
 	}
 
-	func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values) (any, string, error) {
-		id, err := connection.Client.X()
+	func create(fields map[string]scaffoldcreate.Field, vals scaffoldcreate.Values) (any, string, error) {
+		name := fields["name"].Provider.Get()
+		value := fields["value"].Provider.Get()
+		caps := fields["capabilities"].Provider.Get()
+		id, err := connection.Client.X(name, value, caps)
 		return id, "", err
 	}
 */
@@ -66,10 +62,8 @@ package scaffoldcreate
 import (
 	"fmt"
 	"maps"
-	"path"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -77,7 +71,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -93,9 +88,6 @@ const (
 	createdSuccessfully     string = "Successfully created %v (ID: %v)."
 )
 
-// A Config maps keys -> Field; used as (ReadOnly) configuration for this creation instance
-type Config = map[string]Field
-
 // CreateFuncT defines the format of the subroutine that must be passed for creating data.
 // The function's return values must be:
 //
@@ -104,28 +96,35 @@ type Config = map[string]Field
 // a reason the create attempt was invalid (or the empty string)
 //
 // and an error that occurred (or nil). This is different than an invalid reason and is likely a bubbling up of an error from the client library.
-type CreateFuncT func(cfg Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error)
+type CreateFuncT func(fields map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error)
 
 // NewCreateAction returns an action pair (covering interactive and non-interactive use) capable of creating new data based on user input.
 // You must tell the create action what kind of data it accepts (in the form of fields) and
 // what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
 //
 // Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
-func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opts Options) action.Pair {
+func NewCreateAction(singular string, fields map[string]Field, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
 	if singular == "" {
 		clilog.Writer.Error("singular noun cannot be empty. Defaulting to \"UNKNOWN\"", scaffold.IdentifyCaller())
 		singular = "UNKNOWN"
 	}
 
+	// check that every field has a provider
+	for key := range fields {
+		if fields[key].Provider == nil {
+			clilog.Writer.Error("field is missing a provider", attachLogInfo(key)...)
+			delete(fields, key)
+		}
+	}
 	// pull createFlags from provided fields
 	var createFlags = installFlagsFromFields(fields)
 
 	// pull required flags from cfg to set usage
 	requiredFlags := make([]string, 0)
 	for _, v := range fields {
-		if v.Required && v.FlagName != "" {
-			txt := "--" + v.FlagName + "=" + ft.Mandatory("string")
+		if v.Required && v.Flag.Name != "" {
+			txt := "--" + v.Flag.Name + "=" + ft.Mandatory("string")
 			requiredFlags = append(requiredFlags, txt)
 		}
 	}
@@ -142,9 +141,8 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			}
-			// get field flags; spool up mother to prompt for missing required flags if !non-interactive
-			var values map[string]string
-			if vals, mr, err := getFieldValuesFromFlags(c.Flags(), fields); err != nil {
+			// check and set flags; spool up mother to prompt for missing required flags if !non-interactive
+			if mr, err := setValuesFromFlags(c.Flags(), fields); err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			} else if mr != nil {
@@ -157,12 +155,13 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 					fmt.Fprintf(c.OutOrStdout(), errMissingRequiredFlags+"\n", mr)
 				}
 				return
-			} else {
-				values = vals
 			}
 
+			// if all files were valid and we aren't missing any requires, we can attempt to jump directly into creation.
+			// gather all values to pass to the create func
+
 			// attempt to create the new X
-			if id, inv, err := createFunc(fields, values, c.Flags()); err != nil {
+			if id, inv, err := createFunc(fields, c.Flags()); err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			} else if inv != "" { // some of the flags were invalid
@@ -175,8 +174,12 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 
 	opts.Apply(cmd)
 
-	// attach mined flags to cmd
 	cmd.Flags().AddFlagSet(&createFlags)
+
+	// initialize every field
+	for key := range fields {
+		fields[key].Provider.Initialize(fields[key].DefaultValue, fields[key].Required)
+	}
 
 	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, opts))
 }
@@ -193,14 +196,10 @@ const (
 )
 
 type inputs struct {
-	selected uint       // currently focused item (index correlates to "ordered"+1 (submit))
-	err      string     // a reason inputs are invalid. Currently only holds the most-recently set error. Disables submit if set.
-	ordered  []struct { // ordered at create-time by Config.Field.Order
-		Key  string    // key to acquire the actual field
-		Type FieldType // selects the map to fetch from
-	}
-	TIs  map[string]*textinput.Model     // Type: Text | key -> TI
-	PTIs map[string]*pathtextinput.Model // Type: File | key -> PTI
+	selected uint     // currently focused item (index correlates to "ordered"+1 (submit))
+	err      string   // a reason inputs are invalid. Currently only holds the most-recently set error. Disables submit if set.
+	ordered  []string // list of keys, ordered at create-time by Config.Field.Order
+	takeover string   // key of the field currently running the show
 }
 
 // interactive model that builds out inputs based on the read-only Config supplied on creation.
@@ -211,11 +210,10 @@ type createModel struct {
 
 	singular string // "macro", "search", etc
 
-	fields Config // RO configuration provided by the caller
+	fields map[string]Field // RO configuration provided by the caller
 
 	inputs             inputs
-	longestFieldLength int // set at create time
-	longestTILength    int // set at create time
+	longestTitleLength int // max len(field.Title) across all fields; set at create time for title alignment
 
 	createErr string // the reason the last create failed (not for invalid parameters)
 
@@ -232,19 +230,14 @@ func (c *createModel) SubmitSelected() bool {
 }
 
 // Creates and returns a create Model, ready for interactive usage via Mother.
-func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts Options) *createModel {
+func newCreateModel(fields map[string]Field, singular string, createFunc CreateFuncT, opts Options) *createModel {
 	c := &createModel{
 		mode:     inputting,
 		width:    defaultWidth,
 		singular: singular,
 		fields:   fields,
 		inputs: inputs{
-			ordered: make([]struct {
-				Key  string
-				Type FieldType
-			}, len(fields)),
-			TIs:  map[string]*textinput.Model{},
-			PTIs: map[string]*pathtextinput.Model{},
+			ordered: slices.Collect(maps.Keys(fields)),
 		},
 		addtlFlagFunc: opts.AddtlFlags,
 		cf:            createFunc,
@@ -256,9 +249,8 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts
 		addtlFlags := c.addtlFlagFunc()
 		c.fs.AddFlagSet(addtlFlags)
 	}
-	// pre-sort fields so they can be added to inputs.ordered easily
-	var keys = slices.Collect(maps.Keys(fields))
-	slices.SortStableFunc(keys, func(aKey, bKey string) int {
+
+	slices.SortStableFunc(c.inputs.ordered, func(aKey, bKey string) int {
 		// sort on order, then alpha on title
 		switch {
 		case fields[aKey].Order < fields[bKey].Order:
@@ -268,61 +260,17 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts
 		}
 		return strings.Compare(fields[aKey].Title, fields[bKey].Title)
 	})
-	for i, key := range keys { // construct interactive model from fields
-		f := fields[key]
-		// assign each field's input to its corresponding table and add it to
-		var rightSideWidth int
-		switch f.Type {
-		case File:
-			pti := pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				ti.Width = 30 // override TI width
-				return ti
-			}})
-			c.inputs.PTIs[key] = &pti
 
-			rightSideWidth = pti.Width
-		case Text:
-			var ti textinput.Model
-			// if a custom func was not given, use the default generation
-			if f.CustomTIFuncInit == nil {
-				ti = stylesheet.NewTI(f.DefaultValue, !f.Required)
-				ti.Width = 30
-			} else {
-				ti = f.CustomTIFuncInit()
-			}
-			c.inputs.TIs[key] = &ti
-
-			rightSideWidth = ti.Width
-		}
-
-		// note Title width for later formatting
-		if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
-			c.longestFieldLength = w
-		}
-		// note the longest TI for later formatting
-		if rightSideWidth > c.longestTILength {
-			c.longestTILength = rightSideWidth
-		}
-
-		c.inputs.ordered[i] = struct {
-			Key  string
-			Type FieldType
-		}{
-			key, f.Type,
+	// compute longestFieldLength for title column alignment in View()
+	for _, field := range fields {
+		if titleLen := len(field.Title); titleLen > c.longestTitleLength {
+			c.longestTitleLength = titleLen
 		}
 	}
 
 	// focus the first input
 	if len(c.inputs.ordered) > 0 {
-		switch c.inputs.ordered[0].Type {
-		case File:
-			c.inputs.PTIs[c.inputs.ordered[0].Key].Focus()
-		case Text:
-			c.inputs.TIs[c.inputs.ordered[0].Key].Focus()
-		default:
-			clilog.Writer.Error("failed to focus ordered[0] field on startup: unknown field type", attachLogInfo(c.inputs.ordered[0].Key, c.inputs.ordered[0].Type)...)
-		}
+		c.fields[c.inputs.ordered[0]].Provider.ToggleFocus(true)
 	}
 
 	return c
@@ -336,74 +284,97 @@ func (c *createModel) Init() tea.Cmd {
 func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	if c.mode == quitting {
 		return nil
+	} else if c.inputs.takeover != "" {
+		cmd, takeover := c.fields[c.inputs.takeover].Provider.Update(true, msg) // takeover mode implies selected
+		if !takeover {
+			c.inputs.takeover = ""
+		}
+		return cmd
+
 	}
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		c.createErr = "" // clear error from last create attempt
-		switch keyMsg.Type {
-		case tea.KeyUp, tea.KeyShiftTab:
-			c.focusPrevious()
-			return textinput.Blink
-		case tea.KeyDown:
-			c.focusNext()
-			return textinput.Blink
-		case tea.KeyEnter:
-			if c.SubmitSelected() {
-				// extract values from TIs
-				values, mr := c.extractInputValues()
-				if mr != nil {
-					if len(mr) == 1 {
-						c.inputs.err = fmt.Sprintf("%v is required", mr[0])
-					} else {
-						c.inputs.err = fmt.Sprintf("%v are required", mr)
-					}
-					return nil
-				}
-				id, invalid, err := c.cf(c.fields, values, &c.fs)
-				if err != nil {
-					c.createErr = err.Error()
-					return nil
-				} else if invalid != "" {
-					c.inputs.err = invalid
-					return nil
-				}
-				// done, die
-				c.mode = quitting
-				return tea.Println(fmt.Sprintf(createdSuccessfully, c.singular, id))
-			} else {
-				c.focusNext()
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		c.width = sizeMsg.Width
+		// forward this message to each field
+		var cmds []tea.Cmd
+		for i, key := range c.inputs.ordered {
+			if cmd, _ := c.fields[key].Provider.Update(i == int(c.inputs.selected), msg); cmd != nil {
+				cmds = append(cmds, cmd)
 			}
 		}
-	} else if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		c.width = sizeMsg.Width
+		if len(cmds) > 0 {
+			return tea.Batch(cmds...)
+		}
+		return nil
+	} else if hotkeys.Match(msg, hotkeys.CursorUp) {
+		c.focusPrevious()
+		return textinput.Blink
+	} else if hotkeys.Match(msg, hotkeys.CursorDown) {
+		c.focusNext()
+		return textinput.Blink
+	} else if hotkeys.Match(msg, hotkeys.Invoke, hotkeys.Select) && c.SubmitSelected() {
+		// double check that all fields are satisfied
+		c.checkSatisfaction(false)
+		if c.inputs.err != "" {
+			return nil
+		}
+		id, invalid, err := c.cf(c.fields, &c.fs)
+		if err != nil {
+			c.createErr = err.Error()
+			return nil
+		} else if invalid != "" {
+			c.inputs.err = invalid
+			return nil
+		}
+		// done, die
+		c.mode = quitting
+		return tea.Println(fmt.Sprintf(createdSuccessfully, c.singular, id))
+	}
+	if c.SubmitSelected() { // if submit is selected and it wasn't handled above, we don't care about it
 		return nil
 	}
-	var cmd tea.Cmd
-	if !c.SubmitSelected() {
-		var iErr error // input error from this cycle, if applicable
-		// pass message to currently focused input
-		switch c.curInputType() {
-		case File:
-			pti := c.inputs.PTIs[c.curInputKey()]
-			var npti pathtextinput.Model
-			npti, cmd = pti.Update(msg)
-			iErr = npti.Err
-			c.inputs.PTIs[c.curInputKey()] = &npti // replace pti
-		case Text:
-			ti := c.inputs.TIs[c.curInputKey()]
-			var nti textinput.Model
-			nti, cmd = ti.Update(msg)
-			iErr = nti.Err
-			c.inputs.TIs[c.curInputKey()] = &nti // replace pti
-		}
 
-		if iErr != nil {
-			c.inputs.err = iErr.Error()
-		} else {
-			c.inputs.err = ""
-		}
+	// pass the message to the currently selected input
 
+	p := c.selectedField().Provider
+	cmd, takeover := p.Update(true, msg)
+	if takeover {
+		c.inputs.takeover = c.inputs.ordered[c.inputs.selected]
 	}
+	c.checkSatisfaction(false)
 	return cmd
+}
+
+func (c *createModel) selectedField() Field {
+	return c.fields[c.inputs.ordered[c.inputs.selected]]
+}
+
+// sets inputs.err to the reason of the first invalid field, then exits.
+// Empties inputs.err out iff every field is satisfied.
+//
+// If selcetedOnly is set, only the currently selected field is checked.
+func (c *createModel) checkSatisfaction(selectedOnly bool) {
+	check := func(f Field) bool {
+		if f.Required && f.Provider.Get() == "" {
+			c.inputs.err = phrases.MissingRequiredField(f.Title)
+			return true
+		}
+
+		if invalid := f.Provider.Satisfied(); invalid != "" {
+			c.inputs.err = invalid
+			return true
+		}
+		c.inputs.err = ""
+		return false
+	}
+	if selectedOnly {
+		check(c.selectedField())
+		return
+	}
+	for _, key := range c.inputs.ordered {
+		if check(c.fields[key]) {
+			return
+		}
+	}
 }
 
 // Blurs the current input, selects and focuses the next one c.inputs.ordered.
@@ -434,150 +405,91 @@ func (c *createModel) focusInput(focus bool) {
 	if c.SubmitSelected() {
 		return
 	}
-	switch c.curInputType() {
-	case File:
-		if focus {
-			c.inputs.PTIs[c.curInputKey()].Focus()
-		} else {
-			c.inputs.PTIs[c.curInputKey()].Blur()
-		}
-	case Text:
-		if focus {
-			c.inputs.TIs[c.curInputKey()].Focus()
-		} else {
-			c.inputs.TIs[c.curInputKey()].Blur()
-		}
-	default:
-		s := "focus"
-		if !focus {
-			s = "blur"
-		}
-		clilog.Writer.Error("failed to "+s+" next input: unknown field type",
-			attachLogInfo(c.inputs.ordered[c.inputs.selected].Key, c.inputs.ordered[c.inputs.selected].Type)...)
-	}
+	key := c.inputs.ordered[c.inputs.selected]
+	c.fields[key].Provider.ToggleFocus(focus)
 }
 
-// Generates the corollary value map from the inputs.
-//
-// Returns:
-//
-// - key -> input value
-//
-// - a list of required fields (as their keys) with empty values
-//
-// - an error (if applicable)
-func (c *createModel) extractInputValues() (fieldValues map[string]string, missingRequiredFields []string) {
-	fieldValues = make(map[string]string, len(c.inputs.ordered))
-	for _, o := range c.inputs.ordered {
-		// fetch respective input's value
-		var val string
-		switch o.Type {
-		case File:
-			val = c.inputs.PTIs[o.Key].Value()
-		case Text:
-			val = c.inputs.TIs[o.Key].Value()
-		default:
-			clilog.Writer.Error("failed to fetch next input: unknown field type",
-				attachLogInfo(o.Key, o.Type)...)
-			continue
-		}
-
-		val = strings.TrimSpace(val)
-		field, ok := c.fields[o.Key]
-		if !ok {
-			clilog.Writer.Error("failed to extract input values: failed to find field associated to key " + o.Key)
-			continue
-		}
-		if field.Required && val == "" { // check for missing required
-			missingRequiredFields = append(missingRequiredFields, o.Key)
-		}
-
-		fieldValues[o.Key] = val
-	}
-
-	return fieldValues, missingRequiredFields
-}
-
-var rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
-
-// the number of lines available for use when showing path suggestions.
-// If fewer suggestions are available than populate these lines, View will pad vertically
-const pathSuggestionLineCount int = 2
-
-// Iterates through the inputs in order, composing as "titles:input".
+// View composes each field's view into a set, using the total width of TitleValue views to center Line and second-line views.
 func (c *createModel) View() string {
-	// total amount of space we are taking of for this View. Should be <= c.width.
-	modalWidth := c.longestFieldLength + 1 + c.longestTILength // field + ":" + ti
+	if c.inputs.takeover != "" {
+		_, v, _ := c.fields[c.inputs.takeover].Provider.View(true, c.width)
+		return v
+	}
 
-	var lines []string
-	var sb strings.Builder // to build titles; reused each cycle
-	for i, o := range c.inputs.ordered {
-		sb.Reset()
-		field, ok := c.fields[o.Key]
-		if !ok {
-			clilog.Writer.Error("failed to generate field view: failed to find field associated to key " + o.Key)
-			continue
-		}
-		// left-pad so all titles are all the same width
-		sb.WriteString(strings.Repeat(" ", c.longestFieldLength-len(field.Title)))
-		sb.WriteString(stylesheet.Pip(c.inputs.selected, uint(i)))
-		// coloruize and attach titles
-		if field.Required {
-			sb.WriteString(stylesheet.RequiredTitle(field.Title))
+	// View operates in two passes:
+	// one to collect and measure the width of TitleValue views
+	// one to center remaining views and compose the final, returned view.
+
+	views, setWidth := c.collectViewValues()
+	if setWidth == 0 { // if we somehow have no TitleValues, use the entire pane
+		setWidth = c.width
+	}
+
+	// build final lines, centering Line/secondLine entries under modalWidth
+	centerSty := lipgloss.NewStyle().Width(setWidth).AlignHorizontal(lipgloss.Center)
+	lines := make([]string, 0, len(views))
+	for _, v := range views {
+		if v.toCenter {
+			lines = append(lines, centerSty.MaxHeight(2).Render(v.content))
 		} else {
-			sb.WriteString(stylesheet.OptionalTitle(field.Title))
-		}
-		title := rightAlignSty.Render(sb.String())
-
-		// attach input view and any additional lines
-		switch o.Type {
-		case File:
-			pti := c.inputs.PTIs[o.Key]
-			lines = append(lines, title+pti.View())
-			// gather suggestions into a following line
-			var sgts = TrimSuggestsToFile(pti.AvailableSuggestions(), pti.Value())
-			// truncate suggestions to a single line, within the max size of field+input
-			l := lipgloss.NewStyle().Width(modalWidth).MaxHeight(pathSuggestionLineCount).Height(pathSuggestionLineCount).
-				Render(strings.Join(sgts, " "))
-
-			lines = append(lines, l)
-		case Text:
-			lines = append(lines, title+c.inputs.TIs[o.Key].View())
+			lines = append(lines, v.content)
 		}
 	}
+
 	// compose the titles and inputs
 	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
-	// generate submit button and align it with the center
-	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), modalWidth, c.inputs.err, c.createErr)
-	// align the submit to roughly the end of the field titles
+	// generate submit button centered under the modal
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), setWidth, c.inputs.err, c.createErr)
 	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
 
 }
 
-// TrimSuggestsToFile is a helper function for View that returns only the file chunk of each suggestion, with matching runes colourized.
-// The dir portion, if it exists, is thrown away.
-// These suggestions should not be fed into a TI; they are intended for display to a user.
+// a material is a component view, collected from a Field.
+type material struct {
+	content  string
+	toCenter bool // should this line be centered in the final composition
+}
+
+// collectViewValues gathers the material views, composes TitleValues, and measures the greatest line-width seen amongst the TitleValues.
 //
-// If a suggested filename does not contain matching characters in input, it will be dropped.
-// This is mostly because this function expects the suggestions to already be trimmed down to matches only;
-// if there is a mismatch, something has likely gone wrong.
-func TrimSuggestsToFile(availSgts []string, input string) (filenames []string) {
-	for _, sgt := range availSgts {
-		sgtDir, sgtFn := path.Split(sgt)
-		partialFN := strings.TrimPrefix(input, sgtDir)
-		// strip off matching file characters
-		unmatchedFNRunes, found := strings.CutPrefix(sgtFn, partialFN)
-		if !found {
-			clilog.Writer.Warnf("dropping suggestion '%v'; the input filename '%v' does not prefix-match filename '%v'",
-				sgt, partialFN, sgtFn)
-			continue
+// Returns the views (ordered as c.inputs.ordered) and the widest TitleView seen in the set.
+// The width should be used to center lines tagged with toCenter.
+func (c *createModel) collectViewValues() (views []material, setWidth int) {
+	views = make([]material, 0, len(c.inputs.ordered))
+	for i, key := range c.inputs.ordered {
+		field := c.fields[key]
+		kind, value, secondLine := c.fields[key].Provider.View(i == int(c.inputs.selected), c.width)
+
+		switch kind {
+		case TitleValue:
+			// left-pad so all titles are right-aligned to a consistent column width
+			padding := strings.Repeat(" ", c.longestTitleLength-len(field.Title))
+			pip := stylesheet.Pip(c.inputs.selected, uint(i))
+			var styledTitle string
+			if field.Required {
+				styledTitle = stylesheet.RequiredTitle(field.Title)
+			} else {
+				styledTitle = stylesheet.OptionalTitle(field.Title)
+			}
+			line := padding + pip + styledTitle + value
+			views = append(views, material{content: line, toCenter: false})
+			if w := lipgloss.Width(line); w > setWidth {
+				setWidth = w
+			}
+		case Line:
+			views = append(views, material{
+				content:  stylesheet.Pip(c.inputs.selected, uint(i)) + value,
+				toCenter: true,
+			})
 		}
-		// colourize and reattach matching file characters
-		filenames = append(filenames, stylesheet.Cur.TertiaryText.Render(partialFN)+unmatchedFNRunes)
+		// attach second line, if provided; always centered
+		if secondLine != "" {
+			views = append(views, material{content: secondLine, toCenter: true})
+		}
 	}
 
-	return filenames
+	return views, setWidth
 }
 
 func (c *createModel) Done() bool {
@@ -587,29 +499,9 @@ func (c *createModel) Done() bool {
 func (c *createModel) Reset() error {
 	c.mode = inputting
 
-	var wg sync.WaitGroup
-	// reset TIs
-	wg.Go(func() {
-		for _, pti := range c.inputs.PTIs {
-			pti.Reset()
-			pti.Blur()
-		}
-	})
-	wg.Go(func() {
-		for _, ti := range c.inputs.TIs {
-			ti.Reset()
-			ti.Blur()
-		}
-	})
-	wg.Go(func() { // refresh flags to their original, unparsed and unvalued state
-		c.fs = installFlagsFromFields(c.fields)
-		if c.addtlFlagFunc != nil {
-			addtlFlags := c.addtlFlagFunc()
-			c.fs.AddFlagSet(addtlFlags)
-		}
-	})
-
-	wg.Wait()
+	for _, key := range c.inputs.ordered {
+		c.fields[key].Provider.Reset()
+	}
 
 	c.createErr = ""
 	c.inputs.err = ""
@@ -624,109 +516,27 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		return err.Error(), nil, nil
 	}
 
-	// we do not need to check missing requires when run from mother
-	flagVals, _, err := getFieldValuesFromFlags(&c.fs, c.fields)
-	if err != nil {
+	// call SetArg hooks
+	for _, key := range c.inputs.ordered {
+		c.fields[key].Provider.SetArgs(width, height)
+	}
+
+	if _, err := setValuesFromFlags(&c.fs, c.fields); err != nil {
 		return "", nil, err
 	}
 
-	// iterate fields to check for customTIconf and values
-	for key, field := range c.fields {
-		// check for and set flag values
-		if v, found := flagVals[key]; found {
-			switch field.Type {
-			case File:
-				c.inputs.PTIs[key].SetValue(v)
-			case Text:
-				c.inputs.TIs[key].SetValue(v)
-			}
-		}
-		// check for customTIs to call
-		if field.CustomTIFuncSetArg != nil {
-			ti := c.inputs.TIs[key]
-			nti := field.CustomTIFuncSetArg(ti)
-			c.inputs.TIs[key] = &nti
-		}
-
-	}
-
-	for key, fval := range flagVals {
-		// figure out type by searching fields
-		field := c.fields[key]
-		switch field.Type {
-		case File:
-			c.inputs.PTIs[key].SetValue(fval)
-		}
-	}
 	c.width = width
 
+	// set the error immediately based on starting satisfaction states.
+	// This is really just to set the error to the first missing required field's error.
+	c.checkSatisfaction(false)
 	return "", nil, nil
 }
 
-//#region getter/setter helper functions
-
-// Returns the key of the current input.
-//
-// Returns "" if submit is selected.
-func (c *createModel) curInputKey() string {
-	if c.SubmitSelected() {
-		return ""
-	}
-	return c.inputs.ordered[c.inputs.selected].Key
-}
-
-// Returns the key of the current input.
-//
-// Returns "" if submit is selected.
-func (c *createModel) curInputType() FieldType {
-	if c.SubmitSelected() {
-		return ""
-	}
-	return c.inputs.ordered[c.inputs.selected].Type
-}
-
-// getInputValue is a helper function for fetching the .Value of an input.
-// If type is given, only the associated map will be checked (providing a meager time-cost reduction).
-//
-// Returns empty and logs and error if the key is not found.
-func (c *createModel) getInputValue(key string, typ FieldType) string {
-	switch typ {
-	case File:
-		pti, ok := c.inputs.PTIs[key]
-		if ok {
-			return pti.Value()
-		}
-	case Text:
-		ti, ok := c.inputs.TIs[key]
-		if ok {
-			return ti.Value()
-		}
-	default:
-		// check both: file, then text
-		pti, ok := c.inputs.PTIs[key]
-		if ok {
-			return pti.Value()
-		}
-		ti, ok := c.inputs.TIs[key]
-		if ok {
-			return ti.Value()
-		}
-
-	}
-
-	// if we made it this far, the key was not found. Log an error and return.
-	clilog.Writer.Warn("failed to find input value associated to key", attachLogInfo(key, typ)...)
-
-	return ""
-}
-
-//#endregion
-
 // attachLogInfo returns 3 SDParams that are useful to attach to most/every log: key, type, and caller identity.
-func attachLogInfo(key string, typ FieldType) []rfc5424.SDParam {
+func attachLogInfo(key string) []rfc5424.SDParam {
 	return []rfc5424.SDParam{
 		{Name: "field_key", Value: key},
-		{Name: "type", Value: typ},
 		scaffold.IdentifyCaller(),
 	}
 }

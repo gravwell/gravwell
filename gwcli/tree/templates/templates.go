@@ -106,7 +106,7 @@ func list() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// check that path is valid and the file exists
 			if fi, err := os.Stat(fieldValues["path"]); err != nil {
 				switch {

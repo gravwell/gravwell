@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/attach"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/saved"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/scheduled"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -41,7 +42,7 @@ var aliases []string = []string{"searches"}
 
 func NewQueriesNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
-		[]*cobra.Command{scheduled.NewScheduledNav()},
+		[]*cobra.Command{scheduled.NewScheduledNav(), saved.NewSavedNav()},
 		[]action.Pair{past(), attach.NewAttachAction()})
 }
 

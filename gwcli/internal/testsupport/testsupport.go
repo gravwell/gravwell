@@ -25,6 +25,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -57,6 +59,13 @@ func Type(prog *tea.Program, text string) {
 	for _, r := range text {
 		prog.Send(tea.KeyMsg(
 			tea.Key{Type: tea.KeyRunes, Runes: []rune{rune(r)}}))
+	}
+}
+
+// TypeModel sends each character of text into model.Update, one by one.
+func TypeModel(model action.Model, text string) {
+	for _, r := range text {
+		model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
 }
 
@@ -186,6 +195,25 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 		t.Fatal(ExpectedActual(reflect.String, voMessageBody.Kind()))
 	}
 	return voMessageBody.String()
+}
+
+// CheckSetArgs calls SetArgs on the given Model and tests that its return values are as expected.
+//
+// Calls fatal on failure.
+func CheckSetArgs(t *testing.T, model action.Model,
+	flagset *pflag.FlagSet, tokens []string, width, height int,
+	wantInvalid string, wantOnStart tea.Cmd, wantErr error) {
+	t.Helper()
+	invalid, onStart, err := model.SetArgs(flagset, tokens, width, height)
+
+	if invalid != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || err != wantErr {
+
+		t.Fatal("bad SetArgs results."+
+			"\nInvalid:", ExpectedActual(wantInvalid, invalid),
+			"\nonStart:", ExpectedActual(wantOnStart, onStart),
+			"\nerr:", ExpectedActual(wantErr, err),
+		)
+	}
 }
 
 // LinesTrimSpace calls strings.TrimSpace on each line of the given string, allowing multiline strings to be compared white-space-agnostic.

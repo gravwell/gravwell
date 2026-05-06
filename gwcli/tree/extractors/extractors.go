@@ -134,93 +134,86 @@ func create() action.Pair {
 	fLabels.Order = 40
 
 	return scaffoldcreate.NewCreateAction("extractor",
-		scaffoldcreate.Config{
+		map[string]scaffoldcreate.Field{
 			fieldKeyName: scaffoldcreate.FieldName("extractor"),
 			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
 			fieldKeyModule: scaffoldcreate.Field{
-				Required:      true,
-				Title:         "module",
-				Usage:         "extraction module to use. Call `extractors modules` to list available options.",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "module",
-				FlagShorthand: 'm',
-				DefaultValue:  "",
-				Order:         80,
-				CustomTIFuncInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", false)
-					ti.ShowSuggestions = true
-					return ti
+				Required: true,
+				Title:    "module",
+				Flag:     scaffoldcreate.FlagConfig{Name: "module", Usage: "extraction module to use. Call `extractors modules` to list available options.", Shorthand: 'm'},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("", false)
+						ti.ShowSuggestions = true
+						return ti
+					},
+					CustomSetArgs: func(ti textinput.Model) textinput.Model {
+						if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
+							clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
+						} else if len(engines) > 0 {
+							ti.SetSuggestions(engines)
+							ti.Placeholder = engines[0]
+						}
+						return ti
+					},
 				},
-				CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
-					if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
-						clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
-					} else if len(engines) > 0 {
-						ti.SetSuggestions(engines)
-						ti.Placeholder = engines[0]
-					}
-					return *ti
-				},
+				DefaultValue: "",
+				Order:        80,
 			},
 			fieldKeyTags: scaffoldcreate.Field{
-				Required:      true,
-				Title:         "tags",
-				Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "tags",
-				FlagShorthand: 't',
-				Order:         70,
-				CustomTIFuncInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", false)
-					ti.Placeholder = "tag1,tag2,tag3"
-					return ti
+				Required: true,
+				Title:    "tags",
+				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: "tags this ax will extract from. There can only be one extractor per tag.", Shorthand: 't'},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("", false)
+						ti.Placeholder = "tag1,tag2,tag3"
+						return ti
+					},
+					CustomSetArgs: func(ti textinput.Model) textinput.Model {
+						if tags, err := connection.Client.GetTags(); err != nil {
+							clilog.Writer.Warnf("failed to fetch tags: %v", err)
+							ti.ShowSuggestions = false
+						} else {
+							ti.ShowSuggestions = true
+							ti.SetSuggestions(tags)
+						}
+						return ti
+					},
 				},
-				CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
-					if tags, err := connection.Client.GetTags(); err != nil {
-						clilog.Writer.Warnf("failed to fetch tags: %v", err)
-						ti.ShowSuggestions = false
-					} else {
-						ti.ShowSuggestions = true
-						ti.SetSuggestions(tags)
-					}
-
-					return *ti
-				},
+				Order: 70,
 			},
 			fieldKeyParams: scaffoldcreate.Field{
 				Required: true,
 				Title:    "Params/regex",
-				Usage:    fieldUsageParams,
-				Type:     scaffoldcreate.Text,
-				FlagName: "params",
-
-				Order: 60,
+				Flag:     scaffoldcreate.FlagConfig{Name: "params", Usage: fieldUsageParams},
+				Provider: &scaffoldcreate.TextProvider{},
+				Order:    60,
 			},
 			fieldKeyArgs: scaffoldcreate.Field{
 				Required:     false,
 				Title:        "arguments/options",
-				Usage:        fieldUsageArgs,
-				Type:         scaffoldcreate.Text,
-				FlagName:     "args",
+				Flag:         scaffoldcreate.FlagConfig{Name: "args", Usage: fieldUsageArgs},
+				Provider:     &scaffoldcreate.TextProvider{},
 				DefaultValue: "",
-
-				Order: 50,
+				Order:        50,
 			},
 			fieldKeyLabels: fLabels,
 		},
-		func(_ scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (any, string, error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
 			// no need to nil check; Required boolean enforces that for us
 
 			// map fields back into the underlying type
 			axd := types.AX{
 				CommonFields: types.CommonFields{
-					Name:        fieldValues[fieldKeyName],
-					Description: fieldValues[fieldKeyDesc],
-					Labels:      strings.Split(strings.ReplaceAll(fieldValues[fieldKeyLabels], " ", ""), ","),
+					Name:        cfg[fieldKeyName].Provider.Get(),
+					Description: cfg[fieldKeyDesc].Provider.Get(),
+					Labels:      strings.Split(strings.ReplaceAll(cfg[fieldKeyLabels].Provider.Get(), " ", ""), ","),
 				},
-				Module: fieldValues[fieldKeyModule],
-				Tags:   strings.Split(strings.ReplaceAll(fieldValues[fieldKeyTags], " ", ""), ","),
-				Params: fieldValues[fieldKeyParams],
-				Args:   fieldValues[fieldKeyArgs],
+				Module: cfg[fieldKeyModule].Provider.Get(),
+				Tags:   strings.Split(strings.ReplaceAll(cfg[fieldKeyTags].Provider.Get(), " ", ""), ","),
+				Params: cfg[fieldKeyParams].Provider.Get(),
+				Args:   cfg[fieldKeyArgs].Provider.Get(),
 			}
 
 			// check for dryrun

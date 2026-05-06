@@ -108,48 +108,49 @@ var macroNameRgx = regexp.MustCompile("^[a-zA-Z0-9_-]*$")
 func create() action.Pair {
 
 	nameField := scaffoldcreate.FieldName("macro")
-	nameField.CustomTIFuncInit = func() textinput.Model {
-		ti := stylesheet.NewTI("", false)
-		ti.Prompt = "$"
-		ti.Validate = func(s string) error {
-			s = strings.ToUpper(s)
-			if !macroNameRgx.MatchString(s) {
-				return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
-			}
-
-			if len(s) > 0 {
-				char := []rune(s)[0]
-				if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
-					return errors.New("macro names must start with a letter or number")
+	nameField.Provider = &scaffoldcreate.TextProvider{
+		CustomInit: func() textinput.Model {
+			ti := stylesheet.NewTI("", false)
+			ti.Prompt = "$"
+			ti.Validate = func(s string) error {
+				s = strings.ToUpper(s)
+				if !macroNameRgx.MatchString(s) {
+					return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
 				}
 
+				if len(s) > 0 {
+					char := []rune(s)[0]
+					if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
+						return errors.New("macro names must start with a letter or number")
+					}
+
+				}
+				return nil
 			}
-			return nil
-		}
-		return ti
+			return ti
+		},
 	}
 
-	fields := scaffoldcreate.Config{
+	fields := map[string]scaffoldcreate.Field{
 		"name": nameField,
 		"desc": scaffoldcreate.FieldDescription("macro"),
 		"exp": scaffoldcreate.Field{
 			Required:     true,
 			Title:        "expansion",
-			Usage:        FlagExpansionUsage,
-			Type:         scaffoldcreate.Text,
-			FlagName:     FlagExpansion,
+			Flag:         scaffoldcreate.FlagConfig{Name: FlagExpansion, Usage: FlagExpansionUsage},
+			Provider:     &scaffoldcreate.TextProvider{},
 			DefaultValue: "",
 			Order:        80,
 		},
 	}
 
 	return scaffoldcreate.NewCreateAction("macro", fields,
-		func(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
+		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 			sm := types.Macro{}
 			// all three fields are required, no need to nil-check them
-			sm.Name = strings.ToUpper(fieldValues["name"])
-			sm.Description = fieldValues["desc"]
-			sm.Expansion = fieldValues["exp"]
+			sm.Name = strings.ToUpper(cfg["name"].Provider.Get())
+			sm.Description = cfg["desc"].Provider.Get()
+			sm.Expansion = cfg["exp"].Provider.Get()
 
 			macro, err := connection.Client.CreateMacro(sm)
 			return macro.ID, "", err
