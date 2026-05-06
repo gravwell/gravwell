@@ -354,7 +354,7 @@ var keyByName = map[string]tea.KeyType{
 func MetaArgs(t *testing.T, allowInteractive bool, opts ...func(t *testing.T) []string) (metaArgs []string) {
 	meta := []string{}
 	if !allowInteractive {
-		meta = append(meta, ft.NoInteractive.Name())
+		meta = append(meta, "--"+ft.NoInteractive.Name())
 	}
 	for _, opt := range opts {
 		meta = append(meta, opt(t)...)
@@ -385,7 +385,13 @@ func WithServer(secure bool, override string) func(t *testing.T) []string {
 	if !secure {
 		sec = "--insecure"
 	}
-	return func(t *testing.T) []string { return []string{sec, "--server=" + server} }
+	return func(t *testing.T) []string {
+		a := []string{"--server=" + server}
+		if sec != "" {
+			a = append(a, sec)
+		}
+		return a
+	}
 }
 
 // WithDefaults sets WithUsernamePassword as the default admin credentials and WithServer as insecure relying on testsupport.Server()
