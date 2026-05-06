@@ -221,7 +221,7 @@ func Test_run(t *testing.T) {
 		cmd := prepCmd(flagArgs)
 
 		// run
-		run(cmd, args)
+		runE(cmd, args)
 
 		// check that the expected file exists and has data
 		fileInfo, err := os.Stat(t1)
@@ -242,7 +242,7 @@ func Test_run(t *testing.T) {
 		cmd := prepCmd(flagArgs)
 
 		// run
-		run(cmd, args)
+		runE(cmd, args)
 
 		// check that the expected file exists and has data
 		fileInfo, err := os.Stat(t2)
