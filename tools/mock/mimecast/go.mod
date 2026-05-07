@@ -2,9 +2,9 @@ module mimecast
 
 go 1.26.2
 
-require github.com/gravwell/gravwell/v3 v3.0.0-00010101000000-000000000000
+require github.com/gravwell/gravwell/v4 v4.0.0-00010101000000-000000000000
 
-replace github.com/gravwell/gravwell/v3 => ../../..
+replace github.com/gravwell/gravwell/v4 => ../../..
 
 require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
@@ -18,7 +18,7 @@ require (
 	github.com/google/renameio v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
-	github.com/gravwell/gcfg v1.2.10-0.20260429153838-0f548d7bfc0c // indirect
+	github.com/gravwell/gcfg v1.2.10-0.20260504223426-35a5c32cba03 // indirect
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37 // indirect
 	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005 // indirect
 	github.com/gravwell/syslogparser v0.0.0-20250904221952-6d38d4266dee // indirect
