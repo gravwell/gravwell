@@ -45,13 +45,9 @@ var (
 	running bool
 	src     net.IP
 
-	ErrInvalidStateFile = errors.New("State file exists and is not a regular file")
-	ErrFailedSeek       = errors.New("Failed to seek to the start of the states file")
+	ErrInvalidStateFile = errors.New("state file exists and is not a regular file")
+	ErrFailedSeek       = errors.New("failed to seek to the start of the states file")
 )
-
-type event struct {
-	Id string
-}
 
 func main() {
 	go debug.HandleDebugSignals(appName)
@@ -80,7 +76,11 @@ func main() {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
 		return
 	}
-	defer igst.Close()
+	defer func() {
+		if err := igst.Close(); err != nil {
+			_ = ib.Logger.Error("error closing ingester", log.KVErr(err))
+		}
+	}()
 	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
@@ -203,7 +203,7 @@ type routineCfg struct {
 }
 
 func alertRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
+	_ = lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -211,7 +211,7 @@ func alertRoutine(c routineCfg) {
 		debugout("Querying alerts\n")
 		alerts, err := c.graphClient.ListAlerts()
 		if err != nil {
-			lg.Error("failed to list alerts", log.KVErr(err))
+			_ = lg.Error("failed to list alerts", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -229,7 +229,7 @@ func alertRoutine(c routineCfg) {
 			// Now re-pack this as json
 			packed, err := json.Marshal(item)
 			if err != nil {
-				lg.Warn("failed to re-pack entry", log.KV("id", item.ID), log.KVErr(err))
+				_ = lg.Warn("failed to re-pack entry", log.KV("id", item.ID), log.KVErr(err))
 				continue
 			}
 
@@ -245,14 +245,14 @@ func alertRoutine(c routineCfg) {
 			}
 			// now write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("failed to handle entry", log.KVErr(err))
+				_ = lg.Warn("failed to handle entry", log.KVErr(err))
 			}
 			// Mark down this alert as ingested
-			tracker.RecordId(item.ID, time.Now())
+			_ = tracker.RecordId(item.ID, time.Now())
 
 		}
 		// Here's how we shut down quickly
-		for i := 0; i < 30; i++ {
+		for range 30 {
 			if !running {
 				break
 			}
@@ -260,13 +260,13 @@ func alertRoutine(c routineCfg) {
 		}
 	}
 	if err := c.procset.Close(); err != nil {
-		lg.Error("failed to close processor set", log.KVErr(err))
+		_ = lg.Error("failed to close processor set", log.KVErr(err))
 	}
 
 }
 
 func secureScoreRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
+	_ = lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -274,7 +274,7 @@ func secureScoreRoutine(c routineCfg) {
 		debugout("Querying secure scores\n")
 		scores, err := c.graphClient.ListSecureScores()
 		if err != nil {
-			lg.Error("failed to list secure scores", log.KVErr(err))
+			_ = lg.Error("failed to list secure scores", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -292,7 +292,7 @@ func secureScoreRoutine(c routineCfg) {
 			// Now re-pack this as json
 			packed, err := json.Marshal(item)
 			if err != nil {
-				lg.Warn("failed to re-pack secure score entry", log.KV("id", item.ID), log.KVErr(err))
+				_ = lg.Warn("failed to re-pack secure score entry", log.KV("id", item.ID), log.KVErr(err))
 				continue
 			}
 
@@ -308,15 +308,16 @@ func secureScoreRoutine(c routineCfg) {
 			}
 			// now write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("failed to handle entry", log.KVErr(err))
+				_ = lg.Warn("failed to handle entry", log.KVErr(err))
 			}
 			// Mark down this alert as ingested
-			tracker.RecordId(item.ID, time.Now())
-
+			if err := tracker.RecordId(item.ID, time.Now()); err != nil {
+				_ = lg.Warn("failed to record alert", log.KVErr(err))
+			}
 		}
 		// Here's how we shut down quickly
 		// Secure scores are created very infrequently, so we sleep for a long time.
-		for i := 0; i < 300; i++ {
+		for range 300 {
 			if !running {
 				break
 			}
@@ -324,13 +325,13 @@ func secureScoreRoutine(c routineCfg) {
 		}
 	}
 	if err := c.procset.Close(); err != nil {
-		lg.Error("failed to close processor set", log.KVErr(err))
+		_ = lg.Error("failed to close processor set", log.KVErr(err))
 	}
 
 }
 
 func secureScoreProfileRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
+	_ = lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -338,7 +339,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 		debugout("Querying secure score profiles\n")
 		profiles, err := c.graphClient.ListSecureScoreControlProfiles()
 		if err != nil {
-			lg.Error("failed to list secure score profiles", log.KVErr(err))
+			_ = lg.Error("failed to list secure score profiles", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -351,7 +352,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 			// Re-pack this as json
 			packed, err := json.Marshal(item)
 			if err != nil {
-				lg.Warn("failed to re-pack secure score profile", log.KV("id", item.ID), log.KVErr(err))
+				_ = lg.Warn("failed to re-pack secure score profile", log.KV("id", item.ID), log.KVErr(err))
 				continue
 			}
 
@@ -366,13 +367,13 @@ func secureScoreProfileRoutine(c routineCfg) {
 
 			// write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("failed to handle entry", log.KVErr(err))
+				_ = lg.Warn("failed to handle entry", log.KVErr(err))
 			}
 
 		}
 		// Here's how we shut down quickly
 		// We poll the profiles every hour just so they exist in the system
-		for i := 0; i < 3600; i++ {
+		for range 3600 {
 			if !running {
 				break
 			}
@@ -380,12 +381,12 @@ func secureScoreProfileRoutine(c routineCfg) {
 		}
 	}
 	if err := c.procset.Close(); err != nil {
-		lg.Error("failed to close processor set", log.KVErr(err))
+		_ = lg.Error("failed to close processor set", log.KVErr(err))
 	}
 
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
