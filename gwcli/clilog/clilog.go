@@ -22,8 +22,6 @@ import (
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
@@ -183,14 +181,4 @@ func LogFlagFailedGet(flagname string, err error) {
 		return
 	}
 	Writer.Warnf("failed to fetch '--%v':%v\nignoring", flagname, err)
-}
-
-var dbgMsgSty = lipgloss.NewStyle().Italic(true)
-
-// LogMsg is a helper method for consistently displaying messages (at the debug level).
-func LogMsg(str string, msg tea.Msg) {
-	if Writer == nil {
-		return
-	}
-	Writer.Debugf("%s\n\t"+dbgMsgSty.Render("%#v"), str, msg)
 }
