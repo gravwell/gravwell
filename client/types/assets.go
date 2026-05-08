@@ -3,6 +3,8 @@ package types
 var AllowedOperations = []string{"=", "!=", "<>", ">", "<", ">=", "<=", "~"}
 
 type QueryOptions struct {
+	Type string `json:"type"` // Specifies the type of asset to return, 'mixed' for everything. Ignored except on the /api/list (ListAll) endpoint
+
 	IncludeDeleted bool `json:"include_deleted"`
 	Version        int  `json:"version"` // fetch a particular version, when appropriate. 0 means latest, -1 means all versions (list only)
 
