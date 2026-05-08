@@ -10,7 +10,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -21,6 +20,7 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
+	azidentity "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -29,7 +29,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
-	"github.com/open-networks/go-msgraph"
+	jsonserialization "github.com/microsoft/kiota-serialization-json-go"
+	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
 )
 
 const (
@@ -103,9 +104,21 @@ func main() {
 	var wg sync.WaitGroup
 
 	// Instantiate the client
-	graphClient, err := msgraph.NewGraphClient(cfg.Global.Tenant_Domain, cfg.Global.Client_ID, cfg.Global.Client_Secret)
+	cred, err := azidentity.NewClientSecretCredential(
+		cfg.Global.Tenant_Domain,
+		cfg.Global.Client_ID,
+		cfg.Global.Client_Secret,
+		nil,
+	)
 	if err != nil {
-		lg.FatalCode(0, "Failed to get new client", log.KVErr(err))
+		lg.FatalCode(0, "failed to create credentials", log.KVErr(err))
+	}
+	graphClient, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(
+		cred,
+		[]string{"https://graph.microsoft.com/.default"},
+	)
+	if err != nil {
+		lg.FatalCode(0, "failed to create graph client", log.KVErr(err))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -195,7 +208,7 @@ type routineCfg struct {
 	igst        *ingest.IngestMuxer
 	wg          *sync.WaitGroup
 	cfg         *cfgType
-	graphClient *msgraph.GraphClient
+	graphClient *msgraphsdkgo.GraphServiceClient
 	ctx         context.Context
 	tg          *timegrinder.TimeGrinder
 	procset     *processors.ProcessorSet
@@ -209,27 +222,46 @@ func alertRoutine(c routineCfg) {
 
 	for running {
 		debugout("Querying alerts\n")
-		alerts, err := c.graphClient.ListAlerts()
+		resp, err := c.graphClient.Security().Alerts_v2().Get(c.ctx, nil)
 		if err != nil {
-			_ = lg.Error("failed to list alerts", log.KVErr(err))
+			lg.Error("failed to list alerts", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
 
+		alerts := resp.GetValue()
+		for resp.GetOdataNextLink() != nil && *resp.GetOdataNextLink() != "" {
+			resp, err = c.graphClient.Security().Alerts_v2().WithUrl(*resp.GetOdataNextLink()).Get(c.ctx, nil)
+			if err != nil {
+				lg.Error("failed to get next page of alerts", log.KVErr(err))
+				break
+			}
+			alerts = append(alerts, resp.GetValue()...)
+		}
+
 		var ent *entry.Entry
-		// Attempt to ingest each alert
 		for _, item := range alerts {
-			// CHECK IF ALREADY SEEN
-			if tracker.IdExists(item.ID) {
-				debugout("skipping already-seen alert %v\n", item.ID)
+			id := item.GetId()
+			if id == nil {
 				continue
 			}
-			debugout("extracting %v\n", item.ID)
 
-			// Now re-pack this as json
-			packed, err := json.Marshal(item)
+			if tracker.IdExists(*id) {
+				debugout("skipping already-seen alert %v\n", *id)
+				continue
+			}
+
+			debugout("extracting %v\n", *id)
+
+			writer := jsonserialization.NewJsonSerializationWriter()
+			if err := item.Serialize(writer); err != nil {
+				_ = lg.Warn("failed to serialize alert", log.KV("id", *id), log.KVErr(err))
+				continue
+			}
+
+			packed, err := writer.GetSerializedContent()
 			if err != nil {
-				_ = lg.Warn("failed to re-pack entry", log.KV("id", item.ID), log.KVErr(err))
+				_ = lg.Warn("failed to get serialized alert content", log.KV("id", *id), log.KVErr(err))
 				continue
 			}
 
@@ -241,17 +273,23 @@ func alertRoutine(c routineCfg) {
 			if c.ct.Ignore_Timestamps {
 				ent.TS = entry.Now()
 			} else {
-				ent.TS = entry.FromStandard(item.CreatedDateTime)
+				ts := item.GetCreatedDateTime()
+				if ts != nil {
+					ent.TS = entry.FromStandard(*ts)
+				} else {
+					ent.TS = entry.Now()
+				}
 			}
-			// now write the entry
+
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
 				_ = lg.Warn("failed to handle entry", log.KVErr(err))
 			}
-			// Mark down this alert as ingested
-			_ = tracker.RecordId(item.ID, time.Now())
 
+			if err := tracker.RecordId(*id, time.Now()); err != nil {
+				_ = lg.Warn("failed to record alert", log.KV("id", *id), log.KVErr(err))
+			}
 		}
-		// Here's how we shut down quickly
+
 		for range 30 {
 			if !running {
 				break
@@ -272,27 +310,45 @@ func secureScoreRoutine(c routineCfg) {
 
 	for running {
 		debugout("Querying secure scores\n")
-		scores, err := c.graphClient.ListSecureScores()
+		resp, err := c.graphClient.Security().SecureScores().Get(c.ctx, nil)
 		if err != nil {
-			_ = lg.Error("failed to list secure scores", log.KVErr(err))
+			lg.Error("failed to list secure scores", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
 
+		scores := resp.GetValue()
+		for resp.GetOdataNextLink() != nil && *resp.GetOdataNextLink() != "" {
+			resp, err = c.graphClient.Security().SecureScores().WithUrl(*resp.GetOdataNextLink()).Get(c.ctx, nil)
+			if err != nil {
+				lg.Error("failed to get next page of secure scores", log.KVErr(err))
+				break
+			}
+			scores = append(scores, resp.GetValue()...)
+		}
+
 		var ent *entry.Entry
-		// Attempt to ingest each score
 		for _, item := range scores {
-			// CHECK IF ALREADY SEEN
-			if tracker.IdExists(item.ID) {
-				debugout("skipping already-seen score %v\n", item.ID)
+			id := item.GetId()
+			if id == nil {
 				continue
 			}
-			debugout("extracting %v\n", item.ID)
 
-			// Now re-pack this as json
-			packed, err := json.Marshal(item)
+			if tracker.IdExists(*id) {
+				debugout("skipping already-seen score %v\n", *id)
+				continue
+			}
+			debugout("extracting %v\n", *id)
+
+			writer := jsonserialization.NewJsonSerializationWriter()
+			if err := item.Serialize(writer); err != nil {
+				lg.Warn("failed to serialize secure score", log.KV("id", *id), log.KVErr(err))
+				continue
+			}
+
+			packed, err := writer.GetSerializedContent()
 			if err != nil {
-				_ = lg.Warn("failed to re-pack secure score entry", log.KV("id", item.ID), log.KVErr(err))
+				lg.Warn("failed to get serialized secure score content", log.KV("id", *id), log.KVErr(err))
 				continue
 			}
 
@@ -301,21 +357,27 @@ func secureScoreRoutine(c routineCfg) {
 				Tag:  c.tag,
 				SRC:  src,
 			}
+
 			if c.ct.Ignore_Timestamps {
 				ent.TS = entry.Now()
 			} else {
-				ent.TS = entry.FromStandard(item.CreatedDateTime)
+				ts := item.GetCreatedDateTime()
+				if ts != nil {
+					ent.TS = entry.FromStandard(*ts)
+				} else {
+					ent.TS = entry.Now()
+				}
 			}
-			// now write the entry
+
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				_ = lg.Warn("failed to handle entry", log.KVErr(err))
+				_ = lg.Warn("failed to handle secure score entry", log.KVErr(err))
 			}
-			// Mark down this alert as ingested
-			if err := tracker.RecordId(item.ID, time.Now()); err != nil {
-				_ = lg.Warn("failed to record alert", log.KVErr(err))
+
+			if err := tracker.RecordId(*id, time.Now()); err != nil {
+				_ = lg.Warn("failed to record secure score", log.KV("id", *id), log.KVErr(err))
 			}
 		}
-		// Here's how we shut down quickly
+
 		// Secure scores are created very infrequently, so we sleep for a long time.
 		for range 300 {
 			if !running {
@@ -327,7 +389,6 @@ func secureScoreRoutine(c routineCfg) {
 	if err := c.procset.Close(); err != nil {
 		_ = lg.Error("failed to close processor set", log.KVErr(err))
 	}
-
 }
 
 func secureScoreProfileRoutine(c routineCfg) {
@@ -337,22 +398,40 @@ func secureScoreProfileRoutine(c routineCfg) {
 
 	for running {
 		debugout("Querying secure score profiles\n")
-		profiles, err := c.graphClient.ListSecureScoreControlProfiles()
+		resp, err := c.graphClient.Security().SecureScoreControlProfiles().Get(c.ctx, nil)
 		if err != nil {
 			_ = lg.Error("failed to list secure score profiles", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
 
-		var ent *entry.Entry
-		// Attempt to ingest each profile
-		for _, item := range profiles {
-			debugout("extracting %v\n", item.ID)
-
-			// Re-pack this as json
-			packed, err := json.Marshal(item)
+		profiles := resp.GetValue()
+		for resp.GetOdataNextLink() != nil && *resp.GetOdataNextLink() != "" {
+			resp, err = c.graphClient.Security().SecureScoreControlProfiles().WithUrl(*resp.GetOdataNextLink()).Get(c.ctx, nil)
 			if err != nil {
-				_ = lg.Warn("failed to re-pack secure score profile", log.KV("id", item.ID), log.KVErr(err))
+				_ = lg.Error("failed to get next page of secure score profiles", log.KVErr(err))
+				break
+			}
+			profiles = append(profiles, resp.GetValue()...)
+		}
+
+		var ent *entry.Entry
+		for _, item := range profiles {
+			id := item.GetId()
+			if id == nil {
+				continue
+			}
+			debugout("extracting %v\n", *id)
+
+			writer := jsonserialization.NewJsonSerializationWriter()
+			if err := item.Serialize(writer); err != nil {
+				_ = lg.Warn("failed to serialize secure score profile", log.KV("id", *id), log.KVErr(err))
+				continue
+			}
+
+			packed, err := writer.GetSerializedContent()
+			if err != nil {
+				_ = lg.Warn("failed to get serialized secure score profile contine", log.KV("id", *id), log.KVErr(err))
 				continue
 			}
 
@@ -365,13 +444,11 @@ func secureScoreProfileRoutine(c routineCfg) {
 			// They don't change very often, so always make it now
 			ent.TS = entry.Now()
 
-			// write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
 				_ = lg.Warn("failed to handle entry", log.KVErr(err))
 			}
-
 		}
-		// Here's how we shut down quickly
+
 		// We poll the profiles every hour just so they exist in the system
 		for range 3600 {
 			if !running {
