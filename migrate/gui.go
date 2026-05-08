@@ -21,8 +21,8 @@ import (
 	"unicode"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/rivo/tview"
 )
 

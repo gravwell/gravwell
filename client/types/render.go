@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -67,9 +67,7 @@ const (
 
 	STATS_MASK    uint32 = 0xFF000000
 	STATS_MASK_ID uint32 = 0x7F000000
-)
 
-const (
 	DownloadJSON       string = `json`       //encode as JSON
 	DownloadCSV        string = `csv`        //standard CSV file
 	DownloadText       string = `text`       //just text...
@@ -96,10 +94,129 @@ const (
 	RenderNamePointmap   string = `pointmap`
 	RenderNameHeatmap    string = `heatmap`
 	RenderNameP2P        string = `point2point`
+	RenderNameWordcloud  string = `wordcloud`
 
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
+
+	ResultsKindTable = "table"
+	ResultsKindGraph = "graph"
+
+	TransformOperatorCount       TransformOperator = "count"
+	TransformOperatorSum         TransformOperator = "sum"
+	TransformOperatorTotal       TransformOperator = "total"
+	TransformOperatorMean        TransformOperator = "mean"
+	TransformOperatorStddev      TransformOperator = "stddev"
+	TransformOperatorVariance    TransformOperator = "variance"
+	TransformOperatorMin         TransformOperator = "min"
+	TransformOperatorMax         TransformOperator = "max"
+	TransformOperatorUniqueCount TransformOperator = "unique_count"
 )
+
+var (
+	ErrResultsRequestStatsOverInvalid = errors.New("only one of 'width' or 'count' may be specified, got both")
+	ErrResultsResponseInvalid         = errors.New("ResultsResponse has no variant set")
+)
+
+// TransformOperator represents the operator to apply to results
+type TransformOperator string
+
+type ResultsRequest struct {
+	Fence  Geofence            `json:"fence,omitempty"`
+	End    time.Time           `json:"end,omitempty"`
+	Limit  uint64              `json:"limit,omitempty"`
+	Offset uint64              `json:"offset,omitempty"`
+	Sort   []ResultsSort       `json:"sort,omitempty"`
+	Start  time.Time           `json:"start,omitempty"`
+	SID    string              `json:"sid"`
+	Stats  ResultsRequestStats `json:"stats,omitempty"`
+}
+
+type ResultsSort struct {
+	Column string `json:"column"`
+	// One of "asc" | "desc"
+	Direction string `json:"direction,omitempty"`
+	// One of "string" | "number" | "IP" | "time"
+	SortAs string `json:"sortAs,omitempty"`
+}
+
+type ResultsRequestStats struct {
+	Operations ResultsRequestStatsOperationList `json:"operations,omitempty"`
+	Over       ResultsRequestStatsOver          `json:"over,omitempty"`
+}
+
+type ResultsRequestStatsOperationList = []StatsOperation
+
+// ResultsRequestStatsOver only one of the properties is populated at a time.
+type ResultsRequestStatsOver struct {
+	OverWidth *ResultsRequestStatsOverWidth
+	OverCount *ResultsRequestStatsOverCount
+}
+
+type ResultsRequestStatsOverCount struct {
+	Count int `json:"count"`
+}
+
+type ResultsRequestStatsOverWidth struct {
+	Width int `json:"width"`
+}
+
+type StatsInfo struct {
+	// If omitted, no stats operations are fixed.
+	FixedStatsOperation []StatsOperation `json:"fixedStatsOperations,omitempty"`
+	// One of: "querySpecifiedRenderer" | "incompatibleWithFinalModule". If omitted, stats operations are not disabled.
+	StatsOperationsDisabled string `json:"statsOperationsDisabled,omitempty"`
+}
+
+type StatsOperation struct {
+	As string   `json:"as,omitempty"`
+	By []string `json:"by,omitempty"`
+	// The EV to perform the operation on. If omitted, the operand will be the entire entry.
+	Operand string `json:"operand,omitempty"`
+	// one of "count" | "sum" | "avg" | "min" | "max"
+	Operation string `json:"operation"`
+}
+
+// ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
+type ResultsResponse struct {
+	Table *ResultsTable
+	Graph *ResultsGraph
+}
+
+type ResultsTable struct {
+	HasExplore       bool                           `json:"hasExplore"`
+	Kind             string                         `json:"kind"`
+	BinCount         int                            `json:"binCount"`
+	BinWidth         float64                        `json:"binWidth"`
+	Columns          []string                       `json:"columns"`
+	Rows             []map[string]*ResultsTableCell `json:"rows"`
+	TotalResultCount int                            `json:"totalResultCount"`
+}
+
+type ResultsTableCell struct {
+	Elements    []Element `json:",omitempty"`
+	Value       string
+	WordOffsets []WordOffset `json:",omitempty"`
+}
+
+type ResultsGraph struct {
+	Kind                     string             `json:"kind"`
+	Links                    []ResultsGraphLink `json:"links"`
+	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
+	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
+	Nodes                    []ResultsGraphNode `json:"nodes"`
+}
+
+type ResultsGraphLink struct {
+	Source           string            `json:"source"`
+	Target           string            `json:"target"`
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
+}
+
+type ResultsGraphNode struct {
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
+	ID               string            `json:"id"`
+}
 
 type TimeRange struct {
 	StartTS entry.Timestamp `json:",omitempty"`
@@ -114,6 +231,7 @@ type EntryRange struct {
 }
 
 // BaseRequest contains elements common to all renderer requests.
+// DEPRECATED - use REST API
 type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
@@ -123,7 +241,7 @@ type BaseRequest struct {
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
-	ID         uint32
+	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
 	Addendum   json.RawMessage           `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
@@ -155,14 +273,20 @@ type BaseResponse struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
+	// SessionID is the search Session ID, used for tracking "handles" on a search using REST interface
+	SessionID uuid.UUID
+
+	// Interval is the number of seconds between hits on the search control REST API for a given second
+	// that can transpire before we consider the search session abandoned
+	Interval uint
+
+	// Messages are warnings, errors, etc. for this request.
+	Messages []Message
 }
 
-func (br BaseResponse) Err() error {
-	if br.Error != `` {
-		return errors.New(br.Error)
+func (b BaseResponse) Err() error {
+	if b.Error != `` {
+		return errors.New(b.Error)
 	}
 	return nil
 }
@@ -303,8 +427,13 @@ type SearchStatsResponse struct {
 	Size        int               `json:",omitempty"`
 }
 
+type StatSetResponse struct {
+	Stats    []StatSet
+	Messages []Message
+}
+
 type StatSet struct {
-	Stats     []SearchModuleStats
+	Stats     []SearchModuleStats `json:"ModuleStats"`
 	TS        entry.Timestamp
 	populated bool
 }
@@ -328,16 +457,16 @@ type OverviewStats struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
-
 	// For some renderers, the EntryCount accurately represents the total
 	// number of results available. This field is set to 'true' in that case,
 	// meaning the EntryCount number can be displayed alongside the results
 	// without confusion.
 	EntryCountValid bool
+	EntryCount      uint64
 	Stats           []OverviewStatSet `json:",omitempty"`
+
+	// Warnings, errors, etc.
+	Messages []Message
 }
 
 type SearchMetadataNumber struct {
@@ -367,6 +496,7 @@ type SearchMetadata struct {
 	ValueStats  []SearchMetadataEntry `json:",omitempty"`
 	SourceStats []SourceMetadataEntry `json:",omitempty"`
 	TagStats    map[string]uint       `json:",omitempty"`
+	Messages    []Message
 }
 
 func (ss *StatSet) AddParts(ts entry.Timestamp, stats []SearchModuleStats) {
@@ -491,6 +621,20 @@ func (ee emptyEntries) MarshalJSON() ([]byte, error) {
 	return json.Marshal(([]SearchEntry)(ee))
 }
 
+type emptyPrintableEntries []SearchEntry
+
+func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
+	if len(ee) == 0 {
+		return emptyList, nil
+	}
+
+	var pse []PrintableSearchEntry
+	for _, v := range ([]SearchEntry)(ee) {
+		pse = append(pse, PrintableSearchEntry(v))
+	}
+	return json.Marshal(pse)
+}
+
 type emptyIngesterStats []IngesterStats
 
 func (eis emptyIngesterStats) MarshalJSON() ([]byte, error) {
@@ -543,15 +687,94 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (rr RawResponse) MarshalJSON() ([]byte, error) {
-	type alias RawResponse
+func (s StatSetResponse) MarshalJSON() ([]byte, error) {
+	type alias StatSetResponse
 	return json.Marshal(&struct {
 		alias
-		Entries emptyEntries
+		Messages emptyMessages
 	}{
-		alias:   alias(rr),
-		Entries: emptyEntries(rr.Entries),
+		alias:    alias(s),
+		Messages: emptyMessages(s.Messages),
 	})
+}
+
+func (s SearchMetadata) MarshalJSON() ([]byte, error) {
+	type alias SearchMetadata
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(s),
+		Messages: emptyMessages(s.Messages),
+	})
+}
+
+func (o OverviewStats) MarshalJSON() ([]byte, error) {
+	type alias OverviewStats
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(o),
+		Messages: emptyMessages(o.Messages),
+	})
+}
+
+func (b BaseResponse) MarshalJSON() ([]byte, error) {
+	type alias BaseResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(b),
+		Messages: emptyMessages(b.Messages),
+	})
+}
+
+type emptyMessages []Message
+
+func (em emptyMessages) MarshalJSON() ([]byte, error) {
+	if len(em) == 0 {
+		return emptyList, nil
+	}
+	return json.Marshal(([]Message)(em))
+}
+
+func (r RawResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(r.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	var e []byte
+
+	if r.printableData {
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               emptyPrintableEntries
+			Explore               []ExploreResult `json:",omitempty"`
+		}{
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               emptyPrintableEntries(r.Entries),
+			Explore:               r.Explore,
+		})
+	} else {
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               emptyEntries
+			Explore               []ExploreResult `json:",omitempty"`
+		}{
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               emptyEntries(r.Entries),
+			Explore:               r.Explore,
+		})
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }
 
 func (tr *TimeRange) UnmarshalJSON(d []byte) error {
@@ -565,6 +788,50 @@ func (tr *TimeRange) UnmarshalJSON(d []byte) error {
 	}
 	tr.StartTS = a.StartTS
 	tr.EndTS = a.EndTS
+	return nil
+}
+
+func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
+	if rr.OverCount != nil && rr.OverWidth != nil {
+		return nil, ErrResultsRequestStatsOverInvalid
+	}
+
+	if rr.OverCount != nil {
+		return json.Marshal(rr.OverCount)
+	}
+
+	if rr.OverWidth != nil {
+		return json.Marshal(rr.OverWidth)
+	}
+
+	return []byte(`{}`), nil
+}
+
+func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
+	if len(d) == 0 || string(d) == "null" {
+		return nil
+	}
+
+	var raw map[string]int
+	if err := json.Unmarshal(d, &raw); err != nil {
+		return err
+	}
+
+	w, hasWidth := raw["width"]
+	c, hasCount := raw["count"]
+
+	if hasWidth && hasCount {
+		return ErrResultsRequestStatsOverInvalid
+	}
+
+	if hasWidth {
+		rr.OverWidth = &ResultsRequestStatsOverWidth{Width: w}
+	}
+
+	if hasCount {
+		rr.OverCount = &ResultsRequestStatsOverCount{Count: c}
+	}
+
 	return nil
 }
 
@@ -586,4 +853,16 @@ func tsPointer(t entry.Timestamp) *entry.Timestamp {
 		return nil
 	}
 	return &t
+}
+
+func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
+	if rr.Table != nil {
+		return json.Marshal(rr.Table)
+	}
+
+	if rr.Graph != nil {
+		return json.Marshal(rr.Graph)
+	}
+
+	return nil, ErrResultsResponseInvalid
 }

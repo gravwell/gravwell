@@ -23,13 +23,13 @@ import (
 	"runtime/debug"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/config/validate"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/shirou/gopsutil/host"
@@ -92,7 +92,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {
-		fp = filepath.Join(`/dev/shm/`, pth)
+		fp = filepath.Join(os.TempDir(), pth)
 		ib.emitUUID = true
 	}
 	cb := func(w io.Writer) {

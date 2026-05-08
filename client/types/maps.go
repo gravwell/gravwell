@@ -89,6 +89,10 @@ func (pkv PointmapKV) IsEmpty() bool {
 	return len(pkv.Key) == 0 || len(pkv.Value) == 0
 }
 
+func (gf *Geofence) Enabled() bool {
+	return gf != nil && gf.enabled
+}
+
 func (gf *Geofence) CrossesAntimeridian() bool {
 	return gf.SouthWest.Long > gf.NorthEast.Long
 }
@@ -200,4 +204,63 @@ func (hv *HeatmapValue) UnmarshalJSON(data []byte) error {
 		hv.Magnitude = a[2]
 	}
 	return nil
+}
+
+func (x PointmapResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []PointmapValue `json:",omitempty"`
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
+
+func (x HeatmapResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []HeatmapValue `json:",omitempty"`
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
+
+func (x P2PResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		ValueNames []string
+		Entries    []P2PValue `json:",omitempty"`
+	}{
+		ValueNames: x.ValueNames,
+		Entries:    x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }

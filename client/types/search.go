@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -174,6 +174,9 @@ type LaunchResponse struct {
 	RenderModule string     `json:",omitempty"`
 	RenderCmd    string     `json:",omitempty"`
 	Info         SearchInfo `json:",omitempty"`
+
+	// Errors, warnings, etc.
+	Messages []Message
 }
 
 // StartSearchRequest represents a search that is sent to the search controller
@@ -284,6 +287,7 @@ type SearchInfo struct {
 	Background            bool // set to true if this search has been marked as backgrounded.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
+	EVs                   []string   // EVs produced by the search
 	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
 	// Preview indicates that this search is a preview search
 	// this means that the query most likely did not cover the entire time range that was originally requested
@@ -293,6 +297,7 @@ type SearchInfo struct {
 	Error string `json:",omitempty"`
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
+	Stats      StatsInfo        `json:",omitempty"`
 }
 
 type SearchLaunchInfo struct {
@@ -331,7 +336,7 @@ type SearchCtrlStatus struct {
 	GID             int32 // deprecated, use GIDs instead
 	GIDs            []int32
 	Global          bool
-	State           string
+	State           SearchState
 	AttachedClients int
 	StoredData      int64
 	UserQuery       string
@@ -341,8 +346,125 @@ type SearchCtrlStatus struct {
 	NoHistory       bool
 	Import          ImportInfo
 	LaunchInfo      SearchLaunchInfo
-	Error           string `json:",omitempty"`
+	Error           string          `json:",omitempty"`
+	Metadata        json.RawMessage `json:",omitempty"` //additional metadata associated with a search
 }
+
+type SearchDownloadRequest struct {
+	Format    string         `json:"format"`
+	Rows      []RowSelection `json:"rows,omitempty"`
+	Timeframe Timeframe      `json:"timeframe,omitempty"`
+}
+
+type RowSelection struct {
+	Kind string `json:"kind"`
+	// Start and End must be populated if it is a range, but not Index
+	Start uint64 `json:"start,omitempty"`
+	End   uint64 `json:"end,omitempty"`
+	// Index must be selected if it is only a single row, but not Start or End
+	Index uint64 `json:"index,omitempty"`
+}
+
+// The aliasRowSelection is a type alias to [RowSelection] just to break the MarshalJSON / UnmarshalJSON
+// recursion doom loop.
+type aliasRowSelection RowSelection
+
+func (rs RowSelection) MarshalJSON() ([]byte, error) {
+	if err := rs.validate(); err != nil {
+		return nil, err
+	}
+	return json.Marshal(aliasRowSelection(rs))
+}
+
+func (rs *RowSelection) UnmarshalJSON(data []byte) error {
+	var v aliasRowSelection
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	if err := RowSelection(v).validate(); err != nil {
+		return err
+	}
+	*rs = RowSelection(v)
+	return nil
+}
+
+func (rs RowSelection) validate() (err error) {
+	switch rs.Kind {
+	case "range":
+		if rs.Index != 0 {
+			err = fmt.Errorf("row selection kind %q must not have index set", rs.Kind)
+		}
+	case "single":
+		if rs.Start != 0 || rs.End != 0 {
+			err = fmt.Errorf("row selection kind %q must not have start or end set", rs.Kind)
+		}
+	default:
+		err = fmt.Errorf("unknown row selection kind: %q", rs.Kind)
+	}
+	return
+}
+
+type RowRange struct {
+	Kind  string `json:"kind"`
+	Start uint64 `json:"start"`
+	End   uint64 `json:"end"`
+}
+
+type RowSingle struct {
+	Kind  string `json:"kind"`
+	Index uint64 `json:"index"`
+}
+
+type Timeframe struct {
+	End   time.Time `json:"end"`
+	Start time.Time `json:"start"`
+}
+
+func (tf Timeframe) IsEmpty() bool {
+	return tf.Start.IsZero() && tf.End.IsZero()
+}
+
+type SearchDownloadResponse struct {
+	DownloadResourceURL string `json:"downloadResourceURL"`
+	EntryCount          uint64 `json:"entryCount"`
+	Expiration          string `json:"expiration"`
+	SearchID            string `json:"searchId"`
+}
+
+type SearchState struct {
+	Attached     bool         `json:"attached"`
+	Backgrounded bool         `json:"backgrounded"`
+	Saved        bool         `json:"saved"`
+	Streaming    bool         `json:"streaming"`
+	Status       SearchStatus `json:"status"`
+	Progress     float64      `json:"progress"`
+}
+
+func (ss SearchState) String() (r string) {
+	r = string(ss.Status)
+	if ss.Streaming {
+		r = r + "/streaming"
+	}
+	if ss.Saved {
+		r = r + "/saved"
+	}
+	if ss.Backgrounded {
+		r = r + "/backgrounded"
+	}
+	if ss.Attached {
+		r = r + "/attached"
+	}
+	return
+}
+
+type SearchStatus string
+
+const (
+	SearchStatusError     SearchStatus = `error`
+	SearchStatusCompleted SearchStatus = `completed`
+	SearchStatusRunning   SearchStatus = `running`
+	SearchStatusPending   SearchStatus = `pending`
+)
 
 func (si SearchInfo) StorageSize() int64 {
 	return si.StoreSize + si.IndexSize
@@ -371,6 +493,17 @@ func CheckMacroName(name string) error {
 		}
 	}
 	return nil
+}
+
+func (l LaunchResponse) MarshalJSON() ([]byte, error) {
+	type alias LaunchResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(l),
+		Messages: emptyMessages(l.Messages),
+	})
 }
 
 func (si SearchInfo) MarshalJSON() ([]byte, error) {

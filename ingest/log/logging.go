@@ -128,6 +128,23 @@ type Logger struct {
 	raw  bool //output the old raw form rather than RFC5424
 }
 
+type IngestLogger interface {
+	Errorf(string, ...interface{}) error
+	Warnf(string, ...interface{}) error
+	Infof(string, ...interface{}) error
+	Error(string, ...rfc5424.SDParam) error
+	Warn(string, ...rfc5424.SDParam) error
+	Info(string, ...rfc5424.SDParam) error
+	InfofWithDepth(int, string, ...interface{}) error
+	WarnfWithDepth(int, string, ...interface{}) error
+	ErrorfWithDepth(int, string, ...interface{}) error
+	InfoWithDepth(int, string, ...rfc5424.SDParam) error
+	WarnWithDepth(int, string, ...rfc5424.SDParam) error
+	ErrorWithDepth(int, string, ...rfc5424.SDParam) error
+	Hostname() string
+	Appname() string
+}
+
 // NewFile creates a new logger with the first writer being a file
 // The file is created if it does not exist, and is opened in append mode
 // it is safe to use NewFile on existing logs

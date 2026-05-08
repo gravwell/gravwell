@@ -2,9 +2,9 @@ module mimecast
 
 go 1.26.2
 
-require github.com/gravwell/gravwell/v3 v3.0.0-00010101000000-000000000000
+require github.com/gravwell/gravwell/v4 v4.0.0-00010101000000-000000000000
 
-replace github.com/gravwell/gravwell/v3 => ../../..
+replace github.com/gravwell/gravwell/v4 => ../../..
 
 require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
