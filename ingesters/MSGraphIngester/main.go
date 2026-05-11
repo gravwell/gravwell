@@ -176,15 +176,27 @@ func main() {
 		switch ct.Content_Type {
 		case "alerts":
 			wg.Go(func() {
-				alertRoutine(rcfg)
+				alertRoutine(
+					rcfg,
+					10*time.Second,
+					30*time.Second,
+				)
 			})
 		case "secureScores":
 			wg.Go(func() {
-				secureScoreRoutine(rcfg)
+				secureScoreRoutine(
+					rcfg,
+					10*time.Second,
+					300*time.Second, // Secure scores are created very infrequently, so we sleep for a long time.
+				)
 			})
 		case "controlProfiles":
 			wg.Go(func() {
-				secureScoreProfileRoutine(rcfg)
+				secureScoreProfileRoutine(
+					rcfg,
+					10*time.Second,
+					time.Hour, // We poll the profiles every hour just so they exist in the system
+				)
 			})
 		}
 	}
@@ -215,7 +227,7 @@ type routineCfg struct {
 	lg          *log.Logger
 }
 
-func alertRoutine(c routineCfg) {
+func alertRoutine(c routineCfg, errWait, successWait time.Duration) {
 	_ = c.lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	defer func() {
 		if err := c.procset.Close(); err != nil {
@@ -235,7 +247,7 @@ func alertRoutine(c routineCfg) {
 		if err != nil {
 			_ = c.lg.Error("failed to build alerts filter", log.KVErr(err))
 			select {
-			case <-time.After(10 * time.Second):
+			case <-time.After(errWait):
 			case <-c.ctx.Done():
 			}
 			continue
@@ -244,7 +256,7 @@ func alertRoutine(c routineCfg) {
 		if err != nil {
 			_ = c.lg.Error("failed to list alerts", log.KVErr(err))
 			select {
-			case <-time.After(10 * time.Second):
+			case <-time.After(errWait):
 			case <-c.ctx.Done():
 			}
 			continue
@@ -302,13 +314,13 @@ func alertRoutine(c routineCfg) {
 		}
 
 		select {
-		case <-time.After(30 * time.Second):
+		case <-time.After(successWait):
 		case <-c.ctx.Done():
 		}
 	}
 }
 
-func secureScoreRoutine(c routineCfg) {
+func secureScoreRoutine(c routineCfg, errWait, successWait time.Duration) {
 	_ = c.lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	defer func() {
 		if err := c.procset.Close(); err != nil {
@@ -328,7 +340,7 @@ func secureScoreRoutine(c routineCfg) {
 		if err != nil {
 			_ = c.lg.Error("failed to list secure scores", log.KVErr(err))
 			select {
-			case <-time.After(10 * time.Second):
+			case <-time.After(errWait):
 			case <-c.ctx.Done():
 			}
 			continue
@@ -385,15 +397,14 @@ func secureScoreRoutine(c routineCfg) {
 			}
 		}
 
-		// Secure scores are created very infrequently, so we sleep for a long time.
 		select {
-		case <-time.After(300 * time.Second):
+		case <-time.After(successWait):
 		case <-c.ctx.Done():
 		}
 	}
 }
 
-func secureScoreProfileRoutine(c routineCfg) {
+func secureScoreProfileRoutine(c routineCfg, errWait, successWait time.Duration) {
 	_ = c.lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	defer func() {
 		if err := c.procset.Close(); err != nil {
@@ -413,7 +424,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 		if err != nil {
 			_ = c.lg.Error("failed to list secure score profiles", log.KVErr(err))
 			select {
-			case <-time.After(10 * time.Second):
+			case <-time.After(errWait):
 			case <-c.ctx.Done():
 			}
 			continue
@@ -453,9 +464,8 @@ func secureScoreProfileRoutine(c routineCfg) {
 			}
 		}
 
-		// We poll the profiles every hour just so they exist in the system
 		select {
-		case <-time.After(time.Hour):
+		case <-time.After(successWait):
 		case <-c.ctx.Done():
 		}
 	}
