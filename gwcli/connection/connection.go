@@ -74,6 +74,8 @@ This package also contains some wrapper functions for grav.Client calls where we
 package connection
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -280,7 +282,7 @@ func loginWithCredentials(username, password string, noInteractive bool) error {
 		} else if !resp.LoginStatus {
 			// we logged in via MFA, didn't get an error, but still failed to actually log in
 			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-			return uniques.ErrGeneric
+			return clilog.ErrInternal{}
 		}
 	}
 
@@ -356,7 +358,7 @@ func promptForMissingCredentials(prepopUsername string) (mfa bool, err error) {
 		} else if !resp.LoginStatus {
 			// we logged in via MFA, didn't get an error, but still failed to actually log in
 			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-			return false, uniques.ErrGeneric
+			return false, clilog.ErrInternal{}
 		}
 	}
 
@@ -373,7 +375,7 @@ func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFrien
 	if rawErr == nil {
 		if !resp.LoginStatus { // sanity check
 			clilog.Writer.Criticalf("login did not turn back an error, but we are not logged in! Response: %v", resp)
-			return false, uniques.ErrGeneric
+			return false, clilog.ErrInternal{}
 		}
 
 		return false, nil
@@ -392,7 +394,7 @@ func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFrien
 			// we aren't logged in, but it isn't because MFARequired
 			// unknown state, fail out
 			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-			return false, uniques.ErrGeneric
+			return false, clilog.ErrInternal{}
 		}
 
 		return true, nil // fetch MFA from the user
@@ -511,7 +513,7 @@ func getJWTExpiry() (wakeTime time.Time) {
 		return time.Now()
 	}
 
-	_, payload, _, err := uniques.ParseJWT(exploded[1])
+	_, payload, _, err := ParseJWT(exploded[1])
 	if err != nil {
 		clilog.Writer.Warnf("failed to parse JWT: %v", err)
 		return time.Now()
@@ -760,3 +762,56 @@ func AdminMode() bool {
 }
 
 //#endregion super functions
+
+// ParseJWT does as it says on the tin.
+// The given string is unmarshaled into 3 chunks (header, payload, signature) and returned.
+func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byte, err error) {
+	exploded := strings.Split(tkn, ".")
+	if len(exploded) != 3 {
+		return JWTHeader{}, JWTPayload{}, nil, ErrBadJWTLength
+	}
+
+	// header
+	decodedUrl, err := hex.DecodeString(exploded[0])
+	if err != nil {
+		return JWTHeader{}, JWTPayload{}, nil, err
+	}
+	if err := json.Unmarshal(decodedUrl, &header); err != nil {
+		return JWTHeader{}, JWTPayload{}, nil, err
+	}
+
+	// payload
+	decodedUrl, err = hex.DecodeString(exploded[1])
+	if err != nil {
+		return header, JWTPayload{}, nil, err
+	}
+	if err := json.Unmarshal(decodedUrl, &payload); err != nil {
+		return header, JWTPayload{}, nil, err
+	}
+
+	// signature
+	sig, err := hex.DecodeString(exploded[2])
+	if err != nil {
+		return header, JWTPayload{}, nil, err
+	}
+
+	return header, payload, sig, err
+}
+
+// A JWTHeader holds the values from the first segment of a parsed JWT.
+type JWTHeader struct {
+	Algo int    `json:"algo"`
+	Typ  string `json:"typ"`
+}
+
+// A JWTPayload holds the values from the second segment of a parsed JWT.
+// Most importantly for our purposes, the payload contains the timestamp after which the JWT will have expired.
+type JWTPayload struct {
+	UID           int       `json:"uid"`
+	Expires       time.Time `json:"expires"`
+	Iat           []int     `json:"iat"`
+	NoLoginChange bool      `json:"noLoginChange"`
+	NoDisableMFA  bool      `json:"noDisableMFA"`
+}
+
+var ErrBadJWTLength = errors.New("failed to parse JWT; expected splitting on '.' to turn back 3 segments")

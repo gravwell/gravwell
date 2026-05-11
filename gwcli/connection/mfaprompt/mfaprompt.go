@@ -55,7 +55,7 @@ func collect(prog *tea.Program) (code string, at types.AuthType, err error) {
 	final, ok := m.(mfaModel)
 	if !ok {
 		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", types.AUTH_TYPE_NONE, uniques.ErrGeneric
+		return "", types.AUTH_TYPE_NONE, clilog.ErrInternal{}
 	} else if final.killed {
 		return "", types.AUTH_TYPE_NONE, uniques.ErrMustAuth
 	}

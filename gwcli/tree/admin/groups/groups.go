@@ -35,7 +35,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -279,17 +278,17 @@ func AddUsersToGroups() action.Pair {
 		[]string{"add-users", "add-user"}, func(c *cobra.Command, args []string) error {
 			x, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
-				uniques.ErrGetFlag("associate", err)
+				clilog.GetFlag(err)
 			}
 			// TODO migrate uniques.ErrGetFlag into clilog package and throw away the current LogFlagFailedGet
 
 			uids, err := c.Flags().GetUintSlice("uid")
 			if err != nil {
-				uniques.ErrGetFlag("associate", err)
+				clilog.GetFlag(err)
 			}
 			gids, err := c.Flags().GetUintSlice("gid")
 			if err != nil {
-				uniques.ErrGetFlag("associate", err)
+				clilog.GetFlag(err)
 			}
 			if len(uids) < 1 || len(gids) < 1 {
 				if x { // if we are in no-interactive, this is fatal

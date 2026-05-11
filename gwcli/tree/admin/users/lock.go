@@ -32,7 +32,7 @@ func lockAction() action.Pair {
 			if c.Flags().NArg() == 0 { // none specified; boot mother or fail out
 				ni, err := c.Flags().GetBool(ft.NoInteractive.Name())
 				if err != nil {
-					clilog.LogFlagFailedGet(ft.NoInteractive.Name(), err)
+					clilog.GetFlag(err)
 					ni = true // better we assume no-interactive
 				}
 				if !ni {
@@ -43,7 +43,7 @@ func lockAction() action.Pair {
 
 			self, err := c.Flags().GetBool("include-self")
 			if err != nil {
-				clilog.LogFlagFailedGet("include-self", err)
+				clilog.GetFlag(err)
 			}
 
 			// at least one ID was specified, attempt to lock each account
@@ -134,7 +134,7 @@ func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int
 	}
 	self, err := fs.GetBool("include-self")
 	if err != nil {
-		clilog.LogFlagFailedGet("include-self", err)
+		clilog.GetFlag(err)
 	}
 
 	// stuff all users into the list, except the caller. Probably don't want the caller to be able to lock themselves easily.

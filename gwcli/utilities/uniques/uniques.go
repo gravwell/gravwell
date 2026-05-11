@@ -6,18 +6,14 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package uniques contains global constants and functions that must be referenced across multiple packages
-// but cannot belong to any.
-// ! Uniques does not import any local packages as to prevent import cycles.
+// Package uniques contains global constants and functions that must be referenced across multiple packages but cannot belong to any.
+// Ultimately, we should seek to move away from this package.
 package uniques
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
@@ -64,57 +60,6 @@ func CronRuneValidator(s string) error {
 	}
 
 	return nil
-}
-
-// A JWTHeader holds the values from the first segment of a parsed JWT.
-type JWTHeader struct {
-	Algo int    `json:"algo"`
-	Typ  string `json:"typ"`
-}
-
-// A JWTPayload holds the values from the second segment of a parsed JWT.
-// Most importantly for our purposes, the payload contains the timestamp after which the JWT will have expired.
-type JWTPayload struct {
-	UID           int       `json:"uid"`
-	Expires       time.Time `json:"expires"`
-	Iat           []int     `json:"iat"`
-	NoLoginChange bool      `json:"noLoginChange"`
-	NoDisableMFA  bool      `json:"noDisableMFA"`
-}
-
-// ParseJWT does as it says on the tin.
-// The given string is unmarshaled into 3 chunks (header, payload, signature) and returned.
-func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byte, err error) {
-	exploded := strings.Split(tkn, ".")
-	if len(exploded) != 3 {
-		return JWTHeader{}, JWTPayload{}, nil, ErrBadJWTLength
-	}
-
-	// header
-	decodedUrl, err := hex.DecodeString(exploded[0])
-	if err != nil {
-		return JWTHeader{}, JWTPayload{}, nil, err
-	}
-	if err := json.Unmarshal(decodedUrl, &header); err != nil {
-		return JWTHeader{}, JWTPayload{}, nil, err
-	}
-
-	// payload
-	decodedUrl, err = hex.DecodeString(exploded[1])
-	if err != nil {
-		return header, JWTPayload{}, nil, err
-	}
-	if err := json.Unmarshal(decodedUrl, &payload); err != nil {
-		return header, JWTPayload{}, nil, err
-	}
-
-	// signature
-	sig, err := hex.DecodeString(exploded[2])
-	if err != nil {
-		return header, JWTPayload{}, nil, err
-	}
-
-	return header, payload, sig, err
 }
 
 // AttachPersistentFlags populates all persistent flags and attaches them to the given command.

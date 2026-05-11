@@ -186,7 +186,7 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 	{ // fetch api token
 		var tkn string
 		if tkn, err = flags.GetString("api"); err != nil {
-			clilog.LogFlagFailedGet("api", err)
+			clilog.GetFlag(err)
 		} else if tkn != "" {
 			apiToken = &tkn
 		} else { // check env var
@@ -204,12 +204,12 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 		}
 
 		if username, err = flags.GetString("username"); err != nil {
-			clilog.LogFlagFailedGet("username", err)
+			clilog.GetFlag(err)
 		} else if strings.TrimSpace(username) != "" {
 			// also try to get the password from a file or env var
 
 			if passfilePath, err := flags.GetString("passfile"); err != nil {
-				clilog.LogFlagFailedGet("passfile", err)
+				clilog.GetFlag(err)
 			} else if strings.TrimSpace(passfilePath) != "" {
 				if p, err := skimPassFile(passfilePath); err != nil {
 					return "", nil, nil, false, err

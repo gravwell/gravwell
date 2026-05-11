@@ -19,9 +19,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/spf13/cobra"
@@ -60,7 +60,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list your macros", "lists all macros associated to your user, a group, or the system itself",
 		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
 			if all, err := fs.GetBool("all"); err != nil {
-				return nil, uniques.ErrGetFlag("macros list", err)
+				return nil, clilog.GetFlag(err)
 			} else if all { // fetch all macros instead of just user macros
 				r, err := connection.Client.ListAllMacros(nil)
 				if err != nil {
@@ -69,7 +69,7 @@ func list() action.Pair {
 				return r.Results, nil
 			}
 			if gid, err := fs.GetInt32("group"); err != nil {
-				return nil, uniques.ErrGetFlag("macros list", err)
+				return nil, clilog.GetFlag(err)
 			} else if gid != 0 { // fetch all macros our group ID can read
 				macros, err := connection.Client.ListAllMacros(nil)
 				if err != nil {

@@ -25,7 +25,6 @@ import (
 	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -180,7 +179,7 @@ func logLevel() action.Pair {
 			"Valid levels are typically: OFF, ERROR, WARN, INFO, WEB ACCESS",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			if level, err := fs.GetString("set"); err != nil {
-				clilog.LogFlagFailedGet("set", err)
+				clilog.GetFlag(err)
 			} else if level != "" { // set
 				if err := connection.Client.SetLogLevel(level); err != nil {
 					return err.Error(), nil
@@ -253,15 +252,15 @@ func backup() action.Pair {
 
 			ss, err := fs.GetBool("include-scheduled-searches")
 			if err != nil {
-				return uniques.ErrGetFlag("backup", err).Error(), nil
+				return clilog.GetFlag(err).Error(), nil
 			}
 			omitSensitive, err := fs.GetBool("omit-sensitive")
 			if err != nil {
-				return uniques.ErrGetFlag("backup", err).Error(), nil
+				return clilog.GetFlag(err).Error(), nil
 			}
 			pass, err := fs.GetString("encrypt")
 			if err != nil {
-				return uniques.ErrGeneric.Error(), nil
+				return clilog.GetFlag(err).Error(), nil
 			}
 
 			cfg := types.BackupConfig{

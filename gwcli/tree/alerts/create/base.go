@@ -184,27 +184,27 @@ type alertFlags struct {
 func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 	var err error
 	if vals.name, err = fs.GetString(ft.Name.Name()); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.Name(), err)
+		clilog.GetFlag(err)
 	}
 	if vals.description, err = fs.GetString(ft.Description.Name()); err != nil {
-		clilog.LogFlagFailedGet(ft.Description.Name(), err)
+		clilog.GetFlag(err)
 	}
 	if vals.tag, err = fs.GetString("tag"); err != nil {
-		clilog.LogFlagFailedGet("tag", err)
+		clilog.GetFlag(err)
 	}
 	if vals.maxEvents, err = fs.GetInt("max-events"); err != nil {
-		clilog.LogFlagFailedGet("max-events", err)
+		clilog.GetFlag(err)
 	}
 	if vals.enabled, err = fs.GetBool("enable"); err != nil {
-		clilog.LogFlagFailedGet("enable", err)
+		clilog.GetFlag(err)
 	}
 	if vals.retain, err = fs.GetInt32("retain"); err != nil {
-		clilog.LogFlagFailedGet("retain", err)
+		clilog.GetFlag(err)
 	}
 	{
 		dispatchers, err := fs.GetStringSlice("dispatchers")
 		if err != nil {
-			clilog.LogFlagFailedGet("dispatchers", err)
+			clilog.GetFlag(err)
 		}
 		if len(dispatchers) > 0 {
 			vals.dispatcherIDs = make([]string, len(dispatchers))
@@ -219,7 +219,7 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 	{
 		consumers, err := fs.GetStringSlice("consumers")
 		if err != nil {
-			clilog.LogFlagFailedGet("consumers", err)
+			clilog.GetFlag(err)
 		}
 		if len(consumers) > 0 {
 			vals.consumerIDs = make([]string, len(consumers))

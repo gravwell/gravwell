@@ -29,7 +29,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -69,8 +68,8 @@ func past() action.Pair {
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet) ([]types.SearchHistoryEntry, error) {
 			opts := &types.QueryOptions{}
-			if count, e := fs.GetInt("count"); e != nil {
-				return nil, uniques.ErrGetFlag(pastUse, e)
+			if count, err := fs.GetInt("count"); err != nil {
+				clilog.GetFlag(err)
 			} else if count > 0 {
 				opts.Limit = count
 			}
@@ -113,7 +112,7 @@ func listActive() action.Pair {
 		func(fs *pflag.FlagSet) ([]types.SearchCtrlStatus, error) {
 			all, err := fs.GetBool(ft.GetAll.Name())
 			if err != nil {
-				clilog.LogFlagFailedGet("all", err)
+				clilog.GetFlag(err)
 			}
 			if all {
 				return connection.Client.ListAllSearchStatuses()

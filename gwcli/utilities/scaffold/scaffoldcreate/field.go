@@ -97,7 +97,7 @@ func installFlagsFromFields(fields map[string]Field) pflag.FlagSet {
 func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequireds []string, err error) {
 	if !fs.Parsed() {
 		clilog.Writer.Errorf("attempted to set values from unparsed flagset")
-		return nil, uniques.ErrGeneric
+		return nil, clilog.ErrInternal{}
 	}
 	for key := range fields {
 		flagName := fields[key].Flag.Name

@@ -22,7 +22,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
@@ -172,7 +171,7 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	flags := ingestFlags{}
 
 	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name()); err != nil {
-		return flags, nil, uniques.ErrGetFlag("ingest", err)
+		return flags, nil, clilog.GetFlag(err)
 	} else {
 		flags.noInteractive = noInteractive
 	}
@@ -182,12 +181,12 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 		flags.hidden = includeHidden
 	}*/
 	if recursive, err := fs.GetBool("recursive"); err != nil {
-		return flags, nil, uniques.ErrGetFlag("ingest", err)
+		return flags, nil, clilog.GetFlag(err)
 	} else {
 		flags.recursive = recursive
 	}
 	if srcRaw, err := fs.GetString("source"); err != nil {
-		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+		return flags, invalids, clilog.GetFlag(err)
 	} else if srcRaw != "" {
 		if src := net.ParseIP(srcRaw); src == nil {
 			invalids = append(invalids, srcRaw+" is not a valid IP address")
@@ -198,17 +197,17 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	}
 
 	if ignoreTS, err := fs.GetBool("ignore-timestamp"); err != nil {
-		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+		return flags, invalids, clilog.GetFlag(err)
 	} else {
 		flags.ignoreTS = ignoreTS
 	}
 	if localTime, err := fs.GetBool("local-time"); err != nil {
-		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+		return flags, invalids, clilog.GetFlag(err)
 	} else {
 		flags.localTime = localTime
 	}
 	if dir, err := fs.GetString("dir"); err != nil {
-		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+		return flags, invalids, clilog.GetFlag(err)
 	} else {
 		dir = strings.TrimSpace(dir)
 		if invalid, err := validateDirFlag(dir); err != nil {
@@ -221,14 +220,14 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 		}
 	}
 	if def, err := fs.GetString("default-tag"); err != nil {
-		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+		return flags, invalids, clilog.GetFlag(err)
 	} else if err := validateTag(def); err != nil {
 		return flags, invalids, err
 	} else {
 		flags.defaultTag = def
 	}
 	if stdin, err := fs.GetBool("stdin"); err != nil {
-		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+		return flags, invalids, clilog.GetFlag(err)
 	} else {
 		flags.stdin = stdin
 	}

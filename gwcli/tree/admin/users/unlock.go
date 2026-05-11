@@ -31,7 +31,7 @@ func unlockAction() action.Pair {
 			if c.Flags().NArg() == 0 { // none specified; boot mother or fail out
 				ni, err := c.Flags().GetBool(ft.NoInteractive.Name())
 				if err != nil {
-					clilog.LogFlagFailedGet(ft.NoInteractive.Name(), err)
+					clilog.GetFlag(err)
 					ni = true // better we assume no-interactive
 				}
 				if !ni {

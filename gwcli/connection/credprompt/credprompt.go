@@ -55,7 +55,7 @@ func collect(initialUser string, prog *tea.Program) (user, pass string, err erro
 	finalCredM, ok := m.(credModel)
 	if !ok {
 		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", "", uniques.ErrGeneric
+		return "", "", clilog.ErrInternal{}
 	} else if finalCredM.killed {
 		return "", "", uniques.ErrMustAuth
 	}
