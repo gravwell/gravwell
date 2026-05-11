@@ -119,9 +119,11 @@ func (st *stateTracker) cleanStatesNoLock() {
 
 func (st *stateTracker) tickNoLock() error {
 	// Sync the muxer while we're here
-	err := st.igst.Sync(2 * time.Second)
-	if err != nil {
-		return fmt.Errorf("sync muxer: %w", err)
+	if st.igst != nil {
+		err := st.igst.Sync(2 * time.Second)
+		if err != nil {
+			return fmt.Errorf("sync muxer: %w", err)
+		}
 	}
 
 	// transfer from temp map to state map
