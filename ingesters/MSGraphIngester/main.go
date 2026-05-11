@@ -107,17 +107,18 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Instantiate the client
-	graphClient, err := newGraphClient(msGraphConfig{
+	graphClient, err := newGraphClient(ctx, msGraphConfig{
 		clientID:     cfg.Global.Client_ID,
 		clientSecret: cfg.Global.Client_Secret,
+		tenantID:     cfg.Global.Tenant_ID,
 		tenantDomain: cfg.Global.Tenant_Domain,
 	})
 	if err != nil {
 		lg.FatalCode(0, "failed to create graph client", log.KVErr(err))
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	// For each content type we're interested in, launch a
 	// goroutine to read entries from the Graph API

@@ -9,8 +9,11 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	azidentity "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
@@ -29,19 +32,20 @@ type msGraphConfig struct {
 	clientID     string
 	clientSecret string
 	tenantDomain string
+	tenantID     string
 }
 
 type msGraphClient struct {
 	client *msgraphsdkgo.GraphServiceClient
 }
 
-func newGraphClient(cfg msGraphConfig) (*msGraphClient, error) {
-	cred, err := azidentity.NewClientSecretCredential(
-		cfg.tenantDomain,
-		cfg.clientID,
-		cfg.clientSecret,
-		nil,
-	)
+func newGraphClient(ctx context.Context, cfg msGraphConfig) (*msGraphClient, error) {
+	tenant := cmp.Or(strings.TrimSpace(cfg.tenantID), strings.TrimSpace(cfg.tenantDomain))
+	if tenant == "" {
+		return nil, errors.New("either Tenant-ID or Tenant-Domain must be provided")
+	}
+
+	cred, err := azidentity.NewClientSecretCredential(tenant, cfg.clientID, cfg.clientSecret, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create credentials: %w", err)
 	}
