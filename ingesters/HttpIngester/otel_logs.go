@@ -208,13 +208,13 @@ func (oh *otelLogsHandler) encodeLogEVs(logRecord *lpb.LogRecord, resource *rpb.
 			Value: entry.Uint32EnumData(logRecord.Flags),
 		})
 	}
-	if logRecord.TraceId != nil && len(logRecord.TraceId) > 0 {
+	if len(logRecord.TraceId) > 0 {
 		e.AddEnumeratedValue(entry.EnumeratedValue{
 			Name:  "trace_id",
 			Value: entry.SliceEnumData(logRecord.TraceId),
 		})
 	}
-	if logRecord.SpanId != nil && len(logRecord.SpanId) > 0 {
+	if len(logRecord.SpanId) > 0 {
 		e.AddEnumeratedValue(entry.EnumeratedValue{
 			Name:  "span_id",
 			Value: entry.SliceEnumData(logRecord.SpanId),

@@ -30,10 +30,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	colmetrics "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
-	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	cpb "go.opentelemetry.io/proto/otlp/common/v1"
 	mpb "go.opentelemetry.io/proto/otlp/metrics/v1"
-	v1 "go.opentelemetry.io/proto/otlp/metrics/v1"
 	rpb "go.opentelemetry.io/proto/otlp/resource/v1"
 )
 
@@ -211,20 +209,20 @@ func (oh *otelHandler) processResourceMetrics(h *handler, cfg routeHandler, rm *
 	return nil
 }
 
-func (oh *otelHandler) addMetricAttributes(e *entry.Entry, attribs []*commonv1.KeyValue) {
+func (oh *otelHandler) addMetricAttributes(e *entry.Entry, attribs []*cpb.KeyValue) {
 	if len(attribs) > 0 {
 		for _, attr := range attribs {
 			if attr != nil && attr.Value != nil {
 				switch v := attr.Value.Value.(type) {
-				case *commonv1.AnyValue_StringValue:
+				case *cpb.AnyValue_StringValue:
 					e.AddEnumeratedValueEx(attr.Key, v.StringValue)
-				case *commonv1.AnyValue_IntValue:
+				case *cpb.AnyValue_IntValue:
 					e.AddEnumeratedValueEx(attr.Key, v.IntValue)
-				case *commonv1.AnyValue_DoubleValue:
+				case *cpb.AnyValue_DoubleValue:
 					e.AddEnumeratedValueEx(attr.Key, v.DoubleValue)
-				case *commonv1.AnyValue_BoolValue:
+				case *cpb.AnyValue_BoolValue:
 					e.AddEnumeratedValueEx(attr.Key, v.BoolValue)
-				case *commonv1.AnyValue_BytesValue:
+				case *cpb.AnyValue_BytesValue:
 					e.AddEnumeratedValueEx(attr.Key, v.BytesValue)
 				}
 			}
@@ -232,7 +230,7 @@ func (oh *otelHandler) addMetricAttributes(e *entry.Entry, attribs []*commonv1.K
 	}
 }
 
-func (oh *otelHandler) processNumberDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.NumberDataPoint) (sz uint64, err error) {
+func (oh *otelHandler) processNumberDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.NumberDataPoint) (sz uint64, err error) {
 	if dp == nil {
 		return
 	}
@@ -240,9 +238,9 @@ func (oh *otelHandler) processNumberDataPoint(p *processors.ProcessorSet, e entr
 
 	oh.addMetricAttributes(&e, dp.Attributes)
 	switch v := dp.Value.(type) {
-	case *v1.NumberDataPoint_AsInt:
+	case *mpb.NumberDataPoint_AsInt:
 		e.AddEnumeratedValueEx("value", v.AsInt)
-	case *v1.NumberDataPoint_AsDouble:
+	case *mpb.NumberDataPoint_AsDouble:
 		e.AddEnumeratedValueEx("value", v.AsDouble)
 	}
 
@@ -252,7 +250,7 @@ func (oh *otelHandler) processNumberDataPoint(p *processors.ProcessorSet, e entr
 	return
 }
 
-func (oh *otelHandler) processHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.HistogramDataPoint) error {
+func (oh *otelHandler) processHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.HistogramDataPoint) error {
 	if dp == nil {
 		return nil
 	}
@@ -270,7 +268,7 @@ func (oh *otelHandler) processHistogramDataPoint(p *processors.ProcessorSet, e e
 	return nil
 }
 
-func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.ExponentialHistogramDataPoint) error {
+func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.ExponentialHistogramDataPoint) error {
 	if dp == nil {
 		return nil
 	}
@@ -290,7 +288,7 @@ func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.Proces
 	return nil
 }
 
-func (oh *otelHandler) processSummaryDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.SummaryDataPoint) error {
+func (oh *otelHandler) processSummaryDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.SummaryDataPoint) error {
 	if dp == nil {
 		return nil
 	}
