@@ -133,8 +133,7 @@ func (st *stateTracker) tickNoLock() error {
 	// reset the temp map
 	st.tempMap = make(map[string]time.Time)
 	// dump the map
-	err = st.dumpStatesNoLock()
-	if err != nil {
+	if err := st.dumpStatesNoLock(); err != nil {
 		return fmt.Errorf("dump states: %w", err)
 	}
 
