@@ -21,10 +21,9 @@ func TestNewSQSS3Listener_Endpoint(t *testing.T) {
 		TagName:          "default",
 	}
 
-	l, err := NewSQSS3Listener(cfg)
+	l, err := NewSQSS3Listener(t.Context(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, l)
 
 	assert.Equal(t, cfg.Endpoint, l.sqs.Endpoint())
-	assert.Equal(t, cfg.Endpoint, *l.session.Config.Endpoint)
 }

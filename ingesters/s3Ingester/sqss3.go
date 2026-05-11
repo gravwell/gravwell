@@ -1,12 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -38,18 +38,16 @@ type SQSS3Config struct {
 
 type SQSS3Listener struct {
 	SQSS3Config
-	sqs     *sqs_common.SQS
-	session *session.Session
-	svc     *s3.S3
-	tg      timegrinder.TimeGrinder
-	src     net.IP
-	rdr     reader
-	filter  *matcher
+	sqs    *sqs_common.SQS
+	svc    s3Handler
+	tg     timegrinder.TimeGrinder
+	src    net.IP
+	rdr    reader
+	filter *matcher
 }
 
-func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
+func NewSQSS3Listener(ctx context.Context, cfg SQSS3Config) (s *SQSS3Listener, err error) {
 	var rdr reader
-	var sess *session.Session
 	if err = cfg.validate(); err != nil {
 		return
 	}
@@ -72,17 +70,22 @@ func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 		return nil, err
 	}
 
-	awsCfg := &aws.Config{
-		Region:      aws.String(cfg.Region),
-		Credentials: c,
+	loadOpts := []func(*config.LoadOptions) error{
+		config.WithRegion(cfg.Region),
 	}
-	if cfg.Endpoint != "" {
-		awsCfg.Endpoint = aws.String(cfg.Endpoint)
+	if c != nil {
+		loadOpts = append(loadOpts, config.WithCredentialsProvider(c))
+	}
+	awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("load default aws config: %w", err)
 	}
 
-	sess, err = session.NewSession(awsCfg)
-	if err != nil {
-		return nil, err
+	var s3Opts []func(*s3.Options)
+	if cfg.Endpoint != "" {
+		s3Opts = append(s3Opts, func(o *s3.Options) {
+			o.BaseEndpoint = new(cfg.Endpoint)
+		})
 	}
 
 	sqs, err := sqs_common.SQSListener(&sqs_common.Config{
@@ -95,11 +98,12 @@ func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 		return nil, err
 	}
 
+	s3Svc := s3.NewFromConfig(awsCfg, s3Opts...)
+
 	s = &SQSS3Listener{
 		SQSS3Config: cfg,
-		session:     sess,
 		sqs:         sqs,
-		svc:         s3.New(sess),
+		svc:         s3Svc,
 		src:         cfg.srcOverride(),
 		rdr:         rdr,
 		filter:      filter,
