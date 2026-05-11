@@ -1,31 +1,30 @@
 package sqs_common
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockSQS struct {
-	sqsiface.SQSAPI
-	receiveFunc func(*sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
-	deleteFunc  func(*sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error)
+	receiveFunc func(context.Context, *sqs.ReceiveMessageInput, ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
+	deleteFunc  func(context.Context, *sqs.DeleteMessageBatchInput, ...func(*sqs.Options)) (*sqs.DeleteMessageBatchOutput, error)
 }
 
-func (m *mockSQS) ReceiveMessage(i *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
-	return m.receiveFunc(i)
+func (m *mockSQS) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
+	return m.receiveFunc(ctx, params, optFns...)
 }
 
-func (m *mockSQS) DeleteMessageBatch(i *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
-	return m.deleteFunc(i)
+func (m *mockSQS) DeleteMessageBatch(ctx context.Context, params *sqs.DeleteMessageBatchInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageBatchOutput, error) {
+	return m.deleteFunc(ctx, params, optFns...)
 }
 
 func TestSQSListener(t *testing.T) {
@@ -41,7 +40,7 @@ func TestSQSListener(t *testing.T) {
 			conf: &Config{
 				Queue:       "https://sqs.us-east-1.amazonaws.com/12345/my-queue",
 				Region:      "us-east-1",
-				Credentials: credentials.NewStaticCredentials("akid", "secret", ""),
+				Credentials: credentials.NewStaticCredentialsProvider("akid", "secret", ""),
 			},
 			expectedEndpoint: "",
 		},
@@ -51,7 +50,7 @@ func TestSQSListener(t *testing.T) {
 				Queue:       "http://localhost:9324/000000000000/test-queue",
 				Region:      "elasticmq",
 				Endpoint:    "http://localhost:9324",
-				Credentials: credentials.NewStaticCredentials("akid", "secret", ""),
+				Credentials: credentials.NewStaticCredentialsProvider("akid", "secret", ""),
 			},
 			expectedEndpoint: "http://localhost:9324",
 		},
@@ -63,16 +62,9 @@ func TestSQSListener(t *testing.T) {
 			s, err := SQSListener(tt.conf)
 			require.NoError(t, err)
 			require.NotNil(t, s)
-			require.NotNil(t, s.sess)
 
-			assert.Equal(t, tt.conf.Region, *s.sess.Config.Region)
-
-			if tt.expectedEndpoint == "" {
-				assert.Nil(t, s.sess.Config.Endpoint)
-			} else {
-				require.NotNil(t, s.sess.Config.Endpoint)
-				assert.Equal(t, tt.expectedEndpoint, *s.sess.Config.Endpoint)
-			}
+			assert.Equal(t, tt.conf.Region, s.conf.Region)
+			assert.Equal(t, tt.expectedEndpoint, s.Endpoint())
 		})
 	}
 }
@@ -81,19 +73,22 @@ func TestGetCredentials(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		ctype   string
-		akid    string
-		secret  string
-		wantErr bool
+		name         string
+		ctype        string
+		akid         string
+		secret       string
+		wantErr      bool
+		wantNilCreds bool
 	}{
-		{"static valid", "static", "akid", "secret", false},
-		{"static, missing id", "static", "", "secret", true},
-		{"static, missing secret", "static", "akid", "", true},
-		{"environment", "environment", "", "", false},
-		{"ec2 role", "ec2role", "", "", false},
-		{"invalid type", "foobar", "", "", true},
-		{"default (static)", "", "akid", "secret", false},
+		{"static valid", "static", "akid", "secret", false, false},
+		{"static, missing id", "static", "", "secret", true, false},
+		{"static, missing secret", "static", "akid", "", true, false},
+		// environment returns nil intentionally — SQSListener omits the credentials
+		// option and lets the SDK use its default provider chain, which includes env vars.
+		{"environment", "environment", "", "", false, true},
+		{"ec2 role", "ec2role", "", "", false, false},
+		{"invalid type", "foobar", "", "", true, false},
+		{"default (static)", "", "akid", "secret", false, false},
 	}
 
 	for _, tt := range tests {
@@ -104,7 +99,9 @@ func TestGetCredentials(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.NotNil(t, creds)
+				if !tt.wantNilCreds {
+					assert.NotNil(t, creds)
+				}
 			}
 		})
 	}
@@ -121,12 +118,12 @@ func TestSQS_GetMessages_Errors(t *testing.T) {
 	}{
 		{
 			name:       "queue does not exist",
-			mockErr:    awserr.New(sqs.ErrCodeQueueDoesNotExist, "The specified queue does not exist", nil),
-			errContain: fmt.Sprintf("queue '%s'", queueName),
+			mockErr:    errors.New("The specified queue does not exist"),
+			errContain: fmt.Sprintf("queue %q", queueName),
 		},
 		{
-			name:       "generic aws error",
-			mockErr:    awserr.New("InternalError", "something went wrong", nil),
+			name:       "generic error",
+			mockErr:    errors.New("something went wrong"),
 			errContain: "something went wrong",
 		},
 	}
@@ -135,7 +132,7 @@ func TestSQS_GetMessages_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			m := &mockSQS{
-				receiveFunc: func(i *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
+				receiveFunc: func(_ context.Context, _ *sqs.ReceiveMessageInput, _ ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
 					return nil, tt.mockErr
 				},
 			}
@@ -145,7 +142,7 @@ func TestSQS_GetMessages_Errors(t *testing.T) {
 				conf: &Config{Queue: queueName},
 			}
 
-			msgs, err := s.GetMessages()
+			msgs, err := s.GetMessages(context.Background())
 			assert.Nil(t, msgs)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errContain)
@@ -170,7 +167,7 @@ func TestSQS_DeleteMessages(t *testing.T) {
 		},
 		{
 			name:      "queue deleted during operation",
-			mockErr:   awserr.New(sqs.ErrCodeQueueDoesNotExist, "The specified queue does not exist", nil),
+			mockErr:   errors.New("The specified queue does not exist"),
 			expectErr: true,
 		},
 	}
@@ -180,7 +177,7 @@ func TestSQS_DeleteMessages(t *testing.T) {
 			t.Parallel()
 			callCount := 0
 			m := &mockSQS{
-				deleteFunc: func(i *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
+				deleteFunc: func(_ context.Context, i *sqs.DeleteMessageBatchInput, _ ...func(*sqs.Options)) (*sqs.DeleteMessageBatchOutput, error) {
 					callCount++
 					assert.Equal(t, queueName, *i.QueueUrl)
 
@@ -197,12 +194,12 @@ func TestSQS_DeleteMessages(t *testing.T) {
 				conf: &Config{Queue: queueName},
 			}
 
-			msgs := []*sqs.Message{{MessageId: aws.String("1"), ReceiptHandle: aws.String("r1")}}
-			err := s.DeleteMessages(msgs, lg)
+			msgs := []types.Message{{MessageId: new("1"), ReceiptHandle: new("r1")}}
+			err := s.DeleteMessages(context.Background(), msgs, lg)
 
 			if tt.expectErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), fmt.Sprintf("queue '%s'", queueName))
+				assert.Contains(t, err.Error(), fmt.Sprintf("queue %q", queueName))
 			} else {
 				assert.NoError(t, err)
 			}
