@@ -70,6 +70,7 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
 				addtlFlags := &pflag.FlagSet{}
@@ -78,12 +79,11 @@ func list() action.Pair {
 			}},
 
 			DefaultColumns: []string{
-				"ID",
-				"Name",
-				"Description",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 				"Query",
 				"Variables",
-				"Labels",
 			},
 		})
 }
@@ -106,7 +106,7 @@ func list() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// check that path is valid and the file exists
 			if fi, err := os.Stat(fieldValues["path"]); err != nil {
 				switch {

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Pallinder/go-randomdata"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 )
@@ -84,7 +83,7 @@ func TestCreateEditDownload(t *testing.T) {
 	// check that we can alter one of the properties
 	{
 		lbls := []string{"lbl1", "lbl2", "thirdthing"}
-		if ec := tree.Execute(append(meta, []string{"files", "edit", "-i", fileID.String(),
+		if ec := tree.Execute(append(meta, []string{"files", "edit", "-i", fileID,
 			"--labels=" + strings.Join(lbls, ","), // just add some labels
 		}...)); ec != 0 {
 			t.Fatal("bad error code: ", ec)
@@ -119,7 +118,7 @@ func TestCreateEditDownload(t *testing.T) {
 		resultPath := path.Join(tDir, "redown.txt")
 		args := append(meta, []string{"files", "download",
 			"-o", resultPath,
-			fileID.String()}...)
+			fileID}...)
 		t.Logf("downloading file (ID: %v) via '%v'", fileID, args)
 		// execute spins up singletons for us
 		if ec := tree.Execute(args); ec != 0 {
@@ -141,13 +140,13 @@ func TestCreateEditDownload(t *testing.T) {
 }
 
 // listForItem executes "list", identifies a row with the given name, and returns its details.
-func listForItem(t *testing.T, name string, size int64) (id uuid.UUID, description string, labels []string) {
+func listForItem(t *testing.T, name string, size int64) (id string, description string, labels []string) {
 	// create a file to write results to
 	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
 	if ec := tree.Execute(append(meta, []string{"files", "list",
 		"--csv",
 		"-o", resultPath,
-		"--columns", "ThingUUID,Name,Desc,Size,Labels",
+		"--columns", "ID,Name,Description,Size,Labels",
 	}...)); ec != 0 {
 		t.Error("bad error code: ", ec)
 	}
@@ -186,13 +185,9 @@ func listForItem(t *testing.T, name string, size int64) (id uuid.UUID, descripti
 			t.Fatal("incorrect size", testsupport.ExpectedActual(size, reportedSize))
 		}
 		// fetch data to return
-		id, err = uuid.Parse(row[0])
-		if err != nil {
-			t.Fatal(err)
-		}
 		description = row[2]
 		labels = strings.Split(strings.Trim(row[4], "[]"), " ") // slice off the brackets and split the labels into an array
-		return id, description, labels
+		return row[0], description, labels
 	}
 	t.Fatalf("found no rows with name %v. Rows: %v", name, rows[1:])
 	return

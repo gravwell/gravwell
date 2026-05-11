@@ -182,13 +182,9 @@ func (m Mother) Init() tea.Cmd {
 // It checks for kill keys (to disallow a runaway/ill-designed child), then either passes off
 // control (if in handoff mode) or handles the input itself (if in prompt mode).
 func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// check kill states before bothering to process the message any further
 	if m.exiting {
 		return m, nil
-	}
-	if m.processOnStartup {
-		m.processOnStartup = false
-		m.dieOnChildDone = true
-		return m, processInput(&m)
 	}
 	switch killer.CheckKillKeys(msg) { // handle kill keys above all else
 	case killer.Global:
@@ -211,6 +207,18 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(tea.ExitAltScreen, textinput.Blink)
 	}
 
+	// always at least cache window size messages
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		// save off terminal dimensions
+		m.width = wsm.Width
+		m.height = wsm.Height
+		// update mother's prompt width
+		m.ti.Width = wsm.Width -
+			lipgloss.Width(m.pwd.CommandPath()) - // reserve space for prompt head
+			3 // include a padding
+	}
+
+	// if a child is running, check if they are done and allow them to retain control if not.
 	if m.mode == handoff { // a child is running
 		if clilog.Active(clilog.DEBUG) {
 			activeChildSanityCheck(m)
@@ -233,40 +241,41 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Sequence(tea.Println("Bye"), tea.Quit)
 	}
 
-	// normal handling
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		// save off terminal dimensions
-		m.width = msg.Width
-		m.height = msg.Height
-		// update mother's prompt width
-		m.ti.Width = msg.Width -
-			lipgloss.Width(m.pwd.CommandPath()) - // reserve space for prompt head
-			3 // include a padding
-	case tea.KeyMsg:
-		// NOTE kill keys are handled above
+	// check for first boot immediate processing
+	if m.processOnStartup {
+		m.processOnStartup = false
+		m.dieOnChildDone = true
+		return m, processInput(&m)
+	}
+
+	// handle special keys
+	if km, ok := msg.(tea.KeyMsg); ok {
+		// NOTE: kill keys are handled above
 		switch {
-		case msg.Type == tea.KeyF1: // help
+		case km.Type == tea.KeyF1: // help
 			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		case msg.Type == tea.KeyUp: // history
+		case hotkeys.Match(msg, hotkeys.CursorUp): // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case msg.Type == tea.KeyDown: // history
+			return m, textinput.Blink
+		case hotkeys.Match(msg, hotkeys.CursorDown): // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case hotkeys.Match(msg, hotkeys.Invoke):
+			return m, textinput.Blink
+		case hotkeys.Match(km, hotkeys.Invoke):
 			m.history.unsetFetch()
 			return m, processInput(&m)
-		case msg.Type == tea.KeyCtrlL:
+		case km.Type == tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
 		case hotkeys.Match(msg, hotkeys.Complete):
 			if m.ti.Value() == "" {
 				m.ti.SetValue("help")
 			}
-		case msg.Type == tea.KeyCtrlU:
+		case km.Type == tea.KeyCtrlU:
 			m.ti.SetValue("")
+			return m, textinput.Blink
 		}
 	}
 

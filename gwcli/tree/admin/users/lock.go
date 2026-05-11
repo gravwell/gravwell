@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -96,7 +94,7 @@ func createFlagSet() *pflag.FlagSet {
 
 // lockModel is basically just a multiselect that calls LockUserAccount on each item selected.
 type lockModel struct {
-	m    multiselectlist.Model
+	m    multiselectlist.Model[int32]
 	self bool
 }
 
@@ -110,17 +108,11 @@ func (c *lockModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 	if c.m.Done() { // process locks
 		var cmds []tea.Cmd
 		for _, li := range c.m.GetSelectedItems() {
-			// cast so we can fetch the UID
-			itm, ok := li.(item)
-			if !ok {
-				clilog.Writer.Errorf("failed to cast item from DefaultItem. Bare item: %v", li)
-				continue
-			}
-			if err := connection.Client.LockUserAccount(int32(itm.id)); err != nil {
-				clilog.Writer.Error(fmt.Sprintf("failed to lock user account %d: %v", itm.id, err))
+			if err := connection.Client.LockUserAccount(li.ID()); err != nil {
+				clilog.Writer.Error(fmt.Sprintf("failed to lock user account %d: %v", li.ID(), err))
 				return
 			}
-			cmds = append(cmds, tea.Printf("User %v locked", itm.id))
+			cmds = append(cmds, tea.Printf("User %v locked", li.ID()))
 		}
 		cmd = tea.Sequence(cmds...)
 	}
@@ -136,7 +128,7 @@ func (c *lockModel) Done() bool {
 }
 
 func (c *lockModel) Reset() error {
-	c.m = multiselectlist.Model{}
+	c.m = multiselectlist.Model[int32]{}
 	return nil
 }
 
@@ -156,13 +148,13 @@ func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")
 	}
-	var itms = make([]list.DefaultItem, 0, len(users.Results))
+	var itms = make([]multiselectlist.SelectableItem[int32], 0, len(users.Results))
 	for _, user := range users.Results {
 		if !self && user.ID == connection.CurrentUser().ID {
 			continue
 		}
-		itms = append(itms, item{
-			id:       user.ID,
+		itms = append(itms, &userItem{
+			ID_:      user.ID,
 			username: user.Username,
 			name:     user.Name,
 			email:    user.Email,
@@ -177,34 +169,6 @@ func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int
 	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 	c.m.StatusMessageOnSelect = true
 	return "", nil, nil
-}
-
-type item struct {
-	id       int32
-	username string
-	name     string
-	email    string
-	admin    bool
-}
-
-// FilterValue sets the string to include/disclude this item on when a user filters.
-func (i item) FilterValue() string {
-	return i.username + i.name + i.email
-}
-
-func (i item) Title() string {
-	return i.username
-}
-
-func (i item) Description() string {
-	var sb strings.Builder
-
-	if i.admin {
-		sb.WriteString("(admin) ")
-	}
-	fmt.Fprintf(&sb, "(ID: %d) %s (%s)", i.id, i.name, i.email)
-
-	return sb.String()
 }
 
 //#endregion interactive

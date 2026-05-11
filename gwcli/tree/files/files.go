@@ -9,7 +9,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -68,6 +67,7 @@ func list() action.Pair {
 			}
 			return flr.Results, nil
 		},
+		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
@@ -76,9 +76,14 @@ func list() action.Pair {
 					return fs
 				},
 			},
-			// TODO update column names once files get the registry treatment
-			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
-			ColumnAliases:  map[string]string{"Size": "SizeBytes"},
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Type",
+				"CommonFields.Labels",
+
+				"Size",
+			},
 		})
 }
 
@@ -132,32 +137,22 @@ func create() action.Pair {
 			"path":   scaffoldcreate.FieldPath("file"),
 			"labels": scaffoldcreate.FieldLabels(),
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var (
-				name, desc, path string
-				labels           []string
+				name, desc, filePath string
+				labels               []string
 			)
-			// fetch and sanity check values
-			var found bool
-			if name, found = fieldValues["name"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"name\" field")
-			}
-			if desc, found = fieldValues["desc"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"desc\" field")
-			}
-			if path, found = fieldValues["path"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"path\" field")
-			}
-			if lbls, found := fieldValues["labels"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"labels\" field")
-			} else {
+			name = cfg["name"].Provider.Get()
+			desc = cfg["desc"].Provider.Get()
+			filePath = cfg["path"].Provider.Get()
+			if lbls := cfg["labels"].Provider.Get(); lbls != "" {
 				labels = strings.Split(lbls, ",")
 			}
 
 			// TODO make file content/path non-mandatory
 
 			// get a reader on the file
-			f, err := os.Open(path)
+			f, err := os.Open(filePath)
 			if err != nil {
 				return 0, "", err
 			}

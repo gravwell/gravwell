@@ -18,6 +18,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/spf13/pflag"
@@ -70,22 +71,22 @@ func TestOptions(t *testing.T) {
 			"name": scaffoldcreate.FieldName("test"),
 			"path": scaffoldcreate.FieldPath("test"),
 			"cust": { // converted into an int
-				Required:      false,
-				Title:         "customs",
-				Usage:         "customs usage",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "custom",
-				FlagShorthand: 'c',
-				Order:         1,
+				Required: false,
+				Title:    "customs",
+				Flag: scaffoldcreate.FlagConfig{
+					Name:      "custom",
+					Usage:     "customs usage",
+					Shorthand: 'c',
+				},
+				Order:    1,
+				Provider: &scaffoldcreate.TextProvider{},
 			},
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			setName = fieldValues["name"]
-			setPath = fieldValues["path"]
-			if s, ok := fieldValues["cust"]; ok {
-				i, _ := strconv.ParseInt(s, 10, 64)
-				setCust = int(i)
-			}
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			setName = cfg["name"].Provider.Get()
+			setPath = cfg["path"].Provider.Get()
+			i, _ := strconv.ParseInt(cfg["cust"].Provider.Get(), 10, 64)
+			setCust = int(i)
 			setTestbool, err = fs.GetBool("testbool")
 			return 1, "", err
 		},
@@ -99,10 +100,18 @@ func TestOptions(t *testing.T) {
 					return fs
 				},
 			},
+			Short: "my short description",
+			Long:  "my long description",
 		},
 	)
 	if act.Action.Use != "alt" {
 		t.Error("use option was not applied", testsupport.ExpectedActual("alt", act.Action.Use))
+	}
+	if act.Action.Short != "my short description" {
+		t.Error("short option was not applied", testsupport.ExpectedActual("my short description", act.Action.Short))
+	}
+	if act.Action.Long != "my long description" {
+		t.Error("long option was not applied", testsupport.ExpectedActual("my long description", act.Action.Long))
 	}
 	if !testsupport.SlicesUnorderedEqual(act.Action.Aliases, aliases) {
 		t.Error("incorrect aliases", testsupport.ExpectedActual(aliases, act.Action.Aliases))
@@ -130,7 +139,7 @@ func TestOptions(t *testing.T) {
 				wantCmd     bool
 				wantErr     bool
 			}{"", false, false},
-			[]tea.Msg{tea.KeyMsg{Type: tea.KeyUp}, tea.KeyMsg{Type: tea.KeyEnter}},
+			[]tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)},
 			"nm", "/tmp", 1, true,
 		},
 	}
@@ -185,4 +194,106 @@ func TestOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Tests that boolean providers operate as we expect.
+func TestBoolean(t *testing.T) {
+	var b1Value, b2Value bool
+
+	var (
+		b1 = scaffoldcreate.Field{
+			Title:    "b1",
+			Required: false,
+			Order:    100,
+			Provider: &scaffoldcreate.BoolProvider{},
+		}
+		b2 = scaffoldcreate.Field{
+			Title:        "b2",
+			Required:     false,
+			DefaultValue: "true",
+			Order:        100,
+			Provider:     &scaffoldcreate.BoolProvider{},
+		}
+	)
+
+	tests := []struct {
+		name string
+		args []string
+		// the main cycle of inputs (via update) and view checks (via view);
+		// this is where the core testing occurs
+		mainCycle func(update func(msg tea.Msg) tea.Cmd, view func() string)
+	}{
+		{"no bool changes prior to submit",
+			nil,
+			func(update func(msg tea.Msg) tea.Cmd, view func() string) {
+				// navigate down to, and press, submit
+				update(testsupport.SendHotkey(hotkeys.CursorUp))
+				wantV := testsupport.LinesTrimSpace(` b1:[ ]
+         b2:[✓]
+         ╭──────╮
+        >│submit│
+         ╰──────╯`)
+				if v := testsupport.LinesTrimSpace(view()); v != wantV {
+					t.Error("incorrect view after wrap to submit button", testsupport.ExpectedActual(wantV, v))
+				}
+				update(testsupport.SendHotkey(hotkeys.Invoke))
+				// check that create was called and our fields have the values we expect
+				if get, _ := strconv.ParseBool(b1.Provider.Get()); b1Value != false && b1Value != get {
+					t.Errorf("incorrect field b1 values:\nExpected: false | set value: %v | provider get value: %v", b1Value, get)
+				}
+				if get, _ := strconv.ParseBool(b2.Provider.Get()); b2Value != true && b2Value != get {
+					t.Errorf("incorrect field b2 values:\nExpected: false | set value: %v | provider get value: %v", b2Value, get)
+				}
+			},
+		},
+		{"invert each bool",
+			nil,
+			func(update func(msg tea.Msg) tea.Cmd, view func() string) {
+				update(testsupport.SendHotkey(hotkeys.Select))
+				update(testsupport.SendHotkey(hotkeys.CursorDown))
+				update(testsupport.SendHotkey(hotkeys.Select))
+				update(testsupport.SendHotkey(hotkeys.CursorDown))
+				update(testsupport.SendHotkey(hotkeys.Invoke))
+				wantV := testsupport.LinesTrimSpace(` b1:[✓]
+         b2:[ ]
+         ╭──────╮
+        >│submit│
+         ╰──────╯`)
+				if v := testsupport.LinesTrimSpace(view()); v != wantV {
+					t.Error("incorrect view after wrap to submit button", testsupport.ExpectedActual(wantV, v))
+				}
+				update(testsupport.SendHotkey(hotkeys.Invoke))
+				// check that create was called and our fields have the values we expect
+				if get, _ := strconv.ParseBool(b1.Provider.Get()); b1Value != true && b1Value != get {
+					t.Errorf("incorrect field b1 values:\nExpected: false | set value: %v | provider get value: %v", b1Value, get)
+				}
+				if get, _ := strconv.ParseBool(b2.Provider.Get()); b2Value != false && b2Value != get {
+					t.Errorf("incorrect field b2 values:\nExpected: false | set value: %v | provider get value: %v", b2Value, get)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pair := scaffoldcreate.NewCreateAction("bool_action", map[string]scaffoldcreate.Field{
+				"b1": b1,
+				"b2": b2,
+			},
+				func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+					b1Value, err = strconv.ParseBool(fields["b1"].Provider.Get())
+					if err != nil {
+						return 0, "", err
+					}
+					b2Value, err = strconv.ParseBool(fields["b2"].Provider.Get())
+					return 0, "", err
+				}, scaffoldcreate.Options{})
+			if inv, _, err := pair.Model.SetArgs(&pflag.FlagSet{}, tt.args, 80, 60); err != nil || inv != "" {
+				t.Fatalf("set args failed:\nerr: '%v' | invalid: '%v'", err, inv)
+			}
+			tt.mainCycle(pair.Model.Update, pair.Model.View)
+
+		})
+	}
+
 }

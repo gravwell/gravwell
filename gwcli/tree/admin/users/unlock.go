@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -74,7 +73,7 @@ func unlockAction() action.Pair {
 
 // unlockModel is basically just a multiselect that calls UnlockUserAccount on each item selected.
 type unlockModel struct {
-	m    multiselectlist.Model
+	m    multiselectlist.Model[int32]
 	self bool
 }
 
@@ -88,17 +87,11 @@ func (c *unlockModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 	if c.m.Done() { // process unlocks
 		var cmds []tea.Cmd
 		for _, li := range c.m.GetSelectedItems() {
-			// cast so we can fetch the UID
-			itm, ok := li.(item)
-			if !ok {
-				clilog.Writer.Errorf("failed to cast item from DefaultItem. Bare item: %v", li)
-				continue
-			}
-			if err := connection.Client.UnlockUserAccount(int32(itm.id)); err != nil {
-				clilog.Writer.Error(fmt.Sprintf("failed to unlock user account %d: %v", itm.id, err))
+			if err := connection.Client.UnlockUserAccount(int32(li.ID())); err != nil {
+				clilog.Writer.Error(fmt.Sprintf("failed to unlock user account %d: %v", li.ID(), err))
 				return
 			}
-			cmds = append(cmds, tea.Printf("User %v unlocked", itm.id))
+			cmds = append(cmds, tea.Printf("User %v unlocked", li.ID()))
 		}
 		cmd = tea.Sequence(cmds...)
 	}
@@ -114,7 +107,7 @@ func (c *unlockModel) Done() bool {
 }
 
 func (c *unlockModel) Reset() error {
-	c.m = multiselectlist.Model{}
+	c.m = multiselectlist.Model[int32]{}
 	return nil
 }
 
@@ -127,11 +120,11 @@ func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")
 	}
-	var itms = make([]list.DefaultItem, 0, len(users.Results))
+	var itms = make([]multiselectlist.SelectableItem[int32], 0, len(users.Results))
 	for _, user := range users.Results {
 		if user.Locked {
-			itms = append(itms, item{
-				id:       user.ID,
+			itms = append(itms, &userItem{
+				ID_:      user.ID,
 				username: user.Username,
 				name:     user.Name,
 				email:    user.Email,

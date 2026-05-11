@@ -20,8 +20,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
@@ -50,10 +52,10 @@ func Test_createModel_basics(t *testing.T) {
 	}
 
 	cfg := map[string]Field{
-		"A": {Required: true, Type: Text, Title: "A", Order: 10},
-		"B": {Required: true, Type: File, Title: "B", Order: 0},
+		"A": {Required: true, Title: "A", Order: 10, Provider: &TextProvider{}},
+		"B": {Required: true, Title: "B", Order: 0, Provider: &PathProvider{}},
 	}
-	ca := NewCreateAction("test", cfg, func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+	ca := NewCreateAction("test", cfg, func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
 	}, Options{})
 	cm, ok := ca.Model.(*createModel)
@@ -63,15 +65,19 @@ func Test_createModel_basics(t *testing.T) {
 
 	if len(cm.inputs.ordered) != 2 {
 		t.Fatal(ExpectedActual(1, len(cm.inputs.ordered)))
-	} else if cm.inputs.ordered[0].Key != "A" {
-		t.Error(ExpectedActual("A", cm.inputs.ordered[0].Key))
-	} else if cm.inputs.ordered[1].Key != "B" {
-		t.Error(ExpectedActual("B", cm.inputs.ordered[1].Key))
+	} else if cm.inputs.ordered[0] != "A" {
+		t.Error(ExpectedActual("A", cm.inputs.ordered[0]))
+	} else if cm.inputs.ordered[1] != "B" {
+		t.Error(ExpectedActual("B", cm.inputs.ordered[1]))
+	} else if cm.inputs.selected != 0 {
+		t.Error("incorrect starting selected field.", ExpectedActual(0, cm.inputs.selected))
 	}
 	cm.focusNext()
 	// should be the second field
 	if cm.inputs.selected != 1 {
 		t.Fatal("expected second field to be selected")
+	} else if provider := cm.fields["B"].Provider.(*PathProvider); !provider.pti.Focused() {
+		t.Fatal("focusing next did not, in fact, focus the next field")
 	}
 	// see if B auto completes to a file at its path
 	{
@@ -80,11 +86,11 @@ func Test_createModel_basics(t *testing.T) {
 			cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 		}
 		// check for value and correct next suggestion
-		pti := cm.inputs.PTIs["B"]
-		if pti.Value() != dir {
+		provider := cm.fields["B"].Provider.(*PathProvider)
+		if provider.pti.Value() != dir {
 			t.Error("incorrect value on field \"B\"")
 		}
-		if curSgt := pti.CurrentSuggestion(); curSgt != dummyfilePath {
+		if curSgt := provider.pti.CurrentSuggestion(); curSgt != dummyfilePath {
 			t.Error("incorrect current suggestion", ExpectedActual(dummyfilePath, curSgt))
 		}
 	}
@@ -106,20 +112,22 @@ func Test_createModel_basics(t *testing.T) {
 	}
 }
 
+// Tests that fields are correctly reordered by their Order
 func Test_Ordering(t *testing.T) {
 	cfg := map[string]Field{
-		"3": {Required: true, Type: Text, Title: "3", Order: -10},
-		"4": {Required: true, Type: Text, Title: "4", Order: -50},
-		"1": {Required: true, Type: Text, Title: "1", Order: 50},
-		"2": {Required: false, Type: Text, Title: "2", Order: 0},
+		"3": {Required: true, Title: "3", Order: -10, Provider: &TextProvider{}},
+		"4": {Required: true, Title: "4", Order: -50, Provider: &TextProvider{}},
+		"1": {Required: true, Title: "1", Order: 50, Provider: &TextProvider{}},
+		"2": {Required: false, Title: "2", Order: 0, Provider: &TextProvider{}},
 	}
-	cm := newCreateModel(cfg, "test",
-		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+
+	cm := newCreateModelInitialize(cfg,
+		func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			return 0, "", nil
 		}, Options{})
 
-	for i, ti := range cm.inputs.ordered {
-		kint, err := strconv.Atoi(ti.Key)
+	for i, key := range cm.inputs.ordered {
+		kint, err := strconv.Atoi(key)
 		if err != nil {
 			t.Fatal(err)
 		} else if i+1 != kint {
@@ -128,59 +136,39 @@ func Test_Ordering(t *testing.T) {
 	}
 }
 
-func Test_ExtractValues(t *testing.T) {
+// Tests that we can successfully set values into each field.
+func Test_ValueSetting(t *testing.T) {
 	t.Run("all set", func(t *testing.T) {
-		cm := setup(t, Config{
-			"A": Field{Required: true, Type: Text, Title: "A", Order: 0},
-			"B": Field{Required: false, Type: File, Title: "B", Order: 10},
-			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
-		})
-		// set values into inputs
-		for i, o := range cm.inputs.ordered {
-			switch o.Type {
-			case File:
-				cm.inputs.PTIs[o.Key].SetValue(fmt.Sprintf("%d", i))
-			case Text:
-				cm.inputs.TIs[o.Key].SetValue(fmt.Sprintf("%d", i))
-			}
+		pair := NewCreateAction("test", map[string]Field{
+			"A": Field{Required: true, Title: "A", Order: 0, Provider: &TextProvider{}},
+			"B": Field{Required: false, Title: "B", Order: 10, Provider: &PathProvider{}},
+			"C": Field{Required: true, Title: "C", Order: -10, Provider: &TextProvider{}},
+		}, func(fields map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			return 0, "", nil
+		}, Options{})
+
+		cm, ok := pair.Model.(*createModel)
+		if !ok {
+			t.Fatal("failed to type assert to *createModel")
 		}
 
-		// extract values from TIs
-		values, mr := cm.extractInputValues()
-		if len(mr) != 0 {
-			t.Errorf("missing required (%v) setting all TIs", mr)
+		// set values into inputs
+		for i, key := range cm.inputs.ordered {
+			cm.fields[key].Provider.Set(fmt.Sprintf("%d", i))
 		}
+
+		// check that every field has a value set
 		for key, fld := range cm.fields {
-			v, ok := values[key]
-			if !ok {
-				t.Errorf("failed to find value for key %v (field: %v)", key, fld)
+			v := fld.Provider.Get()
+			if v == "" {
+				t.Errorf("field %v does not have a value set", key)
 			}
 			num, err := strconv.Atoi(v)
 			if err != nil {
-				t.Errorf("failed to parse %v as an int", v)
-			} else if cm.inputs.ordered[num].Key != key || cm.getInputValue(key, fld.Type) != v {
-				t.Error("mismatching values after extraction.",
-					ExpectedActual(cm.getInputValue(key, fld.Type), v))
+				t.Errorf("failed to parse %s as an int (key: %s)", v, key)
+			} else if cm.inputs.ordered[num] != key {
+				t.Error(ExpectedActual(key, cm.inputs.ordered[num]))
 			}
-		}
-	})
-	t.Run("missing required", func(t *testing.T) {
-		cm := setup(t, Config{
-			"A": Field{Required: true, Type: Text, Title: "A", Order: 0},
-			"B": Field{Required: false, Type: Text, Title: "B", Order: 10},
-			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
-		})
-		// extract values from TIs
-		_, mr := cm.extractInputValues()
-		if len(mr) != 2 {
-			t.Error("incorrect missing required count.", ExpectedActual(2, len(mr)))
-		}
-
-		// set one of the requireds and try again
-		cm.inputs.TIs[cm.inputs.ordered[1].Key].SetValue("test value") // A
-		_, mr = cm.extractInputValues()
-		if len(mr) != 1 {
-			t.Error("incorrect missing required count.", ExpectedActual(1, len(mr)))
 		}
 	})
 }
@@ -196,12 +184,12 @@ func Test_Full(t *testing.T) {
 
 	var createdCalled bool
 
-	cm := newCreateModel(
-		Config{
-			"A": Field{Required: true, Type: Text, Title: "A", FlagName: "a", Order: 100},
-			"B": Field{Required: false, Type: Text, Title: "B", FlagName: "b", Order: 50},
-		}, "test",
-		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+	cm := newCreateModelInitialize(
+		map[string]Field{
+			"A": Field{Required: true, Title: "A", Flag: FlagConfig{Name: "a"}, Order: 100, Provider: &TextProvider{}},
+			"B": Field{Required: false, Title: "B", Flag: FlagConfig{Name: "b"}, Order: 50, Provider: &TextProvider{}},
+		},
+		func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var bln bool
 			if !fs.Parsed() {
 				t.Errorf("flagset should be parsed")
@@ -210,9 +198,8 @@ func Test_Full(t *testing.T) {
 			} else if !bln {
 				t.Error("expected bln to be set by SetArgs()")
 			}
-			_, ok := values["A"]
-			if !ok {
-				t.Error("failed to get the value assigned to A")
+			if v := cfg["A"].Provider.Get(); v != "a" {
+				t.Error("incorrect value set into field A.", ExpectedActual("a", v))
 			}
 
 			createdCalled = true
@@ -234,6 +221,7 @@ func Test_Full(t *testing.T) {
 }
 
 // helper function for Test_Full to allow it to be run back-by-back.
+// Sets value 'a' into the first field and always passes the --bln flag.
 func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	//t.Helper()
 	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}, 80, 50); err != nil {
@@ -241,12 +229,8 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	} else if inv != "" {
 		t.Fatal("failed to validate valid args:", inv)
 	}
-	cm.Update(tea.KeyMsg{
-		Type: tea.KeyDown,
-		//Runes []rune
-		//Alt   bool
-		//Paste bool
-	})
+
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorDown))
 
 	// split the output to check for the fields
 	var out []string
@@ -269,24 +253,24 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	}
 
 	// navigate to the submit button by underflowing
-	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
-	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	cm.Update(testsupport.SendHotkey(hotkeys.Invoke))
 	// check for errors
 	if cm.inputs.err == "" { // A is required and was not set
 		t.Fatal("expected inputErr to be set due to missing requireds.")
 	}
 	// set A
-	cm.Update(tea.KeyMsg{Type: tea.KeyDown})
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorDown))
 	cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
+	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	cm.Update(testsupport.SendHotkey(hotkeys.Invoke))
 	if cm.inputs.err != "" {
 		t.Fatalf("unexpected input error: %v", cm.inputs.err)
 	} else if cm.createErr != "" {
@@ -301,18 +285,28 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	}
 }
 
-func setup(t *testing.T, cfg Config) *createModel {
+func setup(t *testing.T, cfg map[string]Field) *createModel {
 	t.Helper()
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
 	}
 	// use a consistent color scheme
 	stylesheet.Cur = stylesheet.Plain()
-	cm := newCreateModel(
-		cfg, "test",
-		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			return 0, "", nil
-		},
-		Options{})
+	cm := newCreateModelInitialize(cfg, func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		return 0, "", nil
+	}, Options{})
 	return cm
+}
+
+// wrapper around newCreateModel to initialize fields, as would normally be done by newCreateModel's caller.
+func newCreateModelInitialize(
+	fields map[string]Field,
+	createFunc func(cfg map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error),
+	options Options,
+) *createModel {
+	for _, f := range fields {
+		f.Provider.Initialize(f.DefaultValue, f.Required)
+	}
+
+	return newCreateModel(fields, "test", createFunc, options)
 }

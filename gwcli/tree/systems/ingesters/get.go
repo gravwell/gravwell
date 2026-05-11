@@ -15,7 +15,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -72,9 +71,10 @@ func get() action.Pair {
 
 			// drop keys
 			return slices.Collect(maps.Values(ingesters)), nil
-		}, scaffoldlist.Options{
+		}, nil, scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: use,
+				Use:     use,
+				Example: fmt.Sprintf("%v --%s=12345", flagHostname, use),
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.String(flagHostname, "", "prefix-match ingesters on hostname")
@@ -84,9 +84,6 @@ func get() action.Pair {
 				},
 			},
 			DefaultColumns: []string{"Indexer", "RemoteAddress", "Size", "Uptime", "Tags", "Name", "Version", "UUID", "Label", "IP", "Hostname", "Entries", "StateSize", "CacheState", "CacheSize", "Children"},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = fmt.Sprintf("%v --%s=12345", flagHostname, use)
-			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// validate that at least one of the additional flags was given
 				// check that we were given ingesters to fetch
