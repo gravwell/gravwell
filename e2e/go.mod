@@ -5,11 +5,12 @@ go 1.26.2
 require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/gosimple/slug v1.15.0
-	github.com/gravwell/gravwell/v4 v4.0.0-00010101000000-000000000000
+	github.com/gravwell/gravwell/v3 v3.8.79
 	github.com/testcontainers/testcontainers-go v0.41.0
 )
 
-replace github.com/gravwell/gravwell/v4 => ..
+// todo(2278) update to v4 post next-major beta
+// replace github.com/gravwell/gravwell/v4 => ..
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
@@ -40,7 +41,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
-	github.com/gravwell/gcfg v1.2.10-0.20251024173739-a5ba5db9985f // indirect
+	github.com/gravwell/gcfg v1.2.10-0.20260429153838-0f548d7bfc0c // indirect
 	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
