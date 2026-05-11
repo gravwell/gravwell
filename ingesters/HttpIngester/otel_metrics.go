@@ -11,31 +11,60 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"path"
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	colmetrics "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	cpb "go.opentelemetry.io/proto/otlp/common/v1"
 	mpb "go.opentelemetry.io/proto/otlp/metrics/v1"
+	v1 "go.opentelemetry.io/proto/otlp/metrics/v1"
 	rpb "go.opentelemetry.io/proto/otlp/resource/v1"
 )
 
+const (
+	defaultOtelMetricsURL = `/v1/metrics`
+)
+
+var (
+	evGaugeType        = entry.EnumeratedValue{Name: "type", Value: entry.StringEnumData(`gauge`)}
+	evSumType          = entry.EnumeratedValue{Name: "type", Value: entry.StringEnumData(`sum`)}
+	evHistogramType    = entry.EnumeratedValue{Name: "type", Value: entry.StringEnumData(`histogram`)}
+	evExpHistogramType = entry.EnumeratedValue{Name: "type", Value: entry.StringEnumData(`exponential_histogram`)}
+	evSummaryType      = entry.EnumeratedValue{Name: "type", Value: entry.StringEnumData(`summary`)}
+)
+
+// otelMetricsListener is the config type
+type otelMetricsListener struct {
+	auth              //authentication information
+	URL               string
+	Tag_Name          string
+	Ignore_Timestamps bool
+	Debug_Posts       bool
+	Encode_As_JSON    bool // Encode the entire metric post as JSON and assign to the body
+	Preprocessor      []string
+}
+
 type otelHandler struct {
-	name         string
-	encodeAsJSON bool
-	disableEVs   bool
-	lgr          *log.Logger
-	timeWindow   timegrinder.TimestampWindow
+	name           string
+	encodeJSONBody bool
+	lgr            *log.Logger
+	timeWindow     timegrinder.TimestampWindow
 }
 
 func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
@@ -124,7 +153,7 @@ func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWrite
 
 func (oh *otelHandler) processResourceMetrics(h *handler, cfg routeHandler, rm *mpb.ResourceMetrics, ip net.IP, entriesCount *int, byteCount *int64) error {
 	if rm == nil {
-		// if we get a nil meric just exit cleanly
+		// if we get a nil metric just exit cleanly
 		return nil
 	}
 	for _, sm := range rm.ScopeMetrics {
@@ -146,42 +175,186 @@ func (oh *otelHandler) processResourceMetrics(h *handler, cfg routeHandler, rm *
 				SRC: ip,
 				Tag: cfg.tag,
 			}
-			if !oh.disableEVs {
-				oh.encodeMetricEVs(metric, rm.Resource, sm.Scope, &e)
-			}
-
-			if oh.encodeAsJSON {
+			if oh.encodeJSONBody {
 				var err error
 				if e.Data, err = oh.convertMetricToJSON(metric, rm.Resource, sm.Scope); err != nil {
 					oh.lgr.Warn("failed to convert metric to JSON", log.KVErr(err))
 					continue
 				}
 			}
-
-			*byteCount += int64(e.Size())
+			if metric.Name != "" {
+				e.AddEnumeratedValueEx("metric", metric.Name)
+			}
+			if metric.Unit != "" {
+				e.AddEnumeratedValueEx("unit", metric.Unit)
+			}
+			if metric.Description != "" {
+				e.AddEnumeratedValueEx("description", metric.Description)
+			}
 
 			if rm.Resource != nil {
 				for _, attr := range rm.Resource.Attributes {
 					oh.addAttributeToEntry(&e, attr)
 				}
 			}
-
-			if err := cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
+			cnt, bytes, err := oh.processMetricDatapoints(cfg.pproc, e, metric.Data)
+			if err != nil {
 				oh.lgr.Error("failed to send entry", log.KVErr(err))
 				return err
 			}
-
-			h.entSI.Add(1)
-			h.bytesSI.Add(uint64(len(e.Data)))
-			*entriesCount++
+			h.entSI.Add(cnt)
+			h.bytesSI.Add(bytes)
+			*entriesCount += int(cnt)
+			*byteCount += int64(bytes)
 		}
 	}
 	return nil
 }
 
-func (oh *otelHandler) encodeMetricEVs(metric *mpb.Metric, resource *rpb.Resource, scope *cpb.InstrumentationScope, e *entry.Entry) {
-	// TODO FIXME - add attributeValues for metrics data points
-	// TODO FIXME - figure out what to do about vector metrics
+func (oh *otelHandler) addMetricAttributes(e *entry.Entry, attribs []*commonv1.KeyValue) {
+	if len(attribs) > 0 {
+		for _, attr := range attribs {
+			if attr != nil && attr.Value != nil {
+				switch v := attr.Value.Value.(type) {
+				case *commonv1.AnyValue_StringValue:
+					e.AddEnumeratedValueEx(attr.Key, v.StringValue)
+				case *commonv1.AnyValue_IntValue:
+					e.AddEnumeratedValueEx(attr.Key, v.IntValue)
+				case *commonv1.AnyValue_DoubleValue:
+					e.AddEnumeratedValueEx(attr.Key, v.DoubleValue)
+				case *commonv1.AnyValue_BoolValue:
+					e.AddEnumeratedValueEx(attr.Key, v.BoolValue)
+				case *commonv1.AnyValue_BytesValue:
+					e.AddEnumeratedValueEx(attr.Key, v.BytesValue)
+				}
+			}
+		}
+	}
+}
+
+func (oh *otelHandler) processNumberDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.NumberDataPoint) (sz uint64, err error) {
+	if dp == nil {
+		return
+	}
+	oh.overrideTimestampFromDatapoint(&e, dp.TimeUnixNano)
+
+	oh.addMetricAttributes(&e, dp.Attributes)
+	switch v := dp.Value.(type) {
+	case *v1.NumberDataPoint_AsInt:
+		e.AddEnumeratedValueEx("value", v.AsInt)
+	case *v1.NumberDataPoint_AsDouble:
+		e.AddEnumeratedValueEx("value", v.AsDouble)
+	}
+
+	if err = p.ProcessContext(&e, exitCtx); err == nil {
+		sz = uint64(e.Size())
+	}
+	return
+}
+
+func (oh *otelHandler) processHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.HistogramDataPoint) error {
+	if dp == nil {
+		return nil
+	}
+	oh.overrideTimestampFromDatapoint(&e, dp.TimeUnixNano)
+
+	oh.addMetricAttributes(&e, dp.Attributes)
+	e.AddEnumeratedValueEx("count", dp.Count)
+	e.AddEnumeratedValueEx("sum", dp.Sum)
+	if dp.Min != nil {
+		e.AddEnumeratedValueEx("min", *dp.Min)
+	}
+	if dp.Max != nil {
+		e.AddEnumeratedValueEx("max", *dp.Max)
+	}
+	return nil
+}
+
+func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.ExponentialHistogramDataPoint) error {
+	if dp == nil {
+		return nil
+	}
+	oh.overrideTimestampFromDatapoint(&e, dp.TimeUnixNano)
+
+	oh.addMetricAttributes(&e, dp.Attributes)
+	e.AddEnumeratedValueEx("count", dp.Count)
+	if dp.Sum != nil {
+		e.AddEnumeratedValueEx("sum", *dp.Sum)
+	}
+	if dp.Min != nil {
+		e.AddEnumeratedValueEx("min", *dp.Min)
+	}
+	if dp.Max != nil {
+		e.AddEnumeratedValueEx("max", *dp.Max)
+	}
+	return nil
+}
+
+func (oh *otelHandler) processSummaryDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *v1.SummaryDataPoint) error {
+	if dp == nil {
+		return nil
+	}
+	oh.overrideTimestampFromDatapoint(&e, dp.TimeUnixNano)
+
+	oh.addMetricAttributes(&e, dp.Attributes)
+	e.AddEnumeratedValueEx("count", dp.Count)
+	e.AddEnumeratedValueEx("sum", dp.Sum)
+	return nil
+}
+
+func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e entry.Entry, d interface{}) (cnt uint64, bts uint64, err error) {
+	if p == nil || d == nil {
+		return // just do nothing
+	}
+	switch data := d.(type) {
+	case *mpb.Metric_Gauge:
+		e.AddEnumeratedValue(evGaugeType)
+		for _, dp := range data.Gauge.DataPoints {
+			var sz uint64
+			if sz, err = oh.processNumberDataPoint(p, e, dp); err != nil {
+				return
+			}
+			cnt++
+			bts += sz
+		}
+	case *mpb.Metric_Sum:
+		e.AddEnumeratedValue(evSumType)
+		//e.AddEnumeratedValueEx("aggregation_temporality", data.Sum.AggregationTemporality.String())
+		e.AddEnumeratedValueEx("monotonic", data.Sum.IsMonotonic)
+		for _, dp := range data.Sum.DataPoints {
+			var sz uint64
+			if sz, err = oh.processNumberDataPoint(p, e, dp); err != nil {
+				return
+			}
+			cnt++
+			bts += sz
+		}
+	case *mpb.Metric_Histogram:
+		e.AddEnumeratedValue(evHistogramType)
+		//e.AddEnumeratedValueEx("aggregation_temporality", data.Histogram.AggregationTemporality.String())
+		for _, dp := range data.Histogram.DataPoints {
+			if err = oh.processHistogramDataPoint(p, e, dp); err != nil {
+				return
+			}
+		}
+		//metricData["data_points"] = oh.convertHistogramDataPoints(data.Histogram.DataPoints)
+	case *mpb.Metric_ExponentialHistogram:
+		e.AddEnumeratedValue(evExpHistogramType)
+		for _, dp := range data.ExponentialHistogram.DataPoints {
+			if err = oh.processExponentialHistogramDataPoint(p, e, dp); err != nil {
+				return
+			}
+		}
+	case *mpb.Metric_Summary:
+		e.AddEnumeratedValue(evSummaryType)
+		for _, dp := range data.Summary.DataPoints {
+			if err = oh.processSummaryDataPoint(p, e, dp); err != nil {
+				return
+			}
+		}
+		//metricData["data_points"] = oh.convertSummaryDataPoints(data.Summary.DataPoints)
+	}
+	return
 }
 
 func (oh *otelHandler) convertMetricToJSON(metric *mpb.Metric, resource *rpb.Resource, scope *cpb.InstrumentationScope) ([]byte, error) {
@@ -386,6 +559,13 @@ func (oh *otelHandler) addAttributeToEntry(e *entry.Entry, attr *cpb.KeyValue) {
 	}
 }
 
+func (oh *otelHandler) overrideTimestampFromDatapoint(e *entry.Entry, ts uint64) {
+	if ts == 0 {
+		return
+	}
+	e.TS = entry.FromStandard(oh.timeWindow.Override(oh.nanoToTime(ts)))
+}
+
 func (oh *otelHandler) extractTimestamp(metric *mpb.Metric) entry.Timestamp {
 	var ts time.Time
 
@@ -467,4 +647,97 @@ func formatMetricAsString(me *metricsEntry) ([]byte, error) {
 		buf.WriteString(fmt.Sprintf(" resource=%s", resJSON))
 	}
 	return buf.Bytes(), nil
+}
+
+func (o *otelMetricsListener) validate(name string) (string, error) {
+	if _, err := o.auth.Validate(); err != nil {
+		return ``, fmt.Errorf("Authentication configuration error for %s %w", name, err)
+	}
+	if len(o.URL) == 0 {
+		o.URL = defaultOtelMetricsURL
+	}
+	p, err := url.Parse(o.URL)
+	if err != nil {
+		return ``, fmt.Errorf("URL structure is invalid: %v", err)
+	}
+	if p.Scheme != `` {
+		return ``, errors.New("May not specify scheme in listening URL")
+	} else if p.Host != `` {
+		return ``, errors.New("May not specify host in listening URL")
+	}
+	pth := path.Clean(p.Path)
+	if len(o.Tag_Name) == 0 {
+		o.Tag_Name = entry.DefaultTagName
+	}
+	if ingest.CheckTag(o.Tag_Name) != nil {
+		return ``, errors.New("Invalid characters in the \"" + o.Tag_Name + "\"Tag-Name for " + name)
+	}
+	o.URL = pth
+	return pth, nil
+}
+
+func (o *otelMetricsListener) tags() ([]string, error) {
+	if len(o.Tag_Name) == 0 {
+		return nil, errors.New("No tags specified")
+	}
+	return []string{o.Tag_Name}, nil
+}
+
+func includeOtelMetricsListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (err error) {
+	for k, v := range cfg.OtelListener {
+		oh := &otelHandler{
+			name:           k,
+			encodeJSONBody: v.Encode_As_JSON,
+			lgr:            hnd.lgr,
+		}
+		if oh.timeWindow, err = cfg.GlobalTimestampWindow(); err != nil {
+			return fmt.Errorf("TimestampWindow is invalid %w", err)
+		}
+
+		hcfg := routeHandler{
+			handler:    oh.handle,
+			debugPosts: v.Debug_Posts,
+		}
+
+		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
+			return fmt.Errorf("failed to negotiate tag %s %w", v.Tag_Name, err)
+		}
+
+		if v.Ignore_Timestamps {
+			hcfg.ignoreTs = true
+		} else {
+			var window timegrinder.TimestampWindow
+			window, err = cfg.GlobalTimestampWindow()
+			if err != nil {
+				return fmt.Errorf("Failed to get global timestamp window %w", err)
+			}
+			if hcfg.tg, err = timegrinder.New(timegrinder.Config{TSWindow: window}); err != nil {
+				return fmt.Errorf("Failed to create timegrinder %w", err)
+			} else if err = cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
+				return fmt.Errorf("failed to load custom time formats %w", err)
+			}
+		}
+
+		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+			return fmt.Errorf("preprocessor construction error %w", err)
+		}
+
+		//check if authentication is enabled for this URL
+		if pth, ah, err := v.NewAuthHandler(hnd.lgr); err != nil {
+			return fmt.Errorf("failed to get a new authentication handler %w", err)
+		} else if hnd != nil {
+			if pth != `` {
+				if err = hnd.addAuthHandler(http.MethodPost, pth, ah); err != nil {
+					return fmt.Errorf("failed to add auth handler url %q %w", pth, err)
+				}
+			}
+			hcfg.auth = ah
+		}
+
+		if err = hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
+			return fmt.Errorf("failed to add OpenTelemetry handler %w", err)
+		}
+		debugout("Added OpenTelemetry metrics listener %s %s\n", k, v.URL)
+	}
+	return nil
 }

@@ -53,7 +53,7 @@ type cfgReadType struct {
 	Listener                       map[string]*lst
 	HEC_Compatible_Listener        map[string]*hecCompatible
 	Amazon_Firehose_Listener       map[string]*afh
-	OpenTelemetry_Metrics_Listener map[string]*otelListener
+	OpenTelemetry_Metrics_Listener map[string]*otelMetricsListener
 	OpenTelemetry_Logs_Listener    map[string]*otelLogsListener
 	Preprocessor                   processors.ProcessorConfig
 	TimeFormat                     config.CustomTimeFormat
@@ -81,7 +81,7 @@ type cfgType struct {
 	Listener         map[string]*lst
 	HECListener      map[string]*hecCompatible
 	AFHListener      map[string]*afh
-	OtelListener     map[string]*otelListener
+	OtelListener     map[string]*otelMetricsListener
 	OtelLogsListener map[string]*otelLogsListener
 	Preprocessor     processors.ProcessorConfig
 	TimeFormat       config.CustomTimeFormat
@@ -212,6 +212,15 @@ func (c *cfgType) Verify() error {
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("HTTP OpenTelemetry %s preprocessor invalid: %v", k, err)
 		}
+		//validate authentication
+		if enabled, err := v.auth.Validate(); err != nil {
+			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
+		} else if enabled && v.LoginURL != `` {
+			if orig, ok := urls[newRoute(http.MethodPost, v.LoginURL)]; ok {
+				return fmt.Errorf("POST %s duplicated in %s (was in %s)", v.LoginURL, k, orig)
+			}
+			urls[newRoute(http.MethodPost, v.LoginURL)] = k
+		}
 		urls[rt] = k
 		c.OtelListener[k] = v
 	}
@@ -227,6 +236,15 @@ func (c *cfgType) Verify() error {
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("HTTP OpenTelemetry Logs %s preprocessor invalid: %v", k, err)
+		}
+		//validate authentication
+		if enabled, err := v.auth.Validate(); err != nil {
+			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
+		} else if enabled && v.LoginURL != `` {
+			if orig, ok := urls[newRoute(http.MethodPost, v.LoginURL)]; ok {
+				return fmt.Errorf("POST %s duplicated in %s (was in %s)", v.LoginURL, k, orig)
+			}
+			urls[newRoute(http.MethodPost, v.LoginURL)] = k
 		}
 		urls[rt] = k
 		c.OtelLogsListener[k] = v

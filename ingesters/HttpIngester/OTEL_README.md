@@ -25,9 +25,7 @@ The HTTP Ingester now includes native OpenTelemetry (OTel) handlers that accept 
 
 - **Native OTLP Logs Support**: Accepts logs in the standard OTLP format (protobuf and JSON)
 - **Official OpenTelemetry SDKs**: Uses official OpenTelemetry protocol buffers
-- **Flexible Data Formats**:
-  - Default mode: Extract only the log body for storage
-  - JSON mode: Store full structured log with all metadata
+- **Log Body Extraction**: The log body is extracted and stored as entry data
 - **Severity Levels**: Captures severity number and severity text
 - **Trace Context**: Preserves trace ID and span ID for correlation
 - **Log Attributes**: Log attributes are attached as enumerated values
@@ -48,6 +46,34 @@ The HTTP Ingester now includes native OpenTelemetry (OTel) handlers that accept 
     Debug-Posts=true                 # Enable debug logging
 ```
 
+#### Metrics Listener with Authentication
+
+```ini
+# Basic Authentication
+[OpenTelemetry-Metrics-Listener "otel-metrics-basic"]
+    URL="/v1/metrics"
+    Tag-Name="otel-metrics"
+    AuthType=basic
+    Username=metricuser
+    Password=metricpass
+
+# Preshared Token Authentication (Authorization header)
+[OpenTelemetry-Metrics-Listener "otel-metrics-token"]
+    URL="/v1/metrics"
+    Tag-Name="otel-metrics"
+    AuthType=preshared-token
+    TokenName=Bearer
+    TokenValue=your-secret-token-here
+
+# Preshared Header Authentication (custom header)
+[OpenTelemetry-Metrics-Listener "otel-metrics-header"]
+    URL="/v1/metrics"
+    Tag-Name="otel-metrics"
+    AuthType=preshared-header
+    TokenName=X-Custom-Auth
+    TokenValue=your-secret-value
+```
+
 #### Metrics Configuration Options
 
 - **URL** (string, optional): The HTTP endpoint path. Default: `/v1/metrics`
@@ -56,6 +82,12 @@ The HTTP Ingester now includes native OpenTelemetry (OTel) handlers that accept 
 - **Encode-As-JSON** (bool, optional): If true, encode metrics as JSON. Default: `false`
 - **Debug-Posts** (bool, optional): Enable detailed logging of requests. Default: `false`
 - **Preprocessor** ([]string, optional): List of preprocessors to apply to entries
+- **AuthType** (string, optional): Authentication type. Options: `none`, `basic`, `jwt`, `cookie`, `preshared-token`, `preshared-parameter`, `preshared-header`. Default: `none`
+- **Username** (string, optional): Username for `basic`, `jwt`, or `cookie` authentication
+- **Password** (string, optional): Password for `basic`, `jwt`, or `cookie` authentication
+- **LoginURL** (string, optional): Login endpoint URL for `jwt` or `cookie` authentication
+- **TokenName** (string, optional): Token name for preshared authentication. Default: `Bearer` for `preshared-token`
+- **TokenValue** (string, optional): Token value for preshared authentication
 
 ### Logs Listener Configuration
 
@@ -64,9 +96,36 @@ The HTTP Ingester now includes native OpenTelemetry (OTel) handlers that accept 
     URL="/v1/logs"                   # Standard OTLP endpoint
     Tag-Name="otel-logs"             # Tag for ingested logs
     Ignore-Timestamps=false          # Use timestamps from OTLP
-    Encode-As-JSON=false             # Store full log as JSON
     Disable-EVs=false                # Disable enumerated values
     Debug-Posts=true                 # Enable debug logging
+```
+
+#### Logs Listener with Authentication
+
+```ini
+# Basic Authentication
+[OpenTelemetry-Logs-Listener "otel-logs-basic"]
+    URL="/v1/logs"
+    Tag-Name="otel-logs"
+    AuthType=basic
+    Username=loguser
+    Password=logpass
+
+# Preshared Token Authentication (Authorization header)
+[OpenTelemetry-Logs-Listener "otel-logs-token"]
+    URL="/v1/logs"
+    Tag-Name="otel-logs"
+    AuthType=preshared-token
+    TokenName=Bearer
+    TokenValue=your-secret-token-here
+
+# Preshared Header Authentication (custom header)
+[OpenTelemetry-Logs-Listener "otel-logs-header"]
+    URL="/v1/logs"
+    Tag-Name="otel-logs"
+    AuthType=preshared-header
+    TokenName=X-Custom-Auth
+    TokenValue=your-secret-value
 ```
 
 #### Logs Configuration Options
@@ -74,10 +133,15 @@ The HTTP Ingester now includes native OpenTelemetry (OTel) handlers that accept 
 - **URL** (string, optional): The HTTP endpoint path. Default: `/v1/logs`
 - **Tag-Name** (string, required): The Gravwell tag for ingested logs
 - **Ignore-Timestamps** (bool, optional): If true, use current time instead of OTLP timestamps. Default: `false`
-- **Encode-As-JSON** (bool, optional): If true, store full log record as JSON. If false (default), only the log body is stored. Default: `false`
 - **Disable-EVs** (bool, optional): If true, do not extract enumerated values from log attributes. Default: `false`
 - **Debug-Posts** (bool, optional): Enable detailed logging of requests. Default: `false`
 - **Preprocessor** ([]string, optional): List of preprocessors to apply to entries
+- **AuthType** (string, optional): Authentication type. Options: `none`, `basic`, `jwt`, `cookie`, `preshared-token`, `preshared-parameter`, `preshared-header`. Default: `none`
+- **Username** (string, optional): Username for `basic`, `jwt`, or `cookie` authentication
+- **Password** (string, optional): Password for `basic`, `jwt`, or `cookie` authentication
+- **LoginURL** (string, optional): Login endpoint URL for `jwt` or `cookie` authentication
+- **TokenName** (string, optional): Token name for preshared authentication. Default: `Bearer` for `preshared-token`
+- **TokenValue** (string, optional): Token value for preshared authentication
 
 ### Multiple Listeners
 
@@ -99,7 +163,6 @@ You can configure multiple OpenTelemetry listeners on different URLs:
 [OpenTelemetry-Logs-Listener "development-logs"]
     URL="/dev/v1/logs"
     Tag-Name="otel-logs-dev"
-    Encode-As-JSON=true
 ```
 
 ## Usage
@@ -116,10 +179,31 @@ import (
     sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
+// Without authentication
 exporter, err := otlpmetrichttp.New(context.Background(),
     otlpmetrichttp.WithEndpoint("gravwell-host:8080"),
     otlpmetrichttp.WithInsecure(),
     otlpmetrichttp.WithURLPath("/v1/metrics"),
+)
+
+// With Basic Authentication
+exporter, err := otlpmetrichttp.New(context.Background(),
+    otlpmetrichttp.WithEndpoint("gravwell-host:8080"),
+    otlpmetrichttp.WithInsecure(),
+    otlpmetrichttp.WithURLPath("/v1/metrics"),
+    otlpmetrichttp.WithHeaders(map[string]string{
+        "Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("username:password")),
+    }),
+)
+
+// With Token Authentication
+exporter, err := otlpmetrichttp.New(context.Background(),
+    otlpmetrichttp.WithEndpoint("gravwell-host:8080"),
+    otlpmetrichttp.WithInsecure(),
+    otlpmetrichttp.WithURLPath("/v1/metrics"),
+    otlpmetrichttp.WithHeaders(map[string]string{
+        "Authorization": "Bearer your-secret-token-here",
+    }),
 )
 
 provider := sdkmetric.NewMeterProvider(
@@ -133,9 +217,24 @@ provider := sdkmetric.NewMeterProvider(
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+import base64
 
+# Without authentication
 exporter = OTLPMetricExporter(
     endpoint="http://gravwell-host:8080/v1/metrics"
+)
+
+# With Basic Authentication
+credentials = base64.b64encode(b"username:password").decode("utf-8")
+exporter = OTLPMetricExporter(
+    endpoint="http://gravwell-host:8080/v1/metrics",
+    headers={"Authorization": f"Basic {credentials}"}
+)
+
+# With Token Authentication
+exporter = OTLPMetricExporter(
+    endpoint="http://gravwell-host:8080/v1/metrics",
+    headers={"Authorization": "Bearer your-secret-token-here"}
 )
 
 reader = PeriodicExportingMetricReader(exporter)
@@ -154,10 +253,31 @@ import (
     sdklog "go.opentelemetry.io/otel/sdk/log"
 )
 
+// Without authentication
 exporter, err := otlploghttp.New(context.Background(),
     otlploghttp.WithEndpoint("gravwell-host:8080"),
     otlploghttp.WithInsecure(),
     otlploghttp.WithURLPath("/v1/logs"),
+)
+
+// With Basic Authentication
+exporter, err := otlploghttp.New(context.Background(),
+    otlploghttp.WithEndpoint("gravwell-host:8080"),
+    otlploghttp.WithInsecure(),
+    otlploghttp.WithURLPath("/v1/logs"),
+    otlploghttp.WithHeaders(map[string]string{
+        "Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("username:password")),
+    }),
+)
+
+// With Token Authentication
+exporter, err := otlploghttp.New(context.Background(),
+    otlploghttp.WithEndpoint("gravwell-host:8080"),
+    otlploghttp.WithInsecure(),
+    otlploghttp.WithURLPath("/v1/logs"),
+    otlploghttp.WithHeaders(map[string]string{
+        "Authorization": "Bearer your-secret-token-here",
+    }),
 )
 
 provider := sdklog.NewLoggerProvider(
@@ -171,9 +291,24 @@ provider := sdklog.NewLoggerProvider(
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+import base64
 
+# Without authentication
 exporter = OTLPLogExporter(
     endpoint="http://gravwell-host:8080/v1/logs"
+)
+
+# With Basic Authentication
+credentials = base64.b64encode(b"username:password").decode("utf-8")
+exporter = OTLPLogExporter(
+    endpoint="http://gravwell-host:8080/v1/logs",
+    headers={"Authorization": f"Basic {credentials}"}
+)
+
+# With Token Authentication
+exporter = OTLPLogExporter(
+    endpoint="http://gravwell-host:8080/v1/logs",
+    headers={"Authorization": "Bearer your-secret-token-here"}
 )
 
 provider = LoggerProvider()
@@ -186,9 +321,29 @@ provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+
+// Without authentication
+OtlpHttpMetricExporter exporter = OtlpHttpMetricExporter.builder()
+    .setEndpoint("http://gravwell-host:8080/v1/metrics")
+    .build();
+
+// With Basic Authentication
+String credentials = Base64.getEncoder().encodeToString("username:password".getBytes());
+Map<String, String> headers = new HashMap<>();
+headers.put("Authorization", "Basic " + credentials);
 
 OtlpHttpMetricExporter exporter = OtlpHttpMetricExporter.builder()
     .setEndpoint("http://gravwell-host:8080/v1/metrics")
+    .addHeader("Authorization", "Basic " + credentials)
+    .build();
+
+// With Token Authentication
+OtlpHttpMetricExporter exporter = OtlpHttpMetricExporter.builder()
+    .setEndpoint("http://gravwell-host:8080/v1/metrics")
+    .addHeader("Authorization", "Bearer your-secret-token-here")
     .build();
 
 SdkMeterProvider meterProvider = SdkMeterProvider.builder()
@@ -233,35 +388,9 @@ Metrics are stored in JSON format with the following structure:
 
 #### Logs Data Format
 
-When `Encode-As-JSON=false` (default), only the log body is stored:
+The log body is extracted from the OTLP log record and stored as entry data:
 ```
 This is the log message
-```
-
-When `Encode-As-JSON=true`, the full log record is stored as JSON:
-```json
-{
-  "timestamp": "2024-01-01T12:00:00.000000000Z",
-  "observed_timestamp": "2024-01-01T12:00:00.100000000Z",
-  "severity_number": "SEVERITY_NUMBER_INFO",
-  "severity_text": "INFO",
-  "body": "This is the log message",
-  "attributes": {
-    "http.method": "GET",
-    "http.status_code": 200
-  },
-  "trace_id": "0102030405060708090a0b0c0d0e0f10",
-  "span_id": "0102030405060708",
-  "flags": 1,
-  "resource": {
-    "service.name": "my-service",
-    "host.name": "my-host"
-  },
-  "scope": {
-    "name": "my-instrumentation",
-    "version": "1.0.0"
-  }
-}
 ```
 
 ### Enumerated Values
@@ -340,6 +469,7 @@ tail -f /opt/gravwell/log/gravwell_http_ingester.log
 Test the metrics endpoint with a simple cURL command:
 
 ```bash
+# Without authentication
 curl -X POST http://localhost:8080/v1/metrics \
   -H "Content-Type: application/json" \
   -d '{
@@ -362,11 +492,24 @@ curl -X POST http://localhost:8080/v1/metrics \
       }]
     }]
   }'
+
+# With Basic Authentication
+curl -X POST http://localhost:8080/v1/metrics \
+  -H "Content-Type: application/json" \
+  -u username:password \
+  -d '{...}'
+
+# With Token Authentication
+curl -X POST http://localhost:8080/v1/metrics \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token-here" \
+  -d '{...}'
 ```
 
 Test the logs endpoint with a simple cURL command:
 
 ```bash
+# Without authentication
 curl -X POST http://localhost:8080/v1/logs \
   -H "Content-Type: application/json" \
   -d '{
@@ -389,6 +532,18 @@ curl -X POST http://localhost:8080/v1/logs \
       }]
     }]
   }'
+
+# With Basic Authentication
+curl -X POST http://localhost:8080/v1/logs \
+  -H "Content-Type: application/json" \
+  -u username:password \
+  -d '{...}'
+
+# With Token Authentication
+curl -X POST http://localhost:8080/v1/logs \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token-here" \
+  -d '{...}'
 ```
 
 ## Dependencies

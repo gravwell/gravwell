@@ -182,19 +182,6 @@ func TestOtelLogsListenerConfigOptions(t *testing.T) {
 			},
 		},
 		{
-			name: "encode as JSON enabled",
-			listener: otelLogsListener{
-				URL:            "/v1/logs",
-				Tag_Name:       "otel-logs",
-				Encode_As_JSON: true,
-			},
-			check: func(t *testing.T, l otelLogsListener) {
-				if !l.Encode_As_JSON {
-					t.Error("Encode_As_JSON should be true")
-				}
-			},
-		},
-		{
 			name: "disable EVs enabled",
 			listener: otelLogsListener{
 				URL:         "/v1/logs",
@@ -214,7 +201,6 @@ func TestOtelLogsListenerConfigOptions(t *testing.T) {
 				Tag_Name:          "otel-logs",
 				Ignore_Timestamps: true,
 				Debug_Posts:       true,
-				Encode_As_JSON:    true,
 				Disable_EVs:       true,
 			},
 			check: func(t *testing.T, l otelLogsListener) {
@@ -223,9 +209,6 @@ func TestOtelLogsListenerConfigOptions(t *testing.T) {
 				}
 				if !l.Debug_Posts {
 					t.Error("Debug_Posts should be true")
-				}
-				if !l.Encode_As_JSON {
-					t.Error("Encode_As_JSON should be true")
 				}
 				if !l.Disable_EVs {
 					t.Error("Disable_EVs should be true")

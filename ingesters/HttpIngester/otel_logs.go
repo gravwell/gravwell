@@ -10,13 +10,17 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"path"
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/timegrinder"
@@ -29,12 +33,25 @@ import (
 	rpb "go.opentelemetry.io/proto/otlp/resource/v1"
 )
 
+const (
+	defaultOtelLogsURL = `/v1/logs`
+)
+
+// otelLogsListener defines the configuration for an OpenTelemetry logs listener
+type otelLogsListener struct {
+	auth              //authentication information
+	URL               string
+	Tag_Name          string
+	Ignore_Timestamps bool
+	Debug_Posts       bool
+	Disable_EVs       bool
+	Preprocessor      []string
+}
 type otelLogsHandler struct {
-	name         string
-	encodeAsJSON bool
-	disableEVs   bool
-	lgr          *log.Logger
-	timeWindow   timegrinder.TimestampWindow
+	name       string
+	disableEVs bool
+	lgr        *log.Logger
+	timeWindow timegrinder.TimestampWindow
 }
 
 func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
@@ -140,24 +157,15 @@ func (oh *otelLogsHandler) processResourceLogs(h *handler, cfg routeHandler, rl 
 				ts = oh.extractTimestamp(logRecord)
 			}
 			e := entry.Entry{
-				TS:  ts,
-				SRC: ip,
-				Tag: cfg.tag,
+				TS:   ts,
+				SRC:  ip,
+				Tag:  cfg.tag,
+				Data: oh.extractLogBody(logRecord),
 			}
 			if !oh.disableEVs {
 				if err := oh.encodeLogEVs(logRecord, rl.Resource, sl.Scope, &e); err != nil {
 					oh.lgr.Warn("failed to encode log EVs", log.KVErr(err))
 				}
-			}
-
-			if oh.encodeAsJSON {
-				var err error
-				if e.Data, err = oh.convertLogToJSON(logRecord, rl.Resource, sl.Scope); err != nil {
-					oh.lgr.Warn("failed to convert log to JSON", log.KVErr(err))
-					continue
-				}
-			} else {
-				e.Data = oh.extractLogBody(logRecord)
 			}
 
 			*byteCount += int64(e.Size())
@@ -236,72 +244,6 @@ func (oh *otelLogsHandler) extractLogBody(logRecord *lpb.LogRecord) []byte {
 	}
 }
 
-func (oh *otelLogsHandler) convertLogToJSON(logRecord *lpb.LogRecord, resource *rpb.Resource, scope *cpb.InstrumentationScope) ([]byte, error) {
-	logData := map[string]interface{}{
-		"timestamp": oh.nanoToTime(logRecord.TimeUnixNano).Format(time.RFC3339Nano),
-	}
-
-	if logRecord.ObservedTimeUnixNano != 0 {
-		logData["observed_timestamp"] = oh.nanoToTime(logRecord.ObservedTimeUnixNano).Format(time.RFC3339Nano)
-	}
-
-	if logRecord.SeverityNumber != lpb.SeverityNumber_SEVERITY_NUMBER_UNSPECIFIED {
-		logData["severity_number"] = logRecord.SeverityNumber.String()
-	}
-
-	if logRecord.SeverityText != "" {
-		logData["severity_text"] = logRecord.SeverityText
-	}
-
-	if logRecord.Body != nil {
-		logData["body"] = oh.convertAttributeValue(logRecord.Body)
-	}
-
-	if len(logRecord.Attributes) > 0 {
-		attrs := make(map[string]interface{})
-		for _, attr := range logRecord.Attributes {
-			attrs[attr.Key] = oh.convertAttributeValue(attr.Value)
-		}
-		logData["attributes"] = attrs
-	}
-
-	if logRecord.DroppedAttributesCount > 0 {
-		logData["dropped_attributes_count"] = logRecord.DroppedAttributesCount
-	}
-
-	if logRecord.Flags != 0 {
-		logData["flags"] = logRecord.Flags
-	}
-
-	if len(logRecord.TraceId) > 0 {
-		logData["trace_id"] = fmt.Sprintf("%x", logRecord.TraceId)
-	}
-
-	if len(logRecord.SpanId) > 0 {
-		logData["span_id"] = fmt.Sprintf("%x", logRecord.SpanId)
-	}
-
-	if resource != nil {
-		resAttrs := make(map[string]interface{})
-		for _, attr := range resource.Attributes {
-			resAttrs[attr.Key] = oh.convertAttributeValue(attr.Value)
-		}
-		if len(resAttrs) > 0 {
-			logData["resource"] = resAttrs
-		}
-	}
-
-	if scope != nil {
-		scopeData := map[string]interface{}{
-			"name":    scope.Name,
-			"version": scope.Version,
-		}
-		logData["scope"] = scopeData
-	}
-
-	return json.Marshal(logData)
-}
-
 func (oh *otelLogsHandler) convertAttributeValue(v *cpb.AnyValue) interface{} {
 	if v == nil {
 		return nil
@@ -369,4 +311,97 @@ func (oh *otelLogsHandler) nanoToTime(nano uint64) time.Time {
 	sec := int64(nano / 1e9)
 	nsec := int64(nano % 1e9)
 	return time.Unix(sec, nsec)
+}
+
+func (o *otelLogsListener) validate(name string) (string, error) {
+	if _, err := o.auth.Validate(); err != nil {
+		return ``, fmt.Errorf("Authentication configuration error for %s %w", name, err)
+	}
+	if len(o.URL) == 0 {
+		o.URL = defaultOtelLogsURL
+	}
+	p, err := url.Parse(o.URL)
+	if err != nil {
+		return ``, fmt.Errorf("URL structure is invalid: %v", err)
+	}
+	if p.Scheme != `` {
+		return ``, errors.New("May not specify scheme in listening URL")
+	} else if p.Host != `` {
+		return ``, errors.New("May not specify host in listening URL")
+	}
+	pth := path.Clean(p.Path)
+	if len(o.Tag_Name) == 0 {
+		o.Tag_Name = entry.DefaultTagName
+	}
+	if ingest.CheckTag(o.Tag_Name) != nil {
+		return ``, errors.New("Invalid characters in the \"" + o.Tag_Name + "\"Tag-Name for " + name)
+	}
+	o.URL = pth
+	return pth, nil
+}
+
+func (o *otelLogsListener) tags() ([]string, error) {
+	if len(o.Tag_Name) == 0 {
+		return nil, errors.New("No tags specified")
+	}
+	return []string{o.Tag_Name}, nil
+}
+
+func includeOtelLogsListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (err error) {
+	for k, v := range cfg.OtelLogsListener {
+		oh := &otelLogsHandler{
+			name:       k,
+			lgr:        hnd.lgr,
+			disableEVs: v.Disable_EVs,
+		}
+		if oh.timeWindow, err = cfg.GlobalTimestampWindow(); err != nil {
+			return fmt.Errorf("TimestampWindow is invalid %w", err)
+		}
+
+		hcfg := routeHandler{
+			handler:    oh.handle,
+			debugPosts: v.Debug_Posts,
+		}
+
+		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
+			return fmt.Errorf("failed to negotiate tag %s %w", v.Tag_Name, err)
+		}
+
+		if v.Ignore_Timestamps {
+			hcfg.ignoreTs = true
+		} else {
+			var window timegrinder.TimestampWindow
+			window, err = cfg.GlobalTimestampWindow()
+			if err != nil {
+				return fmt.Errorf("Failed to get global timestamp window %w", err)
+			}
+			if hcfg.tg, err = timegrinder.New(timegrinder.Config{TSWindow: window}); err != nil {
+				return fmt.Errorf("Failed to create timegrinder %w", err)
+			} else if err = cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
+				return fmt.Errorf("failed to load custom time formats %w", err)
+			}
+		}
+
+		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+			return fmt.Errorf("preprocessor construction error %w", err)
+		}
+
+		//check if authentication is enabled for this URL
+		if pth, ah, err := v.NewAuthHandler(hnd.lgr); err != nil {
+			return fmt.Errorf("failed to get a new authentication handler %w", err)
+		} else if hnd != nil {
+			if pth != `` {
+				if err = hnd.addAuthHandler(http.MethodPost, pth, ah); err != nil {
+					return fmt.Errorf("failed to add auth handler url %q %w", pth, err)
+				}
+			}
+			hcfg.auth = ah
+		}
+
+		if err = hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
+			return fmt.Errorf("failed to add OpenTelemetry logs handler %w", err)
+		}
+		debugout("Added OpenTelemetry logs listener %s %s\n", k, v.URL)
+	}
+	return nil
 }

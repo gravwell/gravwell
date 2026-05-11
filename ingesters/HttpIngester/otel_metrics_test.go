@@ -18,13 +18,13 @@ import (
 func TestOtelListenerValidation(t *testing.T) {
 	tests := []struct {
 		name        string
-		listener    *otelListener
+		listener    *otelMetricsListener
 		expectError bool
 		expectedURL string
 	}{
 		{
 			name: "valid listener with custom URL",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:      "/custom/metrics",
 				Tag_Name: "otel-custom",
 			},
@@ -33,7 +33,7 @@ func TestOtelListenerValidation(t *testing.T) {
 		},
 		{
 			name: "valid listener with default URL",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:      "",
 				Tag_Name: "otel-metrics",
 			},
@@ -42,7 +42,7 @@ func TestOtelListenerValidation(t *testing.T) {
 		},
 		{
 			name: "valid listener with default tag",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:      "/v1/metrics",
 				Tag_Name: "",
 			},
@@ -51,7 +51,7 @@ func TestOtelListenerValidation(t *testing.T) {
 		},
 		{
 			name: "invalid URL with scheme",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:      "http://localhost/metrics",
 				Tag_Name: "otel",
 			},
@@ -59,7 +59,7 @@ func TestOtelListenerValidation(t *testing.T) {
 		},
 		{
 			name: "invalid URL with host",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:      "//localhost/metrics",
 				Tag_Name: "otel",
 			},
@@ -67,7 +67,7 @@ func TestOtelListenerValidation(t *testing.T) {
 		},
 		{
 			name: "invalid tag name with special chars",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:      "/v1/metrics",
 				Tag_Name: "otel@metrics!",
 			},
@@ -75,7 +75,7 @@ func TestOtelListenerValidation(t *testing.T) {
 		},
 		{
 			name: "valid complex path",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:      "/otel/v1/metrics",
 				Tag_Name: "otel",
 			},
@@ -101,13 +101,13 @@ func TestOtelListenerValidation(t *testing.T) {
 func TestOtelListenerTags(t *testing.T) {
 	tests := []struct {
 		name         string
-		listener     *otelListener
+		listener     *otelMetricsListener
 		expectedTags []string
 		expectError  bool
 	}{
 		{
 			name: "single tag",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				Tag_Name: "otel-metrics",
 			},
 			expectedTags: []string{"otel-metrics"},
@@ -115,7 +115,7 @@ func TestOtelListenerTags(t *testing.T) {
 		},
 		{
 			name: "empty tag should error",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				Tag_Name: "",
 			},
 			expectedTags: nil,
@@ -149,7 +149,7 @@ func TestOtelListenerInConfig(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-metrics",
@@ -176,7 +176,7 @@ func TestOtelListenerMultipleInConfig(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"prod": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-prod",
@@ -209,7 +209,7 @@ func TestOtelListenerHotReload(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-metrics",
@@ -228,7 +228,7 @@ func TestOtelListenerHotReload(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-metrics",
@@ -258,7 +258,7 @@ func TestOtelListenerHotReloadRemoval(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-metrics",
@@ -282,7 +282,7 @@ func TestOtelListenerHotReloadRemoval(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-metrics",
@@ -313,7 +313,7 @@ func TestOtelListenerConflictWithOtherListeners(t *testing.T) {
 				Tag_Name: "std-tag",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-tag",
@@ -335,7 +335,7 @@ func TestOtelListenerDuplicateURL(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-tag1",
@@ -364,7 +364,7 @@ func TestOtelListenerWithPreprocessors(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel": {
 				URL:          "/v1/metrics",
 				Tag_Name:     "otel-metrics",
@@ -381,41 +381,41 @@ func TestOtelListenerWithPreprocessors(t *testing.T) {
 func TestOtelListenerConfigOptions(t *testing.T) {
 	tests := []struct {
 		name     string
-		listener *otelListener
-		validate func(t *testing.T, l *otelListener)
+		listener *otelMetricsListener
+		validate func(t *testing.T, l *otelMetricsListener)
 	}{
 		{
 			name: "ignore timestamps enabled",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:               "/v1/metrics",
 				Tag_Name:          "otel",
 				Ignore_Timestamps: true,
 			},
-			validate: func(t *testing.T, l *otelListener) {
+			validate: func(t *testing.T, l *otelMetricsListener) {
 				require.True(t, l.Ignore_Timestamps, "Ignore_Timestamps should be true")
 			},
 		},
 		{
 			name: "debug posts enabled",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:         "/v1/metrics",
 				Tag_Name:    "otel",
 				Debug_Posts: true,
 			},
-			validate: func(t *testing.T, l *otelListener) {
+			validate: func(t *testing.T, l *otelMetricsListener) {
 				require.True(t, l.Debug_Posts, "Debug_Posts should be true")
 			},
 		},
 		{
 			name: "all options configured",
-			listener: &otelListener{
+			listener: &otelMetricsListener{
 				URL:               "/custom/metrics",
 				Tag_Name:          "custom-otel",
 				Ignore_Timestamps: true,
 				Debug_Posts:       true,
 				Preprocessor:      []string{"prep1", "prep2"},
 			},
-			validate: func(t *testing.T, l *otelListener) {
+			validate: func(t *testing.T, l *otelMetricsListener) {
 				require.True(t, l.Ignore_Timestamps)
 				require.True(t, l.Debug_Posts)
 				require.Len(t, l.Preprocessor, 2)
@@ -468,7 +468,7 @@ func TestOtelListenerURLNormalization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			listener := &otelListener{
+			listener := &otelMetricsListener{
 				URL:      tt.inputURL,
 				Tag_Name: "test",
 			}
@@ -488,12 +488,98 @@ func TestOtelListenerEmptyConfig(t *testing.T) {
 				Ingest_Secret:            "testing",
 			},
 		},
-		OtelListener: map[string]*otelListener{},
+		OtelListener: map[string]*otelMetricsListener{},
 	}
 
 	err := cfg.Verify()
 	require.Error(t, err, "should fail with no listeners configured")
 	require.Contains(t, err.Error(), "No Listeners", "error should mention no listeners")
+}
+
+func TestOtelListenerWithBasicAuth(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	cfg := &cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"otel": {
+				URL:      "/v1/metrics",
+				Tag_Name: "otel-metrics",
+				auth: auth{
+					AuthType: basic,
+					Username: "user",
+					Password: "pass",
+				},
+			},
+		},
+	}
+
+	err := hndlr.loadConfig(cfg)
+	require.NoError(t, err, "config with basic auth should load successfully")
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "otel route should exist")
+}
+
+func TestOtelListenerWithPresharedToken(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	cfg := &cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"otel": {
+				URL:      "/v1/metrics",
+				Tag_Name: "otel-metrics",
+				auth: auth{
+					AuthType:   preToken,
+					TokenName:  "Bearer",
+					TokenValue: "secret-token",
+				},
+			},
+		},
+	}
+
+	err := hndlr.loadConfig(cfg)
+	require.NoError(t, err, "config with preshared token auth should load successfully")
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "otel route should exist")
+}
+
+func TestOtelListenerWithInvalidAuth(t *testing.T) {
+	cfg := &cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"otel": {
+				URL:      "/v1/metrics",
+				Tag_Name: "otel-metrics",
+				auth: auth{
+					AuthType: basic,
+					Username: "user",
+					// missing password
+				},
+			},
+		},
+	}
+
+	err := cfg.Verify()
+	require.Error(t, err, "invalid auth (missing password) should fail verification")
 }
 
 func TestOtelListenerMixedWithOtherListeners(t *testing.T) {
@@ -514,7 +600,7 @@ func TestOtelListenerMixedWithOtherListeners(t *testing.T) {
 				Tag_Name: "json",
 			},
 		},
-		OtelListener: map[string]*otelListener{
+		OtelListener: map[string]*otelMetricsListener{
 			"otel": {
 				URL:      "/v1/metrics",
 				Tag_Name: "otel-metrics",
