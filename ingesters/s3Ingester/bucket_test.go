@@ -28,12 +28,11 @@ func TestNewBucketReader_Endpoint(t *testing.T) {
 		Logger:           log.NewDiscardLogger(),
 	}
 
-	br, err := NewBucketReader(cfg)
+	br, err := NewBucketReader(t.Context(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, br)
 
-	require.NotNil(t, br.session.Config.Endpoint)
-	assert.Equal(t, cfg.Endpoint, *br.session.Config.Endpoint)
+	assert.Equal(t, cfg.Endpoint, br.AuthConfig.Endpoint)
 }
 
 func TestAuthConfig_Validate(t *testing.T) {
