@@ -29,7 +29,8 @@ type global struct {
 	Client_ID            string
 	Client_Secret        string `json:"-"` // DO NOT send this when marshalling
 	Directory_ID         string
-	Tenant_Domain        string
+	Tenant_ID            string
+	Tenant_Domain        string // Used in place of Tenant-ID if its not provided.
 	Reachback_Period     string
 }
 
