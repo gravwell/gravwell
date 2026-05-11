@@ -11,15 +11,19 @@ package email
 
 import (
 	"fmt"
+	"strconv"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -60,79 +64,117 @@ func show() action.Pair {
 }
 
 func configure() action.Pair {
-	return scaffold.NewBasicAction("configure", "configure email settings",
-		"Set the SMTP server settings used for sending email notifications.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			server, err := fs.GetString("server")
-			if err != nil {
-				clilog.LogFlagFailedGet("server", err)
-				return "failed to get server flag", nil
-			}
-			port, err := fs.GetUint16("port")
-			if err != nil {
-				clilog.LogFlagFailedGet("port", err)
-				return "failed to get port flag", nil
-			}
-			username, err := fs.GetString("username")
-			if err != nil {
-				clilog.LogFlagFailedGet("username", err)
-				return "failed to get username flag", nil
-			}
-			password, err := fs.GetString("password")
-			if err != nil {
-				clilog.LogFlagFailedGet("password", err)
-				return "failed to get password flag", nil
-			}
-			useTLS, err := fs.GetBool("tls")
-			if err != nil {
-				clilog.LogFlagFailedGet("tls", err)
-				return "failed to get tls flag", nil
-			}
-			noVerify, err := fs.GetBool("no-verify")
-			if err != nil {
-				clilog.LogFlagFailedGet("no-verify", err)
-				return "failed to get no-verify flag", nil
-			}
-			if err := connection.Client.ConfigureMail(username, password, server, port, useTLS, noVerify); err != nil {
-				return err.Error(), nil
-			}
-			return "email configuration updated", nil
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String("server", "", "SMTP server address")
-					fs.Uint16("port", 0, "SMTP server port")
-					fs.String("username", "", "SMTP username")
-					fs.String("password", "", "SMTP password")
-					fs.Bool("tls", false, "use TLS")
-					fs.Bool("no-verify", false, "skip TLS verification")
-					return fs
+	return scaffoldcreate.NewCreateAction("configuration",
+		map[string]scaffoldcreate.Field{
+			"server": {
+				Title:    "Server",
+				Required: true,
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "email-server",
+					Usage: "the host connection string to reach the mail server", // TODO
+				},
+				Order:    200,
+				Provider: &scaffoldcreate.TextProvider{},
+			},
+			"user": {
+				Title:    "Username",
+				Required: true,
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "email-username",
+					Usage: "the username to authenticate with the email server as",
+				},
+				Order:    180,
+				Provider: &scaffoldcreate.TextProvider{},
+			},
+			"pass": scaffoldcreate.FieldPassword(
+				false,
+				scaffoldcreate.FlagConfig{
+					Name:  "email-password",
+					Usage: "the password to authenticate with the email server",
+				},
+				160),
+			"port": {
+				Title:    "Port",
+				Required: true,
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "email-port",
+					Usage: "the port by which to access the server ",
+				},
+				DefaultValue: "587",
+				Order:        140,
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("587", false)
+						ti.Validate = func(s string) error {
+							_, err := validate.PortNumber(s)
+							if err != nil {
+								return err
+							}
+							return nil
+						}
+						return ti
+					},
 				},
 			},
-			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				server, err := fs.GetString("server")
-				if err != nil {
-					clilog.LogFlagFailedGet("server", err)
-				}
-				if server == "" {
-					return "--server must be non-empty", nil
-				}
-				port, err := fs.GetUint16("port")
-				if err != nil {
-					clilog.LogFlagFailedGet("port", err)
-				}
-				if port == 0 {
-					return "--port must be nonzero", nil
-				}
-				return "", nil
+			"tls": {
+				Title: "Use TLS?",
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "tls",
+					Usage: "Enable TLS encryption for this connection?",
+				},
+				Order:    120,
+				Provider: &scaffoldcreate.BoolProvider{},
 			},
+			"verifyCerts": {
+				Title: "Verify TLS Certs?",
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "verify-certificate",
+					Usage: "Verify TLS certificates for this connection?",
+				},
+				Order:    100,
+				Provider: &scaffoldcreate.BoolProvider{},
+			},
+		},
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			var port uint16
+			if p, err := strconv.ParseUint(fields["port"].Provider.Get(), 10, 16); err != nil {
+				return "", err.Error(), nil
+			} else {
+				port = uint16(p)
+			}
+			var tls bool
+			if b, err := strconv.ParseBool(fields["tls"].Provider.Get()); err != nil {
+				return "", err.Error(), nil
+			} else {
+				tls = b
+			}
+			var verifyCerts bool
+			if b, err := strconv.ParseBool(fields["verifyCerts"].Provider.Get()); err != nil {
+				return "", err.Error(), nil
+			} else {
+				verifyCerts = b
+			}
+
+			return 0, "", connection.Client.ConfigureMail(
+				fields["user"].Provider.Get(),
+				fields["pass"].Provider.Get(),
+				fields["server"].Provider.Get(),
+				port,
+				tls,
+				!verifyCerts,
+			)
+			// TODO where/when does validation occur if we call this non-interactively?
+		},
+		// TODO prepop fields with default values
+		scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{},
+			Short:         "configure email settings",
+			Long:          "Set the SMTP server settings used for sending email notifications.",
 		})
 }
 
 func deleteConfig() action.Pair {
-	return scaffold.NewBasicAction("delete", "remove email configuration", "Remove the current email/SMTP configuration.",
+	return scaffold.NewBasicAction("delete", "remove email configuration", "Remove the current email/SMTP configuration for your user.",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			if err := connection.Client.DeleteMailConfig(); err != nil {
 				return err.Error(), nil

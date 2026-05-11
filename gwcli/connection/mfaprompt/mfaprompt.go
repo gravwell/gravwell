@@ -15,10 +15,8 @@ package mfaprompt
 // typically follows a cred prompt
 
 import (
-	"errors"
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -27,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -87,10 +86,8 @@ func New() mfaModel {
 	c.codeTI = textinput.New()
 	c.codeTI.Prompt = ""
 	c.codeTI.Validate = func(s string) error {
-		for _, r := range s {
-			if !unicode.IsDigit(r) {
-				return errors.New("TOTP code can only be digits")
-			}
+		if err := validate.Numeric(s); err != nil {
+			return fmt.Errorf("TOTP: %w", err)
 		}
 		return nil
 	}

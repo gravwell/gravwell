@@ -99,6 +99,8 @@ type CreateFuncT func(fields map[string]Field, fs *pflag.FlagSet) (id any, inval
 // what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
 //
 // Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
+//
+// On success, prints phrases.SuccessfullyCreatedItem().
 func NewCreateAction(singular string, fields map[string]Field, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
 	if singular == "" {

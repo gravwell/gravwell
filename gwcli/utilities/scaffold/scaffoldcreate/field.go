@@ -227,3 +227,20 @@ func FieldFrequency() Field {
 		},
 	}
 }
+
+// FieldPassword returns a struct suitable for taking in a password (using the appropriate echo mode).
+func FieldPassword(required bool, fc FlagConfig, order int) Field {
+	return Field{
+		Title:    "Password",
+		Required: required,
+		Flag:     fc,
+		Order:    order,
+		Provider: &TextProvider{
+			CustomInit: func() textinput.Model {
+				ti := stylesheet.NewTI("", !required)
+				ti.EchoMode = textinput.EchoPassword
+				return ti
+			},
+		},
+	}
+}

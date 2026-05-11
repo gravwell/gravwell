@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -99,11 +100,8 @@ func initialModifView(height, width uint) modifView {
 	mv.perpageTI = stylesheet.NewTI("25", true)
 	mv.perpageTI.Placeholder = "25"
 	mv.perpageTI.Validate = func(s string) error {
-		// checks that each character is a number
-		for _, r := range s {
-			if !unicode.IsDigit(r) {
-				return errors.New("only digits are allowed")
-			}
+		if err := validate.Numeric(s); err != nil {
+			return fmt.Errorf("Per Page: %w", err)
 		}
 		return nil
 	}
