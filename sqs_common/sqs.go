@@ -134,7 +134,7 @@ func (s *SQS) DeleteMessages(ctx context.Context, m []types.Message, lg *log.Log
 }
 
 func GetCredentials(t, akid, secret string) (aws.CredentialsProvider, error) {
-	// Empty type impilies "static" credentials.
+	// Empty type implies "static" credentials.
 	t = cmp.Or(t, "static")
 
 	switch t {
