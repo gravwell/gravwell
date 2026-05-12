@@ -25,7 +25,6 @@ const (
 	maxMaxRetries      = 10
 	defaultMaxRetries  = 3
 	defaultMaxLineSize = 4 * 1024 * 1024
-	defaultRegion      = `us-east-1`
 )
 
 type AuthConfig struct {
@@ -35,12 +34,12 @@ type AuthConfig struct {
 	Bucket_Name         string // defined bucket
 	Bucket_URL          string `json:"-"` // DEPRECATED DO NOT USE
 	MaxRetries          int
-	Disable_TLS         bool // allows disable SSL on the upstream
+	Insecure_Skip_TLS_Verify bool // skip TLS certificate verification for custom HTTPS endpoints (e.g. self-signed certs on internal S3-compatible services). Has no effect when connecting to real AWS endpoints.
 	S3_Force_Path_Style bool //for endpoints where bucket name is on the PATH of a url
 }
 
 // loadConfig builds an aws.Config from the AuthConfig, applying any credentials,
-// retry limits, as well as TLS settings. S3-specific options like paht style, ARN region,
+// retry limits, as well as TLS settings. S3-specific options like path style, ARN region,
 // and endpoint are handled separately via s3ClientOpts so this config can be reused for any
 // AWS-based service client.
 func (ac *AuthConfig) loadConfig(ctx context.Context, c aws.CredentialsProvider) (aws.Config, error) {
@@ -51,7 +50,7 @@ func (ac *AuthConfig) loadConfig(ctx context.Context, c aws.CredentialsProvider)
 	if c != nil {
 		opts = append(opts, config.WithCredentialsProvider(c))
 	}
-	if ac.Disable_TLS {
+	if ac.Insecure_Skip_TLS_Verify {
 		opts = append(opts, config.WithHTTPClient(&http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -107,7 +106,6 @@ type BucketReader struct {
 	prefixFilter string
 	svc          s3Handler
 	filter       *matcher
-	tg           timegrinder.TimeGrinder
 	src          net.IP
 	rdr          reader
 }
@@ -129,14 +127,14 @@ func NewBucketReader(ctx context.Context, cfg BucketConfig) (br *BucketReader, e
 		return nil, err
 	}
 
-	awsCfg, err := cfg.AuthConfig.loadConfig(ctx, c)
+	awsCfg, err := cfg.loadConfig(ctx, c)
 	if err != nil {
 		return nil, fmt.Errorf("load auth config: %w", err)
 	}
 
 	br = &BucketReader{
 		BucketConfig: cfg,
-		svc:          s3.NewFromConfig(awsCfg, cfg.AuthConfig.s3ClientOpts()...),
+		svc:          s3.NewFromConfig(awsCfg, cfg.s3ClientOpts()...),
 		filter:       filter,
 		src:          cfg.srcOverride(),
 		rdr:          rdr,
@@ -218,7 +216,7 @@ func (br *BucketReader) ManualScan(
 	ot *objectTracker,
 	queue chan<- types.Object,
 ) (err error) {
-	lg.Info("manual scan started", log.KV("bucket", br.Name))
+	_ = lg.Info("manual scan started", log.KV("bucket", br.Name))
 
 	//list the objects in the bucket
 	req := s3.ListObjectsV2Input{
@@ -246,7 +244,7 @@ func (br *BucketReader) ManualScan(
 		}
 	}
 
-	lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("object_count", count))
+	_ = lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("object_count", count))
 	return
 }
 
@@ -257,7 +255,7 @@ func (br *BucketReader) worker(
 	queue <-chan types.Object,
 	wg *sync.WaitGroup,
 ) {
-	lg.Info("manual scan worker started", log.KV("bucket", br.Name))
+	_ = lg.Info("manual scan worker started", log.KV("bucket", br.Name))
 	defer wg.Done()
 
 	var processed, alreadyProcessed, skipped, errored uint64
@@ -282,7 +280,7 @@ func (br *BucketReader) worker(
 
 		//ok, lets process this thing
 		if objsz, s3rtt, rtt, err := br.Process(item, ctx); err != nil {
-			br.Logger.Error("failed to process object",
+			_ = br.Logger.Error("failed to process object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KV("tag", br.TagName),
@@ -290,7 +288,7 @@ func (br *BucketReader) worker(
 			errored++
 			continue
 		} else {
-			br.Logger.Info("consumed object",
+			_ = br.Logger.Info("consumed object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KV("tag", br.TagName),
@@ -305,7 +303,7 @@ func (br *BucketReader) worker(
 		}
 		err := ot.Set(br.Bucket_Name, key, state, false)
 		if err != nil {
-			br.Logger.Error("failed to update state",
+			_ = br.Logger.Error("failed to update state",
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KVErr(err))
@@ -314,7 +312,7 @@ func (br *BucketReader) worker(
 			break
 		}
 	}
-	lg.Info("manual scan worker completed",
+	_ = lg.Info("manual scan worker completed",
 		log.KV("bucket", br.Name),
 		log.KV("num_processed", processed),
 		log.KV("num_already_processed", alreadyProcessed),
@@ -338,11 +336,11 @@ func (ac *AuthConfig) validate() (err error) {
 	if ac.Endpoint != `` {
 		//user is explicitely setting a URL, so make sure they didn't set a region or ARN
 		if ac.Bucket_ARN != `` {
-			err = errors.New("Endpoint and Bucket-ARN are mutually exclusive")
+			err = errors.New("endpoint and bucket arn are mutually exclusive")
 			return
 		}
 		if ac.Bucket_Name == `` {
-			err = errors.New("Bucket-Name is required when using custom Endpoint")
+			err = errors.New("bucket name is required when using custom endpoint")
 			return
 		}
 	} else {
@@ -368,9 +366,9 @@ func (ac *AuthConfig) validate() (err error) {
 	return
 }
 
-func (bc BucketConfig) Log(vals ...interface{}) {
+func (bc BucketConfig) Log(vals ...any) {
 	if bc.Logger == nil || len(vals) == 0 {
 		return
 	}
-	bc.Logger.Info(fmt.Sprint(vals...))
+	_ = bc.Logger.Info(fmt.Sprint(vals...))
 }
