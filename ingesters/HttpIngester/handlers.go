@@ -284,7 +284,6 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	debugout("%v\n", rh.auth == nil)
 	if rh.auth != nil {
 		if err := rh.auth.AuthRequest(r); err != nil {
 			h.lgr.Info("access denied", log.KV("address", getRemoteIP(r)), log.KV("url", rt.uri), log.KVErr(err))

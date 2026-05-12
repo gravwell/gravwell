@@ -42,7 +42,7 @@ The HTTP Ingester now includes native OpenTelemetry (OTel) handlers that accept 
     URL="/v1/metrics"                # Standard OTLP endpoint
     Tag-Name="otel-metrics"          # Tag for ingested metrics
     Ignore-Timestamps=false          # Use timestamps from OTLP
-    Encode-As-JSON=false             # Store metrics as JSON
+    Encode-As-JSON=false             # Set to true to also encode metrics as JSON and store in the entry DATA section
     Debug-Posts=true                 # Enable debug logging
 ```
 

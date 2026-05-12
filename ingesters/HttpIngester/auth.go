@@ -76,7 +76,7 @@ type authHandler interface {
 }
 
 func (a *auth) Validate() (enabled bool, err error) {
-	if a.AuthType == _none && (a.TokenName != `` || a.TokenValue != ``) {
+	if (a.AuthType == _none || a.AuthType == none) && (a.TokenName != `` || a.TokenValue != ``) {
 		err = ErrTokenWithoutAuthType
 		return
 	}

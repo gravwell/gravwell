@@ -250,9 +250,9 @@ func (oh *otelHandler) processNumberDataPoint(p *processors.ProcessorSet, e entr
 	return
 }
 
-func (oh *otelHandler) processHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.HistogramDataPoint) error {
+func (oh *otelHandler) processHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.HistogramDataPoint) (sz uint64, err error) {
 	if dp == nil {
-		return nil
+		return
 	}
 	oh.overrideTimestampFromDatapoint(&e, dp.TimeUnixNano)
 
@@ -265,12 +265,15 @@ func (oh *otelHandler) processHistogramDataPoint(p *processors.ProcessorSet, e e
 	if dp.Max != nil {
 		e.AddEnumeratedValueEx("max", *dp.Max)
 	}
-	return nil
+	if err = p.ProcessContext(&e, exitCtx); err == nil {
+		sz = uint64(e.Size())
+	}
+	return
 }
 
-func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.ExponentialHistogramDataPoint) error {
+func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.ExponentialHistogramDataPoint) (sz uint64, err error) {
 	if dp == nil {
-		return nil
+		return
 	}
 	oh.overrideTimestampFromDatapoint(&e, dp.TimeUnixNano)
 
@@ -285,7 +288,10 @@ func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.Proces
 	if dp.Max != nil {
 		e.AddEnumeratedValueEx("max", *dp.Max)
 	}
-	return nil
+	if err = p.ProcessContext(&e, exitCtx); err == nil {
+		sz = uint64(e.Size())
+	}
+	return
 }
 
 func (oh *otelHandler) processSummaryDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.SummaryDataPoint) error {
@@ -317,6 +323,7 @@ func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e ent
 		}
 	case *mpb.Metric_Sum:
 		e.AddEnumeratedValue(evSumType)
+		//this string seems useless and is huge, read up more to decide what to do with it
 		//e.AddEnumeratedValueEx("aggregation_temporality", data.Sum.AggregationTemporality.String())
 		e.AddEnumeratedValueEx("monotonic", data.Sum.IsMonotonic)
 		for _, dp := range data.Sum.DataPoints {
@@ -329,28 +336,36 @@ func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e ent
 		}
 	case *mpb.Metric_Histogram:
 		e.AddEnumeratedValue(evHistogramType)
+		//this string seems useless and is huge, read up more to decide what to do with it
 		//e.AddEnumeratedValueEx("aggregation_temporality", data.Histogram.AggregationTemporality.String())
 		for _, dp := range data.Histogram.DataPoints {
-			if err = oh.processHistogramDataPoint(p, e, dp); err != nil {
+			var sz uint64
+			if sz, err = oh.processHistogramDataPoint(p, e, dp); err != nil {
 				return
 			}
+			cnt++
+			bts += sz
 		}
-		//metricData["data_points"] = oh.convertHistogramDataPoints(data.Histogram.DataPoints)
 	case *mpb.Metric_ExponentialHistogram:
 		e.AddEnumeratedValue(evExpHistogramType)
 		for _, dp := range data.ExponentialHistogram.DataPoints {
-			if err = oh.processExponentialHistogramDataPoint(p, e, dp); err != nil {
+			var sz uint64
+			if sz, err = oh.processExponentialHistogramDataPoint(p, e, dp); err != nil {
 				return
 			}
+			cnt++
+			bts += sz
 		}
 	case *mpb.Metric_Summary:
 		e.AddEnumeratedValue(evSummaryType)
 		for _, dp := range data.Summary.DataPoints {
+			var sz uint64
 			if err = oh.processSummaryDataPoint(p, e, dp); err != nil {
 				return
 			}
+			cnt++
+			bts += sz
 		}
-		//metricData["data_points"] = oh.convertSummaryDataPoints(data.Summary.DataPoints)
 	}
 	return
 }
