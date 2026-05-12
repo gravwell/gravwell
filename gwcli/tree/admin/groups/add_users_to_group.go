@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/confirmation"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
@@ -148,21 +149,28 @@ func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, widt
 				GIDToUIDs[grp.ID] = append(GIDToUIDs[grp.ID], user.ID)
 			}
 
+			var desc string = "(no groups)"
+			if gids := strings.TrimSpace(grpIDssb.String()); gids != "" {
+				desc = fmt.Sprintf("Groups: %v", gids)
+			}
+
 			userItems[i] = &multiselectlist.DefaultSelectableItem[int32]{
 				Title_:       fmt.Sprintf("(%d) %s", user.ID, user.Username),
-				Description_: fmt.Sprintf("Groups: %v", strings.TrimSpace(grpIDssb.String())),
+				Description_: desc,
 				Selected_:    false,
 				ID_:          user.ID,
 			}
 		}
 	}
-	m.users = multiselectlist.New(userItems, width, height, multiselectlist.Options{})
+	m.users = multiselectlist.New(userItems, width, height-8, multiselectlist.Options{})
+	m.users.SetShowStatusBar(true) // TODO set status message styling
+	m.users.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 
 	// build the group list
 	groupItems := make([]multiselectlist.SelectableItem[int32], len(glr.Results))
 	{
 		for i, grp := range glr.Results {
-			desc := "(empty)"
+			desc := "(no users)"
 			uids := GIDToUIDs[grp.ID]
 			if len(uids) > 0 {
 				desc = fmt.Sprintf("(Member UIDs: %v)", uids)
@@ -175,24 +183,45 @@ func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, widt
 			}
 		}
 	}
-	m.groups = multiselectlist.New(groupItems, width, height, multiselectlist.Options{}) // TODO check if we need to factor in header height
+	m.groups = multiselectlist.New(groupItems, width, height-8, multiselectlist.Options{})
+	m.groups.SetShowStatusBar(true) // TODO set status message styling
+	m.groups.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 
 	m.confirm.Init([]string{"user selection", "group selection"}, uint(width), uint(height))
 	return "", nil, nil
 }
 
 func (m *addUsersToGroup) Update(msg tea.Msg) tea.Cmd {
+	// if this is a window size message, make sure it is passed to every stage
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		var cmds = make([]tea.Cmd, 3)
+		m.users, cmds[0] = m.users.Update(wsm)
+		m.groups, cmds[1] = m.groups.Update(wsm)
+		m.confirm, cmds[2], _, _, _ = m.confirm.Update(wsm)
+		return tea.Batch(cmds...)
+	}
+
 	var cmd tea.Cmd
 	switch m.stage {
 	case stgUsers:
 		// display the users in the list
 		m.users, cmd = m.users.Update(msg)
 		if m.users.Done() {
+			m.users.Undone() // in case we come back
+
+			if len(m.users.GetSelectedItems()) < 1 {
+				return m.users.NewStatusMessage("you must select at least 1 user")
+			}
 			m.stage = stgGroups
 		}
 	case stgGroups:
 		m.groups, cmd = m.groups.Update(msg)
 		if m.groups.Done() {
+			m.groups.Undone() // in case we come back
+
+			if len(m.groups.GetSelectedItems()) < 1 {
+				return m.groups.NewStatusMessage("you must select at least 1 group")
+			}
 			m.stage = stgConfirmation
 		}
 
