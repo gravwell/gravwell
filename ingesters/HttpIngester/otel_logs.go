@@ -74,9 +74,14 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 		return
 	}
 
-	if len(body) == 0 || lr.N == 0 {
-		ll.Error("request body empty or too large", log.KV("max-body", maxBody))
+	if len(body) == 0 {
+		ll.Error("request body empty")
 		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if lr.N == 0 {
+		ll.Error("request body too large", log.KV("max-body", maxBody))
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return
 	}
 
