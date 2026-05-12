@@ -48,11 +48,11 @@ func NewNav() *cobra.Command {
 			listUsers(),
 			// add users to groups
 			modGroupUsers("associate", "add users to groups",
-				"Associate any number of user to all specified groups. Users already in the given group will be ignored.",
+				"Associate any number of user to each specified group. Users already in a given group will be ignored.",
 				[]string{"add-users", "add-user"}, true),
 			// remove users from groups
 			modGroupUsers("disassociate", "remove users from groups",
-				"Disassociate any number of user from all specified groups. Users already absent from the given groups will be ignored.",
+				"Disassociate any number of user from each specified group. Users already absent from a given groups will be ignored.",
 				[]string{"rm-user", "remove-user", "rm-users", "remove-users"}, false),
 		})
 }

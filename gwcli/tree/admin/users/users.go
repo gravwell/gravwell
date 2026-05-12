@@ -371,7 +371,8 @@ func sessionsAction() action.Pair {
 //#endregion sessions
 
 func changePassword() action.Pair {
-	return scaffold.NewBasicAction("change-password", "change a user's password", "Change a user's password. Requires admin privileges.",
+	return scaffold.NewBasicAction("change-password", "change a user's password",
+		"Change a user's password without requiring their current password.",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			uid, err := fs.GetInt32("uid")
 			if err != nil {
@@ -419,9 +420,9 @@ func toggleAdmin() action.Pair {
 	return scaffold.NewBasicAction("toggle-admin", "toggle a user's admin status",
 		"Toggle admin status for a user. Optionally use --grant or --revoke to set explicitly.",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			uid, err := strconv.ParseInt(fs.Arg(0), 10, 32)
+			uid, err := fs.GetInt32("uid")
 			if err != nil {
-				return fs.Arg(0) + " is not a valid user ID", nil
+				return clilog.GetFlag(err).Error(), nil
 			}
 			uwcbac, err := connection.Client.GetUser(int32(uid))
 			if err != nil {
@@ -455,8 +456,12 @@ func toggleAdmin() action.Pair {
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				if fs.NArg() != 1 {
-					return phrases.Exactly1ArgRequired("user ID"), nil
+				uid, err := fs.GetInt32("uid")
+				if err != nil {
+					clilog.GetFlag(err)
+				}
+				if uid == 0 {
+					return "--uid must be set and nonzero", nil
 				}
 				if fs.Changed("grant") && fs.Changed("revoke") {
 					return "--grant and --revoke are mutually exclusive", nil
