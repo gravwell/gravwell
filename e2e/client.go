@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gosimple/slug"
-	"github.com/gravwell/gravwell/v4/client"
-	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v3/client"
+	"github.com/gravwell/gravwell/v3/client/types"
 )
 
 // GetClient returns an authenticated client for use by tests.
