@@ -18,8 +18,8 @@ import (
 )
 
 func TestXxx(t *testing.T) {
-	m := confirmation.Model{}
-	m.Init([]string{"a", "b", "c"}, 80, 60, "header1", "header2")
+	m := confirmation.Model{HeaderLines: []string{"header1", "header2"}}
+	m.Init([]string{"a", "b", "c"}, 80, 60)
 	t.Run("initial view", func(t *testing.T) {
 		v := testsupport.LinesTrimSpace(m.View())
 		want := testsupport.LinesTrimSpace(`        header1

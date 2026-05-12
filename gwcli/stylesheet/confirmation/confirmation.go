@@ -25,21 +25,22 @@ type Model struct {
 	width  uint
 	height uint
 
-	headerLines []string
+	// HeaderLines are sentences displayed over the actual selection modal, as a header.
+	// On view, they will be joined via \n.
+	HeaderLines []string
 }
 
 // New generates a new confirmation Model with the given options.
 // Passing nil choices is allowed, but somewhat nonsensical.
 //
 // The View will place two buttons, submit and cancel, in a left column and all given choice in a right columns.
-func (m *Model) Init(choices []string, width, height uint, headerTextLines ...string) {
+func (m *Model) Init(choices []string, width, height uint) {
 	m.choices = choices
 	m.choicesCursor = 0
 	m.submitSelected = true
 
 	m.width = width
 	m.height = height
-	m.headerLines = headerTextLines
 }
 
 // Update processing incoming messages and updates the internal structure accordingly.
@@ -153,5 +154,5 @@ func (m Model) View() string {
 	// join submit, "or", and choices
 	body := lipgloss.JoinHorizontal(lipgloss.Center, submitBtn, "or", right)
 	// compose header lines above selections and cancel line below
-	return lipgloss.JoinVertical(lipgloss.Center, append(m.headerLines, "", body, "Press "+hotkeys.SoftQuit.Keys()[0]+" to cancel")...)
+	return lipgloss.JoinVertical(lipgloss.Center, append(m.HeaderLines, "", body, "Press "+hotkeys.SoftQuit.Keys()[0]+" to cancel")...)
 }
