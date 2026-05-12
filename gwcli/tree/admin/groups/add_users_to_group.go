@@ -30,6 +30,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const heightBuffer = 8
+
 type autgStage uint
 
 const (
@@ -162,7 +164,7 @@ func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, widt
 			}
 		}
 	}
-	m.users = multiselectlist.New(userItems, width, height-8, multiselectlist.Options{})
+	m.users = multiselectlist.New(userItems, width, max(0, height-heightBuffer), multiselectlist.Options{})
 	m.users.SetShowStatusBar(true) // TODO set status message styling
 	m.users.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 
@@ -183,7 +185,7 @@ func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, widt
 			}
 		}
 	}
-	m.groups = multiselectlist.New(groupItems, width, height-8, multiselectlist.Options{})
+	m.groups = multiselectlist.New(groupItems, width, max(0, height-heightBuffer), multiselectlist.Options{})
 	m.groups.SetShowStatusBar(true) // TODO set status message styling
 	m.groups.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 
@@ -194,6 +196,7 @@ func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, widt
 func (m *addUsersToGroup) Update(msg tea.Msg) tea.Cmd {
 	// if this is a window size message, make sure it is passed to every stage
 	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		wsm.Height = max(0, wsm.Height-heightBuffer)
 		var cmds = make([]tea.Cmd, 3)
 		m.users, cmds[0] = m.users.Update(wsm)
 		m.groups, cmds[1] = m.groups.Update(wsm)
