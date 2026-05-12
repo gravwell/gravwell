@@ -12,31 +12,22 @@
 package groups
 
 import (
-	"errors"
 	"fmt"
-	"math"
 	"strconv"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/mother"
 
-	"github.com/charmbracelet/bubbles/list"
-
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
-	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -56,7 +47,7 @@ func NewNav() *cobra.Command {
 			delete(),
 			edit(),
 			listUsers(),
-			addUserToGroup(),
+			addUsersToGroups(),
 			removeUserFromGroup(),
 		})
 }
@@ -213,133 +204,6 @@ func listUsers() action.Pair {
 				return "", nil
 			},
 		})
-}
-
-var addGIDs, addUIDs []uint
-
-// add users to groups
-func addUserToGroup() action.Pair {
-	return scaffold.NewBasicAction("associate", "add users to groups", "Add one or many users to one or many groups."+
-		"Attempts to insert each user ID into each group, ignoring duplicate inserts."+
-		"Prints what changes were actually effectual.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			clilog.Writer.Debug("Adding users to groups", log.KV("UIDs", addUIDs), log.KV("GIDs", addGIDs))
-
-			var cmds []tea.Cmd
-			var successes uint
-			for _, gid := range addGIDs {
-				if gid > math.MaxInt32 {
-					return "Group IDs must satisfy 0 < gid <=" + strconv.FormatInt(math.MaxInt32, 10), nil
-				}
-				for _, uid := range addUIDs {
-					if uid > math.MaxInt32 {
-						return "User IDs must satisfy 0 < uid <=" + strconv.FormatInt(math.MaxInt32, 10), nil
-					}
-					if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
-						cmds = append(cmds, tea.Printf("Failed to add user ID %d to group %d: %v", err))
-					} else {
-						// the user may have already been a part of this group, but we can't tell so.... Job's done.
-						cmds = append(cmds, tea.Printf("Added user ID %d to group %d", uid, gid))
-						successes += 0
-					}
-				}
-			}
-
-			// add the final print to the cmds so it is printed afterwards
-			if successes == 0 {
-				cmds = append(cmds, tea.Println("All requested changes failed"))
-			}
-			return "", tea.Sequence(cmds...)
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"add-user", "add-users"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.UintSliceVar(&addUIDs, "uid", nil, "ID of users to insert into each group")
-					fs.UintSliceVar(&addGIDs, "gid", nil, "ID of groups into which to each user should be inserted")
-					return fs
-				},
-			},
-			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				if len(addUIDs) < 1 || len(addGIDs) < 1 {
-					return "You must specify at least one group (--gid) and at least one user (--uid)", nil
-				}
-				return "", nil
-			},
-		})
-}
-
-//#region add users to groups
-
-func AddUsersToGroups() action.Pair {
-	return action.NewPair(treeutils.GenerateAction("associate", "add users to groups",
-		"Associate any number of user to all specified groups. Users already in the given group will be ignored.",
-		[]string{"add-users", "add-user"}, func(c *cobra.Command, args []string) error {
-			x, err := c.Flags().GetBool(ft.NoInteractive.Name())
-			if err != nil {
-				clilog.GetFlag(err)
-			}
-			// TODO migrate uniques.ErrGetFlag into clilog package and throw away the current LogFlagFailedGet
-
-			uids, err := c.Flags().GetUintSlice("uid")
-			if err != nil {
-				clilog.GetFlag(err)
-			}
-			gids, err := c.Flags().GetUintSlice("gid")
-			if err != nil {
-				clilog.GetFlag(err)
-			}
-			if len(uids) < 1 || len(gids) < 1 {
-				if x { // if we are in no-interactive, this is fatal
-					return errors.New("You must specify at least one group (--gid) and at least one user (--uid)")
-				}
-				return mother.Spawn(c.Root(), c, args)
-			}
-		}), newAUtG())
-}
-
-// addUsersToGroup enables a user to insert any number of users into a given group.
-// In script mode, any number of users may be inserted into any number of groups.
-type addUsersToGroup struct {
-	users  multiselectlist.Model[int32]
-	groups list.Model
-
-	fs *pflag.FlagSet
-}
-
-func newAUtG() *addUsersToGroup {
-	m := &addUsersToGroup{}
-	m.Reset()
-	m.fs = autgFlagset()
-	return m
-}
-
-func autgFlagset() *pflag.FlagSet {
-	fs := &pflag.FlagSet{}
-	fs.UintSlice("uid", nil, "ID of users to insert into each group")
-	fs.UintSlice("gid", nil, "ID of groups into which to each user should be inserted.")
-	return fs
-}
-
-func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, width, height int) (
-	invalid string, onStart tea.Cmd, err error) {
-	// SetArgs is only called w/o -x, so we can immediately reject a call that provides multiple.
-
-}
-
-func (m *addUsersToGroup) Reset() error {
-	m.users = multiselectlist.Model[int32]{}
-	m.groups = list.Model{}
-
-	return nil
-}
-
-type Model interface {
-	Update(msg tea.Msg) tea.Cmd // action processing
-	View() string               // action displaying
-	Done() bool                 // should Mother reassert control?
-	Reset() error               // clean up action post-run
 }
 
 var rmGID, rmUID *uint32
