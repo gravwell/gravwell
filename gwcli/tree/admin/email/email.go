@@ -167,9 +167,11 @@ func configure() action.Pair {
 		},
 		// TODO prepop fields with default values
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{},
-			Short:         "configure email settings",
-			Long:          "Set the SMTP server settings used for sending email notifications.",
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"add", "create", "update"},
+			},
+			Short: "configure email settings",
+			Long:  "Set the SMTP server settings used for sending email notifications.",
 		})
 }
 
@@ -181,5 +183,9 @@ func deleteConfig() action.Pair {
 			}
 			return "email configuration removed", nil
 		},
-		scaffold.BasicOptions{})
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"uninstall", "remove"},
+			},
+		})
 }
