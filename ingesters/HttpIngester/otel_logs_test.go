@@ -83,6 +83,7 @@ func TestOtelLogsListenerValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			initialTag := tt.listener.Tag_Name
 			pth, err := tt.listener.validate("test")
 			if tt.expectError {
 				if err == nil {
@@ -95,8 +96,8 @@ func TestOtelLogsListenerValidation(t *testing.T) {
 				if pth != tt.expectedURL {
 					t.Errorf("expected URL %q, got %q", tt.expectedURL, pth)
 				}
-				if tt.listener.Tag_Name == "" && tt.listener.Tag_Name != entry.DefaultTagName {
-					t.Errorf("expected default tag name to be set")
+				if initialTag == "" && tt.listener.Tag_Name != entry.DefaultTagName {
+					t.Errorf("expected default tag name to be set, got %q", tt.listener.Tag_Name)
 				}
 			}
 		})

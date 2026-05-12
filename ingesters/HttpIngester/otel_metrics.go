@@ -99,17 +99,27 @@ func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWrite
 	var req colmetrics.ExportMetricsServiceRequest
 	contentType := r.Header.Get("Content-Type")
 
+	var respBytes []byte
+	resp := &colmetrics.ExportMetricsServiceResponse{}
 	switch contentType {
 	case "application/x-protobuf", "application/protobuf":
 		if err = proto.Unmarshal(body, &req); err != nil {
 			ll.Error("failed to unmarshal protobuf", log.KVErr(err))
 			w.WriteHeader(http.StatusBadRequest)
 			return
+		} else if respBytes, err = proto.Marshal(resp); err != nil {
+			ll.Error("failed to marshal response", log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 	case "application/json":
 		if err = protojson.Unmarshal(body, &req); err != nil {
 			ll.Error("failed to unmarshal JSON", log.KVErr(err))
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		} else if respBytes, err = protojson.Marshal(resp); err != nil {
+			ll.Error("failed to marshal response", log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	default:
@@ -118,7 +128,20 @@ func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWrite
 				ll.Error("failed to unmarshal request", log.KVErr(err))
 				w.WriteHeader(http.StatusBadRequest)
 				return
+			} else if respBytes, err = protojson.Marshal(resp); err != nil {
+				ll.Error("failed to marshal response", log.KVErr(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
+			// got a good JSON decode
+			contentType = "application/json"
+		} else if respBytes, err = proto.Marshal(resp); err != nil {
+			ll.Error("failed to marshal response", log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		} else {
+			// got a good protobuf decode
+			contentType = "application/protobuf"
 		}
 	}
 
@@ -133,16 +156,7 @@ func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWrite
 		}
 	}
 
-	resp := &colmetrics.ExportMetricsServiceResponse{}
-	respBytes, err := proto.Marshal(resp)
-	if err != nil {
-		ll.Error("failed to marshal response", log.KVErr(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", contentType)
 	w.Write(respBytes)
 
 	if cfg.debugPosts {
@@ -299,16 +313,19 @@ func (oh *otelHandler) processExponentialHistogramDataPoint(p *processors.Proces
 	return
 }
 
-func (oh *otelHandler) processSummaryDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.SummaryDataPoint) error {
+func (oh *otelHandler) processSummaryDataPoint(p *processors.ProcessorSet, e entry.Entry, dp *mpb.SummaryDataPoint) (sz uint64, err error) {
 	if dp == nil {
-		return nil
+		return
 	}
 	oh.overrideTimestampFromDatapoint(&e, dp.TimeUnixNano)
 
 	oh.addMetricAttributes(&e, dp.Attributes)
 	e.AddEnumeratedValueEx("count", dp.Count)
 	e.AddEnumeratedValueEx("sum", dp.Sum)
-	return nil
+	if err = p.ProcessContext(&e, exitCtx); err == nil {
+		sz = uint64(e.Size())
+	}
+	return
 }
 
 func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e entry.Entry, d interface{}) (cnt uint64, bts uint64, err error) {
@@ -365,7 +382,7 @@ func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e ent
 		e.AddEnumeratedValue(evSummaryType)
 		for _, dp := range data.Summary.DataPoints {
 			var sz uint64
-			if err = oh.processSummaryDataPoint(p, e, dp); err != nil {
+			if sz, err = oh.processSummaryDataPoint(p, e, dp); err != nil {
 				return
 			}
 			cnt++
@@ -530,7 +547,9 @@ func (oh *otelHandler) convertSummaryDataPoints(dps []*mpb.SummaryDataPoint) []m
 func (oh *otelHandler) convertAttributes(attrs []*cpb.KeyValue) map[string]interface{} {
 	result := make(map[string]interface{})
 	for _, attr := range attrs {
-		result[attr.Key] = oh.convertAttributeValue(attr.Value)
+		if attr != nil {
+			result[attr.Key] = oh.convertAttributeValue(attr.Value)
+		}
 	}
 	return result
 }
@@ -743,7 +762,7 @@ func includeOtelMetricsListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cf
 		//check if authentication is enabled for this URL
 		if pth, ah, err := v.NewAuthHandler(hnd.lgr); err != nil {
 			return fmt.Errorf("failed to get a new authentication handler %w", err)
-		} else if hnd != nil {
+		} else {
 			if pth != `` {
 				if err = hnd.addAuthHandler(http.MethodPost, pth, ah); err != nil {
 					return fmt.Errorf("failed to add auth handler url %q %w", pth, err)

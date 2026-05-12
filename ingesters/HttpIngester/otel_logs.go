@@ -88,17 +88,27 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 	var req collogs.ExportLogsServiceRequest
 	contentType := r.Header.Get("Content-Type")
 
+	var respBytes []byte
+	resp := &collogs.ExportLogsServiceResponse{}
 	switch contentType {
 	case "application/x-protobuf", "application/protobuf":
 		if err = proto.Unmarshal(body, &req); err != nil {
 			ll.Error("failed to unmarshal protobuf", log.KVErr(err))
 			w.WriteHeader(http.StatusBadRequest)
 			return
+		} else if respBytes, err = proto.Marshal(resp); err != nil {
+			ll.Error("failed to marshal response", log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 	case "application/json":
 		if err = protojson.Unmarshal(body, &req); err != nil {
 			ll.Error("failed to unmarshal JSON", log.KVErr(err))
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		} else if respBytes, err = protojson.Marshal(resp); err != nil {
+			ll.Error("failed to marshal response", log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	default:
@@ -107,7 +117,20 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 				ll.Error("failed to unmarshal request", log.KVErr(err))
 				w.WriteHeader(http.StatusBadRequest)
 				return
+			} else if respBytes, err = protojson.Marshal(resp); err != nil {
+				ll.Error("failed to marshal response", log.KVErr(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
+			// got a good JSON decode
+			contentType = "application/json"
+		} else if respBytes, err = proto.Marshal(resp); err != nil {
+			ll.Error("failed to marshal response", log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		} else {
+			// got a good protobuf decode
+			contentType = "application/protobuf"
 		}
 	}
 
@@ -122,16 +145,7 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 		}
 	}
 
-	resp := &collogs.ExportLogsServiceResponse{}
-	respBytes, err := proto.Marshal(resp)
-	if err != nil {
-		ll.Error("failed to marshal response", log.KVErr(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", contentType)
 	w.Write(respBytes)
 
 	if cfg.debugPosts {
@@ -173,11 +187,11 @@ func (oh *otelLogsHandler) processResourceLogs(h *handler, cfg routeHandler, rl 
 				}
 			}
 
-			*byteCount += int64(e.Size())
-
 			if rl.Resource != nil {
 				for _, attr := range rl.Resource.Attributes {
-					oh.addAttributeToEntry(&e, attr)
+					if attr != nil {
+						oh.addAttributeToEntry(&e, attr)
+					}
 				}
 			}
 
@@ -185,10 +199,10 @@ func (oh *otelLogsHandler) processResourceLogs(h *handler, cfg routeHandler, rl 
 				oh.lgr.Error("failed to send entry", log.KVErr(err))
 				return err
 			}
-
 			h.entSI.Add(1)
 			h.bytesSI.Add(uint64(len(e.Data)))
 			*entriesCount++
+			*byteCount += int64(e.Size())
 		}
 	}
 	return nil
@@ -228,6 +242,13 @@ func (oh *otelLogsHandler) encodeLogEVs(logRecord *lpb.LogRecord, resource *rpb.
 	for _, attr := range logRecord.Attributes {
 		if attr != nil {
 			oh.addAttributeToEntry(e, attr)
+		}
+	}
+	if scope != nil {
+		for _, attr := range scope.Attributes {
+			if attr != nil {
+				oh.addAttributeToEntry(e, attr)
+			}
 		}
 	}
 	return nil
@@ -281,6 +302,9 @@ func (oh *otelLogsHandler) convertAttributeValue(v *cpb.AnyValue) interface{} {
 }
 
 func (oh *otelLogsHandler) addAttributeToEntry(e *entry.Entry, attr *cpb.KeyValue) {
+	if attr == nil || attr.Key == "" || attr.Value == nil {
+		return
+	}
 	val := oh.convertAttributeValue(attr.Value)
 	if ed, err := entry.InferEnumeratedData(val); err == nil {
 		e.AddEnumeratedValue(entry.EnumeratedValue{Name: attr.Key, Value: ed})
@@ -394,8 +418,9 @@ func includeOtelLogsListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgTy
 		//check if authentication is enabled for this URL
 		if pth, ah, err := v.NewAuthHandler(hnd.lgr); err != nil {
 			return fmt.Errorf("failed to get a new authentication handler %w", err)
-		} else if hnd != nil {
+		} else {
 			if pth != `` {
+				// add custom auth handler for this URL
 				if err = hnd.addAuthHandler(http.MethodPost, pth, ah); err != nil {
 					return fmt.Errorf("failed to add auth handler url %q %w", pth, err)
 				}
