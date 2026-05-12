@@ -16,7 +16,6 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 
@@ -47,8 +46,14 @@ func NewNav() *cobra.Command {
 			delete(),
 			edit(),
 			listUsers(),
-			addUsersToGroups(),
-			removeUserFromGroup(),
+			// add users to groups
+			modGroupUsers("associate", "add users to groups",
+				"Associate any number of user to all specified groups. Users already in the given group will be ignored.",
+				[]string{"add-users", "add-user"}, true),
+			// remove users from groups
+			modGroupUsers("disassociate", "remove users from groups",
+				"Disassociate any number of user from all specified groups. Users already absent from the given groups will be ignored.",
+				[]string{"rm-user", "remove-user", "rm-users", "remove-users"}, false),
 		})
 }
 
@@ -201,36 +206,6 @@ func listUsers() action.Pair {
 					return fs.Arg(0) + " is not a valid group ID", nil
 				}
 				listUsersGID = int32(gid)
-				return "", nil
-			},
-		})
-}
-
-var rmGID, rmUID *uint32
-
-// remove a user from a group
-func removeUserFromGroup() action.Pair {
-	return scaffold.NewBasicAction("disassociate", "remove a user from a group", "Remove a user from a group by providing the user ID and group ID.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			if err := connection.Client.DeleteUserFromGroup(int32(*rmUID), int32(*rmGID)); err != nil {
-				return err.Error(), nil
-			}
-			return fmt.Sprintf("successfully removed user %d from group %d", *rmUID, *rmGID), nil
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"rm-user", "remove-user", "rm-users", "remove-users"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					rmUID = fs.Uint32("uid", 0, "user ID")
-					rmGID = fs.Uint32("gid", 0, "group ID")
-					return fs
-				},
-			},
-			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				if rmUID == nil || *rmUID == 0 || rmGID == nil || *rmGID == 0 {
-					return "both --uid and --gid must be set and non-zero", nil
-				}
 				return "", nil
 			},
 		})

@@ -32,20 +32,20 @@ import (
 
 const heightBuffer = 8
 
-type autgStage uint
+type stage uint
 
 const (
-	stgUsers autgStage = iota
+	stgUsers stage = iota
 	stgGroups
 	stgConfirmation
 	stgDone
 )
 
-type addUsersToGroup struct {
+type membershipChanges struct {
 	users  multiselectlist.Model[int32]
 	groups multiselectlist.Model[int32]
 
-	stage autgStage
+	stage stage
 
 	// selects are set when leaving the group stage.
 	selectedUIDs []int32
@@ -54,12 +54,15 @@ type addUsersToGroup struct {
 	confirm confirmation.Model
 
 	fs *pflag.FlagSet
+
+	add bool // not add == remove
 }
 
-func addUsersToGroups() action.Pair {
-	return action.NewPair(treeutils.GenerateAction("associate", "add users to groups",
-		"Associate any number of user to all specified groups. Users already in the given group will be ignored.",
-		[]string{"add-users", "add-user"}, func(c *cobra.Command, args []string) error {
+// modGroupUsers generates an action suitable for either adding or removing users from a collection of groups.
+// It powers both associate and disassociate.
+func modGroupUsers(use, short, long string, aliases []string, add bool) action.Pair {
+	pair := action.NewPair(treeutils.GenerateAction(use, short, long,
+		aliases, func(c *cobra.Command, args []string) error {
 			x, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				clilog.GetFlag(err)
@@ -79,7 +82,11 @@ func addUsersToGroups() action.Pair {
 				}
 				return mother.Spawn(c.Root(), c, args)
 			}
-			clilog.Writer.Debug("Autonomously adding users to groups", log.KV("UIDs", uids), log.KV("GIDs", gids))
+			if add {
+				clilog.Writer.Info("Autonomously adding users to groups", log.KV("UIDs", uids), log.KV("GIDs", gids))
+			} else {
+				clilog.Writer.Info("Autonomously removing users from groups", log.KV("UIDs", uids), log.KV("GIDs", gids))
+			}
 
 			var successes uint
 			for _, gid := range gids {
@@ -90,53 +97,73 @@ func addUsersToGroups() action.Pair {
 					if uid > math.MaxInt32 {
 						return errors.New("User IDs must satisfy 0 < uid <=" + strconv.FormatInt(math.MaxInt32, 10))
 					}
-					if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
-						fmt.Fprintf(c.ErrOrStderr(), "Failed to add user ID %d to group %d: %v", uid, gid, err)
+					if add {
+						if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
+							fmt.Fprintf(c.ErrOrStderr(), "Failed to add user ID %d to group %d: %v", uid, gid, err)
+						} else {
+							// the user may have already been a part of this group, but we can't tell so.... Job's done.
+							fmt.Fprintf(c.OutOrStdout(), "Added user ID %d to group %d", uid, gid)
+							successes += 1
+						}
 					} else {
-						// the user may have already been a part of this group, but we can't tell so.... Job's done.
-						fmt.Fprintf(c.OutOrStdout(), "Added user ID %d to group %d", uid, gid)
-						successes += 1
+						if err := connection.Client.DeleteUserFromGroup(int32(uid), int32(gid)); err != nil {
+							fmt.Fprintf(c.ErrOrStderr(), "Failed to remove user ID %d from group %d: %v", uid, gid, err)
+						} else {
+							// the user may not exist in this group, but we can't tell so.... Job's done.
+							fmt.Fprintf(c.OutOrStdout(), "Removed user ID %d from group %d", uid, gid)
+							successes += 1
+						}
 					}
+
 				}
 			}
 
 			if successes == 0 {
-				return errors.New("All requested group assignments failed")
+				return errors.New("All requested group changes failed")
 			}
 			return nil
-		}), newAUtG())
+		}), newMembershipChangesInteractive(add))
+
+	pair.Action.Flags().AddFlagSet(membershipFlagset(add))
+	return pair
 }
 
-func newAUtG() *addUsersToGroup {
-	m := &addUsersToGroup{
+func newMembershipChangesInteractive(add bool) *membershipChanges {
+	m := &membershipChanges{
 		confirm: confirmation.Model{},
 	}
 	m.Reset()
-	m.fs = autgFlagset()
+	m.fs = membershipFlagset(add)
 	return m
 }
 
-func autgFlagset() *pflag.FlagSet {
+func membershipFlagset(add bool) *pflag.FlagSet {
 	fs := &pflag.FlagSet{}
-	fs.UintSlice("uid", nil, "ID of users to insert into each group")
-	fs.UintSlice("gid", nil, "ID of groups into which to each user should be inserted.")
+	if add {
+		fs.UintSlice("uid", nil, "ID of users to insert into each group")
+		fs.UintSlice("gid", nil, "ID of groups into which to each user should be inserted")
+	} else {
+		fs.UintSlice("uid", nil, "ID of users to remove from each group")
+		fs.UintSlice("gid", nil, "ID of groups from which users should be subtracted")
+	}
+
 	return fs
 }
 
-func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, width, height int) (
+func (m *membershipChanges) SetArgs(parentFS *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
 	// build each list from the set of users and groups
 	glr, err := connection.Client.ListGroups(nil)
 	if err != nil {
 		return "", nil, err
 	} else if len(glr.Results) < 1 {
-		return "", nil, errors.New("No groups available. Please create one before attempting to add users to it.")
+		return "", nil, errors.New("No groups available. Please create one before attempting to change its users.")
 	}
 	ulr, err := connection.Client.ListUsers(nil)
 	if err != nil {
 		return "", nil, err
 	} else if len(ulr.Results) < 1 {
-		return "", nil, errors.New("I don't know how you managed to get here with zero users, but you have no users to add to any groups.")
+		return "", nil, errors.New("I don't know how you managed to get here with zero users, but you have no users to modify the group membership of.")
 	}
 
 	// build the user list
@@ -193,7 +220,7 @@ func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, widt
 	return "", nil, nil
 }
 
-func (m *addUsersToGroup) Update(msg tea.Msg) tea.Cmd {
+func (m *membershipChanges) Update(msg tea.Msg) tea.Cmd {
 	// if this is a window size message, make sure it is passed to every stage
 	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
 		wsm.Height = max(0, wsm.Height-heightBuffer)
@@ -244,12 +271,22 @@ func (m *addUsersToGroup) Update(msg tea.Msg) tea.Cmd {
 			sbGIDs.WriteString(strconv.FormatInt(int64(itm.ID()), 10) + " ")
 		}
 
-		m.confirm.HeaderLines = []string{
-			"Adding " + strconv.FormatInt(int64(len(m.selectedUIDs)), 10) + " users",
-			"[" + strings.TrimSpace(sbUIDs.String()) + "]",
-			"to",
-			strconv.FormatInt(int64(len(m.selectedGIDs)), 10) + " groups",
-			"[" + strings.TrimSpace(sbGIDs.String()) + "]"}
+		if m.add {
+			m.confirm.HeaderLines = []string{
+				"Adding " + strconv.FormatInt(int64(len(m.selectedUIDs)), 10) + " users",
+				"[" + strings.TrimSpace(sbUIDs.String()) + "]",
+				"to",
+				strconv.FormatInt(int64(len(m.selectedGIDs)), 10) + " groups",
+				"[" + strings.TrimSpace(sbGIDs.String()) + "]"}
+		} else {
+			m.confirm.HeaderLines = []string{
+				"Removing " + strconv.FormatInt(int64(len(m.selectedUIDs)), 10) + " users",
+				"[" + strings.TrimSpace(sbUIDs.String()) + "]",
+				"from",
+				strconv.FormatInt(int64(len(m.selectedGIDs)), 10) + " groups",
+				"[" + strings.TrimSpace(sbGIDs.String()) + "]"}
+		}
+
 	case stgConfirmation:
 		var (
 			done   bool
@@ -265,22 +302,32 @@ func (m *addUsersToGroup) Update(msg tea.Msg) tea.Cmd {
 			var successes uint
 			for _, gid := range m.selectedGIDs {
 				for _, uid := range m.selectedUIDs {
-					if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
-						resultCmds = append(resultCmds, tea.Printf("Failed to add user ID %d to group %d: %v", uid, gid, err))
+					if m.add {
+						if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
+							resultCmds = append(resultCmds, tea.Printf("Failed to add user ID %d to group %d: %v", uid, gid, err))
+						} else {
+							// the user may have already been a part of this group, but we can't tell so.... Job's done.
+							resultCmds = append(resultCmds, tea.Printf("Added user ID %d to group %d", uid, gid))
+							successes += 1
+						}
 					} else {
-						// the user may have already been a part of this group, but we can't tell so.... Job's done.
-						resultCmds = append(resultCmds, tea.Printf("Added user ID %d to group %d", uid, gid))
-						successes += 1
+						if err := connection.Client.DeleteUserFromGroup(int32(uid), int32(gid)); err != nil {
+							resultCmds = append(resultCmds, tea.Printf("Failed to remove user ID %d from group %d: %v", uid, gid, err))
+						} else {
+							resultCmds = append(resultCmds, tea.Printf("Removed user ID %d from group %d", uid, gid))
+							successes += 1
+						}
 					}
+
 				}
 			}
 			if successes == 0 {
-				resultCmds = append(resultCmds, tea.Println("All requested group assignments failed"))
+				resultCmds = append(resultCmds, tea.Println("All requested group changes failed"))
 			}
 			return tea.Batch(cmd, tea.Sequence(resultCmds...))
 		}
 		// return to the selected stage
-		m.stage = autgStage(choice)
+		m.stage = stage(choice)
 	default:
 		clilog.Writer.Error("unknown stage", log.KV("stage", m.stage))
 		m.stage = stgDone
@@ -288,7 +335,7 @@ func (m *addUsersToGroup) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-func (m *addUsersToGroup) View() string {
+func (m *membershipChanges) View() string {
 	switch m.stage {
 	case stgUsers:
 		return m.users.View()
@@ -301,7 +348,7 @@ func (m *addUsersToGroup) View() string {
 	return clilog.ErrInternal{}.Error()
 }
 
-func (m *addUsersToGroup) Reset() error {
+func (m *membershipChanges) Reset() error {
 	m.users = multiselectlist.Model[int32]{}
 	m.groups = multiselectlist.Model[int32]{}
 
@@ -310,6 +357,6 @@ func (m *addUsersToGroup) Reset() error {
 	return nil
 }
 
-func (m *addUsersToGroup) Done() bool {
+func (m *membershipChanges) Done() bool {
 	return m.stage == stgDone
 }
