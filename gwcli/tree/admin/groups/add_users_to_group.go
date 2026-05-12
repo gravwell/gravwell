@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/confirmation"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -31,10 +32,10 @@ import (
 type autgStage uint
 
 const (
-	users autgStage = iota
-	groups
-	confirmation
-	done
+	stgUsers autgStage = iota
+	stgGroups
+	stgConfirmation
+	stgDone
 )
 
 type addUsersToGroup struct {
@@ -43,7 +44,11 @@ type addUsersToGroup struct {
 
 	stage autgStage
 
-	confirmStage uint // on the confirmation stage, which of the items is selected
+	// selects are set when leaving the group stage.
+	selectedUIDs []int32
+	selectedGIDs []int32
+
+	confirm confirmation.Model
 
 	fs *pflag.FlagSet
 }
@@ -83,11 +88,11 @@ func addUsersToGroups() action.Pair {
 						return errors.New("User IDs must satisfy 0 < uid <=" + strconv.FormatInt(math.MaxInt32, 10))
 					}
 					if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
-						fmt.Fprintf(c.ErrOrStderr(), "Failed to add user ID %d to group %d: %v", err)
+						fmt.Fprintf(c.ErrOrStderr(), "Failed to add user ID %d to group %d: %v", uid, gid, err)
 					} else {
 						// the user may have already been a part of this group, but we can't tell so.... Job's done.
 						fmt.Fprintf(c.OutOrStdout(), "Added user ID %d to group %d", uid, gid)
-						successes += 0
+						successes += 1
 					}
 				}
 			}
@@ -100,7 +105,9 @@ func addUsersToGroups() action.Pair {
 }
 
 func newAUtG() *addUsersToGroup {
-	m := &addUsersToGroup{}
+	m := &addUsersToGroup{
+		confirm: confirmation.Model{},
+	}
 	m.Reset()
 	m.fs = autgFlagset()
 	return m
@@ -169,38 +176,97 @@ func (m *addUsersToGroup) SetArgs(parentFS *pflag.FlagSet, tokens []string, widt
 		}
 	}
 	m.groups = multiselectlist.New(groupItems, width, height, multiselectlist.Options{}) // TODO check if we need to factor in header height
+
+	m.confirm.Init([]string{"user selection", "group selection"}, uint(width), uint(height))
 	return "", nil, nil
 }
 
 func (m *addUsersToGroup) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch m.stage {
-	case users:
+	case stgUsers:
 		// display the users in the list
 		m.users, cmd = m.users.Update(msg)
 		if m.users.Done() {
-			m.stage += 1
+			m.stage = stgGroups
 		}
-	case groups:
+	case stgGroups:
 		m.groups, cmd = m.groups.Update(msg)
 		if m.groups.Done() {
-			m.stage += 1
+			m.stage = stgConfirmation
 		}
-	case confirmation:
-		// In confirmation mode, we allow the user to select one of: "submit", "return to user selection", "return to group selection"
-		// TODO
 
-		// TODO spin out the confirmation page for uniformity
+		// fetch selections
+		var sbUIDs strings.Builder
+		selected := m.users.GetSelectedItems()
+		m.selectedUIDs = make([]int32, len(selected))
+		for i, itm := range selected {
+			m.selectedUIDs[i] = itm.ID()
+			sbUIDs.WriteString(strconv.FormatInt(int64(itm.ID()), 10) + " ")
+		}
+		var sbGIDs strings.Builder
+		selected = m.groups.GetSelectedItems()
+		m.selectedGIDs = make([]int32, len(selected))
+		for i, itm := range selected {
+			m.selectedGIDs[i] = itm.ID()
+			sbGIDs.WriteString(strconv.FormatInt(int64(itm.ID()), 10) + " ")
+		}
+
+		m.confirm.HeaderLines = []string{
+			"Adding " + strconv.FormatInt(int64(len(m.selectedUIDs)), 10) + " users",
+			"[" + strings.TrimSpace(sbUIDs.String()) + "]",
+			"to",
+			strconv.FormatInt(int64(len(m.selectedGIDs)), 10) + " groups",
+			"[" + strings.TrimSpace(sbGIDs.String()) + "]"}
+	case stgConfirmation:
+		var (
+			done   bool
+			submit bool
+			choice uint
+		)
+		m.confirm, cmd, done, submit, choice = m.confirm.Update(msg)
+		if !done {
+			return cmd
+		}
+		if submit { // for each group, attempt to add each user
+			var resultCmds []tea.Cmd
+			var successes uint
+			for _, gid := range m.selectedGIDs {
+				for _, uid := range m.selectedUIDs {
+					if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
+						resultCmds = append(resultCmds, tea.Printf("Failed to add user ID %d to group %d: %v", uid, gid, err))
+					} else {
+						// the user may have already been a part of this group, but we can't tell so.... Job's done.
+						resultCmds = append(resultCmds, tea.Printf("Added user ID %d to group %d", uid, gid))
+						successes += 1
+					}
+				}
+			}
+			if successes == 0 {
+				resultCmds = append(resultCmds, tea.Println("All requested group assignments failed"))
+			}
+			return tea.Batch(cmd, tea.Sequence(resultCmds...))
+		}
+		// return to the selected stage
+		m.stage = autgStage(choice)
 	default:
-		clilog.Writer.Error("unknown stage", log.KV("action", "associate"), log.KV("stage", m.stage))
-		m.stage = done
+		clilog.Writer.Error("unknown stage", log.KV("stage", m.stage))
+		m.stage = stgDone
 	}
 	return cmd
 }
 
 func (m *addUsersToGroup) View() string {
-	// TODO
-	return ""
+	switch m.stage {
+	case stgUsers:
+		return m.users.View()
+	case stgGroups:
+		return m.groups.View()
+	case stgConfirmation:
+		return m.confirm.View()
+	}
+	clilog.Writer.Error("unknown stage", log.KV("stage", m.stage))
+	return clilog.ErrInternal{}.Error()
 }
 
 func (m *addUsersToGroup) Reset() error {
@@ -213,5 +279,5 @@ func (m *addUsersToGroup) Reset() error {
 }
 
 func (m *addUsersToGroup) Done() bool {
-	return m.stage == done
+	return m.stage == stgDone
 }
