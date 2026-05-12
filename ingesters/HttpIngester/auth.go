@@ -48,14 +48,15 @@ const (
 )
 
 var (
-	ErrInvalidAuthType    = errors.New("Invalid authentication type")
-	ErrLoginURLRequired   = errors.New("Authentication type requires a login URL")
-	ErrUnauthorized       = errors.New("Unauthorized")
-	ErrMissingTokenName   = errors.New("Token name is invalid")
-	ErrMissingTokenValue  = errors.New("Token value cannot be empty")
-	ErrBadTokenValue      = errors.New("Bad token value")
-	ErrMissingHeaderValue = errors.New("Token header value cannot be empty")
-	ErrHeaderNotFound     = errors.New("Token header value not found")
+	ErrInvalidAuthType      = errors.New("Invalid authentication type")
+	ErrLoginURLRequired     = errors.New("Authentication type requires a login URL")
+	ErrUnauthorized         = errors.New("Unauthorized")
+	ErrMissingTokenName     = errors.New("Token name is invalid")
+	ErrMissingTokenValue    = errors.New("Token value cannot be empty")
+	ErrBadTokenValue        = errors.New("Bad token value")
+	ErrMissingHeaderValue   = errors.New("Token header value cannot be empty")
+	ErrHeaderNotFound       = errors.New("Token header value not found")
+	ErrTokenWithoutAuthType = errors.New("TokenName or TokenValue specified without an AuthType")
 )
 
 type authType string
@@ -75,6 +76,10 @@ type authHandler interface {
 }
 
 func (a *auth) Validate() (enabled bool, err error) {
+	if (a.AuthType == _none || a.AuthType == none) && (a.TokenName != `` || a.TokenValue != ``) {
+		err = ErrTokenWithoutAuthType
+		return
+	}
 	//check the auth type and make sure a login url is set
 	switch a.AuthType {
 	case none: //do nothing
