@@ -72,9 +72,10 @@ func (ru *ResourceUpdate) Close() {
 type Resource struct {
 	CommonFields
 
-	Size        uint64
-	Hash        string
-	ContentType string // Guessed at update time if possible
+	Size          uint64
+	Hash          string
+	ContentType   string // Guessed at update time if possible
+	FileExtension string // The extension of the uploaded file, with the dot (ex: ".csv").
 }
 
 type ResourceListResponse struct {
