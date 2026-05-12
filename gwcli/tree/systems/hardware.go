@@ -21,8 +21,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -44,7 +44,7 @@ func newHardwareAction() action.Pair {
 			"This action is intended for human consumption; most of this information is available in JSON/CSV via the indexer and ingester actions if you need better script support."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			var sb strings.Builder
 
 			var (
@@ -127,7 +127,11 @@ func newHardwareAction() action.Pair {
 
 			sb.WriteString(constructOverview(o, llw))
 			return sb.String(), nil
-		}, scaffold.BasicOptions{Aliases: []string{"hw"}})
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"hw"},
+			},
+		})
 }
 
 // constructOverview generates a segmented border containing the overview information.
@@ -360,7 +364,7 @@ func printIfSet(indent bool, field string, value any, suffix string) string {
 	if !reflect.ValueOf(value).IsZero() {
 		var s = fmt.Sprintf(stylesheet.Cur.TertiaryText.Width(fieldWidth).Render(field)+": %v%s\n", value, suffix)
 		if indent {
-			s = stylesheet.Indent + s
+			s = sigils.Indent + s
 		}
 		return s
 	}

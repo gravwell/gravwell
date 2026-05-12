@@ -1,3 +1,5 @@
+//go:build ci
+
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -11,14 +13,14 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user/myinfo"
 )
 
 func TestIs(t *testing.T) {
 
 	// create a known action pair
-	treePair := myinfo.NewUserMyInfoAction()
+	treePair := self.MyInfo()
 	action.AddModel(treePair.Action, treePair.Model)
 
 	if !action.Is(treePair.Action) {

@@ -331,7 +331,10 @@ func (i *ingest) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) 
 		return full.String(), nil, nil
 	}
 
-	pairs := parsePairs(rawFlags.Args())
+	pairs, err := parsePairs(rawFlags.Args())
+	if err != nil {
+		return err.Error(), nil, nil
+	}
 
 	// if one+ files were given, try to ingest immediately
 	if len(pairs) > 0 {

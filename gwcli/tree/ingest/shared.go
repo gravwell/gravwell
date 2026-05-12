@@ -153,6 +153,7 @@ type ingestFlags struct {
 	localTime  bool   // use server-local timezone rather than inherent timezones
 	dir        string // starting directory for interactive mode
 	defaultTag string // the tag to use if not specified in the argument (or in the file itself, in the case of GW JSON)
+	stdin      bool   // read raw data from stdin instead of reading args
 }
 
 // transmogrifyFlags takes a *parsed* flagset and returns a structured, types, and (in the case of strings) trimmed representation of the flags therein.
@@ -226,13 +227,18 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	} else {
 		flags.defaultTag = def
 	}
+	if stdin, err := fs.GetBool("stdin"); err != nil {
+		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+	} else {
+		flags.stdin = stdin
+	}
 
 	return flags, invalids, nil
 }
 
 // Given the bare arguments, returns a list of pairs associating each path to its tag (if a tag was supplied).
-// Does not perform any coercion for paths or tag (other than skipping empty elements).
-func parsePairs(args []string) []pair {
+// Checks that each path exists and returns an error on the first failure.
+func parsePairs(args []string) ([]pair, error) {
 	pairs := []pair{}
 
 	for _, a := range args {
@@ -241,10 +247,14 @@ func parsePairs(args []string) []pair {
 		}
 		var p pair
 		p.path, p.tag, _ = strings.Cut(a, ",")
+		_, err := os.Stat(p.path)
+		if err != nil {
+			return nil, err
+		}
 		pairs = append(pairs, p)
 	}
 
-	return pairs
+	return pairs, nil
 }
 
 // ingestPath validates and attempts to ingest the file at the given path.

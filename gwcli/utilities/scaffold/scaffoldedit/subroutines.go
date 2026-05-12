@@ -46,11 +46,14 @@ type SetFieldSubroutine[S any] func(item *S, fieldKey, val string) (
 )
 
 // UpdateStructSubroutine defines the function that performs the actual update of the data on the GW instance.
-// The error returned by this subroutine does not kill the action, instead displaying to the user.
+//
+// itemTitle is just identification text displayed on success to notify the user that their selected item was updated.
+// Unless there is a specific need, it should be whatever is returned by GetTitle.
+//
+// The error returned by this subroutine does not kill the action (in interactive mode),
+// instead displaying it to the user and returning to edit mode.
 // In that way, it is closer to an invalid, even though validation errors are assumed to be caught by the SetField sub.
-type UpdateStructSubroutine[S any] func(data *S) (
-	identifier string, err error,
-)
+type UpdateStructSubroutine[S any] func(data *S) (itemTitle string, err error)
 
 // SubroutineSet defines the set of all subroutines required by an implementation of an edit action.
 //

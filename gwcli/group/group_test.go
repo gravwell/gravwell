@@ -1,3 +1,5 @@
+//go:build ci
+
 // Package group_test is very nearly redundant. I mean, look at it.
 package group_test
 

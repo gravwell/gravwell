@@ -52,10 +52,10 @@ type Entry struct {
 }
 
 func init() {
-	gob.Register(&EVBlock{})
-	gob.Register(&Entry{})
-	gob.Register([]Entry{})
-	gob.Register([]*Entry{})
+	gob.RegisterName("*EVBlock.v4", &EVBlock{})
+	gob.RegisterName("*Entry.v4", &Entry{})
+	gob.RegisterName("[]Entry.v4", []Entry{})
+	gob.RegisterName("[]*Entry.v4", []*Entry{})
 }
 
 func (ent *Entry) Key() EntryKey {

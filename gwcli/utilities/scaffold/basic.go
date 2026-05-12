@@ -55,7 +55,7 @@ import (
 //
 // ! Do not use the flags inside of cmd. They are unused and their state is undefined.
 // Use fs instead.
-type ActFunc func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd)
+type ActFunc func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd)
 
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
@@ -72,8 +72,6 @@ func NewBasicAction(use, short, long string,
 		panic("short cannot be empty")
 	} else if act == nil {
 		panic("act func cannot be nil")
-	} else if options.AddtlFlagFunc == nil && options.ValidateArgs != nil {
-		panic("are you certain you meant to pass a Validate function but no additional flags?")
 	}
 
 	cmd := treeutils.GenerateAction(
@@ -91,23 +89,27 @@ func NewBasicAction(use, short, long string,
 					return
 				}
 			}
-			s, _ := act(c, c.Flags())
+			s, _ := act(c.Flags())
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 		})
-	ba := basicAction{cmd: cmd, options: options, fn: act}
+	ba := basicAction{options: options, fn: act}
+
+	options.Apply(cmd)
 
 	// operate on the given options, if any
 
 	// if flags were given, add them to the command in case we are run non-interactively.
-	if options.AddtlFlagFunc != nil {
-		f := options.AddtlFlagFunc()
-		cmd.Flags().AddFlagSet(&f)
-
-		// added to the interactive model in .SetArgs()
+	if options.AddtlFlags != nil {
+		ba.fs.AddFlagSet(options.AddtlFlags())
 	}
-
-	if options.CmdMods != nil {
-		options.CmdMods(cmd)
+	if options.Usage != "" {
+		cmd.SetUsageFunc(func(c *cobra.Command) error {
+			_, err := fmt.Fprint(c.OutOrStdout(), options.Usage)
+			return err
+		})
+	}
+	if options.Example != "" {
+		cmd.Example = options.Example
 	}
 
 	return action.NewPair(cmd, &ba)
@@ -121,16 +123,15 @@ type basicAction struct {
 	fs   pflag.FlagSet // the current state of the flagset
 
 	// individualized for each implementation of scaffoldbasic
-	cmd     *cobra.Command // the command associated to this basic action
-	options BasicOptions   // modifiers for the list action
-	fn      ActFunc        // the function performing the basic action
+	options BasicOptions // modifiers for the list action
+	fn      ActFunc      // the function performing the basic action
 }
 
 var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(ba.cmd, &ba.fs)
+	s, cmd := ba.fn(&ba.fs)
 	if cmd != nil { // no point in sequencing with nil
 		return tea.Sequence(tea.Println(s), cmd)
 	}
@@ -147,31 +148,25 @@ func (ba *basicAction) Done() bool {
 
 func (ba *basicAction) Reset() error {
 	ba.done = false
-	ba.fs = pflag.FlagSet{} // reset to additionals in .SetArgs()
+	ba.fs = pflag.FlagSet{} // kill flag set, as there are no native flags to worry about
+	// reattach extra flags
+	if ba.options.AddtlFlags != nil {
+		ba.fs.AddFlagSet(ba.options.AddtlFlags())
+	}
 	return nil
 }
 
-func (ba *basicAction) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string, _, _ int) (
 	invalid string, onStart tea.Cmd, err error) {
-	// validate arguments using the set method
-	if ba.cmd.Args != nil {
-		if err := ba.cmd.Args(ba.cmd, tokens); err != nil {
-			return err.Error(), nil, nil
-		}
+	if err := ba.fs.Parse(tokens); err != nil {
+		return "", nil, err
 	}
-
-	// set up flags
-	if ba.options.AddtlFlagFunc != nil {
-		ba.fs = ba.options.AddtlFlagFunc()
-		if err := ba.fs.Parse(tokens); err != nil {
+	// validate
+	if ba.options.ValidateArgs != nil {
+		if inv, err := ba.options.ValidateArgs(&ba.fs); err != nil {
 			return "", nil, err
-		}
-		if ba.options.ValidateArgs != nil {
-			if inv, err := ba.options.ValidateArgs(&ba.fs); err != nil {
-				return "", nil, err
-			} else if inv != "" {
-				return inv, nil, nil
-			}
+		} else if inv != "" {
+			return inv, nil, nil
 		}
 	}
 

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gobwas/glob"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest"
 )
 
@@ -46,8 +45,8 @@ const (
 	LibraryWrite       Capability = 21
 	ExtractorRead      Capability = 22
 	ExtractorWrite     Capability = 23
-	UserFileRead       Capability = 24
-	UserFileWrite      Capability = 25
+	FileRead           Capability = 24
+	FileWrite          Capability = 25
 	KitRead            Capability = 26
 	KitWrite           Capability = 27
 	KitBuild           Capability = 28
@@ -125,7 +124,13 @@ type CapabilitySet struct {
 	Grants []byte
 }
 
-// CapabilityState is the expanded set of capabilities that is exchanged between clients the the API
+// CBACExpandedRules contain the more human/UI-friendly CapabilityState and TagAccess structs.
+type CBACExpandedRules struct {
+	Capabilities CapabilityState
+	Tags         TagAccess
+}
+
+// CapabilityState is the expanded set of capabilities that is exchanged between clients and the API
 // The grants specified using the full name of a capability to make the API more explicit
 type CapabilityState struct {
 	Grants []string
@@ -151,9 +156,9 @@ type CapabilityDesc struct {
 // how the user *obtained* that capability.
 type CapabilityExplanation struct {
 	CapabilityDesc
-	Granted     bool           // True if the user has this capability
-	UserGrant   bool           // True if the capability was explicitly granted to the user
-	GroupGrants []GroupDetails // An array of groups to which the user belongs that grant the capability.
+	Granted     bool    // True if the user has this capability
+	UserGrant   bool    // True if the capability was explicitly granted to the user
+	GroupGrants []Group // An array of groups to which the user belongs that grant the capability.
 }
 
 // CapabilityTemplate is group of capabilities with a name and description, this is used to build up a simplified set of
@@ -281,10 +286,10 @@ func (c Capability) Name() string {
 		return `ExtractorRead`
 	case ExtractorWrite:
 		return `ExtractorWrite`
-	case UserFileRead:
-		return `UserFileRead`
-	case UserFileWrite:
-		return `UserFileWrite`
+	case FileRead:
+		return `FileRead`
+	case FileWrite:
+		return `FileWrite`
 	case KitRead:
 		return `KitRead`
 	case KitWrite:
@@ -381,9 +386,9 @@ func (c Capability) Category() CapabilityCategory {
 	case ExtractorWrite:
 		return ExtractorsCat
 
-	case UserFileRead:
+	case FileRead:
 		return FilesCat
-	case UserFileWrite:
+	case FileWrite:
 		return FilesCat
 
 	case KitRead:
@@ -518,10 +523,10 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = ExtractorRead
 	case `extractorwrite`:
 		*c = ExtractorWrite
-	case `userfileread`:
-		*c = UserFileRead
-	case `userfilewrite`:
-		*c = UserFileWrite
+	case `fileread`:
+		*c = FileRead
+	case `filewrite`:
+		*c = FileWrite
 	case `kitread`:
 		*c = KitRead
 	case `kitwrite`:
@@ -629,10 +634,10 @@ func (c Capability) String() string {
 		return `Extractor Read`
 	case ExtractorWrite:
 		return `Extractor Write`
-	case UserFileRead:
-		return `User File Read`
-	case UserFileWrite:
-		return `User File Write`
+	case FileRead:
+		return `File Read`
+	case FileWrite:
+		return `File Write`
 	case KitRead:
 		return `Kit Read`
 	case KitWrite:
@@ -738,10 +743,10 @@ func (c Capability) Description() string {
 		return `User can view and use auto extractors`
 	case ExtractorWrite:
 		return `User can create and modify auto extractors`
-	case UserFileRead:
-		return `User can view user files`
-	case UserFileWrite:
-		return `User can create and update user files`
+	case FileRead:
+		return `User can view files`
+	case FileWrite:
+		return `User can create and update files`
 	case KitRead:
 		return `User can view kits`
 	case KitWrite:
@@ -974,22 +979,24 @@ func (ud *UserDetails) CapabilityList() []CapabilityDesc {
 	return CreateUserCapabilityList(ud)
 }
 
-// Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token
+// Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token but does NOT contain the actual secret string.
 type Token struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Desc         string    `json:"description"`
-	UID          int32     `json:"uid"`
-	Created      time.Time `json:"createdAt"`
-	Expires      time.Time `json:"expiresAt,omitempty"`
+	CommonFields
+	ExpiresAt    time.Time `json:"expiresAt,omitempty"`
 	Capabilities []string  `json:"capabilities"`
+}
+
+// TokenListResponse is the type returned when querying a list of tokens.
+type TokenListResponse struct {
+	BaseListResponse
+	Results []Token `json:"results"`
 }
 
 // TokenCreate is the structure used to ask the API to make a new token, only the request parameters are present
 type TokenCreate struct {
 	Name         string    `json:"name"`
-	Desc         string    `json:"description"`
-	Expires      time.Time `json:"expiresAt,omitempty"`
+	Description  string    `json:"description"`
+	ExpiresAt    time.Time `json:"expiresAt,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 }
 
@@ -1006,26 +1013,20 @@ type TokenFull struct {
 	Value string `json:"token"`
 }
 
-// TokenFullWire is the internal type for storing token values
-type TokenFullWire struct {
-	TokenFull
-	Caps []byte
-}
-
 // Expired returns whether a token is expired or not, if no expiration is set then the token is not expired
 func (t Token) Expired() bool {
-	if t.Expires.IsZero() {
+	if t.ExpiresAt.IsZero() {
 		return false
 	}
-	return time.Now().After(t.Expires)
+	return time.Now().After(t.ExpiresAt)
 }
 
 // ExpiresString returns a human friendly string of when a token expires
 func (t Token) ExpiresString() string {
-	if t.Expires.IsZero() {
+	if t.ExpiresAt.IsZero() {
 		return `NEVER`
 	}
-	return t.Expires.Format(time.RFC3339)
+	return t.ExpiresAt.Format(time.RFC3339)
 }
 
 // CapabilitiesString returns a human friendly space delimited list of capabilities
@@ -1054,6 +1055,17 @@ func EncodeCapabilities(caps []Capability) (b []byte, err error) {
 		if b, err = AddCapability(b, c); err != nil {
 			b = nil
 			return
+		}
+	}
+	return
+}
+
+// DecodeCapabilities turns an encoded capability slice into a list of
+// friendly names.
+func DecodeCapabilities(caps []byte) (names []string) {
+	for _, c := range fullCapList {
+		if CheckCapability(caps, c) {
+			names = append(names, c.Name())
 		}
 	}
 	return

@@ -37,5 +37,5 @@ func syntax(script bool) string {
 		sid = ft.Optional("searchID")
 	}
 
-	return fmt.Sprintf("Syntax: assert %s %s", ft.Optional("flags"), sid)
+	return fmt.Sprintf("Syntax: attach %s %s", ft.Optional("flags"), sid)
 }

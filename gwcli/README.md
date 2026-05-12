@@ -6,7 +6,7 @@ A redesigned Gravwell client for the terminal, supporting both TUI-served intera
 
 # Features
 
-- easy to use interactive and safe to use interactively! Call it bare to get a fancy TUI or pass the `--no-interactive` flag to indicate that the program should never wait for user input or confirmation
+- easy to use interactively and safe to use in scripts! Call it bare to get a fancy TUI or pass the `--no-interactive` flag to indicate that the program should never wait for user input or confirmation.
 
 - interactive query editor with dynamic (paged and scrollable) viewport for interacting with results
 
@@ -25,6 +25,8 @@ A redesigned Gravwell client for the terminal, supporting both TUI-served intera
 - completions for zsh, fish, bash, and powershell
 
 - tab completion in interactive mode
+
+- custom suggestion engine to make interactive mode as accessible as possible
 
 - pluggable framework for easily adding new capabilities (complete with genericized boilerplate and generator functions)
 

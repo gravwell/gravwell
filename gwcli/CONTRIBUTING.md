@@ -42,17 +42,15 @@ gwcli uses [Mage](magefile.org) as its build system. Because go's tooling is so 
 
 ## Testing
 
-The testing suite for gwcli has three kinds of tests: ci, !ci, and teatest (which are typically also ci tests, but could be either).
+The testing suite for gwcli has three kinds of tests: internal_test.go, noci_test.go, and _test.go.
 
-ci tests are tests that does not require a backend and therefore can be included in the CI/CD pipeline.
+*internal* tests use the parent package, rather than the <parent>_test and are used for testing unexported stuff.
 
-!ci tests are tests with the build tag '!ci'. They require a Gravwell backend to be spinning at localhost:80 and **destructively alert data on the instance**. As the CI/CD pipeline does not currently spin up a test instance to use, these tests are omitted.
+*noci* tests are tests that require a gravwell instance to hook into, therefore making them unsuitable for use in a CI/CD pipeline (without spinning up a backend). These tests are expected to destructively alter the target instance and are tagged with the "noci" build tag. All tests that do not expect a backend are tagged with "ci" and/or "teatest".
 
-TeaTests are tests that take advantage of Charm's experimental [teatest package](https://github.com/charmbracelet/x/tree/main/exp/teatest) (which you can read about [here](https://charm.land/blog/teatest/)). They are functionally similar to other tests, and several tests validate visual components without relying on teatest, with the addition of the `golden` file. Golden files are basically the output of a tea.Model's view put into a file. When the tests are run, a `diff` is executed against the golden file and the test's output. If they match, great. If not, back to work. What this means, however, is that changes made to the visual component of actions that use teatest must have their golden files regenerated. To do this, run go test with the `-update` flag (datascope, for example: `go test ./tree/query/datascope -run ^Test_ -update`). TeaTest also does not play nicely with the `-race` flag. Ultimately, teatest has limited usefulness over manually testing visual components, particularly as it requires a `tea.Model` which our actions do not implement (Mother does, but child actions implement our `action.Model` instead and typically pass by reference).
+There are also TeaTests, tests that take advantage of Charm's experimental [teatest package](https://github.com/charmbracelet/x/tree/main/exp/teatest) (which you can read about [here](https://charm.land/blog/teatest/)). They are functionally similar to other tests, but with the addition of the `golden` file. Golden files are basically the output of a tea.Model's view put into a file. When the tests are run, a `diff` is executed against the golden file and the test's output. If they match, great. If not, back to work. What this means, however, is that changes made to the visual component of actions that use teatest must have their golden files regenerated. To do this, run go test with the `-update` flag (datascope, for example: `go test ./tree/query/datascope -run ^Test_ -update`). TeaTest also does not play nicely with the `-race` flag. Ultimately, teatest has limited usefulness over manually testing visual components, particularly as it requires a `tea.Model` which our actions do not implement (Mother does, but child actions implement our `action.Model` instead and typically pass by reference).
 
-You can run most tests with `mage testall <enable coverage?> <count=1?>`. These tests all run with `-race` enabled.
-
-You can run teatests with `mage teatests <enable coverage?> <count=1?>`
+The easiest way to test gwcli is to run `mage testall -server=<host:port>`. All non-teatests are run with `-race`.
 
 # Changing the Command Tree
 
@@ -60,11 +58,9 @@ This section details how to alter and add to the command tree. These are the bas
 
 ## Adding a New Nav (Submenu)
 
-To create a new Nav, use `treeutils.GenerateNav()`. This function takes basic information about the nav as well as its *immediate* descendants: []*cobra.Command for sub-navs and []action.Pair for sub actions.
+To create a new Nav, use `treeutils.GenerateNav()`. This function takes basic information about the nav and its *immediate* descendants: []*cobra.Command for sub-navs and []action.Pair for sub actions.
 
 Navs are self-building and thus only need to know about their immediate descendants; child navs will handle their own children. See [tree generation](#generation) for more information.
-
-Navs generally get their own package so the package tree equates to the command tree, but there is no hard requirement for this.
 
 Add your new nav to the `[]*cobra.Command` of whatever nav you want to be its parent.
 
@@ -199,6 +195,15 @@ flowchart
 
     Done --true--> ExitHandoff>Exit<br>Handoff Mode] --> Reset[child.Reset]
 ```
+
+## Custom Suggestion and Tab-Completion Engine
+
+To improve the flexibility and power of completions in interactive mode, gwcli uses a custom engine for identifying what a user is attempting to type at the prompt.
+This engine is powered by `traverse.DeriveSuggestions()` and triggered whenever a key pressed is detected in Mother's `Update()` subroutine. See [DeriveSuggestions](gwcli/mother/traverse/traverse.go) for more details on how it operates.
+
+### Why?
+
+Bubble Tea's TextInput bubbles are great and their native suggestions and tab completion are plenty for most projects. However, gwcli stretches BubbleTea quite far. To facilitate performant suggestions with type-specific colorings, context-sensitive completions, and the possibility of adding flag completions, it makes more sense to roll our own rather than trying to bend the native capabilities to our will.
 
 # Design & Philosophy
 

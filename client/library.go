@@ -12,50 +12,57 @@ import (
 	"net/http"
 
 	"github.com/gravwell/gravwell/v4/client/types"
-
-	"github.com/google/uuid"
 )
 
-// NewSearchLibrary creates a new search library entry for the current user.
-func (c *Client) NewSearchLibrary(sl types.WireSearchLibrary) (wsl types.WireSearchLibrary, err error) {
+// CreateSavedQuery creates a new saved query for the current user.
+func (c *Client) CreateSavedQuery(sl types.SavedQuery) (wsl types.SavedQuery, err error) {
 	err = c.methodStaticPushURL(http.MethodPost, searchLibUrl(), sl, &wsl, nil, nil)
 	return
 }
 
-// ListSearchLibrary returns the list of queries in the search library available to the user.
-func (c *Client) ListSearchLibrary() (wsl []types.WireSearchLibrary, err error) {
-	err = c.getStaticURL(searchLibUrl(), &wsl)
-	return
-}
-
-// ListAllSearchLibrary (admin-only) returns the list of all search library entries for all users.
-// Non-administrators will receive the same list as returned by ListSearchLibrary.
-func (c *Client) ListAllSearchLibrary() (wsl []types.WireSearchLibrary, err error) {
-	c.SetAdminMode()
-	if err = c.getStaticURL(searchLibUrl(), &wsl); err != nil {
-		wsl = nil
+// ListSavedQueries returns the list of queries in the search library available to the user.
+func (c *Client) ListSavedQueries(opts *types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	c.ClearAdminMode()
+	err = c.postStaticURL(LIBRARY_LIST_URL, opts, &wsl)
 	return
 }
 
-// GetSearchLibrary returns a query which matches the UUID given.
+// ListAllSavedQueries (admin-only) returns the list of all search library entries for all users.
+// Non-administrators will receive the same list as returned by ListSavedQueries.
+func (c *Client) ListAllSavedQueries(opts *types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true
+	err = c.postStaticURL(LIBRARY_LIST_URL, opts, &wsl)
+	return
+}
+
+// GetSavedQuery returns a query which matches the UUID given.
 // It first checks for a query with a matching ThingUUID.
 // If that is not found, it looks for a query with a matching GUID, prioritizing
 // queries belonging to the current user.
-func (c *Client) GetSearchLibrary(id uuid.UUID) (sl types.WireSearchLibrary, err error) {
+func (c *Client) GetSavedQuery(id string) (sl types.SavedQuery, err error) {
 	err = c.getStaticURL(searchLibIdUrl(id), &sl)
 	return
 }
 
-// DeleteSearchLibrary deletes a specific libary entry.
-func (c *Client) DeleteSearchLibrary(id uuid.UUID) (err error) {
+// DeleteSavedQuery deletes a specific library entry.
+func (c *Client) DeleteSavedQuery(id string) (err error) {
 	err = c.deleteStaticURL(searchLibIdUrl(id), nil)
 	return
 }
 
-// UpdateSearchLibrary updates a specific search library entry.
-func (c *Client) UpdateSearchLibrary(sl types.WireSearchLibrary) (nsl types.WireSearchLibrary, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, searchLibIdUrl(sl.ThingUUID), sl, &nsl, nil, nil)
+// PurgeSavedQuery deletes a specific library entry.
+func (c *Client) PurgeSavedQuery(id string) (err error) {
+	err = c.deleteStaticURL(searchLibIdUrl(id), nil, ezParam("purge", "true"))
+	return
+}
+
+// UpdateSavedQuery updates a specific search library entry.
+func (c *Client) UpdateSavedQuery(sl types.SavedQuery) (nsl types.SavedQuery, err error) {
+	err = c.methodStaticPushURL(http.MethodPut, searchLibIdUrl(sl.ID), sl, &nsl, nil, nil)
 	return
 }

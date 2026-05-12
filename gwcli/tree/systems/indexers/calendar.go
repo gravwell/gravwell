@@ -23,14 +23,11 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
-
-const useCalendar string = "calendar"
 
 var ( // set and reset by ValidateArgs()
 	start    time.Time
@@ -48,15 +45,19 @@ func newCalendarAction() action.Pair {
 	var aliases = []string{"entries"}
 
 	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, data,
+		nil,
 		scaffoldlist.Options{
-			Use:        useCalendar,
-			Aliases:    aliases,
-			AddtlFlags: calendarFlags,
+			CommonOptions: scaffold.CommonOptions{
+				Use:        "calendar",
+				Example:    "calendar 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default",
+				Aliases:    aliases,
+				AddtlFlags: calendarFlags,
+			},
 			// ValidateArgs does its namesake and sets/resets the package vars.
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				start, end, idxrUUID, idxrName = time.Time{}, time.Time{}, uuid.NullUUID{}, ""
 				if fs.NArg() > 1 {
-					return ft.InvAtMostArgN(1, uint(fs.NArg())), nil
+					return "at most 1 bare argument (indexer name/UUID) may be provided", nil
 				} else if fs.NArg() == 1 {
 					if arg := strings.TrimSpace(fs.Arg(0)); arg != "" {
 						name, uuid, err := identifyIndexer(arg)
@@ -87,13 +88,10 @@ func newCalendarAction() action.Pair {
 
 				return "", nil
 			},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = fmt.Sprintf("%v 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default", useCalendar)
-			},
 		})
 }
 
-func calendarFlags() pflag.FlagSet {
+func calendarFlags() *pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	fs.String("start", "", "start date for calendar stats (inclusive).\n"+
 		"Must be given as YYYY-MM-DD\n"+
@@ -104,7 +102,7 @@ func calendarFlags() pflag.FlagSet {
 	fs.StringSlice("wells", nil, "specify the wells to fetch data for.\n"+
 		"Wells must be specified by ID (ex: "+stylesheet.Cur.ExampleText.Render("a312211e-11a1-4ff4-8888-aa1a1aa11a11-default")+") or they will be ignored.\n"+
 		"If unset, all wells will be selected (for the specified indexer or across all indexers).")
-	return fs
+	return &fs
 }
 
 // helper function for ValidateArgs().
@@ -167,7 +165,7 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 
 	wells, err := fs.GetStringSlice("wells")
 	if err != nil {
-		return nil, uniques.ErrGetFlag(useCalendar, err)
+		return nil, uniques.ErrGetFlag("calendar", err)
 	}
 
 	// if an indexer was specified, get stats for that specific indexer
