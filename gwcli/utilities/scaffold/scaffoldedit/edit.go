@@ -103,19 +103,18 @@ func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, 
 		"edit a "+singular,                 // short
 		"edit/alter an existing "+singular, // long
 		[]string{"e"},                      // aliases
-		func(cmd *cobra.Command, args []string) {
+		func(cmd *cobra.Command, args []string) error {
 			var err error
 			// hard branch on noInteractive mode
 			var noInteractive bool
 			if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			}
 			if noInteractive {
-				runNonInteractive(cmd, cfg, funcs, singular)
-			} else {
-				runInteractive(cmd, args)
+				return runNonInteractive(cmd, cfg, funcs, singular)
 			}
+			return runInteractive(cmd, args)
+
 		})
 
 	// attach flags to cmd
@@ -152,7 +151,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 // runNonInteractive is the --no-interactive portion of edit's runFunc.
 // It requires --id be set and is ineffectual if no other flags were given.
 // Prints and error handles on its own; the program is expected to exit on its completion.
-func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
+func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) error {
 	var err error
 	var (
 		id   I
@@ -160,26 +159,20 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		itm  S
 	)
 	if strid, err := cmd.Flags().GetString("id"); err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
+		return err
 	} else {
 		id, err = scaffold.FromString[I](strid)
 		if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-			return
+			return err
 		}
 	}
 	if id == zero { // id was not given
-		fmt.Fprintln(cmd.OutOrStdout(), "--id is required in no-interactive mode")
-		return
+		return errors.New("--id is required in no-interactive mode")
 	}
 
 	// get the item to edit
 	if itm, err = funcs.SelectSub(id); err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(),
-			fmt.Sprintf("Failed to select %s (id: %v): %s\n",
-				singular, id, err.Error()))
-		return
+		return fmt.Errorf("Failed to select %s (id: %v): %w", singular, id, err)
 	}
 
 	var fieldUpdated bool   // was a value actually changed?
@@ -187,14 +180,12 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		// get current value
 		curVal, err := funcs.GetFieldSub(itm, k)
 		if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-			return
+			return err
 		}
 		var newVal = curVal
 		if cmd.Flags().Changed(v.FlagName) { // flag *presumably* updates the field
 			if x, err := cmd.Flags().GetString(v.FlagName); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
 			} else {
 				newVal = x
 			}
@@ -203,39 +194,33 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		if newVal != curVal { // update the struct
 			fieldUpdated = true // note if a change occurred
 			if inv, err := funcs.SetFieldSub(&itm, k, newVal); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			} else if inv != "" {
-				fmt.Fprintln(cmd.OutOrStdout(), inv)
-				return
+				return errors.New(inv)
 			}
 		}
 	}
 
 	if !fieldUpdated { // only bother to update if at least one field was changed
-		clilog.Tee(clilog.INFO, cmd.OutOrStdout(), "no field would be updated; quitting...\n")
-		return
+		return errors.New("no field would be updated; quitting...")
 	}
 
 	// perform the actual update
 	identifier, err := funcs.UpdateSub(&itm)
 	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
+		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), successStringF+"\n", singular, identifier)
-
+	return nil
 }
 
 // run helper function.
 // Boots Mother, allowing her to handle the request.
-func runInteractive(cmd *cobra.Command, args []string) {
+func runInteractive(cmd *cobra.Command, args []string) error {
 	// we have no way of knowing if the user has passed enough data to make the edit autonomously
 	// ex: they provided one flag, but are they only planning to edit one flag?
 	// therefore, just spawn mother; she is smart enough to handle the flags naturally
-	if err := mother.Spawn(cmd.Root(), cmd, args); err != nil {
-		clilog.Writer.Critical(err.Error())
-	}
+	return mother.Spawn(cmd.Root(), cmd, args)
 }
 
 //#region interactive mode (model) implementation

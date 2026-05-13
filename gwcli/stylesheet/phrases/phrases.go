@@ -16,6 +16,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 )
 
 // SuccessfullyWroteToFile returns a string to be printed to a user when data is successfully written to a file.
@@ -62,7 +63,34 @@ func NounNumerosity(count int, singularForm, pluralForm string) string {
 	return pluralForm
 }
 
-// MissingRequiredField returns text stating the given field must be populated.
-func MissingRequiredField(fieldName string) string {
-	return "field " + fieldName + " is required"
+// MissingRequiredFields returns text stating the given field(s) must be populated.
+func MissingRequiredFields(fieldNames []string) string {
+	var isare, plural = "is", ""
+	if len(fieldNames) != 1 {
+		isare = "are"
+		plural = "s"
+	}
+	return fmt.Sprintf("field%s %v %s required", plural, fieldNames, isare)
 }
+
+// ErrBinaryBlobCoward returns a user-facing error that the given format must be output to a file.
+// The value should be the format of the blob.
+type ErrBinaryBlobCoward string
+
+func (fmt ErrBinaryBlobCoward) Error() string {
+	return "refusing to dump binary blob (format " + string(fmt) + ") to stdout.\n" +
+		"If this is intentional, re-run with -" + ft.Output.Shorthand() + " <FILENAME>.\n" +
+		"If it was not, re-run with --" + ft.CSV.Name() + " or --" + ft.JSON.Name() + " to download in a more appropriate format."
+}
+
+var _ error = ErrBinaryBlobCoward("format")
+
+// ErrUnknownSID returns a user-facing error stating that the given sid is unknown.
+// The value should be the unknown search ID itself.
+type ErrUnknownSID string
+
+func (sid ErrUnknownSID) Error() string {
+	return "did not find a search associated to searchID '" + string(sid) + "'"
+}
+
+var _ error = ErrUnknownSID("")

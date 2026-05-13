@@ -77,8 +77,9 @@ func TestCreateEditDownload(t *testing.T) {
 		"--labels", strings.Join(resourceLabels, ","),
 	}
 	// execute spins up singletons for us
-	if ec := tree.Execute(append(meta, createResource...)); ec != 0 {
-		t.Error("bad error code: ", ec)
+	var sbErr strings.Builder
+	if ec := tree.Execute(append(meta, createResource...), nil, &sbErr); ec != 0 {
+		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 
 	// check that list pulls back the new resource
@@ -116,8 +117,8 @@ func TestCreateEditDownload(t *testing.T) {
 		resultPath := filePath + ".redown.txt"
 		t.Logf("downloading resource %v", resourceID)
 		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, []string{"resources", "download", "-o", resultPath, resourceID}...)); ec != 0 {
-			t.Error("bad error code: ", ec)
+		if ec := tree.Execute(append(meta, []string{"resources", "download", "-o", resultPath, resourceID}...), nil, &sbErr); ec != 0 {
+			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 		// check the file
 		dl, err := os.ReadFile(resultPath)
@@ -139,12 +140,13 @@ func TestCreateEditDownload(t *testing.T) {
 func listForItem(t *testing.T, name string, size int64) (id, description string, labels []string) {
 	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
 	// execute spins up singletons for us
+	var sbErr strings.Builder
 	if ec := tree.Execute(append(meta, []string{"resources", "list",
 		"--csv",
 		"-o", resultPath,
 		"--columns", "CommonFields.ID,CommonFields.Name,CommonFields.Description,Size,CommonFields.Labels",
-	}...)); ec != 0 {
-		t.Error("bad error code: ", ec)
+	}...), nil, &sbErr); ec != 0 {
+		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 	// slurp the file we wrote to
 	var rows [][]string

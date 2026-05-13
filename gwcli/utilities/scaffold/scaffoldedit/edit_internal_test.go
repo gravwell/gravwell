@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -133,12 +134,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 		args = append(args, fmt.Sprintf("--id=%d", id))
 	}
 
-	inv, _, err := em.SetArgs(nil, args, 80, 50)
-	if err != nil {
-		t.Fatal(err)
-	} else if inv != "" {
-		t.Fatal(inv)
-	}
+	testsupport.CheckSetArgs(t, em.SetArgs, nil, args, 80, 50, false, nil, false)
 	em.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
 	time.Sleep(50 * time.Millisecond)
 
