@@ -48,13 +48,15 @@ type gbl struct {
 }
 
 type cfgReadType struct {
-	Global                   gbl
-	Attach                   attach.AttachConfig
-	Listener                 map[string]*lst
-	HEC_Compatible_Listener  map[string]*hecCompatible
-	Amazon_Firehose_Listener map[string]*afh
-	Preprocessor             processors.ProcessorConfig
-	TimeFormat               config.CustomTimeFormat
+	Global                         gbl
+	Attach                         attach.AttachConfig
+	Listener                       map[string]*lst
+	HEC_Compatible_Listener        map[string]*hecCompatible
+	Amazon_Firehose_Listener       map[string]*afh
+	OpenTelemetry_Metrics_Listener map[string]*otelMetricsListener
+	OpenTelemetry_Logs_Listener    map[string]*otelLogsListener
+	Preprocessor                   processors.ProcessorConfig
+	TimeFormat                     config.CustomTimeFormat
 }
 
 type lst struct {
@@ -75,12 +77,14 @@ type lst struct {
 
 type cfgType struct {
 	gbl
-	Attach       attach.AttachConfig
-	Listener     map[string]*lst
-	HECListener  map[string]*hecCompatible
-	AFHListener  map[string]*afh
-	Preprocessor processors.ProcessorConfig
-	TimeFormat   config.CustomTimeFormat
+	Attach           attach.AttachConfig
+	Listener         map[string]*lst
+	HECListener      map[string]*hecCompatible
+	AFHListener      map[string]*afh
+	OtelListener     map[string]*otelMetricsListener
+	OtelLogsListener map[string]*otelLogsListener
+	Preprocessor     processors.ProcessorConfig
+	TimeFormat       config.CustomTimeFormat
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -91,13 +95,15 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		return nil, err
 	}
 	c := &cfgType{
-		gbl:          cr.Global,
-		Attach:       cr.Attach,
-		Listener:     cr.Listener,
-		HECListener:  cr.HEC_Compatible_Listener,
-		AFHListener:  cr.Amazon_Firehose_Listener,
-		Preprocessor: cr.Preprocessor,
-		TimeFormat:   cr.TimeFormat,
+		gbl:              cr.Global,
+		Attach:           cr.Attach,
+		Listener:         cr.Listener,
+		HECListener:      cr.HEC_Compatible_Listener,
+		AFHListener:      cr.Amazon_Firehose_Listener,
+		OtelListener:     cr.OpenTelemetry_Metrics_Listener,
+		OtelLogsListener: cr.OpenTelemetry_Logs_Listener,
+		Preprocessor:     cr.Preprocessor,
+		TimeFormat:       cr.TimeFormat,
 	}
 	if err := c.Verify(); err != nil {
 		return nil, err
@@ -124,7 +130,7 @@ func (c *cfgType) Verify() error {
 		c.Max_Concurrent_Requests = defaultMaxConcurrentRequests
 	}
 	urls := map[route]string{}
-	if len(c.Listener) == 0 && len(c.HECListener) == 0 && len(c.AFHListener) == 0 {
+	if len(c.Listener) == 0 && len(c.HECListener) == 0 && len(c.AFHListener) == 0 && len(c.OtelListener) == 0 && len(c.OtelLogsListener) == 0 {
 		return errors.New("No Listeners specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
@@ -194,6 +200,56 @@ func (c *cfgType) Verify() error {
 		c.AFHListener[k] = v
 	}
 
+	for k, v := range c.OtelListener {
+		pth, err := v.validate(k)
+		if err != nil {
+			return err
+		}
+		rt := newRoute(http.MethodPost, pth)
+		if orig, ok := urls[rt]; ok {
+			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("HTTP OpenTelemetry %s preprocessor invalid: %v", k, err)
+		}
+		//validate authentication
+		if enabled, err := v.auth.Validate(); err != nil {
+			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
+		} else if enabled && v.LoginURL != `` {
+			if orig, ok := urls[newRoute(http.MethodPost, v.LoginURL)]; ok {
+				return fmt.Errorf("POST %s duplicated in %s (was in %s)", v.LoginURL, k, orig)
+			}
+			urls[newRoute(http.MethodPost, v.LoginURL)] = k
+		}
+		urls[rt] = k
+		c.OtelListener[k] = v
+	}
+
+	for k, v := range c.OtelLogsListener {
+		pth, err := v.validate(k)
+		if err != nil {
+			return err
+		}
+		rt := newRoute(http.MethodPost, pth)
+		if orig, ok := urls[rt]; ok {
+			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("HTTP OpenTelemetry Logs %s preprocessor invalid: %v", k, err)
+		}
+		//validate authentication
+		if enabled, err := v.auth.Validate(); err != nil {
+			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
+		} else if enabled && v.LoginURL != `` {
+			if orig, ok := urls[newRoute(http.MethodPost, v.LoginURL)]; ok {
+				return fmt.Errorf("POST %s duplicated in %s (was in %s)", v.LoginURL, k, orig)
+			}
+			urls[newRoute(http.MethodPost, v.LoginURL)] = k
+		}
+		urls[rt] = k
+		c.OtelLogsListener[k] = v
+	}
+
 	if len(urls) == 0 {
 		return fmt.Errorf("No listeners specified")
 	}
@@ -233,6 +289,32 @@ func (c *cfgType) Tags() (tags []string, err error) {
 		if _, ok := tagMp[v.Tag_Name]; !ok {
 			tags = append(tags, v.Tag_Name)
 			tagMp[v.Tag_Name] = true
+		}
+	}
+	for k, v := range c.OtelListener {
+		var ltags []string
+		if ltags, err = v.tags(); err != nil {
+			err = fmt.Errorf("failed to get tags on OpenTelemetry-Listener %s %w", k, err)
+			return
+		}
+		for _, lt := range ltags {
+			if _, ok := tagMp[lt]; !ok {
+				tags = append(tags, lt)
+				tagMp[lt] = true
+			}
+		}
+	}
+	for k, v := range c.OtelLogsListener {
+		var ltags []string
+		if ltags, err = v.tags(); err != nil {
+			err = fmt.Errorf("failed to get tags on OpenTelemetry-Logs-Listener %s %w", k, err)
+			return
+		}
+		for _, lt := range ltags {
+			if _, ok := tagMp[lt]; !ok {
+				tags = append(tags, lt)
+				tagMp[lt] = true
+			}
 		}
 	}
 
