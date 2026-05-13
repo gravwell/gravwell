@@ -17,6 +17,7 @@ package tree
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime/pprof"
 	"strings"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/tokens"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -68,8 +70,8 @@ func ppre(cmd *cobra.Command, args []string) error {
 		stylesheet.NoColor = true
 	}
 
-	// if this is a 'complete' request, do not enforce login
-	if cmd.Name() == cobra.ShellCompRequestCmd || cmd.Name() == cobra.ShellCompNoDescRequestCmd {
+	// if this is the 'completion' command or any of its children, do not enforce login
+	if cmd.Name() == "completion" || (cmd.HasParent() && cmd.Parent().Name() == "completion") {
 		return nil
 	}
 
@@ -257,8 +259,8 @@ func ppost(cmd *cobra.Command, args []string) error {
 // Execute adds all child commands to the root command, sets flags appropriately, and launches the
 // program according to the given parameters (via cobra.Command.Execute()).
 //
-// args is only used when unit testing tree construction and should be nil during actual use.
-func Execute(args []string) int {
+// Arguments are intended exclusively for testing purposes and should be nil for production use.
+func Execute(args []string, stdout, stderr io.Writer) int {
 	// spool up the logger
 	if args == nil {
 		clilog.InitializeFromArgs(os.Args)
@@ -298,6 +300,14 @@ func Execute(args []string) int {
 	rootCmd.PersistentPreRunE = ppre
 	rootCmd.PersistentPostRunE = ppost
 	rootCmd.Version = uniques.Version
+
+	// if we are testing, wire up outputs
+	if stdout != nil {
+		rootCmd.SetOut(stdout)
+	}
+	if stderr != nil {
+		rootCmd.SetErr(stderr)
+	}
 
 	// associate flags
 	uniques.AttachPersistentFlags(rootCmd)
@@ -349,6 +359,7 @@ func Execute(args []string) int {
 		self.NewSelfNav,
 		systemshealth.NewSystemsNav,
 		templates.NewNav,
+		tokens.NewNav,
 	}
 
 	var (
@@ -366,7 +377,7 @@ func Execute(args []string) int {
 	}
 
 	// override the help command to just call usage
-	rootCmd.SetHelpFunc(help)
+	rootCmd.SetHelpFunc(uniques.Help)
 	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
 		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
 		return nil
@@ -374,86 +385,9 @@ func Execute(args []string) int {
 
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Fprintln(rootCmd.ErrOrStderr(), err)
 		return 1
 	}
 
 	return 0
-}
-
-// Help generates the full help text for a command and prints it on c.Out.
-// The specific command's Usage and Example are displayed, if provided, along with all available flags.
-func help(c *cobra.Command, _ []string) {
-	var sb strings.Builder
-
-	// write the description block
-	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0) + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
-
-	// write usage line, if available
-	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
-	if usage := c.UsageString(); usage != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Usage", 0), usage)
-	}
-
-	// write aliases line, if available
-	if aliases := strings.Join(c.Aliases, ", "); aliases != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Aliases", 0), aliases)
-	}
-
-	// write example line, if available
-	// NOTE(rlandau): assumes example is in the form "<cmd.Name> <following example>"
-	if ex := strings.TrimSpace(c.Example); ex != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Example", 0), c.Example) // use the untrimmed version
-	}
-
-	// write local flags
-	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf)
-	}
-
-	// write global flags (except for the completion command)
-	if c.Name() != "completion" && (!c.HasParent() || (c.HasParent() && c.Parent().Name() != "completion")) {
-		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
-			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
-		}
-	}
-
-	// attach children
-
-	// split children by group
-	navs := make([]*cobra.Command, 0)
-	actions := make([]*cobra.Command, 0)
-	children := c.Commands()
-	for _, c := range children {
-		if c.Hidden {
-			continue
-		}
-		if c.GroupID == group.NavID {
-			navs = append(navs, c)
-		} else {
-			actions = append(actions, c)
-		}
-	}
-
-	// output navs as submenus
-	if len(navs) > 0 {
-		var s strings.Builder
-		for _, n := range navs {
-			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
-		}
-		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Submenus"), s.String())
-	}
-
-	// output actions
-	if len(actions) > 0 {
-		if len(navs) > 0 {
-			sb.WriteString("\n")
-		}
-		var s strings.Builder
-		for _, a := range actions {
-			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
-		}
-		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Actions"), s.String())
-	}
-
-	fmt.Fprint(c.OutOrStdout(), sb.String())
 }

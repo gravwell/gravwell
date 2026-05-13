@@ -30,6 +30,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -96,7 +98,7 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	}
 
 	if _, err := interactive.Run(); err != nil {
-		panic(err)
+		return fmt.Errorf("failed to spawn Mother: %w", err)
 	}
 	return interactive.ReleaseTerminal() // should be redundant
 }
@@ -180,13 +182,9 @@ func (m Mother) Init() tea.Cmd {
 // It checks for kill keys (to disallow a runaway/ill-designed child), then either passes off
 // control (if in handoff mode) or handles the input itself (if in prompt mode).
 func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// check kill states before bothering to process the message any further
 	if m.exiting {
 		return m, nil
-	}
-	if m.processOnStartup {
-		m.processOnStartup = false
-		m.dieOnChildDone = true
-		return m, processInput(&m)
 	}
 	switch killer.CheckKillKeys(msg) { // handle kill keys above all else
 	case killer.Global:
@@ -209,6 +207,18 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(tea.ExitAltScreen, textinput.Blink)
 	}
 
+	// always at least cache window size messages
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		// save off terminal dimensions
+		m.width = wsm.Width
+		m.height = wsm.Height
+		// update mother's prompt width
+		m.ti.Width = wsm.Width -
+			lipgloss.Width(m.pwd.CommandPath()) - // reserve space for prompt head
+			3 // include a padding
+	}
+
+	// if a child is running, check if they are done and allow them to retain control if not.
 	if m.mode == handoff { // a child is running
 		if clilog.Active(clilog.DEBUG) {
 			activeChildSanityCheck(m)
@@ -231,40 +241,41 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Sequence(tea.Println("Bye"), tea.Quit)
 	}
 
-	// normal handling
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		// save off terminal dimensions
-		m.width = msg.Width
-		m.height = msg.Height
-		// update mother's prompt width
-		m.ti.Width = msg.Width -
-			lipgloss.Width(m.pwd.CommandPath()) - // reserve space for prompt head
-			3 // include a padding
-	case tea.KeyMsg:
-		// NOTE kill keys are handled above
-		switch msg.Type {
-		case tea.KeyF1: // help
+	// check for first boot immediate processing
+	if m.processOnStartup {
+		m.processOnStartup = false
+		m.dieOnChildDone = true
+		return m, processInput(&m)
+	}
+
+	// handle special keys
+	if km, ok := msg.(tea.KeyMsg); ok {
+		// NOTE: kill keys are handled above
+		switch {
+		case km.Type == tea.KeyF1: // help
 			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		case tea.KeyUp: // history
+		case hotkeys.Match(msg, hotkeys.CursorUp): // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case tea.KeyDown: // history
+			return m, textinput.Blink
+		case hotkeys.Match(msg, hotkeys.CursorDown): // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		case tea.KeyEnter:
+			return m, textinput.Blink
+		case hotkeys.Match(km, hotkeys.Invoke):
 			m.history.unsetFetch()
 			return m, processInput(&m)
-		case tea.KeyCtrlL:
+		case km.Type == tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
-		case tea.KeyTab:
+		case hotkeys.Match(msg, hotkeys.Complete):
 			if m.ti.Value() == "" {
 				m.ti.SetValue("help")
 			}
-		case tea.KeyCtrlU:
+		case km.Type == tea.KeyCtrlU:
 			m.ti.SetValue("")
+			return m, textinput.Blink
 		}
 	}
 
@@ -575,9 +586,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 		// write .. and / if we are below root
 		if c.HasParent() {
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render(traverse.UpToken), "step up")
+				sigils.Indent, specialStyle.Render(traverse.UpToken), "step up")
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render(traverse.RootToken), "return to root")
+				sigils.Indent, specialStyle.Render(traverse.RootToken), "return to root")
 		}
 		children := c.Commands()
 		for _, child := range children {
@@ -602,9 +613,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 			}
 			// generate the output
 			trimmedSubChildren := strings.TrimSpace(subchildren.String())
-			s.WriteString(fmt.Sprintf("%s%s - %s\n", stylesheet.Indent, name, child.Short))
+			s.WriteString(fmt.Sprintf("%s%s - %s\n", sigils.Indent, name, child.Short))
 			if trimmedSubChildren != "" {
-				s.WriteString(stylesheet.Indent + stylesheet.Indent + trimmedSubChildren + "\n")
+				s.WriteString(sigils.Indent + sigils.Indent + trimmedSubChildren + "\n")
 			}
 		}
 	}

@@ -10,6 +10,7 @@
 package alertscreate
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -29,32 +30,28 @@ func Action() action.Pair {
 	cmd := treeutils.GenerateAction("create", "create a new alert",
 		"Create a new alert by defining the dispatchers that trigger it and the consumers that act when the alert is fired",
 		nil,
-		func(c *cobra.Command, s []string) {
+		func(c *cobra.Command, s []string) error {
 			availDispatchers, availConsumers, inv, err := prerequisites()
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			} else if inv != "" {
-				fmt.Fprintln(c.OutOrStdout(), inv)
-				return
+				return errors.New(inv)
 			}
 			flagVals, inv := readFlags(c.Flags())
 			if inv != "" {
-				fmt.Fprintln(c.OutOrStdout(), inv)
-				return
+				return errors.New(inv)
 			}
 			inv, ad := validateFlagValues(availConsumers, availDispatchers, flagVals)
 			if inv != "" {
-				fmt.Fprintln(c.ErrOrStderr(), inv)
-				return
+				return errors.New(inv)
 			}
 
 			res, err := connection.Client.CreateAlert(ad)
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), "failed to create alert: "+err.Error()+"\n")
-				return
+				return fmt.Errorf("failed to create alert: %w", err)
 			}
 			fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem("alert", res.ID))
+			return nil
 		},
 		treeutils.GenerateActionOptions{
 			Usage: ft.Mandatory("--name=NAME") + ft.Optional("FLAGS"),
@@ -106,13 +103,13 @@ func prerequisites() (availDispatchers map[string]types.ScheduledSearch, availCo
 func createFlagSet() *pflag.FlagSet {
 	fs := &pflag.FlagSet{}
 	// attach mandatory flags
-	ft.Name.Register(fs, "alert")
+	ft.Name.Register(fs, "", "alert")
 	// attach optional flags
 	fs.StringSlice("dispatchers", nil, "Comma-separated list of IDs of scheduled searches to use as dispatchers.\n"+
 		"Use `queries scheduled list` to view all available scheduled queries")
 	fs.StringSlice("consumers", nil, "Comma-separated list of IDs of flows to use as consumers.\n"+
 		"Use `flows list` to view all available flows")
-	ft.Description.Register(fs, "alert")
+	ft.Description.Register(fs, "", "alert")
 	fs.String("tag", "_alerts", "The tag to which alerts of this type will be ingested")
 	fs.Bool("enable", false, "Enable the new alert immediately")
 	fs.Int("max-events", 16, "Maximum number of events to process for a single alert.\n"+

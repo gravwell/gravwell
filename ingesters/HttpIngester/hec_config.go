@@ -223,8 +223,7 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 		hh := &hecHandler{
 			ackIds: map[string]uint64{},
 			hecHealth: hecHealth{
-				igst:  hnd.igst,
-				token: v.TokenValue,
+				igst: hnd.igst,
 			},
 			rawLineBreaker: v.Raw_Line_Breaker,
 			name:           k,
@@ -238,6 +237,7 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 		if hh.auth, err = newHecAuth(v, igst); err != nil {
 			return fmt.Errorf("HEC authentication error %w", err)
 		}
+		hh.hecHealth.auth = hh.auth // give the health handler access to the auth struct pointer too
 		hcfg := routeHandler{
 			handler:       hh.handle,
 			paramAttacher: getAttacher(v.Attach_URL_Parameter),
@@ -288,7 +288,10 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 		if err = hnd.addCustomHandler(http.MethodPost, path.Join(bp, `ack`), hh); err != nil {
 			return fmt.Errorf("failed to add HEC-Compatible-Listener ACK handler %w", err)
 		}
+		// add the health handler for a GET on the the base path plus health endoints
 		if err = hnd.addCustomHandler(http.MethodGet, path.Join(bp, `health`), &hh.hecHealth); err != nil {
+			return fmt.Errorf("failed to add HEC-Compatible-Listener ACK health handler %w", err)
+		} else if err = hnd.addCustomHandler(http.MethodGet, path.Join(bp, `health/1.0`), &hh.hecHealth); err != nil {
 			return fmt.Errorf("failed to add HEC-Compatible-Listener ACK health handler %w", err)
 		}
 		// add in the raw handler

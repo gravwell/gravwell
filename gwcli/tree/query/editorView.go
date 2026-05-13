@@ -17,6 +17,7 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,7 +35,7 @@ func initialEditorView(height, width uint) editorView {
 	// configure text area
 	ev.ta = textarea.New()
 	ev.ta.ShowLineNumbers = true
-	ev.ta.Prompt = stylesheet.TAPromptPrefix
+	ev.ta.Prompt = sigils.TAPromptPrefix
 	ev.ta.SetWidth(int(width))
 	ev.ta.SetHeight(int(height))
 	ev.ta.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")

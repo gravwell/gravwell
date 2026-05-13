@@ -131,6 +131,7 @@ func main() {
 			Logger:           ib.Logger,
 			MaxLineSize:      v.Max_Line_Size,
 			Region:           v.Region,
+			Endpoint:         v.Endpoint,
 			Queue:            v.Queue_URL,
 			Credentials_Type: v.Credentials_Type,
 			ID:               v.ID,

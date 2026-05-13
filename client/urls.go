@@ -81,7 +81,7 @@ const (
 	SEARCH_CTRL_GLOBAL_URL           = `/api/searchctrl/%s/global`
 	SEARCH_CTRL_SAVE_URL             = `/api/searchctrl/%s/save`
 	SEARCH_CTRL_STOP_URL             = `/api/searchctrl/%s/stop`
-	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download/%s`
+	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download`
 	SEARCH_CTRL_PING_URL             = `/api/searchctrl/%s/ping`
 	SEARCH_CTRL_DETACH_URL           = `/api/searchctrl/%s/detach`
 	SEARCH_CTRL_MODULES              = `/api/searchctrl/%s/modules`
@@ -171,9 +171,10 @@ const (
 	PIVOTS_URL                       = "/api/pivots"
 	PIVOTS_ID_URL                    = "/api/pivots/%s"
 	PIVOTS_ID_DETAILS_URL            = "/api/pivots/%s/details"
-	USER_FILES_URL                   = "/api/files"
-	USER_FILES_ID_URL                = "/api/files/%s"
-	USER_FILES_ID_DETAILS_URL        = "/api/files/%s/details"
+	FILES_URL                        = "/api/files"
+	FILES_LIST_URL                   = "/api/files/list"
+	FILES_ID_URL                     = "/api/files/%s"
+	FILES_ID_RAW_URL                 = "/api/files/%s/raw"
 	LIBRARY_URL                      = "/api/library"
 	LIBRARY_ID_URL                   = "/api/library/%s"
 	LIBRARY_LIST_URL                 = "/api/library/list"
@@ -188,6 +189,7 @@ const (
 	GROUP_TAG_ACCESS_URL             = `/api/groups/%d/tags`
 	USER_TAG_ACCESS_URL              = `/api/users/%d/tags`
 	PLAYBOOKS_URL                    = `/api/playbooks`
+	PLAYBOOKS_LIST_URL               = `/api/playbooks/list`
 	PLAYBOOKS_ID_URL                 = `/api/playbooks/%s`
 	BACKUP_URL                       = `/api/backup`
 	DEPLOYMENT_URL                   = `/api/deployment`
@@ -299,8 +301,8 @@ func searchCtrlSaveUrl(id string) string {
 	return fmt.Sprintf(SEARCH_CTRL_SAVE_URL, id)
 }
 
-func searchCtrlDownloadUrl(id, format string) string {
-	return fmt.Sprintf(SEARCH_CTRL_DOWNLOAD_URL, id, format)
+func searchCtrlDownloadUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_DOWNLOAD_URL, id)
 }
 
 func searchCtrlStopUrl(id string) string {
@@ -486,7 +488,7 @@ func macroUrl(id string) string {
 	return fmt.Sprintf(MACROS_ID_URL, id)
 }
 
-func playbookUrl(id uuid.UUID) string {
+func playbookUrl(id string) string {
 	return fmt.Sprintf(PLAYBOOKS_ID_URL, id)
 }
 
@@ -573,16 +575,16 @@ func pivotsGuidUrl(guid uuid.UUID) string {
 	return fmt.Sprintf(PIVOTS_ID_URL, guid)
 }
 
-func userFilesUrl() string {
-	return USER_FILES_URL
+func filesUrl() string {
+	return FILES_URL
 }
 
-func userFilesIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(USER_FILES_ID_URL, id)
+func filesIdUrl(id string) string {
+	return fmt.Sprintf(FILES_ID_URL, id)
 }
 
-func userFilesIdDetailsUrl(id uuid.UUID) string {
-	return fmt.Sprintf(USER_FILES_ID_DETAILS_URL, id)
+func filesIdRawUrl(id string) string {
+	return fmt.Sprintf(FILES_ID_RAW_URL, id)
 }
 
 func searchLibUrl() string {

@@ -84,8 +84,16 @@ func (c *Client) UpdateScheduledSearchResults(ss types.ScheduledSearch) error {
 
 // ScheduledSearchCheckin (admin-only) informs the webserver that the search agent is active and passes along info about what it is currently doing. The server may send back new jobs, or jobs to cancel, in the response.
 func (c *Client) ScheduledSearchCheckin(cfg types.SearchAgentCheckin) (types.SearchAgentCheckinResponse, error) {
+	cfg.Cfg.Search_Agent_Auth = ""
 	var resp types.SearchAgentCheckinResponse
 	err := c.postStaticURL(scheduledSearchCheckinUrl(), cfg, &resp)
+	return resp, err
+}
+
+// GetSearchAgentStatus returns information about searchagents which have checked in with Gravwell.
+func (c *Client) GetSearchAgentStatus() (types.SearchAgentStatus, error) {
+	var resp types.SearchAgentStatus
+	err := c.getStaticURL(scheduledSearchCheckinUrl(), &resp)
 	return resp, err
 }
 

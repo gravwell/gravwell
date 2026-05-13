@@ -74,6 +74,7 @@ This package also contains some wrapper functions for grav.Client calls where we
 package connection
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -209,13 +210,12 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			clilog.Writer.Warnf("failed to login via JWT: %v", err)
 			if errors.Is(err, ErrBadPermissions{}) {
 				fmt.Fprintf(os.Stderr, "Your login token has incorrect permissions and was ignored. Expected %[1]s(%[1]o)\n", jwtPermissions)
+			} else if errors.Is(err, types.ErrVersionMismatch{}) { // this is non-recoverable
+				return err
 			}
 			// failing to login via JWT is non-fatal in interactive mode
 			if noInteractive {
-				return errors.New("non-interactive mode requires one of the following login methods:\n" +
-					"1) explicit username and password (-u)\n" +
-					"2) an API token (--api/--eapi)\n" +
-					"3) or a valid session from a prior, successful login")
+				return ErrNonInteractiveRequiresDifferentLogin
 			}
 			if mfa, err := promptForMissingCredentials(username); err != nil {
 				return err
@@ -730,8 +730,7 @@ func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc
 	}
 	clilog.Writer.Infof("renderer '%s' -> '%s'", s.RenderMod, format)
 
-	// fetch and return results
-	rc, err = Client.DownloadSearch(s.ID, tr, format)
+	rc, err = Client.DownloadSearch(context.Background(), s.ID, tr, format)
 	return rc, format, err
 }
 

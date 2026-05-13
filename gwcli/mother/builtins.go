@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/spf13/cobra"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -63,7 +64,7 @@ func initBuiltins() {
 			stylesheet.Cur.ExampleText.Render("help ~ kits list") +
 			", " +
 			stylesheet.Cur.ExampleText.Render("help query"),
-		"history": "List previous commands. Navigate history via " + stylesheet.UpDownSigils,
+		"history": "List previous commands. Navigate history via " + sigils.UpDown,
 		"pwd":     "Current working directory (path)",
 		"quit":    "Kill the application",
 		"exit":    "Kill the application",

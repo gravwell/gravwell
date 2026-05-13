@@ -17,6 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -30,7 +31,7 @@ func Test_collect(t *testing.T) {
 	}{
 		{"TOTP", func(prog *tea.Program) {
 			prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
-			testsupport.TTSendSpecial(prog, tea.KeyEnter)
+			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
 		}, "u", types.AUTH_TYPE_TOTP, nil},
 		{"killed", func(prog *tea.Program) {
 			testsupport.TTSendSpecial(prog, tea.KeyCtrlC)
@@ -40,9 +41,9 @@ func Test_collect(t *testing.T) {
 			testsupport.TTSendSpecial(prog, tea.KeyEnter)
 		}, "123456", types.AUTH_TYPE_TOTP, nil},*/
 		{"recovery", func(prog *tea.Program) {
-			testsupport.TTSendSpecial(prog, tea.KeyTab)
+			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.CursorDown).Type)
 			testsupport.Type(prog, "some1 long2 recovery3 key!") // -> 123456
-			testsupport.TTSendSpecial(prog, tea.KeyEnter)
+			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
 		}, "some1 long2 recovery3 key!", types.AUTH_TYPE_RECOVERY, nil},
 	}
 

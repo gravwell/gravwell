@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
@@ -363,7 +364,7 @@ func printIfSet(indent bool, field string, value any, suffix string) string {
 	if !reflect.ValueOf(value).IsZero() {
 		var s = fmt.Sprintf(stylesheet.Cur.TertiaryText.Width(fieldWidth).Render(field)+": %v%s\n", value, suffix)
 		if indent {
-			s = stylesheet.Indent + s
+			s = sigils.Indent + s
 		}
 		return s
 	}

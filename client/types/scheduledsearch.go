@@ -392,6 +392,13 @@ type SearchAgentInfo struct {
 	ActiveJobs  []string // IDs of automations currently running on this search agent
 }
 
+// SearchAgentStatus returns what the webserver knows about searchagents.
+type SearchAgentStatus struct {
+	LastCheckin     time.Time
+	Warning         bool
+	SchedulerStatus SchedulerStatus
+}
+
 // SchedulerStatus reports information from automation job scheduler,
 // such as which search agents it has seen.
 type SchedulerStatus struct {

@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -53,15 +54,7 @@ func listAction() action.Pair {
 		func(fs *pflag.FlagSet) ([]types.User, error) {
 			resp, err := connection.Client.ListUsers(nil)
 			return resp.Results, err
-		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
-}
-
-// local wrapper struct to contain all data related to a single user
-type userDetails struct {
-	types.User
-	Admin struct { // details that will only be retrieved if the calling user is an admin
-		Capabilities []string
-	}
+		}, nil, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
 }
 
 func create() action.Pair {
@@ -70,48 +63,59 @@ func create() action.Pair {
 			"username": {
 				Required: true,
 				Title:    "Username",
-				Usage:    "unique username to assign",
-				Type:     scaffoldcreate.Text,
+				Flag:     scaffoldcreate.FlagConfig{Usage: "unique username to assign"},
+				Provider: &scaffoldcreate.TextProvider{},
 				Order:    200,
 			},
 			"name": {
 				Required: true,
 				Title:    "Name",
-				Usage:    "actual name of the user",
-				Type:     scaffoldcreate.Text,
+				Flag:     scaffoldcreate.FlagConfig{Usage: "actual name of the user"},
+				Provider: &scaffoldcreate.TextProvider{},
 				Order:    180,
 			},
 			"email": {
 				Required: true,
 				Title:    "Email",
-				Usage:    "email associated to this user",
-				Type:     scaffoldcreate.Text,
+				Flag:     scaffoldcreate.FlagConfig{Usage: "email associated to this user"},
+				Provider: &scaffoldcreate.TextProvider{},
 				Order:    160,
 			},
-			// TODO include admin bool
 			"password": {
 				Required: true,
 				Title:    "Password",
-				Usage:    "initial password for the user",
-				Type:     scaffoldcreate.Text,
-				Order:    140,
-				CustomTIFuncInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", false)
-					ti.EchoMode = textinput.EchoPassword
-					return ti
+				Flag:     scaffoldcreate.FlagConfig{Usage: "initial password for the user"},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("", false)
+						ti.EchoMode = textinput.EchoPassword
+						return ti
+					},
 				},
+				Order: 140,
+			},
+			"admin": {
+				Required: false,
+				Title:    "admin",
+				Provider: &scaffoldcreate.BoolProvider{},
+				Order:    120,
 			},
 		},
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			admin, err := strconv.ParseBool(fields["admin"].Provider.Get())
+			if err != nil {
+				clilog.Writer.Error("failed to parse bool provider", log.KVErr(err))
+				return 0, "", uniques.ErrGeneric
+			}
 			if _, err := connection.Client.CreateUser(
-				types.AddUser{Username: fieldValues["username"], Password: fieldValues["password"],
-					Name: fieldValues["name"], Email: fieldValues["email"],
-					Admin: false}, // TODO admin
+				types.AddUser{Username: fields["username"].Provider.Get(), Password: fields["password"].Provider.Get(),
+					Name: fields["name"].Provider.Get(), Email: fields["email"].Provider.Get(),
+					Admin: admin},
 			); err != nil {
 				return 0, "", err
 			}
 			// verify the user can be found
-			u, err := connection.Client.LookupUser(fieldValues["username"])
+			u, err := connection.Client.LookupUser(fields["username"].Provider.Get())
 			if err != nil {
 				return 0, "", fmt.Errorf("failed to find user after creation: %w\nThe user may or may not exist.", err)
 			}
@@ -230,7 +234,7 @@ func descriptionLine(admin bool, email string) string {
 
 // wrapper for types.Session to limit the information sessions returns.
 type session struct {
-	ID          uint64 `json:",omitempty"`
+	SessionID   uint64 `json:",omitempty"`
 	UID         int32  `json:",omitempty"`
 	Origin      net.IP
 	LastHit     string // timestamp
@@ -282,7 +286,7 @@ func sessionsAction() action.Pair {
 			var ss = make([]session, len(allSessions))
 			for i, rs := range allSessions {
 				ss[i] = session{
-					ID:          rs.ID,
+					SessionID:   rs.ID,
 					UID:         rs.UID,
 					Origin:      rs.Origin,
 					LastHit:     rs.LastHit.Local().Format(time.RFC3339),
@@ -293,6 +297,7 @@ func sessionsAction() action.Pair {
 
 			return ss, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
@@ -308,8 +313,7 @@ func sessionsAction() action.Pair {
 					return fs
 				},
 			},
-			DefaultColumns: []string{"ID", "Origin", "LastHit"},
-			ColumnAliases:  map[string]string{"ID": "SessionID"},
+			DefaultColumns: []string{"SessionID", "Origin", "LastHit"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// check for since override and set default if not
 				since = time.Time{} // ensure it is reset

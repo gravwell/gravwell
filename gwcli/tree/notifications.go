@@ -31,6 +31,7 @@ func notifications() action.Pair {
 			}
 			return slices.Collect(maps.Values(notifs)), nil
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "notifications",
@@ -41,7 +42,9 @@ func notifications() action.Pair {
 				},
 			},
 
-			DefaultColumns: []string{"Broadcast", "Msg"},
+			DefaultColumns: []string{
+				"Sender", "Msg", "Broadcast", "Level",
+			},
 		},
 	)
 }

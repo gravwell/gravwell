@@ -55,6 +55,7 @@ func newKitsListAction() action.Pair {
 
 			return connection.Client.ListKits()
 		},
+		nil,
 		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
 				"UUID",

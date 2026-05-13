@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
@@ -1986,6 +1987,43 @@ func TestStructFieldsAll(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("time handling", func(t *testing.T) {
+		now := time.Now()
+		st := struct {
+			Exported   time.Time
+			unexported time.Time
+			Normal     string
+		}{
+			now,
+			now,
+			"normal",
+		}
+
+		// time requires special handling as it is technically a struct with no exported fields
+		cols, err := StructFields(st, true)
+		if err != nil {
+			t.Error(err)
+		}
+		if len(cols) != 2 {
+			t.Errorf("expected 2 exported columns, got %d", len(cols))
+		}
+		// ensure time values get printed properly
+		out := ToCSV(
+			[]struct {
+				Exported   time.Time
+				unexported time.Time
+				Normal     string
+			}{st},
+			[]string{"Exported", "Normal"},
+			CSVOptions{},
+		)
+		wantOut := "Exported,Normal\n" +
+			now.String() + ",normal"
+		if out != wantOut {
+			t.Fatalf("expected \"%s\", got %s", wantOut, out)
+		}
+	})
 }
 
 func TestStructFieldsExported(t *testing.T) {

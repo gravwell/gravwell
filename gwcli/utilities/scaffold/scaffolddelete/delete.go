@@ -49,6 +49,7 @@ Implementations will probably look a lot like:
 package scaffolddelete
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -57,6 +58,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -116,41 +118,34 @@ func NewDeleteAction[I scaffold.Id_t](
 		"delete a "+singular,
 		"delete a "+singular+" by id or selection",
 		[]string{},
-		func(c *cobra.Command, s []string) {
+		func(c *cobra.Command, s []string) error {
 			// fetch values from flags
 			id, dryrun, err := fetchFlagValues[I](c.Flags())
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
+				return err
 			}
 
 			var zero I
 			if id == zero {
 				if noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
-					clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-					return
+					return err
 				} else if noInteractive {
-					fmt.Fprintln(c.ErrOrStderr(), "--id is required in no-interactive mode")
-					return
+					return errors.New("--id is required in no-interactive mode")
 				}
 				// spin up mother
-				if err := mother.Spawn(c.Root(), c, s); err != nil {
-					clilog.Tee(clilog.CRITICAL, c.ErrOrStderr(),
-						"failed to spawn a mother instance: "+err.Error())
-				}
-				return
+				return mother.Spawn(c.Root(), c, s)
 
 			}
 
 			if err := del(dryrun, id); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
+				return err
 			} else if dryrun {
 				fmt.Fprintf(c.OutOrStdout(), dryrunSuccessText+"\n", singular, id)
 			} else {
 				fmt.Fprintf(c.OutOrStdout(), deleteSuccessText+"\n",
 					singular, id)
 			}
+			return nil
 		}, treeutils.GenerateActionOptions{Usage: "--id=" + ft.Mandatory(singular+" id")})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
@@ -241,12 +236,11 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 		d.list.SetSize(d.width, d.height)
 		return nil
 	}
-	keyMsg, isKeyMsg := msg.(tea.KeyMsg)
 	var cmd tea.Cmd
 	// branch on current mode
 	switch d.mode {
 	case selecting:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter { // special handling for Enter key
+		if hotkeys.Match(msg, hotkeys.Invoke) { // special handling for Enter key
 			baseitm := d.list.Items()[d.list.Index()]
 			if itm, ok := baseitm.(Item[I]); !ok {
 				clilog.Writer.Warnf("failed to type assert %#v as an item", baseitm)
@@ -268,7 +262,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 
 		d.list, cmd = d.list.Update(msg)
 	case confirming:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter {
+		if hotkeys.Match(msg, hotkeys.Invoke) {
 			// check for confirmation (after cleaning up the input)
 			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
 				d.mode = quitting
@@ -371,7 +365,7 @@ func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 
 	// create list from the generated delegate
 	d.list = stylesheet.NewList(simpleitems, width, height, d.itemSingular, d.itemPlural)
-
+	hotkeys.ApplyToList(&d.list.KeyMap)
 	// flags and flagset
 	if err := d.flagset.Parse(tokens); err != nil {
 		return err.Error(), nil, nil

@@ -20,8 +20,6 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -138,13 +136,7 @@ func (m *Manifest) Add(item Item) error {
 }
 
 func (m *Manifest) checkFileItem(val string) (bool, error) {
-	//check that the argument is a UUID
-	if _, err := uuid.Parse(val); err != nil {
-		return false, err
-	}
-
-	//swing through the item list and ensure that we have an included file
-	//with the appropriate UUID (basically if you are declaring an icon, we better have that file)
+	//swing through the item list and ensure that we have an included file with the given name.
 	for _, v := range m.Items {
 		if v.Type != File {
 			continue
