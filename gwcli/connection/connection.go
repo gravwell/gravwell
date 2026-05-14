@@ -731,8 +731,7 @@ func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc
 	}
 	clilog.Writer.Infof("renderer '%s' -> '%s'", s.RenderMod, format)
 
-	// fetch and return results
-	rc, err = Client.DownloadSearch(s.ID, tr, format)
+	rc, err = Client.DownloadSearch(context.Background(), s.ID, tr, format)
 	return rc, format, err
 }
 
