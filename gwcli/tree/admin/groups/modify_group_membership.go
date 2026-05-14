@@ -35,10 +35,10 @@ const heightBuffer = 8
 type stage uint
 
 const (
-	stgUsers stage = iota
-	stgGroups
-	stgConfirmation
-	stgDone
+	stgUsers        stage = iota // select users
+	stgGroups                    // select groups
+	stgConfirmation              // confirm and submit changes
+	stgDone                      // job's done
 )
 
 type membershipChanges struct {
@@ -131,9 +131,10 @@ func modGroupUsers(use, short, long string, aliases []string, add bool) action.P
 func newMembershipChangesInteractive(add bool) *membershipChanges {
 	m := &membershipChanges{
 		confirm: confirmation.Model{},
+		add:     add,
 	}
 	m.Reset()
-	m.fs = membershipFlagset(add)
+	m.fs = membershipFlagset(m.add)
 	return m
 }
 
@@ -194,6 +195,7 @@ func (m *membershipChanges) SetArgs(parentFS *pflag.FlagSet, tokens []string, wi
 	m.users = multiselectlist.New(userItems, width, max(0, height-heightBuffer), multiselectlist.Options{})
 	m.users.SetShowStatusBar(true) // TODO set status message styling
 	m.users.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+	m.users.Title = "Users"
 
 	// build the group list
 	groupItems := make([]multiselectlist.SelectableItem[int32], len(glr.Results))
@@ -215,6 +217,7 @@ func (m *membershipChanges) SetArgs(parentFS *pflag.FlagSet, tokens []string, wi
 	m.groups = multiselectlist.New(groupItems, width, max(0, height-heightBuffer), multiselectlist.Options{})
 	m.groups.SetShowStatusBar(true) // TODO set status message styling
 	m.groups.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+	m.groups.Title = "Groups"
 
 	m.confirm.Init([]string{"user selection", "group selection"}, uint(width), uint(height))
 	return "", nil, nil
@@ -323,6 +326,8 @@ func (m *membershipChanges) Update(msg tea.Msg) tea.Cmd {
 			}
 			if successes == 0 {
 				resultCmds = append(resultCmds, tea.Println("All requested group changes failed"))
+			} else {
+				m.stage = stgDone
 			}
 			return tea.Batch(cmd, tea.Sequence(resultCmds...))
 		}
@@ -353,6 +358,13 @@ func (m *membershipChanges) Reset() error {
 	m.groups = multiselectlist.Model[int32]{}
 
 	m.stage = 0
+
+	m.selectedUIDs = nil
+	m.selectedGIDs = nil
+
+	m.confirm = confirmation.Model{}
+
+	// don't touch add!
 
 	return nil
 }
