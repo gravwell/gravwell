@@ -49,7 +49,7 @@ type gbl struct {
 
 type cfgReadType struct {
 	Global                         gbl
-	Attach                         attach.AttachConfig
+	Attach                         attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener                       map[string]*lst
 	HEC_Compatible_Listener        map[string]*hecCompatible
 	Amazon_Firehose_Listener       map[string]*afh
@@ -77,7 +77,7 @@ type lst struct {
 
 type cfgType struct {
 	gbl
-	Attach           attach.AttachConfig
+	Attach           attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener         map[string]*lst
 	HECListener      map[string]*hecCompatible
 	AFHListener      map[string]*afh
