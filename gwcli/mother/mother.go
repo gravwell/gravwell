@@ -98,7 +98,7 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	}
 
 	if _, err := interactive.Run(); err != nil {
-		panic(err)
+		return fmt.Errorf("failed to spawn Mother: %w", err)
 	}
 	return interactive.ReleaseTerminal() // should be redundant
 }

@@ -17,6 +17,7 @@ package tree
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime/pprof"
 	"strings"
@@ -258,8 +259,8 @@ func ppost(cmd *cobra.Command, args []string) error {
 // Execute adds all child commands to the root command, sets flags appropriately, and launches the
 // program according to the given parameters (via cobra.Command.Execute()).
 //
-// args is only used when unit testing tree construction and should be nil during actual use.
-func Execute(args []string) int {
+// Arguments are intended exclusively for testing purposes and should be nil for production use.
+func Execute(args []string, stdout, stderr io.Writer) int {
 	// spool up the logger
 	if args == nil {
 		clilog.InitializeFromArgs(os.Args)
@@ -299,6 +300,14 @@ func Execute(args []string) int {
 	rootCmd.PersistentPreRunE = ppre
 	rootCmd.PersistentPostRunE = ppost
 	rootCmd.Version = uniques.Version
+
+	// if we are testing, wire up outputs
+	if stdout != nil {
+		rootCmd.SetOut(stdout)
+	}
+	if stderr != nil {
+		rootCmd.SetErr(stderr)
+	}
 
 	// associate flags
 	uniques.AttachPersistentFlags(rootCmd)
@@ -376,6 +385,7 @@ func Execute(args []string) int {
 
 	err := rootCmd.Execute()
 	if err != nil {
+		fmt.Fprintln(rootCmd.ErrOrStderr(), err)
 		return 1
 	}
 

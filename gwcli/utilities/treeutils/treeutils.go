@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -34,7 +33,7 @@ func GenerateNav(use, short, long string, aliases []string,
 		Long:    long,
 		Aliases: aliases,
 		GroupID: group.NavID,
-		Run:     NavRun,
+		RunE:    NavRun,
 	}
 
 	cmd.SetUsageFunc(
@@ -51,12 +50,9 @@ func GenerateNav(use, short, long string, aliases []string,
 					}
 					kids[i] = stylesheet.ColorCommandName(c)
 				}
-
 				fmt.Fprintf(c.OutOrStdout(), "%s %s", c.Name(), ft.MutuallyExclusive(kids))
-
 			} else {
 				fmt.Fprintf(c.OutOrStdout(), "%s [subcommand]", c.Name())
-
 			}
 
 			return nil
@@ -98,14 +94,14 @@ type GenerateActionOptions struct {
 //
 // ! Does NOT add this action to the action map or add the Action to a parent.
 func GenerateAction(use, short, long string, aliases []string,
-	runFunc func(*cobra.Command, []string), options ...GenerateActionOptions) *cobra.Command {
+	runEFunc func(*cobra.Command, []string) error, options ...GenerateActionOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     use,
 		Short:   short,
 		Long:    long,
 		Aliases: aliases,
 		GroupID: group.ActionID,
-		Run:     runFunc,
+		RunE:    runEFunc,
 	}
 
 	// possibly overwritten by options
@@ -133,18 +129,15 @@ func GenerateAction(use, short, long string, aliases []string,
 
 // NavRun is the Run function for all Navs (nodes).
 // It checks for the --no-interactive flag and initializes Mother with the command as her pwd if script is unset.
-var NavRun = func(cmd *cobra.Command, args []string) {
+var NavRun = func(cmd *cobra.Command, args []string) error {
 	noInteractive, err := cmd.Flags().GetBool(ft.NoInteractive.Name())
 	if err != nil {
-		panic(err)
+		return err
 	}
 	if noInteractive {
 		cmd.Help()
-		return
+		return nil
 	}
 	// invoke mother
-	if err := mother.Spawn(cmd.Root(), cmd, []string{}); err != nil {
-		clilog.Tee(clilog.CRITICAL, cmd.ErrOrStderr(),
-			"failed to spawn a mother instance: "+err.Error())
-	}
+	return mother.Spawn(cmd.Root(), cmd, []string{})
 }
