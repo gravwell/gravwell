@@ -13,13 +13,17 @@ package admin
 import (
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/groups"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/license"
 	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
