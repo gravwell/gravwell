@@ -15,6 +15,7 @@ package mfaprompt
 // typically follows a cred prompt
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,7 +25,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -57,7 +57,7 @@ func collect(prog *tea.Program) (code string, at types.AuthType, err error) {
 		clilog.Writer.Criticalf("failed to cast credentials model")
 		return "", types.AUTH_TYPE_NONE, clilog.ErrInternal{}
 	} else if final.killed {
-		return "", types.AUTH_TYPE_NONE, uniques.ErrMustAuth
+		return "", types.AUTH_TYPE_NONE, errors.New("you must authenticate to use gwcli")
 	}
 
 	err = nil

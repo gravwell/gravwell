@@ -19,7 +19,6 @@ import (
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
 type output struct {
@@ -114,17 +113,17 @@ func Test_collect(t *testing.T) {
 		input        func(prog *tea.Program)
 		expectedUser string
 		expectedPass string
-		expectedErr  error
+		expectedErr  bool
 	}{
 		{"normal u/p", func(prog *tea.Program) {
 			prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
 			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
 			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
 
-		}, "u", "", nil},
+		}, "u", "", false},
 		{"killed", func(prog *tea.Program) {
 			testsupport.TTSendSpecial(prog, tea.KeyCtrlC)
-		}, "", "", uniques.ErrMustAuth},
+		}, "", "", true},
 	}
 
 	for _, tt := range tests {
@@ -160,8 +159,8 @@ func Test_collect(t *testing.T) {
 
 			// await results
 			r := <-result
-			if r.err != tt.expectedErr {
-				t.Error("Unexpected error:", testsupport.ExpectedActual(tt.expectedErr, r.err))
+			if (r.err != nil) != tt.expectedErr {
+				t.Errorf("Expected error? %v. Actual error: %v", tt.expectedErr, r.err)
 			} else if r.user != tt.expectedUser {
 				t.Error("Unexpected user:", testsupport.ExpectedActual(tt.expectedErr, r.err))
 			} else if r.pass != tt.expectedPass {

@@ -15,6 +15,7 @@ package credprompt
 // If MFA is required, this model will likely be followed up by the MFA prompt
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -22,7 +23,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -57,7 +57,7 @@ func collect(initialUser string, prog *tea.Program) (user, pass string, err erro
 		clilog.Writer.Criticalf("failed to cast credentials model")
 		return "", "", clilog.ErrInternal{}
 	} else if finalCredM.killed {
-		return "", "", uniques.ErrMustAuth
+		return "", "", errors.New("you must authenticate to use gwcli")
 	}
 	return finalCredM.UserTI.Value(), finalCredM.PassTI.Value(), nil
 }
