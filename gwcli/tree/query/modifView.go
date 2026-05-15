@@ -111,7 +111,7 @@ func initialModifView(height, width uint) modifView {
 
 // Walks through the options in modifSelection and passes keys to the currently selected one.
 // Returns true if the user selected the submit button.
-func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away from an array of Cmds.
+func (mv *modifView) update(msg tea.Msg) (tea.Cmd, bool) {
 
 	switch {
 	case hotkeys.Match(msg, hotkeys.CursorUp):
@@ -120,14 +120,14 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 			mv.selected = highBound - 1
 		}
 		mv.updateFocus()
-		return []tea.Cmd{textinput.Blink}, false
+		return textinput.Blink, false
 	case hotkeys.Match(msg, hotkeys.CursorDown):
 		mv.selected += 1
 		if mv.selected >= highBound {
 			mv.selected = lowBound + 1
 		}
 		mv.updateFocus()
-		return []tea.Cmd{textinput.Blink}, false
+		return textinput.Blink, false
 	case hotkeys.Match(msg, hotkeys.Select):
 		if mv.selected == background {
 			mv.background = !mv.background
@@ -142,7 +142,7 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 	mv.durationTI, cmds[0] = mv.durationTI.Update(msg)
 	mv.perpageTI, cmds[1] = mv.perpageTI.Update(msg)
 
-	return cmds, false
+	return tea.Batch(cmds...), false
 }
 
 func (mv *modifView) view() string {

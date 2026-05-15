@@ -356,7 +356,6 @@ func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 	// while Item[I] satisfies the list.Item interface, Go will not implicitly
 	// convert []Item[I] -> []list.Item
 	// remember to assert these items as Item[I] on use
-	// TODO do we hide this in here, at the cost of an extra n? Or move it out to ff?
 	simpleitems := make([]list.Item, len(itms))
 	for i := range itms {
 		simpleitems[i] = itms[i]
