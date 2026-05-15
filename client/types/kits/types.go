@@ -422,7 +422,12 @@ type PackedDashboard struct {
 	ID          string
 	Name        string
 	Description string
-	Data        types.DashboardContents
+	Grid        types.DashboardGrid
+	LinkZooming bool
+	LiveUpdate  types.DashboardLiveUpdateSettings
+	Searches    map[string]types.DashboardSearchable
+	Tiles       map[string]types.DashboardTile
+	Timeframe   types.DashboardTimeframe
 	Labels      []string
 }
 
@@ -431,10 +436,14 @@ func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
 	pd.ID = d.ID
 	pd.Name = d.Name
 	pd.Description = d.Description
-	pd.Data = d.Data
+	pd.Grid = d.Grid
+	pd.LinkZooming = d.LinkZooming
+	pd.LiveUpdate = d.LiveUpdate
+	pd.Searches = d.Searches
+	pd.Tiles = d.Tiles
+	pd.Timeframe = d.Timeframe
 	pd.Labels = d.Labels
 	return
-
 }
 
 // Validate checks the fields of the PackedDashboard.
