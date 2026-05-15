@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -224,34 +223,3 @@ func groups() action.Pair {
 			},
 		})
 }
-
-// handleSearchGroupSet handles the non-interactive --set path for searchGroup.
-func handleSearchGroupSet(c *cobra.Command, uid int32, setVal string) error {
-	setVal = strings.TrimSpace(setVal)
-	if setVal == "" || setVal == "none" {
-		if err := connection.Client.DeleteDefaultSearchGroups(uid); err != nil {
-			return err
-		}
-		fmt.Fprintln(c.OutOrStdout(), "search groups cleared")
-		return nil
-	}
-	var gids []int32
-	for _, s := range strings.Split(setVal, ",") {
-		s = strings.TrimSpace(s)
-		if s == "" {
-			continue
-		}
-		gid, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return fmt.Errorf("%s is not a valid group ID", s)
-		}
-		gids = append(gids, int32(gid))
-	}
-	if err := connection.Client.SetDefaultSearchGroups(uid, gids); err != nil {
-		return err
-	}
-	fmt.Fprintln(c.OutOrStdout(), "search groups updated")
-	return nil
-}
-
-// changePassword, searchGroup, and updateUser are defined in interactive.go

@@ -10,7 +10,7 @@ var (
 	ErrAPITokenRequired                     error = errors.New("MFA is enabled, API token is required")
 	ErrNotInitialized                       error = errors.New("client must be initialized")
 	ErrAPITokenInvalid                      error = errors.New("API key could not be validated")
-	ErrMFASetupRequired                     error = errors.New("MFA is required. Please log in via the browser to set it up.")
+	ErrMFASetupRequired                     error = errors.New("MFA is required. Please log in via the browser to set it up.") //lint:ignore ST1005 user-facing error
 	ErrInvalidCredentials                   error = errors.New("failed to authenticate with the given credentials")
 	ErrNonInteractiveRequiresDifferentLogin error = errors.New("non-interactive mode requires one of the following login methods:\n" +
 		"1) explicit username and password (-u)\n" +

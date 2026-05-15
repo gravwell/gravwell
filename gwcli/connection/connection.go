@@ -119,7 +119,7 @@ var refresherDone chan bool                         // true is sent when the con
 // restLogPath should be left empty outside of test packages.
 //
 // You probably want to call Login after a successful Initialize call.
-func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath string) (err error) {
+func Initialize(conn string, UseHTTPS, InsecureNoEnforceCerts bool, restLogPath string) (err error) {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 	if Client != nil {
@@ -144,7 +144,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 	if Client, err = grav.NewOpts(
 		grav.Opts{
 			Server:                 conn,
-			UseHttps:               UseHttps,
+			UseHttps:               UseHTTPS,
 			InsecureNoEnforceCerts: InsecureNoEnforceCerts,
 			ObjLogger:              l,
 		}); err != nil {
@@ -758,20 +758,20 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 	}
 
 	// header
-	decodedUrl, err := hex.DecodeString(exploded[0])
+	decodedURL, err := hex.DecodeString(exploded[0])
 	if err != nil {
 		return JWTHeader{}, JWTPayload{}, nil, err
 	}
-	if err := json.Unmarshal(decodedUrl, &header); err != nil {
+	if err := json.Unmarshal(decodedURL, &header); err != nil {
 		return JWTHeader{}, JWTPayload{}, nil, err
 	}
 
 	// payload
-	decodedUrl, err = hex.DecodeString(exploded[1])
+	decodedURL, err = hex.DecodeString(exploded[1])
 	if err != nil {
 		return header, JWTPayload{}, nil, err
 	}
-	if err := json.Unmarshal(decodedUrl, &payload); err != nil {
+	if err := json.Unmarshal(decodedURL, &payload); err != nil {
 		return header, JWTPayload{}, nil, err
 	}
 

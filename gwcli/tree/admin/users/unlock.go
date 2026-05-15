@@ -69,13 +69,37 @@ func unlockAction() action.Pair {
 
 // unlockModel is basically just a multiselect that calls UnlockUserAccount on each item selected.
 type unlockModel struct {
-	m    multiselectlist.Model[int32]
-	self bool
+	m multiselectlist.Model[int32]
 }
 
 // Init is unused. It just exists so we can feed unlockModel into teatest.
 func (c *unlockModel) Init() tea.Cmd {
 	return nil
+}
+
+func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
+	// unlock has no local flags
+
+	// stuff all locked users into the list.
+	users, err := connection.Client.ListUsers(nil)
+	if err != nil {
+		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
+		return "", nil, fmt.Errorf("failed to get the list of users")
+	}
+	var itms = make([]multiselectlist.SelectableItem[int32], 0, len(users.Results))
+	for _, user := range users.Results {
+		if user.Locked {
+			itms = append(itms, listitem.NewUserItem(user, false))
+		}
+	}
+	itms = slices.Clip(itms)
+	if len(itms) == 0 {
+		return "There are no locked users", nil, nil
+	}
+	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
+	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+	c.m.StatusMessageOnSelect = true
+	return "", nil, nil
 }
 
 func (c *unlockModel) Update(msg tea.Msg) (cmd tea.Cmd) {
@@ -105,29 +129,4 @@ func (c *unlockModel) Done() bool {
 func (c *unlockModel) Reset() error {
 	c.m = multiselectlist.Model[int32]{}
 	return nil
-}
-
-func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	// unlock has no local flags
-
-	// stuff all locked users into the list.
-	users, err := connection.Client.ListUsers(nil)
-	if err != nil {
-		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
-		return "", nil, fmt.Errorf("failed to get the list of users")
-	}
-	var itms = make([]multiselectlist.SelectableItem[int32], 0, len(users.Results))
-	for _, user := range users.Results {
-		if user.Locked {
-			itms = append(itms, listitem.NewUserItem(user, false))
-		}
-	}
-	itms = slices.Clip(itms)
-	if len(itms) == 0 {
-		return "There are no locked users", nil, nil
-	}
-	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
-	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
-	c.m.StatusMessageOnSelect = true
-	return "", nil, nil
 }
