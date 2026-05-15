@@ -1,6 +1,10 @@
 package connection
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"os"
+)
 
 var (
 	ErrAPITokenRequired                     error = errors.New("MFA is enabled, API token is required")
@@ -13,3 +17,17 @@ var (
 		"2) an API token (--api/--eapi)\n" +
 		"3) or a valid session from a prior, successful login")
 )
+
+type ErrBadPermissions struct {
+	Expected os.FileMode
+	Actual   os.FileMode
+}
+
+func (e ErrBadPermissions) Error() string {
+	return fmt.Sprintf("incorrect permissions. Should be %[1]s(%[1]o), got %[2]s(%[2]o)", e.Expected, e.Actual)
+}
+
+func (e ErrBadPermissions) Is(err error) bool {
+	_, ok := err.(ErrBadPermissions)
+	return ok
+}

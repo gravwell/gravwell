@@ -312,7 +312,7 @@ func TestLoginMFA_script_mode(t *testing.T) {
 	}{
 		{"(alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
 		{"(alt user) valid APIToken", args{altUser, "", altAPITkn, true}, nil},
-		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrAPITokenRequired},
+		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrNonInteractiveRequiresDifferentLogin},
 		{"(alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
 		{"(alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPITokenInvalid},
 	}
