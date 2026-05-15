@@ -3,7 +3,6 @@
 package flows
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -22,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -90,11 +90,8 @@ func importCreate() action.Pair {
 									continue
 								}
 								// check for numeric only
-								for _, r := range strGID {
-									if r >= 48 && r <= 57 { // 0-9 in ASCII
-										continue
-									}
-									return errors.New("group IDs may only contain numbers")
+								if err := validate.Numeric(strGID); err != nil {
+									return fmt.Errorf("Group ID: %w", err)
 								}
 								// check that the group exists
 								gid, err := strconv.ParseInt(strGID, 10, 32)
@@ -174,7 +171,7 @@ func download() action.Pair {
 			}
 			// check for output
 			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
-				clilog.LogFlagFailedGet(ft.Output.Name(), err)
+				clilog.GetFlag(err)
 			} else if outPath != "" {
 				out, err := os.Create(outPath)
 				if err != nil {

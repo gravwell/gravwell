@@ -84,11 +84,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	errMissingRequiredFlags string = "missing required flags %v"
-	createdSuccessfully     string = "Successfully created %v (ID: %v)."
-)
-
 // CreateFuncT defines the format of the subroutine that must be passed for creating data.
 // The function's return values must be:
 //
@@ -104,6 +99,8 @@ type CreateFuncT func(fields map[string]Field, fs *pflag.FlagSet) (id any, inval
 // what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
 //
 // Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
+//
+// On success, prints phrases.SuccessfullyCreatedItem().
 func NewCreateAction(singular string, fields map[string]Field, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
 	if singular == "" {
@@ -161,7 +158,7 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 				fmt.Fprintln(c.OutOrStdout(), inv)
 				return errors.New(inv)
 			} else {
-				fmt.Fprintf(c.OutOrStdout(), createdSuccessfully, singular, id)
+				fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem(singular, id))
 			}
 			return nil
 		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
@@ -321,7 +318,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		}
 		// done, die
 		c.mode = quitting
-		return tea.Println(fmt.Sprintf(createdSuccessfully, c.singular, id))
+		return tea.Println(phrases.SuccessfullyCreatedItem(c.singular, id))
 	}
 	if c.SubmitSelected() { // if submit is selected and it wasn't handled above, we don't care about it
 		return nil

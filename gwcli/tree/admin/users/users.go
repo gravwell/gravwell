@@ -1,5 +1,5 @@
-// Package admin_users provides actions related to users/accounts that require elevated permissions.
-package admin_users
+// Package users provides actions related to users/accounts that require elevated permissions.
+package users
 
 import (
 	"errors"
@@ -24,7 +24,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -105,7 +104,7 @@ func create() action.Pair {
 			admin, err := strconv.ParseBool(fields["admin"].Provider.Get())
 			if err != nil {
 				clilog.Writer.Error("failed to parse bool provider", log.KVErr(err))
-				return 0, "", uniques.ErrGeneric
+				return 0, "", clilog.ErrInternal{}
 			}
 			if _, err := connection.Client.CreateUser(
 				types.AddUser{Username: fields["username"].Provider.Get(), Password: fields["password"].Provider.Get(),
@@ -117,7 +116,7 @@ func create() action.Pair {
 			// verify the user can be found
 			u, err := connection.Client.LookupUser(fields["username"].Provider.Get())
 			if err != nil {
-				return 0, "", fmt.Errorf("failed to find user after creation: %w\nThe user may or may not exist.", err)
+				return 0, "", fmt.Errorf("failed to find user after creation: %w\nThe user may or may not exist", err)
 			}
 			return u.ID, "", nil
 		},
@@ -319,7 +318,7 @@ func sessionsAction() action.Pair {
 				since = time.Time{} // ensure it is reset
 				snc, err := fs.GetString("since")
 				if err != nil {
-					clilog.LogFlagFailedGet("since", err)
+					clilog.GetFlag(err)
 				}
 				if snc != "" {
 					// try to parse in our supported formats, breaking on the first one

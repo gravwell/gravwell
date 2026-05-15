@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -59,8 +59,7 @@ func admin() action.Pair {
 
 			// branch on toggle flag
 			if t, err := fs.GetBool("toggle"); err != nil {
-				clilog.LogFlagFailedGet("toggle", err)
-				return uniques.ErrGeneric.Error(), nil
+				clilog.GetFlag(err)
 			} else if t {
 				return toggle(isAdministrator)
 			}
@@ -180,7 +179,7 @@ func sessions() action.Pair {
 				since = time.Time{} // ensure it is reset
 				snc, err := fs.GetString("since")
 				if err != nil {
-					clilog.LogFlagFailedGet("since", err)
+					clilog.GetFlag(err)
 				}
 				if snc != "" {
 					// try to parse in our supported formats, breaking on the first one
@@ -225,3 +224,34 @@ func groups() action.Pair {
 			},
 		})
 }
+
+// handleSearchGroupSet handles the non-interactive --set path for searchGroup.
+func handleSearchGroupSet(c *cobra.Command, uid int32, setVal string) error {
+	setVal = strings.TrimSpace(setVal)
+	if setVal == "" || setVal == "none" {
+		if err := connection.Client.DeleteDefaultSearchGroups(uid); err != nil {
+			return err
+		}
+		fmt.Fprintln(c.OutOrStdout(), "search groups cleared")
+		return nil
+	}
+	var gids []int32
+	for _, s := range strings.Split(setVal, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		gid, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("%s is not a valid group ID", s)
+		}
+		gids = append(gids, int32(gid))
+	}
+	if err := connection.Client.SetDefaultSearchGroups(uid, gids); err != nil {
+		return err
+	}
+	fmt.Fprintln(c.OutOrStdout(), "search groups updated")
+	return nil
+}
+
+// changePassword, searchGroup, and updateUser are defined in interactive.go

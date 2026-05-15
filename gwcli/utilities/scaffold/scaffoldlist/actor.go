@@ -21,7 +21,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
@@ -134,7 +133,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	if err != nil {
 		// log and print the error
 		clilog.Writer.Error(err.Error())
-		return tea.Println(uniques.ErrGeneric.Error())
+		return tea.Println(err)
 	}
 
 	// if we received no data, note that (unless we are printing to a file, then do nothing)

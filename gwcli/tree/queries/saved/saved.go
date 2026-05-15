@@ -16,6 +16,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -25,7 +26,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -49,7 +49,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list your saved queries", "lists all saved queries associated to your user",
 		types.SavedQuery{}, func(fs *pflag.FlagSet) ([]types.SavedQuery, error) {
 			if all, err := fs.GetBool("all"); err != nil {
-				return nil, uniques.ErrGetFlag("saved list", err)
+				return nil, clilog.GetFlag(err)
 			} else if all {
 				r, err := connection.Client.ListAllSavedQueries(nil)
 				if err != nil {

@@ -25,7 +25,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
@@ -165,7 +164,7 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 
 	wells, err := fs.GetStringSlice("wells")
 	if err != nil {
-		return nil, uniques.ErrGetFlag("calendar", err)
+		return nil, clilog.GetFlag(err)
 	}
 
 	// if an indexer was specified, get stats for that specific indexer

@@ -50,7 +50,7 @@ func list() action.Pair {
 			// check for all
 			all, err := fs.GetBool(ft.GetAll.Name())
 			if err != nil {
-				clilog.LogFlagFailedGet(ft.GetAll.Name(), err)
+				clilog.GetFlag(err)
 			}
 
 			var flr types.FileListResponse
@@ -97,7 +97,7 @@ func download() action.Pair {
 
 			outPath, err := fs.GetString(ft.Output.Name())
 			if err != nil {
-				clilog.LogFlagFailedGet(ft.Output.Name(), err)
+				clilog.GetFlag(err)
 			}
 			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_id", Value: id})
 			b, err := connection.Client.GetFile(id)

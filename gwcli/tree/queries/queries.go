@@ -13,19 +13,22 @@ All query creation is done at the top-level query action.
 package queries
 
 import (
+	"fmt"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/attach"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/saved"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/scheduled"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -43,7 +46,12 @@ var aliases []string = []string{"searches"}
 func NewQueriesNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{scheduled.NewScheduledNav(), saved.NewSavedNav()},
-		[]action.Pair{past(), attach.NewAttachAction()})
+		[]action.Pair{
+			past(),
+			attach.NewAttachAction(),
+			listActive(),
+			deleteQuery(),
+		})
 }
 
 // #region past queries
@@ -60,8 +68,8 @@ func past() action.Pair {
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet) ([]types.SearchHistoryEntry, error) {
 			opts := &types.QueryOptions{}
-			if count, e := fs.GetInt("count"); e != nil {
-				return nil, uniques.ErrGetFlag(pastUse, e)
+			if count, err := fs.GetInt("count"); err != nil {
+				clilog.GetFlag(err)
 			} else if count > 0 {
 				opts.Limit = count
 			}
@@ -96,3 +104,52 @@ func flags() *pflag.FlagSet {
 }
 
 //#endregion past queries
+
+// listActive provides an interface for viewing active searches.
+func listActive() action.Pair {
+	return scaffoldlist.NewListAction("list active searches", "List currently active/recent searches on the system.",
+		types.SearchCtrlStatus{},
+		func(fs *pflag.FlagSet) ([]types.SearchCtrlStatus, error) {
+			all, err := fs.GetBool(ft.GetAll.Name())
+			if err != nil {
+				clilog.GetFlag(err)
+			}
+			if all {
+				return connection.Client.ListAllSearchStatuses()
+			}
+			return connection.Client.ListSearchStatuses()
+		},
+		nil,
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "active",
+				Aliases: []string{"list-searches"},
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.GetAll.Register(fs, true, "active queries")
+					return fs
+				},
+			},
+			DefaultColumns: []string{"ID", "EffectiveQuery", "State"},
+		})
+}
+
+func deleteQuery() action.Pair {
+	return scaffold.NewBasicAction("delete", "delete an active search",
+		"Delete an active search by its ID.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			sid := fs.Arg(0)
+			if err := connection.Client.DeleteSearch(sid); err != nil {
+				return err.Error(), nil
+			}
+			return fmt.Sprintf("successfully deleted search %s", sid), nil
+		},
+		scaffold.BasicOptions{
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("search ID"), nil
+				}
+				return "", nil
+			},
+		})
+}

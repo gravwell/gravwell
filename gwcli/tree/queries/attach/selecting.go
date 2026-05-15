@@ -44,7 +44,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
 const (
@@ -171,8 +170,7 @@ func (sv *selectingView) view() string {
 	var details string
 	a, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
-		clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem())
-		sv.errString = uniques.ErrGeneric.Error()
+		sv.errString = clilog.TypeAssert(sv.list.SelectedItem(), attachable{}).Error()
 	} else {
 		details = composeDetails(a)
 	}
@@ -231,8 +229,7 @@ func (i attachable) FilterValue() string {
 func (sv *selectingView) attachToQuery() (fatalErr error) {
 	itm, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
-		clilog.Writer.Criticalf("failed to assert list item back to attachable. Raw item: %#v", sv.list.SelectedItem())
-		return uniques.ErrGeneric
+		return clilog.TypeAssert(sv.list.SelectedItem(), attachable{})
 	}
 
 	s, err := connection.Client.AttachSearch(itm.ID)

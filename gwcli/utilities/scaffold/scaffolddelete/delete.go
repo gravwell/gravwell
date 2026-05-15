@@ -79,9 +79,9 @@ type deleteFunc[I scaffold.Id_t] func(dryrun bool, id I) error
 // It must return an array of a struct that implements the Item interface.
 type fetchFunc[I scaffold.Id_t] func() ([]Item[I], error)
 
-// text to display when deletion is skipped due to error
+var errAbstainDelete string = clilog.ErrInternal{}.Error() + ".\nAbstained from deletion."
+
 const (
-	errorNoDeleteText = "An error occurred: %v.\nAbstained from deletion."
 	dryrunSuccessText = "DRYRUN: %v (ID %v) would have been deleted"
 	deleteSuccessText = "%v (ID %v) deleted"
 )
@@ -243,8 +243,8 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 		if hotkeys.Match(msg, hotkeys.Invoke) { // special handling for Enter key
 			baseitm := d.list.Items()[d.list.Index()]
 			if itm, ok := baseitm.(Item[I]); !ok {
-				clilog.Writer.Warnf("failed to type assert %#v as an item", baseitm)
-				return tea.Printf(errorNoDeleteText+"\n", "failed type assertion")
+				clilog.TypeAssert(baseitm, Item[I]{})
+				return tea.Println(errAbstainDelete)
 			} else {
 				d.selectedItem = itm
 			}
@@ -267,7 +267,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
 				d.mode = quitting
 				if err := d.df(d.dryrun, d.selectedItem.id); err != nil {
-					return tea.Printf(errorNoDeleteText+"\n", err)
+					return tea.Printf(errAbstainDelete+"\n", err)
 				}
 				return tea.Printf(deleteSuccessText,
 					d.itemSingular, d.selectedItem.id)
@@ -294,8 +294,7 @@ func (d *deleteModel[I]) View() string {
 			return "Not deleting any " + d.itemPlural + "..."
 		}
 		if searchitm, ok := itm.(Item[I]); !ok {
-			clilog.Writer.Warnf("Failed to type assert selected %v", itm)
-			return "An error has occurred. Exitting..."
+			return clilog.TypeAssert(itm, Item[I]{}).Error()
 		} else {
 			return fmt.Sprintf("Deleting %v...\n", searchitm.Description())
 		}
