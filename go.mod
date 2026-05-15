@@ -58,6 +58,7 @@ require (
 	github.com/open2b/scriggo v0.56.1
 	github.com/pquerna/otp v1.5.0
 	github.com/rivo/tview v0.0.0-20240118093911-742cf086196e
+	github.com/robfig/cron v1.2.0
 	github.com/shirou/gopsutil v2.20.9+incompatible
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
@@ -146,7 +147,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/robfig/cron/v3 v3.0.0 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
