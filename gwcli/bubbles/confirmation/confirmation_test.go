@@ -11,8 +11,8 @@ package confirmation_test
 import (
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/confirmation"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/stretchr/testify/assert"
 )
