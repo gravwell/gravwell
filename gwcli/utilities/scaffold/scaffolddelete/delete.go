@@ -267,7 +267,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
 				d.mode = quitting
 				if err := d.df(d.dryrun, d.selectedItem.id); err != nil {
-					return tea.Printf(errAbstainDelete+"\n", err)
+					return tea.Println(err, "\n", errAbstainDelete)
 				}
 				return tea.Printf(deleteSuccessText,
 					d.itemSingular, d.selectedItem.id)

@@ -57,8 +57,8 @@ func InteractivityNYI() tea.Cmd {
 // Example: "mail configuration", "" -> "successfully created mail configuration".
 func SuccessfullyCreatedItem(itemSingular string, ID any) string {
 	str := "successfully created " + itemSingular
-	if ID == "" {
-		str += fmt.Sprintf(" (ID: %d)", ID)
+	if ID != nil && ID != "" {
+		str += fmt.Sprintf(" (ID: %v)", ID)
 	}
 	return str
 }
