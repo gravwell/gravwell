@@ -22,9 +22,8 @@ import (
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
 	"github.com/spf13/pflag"
@@ -33,6 +32,12 @@ import (
 //#region errors
 
 var ErrEmptyPath error = errors.New("path cannot be empty")
+
+type ErrInternal struct{}
+
+func (ErrInternal) Error() string {
+	return "an internal error occurred; please submit an issue and include " + cfgdir.DefaultStdLogPath
+}
 
 //#endregion errors
 
@@ -125,7 +130,7 @@ func Init(path string, lvlString string) error {
 	Writer.SetHostname(".") // autopopulates if empty
 
 	// error check the first call
-	if err := Writer.Infof("--- Logger initialized at %v level, hostname %v ---", Writer.GetLevel(), Writer.Hostname()); err != nil {
+	if err := Writer.Infof("\n\n--- Logger initialized at %v level ---", Writer.GetLevel()); err != nil {
 		Writer.Close()
 		return err
 	}
@@ -176,21 +181,16 @@ func Active(lvl Level) bool {
 	return Writer.GetLevel() <= log.Level(lvl)
 }
 
-// LogFlagFailedGet logs the non-fatal failure to fetch named flag from flagset.
-// Used to keep flag handling errors uniform.
-func LogFlagFailedGet(flagname string, err error) {
-	if Writer == nil {
-		return
+// GetFlag logs a warning that we failed to get an expected flag out of a flagset.
+//
+// This error is almost certainly developer error.
+//
+// Returns ErrInternal, which the caller may return if this failure is fatal.
+// It is safe to ignore the return value.
+func GetFlag(err error) ErrInternal {
+	if Writer != nil {
+		// TODO test call depth
+		Writer.Warn("flag-get failure", log.KV("parent", log.CallLoc(1)), log.KVErr(err))
 	}
-	Writer.Warnf("failed to fetch '--%v':%v\nignoring", flagname, err)
-}
-
-var dbgMsgSty = lipgloss.NewStyle().Italic(true)
-
-// LogMsg is a helper method for consistently displaying messages (at the debug level).
-func LogMsg(str string, msg tea.Msg) {
-	if Writer == nil {
-		return
-	}
-	Writer.Debugf("%s\n\t"+dbgMsgSty.Render("%#v"), str, msg)
+	return ErrInternal{}
 }
