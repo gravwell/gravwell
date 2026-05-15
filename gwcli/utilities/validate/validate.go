@@ -25,7 +25,7 @@ func Numeric(s string) (err error) {
 	s = strings.TrimSpace(s)
 	for _, r := range s {
 		if !unicode.IsDigit(r) {
-			return fmt.Errorf("'%q' is not a valid numeral", r)
+			return fmt.Errorf("%q is not a valid numeral", r)
 		}
 	}
 	return nil
