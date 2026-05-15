@@ -121,9 +121,8 @@ func TestOptions(t *testing.T) {
 		testName string
 		args     []string
 		setArgs  struct {
-			wantInvalid string
-			wantCmd     bool // true iff a cmd should be returned, false if cmd should == nil
-			wantErr     bool // early exists if an err is returned
+			wantInvalid bool
+			wantErr     bool
 		}
 		updates []tea.Msg // remember to hit enter if you want things populated
 
@@ -135,10 +134,9 @@ func TestOptions(t *testing.T) {
 		{"set all fields and addtl flags from args",
 			[]string{"--name=nm", "--path=/tmp", "--custom", fmt.Sprint(1), "--testbool"},
 			struct {
-				wantInvalid string
-				wantCmd     bool
+				wantInvalid bool
 				wantErr     bool
-			}{"", false, false},
+			}{false, false},
 			[]tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)},
 			"nm", "/tmp", 1, true,
 		},
@@ -150,23 +148,25 @@ func TestOptions(t *testing.T) {
 		t.Run(tt.testName, func(t *testing.T) {
 			rootFS := pflag.FlagSet{}
 			{ // set args
-				invalid, cmd, err := act.Model.SetArgs(&rootFS, tt.args, 50, 30)
-				if invalid != tt.setArgs.wantInvalid {
-					t.Error("setArgs: incorrect invalid", testsupport.ExpectedActual(tt.setArgs.wantInvalid, invalid))
-				}
-				if tt.setArgs.wantCmd && (cmd == nil) {
-					t.Error("setArgs: expected cmd but cmd is nil")
-				} else if !tt.setArgs.wantCmd && (cmd != nil) {
-					t.Error("setArgs: expected nil cmd but cmd is not nil")
-				}
-				if tt.setArgs.wantErr && (err == nil) {
-					t.Error("setArgs: expected error but err is nil")
-				} else if !tt.setArgs.wantErr && (err != nil) {
-					t.Error("setArgs: expected nil error but err is not nil")
-				}
-				if err != nil {
-					return
-				}
+				testsupport.CheckSetArgs(t, act.Model.SetArgs, &rootFS, tt.args, 50, 30,
+					tt.setArgs.wantInvalid, nil, tt.setArgs.wantErr)
+				/*				invalid, cmd, err := act.Model.SetArgs(, tt.args, 50, 30)
+								if invalid != tt.setArgs.wantInvalid {
+									t.Error("setArgs: incorrect invalid", testsupport.ExpectedActual(tt.setArgs.wantInvalid, invalid))
+								}
+								if tt.setArgs.wantCmd && (cmd == nil) {
+									t.Error("setArgs: expected cmd but cmd is nil")
+								} else if !tt.setArgs.wantCmd && (cmd != nil) {
+									t.Error("setArgs: expected nil cmd but cmd is not nil")
+								}
+								if tt.setArgs.wantErr && (err == nil) {
+									t.Error("setArgs: expected error but err is nil")
+								} else if !tt.setArgs.wantErr && (err != nil) {
+									t.Error("setArgs: expected nil error but err is not nil")
+								}
+								if err != nil {
+									return
+								}*/
 			}
 			{ // update
 				for _, upd := range tt.updates {

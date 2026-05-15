@@ -26,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -170,7 +171,7 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 		s, err := connection.Client.AttachSearch(sid)
 		if err != nil {
 			if errors.Is(err, grav.ErrNotFound) {
-				return querysupport.ErrUnknownSID(sid).Error(), nil, nil
+				return phrases.ErrUnknownSID(sid).Error(), nil, nil
 			} else {
 				return "", nil, err
 			}
