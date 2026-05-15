@@ -181,6 +181,8 @@ func Active(lvl Level) bool {
 	return Writer.GetLevel() <= log.Level(lvl)
 }
 
+//#region helpers
+
 // GetFlag logs a warning that we failed to get an expected flag out of a flagset.
 //
 // This error is almost certainly developer error.
@@ -192,5 +194,21 @@ func GetFlag(err error) ErrInternal {
 		// TODO test call depth
 		Writer.Warn("flag-get failure", log.KV("parent", log.CallLoc(1)), log.KVErr(err))
 	}
+	return ErrInternal{}
+}
+
+// TypeAssert logs an error that an assertion failed.
+// Most commonly used when asserting list.Item to a local, enriched type.
+//
+// Returns ErrInternal, which the caller may return if this failure is fatal.
+// It is safe to ignore the return value.
+func TypeAssert(baseItem any, targetType any) ErrInternal {
+	if Writer != nil {
+		Writer.Critical("type assert failure",
+			log.KV("parent", log.CallLoc(1)),
+			log.KV("base item", baseItem),
+			log.KV("target item", targetType))
+	}
+
 	return ErrInternal{}
 }
