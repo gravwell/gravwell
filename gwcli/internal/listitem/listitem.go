@@ -16,7 +16,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/gravwell/gravwell/v4/client/types"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 )
 
 //#region User
