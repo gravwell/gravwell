@@ -406,6 +406,10 @@ func (p *MSLProvider) ToggleFocus(_ bool) {
 type BoolProvider struct {
 	initial bool // starter value to be .Reset() to
 	state   bool
+
+	// Used to hook SetArgs for custom alterations at each action invocation.
+	// Useful for pre-populating.
+	CustomSetArgs func() bool
 }
 
 // Initialize sets value to BooleanProvider.Initial.
@@ -420,8 +424,12 @@ func (p *BoolProvider) Initialize(def string, _ bool) {
 // Reset returns value to .Initial
 func (p *BoolProvider) Reset() { p.state = p.initial }
 
-// SetArgs has no effect.
-func (p *BoolProvider) SetArgs(_, _ int) {}
+// SetArgs only calls the custom set args, if given.
+func (p *BoolProvider) SetArgs(_, _ int) {
+	if p.CustomSetArgs != nil {
+		p.state = p.CustomSetArgs()
+	}
+}
 
 func (p *BoolProvider) Update(selected bool, msg tea.Msg) (_ tea.Cmd, takeover bool) {
 	if selected && hotkeys.Match(msg, hotkeys.Select) {
