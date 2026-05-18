@@ -137,6 +137,8 @@ func NewList(items []list.Item, width, height int, singular, plural string) list
 	l.SetStatusBarItemName(singular, plural)
 	l.SetShowTitle(false)
 
+	l.StatusMessageLifetime = StatusMessageLifetime
+
 	return l
 }
 
