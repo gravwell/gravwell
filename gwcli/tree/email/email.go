@@ -168,8 +168,10 @@ func configure() action.Pair {
 					Name:  "tls",
 					Usage: "Enable TLS encryption for this connection?",
 				},
-				Order:    120,
-				Provider: &scaffoldcreate.BoolProvider{},
+				Order: 120,
+				Provider: &scaffoldcreate.BoolProvider{CustomSetArgs: func() bool {
+					return getCurEmailCfg().UseTLS
+				}},
 			},
 			"verifyCerts": {
 				Title: "Verify TLS Certs?",
@@ -177,8 +179,10 @@ func configure() action.Pair {
 					Name:  "verify-certificate",
 					Usage: "Verify TLS certificates for this connection?",
 				},
-				Order:    100,
-				Provider: &scaffoldcreate.BoolProvider{},
+				Order: 100,
+				Provider: &scaffoldcreate.BoolProvider{CustomSetArgs: func() bool {
+					return !getCurEmailCfg().InsecureSkipVerify
+				}},
 			},
 		},
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
