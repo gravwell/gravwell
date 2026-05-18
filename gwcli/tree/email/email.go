@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/email/send"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -40,6 +41,7 @@ func NewNav() *cobra.Command {
 			show(),
 			configure(),
 			deleteConfig(),
+			send.NewPair(),
 		})
 }
 
@@ -157,7 +159,10 @@ func configure() action.Pair {
 						return ti
 					},
 					CustomSetArgs: func(m textinput.Model) textinput.Model {
-						m.SetValue(strconv.FormatInt(int64(getCurEmailCfg().Port), 10))
+						cur := getCurEmailCfg()
+						if cur.Server != "" {
+							m.SetValue(strconv.FormatInt(int64(cur.Port), 10))
+						}
 						return m
 					},
 				},
@@ -181,7 +186,9 @@ func configure() action.Pair {
 				},
 				Order: 100,
 				Provider: &scaffoldcreate.BoolProvider{CustomSetArgs: func() bool {
-					return !getCurEmailCfg().InsecureSkipVerify
+					cur := getCurEmailCfg()
+					// only bother to set if a configuration exists at all
+					return cur.Server != "" && !cur.InsecureSkipVerify
 				}},
 			},
 		},
@@ -226,7 +233,6 @@ func configure() action.Pair {
 				tls,
 				!verifyCerts,
 			)
-			// TODO where/when does validation occur if we call this non-interactively?
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
