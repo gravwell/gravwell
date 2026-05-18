@@ -57,6 +57,9 @@ func show() action.Pair {
 				if err != nil {
 					return "", err
 				}
+				if mc.Server == "" {
+					return "you do not have a mail server configured", nil
+				}
 				return fmt.Sprintf("Server: %s\nPort: %d\nUsername: %s\nUseTLS: %v\nInsecureSkipVerify: %v",
 					mc.Server, mc.Port, mc.Username, mc.UseTLS, mc.InsecureSkipVerify), nil
 			},
