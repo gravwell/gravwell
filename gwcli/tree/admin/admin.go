@@ -291,6 +291,7 @@ func backup() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
+				Usage: fmt.Sprintf("backup %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Bool("include-scheduled-searches", false, "include scheduled searches in the backup")
@@ -324,6 +325,9 @@ func restore() action.Pair {
 			return fmt.Sprintf("successfully restored from %s", path), nil
 		},
 		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: fmt.Sprintf("restore %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
+			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("backup file path"), nil
