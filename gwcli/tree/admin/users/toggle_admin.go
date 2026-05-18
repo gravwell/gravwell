@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
@@ -52,6 +52,9 @@ func toggleAdmin() action.Pair {
 			// non-interactive path
 			uc, err := connection.Client.GetUser(uid)
 			if err != nil {
+				if strings.Contains(err.Error(), "no such user") {
+					return errors.New("Unknown user ID: " + strconv.FormatInt(int64(uid), 10))
+				}
 				return err
 			}
 
@@ -116,6 +119,11 @@ func toggleAdminGetFlags(fs *pflag.FlagSet) (uid int32, grant, revoke bool, err 
 		clilog.GetFlag(err)
 		return
 	}
+
+	if grant && revoke {
+		return uid, grant, revoke, errors.New("grant and revoke are mutually exclusive")
+	}
+
 	return
 }
 
@@ -146,7 +154,7 @@ func (c *toggleAdminModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, hei
 	if uid != 0 { // if UID was given, we can skip directly to setting
 		u, err := connection.Client.GetUser(uid)
 		if err != nil {
-			if errors.Is(err, client.ErrNotFound) { // TODO I don't think this works; we probably need an Is404Error()
+			if strings.Contains(err.Error(), "no such user") {
 				return "Unknown user ID: " + strconv.FormatInt(int64(uid), 10), nil, nil
 			}
 			return "", nil, err
