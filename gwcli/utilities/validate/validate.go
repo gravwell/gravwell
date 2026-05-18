@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/mail"
 	"strconv"
 	"strings"
 	"unicode"
@@ -54,5 +55,11 @@ func CronRuneValidator(s string) error {
 	}
 
 	_, err := cron.Parse(s)
+	return err
+}
+
+// Email returns an error if the given string does not parse as a valid email address.
+func Email(s string) error {
+	_, err := mail.ParseAddress(s)
 	return err
 }
