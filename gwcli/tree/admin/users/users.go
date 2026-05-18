@@ -45,6 +45,8 @@ func NewNav() *cobra.Command {
 			lockAction(),
 			unlockAction(),
 			sessionsAction(),
+			changePassword(),
+			toggleAdmin(),
 		})
 }
 
@@ -367,5 +369,3 @@ func sessionsAction() action.Pair {
 		},
 	)
 }
-
-//#endregion sessions
