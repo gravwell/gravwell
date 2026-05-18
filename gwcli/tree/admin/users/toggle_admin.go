@@ -135,7 +135,10 @@ type toggleAdminModel struct {
 
 	grant, revoke bool
 
-	uList   list.Model
+	uList list.Model
+
+	selectedUser types.User
+
 	confirm confirmation.Model
 
 	done bool
@@ -194,10 +197,24 @@ func (c *toggleAdminModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 		// check for a selection
 		if hotkeys.Match(msg, hotkeys.Invoke, hotkeys.Select) {
 			c.selecting = false // move to confirming
-		} else {
-			c.uList, cmd = c.uList.Update(msg)
-		}
+			var err error
+			if c.selectedUser, err = listitem.GetUser(&c.uList); err != nil {
+				c.done = true // bail out
+				return tea.Println(err)
+			}
+			a, b := "", ""
+			if c.grant || !c.selectedUser.Admin {
+				a = "Granting"
+				b = "to"
+			} else if c.revoke || c.selectedUser.Admin {
+				a = "Revoking"
+				b = "from"
+			}
+			c.confirm.HeaderLines = []string{a + " admin status", b + " " + c.selectedUser.Username}
 
+			return nil
+		}
+		c.uList, cmd = c.uList.Update(msg)
 		return cmd
 	}
 	// we are in confirmation mode
@@ -224,11 +241,7 @@ func (c *toggleAdminModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 	}
 
 	// submit
-	u, err := listitem.GetUser(&c.uList)
-	if err != nil {
-		return tea.Println(err)
-	}
-	success, err := setAdmin(u, c.grant, c.revoke)
+	success, err := setAdmin(c.selectedUser, c.grant, c.revoke)
 	c.done = true
 	if err != nil {
 		return tea.Println(err)
@@ -249,10 +262,16 @@ func (c *toggleAdminModel) Done() bool {
 
 func (c *toggleAdminModel) Reset() error {
 	c.selecting = true
+
 	c.grant = false
 	c.revoke = false
+
 	c.uList = list.Model{}
+
+	c.selectedUser = types.User{}
+
 	c.confirm = confirmation.Model{}
+
 	c.done = false
 	return nil
 }
