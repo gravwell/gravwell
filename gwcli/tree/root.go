@@ -382,6 +382,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
 		return nil
 	})
+	rootCmd.SilenceErrors = true // we will print errors ourself
 
 	err := rootCmd.Execute()
 	if err != nil {
