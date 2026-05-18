@@ -26,7 +26,7 @@ type DashboardLiveUpdateSettings struct {
 }
 
 // DashboardTimeframe represents a timeframe: a relative or absolute period of time.
-// Kind determines the variant: "range" uses Start and End (datemath strings),
+// Kind determines the variant: "range" uses Start and End (RFC3339 or datemath strings),
 // "preview" uses only Kind.
 type DashboardTimeframe struct {
 	Kind  string
