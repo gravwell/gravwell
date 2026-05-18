@@ -135,7 +135,9 @@ type toggleAdminModel struct {
 
 func (c *toggleAdminModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
 	fs := toggleAdminFlagSet()
-
+	if err := fs.Parse(tokens); err != nil {
+		return "", nil, err
+	}
 	uid, grant, revoke, err := toggleAdminGetFlags(fs)
 	if err != nil {
 		return "", nil, err
