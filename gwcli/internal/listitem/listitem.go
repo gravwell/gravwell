@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 )
 
 //#region User
@@ -80,6 +81,15 @@ func (li User) Selected() bool {
 	return li.Selected_
 }
 
+// GetUser asserts that the currently selected item
+func GetUser(l *list.Model) (types.User, error) {
+	u, ok := l.SelectedItem().(*User)
+	if !ok {
+		return types.User{}, clilog.TypeAssert(l.SelectedItem(), &User{})
+	}
+	return u.U, nil
+}
+
 //#region Group
 
 type Group struct {
@@ -128,4 +138,20 @@ func (li *Group) SetSelected(selected bool) {
 
 func (li Group) Selected() bool {
 	return li.Selected_
+}
+
+// GetGroup returns the currently selected group from a given list.
+//
+// Returns ErrInternal and logs the error if something goes wrong.
+func GetGroup(l *list.Model) (types.Group, error) {
+	itm := l.SelectedItem()
+	if itm == nil {
+		clilog.Writer.Error("selected item is nil")
+		return types.Group{}, clilog.ErrInternal{}
+	}
+	g, ok := itm.(*Group)
+	if !ok {
+		return types.Group{}, clilog.TypeAssert(l.SelectedItem(), &Group{})
+	}
+	return g.G, nil
 }
