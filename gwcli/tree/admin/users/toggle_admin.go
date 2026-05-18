@@ -108,6 +108,8 @@ func toggleAdminGetFlags(fs *pflag.FlagSet) (uid int32, grant, revoke bool, err 
 	if err != nil {
 		clilog.GetFlag(err)
 		return
+	} else if uid == connection.CurrentUser().ID {
+		return uid, false, false, errors.New("you cannot set your own admin status")
 	}
 	grant, err = fs.GetBool("grant")
 	if err != nil {
@@ -177,6 +179,9 @@ func (c *toggleAdminModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, hei
 	}
 	var itms = make([]list.Item, 0, len(users.Results))
 	for _, user := range users.Results {
+		if user.ID == connection.CurrentUser().ID {
+			continue
+		}
 		itms = append(itms, listitem.NewUserItem(user, false))
 	}
 	itms = slices.Clip(itms)
