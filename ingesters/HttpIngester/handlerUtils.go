@@ -47,6 +47,12 @@ func (h *handler) loadConfig(cfg *cfgType) error {
 	if err := includeAFHListeners(h, h.igst, cfg, h.lgr); err != nil {
 		return fmt.Errorf("failed to include Amazon Firehose Listeners %w", err)
 	}
+	if err := includeOtelMetricsListeners(h, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include OpenTelemetry Listeners %w", err)
+	}
+	if err := includeOtelLogsListeners(h, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include OpenTelemetry Logs Listeners %w", err)
+	}
 	if err := h.igst.SetRawConfiguration(cfg); err != nil {
 		return fmt.Errorf("failed to set raw configuration %w", err)
 	}
@@ -89,6 +95,12 @@ func (h *handler) hotReload(cfg *cfgType) error {
 	}
 	if err := includeAFHListeners(tempHandler, h.igst, cfg, h.lgr); err != nil {
 		return fmt.Errorf("failed to include Amazon Firehose Listeners %w", err)
+	}
+	if err := includeOtelMetricsListeners(tempHandler, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include OpenTelemetry Listeners %w", err)
+	}
+	if err := includeOtelLogsListeners(tempHandler, h.igst, cfg); err != nil {
+		return fmt.Errorf("failed to include OpenTelemetry Logs Listeners %w", err)
 	}
 
 	// we got a good reload, lock and swap
