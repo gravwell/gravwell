@@ -213,9 +213,11 @@ func configure() action.Pair {
 				cur.Server == fields["server"].Provider.Get() &&
 				cur.Port == int(port) &&
 				cur.UseTLS == tls && cur.InsecureSkipVerify == !verifyCerts {
+				clilog.Writer.Info("no changes made")
 				return nil, "", nil
 			}
 
+			clilog.Writer.Info("updating email configuration...")
 			return nil, "", connection.Client.ConfigureMail(
 				fields["user"].Provider.Get(),
 				fields["pass"].Provider.Get(),
