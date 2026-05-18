@@ -12,11 +12,14 @@ package email
 import (
 	"fmt"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -24,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -66,6 +70,31 @@ func show() action.Pair {
 		})
 }
 
+const cacheStale = 3 * time.Second
+
+// Used to hit the backend only once to cache fields.
+// Set by the first field called during SetArgs
+var (
+	curEmailCfg     types.UserMailConfig
+	curEmailCfgTime time.Time
+	curEmailMu      sync.Mutex
+)
+
+// fetches the current user's mail configuration from the backend iff it is stale.
+func getCurEmailCfg() types.UserMailConfig {
+	curEmailMu.Lock()
+	defer curEmailMu.Unlock()
+	if time.Since(curEmailCfgTime) > cacheStale { // re-cache
+		curEmailCfgTime = time.Now()
+		var err error
+		curEmailCfg, err = connection.Client.MailConfig()
+		if err != nil {
+			clilog.Writer.Warn("failed to cache mail config", log.KVErr(err))
+		}
+	}
+	return curEmailCfg
+}
+
 func configure() action.Pair {
 	return scaffoldcreate.NewCreateAction("configuration",
 		map[string]scaffoldcreate.Field{
@@ -74,10 +103,15 @@ func configure() action.Pair {
 				Required: true,
 				Flag: scaffoldcreate.FlagConfig{
 					Name:  "email-server",
-					Usage: "the host connection string to reach the mail server", // TODO
+					Usage: "the host connection string to reach the mail server",
 				},
-				Order:    200,
-				Provider: &scaffoldcreate.TextProvider{},
+				Order: 200,
+				Provider: &scaffoldcreate.TextProvider{
+					CustomSetArgs: func(m textinput.Model) textinput.Model {
+						m.SetValue(getCurEmailCfg().Server)
+						return m
+					},
+				},
 			},
 			"user": {
 				Title:    "Username",
@@ -86,8 +120,13 @@ func configure() action.Pair {
 					Name:  "email-username",
 					Usage: "the username to authenticate with the email server as",
 				},
-				Order:    180,
-				Provider: &scaffoldcreate.TextProvider{},
+				Order: 180,
+				Provider: &scaffoldcreate.TextProvider{
+					CustomSetArgs: func(m textinput.Model) textinput.Model {
+						m.SetValue(getCurEmailCfg().Username)
+						return m
+					},
+				},
 			},
 			"pass": scaffoldcreate.FieldPassword(
 				false,
@@ -116,6 +155,10 @@ func configure() action.Pair {
 							return nil
 						}
 						return ti
+					},
+					CustomSetArgs: func(m textinput.Model) textinput.Model {
+						m.SetValue(strconv.FormatInt(int64(getCurEmailCfg().Port), 10))
+						return m
 					},
 				},
 			},
@@ -158,7 +201,18 @@ func configure() action.Pair {
 				verifyCerts = b
 			}
 
-			return 0, "", connection.Client.ConfigureMail(
+			// to prevent clobbering the password, do not make an update if everything is the same and password is empty
+			if cur, err := connection.Client.MailConfig(); err != nil {
+				return nil, "", fmt.Errorf("failed to check current mail configurationL: %w", err)
+			} else if cur.Username == fields["user"].Provider.Get() &&
+				cur.Password == "" &&
+				cur.Server == fields["server"].Provider.Get() &&
+				cur.Port == int(port) &&
+				cur.UseTLS == tls && cur.InsecureSkipVerify == !verifyCerts {
+				return nil, "", nil
+			}
+
+			return nil, "", connection.Client.ConfigureMail(
 				fields["user"].Provider.Get(),
 				fields["pass"].Provider.Get(),
 				fields["server"].Provider.Get(),
@@ -168,9 +222,9 @@ func configure() action.Pair {
 			)
 			// TODO where/when does validation occur if we call this non-interactively?
 		},
-		// TODO prepop fields with default values
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
+				Use:     "configure",
 				Aliases: []string{"add", "create", "update"},
 			},
 			Short: "configure email settings",
