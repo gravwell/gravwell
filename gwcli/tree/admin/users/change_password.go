@@ -164,11 +164,14 @@ func (m *changePasswordModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, 
 	}
 	var itms = make([]list.Item, 0, len(users.Results))
 	for _, user := range users.Results {
+		if user.ID == connection.CurrentUser().ID {
+			continue
+		}
 		itms = append(itms, listitem.NewUserItem(user, false))
 	}
 	itms = slices.Clip(itms)
-	if len(itms) == 0 {
-		return "there are no users", nil, nil
+	if len(itms) == 0 { // TODO ensure we have self change-password set
+		return "there are no other users. If you want to change your own password, use " + stylesheet.Cur.Action.Render("~ self change-password"), nil, nil
 	}
 
 	m.users = stylesheet.NewList(itms, width, height, "user", "users")
