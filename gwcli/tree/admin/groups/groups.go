@@ -34,13 +34,7 @@ import (
 )
 
 func NewNav() *cobra.Command {
-	const (
-		use   string = "groups"
-		short string = "manage groups"
-		long  string = "View and edit groups"
-	)
-
-	return treeutils.GenerateNav(use, short, long, []string{"group"},
+	return treeutils.GenerateNav("groups", "manage groups", "View and interact with groups and group membership.", []string{"group"},
 		nil,
 		[]action.Pair{
 			listGroups(),
@@ -61,14 +55,16 @@ func NewNav() *cobra.Command {
 
 // lists all groups the current user is able to see
 func listGroups() action.Pair {
-	return scaffoldlist.NewListAction("list groups", "Retrieves a list of groups available on the system",
+	return scaffoldlist.NewListAction("list groups", "Retrieves the list of groups available on the system",
 		types.Group{},
 		func(fs *pflag.FlagSet) ([]types.Group, error) {
 			resp, err := connection.Client.ListGroups(nil)
 			return resp.Results, err
 		},
 		nil,
-		scaffoldlist.Options{})
+		scaffoldlist.Options{
+			DefaultColumns: []string{"ID", "Name", "Description"},
+		})
 }
 
 func create() action.Pair {
@@ -83,7 +79,7 @@ func create() action.Pair {
 				Name:        fields["name"].Provider.Get(),
 				Description: fields["desc"].Provider.Get(),
 			})
-			return result.Name, "", err
+			return result.ID, "", err
 		}, scaffoldcreate.Options{})
 }
 
