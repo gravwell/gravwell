@@ -14,11 +14,13 @@ package groups
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -162,7 +164,12 @@ func listUsers() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{Use: "users"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "users",
+				Usage: "users " + ft.MutuallyExclusive([]string{"--csv", "--json", "--table"}) +
+					" " + ft.Optional("flags") + " " + ft.Mandatory("group ID"),
+				Example: "users 2",
+			},
 			DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				listUsersGID = 0 // ensure it is wiped
@@ -174,6 +181,14 @@ func listUsers() action.Pair {
 					return fs.Arg(0) + " is not a valid group ID", nil
 				}
 				listUsersGID = int32(gid)
+				// test that the GID points to a valid group
+				if _, err := connection.Client.GetGroup(int32(gid)); err != nil {
+					// GetGroup's NotFound equivalent is "sql: no rows in result set"
+					if strings.Contains(err.Error(), "sql: no rows in result set") {
+						return fmt.Sprintf("%d is not a known group ID", gid), nil
+					}
+					return "", err
+				}
 				return "", nil
 			},
 		})
