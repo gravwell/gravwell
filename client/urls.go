@@ -50,7 +50,6 @@ const (
 	USERS_INFO_URL                   = `/api/users/%d`
 	USERS_LOCK_URL                   = `/api/users/%d/lock`
 	USERS_LOCKED_URL                 = `/api/users/%d/locked`
-	USERS_DASHBOARD_URL              = `/api/users/%d/dashboards`
 	USERS_PREFS_URL                  = `/api/users/%d/preferences`
 	USERS_ADMIN_URL                  = `/api/users/%d/admin`
 	USERS_ADMIN_SU_PATH              = `/api/users/su/%d`
@@ -66,7 +65,6 @@ const (
 	API_VERSION_URL                  = `/api/version`
 	GROUP_ID_URL                     = `/api/groups/%d`
 	GROUP_MEMBERS_URL                = `/api/groups/%d/members`
-	GROUP_DASHBOARD_URL              = `/api/groups/%d/dashboards`
 	GROUP_URL                        = `/api/groups`
 	GROUP_LIST_URL                   = `/api/groups/list`
 	SEARCH_PARS_URL                  = `/api/parse`
@@ -102,10 +100,9 @@ const (
 	LOGGING_PATH_URL                 = `/api/logging`
 	TEST_URL                         = `/api/test`
 	TEST_AUTH_URL                    = `/api/testauth`
-	DASHBOARD_URL                    = `/api/dashboards/%v`
-	DASHBOARD_MY_URL                 = `/api/dashboards`
-	DASHBOARD_ALL_URL                = `/api/dashboards/all`
-	DASHBOARD_CLONE_URL              = `/api/dashboards/%d/clone`
+	DASHBOARD_ID_URL                 = `/api/dashboards/%v`
+	DASHBOARDS_URL                   = `/api/dashboards`
+	DASHBOARDS_LIST_URL              = `/api/dashboards/list`
 	MACROS_URL                       = `/api/macros`
 	MACROS_LIST_URL                  = `/api/macros/list`
 	MACROS_ID_URL                    = `/api/macros/%s`
@@ -277,36 +274,8 @@ func groupMembersUrl(gid int32) string {
 	return fmt.Sprintf(GROUP_MEMBERS_URL, gid)
 }
 
-func dashboardUrl(id uint64) string {
-	return fmt.Sprintf(DASHBOARD_URL, id)
-}
-
-func dashboardUrlString(id string) string {
-	return fmt.Sprintf(DASHBOARD_URL, id)
-}
-
-func cloneDashboardUrl(id uint64) string {
-	return fmt.Sprintf(DASHBOARD_CLONE_URL, id)
-}
-
-func userDashboardUrl(id int32) string {
-	return fmt.Sprintf(USERS_DASHBOARD_URL, id)
-}
-
-func groupDashboardUrl(id int32) string {
-	return fmt.Sprintf(GROUP_DASHBOARD_URL, id)
-}
-
-func allDashboardUrl() string {
-	return DASHBOARD_ALL_URL
-}
-
-func addDashboardUrl() string {
-	return DASHBOARD_MY_URL
-}
-
-func myDashboardUrl() string {
-	return DASHBOARD_MY_URL
+func dashboardIdUrl(id string) string {
+	return fmt.Sprintf(DASHBOARD_ID_URL, id)
 }
 
 func usersUrl() string {

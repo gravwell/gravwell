@@ -22,7 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -60,7 +60,7 @@ func initScheduleTab(cronfreq, name, desc string) scheduleTab {
 
 	// set TI-specific options
 	sch.cronfreqTI.Placeholder = "* * * * *"
-	sch.cronfreqTI.Validate = uniques.CronRuneValidator
+	sch.cronfreqTI.Validate = validate.CronRuneValidator
 
 	// focus frequency by default
 	sch.cronfreqTI.SetValue(cronfreq)

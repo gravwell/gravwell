@@ -58,6 +58,7 @@ require (
 	github.com/open2b/scriggo v0.56.1
 	github.com/pquerna/otp v1.5.0
 	github.com/rivo/tview v0.0.0-20240118093911-742cf086196e
+	github.com/robfig/cron v1.2.0
 	github.com/shirou/gopsutil v2.20.9+incompatible
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9

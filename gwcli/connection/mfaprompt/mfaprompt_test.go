@@ -18,7 +18,6 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
 func Test_collect(t *testing.T) {
@@ -27,15 +26,15 @@ func Test_collect(t *testing.T) {
 		input            func(prog *tea.Program)
 		expectedCode     string // TOTP or recovery
 		expectedAuthType types.AuthType
-		expectedErr      error
+		expectedErr      bool
 	}{
 		{"TOTP", func(prog *tea.Program) {
 			prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
 			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
-		}, "u", types.AUTH_TYPE_TOTP, nil},
+		}, "u", types.AUTH_TYPE_TOTP, false},
 		{"killed", func(prog *tea.Program) {
 			testsupport.TTSendSpecial(prog, tea.KeyCtrlC)
-		}, "", types.AUTH_TYPE_NONE, uniques.ErrMustAuth},
+		}, "", types.AUTH_TYPE_NONE, true},
 		/*{"code validator", func(prog *tea.Program) {
 			testsupport.Type(prog, "1a2b3c4d5e6f7g") // -> 123456
 			testsupport.TTSendSpecial(prog, tea.KeyEnter)
@@ -44,7 +43,7 @@ func Test_collect(t *testing.T) {
 			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.CursorDown).Type)
 			testsupport.Type(prog, "some1 long2 recovery3 key!") // -> 123456
 			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
-		}, "some1 long2 recovery3 key!", types.AUTH_TYPE_RECOVERY, nil},
+		}, "some1 long2 recovery3 key!", types.AUTH_TYPE_RECOVERY, false},
 	}
 
 	for _, tt := range tests {
@@ -80,7 +79,7 @@ func Test_collect(t *testing.T) {
 
 			// await results
 			r := <-result
-			if r.err != tt.expectedErr {
+			if (r.err != nil) != tt.expectedErr {
 				t.Error("Unexpected error:", testsupport.ExpectedActual(tt.expectedErr, r.err))
 			} else if r.at != tt.expectedAuthType {
 				t.Error("Unexpected auth type:", testsupport.ExpectedActual(tt.expectedAuthType, r.at))

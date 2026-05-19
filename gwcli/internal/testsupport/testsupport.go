@@ -25,6 +25,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/pflag"
 )
 
@@ -346,4 +348,58 @@ var keyByName = map[string]tea.KeyType{
 	"f18":              tea.KeyF18,
 	"f19":              tea.KeyF19,
 	"f20":              tea.KeyF20,
+}
+
+// MetaArgs assists tests in calling tree.Execute by generating the meta arguments common to most test Execute calls.
+func MetaArgs(t *testing.T, allowInteractive bool, opts ...func(t *testing.T) []string) (metaArgs []string) {
+	meta := []string{}
+	if !allowInteractive {
+		meta = append(meta, "--"+ft.NoInteractive.Name())
+	}
+	for _, opt := range opts {
+		meta = append(meta, opt(t)...)
+	}
+	t.Log("meta args: ", meta)
+	return meta
+}
+
+// WithUsernamePassword includes -u and sets the given password into the test environment.
+func WithUsernamePassword(u, p string) func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		t.Setenv(cfgdir.EnvKeyPassword, p)
+		return []string{"-u", u}
+	}
+}
+
+// WithServer includes --server=host:port in the meta args.
+//
+// If secure, --insecure will not be appended.
+//
+// If override is empty, testsupport.Server will be used.
+func WithServer(secure bool, override string) func(t *testing.T) []string {
+	server := override
+	if server == "" {
+		server = Server()
+	}
+	var sec string
+	if !secure {
+		sec = "--insecure"
+	}
+	return func(t *testing.T) []string {
+		a := []string{"--server=" + server}
+		if sec != "" {
+			a = append(a, sec)
+		}
+		return a
+	}
+}
+
+// WithDefaults sets WithUsernamePassword as the default admin credentials and WithServer as insecure relying on testsupport.Server()
+func WithDefaults() func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		return append(
+			WithUsernamePassword("admin", "changeme")(t),
+			WithServer(false, "")(t)...,
+		)
+	}
 }

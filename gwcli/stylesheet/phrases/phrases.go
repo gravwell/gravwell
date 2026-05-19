@@ -50,9 +50,17 @@ func InteractivityNYI() tea.Cmd {
 
 // SuccessfullyCreatedItem states that an item of type itemSingular was created and can be identified with ID.
 //
-// Example: "alert", 1 -> "successfully created alert (ID: 1)".
-func SuccessfullyCreatedItem(itemSingular string, ID string) string {
-	return "successfully created " + itemSingular + " (ID: " + ID + ")"
+// If ID is empty, it will be omitted.
+//
+// Example: "alert", "1" -> "successfully created alert (ID: 1)".
+//
+// Example: "mail configuration", "" -> "successfully created mail configuration".
+func SuccessfullyCreatedItem(itemSingular string, ID any) string {
+	str := "successfully created " + itemSingular
+	if ID != nil && ID != "" {
+		str += fmt.Sprintf(" (ID: %v)", ID)
+	}
+	return str
 }
 
 // NounNumerosity is basically a ternary shorthand for picking singular or plural based on if count==1.

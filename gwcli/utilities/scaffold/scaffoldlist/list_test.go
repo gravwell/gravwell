@@ -192,7 +192,7 @@ func TestMotherCycle(t *testing.T) {
 				Pretty:                         func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil },
 				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{regexp.MustCompile("Plant")},
 			},
-			[]string{"--json"}, // TODO
+			[]string{"--json"},
 			false, false,
 			`[` +
 				`{"Export":{"YV":{"YungCuz":"yung cuz"}},"Robot":[1,2,3],"Rogue":{"Real":0,"Imaginary":3.14}},` +

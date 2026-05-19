@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+//lint:file-ignore U1000 unused color codes are reserved for future use
+
 package stylesheet
 
 import "github.com/charmbracelet/lipgloss"
@@ -26,8 +28,8 @@ const (
 	bittersweet    = lipgloss.Color("#FF595E")
 
 	tropicalIndigo  = lipgloss.Color("#9c7af7")
-	lavender_floral = lipgloss.Color("#bb7af7")
-	violet_web      = lipgloss.Color("#f77af4")
+	lavenderFloral  = lipgloss.Color("#bb7af7")
+	violetWeb       = lipgloss.Color("#f77af4")
 	atomicTangerine = lipgloss.Color("#f79c7a")
 	aquamarine      = lipgloss.Color("#AEFFD8")
 )

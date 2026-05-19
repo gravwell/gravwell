@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -29,7 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -81,13 +82,13 @@ func flags() *pflag.FlagSet {
 
 func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
 	if all, err := fs.GetBool("all"); err != nil {
-		uniques.ErrGetFlag("scheduled list", err)
+		clilog.GetFlag(err)
 	} else if all {
 		list, err := connection.Client.ListAllScheduledSearches(nil)
 		return list.Results, err
 	}
 	if id, err := fs.GetString("id"); err != nil {
-		uniques.ErrGetFlag("scheduled list", err)
+		clilog.GetFlag(err)
 	} else if id != "" {
 		ss, err := connection.Client.GetScheduledSearch(id)
 		return []types.ScheduledSearch{ss}, err
@@ -138,7 +139,7 @@ func create() action.Pair {
 				CustomInit: func() textinput.Model {
 					ti := stylesheet.NewTI("", false)
 					ti.Placeholder = "* * * * *"
-					ti.Validate = uniques.CronRuneValidator
+					ti.Validate = validate.CronRuneValidator
 					return ti
 				},
 			},
@@ -250,7 +251,7 @@ func edit() action.Pair {
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
 				ti.Placeholder = "* * * * *"
-				ti.Validate = uniques.CronRuneValidator
+				ti.Validate = validate.CronRuneValidator
 				return ti
 			},
 		},
@@ -311,3 +312,5 @@ func edit() action.Pair {
 }
 
 //#endregion edit
+
+// cancelAction, backfillToggle, setOffset, and clearResults are defined in interactive.go

@@ -1,32 +1,26 @@
 # gwcli
 
-A redesigned Gravwell client for the terminal, supporting both TUI-served interactivity and non-interactive script calls. 
+A redesigned Gravwell client. Powerful enough to include in scripts, friendly enough to use interactively.
 
 ![demo](demo.gif)
 
 # Features
 
-- easy to use interactively and safe to use in scripts! Call it bare to get a fancy TUI or pass the `--no-interactive` flag to indicate that the program should never wait for user input or confirmation.
+- Call it bare to get a fancy TUI or pass the `--no-interactive` flag to indicate that the program should never wait for user input or confirmation.
 
 - interactive query editor with dynamic (paged and scrollable) viewport for interacting with results
 
 - download datasets and query results in a variety of formats (JSON, CSV, raw, or fancy table)
 
-- shell-style navigation
-
-- `tree` command to view entire structure
-
-- command history
+- shell-style navigation with a custom suggestion/tab completion engine
 
 - context-aware help for every command and builtin action
 
-- variety of login options: username/password (with optional MFA), auto-login via token, script-friendly authentication via API key
+- per-session command history
+
+- variety of login options: username/password (with optional MFA), auto-login via token, script-friendly authentication via API key, and even sessions
 
 - completions for zsh, fish, bash, and powershell
-
-- tab completion in interactive mode
-
-- custom suggestion engine to make interactive mode as accessible as possible
 
 - pluggable framework for easily adding new capabilities (complete with genericized boilerplate and generator functions)
 
@@ -46,9 +40,9 @@ Attach `-h` to any command for full details on flags and subcommands.
 
 ## Login
 
-In interactive mode, gwcli will attempt to use an existing token and will prompt you for any missing credentials (username, password, TOTP).
+In interactive mode, gwcli will attempt to use an existing session token and will prompt you for any missing credentials (username, password, TOTP).
 
-If you are in no-interactive mode, you should use an API Token (see [Kris' blog post](https://www.gravwell.io/blog/the-basics-of-gravwell-api-access-tokens)). If your account is *not* MFA-enabled, you can also log on with `-u`/`-p` or `-u`/`--password`.
+If you are in no-interactive mode, you should use an API Token (see [Kris' blog post](https://www.gravwell.io/blog/the-basics-of-gravwell-api-access-tokens)). If your account is *not* MFA-enabled, you can also log on with username and password (see `-u`).
 
 # Building
 
@@ -66,14 +60,4 @@ This is likely a setting in your terminal.
 
 `xterm` (and some xterm-based terminals) have it set by default; it can be disabled (at least in xterm) by unchecking the "Scroll to Bottom On Tty Output" option in your ctrl+MMB modal.
 
-# Design
-
-gwcli is built on the fabulous BubbleTea and Cobra libraries. In the simplest of terms, gwcli is a cobra.Command tree with a bubbletea.Model crawling around it, interacting with Gravwell via their batteries-included client library.
-
-## See [Contributing](CONTRIBUTING.md) for a deep dive on the design philosophy and practical implementation.
-
-# Known Issues
-
-- Suggestions do not populate when navigation includes `..` (upward) or `~`/`/` (from home/root)
-
-    - This is just based on how bubbletea manages its suggestions. It operates off a list of strings, where each string is a *complete command*, returning closest-match. The suggestion engine is not intelligent enough to "walk" the current prompt (like the walk() subroutine is). We simple recur downward and supply these strings on every move. We do not supply suggestions with upward or rooted navigation because it would add a boatload more iterations and recursive logic when building the suggestions each hop. Relatedly, Bubble Tea does not handle .SetSuggestions coming in asynchronously, meaning each hop has to determine its suggestions immediately so keeping the lists down improves responsiveness.
+## See [Contributing](CONTRIBUTING.md) for a deep dive on the design philosophy and implementation.

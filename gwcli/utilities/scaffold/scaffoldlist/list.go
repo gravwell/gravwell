@@ -62,7 +62,6 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/gravwell/gravwell/v4/utils/weave"
@@ -261,7 +260,7 @@ func generateRunE[dataStruct_t any](
 
 		// check for --show-columns
 		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name()); err != nil {
-			uniques.ErrGetFlag("list", err)
+			clilog.GetFlag(err)
 			return err
 		} else if sc {
 			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
@@ -278,7 +277,7 @@ func generateRunE[dataStruct_t any](
 		var err error
 		noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
 		if err != nil {
-			uniques.ErrGetFlag(c.Use, err)
+			clilog.GetFlag(err)
 		}
 		outFile, err = initOutFile(c.Flags())
 		if err != nil {

@@ -34,7 +34,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -68,7 +67,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
 		types.Resource{}, func(fs *pflag.FlagSet) ([]types.Resource, error) {
 			if all, err := fs.GetBool("all"); err != nil {
-				uniques.ErrGetFlag("resources list", err)
+				clilog.GetFlag(err)
 			} else if all {
 				resp, err := connection.Client.ListAllResources(nil)
 				if err != nil {
@@ -116,7 +115,7 @@ func download() action.Pair {
 			id := fs.Arg(0)
 			outPath, err := fs.GetString(ft.Output.Name())
 			if err != nil {
-				clilog.LogFlagFailedGet(ft.Output.Name(), err)
+				clilog.GetFlag(err)
 			}
 			clilog.Writer.Info("downloading resource", rfc5424.SDParam{Name: "resource_ID", Value: id})
 			data, err := connection.Client.GetResource(id)

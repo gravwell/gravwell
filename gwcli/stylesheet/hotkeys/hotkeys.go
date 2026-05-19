@@ -40,6 +40,14 @@ var (
 		key.WithKeys(tea.KeyUp.String()),
 		key.WithHelp(sigils.Up, "cursor up"),
 	)
+	CursorLeft = key.NewBinding(
+		key.WithKeys(tea.KeyLeft.String()),
+		key.WithHelp(sigils.Left, "cursor left"),
+	)
+	CursorRight = key.NewBinding(
+		key.WithKeys(tea.KeyRight.String()),
+		key.WithHelp(sigils.Right, "cursor right"),
+	)
 	// complete current partial string
 	Complete = key.NewBinding(
 		key.WithKeys(tea.KeyTab.String()),
@@ -180,4 +188,9 @@ func Match(msg tea.Msg, b ...key.Binding) bool {
 	}
 
 	return key.Matches(keyMsg, b...)
+}
+
+// ButtonPressed returns true iff the message was a select or invoke hotkey (either works for pressing buttons).
+func ButtonPressed(msg tea.Msg) bool {
+	return Match(msg, Invoke, Select)
 }
