@@ -184,17 +184,20 @@ func NewListAction[dataStruct_t any](short, long string,
 	run := generateRunE(dataFunc, options, DQToAlias, AliasToDQ)
 
 	// generate usage and example
-	actionOptions := treeutils.GenerateActionOptions{}
+	actionOptions := treeutils.GenerateActionOptions{Example: "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()}
 	{
 		formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
 		if options.Pretty != nil {
 			formats = append(formats, "--pretty")
 		}
 		actionOptions.Usage = fmt.Sprintf("%v %v", ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
-		actionOptions.Example = "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()
 	}
 
-	cmd := treeutils.GenerateAction("list", short, long, nil, run, actionOptions)
+	var use = "list"
+	if options.Use != "" {
+		use = options.Use
+	}
+	cmd := treeutils.GenerateAction(use, short, long, nil, run, actionOptions)
 	options.Apply(cmd)
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias)))
