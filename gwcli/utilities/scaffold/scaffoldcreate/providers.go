@@ -494,6 +494,9 @@ func (p *NumberProvider) Initialize(def string, required bool) {
 		if required && (s == "" || s == "0") {
 			return errors.New("field is required")
 		}
+		if len(s) > 0 && s[0] == '-' { // do not numeric-test a minus sign
+			s = s[1:]
+		}
 		return validate.Numeric(s)
 	}
 	if p.DigitLimit != 0 {
@@ -536,6 +539,9 @@ func (p *NumberProvider) Satisfied() (invalid string) {
 }
 
 func (p *NumberProvider) Set(val string) (invalid string) {
+	if val = strings.TrimSpace(val); val == "" {
+		return ""
+	}
 	if _, err := strconv.ParseInt(val, 10, 64); err != nil {
 		return err.Error()
 	}
