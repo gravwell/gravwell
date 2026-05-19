@@ -134,7 +134,7 @@ type KitBuildRequest struct {
 	Version           uint
 	MinVersion        CanonicalVersion  `json:",omitempty"`
 	MaxVersion        CanonicalVersion  `json:",omitempty"`
-	Dashboards        []uint64          `json:",omitempty"`
+	Dashboards        []string          `json:",omitempty"`
 	Templates         []string          `json:",omitempty"`
 	Pivots            []uuid.UUID       `json:",omitempty"`
 	Resources         []string          `json:",omitempty"`
@@ -246,8 +246,8 @@ func (pbr *KitBuildRequest) Validate() error {
 		pbr.Version = 1
 	}
 	for i := range pbr.Dashboards {
-		if pbr.Dashboards[i] == 0 {
-			return errors.New("zero value dashboard id")
+		if pbr.Dashboards[i] == "" {
+			return errors.New("empty dashboard ID")
 		}
 	}
 	for i := range pbr.Resources {
