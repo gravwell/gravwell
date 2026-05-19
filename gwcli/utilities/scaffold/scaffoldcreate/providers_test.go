@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTextProvider(t *testing.T) {
@@ -533,5 +534,62 @@ func TestBooleanProvider(t *testing.T) {
 			t.Error("incorrect view (whitespace stripped)", testsupport.ExpectedActual(want, view))
 		}
 
+	})
+}
+
+func TestNumberProvider(t *testing.T) {
+	t.Run("get/set, satisfied", func(t *testing.T) {
+		t.Parallel()
+		p := scaffoldcreate.NewField("", false, &scaffoldcreate.NumberProvider{})
+		p.Provider.Initialize("", false)
+
+		assert.Empty(t, p.Provider.Satisfied(), "without a default value, port should be valid (0)")
+		assert.Equal(t, "0", p.Provider.Get(), "without a default value, port should default to 0")
+
+		// set a valid value
+		assert.Empty(t, p.Provider.Set("5001"))
+		// get the set value
+		assert.Equal(t, "5001", p.Provider.Get())
+		// check that the field is satisfied
+		assert.Empty(t, p.Provider.Satisfied())
+
+		assert.NotEmpty(t, p.Provider.Set("01 non-number 65"))
+		// get the originally set value
+		assert.Equal(t, "5001", p.Provider.Get())
+		// check that the field is satisfied
+		assert.Empty(t, p.Provider.Satisfied())
+	})
+	t.Run("full mother cycle with initial value", func(t *testing.T) {
+		t.Parallel()
+		initial := "-15"
+		f := scaffoldcreate.Field{Title: "chelicerate", Required: false, DefaultValue: initial, Provider: &scaffoldcreate.NumberProvider{}}
+		f.Provider.Initialize(f.DefaultValue, false)
+		f.Provider.ToggleFocus(true)
+
+		// get default
+		assert.Equal(t, "-15", f.Provider.Get())
+		// run a cycle
+		f.Provider.SetArgs(0, 0)
+		f.Provider.Update(false, nil)
+		f.Provider.View(false, 0)
+		assert.Equal(t, "-15", f.Provider.Get(), "provider is no longer initial value")
+
+		// check default survives a reset
+		f.Provider.Reset()
+		assert.Equal(t, "-15", f.Provider.Get(), "provider is no longer initial value")
+
+		// run a cycle, but change the value this time
+		f.Provider.SetArgs(0, 0)
+		for range 3 { // delete initial value
+			f.Provider.Update(true, tea.KeyMsg{Type: tea.KeyBackspace})
+		}
+		for _, r := range "-99" {
+			f.Provider.Update(true, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		}
+		f.Provider.View(false, 0)
+		assert.Equal(t, "-99", f.Provider.Get(), "provider does not have updated value")
+
+		f.Provider.Reset()
+		assert.Equal(t, "-15", f.Provider.Get(), "provider was not reset to initial value")
 	})
 }
