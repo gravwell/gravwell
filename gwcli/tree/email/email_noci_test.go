@@ -1,3 +1,5 @@
+//go:build noci
+
 /*************************************************************************
  * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -9,6 +11,7 @@
 package email_test
 
 import (
+	"encoding/csv"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,11 +80,22 @@ func TestEmailConfigurationGetSet(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"email", "show",
+				"email", "show", "--csv", "--columns=Server,Port,Username,UseTLS,InsecureSkipVerify",
 			),
 			&stdout,
 			&stderr))
 		require.Empty(t, stderr.String())
-		// TODO check output
+		rdr := csv.NewReader(strings.NewReader(stdout.String()))
+		hdr, err := rdr.Read()
+		assert.Nil(t, err)
+		require.Len(t, hdr, 5)
+		row, err := rdr.Read()
+		assert.Nil(t, err)
+		require.Len(t, row, 5)
+		assert.Equal(t, emlServer, row[0])
+		assert.Equal(t, strconv.FormatInt(int64(emlPort), 10), row[1])
+		assert.Equal(t, emlUsername, row[2])
+		assert.Equal(t, strconv.FormatBool(true), row[3])
+		assert.Equal(t, strconv.FormatBool(true), row[4])
 	})
 }
