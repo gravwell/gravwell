@@ -95,6 +95,12 @@ func (s simple) Register(fs *pflag.FlagSet) {
 		fs.BoolP(s.name, s.Shorthand(), defaultValue, s.usage)
 	case types.String:
 		fs.StringP(s.name, s.Shorthand(), s.defaultValue, s.usage)
+	case types.Int32:
+		var defaultValue int64
+		if s.defaultValue != "" {
+			defaultValue, _ = strconv.ParseInt(s.defaultValue, 10, 32)
+		}
+		fs.Int32P(s.name, s.Shorthand(), int32(defaultValue), s.Usage())
 	default:
 		panic(fmt.Sprintf("unhandled type: %v", s.typ))
 	}
@@ -266,6 +272,12 @@ var (
 	}
 
 	// #endregion output manipulation
+
+	UID = simple{
+		name:  "UID",
+		usage: "ID of the user",
+		typ:   types.Int32,
+	}
 
 	//#region scaffoldlist/columns
 

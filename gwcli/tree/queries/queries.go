@@ -25,7 +25,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -43,7 +42,10 @@ var aliases []string = []string{"searches"}
 func NewQueriesNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{scheduled.NewScheduledNav(), saved.NewSavedNav()},
-		[]action.Pair{past(), attach.NewAttachAction()})
+		[]action.Pair{
+			past(),
+			attach.NewAttachAction(),
+		})
 }
 
 // #region past queries
@@ -60,8 +62,8 @@ func past() action.Pair {
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet) ([]types.SearchHistoryEntry, error) {
 			opts := &types.QueryOptions{}
-			if count, e := fs.GetInt("count"); e != nil {
-				return nil, uniques.ErrGetFlag(pastUse, e)
+			if count, err := fs.GetInt("count"); err != nil {
+				clilog.GetFlag(err)
 			} else if count > 0 {
 				opts.Limit = count
 			}
@@ -94,5 +96,3 @@ func flags() *pflag.FlagSet {
 		"If negative or 0, fetches entire history")
 	return &addtlFlags
 }
-
-//#endregion past queries

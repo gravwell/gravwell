@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -26,7 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -55,10 +54,9 @@ func collect(prog *tea.Program) (code string, at types.AuthType, err error) {
 	// pull input results
 	final, ok := m.(mfaModel)
 	if !ok {
-		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", types.AUTH_TYPE_NONE, uniques.ErrGeneric
+		return "", types.AUTH_TYPE_NONE, clilog.TypeAssert(m, mfaModel{})
 	} else if final.killed {
-		return "", types.AUTH_TYPE_NONE, uniques.ErrMustAuth
+		return "", types.AUTH_TYPE_NONE, errors.New("you must authenticate to use gwcli")
 	}
 
 	err = nil
@@ -87,10 +85,8 @@ func New() mfaModel {
 	c.codeTI = textinput.New()
 	c.codeTI.Prompt = ""
 	c.codeTI.Validate = func(s string) error {
-		for _, r := range s {
-			if !unicode.IsDigit(r) {
-				return errors.New("TOTP code can only be digits")
-			}
+		if err := validate.Numeric(s); err != nil {
+			return fmt.Errorf("TOTP: %w", err)
 		}
 		return nil
 	}

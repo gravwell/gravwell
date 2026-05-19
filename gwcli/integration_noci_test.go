@@ -35,46 +35,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 )
 
-/* // TODO remove me?
-This file covers tests for using gwcli in --no-interactive mode (from a user's shell or via an external script).
-
-These tests make destructive changes to the gravwell server; make sure you are targeting a safe, clean server!
-
-Each test is intended to be self-contained but, due to gwcli's usage of singletons,
-do not account for parallelism at a test level
-(testing in multiple processes, not goroutines, is acceptable).
-*/
-
-/*import (
-	"bytes"
-	"encoding/csv"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"io/fs"
-	"math/rand"
-	"os"
-	"path"
-	"regexp"
-	"slices"
-	"strconv"
-	"strings"
-	"testing"
-	// "time"
-
-	"github.com/Pallinder/go-randomdata"
-	"github.com/gravwell/gravwell/v4/client/types"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/tree"
-	// "github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
-
-	grav "github.com/gravwell/gravwell/v4/client"
-	"github.com/gravwell/gravwell/v4/utils/weave"
-)*/
-
 type authMethod uint
 
 const (

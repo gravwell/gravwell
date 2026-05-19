@@ -26,6 +26,8 @@ type KeyedFP struct {
 
 // Id_t is the set of constraints defining what can be used as an id for some scaffolds.
 // It can be expanded to more types (strings, mayhaps?) if need be, but make sure FromString is expanded, too.
+//
+//lint:ignore ST1003 C-style
 type Id_t interface {
 	constraints.Integer | uuid.UUID | string
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -59,8 +58,7 @@ func admin() action.Pair {
 
 			// branch on toggle flag
 			if t, err := fs.GetBool("toggle"); err != nil {
-				clilog.LogFlagFailedGet("toggle", err)
-				return uniques.ErrGeneric.Error(), nil
+				clilog.GetFlag(err)
 			} else if t {
 				return toggle(isAdministrator)
 			}
@@ -180,7 +178,7 @@ func sessions() action.Pair {
 				since = time.Time{} // ensure it is reset
 				snc, err := fs.GetString("since")
 				if err != nil {
-					clilog.LogFlagFailedGet("since", err)
+					clilog.GetFlag(err)
 				}
 				if snc != "" {
 					// try to parse in our supported formats, breaking on the first one

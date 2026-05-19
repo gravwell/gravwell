@@ -15,13 +15,13 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -71,7 +71,7 @@ func flags() *pflag.FlagSet {
 
 func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 	if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-		uniques.ErrGetFlag("dashboards list", err)
+		clilog.GetFlag(err)
 	} else if all {
 		r, err := connection.Client.ListAllDashboards(nil)
 		return r.Results, err

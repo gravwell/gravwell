@@ -67,7 +67,7 @@ func NewMetadata() *metadata {
 
 		for _, r := range s {
 			if !unicode.IsNumber(r) {
-				return errors.New("Max Events must be numeric")
+				return errors.New("Max Events must be numeric") //lint:ignore ST1005 user-facing error
 			}
 		}
 		return nil

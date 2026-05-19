@@ -32,7 +32,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -94,7 +93,7 @@ func list() action.Pair {
 		types.AX{},
 		func(fs *pflag.FlagSet) ([]types.AX, error) {
 			if id, err := fs.GetString("id"); err != nil {
-				uniques.ErrGetFlag("extractors list", err)
+				clilog.GetFlag(err)
 			} else if id != "" {
 				clilog.Writer.Infof("Fetching ax with id \"%v\"", id)
 				d, err := connection.Client.GetExtraction(id)

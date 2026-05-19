@@ -14,9 +14,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 )
 
 type testItem struct {

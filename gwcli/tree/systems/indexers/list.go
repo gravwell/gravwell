@@ -22,6 +22,8 @@ import (
 )
 
 // list_t is a composite of basic indexer information.
+//
+//lint:ignore ST1003 C-style
 type list_t struct {
 	Name             string // IP address or "webserver", typically
 	UUID             string

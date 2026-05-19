@@ -50,7 +50,6 @@ package query
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -69,8 +68,6 @@ import (
 
 const (
 	defaultDuration = 1 * time.Hour
-
-	pageSize = 500 // fetch results page by page
 )
 
 var helpDesc = "Generate and send a query to the remote server either by arguments or " +
@@ -207,32 +204,4 @@ func runE(cmd *cobra.Command, args []string) error {
 
 	querysupport.HandleFGCobraSearch(&s, flags, cmd.OutOrStdout(), cmd.ErrOrStderr())
 	return s.Close()
-}
-
-//#endregion
-
-// Opens and returns a file handle, configured by the state of append.
-//
-// Errors are logged to clilogger internally
-func openFile(path string, append bool) (*os.File, error) {
-	var flags = os.O_WRONLY | os.O_CREATE
-	if append { // check append
-		flags |= os.O_APPEND
-	} else {
-		flags |= os.O_TRUNC
-	}
-
-	f, err := os.OpenFile(path, flags, 0644)
-	if err != nil {
-		clilog.Writer.Errorf("Failed to open file %s (flags %d, mode %d): %v", path, flags, 0644, err)
-		return nil, err
-	}
-
-	if s, err := f.Stat(); err != nil {
-		clilog.Writer.Warnf("Failed to stat file %s: %v", f.Name(), err)
-	} else {
-		clilog.Writer.Debugf("Opened file %s of size %v", f.Name(), s.Size())
-	}
-
-	return f, nil
 }

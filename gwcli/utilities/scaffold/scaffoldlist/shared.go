@@ -20,7 +20,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/pflag"
@@ -51,7 +50,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	}
 	// check for CSV
 	if fm, err := fs.GetBool(ft.CSV.Name()); err != nil {
-		uniques.ErrGetFlag("list", err)
+		clilog.GetFlag(err)
 		// non-fatal
 	} else if fm {
 		return formatCSV
@@ -59,14 +58,14 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 
 	// check for JSON
 	if fm, err := fs.GetBool(ft.JSON.Name()); err != nil {
-		uniques.ErrGetFlag("list", err)
+		clilog.GetFlag(err)
 	} else if fm {
 		return formatJSON
 	}
 
 	// check for explicit table
 	if fm, err := fs.GetBool(ft.Table.Name()); err != nil {
-		uniques.ErrGetFlag("list", err)
+		clilog.GetFlag(err)
 		// non-fatal
 	} else if fm {
 		return formatTable
@@ -219,7 +218,7 @@ func normalizeToDQ(columns []string, DQToAlias map[string]string, AliasToDQ map[
 // ! default columns are *not* normalized; they are expected to already be DQ'd.
 func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) ([]string, error) {
 	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
-		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
+		return nil, clilog.GetFlag(err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
 		// normalize all
 		normal, unknown := normalizeToDQ(sortColumns(slices.Collect(maps.Keys(DQToAlias))), DQToAlias, AliasToDQ)
@@ -228,14 +227,14 @@ func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) ([]st
 			clilog.Writer.Error("got unknown columns while normalizing the full column set.",
 				log.KV("unknown columns", unknown),
 				scaffold.IdentifyCaller())
-			return nil, uniques.ErrGeneric
+			return nil, clilog.ErrInternal{}
 		}
 		return normal, nil
 	}
 	// even if --columns was not specified, we can use it to fetch defaults
 	selectedCols, err := fs.GetStringSlice(ft.SelectColumns.Name())
 	if err != nil {
-		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
+		return nil, clilog.GetFlag(err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	}
 	normalized, unknown := normalizeToDQ(selectedCols, DQToAlias, AliasToDQ)
 	if len(unknown) > 0 {
