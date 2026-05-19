@@ -10,10 +10,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -22,14 +22,13 @@ import (
 	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v3/debug"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
-	"github.com/open-networks/go-msgraph"
 )
 
 const (
@@ -39,18 +38,20 @@ const (
 )
 
 var (
-	lg      *log.Logger
 	debugOn bool
-	tracker *stateTracker
-	running bool
-	src     net.IP
 
-	ErrInvalidStateFile = errors.New("State file exists and is not a regular file")
-	ErrFailedSeek       = errors.New("Failed to seek to the start of the states file")
+	ErrInvalidStateFile = errors.New("state file exists and is not a regular file")
+	ErrFailedSeek       = errors.New("failed to seek to the start of the states file")
 )
 
-type event struct {
-	Id string
+type stateTrackable interface {
+	IdExists(id string) bool
+	RecordId(id string, t time.Time) error
+}
+
+type entryProcessor interface {
+	ProcessContext(ent *entry.Entry, ctx context.Context) error
+	Close() error
 }
 
 func main() {
@@ -73,25 +74,30 @@ func main() {
 		return
 	}
 	debugOn = ib.Verbose
-	lg = ib.Logger
+	lg := ib.Logger
 
 	igst, err := ib.GetMuxer()
 	if err != nil {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
 		return
 	}
-	defer igst.Close()
+	defer func() {
+		if err := igst.Close(); err != nil {
+			_ = ib.Logger.Error("error closing ingester", log.KVErr(err))
+		}
+	}()
 	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 
-	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
+	tracker, err := NewTracker(cfg.Global.State_Store_Location, cfg.lookbackPeriod(), igst)
 	if err != nil {
 		lg.Fatal("failed to initialize state file", log.KVErr(err))
 	}
 	tracker.Start()
 
 	// get the src we'll attach to entries
+	var src net.IP
 	if cfg.Global.Source_Override != `` {
 		// global override
 		src = net.ParseIP(cfg.Global.Source_Override)
@@ -102,17 +108,21 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	// Instantiate the client
-	graphClient, err := msgraph.NewGraphClient(cfg.Global.Tenant_Domain, cfg.Global.Client_ID, cfg.Global.Client_Secret)
-	if err != nil {
-		lg.FatalCode(0, "Failed to get new client", log.KVErr(err))
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Instantiate the client
+	graphClient, err := newGraphClient(msGraphConfig{
+		clientID:     cfg.Global.Client_ID,
+		clientSecret: cfg.Global.Client_Secret,
+		tenantID:     cfg.Global.Tenant_ID,
+		tenantDomain: cfg.Global.Tenant_Domain,
+	}, &http.Client{})
+	if err != nil {
+		lg.FatalCode(0, "failed to create graph client", log.KVErr(err))
+	}
 
 	// For each content type we're interested in, launch a
 	// goroutine to read entries from the Graph API
-	running = true
 	for k, ct := range cfg.ContentType {
 		// figure out which tag we're using
 		tag, err := igst.GetTag(ct.Tag_Name)
@@ -155,21 +165,41 @@ func main() {
 			name:        k,
 			ct:          ct,
 			igst:        igst,
-			wg:          &wg,
 			cfg:         cfg,
 			graphClient: graphClient,
 			ctx:         ctx,
 			tg:          tg,
 			procset:     procset,
 			tag:         tag,
+			tracker:     tracker,
+			src:         src,
+			lg:          lg,
 		}
 		switch ct.Content_Type {
 		case "alerts":
-			go alertRoutine(rcfg)
+			wg.Go(func() {
+				alertRoutine(
+					rcfg,
+					10*time.Second,
+					30*time.Second,
+				)
+			})
 		case "secureScores":
-			go secureScoreRoutine(rcfg)
+			wg.Go(func() {
+				secureScoreRoutine(
+					rcfg,
+					10*time.Second,
+					300*time.Second, // Secure scores are created very infrequently, so we sleep for a long time.
+				)
+			})
 		case "controlProfiles":
-			go secureScoreProfileRoutine(rcfg)
+			wg.Go(func() {
+				secureScoreProfileRoutine(
+					rcfg,
+					10*time.Second,
+					time.Hour, // We poll the profiles every hour just so they exist in the system
+				)
+			})
 		}
 	}
 
@@ -177,12 +207,7 @@ func main() {
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
 
-	go func() {
-		time.Sleep(2 * time.Second)
-		cancel()
-	}()
-
-	running = false
+	cancel()
 	wg.Wait()
 
 	// Write the final state info
@@ -193,199 +218,218 @@ type routineCfg struct {
 	name        string
 	ct          *contentType
 	igst        *ingest.IngestMuxer
-	wg          *sync.WaitGroup
 	cfg         *cfgType
-	graphClient *msgraph.GraphClient
+	graphClient msGraphFetcher
 	ctx         context.Context
 	tg          *timegrinder.TimeGrinder
-	procset     *processors.ProcessorSet
+	procset     entryProcessor
 	tag         entry.EntryTag
+	tracker     stateTrackable
+	src         net.IP
+	lg          *log.Logger
 }
 
-func alertRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
-	c.wg.Add(1)
-	defer c.wg.Done()
+func alertRoutine(c routineCfg, errWait, successWait time.Duration) {
+	_ = c.lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
+	defer func() {
+		if err := c.procset.Close(); err != nil {
+			_ = c.lg.Error("failed to close processor set", log.KVErr(err))
+		}
+	}()
 
-	for running {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		default:
+		}
+
 		debugout("Querying alerts\n")
-		alerts, err := c.graphClient.ListAlerts()
+		filter, err := c.cfg.alertFilter()
 		if err != nil {
-			lg.Error("failed to list alerts", log.KVErr(err))
-			time.Sleep(10 * time.Second)
+			_ = c.lg.Error("failed to build alerts filter", log.KVErr(err))
+			select {
+			case <-time.After(errWait):
+			case <-c.ctx.Done():
+			}
+			continue
+		}
+		alerts, err := c.graphClient.ListAlerts(c.ctx, filter)
+		if err != nil {
+			_ = c.lg.Error("failed to list alerts", log.KVErr(err))
+			select {
+			case <-time.After(errWait):
+			case <-c.ctx.Done():
+			}
 			continue
 		}
 
 		var ent *entry.Entry
-		// Attempt to ingest each alert
 		for _, item := range alerts {
-			// CHECK IF ALREADY SEEN
-			if tracker.IdExists(item.ID) {
-				debugout("skipping already-seen alert %v\n", item.ID)
+			id := msgraph.ExtractID(item)
+			if id == "" {
 				continue
 			}
-			debugout("extracting %v\n", item.ID)
 
-			// Now re-pack this as json
-			packed, err := json.Marshal(item)
-			if err != nil {
-				lg.Warn("failed to re-pack entry", log.KV("id", item.ID), log.KVErr(err))
+			if c.tracker.IdExists(id) {
+				debugout("skipping already-seen alert %v\n", id)
 				continue
 			}
+
+			debugout("extracting %v\n", id)
 
 			ent = &entry.Entry{
-				Data: packed,
+				Data: item,
 				Tag:  c.tag,
-				SRC:  src,
+				SRC:  c.src,
 			}
 			if c.ct.Ignore_Timestamps {
 				ent.TS = entry.Now()
 			} else {
-				ent.TS = entry.FromStandard(item.CreatedDateTime)
+				ent.TS = entry.FromStandard(msgraph.ExtractTimestamp(msgraph.ContentAlerts, item))
 			}
-			// now write the entry
+
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("failed to handle entry", log.KVErr(err))
+				_ = c.lg.Warn("failed to handle entry", log.KVErr(err))
 			}
-			// Mark down this alert as ingested
-			tracker.RecordId(item.ID, time.Now())
 
-		}
-		// Here's how we shut down quickly
-		for i := 0; i < 30; i++ {
-			if !running {
-				break
+			if err := c.tracker.RecordId(id, time.Now()); err != nil {
+				_ = c.lg.Warn("failed to record alert", log.KV("id", id), log.KVErr(err))
 			}
-			time.Sleep(time.Second)
+		}
+
+		select {
+		case <-time.After(successWait):
+		case <-c.ctx.Done():
 		}
 	}
-	if err := c.procset.Close(); err != nil {
-		lg.Error("failed to close processor set", log.KVErr(err))
-	}
-
 }
 
-func secureScoreRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
-	c.wg.Add(1)
-	defer c.wg.Done()
+func secureScoreRoutine(c routineCfg, errWait, successWait time.Duration) {
+	_ = c.lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
+	defer func() {
+		if err := c.procset.Close(); err != nil {
+			_ = c.lg.Error("failed to close processor set", log.KVErr(err))
+		}
+	}()
 
-	for running {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		default:
+		}
+
 		debugout("Querying secure scores\n")
-		scores, err := c.graphClient.ListSecureScores()
+		scores, err := c.graphClient.ListSecureScores(c.ctx)
 		if err != nil {
-			lg.Error("failed to list secure scores", log.KVErr(err))
-			time.Sleep(10 * time.Second)
+			_ = c.lg.Error("failed to list secure scores", log.KVErr(err))
+			select {
+			case <-time.After(errWait):
+			case <-c.ctx.Done():
+			}
 			continue
 		}
 
 		var ent *entry.Entry
-		// Attempt to ingest each score
 		for _, item := range scores {
-			// CHECK IF ALREADY SEEN
-			if tracker.IdExists(item.ID) {
-				debugout("skipping already-seen score %v\n", item.ID)
+			id := msgraph.ExtractID(item)
+			if id == "" {
 				continue
 			}
-			debugout("extracting %v\n", item.ID)
 
-			// Now re-pack this as json
-			packed, err := json.Marshal(item)
-			if err != nil {
-				lg.Warn("failed to re-pack secure score entry", log.KV("id", item.ID), log.KVErr(err))
+			if c.tracker.IdExists(id) {
+				debugout("skipping already-seen score %v\n", id)
 				continue
 			}
+
+			debugout("extracting %v\n", id)
 
 			ent = &entry.Entry{
-				Data: packed,
+				Data: item,
 				Tag:  c.tag,
-				SRC:  src,
+				SRC:  c.src,
 			}
+
 			if c.ct.Ignore_Timestamps {
 				ent.TS = entry.Now()
 			} else {
-				ent.TS = entry.FromStandard(item.CreatedDateTime)
+				ent.TS = entry.FromStandard(msgraph.ExtractTimestamp(msgraph.ContentSecureScores, item))
 			}
-			// now write the entry
+
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("failed to handle entry", log.KVErr(err))
+				_ = c.lg.Warn("failed to handle secure score entry", log.KVErr(err))
 			}
-			// Mark down this alert as ingested
-			tracker.RecordId(item.ID, time.Now())
 
-		}
-		// Here's how we shut down quickly
-		// Secure scores are created very infrequently, so we sleep for a long time.
-		for i := 0; i < 300; i++ {
-			if !running {
-				break
+			if err := c.tracker.RecordId(id, time.Now()); err != nil {
+				_ = c.lg.Warn("failed to record secure score", log.KV("id", id), log.KVErr(err))
 			}
-			time.Sleep(time.Second)
+		}
+
+		select {
+		case <-time.After(successWait):
+		case <-c.ctx.Done():
 		}
 	}
-	if err := c.procset.Close(); err != nil {
-		lg.Error("failed to close processor set", log.KVErr(err))
-	}
-
 }
 
-func secureScoreProfileRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
-	c.wg.Add(1)
-	defer c.wg.Done()
+func secureScoreProfileRoutine(c routineCfg, errWait, successWait time.Duration) {
+	_ = c.lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
+	defer func() {
+		if err := c.procset.Close(); err != nil {
+			_ = c.lg.Error("failed to close processor set", log.KVErr(err))
+		}
+	}()
 
-	for running {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		default:
+		}
+
 		debugout("Querying secure score profiles\n")
-		profiles, err := c.graphClient.ListSecureScoreControlProfiles()
+		profiles, err := c.graphClient.ListSecureScoreControlProfiles(c.ctx)
 		if err != nil {
-			lg.Error("failed to list secure score profiles", log.KVErr(err))
-			time.Sleep(10 * time.Second)
+			_ = c.lg.Error("failed to list secure score profiles", log.KVErr(err))
+			select {
+			case <-time.After(errWait):
+			case <-c.ctx.Done():
+			}
 			continue
 		}
 
 		var ent *entry.Entry
-		// Attempt to ingest each profile
 		for _, item := range profiles {
-			debugout("extracting %v\n", item.ID)
-
-			// Re-pack this as json
-			packed, err := json.Marshal(item)
-			if err != nil {
-				lg.Warn("failed to re-pack secure score profile", log.KV("id", item.ID), log.KVErr(err))
+			id := msgraph.ExtractID(item)
+			if id == "" {
 				continue
 			}
 
+			debugout("extracting %v\n", id)
+
 			ent = &entry.Entry{
-				Data: packed,
+				Data: item,
 				Tag:  c.tag,
-				SRC:  src,
+				SRC:  c.src,
 			}
 
 			// They don't change very often, so always make it now
 			ent.TS = entry.Now()
 
-			// write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("failed to handle entry", log.KVErr(err))
+				_ = c.lg.Warn("failed to handle entry", log.KVErr(err))
 			}
-
 		}
-		// Here's how we shut down quickly
-		// We poll the profiles every hour just so they exist in the system
-		for i := 0; i < 3600; i++ {
-			if !running {
-				break
-			}
-			time.Sleep(time.Second)
+
+		select {
+		case <-time.After(successWait):
+		case <-c.ctx.Done():
 		}
 	}
-	if err := c.procset.Close(); err != nil {
-		lg.Error("failed to close processor set", log.KVErr(err))
-	}
-
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

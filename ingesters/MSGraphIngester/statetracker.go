@@ -12,6 +12,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"sync"
 	"time"
@@ -38,7 +39,9 @@ func NewTracker(statePath string, horizon time.Duration, igst *ingest.IngestMuxe
 		horizon:  horizon,
 	}
 
-	st.initStates()
+	if err := st.initStates(); err != nil {
+		return nil, fmt.Errorf("init states: %w", err)
+	}
 
 	return st, nil
 }
@@ -68,16 +71,16 @@ func (st *stateTracker) initStates() error {
 	//is a regular file, attempt to open it RW
 	st.stateFout, err = os.OpenFile(st.filePath, os.O_RDWR, 0550) //u+rw and g+rw but no nothing else
 	if err != nil {
-		return fmt.Errorf("Failed to open state file RW: %v", err)
+		return fmt.Errorf("failed to open state file RW: %v", err)
 	}
 	//we have a valid file, attempt to load states if the file isn't empty
 	fi, err = st.stateFout.Stat()
 	if err != nil {
-		return fmt.Errorf("Failed to stat open file: %v", err)
+		return fmt.Errorf("failed to stat open file: %v", err)
 	}
 	if fi.Size() > 0 {
 		if err = gob.NewDecoder(st.stateFout).Decode(&st.stateMap); err != nil {
-			return fmt.Errorf("Failed to load existing states: %v", err)
+			return fmt.Errorf("failed to load existing states: %v", err)
 		}
 	}
 	return nil
@@ -114,23 +117,27 @@ func (st *stateTracker) cleanStatesNoLock() {
 	}
 }
 
-func (st *stateTracker) tickNoLock() {
+func (st *stateTracker) tickNoLock() error {
 	// Sync the muxer while we're here
-	err := st.igst.Sync(2 * time.Second)
-	if err != nil {
-		return
+	if st.igst != nil {
+		err := st.igst.Sync(2 * time.Second)
+		if err != nil {
+			return fmt.Errorf("sync muxer: %w", err)
+		}
 	}
 
 	// transfer from temp map to state map
-	for k, v := range st.tempMap {
-		st.stateMap[k] = v
-	}
+	maps.Copy(st.stateMap, st.tempMap)
 	// clean the state map
 	st.cleanStatesNoLock()
 	// reset the temp map
 	st.tempMap = make(map[string]time.Time)
 	// dump the map
-	st.dumpStatesNoLock()
+	if err := st.dumpStatesNoLock(); err != nil {
+		return fmt.Errorf("dump states: %w", err)
+	}
+
+	return nil
 }
 
 func (st *stateTracker) IdExists(id string) bool {
@@ -160,7 +167,7 @@ func (st *stateTracker) Start() {
 		t := time.Tick(30 * time.Second)
 		for range t {
 			st.Lock()
-			st.tickNoLock()
+			_ = st.tickNoLock()
 			st.Unlock()
 		}
 	}()
@@ -168,6 +175,6 @@ func (st *stateTracker) Start() {
 
 func (st *stateTracker) Close() {
 	st.Lock()
-	st.tickNoLock()
+	_ = st.tickNoLock()
 	st.Unlock()
 }

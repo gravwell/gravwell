@@ -23,16 +23,15 @@ const (
 	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 )
 
-type bindType int
-type readerType int
-
 type global struct {
 	config.IngestConfig
 	State_Store_Location string
 	Client_ID            string
 	Client_Secret        string `json:"-"` // DO NOT send this when marshalling
 	Directory_ID         string
-	Tenant_Domain        string
+	Tenant_ID            string
+	Tenant_Domain        string // Used in place of Tenant-ID if its not provided.
+	Reachback_Period     string
 }
 
 type contentType struct {
@@ -78,20 +77,20 @@ func (c cfgType) Verify() error {
 		if err != nil {
 			return err
 		}
-		return errors.New("Invalid connection timeout")
+		return errors.New("invalid connection timeout")
 	}
 	if c.Global.Ingest_Secret == "" {
-		return errors.New("Ingest-Secret not specified")
+		return errors.New("ingest-Secret not specified")
 	}
 	//ensure there is at least one target
 	connCount := len(c.Global.Cleartext_Backend_Target) +
 		len(c.Global.Encrypted_Backend_Target) +
 		len(c.Global.Pipe_Backend_Target)
 	if connCount == 0 {
-		return errors.New("No backend targets specified")
+		return errors.New("no backend targets specified")
 	}
 	if len(c.ContentType) == 0 {
-		return errors.New("At least one content type required.")
+		return errors.New("at least one content type required")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
@@ -100,10 +99,10 @@ func (c cfgType) Verify() error {
 	}
 	for k, v := range c.ContentType {
 		if v == nil {
-			return fmt.Errorf("Content Type %v config is nil", k)
+			return fmt.Errorf("content type %v config is nil", k)
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
-			return fmt.Errorf("Content Type %s preprocessor %s error: %v", k, v.Preprocessor, err)
+			return fmt.Errorf("content type %s preprocessor %s error: %v", k, v.Preprocessor, err)
 		}
 	}
 	return nil
@@ -126,7 +125,7 @@ func (c *cfgType) Tags() ([]string, error) {
 		}
 	}
 	if len(tags) == 0 {
-		return nil, errors.New("No tags specified")
+		return nil, errors.New("no tags specified")
 	}
 	return tags, nil
 }
@@ -171,4 +170,32 @@ func (c *cfgType) parseTimeout() (time.Duration, error) {
 		return 0, nil
 	}
 	return time.ParseDuration(tos)
+}
+
+// lookbackPeriod returns the configured lookback duration, defaulting to 48h if unset.
+func (c *cfgType) lookbackPeriod() time.Duration {
+	if d, err := time.ParseDuration(strings.TrimSpace(c.Global.Reachback_Period)); err == nil && d > 0 {
+		return d
+	}
+	return 48 * time.Hour
+}
+
+// alertFilter returns an OData $filter string scoped to the lookback window,
+// or an empty string if no Lookback_Period is configured.
+func (c *cfgType) alertFilter() (string, error) {
+	lookback := strings.TrimSpace(c.Global.Reachback_Period)
+	if lookback == "" {
+		return "", nil
+	}
+
+	lookbackDuration, err := time.ParseDuration(lookback)
+	if err != nil || lookbackDuration < 0 {
+		return "", fmt.Errorf("invalid duration filter %q", lookback)
+	}
+	if lookbackDuration == 0 {
+		return "", nil
+	}
+
+	filter := fmt.Sprintf("createdDateTime ge %s", time.Now().Add(-lookbackDuration).UTC().Format(time.RFC3339))
+	return filter, nil
 }
