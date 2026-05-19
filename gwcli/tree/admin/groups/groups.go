@@ -191,5 +191,6 @@ func listUsers() action.Pair {
 				}
 				return "", nil
 			},
+			EmptyMessage: "this group has no users",
 		})
 }

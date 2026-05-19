@@ -97,6 +97,7 @@ func (f outputFormat) String() string {
 //#endregion enumeration
 
 const (
+	DefaultEmptyMessage string      = "no data found"
 	outFilePerm         os.FileMode = 0644
 	exportedColumnsOnly bool        = true // only allow users to query for exported fields as columns?
 	ShowColumnSep       string      = "; " // separator between column names when printing list of available columns
@@ -140,6 +141,14 @@ func NewListAction[dataStruct_t any](short, long string,
 		panic("short description cannot be empty")
 	} else if long == "" {
 		panic("long description cannot be empty")
+	}
+
+	// set defaults into options
+	if options.Use == "" {
+		options.Use = "list"
+	}
+	if options.EmptyMessage == "" {
+		options.EmptyMessage = DefaultEmptyMessage
 	}
 
 	// cache the struct fields so we can save some reflection cycles later
@@ -193,11 +202,7 @@ func NewListAction[dataStruct_t any](short, long string,
 		actionOptions.Usage = fmt.Sprintf("%v %v", ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
 	}
 
-	var use = "list"
-	if options.Use != "" {
-		use = options.Use
-	}
-	cmd := treeutils.GenerateAction(use, short, long, nil, run, actionOptions)
+	cmd := treeutils.GenerateAction("list", short, long, nil, run, actionOptions)
 	options.Apply(cmd)
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias)))
@@ -302,9 +307,11 @@ func generateRunE[dataStruct_t any](
 			return err
 		}
 
+		// if we generated no output, make that explicit to the user via the empty message
+		// (unless we are in no-interactive mode, where our output is likely to be piped, or writing to a file).
 		if s == "" {
 			if outFile == nil && !noInteractive {
-				fmt.Fprintln(c.OutOrStdout(), "no data found")
+				fmt.Fprintln(c.OutOrStdout(), opts.EmptyMessage)
 			}
 			return nil
 		}
