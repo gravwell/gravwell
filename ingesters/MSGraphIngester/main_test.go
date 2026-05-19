@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -11,8 +13,6 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
-	modelsecurity "github.com/microsoftgraph/msgraph-sdk-go/models/security"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +24,7 @@ func TestAlertRoutine_ExitsOnContextCancel(t *testing.T) {
 	cancel()
 
 	fetcher := &mockFetcher{
-		listAlerts: func(_ context.Context, _ string) ([]modelsecurity.Alertable, error) {
+		listAlerts: func(_ context.Context, _ string) ([]json.RawMessage, error) {
 			t.Fatal("ListAlerts should not be called when context is already cancelled")
 			return nil, nil
 		},
@@ -46,18 +46,18 @@ func TestAlertRoutine_SkipsNilID(t *testing.T) {
 	proc := &mockProcessor{}
 
 	fetcher := &mockFetcher{
-		listAlerts: func(_ context.Context, _ string) ([]modelsecurity.Alertable, error) {
+		listAlerts: func(_ context.Context, _ string) ([]json.RawMessage, error) {
 			cancel()
-			alert := modelsecurity.NewAlert() // no ID set, GetId() returns nil
-			return []modelsecurity.Alertable{alert}, nil
+			// JSON object without an "id" field
+			return []json.RawMessage{json.RawMessage(`{"title":"no id"}`)}, nil
 		},
 	}
 
 	cfg := baseRoutineCfg(ctx, fetcher, tracker, proc)
 	runRoutine(alertRoutine, cfg)
 
-	assert.Equal(t, 0, proc.count(), "nil ID alert should not be ingested")
-	assert.Empty(t, tracker.seen, "nil ID alert should not be recorded")
+	assert.Equal(t, 0, proc.count(), "empty ID alert should not be ingested")
+	assert.Empty(t, tracker.seen, "empty ID alert should not be recorded")
 }
 
 func TestAlertRoutine_SkipsSeenID(t *testing.T) {
@@ -71,9 +71,9 @@ func TestAlertRoutine_SkipsSeenID(t *testing.T) {
 	require.NoError(t, tracker.RecordId(seenID, time.Now()))
 
 	fetcher := &mockFetcher{
-		listAlerts: func(_ context.Context, _ string) ([]modelsecurity.Alertable, error) {
+		listAlerts: func(_ context.Context, _ string) ([]json.RawMessage, error) {
 			cancel()
-			return []modelsecurity.Alertable{newTestAlert(seenID, time.Now())}, nil
+			return []json.RawMessage{newTestAlertJSON(seenID, time.Now())}, nil
 		},
 	}
 
@@ -94,9 +94,9 @@ func TestAlertRoutine_IngestsAndRecordsNewAlert(t *testing.T) {
 	createdAt := time.Now().Add(-5 * time.Minute)
 
 	fetcher := &mockFetcher{
-		listAlerts: func(_ context.Context, _ string) ([]modelsecurity.Alertable, error) {
+		listAlerts: func(_ context.Context, _ string) ([]json.RawMessage, error) {
 			cancel()
-			return []modelsecurity.Alertable{newTestAlert(alertID, createdAt)}, nil
+			return []json.RawMessage{newTestAlertJSON(alertID, createdAt)}, nil
 		},
 	}
 
@@ -122,9 +122,9 @@ func TestAlertRoutine_IgnoreTimestamps(t *testing.T) {
 	createdAt := time.Now().Add(-24 * time.Hour)
 
 	fetcher := &mockFetcher{
-		listAlerts: func(_ context.Context, _ string) ([]modelsecurity.Alertable, error) {
+		listAlerts: func(_ context.Context, _ string) ([]json.RawMessage, error) {
 			cancel()
-			return []modelsecurity.Alertable{newTestAlert(alertID, createdAt)}, nil
+			return []json.RawMessage{newTestAlertJSON(alertID, createdAt)}, nil
 		},
 	}
 
@@ -147,7 +147,7 @@ func TestAlertRoutine_APIErrorExitsOnContextCancel(t *testing.T) {
 	proc := &mockProcessor{}
 
 	fetcher := &mockFetcher{
-		listAlerts: func(_ context.Context, _ string) ([]modelsecurity.Alertable, error) {
+		listAlerts: func(_ context.Context, _ string) ([]json.RawMessage, error) {
 			cancel()
 			return nil, errors.New("msgraph api unavailable")
 		},
@@ -171,12 +171,12 @@ func TestAlertRoutine_DeduplicatesAcrossMultipleFetches(t *testing.T) {
 	calls := atomic.Int32{}
 
 	fetcher := &mockFetcher{
-		listAlerts: func(_ context.Context, _ string) ([]modelsecurity.Alertable, error) {
+		listAlerts: func(_ context.Context, _ string) ([]json.RawMessage, error) {
 			calls.Add(1)
 			if calls.Load() >= 2 {
 				cancel()
 			}
-			return []modelsecurity.Alertable{newTestAlert(alertID, time.Now())}, nil
+			return []json.RawMessage{newTestAlertJSON(alertID, time.Now())}, nil
 		},
 	}
 
@@ -194,9 +194,9 @@ func TestSecureScoreRoutine_ExitsOnCancelContext(t *testing.T) {
 	proc := &mockProcessor{}
 
 	fetcher := &mockFetcher{
-		listSecureScores: func(_ context.Context) ([]models.SecureScoreable, error) {
+		listSecureScores: func(_ context.Context) ([]json.RawMessage, error) {
 			cancel()
-			return []models.SecureScoreable{models.NewSecureScore()}, nil
+			return []json.RawMessage{json.RawMessage(`{"title":"no id"}`)}, nil
 		},
 	}
 
@@ -217,9 +217,9 @@ func TestSecureScoreRoutine_SkipsSeenID(t *testing.T) {
 	require.NoError(t, tracker.RecordId(seenID, time.Now()))
 
 	fetcher := &mockFetcher{
-		listSecureScores: func(_ context.Context) ([]models.SecureScoreable, error) {
+		listSecureScores: func(_ context.Context) ([]json.RawMessage, error) {
 			cancel()
-			return []models.SecureScoreable{newTestScore(seenID, time.Now())}, nil
+			return []json.RawMessage{newTestScoreJSON(seenID, time.Now())}, nil
 		},
 	}
 
@@ -240,9 +240,9 @@ func TestSecureScoreRoutine_IngestsAndRecordsNewScore(t *testing.T) {
 	createdAt := time.Now().Add(-1 * time.Hour)
 
 	fetcher := &mockFetcher{
-		listSecureScores: func(_ context.Context) ([]models.SecureScoreable, error) {
+		listSecureScores: func(_ context.Context) ([]json.RawMessage, error) {
 			cancel()
-			return []models.SecureScoreable{newTestScore(scoreID, createdAt)}, nil
+			return []json.RawMessage{newTestScoreJSON(scoreID, createdAt)}, nil
 		},
 	}
 
@@ -264,7 +264,7 @@ func TestSecureScoreRoutine_APIErrorExitsOnContextCancel(t *testing.T) {
 	proc := &mockProcessor{}
 
 	fetcher := &mockFetcher{
-		listSecureScores: func(_ context.Context) ([]models.SecureScoreable, error) {
+		listSecureScores: func(_ context.Context) ([]json.RawMessage, error) {
 			cancel()
 			return nil, errors.New("msgraph api unavailable")
 		},
@@ -284,7 +284,7 @@ func TestSecureScoreProfileRoutine_ExitsOnContextCancel(t *testing.T) {
 	cancel()
 
 	fetcher := &mockFetcher{
-		listSecureScoreControlProfiles: func(_ context.Context) ([]models.SecureScoreControlProfileable, error) {
+		listSecureScoreControlProfiles: func(_ context.Context) ([]json.RawMessage, error) {
 			t.Fatal("should not be called when context is already cancelled")
 			return nil, nil
 		},
@@ -304,9 +304,9 @@ func TestSecureScoreProfileRoutine_SkipsNilID(t *testing.T) {
 	proc := &mockProcessor{}
 
 	fetcher := &mockFetcher{
-		listSecureScoreControlProfiles: func(_ context.Context) ([]models.SecureScoreControlProfileable, error) {
+		listSecureScoreControlProfiles: func(_ context.Context) ([]json.RawMessage, error) {
 			cancel()
-			return []models.SecureScoreControlProfileable{models.NewSecureScoreControlProfile()}, nil
+			return []json.RawMessage{json.RawMessage(`{"title":"no id"}`)}, nil
 		},
 	}
 
@@ -325,9 +325,9 @@ func TestSecureScoreProfileRoutine_IngestsNewProfile(t *testing.T) {
 	profileID := "profile-id"
 
 	fetcher := &mockFetcher{
-		listSecureScoreControlProfiles: func(_ context.Context) ([]models.SecureScoreControlProfileable, error) {
+		listSecureScoreControlProfiles: func(_ context.Context) ([]json.RawMessage, error) {
 			cancel()
-			return []models.SecureScoreControlProfileable{newTestProfile(profileID)}, nil
+			return []json.RawMessage{newTestProfileJSON(profileID)}, nil
 		},
 	}
 
@@ -345,7 +345,7 @@ func TestSecureScoreProfileRoutine_APIErrorExitsOnContextCancel(t *testing.T) {
 	proc := &mockProcessor{}
 
 	fetcher := &mockFetcher{
-		listSecureScoreControlProfiles: func(_ context.Context) ([]models.SecureScoreControlProfileable, error) {
+		listSecureScoreControlProfiles: func(_ context.Context) ([]json.RawMessage, error) {
 			cancel()
 			return nil, errors.New("msgraph api unavailable")
 		},
@@ -359,20 +359,20 @@ func TestSecureScoreProfileRoutine_APIErrorExitsOnContextCancel(t *testing.T) {
 }
 
 type mockFetcher struct {
-	listAlerts                     func(ctx context.Context, filter string) ([]modelsecurity.Alertable, error)
-	listSecureScores               func(ctx context.Context) ([]models.SecureScoreable, error)
-	listSecureScoreControlProfiles func(ctx context.Context) ([]models.SecureScoreControlProfileable, error)
+	listAlerts                     func(ctx context.Context, filter string) ([]json.RawMessage, error)
+	listSecureScores               func(ctx context.Context) ([]json.RawMessage, error)
+	listSecureScoreControlProfiles func(ctx context.Context) ([]json.RawMessage, error)
 }
 
-func (m *mockFetcher) ListAlerts(ctx context.Context, filter string) ([]modelsecurity.Alertable, error) {
+func (m *mockFetcher) ListAlerts(ctx context.Context, filter string) ([]json.RawMessage, error) {
 	return m.listAlerts(ctx, filter)
 }
 
-func (m *mockFetcher) ListSecureScores(ctx context.Context) ([]models.SecureScoreable, error) {
+func (m *mockFetcher) ListSecureScores(ctx context.Context) ([]json.RawMessage, error) {
 	return m.listSecureScores(ctx)
 }
 
-func (m *mockFetcher) ListSecureScoreControlProfiles(ctx context.Context) ([]models.SecureScoreControlProfileable, error) {
+func (m *mockFetcher) ListSecureScoreControlProfiles(ctx context.Context) ([]json.RawMessage, error) {
 	return m.listSecureScoreControlProfiles(ctx)
 }
 
@@ -430,24 +430,16 @@ func (m *mockProcessor) count() int {
 	return len(m.entries)
 }
 
-func newTestAlert(id string, createdAt time.Time) modelsecurity.Alertable {
-	a := modelsecurity.NewAlert()
-	a.SetId(&id)
-	a.SetCreatedDateTime(&createdAt)
-	return a
+func newTestAlertJSON(id string, createdAt time.Time) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"id":%q,"createdDateTime":%q,"title":"test"}`, id, createdAt.Format(time.RFC3339)))
 }
 
-func newTestScore(id string, createdAt time.Time) models.SecureScoreable {
-	s := models.NewSecureScore()
-	s.SetId(&id)
-	s.SetCreatedDateTime(&createdAt)
-	return s
+func newTestScoreJSON(id string, createdAt time.Time) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"id":%q,"createdDateTime":%q,"currentScore":80}`, id, createdAt.Format(time.RFC3339)))
 }
 
-func newTestProfile(id string) models.SecureScoreControlProfileable {
-	p := models.NewSecureScoreControlProfile()
-	p.SetId(&id)
-	return p
+func newTestProfileJSON(id string) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"id":%q,"title":"test profile"}`, id))
 }
 
 func baseRoutineCfg(ctx context.Context, fetcher msGraphFetcher, tracker stateTrackable, proc entryProcessor) routineCfg {

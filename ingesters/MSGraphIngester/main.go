@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -21,13 +22,13 @@ import (
 	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v3/debug"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
-	jsonserialization "github.com/microsoft/kiota-serialization-json-go"
 )
 
 const (
@@ -110,12 +111,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Instantiate the client
-	graphClient, err := newGraphClient(ctx, msGraphConfig{
+	graphClient, err := newGraphClient(msGraphConfig{
 		clientID:     cfg.Global.Client_ID,
 		clientSecret: cfg.Global.Client_Secret,
 		tenantID:     cfg.Global.Tenant_ID,
 		tenantDomain: cfg.Global.Tenant_Domain,
-	})
+	}, &http.Client{})
 	if err != nil {
 		lg.FatalCode(0, "failed to create graph client", log.KVErr(err))
 	}
@@ -265,52 +266,35 @@ func alertRoutine(c routineCfg, errWait, successWait time.Duration) {
 
 		var ent *entry.Entry
 		for _, item := range alerts {
-			id := item.GetId()
-			if id == nil {
+			id := msgraph.ExtractID(item)
+			if id == "" {
 				continue
 			}
 
-			if c.tracker.IdExists(*id) {
-				debugout("skipping already-seen alert %v\n", *id)
+			if c.tracker.IdExists(id) {
+				debugout("skipping already-seen alert %v\n", id)
 				continue
 			}
 
-			debugout("extracting %v\n", *id)
-
-			writer := jsonserialization.NewJsonSerializationWriter()
-			if err := item.Serialize(writer); err != nil {
-				_ = c.lg.Warn("failed to serialize alert", log.KV("id", *id), log.KVErr(err))
-				continue
-			}
-
-			packed, err := writer.GetSerializedContent()
-			if err != nil {
-				_ = c.lg.Warn("failed to get serialized alert content", log.KV("id", *id), log.KVErr(err))
-				continue
-			}
+			debugout("extracting %v\n", id)
 
 			ent = &entry.Entry{
-				Data: packed,
+				Data: item,
 				Tag:  c.tag,
 				SRC:  c.src,
 			}
 			if c.ct.Ignore_Timestamps {
 				ent.TS = entry.Now()
 			} else {
-				ts := item.GetCreatedDateTime()
-				if ts != nil {
-					ent.TS = entry.FromStandard(*ts)
-				} else {
-					ent.TS = entry.Now()
-				}
+				ent.TS = entry.FromStandard(msgraph.ExtractTimestamp(msgraph.ContentAlerts, item))
 			}
 
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
 				_ = c.lg.Warn("failed to handle entry", log.KVErr(err))
 			}
 
-			if err := c.tracker.RecordId(*id, time.Now()); err != nil {
-				_ = c.lg.Warn("failed to record alert", log.KV("id", *id), log.KVErr(err))
+			if err := c.tracker.RecordId(id, time.Now()); err != nil {
+				_ = c.lg.Warn("failed to record alert", log.KV("id", id), log.KVErr(err))
 			}
 		}
 
@@ -349,31 +333,20 @@ func secureScoreRoutine(c routineCfg, errWait, successWait time.Duration) {
 
 		var ent *entry.Entry
 		for _, item := range scores {
-			id := item.GetId()
-			if id == nil {
+			id := msgraph.ExtractID(item)
+			if id == "" {
 				continue
 			}
 
-			if c.tracker.IdExists(*id) {
-				debugout("skipping already-seen score %v\n", *id)
-				continue
-			}
-			debugout("extracting %v\n", *id)
-
-			writer := jsonserialization.NewJsonSerializationWriter()
-			if err := item.Serialize(writer); err != nil {
-				_ = c.lg.Warn("failed to serialize secure score", log.KV("id", *id), log.KVErr(err))
+			if c.tracker.IdExists(id) {
+				debugout("skipping already-seen score %v\n", id)
 				continue
 			}
 
-			packed, err := writer.GetSerializedContent()
-			if err != nil {
-				_ = c.lg.Warn("failed to get serialized secure score content", log.KV("id", *id), log.KVErr(err))
-				continue
-			}
+			debugout("extracting %v\n", id)
 
 			ent = &entry.Entry{
-				Data: packed,
+				Data: item,
 				Tag:  c.tag,
 				SRC:  c.src,
 			}
@@ -381,20 +354,15 @@ func secureScoreRoutine(c routineCfg, errWait, successWait time.Duration) {
 			if c.ct.Ignore_Timestamps {
 				ent.TS = entry.Now()
 			} else {
-				ts := item.GetCreatedDateTime()
-				if ts != nil {
-					ent.TS = entry.FromStandard(*ts)
-				} else {
-					ent.TS = entry.Now()
-				}
+				ent.TS = entry.FromStandard(msgraph.ExtractTimestamp(msgraph.ContentSecureScores, item))
 			}
 
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
 				_ = c.lg.Warn("failed to handle secure score entry", log.KVErr(err))
 			}
 
-			if err := c.tracker.RecordId(*id, time.Now()); err != nil {
-				_ = c.lg.Warn("failed to record secure score", log.KV("id", *id), log.KVErr(err))
+			if err := c.tracker.RecordId(id, time.Now()); err != nil {
+				_ = c.lg.Warn("failed to record secure score", log.KV("id", id), log.KVErr(err))
 			}
 		}
 
@@ -433,26 +401,15 @@ func secureScoreProfileRoutine(c routineCfg, errWait, successWait time.Duration)
 
 		var ent *entry.Entry
 		for _, item := range profiles {
-			id := item.GetId()
-			if id == nil {
-				continue
-			}
-			debugout("extracting %v\n", *id)
-
-			writer := jsonserialization.NewJsonSerializationWriter()
-			if err := item.Serialize(writer); err != nil {
-				_ = c.lg.Warn("failed to serialize secure score profile", log.KV("id", *id), log.KVErr(err))
+			id := msgraph.ExtractID(item)
+			if id == "" {
 				continue
 			}
 
-			packed, err := writer.GetSerializedContent()
-			if err != nil {
-				_ = c.lg.Warn("failed to get serialized secure score profile content", log.KV("id", *id), log.KVErr(err))
-				continue
-			}
+			debugout("extracting %v\n", id)
 
 			ent = &entry.Entry{
-				Data: packed,
+				Data: item,
 				Tag:  c.tag,
 				SRC:  c.src,
 			}

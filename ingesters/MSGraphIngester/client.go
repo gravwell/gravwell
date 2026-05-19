@@ -11,21 +11,18 @@ package main
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
+	"net/url"
 	"strings"
 
-	azidentity "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	msgraphsdkgo "github.com/microsoftgraph/msgraph-sdk-go"
-	"github.com/microsoftgraph/msgraph-sdk-go/models"
-	modelsecurity "github.com/microsoftgraph/msgraph-sdk-go/models/security"
-	graphsecurity "github.com/microsoftgraph/msgraph-sdk-go/security"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 )
 
 type msGraphFetcher interface {
-	ListAlerts(ctx context.Context, filter string) ([]modelsecurity.Alertable, error)
-	ListSecureScores(ctx context.Context) ([]models.SecureScoreable, error)
-	ListSecureScoreControlProfiles(ctx context.Context) ([]models.SecureScoreControlProfileable, error)
+	ListAlerts(ctx context.Context, filter string) ([]json.RawMessage, error)
+	ListSecureScores(ctx context.Context) ([]json.RawMessage, error)
+	ListSecureScoreControlProfiles(ctx context.Context) ([]json.RawMessage, error)
 }
 
 type msGraphConfig struct {
@@ -35,96 +32,44 @@ type msGraphConfig struct {
 	tenantID     string
 }
 
-type msGraphClient struct {
-	client *msgraphsdkgo.GraphServiceClient
+type msGraphClientWrapper struct {
+	client *msgraph.Client
 }
 
-func newGraphClient(ctx context.Context, cfg msGraphConfig) (*msGraphClient, error) {
+func newGraphClient(cfg msGraphConfig, httpClient msgraph.Doer) (*msGraphClientWrapper, error) {
 	tenant := cmp.Or(strings.TrimSpace(cfg.tenantID), strings.TrimSpace(cfg.tenantDomain))
 	if tenant == "" {
 		return nil, errors.New("either Tenant-ID or Tenant-Domain must be provided")
 	}
 
-	cred, err := azidentity.NewClientSecretCredential(tenant, cfg.clientID, cfg.clientSecret, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create credentials: %w", err)
-	}
-
-	sdkClient, err := msgraphsdkgo.NewGraphServiceClientWithCredentials(
-		cred,
-		[]string{"https://graph.microsoft.com/.default"},
+	client := msgraph.NewClient(
+		"https://graph.microsoft.com",
+		"https://login.microsoftonline.com",
+		tenant,
+		cfg.clientID,
+		cfg.clientSecret,
+		httpClient,
 	)
-	if err != nil {
-		return nil, fmt.Errorf("create msgraph client: %w", err)
-	}
 
-	return &msGraphClient{client: sdkClient}, nil
+	return &msGraphClientWrapper{client: client}, nil
 }
 
-var _ msGraphFetcher = (*msGraphClient)(nil)
+var _ msGraphFetcher = (*msGraphClientWrapper)(nil)
 
-func (g *msGraphClient) ListAlerts(
-	ctx context.Context,
-	filter string,
-) ([]modelsecurity.Alertable, error) {
-	var requestConfig *graphsecurity.Alerts_v2RequestBuilderGetRequestConfiguration
+func (api *msGraphClientWrapper) ListAlerts(ctx context.Context, filter string) ([]json.RawMessage, error) {
+	var params url.Values
 	if filter != "" {
-		requestConfig = &graphsecurity.Alerts_v2RequestBuilderGetRequestConfiguration{
-			QueryParameters: &graphsecurity.Alerts_v2RequestBuilderGetQueryParameters{
-				Filter: &filter,
-			},
-		}
+		params = url.Values{}
+		params.Set("$filter", filter)
 	}
 
-	resp, err := g.client.Security().Alerts_v2().Get(ctx, requestConfig)
-	if err != nil {
-		return nil, fmt.Errorf("get initial alerts: %w", err)
-	}
-
-	alerts := resp.GetValue()
-	for resp.GetOdataNextLink() != nil && *resp.GetOdataNextLink() != "" {
-		resp, err = g.client.Security().Alerts_v2().WithUrl(*resp.GetOdataNextLink()).Get(ctx, nil)
-		if err != nil {
-			return nil, fmt.Errorf("get alerts page: %w", err)
-		}
-		alerts = append(alerts, resp.GetValue()...)
-	}
-
-	return alerts, nil
+	return api.client.ListAll(ctx, msgraph.AlertsEndpoint, params)
 }
 
-func (g *msGraphClient) ListSecureScores(ctx context.Context) ([]models.SecureScoreable, error) {
-	resp, err := g.client.Security().SecureScores().Get(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("get initial secure scores: %w", err)
-	}
-
-	scores := resp.GetValue()
-	for resp.GetOdataNextLink() != nil && *resp.GetOdataNextLink() != "" {
-		resp, err = g.client.Security().SecureScores().WithUrl(*resp.GetOdataNextLink()).Get(ctx, nil)
-		if err != nil {
-			return nil, fmt.Errorf("get secure scores page: %w", err)
-		}
-		scores = append(scores, resp.GetValue()...)
-	}
-
-	return scores, nil
+func (api *msGraphClientWrapper) ListSecureScores(ctx context.Context) ([]json.RawMessage, error) {
+	return api.client.ListAll(ctx, msgraph.SecureScoresEndpoint, nil)
 }
 
-func (g *msGraphClient) ListSecureScoreControlProfiles(ctx context.Context) ([]models.SecureScoreControlProfileable, error) {
-	resp, err := g.client.Security().SecureScoreControlProfiles().Get(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("get initial secure score control profiles: %w", err)
-	}
-
-	profiles := resp.GetValue()
-	for resp.GetOdataNextLink() != nil && *resp.GetOdataNextLink() != "" {
-		resp, err = g.client.Security().SecureScoreControlProfiles().WithUrl(*resp.GetOdataNextLink()).Get(ctx, nil)
-		if err != nil {
-			return nil, fmt.Errorf("get secure score control profiles page: %w", err)
-		}
-		profiles = append(profiles, resp.GetValue()...)
-	}
-
-	return profiles, nil
+func (api *msGraphClientWrapper) ListSecureScoreControlProfiles(ctx context.Context) ([]json.RawMessage, error) {
+	return api.client.ListAll(ctx, msgraph.ControlProfilesEndpoint, nil)
 }
