@@ -126,7 +126,7 @@ func alertsList() action.Pair {
 func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid string) {
 	s, err := fs.GetString(flagName)
 	if err != nil {
-		clilog.LogFlagFailedGet(flagName, err)
+		clilog.GetFlag(err)
 	}
 	return s, ""
 }
@@ -146,13 +146,13 @@ func toggle() action.Pair {
 
 			// check for explicit on or off
 			if enable, err := fs.GetBool("enable"); err != nil {
-				clilog.LogFlagFailedGet("enable", err)
+				clilog.GetFlag(err)
 				return "an error occurred", nil
 			} else if enable {
 				alert.Disabled = false
 			}
 			if disable, err := fs.GetBool("disable"); err != nil {
-				clilog.LogFlagFailedGet("disable", err)
+				clilog.GetFlag(err)
 				return "an error occurred", nil
 			} else if disable {
 				alert.Disabled = true

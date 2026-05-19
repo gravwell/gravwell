@@ -1,18 +1,20 @@
-package admin_users
+package users
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -26,22 +28,17 @@ func unlockAction() action.Pair {
 	cmd := treeutils.GenerateAction("unlock", "unlock a user account",
 		"Unlocks a locked user account.",
 		nil,
-		func(c *cobra.Command, args []string) {
+		func(c *cobra.Command, args []string) error {
 			if c.Flags().NArg() == 0 { // none specified; boot mother or fail out
 				ni, err := c.Flags().GetBool(ft.NoInteractive.Name())
 				if err != nil {
-					clilog.LogFlagFailedGet(ft.NoInteractive.Name(), err)
+					clilog.GetFlag(err)
 					ni = true // better we assume no-interactive
 				}
 				if !ni {
-					if err := mother.Spawn(c.Root(), c, args); err != nil {
-						clilog.Tee(clilog.CRITICAL, c.ErrOrStderr(),
-							"failed to spawn a mother instance: "+err.Error()+"\n")
-					}
-					return
+					return mother.Spawn(c.Root(), c, args)
 				}
-				fmt.Fprintln(c.ErrOrStderr(), phrases.AtLeast1ArgRequired("user IDs"))
-				return
+				return errors.New(phrases.AtLeast1ArgRequired("user IDs"))
 			}
 
 			// at least one ID was specified, attempt to unlock each account
@@ -49,18 +46,17 @@ func unlockAction() action.Pair {
 			for i, s := range c.Flags().Args() {
 				uid, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
-					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(i)+"\" is not a valid integer; no accounts were unlocked")
-					return
+					return errors.New("\"" + c.Flags().Arg(i) + "\" is not a valid integer; no accounts were locked")
 				}
 				uids[i] = int32(uid)
 			}
 			for _, uid := range uids {
 				if err := connection.Client.UnlockUserAccount(int32(uid)); err != nil {
-					clilog.Tee(clilog.INFO, c.ErrOrStderr(), fmt.Sprintf("failed to unlock user account %d: %v", uid, err))
-					return
+					return fmt.Errorf("failed to unlock user account %d: %v", uid, err)
 				}
 				fmt.Fprintf(c.OutOrStdout(), "User %v unlocked\n", uid)
 			}
+			return nil
 		}, treeutils.GenerateActionOptions{
 			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
 			Example: "7",
@@ -73,13 +69,37 @@ func unlockAction() action.Pair {
 
 // unlockModel is basically just a multiselect that calls UnlockUserAccount on each item selected.
 type unlockModel struct {
-	m    multiselectlist.Model[int32]
-	self bool
+	m multiselectlist.Model[int32]
 }
 
 // Init is unused. It just exists so we can feed unlockModel into teatest.
 func (c *unlockModel) Init() tea.Cmd {
 	return nil
+}
+
+func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
+	// unlock has no local flags
+
+	// stuff all locked users into the list.
+	users, err := connection.Client.ListUsers(nil)
+	if err != nil {
+		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
+		return "", nil, fmt.Errorf("failed to get the list of users")
+	}
+	var itms = make([]multiselectlist.SelectableItem[int32], 0, len(users.Results))
+	for _, user := range users.Results {
+		if user.Locked {
+			itms = append(itms, listitem.NewUserItem(user, false))
+		}
+	}
+	itms = slices.Clip(itms)
+	if len(itms) == 0 {
+		return "There are no locked users", nil, nil
+	}
+	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
+	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+	c.m.StatusMessageOnSelect = true
+	return "", nil, nil
 }
 
 func (c *unlockModel) Update(msg tea.Msg) (cmd tea.Cmd) {
@@ -109,36 +129,4 @@ func (c *unlockModel) Done() bool {
 func (c *unlockModel) Reset() error {
 	c.m = multiselectlist.Model[int32]{}
 	return nil
-}
-
-func (c *unlockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	// unlock has no local flags
-
-	// stuff all locked users into the list.
-	users, err := connection.Client.ListUsers(nil)
-	if err != nil {
-		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
-		return "", nil, fmt.Errorf("failed to get the list of users")
-	}
-	var itms = make([]multiselectlist.SelectableItem[int32], 0, len(users.Results))
-	for _, user := range users.Results {
-		if user.Locked {
-			itms = append(itms, &userItem{
-				ID_:      user.ID,
-				username: user.Username,
-				name:     user.Name,
-				email:    user.Email,
-				admin:    user.Admin,
-			})
-		}
-
-	}
-	itms = slices.Clip(itms)
-	if len(itms) == 0 {
-		return "There are no locked users", nil, nil
-	}
-	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
-	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
-	c.m.StatusMessageOnSelect = true
-	return "", nil, nil
 }

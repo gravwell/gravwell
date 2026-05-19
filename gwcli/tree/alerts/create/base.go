@@ -10,6 +10,7 @@
 package alertscreate
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -29,32 +30,28 @@ func Action() action.Pair {
 	cmd := treeutils.GenerateAction("create", "create a new alert",
 		"Create a new alert by defining the dispatchers that trigger it and the consumers that act when the alert is fired",
 		nil,
-		func(c *cobra.Command, s []string) {
+		func(c *cobra.Command, s []string) error {
 			availDispatchers, availConsumers, inv, err := prerequisites()
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			} else if inv != "" {
-				fmt.Fprintln(c.OutOrStdout(), inv)
-				return
+				return errors.New(inv)
 			}
 			flagVals, inv := readFlags(c.Flags())
 			if inv != "" {
-				fmt.Fprintln(c.OutOrStdout(), inv)
-				return
+				return errors.New(inv)
 			}
 			inv, ad := validateFlagValues(availConsumers, availDispatchers, flagVals)
 			if inv != "" {
-				fmt.Fprintln(c.ErrOrStderr(), inv)
-				return
+				return errors.New(inv)
 			}
 
 			res, err := connection.Client.CreateAlert(ad)
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), "failed to create alert: "+err.Error()+"\n")
-				return
+				return fmt.Errorf("failed to create alert: %w", err)
 			}
 			fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem("alert", res.ID))
+			return nil
 		},
 		treeutils.GenerateActionOptions{
 			Usage: ft.Mandatory("--name=NAME") + ft.Optional("FLAGS"),
@@ -187,27 +184,27 @@ type alertFlags struct {
 func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 	var err error
 	if vals.name, err = fs.GetString(ft.Name.Name()); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.Name(), err)
+		clilog.GetFlag(err)
 	}
 	if vals.description, err = fs.GetString(ft.Description.Name()); err != nil {
-		clilog.LogFlagFailedGet(ft.Description.Name(), err)
+		clilog.GetFlag(err)
 	}
 	if vals.tag, err = fs.GetString("tag"); err != nil {
-		clilog.LogFlagFailedGet("tag", err)
+		clilog.GetFlag(err)
 	}
 	if vals.maxEvents, err = fs.GetInt("max-events"); err != nil {
-		clilog.LogFlagFailedGet("max-events", err)
+		clilog.GetFlag(err)
 	}
 	if vals.enabled, err = fs.GetBool("enable"); err != nil {
-		clilog.LogFlagFailedGet("enable", err)
+		clilog.GetFlag(err)
 	}
 	if vals.retain, err = fs.GetInt32("retain"); err != nil {
-		clilog.LogFlagFailedGet("retain", err)
+		clilog.GetFlag(err)
 	}
 	{
 		dispatchers, err := fs.GetStringSlice("dispatchers")
 		if err != nil {
-			clilog.LogFlagFailedGet("dispatchers", err)
+			clilog.GetFlag(err)
 		}
 		if len(dispatchers) > 0 {
 			vals.dispatcherIDs = make([]string, len(dispatchers))
@@ -222,7 +219,7 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 	{
 		consumers, err := fs.GetStringSlice("consumers")
 		if err != nil {
-			clilog.LogFlagFailedGet("consumers", err)
+			clilog.GetFlag(err)
 		}
 		if len(consumers) > 0 {
 			vals.consumerIDs = make([]string, len(consumers))

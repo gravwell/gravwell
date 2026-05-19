@@ -17,13 +17,13 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -55,7 +55,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
 		types.Template{}, func(fs *pflag.FlagSet) ([]types.Template, error) {
 			if all, err := fs.GetBool("all"); err != nil {
-				uniques.ErrGetFlag("templates list", err)
+				clilog.GetFlag(err)
 			} else if all {
 				resp, err := connection.Client.ListAllTemplates(nil)
 				if err != nil {

@@ -25,7 +25,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
-	"github.com/gravwell/gravwell/v4/gwcli/action"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/pflag"
 )
 
@@ -62,10 +63,10 @@ func Type(prog *tea.Program, text string) {
 	}
 }
 
-// TypeModel sends each character of text into model.Update, one by one.
-func TypeModel(model action.Model, text string) {
+// TypeUpdate sends each character of text into the given update function, one by one.
+func TypeUpdate(update func(msg tea.Msg) tea.Cmd, text string) {
 	for _, r := range text {
-		model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
 }
 
@@ -200,19 +201,18 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 // CheckSetArgs calls SetArgs on the given Model and tests that its return values are as expected.
 //
 // Calls fatal on failure.
-func CheckSetArgs(t *testing.T, model action.Model,
+func CheckSetArgs(t *testing.T,
+	setArgsFunc func(parentFS *pflag.FlagSet, tokens []string, width int, height int) (invalid string, onStart tea.Cmd, err error),
 	flagset *pflag.FlagSet, tokens []string, width, height int,
-	wantInvalid string, wantOnStart tea.Cmd, wantErr error) {
+	wantInvalid bool, wantOnStart tea.Cmd, wantErr bool) {
 	t.Helper()
-	invalid, onStart, err := model.SetArgs(flagset, tokens, width, height)
+	invalid, onStart, err := setArgsFunc(flagset, tokens, width, height)
 
-	if invalid != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || err != wantErr {
-
+	if (invalid != "") != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || (err != nil) != wantErr {
 		t.Fatal("bad SetArgs results."+
-			"\nInvalid:", ExpectedActual(wantInvalid, invalid),
+			"\nWantInvalid? ", wantInvalid, " | Invalid: ", invalid,
 			"\nonStart:", ExpectedActual(wantOnStart, onStart),
-			"\nerr:", ExpectedActual(wantErr, err),
-		)
+			"\nWantErr?", wantErr, " | err:", err)
 	}
 }
 
@@ -348,4 +348,58 @@ var keyByName = map[string]tea.KeyType{
 	"f18":              tea.KeyF18,
 	"f19":              tea.KeyF19,
 	"f20":              tea.KeyF20,
+}
+
+// MetaArgs assists tests in calling tree.Execute by generating the meta arguments common to most test Execute calls.
+func MetaArgs(t *testing.T, allowInteractive bool, opts ...func(t *testing.T) []string) (metaArgs []string) {
+	meta := []string{}
+	if !allowInteractive {
+		meta = append(meta, "--"+ft.NoInteractive.Name())
+	}
+	for _, opt := range opts {
+		meta = append(meta, opt(t)...)
+	}
+	t.Log("meta args: ", meta)
+	return meta
+}
+
+// WithUsernamePassword includes -u and sets the given password into the test environment.
+func WithUsernamePassword(u, p string) func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		t.Setenv(cfgdir.EnvKeyPassword, p)
+		return []string{"-u", u}
+	}
+}
+
+// WithServer includes --server=host:port in the meta args.
+//
+// If secure, --insecure will not be appended.
+//
+// If override is empty, testsupport.Server will be used.
+func WithServer(secure bool, override string) func(t *testing.T) []string {
+	server := override
+	if server == "" {
+		server = Server()
+	}
+	var sec string
+	if !secure {
+		sec = "--insecure"
+	}
+	return func(t *testing.T) []string {
+		a := []string{"--server=" + server}
+		if sec != "" {
+			a = append(a, sec)
+		}
+		return a
+	}
+}
+
+// WithDefaults sets WithUsernamePassword as the default admin credentials and WithServer as insecure relying on testsupport.Server()
+func WithDefaults() func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		return append(
+			WithUsernamePassword("admin", "changeme")(t),
+			WithServer(false, "")(t)...,
+		)
+	}
 }

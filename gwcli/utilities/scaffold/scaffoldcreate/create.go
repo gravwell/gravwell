@@ -60,6 +60,7 @@ Example implementation:
 package scaffoldcreate
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -83,11 +84,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	errMissingRequiredFlags string = "missing required flags %v"
-	createdSuccessfully     string = "Successfully created %v (ID: %v)."
-)
-
 // CreateFuncT defines the format of the subroutine that must be passed for creating data.
 // The function's return values must be:
 //
@@ -103,6 +99,8 @@ type CreateFuncT func(fields map[string]Field, fs *pflag.FlagSet) (id any, inval
 // what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
 //
 // Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
+//
+// On success, prints phrases.SuccessfullyCreatedItem().
 func NewCreateAction(singular string, fields map[string]Field, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
 	if singular == "" {
@@ -134,27 +132,20 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 		"create a "+singular,     // short
 		"create a new "+singular, // long
 		[]string{},               // aliases
-		func(c *cobra.Command, s []string) {
+		func(c *cobra.Command, s []string) error {
 			// check non-interactive
 			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			}
 			// check and set flags; spool up mother to prompt for missing required flags if !non-interactive
 			if mr, err := setValuesFromFlags(c.Flags(), fields); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			} else if mr != nil {
 				if !noInteractive {
-					if err := mother.Spawn(c.Root(), c, s); err != nil {
-						clilog.Writer.Critical(err.Error())
-					}
-					return
-				} else {
-					fmt.Fprintf(c.OutOrStdout(), errMissingRequiredFlags+"\n", mr)
+					return mother.Spawn(c.Root(), c, s)
 				}
-				return
+				return errors.New(phrases.MissingRequiredFields(mr))
 			}
 
 			// if all files were valid and we aren't missing any requires, we can attempt to jump directly into creation.
@@ -162,14 +153,14 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 
 			// attempt to create the new X
 			if id, inv, err := createFunc(fields, c.Flags()); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			} else if inv != "" { // some of the flags were invalid
 				fmt.Fprintln(c.OutOrStdout(), inv)
-				return
+				return errors.New(inv)
 			} else {
-				fmt.Fprintf(c.OutOrStdout(), createdSuccessfully, singular, id)
+				fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem(singular, id))
 			}
+			return nil
 		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
 
 	opts.Apply(cmd)
@@ -327,7 +318,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		}
 		// done, die
 		c.mode = quitting
-		return tea.Println(fmt.Sprintf(createdSuccessfully, c.singular, id))
+		return tea.Println(phrases.SuccessfullyCreatedItem(c.singular, id))
 	}
 	if c.SubmitSelected() { // if submit is selected and it wasn't handled above, we don't care about it
 		return nil
@@ -355,7 +346,7 @@ func (c *createModel) selectedField() Field {
 func (c *createModel) checkSatisfaction(selectedOnly bool) {
 	check := func(f Field) bool {
 		if f.Required && f.Provider.Get() == "" {
-			c.inputs.err = phrases.MissingRequiredField(f.Title)
+			c.inputs.err = phrases.MissingRequiredFields([]string{f.Title})
 			return true
 		}
 

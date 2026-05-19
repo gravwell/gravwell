@@ -20,7 +20,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -223,14 +222,9 @@ func Test_Full(t *testing.T) {
 // helper function for Test_Full to allow it to be run back-by-back.
 // Sets value 'a' into the first field and always passes the --bln flag.
 func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
-	//t.Helper()
-	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}, 80, 50); err != nil {
-		t.Fatal("failed to Set Args:", err)
-	} else if inv != "" {
-		t.Fatal("failed to validate valid args:", inv)
-	}
+	CheckSetArgs(t, cm.SetArgs, nil, []string{"--bln"}, 80, 50, false, nil, false)
 
-	cm.Update(testsupport.SendHotkey(hotkeys.CursorDown))
+	cm.Update(SendHotkey(hotkeys.CursorDown))
 
 	// split the output to check for the fields
 	var out []string
@@ -253,24 +247,24 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	}
 
 	// navigate to the submit button by underflowing
-	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
-	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+	cm.Update(SendHotkey(hotkeys.CursorUp))
+	cm.Update(SendHotkey(hotkeys.CursorUp))
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(testsupport.SendHotkey(hotkeys.Invoke))
+	cm.Update(SendHotkey(hotkeys.Invoke))
 	// check for errors
 	if cm.inputs.err == "" { // A is required and was not set
 		t.Fatal("expected inputErr to be set due to missing requireds.")
 	}
 	// set A
-	cm.Update(testsupport.SendHotkey(hotkeys.CursorDown))
+	cm.Update(SendHotkey(hotkeys.CursorDown))
 	cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	cm.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+	cm.Update(SendHotkey(hotkeys.CursorUp))
 	if !cm.SubmitSelected() {
 		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
-	cm.Update(testsupport.SendHotkey(hotkeys.Invoke))
+	cm.Update(SendHotkey(hotkeys.Invoke))
 	if cm.inputs.err != "" {
 		t.Fatalf("unexpected input error: %v", cm.inputs.err)
 	} else if cm.createErr != "" {

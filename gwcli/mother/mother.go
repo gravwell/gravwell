@@ -98,7 +98,7 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	}
 
 	if _, err := interactive.Run(); err != nil {
-		panic(err)
+		return fmt.Errorf("failed to spawn Mother: %w", err)
 	}
 	return interactive.ReleaseTerminal() // should be redundant
 }
@@ -513,30 +513,6 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 		return cmd
 	}
 	return nil
-}
-
-// helper subroutine for updateSuggestions().
-// Recursively searches down the given nav, returning all actions (at any depth), rooted at the
-// given nav.
-//
-// Drives the suggestions of mother's prompt.
-//
-// Very similar to the tree action at root.
-func plumbCommand(nav *navCmd) []string {
-	self := nav.Name()
-	var suggests = []string{self}
-	for _, child := range nav.Commands() {
-		switch child.GroupID {
-		case group.NavID:
-			subchildren := plumbCommand(child)
-			for _, sc := range subchildren {
-				suggests = append(suggests, self+" "+sc)
-			}
-		default: // actions end here
-			suggests = append(suggests, self+" "+child.Name())
-		}
-	}
-	return suggests
 }
 
 // unsetAction resets the current active command/action, clears actives, and returns control to

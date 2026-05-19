@@ -187,6 +187,7 @@ func Test_tryQuery(t *testing.T) {
 // Primarily checking that data was successfully put to a file or the terminal.
 func Test_run(t *testing.T) {
 	var (
+		tDir        = t.TempDir()
 		logFile     = path.Join(os.TempDir(), "gwcli.Test_run.log")
 		restLogFile = path.Join(os.TempDir(), "gwcli.Test_run.rest.log")
 	)
@@ -213,7 +214,7 @@ func Test_run(t *testing.T) {
 		return &cmd
 	}
 
-	t1 := "Test_run.output-to-file.results.txt"
+	t1 := path.Join(tDir, "Test_run.output-to-file.results.txt")
 	t.Run("output to file '"+t1+"'", func(t *testing.T) {
 		flagArgs := strings.Split("-o "+t1+" --"+ft.NoInteractive.Name(), " ")
 		args := strings.Split("tag=gravwell", " ")
@@ -221,7 +222,9 @@ func Test_run(t *testing.T) {
 		cmd := prepCmd(flagArgs)
 
 		// run
-		run(cmd, args)
+		if err := runE(cmd, args); err != nil {
+			t.Fatal("failed to run query: ", err)
+		}
 
 		// check that the expected file exists and has data
 		fileInfo, err := os.Stat(t1)
@@ -234,7 +237,7 @@ func Test_run(t *testing.T) {
 		os.Remove(t1)
 	})
 
-	t2 := "Test_run.output-to-file.results.json"
+	t2 := path.Join(tDir, "Test_run.output-to-file.results.json")
 	t.Run("output to file '"+t2+"'", func(t *testing.T) {
 		flagArgs := strings.Split("-o "+t2+" --"+ft.NoInteractive.Name()+" --"+ft.JSON.Name()+"", " ")
 		args := strings.Split("tag=gravwell", " ")
@@ -242,7 +245,9 @@ func Test_run(t *testing.T) {
 		cmd := prepCmd(flagArgs)
 
 		// run
-		run(cmd, args)
+		if err := runE(cmd, args); err != nil {
+			t.Fatal("failed to run query: ", err)
+		}
 
 		// check that the expected file exists and has data
 		fileInfo, err := os.Stat(t2)

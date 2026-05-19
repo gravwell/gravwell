@@ -18,7 +18,7 @@ func notifications() action.Pair {
 		func(fs *pflag.FlagSet) ([]types.Notification, error) {
 			seen, err := fs.GetBool("seen")
 			if err != nil {
-				clilog.LogFlagFailedGet("seen", err)
+				clilog.GetFlag(err)
 			}
 			var notifs types.NotificationSet
 			if !seen {

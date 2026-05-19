@@ -312,7 +312,7 @@ func TestLoginMFA_script_mode(t *testing.T) {
 	}{
 		{"(alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
 		{"(alt user) valid APIToken", args{altUser, "", altAPITkn, true}, nil},
-		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrAPITokenRequired},
+		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrNonInteractiveRequiresDifferentLogin},
 		{"(alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
 		{"(alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPITokenInvalid},
 	}
@@ -413,44 +413,6 @@ func TestLogin_interactive_mode(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-
-	/*t.Run("valid username and password + MFA", func(t *testing.T) {
-		// we expect this test cause Login to spawn an MFA prompt
-		// TODO incorporate teattest and pass a GenerateCode result into stdin
-
-		// spin up test client
-		c, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
-		if err != nil {
-			t.Skip("failed to create test client:", err)
-		}
-		if resp, err := c.LoginEx(defaultUser, defaultPass); err != nil {
-			t.Skip(err)
-		} else if !resp.LoginStatus {
-			t.Skip("failed to log test client in: ", resp.Reason)
-		}
-		t.Cleanup(func() { c.Logout() })
-
-		// spawn a second user with mfa
-		createAltUser(t, c, true)
-
-		// re-initialize the connection singleton
-		if err := connection.Initialize(server, false, true, ""); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { connection.End() })
-
-		if err := connection.Login(defaultUser, defaultPass, "", false); err != nil {
-			t.Fatal(err)
-		}
-		// check that we can query the backend and get the correct user
-		myinfo, err := connection.Client.MyInfo()
-		if err != nil {
-			t.Fatal(err)
-		} else if myinfo.Username != connection.MyInfo.Username || myinfo.Username != defaultUser {
-			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.Username, connection.MyInfo.Username, defaultUser)
-		}
-	}) */
-
 }
 
 // TestJWTResfreshing confirms that the refresher goroutine that connection spins up on Login actually keeps the session alive

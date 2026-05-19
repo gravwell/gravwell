@@ -35,46 +35,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 )
 
-/* // TODO remove me?
-This file covers tests for using gwcli in --no-interactive mode (from a user's shell or via an external script).
-
-These tests make destructive changes to the gravwell server; make sure you are targeting a safe, clean server!
-
-Each test is intended to be self-contained but, due to gwcli's usage of singletons,
-do not account for parallelism at a test level
-(testing in multiple processes, not goroutines, is acceptable).
-*/
-
-/*import (
-	"bytes"
-	"encoding/csv"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"io/fs"
-	"math/rand"
-	"os"
-	"path"
-	"regexp"
-	"slices"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
-
-	"github.com/Pallinder/go-randomdata"
-	"github.com/gravwell/gravwell/v4/client/types"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/tree"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
-
-	grav "github.com/gravwell/gravwell/v4/client"
-	"github.com/gravwell/gravwell/v4/utils/weave"
-)*/
-
 type authMethod uint
 
 const (
@@ -188,7 +148,7 @@ func TestSelfSessionsMatchAdminSessions(t *testing.T) {
 		adminOut, adminErr string
 	)
 	var wg sync.WaitGroup
-	columnsArg := "--columns=UID,ID" // declare consistent columns
+	columnsArg := "--columns=UID,SessionID" // declare consistent columns
 	wg.Go(func() {
 		selfOut, selfErr = execute(t, admin_u_p, "self", "sessions", "--csv", columnsArg)
 	})
@@ -702,219 +662,223 @@ func TestQueries(t *testing.T) {
 
 	})
 
-	t.Run("attach to backgrounded, stdout", func(t *testing.T) {
-		var sid string
-		{ // submit a background query
-			bgQry := "tag=gravwell limit 1 | sleep 5s"
-			// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
-			if err := testclient.ParseSearch(bgQry); err != nil {
-				t.Skip("background query could be not parsed: ", err)
-			}
+	// FIXME  Commenting due to breakage incoming from https://github.com/gravwell/issues/issues/2144
+	// t.Run("attach to backgrounded, stdout", func(t *testing.T) {
+	// 	var sid string
+	// 	{ // submit a background query
+	// 		bgQry := "tag=gravwell limit 1 | sleep 5s"
+	// 		// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
+	// 		if err := testclient.ParseSearch(bgQry); err != nil {
+	// 			t.Skip("background query could be not parsed: ", err)
+	// 		}
+	//
+	// 		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" query %s --background", user, pf, bgQry)
+	// 		statusCode, stdout, stderr := executeCmd(t, cmd)
+	// 		testsupport.NonZeroExit(t, statusCode, stderr)
+	// 		checkResult(t, false, "stderr", "", stderr)
+	//
+	// 		// save off background query sid
+	// 		sid = skimSID(t, stdout)
+	// 		if sid == "" {
+	// 			t.Fatal("failed to scan search ID out of stdout")
+	// 		}
+	// 		t.Logf("scanned out sid %s", sid)
+	// 	}
+	//
+	// 	// attach to background query
+	// 	cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s", user, pf, sid)
+	// 	statusCode, attachSTDOUT, stderr := executeCmd(t, cmd)
+	// 	testsupport.NonZeroExit(t, statusCode, stderr)
+	// 	checkResult(t, false, "stderr", "", stderr)
+	//
+	// 	// fetch the background query's results manually
+	// 	var actualOut string
+	// 	{
+	// 		var sb strings.Builder
+	// 		rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
+	// 		if err != nil {
+	// 			t.Fatal("failed to manually fetch query results: ", err)
+	// 		}
+	// 		written, err := io.Copy(&sb, rc)
+	// 		if err != nil {
+	// 			t.Fatal(err)
+	// 		}
+	// 		actualOut = sb.String()
+	// 		if written == 0 { // if the data was empty, set it to our empty statement
+	// 			actualOut = querysupport.NoResults
+	// 		}
+	// 	}
+	// 	// check stdout
+	// 	// don't really care about the data, just that it matches what it should
+	// 	if attachSTDOUT != actualOut {
+	// 		t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(actualOut, attachSTDOUT))
+	// 	}
+	// })
 
-			cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" query %s --background", user, pf, bgQry)
-			statusCode, stdout, stderr := executeCmd(t, cmd)
-			testsupport.NonZeroExit(t, statusCode, stderr)
-			checkResult(t, false, "stderr", "", stderr)
+	// FIXME  Commenting due to breakage incoming from https://github.com/gravwell/issues/issues/2144
+	// t.Run("attach to backgrounded, file", func(t *testing.T) {
+	//
+	// 	var sid string
+	// 	{ // submit a background query
+	// 		bgQry := "tag=gravwell limit 1 | sleep 5s"
+	// 		// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
+	// 		if err := testclient.ParseSearch(bgQry); err != nil {
+	// 			t.Skip("background query could be not parsed: ", err)
+	// 		}
+	//
+	// 		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" query %s --background", user, pf, bgQry)
+	// 		statusCode, stdout, stderr := executeCmd(t, cmd)
+	// 		testsupport.NonZeroExit(t, statusCode, stderr)
+	// 		checkResult(t, false, "stderr", "", stderr)
+	//
+	// 		// save off background query sid
+	// 		sid = skimSID(t, stdout)
+	// 		if sid == "" {
+	// 			t.Fatal("failed to scan search ID out of stdout")
+	// 		}
+	// 		t.Logf("scanned out sid %s", sid)
+	// 	}
+	//
+	// 	// attach to background query
+	// 	outPath := path.Join(t.TempDir(), "out.txt")
+	// 	cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s -o %s", user, pf, sid, outPath)
+	// 	statusCode, _, stderr := executeCmd(t, cmd)
+	// 	testsupport.NonZeroExit(t, statusCode, stderr)
+	// 	checkResult(t, false, "stderr", "", stderr)
+	//
+	// 	// fetch the background query's results manually
+	// 	var correctOut string
+	// 	{
+	// 		var sb strings.Builder
+	// 		rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
+	// 		if err != nil {
+	// 			t.Fatal("failed to manually fetch query results: ", err)
+	// 		}
+	// 		written, err := io.Copy(&sb, rc)
+	// 		if err != nil {
+	// 			t.Fatal(err)
+	// 		}
+	// 		correctOut = sb.String()
+	// 		if written == 0 { // if the data was empty, set it to our empty statement
+	// 			correctOut = querysupport.NoResults
+	// 		}
+	// 	}
+	//
+	// 	// slurp the file
+	// 	fileBytes, err := os.ReadFile(outPath)
+	// 	if err != nil {
+	// 		t.Fatal(err)
+	// 	}
+	//
+	// 	// check stdout
+	// 	// don't really care about the data, just that it matches what it should
+	// 	if string(fileBytes) != correctOut {
+	// 		t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, string(fileBytes)))
+	// 	}
+	// })
 
-			// save off background query sid
-			sid = skimSID(t, stdout)
-			if sid == "" {
-				t.Fatal("failed to scan search ID out of stdout")
-			}
-			t.Logf("scanned out sid %s", sid)
-		}
+	// FIXME  Commenting due to breakage incoming from https://github.com/gravwell/issues/issues/2144
+	// t.Run("attach to backgrounded after completion, stdout", func(t *testing.T) {
+	// 	var sid string
+	// 	{ // submit a background query
+	// 		bgQry := "tag=gravwell limit 1 | sleep 5s"
+	// 		// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
+	// 		if err := testclient.ParseSearch(bgQry); err != nil {
+	// 			t.Skip("background query could be not parsed: ", err)
+	// 		}
+	//
+	// 		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" query %s --background", user, pf, bgQry)
+	// 		statusCode, stdout, stderr := executeCmd(t, cmd)
+	// 		testsupport.NonZeroExit(t, statusCode, stderr)
+	// 		checkResult(t, false, "stderr", "", stderr)
+	//
+	// 		// save off background query sid
+	// 		sid = skimSID(t, stdout)
+	// 		if sid == "" {
+	// 			t.Fatal("failed to scan search ID out of stdout")
+	// 		}
+	// 		t.Logf("scanned out sid %s", sid)
+	// 	}
+	//
+	// 	// wait for query before attaching
+	// 	time.Sleep(5 * time.Second)
+	//
+	// 	// attach to background query
+	// 	cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s", user, pf, sid)
+	// 	statusCode, cmdOut, stderr := executeCmd(t, cmd)
+	// 	testsupport.NonZeroExit(t, statusCode, stderr)
+	// 	checkResult(t, false, "stderr", "", stderr)
+	//
+	// 	// fetch the background query's results manually
+	// 	var correctOut string
+	// 	{
+	// 		var sb strings.Builder
+	// 		rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
+	// 		if err != nil {
+	// 			t.Fatal("failed to manually fetch query results: ", err)
+	// 		}
+	// 		written, err := io.Copy(&sb, rc)
+	// 		if err != nil {
+	// 			t.Fatal(err)
+	// 		}
+	// 		correctOut = sb.String()
+	// 		if written == 0 { // if the data was empty, set it to our empty statement
+	// 			correctOut = querysupport.NoResults
+	// 		}
+	// 	}
+	// 	// check stdout
+	// 	// don't really care about the data, just that it matches what it should
+	// 	if cmdOut != correctOut {
+	// 		t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, cmdOut))
+	// 	}
+	// })
 
-		// attach to background query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s", user, pf, sid)
-		statusCode, attachSTDOUT, stderr := executeCmd(t, cmd)
-		testsupport.NonZeroExit(t, statusCode, stderr)
-		checkResult(t, false, "stderr", "", stderr)
-
-		// fetch the background query's results manually
-		var actualOut string
-		{
-			var sb strings.Builder
-			rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
-			if err != nil {
-				t.Fatal("failed to manually fetch query results: ", err)
-			}
-			written, err := io.Copy(&sb, rc)
-			if err != nil {
-				t.Fatal(err)
-			}
-			actualOut = sb.String()
-			if written == 0 { // if the data was empty, set it to our empty statement
-				actualOut = querysupport.NoResults
-			}
-		}
-		// check stdout
-		// don't really care about the data, just that it matches what it should
-		if attachSTDOUT != actualOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(actualOut, attachSTDOUT))
-		}
-	})
-
-	t.Run("attach to backgrounded, file", func(t *testing.T) {
-
-		var sid string
-		{ // submit a background query
-			bgQry := "tag=gravwell limit 1 | sleep 5s"
-			// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
-			if err := testclient.ParseSearch(bgQry); err != nil {
-				t.Skip("background query could be not parsed: ", err)
-			}
-
-			cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" query %s --background", user, pf, bgQry)
-			statusCode, stdout, stderr := executeCmd(t, cmd)
-			testsupport.NonZeroExit(t, statusCode, stderr)
-			checkResult(t, false, "stderr", "", stderr)
-
-			// save off background query sid
-			sid = skimSID(t, stdout)
-			if sid == "" {
-				t.Fatal("failed to scan search ID out of stdout")
-			}
-			t.Logf("scanned out sid %s", sid)
-		}
-
-		// attach to background query
-		outPath := path.Join(t.TempDir(), "out.txt")
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s -o %s", user, pf, sid, outPath)
-		statusCode, _, stderr := executeCmd(t, cmd)
-		testsupport.NonZeroExit(t, statusCode, stderr)
-		checkResult(t, false, "stderr", "", stderr)
-
-		// fetch the background query's results manually
-		var correctOut string
-		{
-			var sb strings.Builder
-			rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
-			if err != nil {
-				t.Fatal("failed to manually fetch query results: ", err)
-			}
-			written, err := io.Copy(&sb, rc)
-			if err != nil {
-				t.Fatal(err)
-			}
-			correctOut = sb.String()
-			if written == 0 { // if the data was empty, set it to our empty statement
-				correctOut = querysupport.NoResults
-			}
-		}
-
-		// slurp the file
-		fileBytes, err := os.ReadFile(outPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// check stdout
-		// don't really care about the data, just that it matches what it should
-		if string(fileBytes) != correctOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, string(fileBytes)))
-		}
-	})
-
-	t.Run("attach to backgrounded after completion, stdout", func(t *testing.T) {
-		var sid string
-		{ // submit a background query
-			bgQry := "tag=gravwell limit 1 | sleep 5s"
-			// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
-			if err := testclient.ParseSearch(bgQry); err != nil {
-				t.Skip("background query could be not parsed: ", err)
-			}
-
-			cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" query %s --background", user, pf, bgQry)
-			statusCode, stdout, stderr := executeCmd(t, cmd)
-			testsupport.NonZeroExit(t, statusCode, stderr)
-			checkResult(t, false, "stderr", "", stderr)
-
-			// save off background query sid
-			sid = skimSID(t, stdout)
-			if sid == "" {
-				t.Fatal("failed to scan search ID out of stdout")
-			}
-			t.Logf("scanned out sid %s", sid)
-		}
-
-		// wait for query before attaching
-		time.Sleep(5 * time.Second)
-
-		// attach to background query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s", user, pf, sid)
-		statusCode, cmdOut, stderr := executeCmd(t, cmd)
-		testsupport.NonZeroExit(t, statusCode, stderr)
-		checkResult(t, false, "stderr", "", stderr)
-
-		// fetch the background query's results manually
-		var correctOut string
-		{
-			var sb strings.Builder
-			rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
-			if err != nil {
-				t.Fatal("failed to manually fetch query results: ", err)
-			}
-			written, err := io.Copy(&sb, rc)
-			if err != nil {
-				t.Fatal(err)
-			}
-			correctOut = sb.String()
-			if written == 0 { // if the data was empty, set it to our empty statement
-				correctOut = querysupport.NoResults
-			}
-		}
-		// check stdout
-		// don't really care about the data, just that it matches what it should
-		if cmdOut != correctOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, cmdOut))
-		}
-	})
-
-	t.Run("attach to foregrounded after completion, stdout", func(t *testing.T) {
-		// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
-		fgQry := "tag=gravwell limit 1 | sleep 5s"
-		if err := testclient.ParseSearch(fgQry); err != nil {
-			t.Skip("foreground query could be not parsed: ", err)
-		}
-
-		s, err := testclient.StartSearch(fgQry, time.Now().Add(-time.Minute), time.Now(), false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		sid := s.ID
-
-		// give the query time to start before attaching
-		time.Sleep(300 * time.Millisecond)
-
-		// attach to background query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s", user, pf, sid)
-		statusCode, cmdOut, stderr := executeCmd(t, cmd)
-		testsupport.NonZeroExit(t, statusCode, stderr)
-		checkResult(t, false, "stderr", "", stderr)
-
-		// fetch the background query's results manually
-		var correctOut string
-		{
-			var sb strings.Builder
-			rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
-			if err != nil {
-				t.Fatal("failed to manually fetch query results: ", err)
-			}
-			written, err := io.Copy(&sb, rc)
-			if err != nil {
-				t.Fatal(err)
-			}
-			correctOut = sb.String()
-			if written == 0 { // if the data was empty, set it to our empty statement
-				correctOut = querysupport.NoResults
-			}
-		}
-		// check stdout
-		// don't really care about the data, just that it matches what it should
-		if cmdOut != correctOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, cmdOut))
-		}
-	})
+	// FIXME  Commenting due to breakage incoming from https://github.com/gravwell/issues/issues/2144
+	// t.Run("attach to foregrounded after completion, stdout", func(t *testing.T) {
+	// 	// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
+	// 	fgQry := "tag=gravwell limit 1 | sleep 5s"
+	// 	if err := testclient.ParseSearch(fgQry); err != nil {
+	// 		t.Skip("foreground query could be not parsed: ", err)
+	// 	}
+	//
+	// 	s, err := testclient.StartSearch(fgQry, time.Now().Add(-time.Minute), time.Now(), false)
+	// 	if err != nil {
+	// 		t.Fatal(err)
+	// 	}
+	// 	sid := s.ID
+	//
+	// 	// give the query time to start before attaching
+	// 	time.Sleep(300 * time.Millisecond)
+	//
+	// 	// attach to background query
+	// 	cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" queries attach %s", user, pf, sid)
+	// 	statusCode, cmdOut, stderr := executeCmd(t, cmd)
+	// 	testsupport.NonZeroExit(t, statusCode, stderr)
+	// 	checkResult(t, false, "stderr", "", stderr)
+	//
+	// 	// fetch the background query's results manually
+	// 	var correctOut string
+	// 	{
+	// 		var sb strings.Builder
+	// 		rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
+	// 		if err != nil {
+	// 			t.Fatal("failed to manually fetch query results: ", err)
+	// 		}
+	// 		written, err := io.Copy(&sb, rc)
+	// 		if err != nil {
+	// 			t.Fatal(err)
+	// 		}
+	// 		correctOut = sb.String()
+	// 		if written == 0 { // if the data was empty, set it to our empty statement
+	// 			correctOut = querysupport.NoResults
+	// 		}
+	// 	}
+	// 	// check stdout
+	// 	// don't really care about the data, just that it matches what it should
+	// 	if cmdOut != correctOut {
+	// 		t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, cmdOut))
+	// 	}
+	// })
 }
 
 //#endregion

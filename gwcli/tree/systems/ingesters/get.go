@@ -14,7 +14,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
@@ -38,15 +37,15 @@ func get() action.Pair {
 			// check that we were given ingesters to fetch
 			hostPrefix, err := fs.GetString(flagHostname)
 			if err != nil {
-				return nil, uniques.ErrGetFlag(use, err)
+				return nil, clilog.GetFlag(err)
 			}
 			uuidPrefix, err := fs.GetString(flagUUID)
 			if err != nil {
-				return nil, uniques.ErrGetFlag(use, err)
+				return nil, clilog.GetFlag(err)
 			}
 			namePrefix, err := fs.GetString(flagName)
 			if err != nil {
-				return nil, uniques.ErrGetFlag(use, err)
+				return nil, clilog.GetFlag(err)
 			}
 
 			ss, err := connection.Client.GetIngesterStats()
@@ -89,15 +88,15 @@ func get() action.Pair {
 				// check that we were given ingesters to fetch
 				hostPrefix, err := fs.GetString("hostname")
 				if err != nil {
-					return "", uniques.ErrGetFlag(use, err)
+					return "", clilog.GetFlag(err)
 				}
 				uuidPrefix, err := fs.GetString("uuid")
 				if err != nil {
-					return "", uniques.ErrGetFlag(use, err)
+					return "", clilog.GetFlag(err)
 				}
 				namePrefix, err := fs.GetString("name")
 				if err != nil {
-					return "", uniques.ErrGetFlag(use, err)
+					return "", clilog.GetFlag(err)
 				}
 
 				// we cannot use c.MarkFlagsOneRequired("hostname", "uuid", "name") as it will not be factored into SetArgs
