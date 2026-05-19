@@ -15,12 +15,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -28,7 +26,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -109,21 +106,6 @@ func edit() action.Pair {
 	cfg := scaffoldedit.Config{
 		"name":        scaffoldedit.FieldName("group"),
 		"description": scaffoldedit.FieldDescription("group"),
-		"search priority": &scaffoldedit.Field{
-			Title: "Search Priority",
-			Usage: "Set the search priority of the group",
-			Order: 80,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("0", true)
-				ti.Validate = func(s string) error {
-					if err := validate.Numeric(s); err != nil {
-						return fmt.Errorf("Search Priority: %w", err)
-					}
-					return nil
-				}
-				return ti
-			},
-		},
 	}
 	funcs := scaffoldedit.SubroutineSet[int32, types.Group]{
 		SelectSub: func(id int32) (types.Group, error) {
@@ -146,8 +128,6 @@ func edit() action.Pair {
 				return item.Name, nil
 			case "description":
 				return item.Description, nil
-			case "search priority":
-				return strconv.FormatInt(int64(item.SearchPriority), 10), nil
 			}
 			return "", fmt.Errorf("unknown field key: %v", fieldKey)
 		},
@@ -157,16 +137,6 @@ func edit() action.Pair {
 				item.Name = val
 			case "description":
 				item.Description = val
-			case "search priority":
-				if err := validate.Numeric(val); err != nil {
-					return "", err
-				}
-				sp, err := strconv.ParseInt(val, 10, 32)
-				if err != nil {
-					return "", err
-				}
-
-				item.SearchPriority = int(sp)
 			default:
 				return "", fmt.Errorf("unknown field key: %v", fieldKey)
 			}
