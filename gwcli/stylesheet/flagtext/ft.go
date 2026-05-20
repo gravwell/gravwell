@@ -21,6 +21,7 @@ package ft
 // If a flag needs to modify its parameters (custom usage, set a default value), Name(), Usage(), and Shorthand() are available for manual installation.
 
 import (
+	"errors"
 	"fmt"
 	"go/types"
 	"strconv"
@@ -402,19 +403,19 @@ func MutuallyExclusive(texts []string) string {
 	return "{" + strings.Join(texts, "|") + "}"
 }
 
-// ErrMutuallyExclusive returns user-friendly error text
+// ErrMutuallyExclusive returns a user-friendly error declaring that all given items were given, but are mutually exclusive.
 //
 // Flags should be given sans "--" prefix.
 //
 // Returns ErrInternal's text if len(flags) < 2.
-func ErrMutuallyExclusive(flags ...string) string {
-	if len(flags) < 2 {
-		clilog.Writer.Warn("ErrMutuallyExclusive called with fewer than 2 flags", log.KV("caller", log.CallLoc(1)), log.KV("flags", flags))
-		return clilog.ErrInternal{}.Error()
+func ErrMutuallyExclusive(mxFlags ...string) error {
+	if len(mxFlags) < 2 {
+		clilog.Writer.Warn("ErrMutuallyExclusive called with fewer than 2 flags", log.KV("caller", log.CallLoc(1)), log.KV("flags", mxFlags))
+		return clilog.ErrInternal{}
 	}
 
-	flagList := "--" + strings.Join(flags[:len(flags)-2], ", --") // condense all but the last
-	return flagList + " and --" + flags[len(flags)-1] + " are mutually exclusive"
+	flagList := "--" + strings.Join(mxFlags[:len(mxFlags)-1], ", --") // condense all but the last
+	return errors.New(flagList + ", and --" + mxFlags[len(mxFlags)-1] + " are mutually exclusive")
 }
 
 // flagCaveatStyle sets what extra notes on flag descriptions look like.
