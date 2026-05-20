@@ -46,11 +46,11 @@ func SQSListener(c *Config) (*SQS, error) {
 	}
 
 	awsCfg := &aws.Config{
-		Region:      aws.String(c.Region),
+		Region:      new(c.Region),
 		Credentials: c.Credentials,
 	}
 	if c.Endpoint != "" {
-		awsCfg.Endpoint = aws.String(c.Endpoint)
+		awsCfg.Endpoint = new(c.Endpoint)
 	}
 	s.sess, err = session.NewSession(awsCfg)
 	if err != nil {
@@ -95,7 +95,7 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 
 func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 	deleter := &sqs.DeleteMessageBatchInput{
-		QueueUrl: aws.String(s.conf.Queue),
+		QueueUrl: new(s.conf.Queue),
 	}
 
 	for _, v := range m {
@@ -107,10 +107,10 @@ func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 
 	_, err := s.svc.DeleteMessageBatch(deleter)
 	if err != nil {
-		lg.Error("deleting messages failed, retrying", log.KVErr(err))
+		_ = lg.Error("deleting messages failed, retrying", log.KVErr(err))
 		//try again, this is important
 		if _, err = s.svc.DeleteMessageBatch(deleter); err != nil {
-			lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
+			_ = lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
 		}
 	}
 

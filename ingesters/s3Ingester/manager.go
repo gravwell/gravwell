@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -46,7 +45,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 	// create workers
 	var workerWg sync.WaitGroup
 	queue := make(chan []*sqs.Message, QUEUE_DEPTH)
-	for i := 0; i < numWorkers; i++ {
+	for i := range numWorkers {
 		workerWg.Add(1)
 		go s.worker(ctx, lg, &workerWg, queue, i)
 	}
@@ -58,7 +57,7 @@ OUTER:
 		go func() {
 			o, err := s.sqs.GetMessages()
 			if err != nil {
-				lg.Error("sqs receive message error", log.KVErr(err))
+				_ = lg.Error("sqs receive message error", log.KV("listener", s.Name), log.KVErr(err))
 				c <- nil
 			}
 			c <- o
@@ -67,8 +66,8 @@ OUTER:
 		select {
 		case out = <-c:
 			if out == nil {
-				lg.Error("received empty SQS response")
-				sleepContext(ctx, ERROR_BACKOFF)
+				_ = lg.Error("received empty SQS response", log.KV("listener", s.Name))
+				_ = sleepContext(ctx, ERROR_BACKOFF)
 				continue
 			}
 		case <-ctx.Done():
@@ -76,7 +75,7 @@ OUTER:
 			break OUTER
 		}
 
-		lg.Info("sqs received messages", log.KV("count", len(out)))
+		lg.Info("sqs received messages", log.KV("listener", s.Name), log.KV("count", len(out)))
 
 		if s.Verbose {
 			for _, v := range out {
@@ -95,7 +94,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 	var sz int64
 	defer wg.Done()
 
-	lg.Infof("worker %v started", workerID)
+	_ = lg.Infof("worker %v started", workerID)
 
 	for sm := range queue {
 		var deleteQueue []*sqs.Message
@@ -113,7 +112,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 			if err != nil {
 				buckets, keys, err = s3Decode(msg)
 				if err != nil {
-					lg.Warn("error decoding message", log.KVErr(err))
+					_ = lg.Warn("error decoding message", log.KVErr(err))
 					continue
 				} else {
 					logSnsKeyDecode(lg, "S3", buckets, keys)
@@ -127,7 +126,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 				if decoded, err := url.PathUnescape(v); err == nil {
 					keys[i] = decoded
 				} else {
-					lg.Warn("failed to URL decode key", log.KVErr(err), log.KV("key", v))
+					_ = lg.Warn("failed to URL decode key", log.KVErr(err), log.KV("key", v))
 				}
 			}
 
@@ -140,10 +139,10 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 				}
 
 				obj := &s3.Object{
-					Key: aws.String(x),
+					Key: new(x),
 				}
 
-				if obj != nil && obj.Size != nil && *obj.Size == int64(0) {
+				if obj.Size != nil && *obj.Size == int64(0) {
 					// don't even bother fetching it, just delete and move on
 					lg.Info("skipping zero-byte object",
 						log.KV("worker", workerID),
@@ -155,7 +154,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 				sz, s3rtt, rtt, err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize, s.AttachMetadata)
 				if err != nil {
 					shouldDelete = false
-					lg.Error("error processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
+					_ = lg.Error("error processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
 				} else {
 					lg.Info("successfully processed message",
 						log.KV("worker", workerID),
@@ -176,7 +175,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 		if len(deleteQueue) != 0 {
 			err := s.sqs.DeleteMessages(deleteQueue, lg)
 			if err != nil {
-				lg.Error("deleting messages", log.KVErr(err))
+				_ = lg.Error("deleting messages", log.KVErr(err))
 			}
 		}
 
@@ -184,7 +183,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 			break
 		}
 	}
-	lg.Infof("worker %v exiting", workerID)
+	_ = lg.Infof("worker %v exiting", workerID)
 }
 
 func snsDecode(input []byte) ([]string, []string, error) {
@@ -338,13 +337,13 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 	for _, b := range buckets {
 		// start workers
 		queue := make(chan *s3.Object, QUEUE_DEPTH)
-		for i := 0; i < numWorkers; i++ {
+		for range numWorkers {
 			wg.Add(1)
 			go b.worker(lg, ctx, ot, queue, &wg)
 
 		}
 		if err := b.ManualScan(lg, ctx, ot, queue); err != nil {
-			lg.Error("failed to scan S3 bucket objects",
+			_ = lg.Error("failed to scan S3 bucket objects",
 				log.KV("bucket", b.Name),
 				log.KVErr(err))
 		}
@@ -356,7 +355,7 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 	lg.Info("completed full manual scan")
 	wg.Wait()
 	if err := ot.Flush(); err != nil {
-		lg.Error("failed to flush S3 state file", log.KVErr(err))
+		_ = lg.Error("failed to flush S3 state file", log.KVErr(err))
 	}
 }
 
