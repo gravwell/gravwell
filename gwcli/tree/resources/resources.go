@@ -139,7 +139,7 @@ func download() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
+				Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("flags"), ft.Mandatory("resource ID")),
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					ft.Output.Register(fs)

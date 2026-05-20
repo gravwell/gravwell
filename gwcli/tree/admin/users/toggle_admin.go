@@ -97,8 +97,8 @@ func setAdmin(u types.User, grant, revoke bool) (success string, _ error) {
 func toggleAdminFlagSet() *pflag.FlagSet {
 	fs := &pflag.FlagSet{}
 	ft.UID.Register(fs)
-	fs.Bool("grant", false, "explicitly grant admin status")
-	fs.Bool("revoke", false, "explicitly revoke admin status")
+	fs.Bool("grant", false, "explicitly grant admin status. No-op if the user is already an admin. Mutually exclusive with --revoke")
+	fs.Bool("revoke", false, "explicitly revoke admin status. No-op if the user is already a normal user. Mutually exclusive with --grant")
 	return fs
 }
 
