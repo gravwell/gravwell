@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	alertscreate "github.com/gravwell/gravwell/v4/gwcli/tree/alerts/create"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -112,7 +113,7 @@ func alertsList() action.Pair {
 				}
 
 				if listConsumerID != "" && listDispatcherID != "" {
-					return "--consumer and --dispatcher are mutually exclusive", nil
+					return ft.ErrMutuallyExclusive("consumer, dispatcher").Error(), nil
 				}
 				return "", nil
 			},
