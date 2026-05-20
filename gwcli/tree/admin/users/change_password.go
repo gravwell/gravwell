@@ -102,7 +102,7 @@ func getPasswordFromFlags(fs *pflag.FlagSet) (password string, err error) {
 	}
 	// we don't set defaults here, so any value in either means changed
 	if pass != "" && pf != "" {
-		return "", errors.New("--new-password and --new-passfile are mutually exclusive")
+		return "", ft.ErrMutuallyExclusive("new-password", "new-passfile")
 	}
 	if pass != "" {
 		return pass, nil
