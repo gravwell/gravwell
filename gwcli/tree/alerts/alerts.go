@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -10,16 +10,13 @@
 package alerts
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	alertscreate "github.com/gravwell/gravwell/v4/gwcli/tree/alerts/create"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -39,7 +36,7 @@ func NewAlertsNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, []string{"alert"}, []*cobra.Command{},
 		[]action.Pair{
 			alertsList(),
-			toggle(),
+			toggleEnabled(),
 			delete(),
 			alertscreate.Action(),
 		})
@@ -129,66 +126,6 @@ func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid stri
 		clilog.GetFlag(err)
 	}
 	return s, ""
-}
-
-// Used to enable/disable an alert
-func toggle() action.Pair {
-	return scaffold.NewBasicAction("toggle", "enable or disable an alert",
-		"Toggle the state of an alert. You may provide --enable or --disable to ensure the alert is in the respective state.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
-			// find the alert in question
-			id := fs.Arg(0)
-			alert, err := connection.Client.GetAlert(id)
-			if err != nil {
-				return err.Error(), nil
-			}
-			alert.Disabled = !alert.Disabled // toggle
-
-			// check for explicit on or off
-			if enable, err := fs.GetBool("enable"); err != nil {
-				clilog.GetFlag(err)
-				return "an error occurred", nil
-			} else if enable {
-				alert.Disabled = false
-			}
-			if disable, err := fs.GetBool("disable"); err != nil {
-				clilog.GetFlag(err)
-				return "an error occurred", nil
-			} else if disable {
-				alert.Disabled = true
-			}
-			_, err = connection.Client.UpdateAlert(alert)
-			if err != nil {
-				return err.Error(), nil
-			}
-			state := "enabled"
-			if alert.Disabled {
-				state = "disabled"
-			}
-
-			return fmt.Sprintf("alert '%s' (ID: %s) %s", alert.Name, id, state), nil
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("enable", false, "enable the alert. Does nothing if the alert is already enabled. Mutually exclusive with --disable")
-					fs.Bool("disable", false, "disable the alert. Does nothing if the alert is already disabled. Mutually exclusive with --enable")
-					return fs
-				},
-			},
-
-			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				if fs.Changed("enable") && fs.Changed("disable") {
-					return "--enable and --disable are mutually exclusive", nil
-				}
-				if fs.NArg() != 1 {
-					return phrases.Exactly1ArgRequired("alert ID"), nil
-				}
-				return "", nil
-			},
-		},
-	)
 }
 
 func delete() action.Pair {
