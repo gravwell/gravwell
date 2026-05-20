@@ -143,7 +143,7 @@ func main() {
 					// give up and LOUDLY quit
 					lg.Fatal("giving up fetch stream description for stream after 5 attempts, exiting.", log.KV("stream", stream.Stream_Name))
 				}
-				time.Sleep(1 * time.Second)
+				utils.QuitableSleep(ctx, 1*time.Second)
 				continue
 			}
 			newshards := streamdesc.StreamDescription.Shards
@@ -273,13 +273,13 @@ func main() {
 					output, err := svc.GetShardIterator(ctx, gsii)
 					if err != nil {
 						_ = lg.Error("error on shard", log.KV("number", shardid), log.KV("stream", stream.Stream_Name), log.KV("shard", *shard.ShardId), log.KVErr(err))
-						time.Sleep(5 * time.Second)
+						utils.QuitableSleep(ctx, 5*time.Second)
 						continue
 					}
 					if output.ShardIterator == nil {
 						// this is weird, we are going to bail out
 						_ = lg.Error("got nil initial shard iterator, sleeping and retrying")
-						time.Sleep(5 * time.Second)
+						utils.QuitableSleep(ctx, 5*time.Second)
 						continue
 					}
 					iter := *output.ShardIterator
@@ -306,21 +306,21 @@ func main() {
 								case errors.As(err, &throughputErr):
 									_ = lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									time.Sleep(500 * time.Millisecond)
+									utils.QuitableSleep(ctx, 500*time.Millisecond)
 								case errors.As(err, &iteratorErr):
 									_ = lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									time.Sleep(100 * time.Millisecond)
+									utils.QuitableSleep(ctx, 100*time.Millisecond)
 									continue reconnectLoop
 								default:
 									_ = lg.Error("answer error", log.KVErr(err), log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									time.Sleep(500 * time.Millisecond)
+									utils.QuitableSleep(ctx, 500*time.Millisecond)
 								}
 							} else {
 								// if we got no records, chill for a sec before we hit it again
 								if len(res.Records) == 0 {
-									time.Sleep(100 * time.Millisecond)
+									utils.QuitableSleep(ctx, 100*time.Millisecond)
 								}
 								break
 							}
