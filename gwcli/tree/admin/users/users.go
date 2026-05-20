@@ -302,7 +302,7 @@ func sessionsAction() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
-				Usage:   fmt.Sprintf("sessions %s %s %s ...", ft.Optional("FLAGS"), ft.Mandatory("UserID1"), ft.Optional("UserID2")),
+				Usage:   "sessions " + ft.Optional("Flags") + " " + ft.VariadicArgs("UID", true),
 				Example: "sessions 1 8",
 				Aliases: []string{"session"},
 				AddtlFlags: func() *pflag.FlagSet {

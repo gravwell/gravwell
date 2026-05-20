@@ -70,7 +70,7 @@ func lockAction() action.Pair {
 			}
 			return nil
 		}, treeutils.GenerateActionOptions{
-			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
+			Usage:   ft.VariadicArgs("UID", true),
 			Example: "7",
 		})
 	cmd.Flags().AddFlagSet(createFlagSet())

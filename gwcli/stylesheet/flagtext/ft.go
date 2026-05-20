@@ -427,3 +427,13 @@ func InteractiveOnly() string {
 func NonInteractiveOnly() string {
 	return flagCaveatStyle.Render("Non-Interactive only.")
 }
+
+// VariadicArgs returns Usage text for actions that take a variable number of the same argument.
+//
+// itemName will be used as "<itemName>1 <itemName>2 ... <itemName>N".
+func VariadicArgs(itemName string, atLeastOneRequired bool) string {
+	if atLeastOneRequired {
+		return Mandatory(itemName+"1") + " " + Optional(itemName+"2 ... "+itemName+"N")
+	}
+	return Optional(itemName + "1" + " " + itemName + "2 ... " + itemName + "N")
+}

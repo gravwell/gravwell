@@ -145,7 +145,7 @@ func cleanup() action.Pair {
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"clean", "tidy", "purge", "burninate"},
-				Usage:   fmt.Sprintf("cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Optional("TARGET2")),
+				Usage:   "cleanup " + ft.VariadicArgs("target", true),
 				Example: "cleanup macros secrets",
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
