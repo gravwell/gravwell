@@ -358,7 +358,7 @@ func main() {
 						}
 					}
 					if err = procset.Close(); err != nil {
-						_ = lg.Error("Failed to close processor set", log.KVErr(err))
+						lg.Error("Failed to close processor set", log.KVErr(err))
 					}
 					// if we get to this point, exit the for loop
 					break
@@ -445,7 +445,7 @@ func NewStateman(stateFile *utils.State) *stateman {
 		states:    make(map[string]map[string]string),
 		stateFile: stateFile,
 	}
-	_ = stateFile.Read(&sm.states)
+	stateFile.Read(&sm.states)
 	return &sm
 }
 
@@ -466,7 +466,7 @@ func (s *stateman) Close() {
 func (s *stateman) Flush() {
 	s.Lock()
 	defer s.Unlock()
-	_ = s.stateFile.Write(s.states)
+	s.stateFile.Write(s.states)
 }
 
 func (s *stateman) UpdateSequenceNum(stream, shard, seq string) {
