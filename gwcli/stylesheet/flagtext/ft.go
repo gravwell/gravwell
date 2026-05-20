@@ -27,7 +27,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -398,6 +400,21 @@ func Optional(text string) string {
 // MutuallyExclusive wraps and returns the given elements in curly braces to indicate that they are mutually exclusive with one another.
 func MutuallyExclusive(texts []string) string {
 	return "{" + strings.Join(texts, "|") + "}"
+}
+
+// ErrMutuallyExclusive returns user-friendly error text
+//
+// Flags should be given sans "--" prefix.
+//
+// Returns ErrInternal's text if len(flags) < 2.
+func ErrMutuallyExclusive(flags ...string) string {
+	if len(flags) < 2 {
+		clilog.Writer.Warn("ErrMutuallyExclusive called with fewer than 2 flags", log.KV("caller", log.CallLoc(1)), log.KV("flags", flags))
+		return clilog.ErrInternal{}.Error()
+	}
+
+	flagList := "--" + strings.Join(flags[:len(flags)-2], ", --") // condense all but the last
+	return flagList + " and --" + flags[len(flags)-1] + " are mutually exclusive"
 }
 
 // flagCaveatStyle sets what extra notes on flag descriptions look like.
