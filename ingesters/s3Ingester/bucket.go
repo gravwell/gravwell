@@ -245,7 +245,7 @@ func (br *BucketReader) ManualScan(
 		}
 	}
 
-	_ = lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("object_count", count))
+	lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("object_count", count))
 	return
 }
 
@@ -281,7 +281,7 @@ func (br *BucketReader) worker(
 
 		//ok, lets process this thing
 		if objsz, s3rtt, rtt, err := br.Process(item, ctx); err != nil {
-			_ = br.Logger.Error("failed to process object",
+			br.Logger.Error("failed to process object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KV("tag", br.TagName),
@@ -289,7 +289,7 @@ func (br *BucketReader) worker(
 			errored++
 			continue
 		} else {
-			_ = br.Logger.Info("consumed object",
+			br.Logger.Info("consumed object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KV("tag", br.TagName),
@@ -304,7 +304,7 @@ func (br *BucketReader) worker(
 		}
 		err := ot.Set(br.Bucket_Name, key, state, false)
 		if err != nil {
-			_ = br.Logger.Error("failed to update state",
+			br.Logger.Error("failed to update state",
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KVErr(err))
@@ -313,7 +313,7 @@ func (br *BucketReader) worker(
 			break
 		}
 	}
-	_ = lg.Info("manual scan worker completed",
+	lg.Info("manual scan worker completed",
 		log.KV("bucket", br.Name),
 		log.KV("num_processed", processed),
 		log.KV("num_already_processed", alreadyProcessed),

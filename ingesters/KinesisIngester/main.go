@@ -138,7 +138,7 @@ func main() {
 			streamdesc, err := svc.DescribeStream(ctx, dsi)
 			if err != nil {
 				count++
-				_ = lg.Error("failed to get stream description", log.KV("stream", stream.Stream_Name), log.KVErr(err))
+				lg.Error("failed to get stream description", log.KV("stream", stream.Stream_Name), log.KVErr(err))
 				if count >= 5 {
 					// give up and LOUDLY quit
 					lg.Fatal("giving up fetch stream description for stream after 5 attempts, exiting.", log.KV("stream", stream.Stream_Name))
@@ -177,10 +177,10 @@ func main() {
 						if stream.JSON_Metrics {
 							jr, err := json.Marshal(report)
 							if err == nil {
-								_ = lg.Infof("%v", string(jr))
+								lg.Infof("%v", string(jr))
 							}
 						} else {
-							_ = lg.Info("stream stats",
+							lg.Info("stream stats",
 								log.KV("stream", stream.Stream_Name),
 								log.KV("shards", len(shards)),
 								log.KV("delay", report.AverageLag),
@@ -196,7 +196,7 @@ func main() {
 		for i, shard := range shards {
 			// Detect and skip closed shards
 			if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.EndingSequenceNumber != nil {
-				_ = lg.Info("shard appears closed, skipping", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
+				lg.Info("shard appears closed, skipping", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 				continue
 			}
 			//get timegrinder stood up
@@ -347,7 +347,7 @@ func main() {
 								}
 							}
 							if err = procset.ProcessContext(ent, ctx); err != nil {
-								_ = lg.Error("Failed to handle entry", log.KVErr(err))
+								lg.Error("Failed to handle entry", log.KVErr(err))
 							}
 							entrySize += int(ent.Size())
 						}

@@ -179,10 +179,10 @@ func main() {
 	wg.Wait()
 
 	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
-		_ = lg.Error("failed to sync", log.KVErr(err))
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		_ = lg.Error("failed to close", log.KVErr(err))
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
@@ -227,11 +227,11 @@ func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 				// grab the timestamp from SQS
 				t, mok := v.Attributes["SentTimestamp"]
 				if !mok {
-					_ = lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
+					lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
 				} else {
 					ut, err := strconv.ParseInt(t, 10, 64)
 					if err != nil {
-						_ = lg.Error("failed parseint on unix time", log.KV("value", t), log.KVErr(err))
+						lg.Error("failed parseint on unix time", log.KV("value", t), log.KVErr(err))
 					} else {
 						ts = entry.UnixTime(ut/1000, 0)
 					}
@@ -249,11 +249,11 @@ func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 
 			err := hcfg.proc.ProcessContext(ent, hcfg.ctx)
 			if err != nil {
-				_ = lg.Error("failed to ingest entry", log.KVErr(err))
+				lg.Error("failed to ingest entry", log.KVErr(err))
 			} else {
 				err = hcfg.SQS.DeleteMessages(ctx, []types.Message{v}, lg)
 				if err != nil {
-					_ = lg.Error("failed to delete message", log.KVErr(err))
+					lg.Error("failed to delete message", log.KVErr(err))
 				}
 			}
 		}
