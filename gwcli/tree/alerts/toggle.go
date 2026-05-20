@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -49,35 +50,19 @@ func toggleEnabled() action.Pair {
 				return errors.New(phrases.AtLeast1ArgRequired("alert ID"))
 			}
 
-			if enable, err := c.Flags().GetBool("enable"); err != nil {
-				clilog.GetFlag(err)
-			} else if enable {
-				alert.Disabled = false
-			}
-			if disable, err := c.Flags().GetBool("disable"); err != nil {
-				clilog.GetFlag(err)
-			} else if disable {
-				alert.Disabled = true
-			}
-
-			for _, id := range c.Flags().Args() {
-
-			}
-			alert, err := connection.Client.GetAlert(id)
+			enable, disable, err := getToggleEnabledFlags(c.Flags())
 			if err != nil {
 				return err
 			}
-			alert.Disabled = !alert.Disabled
 
-			_, err = connection.Client.UpdateAlert(alert)
-			if err != nil {
-				return err
+			for _, res := range toggleAlerts(c.Flags().Args(), enable, disable) {
+				if res.failure {
+					fmt.Fprintln(c.ErrOrStderr(), res.result)
+				} else {
+					fmt.Fprintln(c.OutOrStdout(), res.result)
+				}
 			}
-			state := "enabled"
-			if alert.Disabled {
-				state = "disabled"
-			}
-			fmt.Fprintf(c.OutOrStdout(), "alert '%s' (ID: %s) %s\n", alert.Name, id, state)
+
 			return nil
 		},
 	)
@@ -101,7 +86,8 @@ func toggleEnabledFlags() *pflag.FlagSet {
 }
 
 // GetFlag errors are logged and swallowed.
-func getToggleEnabledFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
+func getToggleEnabledFlags(fs *pflag.FlagSet) (enable, disable bool, ufErr error) {
+	var err error
 	if enable, err = fs.GetBool("enable"); err != nil {
 		clilog.GetFlag(err)
 	}
@@ -109,55 +95,98 @@ func getToggleEnabledFlags(fs *pflag.FlagSet) (enable, disable bool, err error) 
 		clilog.GetFlag(err)
 	}
 	if enable && disable {
-		return ft.Mutu
+		return enable, disable, ft.ErrMutuallyExclusive()
 	}
+	return enable, disable, nil
+}
+
+// Returns an array of results, in the same order as IDs.
+func toggleAlerts(IDs []string, enable, disable bool) []struct {
+	result  string
+	failure bool
+} {
+	var results = make([]struct {
+		result  string
+		failure bool
+	}, len(IDs))
+	for i, id := range IDs {
+		results[i] = struct {
+			result  string
+			failure bool
+		}{
+			"", true,
+		}
+		alert, err := connection.Client.GetAlert(id)
+		if err != nil {
+			results[i].result = fmt.Sprintf("failed to get alert (ID: %s): %v", id, err)
+			continue
+		}
+		if enable {
+			alert.Disabled = false
+		} else if disable {
+			alert.Disabled = true
+		} else {
+			alert.Disabled = !alert.Disabled
+		}
+		state := "enable"
+		if alert.Disabled {
+			state = "disabled"
+		}
+
+		if _, err := connection.Client.UpdateAlert(alert); err != nil {
+			results[i].result = fmt.Sprintf("failed to %s alert (ID: %s): %v", state, id, err)
+			continue
+		}
+		results[i].result = fmt.Sprintf("%sd alert (ID: %s)", state, id)
+		results[i].failure = false
+	}
+	return results
 }
 
 //#region interactive
 
-type alertItem struct {
-	Selected_ bool
-	ID_       string
-	name      string
-	desc      string
-	disabled  bool
-}
-
-func (i alertItem) FilterValue() string {
-	return i.name + i.desc
-}
-
-func (i alertItem) Title() string {
-	return i.name
-}
-
-func (i alertItem) ID() string {
-	return i.ID_
-}
-
-func (i alertItem) Description() string {
-	state := "enabled"
-	if i.disabled {
-		state = "disabled"
-	}
-	return fmt.Sprintf("(%s) %s", state, i.desc)
-}
-
-func (i *alertItem) SetSelected(selected bool) {
-	i.Selected_ = selected
-}
-
-func (i alertItem) Selected() bool {
-	return i.Selected_
-}
-
 // toggleModel presents a multi-select list of alerts and toggles each selected one.
 type toggleModel struct {
-	m multiselectlist.Model[string]
+	m               multiselectlist.Model[string]
+	enable, disable bool
+	done            bool
 }
 
-func (c *toggleModel) Init() tea.Cmd {
-	return nil
+func (c *toggleModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
+	fs := toggleEnabledFlags()
+	if err := fs.Parse(tokens); err != nil {
+		return "", nil, err
+	}
+	c.enable, c.disable, err = getToggleEnabledFlags(fs)
+	if err != nil { // returns only ufErrors
+		return err.Error(), nil, nil
+	}
+
+	alerts, err := connection.Client.ListAlerts(nil)
+	if err != nil {
+		clilog.Writer.Error("failed to get the list of alerts", log.KV("error", err))
+		return "", nil, fmt.Errorf("failed to get the list of alerts")
+	} else if len(alerts.Results) < 1 {
+		return "you have no alerts that can be toggled", nil, nil
+	}
+	slices.SortStableFunc(alerts.Results, func(a, b types.Alert) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	var itms = make([]multiselectlist.SelectableItem[string], len(alerts.Results))
+	for _, a := range alerts.Results {
+		itms = append(itms, &listitem.Generic{
+			ID_:          a.ID,
+			Name:         a.Name,
+			SecondLine:   a.Description,
+			ShowDisabled: true,
+			Enabled:      !a.Disabled,
+		})
+	}
+	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
+	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+	c.m.StatusMessageOnSelect = true
+	c.m.Title = "Select alerts to toggle"
+	return "", nil, nil
 }
 
 func (c *toggleModel) Update(msg tea.Msg) (cmd tea.Cmd) {
@@ -168,25 +197,16 @@ func (c *toggleModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 			c.m.Undone()
 			return c.m.NewStatusMessage("select at least 1 alert")
 		}
-		var cmds []tea.Cmd
-		for _, li := range selected {
-			alert, err := connection.Client.GetAlert(li.ID())
-			if err != nil {
-				cmds = append(cmds, tea.Printf("failed to get alert '%s': %v", li.Title(), err))
-				continue
-			}
-			alert.Disabled = !alert.Disabled
-			if _, err := connection.Client.UpdateAlert(alert); err != nil {
-				cmds = append(cmds, tea.Printf("failed to toggle alert '%s': %v", li.Title(), err))
-				continue
-			}
-			state := "enabled"
-			if alert.Disabled {
-				state = "disabled"
-			}
-			cmds = append(cmds, tea.Printf("alert '%s' (ID: %s) %s", li.Title(), li.ID(), state))
+		// collect IDs
+		var IDs, cmds = make([]string, len(selected)), make([]tea.Cmd, len(selected))
+		for i, li := range selected {
+			IDs[i] = li.ID()
+		}
+		for i, res := range toggleAlerts(IDs, c.enable, c.disable) {
+			cmds[i] = tea.Println(res.result)
 		}
 		cmd = tea.Sequence(cmds...)
+		c.done = true
 	}
 	return cmd
 }
@@ -196,41 +216,13 @@ func (c *toggleModel) View() string {
 }
 
 func (c *toggleModel) Done() bool {
-	return c.m.Done()
+	return c.done
 }
 
 func (c *toggleModel) Reset() error {
 	c.m = multiselectlist.Model[string]{}
+	c.enable = false
+	c.disable = false
+	c.done = false
 	return nil
 }
-
-func (c *toggleModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	alerts, err := connection.Client.ListAlerts(nil)
-	if err != nil {
-		clilog.Writer.Error("failed to get the list of alerts", log.KV("error", err))
-		return "", nil, fmt.Errorf("failed to get the list of alerts")
-	}
-	slices.SortStableFunc(alerts.Results, func(a, b types.Alert) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-	var itms = make([]multiselectlist.SelectableItem[string], 0, len(alerts.Results))
-	for _, a := range alerts.Results {
-		itms = append(itms, &alertItem{
-			ID_:      a.ID,
-			name:     a.Name,
-			desc:     a.Description,
-			disabled: a.Disabled,
-		})
-	}
-	itms = slices.Clip(itms)
-	if len(itms) == 0 {
-		return "there are no alerts", nil, nil
-	}
-	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
-	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
-	c.m.StatusMessageOnSelect = true
-	c.m.Title = "Select alerts to toggle"
-	return "", nil, nil
-}
-
-//#endregion interactive
