@@ -17,18 +17,27 @@ package clilog
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
+	"github.com/spf13/pflag"
 )
 
 //#region errors
 
 var ErrEmptyPath error = errors.New("path cannot be empty")
+
+type ErrInternal struct{}
+
+func (ErrInternal) Error() string {
+	return "an internal error occurred; please submit an issue and include " + cfgdir.DefaultStdLogPath
+}
 
 //#endregion errors
 
@@ -54,8 +63,41 @@ const (
 // Writer is the logging singleton.
 var Writer *log.Logger
 
+// InitializeFromArgs parses out --log and --loglevel from a set of arguments, ignoring any and all other flags.
+// This enables clilogger to be brought online and configured before any other handling is prepared.
+//
+// If args is nil or an error occurs, the logger will be initialized with its defaults.
+//
+// Safe to call multiple times; subsequent calls will be no-ops.
+func InitializeFromArgs(args []string) {
+	if Writer != nil {
+		return
+	}
+	// args may include flags unrelated to the logger; ignore them
+	logFlags := pflag.NewFlagSet("logging", pflag.PanicOnError)
+	ft.LogPath.Register(logFlags)
+	ft.LogLevel.Register(logFlags)
+	logFlags.BoolP("help", "h", false, "") // re-define the help flag
+
+	logFlags.ParseErrorsWhitelist = pflag.ParseErrorsWhitelist{UnknownFlags: true}
+	if err := logFlags.Parse(args); err != nil {
+		panic(err) // if this pops, something has gone horribly wrong and we need to know
+	}
+
+	path, err := logFlags.GetString(ft.LogPath.Name())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "failed to get log path flag to initialize clilog: ", err)
+	}
+	lvl, err := logFlags.GetString(ft.LogLevel.Name())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "failed to get log level flag to initialize clilog: ", err)
+	}
+	_ = Init(path, lvl)
+}
+
 // Init initializes Writer, the logging singleton.
-// Safe (ineffectual) if the writer has already been initialized.
+//
+// Safe to call multiple times; subsequent calls will be no-ops.
 func Init(path string, lvlString string) error {
 	var err error
 	if Writer != nil {
@@ -88,7 +130,7 @@ func Init(path string, lvlString string) error {
 	Writer.SetHostname(".") // autopopulates if empty
 
 	// error check the first call
-	if err := Writer.Infof("--- Logger initialized at %v level, hostname %v ---", Writer.GetLevel(), Writer.Hostname()); err != nil {
+	if err := Writer.Infof("\n\n--- Logger initialized at %v level ---", Writer.GetLevel()); err != nil {
 		Writer.Close()
 		return err
 	}
@@ -108,7 +150,12 @@ func Destroy() error {
 
 // Tee writes the error to clilog.Writer and a secondary output, usually stderr
 func Tee(lvl Level, alt io.Writer, str string) {
-	alt.Write([]byte(str))
+	if alt != nil {
+		alt.Write([]byte(str))
+	}
+	if Writer == nil {
+		return
+	}
 	switch lvl {
 	case OFF:
 	case DEBUG:
@@ -128,18 +175,40 @@ func Tee(lvl Level, alt io.Writer, str string) {
 
 // Active returns whether or not the given level is currently enabled (<= log.Level)
 func Active(lvl Level) bool {
+	if Writer == nil {
+		return false
+	}
 	return Writer.GetLevel() <= log.Level(lvl)
 }
 
-// LogFlagFailedGet logs the non-fatal failure to fetch named flag from flagset.
-// Used to keep flag handling errors uniform.
-func LogFlagFailedGet(flagname string, err error) {
-	Writer.Warnf("failed to fetch '--%v':%v\nignoring", flagname, err)
+//#region helpers
+
+// GetFlag logs a warning that we failed to get an expected flag out of a flagset.
+//
+// This error is almost certainly developer error.
+//
+// Returns ErrInternal, which the caller may return if this failure is fatal.
+// It is safe to ignore the return value.
+func GetFlag(err error) ErrInternal {
+	if Writer != nil {
+		// TODO test call depth
+		Writer.Warn("flag-get failure", log.KV("parent", log.CallLoc(1)), log.KVErr(err))
+	}
+	return ErrInternal{}
 }
 
-var dbgMsgSty = lipgloss.NewStyle().Italic(true)
+// TypeAssert logs an error that an assertion failed.
+// Most commonly used when asserting list.Item to a local, enriched type.
+//
+// Returns ErrInternal, which the caller may return if this failure is fatal.
+// It is safe to ignore the return value.
+func TypeAssert(baseItem any, targetType any) ErrInternal {
+	if Writer != nil {
+		Writer.Critical("type assert failure",
+			log.KV("parent", log.CallLoc(1)),
+			log.KV("base item", baseItem),
+			log.KV("target item", targetType))
+	}
 
-// LogMsg is a helper method for consistently displaying messages (at the debug level).
-func LogMsg(str string, msg tea.Msg) {
-	Writer.Debugf("%s\n\t"+dbgMsgSty.Render("%#v"), str, msg)
+	return ErrInternal{}
 }

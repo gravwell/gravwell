@@ -2,7 +2,7 @@ package indexers
 
 import (
 	"errors"
-	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -12,28 +12,23 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 // get fetches all available information about the named ingester.
 // Currently requires a UUID, but could be upgraded to prefix match, like ingesters.
 func get() action.Pair {
-	const (
-		use   string = "get"
-		short string = "get details about a specific indexer"
-	)
-
 	var (
 		long = "Review detailed information about a single indexer.\n" +
 			"Does not include calendar data; use the calendar action for that.\n" +
 			"Indexer is specified by name; use the " + stylesheet.Cur.Nav.Render("indexers") + " " + stylesheet.Cur.Action.Render("list") + " command.\n" +
 			"If an error occurs, processing will continue, skipping queries related to or cascading from the error source."
-		example = fmt.Sprintf("%v 127.0.0.1:9404", use)
 	)
 
-	return scaffoldlist.NewListAction(short, long, deepIndexerInfo{},
+	return scaffoldlist.NewListAction("get details about a specific indexer", long, deepIndexerInfo{},
 		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
 			dii := deepIndexerInfo{Name: strings.TrimSpace(fs.Arg(0))}
 
@@ -44,20 +39,26 @@ func get() action.Pair {
 
 			return []deepIndexerInfo{dii}, nil
 		},
+		map[string]string{
+			"Storage.DataIngestedHot":  "Storage.Hot.Ingested",
+			"Storage.DataIngestedCold": "Storage.Cold.Ingested",
+			"Storage.DataStoredHot":    "Storage.Hot.Stored",
+			"Storage.DataStoredCold":   "Storage.Cold.Stored",
+			"Storage.EntryCountHot":    "Storage.Hot.Count",
+			"Storage.EntryCountCold":   "Storage.Cold.Count",
+		},
 		scaffoldlist.Options{
-			Use: use,
-			ExcludeColumnsFromDefault: []string{
-				"Ingest.EntriesHourTail",
-				"Ingest.EntriesMinuteTail",
-				"Ingest.BytesHourTail",
-				"Ingest.BytesMinuteTail",
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "get",
+				Example: "get 127.0.0.1:9404",
 			},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = example
+			DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
+				regexp.MustCompile(`^Ingest\.Entries.*Tail`),
+				regexp.MustCompile(`^Ingest\.Bytes.*Tail`),
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
-					return "exactly 1 argument (name) is required", nil
+					return phrases.Exactly1ArgRequired("indexer name"), nil
 				}
 				// preliminary existence query
 				if m, err := connection.Client.GetPingStates(); err != nil {
@@ -66,14 +67,6 @@ func get() action.Pair {
 					return "did not find indexer '" + fs.Arg(0) + "'", nil
 				}
 				return "", nil
-			},
-			ColumnAliases: map[string]string{
-				"Storage.DataIngestedHot":  "Storage.Hot.Ingested",
-				"Storage.DataIngestedCold": "Storage.Cold.Ingested",
-				"Storage.DataStoredHot":    "Storage.Hot.Stored",
-				"Storage.DataStoredCold":   "Storage.Cold.Stored",
-				"Storage.EntryCountHot":    "Storage.Hot.Count",
-				"Storage.EntryCountCold":   "Storage.Cold.Count",
 			},
 		})
 }
@@ -299,11 +292,11 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 		defer wg.Done()
 		stats, err := connection.Client.GetSystemStats()
 		if err != nil {
-			clilog.Writer.Warnf("failed to fetch system descriptions: %v", err)
+			clilog.Writer.Warnf("failed to fetch system stats: %v", err)
 			return
 		}
 		if stat, ok := stats[dii.Name]; !ok {
-			clilog.Writer.Warnf("did not find a system description associated with indexer %v", dii.Name)
+			clilog.Writer.Warnf("did not find system stats associated with indexer %v", dii.Name)
 		} else {
 			mu.Lock()
 			defer mu.Unlock()

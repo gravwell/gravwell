@@ -9,7 +9,6 @@
 package scaffolddelete
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -66,21 +65,6 @@ func (d defaultDelegate[I]) Spacing() int                          { return d.sp
 func (defaultDelegate[I]) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (dd defaultDelegate[I]) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	dd.renderFunc(w, m, index, listItem)
-}
-
-// default renderFunc used by the delegate if not overwritten by WithRender()
-func defaultRender[I scaffold.Id_t](w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(Item[I])
-	if !ok {
-		return
-	}
-
-	str := fmt.Sprintf("%s%s. %s\n%s",
-		stylesheet.Pip(uint(index), uint(m.Index())),
-		stylesheet.Index(index+1),
-		stylesheet.Cur.PrimaryText.Render(i.Title()),
-		i.Description())
-	fmt.Fprint(w, str)
 }
 
 // A DelegateOption is a modifier on the item delegate, typically to change how it is displayed.

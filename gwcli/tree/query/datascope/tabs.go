@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -190,8 +191,8 @@ func recompileHelp(s *DataScope) {
 		[][]string{
 			{strings.Join(keys.cycleTabs.Keys(), joinChar), "cycle tables"},
 			{strings.Join(keys.reverseCycleTabs.Keys(), joinChar), "reverse cycle tables"},
-			{stylesheet.UpDownSigils, "scroll page"},
-			{stylesheet.LeftRightSigils, "change page"},
+			{sigils.UpDown, "scroll page"},
+			{sigils.LeftRight, "change page"},
 			{strings.Join(keys.showTabs.Keys(), joinChar), "toggle tab visibility"},
 			{"esc", "quit"},
 		}...)

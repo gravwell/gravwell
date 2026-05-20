@@ -16,15 +16,14 @@ package attach
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -51,7 +50,7 @@ func NewAttachAction() action.Pair {
 		"re-attach to a backgrounded query",
 		helpDesc,
 		[]string{"reattach"},
-		run)
+		runE)
 
 	localFS := initialLocalFlagSet()
 	cmd.Flags().AddFlagSet(&localFS)
@@ -90,14 +89,13 @@ func initialLocalFlagSet() pflag.FlagSet {
 
 // invoked from the commandline.
 // Invokes Mother if !script.
-func run(cmd *cobra.Command, args []string) {
+func runE(cmd *cobra.Command, args []string) error {
 	// fetch flags
 	flags := querysupport.TransmogrifyFlags(cmd.Flags())
 
 	// check arg count
 	if len(args) > 1 || (flags.NoInteractive && len(args) == 0) {
-		fmt.Fprint(cmd.ErrOrStderr(), errWrongArgCount(flags.NoInteractive)+"\n")
-		return
+		return errors.New(errWrongArgCount(flags.NoInteractive))
 	}
 	// if a sid was given, attempt to fetch results
 	if len(args) == 1 {
@@ -105,26 +103,15 @@ func run(cmd *cobra.Command, args []string) {
 		s, err := connection.Client.AttachSearch(sid)
 		if err != nil {
 			if errors.Is(err, grav.ErrNotFound) {
-				fmt.Fprintln(cmd.ErrOrStderr(), querysupport.ErrUnknownSID(sid))
-				return
+				return phrases.ErrUnknownSID(sid)
 			}
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-			return
+			return err
 		}
 
 		querysupport.HandleFGCobraSearch(&s, flags, cmd.OutOrStdout(), cmd.ErrOrStderr())
 
-		if err := s.Close(); err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-			return
-		}
-
-		return
+		return s.Close()
 	}
 
-	// sid was not given, launch Mother into bare `attach` call
-	if err := mother.Spawn(cmd.Root(), cmd, args); err != nil {
-		clilog.Tee(clilog.CRITICAL, cmd.ErrOrStderr(),
-			"failed to spawn a mother instance: "+err.Error()+"\n")
-	}
+	return mother.Spawn(cmd.Root(), cmd, args)
 }

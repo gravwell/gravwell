@@ -195,8 +195,8 @@ func classic() Sheet {
 func Classic() Sheet {
 	return Palette{
 		PrimaryColor:   tropicalIndigo,
-		SecondaryColor: lavender_floral,
-		TertiaryColor:  violet_web,
+		SecondaryColor: lavenderFloral,
+		TertiaryColor:  violetWeb,
 		AccentColor1:   atomicTangerine,
 		AccentColor2:   aquamarine,
 	}.GenerateSheet()

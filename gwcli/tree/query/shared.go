@@ -40,7 +40,7 @@ func querySubmissionSuccess(sid string, background bool) string {
 
 // Generates a scheduling request from the given flags, cmd, and query and attempts to schedule it.
 // Assumes the query has already been validated.
-func scheduleQuery(flags *querysupport.QueryFlags, validatedQry string) (ssid int32, warnings []string, invalid string, err error) {
+func scheduleQuery(flags *querysupport.QueryFlags, validatedQry string) (ssid string, warnings []string, invalid string, err error) {
 	// warn about ignored flags
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
@@ -76,9 +76,9 @@ func scheduleQuery(flags *querysupport.QueryFlags, validatedQry string) (ssid in
 		flags.Duration,
 	)
 	if invalid != "" { // bad parameters
-		return -1, warnings, invalid, err
+		return "", warnings, invalid, err
 	} else if err != nil {
-		return -1, warnings, "", err
+		return "", warnings, "", err
 	}
 	return ssid, warnings, "", nil
 }

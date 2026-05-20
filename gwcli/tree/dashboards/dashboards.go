@@ -15,12 +15,13 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -53,23 +54,30 @@ func newDashboardsListAction() action.Pair {
 
 	return scaffoldlist.NewListAction(short, long,
 		types.Dashboard{}, list,
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"ID", "Name", "Description"}})
+		nil,
+		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags}, DefaultColumns: []string{
+			"ID",
+			"Name",
+			"Description",
+		}})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "dashboards")
 
-	return addtlFlags
+	return &addtlFlags
 }
 
 func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 	if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-		uniques.ErrGetFlag("dashboards list", err)
+		clilog.GetFlag(err)
 	} else if all {
-		return connection.Client.GetAllDashboards()
+		r, err := connection.Client.ListAllDashboards(nil)
+		return r.Results, err
 	}
-	return connection.Client.GetUserDashboards(connection.CurrentUser().UID)
+	r, err := connection.Client.ListDashboards(nil)
+	return r.Results, err
 }
 
 //#endregion list
@@ -81,7 +89,7 @@ func newDashboardDeleteAction() action.Pair {
 		del, fch)
 }
 
-func del(dryrun bool, id uint64) error {
+func del(dryrun bool, id string) error {
 	if dryrun {
 		_, err := connection.Client.GetDashboard(id)
 		return err
@@ -89,17 +97,17 @@ func del(dryrun bool, id uint64) error {
 	return connection.Client.DeleteDashboard(id)
 }
 
-func fch() ([]scaffolddelete.Item[uint64], error) {
-	ud, err := connection.Client.GetUserDashboards(connection.CurrentUser().UID)
+func fch() ([]scaffolddelete.Item[string], error) {
+	ud, err := connection.Client.ListDashboards(&types.QueryOptions{Filters: []types.Filter{{Key: "OwnerID", Operation: "=", Values: []any{connection.CurrentUser().ID}}}})
 	if err != nil {
 		return nil, err
 	}
 	// not too important to sort this one
-	var items = make([]scaffolddelete.Item[uint64], len(ud))
-	for i, u := range ud {
+	var items = make([]scaffolddelete.Item[string], len(ud.Results))
+	for i, u := range ud.Results {
 		items[i] = scaffolddelete.NewItem(u.Name,
 			fmt.Sprintf("Updated: %v\n%s",
-				ud[i].Updated.Format(time.RFC822), ud[i].Description),
+				ud.Results[i].UpdatedAt.Format(time.RFC822), ud.Results[i].Description),
 			u.ID)
 	}
 

@@ -13,13 +13,22 @@ package stylesheet
  */
 
 import (
-	"github.com/charmbracelet/bubbles/key"
+	"time"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+)
+
+const TIWidth = 60
+
+const ( // list bubble modifiers
+	// How long should a status message appear in a list bubble
+	StatusMessageLifetime = 3 * time.Second
 )
 
 // NewTI creates a textinput with common attributes that respect the current stylesheet.
@@ -123,61 +132,7 @@ func NewList(items []list.Item, width, height int, singular, plural string) list
 
 	l := list.New(items, dlg, width, height)
 	// list.DefaultKeyMap, but has the quits removed and conflicting filter keys reassigned.
-	l.KeyMap = list.KeyMap{
-		// Browsing.
-		CursorUp: key.NewBinding(
-			key.WithKeys("up", "k"),
-			key.WithHelp("↑/k", "up"),
-		),
-		CursorDown: key.NewBinding(
-			key.WithKeys("down", "j"),
-			key.WithHelp("↓/j", "down"),
-		),
-		PrevPage: key.NewBinding(
-			key.WithKeys("left", "h", "pgup", "b", "u"),
-			key.WithHelp("←/h/pgup", "prev page"),
-		),
-		NextPage: key.NewBinding(
-			key.WithKeys("right", "l", "pgdown", "f", "d"),
-			key.WithHelp("→/l/pgdn", "next page"),
-		),
-		GoToStart: key.NewBinding(
-			key.WithKeys("home", "g"),
-			key.WithHelp("g/home", "go to start"),
-		),
-		GoToEnd: key.NewBinding(
-			key.WithKeys("end", "G"),
-			key.WithHelp("G/end", "go to end"),
-		),
-		Filter: key.NewBinding(
-			key.WithKeys("/"),
-			key.WithHelp("/", "filter"),
-		),
-		ClearFilter: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "clear filter"),
-		),
-
-		// Filtering.
-		CancelWhileFiltering: key.NewBinding(
-			key.WithKeys("alt+/"),
-			key.WithHelp("alt+/", "cancel"),
-		),
-		AcceptWhileFiltering: key.NewBinding(
-			key.WithKeys("tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"),
-			key.WithHelp("tab", "apply filter"),
-		),
-
-		// Toggle help.
-		ShowFullHelp: key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "more"),
-		),
-		CloseFullHelp: key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "close help"),
-		),
-	}
+	hotkeys.ApplyToList(&l.KeyMap)
 	l.SetSpinner(spinner.Moon)
 	l.SetStatusBarItemName(singular, plural)
 	l.SetShowTitle(false)

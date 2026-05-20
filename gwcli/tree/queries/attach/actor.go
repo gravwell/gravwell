@@ -26,9 +26,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
@@ -79,12 +79,12 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 	case inactive: // should not be possible, quit out if it occurs
 		clilog.Writer.Warnf("attach triggered update in inactive mode")
 		a.mode = quitting
-		return tea.Println(uniques.ErrGeneric.Error())
+		return tea.Println(clilog.ErrInternal{}.Error())
 	case displaying: // pass control to datascope
 		if a.ds == nil {
 			clilog.Writer.Errorf("attach cannot be in display mode without a valid datascope")
 			a.mode = quitting
-			return tea.Println(uniques.ErrGeneric.Error())
+			return tea.Println(clilog.ErrInternal{}.Error())
 		}
 		var cmd tea.Cmd
 		a.ds, cmd = a.ds.Update(msg)
@@ -170,7 +170,7 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 		s, err := connection.Client.AttachSearch(sid)
 		if err != nil {
 			if errors.Is(err, grav.ErrNotFound) {
-				return querysupport.ErrUnknownSID(sid).Error(), nil, nil
+				return phrases.ErrUnknownSID(sid).Error(), nil, nil
 			} else {
 				return "", nil, err
 			}

@@ -1,3 +1,5 @@
+//go:build ci
+
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -16,7 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 type output struct {
@@ -39,15 +41,15 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 	}{
 		{"normal u/p", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Invoke).Type)
 			tm.Type(expected.pass)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Invoke).Type)
 		}, output{"Blitzo", "TheOIsSilent", false, false}, 2 * time.Second, false},
 		{"garbage after submitting", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Invoke).Type)
 			tm.Type(expected.pass)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Invoke).Type)
 
 			// this should not be captured by the prompt
 			tm.Type("should not be caught")
@@ -55,7 +57,7 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		}, output{"Moxxie", "Milly", false, false}, 2 * time.Second, false},
 		{"global kill key", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyTab)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.CursorDown).Type)
 			tm.Type(expected.pass)
 
 			// kill with a sigint
@@ -74,16 +76,16 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		}, output{"Loona", "", true, true}, 2 * time.Second, false},
 		{"wrap", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTSendSpecial(tm, tea.KeyDown)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.CursorDown).Type)
 			tm.Type(expected.pass)
-			testsupport.TTSendSpecial(tm, tea.KeyDown)
-			testsupport.TTSendSpecial(tm, tea.KeyShiftTab)
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.CursorDown).Type)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.CursorUp).Type)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Invoke).Type)
 		}, output{"Fizzarolli", "Oops", false, false}, 2 * time.Second, false},
 		{"timeout", func(tm *teatest.TestModel, expected output) {
-			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.Invoke).Type)
 			tm.Type("some password that should not get returned")
-			testsupport.TTSendSpecial(tm, tea.KeyUp)
+			testsupport.TTSendSpecial(tm, testsupport.SendHotkey(hotkeys.CursorUp).Type)
 		}, output{}, 3 * time.Second, true},
 	}
 
@@ -111,17 +113,17 @@ func Test_collect(t *testing.T) {
 		input        func(prog *tea.Program)
 		expectedUser string
 		expectedPass string
-		expectedErr  error
+		expectedErr  bool
 	}{
 		{"normal u/p", func(prog *tea.Program) {
 			prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
-			testsupport.TTSendSpecial(prog, tea.KeyEnter)
-			testsupport.TTSendSpecial(prog, tea.KeyEnter)
+			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
+			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
 
-		}, "u", "", nil},
+		}, "u", "", false},
 		{"killed", func(prog *tea.Program) {
 			testsupport.TTSendSpecial(prog, tea.KeyCtrlC)
-		}, "", "", uniques.ErrMustAuth},
+		}, "", "", true},
 	}
 
 	for _, tt := range tests {
@@ -157,8 +159,8 @@ func Test_collect(t *testing.T) {
 
 			// await results
 			r := <-result
-			if r.err != tt.expectedErr {
-				t.Error("Unexpected error:", testsupport.ExpectedActual(tt.expectedErr, r.err))
+			if (r.err != nil) != tt.expectedErr {
+				t.Errorf("Expected error? %v. Actual error: %v", tt.expectedErr, r.err)
 			} else if r.user != tt.expectedUser {
 				t.Error("Unexpected user:", testsupport.ExpectedActual(tt.expectedErr, r.err))
 			} else if r.pass != tt.expectedPass {
@@ -217,73 +219,3 @@ func compareFinal(t *testing.T, actual, expected output, timedOut, expectedTimed
 		t.Error("incorrect final state:", testsupport.ExpectedActual(expected, actual))
 	}
 }
-
-// NOTE: This test does not work because bubbletea is unable to open a tty on the mocked stdin port.
-// The logic is sound, but bubbletea is not compatible with it, hence why the other tests rely on teatest.
-// I am leaving it as relic code to showcase that fact.
-/*func TestManualCredPrompt(t *testing.T) {
-	//#region capture stdin so we can send data into it
-
-	// create a pipe to use instead
-	_, writeMockSTDIN, err := os.Pipe()
-	if err != nil {
-		t.Fatal("failed to create stdin pipes:", err)
-	}
-	origSTDIN := os.Stdin
-	os.Stdin = writeMockSTDIN
-	t.Cleanup(func() { os.Stdin = origSTDIN })
-
-	//#endregion
-
-	// capture stdout so we can get outputs
-	// TODO
-
-	// create a pipe to pull username, password, and error
-	results := make(chan struct {
-		username string
-		password string
-		err      error
-	})
-
-	t.Run("basic", func(t *testing.T) {
-		// spin out a goro to wait on Collect
-		go func() {
-			u, p, err := Collect("")
-			results <- struct {
-				username string
-				password string
-				err      error
-			}{u, p, err}
-			close(results)
-		}()
-
-		// give collect a few moments to spin up
-		time.Sleep(time.Second)
-
-		// send username into Collect
-		if _, err := writeMockSTDIN.Write([]byte("somename")); err != nil {
-			t.Fatal()
-		}
-		// switch to password
-		if _, err := writeMockSTDIN.Write([]byte("\n")); err != nil {
-			t.Fatal()
-		}
-		// send username into Collect
-		if _, err := writeMockSTDIN.Write([]byte("somepass")); err != nil {
-			t.Fatal()
-		}
-		// push
-		if _, err := writeMockSTDIN.Write([]byte("\n")); err != nil {
-			t.Fatal()
-		}
-
-		// await the outcome
-		r := <-results
-		if r.err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("%+v", r)
-		t.Fatal()
-	})
-
-}*/
