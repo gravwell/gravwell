@@ -107,10 +107,10 @@ func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 
 	_, err := s.svc.DeleteMessageBatch(deleter)
 	if err != nil {
-		_ = lg.Error("deleting messages failed, retrying", log.KVErr(err))
+		lg.Error("deleting messages failed, retrying", log.KVErr(err))
 		//try again, this is important
 		if _, err = s.svc.DeleteMessageBatch(deleter); err != nil {
-			_ = lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
+			lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
 		}
 	}
 

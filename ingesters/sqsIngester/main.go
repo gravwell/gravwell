@@ -86,7 +86,7 @@ func main() {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
 		return
 	}
-	defer func() { _ = igst.Close() }()
+	defer igst.Close()
 	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
@@ -175,10 +175,10 @@ func main() {
 	wg.Wait()
 
 	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
-		_ = lg.Error("failed to sync", log.KVErr(err))
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		_ = lg.Error("failed to close", log.KVErr(err))
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
@@ -197,7 +197,7 @@ func queueRunner(hcfg *handlerConfig) {
 		go func() {
 			o, err := hcfg.SQS.GetMessages()
 			if err != nil {
-				_ = lg.Error("sqs receive message error", log.KV("listener", hcfg.Name), log.KVErr(err))
+				lg.Error("sqs receive message error", log.KV("listener", hcfg.Name), log.KVErr(err))
 				c <- nil
 			}
 			c <- o
@@ -206,8 +206,8 @@ func queueRunner(hcfg *handlerConfig) {
 		select {
 		case out = <-c:
 			if out == nil {
-				_ = lg.Error("received empty SQS response", log.KV("listener", hcfg.Name))
-				_ = sleepContext(hcfg.ctx, ERROR_BACKOFF)
+				lg.Error("received empty SQS response", log.KV("listener", hcfg.Name))
+				sleepContext(hcfg.ctx, ERROR_BACKOFF)
 				continue
 			}
 		case <-hcfg.done:
@@ -223,11 +223,11 @@ func queueRunner(hcfg *handlerConfig) {
 				// grab the timestamp from SQS
 				t, mok := v.Attributes["SentTimestamp"]
 				if !mok {
-					_ = lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
+					lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
 				} else {
 					ut, err := strconv.ParseInt(*t, 10, 64)
 					if err != nil {
-						_ = lg.Error("failed parseint on unix time", log.KV("value", *t), log.KVErr(err))
+						lg.Error("failed parseint on unix time", log.KV("value", *t), log.KVErr(err))
 					} else {
 						ts = entry.UnixTime(ut/1000, 0)
 					}
@@ -245,11 +245,11 @@ func queueRunner(hcfg *handlerConfig) {
 
 			err := hcfg.proc.ProcessContext(ent, hcfg.ctx)
 			if err != nil {
-				_ = lg.Error("failed to ingest entry", log.KVErr(err))
+				lg.Error("failed to ingest entry", log.KVErr(err))
 			} else {
 				err = hcfg.SQS.DeleteMessages([]*sqs.Message{v}, lg)
 				if err != nil {
-					_ = lg.Error("failed to delete message", log.KVErr(err))
+					lg.Error("failed to delete message", log.KVErr(err))
 				}
 			}
 		}
