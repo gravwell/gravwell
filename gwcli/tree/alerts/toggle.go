@@ -130,7 +130,7 @@ func toggleAlerts(IDs []string, enable, disable bool) []struct {
 		}
 		state := "enable"
 		if alert.Disabled {
-			state = "disabled"
+			state = "disable"
 		}
 
 		if _, err := connection.Client.UpdateAlert(alert); err != nil {
@@ -173,14 +173,14 @@ func (c *toggleModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		return strings.Compare(a.Name, b.Name)
 	})
 	var itms = make([]multiselectlist.SelectableItem[string], len(alerts.Results))
-	for _, a := range alerts.Results {
-		itms = append(itms, &listitem.Generic{
+	for i, a := range alerts.Results {
+		itms[i] = &listitem.Generic{
 			ID_:          a.ID,
 			Name:         a.Name,
 			SecondLine:   a.Description,
 			ShowDisabled: true,
 			Enabled:      !a.Disabled,
-		})
+		}
 	}
 	c.m = multiselectlist.New(itms, width, height, multiselectlist.Options{})
 	c.m.StatusMessageLifetime = stylesheet.StatusMessageLifetime
