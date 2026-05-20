@@ -33,9 +33,10 @@ type AuthConfig struct {
 	Endpoint            string // arbitrary endpoint
 	Bucket_Name         string // defined bucket
 	Bucket_URL          string `json:"-"` // DEPRECATED DO NOT USE
-	MaxRetries          int
+	MaxRetries               int
+	Disable_TLS              bool // DEPRECATED: has no effect. Use Insecure_Skip_TLS_Verify instead.
 	Insecure_Skip_TLS_Verify bool // skip TLS certificate verification for custom HTTPS endpoints (e.g. self-signed certs on internal S3-compatible services). Has no effect when connecting to real AWS endpoints.
-	S3_Force_Path_Style bool //for endpoints where bucket name is on the PATH of a url
+	S3_Force_Path_Style      bool //for endpoints where bucket name is on the PATH of a url
 }
 
 // loadConfig builds an aws.Config from the AuthConfig, applying any credentials,
