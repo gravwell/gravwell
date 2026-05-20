@@ -20,6 +20,57 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 )
 
+// Generic provides a general-purpose list item for types that do not require much special handling to be stuffed into a list.Model or MSL.
+type Generic struct {
+	Selected_  bool
+	ID_        string
+	Name       string
+	SecondLine string // whatever you want the description to be
+
+	ShowDisabled bool // if set, "(disabled)" will be prefixed to second line if !Enabled.
+	Enabled      bool
+}
+
+// FilterValue filters on the concat of ttl and desc.
+func (li Generic) FilterValue() string {
+	return fmt.Sprintf("%s %v %v", li.ID_, li.Name, li.SecondLine)
+}
+
+// Title displays the item ID and name.
+func (li Generic) Title() string {
+	return fmt.Sprintf("(%s) %s", li.ID_, li.Name)
+}
+
+func (li Generic) ID() string {
+	return li.ID_
+}
+
+// Description displays SecondLine, optionally prefixed by "(disabled)" if ShowDisabled && !Enabled.
+func (li Generic) Description() string {
+	prefix := "(disabled)"
+	if li.ShowDisabled && !li.Enabled {
+		return prefix + li.SecondLine
+	}
+	return li.SecondLine
+}
+
+func (li *Generic) SetSelected(selected bool) {
+	li.Selected_ = selected
+}
+
+func (li Generic) Selected() bool {
+	return li.Selected_
+}
+
+// GetGeneric asserts that the currently selected item is a Generic item and returns it as such.
+func GetGeneric(l *list.Model) (*Generic, error) {
+	u, ok := l.SelectedItem().(*Generic)
+	if !ok {
+		return &Generic{}, clilog.TypeAssert(l.SelectedItem(), &Generic{})
+	}
+	return u, nil
+}
+
 //#region User
 
 type User struct {
