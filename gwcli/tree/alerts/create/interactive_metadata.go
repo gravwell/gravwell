@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -15,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 )
 
 // fieldnum identifies each field numerically so we can figure out which one is currently selected
@@ -60,18 +60,7 @@ func NewMetadata() *metadata {
 	}
 
 	m.tag.Placeholder = "_alerts"
-	m.maxEvents.Validate = func(s string) error {
-		if s == "" {
-			return nil
-		}
-
-		for _, r := range s {
-			if !unicode.IsNumber(r) {
-				return errors.New("Max Events must be numeric") //lint:ignore ST1005 user-facing error
-			}
-		}
-		return nil
-	}
+	m.maxEvents.Validate = validate.Numeric
 	m.retain.Placeholder = "1h00m00s"
 	m.retain.Validate = func(s string) error {
 		if s == "" {
@@ -93,6 +82,7 @@ const titleLength = len("description") + 1 // compose titles based on the longes
 // It is safe to use metadata without Init, but good practice to call it just in case.
 func (m *metadata) Init(name, description, tag string, enable bool, maxEvents int, retainS int32) {
 	m.name.SetValue(name)
+	m.name.Focus()
 	m.description.SetValue(description)
 	m.tag.SetValue(tag)
 	m.enable = enable
@@ -294,6 +284,7 @@ func (m *metadata) Reset() error {
 	m.selected = 0
 
 	m.name.Reset()
+	m.name.Focus()
 	m.description.Reset()
 	m.tag.Reset()
 	m.enable = false
