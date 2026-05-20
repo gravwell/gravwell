@@ -73,6 +73,7 @@ func GetGeneric(l *list.Model) (*Generic, error) {
 
 //#region User
 
+// User provides a list item for types.User.
 type User struct {
 	Selected_ bool
 
@@ -132,7 +133,9 @@ func (li User) Selected() bool {
 	return li.Selected_
 }
 
-// GetUser asserts that the currently selected item
+// GetUser returns the currently selected group from a given list.
+//
+// Returns ErrInternal and logs the error if something goes wrong.
 func GetUser(l *list.Model) (types.User, error) {
 	u, ok := l.SelectedItem().(*User)
 	if !ok {
@@ -143,6 +146,7 @@ func GetUser(l *list.Model) (types.User, error) {
 
 //#region Group
 
+// Group provides a list item for types.Group.
 type Group struct {
 	Selected_ bool
 
