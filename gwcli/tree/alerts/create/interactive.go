@@ -104,13 +104,13 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			hlDispatchers := []string{}
 			for _, li := range c.dispatchersModel.GetSelectedItems() {
 				dispatchers = append(dispatchers, types.AlertDispatcher{ID: li.ID(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
-				hlDispatchers = append(hlDispatchers, li.Title())
+				hlDispatchers = append(hlDispatchers, "\""+li.Title()+"\"")
 			}
 			consumers := []types.AlertConsumer{}
 			hlConsumers := []string{}
 			for _, li := range c.consumersModel.GetSelectedItems() {
 				consumers = append(consumers, types.AlertConsumer{ID: li.ID(), Type: types.ALERTCONSUMERTYPE_FLOW})
-				hlConsumers = append(hlConsumers, li.Title())
+				hlConsumers = append(hlConsumers, "\""+li.Title()+"\"")
 			}
 			c.alertToCreate = types.Alert{
 				CommonFields: types.CommonFields{
@@ -130,10 +130,11 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			c.stage = stageConfirm
 			// set header lines
 			c.confirmation.HeaderLines = []string{
-				"Creating new alert " + c.metadata.name.Value(),
+				"Creating new alert \"" + c.metadata.name.Value() + "\"",
 				"with " + strconv.FormatInt(int64(len(hlDispatchers)), 10) + " dispatchers",
 				"[" + strings.Join(hlDispatchers, " ") + "]",
 				"and " + strconv.FormatInt(int64(len(hlConsumers)), 10) + " consumers",
+				"[" + strings.Join(hlConsumers, " ") + "]",
 			}
 		}
 		return cmd
