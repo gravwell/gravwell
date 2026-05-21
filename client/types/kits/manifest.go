@@ -74,7 +74,7 @@ var (
 		item{tp: ScheduledSearch, nm: `scheduled search`, ext: `scheduled_search`},
 		item{tp: Dashboard, nm: `dashboard`, ext: `dashboard`},
 		item{tp: Extractor, nm: `autoextractor`, ext: `autoextractor`},
-		item{tp: Actionable, nm: `pivot`, ext: `pivot`},
+		item{tp: Actionable, nm: `actionable`, ext: `actionable`},
 		item{tp: Template, nm: `template`, ext: `template`},
 		item{tp: File, nm: `file`, ext: `file`},
 		item{tp: Macro, nm: `macro`, ext: `macro`},
