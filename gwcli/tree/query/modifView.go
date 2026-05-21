@@ -23,6 +23,9 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -66,7 +69,7 @@ func initialModifView(height, width uint) modifView {
 		selected: duration, // default to duration
 		keys: []key.Binding{
 			key.NewBinding(
-				key.WithKeys(stylesheet.UpDownSigils),
+				key.WithKeys(sigils.UpDown),
 				// help is not necessary when there is only one option
 				// key.WithHelp(stylesheet.UpDown, "select input"),
 			)},
@@ -97,11 +100,8 @@ func initialModifView(height, width uint) modifView {
 	mv.perpageTI = stylesheet.NewTI("25", true)
 	mv.perpageTI.Placeholder = "25"
 	mv.perpageTI.Validate = func(s string) error {
-		// checks that each character is a number
-		for _, r := range s {
-			if !unicode.IsDigit(r) {
-				return errors.New("only digits are allowed")
-			}
+		if err := validate.Numeric(s); err != nil {
+			return fmt.Errorf("Per Page: %w", err)
 		}
 		return nil
 	}
@@ -111,39 +111,38 @@ func initialModifView(height, width uint) modifView {
 
 // Walks through the options in modifSelection and passes keys to the currently selected one.
 // Returns true if the user selected the submit button.
-func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away from an array of Cmds.
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyUp:
-			mv.selected -= 1
-			if mv.selected <= lowBound {
-				mv.selected = highBound - 1
-			}
-			mv.updateFocus()
-			return []tea.Cmd{textinput.Blink}, false
-		case tea.KeyDown:
-			mv.selected += 1
-			if mv.selected >= highBound {
-				mv.selected = lowBound + 1
-			}
-			mv.updateFocus()
-			return []tea.Cmd{textinput.Blink}, false
-		case tea.KeySpace, tea.KeyEnter:
-			switch mv.selected {
-			case background:
-				mv.background = !mv.background
-			case submit:
-				return nil, true
+func (mv *modifView) update(msg tea.Msg) (tea.Cmd, bool) {
 
-			}
+	switch {
+	case hotkeys.Match(msg, hotkeys.CursorUp):
+		mv.selected -= 1
+		if mv.selected <= lowBound {
+			mv.selected = highBound - 1
+		}
+		mv.updateFocus()
+		return textinput.Blink, false
+	case hotkeys.Match(msg, hotkeys.CursorDown):
+		mv.selected += 1
+		if mv.selected >= highBound {
+			mv.selected = lowBound + 1
+		}
+		mv.updateFocus()
+		return textinput.Blink, false
+	case hotkeys.Match(msg, hotkeys.Select):
+		if mv.selected == background {
+			mv.background = !mv.background
+		}
+	case hotkeys.Match(msg, hotkeys.Invoke):
+		if mv.selected == submit {
+			return nil, true
 		}
 	}
+
 	var cmds = make([]tea.Cmd, 2)
 	mv.durationTI, cmds[0] = mv.durationTI.Update(msg)
 	mv.perpageTI, cmds[1] = mv.perpageTI.Update(msg)
 
-	return cmds, false
+	return tea.Batch(cmds...), false
 }
 
 func (mv *modifView) view() string {

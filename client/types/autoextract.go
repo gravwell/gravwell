@@ -12,13 +12,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
+	"strings"
+
+	"github.com/gravwell/gravwell/v4/ingest"
 )
 
 var (
 	ErrMissingModule error = errors.New("extraction module name is missing")
 	ErrMissingParams error = errors.New("extraction parameters missing")
 	ErrMissingTag    error = errors.New("extraction tag assignment missing")
+	ErrMissingName   error = errors.New("extraction name missing")
 )
 
 // AX object, when setting an AutoExtractor, only Name, Module,
@@ -29,7 +34,104 @@ type AX struct {
 	Module string   `toml:"module"`
 	Params string   `toml:"params" json:",omitempty"`
 	Args   string   `toml:"args,omitempty" json:",omitempty"`
-	Tags   []string `toml:"tags"` // AXs can support multiple tags. For backwards compatibility, we leave Tag and add Tags
+	Tags   []string `toml:"tags"`
+}
+
+// Validate verifies all required fields in an AXDefinition object are valid.
+func (dc *AX) Validate() error {
+	if dc.Name == `` {
+		return ErrMissingName
+	}
+	if dc.Module == `` {
+		return ErrMissingModule
+	}
+	if len(dc.GetTags()) == 0 {
+		return ErrMissingTag
+	}
+	for _, t := range dc.GetTags() {
+		if err := ingest.CheckTag(t); err != nil {
+			return err
+		}
+	}
+
+	dc.Name = sanitizeValue(dc.Name)
+	dc.Description = sanitizeValue(dc.Description)
+	dc.Module = sanitizeValue(dc.Module)
+	dc.Params = sanitizeValue(dc.Params)
+	for i, t := range dc.Tags {
+		dc.Tags[i] = sanitizeValue(t)
+	}
+	dc.Args = sanitizeValue(dc.Args)
+
+	collisions := make(map[string]bool)
+
+	for _, t := range dc.GetTags() {
+		if _, ok := collisions[t]; ok {
+			return fmt.Errorf("Tag %v already defined", t)
+		}
+		collisions[t] = true
+	}
+
+	return nil
+}
+
+func (dc *AX) GetTags() []string {
+	return dc.Tags
+}
+
+func sanitizeValue(v string) string {
+	trim := func(r rune) rune {
+		switch r {
+		case '\n':
+			return ' '
+		case '\r':
+			return ' '
+		}
+		return r
+	}
+	return strings.Map(trim, v)
+}
+
+// Encode the "config file" styled AX definition to the given io.Writer. hdr is
+// an optional header comment.
+func (dc AX) Encode(fout io.Writer, hdr string) (err error) {
+	if err = dc.Validate(); err != nil {
+		return
+	}
+	//write header comment if it exists
+	if hdr != `` {
+		if _, err = fmt.Fprintf(fout, "# %s\n", hdr); err != nil {
+			return
+		}
+	}
+	//write actual header
+	if _, err = fmt.Fprintf(fout, "[[extraction]]\n"); err != nil {
+		return
+	}
+	//write required parameters
+	for _, t := range dc.GetTags() {
+		if err = GenLine(fout, `tag`, t); err != nil {
+			return
+		}
+	}
+
+	if err = GenLine(fout, `module`, dc.Module); err != nil {
+		return
+	}
+	if err = GenLine(fout, `params`, dc.Params); err != nil {
+		return
+	}
+	//write optional parameters
+	if err = GenLine(fout, `args`, dc.Args); err != nil {
+		return
+	}
+	if err = GenLine(fout, `name`, dc.Name); err != nil {
+		return
+	}
+	if err = GenLine(fout, `desc`, dc.Description); err != nil {
+		return
+	}
+	return
 }
 
 func (dc AX) JSONMetadata() (ro json.RawMessage, err error) {
@@ -102,4 +204,12 @@ func (dc AX) Equal(v AX) bool {
 type AXListResponse struct {
 	BaseListResponse
 	Results []AX `json:"results"`
+}
+
+func GenLine(wtr io.Writer, name, line string) (err error) {
+	if len(line) == 0 {
+		return
+	}
+	_, err = fmt.Fprintf(wtr, "  %s = '%s'\n", name, line)
+	return
 }

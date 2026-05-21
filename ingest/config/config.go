@@ -404,17 +404,11 @@ func (ic *IngestConfig) checkLogLevel() error {
 		ic.Log_Level = defaultLogLevel
 		return nil
 	}
-	switch ic.Log_Level {
-	case `OFF`:
-		fallthrough
-	case `INFO`:
-		fallthrough
-	case `WARN`:
-		fallthrough
-	case `ERROR`:
-		return nil
+	_, err := log.LevelFromString(ic.Log_Level)
+	if errors.Is(err, log.ErrInvalidLevel) {
+		return ErrInvalidLogLevel // weird, but need to maintain the type of the error, someone might be checking it.
 	}
-	return ErrInvalidLogLevel
+	return err
 }
 
 func (ic *IngestConfig) parseTimeout() (time.Duration, error) {

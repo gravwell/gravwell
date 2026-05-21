@@ -134,18 +134,18 @@ type KitBuildRequest struct {
 	Version           uint
 	MinVersion        CanonicalVersion  `json:",omitempty"`
 	MaxVersion        CanonicalVersion  `json:",omitempty"`
-	Dashboards        []uint64          `json:",omitempty"`
+	Dashboards        []string          `json:",omitempty"`
 	Templates         []string          `json:",omitempty"`
-	Pivots            []uuid.UUID       `json:",omitempty"`
+	Actionables       []string          `json:",omitempty"`
 	Resources         []string          `json:",omitempty"`
 	ScheduledSearches []string          `json:",omitempty"`
 	ScheduledScripts  []string          `json:",omitempty"`
 	Flows             []string          `json:",omitempty"`
 	Macros            []string          `json:",omitempty"`
 	Extractors        []string          `json:",omitempty"`
-	Files             []uuid.UUID       `json:",omitempty"`
+	Files             []string          `json:",omitempty"`
 	SearchLibraries   []string          `json:",omitempty"` // Saved Queries go here... compatibility for now.
-	Playbooks         []uuid.UUID       `json:",omitempty"`
+	Playbooks         []string          `json:",omitempty"`
 	Alerts            []string          `json:",omitempty"`
 	EmbeddedItems     []KitEmbeddedItem `json:",omitempty"`
 	Icon              string            `json:",omitempty"`
@@ -218,20 +218,16 @@ func (ps *KitState) RemoveItem(name, tp string) error {
 }
 
 func (pbr *KitBuildRequest) validateReferencedFile(val, name string) error {
-	guid, err := uuid.Parse(val)
-	if err != nil {
-		return fmt.Errorf("Invalid %s ID: %v", name, err)
-	}
 	//iterate through the files and make sure the file exists
 	var ok bool
 	for _, v := range pbr.Files {
-		if v == guid {
+		if v == val {
 			ok = true
 			break
 		}
 	}
 	if !ok {
-		return fmt.Errorf("The %s file ID %s is not included in the kit", name, guid)
+		return fmt.Errorf("The %s file ID %s is not included in the kit", name, val)
 	}
 	return nil
 }
@@ -250,8 +246,8 @@ func (pbr *KitBuildRequest) Validate() error {
 		pbr.Version = 1
 	}
 	for i := range pbr.Dashboards {
-		if pbr.Dashboards[i] == 0 {
-			return errors.New("zero value dashboard id")
+		if pbr.Dashboards[i] == "" {
+			return errors.New("empty dashboard ID")
 		}
 	}
 	for i := range pbr.Resources {
@@ -282,19 +278,19 @@ func (pbr *KitBuildRequest) Validate() error {
 			return errors.New("invalid template ID")
 		}
 	}
-	for i := range pbr.Pivots {
-		if pbr.Pivots[i] == uuid.Nil {
-			return errors.New("zero UUID in pivots list")
+	for i := range pbr.Actionables {
+		if pbr.Actionables[i] == "" {
+			return errors.New("invalid actionable ID")
 		}
 	}
 	for i := range pbr.Files {
-		if pbr.Files[i] == uuid.Nil {
-			return errors.New("zero UUID in file list")
+		if pbr.Files[i] == "" {
+			return errors.New("invalid file ID")
 		}
 	}
 	for i := range pbr.Playbooks {
-		if pbr.Playbooks[i] == uuid.Nil {
-			return errors.New("zero UUID in playbook list")
+		if pbr.Playbooks[i] == "" {
+			return errors.New("empty playbook ID")
 		}
 	}
 	for i := range pbr.Alerts {
@@ -336,7 +332,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
 		return errors.New("build request does not contain any items")
 	}

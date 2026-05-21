@@ -89,7 +89,7 @@ func wells() action.Pair {
 
 		}
 		return toRet, nil
-	}, scaffoldlist.Options{
+	}, nil, scaffoldlist.Options{
 		CommonOptions:  scaffold.CommonOptions{Use: "wells", Aliases: []string{"well"}},
 		DefaultColumns: []string{"Indexer.UUID", "Indexer.Name", "ID", "Name", "Tags", "Accelerator", "Engine", "Path", "ColdPath"},
 	})

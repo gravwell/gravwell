@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/Jeffail/gabs/v2"
@@ -700,10 +701,8 @@ func FindQualifiedField[Any any](qualCol string, st any) (field reflect.StructFi
 
 }
 
-// StructFields returns the fully qualified name of every (exported) field in the struct
-// *definition*, as they are ordered internally
-// These qualified names are the expected format for the output modules in this
-// package
+// StructFields returns the dot-qualified name of every field in the struct *definition*, as they are ordered internally.
+// These qualified names are the expected format for the output modules in this package.
 func StructFields(st any, exportedOnly bool) (columns []string, err error) {
 	if st == nil {
 		return nil, errors.New(ErrStructIsNil)
@@ -718,11 +717,10 @@ func StructFields(st any, exportedOnly bool) (columns []string, err error) {
 	numFields := to.NumField()
 	columns = []string{}
 
-	// for each field
-	//	if the field is not a struct, append it to the columns
-	//	if the field is a struct, repeat
-
-	for i := 0; i < numFields; i++ {
+	// for each field:
+	//	if the field is not a struct, append its dot-qualified name.
+	//	if the field is a struct, recur into it until we reach non-struct fields.
+	for i := range numFields {
 		columns = append(columns, innerStructFields("", to.Field(i), exportedOnly)...)
 	}
 
@@ -743,26 +741,25 @@ func innerStructFields(qualification string, field reflect.StructField, exported
 	}
 
 	// dereference
-	if field.Type.Kind() == reflect.Ptr {
+	if field.Type.Kind() == reflect.Pointer {
 		field.Type = field.Type.Elem()
 	}
 
-	if field.Type.Kind() == reflect.Struct {
-		for k := 0; k < field.Type.NumField(); k++ {
-			var innerQual string
-			if qualification == "" {
-				innerQual = field.Name
-			} else {
-				innerQual = qualification + "." + field.Name
-			}
-			columns = append(columns, innerStructFields(innerQual, field.Type.Field(k), exportedOnly)...)
+	var dq = field.Name
+	if qualification != "" {
+		dq = qualification + "." + field.Name
+	}
+
+	// ! Time requires special handling.
+	// It is technically a struct composed of unexported fields.
+	// If we delve it (with exportedOnly) like a normal struct, we will find no exported fields and thus skip the field entirely.
+	if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Time]() {
+		// delve into each subfield
+		for subfield := range field.Type.Fields() {
+			columns = append(columns, innerStructFields(dq, subfield, exportedOnly)...)
 		}
 	} else {
-		if qualification == "" {
-			columns = append(columns, field.Name)
-		} else {
-			columns = append(columns, qualification+"."+field.Name)
-		}
+		columns = append(columns, dq)
 	}
 
 	return columns

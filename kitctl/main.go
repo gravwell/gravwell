@@ -456,8 +456,8 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Pivot:
-			var x types.PackedPivot
+		case kits.Actionable:
+			var x types.PackedActionable
 			if err := genericRead(wd, itm, &x); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -474,8 +474,8 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.File:
-			var x types.UserFile
-			if x, err = readUserFile(wd, itm.Name); err != nil {
+			var x kits.PackedFile
+			if x, err = readFile(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
@@ -765,8 +765,8 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			if err := writeTemplate(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
-		case kits.Pivot:
-			var p types.PackedPivot
+		case kits.Actionable:
+			var p types.PackedActionable
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
@@ -783,12 +783,16 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.File:
-			var p types.UserFile
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+			var pf kits.PackedFile
+			if err = json.NewDecoder(rdr).Decode(&pf); err != nil {
+				return fmt.Errorf("Failed to decode file %v: %v", name, err)
 			}
-			if err := writeUserFile(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			pf.Name = name
+			if err = pf.Validate(); err != nil {
+				return fmt.Errorf("Failed to validate file %v: %v", name, err)
+			}
+			if err := writeFile(wd, pf); err != nil {
+				return fmt.Errorf("Failed to write out file %v: %v", name, err)
 			}
 		case kits.SearchLibrary:
 			var p types.SavedQuery

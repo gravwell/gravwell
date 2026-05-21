@@ -11,7 +11,9 @@
 package ingest
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -44,7 +46,7 @@ func NewIngestAction() action.Pair {
 	cmd := treeutils.GenerateAction(
 		"ingest",
 		"ingest data from a file or STDIN",
-		helpDesc, []string{"in", "sip", "read", "load", "slurp"}, run)
+		helpDesc, []string{"in", "sip", "read", "load", "slurp"}, runE)
 	cmd.Example = "./gwcli ingest picture/of/space.png,pulsar query_results.json cat/pics/,animals ..."
 
 	{ // install flags
@@ -84,18 +86,14 @@ func initialLocalFlagSet() pflag.FlagSet {
 }
 
 // driver subroutine invoked by Cobra when ingest is called from an external shell.
-// run boots Mother if !script && no files were specified; otherwise it attempts to autoingest the files.
-func run(c *cobra.Command, args []string) {
+// runE boots Mother if !script && no files were specified; otherwise it attempts to autoingest the files.
+func runE(c *cobra.Command, args []string) error {
 	// fetch flags
 	flags, invalids, err := transmogrifyFlags(c.Flags())
 	if err != nil {
-		fmt.Fprintf(c.ErrOrStderr(), "%v", err)
-		return
-	} else if len(invalids) > 0 { // spit out each invalid and die
-		for _, reason := range invalids {
-			fmt.Fprintln(c.ErrOrStderr(), reason)
-		}
-		return
+		return err
+	} else if len(invalids) > 0 { // spit each invalid out in its own line and
+		return fmt.Errorf("- %v", strings.Join(invalids, "\n- "))
 	}
 
 	// branch on --stdin
@@ -106,33 +104,25 @@ func run(c *cobra.Command, args []string) {
 			flags.ignoreTS, flags.localTime,
 		)
 		if err != nil {
-			clilog.Tee(clilog.WARN, c.ErrOrStderr(), "failed to ingest from stdin: "+err.Error())
-			return
+			return fmt.Errorf("failed to ingest from stdin: %w", err)
 		}
 		clilog.Tee(clilog.INFO, c.OutOrStdout(), phrases.SuccessfullyLoadedFile("from STDIN")+fmt.Sprintf(" (returned tags: %v)", resp.Tags))
-		return
+		return nil
 	}
 
 	// fetch pairs from bare arguments
 	pairs, err := parsePairs(c.Flags().Args())
 	if err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), err)
-		return
+		return err
 	}
 	clilog.Writer.Debugf("ingest pairs: %v", pairs)
 
 	// if no files were given, launch mother or fail out
 	if len(pairs) == 0 {
 		if flags.noInteractive {
-			fmt.Fprintln(c.ErrOrStderr(), errNoFilesSpecified(true))
-			return
+			return errNoFilesSpecified(true)
 		}
-
-		if err := mother.Spawn(c.Root(), c, args); err != nil {
-			clilog.Tee(clilog.CRITICAL, c.ErrOrStderr(),
-				"failed to spawn a mother instance: "+err.Error()+"\n")
-		}
-		return
+		return mother.Spawn(c.Root(), c, args)
 	}
 
 	// attempt autoingestion
@@ -143,9 +133,8 @@ func run(c *cobra.Command, args []string) {
 	})
 
 	count := autoingest(resultCh, flags, pairs)
-	if count == 0 {
-		// should be impossible
-		panic("autoingest returned a count of 0")
+	if count == 0 { // should be impossible
+		return errors.New("autoingest returned a count of 0")
 	}
 
 	// start up a spinner
@@ -159,10 +148,12 @@ func run(c *cobra.Command, args []string) {
 		go func() { spinner.Run() }()
 	}
 	// print each result to stdout/stderr
+	var errored uint
 	for range count {
 		res := <-resultCh
 		if res.error != nil {
 			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+			errored += 1
 		} else {
 			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
 		}
@@ -171,4 +162,8 @@ func run(c *cobra.Command, args []string) {
 	if spinner != nil {
 		spinner.Kill()
 	}
+	if errored > 0 {
+		return fmt.Errorf("%d files failed", errored)
+	}
+	return nil
 }

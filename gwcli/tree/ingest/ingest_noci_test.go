@@ -280,99 +280,124 @@ func TestNewIngestActionRun(t *testing.T) {
 	} else if err := connection.Login(username, &password, nil, true); err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
+	tDir := t.TempDir()
 
 	tests := []struct {
 		name        string
 		cliArgs     []string
-		setup       func() (success bool)                // optionally used to perform prior set up (such as file creation)
-		checkOutput func(out, err string) (success bool) // used to check stdout and stderr for expected values
+		setup       func(t *testing.T) // optionally used to perform prior set up (such as file creation)
+		checkOutput func(t *testing.T, out string, runErr error, err string)
 	}{
 		{"noInteractive; no files",
 			[]string{"--" + ft.NoInteractive.Name()},
-			func() bool { return true },
-			func(out, err string) bool {
+			func(t *testing.T) {},
+			func(t *testing.T, out string, runErr error, err string) {
 				if out != "" {
-					t.Logf("expected nil output, found \"%v\"", out)
-					return false
+					t.Errorf("expected nil stdout, found \"%v\"", out)
 				}
-				if err == "" {
-					t.Log("expected error text, found nil")
-					return false
+				if runErr == nil {
+					t.Error("expected run to return an error")
 				}
-				return true
+				if err != "" {
+					t.Errorf("expected nil stderr, found \"%v\"", out)
+				}
 			},
 		},
 		{"noInteractive; 1 file+tag",
-			[]string{"--" + ft.NoInteractive.Name(), path.Join(dir, "raider") + ",Limveld"},
-			func() bool {
+			[]string{"--" + ft.NoInteractive.Name(), path.Join(tDir, "raider") + ",Limveld"},
+			func(t *testing.T) {
 				// create the file to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
+				if err := os.WriteFile(path.Join(tDir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+					t.Fatal(err)
 				}
-
-				return true
 			},
-			func(out, err string) bool {
+			func(t *testing.T, out string, runErr error, err string) {
 				if err != "" {
-					t.Logf("expected nil err output, found \"%v\"", err)
-					return false
+					t.Errorf("expected nil stderr, found \"%v\"", err)
 				}
-				return true
+				if runErr != nil {
+					t.Errorf("expected nil runErr, got %v", runErr)
+				}
 			},
 		},
 		{"--dir given non-existent path",
 			[]string{"--dir", "/nonsense_path"},
-			func() (success bool) { return true },
-			func(out, err string) (success bool) { return err != "" },
+			func(t *testing.T) {},
+			func(t *testing.T, out string, runErr error, err string) {
+				if err == "" && runErr == nil {
+					t.Error("expected error, but stderr is empty and runErr is nil")
+				}
+			},
 		},
 		{"--dir given file",
-			[]string{"--dir", "/nonsense_path"},
-			func() (success bool) { return true },
-			func(out, err string) (success bool) { return err != "" },
+			[]string{"--dir", path.Join(tDir, "file")},
+			func(t *testing.T) {
+				f, err := os.Create(path.Join(tDir, "file"))
+				if err != nil {
+					t.Fatal("failed to create dummy file")
+				}
+				f.Close()
+			},
+			func(t *testing.T, out string, runErr error, err string) {
+				if runErr == nil {
+					t.Error("expected runErr error")
+				}
+			},
 		},
-		{"--dir given with --noInteractive",
+		{"--dir given with --noInteractive", // --dir is an interactive-only flag.
 			[]string{"--dir", "/tmp", "--" + ft.NoInteractive.Name()},
-			func() (success bool) { return true },
-			func(out, err string) (success bool) { return err != "" },
+			func(t *testing.T) {},
+			func(t *testing.T, out string, runErr error, err string) {
+				if err != "" {
+					t.Error("found data on stderr: ", err)
+				}
+				if runErr == nil {
+					t.Error("expected runErr error")
+				}
+			},
 		},
 		{"invalid source",
 			[]string{"--source", "badsrc", "--" + ft.NoInteractive.Name()},
-			func() (success bool) { return true },
-			func(out, err string) (success bool) { return err != "" },
+			func(t *testing.T) {},
+			func(t *testing.T, out string, runErr error, err string) {
+				if runErr == nil {
+					t.Error("expected runErr error")
+				}
+			},
 		},
 		{"invalid default tag",
 			[]string{"--default-tag", "some|tag", "--" + ft.NoInteractive.Name()},
-			func() (success bool) { return true },
-			func(out, err string) (success bool) { return err != "" },
+			func(t *testing.T) {},
+			func(t *testing.T, out string, runErr error, err string) {
+				if runErr == nil {
+					t.Error("expected runErr error")
+				}
+			},
 		},
 		{"2 files, 1 invalid tag",
-			[]string{"--ignore-timestamp", path.Join(dir, "raider,Limveld"), path.Join(dir, "recluse,bad|tag")},
-			func() bool {
+			[]string{"--ignore-timestamp", path.Join(tDir, "raider,Limveld"), path.Join(tDir, "recluse,bad|tag")},
+			func(t *testing.T) {
 				// create the files to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
+				if err := os.WriteFile(path.Join(tDir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+					t.Error(err)
+					return
 				}
 				// this file should *not* be ingested
-				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-					t.Log(err)
-					return false
+				if err := os.WriteFile(path.Join(tDir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
+					t.Error(err)
+					return
 				}
-
-				return true
 			},
-			func(out, err string) bool {
+			func(t *testing.T, out string, runErr error, err string) {
 				if len(strings.Split(out, "\n")) == 1 {
-					t.Logf("expected expected output to have exactly 1 record, found %v from %v", len(out), out)
-					return false
+					t.Errorf("expected expected output to have exactly 1 record, found %v from %v", len(out), out)
+				}
+				if runErr == nil {
+					t.Error("expected runErr error")
 				}
 				if err == "" {
-					t.Log("expected error text, found nil")
-					return false
+					t.Error("expected error text, found nil")
 				}
-				return true
 			},
 		},
 	}
@@ -394,20 +419,19 @@ func TestNewIngestActionRun(t *testing.T) {
 			ap.Action.SetErr(errBuf)
 
 			// run set up
-			if !tt.setup() {
+			tt.setup(t)
+			if t.Failed() {
 				t.Skip("set up failed")
 			}
 
 			// invoke run
-			ap.Action.Run(ap.Action, tt.cliArgs)
+			runErr := ap.Action.RunE(ap.Action, tt.cliArgs)
 
 			t.Log("stdout:\n", outBuf)
 			t.Log("stderr:\n", errBuf)
 
 			// check output
-			if success := tt.checkOutput(outBuf.String(), errBuf.String()); !success {
-				t.Fatal("bad output")
-			}
+			tt.checkOutput(t, outBuf.String(), runErr, errBuf.String())
 		})
 	}
 
@@ -446,7 +470,7 @@ func TestNewIngestActionRun(t *testing.T) {
 
 		// attempt to ingest the file
 		// invoke run
-		ap.Action.Run(ap.Action, args)
+		ap.Action.RunE(ap.Action, args)
 
 		t.Log("stdout:\n", outBuf.String())
 		t.Log("stderr:\n", errBuf.String())
@@ -487,7 +511,7 @@ func TestNewIngestActionRun(t *testing.T) {
 
 		// run and feed data into stdin
 		origSTDIN, curSTDIN := writeSTDIN(t, gwjson)
-		ap.Action.Run(ap.Action, args)
+		ap.Action.RunE(ap.Action, args)
 		curSTDIN.Close()
 		os.Stdin = origSTDIN
 
@@ -528,7 +552,10 @@ func TestNewIngestActionRun(t *testing.T) {
 
 		// run and feed data into stdin
 		origSTDIN, curSTDIN := writeSTDIN(t, "some garbage data")
-		ap.Action.Run(ap.Action, args)
+		err := ap.Action.RunE(ap.Action, args)
+		if err != nil {
+			t.Error("Run returned an error: ", err)
+		}
 		curSTDIN.Close()
 		os.Stdin = origSTDIN
 

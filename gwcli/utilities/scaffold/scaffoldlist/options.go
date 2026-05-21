@@ -9,8 +9,9 @@
 package scaffoldlist
 
 import (
+	"regexp"
+
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -18,34 +19,35 @@ import (
 type Options struct {
 	scaffold.CommonOptions
 
-	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly (albeit likely script-unfriendly) way.
+	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly
+	// (albeit likely script-unfriendly) way.
 	// If !nil, --pretty will also be defined and set as the default.
+	//
+	// Pretty functions may or may not respect columns.
 	Pretty PrettyPrinterFunc
-
 	// Sets the default columns to display if --columns is not specified.
 	// Column names must be dot-qualified exact matches, not aliases.
-	// If set, only these columns will be displayed by default.
+	// Column names must include the "CommonFields." prefix, if applicable.
+	//
+	// Order is respected.
+	//
 	// Mutually exclusive with ExcludeColumnsFromDefault.
 	DefaultColumns []string
-	// Sets the list to display all columns EXCEPT for these by default.
-	// Column names must be dot-qualified exact matches, not aliases.
-	// Overridden by --columns.
-	// Mutually exclusive with DefaultColumns.
-	ExcludeColumnsFromDefault []string
-	// ! Currently only applies to tables.
+	// A list of regex patterns that OMIT matching dot-qualified columns from the set of defaults.
+	// Unlike DefaultColumns, DefaultColumnsFromExcludeRegex regex matches each value against each column;
+	// if a column matches any value, that column is omitted.
 	//
-	// ColumnAliases maps fully-dot-qualified field names -> display names in the table header.
-	// Keys must exactly match native column names (from weave.StructFields());
-	// unmatched aliases will be unused and native column names are case-sensitive.
-	// Operates in O(len(columns)) time, if not nil.
-	ColumnAliases map[string]string
-	// A free-form function allowing implementations to directly alter properties on the command scaffold list creates.
-	// Applied after all other options, so changes made here may override prior options (such as Use and Aliases).
+	// Ex:
+	// - ^CommonFields.* will omit ALL CommonFields from the set of default columns.
+	// - CommonFields.* will omit ALL CommonFields and ALL AutomationCommonFields from the set of default columns.
 	//
-	// ! Do not rely on cobra.Args, as they will not be respected in interactive mode.
-	// Use the ValidateArgs option instead.
-	CmdMods func(*cobra.Command)
-	// Free-form function called in SetArgs or at the start of run to validate the given flags.
+	// Because this option matches against DQs, it WILL omit columns irrelevant of their alias!
+	//
+	// Remaining columns will be sorted alphabetically.
+	DefaultColumnsFromExcludeRegex []*regexp.Regexp
+	// Free-form function when this action is called.
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
+	//
+	// Will not be called if --show-columns is specified.
 	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
 }

@@ -428,15 +428,27 @@ func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type hecHealth struct {
-	token string
-	igst  *ingest.IngestMuxer
+	auth *hecAuthHandler
+	igst *ingest.IngestMuxer
+}
+
+func (hh *hecHealth) authRequest(r *http.Request) bool {
+	// first, we try to auth with the generic HEC auth handler
+	if err := hh.auth.AuthRequest(r); err == nil {
+		return true
+	}
+	// now do the weird undocumented version where the token is directly in the URL query parameter named "token"
+	if tok := r.URL.Query().Get(`token`); hh.auth.authRequestWithToken(r, tok) == nil {
+		return true
+	}
+	return false
 }
 
 func (hh *hecHealth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if hh == nil {
 		w.WriteHeader(http.StatusInternalServerError)
-	} else if r.URL.Query().Get(`token`) != hh.token {
-		w.WriteHeader(http.StatusBadRequest)
+	} else if !hh.authRequest(r) {
+		w.WriteHeader(http.StatusUnauthorized)
 	} else if hh.igst == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	} else if hh.igst.WillBlock() {
@@ -601,6 +613,10 @@ func (hah hecAuthHandler) AuthRequest(r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	return hah.authRequestWithToken(r, actualToken)
+}
+
+func (hah hecAuthHandler) authRequestWithToken(r *http.Request, actualToken string) error {
 	if hah.defToken != `` && hah.defToken == actualToken {
 		//GTG
 		return nil

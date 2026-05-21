@@ -66,3 +66,8 @@ func (c *Client) UpdateSavedQuery(sl types.SavedQuery) (nsl types.SavedQuery, er
 	err = c.methodStaticPushURL(http.MethodPut, searchLibIdUrl(sl.ID), sl, &nsl, nil, nil)
 	return
 }
+
+// CleanupSavedQueries (admin-only) purges all deleted saved queries for all users.
+func (c *Client) CleanupSavedQueries() error {
+	return c.deleteStaticURL(LIBRARY_URL, nil)
+}

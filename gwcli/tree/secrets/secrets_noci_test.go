@@ -48,13 +48,14 @@ func TestCreateEditDownload(t *testing.T) {
 	)
 
 	// execute spins up singletons for us
+	var sbErr strings.Builder
 	if ec := tree.Execute(append(meta, []string{"secrets", "create",
 		"-n", secretName,
 		"-d", secretDesc,
 		"-v", secretValue,
 		"--labels", strings.Join(secretLabels, ","),
-	}...)); ec != 0 {
-		t.Fatal("bad error code: ", ec)
+	}...), nil, &sbErr); ec != 0 {
+		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 
 	// check that list pulls back the new secret
@@ -72,8 +73,8 @@ func TestCreateEditDownload(t *testing.T) {
 		newDesc := "altered"
 		if ec := tree.Execute(append(meta, []string{"secrets", "edit", "-i", secretID,
 			"--description=" + newDesc,
-		}...)); ec != 0 {
-			t.Error("bad error code: ", ec)
+		}...), nil, &sbErr); ec != 0 {
+			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 		id, desc, lbls := listForItem(t, secretName)
 		if id != secretID {
@@ -91,8 +92,8 @@ func TestCreateEditDownload(t *testing.T) {
 	{
 		t.Logf("deleting secret %v", secretID)
 		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, []string{"secrets", "delete", "--id", secretID}...)); ec != 0 {
-			t.Error("bad error code: ", ec)
+		if ec := tree.Execute(append(meta, []string{"secrets", "delete", "--id", secretID}...), nil, &sbErr); ec != 0 {
+			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 	}
 
@@ -103,12 +104,13 @@ func listForItem(t *testing.T, name string) (id, description string, labels []st
 	t.Helper()
 	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
 	// execute spins up singletons for us
+	var sbErr strings.Builder
 	if ec := tree.Execute(append(meta, []string{"secrets", "list",
 		"--csv",
 		"-o", resultPath,
 		"--columns", "CommonFields.ID,CommonFields.Name,CommonFields.Description,CommonFields.Labels",
-	}...)); ec != 0 {
-		t.Error("bad error code: ", ec)
+	}...), nil, &sbErr); ec != 0 {
+		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 	// slurp the file we wrote to
 	var rows [][]string

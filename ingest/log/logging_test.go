@@ -452,3 +452,111 @@ func Test_genRfcOutput(t *testing.T) {
 		})
 	}
 }
+
+type testLevelRelay struct {
+	pth string
+	f   *os.File
+}
+
+func newTestLevelRelay(pth string) (*testLevelRelay, error) {
+	f, err := os.Create(pth)
+	if err != nil {
+		return nil, err
+	}
+	return &testLevelRelay{pth: pth, f: f}, nil
+}
+
+func (t *testLevelRelay) WriteLog(l Level, ts time.Time, rfcline, rawline string) error {
+	_, err := fmt.Fprintf(t.f, "%s\n", rfcline)
+	return err
+}
+
+func (t *testLevelRelay) Close() error {
+	return t.f.Close()
+}
+
+func TestCloneHostname(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `test_clone_hostname.log`)
+	relay, err := newTestLevelRelay(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lgr := NewLevelRelay(relay)
+
+	cloned, err := lgr.Clone("cloned-hostname", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cloned.Hostname() != "cloned-hostname" {
+		t.Fatalf("expected hostname 'cloned-hostname', got '%s'", cloned.Hostname())
+	}
+
+	if cloned.Appname() != lgr.Appname() {
+		t.Fatalf("expected appname to match original '%s', got '%s'", lgr.Appname(), cloned.Appname())
+	}
+
+	if err = cloned.Infof("test message from cloned logger"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = cloned.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	bts, err := os.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if !strings.Contains(s, "cloned-hostname") {
+		t.Fatal("Missing cloned hostname in log: ", s)
+	}
+	if !strings.Contains(s, "test message from cloned logger") {
+		t.Fatal("Missing log message: ", s)
+	}
+}
+
+func TestCloneAppname(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `test_clone_appname.log`)
+	relay, err := newTestLevelRelay(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lgr := NewLevelRelay(relay)
+
+	cloned, err := lgr.Clone("", "cloned-app")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cloned.Appname() != "cloned-app" {
+		t.Fatalf("expected appname 'cloned-app', got '%s'", cloned.Appname())
+	}
+
+	if cloned.Hostname() != lgr.Hostname() {
+		t.Fatalf("expected hostname to match original '%s', got '%s'", lgr.Hostname(), cloned.Hostname())
+	}
+
+	if err = cloned.Infof("test message from cloned logger"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = cloned.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	bts, err := os.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if !strings.Contains(s, "cloned-app") {
+		t.Fatal("Missing cloned appname in log: ", s)
+	}
+	if !strings.Contains(s, "test message from cloned logger") {
+		t.Fatal("Missing log message: ", s)
+	}
+}

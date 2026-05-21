@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -29,7 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -55,18 +56,16 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.ScheduledSearch{}, listScheduledSearch,
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
-				"ID",
-				"GUID",
-				"Name",
-				"Description",
-				"Schedule",
-				"Disabled",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"AutomationCommonFields.Schedule",
+				"AutomationCommonFields.Disabled",
 				"SearchString",
-				"Duration",
-				"Groups",
 			},
 		})
 }
@@ -83,13 +82,13 @@ func flags() *pflag.FlagSet {
 
 func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
 	if all, err := fs.GetBool("all"); err != nil {
-		uniques.ErrGetFlag("scheduled list", err)
+		clilog.GetFlag(err)
 	} else if all {
 		list, err := connection.Client.ListAllScheduledSearches(nil)
 		return list.Results, err
 	}
 	if id, err := fs.GetString("id"); err != nil {
-		uniques.ErrGetFlag("scheduled list", err)
+		clilog.GetFlag(err)
 	} else if id != "" {
 		ss, err := connection.Client.GetScheduledSearch(id)
 		return []types.ScheduledSearch{ss}, err
@@ -112,41 +111,40 @@ const ( // field keys
 
 // create creates the action for creating new scheduled queries.
 func create() action.Pair {
-	fields := scaffoldcreate.Config{
+	fields := map[string]scaffoldcreate.Field{
 		createQryKey: scaffoldcreate.Field{
-			Required:      true,
-			Title:         "query",
-			Usage:         "query to schedule",
-			Type:          scaffoldcreate.Text,
-			FlagShorthand: 'q',
-			Order:         150,
+			Required: true,
+			Title:    "query",
+			Flag:     scaffoldcreate.FlagConfig{Usage: "query to schedule", Shorthand: 'q'},
+			Provider: &scaffoldcreate.TextProvider{},
+			Order:    150,
 		},
 		createDurationKey: scaffoldcreate.Field{
-			Required:         true,
-			Title:            "duration",
-			Usage:            "the time span the query will look back over",
-			Type:             scaffoldcreate.Text,
-			FlagName:         "duration",
-			Order:            140,
-			CustomTIFuncInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
+			Required: true,
+			Title:    "duration",
+			Flag:     scaffoldcreate.FlagConfig{Name: "duration", Usage: "the time span the query will look back over"},
+			Provider: &scaffoldcreate.TextProvider{
+				CustomInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
+			},
+			Order: 140,
 		},
 		createNameKey: scaffoldcreate.FieldName("query"),
 		createDescKey: scaffoldcreate.FieldDescription("query"),
 
 		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
-			Required:     true,
-			Title:        "frequency",
-			Usage:        ft.Frequency.Usage(),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Frequency.Name(), // custom flag name
-			DefaultValue: "",                  // no default value
-			Order:        50,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				ti.Placeholder = "* * * * *"
-				ti.Validate = uniques.CronRuneValidator
-				return ti
+			Required: true,
+			Title:    "frequency",
+			Flag:     scaffoldcreate.FlagConfig{Name: ft.Frequency.Name(), Usage: ft.Frequency.Usage()},
+			Provider: &scaffoldcreate.TextProvider{
+				CustomInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "* * * * *"
+					ti.Validate = validate.CronRuneValidator
+					return ti
+				},
 			},
+			DefaultValue: "", // no default value
+			Order:        50,
 		},
 	}
 
@@ -154,13 +152,13 @@ func create() action.Pair {
 }
 
 // driver function for scheduled create
-func createFunc(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
+func createFunc(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 	var (
-		name      = fieldValues[createNameKey]
-		desc      = fieldValues[createDescKey]
-		freq      = fieldValues[createFreqKey]
-		qry       = fieldValues[createQryKey]
-		durString = fieldValues[createDurationKey]
+		name      = cfg[createNameKey].Provider.Get()
+		desc      = cfg[createDescKey].Provider.Get()
+		freq      = cfg[createFreqKey].Provider.Get()
+		qry       = cfg[createQryKey].Provider.Get()
+		durString = cfg[createDurationKey].Provider.Get()
 	)
 	dur, err := time.ParseDuration(durString)
 	if err != nil { // report as invalid parameter, not an error
@@ -253,7 +251,7 @@ func edit() action.Pair {
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
 				ti.Placeholder = "* * * * *"
-				ti.Validate = uniques.CronRuneValidator
+				ti.Validate = validate.CronRuneValidator
 				return ti
 			},
 		},
@@ -314,3 +312,5 @@ func edit() action.Pair {
 }
 
 //#endregion edit
+
+// cancelAction, backfillToggle, setOffset, and clearResults are defined in interactive.go

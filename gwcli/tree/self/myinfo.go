@@ -42,7 +42,7 @@ func MyInfo() action.Pair {
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// check for refresh
 			if refresh, err := fs.GetBool("refresh"); err != nil {
-				clilog.LogFlagFailedGet("refresh", err)
+				clilog.GetFlag(err)
 			} else if refresh {
 				if err := connection.RefreshCurrentUser(); err != nil {
 					clilog.Writer.Warn("failed to refresh local user's information")
@@ -54,7 +54,7 @@ func MyInfo() action.Pair {
 
 			// output as CSV
 			if asCSV, err := fs.GetBool(ft.CSV.Name()); err != nil {
-				clilog.LogFlagFailedGet(ft.CSV.Name(), err)
+				clilog.GetFlag(err)
 			} else if asCSV {
 				return weave.ToCSV(
 					[]types.User{inf},

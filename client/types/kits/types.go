@@ -16,9 +16,68 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/client/types"
-
-	"github.com/google/uuid"
 )
+
+// PackedFile is a stripped-down representation of a file for inclusion in a kit.
+type PackedFile struct {
+	ID          string
+	Name        string
+	Description string
+	Labels      []string
+	Size        uint64 `json:",omitempty"`
+	Hash        []byte `json:",omitempty"`
+	Data        []byte `json:",omitempty"`
+}
+
+// PackFile takes a File and its contents and converts them into a PackedFile.
+func PackFile(f types.File, content []byte) (p PackedFile) {
+	p = PackedFile{
+		ID:          f.ID,
+		Name:        f.Name,
+		Description: f.Description,
+		Labels:      f.Labels,
+		Size:        f.Size,
+		Data:        content,
+	}
+	if f.Hash != "" {
+		p.Hash, _ = hex.DecodeString(f.Hash)
+	}
+	return
+}
+
+// Validate checks the contents of a PackedFile for validity.
+func (p *PackedFile) Validate() error {
+	if len(p.Name) == 0 {
+		return errors.New("Invalid file name")
+	} else if p.Size != uint64(len(p.Data)) {
+		return errors.New("mismatched data and data size")
+	}
+	if len(p.Data) == 0 && len(p.Hash) == 0 {
+		return nil //short circuit, if its empty there is no hash
+	}
+	// recompute hash and size and use the new data,
+	// per https://github.com/gravwell/gravwell/pull/2305#discussion_r3126385394
+	hsh := md5.Sum(p.Data)
+	p.Hash = hsh[:]
+	p.Size = uint64(len(p.Data))
+	return nil
+}
+
+// JSONMetadata returns additional information about the file.
+func (p *PackedFile) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		Name        string
+		Description string
+		Size        uint64
+		Labels      []string
+	}{
+		Name:        p.Name,
+		Description: p.Description,
+		Size:        p.Size,
+		Labels:      p.Labels,
+	})
+	return json.RawMessage(b), err
+}
 
 // PackedMacro is a stripped-down representation of a macro object for inclusion in a kit.
 type PackedMacro struct {
@@ -360,32 +419,37 @@ func (pss *PackedFlow) JSONMetadata() (json.RawMessage, error) {
 
 // PackedDashboard is a stripped-down type used for dashboards in kits.
 type PackedDashboard struct {
-	UUID        string
+	ID          string
 	Name        string
 	Description string
-	Data        types.RawObject
+	Grid        types.DashboardGrid
+	LinkZooming bool
+	LiveUpdate  types.DashboardLiveUpdateSettings
+	Searches    map[string]types.DashboardSearchable
+	Tiles       map[string]types.DashboardTile
+	Timeframe   types.DashboardTimeframe
 	Labels      []string
 }
 
 // PackDashboard converts a Dashboard into a PackedDashboard.
 func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
-	if pd.UUID = d.GUID; pd.UUID == `` {
-		pd.UUID = uuid.New().String()
-	}
+	pd.ID = d.ID
 	pd.Name = d.Name
 	pd.Description = d.Description
-	pd.Data = d.Data
+	pd.Grid = d.Grid
+	pd.LinkZooming = d.LinkZooming
+	pd.LiveUpdate = d.LiveUpdate
+	pd.Searches = d.Searches
+	pd.Tiles = d.Tiles
+	pd.Timeframe = d.Timeframe
 	pd.Labels = d.Labels
 	return
-
 }
 
 // Validate checks the fields of the PackedDashboard.
 func (pd *PackedDashboard) Validate() error {
 	if pd.Name == `` {
 		return fmt.Errorf("Missing dashboard name")
-	} else if len(pd.Data) == 0 {
-		return fmt.Errorf("Empty dashboard")
 	}
 	return nil
 }
@@ -393,13 +457,118 @@ func (pd *PackedDashboard) Validate() error {
 // JSONMetadata returns additional info about the PackedDashboard in JSON format.
 func (pd *PackedDashboard) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
-		UUID        string
+		ID          string
 		Name        string
 		Description string
 	}{
-		UUID:        pd.UUID,
+		ID:          pd.ID,
 		Name:        pd.Name,
 		Description: pd.Description,
+	})
+	return json.RawMessage(b), err
+}
+
+// PackedPlaybook is a stripped-down representation of a playbook for inclusion in a kit.
+type PackedPlaybook struct {
+	ID            string
+	Name          string
+	Description   string
+	Body          string
+	Cover         string
+	Banner        string
+	AuthorName    string
+	AuthorEmail   string
+	AuthorCompany string
+	AuthorURL     string
+	Labels        []string
+}
+
+// PackPlaybook converts a Playbook into a PackedPlaybook for inclusion in a kit.
+func PackPlaybook(pb *types.Playbook) (p PackedPlaybook) {
+	p = PackedPlaybook{
+		ID:            pb.ID,
+		Name:          pb.Name,
+		Description:   pb.Description,
+		Body:          pb.Body,
+		Cover:         pb.Cover,
+		Banner:        pb.Banner,
+		AuthorName:    pb.AuthorName,
+		AuthorEmail:   pb.AuthorEmail,
+		AuthorCompany: pb.AuthorCompany,
+		AuthorURL:     pb.AuthorURL,
+		Labels:        pb.Labels,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedPlaybook.
+func (pp *PackedPlaybook) Validate() error {
+	if pp.Name == `` {
+		return fmt.Errorf("missing playbook name")
+	}
+	return nil
+}
+
+// Unpackage expands a PackedPlaybook into a Playbook.
+func (pp *PackedPlaybook) Unpackage(uid int32, gids []int32) (pb types.Playbook) {
+	pb.ID = pp.ID
+	pb.OwnerID = uid
+	pb.Readers.GIDs = gids
+	pb.Name = pp.Name
+	pb.Description = pp.Description
+	pb.Body = pp.Body
+	pb.Cover = pp.Cover
+	pb.Banner = pp.Banner
+	pb.Labels = pp.Labels
+	pb.AuthorName = pp.AuthorName
+	pb.AuthorEmail = pp.AuthorEmail
+	pb.AuthorCompany = pp.AuthorCompany
+	pb.AuthorURL = pp.AuthorURL
+	return
+}
+
+// JSONMetadata returns additional info about the PackedPlaybook in JSON format.
+func (pp *PackedPlaybook) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		ID          string
+		Name        string
+		Description string
+	}{
+		ID:          pp.ID,
+		Name:        pp.Name,
+		Description: pp.Description,
+	})
+	return json.RawMessage(b), err
+}
+
+type PackedActionable struct {
+	ID          string
+	Name        string
+	Description string
+	Data        types.ActionableContent
+	Disabled    bool
+	Labels      []string
+}
+
+func PackActionable(t types.Actionable) (put PackedActionable) {
+	put.ID = t.ID
+	put.Name = t.Name
+	put.Description = t.Description
+	put.Data = t.Contents
+	put.Labels = t.Labels
+	put.Disabled = t.Disabled
+	return
+}
+
+func (put *PackedActionable) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		ID          string
+		Name        string
+		Description string
+	}{
+		ID:          put.ID,
+		Name:        put.Name,
+		Description: put.Description,
 	})
 	return json.RawMessage(b), err
 }

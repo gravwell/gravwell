@@ -14,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -994,6 +996,17 @@ func TestExtractions(t *testing.T) {
 			t.Fatalf("processor %s output not equal: %v != %v", tsl.name, ts, tsl.ts)
 		}
 	}
+}
+
+func TestBindWithoutMilliseconds(t *testing.T) {
+	tg, err := New(Config{})
+	require.NoError(t, err)
+
+	input := []byte("02-Jan-2006 15:04:05")
+	ts, ok, err := tg.Extract(input)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.False(t, ts.IsZero())
 }
 
 func runFullSecTestsCurr(format string) error {

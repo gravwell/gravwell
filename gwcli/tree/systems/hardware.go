@@ -10,7 +10,6 @@ package systemshealth
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -354,18 +353,4 @@ type ovrvw struct {
 	}
 	AvgUp   float64
 	AvgDown float64
-}
-
-// helper for the description action.
-// Prints the given string (and a newline suffix) if the value is non-empty.
-func printIfSet(indent bool, field string, value any, suffix string) string {
-	const fieldWidth = 12
-	if !reflect.ValueOf(value).IsZero() {
-		var s = fmt.Sprintf(stylesheet.Cur.TertiaryText.Width(fieldWidth).Render(field)+": %v%s\n", value, suffix)
-		if indent {
-			s = stylesheet.Indent + s
-		}
-		return s
-	}
-	return ""
 }

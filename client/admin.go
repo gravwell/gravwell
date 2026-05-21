@@ -202,96 +202,6 @@ func (c *Client) GetGroupUsers(gid int32) ([]types.User, error) {
 	return udets, nil
 }
 
-// GetAllDashboards (admin-only) returns a list of all dashboards on the system.
-func (c *Client) GetAllDashboards() ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(allDashboardUrl(), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetUserGroupsDashboards returns a list of all dashboards the current user can view.
-func (c *Client) GetUserGroupsDashboards() ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(myDashboardUrl(), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetUserDashboards returns a list of all dashboards belonging to the specified user.
-// Only admins or the user in question may call this function.
-func (c *Client) GetUserDashboards(id int32) ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(userDashboardUrl(id), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetGroupDashboards returns a list of all dashboards shared with the specified group.
-// Only admins or members of the group may call this function.
-func (c *Client) GetGroupDashboards(id int32) ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(groupDashboardUrl(id), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetDashboard fetches a dashboard by numeric ID.
-func (c *Client) GetDashboard(id uint64) (types.Dashboard, error) {
-	var db types.Dashboard
-	if err := c.getStaticURL(dashboardUrl(id), &db); err != nil {
-		return db, err
-	}
-	return db, nil
-}
-
-// GetDashboardByGuid fetches a dashboard by GUID.
-func (c *Client) GetDashboardByGuid(guid string) (types.Dashboard, error) {
-	var db types.Dashboard
-	if err := c.getStaticURL(dashboardUrlString(guid), &db); err != nil {
-		return db, err
-	}
-	return db, nil
-}
-
-// DeleteDashboard deletes the specified dashboard.
-func (c *Client) DeleteDashboard(id uint64) error {
-	return c.deleteStaticURL(dashboardUrl(id), nil)
-}
-
-// DeleteDashboardByGuid deletes a dashboard specified by GUID.
-func (c *Client) DeleteDashboardByGuid(id string) error {
-	return c.deleteStaticURL(dashboardUrlString(id), nil)
-}
-
-// CloneDashboard creates a copy of a dashboard and returns the ID of the new dashboard.
-func (c *Client) CloneDashboard(origid uint64) (id uint64, err error) {
-	err = c.getStaticURL(cloneDashboardUrl(origid), &id)
-	return
-}
-
-// AddDashboard creates a new dashboard and returns the ID. The obj parameter will be
-// stored as the Data field of the dashboard.
-func (c *Client) AddDashboard(name, desc string, obj interface{}) (uint64, error) {
-	dbAdd, err := types.EncodeDashboardAdd(name, desc, obj)
-	if err != nil {
-		return 0, err
-	}
-	var id uint64
-	err = c.postStaticURL(myDashboardUrl(), dbAdd, &id)
-	return id, err
-}
-
-// UpdateDashboard takes a types.Dashboard as an argument and updates the corresponding
-// dashboard on the server to match.
-func (c *Client) UpdateDashboard(db *types.Dashboard) error {
-	return c.putStaticURL(dashboardUrl(db.ID), db)
-}
-
 // Sessions lists sessions for the specified user.
 func (c *Client) Sessions(id int32) ([]types.Session, error) {
 	userSessResp := types.UserSessions{}
@@ -412,7 +322,7 @@ func (c *Client) Impersonate(uid int32) (nc *Client, err error) {
 	}
 	if dets.ID != uid {
 		nc = nil
-		err = fmt.Errorf("Failed to impersonate new user: %s[%d] != %d", dets.Username, dets.ID, uid)
+		err = fmt.Errorf("failed to impersonate new user: %s[%d] != %d", dets.Username, dets.ID, uid)
 		return
 	}
 	//set the user details the client is ready to use right out of the gate
@@ -602,7 +512,7 @@ func (c *Client) BackupWithConfig(wtr io.Writer, cfg types.BackupConfig) (err er
 	if resp.StatusCode != 200 {
 		err = fmt.Errorf("Invalid response %s(%d)", resp.Status, resp.StatusCode)
 	} else if _, err = io.Copy(wtr, resp.Body); err != nil {
-		err = fmt.Errorf("Failed to download complete backup package: %w", err)
+		err = fmt.Errorf("failed to download complete backup package: %w", err)
 	}
 
 	return
@@ -657,18 +567,18 @@ func (c *Client) PurgeUser(id int32) error {
 	//impersonate the user
 	nc, err := c.Impersonate(id)
 	if err != nil {
-		return fmt.Errorf("Failed to impersonate %d - %w", id, err)
+		return fmt.Errorf("failed to impersonate %d - %w", id, err)
 	}
 	//enumerate and delete user assets
 
 	//persistent searches
 	if ss, err := nc.ListSearchStatuses(); err != nil {
-		return fmt.Errorf("Failed to list search statuses %w", err)
+		return fmt.Errorf("failed to list search statuses %w", err)
 	} else if len(ss) > 0 {
 		for _, s := range ss {
 			if s.UID == id {
 				if err = nc.DeleteSearch(s.ID); err != nil {
-					return fmt.Errorf("Failed to delete user search %v %w", s.ID, err)
+					return fmt.Errorf("failed to delete user search %v %w", s.ID, err)
 				}
 			}
 		}
@@ -676,12 +586,12 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//scheduled searches
 	if ss, err := nc.ListScheduledSearches(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get the users scheduled searches %d %w", id, err)
+		return fmt.Errorf("failed to get the users scheduled searches %d %w", id, err)
 	} else if len(ss.Results) > 0 {
 		for _, s := range ss.Results {
 			if s.OwnerID == id {
 				if err := nc.PurgeScheduledSearch(s.ID); err != nil {
-					return fmt.Errorf("Failed to purge scheduled searches %d %s: %w", id, s.ID, err)
+					return fmt.Errorf("failed to purge scheduled searches %d %s: %w", id, s.ID, err)
 				}
 			}
 		}
@@ -689,12 +599,12 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//scheduled scripts
 	if ss, err := nc.ListScheduledScripts(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get the users scheduled scripts %d %w", id, err)
+		return fmt.Errorf("failed to get the users scheduled scripts %d %w", id, err)
 	} else if len(ss.Results) > 0 {
 		for _, s := range ss.Results {
 			if s.OwnerID == id {
 				if err := nc.PurgeScheduledScript(s.ID); err != nil {
-					return fmt.Errorf("Failed to purge scheduled scripts %d %s: %w", id, s.ID, err)
+					return fmt.Errorf("failed to purge scheduled scripts %d %s: %w", id, s.ID, err)
 				}
 			}
 		}
@@ -702,38 +612,39 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//flows
 	if ss, err := nc.ListFlows(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get the users flows %d %w", id, err)
+		return fmt.Errorf("failed to get the users flows %d %w", id, err)
 	} else if len(ss.Results) > 0 {
 		for _, s := range ss.Results {
 			if s.OwnerID == id {
 				if err := nc.PurgeFlow(s.ID); err != nil {
-					return fmt.Errorf("Failed to purge flow %d %s: %w", id, s.ID, err)
+					return fmt.Errorf("failed to purge flow %d %s: %w", id, s.ID, err)
 				}
 			}
 		}
 	}
 
-	//user files
-	if ufs, err := nc.UserFiles(); err != nil {
-		return fmt.Errorf("Failed to get user files %d %w", id, err)
-	} else if len(ufs) > 0 {
-		for _, uf := range ufs {
-			if uf.UID == id {
-				if err := nc.DeleteUserFile(uf.GUID); err != nil {
-					return fmt.Errorf("Failed to purge user file %v %w", uf.GUID, err)
+	// files
+	if lfr, err := nc.ListFiles(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+		return fmt.Errorf("failed to get files %d %w", id, err)
+	} else if lfr.TotalCount > 0 {
+		for _, f := range lfr.Results {
+			if f.OwnerID == id {
+				if err := nc.PurgeFile(f.ID); err != nil {
+					return fmt.Errorf("failed to purge file %v %w", f.ID, err)
 				}
 			}
+
 		}
 	}
 
 	//kits
 	if ks, err := nc.ListKits(); err != nil {
-		return fmt.Errorf("Failed to list kits %w", err)
+		return fmt.Errorf("failed to list kits %w", err)
 	} else if len(ks) > 0 {
 		for _, k := range ks {
 			if k.UID == id {
 				if err := nc.ForceDeleteKit(k.ID); err != nil {
-					return fmt.Errorf("Failed to purge user kit %v - %w", k.ID, err)
+					return fmt.Errorf("failed to purge user kit %v - %w", k.ID, err)
 				}
 			}
 		}
@@ -741,23 +652,23 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//kit builds
 	if kbs, err := nc.ListKitBuildHistory(); err != nil {
-		return fmt.Errorf("Failed to list kit build history %w", err)
+		return fmt.Errorf("failed to list kit build history %w", err)
 	} else if len(kbs) > 0 {
 		for _, k := range kbs {
 			if err := nc.DeleteKitBuildHistory(k.ID); err != nil {
-				return fmt.Errorf("Failed to purge user kit build request %v - %w", k.ID, err)
+				return fmt.Errorf("failed to purge user kit build request %v - %w", k.ID, err)
 			}
 		}
 	}
 
 	//actionables
-	if pvs, err := nc.ListPivots(); err != nil {
-		return fmt.Errorf("Failed to list pivots %w", err)
-	} else if len(pvs) > 0 {
-		for _, p := range pvs {
-			if p.UID == id {
-				if err = nc.DeletePivot(p.GUID); err != nil {
-					return fmt.Errorf("Failed to purge user pivots %v - %w", p.GUID, err)
+	if pvs, err := nc.ListActionables(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+		return fmt.Errorf("failed to list actionables %w", err)
+	} else if len(pvs.Results) > 0 {
+		for _, p := range pvs.Results {
+			if p.OwnerID == id {
+				if err = nc.PurgeActionable(p.ID); err != nil {
+					return fmt.Errorf("failed to purge user actionable %v - %w", p.ID, err)
 				}
 			}
 		}
@@ -765,12 +676,12 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//macros
 	if ms, err := nc.ListMacros(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to list macros %w", err)
+		return fmt.Errorf("failed to list macros %w", err)
 	} else if len(ms.Results) > 0 {
 		for _, p := range ms.Results {
 			if p.OwnerID == id {
 				if err = nc.PurgeMacro(p.ID); err != nil {
-					return fmt.Errorf("Failed to delete user macro %v - %w", p.ID, err)
+					return fmt.Errorf("failed to delete user macro %v - %w", p.ID, err)
 				}
 			}
 		}
@@ -783,7 +694,7 @@ func (c *Client) PurgeUser(id int32) error {
 		for _, t := range toks.Results {
 			if t.OwnerID == id {
 				if err := nc.PurgeToken(t.ID); err != nil {
-					return fmt.Errorf("Failed to delete user token %v - %w", t.ID, err)
+					return fmt.Errorf("failed to delete user token %v - %w", t.ID, err)
 				}
 			}
 		}
@@ -791,12 +702,12 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//extractors
 	if exts, err := nc.ListExtractions(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get user autoextractors %w", err)
+		return fmt.Errorf("failed to get user autoextractors %w", err)
 	} else if len(exts.Results) > 0 {
 		for _, e := range exts.Results {
 			if e.OwnerID == id {
 				if _, err := nc.PurgeExtraction(e.ID); err != nil {
-					return fmt.Errorf("Failed to delete user extraction %v - %w", e.ID, err)
+					return fmt.Errorf("failed to delete user extraction %v - %w", e.ID, err)
 				}
 			}
 		}
@@ -804,12 +715,12 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//resources
 	if rsr, err := nc.ListResources(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get user resource list %w", err)
+		return fmt.Errorf("failed to get user resource list %w", err)
 	} else if len(rsr.Results) > 0 {
 		for _, r := range rsr.Results {
 			if r.OwnerID == id {
 				if err := nc.PurgeResource(r.ID); err != nil {
-					return fmt.Errorf("Failed to delete user resource %v %w", r.ID, err)
+					return fmt.Errorf("failed to delete user resource %v %w", r.ID, err)
 				}
 			}
 		}
@@ -817,38 +728,38 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//templates
 	if tmpls, err := nc.ListTemplates(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get user templates %w", err)
+		return fmt.Errorf("failed to get user templates %w", err)
 	} else if len(tmpls.Results) > 0 {
 		for _, t := range tmpls.Results {
 			if t.OwnerID == id {
 				if err := nc.PurgeTemplate(t.ID); err != nil {
-					return fmt.Errorf("Failed to delete user template %v %w", t.ID, err)
+					return fmt.Errorf("failed to delete user template %v %w", t.ID, err)
 				}
 			}
 		}
 	}
 
 	//playbooks
-	if pbs, err := nc.GetUserPlaybooks(); err != nil {
-		return fmt.Errorf("Failed to get user playbooks %d %w", id, err)
-	} else if len(pbs) > 0 {
-		for _, pb := range pbs {
-			if pb.UID == id {
-				if err := nc.DeletePlaybook(pb.GUID); err != nil {
-					return fmt.Errorf("Failed to purge user playbook %v %w", pb.GUID, err)
+	if pbs, err := nc.ListPlaybooks(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+		return fmt.Errorf("failed to get user playbooks %d %w", id, err)
+	} else if len(pbs.Results) > 0 {
+		for _, pb := range pbs.Results {
+			if pb.OwnerID == id {
+				if err := nc.PurgePlaybook(pb.ID); err != nil {
+					return fmt.Errorf("failed to purge user playbook %v %w", pb.ID, err)
 				}
 			}
 		}
 	}
 
 	//dashboards
-	if dbs, err := nc.GetUserDashboards(id); err != nil {
+	if dbs, err := nc.ListDashboards(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get user dashboards %d %w", id, err)
-	} else if len(dbs) > 0 {
-		for _, db := range dbs {
-			if db.UID == id {
-				if err := nc.DeleteDashboard(db.ID); err != nil {
-					return fmt.Errorf("Failed to delete user dashboard %d %w", db.ID, err)
+	} else if len(dbs.Results) > 0 {
+		for _, db := range dbs.Results {
+			if db.OwnerID == id {
+				if err := nc.PurgeDashboard(db.ID); err != nil {
+					return fmt.Errorf("Failed to delete user dashboard %s: %w", db.ID, err)
 				}
 			}
 		}
@@ -856,12 +767,12 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//query library
 	if sls, err := nc.ListSavedQueries(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get user search library list %w", err)
+		return fmt.Errorf("failed to get user search library list %w", err)
 	} else if len(sls.Results) > 0 {
 		for _, sl := range sls.Results {
 			if sl.OwnerID == id {
 				if err := nc.PurgeSavedQuery(sl.ID); err != nil {
-					return fmt.Errorf("Failed to delete user search library %v %w", sl.ID, err)
+					return fmt.Errorf("failed to delete user search library %v %w", sl.ID, err)
 				}
 			}
 		}
@@ -869,19 +780,19 @@ func (c *Client) PurgeUser(id int32) error {
 
 	//preferences
 	if prefs, err := nc.ListUserPreferences(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
-		return fmt.Errorf("Failed to get user preferences list %w", err)
+		return fmt.Errorf("failed to get user preferences list %w", err)
 	} else if len(prefs.Results) > 0 {
 		for _, p := range prefs.Results {
 			if p.OwnerID == id {
 				if err := nc.PurgeUserPreference(p.ID); err != nil {
-					return fmt.Errorf("Failed to delete user preference %v %w", p.ID, err)
+					return fmt.Errorf("failed to delete user preference %v %w", p.ID, err)
 				}
 			}
 		}
 	}
 
 	if err := nc.Close(); err != nil {
-		return fmt.Errorf("Failed to close impersonated client during purge %w", err)
+		return fmt.Errorf("failed to close impersonated client during purge %w", err)
 	}
 
 	return c.deleteStaticURL(usersInfoUrl(id), nil, ezParam("purge", "true")) //finally, delete the user

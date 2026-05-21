@@ -21,7 +21,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -59,7 +60,7 @@ func initScheduleTab(cronfreq, name, desc string) scheduleTab {
 
 	// set TI-specific options
 	sch.cronfreqTI.Placeholder = "* * * * *"
-	sch.cronfreqTI.Validate = uniques.CronRuneValidator
+	sch.cronfreqTI.Validate = validate.CronRuneValidator
 
 	// focus frequency by default
 	sch.cronfreqTI.SetValue(cronfreq)
@@ -74,22 +75,22 @@ func updateSchedule(s *DataScope, msg tea.Msg) tea.Cmd {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		s.schedule.inputErrorString = ""
 		s.schedule.resultString = ""
-		switch msg.Type {
-		case tea.KeyUp:
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp):
 			s.schedule.selected -= 1
 			if s.schedule.selected <= schlowBound {
 				s.schedule.selected = schhighBound - 1
 			}
 			s.schedule.focusSelected()
 			return textinput.Blink
-		case tea.KeyDown:
+		case hotkeys.Match(msg, hotkeys.CursorDown):
 			s.schedule.selected += 1
 			if s.schedule.selected >= schhighBound {
 				s.schedule.selected = schlowBound + 1
 			}
 			s.schedule.focusSelected()
 			return textinput.Blink
-		case tea.KeyEnter:
+		case hotkeys.Match(msg, hotkeys.Invoke):
 			if s.schedule.selected == schsubmit {
 				s.sch()
 			}

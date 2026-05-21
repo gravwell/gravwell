@@ -2,7 +2,7 @@
 
 In essence, gwcli is a [Cobra](http://cobra.dev) command tree that can be crawled around via our [Bubble Tea](https://github.com/charmbracelet/bubbletea) instance.
 
-gwcli is built to allow more functionality to be easily plugged in; it follows design principles closer to that of a toolbox or framework. For instance, [list scaffolding](utilities/scaffold/scaffoldlist/list.go) provides complete functionality for listing any kind of data in a unified way while requiring minimal code. The goal is to genericize as much as possible, so future developers can simply call these genericized subroutines. See [Scaffolded](#scaffolded).
+gwcli is built to allow more functionality to be easily plugged in; it follows design principles closer to that of a toolbox/ framework. For instance, [list scaffolding](utilities/scaffold/scaffoldlist/list.go) provides complete functionality for listing any kind of data in a unified way while requiring minimal code. The goal is to genericize as much as possible, so future developers can simply call these genericized subroutines. See [Scaffolded](#scaffolded).
 
 # Terminology
 
@@ -18,11 +18,11 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
 # Quick Tips
 
-- By default, gwcli logs to `$CONFIGDIR/gwcli/dev.log`. On Linux, this is likely `~/.config/gwcli/dev.log`. Strongly recommend `tail -f ~/.config/gwcli/dev.log` to see what the program is doing under the hood while you are working on it.
+- Configuration (and thus, defaults) is handled by the [cfgdir](gwcli/utilities/cfgdir/cfgdir.go) package.
 
 - If your action seems to hang until a key is pressed, try returning a `.Blink`. This typically is not necessary, but the TUI only redraws when a messages occurs. If you are only returning nils, but need an update to occur, there will nothing to proc it.
 
-    - This is to prevent faux-hanging. Bubble Tea only triggers its cycle when a message comes in. Returning nil when few other messages are being sent can cause the application to appear unresponsive when it is instead waiting for another message, thus triggering the anticipated redraw.
+    - Bubble Tea only triggers its cycle when a message comes in. Returning nil when few other messages are being sent can cause the application to *appear* unresponsive when it is instead waiting for another message, thus triggering the anticipated redraw.
 
 - This is a prompt; anything not immediately interactive should be output via `tea.Print*` as history, rather than in the `.View()` that will be lost on redraw. 
 
@@ -34,23 +34,24 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
     - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)).
 
-- Most errors should be recoverable while in interactive mode and therefore panics while running are profane. Panicking during setup, however, is perfectly acceptable; errors during setup are almost certainly developer error, therefore the earlier they arise the better.
+- Panics should be considered profane. Panicking during setup, however, may be acceptable if the alternative is an entirely broken product (setup errors are likely the dev's fault.)
 
 # Build System
 
-gwcli uses [Mage](magefile.org) as its build system. Because go's tooling is so robust, you don't *really* need mage, but it has some extra utilities for testing. You can explore it by installing mage and calling `mage -h`/`mage -h <cmd>`.
+gwcli uses [Mage](magefile.org) as its build system. Explore it by installing mage and calling `mage -h`/`mage -h <cmd>` and see all available commands with `mage -l`.
 
 ## Testing
 
 The testing suite for gwcli has three kinds of tests: internal_test.go, noci_test.go, and _test.go.
 
-*internal* tests use the parent package, rather than the <parent>_test and are used for testing unexported stuff.
+*internal* tests use the parent package directly, rather than a separate `<parent>_test` package. They should be used to test unexported functions and should be rare.
 
 *noci* tests are tests that require a gravwell instance to hook into, therefore making them unsuitable for use in a CI/CD pipeline (without spinning up a backend). These tests are expected to destructively alter the target instance and are tagged with the "noci" build tag. All tests that do not expect a backend are tagged with "ci" and/or "teatest".
 
-There are also TeaTests, tests that take advantage of Charm's experimental [teatest package](https://github.com/charmbracelet/x/tree/main/exp/teatest) (which you can read about [here](https://charm.land/blog/teatest/)). They are functionally similar to other tests, but with the addition of the `golden` file. Golden files are basically the output of a tea.Model's view put into a file. When the tests are run, a `diff` is executed against the golden file and the test's output. If they match, great. If not, back to work. What this means, however, is that changes made to the visual component of actions that use teatest must have their golden files regenerated. To do this, run go test with the `-update` flag (datascope, for example: `go test ./tree/query/datascope -run ^Test_ -update`). TeaTest also does not play nicely with the `-race` flag. Ultimately, teatest has limited usefulness over manually testing visual components, particularly as it requires a `tea.Model` which our actions do not implement (Mother does, but child actions implement our `action.Model` instead and typically pass by reference).
+There are also TeaTests, tests that take advantage of Charm's experimental [teatest package](https://github.com/charmbracelet/x/tree/main/exp/teatest) (which you can read about [here](https://charm.land/blog/teatest/)). They are functionally similar to other tests, but with the addition of the `golden` file. Golden files are basically the output of a tea.Model's view put into a file. When the tests are run, a `diff` is executed against the golden file and the test's output. If they match, great. If not, back to work. What this means, however, is that changes made to the visual component of actions that use teatest must have their golden files regenerated. To do this, run go test with the `-update` flag (datascope, for example: `go test ./tree/query/datascope -run ^Test_ -update`). TeaTest also does not play nicely with the `-race` flag. 
+    - Ultimately, teatest has limited usefulness over manually testing visual components, particularly as it requires a `tea.Model` which our actions do not implement (Mother does, but child actions implement our `action.Model` instead and typically pass by reference).
 
-The easiest way to test gwcli is to run `mage testall -server=<host:port>`. All non-teatests are run with `-race`.
+The easiest way to test gwcli is to run `mage test:all -server=<host:port>`. All non-teatests are run with `-race`.
 
 # Changing the Command Tree
 
@@ -82,13 +83,17 @@ These frameworks are known as "scaffolds". Each scaffold package has a header co
 
 Creating an action from scratch is much more arduous and should only be done if you need functionality outside of the confines of the scaffolds.
 
-You will still have a `New*Action() action.Pair` function that can be given to the parent nav. In here, define your cobra.Command via `treeutils.NewActionCommand()` and `treeutils.GenerateAction()`.
+You must define two instances: a `*cobra.Command` (via `treeutils.GenerateAction()`) and an `action.Model` (see [action.Model](#actionmodel) below). Use `action.NewPair()` to put these together into an `action.Pair` you can give to the parent nav.
 
-Your action must be able to handle three, primary user modes: script(/NoInteractive) mode, interactive run mode, and interactive (Mother) mode.
-Script mode and interactive run mode are handled in your cobra.Command runFunc; the user invokes this action directly from their shell, with or without --no-interactive.
-Interactive (Mother) mode requires you to create a new implementation of `action.Model` (see [below](#actionmodel)). This new struct will be given to `GenerateAction()`, returning you the `action.Pair` needed to attach this action to a nav.
+Actions can be invoked in three ways, all of which you must take into account.
 
-The Basic scaffold is a highly simplistic implementation of an action. For a much more in-depth example, take a look at [query.go](tree/query/query.go). This showcases an entirely manual implementation of an action, from creating the runFunc and branching it on --no-interactive to spawning a totally new action.Model and shifting it between different modes.
+1) No Interactive: No Interactive mode occurs when a user calls your action from their shell and sets `-x`. In this mode, actions may not take any further user input and must fail out if data are missing or incorrect. This mode is handled by the `RunE` function you pass to `treeutils.GenerateAction()`.
+
+2) Hybrid/Direct Invocation: Direct Invocation is the same as No Interactive mode, but the user did *not* set `-x`. If data are missing or incomplete, you should call `mother.Spawn()`. The action will be restarted as if it had been called via #3 (Spawn is intelligent enough to initialize Mother on this action).
+
+3) Interactive: Interactive mode is as it sounds on the tin: an action was called via the TUI's prompt (or Hybrid mode and it called Spawn). The action.Model you defined will kick in and process until the user completes/cancels their work or an unrecoverable error occurs.
+
+The [ingest](gwcli/tree/ingest/ingest.go) action and [Basic scaffold](gwcli/utilities/scaffold/basic.go) make pretty good examples.
 
 # Packages
 
@@ -110,8 +115,7 @@ The true workhorse of gwcli, Mother manages *all* interactivity. See [her sectio
 
 ## Stylesheet
 
-A menagerie package focused on enforcing consistent text and colors across the program.
-The intention is for this to eventually be supplant-able for custom styling.
+A menagerie package focused on enforcing consistent text, colors, and sigils across the program.
 
 ## Tree
 
@@ -119,14 +123,13 @@ The one containing `root.go`, not the one beneath that that contains `tree.go`. 
 
 The actual [command tree](#the-command-tree). This package is organized to be a replica of how the navs and actions are situated inside of gwcli's shell.
 
-
 ## Utilities/Scaffold
 
 Scaffolds are the boilerplate action for rapidly bolting on new functionality that falls under one of their purviews.
 
 ## Utilities/Uniques
 
-Uniques contains data and functions that must be shared across packages and do not fit anywhere else. Like Stylesheet, it is crude instrumentation.
+Uniques contains data and functions that must be shared across packages and do not fit elsewhere. It is crude instrumentation.
 
 # The Command Tree
 
@@ -136,12 +139,12 @@ As mentioned in the Overview, the command tree is ultimately just a cobra.Comman
 
 The command tree is self-building: each nav builds itself and its immediate children. This causes the tree to 'recur' down each branch, building a nav at each node until we hit a nav with only leaves.
 
-Root begins generation as it is just a Nav. Take a look at `Execute()` in root.go; you can see that root is given a series of `.New*Nav` and `.New*Action`. Diving into one of the `.New*Nav` subroutines shows that it is built in the same way as root: given a series of self-building Navs and a list of actions that can be invoked at that level.
+Root begins generation as it is just a Nav. Take a look at `Execute()` in root.go; you can see that root is given a series of navs and another series of actions. Diving into one of the `.New*Nav` subroutines shows that it is built in the same way as root: given a series of self-building Navs and a list of actions that can be invoked at that level.
 
 # Mother: The Beating Heart of Gwcli
 
 Cobra does not natively support interactivity, so we need an adapter: Mother.
-Mother performs a variety of key tasks: traversing the command tree; associating `cobra.Commands` with their interactive elements (`action.Model`s); handing off to, and reasserting control from, children when they are invoked; printing and managing the historical record of commands, and parsing user input on the prompt.
+Mother performs a variety of key tasks: traversing the command tree; associating `cobra.Commands` with their interactive elements (`action.Model`s); handing off to, and reasserting control from, children when they are invoked; printing and managing the historical record of commands; and traversing user input on the prompt.
 
 ```mermaid
 flowchart
@@ -161,11 +164,11 @@ flowchart
     classDef action stroke:#f79c7a
 ```
 
-Navigation is just a couple of pointers; `Mother.root` is the root of the tree and `Mother.pwd` is she current position.
+Navigation is just a couple of pointers; `Mother.root` is the root of the tree and `Mother.pwd` is her current position.
 
-Child actions are held in the Action map implemented in [action.go](action/action.go). Basically, `treeutils.GenerateAction()` registers the `action.Model` and its `cobra.Command` in a hashtable and Mother looks up these `action.Model`s when it is time to invoke them interactively. This isn't necessary when invoked non-interactively (ex: from your shell's command line) because we can just use cobra's `.run()`. See [below](#actionmodel) for more information on `action.Model`s.
+Child actions are held in the Action map singleton implemented in [action.go](action/action.go). Basically, `treeutils.GenerateAction()` registers the `action.Model` and its `cobra.Command` in a hashtable and Mother looks up these `action.Model`s when it is time to invoke them interactively. This isn't necessary when invoked non-interactively (ex: from your shell's command line) because we can just use cobra's `.RunE()`. See [below](#actionmodel) for more information on `action.Model`s.
 
-When a child action is being interacted with, Mother runs in "handoff" mode. Instead of running her usual prompt management in `.Update()`, Mother passes control to the child action's `.Update()`. Same for `.View()`. Note, however, that we never call a child's `.Update()` without `Mother.Update()` calling it. This allows Mother to check for kill keys and the child's `.Done()` first so she knows if she must reassert control instead of passing to the child.
+When a child action is being interacted with, Mother runs in "handoff" mode. When her `.Update()` is called, it quickly passes control to the child action's `.Update()`. Same for `.View()`. Note, however, that we never call a child's `.Update()` without `Mother.Update()` calling it. This allows Mother to check for kill keys and the child's `.Done()` first so she knows if she must reassert control instead of passing to the child.
 
 History is handled by `history.go` in the `mother` package and is fairly straightforward. Go check it out if you are interested, but it is functionally complete until someone tackles persistent history.
 
@@ -173,18 +176,20 @@ Input parsing, for when a Mother is in control, is managed by `processInput()`. 
 
 ## action.Model
 
-Actions must satisfy the `action.Model` interface to be able to supplant Mother as the controller. This means satisfying all 5 methods: `Update(), View(), Done(), Reset(), and SetArgs()`.
+Actions must satisfy the `action.Model` interface to be able to supplant Mother as the controller. This means satisfying all 5 methods: `Update()`, `View()`, `Done()`, `Reset()`, and `SetArgs()`.
+
+`SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors (typically just persistent/global flags like `--no-interactive`) as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-shlex'd so it can be fed into your local flagset's `.Parse()`. Last-known available width and height are also provided. 
+
+It returns, respectively: the reason this argument set is invalid (or ""), tea.Cmds the child needs run on startup (eg: right now), errors outside of the users control. The startup Cmd somewhat takes the place of `tea.Model.Init()`.
 
 `Update(tea.Msg) tea.Cmd` is the primary driver of the action. While in handoff mode, Mother will invoke the child's `Update()` subroutine in place of her own.
 
-`View() string`, like Update, supplants Mother's View method while in handoff mode. Note, however, that this is a prompt and all non-interactive output should instead be printed outside of Bubble Tea's control (via `tea.Print*()`).
+`View() string`, like Update, supplants Mother's View method while in handoff mode. Note, however, that views are ephemeral: redraws clobber prior views.
 
 `Done() bool` is called by mother *before handing off* each cycle. If it is true, Mother will *not* hand off and will instead reassert control, unseating the child. Generally tracked by a private variable in the child struct.
 
 `Reset() error` is called by Mother *after* Mother reasserts control (exiting handoff mode). This typically occurs after `Done()` returns true or the user pressed a child-only kill key (like `esc`). It resets the child to a clean state so it can be called again later.
 
-`SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules). Last-known available width and height are also provided. 
-It returns, respectively: the reason this argument set is invalid (or ""), tea.Cmds the child needs run on startup (eg: right now), errors outside of the users control. The startup Cmd somewhat takes the place of `tea.Model.Init()`.
 
 ```mermaid
 flowchart
@@ -199,7 +204,7 @@ flowchart
 ## Custom Suggestion and Tab-Completion Engine
 
 To improve the flexibility and power of completions in interactive mode, gwcli uses a custom engine for identifying what a user is attempting to type at the prompt.
-This engine is powered by `traverse.DeriveSuggestions()` and triggered whenever a key pressed is detected in Mother's `Update()` subroutine. See [DeriveSuggestions](gwcli/mother/traverse/traverse.go) for more details on how it operates.
+This engine is powered by `traverse.DeriveSuggestions()` and triggered whenever a key press is detected in Mother's `Update()` subroutine. See [DeriveSuggestions](gwcli/mother/traverse/traverse.go) for more details on how it operates.
 
 ### Why?
 
@@ -211,7 +216,7 @@ This section is a deep dive on the design philosophy and problems that arose whi
 
 ## Cobra/Bubble Tea Interoperability
 
-We want to rely on Cobra as much as possible; it has all the navigational features we need and the further we stray from it, the less we benefit from its auto-generation capabilities.
+We want to rely on Cobra+pflag as much as possible; Cobra has all the navigational features we need and the further we stray from the pair, the less we benefit from their auto-generation capabilities.
 
 However, Mother cannot hand off control to a cobra.Command leaf (an *Action*) because it does not have `.Update()` and `.View()` methods to supplant her own. We cannot add methods to non-local structs.
 
@@ -221,25 +226,9 @@ Solved, right? Not quite. The relationship must be bi-directional, which is not 
 
 Clock this signature `.AddCommand(cmds ...*cobra.Command)`. To get commands into Cobra's tree so it can work its magic, we need to supply a cobra.Command *struct*. Due to the way Go's quasi-inheritance works, we cannot masquerade our Action 'super' type as its 'base'. 
 
-We can supply cobra with a pointer to the embedded type: 
-
-ex: 
-
-```go
-a := &action.Model{Command: cobra.Command{}}
-
-// ...
-// bolt on the subroutines required for action.Model
-// ...
-
-root.AddCommand(a.Command)
-```
-
-This, however, will dispose of our super wrapper `a` as soon as it falls out of scope.
-
 We have several options:
 
-1) We use the above super wrapper and cast back and forth between our super and `cobra.Command` (as is done for the list bubble used by Bubble Tea). If this were C, I'd be perfectly happy with this solution as I have a pretty good understanding of what the underlying memory will look like. However, this is Go and the quasi-casting Go provides is 1) hardly idiomatic and 2) less clear on what the garbage collector will do with the underlying memory. This solution may work fine, but will likely chafe against the language.
+1) We use a super wrapper and cast back and forth between our super and `cobra.Command` (as is done for the list bubble used by Bubble Tea). Workable, but will chafe against Go's preferred paradigm.
 
 2) Maintain two, separate-but-topologically-identical trees using two different structures. We retain the normal `cobra.Command` tree and a parallel tree for Mother to operate on. This decouples Cobra and Mother, allowing them total flexibility in data representation, but could lead to significant data duplication and difficulty guaranteeing equity when adding new commands or performing maintenance. Given Cobra provides all required data for navigation and Nav nodes, this feels a bit like reinventing the wheel just to tack on a couple methods for the tree's leaves.
 
@@ -247,20 +236,12 @@ We have several options:
 
 4) Fork Cobra, attach the required function signatures (ex: `.Update()`, `.View()`, ...) to the Cobra struct directly (or convert the cobra struct to an interface), and include the fork as a submodule. This is the most straightforward and lowest-initial-lift option. We can navigate and act *entirely* off the cobra.Command tree, supplanting Mother's Model-Update-View with that of the selected Action's stored directly inside the Action's command. However, we now how two packages to maintain, instead of just one.
 
-While Option 4 is the most straightforward initially, future maintainers may not agree, especially as changes occur to the upstream Cobra package. Therefore, option 3 is how interoperability is designed. Mother/interactive mode can function entirely off Cobra's navigation and Cobra can operate entirely as normal. The only adaptation takes place in interactive mode, when an action is invoked; Mother uses the cobra.Command to fetch the interactive methods from the action map that should supplant her standard model.
+Option 3 is how interoperability was designed. Mother/interactive mode can function entirely off Cobra's navigation and Cobra can operate entirely as normal. The only adaptation takes place in interactive mode, when an action is invoked; Mother uses the cobra.Command to fetch the interactive methods from the action map that should supplant her standard model.
 
 ## Singletons
 
-Outside of a game design context, globals (and singletons) are generally a bad sign. This is doubly true in C (especially if we consider reentrants).
+Outside of a game design context, globals (and singletons) are generally a smell.
 
 That being said, the program must be usable from any number of different entry-points and scenarios; it does not have a central "app" struct or similar for hosting widely-shared resources. Cobra and Mother need access to similar resources, without being able to assume who owns or has utilized what. Thus, self-initializing singletons make some sense in case.
 
-Tangentially, while there are no current plans to implement threading, a singleton is trivial to enforce locks on, especially in software with flexibility in coarseness of locking.
-
-## Local Versus Persistent Flags
-
-There are a number of flags that are useful and functionally identically across a number of actions (output, append, CSV/JSON, ...). Therefore, we could make them persistent. However, they do not make sense for some actions, particularly basic actions.
-
-As such, I am not including these common flags as persistents at root level, lest it require every action to support tangential flags. Instead, common elements of these flags are stored in the flagtext package, to at least provide some degree of consistency across flags that are technically unrelated.
-
-Other flags, such as --no-interactive, must be supported by all actions anyways, so they are persistent at a root level.
+Tangentially, a singleton is trivial to enforce locks on, especially in software with flexibility in coarseness of locking.

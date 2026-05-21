@@ -95,6 +95,12 @@ func (s simple) Register(fs *pflag.FlagSet) {
 		fs.BoolP(s.name, s.Shorthand(), defaultValue, s.usage)
 	case types.String:
 		fs.StringP(s.name, s.Shorthand(), s.defaultValue, s.usage)
+	case types.Int32:
+		var defaultValue int64
+		if s.defaultValue != "" {
+			defaultValue, _ = strconv.ParseInt(s.defaultValue, 10, 32)
+		}
+		fs.Int32P(s.name, s.Shorthand(), int32(defaultValue), s.Usage())
 	default:
 		panic(fmt.Sprintf("unhandled type: %v", s.typ))
 	}
@@ -121,6 +127,10 @@ func (s stringSliceRegister) Shorthand() string {
 		return ""
 	}
 	return string(s.shorthand)
+}
+
+func (s stringSliceRegister) Usage() string {
+	return s.usage
 }
 
 // Register installs this flag (with its standard type) in the given flagset.
@@ -162,8 +172,8 @@ func (s singular) Usage(singular string) string {
 
 // Register installs this flag as a string in the given flagset.
 // It is a helper function to provide consistent usage.
-func (s singular) Register(fs *pflag.FlagSet, singular string) {
-	fs.StringP(s.Name(), s.Shorthand(), "", s.Usage(singular))
+func (s singular) Register(fs *pflag.FlagSet, defaultVal string, singular string) {
+	fs.StringP(s.Name(), s.Shorthand(), defaultVal, s.Usage(singular))
 }
 
 var (
@@ -263,6 +273,12 @@ var (
 
 	// #endregion output manipulation
 
+	UID = simple{
+		name:  "UID",
+		usage: "ID of the user",
+		typ:   types.Int32,
+	}
+
 	//#region scaffoldlist/columns
 
 	// ShowColumns (--show-columns) is a local flag used by scaffold list to display all known columns.
@@ -277,7 +293,7 @@ var (
 	// Unlikely to be used outside of actions that implement scaffold list.
 	SelectColumns = stringSliceRegister{
 		name: "columns",
-		usage: "comma-separated list of columns to include in the results\n." +
+		usage: "comma-separated list of columns to include in the results.\n" +
 			"Use --" + ShowColumns.name + " to see the full list of columns",
 	}
 

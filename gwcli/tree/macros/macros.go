@@ -19,9 +19,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/spf13/cobra"
@@ -60,7 +60,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list your macros", "lists all macros associated to your user, a group, or the system itself",
 		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
 			if all, err := fs.GetBool("all"); err != nil {
-				return nil, uniques.ErrGetFlag("macros list", err)
+				return nil, clilog.GetFlag(err)
 			} else if all { // fetch all macros instead of just user macros
 				r, err := connection.Client.ListAllMacros(nil)
 				if err != nil {
@@ -69,7 +69,7 @@ func list() action.Pair {
 				return r.Results, nil
 			}
 			if gid, err := fs.GetInt32("group"); err != nil {
-				return nil, uniques.ErrGetFlag("macros list", err)
+				return nil, clilog.GetFlag(err)
 			} else if gid != 0 { // fetch all macros our group ID can read
 				macros, err := connection.Client.ListAllMacros(nil)
 				if err != nil {
@@ -89,9 +89,14 @@ func list() action.Pair {
 			}
 			return r.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{AddtlFlags: flags},
-			DefaultColumns: []string{"Name", "Description", "Expansion"},
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"Expansion"},
 		})
 }
 
@@ -108,48 +113,49 @@ var macroNameRgx = regexp.MustCompile("^[a-zA-Z0-9_-]*$")
 func create() action.Pair {
 
 	nameField := scaffoldcreate.FieldName("macro")
-	nameField.CustomTIFuncInit = func() textinput.Model {
-		ti := stylesheet.NewTI("", false)
-		ti.Prompt = "$"
-		ti.Validate = func(s string) error {
-			s = strings.ToUpper(s)
-			if !macroNameRgx.MatchString(s) {
-				return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
-			}
-
-			if len(s) > 0 {
-				char := []rune(s)[0]
-				if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
-					return errors.New("macro names must start with a letter or number")
+	nameField.Provider = &scaffoldcreate.TextProvider{
+		CustomInit: func() textinput.Model {
+			ti := stylesheet.NewTI("", false)
+			ti.Prompt = "$"
+			ti.Validate = func(s string) error {
+				s = strings.ToUpper(s)
+				if !macroNameRgx.MatchString(s) {
+					return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
 				}
 
+				if len(s) > 0 {
+					char := []rune(s)[0]
+					if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
+						return errors.New("macro names must start with a letter or number")
+					}
+
+				}
+				return nil
 			}
-			return nil
-		}
-		return ti
+			return ti
+		},
 	}
 
-	fields := scaffoldcreate.Config{
+	fields := map[string]scaffoldcreate.Field{
 		"name": nameField,
 		"desc": scaffoldcreate.FieldDescription("macro"),
 		"exp": scaffoldcreate.Field{
 			Required:     true,
 			Title:        "expansion",
-			Usage:        FlagExpansionUsage,
-			Type:         scaffoldcreate.Text,
-			FlagName:     FlagExpansion,
+			Flag:         scaffoldcreate.FlagConfig{Name: FlagExpansion, Usage: FlagExpansionUsage},
+			Provider:     &scaffoldcreate.TextProvider{},
 			DefaultValue: "",
 			Order:        80,
 		},
 	}
 
 	return scaffoldcreate.NewCreateAction("macro", fields,
-		func(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
+		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 			sm := types.Macro{}
 			// all three fields are required, no need to nil-check them
-			sm.Name = strings.ToUpper(fieldValues["name"])
-			sm.Description = fieldValues["desc"]
-			sm.Expansion = fieldValues["exp"]
+			sm.Name = strings.ToUpper(cfg["name"].Provider.Get())
+			sm.Description = cfg["desc"].Provider.Get()
+			sm.Expansion = cfg["exp"].Provider.Get()
 
 			macro, err := connection.Client.CreateMacro(sm)
 			return macro.ID, "", err

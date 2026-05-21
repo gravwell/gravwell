@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -61,7 +61,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
 		types.Secret{}, func(fs *pflag.FlagSet) ([]types.Secret, error) {
 			if all, err := fs.GetBool("all"); err != nil {
-				uniques.ErrGetFlag("secrets list", err)
+				clilog.GetFlag(err)
 			} else if all {
 				resp, err := connection.Client.ListAllSecrets(nil)
 				if err != nil {
@@ -76,12 +76,12 @@ func list() action.Pair {
 			}
 			return resp.Results, nil
 		},
+		nil,
 		scaffoldlist.Options{
 			DefaultColumns: []string{
-				"ID",
-				"Name",
-				"Description",
-				"Labels",
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
 			},
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 		})
@@ -98,33 +98,30 @@ func create() action.Pair {
 		"name": scaffoldcreate.FieldName("secret"),
 		"desc": scaffoldcreate.FieldDescription("secret"),
 		"value": scaffoldcreate.Field{
-			Required:      true,
-			Title:         "Value",
-			Usage:         "the secret itself",
-			Type:          scaffoldcreate.Text,
-			FlagShorthand: 'v',
-			Order:         80,
+			Required: true,
+			Title:    "Value",
+			Flag:     scaffoldcreate.FlagConfig{Usage: "the secret itself", Shorthand: 'v'},
+			Provider: &scaffoldcreate.TextProvider{},
+			Order:    80,
 		},
 		"labels": scaffoldcreate.FieldLabels(),
 	}
 
 	return scaffoldcreate.NewCreateAction("secret", fields,
-		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// transmute to resource struct
 			var labels []string
-			if lbls, found := fieldValues["labels"]; !found {
-				return "", "", errors.New("failed to find \"labels\" field")
-			} else if lbls = strings.TrimSpace(lbls); lbls != "" {
-				labels = strings.Split(lbls, ",")
+			if lbls := cfg["labels"].Provider.Get(); strings.TrimSpace(lbls) != "" {
+				labels = strings.Split(strings.TrimSpace(lbls), ",")
 			}
 
 			data := types.SecretCreate{
 				CommonFields: types.CommonFields{
-					Name:        fieldValues["name"],
-					Description: fieldValues["desc"],
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
 					Labels:      labels,
 				},
-				Value: fieldValues["value"],
+				Value: cfg["value"].Provider.Get(),
 			}
 
 			resp, err := connection.Client.CreateSecret(data)

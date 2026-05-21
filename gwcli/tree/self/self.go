@@ -16,7 +16,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -59,8 +58,7 @@ func admin() action.Pair {
 
 			// branch on toggle flag
 			if t, err := fs.GetBool("toggle"); err != nil {
-				clilog.LogFlagFailedGet("toggle", err)
-				return uniques.ErrGeneric.Error(), nil
+				clilog.GetFlag(err)
 			} else if t {
 				return toggle(isAdministrator)
 			}
@@ -161,6 +159,7 @@ func sessions() action.Pair {
 
 			return ss, nil
 		},
+		map[string]string{"ID": "SessionID"},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
@@ -175,12 +174,11 @@ func sessions() action.Pair {
 				},
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
-			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				since = time.Time{} // ensure it is reset
 				snc, err := fs.GetString("since")
 				if err != nil {
-					clilog.LogFlagFailedGet("since", err)
+					clilog.GetFlag(err)
 				}
 				if snc != "" {
 					// try to parse in our supported formats, breaking on the first one
@@ -207,9 +205,10 @@ func groups() action.Pair {
 		func(fs *pflag.FlagSet) ([]types.Group, error) {
 			return connection.Client.Groups()
 		},
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "groups"},
-			Pretty: func(fs *pflag.FlagSet) (string, error) {
+			Pretty: func(_ []string, _ map[string]string) (string, error) {
 				groups, err := connection.Client.Groups()
 				if err != nil {
 					return "", err
