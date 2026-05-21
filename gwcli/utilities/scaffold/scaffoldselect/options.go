@@ -16,7 +16,7 @@ import (
 type Options struct {
 	scaffold.CommonOptions
 
-	// if opFunc succeeds, this function will be called on the ID.
-	// If this function returns a string, it will be printed as the success statement.
-	SuccessString func(ID any) string
+	// The string returned to a user if collectItems returns no items.
+	// If not set, defaults to a generic statement.
+	NoItemsError string
 }

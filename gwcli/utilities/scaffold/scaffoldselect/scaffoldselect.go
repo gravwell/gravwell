@@ -1,8 +1,14 @@
+// Package scaffoldselect provides a scaffold for creating actions that allow a user to operate on a list of items.
+// While mildly more obtuse than the other scaffolds, scaffoldselect can be used for any action that can easily be applied en-masse.
+//
+// For example: locking/unlocking user accounts.
 package scaffoldselect
 
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -11,23 +17,22 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func NewSelectAction[ID_t comparable](short, long string,
+func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 	singular, plural string,
 	collectItems func() ([]multiselectlist.SelectableItem[ID_t], error),
-	op func(id ID_t) error,
-	fromString func(s string) (cast ID_t, invalid string),
+	op func(id ID_t) (success string, _ error),
 	options Options) action.Pair {
 	if collectItems == nil {
 		panic("collectItems cannot be nil")
 	} else if op == nil {
 		panic("operator cannot be nil")
-	} else if fromString == nil {
-		panic("fromString cannot be nil")
 	}
 	runE := func(cmd *cobra.Command, args []string) error {
 		// if no arguments were given, boot mother or fail out
@@ -43,22 +48,30 @@ func NewSelectAction[ID_t comparable](short, long string,
 			return errors.New(phrases.AtLeast1ArgRequired(plural))
 		}
 
-		// at least one ID was specified, test each arg
+		atLeastOneSuccess := false
 		for _, a := range cmd.Flags().Args() {
-			cast, invalid := fromString(a)
-			if invalid != "" {
-				return errors.New(invalid)
-			}
-			err := op(cast)
+			cast, err := scaffold.FromString[ID_t](a)
 			if err != nil {
-				fmt.Fprintln(cmd.ErrOrStderr(), err)
+				var zero ID_t
+				clilog.Writer.Info("failed to parse string into generic type",
+					log.KV("string", a),
+					log.KV("target type", reflect.TypeOf(zero)),
+					scaffold.IdentifyCaller(),
+				)
+				return errors.New(a + " is not a valid " + singular)
 			}
-			if options.SuccessString != nil {
-				success := options.SuccessString(cast)
+
+			if success, err := op(cast); err != nil {
+				fmt.Fprintln(cmd.ErrOrStderr(), err)
+			} else {
+				atLeastOneSuccess = true
 				if success != "" {
 					fmt.Fprintln(cmd.OutOrStdout(), success)
 				}
 			}
+		}
+		if !atLeastOneSuccess {
+			return errors.New("all operations failed")
 		}
 		return nil
 	}
@@ -66,9 +79,11 @@ func NewSelectAction[ID_t comparable](short, long string,
 		treeutils.GenerateActionOptions{
 			Usage: ft.VariadicArgs(singular, true),
 		})
+	options.Apply(cmd)
 
 	model := &selectModel[ID_t]{
 		singular:     singular,
+		plural:       plural,
 		collectItems: collectItems,
 		op:           op,
 
@@ -81,10 +96,10 @@ func NewSelectAction[ID_t comparable](short, long string,
 //#region interactive
 
 type selectModel[ID_t comparable] struct {
-	singular string
+	singular, plural string
 
 	collectItems func() ([]multiselectlist.SelectableItem[ID_t], error)
-	op           func(ID_t) error
+	op           func(id ID_t) (success string, _ error)
 
 	msl multiselectlist.Model[ID_t]
 
@@ -94,6 +109,12 @@ type selectModel[ID_t comparable] struct {
 func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
 	itms, err := m.collectItems()
 	if err != nil {
+		return "", nil, err
+	} else if len(itms) < 1 {
+		err = errors.New("You have no available " + m.plural)
+		if m.options.NoItemsError != "" {
+			err = errors.New(m.options.NoItemsError)
+		}
 		return "", nil, err
 	}
 	m.msl = multiselectlist.Model[ID_t](multiselectlist.New(itms, width, height, multiselectlist.Options{}))
@@ -112,21 +133,20 @@ func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 		m.msl.Undone()
 		return m.msl.NewStatusMessage("select at least 1 " + m.singular)
 	}
-	var cmds = make([]tea.Cmd, len(itms))
-	var succeededAtLeastOnce bool
-	for i, itm := range itms {
-		if err := m.op(itm.ID()); err != nil {
-			cmds[i] = tea.Println(err)
+	var cmds = make([]tea.Cmd, 0, len(itms))
+	atLeastOneSuccess := false
+	for _, itm := range itms {
+		if success, err := m.op(itm.ID()); err != nil {
+			cmds = append(cmds, tea.Println(err))
 		} else {
-			succeededAtLeastOnce = true
-			if m.options.SuccessString != nil {
-				if success := m.options.SuccessString(itm.ID()); success != "" {
-					cmds[i] = tea.Println(success)
-				}
+			atLeastOneSuccess = true
+			if success != "" {
+				cmds = append(cmds, tea.Println(success))
 			}
 		}
 	}
-	if !succeededAtLeastOnce {
+	cmds = slices.Clip(cmds)
+	if !atLeastOneSuccess {
 		cmds = append(cmds, tea.Println("all operations failed"))
 	}
 
