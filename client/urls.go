@@ -216,6 +216,7 @@ const (
 	USER_PREFERENCES_URL             = `/api/userpreferences`
 	USER_PREFERENCES_LIST_URL        = `/api/userpreferences/list`
 	USER_PREFERENCES_ID_URL          = `/api/userpreferences/%s`
+	LIST_URL                         = `/api/list`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`

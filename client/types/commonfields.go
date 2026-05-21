@@ -108,3 +108,8 @@ func (cf *CommonFields) GroupCanWrite(gid int32) bool {
 	}
 	return false
 }
+
+type ListAllResponse struct {
+	BaseListResponse
+	Results []CommonFields `json:"results"`
+}
