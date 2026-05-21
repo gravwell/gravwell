@@ -13,8 +13,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -23,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -42,8 +45,8 @@ func NewNav() *cobra.Command {
 			create(),
 			delete(),
 			edit(),
-			lockAction(),
-			unlockAction(),
+			lock(),
+			unlock(),
 			sessionsAction(),
 			changePassword(),
 			toggleAdmin(),
@@ -368,4 +371,69 @@ func sessionsAction() action.Pair {
 			},
 		},
 	)
+}
+
+func lock() action.Pair {
+	return scaffoldselect.NewSelectAction(
+		"lock user accounts", "Lock one or several user accounts.\n"+
+			"The user will be unable to log in until unlocked, and all existing sessions will be terminated.",
+		"account", "accounts",
+		func() ([]multiselectlist.SelectableItem[int32], error) {
+			ulr, err := connection.Client.ListUsers(nil)
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr.Results))
+			for _, user := range ulr.Results {
+				if user.ID == connection.CurrentUser().ID || user.Locked {
+					continue
+				}
+				items = append(items, listitem.NewUserItem(user, false))
+			}
+			items = slices.Clip(items)
+			return items, nil
+		},
+		func(ID int32) (success string, _ error) {
+			if err := connection.Client.LockUserAccount(ID); err != nil {
+				return "", fmt.Errorf("failed to lock user account %d: %v", ID, err)
+			}
+			return fmt.Sprintf("User %v locked", ID), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "lock",
+			},
+			NoItemsError: "There are no unlocked accounts you can lock.",
+		})
+}
+
+func unlock() action.Pair {
+	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account", "accounts",
+		func() ([]multiselectlist.SelectableItem[int32], error) {
+			ulr, err := connection.Client.ListUsers(nil)
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr.Results))
+			for _, user := range ulr.Results {
+				if user.ID == connection.CurrentUser().ID || !user.Locked {
+					continue
+				}
+				items = append(items, listitem.NewUserItem(user, false))
+			}
+			items = slices.Clip(items)
+			return items, nil
+		},
+		func(ID int32) (success string, _ error) {
+			if err := connection.Client.UnlockUserAccount(ID); err != nil {
+				return "", fmt.Errorf("failed to unlock user account %d: %v", ID, err)
+			}
+			return fmt.Sprintf("User %v unlocked", ID), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "unlock",
+			},
+			NoItemsError: "There are no locked accounts you can unlock.",
+		})
 }
