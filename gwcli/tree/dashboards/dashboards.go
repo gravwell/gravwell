@@ -11,17 +11,15 @@ package dashboards
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -117,40 +115,33 @@ func cloneAction() action.Pair {
 	return scaffoldselect.NewSelectAction("clone dashboards", "create a copy of one or many dashboards.",
 		"dashboard", "dashboards",
 		func() ([]multiselectlist.SelectableItem[string], error) {
-			dashboards, err := connection.Client.GetAllDashboards()
+			dlr, err := connection.Client.ListDashboards(nil)
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(dashboards))
-			for i, dash := range dashboards {
-
-			}
-		},
-		func(ID string) error {},
-		func(s string) (cast string, inv string) { return s, "" },
-		scaffoldselect.Options{})
-
-	return scaffold.NewBasicAction("clone", "clone a dashboard", "Create a copy of a dashboard by its ID.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			origID, err := strconv.ParseUint(fs.Arg(0), 10, 64)
-			if err != nil {
-				return fs.Arg(0) + " is not a valid dashboard ID", nil
-			}
-			newID, err := connection.Client.CloneDashboard(origID)
-			if err != nil {
-				return err.Error(), nil
-			}
-			return fmt.Sprintf("created clone with ID %d", newID), nil
-		},
-		scaffold.BasicOptions{
-			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				if fs.NArg() != 1 {
-					return phrases.Exactly1ArgRequired("dashboard ID"), nil
+			items := make([]multiselectlist.SelectableItem[string], len(dlr.Results))
+			for i, dash := range dlr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        dash.ID,
+					Name:       dash.Name,
+					SecondLine: dash.Description,
 				}
-				if _, err := strconv.ParseUint(fs.Arg(0), 10, 64); err != nil {
-					return fs.Arg(0) + " is not a valid dashboard ID", nil
-				}
-				return "", nil
-			},
+			}
+			return items, nil
+		},
+		func(ID string) (success string, _ error) {
+			cur, err := connection.Client.GetDashboard(ID)
+			if err != nil {
+				return "", err
+			}
+			new, err := connection.Client.CreateDashboard(cur)
+			if err != nil {
+				return "", err
+			}
+			return "cloned dashboard " + cur.Name + " into dashboard " + new.Name, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "clone"},
 		})
 }

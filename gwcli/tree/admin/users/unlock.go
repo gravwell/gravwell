@@ -1,10 +1,8 @@
 package users
 
 import (
-	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -12,57 +10,42 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
-	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/ingest/log"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// This file implements user account unlocking
-
 func unlockAction() action.Pair {
-	cmd := treeutils.GenerateAction("unlock", "unlock a user account",
-		"Unlocks a locked user account.",
-		nil,
-		func(c *cobra.Command, args []string) error {
-			if c.Flags().NArg() == 0 { // none specified; boot mother or fail out
-				ni, err := c.Flags().GetBool(ft.NoInteractive.Name())
-				if err != nil {
-					clilog.GetFlag(err)
-					ni = true // better we assume no-interactive
-				}
-				if !ni {
-					return mother.Spawn(c.Root(), c, args)
-				}
-				return errors.New(phrases.AtLeast1ArgRequired("user IDs"))
+	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account", "accounts",
+		func() ([]multiselectlist.SelectableItem[int32], error) {
+			ulr, err := connection.Client.ListUsers(nil)
+			if err != nil {
+				return nil, err
 			}
-
-			// at least one ID was specified, attempt to unlock each account
-			var uids = make([]int32, c.Flags().NArg())
-			for i, s := range c.Flags().Args() {
-				uid, err := strconv.ParseInt(s, 10, 32)
-				if err != nil {
-					return errors.New("\"" + c.Flags().Arg(i) + "\" is not a valid integer; no accounts were locked")
+			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr.Results))
+			for _, user := range ulr.Results {
+				if user.ID == connection.CurrentUser().ID || !user.Locked {
+					continue
 				}
-				uids[i] = int32(uid)
+				items = append(items, listitem.NewUserItem(user, false))
 			}
-			for _, uid := range uids {
-				if err := connection.Client.UnlockUserAccount(int32(uid)); err != nil {
-					return fmt.Errorf("failed to unlock user account %d: %v", uid, err)
-				}
-				fmt.Fprintf(c.OutOrStdout(), "User %v unlocked\n", uid)
+			items = slices.Clip(items)
+			return items, nil
+		},
+		func(ID int32) (success string, _ error) {
+			if err := connection.Client.UnlockUserAccount(ID); err != nil {
+				return "", fmt.Errorf("failed to unlock user account %d: %v", ID, err)
 			}
-			return nil
-		}, treeutils.GenerateActionOptions{
-			Usage:   ft.VariadicArgs("UID", true),
-			Example: "7",
+			return fmt.Sprintf("User %v unlocked", ID), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "unlock",
+			},
+			NoItemsError: "There are no locked accounts you can unlock.",
 		})
-
-	return action.NewPair(cmd, &unlockModel{})
 }
 
 //#region interactive
