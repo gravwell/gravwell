@@ -6,14 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 )
 
@@ -21,21 +20,18 @@ import (
 type fieldNum uint
 
 const (
-	numName fieldNum = iota
-	numDescription
-	numTag
-	numEnable
-	numMaxEvents
-	numRetain
-	numBackToDispatchers // return to dispatcher selection stage
-	numBackToConsumers   // return to consumer selection stage
-	numSubmit
+	metaName fieldNum = iota
+	metaDescription
+	metaTag
+	metaEnable
+	metaMaxEvents
+	metaRetain
+	metaContinue
 )
 
 type metadata struct {
-	inputErr  string // a validation error from one of the below inputs
-	submitErr string // error returned by the last submit attempt
-	selected  fieldNum
+	inputErr string // a validation error from one of the below inputs
+	selected fieldNum
 
 	// required
 
@@ -43,7 +39,7 @@ type metadata struct {
 
 	// optional
 
-	description textarea.Model
+	description textinput.Model
 	tag         textinput.Model
 	enable      bool
 	maxEvents   textinput.Model // convert to int on submit
@@ -53,7 +49,7 @@ type metadata struct {
 func NewMetadata() *metadata {
 	m := &metadata{
 		name:        stylesheet.NewTI("", false),
-		description: textarea.New(),
+		description: stylesheet.NewTI("", true),
 		tag:         stylesheet.NewTI("", true),
 		maxEvents:   stylesheet.NewTI("", true),
 		retain:      stylesheet.NewTI("", true),
@@ -73,6 +69,7 @@ func NewMetadata() *metadata {
 		}
 		return nil
 	}
+	m.Reset()
 	return m
 }
 
@@ -90,134 +87,113 @@ func (m *metadata) Init(name, description, tag string, enable bool, maxEvents in
 	if retainS != 0 {
 		m.retain.SetValue(strconv.FormatInt(int64(retainS), 10) + "s")
 	}
+	m.checkSatisfaction()
 }
 
-func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToConsumers, trySubmit bool) {
+func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, done bool) {
 	if _, ok := msg.(tea.KeyMsg); ok {
-		m.submitErr = "" // clear error from last create attempt
-		switch {
-		case hotkeys.Match(msg, hotkeys.CursorUp):
-			m.focusPrevious()
-			return textinput.Blink, false, false, false
-		case hotkeys.Match(msg, hotkeys.CursorDown):
-			m.focusNext()
-			return textinput.Blink, false, false, false
-		case hotkeys.Match(msg, hotkeys.Select):
-			if m.selected == numEnable {
-				m.enable = !m.enable
+		// check for vertical movement
+		if handled, _, newIndex := hotkeys.MoveCursor(msg, uint(m.selected), uint(metaContinue)+1, nil); handled {
+			m.toggleFocus(false)
+			m.selected = fieldNum(newIndex)
+			m.toggleFocus(true)
+			return textinput.Blink, false
+		}
+
+		if hotkeys.Match(msg, hotkeys.Select) && m.selected == metaEnable {
+			m.enable = !m.enable
+		} else if hotkeys.ButtonPressed(msg) &&
+			m.selected == metaContinue {
+			if m.inputErr != "" {
+				return nil, false
 			}
-		case hotkeys.Match(msg, hotkeys.Invoke):
-			// handle buttons and booleans
-			switch m.selected {
-			case numBackToDispatchers:
-				return nil, true, false, false
-			case numBackToConsumers:
-				return nil, false, true, false
-			case numSubmit:
-				// check that we are in a valid state
-				if m.inputErr == "" {
-					return nil, false, false, true
-				}
-			}
+			// all done!
+			return nil, true
 		}
 	}
 
 	// pass the message into the appropriate text input
+	defer m.checkSatisfaction()
 
-	m.inputErr = ""
 	var cmd tea.Cmd
 	switch m.selected {
-	case numName:
+	case metaName:
 		m.name, cmd = m.name.Update(msg)
-		if m.name.Err != nil {
-			m.inputErr = m.name.Err.Error()
-		}
-	case numDescription:
+	case metaDescription:
 		m.description, cmd = m.description.Update(msg)
-		if m.description.Err != nil {
-			m.inputErr = m.description.Err.Error()
-		}
-	case numTag:
+	case metaTag:
 		m.tag, cmd = m.tag.Update(msg)
-		if m.tag.Err != nil {
-			m.inputErr = m.tag.Err.Error()
-		}
-	case numMaxEvents:
+	case metaMaxEvents:
 		m.maxEvents, cmd = m.maxEvents.Update(msg)
-		if m.maxEvents.Err != nil {
-			m.inputErr = m.maxEvents.Err.Error()
-		}
-	case numRetain:
+	case metaRetain:
 		m.retain, cmd = m.retain.Update(msg)
-		if m.retain.Err != nil {
-			m.inputErr = m.retain.Err.Error()
-		}
 	}
-	return cmd, false, false, false
+	return cmd, false
 }
 
-// Blurs the current input, selects and focuses the next one c.inputs.ordered.
-func (m *metadata) focusNext() {
-	m.toggleFocus(false)
-	if m.selected == numSubmit { // jump to start
-		m.selected = 0
-	} else {
-		m.selected += 1
+func (m *metadata) checkSatisfaction() {
+	if m.name.Value() == "" {
+		m.inputErr = phrases.MissingRequiredFields([]string{"Name"})
+		return
 	}
-	m.toggleFocus(true)
-}
-
-// Blurs the current input, selects and focuses the previous one in c.inputs.ordered.
-func (m *metadata) focusPrevious() {
-	m.toggleFocus(false)
-
-	if m.selected == 0 { // wrap to submit button
-		m.selected = numSubmit
-	} else {
-		m.selected -= 1
+	if m.name.Err != nil {
+		m.inputErr = m.name.Err.Error()
+		return
 	}
-	m.toggleFocus(true)
+	if m.description.Err != nil {
+		m.inputErr = m.description.Err.Error()
+		return
+	}
+	if m.tag.Err != nil {
+		m.inputErr = m.tag.Err.Error()
+		return
+	}
+	if m.maxEvents.Err != nil {
+		m.inputErr = m.maxEvents.Err.Error()
+		return
+	}
+	if m.retain.Err != nil {
+		m.inputErr = m.retain.Err.Error()
+		return
+	}
+	m.inputErr = ""
 }
 
 // toggleFocus toggles the focus on the currently selected input (doing nothing if a non-TI/TA is selected).
 // If !focus, blurs the input.
 func (m *metadata) toggleFocus(focus bool) {
-	if m.submitSelected() {
-		return
-	}
-
 	switch m.selected {
-	case numName:
+	case metaName:
 		if focus {
 			m.name.Focus()
 		} else {
 			m.name.Blur()
 		}
-	case numDescription:
+	case metaDescription:
 		if focus {
 			m.description.Focus()
 		} else {
 			m.description.Blur()
 		}
-	case numTag:
+	case metaTag:
 		if focus {
 			m.tag.Focus()
 		} else {
 			m.tag.Blur()
 		}
-	case numMaxEvents:
+	case metaMaxEvents:
 		if focus {
 			m.maxEvents.Focus()
 		} else {
 			m.maxEvents.Blur()
 		}
-	case numRetain:
+	case metaRetain:
 		if focus {
 			m.retain.Focus()
 		} else {
 			m.retain.Blur()
 		}
-	case numEnable, numBackToDispatchers, numBackToConsumers, numSubmit:
+	case metaEnable, metaContinue:
 	default:
 		s := "focus"
 		if !focus {
@@ -227,40 +203,19 @@ func (m *metadata) toggleFocus(focus bool) {
 	}
 }
 
-func (m *metadata) submitSelected() bool {
-	return m.selected == numSubmit
-}
-
 func (m *metadata) View() string {
 	var sb strings.Builder
 
-	m.viewline(&sb, true, "Name", numName, m.name.View())
-	m.viewline(&sb, false, "Description", numDescription, m.description.View())
-	m.viewline(&sb, false, "Tag", numTag, m.tag.View())
-	m.viewline(&sb, false, "Enable", numEnable, stylesheet.Checkbox(m.enable))
-	m.viewline(&sb, false, "Max Events", numMaxEvents, m.maxEvents.View())
-	m.viewline(&sb, false, "Retain", numRetain, m.retain.View())
+	m.viewline(&sb, true, "Name", metaName, m.name.View())
+	m.viewline(&sb, false, "Description", metaDescription, m.description.View())
+	m.viewline(&sb, false, "Tag", metaTag, m.tag.View())
+	m.viewline(&sb, false, "Enable", metaEnable, stylesheet.Checkbox(m.enable))
+	m.viewline(&sb, false, "Max Events", metaMaxEvents, m.maxEvents.View())
+	m.viewline(&sb, false, "Retain", metaRetain, m.retain.View())
 
-	// "back to" buttons
-	sb.WriteString(
-		lipgloss.JoinHorizontal(lipgloss.Center,
-			stylesheet.Pip(uint(m.selected), uint(numBackToDispatchers)),
-			stylesheet.Button("back to dispatcher selection")))
-	sb.WriteRune('\n')
-	sb.WriteString(
-		lipgloss.JoinHorizontal(lipgloss.Center,
-			stylesheet.Pip(uint(m.selected), uint(numBackToConsumers)),
-			stylesheet.Button("back to consumer selection")))
-	sb.WriteRune('\n')
+	sb.WriteString(stylesheet.ViewSubmitLikeButton("continue", m.selected == metaContinue, titleLength*2, m.inputErr))
 
-	sb.WriteString(stylesheet.ViewSubmitButton(m.selected == numSubmit, titleLength*2, m.inputErr, m.submitErr))
-
-	// attach faux-help
-	// TODO at some point, we should replace this with actual help and real key binds.
-	sb.WriteString("\n\n" +
-		stylesheet.Cur.DisabledText.Render(
-			"shift+"+sigils.UpDown+": scroll • space: toggle • enter: interact"+
-				"\nesc: quit"))
+	hotkeys.DefaultView(titleLength * 2)
 	return sb.String()
 }
 
@@ -280,7 +235,6 @@ func (m *metadata) viewline(sb *strings.Builder, required bool, title string, nu
 // Reset junks all data in metadata, allowing it to be reused as if freshly created.
 func (m *metadata) Reset() error {
 	m.inputErr = ""
-	m.submitErr = ""
 	m.selected = 0
 
 	m.name.Reset()

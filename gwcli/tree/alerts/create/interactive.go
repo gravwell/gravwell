@@ -3,16 +3,19 @@ package alertscreate
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
 )
 
@@ -22,6 +25,7 @@ const (
 	stageDispatchers stage = iota
 	stageConsumers
 	stageMetadata
+	stageConfirm
 	quitting // work is done, just waiting for mother to reassert control
 )
 
@@ -29,19 +33,25 @@ const (
 // 1) pick dispatchers
 // 2) pick consumers
 // 3) set metadata
+// 4) confirm
 type createModel struct {
-	// stages
 	stage            stage
 	dispatchersModel multiselectlist.Model[string]
 	consumersModel   multiselectlist.Model[string]
 	metadata         *metadata
+
+	alertToCreate types.Alert
+
+	confirmation confirmation.Model
 }
 
 func newCreateModel() *createModel {
-	return &createModel{
+	cm := &createModel{
+		// MSLs are generated in SetArgs
 		metadata: NewMetadata(),
-		// list models are generated in SetArgs
 	}
+	cm.Reset()
+	return cm
 }
 
 // Init is unused. It just exists so we can feed createModel into teatest.
@@ -50,27 +60,33 @@ func (c *createModel) Init() tea.Cmd {
 }
 
 func (c *createModel) Update(msg tea.Msg) tea.Cmd {
-	var retCmd tea.Cmd
+	var cmd tea.Cmd
 	switch c.stage {
 	case stageDispatchers:
-		c.dispatchersModel, retCmd = c.dispatchersModel.Update(msg)
+		c.dispatchersModel, cmd = c.dispatchersModel.Update(msg)
 		if c.dispatchersModel.Done() {
 			c.stage = stageConsumers
 		}
+		return cmd
 	case stageConsumers:
-		c.consumersModel, retCmd = c.consumersModel.Update(msg)
+		c.consumersModel, cmd = c.consumersModel.Update(msg)
 		if c.consumersModel.Done() {
 			c.stage = stageMetadata
+			c.metadata.toggleFocus(false)
+			c.metadata.selected = metaName
+			c.metadata.toggleFocus(true)
 		}
+		return cmd
 	case stageMetadata:
-		if cmd, backToDispatchers, backToConsumers, trySubmit := c.metadata.Update(msg); trySubmit {
+		cmd, done := c.metadata.Update(msg)
+		if done {
 			// coalesce all of our data into an alert definition
 			var maxEvents int
 			if str := c.metadata.maxEvents.Value(); str != "" {
 				me, err := strconv.ParseInt(str, 10, 32)
 				if err != nil {
-					c.metadata.submitErr = err.Error()
-					return nil
+					c.metadata.inputErr = err.Error()
+					return cmd
 				}
 				maxEvents = int(me)
 			}
@@ -78,21 +94,25 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			if str := c.metadata.retain.Value(); str != "" {
 				r, err := time.ParseDuration(str)
 				if err != nil {
-					c.metadata.submitErr = err.Error()
-					return nil
+					c.metadata.inputErr = err.Error()
+					return cmd
 				}
 				retainSeconds = int(r.Seconds())
 			}
 
 			dispatchers := []types.AlertDispatcher{}
+			hlDispatchers := []string{}
 			for _, li := range c.dispatchersModel.GetSelectedItems() {
 				dispatchers = append(dispatchers, types.AlertDispatcher{ID: li.ID(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
+				hlDispatchers = append(hlDispatchers, li.Title())
 			}
 			consumers := []types.AlertConsumer{}
+			hlConsumers := []string{}
 			for _, li := range c.consumersModel.GetSelectedItems() {
 				consumers = append(consumers, types.AlertConsumer{ID: li.ID(), Type: types.ALERTCONSUMERTYPE_FLOW})
+				hlConsumers = append(hlConsumers, li.Title())
 			}
-			ad := types.Alert{
+			c.alertToCreate = types.Alert{
 				CommonFields: types.CommonFields{
 					Name:        c.metadata.name.Value(),
 					Description: c.metadata.description.Value(),
@@ -107,29 +127,50 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 				Consumers:   consumers,
 			}
 
-			// try to submit
-			res, err := connection.Client.CreateAlert(ad)
-			if err != nil {
-				c.metadata.submitErr = err.Error()
-				return nil
+			c.stage = stageConfirm
+			// set header lines
+			c.confirmation.HeaderLines = []string{
+				"Creating new alert " + c.metadata.name.Value(),
+				"with " + strconv.FormatInt(int64(len(hlDispatchers)), 10) + " dispatchers",
+				"[" + strings.Join(hlDispatchers, " ") + "]",
+				"and " + strconv.FormatInt(int64(len(hlConsumers)), 10) + " consumers",
 			}
-			c.stage = quitting
-			return tea.Println(phrases.SuccessfullyCreatedItem("alert", res.ID))
-		} else if backToDispatchers {
-			c.stage = stageDispatchers
-			c.dispatchersModel.Undone()
-			c.consumersModel.Undone()
-		} else if backToConsumers {
-			c.stage = stageConsumers
-			c.consumersModel.Undone()
-		} else {
-			retCmd = cmd
 		}
+		return cmd
+	case stageConfirm:
+		var (
+			done, submit bool
+			choice       uint
+		)
+		if c.confirmation, cmd, done, submit, choice = c.confirmation.Update(msg); done {
+			if submit {
+				c.stage = quitting
+				res, err := connection.Client.CreateAlert(c.alertToCreate)
+				if err != nil {
+					return tea.Printf("failed to create alert: %v", err)
+				}
+				return tea.Println(phrases.SuccessfullyCreatedItem("alert", res.ID))
+			}
+			// return to a prior stage
+			switch choice {
+			case stageDispatchers:
+				c.stage = stageDispatchers
+				c.dispatchersModel.Undone()
+				c.consumersModel.Undone()
+			case stageConsumers:
+				c.stage = stageConsumers
+				c.consumersModel.Undone()
+			case stageMetadata:
+				c.stage = stageMetadata
+			}
+			return nil
+		}
+		return cmd
 	case quitting:
 		return nil
 	}
-
-	return retCmd
+	clilog.Writer.Warn("fell-through stage handling", log.KV("stage", c.stage))
+	return nil
 }
 
 func (c *createModel) View() string {
@@ -140,6 +181,8 @@ func (c *createModel) View() string {
 		return c.consumersModel.View()
 	case stageMetadata:
 		return c.metadata.View()
+	case stageConfirm:
+		return c.confirmation.View()
 	default:
 		clilog.Writer.Errorf("cannot view unknown stage %v", c.stage)
 		return ""
@@ -153,12 +196,11 @@ func (c *createModel) Done() bool {
 func (c *createModel) Reset() error {
 	c.stage = stageDispatchers
 
-	// empty out the structs
-
 	// models will be rebuilt on the next SetArgs
 	c.dispatchersModel = multiselectlist.Model[string]{}
 	c.consumersModel = multiselectlist.Model[string]{}
 	c.metadata.Reset()
+	c.confirmation = confirmation.Model{}
 	return nil
 }
 
@@ -226,5 +268,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 
 	// prepopulate metadata
 	c.metadata.Init(flagVals.name, flagVals.description, flagVals.tag, flagVals.enabled, flagVals.maxEvents, flagVals.retain)
+
+	c.confirmation.Init([]string{"dispatchers", "consumers", "metadata"}, uint(width), uint(height))
 	return "", nil, nil
 }
