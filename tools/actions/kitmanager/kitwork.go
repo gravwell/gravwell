@@ -214,12 +214,12 @@ func getSearchLibraryItems(cli *client.Client, label string, orig types.KitBuild
 }
 
 func getKitDashboards(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var dashboards []types.Dashboard
-	if dashboards, err = cli.GetUserGroupsDashboards(); err != nil {
+	var dashboards types.DashboardListResponse
+	if dashboards, err = cli.ListAllDashboards(nil); err != nil {
 		err = fmt.Errorf("failed to get dashboards: %w", err)
 		return
 	}
-	for _, d := range dashboards {
+	for _, d := range dashboards.Results {
 		if slices.Contains(d.Labels, label) || slices.Contains(orig.Dashboards, d.ID) {
 			kbr.Dashboards = append(kbr.Dashboards, d.ID)
 		}

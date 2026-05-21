@@ -10,6 +10,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"slices"
 	"testing"
@@ -197,6 +198,575 @@ func TestHotReloadIdempotent(t *testing.T) {
 	require.Equal(t, routeCountAfterFirst, routeCountAfterSecond, "route count should be identical after repeated hot reloads using the same config")
 	require.True(t, hasTag(muxer, "tag1"), "tag1 should still be known after idempotent hot reload")
 	require.True(t, hasTag(muxer, "tag2"), "tag2 should still be known after idempotent hot reload")
+}
+
+func hasAuthRoute(h *handler, path string) bool {
+	h.RLock()
+	defer h.RUnlock()
+
+	_, ok := h.auth[newRoute(http.MethodPost, path)]
+
+	return ok
+}
+
+func TestHotReloadOtelMetrics(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-metrics"), "otel-metrics tag should be negotiated on initial load")
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should exist after initial load")
+
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
+			"m2": {URL: "/v2/metrics", Tag_Name: "otel-metrics-v2"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-metrics"), "otel-metrics tag should survive hot reload")
+	require.True(t, hasTag(muxer, "otel-metrics-v2"), "otel-metrics-v2 tag should be negotiated after hot reload")
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "original metrics route should still exist after hot reload")
+	require.True(t, hasRoute(hndlr, "/v2/metrics"), "new metrics route should exist after hot reload")
+}
+
+func TestHotReloadOtelMetricsRemovesListener(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
+			"m2": {URL: "/v2/metrics", Tag_Name: "otel-m2"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "m1 route should exist after initial load")
+	require.True(t, hasRoute(hndlr, "/v2/metrics"), "m2 route should exist after initial load")
+
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "m1 route should still exist after hot reload")
+	require.False(t, hasRoute(hndlr, "/v2/metrics"), "m2 route should have been removed after hot reload")
+}
+
+func TestHotReloadOtelMetricsPreservesExistingTags(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-m1"), "otel-m1 should be known after initial load")
+
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m2": {URL: "/v2/metrics", Tag_Name: "otel-m2"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-m1"), "otel-m1 should still be known to the muxer after hot reload")
+	require.True(t, hasTag(muxer, "otel-m2"), "otel-m2 should be known to the muxer after hot reload")
+}
+
+func TestHotReloadOtelMetricsIdempotent(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	cfg := &cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
+			"m2": {URL: "/v2/metrics", Tag_Name: "otel-m2"},
+		},
+	}
+
+	require.NoError(t, hndlr.loadConfig(cfg))
+	require.NoError(t, hndlr.hotReload(cfg))
+
+	hndlr.RLock()
+	routeCountAfterFirst := len(hndlr.mp)
+	hndlr.RUnlock()
+
+	require.NoError(t, hndlr.hotReload(cfg))
+
+	hndlr.RLock()
+	routeCountAfterSecond := len(hndlr.mp)
+	hndlr.RUnlock()
+
+	require.Equal(t, routeCountAfterFirst, routeCountAfterSecond, "route count should be identical after repeated hot reloads")
+	require.True(t, hasTag(muxer, "otel-m1"))
+	require.True(t, hasTag(muxer, "otel-m2"))
+}
+
+func TestHotReloadOtelMetricsWithAuth(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	// Load with basic auth
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {
+				URL:      "/v1/metrics",
+				Tag_Name: "otel-metrics",
+				auth:     auth{AuthType: basic, Username: "user", Password: "pass"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should exist")
+
+	// Hot reload preserving auth
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {
+				URL:      "/v1/metrics",
+				Tag_Name: "otel-metrics",
+				auth:     auth{AuthType: basic, Username: "user", Password: "newpass"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should still exist after hot reload")
+
+	// Hot reload dropping auth
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should still exist after auth removal")
+}
+
+func TestHotReloadOtelMetricsWithJWTAuth(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {
+				URL:      "/v1/metrics",
+				Tag_Name: "otel-metrics",
+				auth:     auth{AuthType: jwtT, Username: "user", Password: "pass", LoginURL: "/v1/metrics/login"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should exist")
+	require.True(t, hasAuthRoute(hndlr, "/v1/metrics/login"), "JWT login route should be registered")
+
+	// Hot reload should update auth routes
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should still exist after auth removal")
+	require.False(t, hasAuthRoute(hndlr, "/v1/metrics/login"), "JWT login route should be removed after auth removal")
+}
+
+func TestHotReloadOtelLogs(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-logs"), "otel-logs tag should be negotiated on initial load")
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should exist after initial load")
+
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
+			"l2": {URL: "/v2/logs", Tag_Name: "otel-logs-v2"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-logs"), "otel-logs tag should survive hot reload")
+	require.True(t, hasTag(muxer, "otel-logs-v2"), "otel-logs-v2 tag should be negotiated after hot reload")
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "original logs route should still exist after hot reload")
+	require.True(t, hasRoute(hndlr, "/v2/logs"), "new logs route should exist after hot reload")
+}
+
+func TestHotReloadOtelLogsRemovesListener(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
+			"l2": {URL: "/v2/logs", Tag_Name: "otel-l2"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "l1 route should exist after initial load")
+	require.True(t, hasRoute(hndlr, "/v2/logs"), "l2 route should exist after initial load")
+
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "l1 route should still exist after hot reload")
+	require.False(t, hasRoute(hndlr, "/v2/logs"), "l2 route should have been removed after hot reload")
+}
+
+func TestHotReloadOtelLogsPreservesExistingTags(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-l1"), "otel-l1 should be known after initial load")
+
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l2": {URL: "/v2/logs", Tag_Name: "otel-l2"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasTag(muxer, "otel-l1"), "otel-l1 should still be known to the muxer after hot reload")
+	require.True(t, hasTag(muxer, "otel-l2"), "otel-l2 should be known to the muxer after hot reload")
+}
+
+func TestHotReloadOtelLogsIdempotent(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	cfg := &cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
+			"l2": {URL: "/v2/logs", Tag_Name: "otel-l2"},
+		},
+	}
+
+	require.NoError(t, hndlr.loadConfig(cfg))
+	require.NoError(t, hndlr.hotReload(cfg))
+
+	hndlr.RLock()
+	routeCountAfterFirst := len(hndlr.mp)
+	hndlr.RUnlock()
+
+	require.NoError(t, hndlr.hotReload(cfg))
+
+	hndlr.RLock()
+	routeCountAfterSecond := len(hndlr.mp)
+	hndlr.RUnlock()
+
+	require.Equal(t, routeCountAfterFirst, routeCountAfterSecond, "route count should be identical after repeated hot reloads")
+	require.True(t, hasTag(muxer, "otel-l1"))
+	require.True(t, hasTag(muxer, "otel-l2"))
+}
+
+func TestHotReloadOtelLogsWithAuth(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {
+				URL:      "/v1/logs",
+				Tag_Name: "otel-logs",
+				auth:     auth{AuthType: preToken, TokenName: "Bearer", TokenValue: "secret"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should exist")
+
+	// Hot reload with updated token value
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {
+				URL:      "/v1/logs",
+				Tag_Name: "otel-logs",
+				auth:     auth{AuthType: preToken, TokenName: "Bearer", TokenValue: "new-secret"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should still exist after hot reload")
+
+	// Hot reload dropping auth
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should still exist after auth removal")
+}
+
+func TestHotReloadOtelLogsWithJWTAuth(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {
+				URL:      "/v1/logs",
+				Tag_Name: "otel-logs",
+				auth:     auth{AuthType: jwtT, Username: "user", Password: "pass", LoginURL: "/v1/logs/login"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should exist")
+	require.True(t, hasAuthRoute(hndlr, "/v1/logs/login"), "JWT login route should be registered")
+
+	// Hot reload should clear the JWT login route when auth is removed
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should still exist after auth removal")
+	require.False(t, hasAuthRoute(hndlr, "/v1/logs/login"), "JWT login route should be removed after auth removal")
+}
+
+func TestHotReloadMixedOtelAndStdListeners(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	err := hndlr.loadConfig(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		Listener: map[string]*lst{
+			"std": {URL: "/json", Tag_Name: "json-tag"},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, hasRoute(hndlr, "/json"), "std route should exist")
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should exist")
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should exist")
+
+	// Hot reload: remove std listener, keep OTEL listeners, add new metrics listener
+	err = hndlr.hotReload(&cfgType{
+		gbl: gbl{
+			Bind: "127.0.0.1:8080",
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "testing",
+			},
+		},
+		OtelListener: map[string]*otelMetricsListener{
+			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
+			"m2": {URL: "/v2/metrics", Tag_Name: "otel-metrics-v2"},
+		},
+		OtelLogsListener: map[string]*otelLogsListener{
+			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, hasRoute(hndlr, "/json"), "std route should have been removed")
+	require.True(t, hasRoute(hndlr, "/v1/metrics"), "original metrics route should remain")
+	require.True(t, hasRoute(hndlr, "/v2/metrics"), "new metrics route should exist")
+	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should remain")
+	require.True(t, hasTag(muxer, "json-tag"), "json-tag should still be known by the muxer")
+	require.True(t, hasTag(muxer, "otel-metrics"))
+	require.True(t, hasTag(muxer, "otel-metrics-v2"))
+	require.True(t, hasTag(muxer, "otel-logs"))
 }
 
 func newTestMuxer(t *testing.T) *ingest.IngestMuxer {

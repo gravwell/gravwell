@@ -202,96 +202,6 @@ func (c *Client) GetGroupUsers(gid int32) ([]types.User, error) {
 	return udets, nil
 }
 
-// GetAllDashboards (admin-only) returns a list of all dashboards on the system.
-func (c *Client) GetAllDashboards() ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(allDashboardUrl(), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetUserGroupsDashboards returns a list of all dashboards the current user can view.
-func (c *Client) GetUserGroupsDashboards() ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(myDashboardUrl(), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetUserDashboards returns a list of all dashboards belonging to the specified user.
-// Only admins or the user in question may call this function.
-func (c *Client) GetUserDashboards(id int32) ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(userDashboardUrl(id), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetGroupDashboards returns a list of all dashboards shared with the specified group.
-// Only admins or members of the group may call this function.
-func (c *Client) GetGroupDashboards(id int32) ([]types.Dashboard, error) {
-	var dbs []types.Dashboard
-	if err := c.getStaticURL(groupDashboardUrl(id), &dbs); err != nil {
-		return nil, err
-	}
-	return dbs, nil
-}
-
-// GetDashboard fetches a dashboard by numeric ID.
-func (c *Client) GetDashboard(id uint64) (types.Dashboard, error) {
-	var db types.Dashboard
-	if err := c.getStaticURL(dashboardUrl(id), &db); err != nil {
-		return db, err
-	}
-	return db, nil
-}
-
-// GetDashboardByGuid fetches a dashboard by GUID.
-func (c *Client) GetDashboardByGuid(guid string) (types.Dashboard, error) {
-	var db types.Dashboard
-	if err := c.getStaticURL(dashboardUrlString(guid), &db); err != nil {
-		return db, err
-	}
-	return db, nil
-}
-
-// DeleteDashboard deletes the specified dashboard.
-func (c *Client) DeleteDashboard(id uint64) error {
-	return c.deleteStaticURL(dashboardUrl(id), nil)
-}
-
-// DeleteDashboardByGuid deletes a dashboard specified by GUID.
-func (c *Client) DeleteDashboardByGuid(id string) error {
-	return c.deleteStaticURL(dashboardUrlString(id), nil)
-}
-
-// CloneDashboard creates a copy of a dashboard and returns the ID of the new dashboard.
-func (c *Client) CloneDashboard(origid uint64) (id uint64, err error) {
-	err = c.getStaticURL(cloneDashboardUrl(origid), &id)
-	return
-}
-
-// AddDashboard creates a new dashboard and returns the ID. The obj parameter will be
-// stored as the Data field of the dashboard.
-func (c *Client) AddDashboard(name, desc string, obj interface{}) (uint64, error) {
-	dbAdd, err := types.EncodeDashboardAdd(name, desc, obj)
-	if err != nil {
-		return 0, err
-	}
-	var id uint64
-	err = c.postStaticURL(myDashboardUrl(), dbAdd, &id)
-	return id, err
-}
-
-// UpdateDashboard takes a types.Dashboard as an argument and updates the corresponding
-// dashboard on the server to match.
-func (c *Client) UpdateDashboard(db *types.Dashboard) error {
-	return c.putStaticURL(dashboardUrl(db.ID), db)
-}
-
 // Sessions lists sessions for the specified user.
 func (c *Client) Sessions(id int32) ([]types.Session, error) {
 	userSessResp := types.UserSessions{}
@@ -843,13 +753,13 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//dashboards
-	if dbs, err := nc.GetUserDashboards(id); err != nil {
-		return fmt.Errorf("failed to get user dashboards %d %w", id, err)
-	} else if len(dbs) > 0 {
-		for _, db := range dbs {
-			if db.UID == id {
-				if err := nc.DeleteDashboard(db.ID); err != nil {
-					return fmt.Errorf("failed to delete user dashboard %d %w", db.ID, err)
+	if dbs, err := nc.ListDashboards(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+		return fmt.Errorf("Failed to get user dashboards %d %w", id, err)
+	} else if len(dbs.Results) > 0 {
+		for _, db := range dbs.Results {
+			if db.OwnerID == id {
+				if err := nc.PurgeDashboard(db.ID); err != nil {
+					return fmt.Errorf("Failed to delete user dashboard %s: %w", db.ID, err)
 				}
 			}
 		}
