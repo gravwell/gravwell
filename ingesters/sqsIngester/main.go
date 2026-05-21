@@ -28,7 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/sqs_common"
 
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
 const (
@@ -84,7 +84,11 @@ func main() {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
 		return
 	}
-	defer igst.Close()
+	defer func() {
+		if err := igst.Close(); err != nil {
+			_ = ib.Logger.Error("failed to close muxer", log.KVErr(err))
+		}
+	}()
 	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
@@ -152,7 +156,7 @@ func main() {
 		}
 
 		wg.Add(1)
-		go queueRunner(hcfg)
+		go queueRunner(ctx, hcfg)
 	}
 
 	debugout("Running\n")
@@ -179,20 +183,20 @@ func main() {
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }
 
-func queueRunner(hcfg *handlerConfig) {
+func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 	defer hcfg.wg.Done()
 
-	c := make(chan []*sqs.Message)
+	c := make(chan []types.Message)
 	for {
-		var out []*sqs.Message
+		var out []types.Message
 		go func() {
-			o, err := hcfg.SQS.GetMessages()
+			o, err := hcfg.SQS.GetMessages(ctx)
 			if err != nil {
 				lg.Error("sqs receive message error", log.KVErr(err))
 				c <- nil
@@ -203,7 +207,7 @@ func queueRunner(hcfg *handlerConfig) {
 		select {
 		case out = <-c:
 			if out == nil {
-				lg.Error("received empty SQS response")
+				_ = lg.Error("received empty SQS response")
 				sleepContext(hcfg.ctx, ERROR_BACKOFF)
 				continue
 			}
@@ -222,9 +226,9 @@ func queueRunner(hcfg *handlerConfig) {
 				if !mok {
 					lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
 				} else {
-					ut, err := strconv.ParseInt(*t, 10, 64)
+					ut, err := strconv.ParseInt(t, 10, 64)
 					if err != nil {
-						lg.Error("failed parseint on unix time", log.KV("value", *t), log.KVErr(err))
+						lg.Error("failed parseint on unix time", log.KV("value", t), log.KVErr(err))
 					} else {
 						ts = entry.UnixTime(ut/1000, 0)
 					}
@@ -244,7 +248,7 @@ func queueRunner(hcfg *handlerConfig) {
 			if err != nil {
 				lg.Error("failed to ingest entry", log.KVErr(err))
 			} else {
-				err = hcfg.SQS.DeleteMessages([]*sqs.Message{v}, lg)
+				err = hcfg.SQS.DeleteMessages(ctx, []types.Message{v}, lg)
 				if err != nil {
 					lg.Error("failed to delete message", log.KVErr(err))
 				}

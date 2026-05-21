@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -28,10 +29,9 @@ import (
 	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 )
 
 const (
@@ -74,7 +74,11 @@ func main() {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
 		return
 	}
-	defer igst.Close()
+	defer func() {
+		if err := igst.Close(); err != nil {
+			_ = ib.Logger.Error("failed to close muxer", log.KVErr(err))
+		}
+	}()
 	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
@@ -104,26 +108,34 @@ func main() {
 			lg.Fatal("failed to resolve tag", log.KV("tag", stream.Tag_Name), log.KV("stream", stream.Stream_Name), log.KVErr(err))
 		}
 
-		// make an aws session
-		sess, err := session.NewSession(&aws.Config{
-			Credentials: c,
-			Region:      aws.String(stream.Region),
-			Endpoint:    aws.String(stream.Endpoint),
-		})
+		loadOpts := []func(*config.LoadOptions) error{
+			config.WithRegion(stream.Region),
+		}
+		if c != nil {
+			loadOpts = append(loadOpts, config.WithCredentialsProvider(c))
+		}
+		awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
 		if err != nil {
-			lg.Fatal("creating session", log.KVErr(err))
+			lg.Fatal("creating aws config", log.KVErr(err))
 		}
 
-		// get a handle on kinesis
-		svc := kinesis.New(sess, aws.NewConfig().WithRegion(stream.Region))
+		var kinesisOpts []func(*kinesis.Options)
+		if stream.Endpoint != "" {
+			kinesisOpts = append(kinesisOpts, func(o *kinesis.Options) {
+				o.BaseEndpoint = new(stream.Endpoint)
+			})
+		}
+
+		svc := kinesis.NewFromConfig(awsCfg, kinesisOpts...)
 
 		// Get the list of shards
-		shards := []*kinesis.Shard{}
-		dsi := &kinesis.DescribeStreamInput{}
-		dsi.SetStreamName(stream.Stream_Name)
+		shards := []types.Shard{}
+		dsi := &kinesis.DescribeStreamInput{
+			StreamName: new(stream.Stream_Name),
+		}
 		count := 0
 		for {
-			streamdesc, err := svc.DescribeStream(dsi)
+			streamdesc, err := svc.DescribeStream(ctx, dsi)
 			if err != nil {
 				count++
 				lg.Error("failed to get stream description", log.KV("stream", stream.Stream_Name), log.KVErr(err))
@@ -131,13 +143,13 @@ func main() {
 					// give up and LOUDLY quit
 					lg.Fatal("giving up fetch stream description for stream after 5 attempts, exiting.", log.KV("stream", stream.Stream_Name))
 				}
-				time.Sleep(1 * time.Second)
+				utils.QuitableSleep(ctx, 1*time.Second)
 				continue
 			}
 			newshards := streamdesc.StreamDescription.Shards
 			shards = append(shards, newshards...)
 			if *streamdesc.StreamDescription.HasMoreShards {
-				dsi.SetExclusiveStartShardId(*(newshards[len(newshards)-1].ShardId))
+				dsi.ExclusiveStartShardId = newshards[len(newshards)-1].ShardId
 			} else {
 				break
 			}
@@ -216,7 +228,7 @@ func main() {
 			}
 
 			wg.Add(1)
-			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int, tg *timegrinder.TimeGrinder) {
+			go func(stream streamDef, shard types.Shard, tagid entry.EntryTag, shardid int, tg *timegrinder.TimeGrinder) {
 				defer wg.Done()
 				// set up timegrinder and other long-lived stuff
 				var src net.IP
@@ -244,68 +256,71 @@ func main() {
 
 			reconnectLoop:
 				for {
-					gsii := &kinesis.GetShardIteratorInput{}
-					gsii.SetShardId(*shard.ShardId)
-					gsii.SetStreamName(stream.Stream_Name)
+					gsii := &kinesis.GetShardIteratorInput{
+						ShardId:    new(*shard.ShardId),
+						StreamName: new(stream.Stream_Name),
+					}
 					seqnum := stateMan.GetSequenceNum(stream.Stream_Name, *shard.ShardId)
 					if seqnum == `` {
 						// we don't have a previous state
 						debugout("No previous sequence number for stream %v shard %v, defaulting to %v\n", stream.Stream_Name, *shard.ShardId, stream.Iterator_Type)
-						gsii.SetShardIteratorType(stream.Iterator_Type)
+						gsii.ShardIteratorType = types.ShardIteratorType(stream.Iterator_Type)
 					} else {
-						gsii.SetShardIteratorType(`AFTER_SEQUENCE_NUMBER`)
-						gsii.SetStartingSequenceNumber(seqnum)
+						gsii.ShardIteratorType = types.ShardIteratorTypeAfterSequenceNumber
+						gsii.StartingSequenceNumber = new(seqnum)
 					}
 
-					output, err := svc.GetShardIterator(gsii)
+					output, err := svc.GetShardIterator(ctx, gsii)
 					if err != nil {
-						lg.Error("error on shard", log.KV("number", shardid), log.KV("stream", stream.Stream_Name), log.KV("shard", *shard.ShardId), log.KVErr(err))
-						time.Sleep(5 * time.Second)
+						_ = lg.Error("error on shard", log.KV("number", shardid), log.KV("stream", stream.Stream_Name), log.KV("shard", *shard.ShardId), log.KVErr(err))
+						utils.QuitableSleep(ctx, 5*time.Second)
 						continue
 					}
 					if output.ShardIterator == nil {
 						// this is weird, we are going to bail out
-						lg.Error("got nil initial shard iterator, sleeping and retrying")
-						time.Sleep(5 * time.Second)
+						_ = lg.Error("got nil initial shard iterator, sleeping and retrying")
+						utils.QuitableSleep(ctx, 5*time.Second)
 						continue
 					}
 					iter := *output.ShardIterator
 
 					var lastSeqNum string
 					for running {
-						gri := &kinesis.GetRecordsInput{}
-						gri.SetLimit(5000)
-						gri.SetShardIterator(iter)
+						gri := &kinesis.GetRecordsInput{
+							Limit:         new(int32(5000)),
+							ShardIterator: new(iter),
+						}
 						var res *kinesis.GetRecordsOutput
 						var err error
 						for {
-							res, err = svc.GetRecords(gri)
+							res, err = svc.GetRecords(ctx, gri)
 							if res != nil {
 								if res.NextShardIterator != nil {
 									iter = *res.NextShardIterator
 								}
 							}
 							if err != nil {
-								if awsErr, ok := err.(awserr.Error); ok {
-									// process SDK error
-									if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
-										time.Sleep(500 * time.Millisecond)
-									} else if awsErr.Code() == kinesis.ErrCodeExpiredIteratorException {
-										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
-										time.Sleep(100 * time.Millisecond)
-										continue reconnectLoop
-									} else {
-										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()), log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
-										time.Sleep(500 * time.Millisecond)
-									}
-								} else {
-									lg.Error("unknown error", log.KVErr(err))
+								var throughputErr *types.ProvisionedThroughputExceededException
+								var iteratorErr *types.ExpiredIteratorException
+								switch {
+								case errors.As(err, &throughputErr):
+									_ = lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream",
+										stream.Stream_Name))
+									utils.QuitableSleep(ctx, 500*time.Millisecond)
+								case errors.As(err, &iteratorErr):
+									_ = lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream",
+										stream.Stream_Name))
+									utils.QuitableSleep(ctx, 100*time.Millisecond)
+									continue reconnectLoop
+								default:
+									_ = lg.Error("answer error", log.KVErr(err), log.KV("shard", *shard.ShardId), log.KV("stream",
+										stream.Stream_Name))
+									utils.QuitableSleep(ctx, 500*time.Millisecond)
 								}
 							} else {
 								// if we got no records, chill for a sec before we hit it again
 								if len(res.Records) == 0 {
-									time.Sleep(100 * time.Millisecond)
+									utils.QuitableSleep(ctx, 100*time.Millisecond)
 								}
 								break
 							}
@@ -348,7 +363,7 @@ func main() {
 					// if we get to this point, exit the for loop
 					break
 				}
-			}(*stream, *shard, tagid, i, tgr)
+			}(*stream, shard, tagid, i, tgr)
 		}
 	}
 
@@ -366,7 +381,7 @@ func main() {
 	wg.Wait()
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
