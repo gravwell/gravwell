@@ -209,6 +209,12 @@ func MoveCursor(msg tea.Msg, currentIndex, fieldCount uint, selectedTA *textarea
 	// ! This function only fills its niche because, currently, textareas are the only model that require special cursor handling.
 	// If we find/create other, we will have to figure out an interface we can use.
 
+	// ! This function has a known visual bug:
+	// Because we cannot actually interact with fields from within this subroutine,
+	// we cannot force the textarea to wrap its cursor when we wrap the fields.
+	// In other words, if a user wraps from the top field to the bottom field and navigates back to a textarea,
+	// they will be placed back on line 0, not the bottom line.
+
 	// first, check if the message is even relevant
 	switch {
 	case Match(msg, CursorUp):
