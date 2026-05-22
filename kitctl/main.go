@@ -457,7 +457,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.Actionable:
-			var x types.PackedActionable
+			var x kits.PackedActionable
 			if err := genericRead(wd, itm, &x); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -766,7 +766,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.Actionable:
-			var p types.PackedActionable
+			var p kits.PackedActionable
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
