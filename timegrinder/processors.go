@@ -116,7 +116,7 @@ const (
 	LDAPRegex                  string = `\A\s*(\d{18})(?:\D|$)`
 	UKRegex                    string = `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
 	GravwellRegex              string = `\d{1,2}\-\d{1,2}\-\d{4}\s+\d{1,2}\:\d{2}\:\d{2}(\.\d{1,6})?`
-	BindRegex                  string = `\d{2}\-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\-\d{4} \d{2}:\d{2}:\d{2}\.\d{1,3}`
+	BindRegex                  string = `\d{2}\-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\-\d{4} \d{2}:\d{2}:\d{2}(\.\d{1,3})?`
 	DirectAdminRegex           string = `\d{4}:\d{2}:\d{2}-\d{2}:\d{2}:\d{2}`
 	GravwellTimePickerRegex    string = `\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}:\d{2} (AM|PM)`
 
@@ -502,7 +502,7 @@ func NewBind() *processor {
 		rxstr:  BindRegex,
 		format: BindFormat,
 		name:   Bind.String(),
-		min:    len(BindFormat) - 3, //to deal with lower precision
+		min:    len(BindFormat) - 4, //to deal with lower precision
 	}
 }
 

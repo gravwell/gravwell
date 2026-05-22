@@ -61,6 +61,10 @@ func Now() Timestamp {
 
 // FromStandard converts the time.Time datatype to our Timestamp format
 func FromStandard(ts time.Time) Timestamp {
+	if ts.IsZero() {
+		return Timestamp{}
+	}
+
 	ts = ts.UTC()
 	return Timestamp{
 		Sec:  ts.Unix() + unixToInternal,
@@ -77,6 +81,9 @@ func UnixTime(s, ns int64) Timestamp {
 
 // StandardTime converts our Timestamp format to the golang time.Time datatype
 func (t Timestamp) StandardTime() time.Time {
+	if t.IsZero() { // if timestamp is empty, return Zero time
+		return time.Time{}
+	}
 	return time.Unix(t.Sec-unixToInternal, t.Nsec)
 }
 

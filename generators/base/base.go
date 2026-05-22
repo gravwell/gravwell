@@ -50,6 +50,7 @@ var (
 	chaos        = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
 	chaosWorkers = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
 	tsPsychoMode = flag.Bool("time-is-an-illusion", false, "Ingest with worst-case timestamp ordering (this is a chaos-mode flag)")
+	maxEntrySize = flag.Int("max-entry-size", 1024*1024*1024, "Maximum entry size to limit to")
 )
 
 var (
@@ -81,6 +82,7 @@ type GeneratorConfig struct {
 	Logger                *log.Logger
 	LogLevel              log.Level
 	InsecureNoTLSValidate bool
+	MaxEntrySize          int
 }
 
 func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
@@ -112,6 +114,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 	if gc.ChaosWorkers = *chaosWorkers; gc.ChaosWorkers <= 0 {
 		gc.ChaosWorkers = 1
 	}
+	gc.MaxEntrySize = *maxEntrySize
 
 	if *rawTCPConn != `` {
 		if _, _, err = net.SplitHostPort(*rawTCPConn); err != nil {
@@ -268,6 +271,7 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 		IngestStreamConfig: config.IngestStreamConfig{
 			Enable_Compression: gc.Compression,
 		},
+		MaxEntrySize: gc.MaxEntrySize,
 	}
 	var igst *ingest.IngestMuxer
 	if igst, err = ingest.NewUniformMuxer(umc); err != nil {

@@ -346,7 +346,10 @@ func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg
 			return //just leave
 		}
 	}
-
+	err = sc.Err()
+	if errors.Is(err, bufio.ErrTooLong) {
+		err = fmt.Errorf("Max-Line-Size exceeded: %w", err)
+	}
 	return
 }
 
