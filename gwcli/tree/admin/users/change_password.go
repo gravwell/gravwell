@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -41,11 +42,11 @@ func changePassword() action.Pair {
 			"If you prefer to keep the password out of your history, consider using --new-passfile",
 		nil,
 		func(c *cobra.Command, args []string) error {
-			uid, err := c.Flags().GetInt32("uid")
+			uid, err := c.Flags().GetInt32(ft.UID.Name())
 			if err != nil {
 				clilog.GetFlag(err)
 			}
-			password, err := c.Flags().GetString("password")
+			password, err := c.Flags().GetString("new-password")
 			if err != nil {
 				clilog.GetFlag(err)
 			}
@@ -69,9 +70,9 @@ func changePassword() action.Pair {
 				return mother.Spawn(c.Root(), c, args)
 			}
 			if uid == 0 {
-				return errors.New("--uid must be set and nonzero")
+				return errors.New("--" + ft.UID.Name() + " must be set and nonzero")
 			}
-			return errors.New("--password must be non-empty")
+			return errors.New("--new-password must be non-empty")
 		},
 	)
 
@@ -130,6 +131,19 @@ type changePasswordModel struct {
 }
 
 func (m *changePasswordModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
+	// set up password text input
+	m.passwordTI = stylesheet.NewTI("", false)
+	m.passwordTI.EchoMode = textinput.EchoPassword
+	m.passwordTI.Placeholder = "enter new password"
+	m.passwordTI.Validate = func(s string) error {
+		if s == "" {
+			return errors.New("new password cannot be empty")
+		}
+		return nil
+	}
+	m.passwordTI.Width = 40
+	m.passwordTI.Blur()
+
 	// attach and check flags
 	fs := cpFlags()
 	if err := fs.Parse(tokens); err != nil {
@@ -176,13 +190,6 @@ func (m *changePasswordModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, 
 
 	m.users = stylesheet.NewList(itms, width, height, "user", "users")
 
-	// set up password text input
-	m.passwordTI = stylesheet.NewTI("", false)
-	m.passwordTI.EchoMode = textinput.EchoPassword
-	m.passwordTI.Placeholder = "enter new password"
-	m.passwordTI.Width = 40
-	m.passwordTI.Blur()
-
 	return "", nil, nil
 }
 
@@ -216,10 +223,13 @@ func (m *changePasswordModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 	case cpStgPassword:
 		// handle enter to submit
 		if hotkeys.Match(msg, hotkeys.Invoke) {
+			if m.passwordTI.Err != nil {
+				return nil
+			}
 			password := m.passwordTI.Value()
+			// sanity check
 			if password == "" {
-				// TODO update the submit button with the error
-				return nil // ignore empty submissions
+				m.passwordTI.Err = m.passwordTI.Validate("")
 			}
 			if err := connection.Client.AdminChangePass(m.selectedUser.ID, password); err != nil {
 				clilog.Writer.Error("failed to change password", log.KV("uid", m.selectedUser.ID), log.KVErr(err))
@@ -235,6 +245,10 @@ func (m *changePasswordModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 			return tea.Println("cancelled")
 		}
 		m.passwordTI, cmd = m.passwordTI.Update(msg)
+		// the TI manually nils errors when a backspace is received... for some reason.
+		// This causes the user to be able to pass empty values if they backspace while the TI is empty.
+		// We need to make sure we re-validate.
+		m.passwordTI.Err = m.passwordTI.Validate(m.passwordTI.Value())
 	}
 	return cmd
 }
@@ -244,10 +258,15 @@ func (m *changePasswordModel) View() string {
 	case cpStgSelectUser:
 		return m.users.View()
 	case cpStgPassword:
-		return fmt.Sprintf("New password for '%s':\n%s\n\n  %s",
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "New password for '%s':\n%s\n\n",
 			m.selectedUser.Username,
-			m.passwordTI.View(),
-			stylesheet.Cur.DisabledText.Render("↲ submit • esc cancel"))
+			m.passwordTI.View())
+		if m.passwordTI.Err != nil {
+			sb.WriteString("\n" + stylesheet.Cur.ErrorText.Render(m.passwordTI.Err.Error()))
+		}
+		sb.WriteString("\n" + stylesheet.Cur.DisabledText.Render("↲ submit • esc cancel"))
+		return sb.String()
 	}
 	return ""
 }
