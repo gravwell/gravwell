@@ -119,7 +119,7 @@ func (t *Thing) DecodeContents(obj interface{}) error {
 }
 
 // PackedUserTemplate type used for templates in packages
-// TODO move this into kits/types.go
+// TODO #761 move this into kits/types.go
 type PackedUserTemplate struct {
 	ID          string
 	Name        string
