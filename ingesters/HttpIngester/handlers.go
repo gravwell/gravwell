@@ -277,15 +277,11 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	//not an auth, try the actual post URL
 	rh, ok := h.mp[rt]
 	h.RUnlock()
-	debugout("LOOKUP UP ROUTE: %s %s\n", rt.method, rt.uri)
-	if !ok {
+	debugout("LOOK UP ROUTE: %s %s %v\n", rt.method, rt.uri, ok)
+	if !ok || rh.handler == nil {
 		debugout("NO ROUTE\n")
 		h.lgr.Info("bad request URL", log.KV("url", rt.uri), log.KV("method", r.Method))
 		w.WriteHeader(http.StatusNotFound)
-		return
-	} else if rh.handler == nil {
-		h.lgr.Info("no handler", log.KV("url", rt.uri), log.KV("method", r.Method))
-		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if rh.auth != nil {
