@@ -215,7 +215,7 @@ func (m *metadata) View() string {
 
 	sb.WriteString(stylesheet.ViewSubmitLikeButton("continue", m.selected == metaContinue, titleLength*2, m.inputErr))
 
-	hotkeys.DefaultView(titleLength * 2)
+	sb.WriteString("\n" + hotkeys.DefaultView(titleLength*2))
 	return sb.String()
 }
 

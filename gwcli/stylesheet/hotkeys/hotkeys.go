@@ -111,7 +111,7 @@ type Model struct {
 
 // ShortHelp shows combined cursor up/down.
 func (m Model) ShortHelp() []key.Binding {
-	return []key.Binding{key.NewBinding(key.WithHelp(sigils.UpDown, "up/down")), m.Invoke}
+	return []key.Binding{key.NewBinding(key.WithHelp(sigils.UpDown, "up/down"), key.WithKeys(sigils.UpDown)), m.Invoke}
 }
 
 func (m Model) FullHelp() [][]key.Binding {
