@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCheckCursor(t *testing.T) {
+func TestMoveCursor(t *testing.T) {
 	// set up some TAs we can test against
 	emptyTA, atTopTA, atBottomTA, atCenterTA := textarea.New(), textarea.New(), textarea.New(), textarea.New()
 	emptyTA.Focus()
