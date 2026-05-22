@@ -46,11 +46,11 @@ func SQSListener(c *Config) (*SQS, error) {
 	}
 
 	awsCfg := &aws.Config{
-		Region:      aws.String(c.Region),
+		Region:      new(c.Region),
 		Credentials: c.Credentials,
 	}
 	if c.Endpoint != "" {
-		awsCfg.Endpoint = aws.String(c.Endpoint)
+		awsCfg.Endpoint = new(c.Endpoint)
 	}
 	s.sess, err = session.NewSession(awsCfg)
 	if err != nil {
@@ -95,7 +95,7 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 
 func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 	deleter := &sqs.DeleteMessageBatchInput{
-		QueueUrl: aws.String(s.conf.Queue),
+		QueueUrl: new(s.conf.Queue),
 	}
 
 	for _, v := range m {
