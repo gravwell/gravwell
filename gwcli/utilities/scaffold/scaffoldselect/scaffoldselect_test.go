@@ -119,6 +119,10 @@ func collectItems(fs *pflag.FlagSet) ([]multiselectlist.SelectableItem[int], err
 	if err != nil {
 		return nil, err
 	}
+	noData, err := fs.GetBool("no-data")
+	if err != nil {
+		return nil, err
+	}
 	data := []multiselectlist.SelectableItem[int]{
 		&multiselectlist.DefaultSelectableItem[int]{
 			Title_:       "Highwayman",
@@ -148,11 +152,29 @@ func collectItems(fs *pflag.FlagSet) ([]multiselectlist.SelectableItem[int], err
 
 	if fs.Changed("single") && int(sng) < len(data) {
 		return []multiselectlist.SelectableItem[int]{data[sng]}, nil
+	} else if noData {
+		return nil, nil
 	}
 	return data, nil
 }
 
 func TestInteractiveCycle(t *testing.T) {
+	t.Run("no data returned uses custom EmptyError", func(t *testing.T) {
+		pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("cursed", false,
+						"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
+					fs.Uint("single", 0, "select a single vagabond instead of the whole wagon.")
+					fs.Bool("no-data", false, "try to leave without a party in tow.")
+					return fs
+				},
+			},
+				NoItemsError: func(fs *pflag.FlagSet) string { return "you cannot leave with an empty party!" }})
+		args := []string{"--no-data"}
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, args, 50, 20, false, nil, true)
+	})
 	t.Run("without cursed", func(t *testing.T) {
 		pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
 			collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
@@ -161,6 +183,7 @@ func TestInteractiveCycle(t *testing.T) {
 					fs.Bool("cursed", false,
 						"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
 					fs.Uint("single", 0, "select a single vagabond instead of the whole wagon.")
+					fs.Bool("no-data", false, "try to leave without a party in tow.")
 					return fs
 				},
 			}})
@@ -212,6 +235,7 @@ func TestInteractiveCycle(t *testing.T) {
 					fs.Bool("cursed", false,
 						"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
 					fs.Uint("single", 0, "select a single vagabond instead of the whole wagon.")
+					fs.Bool("no-data", false, "try to leave without a party in tow.")
 					return fs
 				},
 			}})

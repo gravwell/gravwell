@@ -19,7 +19,12 @@ type Options struct {
 
 	// The string returned to a user if collectItems returns no items.
 	// If not set, defaults to a generic statement.
-	NoItemsError string
+	//
+	// NOTE(rlandau): Because collectItems() is only called for interactive mode
+	// (cobra-mode passes the given IDs directly to operate()),
+	// non-interactive mode does not know if there are any valid targets in the first place.
+	// Therefore, this is never shown in non-interactive mode; all IDs would simply be treated as invalid by operate().
+	NoItemsError func(*pflag.FlagSet) string
 	// Called as soon as the action is invoked.
 	// You may assume that the flags have already been parsed, but that no additional actions have been taken on them.
 	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)

@@ -229,7 +229,14 @@ func toggle() action.Pair {
 					return fs
 				},
 			},
-			NoItemsError: "You have no alerts that can be toggled.",
+			NoItemsError: func(fs *pflag.FlagSet) string {
+				if toggleEnable {
+					return "You have no alerts that can be enabled."
+				} else if toggleDisable {
+					return "You have no alerts that can be disabled."
+				}
+				return "You have no alerts that can be toggled."
+			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure !(enable && disable)
 				toggleEnable, err := fs.GetBool("enable")

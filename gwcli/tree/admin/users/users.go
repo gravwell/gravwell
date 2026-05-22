@@ -419,7 +419,7 @@ func lock() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use: "lock",
 			},
-			NoItemsError: "There are no unlocked accounts you can lock.",
+			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no unlocked accounts you can lock." },
 		})
 }
 
@@ -450,6 +450,6 @@ func unlock() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use: "unlock",
 			},
-			NoItemsError: "There are no locked accounts you can unlock.",
+			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no locked accounts you can unlock." },
 		})
 }

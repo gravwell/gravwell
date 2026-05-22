@@ -157,8 +157,8 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 		return "", nil, err
 	} else if len(itms) < 1 {
 		err = errors.New("You have no available " + m.plural)
-		if m.options.NoItemsError != "" {
-			err = errors.New(m.options.NoItemsError)
+		if m.options.NoItemsError != nil {
+			err = errors.New(m.options.NoItemsError(m.fs))
 		}
 		return "", nil, err
 	}
