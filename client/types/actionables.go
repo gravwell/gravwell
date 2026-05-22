@@ -36,9 +36,6 @@ type ActionableContent struct {
 }
 
 // ActionableTrigger defines a pattern that activates an actionable.
-// On the wire, a trigger may be either a plain string (the pattern)
-// or an object with pattern, hyperlink, and disabled fields.
-// A plain string trigger is normalized to Hyperlink=true, Disabled=false.
 type ActionableTrigger struct {
 	// Pattern is a JS regex to match against
 	Pattern   string `json:"pattern"`
