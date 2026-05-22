@@ -44,7 +44,9 @@ var (
 )
 
 type handlerConfig struct {
-	SQS              *sqs_common.SQS
+	SQS  *sqs_common.SQS
+	Name string
+
 	tag              entry.EntryTag
 	ignoreTimestamps bool
 	setLocalTime     bool
@@ -117,6 +119,7 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
+			Name:             k,
 			tag:              tag,
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
@@ -178,7 +181,7 @@ func main() {
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
@@ -193,7 +196,7 @@ func queueRunner(hcfg *handlerConfig) {
 		go func() {
 			o, err := hcfg.SQS.GetMessages()
 			if err != nil {
-				lg.Error("sqs receive message error", log.KVErr(err))
+				lg.Error("sqs receive message error", log.KV("listener", hcfg.Name), log.KVErr(err))
 				c <- nil
 			}
 			c <- o
@@ -202,7 +205,7 @@ func queueRunner(hcfg *handlerConfig) {
 		select {
 		case out = <-c:
 			if out == nil {
-				lg.Error("received empty SQS response")
+				lg.Error("received empty SQS response", log.KV("listener", hcfg.Name))
 				sleepContext(hcfg.ctx, ERROR_BACKOFF)
 				continue
 			}
