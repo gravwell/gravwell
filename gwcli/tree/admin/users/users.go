@@ -67,28 +67,40 @@ func create() action.Pair {
 			"username": {
 				Required: true,
 				Title:    "Username",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "unique username to assign"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-username",
+					Usage: "unique username to assign",
+				},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    200,
 			},
 			"name": {
 				Required: true,
 				Title:    "Name",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "actual name of the user"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-name",
+					Usage: "actual name of the user",
+				},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    180,
 			},
 			"email": {
 				Required: true,
 				Title:    "Email",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "email associated to this user"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-email",
+					Usage: "email associated to this user",
+				},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    160,
 			},
 			"password": {
 				Required: true,
 				Title:    "Password",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "initial password for the user"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-password",
+					Usage: "initial password for the user",
+				},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
@@ -101,6 +113,10 @@ func create() action.Pair {
 			"admin": {
 				Required: false,
 				Title:    "admin",
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "is-admin",
+					Usage: "mark the new user as an admin",
+				},
 				Provider: &scaffoldcreate.BoolProvider{},
 				Order:    120,
 			},
@@ -378,7 +394,7 @@ func lock() action.Pair {
 		"lock user accounts", "Lock one or several user accounts.\n"+
 			"The user will be unable to log in until unlocked, and all existing sessions will be terminated.",
 		"account", "accounts",
-		func() ([]multiselectlist.SelectableItem[int32], error) {
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
 			ulr, err := connection.Client.ListUsers(nil)
 			if err != nil {
 				return nil, err
@@ -393,7 +409,7 @@ func lock() action.Pair {
 			items = slices.Clip(items)
 			return items, nil
 		},
-		func(ID int32) (success string, _ error) {
+		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
 			if err := connection.Client.LockUserAccount(ID); err != nil {
 				return "", fmt.Errorf("failed to lock user account %d: %v", ID, err)
 			}
@@ -409,7 +425,7 @@ func lock() action.Pair {
 
 func unlock() action.Pair {
 	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account", "accounts",
-		func() ([]multiselectlist.SelectableItem[int32], error) {
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
 			ulr, err := connection.Client.ListUsers(nil)
 			if err != nil {
 				return nil, err
@@ -424,7 +440,7 @@ func unlock() action.Pair {
 			items = slices.Clip(items)
 			return items, nil
 		},
-		func(ID int32) (success string, _ error) {
+		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
 			if err := connection.Client.UnlockUserAccount(ID); err != nil {
 				return "", fmt.Errorf("failed to unlock user account %d: %v", ID, err)
 			}
