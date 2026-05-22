@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -10,8 +10,14 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/shirou/gopsutil/load"
+)
+
+var (
+	// ErrPSINotAvailable is returned on platforms that do not support Linux Pressure Stall Information.
+	ErrPSINotAvailable = errors.New("pressure stall information is not available on this platform")
 )
 
 // SysInfo as displayed in the System Overview in Gravwell.
@@ -71,6 +77,7 @@ type HostSysStats struct {
 	BuildInfo             BuildInfo    `json:",omitempty"` // e.g. 3.3.1
 	LoadAverage           load.AvgStat `json:",omitempty"`
 	Iowait                float64
+	PSI                   PSIStats `json:"psi,omitempty"` // Pressure Stall Information, for CPU, memory, and IO
 }
 
 type DeploymentInfo struct {
@@ -81,6 +88,23 @@ type DeploymentInfo struct {
 	AIProcessor      string // URL of system that services Logbot AI requests
 	AIDisabledReason string `json:",omitempty"` // if AI is disabled, explain why
 	RenderStoreLimit uint   //maximum amount of data that can be stored in a renderer per search
+}
+
+type PSIStats struct {
+	CPU    PressureStats `json:"cpu,omitempty"`
+	Memory PressureStats `json:"memory,omitempty"`
+	IO     PressureStats `json:"io,omitempty"`
+}
+
+type PressureStats struct {
+	SomeAvg10  float64 `json:"some_avg_10"`
+	SomeAvg60  float64 `json:"some_avg_60"`
+	SomeAvg300 float64 `json:"some_avg_300"`
+
+	// "full" lines are only present in memory and IO pressure files, not CPU
+	FullAvg10  float64 `json:"full_avg_10"`
+	FullAvg60  float64 `json:"full_avg_60"`
+	FullAvg300 float64 `json:"full_avg_300"`
 }
 
 func (si SysInfo) Empty() bool {

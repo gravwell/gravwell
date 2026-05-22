@@ -64,17 +64,6 @@ Log-File=/opt/gravwell/log/gravwell_fetcher.log
      StartTime="2025-01-01T00:00:01.000Z"
      Tag-Name="thinkst"
 
-[OktaConf "okta1"]
-    StartTime="2025-01-01T00:00:01.000Z"
-    OktaDomain=""
-    OktaToken=""
-    UserTag=""
-    BatchSize=1000
-    MaxBurstSize=100
-    SeedUsers=true
-    SeedUserStart"2025-01-01T00:00:01.000Z"
-    Tag_Name=okta
-
 # Shodan Configuration
 [ShodanConf "shodan-host"]
 	Shodan-API=host

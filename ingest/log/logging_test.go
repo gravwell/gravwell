@@ -20,6 +20,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/crewjam/rfc5424"
 )
 
 const (
@@ -387,4 +389,174 @@ func TestUdpLogger(t *testing.T) {
 	}
 	wg.Wait()
 
+}
+
+// TestGenRFCMessage checks that illegal characters do not return errors, given
+func Test_genRfcOutput(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for target function.
+		ts       time.Time
+		prio     rfc5424.Priority
+		hostname string
+		appname  string
+		msgid    string
+		msg      string
+		sds      []rfc5424.SDParam
+	}{
+		{"single valid SDParam",
+			time.Now(),
+			rfc5424.Debug, "host", "app", "id", "base message",
+			[]rfc5424.SDParam{{Name: "1Name", Value: "1Value"}},
+		},
+		{"two SDParams with spaces",
+			time.Now(),
+			rfc5424.Debug, "host", "app", "id", "base message",
+			[]rfc5424.SDParam{
+				{Name: "1 Name", Value: "1Value"},
+				{Name: "2Name", Value: "2 Value"},
+			},
+		},
+		{"two SDParams with illegal characters",
+			time.Now(),
+			rfc5424.Debug, "host", "app", "id", "base message",
+			[]rfc5424.SDParam{
+				{Name: "1=Name", Value: "1Value"},
+				{Name: `2Na'me"`, Value: "2/Value']"},
+			},
+		},
+	}
+	const prefix string = "pfx"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := NewDiscardLogger()
+
+			// generate expected raw and sbRFC
+			var sbRFC, sbRaw strings.Builder
+			fmt.Fprintf(&sbRFC, "<14>1 %v %s %s - %s [gw@1 ",
+				tt.ts.Format("2006-01-02T15:04:05.999999Z07:00"), l.hostname, l.appname, prefix)
+			fmt.Fprint(&sbRaw, tt.msg)
+			for _, sd := range tt.sds {
+				fmt.Fprintf(&sbRFC, "%s=\"%s\" ", syslogReplacer.Replace(sd.Name), syslogReplacer.Replace(sd.Value))
+				fmt.Fprintf(&sbRaw, " %s=\"%s\"", sd.Name, sd.Value)
+			}
+			wantRFC := sbRFC.String()[:sbRFC.Len()-1] + "] " + tt.msg
+			wantRaw := sbRaw.String()
+
+			gotRFC, gotRaw := l.genRfcOutput(tt.ts, prefix, INFO, tt.msg, tt.sds...)
+			if string(gotRFC) != wantRFC {
+				t.Errorf("RFC:\ngot: \"%v\"\nwant:\"%v\"", string(gotRFC), wantRFC)
+			} else if string(gotRaw) != wantRaw {
+				t.Errorf("Raw:\ngot: \"%v\"\nwant:\"%v\"", string(gotRaw), wantRaw)
+			}
+		})
+	}
+}
+
+type testLevelRelay struct {
+	pth string
+	f   *os.File
+}
+
+func newTestLevelRelay(pth string) (*testLevelRelay, error) {
+	f, err := os.Create(pth)
+	if err != nil {
+		return nil, err
+	}
+	return &testLevelRelay{pth: pth, f: f}, nil
+}
+
+func (t *testLevelRelay) WriteLog(l Level, ts time.Time, rfcline, rawline string) error {
+	_, err := fmt.Fprintf(t.f, "%s\n", rfcline)
+	return err
+}
+
+func (t *testLevelRelay) Close() error {
+	return t.f.Close()
+}
+
+func TestCloneHostname(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `test_clone_hostname.log`)
+	relay, err := newTestLevelRelay(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lgr := NewLevelRelay(relay)
+
+	cloned, err := lgr.Clone("cloned-hostname", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cloned.Hostname() != "cloned-hostname" {
+		t.Fatalf("expected hostname 'cloned-hostname', got '%s'", cloned.Hostname())
+	}
+
+	if cloned.Appname() != lgr.Appname() {
+		t.Fatalf("expected appname to match original '%s', got '%s'", lgr.Appname(), cloned.Appname())
+	}
+
+	if err = cloned.Infof("test message from cloned logger"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = cloned.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	bts, err := os.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if !strings.Contains(s, "cloned-hostname") {
+		t.Fatal("Missing cloned hostname in log: ", s)
+	}
+	if !strings.Contains(s, "test message from cloned logger") {
+		t.Fatal("Missing log message: ", s)
+	}
+}
+
+func TestCloneAppname(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `test_clone_appname.log`)
+	relay, err := newTestLevelRelay(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lgr := NewLevelRelay(relay)
+
+	cloned, err := lgr.Clone("", "cloned-app")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cloned.Appname() != "cloned-app" {
+		t.Fatalf("expected appname 'cloned-app', got '%s'", cloned.Appname())
+	}
+
+	if cloned.Hostname() != lgr.Hostname() {
+		t.Fatalf("expected hostname to match original '%s', got '%s'", lgr.Hostname(), cloned.Hostname())
+	}
+
+	if err = cloned.Infof("test message from cloned logger"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = cloned.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	bts, err := os.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if !strings.Contains(s, "cloned-app") {
+		t.Fatal("Missing cloned appname in log: ", s)
+	}
+	if !strings.Contains(s, "test message from cloned logger") {
+		t.Fatal("Missing log message: ", s)
+	}
 }

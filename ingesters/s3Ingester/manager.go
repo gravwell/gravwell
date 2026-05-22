@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -46,7 +45,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 	// create workers
 	var workerWg sync.WaitGroup
 	queue := make(chan []*sqs.Message, QUEUE_DEPTH)
-	for i := 0; i < numWorkers; i++ {
+	for i := range numWorkers {
 		workerWg.Add(1)
 		go s.worker(ctx, lg, &workerWg, queue, i)
 	}
@@ -58,7 +57,7 @@ OUTER:
 		go func() {
 			o, err := s.sqs.GetMessages()
 			if err != nil {
-				lg.Error("sqs receive message error", log.KVErr(err))
+				lg.Error("sqs receive message error", log.KV("listener", s.Name), log.KVErr(err))
 				c <- nil
 			}
 			c <- o
@@ -67,7 +66,7 @@ OUTER:
 		select {
 		case out = <-c:
 			if out == nil {
-				lg.Error("received empty SQS response")
+				lg.Error("received empty SQS response", log.KV("listener", s.Name))
 				sleepContext(ctx, ERROR_BACKOFF)
 				continue
 			}
@@ -76,7 +75,7 @@ OUTER:
 			break OUTER
 		}
 
-		lg.Info("sqs received messages", log.KV("count", len(out)))
+		lg.Info("sqs received messages", log.KV("listener", s.Name), log.KV("count", len(out)))
 
 		if s.Verbose {
 			for _, v := range out {
@@ -140,10 +139,10 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 				}
 
 				obj := &s3.Object{
-					Key: aws.String(x),
+					Key: new(x),
 				}
 
-				if obj != nil && obj.Size != nil && *obj.Size == int64(0) {
+				if obj.Size != nil && *obj.Size == int64(0) {
 					// don't even bother fetching it, just delete and move on
 					lg.Info("skipping zero-byte object",
 						log.KV("worker", workerID),
@@ -338,7 +337,7 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 	for _, b := range buckets {
 		// start workers
 		queue := make(chan *s3.Object, QUEUE_DEPTH)
-		for i := 0; i < numWorkers; i++ {
+		for range numWorkers {
 			wg.Add(1)
 			go b.worker(lg, ctx, ot, queue, &wg)
 
