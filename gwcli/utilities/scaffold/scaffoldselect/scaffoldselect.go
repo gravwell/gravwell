@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 // Package scaffoldselect provides a scaffold for creating actions that allow a user to operate on a list of items.
 // While mildly more obtuse than the other scaffolds, scaffoldselect can be used for any action that can easily be applied en-masse.
 //
@@ -24,10 +32,20 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// CollectItemsFunc is used in interactive mode to populate the list of selectable items.
+//
+// ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
+type CollectItemsFunc[ID_t scaffold.Id_t] func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[ID_t], error)
+
+// OperateFunc performs the actual operation (toggling, cloning, updating, etc) on a given ID.
+//
+// ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
+type OperateFunc[ID_t scaffold.Id_t] func(id ID_t, addtlFlags *pflag.FlagSet) (success string, _ error)
+
 func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 	singular, plural string,
-	collectItems func() ([]multiselectlist.SelectableItem[ID_t], error),
-	op func(id ID_t) (success string, _ error),
+	collectItems CollectItemsFunc[ID_t],
+	op OperateFunc[ID_t],
 	options Options) action.Pair {
 	if collectItems == nil {
 		panic("collectItems cannot be nil")
@@ -61,7 +79,8 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 				return errors.New(a + " is not a valid " + singular)
 			}
 
-			if success, err := op(cast); err != nil {
+			// we don't have a great way of passing in just the additional flags, so the non-interactive version gets all flags.
+			if success, err := op(cast, cmd.Flags()); err != nil {
 				fmt.Fprintln(cmd.ErrOrStderr(), err)
 			} else {
 				atLeastOneSuccess = true
@@ -95,19 +114,28 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 
 //#region interactive
 
-type selectModel[ID_t comparable] struct {
+type selectModel[ID_t scaffold.Id_t] struct {
 	singular, plural string
 
-	collectItems func() ([]multiselectlist.SelectableItem[ID_t], error)
-	op           func(id ID_t) (success string, _ error)
+	collectItems CollectItemsFunc[ID_t]
+	op           OperateFunc[ID_t]
 
 	msl multiselectlist.Model[ID_t]
+
+	fs *pflag.FlagSet // scaffoldselect has no flags of its own, so this is just the additional flagset (if provided).
 
 	options Options
 }
 
 func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	itms, err := m.collectItems()
+	if m.options.AddtlFlags != nil {
+		m.fs = m.options.AddtlFlags()
+		if err := m.fs.Parse(args); err != nil {
+			return err.Error(), nil, nil
+		}
+	}
+
+	itms, err := m.collectItems(m.fs)
 	if err != nil {
 		return "", nil, err
 	} else if len(itms) < 1 {
@@ -118,6 +146,7 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 		return "", nil, err
 	}
 	m.msl = multiselectlist.Model[ID_t](multiselectlist.New(itms, width, height, multiselectlist.Options{}))
+
 	return "", nil, nil
 }
 
@@ -136,7 +165,7 @@ func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 	var cmds = make([]tea.Cmd, 0, len(itms))
 	atLeastOneSuccess := false
 	for _, itm := range itms {
-		if success, err := m.op(itm.ID()); err != nil {
+		if success, err := m.op(itm.ID(), m.fs); err != nil {
 			cmds = append(cmds, tea.Println(err))
 		} else {
 			atLeastOneSuccess = true
