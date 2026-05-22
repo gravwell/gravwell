@@ -58,7 +58,8 @@ func TestNonInteractive(t *testing.T) {
 		{"select both items", []string{"1", "2"}, "recruited vagrant 1\nrecruited vagrant 2", ""},
 		{"select none", nil, "", "you must specify at least 1 argument"},
 		{"select unknown", []string{"100"}, "", "unknown vagrant (100) on the old road"},
-		{"select unparsable", []string{"Crusader"}, "", "Crusader is not a valid item"}, // TODO
+		{"select unparsable", []string{"Crusader"}, "", "Crusader is not a valid item"},
+		{"invalid arguments", []string{"1", "3", "5", "7", "9"}, "", "the party may contain no more than 4 members"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -72,6 +73,12 @@ func TestNonInteractive(t *testing.T) {
 								"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
 							return fs
 						},
+					},
+					ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+						if fs.NArg() > 4 {
+							return "the party may contain no more than 4 members", nil
+						}
+						return "", nil
 					},
 				})
 			uniques.AttachPersistentFlags(pair.Action)

@@ -53,6 +53,15 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 		panic("operator cannot be nil")
 	}
 	runE := func(cmd *cobra.Command, args []string) error {
+		if options.ValidateArgs != nil {
+			inv, err := options.ValidateArgs(cmd.Flags())
+			if err != nil {
+				return err
+			} else if inv != "" {
+				return errors.New(inv)
+			}
+		}
+
 		// if no arguments were given, boot mother or fail out
 		if cmd.Flags().NArg() == 0 {
 			x, err := cmd.Flags().GetBool(ft.NoInteractive.Name())
@@ -132,6 +141,14 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 		m.fs = m.options.AddtlFlags()
 		if err := m.fs.Parse(args); err != nil {
 			return err.Error(), nil, nil
+		}
+	}
+
+	if m.options.ValidateArgs != nil {
+		if inv, err := m.options.ValidateArgs(m.fs); err != nil {
+			return "", nil, err
+		} else if inv != "" {
+			return inv, nil, err
 		}
 	}
 
