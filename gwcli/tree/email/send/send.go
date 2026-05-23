@@ -147,7 +147,7 @@ func (m *model) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (i
 		return "", nil, err
 	}
 	// if everything was provided, we can immediately send
-	if from != "" && len(to) > 0 && subject != "" && body != "" {
+	if from != "" && len(to) > 0 && body != "" {
 		return "", nil, connection.Client.SendMail(from, to, subject, body, nil)
 	}
 	// pre-pop

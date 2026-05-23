@@ -214,7 +214,7 @@ func configure() action.Pair {
 
 			// to prevent clobbering the password, do not make an update if everything is the same and password is empty
 			if cur, err := connection.Client.MailConfig(); err != nil {
-				return nil, "", fmt.Errorf("failed to check current mail configurationL: %w", err)
+				return nil, "", fmt.Errorf("failed to check current mail configuration: %w", err)
 			} else if cur.Username == fields["user"].Provider.Get() &&
 				cur.Password == "" &&
 				cur.Server == fields["server"].Provider.Get() &&

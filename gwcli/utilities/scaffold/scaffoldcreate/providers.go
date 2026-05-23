@@ -488,7 +488,7 @@ type NumberProvider struct {
 
 // Initialize sets value to default value iff it passes ParseInt.
 func (p *NumberProvider) Initialize(def string, required bool) {
-	p.ti = stylesheet.NewTI("", required)
+	p.ti = stylesheet.NewTI("", !required)
 	p.ti.Validate = func(s string) error {
 		s = strings.TrimSpace(s)
 		if required && (s == "" || s == "0") {

@@ -123,7 +123,7 @@ func toggleAdminGetFlags(fs *pflag.FlagSet) (uid int32, grant, revoke bool, err 
 	}
 
 	if grant && revoke {
-		return uid, grant, revoke, ft.ErrMutuallyExclusive("grant, revoke")
+		return uid, grant, revoke, ft.ErrMutuallyExclusive("grant", "revoke")
 	}
 
 	return

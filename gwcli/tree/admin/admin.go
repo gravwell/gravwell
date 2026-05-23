@@ -293,7 +293,7 @@ func backup() action.Pair {
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Bool("include-scheduled-searches", false, "include scheduled searches in the backup")
-					fs.Bool("omit-sensitive", false, "include scheduled searches in the backup")
+					fs.Bool("omit-sensitive", false, "omit sensitive items")
 					fs.String("encrypt", "", "encrypt the backup with the given password. No encryption will be applied if unset.")
 					return fs
 				},

@@ -100,18 +100,18 @@ func modGroupUsers(use, short, long string, aliases []string, add bool) action.P
 					}
 					if add {
 						if err := connection.Client.AddUserToGroup(int32(uid), int32(gid)); err != nil {
-							fmt.Fprintf(c.ErrOrStderr(), "Failed to add user ID %d to group %d: %v", uid, gid, err)
+							fmt.Fprintf(c.ErrOrStderr(), "Failed to add user ID %d to group %d: %v\n", uid, gid, err)
 						} else {
 							// the user may have already been a part of this group, but we can't tell so.... Job's done.
-							fmt.Fprintf(c.OutOrStdout(), "Added user ID %d to group %d", uid, gid)
+							fmt.Fprintf(c.OutOrStdout(), "Added user ID %d to group %d\n", uid, gid)
 							successes += 1
 						}
 					} else {
 						if err := connection.Client.DeleteUserFromGroup(int32(uid), int32(gid)); err != nil {
-							fmt.Fprintf(c.ErrOrStderr(), "Failed to remove user ID %d from group %d: %v", uid, gid, err)
+							fmt.Fprintf(c.ErrOrStderr(), "Failed to remove user ID %d from group %d: %v\n", uid, gid, err)
 						} else {
 							// the user may not exist in this group, but we can't tell so.... Job's done.
-							fmt.Fprintf(c.OutOrStdout(), "Removed user ID %d from group %d", uid, gid)
+							fmt.Fprintf(c.OutOrStdout(), "Removed user ID %d from group %d\n", uid, gid)
 							successes += 1
 						}
 					}
