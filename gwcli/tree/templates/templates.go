@@ -182,7 +182,7 @@ func delete() action.Pair {
 					ID_:        t.ID,
 					Name:       t.Name,
 					SecondLine: t.Description,
-			}
+				}
 			}
 
 			return items, nil

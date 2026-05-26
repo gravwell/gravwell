@@ -41,6 +41,7 @@ func NewSavedNav() *cobra.Command {
 			create(),
 			delete(),
 			edit(),
+			show(),
 		})
 }
 
@@ -185,12 +186,12 @@ func edit() action.Pair {
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("saved query", "saved queries",
 		func(dryrun bool, id string) error {
-		if dryrun {
-			_, err := connection.Client.GetSavedQuery(id)
-			return err
-		}
-		return connection.Client.DeleteSavedQuery(id)
-	},
+			if dryrun {
+				_, err := connection.Client.GetSavedQuery(id)
+				return err
+			}
+			return connection.Client.DeleteSavedQuery(id)
+		},
 		func() ([]multiselectlist.SelectableItem[string], error) {
 			lr, err := connection.Client.ListSavedQueries(nil)
 			if err != nil {
@@ -211,3 +212,32 @@ func delete() action.Pair {
 }
 
 //#endregion delete
+
+//#region show
+
+func show() action.Pair {
+	return scaffold.NewBasicAction("show", "display a saved query",
+		"Display the full details of a saved query by its ID.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			id := fs.Arg(0)
+			sq, err := connection.Client.GetSavedQuery(id)
+			if err != nil {
+				return err.Error(), nil
+			}
+			return fmt.Sprintf("Name:        %s\nDescription: %s\nQuery:       %s",
+				sq.Name, sq.Description, sq.Query), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"print", "get"},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("saved query ID"), nil
+				}
+				return "", nil
+			},
+		})
+}
+
+//#endregion show
