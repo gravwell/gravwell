@@ -9,16 +9,11 @@ package secrets
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/*
-Package resources defines the resources nav, which holds data related to persistent data.
-*/
-
 import (
 	"errors"
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -26,7 +21,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -43,7 +37,7 @@ func NewNav() *cobra.Command {
 		use   string = "secrets"
 		short string = "manage secret data that can be fed into other actions"
 		long  string = "Gravwell can store secret strings for use in other actions (typically flows)." +
-			" Once created, the user cannot read the contents of the secret again, although they may change the value later." +
+			" Once created, the user cannot read the contents of the secret again, although the value can be updated." +
 			" The user may then refer to the secret in certain node types when building a flow."
 	)
 	return treeutils.GenerateNav(use, short, long, []string{"secret"},
@@ -53,6 +47,7 @@ func NewNav() *cobra.Command {
 			create(),
 			delete(),
 			edit(),
+			updateValue(),
 		})
 }
 
