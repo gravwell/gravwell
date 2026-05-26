@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -159,6 +160,77 @@ func TestPollOnce_PersistsNextLink(t *testing.T) {
 	_, err := rt.GetTime(TimestampKey(ContentAlerts))
 	if err == nil {
 		t.Error("timestamp should not advance when nextLink present")
+	}
+}
+
+// TestPollOnce_DeduplicatesSubSecondTimestamps is a regression test for the dedup bug where
+// alerts with sub-second createdDateTime timestamps were re-ingested on every poll cycle.
+// The OData filter must be expressed with sufficient precision to exclude an already-seen
+// alert on the next poll — second precision truncation causes the filter to be too broad.
+func TestPollOnce_DeduplicatesSubSecondTimestamps(t *testing.T) {
+	// Sub-second precision is the trigger for the bug. Use a recent timestamp so it
+	// falls within the lookback window, with an explicit .500Z sub-second component.
+	alertTS := time.Now().Add(-time.Hour).Truncate(time.Second).Add(500 * time.Millisecond).UTC()
+	alertJSON := `{"id":"a1","createdDateTime":"` + alertTS.Format("2006-01-02T15:04:05.000Z") + `"}`
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/tid/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(AuthToken{AccessToken: "t", ExpiresIn: 3600})
+	})
+	mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
+		filterStr := r.URL.Query().Get("$filter")
+		// Parse "createdDateTime gt <timestamp>" and evaluate against alertTS.
+		// Try both millisecond and second precision to handle either version of ODataTimeFormat.
+		var filterTS time.Time
+		if after, ok := strings.CutPrefix(filterStr, "createdDateTime gt "); ok {
+			for _, layout := range []string{"2006-01-02T15:04:05.000Z", "2006-01-02T15:04:05Z", time.RFC3339} {
+				if parsed, err := time.Parse(layout, after); err == nil {
+					filterTS = parsed
+					break
+				}
+			}
+		}
+		// Return the alert only if it satisfies createdDateTime gt filterTS.
+		if filterTS.IsZero() || alertTS.After(filterTS) {
+			json.NewEncoder(w).Encode(ODataResponse{Value: []json.RawMessage{json.RawMessage(alertJSON)}})
+		} else {
+			json.NewEncoder(w).Encode(ODataResponse{})
+		}
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	conf := &Config{
+		Tenant_ID: "tid", Client_ID: "cid", Client_Secret: "s",
+		Content_Type:        []ContentType{ContentAlerts},
+		Lookback:            24,
+		Requests_Per_Minute: 60,
+		Request_Interval:    1,
+		Graph_Host:          srv.URL,
+		Auth_Host:           srv.URL,
+	}
+	conf.Verify()
+	rt := newMockRuntime(t.Context())
+	mg := NewIngester(conf)
+	mg.client = NewClient(srv.URL, srv.URL, "tid", "cid", "s", srv.Client())
+	tag, _ := rt.NegotiateTag("msgraph-alerts")
+
+	// First poll: alert should be ingested.
+	if err := mg.pollOnce(t.Context(), rt, ContentAlerts, tag); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.entries) != 1 {
+		t.Fatalf("first poll: expected 1 entry, got %d", len(rt.entries))
+	}
+
+	// Second poll: alert must NOT be re-ingested.
+	// With second-precision ODataTimeFormat the filter is too broad and the alert
+	// satisfies it again every cycle — len(rt.entries) would be 2, not 1.
+	if err := mg.pollOnce(t.Context(), rt, ContentAlerts, tag); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.entries) != 1 {
+		t.Fatalf("second poll: expected 1 entry total (no duplicate), got %d", len(rt.entries))
 	}
 }
 

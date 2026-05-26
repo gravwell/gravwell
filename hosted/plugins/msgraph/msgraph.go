@@ -123,9 +123,13 @@ func (i *Ingester) pollOnce(ctx context.Context, rt hosted.Runtime, ct ContentTy
 	} else {
 		_ = rt.PutString(nlk, "")
 		if latest.After(lastTS) {
-			_ = rt.PutTime(tsk, latest)
+			// Graph API uses Windows FILETIME tick precision (100ns, 7 decimal places);
+			// truncate to match so the stored value round-trips through ODataTimeFormat.
+			_ = rt.PutTime(tsk, latest.Truncate(100*time.Nanosecond))
 		} else if len(resp.Value) == 0 {
-			_ = rt.PutTime(tsk, time.Now().Add(-time.Minute))
+			if nudged := time.Now().Add(-time.Minute).Truncate(100 * time.Nanosecond); nudged.After(lastTS) {
+				_ = rt.PutTime(tsk, nudged)
+			}
 		}
 	}
 

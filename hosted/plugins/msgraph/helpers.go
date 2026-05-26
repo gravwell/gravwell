@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const ODataTimeFormat = "2006-01-02T15:04:05Z"
+const ODataTimeFormat = "2006-01-02T15:04:05.0000000Z"
 
 // ContentTypeEndpoint returns the Graph API path for a given ContentType.
 func ContentTypeEndpoint(ct ContentType) string {
