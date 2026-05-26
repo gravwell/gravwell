@@ -12,13 +12,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
@@ -34,16 +37,17 @@ func NewNav() *cobra.Command {
 		[]string{"flow"},
 		nil,
 		[]action.Pair{
-			list(),
+			listFlows(),
 			importCreate(),
 			download(),
+			delete(),
 		},
 	)
 }
 
 //#region list
 
-func list() action.Pair {
+func listFlows() action.Pair {
 	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
 		types.Flow{},
 		func(fs *pflag.FlagSet) ([]types.Flow, error) {
@@ -203,4 +207,32 @@ func download() action.Pair {
 				}
 				return "", nil
 			}})
+}
+
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("flow", "flows",
+		func(dryrun bool, id string) error {
+			if dryrun {
+				_, err := connection.Client.GetFlow(id)
+				return err
+			}
+			return connection.Client.DeleteFlow(id)
+		},
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListFlows(nil)
+			if err != nil {
+				return nil, err
+			}
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, f := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        f.ID,
+					Name:       f.Name,
+					SecondLine: f.Description,
+				}
+			}
+
+			return items, nil
+		}, scaffolddelete.Options{})
 }

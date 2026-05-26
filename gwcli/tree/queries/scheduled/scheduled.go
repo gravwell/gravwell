@@ -175,12 +175,12 @@ func createFunc(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, str
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("query", "queries",
 		func(dryrun bool, id string) error {
-	if dryrun {
-		_, err := connection.Client.GetScheduledSearch(id)
-		return err
-	}
+			if dryrun {
+				_, err := connection.Client.GetScheduledSearch(id)
+				return err
+			}
 
-	return connection.Client.DeleteScheduledSearch(id)
+			return connection.Client.DeleteScheduledSearch(id)
 
 		},
 		func() ([]multiselectlist.SelectableItem[string], error) {
