@@ -18,6 +18,8 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -91,17 +93,18 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteGroup(id)
 		},
-		func() ([]scaffolddelete.Item[int32], error) {
-			resp, err := connection.Client.ListGroups(nil)
+		func() ([]multiselectlist.SelectableItem[int32], error) {
+			lr, err := connection.Client.ListGroups(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]scaffolddelete.Item[int32], len(resp.Results))
-			for i, g := range resp.Results {
-				items[i] = scaffolddelete.NewItem(g.Name, g.Description, g.ID)
+			var items = make([]multiselectlist.SelectableItem[int32], len(lr.Results))
+			for i, g := range lr.Results {
+				items[i] = listitem.NewGroupItem(g, false)
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 func edit() action.Pair {

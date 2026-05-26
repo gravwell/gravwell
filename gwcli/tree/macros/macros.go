@@ -13,13 +13,14 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 	"unicode"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -231,29 +232,29 @@ func edit() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("macro", "macros", func(dryrun bool, id string) error {
-		if dryrun {
-			_, err := connection.Client.GetMacro(id)
-			return err
-		}
-		return connection.Client.DeleteMacro(id)
-	},
-		func() ([]scaffolddelete.Item[string], error) {
-			ms, err := connection.Client.ListMacros(nil)
+	return scaffolddelete.NewDeleteAction("macro", "macros",
+		func(dryrun bool, id string) error {
+			if dryrun {
+				_, err := connection.Client.GetMacro(id)
+				return err
+			}
+			return connection.Client.DeleteMacro(id)
+		},
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListMacros(nil)
 			if err != nil {
 				return nil, err
 			}
-			slices.SortFunc(ms.Results, func(m1, m2 types.Macro) int {
-				return strings.Compare(m1.Name, m2.Name)
-			})
-			var items = make([]scaffolddelete.Item[string], len(ms.Results))
-			for i, m := range ms.Results {
-				items[i] = scaffolddelete.NewItem(
-					m.Name,
-					fmt.Sprintf("Expansion: '%v'\n%v",
-						stylesheet.Cur.SecondaryText.Render(m.Expansion), m.Description),
-					m.ID)
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, m := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        m.ID,
+					Name:       m.Name,
+					SecondLine: m.Description,
+				}
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }

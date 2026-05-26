@@ -17,15 +17,16 @@ import (
 	"io"
 	filesystem "io/fs"
 	"os"
-	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -226,21 +227,23 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteResource(id)
 		},
-		func() ([]scaffolddelete.Item[string], error) {
-			resources, err := connection.Client.ListResources(nil)
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			slices.SortStableFunc(resources.Results,
-				func(a, b types.Resource) int {
-					return strings.Compare(a.Name, b.Name)
-				})
-			var items = make([]scaffolddelete.Item[string], len(resources.Results))
-			for i, r := range resources.Results {
-				items[i] = scaffolddelete.NewItem(r.Name, r.Description, r.ID)
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, r := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        r.ID,
+					Name:       r.Name,
+					SecondLine: r.Description,
+				}
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 func edit() action.Pair {

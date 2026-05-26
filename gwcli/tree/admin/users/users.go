@@ -153,18 +153,18 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteUser(id)
 		},
-		func() ([]scaffolddelete.Item[int32], error) {
-			users, err := connection.Client.ListUsers(nil)
+		func() ([]multiselectlist.SelectableItem[int32], error) {
+			lr, err := connection.Client.ListUsers(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]scaffolddelete.Item[int32], len(users.Results))
-			for i, user := range users.Results {
-
-				items[i] = scaffolddelete.NewItem(user.Name, descriptionLine(user.Admin, user.Email), user.ID)
+			var items = make([]multiselectlist.SelectableItem[int32], len(lr.Results))
+			for i, u := range lr.Results {
+				items[i] = listitem.NewUserItem(u, false)
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 func edit() action.Pair {

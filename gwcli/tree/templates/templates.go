@@ -12,14 +12,17 @@ Package templates defines the templates nav, which holds data related to... er, 
 package templates
 
 import (
-	"slices"
-	"strings"
+	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -167,19 +170,23 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteTemplate(id)
 		},
-		func() ([]scaffolddelete.Item[string], error) {
-			templates, err := connection.Client.ListAllTemplates(nil)
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListTemplates(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			slices.SortStableFunc(templates.Results,
-				func(a, b types.Template) int {
-					return strings.Compare(a.Name, b.Name)
-				})
-			var items = make([]scaffolddelete.Item[string], len(templates.Results))
-			for i, r := range templates.Results {
-				items[i] = scaffolddelete.NewItem(r.Name, r.Description, r.ID)
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, t := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        t.ID,
+					Name:       t.Name,
+					SecondLine: t.Description,
 			}
+			}
+
 			return items, nil
+		}, scaffolddelete.Options{})
+}
 		})
 }

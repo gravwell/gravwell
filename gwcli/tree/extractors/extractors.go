@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -21,8 +20,10 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -275,27 +276,25 @@ func delete() action.Pair {
 			}
 			return nil
 		},
-		func() ([]scaffolddelete.Item[string], error) {
-			axl, err := connection.Client.ListExtractions(nil)
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListExtractions(nil)
 			if err != nil {
 				return nil, err
 			}
-			axs := axl.Results
-			slices.SortFunc(axs, func(a1, a2 types.AX) int {
-				return strings.Compare(a1.Name, a2.Name)
-			})
-			var items = make([]scaffolddelete.Item[string], len(axs))
-			for i, ax := range axs {
-				items[i] = scaffolddelete.NewItem[string](ax.Name,
-					fmt.Sprintf("module: %v\ntags: %v\n%v",
-						stylesheet.Cur.SecondaryText.Render(ax.Module),
-						stylesheet.Cur.SecondaryText.Render(strings.Join(ax.Tags, " ")),
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, ax := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_: false,
+					ID_:       ax.ID,
+					Name:      ax.Name,
+					SecondLine: fmt.Sprintf("%s/%s|%s", stylesheet.Cur.SecondaryText.Render(ax.Module),
+						stylesheet.Cur.SecondaryText.Render("["+strings.Join(ax.Tags, " ")+"]"),
 						ax.Description),
-					ax.ID)
+				}
 			}
 
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 func modules() action.Pair {

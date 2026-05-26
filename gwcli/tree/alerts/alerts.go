@@ -142,7 +142,7 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteAlert(id)
 		},
-		func() ([]scaffolddelete.Item[string], error) {
+		func() ([]multiselectlist.SelectableItem[string], error) {
 			alerts, err := connection.Client.ListAlerts(nil)
 			if err != nil {
 				return nil, err
@@ -152,12 +152,20 @@ func delete() action.Pair {
 				func(a, b types.Alert) int {
 					return strings.Compare(a.Name, b.Name)
 				})
-			var items = make([]scaffolddelete.Item[string], len(alerts.Results))
+			var items = make([]multiselectlist.SelectableItem[string], len(alerts.Results))
 			for i, a := range alerts.Results {
-				items[i] = scaffolddelete.NewItem(a.Name, a.Description, a.ID)
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        a.ID,
+					Name:       a.Name,
+					SecondLine: a.Description,
+
+					ShowDisabled: true,
+					Enabled:      !a.Disabled,
+				}
 			}
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 var toggleEnable, toggleDisable bool
