@@ -13,6 +13,7 @@ package templates
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -49,13 +50,52 @@ For instance, templates which expect an IP address as their variable can be used
 		})
 }
 
+// wrap templates so we can better display variables
+type wrappedTemplate struct {
+	types.CommonFields
+
+	Query     string
+	Variables string
+}
+
+func wrap(ts []types.Template) []wrappedTemplate {
+	wrapped := make([]wrappedTemplate, len(ts))
+	for i, t := range ts {
+		w := wrappedTemplate{
+			CommonFields: t.CommonFields,
+
+			Query: t.Query,
+		}
+		var vars = make([]string, len(t.Variables))
+		for j, v := range t.Variables {
+			var sb strings.Builder
+			if v.Required {
+				sb.WriteString("(required) ")
+			}
+			fmt.Fprintf(&sb, "%s=%s", v.Name, v.Label)
+			if v.Description != "" {
+				sb.WriteString(" \"" + v.Description + "\"")
+			}
+			if v.DefaultValue != "" {
+				sb.WriteString(" Default: \"" + v.DefaultValue + "\"")
+			}
+			vars[j] = sb.String()
+		}
+		w.Variables = strings.Join(vars, ";")
+		wrapped[i] = w
+	}
+
+	return wrapped
+
+}
+
 func list() action.Pair {
 	const (
 		short string = "list templates on the system"
 		long  string = "view templates available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.Template{}, func(fs *pflag.FlagSet) ([]types.Template, error) {
+		wrappedTemplate{}, func(fs *pflag.FlagSet) ([]wrappedTemplate, error) {
 			if all, err := fs.GetBool("all"); err != nil {
 				clilog.GetFlag(err)
 			} else if all {
@@ -63,14 +103,14 @@ func list() action.Pair {
 				if err != nil {
 					return nil, err
 				}
-				return resp.Results, nil
+				return wrap(resp.Results), nil
 			}
 
 			resp, err := connection.Client.ListTemplates(nil)
 			if err != nil {
 				return nil, err
 			}
-			return resp.Results, nil
+			return wrap(resp.Results), nil
 		},
 		nil,
 		scaffoldlist.Options{
