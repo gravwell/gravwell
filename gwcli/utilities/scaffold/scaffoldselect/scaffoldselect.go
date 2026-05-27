@@ -105,7 +105,8 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 	// generate usage based on given options
 	var usage strings.Builder
 	if options.AddtlFlags != nil && options.AddtlFlags().NArg() > 0 {
-		usage.WriteString(ft.Optional("flags") + " ")
+		usage.WriteString(ft.Optional("flags"))
+		usage.WriteString(" ")
 	}
 	if options.Exactly1 {
 		usage.WriteString(ft.Mandatory(singular))
