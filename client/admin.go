@@ -662,13 +662,13 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//actionables
-	if pvs, err := nc.ListPivots(); err != nil {
-		return fmt.Errorf("failed to list pivots %w", err)
-	} else if len(pvs) > 0 {
-		for _, p := range pvs {
-			if p.UID == id {
-				if err = nc.DeletePivot(p.GUID); err != nil {
-					return fmt.Errorf("failed to purge user pivots %v - %w", p.GUID, err)
+	if pvs, err := nc.ListActionables(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+		return fmt.Errorf("failed to list actionables %w", err)
+	} else if len(pvs.Results) > 0 {
+		for _, p := range pvs.Results {
+			if p.OwnerID == id {
+				if err = nc.PurgeActionable(p.ID); err != nil {
+					return fmt.Errorf("failed to purge user actionable %v - %w", p.ID, err)
 				}
 			}
 		}
