@@ -393,7 +393,7 @@ func lock() action.Pair {
 	return scaffoldselect.NewSelectAction(
 		"lock user accounts", "Lock one or several user accounts.\n"+
 			"The user will be unable to log in until unlocked, and all existing sessions will be terminated.",
-		"account", "accounts",
+		"account",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
 			ulr, err := connection.Client.ListUsers(nil)
 			if err != nil {
@@ -424,7 +424,7 @@ func lock() action.Pair {
 }
 
 func unlock() action.Pair {
-	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account", "accounts",
+	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
 			ulr, err := connection.Client.ListUsers(nil)
 			if err != nil {

@@ -67,7 +67,7 @@ func TestNonInteractive(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				var sbOut, sbErr strings.Builder
-				pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+				pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 					func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[int], error) { return nil, nil }, operate, scaffoldselect.Options{
 						CommonOptions: scaffold.CommonOptions{
 							AddtlFlags: func() *pflag.FlagSet {
@@ -120,7 +120,7 @@ func TestNonInteractive(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				var sbOut, sbErr strings.Builder
-				pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+				pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 					func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[int], error) { return nil, nil }, operate, scaffoldselect.Options{
 						CommonOptions: scaffold.CommonOptions{
 							AddtlFlags: func() *pflag.FlagSet {
@@ -158,7 +158,7 @@ func TestNonInteractive(t *testing.T) {
 
 	t.Run("items collected should have no effect in a non-interactive run", func(t *testing.T) {
 		var sbOut, sbErr strings.Builder
-		pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+		pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 			func(*pflag.FlagSet) ([]multiselectlist.SelectableItem[int], error) {
 				return nil, nil
 			}, operate, scaffoldselect.Options{})
@@ -219,7 +219,7 @@ func collectItems(fs *pflag.FlagSet) ([]multiselectlist.SelectableItem[int], err
 func TestInteractiveCycle(t *testing.T) {
 	t.Run("1+", func(t *testing.T) {
 		t.Run("no data returned uses custom EmptyError", func(t *testing.T) {
-			pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
 					AddtlFlags: func() *pflag.FlagSet {
 						fs := &pflag.FlagSet{}
@@ -235,7 +235,7 @@ func TestInteractiveCycle(t *testing.T) {
 			testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, args, 50, 20, false, nil, true)
 		})
 		t.Run("without cursed", func(t *testing.T) {
-			pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
 					AddtlFlags: func() *pflag.FlagSet {
 						fs := &pflag.FlagSet{}
@@ -287,7 +287,7 @@ func TestInteractiveCycle(t *testing.T) {
 			})
 		})
 		t.Run("with cursed", func(t *testing.T) {
-			pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
 					AddtlFlags: func() *pflag.FlagSet {
 						fs := &pflag.FlagSet{}
@@ -341,7 +341,7 @@ func TestInteractiveCycle(t *testing.T) {
 	})
 	t.Run("exactly 1", func(t *testing.T) {
 		t.Run("no data returned uses custom EmptyError", func(t *testing.T) {
-			pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
 					CommonOptions: scaffold.CommonOptions{
 						AddtlFlags: func() *pflag.FlagSet {
@@ -360,7 +360,7 @@ func TestInteractiveCycle(t *testing.T) {
 			testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, args, 50, 20, false, nil, true)
 		})
 		t.Run("without cursed", func(t *testing.T) {
-			pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
 					CommonOptions: scaffold.CommonOptions{
 						AddtlFlags: func() *pflag.FlagSet {
@@ -411,7 +411,7 @@ func TestInteractiveCycle(t *testing.T) {
 			})
 		})
 		t.Run("with cursed", func(t *testing.T) {
-			pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
 					CommonOptions: scaffold.CommonOptions{
 						AddtlFlags: func() *pflag.FlagSet {
@@ -507,7 +507,7 @@ func TestInteractiveDirectInvoke(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pair := scaffoldselect.NewSelectAction("short test", "long test", "item", "items",
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
 					CommonOptions: scaffold.CommonOptions{
 						AddtlFlags: func() *pflag.FlagSet {

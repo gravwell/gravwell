@@ -48,7 +48,7 @@ type CollectItemsFunc[ID_t scaffold.Id_t] func(addtlFlags *pflag.FlagSet) ([]mul
 type OperateFunc[ID_t scaffold.Id_t] func(id ID_t, addtlFlags *pflag.FlagSet) (success string, _ error)
 
 func NewSelectAction[ID_t scaffold.Id_t](short, long string,
-	singular, plural string,
+	singular string,
 	collectItems CollectItemsFunc[ID_t],
 	op OperateFunc[ID_t],
 	options Options) action.Pair {
@@ -80,7 +80,7 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 			if options.Exactly1 {
 				return errors.New(phrases.Exactly1ArgRequired(singular))
 			}
-			return errors.New(phrases.AtLeast1ArgRequired(plural))
+			return errors.New(phrases.AtLeast1ArgRequired(english.PluralWord(0, singular, "")))
 		} else if cmd.Flags().NArg() > 1 && options.Exactly1 {
 			return errors.New(phrases.Exactly1ArgRequired(singular))
 		}
@@ -119,7 +119,6 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 
 	model := &selectModel[ID_t]{
 		singular:     singular,
-		plural:       plural,
 		collectItems: collectItems,
 		op:           op,
 
@@ -186,8 +185,8 @@ func finalError(numSuccesses, numErrors uint) error {
 //#region interactive
 
 type selectModel[ID_t scaffold.Id_t] struct {
-	done             bool
-	singular, plural string
+	done     bool
+	singular string
 
 	collectItems CollectItemsFunc[ID_t]
 	op           OperateFunc[ID_t]
@@ -251,7 +250,7 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 	if err != nil {
 		return "", nil, err
 	} else if len(itms) < 1 {
-		err = errors.New("You have no available " + m.plural)
+		err = errors.New("You have no available " + english.PluralWord(0, m.singular, ""))
 		if m.options.NoItemsError != nil {
 			err = errors.New(m.options.NoItemsError(m.fs))
 		}
