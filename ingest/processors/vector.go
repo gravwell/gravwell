@@ -118,16 +118,23 @@ type embeddingResponse struct {
 	} `json:"data"`
 }
 
+type embeddingResult struct {
+	Embedding []float64 `json:"embedding"`
+	Data      string    `json:"data"`
+}
+
 func (vp *VectorProc) processEntry(ent *entry.Entry) error {
-	embedding, err := vp.getEmbedding(string(ent.Data))
+	original := string(ent.Data)
+	embedding, err := vp.getEmbedding(original)
 	if err != nil {
 		return err
 	}
-	evStr := fmt.Sprintf("%v", embedding)
-	return ent.AddEnumeratedValue(entry.EnumeratedValue{
-		Name:  `vector`,
-		Value: entry.StringEnumData(evStr),
-	})
+	result := embeddingResult{
+		Embedding: embedding,
+		Data:      original,
+	}
+	ent.Data, err = json.Marshal(result)
+	return err
 }
 
 func (vp *VectorProc) getEmbedding(text string) ([]float64, error) {
