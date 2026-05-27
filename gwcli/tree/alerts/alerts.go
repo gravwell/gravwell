@@ -165,7 +165,7 @@ var toggleEnable, toggleDisable bool
 func toggle() action.Pair {
 	return scaffoldselect.NewSelectAction("enable or disable an alert",
 		"Toggle the enabled state of an alert. Optionally use --enable or --disable to set explicitly.",
-		"alert", "alerts",
+		"alert",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			lr, err := connection.Client.ListAlerts(nil)
 			if err != nil {
@@ -239,11 +239,11 @@ func toggle() action.Pair {
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure !(enable && disable)
-				toggleEnable, err := fs.GetBool("enable")
+				toggleEnable, err = fs.GetBool("enable")
 				if err != nil {
 					clilog.GetFlag(err)
 				}
-				toggleDisable, err := fs.GetBool("disable")
+				toggleDisable, err = fs.GetBool("disable")
 				if err != nil {
 					clilog.GetFlag(err)
 				}

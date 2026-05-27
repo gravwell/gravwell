@@ -113,7 +113,7 @@ func fch() ([]scaffolddelete.Item[string], error) {
 
 func cloneAction() action.Pair {
 	return scaffoldselect.NewSelectAction("clone dashboards", "create a copy of one or many dashboards.",
-		"dashboard", "dashboards",
+		"dashboard",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			dlr, err := connection.Client.ListDashboards(nil)
 			if err != nil {

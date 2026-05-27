@@ -28,4 +28,8 @@ type Options struct {
 	// Called as soon as the action is invoked.
 	// You may assume that the flags have already been parsed, but that no additional actions have been taken on them.
 	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
+	// Allow exactly one item to be given/selected. Switches over to a list.Model.
+	//
+	// ! Checked after ValidateArgs.
+	Exactly1 bool
 }

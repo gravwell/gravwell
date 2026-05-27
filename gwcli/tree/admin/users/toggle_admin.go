@@ -151,7 +151,8 @@ func (c *toggleAdminModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, hei
 	if err := fs.Parse(tokens); err != nil {
 		return "", nil, err
 	}
-	uid, grant, revoke, err := toggleAdminGetFlags(fs)
+	var uid int32
+	uid, c.grant, c.revoke, err = toggleAdminGetFlags(fs)
 	if err != nil {
 		return "", nil, err
 	}
@@ -165,7 +166,7 @@ func (c *toggleAdminModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, hei
 			return "", nil, err
 		}
 		c.done = true
-		success, err := setAdmin(u.User, grant, revoke)
+		success, err := setAdmin(u.User, c.grant, c.revoke)
 		if err != nil {
 			return "", nil, err
 		}
