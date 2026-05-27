@@ -28,6 +28,12 @@ type Access struct {
 	GIDs   []int32
 }
 
+type Actions struct {
+	Delete bool
+	Modify bool
+	Share  bool
+}
+
 func (a Access) GetOld() otypes.Access {
 	return otypes.Access{
 		Global: a.Global,
@@ -113,6 +119,7 @@ func (t *Thing) DecodeContents(obj interface{}) error {
 }
 
 // PackedUserTemplate type used for templates in packages
+// TODO #761 move this into kits/types.go
 type PackedUserTemplate struct {
 	ID          string
 	Name        string
@@ -143,107 +150,4 @@ func (put *PackedUserTemplate) JSONMetadata() (json.RawMessage, error) {
 		Description: put.Description,
 	})
 	return json.RawMessage(b), err
-}
-
-// Pivot is what is stored in the "thing" object, it is encoded into Contents
-type Pivot struct {
-	GUID        uuid.UUID
-	Name        string
-	Description string
-	Contents    RawObject
-	Labels      []string
-	Disabled    bool
-}
-
-func (t Pivot) WirePivot(thing Thing) WirePivot {
-	return WirePivot{
-		GUID:        t.GUID,
-		ThingHeader: thing.Header(),
-		Updated:     thing.Updated,
-		Name:        t.Name,
-		Description: t.Description,
-		Contents:    t.Contents,
-		Labels:      t.Labels,
-		Disabled:    t.Disabled,
-	}
-}
-
-// WirePivot is constructed from the Pivot and the details in the Thing
-// struct. This is what we send to the user via the API.
-type WirePivot struct {
-	ThingHeader
-	GUID        uuid.UUID
-	Name        string
-	Description string
-	Updated     time.Time
-	Contents    RawObject
-	Labels      []string
-	Disabled    bool
-}
-
-// Thing Generates an encoded Thing from the WirePivot structure
-func (wp WirePivot) Thing() (t Thing, err error) {
-	t.UUID = wp.ThingUUID
-	t.UID = wp.UID
-	t.GIDs = wp.GIDs
-	t.Global = wp.Global
-	t.WriteAccess = wp.WriteAccess
-	if t.WriteAccess.GIDs == nil {
-		t.WriteAccess.GIDs = []int32{}
-	}
-	t.Updated = wp.Updated
-	//do not set the synced value
-
-	err = t.EncodeContents(wp.Pivot())
-	return
-}
-
-// Pivot creates a Pivot structure from the WiredPivot
-func (wp WirePivot) Pivot() Pivot {
-	return Pivot{
-		GUID:        wp.GUID,
-		Name:        wp.Name,
-		Description: wp.Description,
-		Contents:    wp.Contents,
-		Labels:      wp.Labels,
-		Disabled:    wp.Disabled,
-	}
-}
-
-type PackedPivot struct {
-	UUID        string
-	Name        string
-	Description string
-	Data        RawObject
-	Labels      []string
-}
-
-func (t Pivot) Pack() (put PackedPivot) {
-	if put.UUID = t.GUID.String(); put.UUID == `` {
-		put.UUID = uuid.New().String()
-	}
-	put.Name = t.Name
-	put.Description = t.Description
-	put.Data = t.Contents
-	put.Labels = t.Labels
-	return
-}
-
-func (put *PackedPivot) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		UUID        string
-		Name        string
-		Description string
-	}{
-		UUID:        put.UUID,
-		Name:        put.Name,
-		Description: put.Description,
-	})
-	return json.RawMessage(b), err
-}
-
-type Actions struct {
-	Delete bool
-	Modify bool
-	Share  bool
 }

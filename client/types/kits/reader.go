@@ -307,8 +307,8 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 		if err = json.NewDecoder(rdr).Decode(&tmpl); err == nil {
 			itm.AdditionalInfo, err = tmpl.JSONMetadata()
 		}
-	case Pivot:
-		var tmpl types.PackedPivot
+	case Actionable:
+		var tmpl PackedActionable
 		if err = json.NewDecoder(rdr).Decode(&tmpl); err == nil {
 			itm.AdditionalInfo, err = tmpl.JSONMetadata()
 		}

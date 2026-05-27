@@ -456,8 +456,8 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Pivot:
-			var x types.PackedPivot
+		case kits.Actionable:
+			var x kits.PackedActionable
 			if err := genericRead(wd, itm, &x); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -765,8 +765,8 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			if err := writeTemplate(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
-		case kits.Pivot:
-			var p types.PackedPivot
+		case kits.Actionable:
+			var p kits.PackedActionable
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
