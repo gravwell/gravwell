@@ -148,7 +148,12 @@ func (m *model) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (i
 	}
 	// if everything was provided, we can immediately send
 	if from != "" && len(to) > 0 && body != "" {
-		return "", nil, connection.Client.SendMail(from, to, subject, body, nil)
+		m.done = true
+
+		if err := connection.Client.SendMail(from, to, subject, body, nil); err != nil {
+			return "", nil, err
+		}
+		return "", tea.Printf("Queued mail %s to %v", subject, to), nil
 	}
 	// pre-pop
 	m.fromTI.SetValue(from)
