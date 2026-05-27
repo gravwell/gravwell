@@ -100,7 +100,6 @@ func (vp *VectorProc) Process(ents []*entry.Entry) (rset []*entry.Entry, err err
 			continue
 		}
 		if err = vp.processEntry(ent); err != nil {
-			fmt.Println(err)
 			return
 		}
 		rset = append(rset, ent)
