@@ -540,3 +540,35 @@ func (pp *PackedPlaybook) JSONMetadata() (json.RawMessage, error) {
 	})
 	return json.RawMessage(b), err
 }
+
+type PackedActionable struct {
+	ID          string
+	Name        string
+	Description string
+	Data        types.ActionableContent
+	Disabled    bool
+	Labels      []string
+}
+
+func PackActionable(t types.Actionable) (put PackedActionable) {
+	put.ID = t.ID
+	put.Name = t.Name
+	put.Description = t.Description
+	put.Data = t.Contents
+	put.Labels = t.Labels
+	put.Disabled = t.Disabled
+	return
+}
+
+func (put *PackedActionable) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		ID          string
+		Name        string
+		Description string
+	}{
+		ID:          put.ID,
+		Name:        put.Name,
+		Description: put.Description,
+	})
+	return json.RawMessage(b), err
+}

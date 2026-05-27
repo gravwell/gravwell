@@ -124,8 +124,8 @@ func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) 
 	if err = getKitTemplates(cli, label, kbrBase, &kbr); err != nil {
 		return
 	}
-	//pivots
-	if err = getKitPivots(cli, label, kbrBase, &kbr); err != nil {
+	//actionables
+	if err = getKitActionables(cli, label, kbrBase, &kbr); err != nil {
 		return
 	}
 	//resources
@@ -241,15 +241,15 @@ func getKitTemplates(cli *client.Client, label string, orig types.KitBuildReques
 	return
 }
 
-func getKitPivots(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var pivots []types.WirePivot
-	if pivots, err = cli.ListPivots(); err != nil {
-		err = fmt.Errorf("failed to get pivots: %w", err)
+func getKitActionables(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
+	var actionables types.ActionableListResponse
+	if actionables, err = cli.ListAllActionables(nil); err != nil {
+		err = fmt.Errorf("failed to get actionables: %w", err)
 		return
 	}
-	for _, a := range pivots {
-		if slices.Contains(a.Labels, label) || slices.Contains(orig.Pivots, a.GUID) {
-			kbr.Pivots = append(kbr.Pivots, a.GUID)
+	for _, a := range actionables.Results {
+		if slices.Contains(a.Labels, label) || slices.Contains(orig.Actionables, a.ID) {
+			kbr.Actionables = append(kbr.Actionables, a.ID)
 		}
 	}
 	return
