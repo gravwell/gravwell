@@ -242,7 +242,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.dieOnChildDone {
 		m.exiting = true
 		connection.End()
-		return m, tea.Sequence(tea.Println("Bye"), tea.Quit)
+		return m, tea.Quit
 	}
 
 	// check for first boot immediate processing
@@ -408,6 +408,9 @@ func processInput(m *Mother) tea.Cmd {
 	} else if wr.EndCmd != nil {
 		if action.Is(wr.EndCmd) {
 			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
+			if m.dieOnChildDone { // don't bother with history
+				return cmd
+			}
 			if cmd == nil {
 				return historyCmd
 			}
