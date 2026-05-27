@@ -27,8 +27,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/require"
 )
 
 // regenerate these golden files with:
@@ -96,4 +98,60 @@ func Test_SuggestionCompletion_TeaTest(t *testing.T) {
 			t.Error("incorrect suggestion count", testsupport.ExpectedActual(2, count), "\noutput:", string(out))
 		}
 	})
+}
+
+// Tests that all tokens are properly rebuilt on mother's prompt after a New().
+func TestAllTokensPropagate(t *testing.T) {
+	clilog.InitializeFromArgs(nil)
+
+	// root
+	// - nav1
+	// |- action1 (flags: f1=int f2=bool)
+	// - nav2
+
+	action1 := treeutils.GenerateAction("action1", "action one", "action yī", nil, func(c *cobra.Command, s []string) error { return nil })
+	action1.Flags().Int("f1", 0, "")
+	action1.Flags().Bool("f2", false, "")
+	nav1 := treeutils.GenerateNav("nav1", "nav one", "nav yī", nil, nil, []action.Pair{action.NewPair(action1, nil)})
+	nav2 := treeutils.GenerateNav("nav2", "nav two", "nav ѐr", nil, nil, nil)
+	root := treeutils.GenerateNav("root", "root", "root", nil, []*cobra.Command{nav1, nav2}, nil)
+	uniques.AttachPersistentFlags(root)
+
+	tests := []struct {
+		name       string
+		cur        *cobra.Command
+		args       []string
+		wantPrompt string
+	}{
+		{"no args",
+			action1, nil, "root nav1>action1"},
+		{"one args",
+			action1, []string{"arg1"}, "root nav1>action1 arg1"},
+		{"two args",
+			action1, []string{"arg1", "arg2"}, "root nav1>action1 arg1 arg2"},
+		{"two args and two flags",
+			action1, []string{"--f1=3", "--f2", "arg1", "arg2"}, "root nav1>action1 --f1=3 --f2 arg1 arg2"},
+		{"int flag only",
+			action1, []string{"--f1=3"}, "root nav1>action1 --f1=3"},
+		{"bool flag only",
+			action1, []string{"--f2"}, "root nav1>action1 --f2"},
+
+		// NOTE(rlandau): we don't test unknown flags as cobra will catch and error these for us
+
+		// NOTE(rlandau): we don't test cur = nav because navs never take additional args
+
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := mother.New(root, tt.cur, tt.args, nil)
+			// ! Update should NOT be called, as it will cause Mother to enter handoff mode and we won't be able to view her prompt.
+			v := m.View()
+			// only care about the prompt itself
+			prompt, _, found := strings.Cut(v, "\n")
+			require.True(t, found)
+			require.Equal(t, tt.wantPrompt, strings.TrimSpace(prompt))
+		})
+	}
+
 }
