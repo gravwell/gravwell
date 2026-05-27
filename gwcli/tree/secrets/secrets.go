@@ -43,7 +43,7 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, []string{"secret"},
 		[]*cobra.Command{},
 		[]action.Pair{
-			list(),
+			listAction(),
 			create(),
 			delete(),
 			edit(),
@@ -51,7 +51,7 @@ func NewNav() *cobra.Command {
 		})
 }
 
-func list() action.Pair {
+func listAction() action.Pair {
 	const (
 		short string = "list secrets on the system"
 		long  string = "View secrets available to your user."
