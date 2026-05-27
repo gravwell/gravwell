@@ -44,11 +44,11 @@ func changePassword() action.Pair {
 		func(c *cobra.Command, args []string) error {
 			uid, err := c.Flags().GetInt32(ft.UID.Name())
 			if err != nil {
-				clilog.GetFlag(err)
+				return clilog.GetFlag(err)
 			}
-			password, err := c.Flags().GetString("new-password")
+			password, err := getPasswordFromFlags(c.Flags())
 			if err != nil {
-				clilog.GetFlag(err)
+				return clilog.GetFlag(err)
 			}
 
 			// if both flags are provided, run non-interactively
@@ -160,7 +160,7 @@ func (m *changePasswordModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, 
 		return err.Error(), nil, nil
 	}
 	if uid != 0 && pass != "" {
-		if err := connection.Client.AdminChangePass(m.selectedUser.ID, pass); err != nil {
+		if err := connection.Client.AdminChangePass(uid, pass); err != nil {
 			return "", nil, err
 		}
 		m.stage = cpStgDone

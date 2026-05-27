@@ -239,11 +239,11 @@ func toggle() action.Pair {
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure !(enable && disable)
-				toggleEnable, err := fs.GetBool("enable")
+				toggleEnable, err = fs.GetBool("enable")
 				if err != nil {
 					clilog.GetFlag(err)
 				}
-				toggleDisable, err := fs.GetBool("disable")
+				toggleDisable, err = fs.GetBool("disable")
 				if err != nil {
 					clilog.GetFlag(err)
 				}
