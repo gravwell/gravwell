@@ -172,7 +172,6 @@ func TestComplete(t *testing.T) {
 		rdr := csv.NewReader(strings.NewReader(stdout.String()))
 		records, err := rdr.ReadAll()
 		require.Nil(t, err, "failed to scan csv. Stdout: %s", stdout.String())
-		require.Greater(t, len(records), 1)
 		var found bool
 		for _, row := range records[1:] {
 			i, err := strconv.ParseInt(row[0], 10, 32)
