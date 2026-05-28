@@ -298,12 +298,12 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 			itm.AdditionalInfo, err = pdb.JSONMetadata()
 		}
 	case Extractor:
-		var ex types.AX
+		var ex PackedAX
 		if err = json.NewDecoder(rdr).Decode(&ex); err == nil {
 			itm.AdditionalInfo, err = ex.JSONMetadata()
 		}
 	case Template:
-		var tmpl types.PackedUserTemplate
+		var tmpl PackedUserTemplate
 		if err = json.NewDecoder(rdr).Decode(&tmpl); err == nil {
 			itm.AdditionalInfo, err = tmpl.JSONMetadata()
 		}
@@ -323,7 +323,7 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 			itm.AdditionalInfo, err = macro.JSONMetadata()
 		}
 	case SearchLibrary:
-		var sl types.SavedQuery
+		var sl PackedSavedQuery
 		if err = json.NewDecoder(rdr).Decode(&sl); err == nil {
 			itm.AdditionalInfo, err = sl.JSONMetadata()
 		}
@@ -342,7 +342,7 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 			}
 		}
 	case Alert:
-		var def types.Alert
+		var def PackedAlert
 		if err = json.NewDecoder(rdr).Decode(&def); err == nil {
 			itm.AdditionalInfo, err = def.JSONMetadata()
 		}

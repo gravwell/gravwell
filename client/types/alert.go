@@ -8,10 +8,6 @@
 
 package types
 
-import (
-	"encoding/json"
-)
-
 // AlertConsumerType : Possible types for an Alert Consumer
 type AlertConsumerType string
 
@@ -151,20 +147,6 @@ type AlertConsumerValidateResponse struct {
 	Valid bool
 
 	Error string
-}
-
-func (alert *Alert) JSONMetadata() (json.RawMessage, error) {
-	st := &struct {
-		ID          string
-		Name        string
-		Description string
-	}{
-		ID:          alert.ID,
-		Name:        alert.Name,
-		Description: alert.Description,
-	}
-	b, err := json.Marshal(st)
-	return json.RawMessage(b), err
 }
 
 type AlertListResponse struct {

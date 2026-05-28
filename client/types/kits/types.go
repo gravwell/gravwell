@@ -572,3 +572,198 @@ func (put *PackedActionable) JSONMetadata() (json.RawMessage, error) {
 	})
 	return json.RawMessage(b), err
 }
+
+// PackedAlert is a stripped-down representation of an alert for inclusion in a kit.
+type PackedAlert struct {
+	ID                 string
+	Name               string
+	Description        string
+	Labels             []string
+	Disabled           bool
+	Consumers          []types.AlertConsumer
+	Dispatchers        []types.AlertDispatcher
+	IngestBlocked      bool
+	MaxEvents          int
+	SaveSearchDuration int32
+	SaveSearchEnabled  bool
+	Schemas            types.AlertSchemas
+	TargetTag          string
+	UserMetadata       map[string]interface{}
+}
+
+// PackAlert converts an Alert into a PackedAlert for inclusion in a kit.
+func PackAlert(a types.Alert) (p PackedAlert) {
+	p = PackedAlert{
+		ID:                 a.ID,
+		Name:               a.Name,
+		Description:        a.Description,
+		Labels:             a.Labels,
+		Disabled:           a.Disabled,
+		Consumers:          a.Consumers,
+		Dispatchers:        a.Dispatchers,
+		IngestBlocked:      a.IngestBlocked,
+		MaxEvents:          a.MaxEvents,
+		SaveSearchDuration: a.SaveSearchDuration,
+		SaveSearchEnabled:  a.SaveSearchEnabled,
+		Schemas:            a.Schemas,
+		TargetTag:          a.TargetTag,
+		UserMetadata:       a.UserMetadata,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedAlert.
+func (pa *PackedAlert) Validate() error {
+	if pa.Name == `` {
+		return errors.New("Missing alert name")
+	}
+	return nil
+}
+
+// JSONMetadata returns additional info about the PackedAlert in JSON format.
+func (pa *PackedAlert) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		ID          string
+		Name        string
+		Description string
+	}{
+		ID:          pa.ID,
+		Name:        pa.Name,
+		Description: pa.Description,
+	})
+	return json.RawMessage(b), err
+}
+
+// PackedSavedQuery is a stripped-down representation of a saved query for inclusion in a kit.
+type PackedSavedQuery struct {
+	ID                 string
+	Name               string
+	Description        string
+	Labels             []string
+	Query              string
+	SuggestedTimeframe types.SavedQueryTimeframe
+}
+
+// PackSavedQuery converts a SavedQuery into a PackedSavedQuery for inclusion in a kit.
+func PackSavedQuery(sq types.SavedQuery) (p PackedSavedQuery) {
+	p = PackedSavedQuery{
+		ID:                 sq.ID,
+		Name:               sq.Name,
+		Description:        sq.Description,
+		Labels:             sq.Labels,
+		Query:              sq.Query,
+		SuggestedTimeframe: sq.SuggestedTimeframe,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedSavedQuery.
+func (psq *PackedSavedQuery) Validate() error {
+	if psq.Name == `` {
+		return errors.New("Missing saved query name")
+	} else if psq.Query == `` {
+		return errors.New("Missing query")
+	}
+	return nil
+}
+
+// JSONMetadata returns additional info about the PackedSavedQuery in JSON format.
+func (psq *PackedSavedQuery) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		Name        string
+		Description string
+		Query       string
+	}{
+		Name:        psq.Name,
+		Description: psq.Description,
+		Query:       psq.Query,
+	})
+	return json.RawMessage(b), err
+}
+
+// PackedAX is a stripped-down representation of an auto-extractor for inclusion in a kit.
+type PackedAX struct {
+	ID          string
+	Name        string
+	Description string
+	Labels      []string
+	Module      string
+	Params      string `json:",omitempty"`
+	Args        string `json:",omitempty"`
+	Tags        []string
+}
+
+// PackAX converts an AX into a PackedAX for inclusion in a kit.
+func PackAX(a types.AX) (p PackedAX) {
+	p = PackedAX{
+		ID:          a.ID,
+		Name:        a.Name,
+		Description: a.Description,
+		Labels:      a.Labels,
+		Module:      a.Module,
+		Params:      a.Params,
+		Args:        a.Args,
+		Tags:        a.Tags,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedAX.
+func (pa *PackedAX) Validate() error {
+	if pa.Name == `` {
+		return errors.New("Missing auto-extractor name")
+	} else if pa.Module == `` {
+		return errors.New("Missing auto-extractor module")
+	} else if len(pa.Tags) == 0 {
+		return errors.New("Missing auto-extractor tags")
+	}
+	return nil
+}
+
+// JSONMetadata returns additional info about the PackedAX in JSON format.
+func (pa *PackedAX) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		Name   string
+		Desc   string `json:"desc,omitempty"`
+		Module string
+		Tags   []string
+	}{
+		Name:   pa.Name,
+		Desc:   pa.Description,
+		Module: pa.Module,
+		Tags:   pa.Tags,
+	})
+	return json.RawMessage(b), err
+}
+
+type PackedUserTemplate struct {
+	ID          string
+	Name        string
+	Description string
+	Query       string
+	Variables   []types.TemplateVariable
+	Labels      []string
+}
+
+func PackTemplate(t types.Template) (put PackedUserTemplate) {
+	put.ID = t.ID
+	put.Name = t.Name
+	put.Description = t.Description
+	put.Query = t.Query
+	put.Variables = t.Variables
+	put.Labels = t.Labels
+	return
+}
+
+func (put *PackedUserTemplate) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		ID          string
+		Name        string
+		Description string
+	}{
+		ID:          put.ID,
+		Name:        put.Name,
+		Description: put.Description,
+	})
+	return json.RawMessage(b), err
+}

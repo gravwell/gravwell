@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
 )
 
@@ -169,7 +168,7 @@ func readFile(dir, name string) (pf kits.PackedFile, err error) {
  * Search Library
  **************************************************************************/
 
-func writeSearchLibrary(dir string, name string, x types.SavedQuery) error {
+func writeSearchLibrary(dir string, name string, x kits.PackedSavedQuery) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -190,7 +189,7 @@ func writeSearchLibrary(dir string, name string, x types.SavedQuery) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readSearchLibrary(dir, name string) (x types.SavedQuery, err error) {
+func readSearchLibrary(dir, name string) (x kits.PackedSavedQuery, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
@@ -218,7 +217,7 @@ func readSearchLibrary(dir, name string) (x types.SavedQuery, err error) {
  * Extractors
  **************************************************************************/
 
-func writeExtractor(dir string, name string, x types.AX) error {
+func writeExtractor(dir string, name string, x kits.PackedAX) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -244,7 +243,7 @@ func writeExtractor(dir string, name string, x types.AX) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readExtractor(dir, name string) (x types.AX, err error) {
+func readExtractor(dir, name string) (x kits.PackedAX, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
 	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
@@ -279,7 +278,7 @@ func readExtractor(dir, name string) (x types.AX, err error) {
  * Templates
  **************************************************************************/
 
-func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
+func writeTemplate(dir string, name string, x kits.PackedUserTemplate) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "template")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -300,7 +299,7 @@ func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
+func readTemplate(dir, name string) (x kits.PackedUserTemplate, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "template")
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
@@ -328,7 +327,7 @@ func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
  * Playbooks
  **************************************************************************/
 
-func writePlaybook(dir string, name string, x types.Playbook) error {
+func writePlaybook(dir string, name string, x kits.PackedPlaybook) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "playbook")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -350,7 +349,7 @@ func writePlaybook(dir string, name string, x types.Playbook) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readPlaybook(dir, name string) (x types.Playbook, err error) {
+func readPlaybook(dir, name string) (x kits.PackedPlaybook, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "playbook")
 	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))

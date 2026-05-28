@@ -449,7 +449,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.Template:
-			var x types.PackedUserTemplate
+			var x kits.PackedUserTemplate
 			if x, err = readTemplate(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -466,7 +466,7 @@ func packKit(args []string) {
 			}
 		// Other types just ship as-is
 		case kits.Extractor:
-			var x types.AX
+			var x kits.PackedAX
 			if x, err = readExtractor(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -482,7 +482,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.SearchLibrary:
-			var x types.SavedQuery
+			var x kits.PackedSavedQuery
 			if x, err = readSearchLibrary(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -490,7 +490,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.Playbook:
-			var x types.Playbook
+			var x kits.PackedPlaybook
 			if x, err = readPlaybook(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -498,7 +498,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.Alert:
-			var x types.Alert
+			var x kits.PackedAlert
 			if err = genericRead(wd, itm, &x); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -758,7 +758,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out dashboard %v: %v", name, err)
 			}
 		case kits.Template:
-			var p types.PackedUserTemplate
+			var p kits.PackedUserTemplate
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
@@ -775,7 +775,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		// Other types just ship as-is
 		case kits.Extractor:
-			var p types.AX
+			var p kits.PackedAX
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode extractor %v: %v", name, err)
 			}
@@ -795,7 +795,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out file %v: %v", name, err)
 			}
 		case kits.SearchLibrary:
-			var p types.SavedQuery
+			var p kits.PackedSavedQuery
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
@@ -803,7 +803,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.Playbook:
-			var p types.Playbook
+			var p kits.PackedPlaybook
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
@@ -811,7 +811,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.Alert:
-			var p types.Alert
+			var p kits.PackedAlert
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
