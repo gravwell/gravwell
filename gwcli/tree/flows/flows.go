@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 	"github.com/spf13/cobra"
@@ -41,6 +42,9 @@ func NewNav() *cobra.Command {
 			importCreate(),
 			download(),
 			delete(),
+			cancel(),
+			backfillToggle(),
+			clearResults(),
 		},
 	)
 }
@@ -235,4 +239,154 @@ func delete() action.Pair {
 
 			return items, nil
 		}, scaffolddelete.Options{})
+}
+
+func listFlowItems() ([]multiselectlist.SelectableItem[string], error) {
+	baseList, err := connection.Client.ListFlows(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	itms := make([]multiselectlist.SelectableItem[string], len(baseList.Results))
+	for i, f := range baseList.Results {
+		itms[i] = &listitem.Generic{
+			ID_:          f.ID,
+			Name:         f.Name,
+			SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
+			ShowDisabled: true,
+			Enabled:      !f.Disabled,
+		}
+	}
+	return itms, nil
+}
+
+func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
+	enable, err = fs.GetBool("enable")
+	if err != nil {
+		clilog.GetFlag(err)
+		return
+	}
+	disable, err = fs.GetBool("disable")
+	if err != nil {
+		clilog.GetFlag(err)
+		return
+	}
+	if enable && disable {
+		return false, false, ft.ErrMutuallyExclusive("enable", "disable")
+	}
+	return
+}
+
+func cancel() action.Pair {
+	return scaffoldselect.NewSelectAction("cancel running flows",
+		"Cancel one or several currently-executing flows.",
+		"flow",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			// ! this does not filter down to running-only
+			// we don't appear to currently have that capability via the client library
+			return listFlowItems()
+		},
+		func(id string, _ *pflag.FlagSet) (success string, err error) {
+			if err := connection.Client.CancelFlow(id); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("successfully cancelled flow %s", id), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "cancel"},
+		})
+}
+
+func backfillToggle() action.Pair {
+	return scaffoldselect.NewSelectAction("toggle flow backfill",
+		"Toggle backfill for one or several flows.\n"+
+			"Backfill causes the automation to run for missed time periods.\n"+
+			"Use --enable or --disable to set explicitly.",
+		"flow",
+		func(fs *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			enable, disable, err := getBackfillFlags(fs)
+			if err != nil {
+				return nil, err
+			}
+
+			baseList, err := connection.Client.ListFlows(nil)
+			if err != nil {
+				return nil, err
+			}
+			itms := make([]multiselectlist.SelectableItem[string], 0, len(baseList.Results))
+			for _, f := range baseList.Results {
+				if enable && f.BackfillEnabled {
+					continue
+				} else if disable && !f.BackfillEnabled {
+					continue
+				}
+				itms = append(itms, &listitem.Generic{
+					ID_:          f.ID,
+					Name:         f.Name,
+					SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
+					ShowDisabled: true,
+					Enabled:      !f.Disabled,
+				})
+			}
+			return itms, nil
+		},
+		func(id string, fs *pflag.FlagSet) (success string, err error) {
+			enable, disable, err := getBackfillFlags(fs)
+			if err != nil {
+				return "", err
+			}
+
+			flow, err := connection.Client.GetFlow(id)
+			if err != nil {
+				return "", err
+			}
+			flow.BackfillEnabled = !flow.BackfillEnabled
+			if enable {
+				flow.BackfillEnabled = true
+			} else if disable {
+				flow.BackfillEnabled = false
+			}
+
+			if err := connection.Client.UpdateFlow(flow); err != nil {
+				return "", err
+			}
+			state := "enabled"
+			if !flow.BackfillEnabled {
+				state = "disabled"
+			}
+			return fmt.Sprintf("flow '%s' backfill %s", id, state), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "toggle-backfill",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("enable", false, "enable backfill")
+					fs.Bool("disable", false, "disable backfill")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				_, _, err = getBackfillFlags(fs)
+				return "", err
+			},
+		})
+}
+
+func clearResults() action.Pair {
+	return scaffoldselect.NewSelectAction("clear results for flows",
+		"Clear the execution results (including errors and state) for one or several flows.",
+		"flow",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			return listFlowItems()
+		},
+		func(id string, _ *pflag.FlagSet) (success string, err error) {
+			if err := connection.Client.ClearFlowResults(id); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("successfully cleared results for flow %s", id), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "clear"},
+		})
 }
