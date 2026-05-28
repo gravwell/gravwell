@@ -54,7 +54,7 @@ func Action() action.Pair {
 			return nil
 		},
 		treeutils.GenerateActionOptions{
-			Usage: ft.Mandatory("--name=NAME") + ft.Optional("FLAGS"),
+			Usage: ft.Mandatory("--name=NAME") + ft.Optional("flags"),
 			Example: "--name=myalert" +
 				" --tag=investigation" +
 				" --dispatchers=39350375-4f73-44c3-bc15-e844009a5fa6,61f75c57-2324-4dae-9b65-73430fd0363f" +

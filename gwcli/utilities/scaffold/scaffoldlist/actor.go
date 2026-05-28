@@ -141,7 +141,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 		if la.outFile != nil {
 			return textinput.Blink
 		}
-		return tea.Println("no data found")
+		return tea.Println(la.options.EmptyMessage)
 	}
 
 	// output the results to a file, if given

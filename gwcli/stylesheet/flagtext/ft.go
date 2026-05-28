@@ -21,13 +21,16 @@ package ft
 // If a flag needs to modify its parameters (custom usage, set a default value), Name(), Usage(), and Shorthand() are available for manual installation.
 
 import (
+	"errors"
 	"fmt"
 	"go/types"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -177,21 +180,6 @@ func (s singular) Register(fs *pflag.FlagSet, defaultVal string, singular string
 }
 
 var (
-	LogPath = simple{
-		name:         "log",
-		shorthand:    'l',
-		usage:        "log location for developer logs",
-		defaultValue: cfgdir.DefaultStdLogPath,
-		typ:          types.String,
-	}
-	LogLevel = simple{
-		name: "loglevel",
-		usage: "log level for developer logs (-l).\n" +
-			"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n" +
-			"NOTE: DEBUG mode will enable additional validation checks and may have a minor performance impact.",
-		defaultValue: "INFO",
-		typ:          types.String,
-	}
 	// NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
 	NoInteractive = simple{
 		name:      "no-interactive",
@@ -415,6 +403,21 @@ func MutuallyExclusive(texts []string) string {
 	return "{" + strings.Join(texts, "|") + "}"
 }
 
+// ErrMutuallyExclusive returns a user-friendly error declaring that all given items were given, but are mutually exclusive.
+//
+// Flags should be given sans "--" prefix.
+//
+// Returns ErrInternal's text if len(flags) < 2.
+func ErrMutuallyExclusive(mxFlags ...string) error {
+	if len(mxFlags) < 2 {
+		clilog.Writer.Warn("ErrMutuallyExclusive called with fewer than 2 flags", log.KV("caller", log.CallLoc(1)), log.KV("flags", mxFlags))
+		return clilog.ErrInternal{}
+	}
+
+	flagList := "--" + strings.Join(mxFlags[:len(mxFlags)-1], ", --") // condense all but the last
+	return errors.New(flagList + ", and --" + mxFlags[len(mxFlags)-1] + " are mutually exclusive")
+}
+
 // flagCaveatStyle sets what extra notes on flag descriptions look like.
 var flagCaveatStyle = lipgloss.NewStyle().Italic(true)
 
@@ -426,4 +429,14 @@ func InteractiveOnly() string {
 
 func NonInteractiveOnly() string {
 	return flagCaveatStyle.Render("Non-Interactive only.")
+}
+
+// VariadicArgs returns Usage text for actions that take a variable number of the same argument.
+//
+// itemName will be used as "<itemName>1 <itemName>2 ... <itemName>N".
+func VariadicArgs(itemName string, atLeastOneRequired bool) string {
+	if atLeastOneRequired {
+		return Mandatory(itemName+"1") + " " + Optional(itemName+"2 ... "+itemName+"N")
+	}
+	return Optional(itemName + "1" + " " + itemName + "2 ... " + itemName + "N")
 }

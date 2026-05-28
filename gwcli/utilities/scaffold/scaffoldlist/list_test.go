@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
@@ -587,4 +588,70 @@ func TestHelpGeneration(t *testing.T) {
 			t.Fatalf("custom example text not found in example line: %v", exampleLine)
 		}
 	})
+}
+
+func TestEmptyMessage(t *testing.T) {
+	t.Run("interactive", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			opts    scaffoldlist.Options
+			wantOut string
+		}{
+			{"default", scaffoldlist.Options{}, scaffoldlist.DefaultEmptyMessage},
+			{"override set", scaffoldlist.Options{EmptyMessage: "override set"}, "override set"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				pair := scaffoldlist.NewListAction("test function", "this is a test function",
+					types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+						// always return nil
+						return nil, nil
+					},
+					nil,
+					tt.opts)
+
+				uniques.AttachPersistentFlags(pair.Action)
+				testsupport.CheckSetArgs(t, pair.Model.SetArgs, pair.Action.Flags(), nil, 80, 60, false, nil, false)
+
+				assert.Equal(t, tt.wantOut, testsupport.ExtractPrintLineMessageString(t, pair.Model.Update(nil), false, 0))
+			})
+		}
+	})
+	t.Run("non-interactive", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			opts    scaffoldlist.Options
+			setArgs []string
+			wantOut string
+		}{
+			{"default", scaffoldlist.Options{}, nil, scaffoldlist.DefaultEmptyMessage},
+			{"default with -x", scaffoldlist.Options{}, []string{"-x"}, ""},
+			{"override set", scaffoldlist.Options{EmptyMessage: "override set"}, nil, "override set"},
+			{"override set with -x", scaffoldlist.Options{EmptyMessage: "override set"}, []string{"-x"}, ""},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				pair := scaffoldlist.NewListAction("test function", "this is a test function",
+					types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+						// always return nil
+						return nil, nil
+					},
+					nil,
+					tt.opts)
+
+				var sbOut, sbErr strings.Builder
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				uniques.AttachPersistentFlags(pair.Action)
+				pair.Action.SetArgs(tt.setArgs)
+				_ = pair.Action.Execute()
+
+				out, err := strings.TrimSpace(sbOut.String()), strings.TrimSpace(sbErr.String())
+
+				assert.Empty(t, err)
+				assert.Equal(t, tt.wantOut, out)
+			})
+		}
+	})
+
 }

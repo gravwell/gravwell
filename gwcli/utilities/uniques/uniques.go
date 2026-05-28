@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -53,8 +54,8 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	//
 	// This is distinction must be made because we cannot parse all flags early as we do not know the full list of acceptable flags until an action has been determined.
 	// However, we want the logger to come online early.
-	ft.LogPath.Register(cmd.PersistentFlags())
-	ft.LogLevel.Register(cmd.PersistentFlags())
+	cmd.PersistentFlags().StringP(clilog.FlagLogPath.Name, clilog.FlagLogPath.Shorthand, clilog.FlagLogPath.DefaultValue, clilog.FlagLogPath.Description)
+	cmd.PersistentFlags().String(clilog.FlagLogLevel.Name, clilog.FlagLogLevel.DefaultValue, clilog.FlagLogLevel.Description)
 }
 
 // Help generates the full help text for a command and prints it on c.Out.
