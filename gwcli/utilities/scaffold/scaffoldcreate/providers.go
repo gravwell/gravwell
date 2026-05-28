@@ -9,6 +9,7 @@
 package scaffoldcreate
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -24,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 )
 
 type ViewKind uint
@@ -77,6 +79,7 @@ var _ FieldProvider = &TextProvider{}
 var _ FieldProvider = &PathProvider{}
 var _ FieldProvider = &MSLProvider{}
 var _ FieldProvider = &BoolProvider{}
+var _ FieldProvider = &NumberProvider{}
 
 type TextProvider struct {
 	ti textinput.Model
@@ -403,12 +406,18 @@ func (p *MSLProvider) ToggleFocus(_ bool) {
 	// MSL doesn't actually care if it is in focus
 }
 
+//#region bool provider
+
 type BoolProvider struct {
 	initial bool // starter value to be .Reset() to
 	state   bool
+
+	// Used to hook SetArgs for custom alterations at each action invocation.
+	// Useful for pre-populating.
+	CustomSetArgs func() bool
 }
 
-// Initialize sets value to BooleanProvider.Initial.
+// Initialize sets value to default value iff it passes ParseBool.
 func (p *BoolProvider) Initialize(def string, _ bool) {
 	if b, err := strconv.ParseBool(def); err == nil {
 		p.initial = b
@@ -420,8 +429,12 @@ func (p *BoolProvider) Initialize(def string, _ bool) {
 // Reset returns value to .Initial
 func (p *BoolProvider) Reset() { p.state = p.initial }
 
-// SetArgs has no effect.
-func (p *BoolProvider) SetArgs(_, _ int) {}
+// SetArgs only calls the custom set args, if given.
+func (p *BoolProvider) SetArgs(_, _ int) {
+	if p.CustomSetArgs != nil {
+		p.state = p.CustomSetArgs()
+	}
+}
 
 func (p *BoolProvider) Update(selected bool, msg tea.Msg) (_ tea.Cmd, takeover bool) {
 	if selected && hotkeys.Match(msg, hotkeys.Select) {
@@ -458,3 +471,93 @@ func (p *BoolProvider) Get() string {
 }
 
 func (p *BoolProvider) ToggleFocus(focus bool) {}
+
+//#region number provider
+
+type NumberProvider struct {
+	initial int64
+
+	ti textinput.Model
+
+	DigitLimit uint // if set, limits the number of digits that can be put in the TI
+
+	// Used to hook SetArgs for custom alterations at each action invocation.
+	// Useful for setting suggestions/validation based on current data.
+	CustomSetArgs func(textinput.Model) textinput.Model
+}
+
+// Initialize sets value to default value iff it passes ParseInt.
+func (p *NumberProvider) Initialize(def string, required bool) {
+	p.ti = stylesheet.NewTI("", !required)
+	p.ti.Validate = func(s string) error {
+		s = strings.TrimSpace(s)
+		if required && (s == "" || s == "0") {
+			return errors.New("field is required")
+		}
+		if len(s) > 0 && s[0] == '-' { // do not numeric-test a minus sign
+			s = s[1:]
+		}
+		return validate.Numeric(s)
+	}
+	if p.DigitLimit != 0 {
+		p.ti.CharLimit = int(p.DigitLimit)
+	}
+	if def != "" {
+		if i, err := strconv.ParseInt(def, 10, 64); err == nil {
+			p.initial = i
+		}
+	}
+
+	p.Reset()
+}
+func (p *NumberProvider) Reset() {
+	p.ti.Reset()
+	p.ti.SetValue(strconv.FormatInt(p.initial, 10))
+
+}
+
+func (p *NumberProvider) SetArgs(_, _ int) {
+	if p.CustomSetArgs != nil {
+		p.ti = p.CustomSetArgs(p.ti)
+	}
+}
+
+func (p *NumberProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
+	p.ti, cmd = p.ti.Update(msg)
+	return cmd, false
+}
+
+func (p *NumberProvider) View(_ bool, _ int) (_ ViewKind, value, _ string) {
+	return TitleValue, p.ti.View(), ""
+}
+
+func (p *NumberProvider) Satisfied() (invalid string) {
+	if p.ti.Err != nil {
+		return p.ti.Err.Error()
+	}
+	return ""
+}
+
+func (p *NumberProvider) Set(val string) (invalid string) {
+	if val = strings.TrimSpace(val); val == "" {
+		return ""
+	}
+	if _, err := strconv.ParseInt(val, 10, 64); err != nil {
+		return err.Error()
+	}
+
+	p.ti.SetValue(val)
+	return ""
+}
+
+func (p *NumberProvider) Get() string {
+	return p.ti.Value()
+}
+
+func (p *NumberProvider) ToggleFocus(focus bool) {
+	if focus {
+		p.ti.Focus()
+		return
+	}
+	p.ti.Blur()
+}

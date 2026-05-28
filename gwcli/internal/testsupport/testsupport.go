@@ -177,7 +177,7 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 		if voInnerMsg := voInnerCmd.Call(nil); len(voInnerMsg) != 1 {
 			t.Fatal("bad output count", ExpectedActual(1, len(voInnerMsg)))
 		} else {
-			voPLM = voInnerMsg[sequenceIndex]
+			voPLM = voInnerMsg[0]
 		}
 	} else { // not a sequence, just a raw printLineMessage (or an interface of a Msg)
 		voPLM = voMsg
