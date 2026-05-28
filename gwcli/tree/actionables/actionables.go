@@ -107,25 +107,44 @@ func get() action.Pair {
 }
 
 func create() action.Pair {
+	path := scaffoldcreate.FieldPath("")
+	path.Flag.Usage = "path to the JSON file containing the actionable's contents. " +
+		"If not provided, the actionable will be created empty."
+	path.Required = false
 	return scaffoldcreate.NewCreateAction("actionable",
-		map[string]scaffoldcreate.Field{},
+		map[string]scaffoldcreate.Field{
+			"name":        scaffoldcreate.FieldName("actionable"),
+			"description": scaffoldcreate.FieldDescription("actionable"),
+			"labels":      scaffoldcreate.FieldLabels(),
+			"path":        path,
+		},
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			spec := types.Actionable{}
+			// stuff common fields into the actionable
+			spec := types.Actionable{
+				CommonFields: types.CommonFields{
+					Name:        fields["name"].Provider.Get(),
+					Description: fields["description"].Provider.Get(),
+				},
+			}
+			for lbl := range strings.SplitSeq(fields["labels"].Provider.Get(), ",") {
+				lbl = strings.TrimSpace(lbl)
+				if lbl == "" {
+					continue
+				}
+				spec.CommonFields.Labels = append(spec.CommonFields.Labels, lbl)
+			}
 
-			// extract common field values
-			spec.CommonFields = types.CommonFields{
-				Name:        fields["name"].Provider.Get(),
-				Description: fields["description"].Provider.Get(),
+			// attempt to read from the given JSON, if provided
+			if jsonPath := fields["path"].Provider.Get(); jsonPath != "" {
+				b, err := os.ReadFile(jsonPath)
+				if err != nil {
+					return 0, err.Error(), nil
+				}
+				if err := json.Unmarshal(b, &spec.Contents); err != nil {
+					return 0, err.Error(), nil
+				}
 			}
-			// attempt to read from the given JSON
-			jsonPath := fields["path"].Provider.Get()
-			b, err := os.ReadFile(jsonPath)
-			if err != nil {
-				return 0, err.Error(), nil
-			}
-			if err := json.Unmarshal(b, &spec.Contents); err != nil {
-				return 0, err.Error(), nil
-			}
+
 			new, err := connection.Client.CreateActionable(spec)
 			return new.ID, "", err
 		},
@@ -185,6 +204,7 @@ func jsonAction() action.Pair {
 
 }
 
+// TODO reimplement when scaffoldedit upgrade is done
 // editAction updates a pivot's name and/or description.
 /*func editAction() action.Pair {
 	cfg := scaffoldedit.Config{
@@ -234,7 +254,7 @@ func jsonAction() action.Pair {
 }*/
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("pivot", "pivots",
+	return scaffolddelete.NewDeleteAction("actionable", "actionables",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetActionable(id)
