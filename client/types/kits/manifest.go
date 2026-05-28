@@ -20,8 +20,6 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -36,7 +34,7 @@ const (
 	ScheduledSearch ItemType = 2
 	Dashboard       ItemType = 3
 	Extractor       ItemType = 4
-	Pivot           ItemType = 5
+	Actionable      ItemType = 5
 	Template        ItemType = 6
 	File            ItemType = 7
 	Macro           ItemType = 8
@@ -44,6 +42,8 @@ const (
 	License         ItemType = 10
 	Playbook        ItemType = 11
 	Alert           ItemType = 12
+	ScheduledScript ItemType = 13
+	Flow            ItemType = 14
 	External        ItemType = 0xffff
 )
 
@@ -74,7 +74,7 @@ var (
 		item{tp: ScheduledSearch, nm: `scheduled search`, ext: `scheduled_search`},
 		item{tp: Dashboard, nm: `dashboard`, ext: `dashboard`},
 		item{tp: Extractor, nm: `autoextractor`, ext: `autoextractor`},
-		item{tp: Pivot, nm: `pivot`, ext: `pivot`},
+		item{tp: Actionable, nm: `actionable`, ext: `actionable`},
 		item{tp: Template, nm: `template`, ext: `template`},
 		item{tp: File, nm: `file`, ext: `file`},
 		item{tp: Macro, nm: `macro`, ext: `macro`},
@@ -82,6 +82,8 @@ var (
 		item{tp: License, nm: `license`, ext: `license`},
 		item{tp: Playbook, nm: `playbook`, ext: `playbook`},
 		item{tp: Alert, nm: `alert`, ext: `alert`},
+		item{tp: ScheduledScript, nm: `scheduled script`, ext: `scheduled_script`},
+		item{tp: Flow, nm: `flow`, ext: `flow`},
 	}
 )
 
@@ -134,13 +136,7 @@ func (m *Manifest) Add(item Item) error {
 }
 
 func (m *Manifest) checkFileItem(val string) (bool, error) {
-	//check that the argument is a UUID
-	if _, err := uuid.Parse(val); err != nil {
-		return false, err
-	}
-
-	//swing through the item list and ensure that we have an included file
-	//with the appropriate UUID (basically if you are declaring an icon, we better have that file)
+	//swing through the item list and ensure that we have an included file with the given name.
 	for _, v := range m.Items {
 		if v.Type != File {
 			continue

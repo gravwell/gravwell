@@ -20,9 +20,10 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/spf13/cobra"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -63,7 +64,7 @@ func initBuiltins() {
 			stylesheet.Cur.ExampleText.Render("help ~ kits list") +
 			", " +
 			stylesheet.Cur.ExampleText.Render("help query"),
-		"history": "List previous commands. Navigate history via " + stylesheet.UpDownSigils,
+		"history": "List previous commands. Navigate history via " + sigils.UpDown,
 		"pwd":     "Current working directory (path)",
 		"quit":    "Kill the application",
 		"exit":    "Kill the application",
@@ -138,7 +139,7 @@ func localTree(m *Mother, end *cobra.Command, excess []string) tea.Cmd {
 	// we were given a command path.
 	// validate it and attempt to root the tree at the end of the path
 
-	wr, err := uniques.Walk(end, strings.Join(excess, " "), builtinKeys)
+	wr, err := traverse.Walk(end, strings.Join(excess, " "), builtinKeys)
 	if err != nil {
 		clilog.Writer.Error("failed to walk excess input for tree command",
 			rfc5424.SDParam{Name: "excess", Value: strings.Join(excess, " ")},

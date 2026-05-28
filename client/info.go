@@ -57,14 +57,14 @@ func (c *Client) getGuiSettings() (types.GUISettings, error) {
 
 // MySessions returns an array of the current user's sessions.
 func (c *Client) MySessions() ([]types.Session, error) {
-	if c.userDetails.UID == 0 {
+	if c.userDetails.ID == 0 {
 		return nil, ErrNotSynced
 	}
-	return c.Sessions(c.userDetails.UID)
+	return c.Sessions(c.userDetails.ID)
 }
 
 // MyInfo returns the current user's information.
-func (c *Client) MyInfo() (types.UserDetails, error) {
+func (c *Client) MyInfo() (types.User, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	return c.getMyInfo()
@@ -72,7 +72,7 @@ func (c *Client) MyInfo() (types.UserDetails, error) {
 
 // MyUID returns the current user's numeric user ID.
 func (c *Client) MyUID() int32 {
-	return c.userDetails.UID
+	return c.userDetails.ID
 }
 
 // MyAdminStatus returns true if the current user is marked as an administrator.
@@ -81,10 +81,10 @@ func (c *Client) MyAdminStatus() bool {
 }
 
 // Groups returns the current user's group memberships.
-func (c *Client) Groups() (gps []types.GroupDetails, err error) {
+func (c *Client) Groups() (gps []types.Group, err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	if c.userDetails.UID == 0 {
+	if c.userDetails.ID == 0 {
 		if err = c.syncNoLock(); err != nil {
 			return
 		}
@@ -93,8 +93,8 @@ func (c *Client) Groups() (gps []types.GroupDetails, err error) {
 	return
 }
 
-func (c *Client) getMyInfo() (types.UserDetails, error) {
-	dets := types.UserDetails{}
+func (c *Client) getMyInfo() (types.User, error) {
+	dets := types.User{}
 	if err := c.getStaticURL(USER_INFO_URL, &dets); err != nil {
 		return dets, err
 	}

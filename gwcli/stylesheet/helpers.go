@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/spf13/cobra"
 )
 
@@ -67,27 +68,61 @@ func Button(text string) string {
 	return btn
 }
 
+var minSubmitButtonWidth = Cur.ComposableSty.ComplimentaryBorder.GetBorderLeftSize() + Cur.ComposableSty.ComplimentaryBorder.GetBorderRightSize() +
+	len("submit") + 1 + 2 // +1 expected pip width & +2 padding
+
 // ViewSubmitButton displays... a submit button.
-// It displays the error if set.
-// Same for the result.
+// It displays one of the errors if set, 1, then 2.
 // If not displaying either, it displays a box with "submit" in it.
-func ViewSubmitButton(selected bool, result, errStr string) string {
-	var (
-		str string
-		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
-	)
-	if errStr != "" {
-		str = Cur.ComposableSty.ComplimentaryBorder.Render(Cur.ErrorText.Render(errStr))
-	} else if result != "" {
-		str = Cur.ComposableSty.ComplimentaryBorder.Render(result)
-	} else {
-		str = Button("submit")
+//
+// The returned object will be centered relative to width.
+// Width should be > 4 to ensure text is wrapped properly without screwing up the border.
+func ViewSubmitButton(selected bool, paneWidth int, errors ...string) string {
+	// sanity check width
+	if paneWidth < minSubmitButtonWidth {
+		clilog.Writer.Warnf("pane width is below minimum (%v); overriding to minimum", minSubmitButtonWidth)
+		paneWidth = minSubmitButtonWidth
 	}
+	var (
+		pip    string
+		btnTxt string
+	)
+
+	// configure pip
 	if selected {
 		pip = Cur.Pip()
+	} else {
+		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
+	}
+	// find the first non-empty error
+	for _, e := range errors {
+		if e != "" {
+			btnTxt = e
+			break
+		}
+	}
+	if btnTxt == "" { // if no valid error was found, return a submit button
+		return lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(paneWidth).Render(
+			lipgloss.JoinHorizontal(lipgloss.Center,
+				pip,
+				Button("submit"),
+			))
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Center, pip, str)
+	// sets the width the error text can take up.
+	// textWidth <= paneWidth-2
+	textWidth := (paneWidth * 3) / 5 // enable the text to take up most, but not all, of the pane
+	// wrap and style text
+	btnTxt = Cur.ErrorText.AlignHorizontal(lipgloss.Center).Width(textWidth).Render(btnTxt)
+	// box the text
+	btnTxt = Cur.ComposableSty.ComplimentaryBorder.Render(btnTxt)
+	// pip, then pad and center
+	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(paneWidth).Render(
+		lipgloss.JoinHorizontal(lipgloss.Center,
+			pip,
+			btnTxt,
+		),
+	)
 }
 
 // Index returns the given number, styled as an index number in a list or table.
@@ -174,4 +209,14 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 
 	// wrap the contents in a border and prefix the top
 	return sb.String(), nil
+}
+
+// RequiredTitle is just a helper function to consistently attach a colon and color the given text as the primary color.
+func RequiredTitle(s string) string {
+	return Cur.PrimaryText.Render(s + ":")
+}
+
+// OptionalTitle is just a helper function to consistently attach a colon and color the given text as the secondary color.
+func OptionalTitle(s string) string {
+	return Cur.SecondaryText.Render(s + ":")
 }

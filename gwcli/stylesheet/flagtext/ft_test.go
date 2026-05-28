@@ -1,3 +1,5 @@
+//go:build ci
+
 // Package ft_test is an almost redundant unit testing package.
 package ft_test
 

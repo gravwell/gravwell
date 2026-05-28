@@ -16,12 +16,18 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -57,25 +63,62 @@ func Type(prog *tea.Program, text string) {
 	}
 }
 
-// TTMatchGolden compares the output (final View) of tm against the test's associated output file.
+// TypeUpdate sends each character of text into the given update function, one by one.
+func TypeUpdate(update func(msg tea.Msg) tea.Cmd, text string) {
+	for _, r := range text {
+		update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+}
+
+// TTMatchGolden is a convenience function to check FinalOutput or Output of tm against its golden.
 //
-// ! This blocks until tm returns.
-func TTMatchGolden(t *testing.T, tm *teatest.TestModel) {
+// ! If final, this blocks until tm returns.
+func TTMatchGolden(t *testing.T, tm *teatest.TestModel, final bool, finalWait time.Duration) []byte {
 	t.Helper()
-	out, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(3*time.Second)))
+	var o io.Reader
+	if !final {
+		o = tm.Output()
+	} else {
+		o = tm.FinalOutput(t, teatest.WithFinalTimeout(finalWait))
+	}
+	out, err := io.ReadAll(o)
 	if err != nil {
 		t.Error(err)
 	}
 	// matches on the golden file with the test function's name
 	teatest.RequireEqualOutput(t, out)
+	return out
 }
 
 //#endregion TeaTest
+
+const ENV_SERVER string = "GWCLI_TEST_SERVER"
+
+// Server attempts to pull the server string from the environment.
+// Returns localhost:80 if the env var is unset or empty
+func Server() string {
+	if s, found := os.LookupEnv(ENV_SERVER); found {
+		return s
+	}
+	return "localhost:80"
+}
 
 // ExpectedActual returns a string declaring what was expected and what we got instead.
 // ! Prefixes the string with a newline.
 func ExpectedActual(expected, actual any) string {
 	return fmt.Sprintf("\n\tExpected:'%+v'\n\tGot:'%+v'", expected, actual)
+}
+
+// Uncloak replaces whitespace characters with visible representations.
+//
+// \t 		-> ↹ (U+21B9)
+// \n 		-> ↵ (U+21B5) (newline will be retained, not replaced)
+// (space) 	-> · (U+B7)
+func Uncloak(s string) string {
+	s = strings.ReplaceAll(s, " ", "·")
+	s = strings.ReplaceAll(s, "\n", "↵\n")
+	s = strings.ReplaceAll(s, "\t", "↹")
+	return s
 }
 
 // NonZeroExit calls Fatal if code is <> 0.
@@ -113,7 +156,7 @@ func SlicesUnorderedEqual(a []string, b []string) bool {
 func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequenceIndex uint) string {
 	t.Helper()
 	voMsg := reflect.ValueOf(cmd())
-	t.Logf("Update msg kind: %v", voMsg.Kind())
+	//t.Logf("Update msg kind: %v", voMsg.Kind())
 	// this will be a slice if it is a sequence or a struct if a single msg
 	var voPLM reflect.Value
 	if voMsg.Kind() == reflect.Slice {
@@ -153,4 +196,210 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 		t.Fatal(ExpectedActual(reflect.String, voMessageBody.Kind()))
 	}
 	return voMessageBody.String()
+}
+
+// CheckSetArgs calls SetArgs on the given Model and tests that its return values are as expected.
+//
+// Calls fatal on failure.
+func CheckSetArgs(t *testing.T,
+	setArgsFunc func(parentFS *pflag.FlagSet, tokens []string, width int, height int) (invalid string, onStart tea.Cmd, err error),
+	flagset *pflag.FlagSet, tokens []string, width, height int,
+	wantInvalid bool, wantOnStart tea.Cmd, wantErr bool) {
+	t.Helper()
+	invalid, onStart, err := setArgsFunc(flagset, tokens, width, height)
+
+	if (invalid != "") != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || (err != nil) != wantErr {
+		t.Fatal("bad SetArgs results."+
+			"\nWantInvalid? ", wantInvalid, " | Invalid: ", invalid,
+			"\nonStart:", ExpectedActual(wantOnStart, onStart),
+			"\nWantErr?", wantErr, " | err:", err)
+	}
+}
+
+// LinesTrimSpace calls strings.TrimSpace on each line of the given string, allowing multiline strings to be compared white-space-agnostic.
+func LinesTrimSpace(v string) string {
+	var sb strings.Builder
+	for line := range strings.SplitSeq(v, "\n") {
+		sb.WriteString(strings.TrimSpace(line) + "\n")
+	}
+
+	return sb.String()
+}
+
+// SendHotkey converts a key.Binding into a tea.KeyMsg.
+//
+// Sends the first key in a binding, ignoring any others.
+//
+// ! Aimed at sending the bindings defined in hotkeys; this is a best-effort helper function.
+func SendHotkey(b key.Binding) tea.KeyMsg {
+	keys := b.Keys()
+	if len(keys) == 0 {
+		return tea.KeyMsg{}
+	}
+	msg := tea.KeyMsg{}
+
+	// check for and trim off alt prefix
+	k, altFound := strings.CutPrefix(keys[0], "alt+")
+	if altFound {
+		msg.Alt = true
+	}
+
+	// attempt a direct lookup
+	if t, found := keyByName[strings.ToLower(k)]; found {
+		msg.Type = t
+		return msg
+	}
+
+	// if we didn't find it via direct, just assume it is arbitrary runes
+
+	msg.Type = tea.KeyRunes
+	msg.Runes = []rune(k)
+
+	return msg
+}
+
+var keyByName = map[string]tea.KeyType{
+	// Control keys.
+	"ctrl+@":    tea.KeyCtrlAt,
+	"ctrl+a":    tea.KeyCtrlA,
+	"ctrl+b":    tea.KeyCtrlB,
+	"ctrl+c":    tea.KeyCtrlC,
+	"ctrl+d":    tea.KeyCtrlD,
+	"ctrl+e":    tea.KeyCtrlE,
+	"ctrl+f":    tea.KeyCtrlF,
+	"ctrl+g":    tea.KeyCtrlG,
+	"ctrl+h":    tea.KeyCtrlH,
+	"tab":       tea.KeyTab,
+	"ctrl+j":    tea.KeyCtrlJ,
+	"ctrl+k":    tea.KeyCtrlK,
+	"ctrl+l":    tea.KeyCtrlL,
+	"enter":     tea.KeyEnter,
+	"ctrl+n":    tea.KeyCtrlN,
+	"ctrl+o":    tea.KeyCtrlO,
+	"ctrl+p":    tea.KeyCtrlP,
+	"ctrl+q":    tea.KeyCtrlQ,
+	"ctrl+r":    tea.KeyCtrlR,
+	"ctrl+s":    tea.KeyCtrlS,
+	"ctrl+t":    tea.KeyCtrlT,
+	"ctrl+u":    tea.KeyCtrlU,
+	"ctrl+v":    tea.KeyCtrlV,
+	"ctrl+w":    tea.KeyCtrlW,
+	"ctrl+x":    tea.KeyCtrlX,
+	"ctrl+y":    tea.KeyCtrlY,
+	"ctrl+z":    tea.KeyCtrlZ,
+	"esc":       tea.KeyEsc,
+	"ctrl+\\":   tea.KeyCtrlBackslash,
+	"ctrl+]":    tea.KeyCtrlCloseBracket,
+	"ctrl+^":    tea.KeyCtrlCaret,
+	"ctrl+_":    tea.KeyCtrlUnderscore,
+	"backspace": tea.KeyBackspace,
+
+	// Other keys.
+	"runes":            tea.KeyRunes,
+	"up":               tea.KeyUp,
+	"down":             tea.KeyDown,
+	"right":            tea.KeyRight,
+	" ":                tea.KeySpace,
+	"left":             tea.KeyLeft,
+	"shift+tab":        tea.KeyShiftTab,
+	"home":             tea.KeyHome,
+	"end":              tea.KeyEnd,
+	"ctrl+home":        tea.KeyCtrlHome,
+	"ctrl+end":         tea.KeyCtrlEnd,
+	"shift+home":       tea.KeyShiftHome,
+	"shift+end":        tea.KeyShiftEnd,
+	"ctrl+shift+home":  tea.KeyCtrlShiftHome,
+	"ctrl+shift+end":   tea.KeyCtrlShiftEnd,
+	"pgup":             tea.KeyPgUp,
+	"pgdown":           tea.KeyPgDown,
+	"ctrl+pgup":        tea.KeyCtrlPgUp,
+	"ctrl+pgdown":      tea.KeyCtrlPgDown,
+	"delete":           tea.KeyDelete,
+	"insert":           tea.KeyInsert,
+	"ctrl+up":          tea.KeyCtrlUp,
+	"ctrl+down":        tea.KeyCtrlDown,
+	"ctrl+right":       tea.KeyCtrlRight,
+	"ctrl+left":        tea.KeyCtrlLeft,
+	"shift+up":         tea.KeyShiftUp,
+	"shift+down":       tea.KeyShiftDown,
+	"shift+right":      tea.KeyShiftRight,
+	"shift+left":       tea.KeyShiftLeft,
+	"ctrl+shift+up":    tea.KeyCtrlShiftUp,
+	"ctrl+shift+down":  tea.KeyCtrlShiftDown,
+	"ctrl+shift+left":  tea.KeyCtrlShiftLeft,
+	"ctrl+shift+right": tea.KeyCtrlShiftRight,
+	"f1":               tea.KeyF1,
+	"f2":               tea.KeyF2,
+	"f3":               tea.KeyF3,
+	"f4":               tea.KeyF4,
+	"f5":               tea.KeyF5,
+	"f6":               tea.KeyF6,
+	"f7":               tea.KeyF7,
+	"f8":               tea.KeyF8,
+	"f9":               tea.KeyF9,
+	"f10":              tea.KeyF10,
+	"f11":              tea.KeyF11,
+	"f12":              tea.KeyF12,
+	"f13":              tea.KeyF13,
+	"f14":              tea.KeyF14,
+	"f15":              tea.KeyF15,
+	"f16":              tea.KeyF16,
+	"f17":              tea.KeyF17,
+	"f18":              tea.KeyF18,
+	"f19":              tea.KeyF19,
+	"f20":              tea.KeyF20,
+}
+
+// MetaArgs assists tests in calling tree.Execute by generating the meta arguments common to most test Execute calls.
+func MetaArgs(t *testing.T, allowInteractive bool, opts ...func(t *testing.T) []string) (metaArgs []string) {
+	meta := []string{}
+	if !allowInteractive {
+		meta = append(meta, "--"+ft.NoInteractive.Name())
+	}
+	for _, opt := range opts {
+		meta = append(meta, opt(t)...)
+	}
+	t.Log("meta args: ", meta)
+	return meta
+}
+
+// WithUsernamePassword includes -u and sets the given password into the test environment.
+func WithUsernamePassword(u, p string) func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		t.Setenv(cfgdir.EnvKeyPassword, p)
+		return []string{"-u", u}
+	}
+}
+
+// WithServer includes --server=host:port in the meta args.
+//
+// If secure, --insecure will not be appended.
+//
+// If override is empty, testsupport.Server will be used.
+func WithServer(secure bool, override string) func(t *testing.T) []string {
+	server := override
+	if server == "" {
+		server = Server()
+	}
+	var sec string
+	if !secure {
+		sec = "--insecure"
+	}
+	return func(t *testing.T) []string {
+		a := []string{"--server=" + server}
+		if sec != "" {
+			a = append(a, sec)
+		}
+		return a
+	}
+}
+
+// WithDefaults sets WithUsernamePassword as the default admin credentials and WithServer as insecure relying on testsupport.Server()
+func WithDefaults() func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		return append(
+			WithUsernamePassword("admin", "changeme")(t),
+			WithServer(false, "")(t)...,
+		)
+	}
 }
