@@ -115,6 +115,7 @@ func (j *jobIngesterAdapter) Run(ctx context.Context, rt Runtime) error {
 			rt.Error("sync state failed", log.KVErr(syncErr))
 		}
 
+		rt.Debug("handle complete", log.KV("next", cont.String()))
 		if cont == nil {
 			return nil
 		}

@@ -136,10 +136,7 @@ func (m *Mimecast) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Conti
 	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
-	if hasPending.Load() {
-		return hosted.ContinueNow(), nil
-	}
-	return m.conf.ContinueAfterInterval(), nil
+	return m.conf.PendingOrInterval(hasPending.Load()), nil
 }
 
 func (m *Mimecast) auditOnce(ctx context.Context, rt hosted.Runtime) (hasPending bool,
