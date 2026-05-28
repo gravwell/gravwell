@@ -6,21 +6,23 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package pivots provides actions for managing Gravwell pivots (actionable items).
+// Package actionables provides actions for managing Gravwell pivots (actionable items).
 package actionables
 
 import (
 	"encoding/json"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -34,12 +36,14 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("actionables", "manage actionables",
 		"Actionables are items that appear when hovering over data in the Gravwell web interface.\n"+ // TODO
 			"They allow users to quickly pivot from a data value to a related search or action.\n"+
-			"Actionable contents are stored as a JSON blob describing the actionable behaviour.",
+			"Actionable contents are stored as a JSON blob describing the actionable behavior.",
 		[]string{"pivot", "pivots", "actionable"}, nil,
 		[]action.Pair{
 			listAction(),
+			get(),
 			create(),
 			delete(),
+			jsonAction(),
 		})
 }
 
@@ -66,7 +70,41 @@ func listAction() action.Pair {
 }
 
 // get is another list command, but provides better handling of the actual actionable triggers/commands
-func get() // TODO
+func get() action.Pair {
+	return scaffold.NewBasicAction("get", "view actionables as JSON",
+		"Display the JSON description of one or many actionables."+
+			"These descriptions can be used to export/import actionables via "+stylesheet.Cur.Action.Render("create")+".",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			var sb strings.Builder
+			for _, ID := range fs.Args() {
+				a, err := connection.Client.GetActionable(ID)
+				if err != nil {
+					if phrases.IsNotFoundErr(err) {
+						return ID + " is not a known actionable ID", nil
+					}
+					return err.Error(), nil
+				}
+				b, err := json.Marshal(a.Contents)
+				if err != nil {
+					return err.Error(), nil
+				}
+				sb.WriteString(string(b))
+				sb.WriteString("\n")
+			}
+			return sb.String(), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: "get " + ft.VariadicArgs("actionable ID", true),
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() < 1 {
+					return phrases.AtLeast1ArgRequired("actionable IDs"), nil
+				}
+				return "", nil
+			},
+		})
+}
 
 func create() action.Pair {
 	return scaffoldcreate.NewCreateAction("actionable",
@@ -85,7 +123,7 @@ func create() action.Pair {
 			if err != nil {
 				return 0, err.Error(), nil
 			}
-			if err := json.Unmarshal(b, spec.Contents); err != nil {
+			if err := json.Unmarshal(b, &spec.Contents); err != nil {
 				return 0, err.Error(), nil
 			}
 			new, err := connection.Client.CreateActionable(spec)
@@ -101,26 +139,48 @@ func create() action.Pair {
 
 // displays the json template used to populate actionables
 func jsonAction() action.Pair {
-	return scaffold.NewBasicAction("json", "display actionable JSON schema", "", // TODO
+	return scaffold.NewBasicAction("json", "display actionable JSON schema",
+		"Print the JSON schema expected for creating Actionables via the cli.",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
-			withComments, err := fs.GetBool("comments")
-			clilog.GetFlag(err)
-			if withComments {
-				// TODO print comment version
-				return
-			}
-			// TODO print normal JSON
-			return
+			return `{
+  "MenuLabel": "My Actionable",
+  "Actions": [
+    {
+      "Name": "action1",
+      "Description": "",
+      "Placeholder": "",
+      "NoValueURLEncode": true,
+      "Start": {
+        "Type": "timestamp or string",
+        "Format": "Unix if (timestamp) || YYYY-MM-DDThh:mm if (type==string && empty)",
+        "Placeholder": "_START_ if empty"
+      },
+      "End": {
+        "Type": "timestamp or string",
+        "Format": "Unix if (timestamp) || YYYY-MM-DDThh:mm if (type==string && empty)",
+        "Placeholder": "_END_ if empty"
+      },
+      "Command": {
+        "Type": "query, template, dashboard, saved_query, url",
+        "Reference": "",
+        "Options": {
+          "Variable": "Template and dashboard commands use Variable.",
+          "ModalWidth": "URL commands use Modal, ModalWidth, and NoValueURLEncode.",
+          "NoValueURLEncode": true
+        }
+      }
+    }
+  ],
+  "Triggers": [
+    {
+      "Pattern": "/javascript regex: see developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions/g",
+      "Hyperlink": false,
+      "Disabled": false
+    }
+  ]
+}`, nil
 		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("comments", false, "include comments in the json")
-					return fs
-				},
-			},
-		},
+		scaffold.BasicOptions{},
 	)
 
 }
