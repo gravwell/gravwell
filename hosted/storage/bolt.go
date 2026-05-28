@@ -258,6 +258,9 @@ func (bw *BucketWriter) Sync() error {
 	if err := bw.check(); err != nil {
 		return err
 	}
+	if err := bw.sh.check(); err != nil {
+		return err
+	}
 	return bw.sh.db.Sync()
 }
 
