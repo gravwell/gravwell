@@ -14,7 +14,6 @@ package groups
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -186,8 +185,7 @@ func listUsers() action.Pair {
 				listUsersGID = int32(gid)
 				// test that the GID points to a valid group
 				if _, err := connection.Client.GetGroup(int32(gid)); err != nil {
-					// GetGroup's NotFound equivalent is "sql: no rows in result set"
-					if strings.Contains(err.Error(), "sql: no rows in result set") {
+					if phrases.IsNotFoundErr(err) {
 						return fmt.Sprintf("%d is not a known group ID", gid), nil
 					}
 					return "", err

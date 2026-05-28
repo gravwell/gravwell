@@ -12,9 +12,12 @@
 package phrases
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v3/client"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 )
@@ -102,3 +105,16 @@ func (sid ErrUnknownSID) Error() string {
 }
 
 var _ error = ErrUnknownSID("")
+
+// IsNotFoundErr returns whether or not the given error should be treated as a Not Found error.
+// We have to use this function as client.ErrNotFound is not reliably used... yet.
+//
+// This function can be replaced once issues#2483 is done.
+func IsNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, client.ErrNotFound) ||
+		strings.Contains(err.Error(), "sql: no rows in result set") ||
+		err.Error() == "Not Found"
+}
