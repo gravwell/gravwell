@@ -69,6 +69,7 @@ type Storage interface {
 	PutInt64(string, int64) error
 	GetTime(string) (time.Time, error)
 	PutTime(string, time.Time) error
+	Sync() error // Flush state to disk.
 }
 
 // Logger is a cut down interface from github.com/gravwell/gravwell/ingest/log.Logger

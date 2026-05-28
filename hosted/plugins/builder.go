@@ -57,7 +57,11 @@ type TesterBuilder struct {
 }
 
 func (tb *TesterBuilder) Build(tn hosted.TagNegotiator) (hosted.Ingester, error) {
-	return tester.NewTesterIngester(*(tb.config), tn)
+	t, err := tester.NewTesterIngester(*(tb.config), tn)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJob(t), nil
 }
 
 func NewTesterBuilder(config *tester.Config, kind, id, version string) *TesterBuilder {

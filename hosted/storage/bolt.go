@@ -253,6 +253,14 @@ func (bw *BucketWriter) PutTime(key string, value time.Time) (err error) {
 	return
 }
 
+// Sync flushes state to disk.
+func (bw *BucketWriter) Sync() error {
+	if err := bw.check(); err != nil {
+		return err
+	}
+	return bw.sh.db.Sync()
+}
+
 // func retslice is just a wrapper around a make and copy so that we can safely return slices from bolt Views
 func retslice(v []byte) (r []byte) {
 	if len(v) > 0 {
