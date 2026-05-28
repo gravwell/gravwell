@@ -12,18 +12,23 @@ import (
 
 // testRuntime is a full in-memory implementation of Runtime used across all
 // hosted package tests. The sleepFunc field can be overridden to control
-// sleep behaviour without real wall-clock delays.
+// sleep behaviour without real wall-clock delays. aliveFunc can be overridden
+// to control Alive() independently of context cancellation.
 type testRuntime struct {
-	mu        sync.Mutex
-	ctx       context.Context
-	cancel    context.CancelFunc
-	store     map[string][]byte
-	syncCalls int
-	syncErr   error
-	entries   []entry.Entry
-	tags      map[string]entry.EntryTag
-	nextTag   entry.EntryTag
-	sleepFunc func(time.Duration) bool // nil = real sleep
+	mu             sync.Mutex
+	ctx            context.Context
+	cancel         context.CancelFunc
+	store          map[string][]byte
+	syncCalls      int
+	syncErr        error
+	entries        []entry.Entry
+	tags           map[string]entry.EntryTag
+	nextTag        entry.EntryTag
+	sleepFunc      func(time.Duration) bool // nil = real sleep
+	aliveFunc      func() bool              // nil = use context
+	sleepDurations []time.Duration          // all recorded sleep calls
+	warnCalls      int
+	infoCalls      int
 }
 
 func newTestRuntime(ctx context.Context, cancel context.CancelFunc) *testRuntime {
@@ -36,9 +41,17 @@ func newTestRuntime(ctx context.Context, cancel context.CancelFunc) *testRuntime
 }
 
 // Runtime
-func (r *testRuntime) Alive() bool             { return r.ctx.Err() == nil }
+func (r *testRuntime) Alive() bool {
+	if r.aliveFunc != nil {
+		return r.aliveFunc()
+	}
+	return r.ctx.Err() == nil
+}
 func (r *testRuntime) Context() context.Context { return r.ctx }
 func (r *testRuntime) Sleep(d time.Duration) bool {
+	r.mu.Lock()
+	r.sleepDurations = append(r.sleepDurations, d)
+	r.mu.Unlock()
 	if r.sleepFunc != nil {
 		return r.sleepFunc(d)
 	}
@@ -98,11 +111,34 @@ func (r *testRuntime) syncCount() int {
 	defer r.mu.Unlock()
 	return r.syncCalls
 }
+func (r *testRuntime) warnCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.warnCalls
+}
+func (r *testRuntime) infoCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.infoCalls
+}
+func (r *testRuntime) recordedSleeps() []time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]time.Duration(nil), r.sleepDurations...)
+}
 
 // Logger
-func (r *testRuntime) Debug(_ string, _ ...rfc5424.SDParam)    {}
-func (r *testRuntime) Info(_ string, _ ...rfc5424.SDParam)     {}
-func (r *testRuntime) Warn(_ string, _ ...rfc5424.SDParam)     {}
+func (r *testRuntime) Debug(_ string, _ ...rfc5424.SDParam) {}
+func (r *testRuntime) Info(_ string, _ ...rfc5424.SDParam) {
+	r.mu.Lock()
+	r.infoCalls++
+	r.mu.Unlock()
+}
+func (r *testRuntime) Warn(_ string, _ ...rfc5424.SDParam) {
+	r.mu.Lock()
+	r.warnCalls++
+	r.mu.Unlock()
+}
 func (r *testRuntime) Error(_ string, _ ...rfc5424.SDParam)    {}
 func (r *testRuntime) Critical(_ string, _ ...rfc5424.SDParam) {}
 

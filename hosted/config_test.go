@@ -173,3 +173,27 @@ func TestPollingConfig_ContinueAfterInterval(t *testing.T) {
 		t.Errorf("expected 30s delay, got %v", c.Delay)
 	}
 }
+
+func TestPollingConfig_PendingOrInterval(t *testing.T) {
+	p := PollingConfig{Request_Interval: 30}
+
+	t.Run("pending returns immediate", func(t *testing.T) {
+		c := p.PendingOrInterval(true)
+		if c == nil {
+			t.Fatal("expected non-nil")
+		}
+		if c.Delay != 0 {
+			t.Errorf("expected zero delay, got %v", c.Delay)
+		}
+	})
+
+	t.Run("not pending returns interval", func(t *testing.T) {
+		c := p.PendingOrInterval(false)
+		if c == nil {
+			t.Fatal("expected non-nil")
+		}
+		if c.Delay != 30*time.Second {
+			t.Errorf("expected 30s delay, got %v", c.Delay)
+		}
+	})
+}

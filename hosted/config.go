@@ -87,3 +87,9 @@ func (p *PollingConfig) LookbackDuration() time.Duration {
 func (p *PollingConfig) ContinueAfterInterval() *Continuation {
 	return ContinueAfter(time.Duration(p.Request_Interval) * time.Second)
 }
+
+// PendingOrInterval returns ContinueNow if pending is true, otherwise ContinueAfterInterval.
+// Use this at the end of Handle to collapse the common pagination fan-out pattern.
+func (p *PollingConfig) PendingOrInterval(pending bool) *Continuation {
+	return ContinueNowOrAfter(pending, time.Duration(p.Request_Interval)*time.Second)
+}
