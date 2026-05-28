@@ -38,8 +38,10 @@ const (
 	ResourceWrite      Capability = 13
 	TemplateRead       Capability = 14
 	TemplateWrite      Capability = 15
-	PivotRead          Capability = 16
-	PivotWrite         Capability = 17
+	PivotRead          Capability = 16 // Legacy name
+	ActionableRead     Capability = 16
+	PivotWrite         Capability = 17 // Legacy name
+	ActionableWrite    Capability = 17
 	MacroRead          Capability = 18
 	MacroWrite         Capability = 19
 	LibraryRead        Capability = 20
@@ -293,10 +295,10 @@ func (c Capability) Name() string {
 		return `TemplateRead`
 	case TemplateWrite:
 		return `TemplateWrite`
-	case PivotRead:
-		return `PivotRead`
-	case PivotWrite:
-		return `PivotWrite`
+	case ActionableRead:
+		return `ActionableRead`
+	case ActionableWrite:
+		return `ActionableWrite`
 	case MacroRead:
 		return `MacroRead`
 	case MacroWrite:
@@ -394,9 +396,9 @@ func (c Capability) Category() CapabilityCategory {
 	case Ingest:
 		return IngestCat
 
-	case PivotRead:
+	case ActionableRead:
 		return ActionablesCat
-	case PivotWrite:
+	case ActionableWrite:
 		return ActionablesCat
 
 	case DashboardRead:
@@ -531,9 +533,13 @@ func (c *Capability) Parse(v string) (err error) {
 	case `templatewrite`:
 		*c = TemplateWrite
 	case `pivotread`:
-		*c = PivotRead
+		fallthrough
+	case `actionableread`:
+		*c = ActionableRead
 	case `pivotwrite`:
-		*c = PivotWrite
+		fallthrough
+	case `actionablewrite`:
+		*c = ActionableWrite
 	case `macroread`:
 		*c = MacroRead
 	case `macrowrite`:
@@ -641,10 +647,10 @@ func (c Capability) String() string {
 		return `Template Read`
 	case TemplateWrite:
 		return `Template Write`
-	case PivotRead:
-		return `Pivot Read`
-	case PivotWrite:
-		return `Pivot Write`
+	case ActionableRead:
+		return `Actionable Read`
+	case ActionableWrite:
+		return `Actionable Write`
 	case MacroRead:
 		return `Macro Read`
 	case MacroWrite:
@@ -750,9 +756,9 @@ func (c Capability) Description() string {
 		return `User can read and use search templates`
 	case TemplateWrite:
 		return `User can create and modify templates`
-	case PivotRead:
+	case ActionableRead:
 		return `User can read and use actionables`
-	case PivotWrite:
+	case ActionableWrite:
 		return `User can create and modify actionables`
 	case MacroRead:
 		return `User can read and use macros`

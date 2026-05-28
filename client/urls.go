@@ -11,8 +11,6 @@ package client
 import (
 	"fmt"
 	"path"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -168,9 +166,9 @@ const (
 	TEMPLATES_LIST_URL               = "/api/templates/list"
 	TEMPLATES_ID_URL                 = "/api/templates/%s"
 	TEMPLATES_ID_DETAILS_URL         = "/api/templates/%s/details"
-	PIVOTS_URL                       = "/api/pivots"
-	PIVOTS_ID_URL                    = "/api/pivots/%s"
-	PIVOTS_ID_DETAILS_URL            = "/api/pivots/%s/details"
+	ACTIONABLES_URL                  = "/api/actionables"
+	ACTIONABLES_LIST_URL             = "/api/actionables/list"
+	ACTIONABLES_ID_URL               = "/api/actionables/%s"
 	FILES_URL                        = "/api/files"
 	FILES_LIST_URL                   = "/api/files/list"
 	FILES_ID_URL                     = "/api/files/%s"
@@ -568,12 +566,8 @@ func templateUrl(id string) string {
 	return fmt.Sprintf(TEMPLATES_ID_URL, id)
 }
 
-func pivotsUrl() string {
-	return PIVOTS_URL
-}
-
-func pivotsGuidUrl(guid uuid.UUID) string {
-	return fmt.Sprintf(PIVOTS_ID_URL, guid)
+func actionableIdUrl(id string) string {
+	return fmt.Sprintf(ACTIONABLES_ID_URL, id)
 }
 
 func filesUrl() string {

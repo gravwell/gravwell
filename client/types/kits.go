@@ -136,7 +136,7 @@ type KitBuildRequest struct {
 	MaxVersion        CanonicalVersion  `json:",omitempty"`
 	Dashboards        []string          `json:",omitempty"`
 	Templates         []string          `json:",omitempty"`
-	Pivots            []uuid.UUID       `json:",omitempty"`
+	Actionables       []string          `json:",omitempty"`
 	Resources         []string          `json:",omitempty"`
 	ScheduledSearches []string          `json:",omitempty"`
 	ScheduledScripts  []string          `json:",omitempty"`
@@ -278,9 +278,9 @@ func (pbr *KitBuildRequest) Validate() error {
 			return errors.New("invalid template ID")
 		}
 	}
-	for i := range pbr.Pivots {
-		if pbr.Pivots[i] == uuid.Nil {
-			return errors.New("zero UUID in pivots list")
+	for i := range pbr.Actionables {
+		if pbr.Actionables[i] == "" {
+			return errors.New("invalid actionable ID")
 		}
 	}
 	for i := range pbr.Files {
@@ -332,7 +332,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
 		return errors.New("build request does not contain any items")
 	}
