@@ -99,7 +99,7 @@ type MimecastBuilder struct {
 }
 
 func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator) (hosted.Ingester, error) {
-	return mimecast.New(mb.config), nil
+	return hosted.WrapJob(mimecast.New(mb.config)), nil
 }
 
 func NewMimecastBuilder(config *mimecast.Config, kind, id, version string) *MimecastBuilder {
