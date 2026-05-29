@@ -583,7 +583,7 @@ type TextAreaProvider struct {
 	}
 
 	// If set, applies Markdown syntax highlighting to the content.
-	Markdown bool
+	//Markdown bool
 
 	// NormalModeDisplay generates the text to display inline with other fields (ex: when the TextArea is not in takeover mode).
 	//
