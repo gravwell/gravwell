@@ -94,10 +94,10 @@ func list() action.Pair {
 func download() action.Pair {
 	return scaffold.NewBasicAction("download", "download a file", "Download a file for use locally.",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			// arg length checked by the options
+			if fs.NArg() != 1 {
+				return phrases.Exactly1ArgRequired("file ID"), nil
+			}
 			id := fs.Arg(0)
-
-			// TODO remove me after registry updates
 
 			outPath, err := fs.GetString(ft.Output.Name())
 			if err != nil {
