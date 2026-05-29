@@ -209,7 +209,7 @@ type PackedScheduledSearch struct {
 
 	SearchString           string `json:",omitempty"` // The actual search to run
 	Duration               int64  `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
-	DefaultDeploymentRules types.ScriptDeployConfig
+	DefaultDeploymentRules types.AutomationDeployConfig
 	ID                     string // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
 	SearchReference        string // Used if we're referencing a search query asset by ID instead of including the search directly.
 }
@@ -269,7 +269,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		SearchString           string `json:",omitempty"`
 		SearchReference        string `json:",omitempty"`
 		Duration               int64  `json:",omitempty"`
-		DefaultDeploymentRules types.ScriptDeployConfig
+		DefaultDeploymentRules types.AutomationDeployConfig
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,
@@ -292,7 +292,7 @@ type PackedScheduledScript struct {
 
 	Script                 string `json:",omitempty"`
 	ScriptLanguage         types.ScriptLang
-	DefaultDeploymentRules types.ScriptDeployConfig
+	DefaultDeploymentRules types.AutomationDeployConfig
 }
 
 // PackScheduledScript converts a ScheduledScript into a PackedScheduledScript for inclusion in a kit.
@@ -341,7 +341,7 @@ func (pss *PackedScheduledScript) JSONMetadata() (json.RawMessage, error) {
 		Name                   string
 		Description            string
 		Schedule               string
-		DefaultDeploymentRules types.ScriptDeployConfig
+		DefaultDeploymentRules types.AutomationDeployConfig
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,
@@ -360,7 +360,7 @@ type PackedFlow struct {
 	Schedule    string // when to run: a cron spec
 
 	Flow                   string
-	DefaultDeploymentRules types.ScriptDeployConfig
+	DefaultDeploymentRules types.AutomationDeployConfig
 }
 
 // PackFlow converts a Flow into a PackedFlow for inclusion in a kit.
@@ -407,7 +407,7 @@ func (pss *PackedFlow) JSONMetadata() (json.RawMessage, error) {
 		Name                   string
 		Description            string
 		Schedule               string
-		DefaultDeploymentRules types.ScriptDeployConfig
+		DefaultDeploymentRules types.AutomationDeployConfig
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,

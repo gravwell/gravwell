@@ -120,14 +120,14 @@ func (c *Client) ListRemoteKits(all bool) (mds []types.KitMetadata, err error) {
 }
 
 // ListKits returns a list of all installed and staged kits.
-func (c *Client) ListKits() (pkgs []types.IdKitState, err error) {
+func (c *Client) ListKits() (pkgs []types.KitState, err error) {
 	err = c.getStaticURL(kitUrl(), &pkgs)
 	return
 }
 
 // KitInfo returns information about a particular installed/staged kit, specified
 // by the kit's UUID.
-func (c *Client) KitInfo(id uuid.UUID) (ki types.IdKitState, err error) {
+func (c *Client) KitInfo(id uuid.UUID) (ki types.KitState, err error) {
 	err = c.getStaticURL(kitIdUrl(id.String()), &ki)
 	return
 }
@@ -235,7 +235,7 @@ func (c *Client) KitDownloadRequest(id string) (*http.Response, error) {
 
 // AdminListKits is an admin-only function which lists all kits on the system.
 // Non-administrators will get the same list as returned by ListKits.
-func (c *Client) AdminListKits() (pkgs []types.IdKitState, err error) {
+func (c *Client) AdminListKits() (pkgs []types.KitState, err error) {
 	c.SetAdminMode()
 	if err = c.getStaticURL(kitUrl(), &pkgs); err != nil {
 		pkgs = nil

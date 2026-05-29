@@ -642,7 +642,7 @@ func (c *Client) PurgeUser(id int32) error {
 		return fmt.Errorf("failed to list kits %w", err)
 	} else if len(ks) > 0 {
 		for _, k := range ks {
-			if k.UID == id {
+			if k.OwnerID == id {
 				if err := nc.ForceDeleteKit(k.ID); err != nil {
 					return fmt.Errorf("failed to purge user kit %v - %w", k.ID, err)
 				}

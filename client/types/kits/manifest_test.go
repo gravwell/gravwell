@@ -9,6 +9,7 @@
 package kits
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 const (
@@ -46,42 +48,46 @@ func TestMain(m *testing.M) {
 func TestAddIcon(t *testing.T) {
 	m := Manifest{Version: Version}
 	// add some garbage
-	m.Add(Item{
+	m.Add(types.KitItem{
 		Name: `foo`,
-		Type: 2,
+		ID:   uuid.New().String(),
+		Type: types.KitAssetScheduledSearch,
 	})
 
-	iconFile := Item{
-		Name: uuid.New().String(),
-		Type: File,
+	iconID := uuid.New().String()
+	iconFile := types.KitItem{
+		Name: iconID,
+		ID:   iconID,
+		Type: types.KitAssetFile,
 	}
 	//try setting it when we haven't added the icon file yet
-	if err := m.SetIcon(iconFile.Name); err == nil {
+	if err := m.SetIcon(iconFile.ID); err == nil {
 		t.Fatal("Failed to catch missing icon on setting")
 	}
 	//add it and try again
 	if err := m.Add(iconFile); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.SetIcon(iconFile.Name); err != nil {
+	if err := m.SetIcon(iconFile.ID); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestMarshal(t *testing.T) {
-	a := Item{
+	a := types.KitItem{
 		Name: `foo`,
-		Type: 2,
+		ID:   uuid.New().String(),
+		Type: types.KitAssetScheduledSearch,
 	}
 	for i := range a.Hash {
 		a.Hash[i] = byte(i)
 	}
-	bts, err := a.MarshalJSON()
+	bts, err := json.Marshal(a)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var b Item
-	if err = b.UnmarshalJSON(bts); err != nil {
+	var b types.KitItem
+	if err = json.Unmarshal(bts, &b); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(a, b) {
