@@ -54,9 +54,11 @@ func (c *Config) Verify() (err error) {
 	} else if c.Request_Per_Minute > 6000 {
 		return errors.New("Requests-Per-Minute must be < 6000")
 	}
+
 	if c.Request_Burst <= 0 {
 		c.Request_Burst = defaultRequestBurst
 	}
+
 	if c.Token == `` {
 		return errors.New("missing okta authentication token")
 	}
@@ -66,6 +68,7 @@ func (c *Config) Verify() (err error) {
 		err = fmt.Errorf("%q is not an okta domain", c.Domain)
 		return
 	}
+
 	if c.Ingester_UUID == `` {
 		return errors.New("missing Ingester-UUID")
 	} else if _, err = uuid.Parse(c.Ingester_UUID); err != nil {
