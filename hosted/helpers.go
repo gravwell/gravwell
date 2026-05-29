@@ -8,16 +8,16 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 )
 
-// GetTimeOrDefault loads a time from rt.
+// GetTimeOrDefault loads a time from s.
 // Returns fallback if the key is absent, zero, or in the future.
-func GetTimeOrDefault(rt Runtime, key string, fallback time.Time) (time.Time, error) {
-	ts, err := rt.GetTime(key)
+func GetTimeOrDefault(s Storage, key string, fallback time.Time) (time.Time, error) {
+	ts, err := s.GetTime(key)
 	if err != nil {
 		if errors.Is(err, storage.ErrStorageNotFound) {
 			return fallback, nil
 		}
 
-		return time.Time{}, fmt.Errorf("get time: %w", err)
+		return time.Time{}, fmt.Errorf("unexpected error getting time: %w", err)
 	}
 
 	if ts.IsZero() || ts.After(time.Now()) {
@@ -27,17 +27,17 @@ func GetTimeOrDefault(rt Runtime, key string, fallback time.Time) (time.Time, er
 	return ts, nil
 }
 
-// GetStringOrDefault loads a string from rt.
+// GetStringOrDefault loads a string from s.
 // Returns fallback if the key is absent.
-func GetStringOrDefault(rt Runtime, key, fallback string) (string, error) {
-	s, err := rt.GetString(key)
+func GetStringOrDefault(s Storage, key, fallback string) (string, error) {
+	str, err := s.GetString(key)
 	if err != nil {
 		if errors.Is(err, storage.ErrStorageNotFound) {
 			return fallback, nil
 		}
 
-		return "", fmt.Errorf("get string: %w", err)
+		return "", fmt.Errorf("unexpected error getting string: %w", err)
 	}
 
-	return s, nil
+	return str, nil
 }

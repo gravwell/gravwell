@@ -132,7 +132,7 @@ func TestGetStringOrDefault_EmptyStoredValue(t *testing.T) {
 func TestGetStringOrDefault_PropagatesNonNotFoundError(t *testing.T) {
 	ctx := t.Context()
 	// Use a runtime whose GetString returns a non-NotFound error by injecting
-	// a bad raw value that causes downstream failure — we simulate this by
+	// a bad raw value that causes downstream failure. We simulate this by
 	// overriding the store with a value that will trip the parser in GetTime,
 	// but for strings we need a different approach. Use a wrappedErrRuntime.
 	rt := &errStringRuntime{testRuntime: newTestRuntime(ctx, func() {})}

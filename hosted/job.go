@@ -68,13 +68,23 @@ func ContinueNowOrAfter(pending bool, d time.Duration) *Continuation {
 
 // WrapJob adapts a Job to the Ingester interface for use with NativeRunner.
 // The adapter owns the poll looping, errors from Handle are logged and retried
-// after jobErrorDelay rather than surfacing to the runner's restart logic.
+// after JobErrorDelay rather than surfacing to the runner's restart logic.
 func WrapJob(j Job) Ingester {
 	return &jobIngesterAdapter{job: j}
 }
 
+// WrapJobWithSync adapts a Job to the Ingester interface, additionally calling
+// syncFn after each successful Handle to flush state to disk. This narrows the
+// duplicate-on-restart window to only entries still in the muxer's in-memory
+// channel. Anything that reached the disk cache is matched by durable state.
+// The syncFn is typically BucketWriter.Sync from the ingester's state store.
+func WrapJobWithSync(j Job, syncFn func() error) Ingester {
+	return &jobIngesterAdapter{job: j, syncFn: syncFn}
+}
+
 type jobIngesterAdapter struct {
-	job Job
+	job    Job
+	syncFn func() error // optional; called after each successful Handle
 }
 
 func (j *jobIngesterAdapter) Run(ctx context.Context, rt Runtime) error {
@@ -107,12 +117,13 @@ func (j *jobIngesterAdapter) Run(ctx context.Context, rt Runtime) error {
 			continue
 		}
 
-		// Sync our state before sleeping.
-		// This can narrow down the duplicatation window to only entries that are
-		// still in the muxer's in-memory channel.
-		// Anything that has reached the disk cache will be in storage.
-		if syncErr := rt.Sync(); syncErr != nil {
-			rt.Error("sync state failed", log.KVErr(syncErr))
+		// Sync state to disk before sleeping. This narrows the duplicate
+		// window to only entries still in the muxer's in-memory channel.
+		// anything that reached the disk cache is now matched by durable state.
+		if j.syncFn != nil {
+			if syncErr := j.syncFn(); syncErr != nil {
+				rt.Error("sync state failed", log.KVErr(syncErr))
+			}
 		}
 
 		rt.Debug("handle complete", log.KV("next", cont.String()))

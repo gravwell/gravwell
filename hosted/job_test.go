@@ -125,13 +125,13 @@ func TestJobFunc_SyncCalledAfterEachHandle(t *testing.T) {
 	rt.sleepFunc = func(_ time.Duration) bool { return false }
 
 	calls := 0
-	WrapJob(JobFunc(func(_ context.Context, _ Runtime) (*Continuation, error) {
+	WrapJobWithSync(JobFunc(func(_ context.Context, _ Runtime) (*Continuation, error) {
 		calls++
 		if calls >= 3 {
 			return Stop(), nil
 		}
 		return ContinueNow(), nil
-	})).Run(ctx, rt) //nolint:errcheck
+	}), rt.Sync).Run(ctx, rt) //nolint:errcheck
 
 	if rt.syncCount() != 3 {
 		t.Errorf("expected 3 sync calls, got %d", rt.syncCount())
@@ -185,7 +185,7 @@ func TestWrapJob_SyncCalledAfterEachSuccessfulHandle(t *testing.T) {
 		},
 	}
 
-	if err := WrapJob(job).Run(ctx, rt); err != nil {
+	if err := WrapJobWithSync(job, rt.Sync).Run(ctx, rt); err != nil {
 		t.Fatal(err)
 	}
 
@@ -195,7 +195,7 @@ func TestWrapJob_SyncCalledAfterEachSuccessfulHandle(t *testing.T) {
 }
 
 // TestWrapJob_SyncNotCalledOnError verifies that a failed Handle does not
-// trigger a state sync — there is nothing reliable to persist.
+// trigger a state sync. There is nothing reliable to persist.
 func TestWrapJob_SyncNotCalledOnError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	rt := newTestRuntime(ctx, cancel)
@@ -209,7 +209,7 @@ func TestWrapJob_SyncNotCalledOnError(t *testing.T) {
 		onCall: func(_ int, _ Runtime) { cancel() },
 	}
 
-	WrapJob(job).Run(ctx, rt) //nolint:errcheck
+	WrapJobWithSync(job, rt.Sync).Run(ctx, rt) //nolint:errcheck
 
 	if got := rt.syncCount(); got != 0 {
 		t.Errorf("expected 0 sync calls after error, got %d", got)
@@ -231,7 +231,7 @@ func TestWrapJob_SyncErrorIsNonFatal(t *testing.T) {
 		},
 	}
 
-	if err := WrapJob(job).Run(ctx, rt); err != nil {
+	if err := WrapJobWithSync(job, rt.Sync).Run(ctx, rt); err != nil {
 		t.Errorf("expected nil error despite sync failure, got %v", err)
 	}
 	if job.callCount() != 2 {
@@ -253,7 +253,7 @@ func TestWrapJob_RetriesAfterError(t *testing.T) {
 		},
 	}
 
-	if err := WrapJob(job).Run(ctx, rt); err != nil {
+	if err := WrapJobWithSync(job, rt.Sync).Run(ctx, rt); err != nil {
 		t.Fatal(err)
 	}
 
@@ -304,7 +304,7 @@ func TestWrapJob_HandlesCanceledContextFromHandle(t *testing.T) {
 		},
 	}
 
-	if err := WrapJob(job).Run(ctx, rt); err != nil {
+	if err := WrapJobWithSync(job, rt.Sync).Run(ctx, rt); err != nil {
 		t.Errorf("expected nil error for context.Canceled, got %v", err)
 	}
 	if got := rt.syncCount(); got != 0 {
@@ -330,7 +330,7 @@ func TestWrapJob_MultipleHandleCyclesSyncCount(t *testing.T) {
 		},
 	}
 
-	if err := WrapJob(job).Run(ctx, rt); err != nil {
+	if err := WrapJobWithSync(job, rt.Sync).Run(ctx, rt); err != nil {
 		t.Fatal(err)
 	}
 

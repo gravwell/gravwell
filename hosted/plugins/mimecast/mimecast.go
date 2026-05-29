@@ -199,7 +199,7 @@ func (m *Mimecast) auditOnce(ctx context.Context, rt hosted.Runtime) (hasPending
 		rt.Debug("moving forward in time", api, log.KV("to", tr.End))
 		_ = rt.PutTime(m.timestamp(AuditApi), tr.End)
 	}
-	hasPending = r.Meta.Pagination.Next != ""
+	hasPending = len(r.Data) > 0 && r.Meta.Pagination.Next != ""
 	return
 }
 
@@ -250,7 +250,7 @@ func (m *Mimecast) mtaEventOnce(ctx context.Context, rt hosted.Runtime, api Api)
 			last))
 		_ = rt.PutTime(m.timestamp(api), last)
 	}
-	hasPending = events.NextPage != ""
+	hasPending = !events.IsCaughtUp
 	return
 }
 

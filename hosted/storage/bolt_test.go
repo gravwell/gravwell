@@ -650,7 +650,7 @@ func TestBucketWriter_Sync(t *testing.T) {
 }
 
 // TestBucketWriter_PersistsAcrossReopen verifies that data survives a close
-// and reopen of the database — the fundamental contract of persistent storage.
+// and reopen of the database. This is the fundamental contract of persistent storage.
 func TestBucketWriter_PersistsAcrossReopen(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "persist.db")
 
@@ -711,7 +711,7 @@ func TestBucketWriter_PersistsAcrossReopen(t *testing.T) {
 func TestBucketWriter_UseAfterClose(t *testing.T) {
 	sh, bw := openTestDB(t, "after_close")
 
-	// Close explicitly — the t.Cleanup will try again but that's fine.
+	// Close explicitly before the test ends. The t.Cleanup will try again but that's fine.
 	if err := sh.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
