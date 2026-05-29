@@ -12,6 +12,7 @@ package playbooks
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -129,17 +130,24 @@ func create() action.Pair {
 		map[string]scaffoldcreate.Field{
 			"name": scaffoldcreate.FieldName("playbook"),
 			"desc": scaffoldcreate.FieldDescription("playbook"),
-			"path": path,
+			"content": {
+				Title:    "Content",
+				Required: false,
+				Flag: scaffoldcreate.FlagConfig{Usage: "Markdown content of the new playbook." +
+					"Use " + ft.Path.Name() + " to read content from a file instead."},
+				Order:    80,
+				Provider: &scaffoldcreate.TextAreaProvider{},
+			},
+			"labels": scaffoldcreate.FieldLabels(),
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
-			// slurp the contents
-			// TODO
 			pb := types.Playbook{
 				CommonFields: types.CommonFields{
 					Name:        cfg["name"].Provider.Get(),
 					Description: cfg["desc"].Provider.Get(),
+					Labels:      strings.Split(strings.TrimSpace(cfg["labels"].Provider.Get()), ","),
 				},
-				Body: cfg["path"].Provider.Get(),
+				Body: cfg["content"].Provider.Get(),
 			}
 			result, err := connection.Client.CreatePlaybook(pb)
 			return result.ID, "", err
