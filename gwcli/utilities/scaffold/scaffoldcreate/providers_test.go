@@ -596,26 +596,68 @@ func TestNumberProvider(t *testing.T) {
 
 func TestTextAreaProvider(t *testing.T) {
 	t.Parallel()
-	baseProvider := &scaffoldcreate.TextAreaProvider{}
-	f := scaffoldcreate.NewField("test", false,
-		baseProvider,
-	)
-	t.Run("the basics", func(t *testing.T) {
-		f.Provider.Initialize("my default value", false)
-		assert.Equal(t, "my default value", f.Provider.Get())
-		f.Provider.Set("my second value")
-		assert.Equal(t, "my second value", f.Provider.Get())
-	})
 
 	t.Run("full cycle, no modifiers set", func(t *testing.T) {
-		f.Provider.SetArgs(50, 20)
-		_, takeover := f.Provider.Update(false, nil)
-		assert.False(t, takeover)
-		vk, val, second := f.Provider.View(false, 0)
-		assert.Equal(t, scaffoldcreate.TitleValue, vk)
-		actual, actualSecond := scaffoldcreate.DefaultTextAreaUnselectedText(false)
-		assert.Equal(t, actual, val)
-		assert.Equal(t, actualSecond, second)
-		assert.Equal(t, "", f.Provider.Satisfied())
+		baseProvider := &scaffoldcreate.TextAreaProvider{}
+		f := scaffoldcreate.NewField("test", false,
+			baseProvider,
+		)
+		t.Run("the basics", func(t *testing.T) {
+			f.Provider.Initialize("my default value", false)
+			assert.Equal(t, "my default value", f.Provider.Get())
+			f.Provider.Set("my second value")
+			assert.Equal(t, "my second value", f.Provider.Get())
+		})
+		t.Run("full cycle", func(t *testing.T) {
+			f.Provider.SetArgs(50, 20)
+			_, takeover := f.Provider.Update(false, nil)
+			assert.False(t, takeover)
+			vk, val, second := f.Provider.View(false, 0)
+			assert.Equal(t, scaffoldcreate.TitleValue, vk)
+			actual, actualSecond := scaffoldcreate.DefaultTextAreaUnselectedText(false)
+			assert.Equal(t, actual, val)
+			assert.Equal(t, actualSecond, second)
+			assert.Equal(t, "", f.Provider.Satisfied())
+			// now check when selected
+			vk, val, second = f.Provider.View(true, 0)
+			assert.Equal(t, scaffoldcreate.TitleValue, vk)
+			actual, actualSecond = scaffoldcreate.DefaultTextAreaUnselectedText(true)
+			assert.Equal(t, actual, val)
+			assert.Equal(t, actualSecond, second)
+			assert.Equal(t, "", f.Provider.Satisfied())
+		})
+		t.Run("takeover mode", func(t *testing.T) {
+			// enter takeover mode
+			_, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
+			assert.True(t, takeover)
+			// make sure view agrees
+			vk, _, second := f.Provider.View(true, 0)
+			assert.Equal(t, scaffoldcreate.Takeover, vk)
+			assert.Empty(t, second)
+
+			// pass a message into the TA
+			f.Provider.Update(true, tea.KeyMsg{Type: tea.KeyEnter})
+			for _, r := range "a multiline" {
+				msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+				f.Provider.Update(true, msg)
+			}
+			f.Provider.Update(true, tea.KeyMsg{Type: tea.KeyEnter})
+			for _, r := range "sentence" {
+				msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+				f.Provider.Update(true, msg)
+			}
+
+			// exit takeover mode
+			f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorDown))
+			_, takeover = f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Invoke))
+			assert.False(t, takeover)
+
+			// we should get 3 lines: the two we installed and the default value (as we never back-spaced)
+			{
+				val := f.Provider.Get()
+				lines := strings.Split(strings.TrimSpace(val), "\n")
+				assert.Equal(t, []string{"my second value", "a multiline", "sentence"}, lines)
+			}
+		})
 	})
 }
