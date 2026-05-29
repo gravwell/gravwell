@@ -632,12 +632,15 @@ func (p *TextAreaProvider) SetArgs(width, height int) {
 		p.ta = p.CustomSetArgs(p.ta)
 	}
 	p.ta.SetWidth(width)
-	p.ta.SetHeight(height)
+	p.ta.SetHeight(height - 4)
 }
 
 func (p *TextAreaProvider) Update(hovered bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
 	// if the message is a window size message, it should always be passed to the ta
 	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		// make sure the TA leaves rooms for the submit button
+		wsm.Height -= 4
+
 		p.ta, cmd = p.ta.Update(wsm)
 		return cmd, p.takeover.in
 	}
@@ -669,6 +672,8 @@ func (p *TextAreaProvider) Update(hovered bool, msg tea.Msg) (cmd tea.Cmd, takeo
 	// check for takeover mode invocation
 	if hovered && hotkeys.Match(msg, hotkeys.Select) {
 		p.takeover.in = true
+		p.takeover.taSelected = true
+		p.ta.Focus()
 		return nil, true
 	}
 	return cmd, false
@@ -681,7 +686,8 @@ func (p *TextAreaProvider) View(selected bool, _ int) (_ ViewKind, value, second
 		if !selected {
 			clilog.Writer.Warnf("TA provider is in takeover mode, but is not selected!")
 		}
-		return Takeover, p.ta.View(), ""
+
+		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.takeover.taSelected, p.ta.Width()), ""
 	}
 	main, secondLine := p.NormalModeDisplay(selected)
 
