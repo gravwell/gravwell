@@ -33,7 +33,7 @@ func TestIs(t *testing.T) {
 
 	// create a known nav
 	// NOTE(rlandau): this also adds actions underneath this nav to the action map
-	statusNav := systemshealth.NewSystemsNav()
+	statusNav := systemshealth.NewNav()
 	if action.Is(statusNav) {
 		t.Fatal("known Nav classified as Action")
 	}

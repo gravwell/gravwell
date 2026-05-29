@@ -38,8 +38,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// NewExtractorsNav returns a nav based around manipulating autoextractors.
-func NewExtractorsNav() *cobra.Command {
+// NewNav returns a nav based around manipulating autoextractors.
+func NewNav() *cobra.Command {
 	const (
 		use   string = "extractors"
 		short string = "manage your tag autoextractors"

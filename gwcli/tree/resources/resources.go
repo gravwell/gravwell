@@ -40,7 +40,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewResourcesNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "resources"
 		short string = "manage persistent search data"

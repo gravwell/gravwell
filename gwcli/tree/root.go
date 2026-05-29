@@ -43,6 +43,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/playbooks"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
@@ -349,19 +350,20 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	var cmdFn = []func() *cobra.Command{
 		actionables.NewNav,
 		admin.NewNav,
-		alerts.NewAlertsNav,
+		alerts.NewNav,
+		dashboards.NewNav,
 		email.NewNav,
-		extractors.NewExtractorsNav,
+		extractors.NewNav,
 		files.NewNav,
 		flows.NewNav,
-		macros.NewMacrosNav,
-		queries.NewQueriesNav,
-		kits.NewKitsNav,
-		dashboards.NewDashboardNav,
-		resources.NewResourcesNav,
+		kits.NewNav,
+		macros.NewNav,
+		playbooks.NewNav,
+		queries.NewNav,
+		resources.NewNav,
 		secrets.NewNav,
-		self.NewSelfNav,
-		systemshealth.NewSystemsNav,
+		self.NewNav,
+		systemshealth.NewNav,
 		templates.NewNav,
 		tokens.NewNav,
 	}

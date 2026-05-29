@@ -27,7 +27,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewDashboardNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "dashboards"
 		short string = "manage your dashboards"

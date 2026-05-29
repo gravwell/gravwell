@@ -31,7 +31,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewAlertsNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "alerts"
 		short string = "manage alerts"

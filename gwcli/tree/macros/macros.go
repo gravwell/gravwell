@@ -43,8 +43,8 @@ const (
 	FlagExpansionUsage string = "value for the macro to expand to"
 )
 
-// NewMacrosNav returns a nav with children relating to macro handling.
-func NewMacrosNav() *cobra.Command {
+// NewNav returns a nav with children relating to macro handling.
+func NewNav() *cobra.Command {
 	var aliases = []string{"macro", "m"}
 	return treeutils.GenerateNav("macros", "manage search macros", "Macros are search keywords that expand to set phrases on use within a query.", aliases, []*cobra.Command{},
 		[]action.Pair{
