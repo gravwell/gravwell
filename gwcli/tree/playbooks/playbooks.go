@@ -11,16 +11,22 @@ package playbooks
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -32,6 +38,7 @@ func NewNav() *cobra.Command {
 		[]string{"playbook"}, nil,
 		[]action.Pair{
 			listAction(),
+			download(),
 			create(),
 			delete(),
 			edit(),
@@ -56,6 +63,64 @@ func listAction() action.Pair {
 		})
 }
 
+func download() action.Pair {
+	return scaffoldselect.NewSelectAction("download the content of a playbook",
+		"Download the markdown body of a playbook for use locally.",
+		"playbook", func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListPlaybooks(nil)
+			if err != nil {
+				return nil, err
+			}
+			data := make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, pb := range lr.Results {
+				data[i] = &listitem.Generic{
+					ID_:        pb.ID,
+					Name:       pb.Name,
+					SecondLine: pb.Description,
+				}
+			}
+			return data, nil
+		},
+		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
+			// check for output
+			out, err := addtlFlags.GetString(ft.Output.Name())
+			clilog.GetFlag(err)
+			var f *os.File
+			if out != "" {
+				f, err = os.Create(out)
+				if err != nil {
+					return "", err
+				}
+				defer f.Close()
+			}
+
+			pb, err := connection.Client.GetPlaybook(ID)
+			if err != nil {
+				return "", err
+			}
+			if f != nil {
+				n, err := f.WriteString(pb.Body)
+				if err != nil {
+					return "", err
+				}
+				return phrases.SuccessfullyWroteToFile(n, f.Name()), nil
+			}
+			return pb.Body + "\n", nil
+
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "download",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Output.Register(fs)
+					return fs
+				},
+			},
+			Exactly1: true,
+		})
+}
+
 // create allows creation of a playbook, optionally with content.
 func create() action.Pair {
 	path := scaffoldcreate.FieldPath("")
@@ -67,12 +132,14 @@ func create() action.Pair {
 			"path": path,
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
+			// slurp the contents
+			// TODO
 			pb := types.Playbook{
 				CommonFields: types.CommonFields{
 					Name:        cfg["name"].Provider.Get(),
 					Description: cfg["desc"].Provider.Get(),
 				},
-				Body: cfg["body"].Provider.Get(),
+				Body: cfg["path"].Provider.Get(),
 			}
 			result, err := connection.Client.CreatePlaybook(pb)
 			return result.ID, "", err
