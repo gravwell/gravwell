@@ -577,10 +577,8 @@ func DefaultTextAreaUnselectedText(hovered bool) (titleLine, secondLine string) 
 type TextAreaProvider struct {
 	ta textarea.Model
 
-	takeover struct {
-		in         bool // are we in takeover mode?
-		taSelected bool // is the TA currently selected or is the submit button?
-	}
+	// are we in takeover mode?
+	takeover bool
 
 	// If set, applies Markdown syntax highlighting to the content.
 	//Markdown bool
@@ -642,27 +640,34 @@ func (p *TextAreaProvider) Update(hovered bool, msg tea.Msg) (cmd tea.Cmd, takeo
 		wsm.Height -= 4
 
 		p.ta, cmd = p.ta.Update(wsm)
-		return cmd, p.takeover.in
+		return cmd, p.takeover
 	}
 	// if we are already in takeover mode, just hand off control
-	if p.takeover.in {
+	if p.takeover {
 		// check for the submit button
-		if hotkeys.ButtonPressed(msg) && !p.takeover.taSelected {
+		if hotkeys.ButtonPressed(msg) && !p.ta.Focused() {
 			// exit and reset takeover mode
-			p.takeover.in = false
-			p.takeover.taSelected = true
+			p.takeover = false
+			p.ta.Blur() // shouldn't matter, but just in case
 			return nil, false
 		}
 		{ // check for cursor movement
-			curIdx := 0
-			curTA := &p.ta
-			if !p.takeover.taSelected {
+			var curIdx uint
+			var ta *textarea.Model
+			if p.ta.Focused() {
+				curIdx = 0
+				ta = &p.ta
+			} else {
 				curIdx = 1
-				curTA = nil
 			}
-			if handled, _, newIndex := hotkeys.MoveCursor(msg, uint(curIdx), uint(2), curTA); handled && newIndex != uint(curIdx) {
-				p.takeover.taSelected = !p.takeover.taSelected
-				return
+			if handled, _, newIndex := hotkeys.MoveCursor(msg, curIdx, uint(2), ta); handled && newIndex != curIdx {
+				if newIndex == 0 {
+					p.ta.Focus()
+				} else {
+					p.ta.Blur()
+				}
+
+				return nil, true
 			}
 		}
 		p.ta, cmd = p.ta.Update(msg)
@@ -671,8 +676,8 @@ func (p *TextAreaProvider) Update(hovered bool, msg tea.Msg) (cmd tea.Cmd, takeo
 
 	// check for takeover mode invocation
 	if hovered && hotkeys.Match(msg, hotkeys.Select) {
-		p.takeover.in = true
-		p.takeover.taSelected = true
+		p.takeover = true
+		p.ta.Focus()
 		p.ta.Focus()
 		return nil, true
 	}
@@ -680,14 +685,14 @@ func (p *TextAreaProvider) Update(hovered bool, msg tea.Msg) (cmd tea.Cmd, takeo
 }
 
 func (p *TextAreaProvider) View(selected bool, _ int) (_ ViewKind, value, secondLine string) {
-	if p.takeover.in {
+	if p.takeover {
 		// sanity check that we are currently selected;
 		// if we are in takeover mode and not selected, something is probably wrong.
 		if !selected {
 			clilog.Writer.Warnf("TA provider is in takeover mode, but is not selected!")
 		}
 
-		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.takeover.taSelected, p.ta.Width()), ""
+		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.ta.Focused(), p.ta.Width()), ""
 	}
 	main, secondLine := p.NormalModeDisplay(selected)
 
