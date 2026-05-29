@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	oktaTag              string        = `okta`
-	oktaUserTag          string        = `okta-users`
-	defaultEmptyLookback time.Duration = -7 * 24 * time.Hour
+	oktaTag              string        = `okta`              // this is backed by the kit, do not change
+	oktaUserTag          string        = `okta-users`        // this is expected by the kit, do not change
+	defaultEmptyLookback time.Duration = -7 * 24 * time.Hour // if we have no previous state we will go back 7 days
 
+	// some sane defaults
 	defaultPageSize         = 100
 	defaultRequestPerMinute = 60
 	defaultRequestBurst     = 10
@@ -35,11 +36,11 @@ var (
 
 type Config struct {
 	hosted.BaseConfig
-	Request_Batch_Size int
-	Request_Per_Minute int
-	Request_Burst      int
+	Request_Batch_Size int    // how many entries do we request per HTTP request
+	Request_Per_Minute int    // what is our basic request rate
+	Request_Burst      int    // leaky bucket burstability
 	Domain             string
-	Token              string `json:"-"`
+	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
 }
 
 func (c *Config) Verify() (err error) {

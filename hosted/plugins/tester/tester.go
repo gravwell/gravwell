@@ -16,16 +16,16 @@ const (
 	Tag     string = `test`
 	Name    string = `tester`
 	ID      string = `tester.ingesters.gravwell.io`
-	Version string = `1.0.0`
+	Version string = `1.0.0` // must be canonical version string with only major.minor.point
 )
 
 const (
-	defaultInterval = time.Second
+	defaultInterval = time.Second // by default we fire an entry every second
 )
 
 type Config struct {
 	hosted.BaseConfig
-	Interval string
+	Interval string // how often to send an entry; must be parsable by time.ParseDuration
 }
 
 func (c *Config) Verify() (err error) {
