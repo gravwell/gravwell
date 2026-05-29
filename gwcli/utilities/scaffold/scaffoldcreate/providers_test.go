@@ -593,3 +593,29 @@ func TestNumberProvider(t *testing.T) {
 		assert.Equal(t, "-15", f.Provider.Get(), "provider was not reset to initial value")
 	})
 }
+
+func TestTextAreaProvider(t *testing.T) {
+	t.Parallel()
+	baseProvider := &scaffoldcreate.TextAreaProvider{}
+	f := scaffoldcreate.NewField("test", false,
+		baseProvider,
+	)
+	t.Run("the basics", func(t *testing.T) {
+		f.Provider.Initialize("my default value", false)
+		assert.Equal(t, "my default value", f.Provider.Get())
+		f.Provider.Set("my second value")
+		assert.Equal(t, "my second value", f.Provider.Get())
+	})
+
+	t.Run("full cycle, no modifiers set", func(t *testing.T) {
+		f.Provider.SetArgs(50, 20)
+		_, takeover := f.Provider.Update(false, nil)
+		assert.False(t, takeover)
+		vk, val, second := f.Provider.View(false, 0)
+		assert.Equal(t, scaffoldcreate.TitleValue, vk)
+		actual, actualSecond := scaffoldcreate.DefaultTextAreaUnselectedText(false)
+		assert.Equal(t, actual, val)
+		assert.Equal(t, actualSecond, second)
+		assert.Equal(t, "", f.Provider.Satisfied())
+	})
+}
