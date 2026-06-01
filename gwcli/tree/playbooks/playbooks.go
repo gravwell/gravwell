@@ -134,25 +134,45 @@ func create() action.Pair {
 				Title:    "Content",
 				Required: false,
 				Flag: scaffoldcreate.FlagConfig{Usage: "Markdown content of the new playbook." +
-					"Use " + ft.Path.Name() + " to read content from a file instead."},
+					"Use " + ft.Path.Name() + " to read content from a file instead."}, // TODO prepopulate this TA with the file's contents
 				Order:    80,
 				Provider: &scaffoldcreate.TextAreaProvider{},
 			},
 			"labels": scaffoldcreate.FieldLabels(),
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
+			// TODO because we cannot guarantee that content's custom SetArgs has run, we just have to always prefer the path variable if it was set.
+			var body = cfg["content"].Provider.Get()
+			if path, err := fs.GetString(ft.Path.Name()); err != nil {
+				clilog.GetFlag(err)
+			} else if path = strings.TrimSpace(path); path != "" {
+				b, err := os.ReadFile(path)
+				if err != nil {
+					return "", err.Error(), nil
+				}
+				body = string(b)
+			}
+
 			pb := types.Playbook{
 				CommonFields: types.CommonFields{
 					Name:        cfg["name"].Provider.Get(),
 					Description: cfg["desc"].Provider.Get(),
 					Labels:      strings.Split(strings.TrimSpace(cfg["labels"].Provider.Get()), ","),
 				},
-				Body: cfg["content"].Provider.Get(),
+				Body: body,
 			}
 			result, err := connection.Client.CreatePlaybook(pb)
 			return result.ID, "", err
 		},
-		scaffoldcreate.Options{})
+		scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Path.Register(fs, "", "markdown file")
+					return fs
+				},
+			},
+		})
 }
 
 func delete() action.Pair {
