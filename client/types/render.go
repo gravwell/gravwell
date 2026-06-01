@@ -190,7 +190,7 @@ type ResultsTable struct {
 	BinWidth         float64                        `json:"binWidth"`
 	Columns          []string                       `json:"columns"`
 	Rows             []map[string]*ResultsTableCell `json:"rows"`
-	TotalResultCount int                            `json:"totalResultCount"`
+	TotalResultCount int64                          `json:"totalResultCount"`
 }
 
 type ResultsTableCell struct {
