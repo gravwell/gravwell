@@ -21,7 +21,6 @@ import (
 	"iter"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/hosted"
@@ -112,35 +111,25 @@ func (m *Mimecast) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Conti
 	m.initClient(rt.Context())
 
 	eg, egCtx := errgroup.WithContext(ctx)
-	var hasPending atomic.Bool
 
 	if m.includeAudit {
 		eg.Go(func() error {
-			pending, err := m.auditOnce(egCtx, rt)
-			if pending {
-				hasPending.Store(true)
-			}
-			return err
+			return m.auditOnce(egCtx, rt)
 		})
 	}
 	for _, a := range m.apis {
 		eg.Go(func() error {
-			pending, err := m.mtaEventOnce(egCtx, rt, a)
-			if pending {
-				hasPending.Store(true)
-			}
-			return err
+			return m.mtaEventOnce(egCtx, rt, a)
 		})
 	}
 
 	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
-	return m.conf.PendingOrInterval(hasPending.Load()), nil
+	return m.conf.ContinueAfterInterval(), nil
 }
 
-func (m *Mimecast) auditOnce(ctx context.Context, rt hosted.Runtime) (hasPending bool,
-	err error) {
+func (m *Mimecast) auditOnce(ctx context.Context, rt hosted.Runtime) (err error) {
 	api := log.KV("api", AuditApi)
 	tag, err := rt.NegotiateTag(m.tag(AuditApi))
 	if err != nil {
@@ -199,11 +188,10 @@ func (m *Mimecast) auditOnce(ctx context.Context, rt hosted.Runtime) (hasPending
 		rt.Debug("moving forward in time", api, log.KV("to", tr.End))
 		_ = rt.PutTime(m.timestamp(AuditApi), tr.End)
 	}
-	hasPending = len(r.Data) > 0 && r.Meta.Pagination.Next != ""
 	return
 }
 
-func (m *Mimecast) mtaEventOnce(ctx context.Context, rt hosted.Runtime, api Api) (hasPending bool, err error) {
+func (m *Mimecast) mtaEventOnce(ctx context.Context, rt hosted.Runtime, api Api) (err error) {
 	event := SIEMApiEvents[api]
 	tag, err := rt.NegotiateTag(m.tag(api))
 	if err != nil {
@@ -241,6 +229,9 @@ func (m *Mimecast) mtaEventOnce(ctx context.Context, rt hosted.Runtime, api Api)
 		}
 	}
 
+	// Unlike audit the mta cursor ensures we never get dupes even if we request the same time range.
+	// We track the last timestamp as there is lag in the batch api so just because no events were returned
+	// does not mean that all events have been sent to us for a given time range.
 	if last.IsZero() {
 		last = tr.End
 	}
@@ -250,7 +241,6 @@ func (m *Mimecast) mtaEventOnce(ctx context.Context, rt hosted.Runtime, api Api)
 			last))
 		_ = rt.PutTime(m.timestamp(api), last)
 	}
-	hasPending = !events.IsCaughtUp
 	return
 }
 
