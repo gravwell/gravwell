@@ -157,18 +157,12 @@ func (m *selfChangePassModel) Reset() error {
 
 func searchGroup() action.Pair {
 	cmd := treeutils.GenerateAction("search-group", "get or set default search groups",
-		"Display or update the default search groups for your account.\n"+
-			"In interactive mode, select groups from the list to set as defaults.\n"+
-			"Non-interactively, use --set with a comma-separated list of group IDs, or --set=none to clear.",
+		"Display or update the default search groups for your account.\n",
 		nil,
 		func(c *cobra.Command, args []string) error {
-			set, err := c.Flags().GetBool("set")
+			set, clear, err := getSearchGroupsFlags(c.Flags())
 			if err != nil {
-				return clilog.GetFlag(err)
-			}
-			clear, err := c.Flags().GetBool("clear")
-			if err != nil {
-				return clilog.GetFlag(err)
+				return err
 			}
 			success, bootInteractive, err := handleNonInteractive(set, clear, c.Flags().Args())
 			if err != nil {
@@ -186,7 +180,9 @@ func searchGroup() action.Pair {
 
 			fmt.Fprintln(c.OutOrStdout(), success)
 			return nil
-		},
+		}, treeutils.GenerateActionOptions{
+			Usage: ft.MutuallyExclusive([]string{ft.Optional("--set"), ft.Optional("--clear")}) +
+				" " + ft.VariadicArgs("GID", false)},
 	)
 	cmd.Flags().AddFlagSet(searchGroupsFlags())
 	return action.NewPair(cmd, &searchGroupModel{})
@@ -204,6 +200,21 @@ func searchGroupsFlags() *pflag.FlagSet {
 		" Mutually exclusive with --clear")
 	fs.Bool("clear", false, "clear your search groups. Mutually exclusive with --set.")
 	return fs
+}
+
+func getSearchGroupsFlags(fs *pflag.FlagSet) (set, clear bool, err error) {
+	set, err = fs.GetBool("set")
+	if err != nil {
+		clilog.GetFlag(err)
+	}
+	clear, err = fs.GetBool("clear")
+	if err != nil {
+		clilog.GetFlag(err)
+	}
+	if set && clear {
+		return false, false, ft.ErrMutuallyExclusive("set", "clear")
+	}
+	return set, clear, nil
 }
 
 // May return bootInteractive and err simultaneously; this means to return the error to the user iff -x.
@@ -248,13 +259,9 @@ func (c *searchGroupModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, hei
 	if err := fs.Parse(tokens); err != nil {
 		return "", nil, err
 	}
-	set, err := fs.GetBool("set")
+	set, clear, err := getSearchGroupsFlags(fs)
 	if err != nil {
-		clilog.GetFlag(err)
-	}
-	clear, err := fs.GetBool("clear")
-	if err != nil {
-		clilog.GetFlag(err)
+		return "", nil, err
 	}
 	success, bootInteractive, err := handleNonInteractive(set, clear, fs.Args())
 	if bootInteractive { // continue into interactive mode

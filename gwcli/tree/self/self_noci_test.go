@@ -14,10 +14,15 @@ import (
 )
 
 func TestSearchGroup(t *testing.T) {
+	var sbOut, sbErr strings.Builder
+	meta := testsupport.MetaArgs(t, false, testsupport.WithDefaults())
+	// ensure that --set and --clear are MX
+	require.NotZero(t, tree.Execute(append(meta, "self", "search-group", "--clear", "--set"), &sbOut, &sbErr))
+	require.Contains(t, sbErr.String(), "mutually exclusive")
+	sbOut.Reset()
+	sbErr.Reset()
 	groupName := "grp_" + t.Name() + randomdata.Digits(8)
 	// create a group to add ourselves to
-	meta := testsupport.MetaArgs(t, false, testsupport.WithDefaults())
-	var sbOut, sbErr strings.Builder
 	require.Zero(t, tree.Execute(append(meta, "admin", "groups", "create", "-n="+groupName), &sbOut, &sbErr))
 	// scan out the group ID
 	var GID int
