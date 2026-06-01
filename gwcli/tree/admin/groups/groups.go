@@ -186,7 +186,7 @@ func listUsers() action.Pair {
 				// test that the GID points to a valid group
 				if _, err := connection.Client.GetGroup(int32(gid)); err != nil {
 					if phrases.IsNotFoundErr(err) {
-						return fmt.Sprintf("%d is not a known group ID", gid), nil
+						return phrases.ErrUnknownIdentifier(gid, "group ID").Error(), nil
 					}
 					return "", err
 				}

@@ -109,6 +109,8 @@ var _ error = ErrUnknownSID("")
 // IsNotFoundErr returns whether or not the given error should be treated as a Not Found error.
 // We have to use this function as client.ErrNotFound is not reliably used... yet.
 //
+// Typically paired with ErrUnknownIdentifier.
+//
 // This function can be replaced once issues#2483 is done.
 func IsNotFoundErr(err error) bool {
 	if err == nil {
@@ -117,4 +119,9 @@ func IsNotFoundErr(err error) bool {
 	return errors.Is(err, client.ErrNotFound) ||
 		strings.Contains(err.Error(), "sql: no rows in result set") ||
 		err.Error() == "Not Found"
+}
+
+// ErrUnknownIdentifier returns the string "<ID> is not a known <thingType>".
+func ErrUnknownIdentifier(ID any, thingType string) error {
+	return fmt.Errorf("%v is not a known %s", ID, thingType)
 }
