@@ -35,6 +35,8 @@ func NewNav() *cobra.Command {
 			MyInfo(),
 			sessions(),
 			groups(),
+			changePassword(),
+			searchGroup(),
 		})
 }
 
