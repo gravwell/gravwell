@@ -151,8 +151,10 @@ func Start() {
 			"DISABLE_simple_relay":   "TRUE",
 		}),
 		tc.WithWaitStrategyAndDeadline(
-			5*time.Second,
+			10*time.Second,
 			wait.ForListeningPort("80/tcp"),
+			// we don't expose the ingest port so eval the listen from within the container
+			wait.ForExec([]string{"nc", "-zv", "127.0.0.1", "4023"}),
 		),
 	)
 	if err != nil {
