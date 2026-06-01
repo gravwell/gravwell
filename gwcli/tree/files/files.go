@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -41,8 +42,22 @@ func NewNav() *cobra.Command {
 			create(),
 			edit(),
 			delete(),
+			replace(),
 		})
 }
+
+//#region helpers
+
+func fileToGeneric(f types.File, selected bool) *listitem.Generic {
+	return &listitem.Generic{
+		Selected_:  selected,
+		ID_:        f.ID,
+		Name:       f.Name,
+		SecondLine: fmt.Sprintf("(Size: %v) %s", f.Size, f.Description),
+	}
+}
+
+//#region actions
 
 func list() action.Pair {
 	const (
@@ -265,14 +280,58 @@ func delete() action.Pair {
 			}
 			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
 			for i, f := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        f.ID,
-					Name:       f.Name,
-					SecondLine: f.Description,
-				}
+				items[i] = fileToGeneric(f, false)
 			}
 
 			return items, nil
 		}, scaffolddelete.Options{})
+}
+
+func replace() action.Pair {
+	return scaffoldselect.NewSelectAction("replace file contents",
+		"Populate a file with the contents of a local file, clobbering any existing data",
+		"file ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, f := range lr.Results {
+				items[i] = fileToGeneric(f, false)
+			}
+			return items, nil
+		},
+		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
+			// slurp file
+			pth, _ := addtlFlags.GetString(ft.Path.Name())
+			contentF, err := os.Open(pth)
+			if err != nil {
+				return "", err
+			}
+			updatedFile, err := connection.Client.PopulateFileFromReader(ID, contentF)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d", updatedFile.Name, updatedFile.ID, updatedFile.Size), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "replace",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Path.Register(fs, "", "local file to replace the remote file")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				pth, err := fs.GetString(ft.Path.Name())
+				clilog.GetFlag(err)
+				if pth == "" {
+					return "--path is required", nil
+				}
+				return "", nil
+			},
+			Exactly1: true,
+		})
 }
