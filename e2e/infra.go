@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/client"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -155,12 +156,60 @@ func Start() {
 			wait.ForListeningPort("80/tcp"),
 			// we don't expose the ingest port so eval the listen from within the container
 			wait.ForExec([]string{"nc", "-zv", "127.0.0.1", "4023"}),
+			WaitForIngest(),
 		),
 	)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+// IngestStrategy will wait for any number of entries on the gravwell tag.
+// Intended to be used on the main instance to not start tests until everything is up and running.
+// It verifies
+// - We can login
+// - We can search
+// - We have ingested entries
+type IngestStrategy struct{}
+
+func (i IngestStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+	host, err := target.Host(ctx)
+	if err != nil {
+		return fmt.Errorf("ingest wait target must expose port 80: %v", err)
+	}
+	port, err := target.MappedPort(ctx, "80/tcp")
+	if err != nil {
+		return fmt.Errorf("ingest wait target must expose port 80: %v", err)
+	}
+	c, err := client.New(fmt.Sprintf("%s:%s", host, port.Port()), false, false)
+	if err != nil {
+		return fmt.Errorf("ingest wait target must expose port 80: %v", err)
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+			err = c.Login("admin", "changeme")
+			if err != nil {
+				continue
+			}
+			ents, _, err := search(c, "tag=gravwell", time.Minute)
+			if err != nil {
+				continue
+			}
+			if len(ents) == 0 {
+				continue
+			}
+
+			return nil
+		}
+	}
+}
+
+func WaitForIngest() *IngestStrategy {
+	return &IngestStrategy{}
 }
 
 // Debug can be used right before a breakpoint to log the instance url for direct access.
