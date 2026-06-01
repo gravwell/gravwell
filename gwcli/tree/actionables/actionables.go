@@ -11,6 +11,7 @@ package actionables
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -27,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -34,7 +37,7 @@ import (
 
 func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("actionables", "manage actionables",
-		"Actionables are items that appear when hovering over data in the Gravwell web interface.\n"+ // TODO
+		"Actionables are items that appear when hovering over data in the Gravwell web interface.\n"+
 			"They allow users to quickly pivot from a data value to a related search or action.\n"+
 			"Actionable contents are stored as a JSON blob describing the actionable behavior.",
 		[]string{"pivot", "pivots", "actionable"}, nil,
@@ -44,6 +47,7 @@ func NewNav() *cobra.Command {
 			create(),
 			delete(),
 			jsonAction(),
+			replace(),
 		})
 }
 
@@ -202,6 +206,75 @@ func jsonAction() action.Pair {
 		scaffold.BasicOptions{},
 	)
 
+}
+
+func replace() action.Pair {
+	return scaffoldselect.NewSelectAction("update the content of an actionable",
+		"Replace the JSON content (viewable via "+stylesheet.Cur.Action.Render("get")+") of an actionable, changing its operation/definition",
+		"actionable ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, actionable := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:    false,
+					ID_:          actionable.Name,
+					Name:         actionable.Name,
+					SecondLine:   actionable.Description,
+					ShowDisabled: true,
+					Enabled:      !actionable.Disabled,
+				}
+			}
+			return items, nil
+		},
+		func(ID string, fs *pflag.FlagSet) (success string, _ error) {
+			// fetch the actionables existing metadata; we only want to update the contents
+			a, err := connection.Client.GetActionable(ID)
+			if err != nil {
+				if phrases.IsNotFoundErr(err) {
+					return "", phrases.ErrUnknownIdentifier(ID, "actionable ID")
+				}
+				return "", err
+			}
+			// unmarshal the given json as contents
+			pth, _ := fs.GetString(ft.Path.Name())
+			f, err := os.Open(pth)
+			if err != nil {
+				return "", err
+			}
+			defer f.Close()
+			dcdr := json.NewDecoder(f)
+			if err := dcdr.Decode(&a.Contents); err != nil {
+				return "", err
+			}
+			a, err = connection.Client.UpdateActionable(a)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("replaced actionable definition of %s (ID: %s)", a.Name, a.ID), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "replace",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Path.Register(fs, "", "local file to replace the remote file")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				pth, err := fs.GetString(ft.Path.Name())
+				clilog.GetFlag(err)
+				if pth == "" {
+					return "--path is required", nil
+				}
+				return "", nil
+			},
+			Exactly1: true,
+		})
 }
 
 // TODO reimplement when scaffoldedit upgrade is done
