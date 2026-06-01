@@ -17,6 +17,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -156,7 +158,7 @@ func (m *selfChangePassModel) Reset() error {
 //#region search-group
 
 func searchGroup() action.Pair {
-	cmd := treeutils.GenerateAction("search-group", "get or set default search groups",
+	cmd := treeutils.GenerateAction("search-groups", "get or set default search groups",
 		"Display or update the default search groups for your account.\n",
 		nil,
 		func(c *cobra.Command, args []string) error {
@@ -185,6 +187,7 @@ func searchGroup() action.Pair {
 				" " + ft.VariadicArgs("GID", false)},
 	)
 	cmd.Flags().AddFlagSet(searchGroupsFlags())
+	cmd.Aliases = []string{"search-group", "sg"}
 	return action.NewPair(cmd, &searchGroupModel{})
 }
 
@@ -352,162 +355,89 @@ func (c *searchGroupModel) Reset() error {
 
 //#region update
 
-type updateStage uint
-
-const (
-	updateStgName  updateStage = iota
-	updateStgEmail             // enter email
-	updateStgDone
-)
-
-func updateUser() action.Pair {
-	cmd := treeutils.GenerateAction("update", "update your user information",
-		"Update your user account information such as name and email address.",
-		nil,
-		func(c *cobra.Command, args []string) error {
-			user := connection.CurrentUser()
-			changed := false
-			if c.Flags().Changed("name") {
-				name, err := c.Flags().GetString("name")
-				if err != nil {
-					return err
-				}
-				user.Name = name
-				changed = true
-			}
-			if c.Flags().Changed("email") {
-				email, err := c.Flags().GetString("email")
-				if err != nil {
-					return err
-				}
-				user.Email = email
-				changed = true
-			}
-
-			if !changed {
-				ni, err := c.Flags().GetBool(ft.NoInteractive.Name())
-				if err != nil {
-					clilog.GetFlag(err)
-					ni = true
-				}
-				if !ni {
-					return mother.Spawn(c.Root(), c, args)
-				}
-				return fmt.Errorf("no changes specified; use --name or --email to update fields")
-			}
-
-			if err := connection.Client.UpdateUser(user); err != nil {
-				return err
-			}
-			fmt.Fprintf(c.OutOrStdout(), "successfully updated user '%s'\n", user.Username)
-			return nil
+func update() action.Pair {
+	return scaffoldcreate.NewCreateAction("user property updates",
+		// no fields are required as empty fields are replaced by current values
+		map[string]scaffoldcreate.Field{
+			"username": {
+				Title:    "Username",
+				Required: false,
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-username",
+					Usage: "new value for your username",
+				},
+				DefaultValue: "",
+				Order:        100,
+				Provider:     &scaffoldcreate.TextProvider{},
+			},
+			"name": {
+				Title:    "Name",
+				Required: false,
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-name",
+					Usage: "new value for your name",
+				},
+				DefaultValue: "",
+				Order:        90,
+				Provider:     &scaffoldcreate.TextProvider{},
+			},
+			"email": {
+				Title:    "Email",
+				Required: false,
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-email",
+					Usage: "new value for your email",
+				},
+				DefaultValue: "",
+				Order:        80,
+				Provider:     &scaffoldcreate.TextProvider{},
+			},
 		},
-	)
-	cmd.Flags().String("name", "", "new display name")
-	cmd.Flags().String("email", "", "new email address")
-
-	return action.NewPair(cmd, &updateUserModel{})
-}
-
-type updateUserModel struct {
-	nameTI  textinput.Model
-	emailTI textinput.Model
-	stage   updateStage
-}
-
-func (m *updateUserModel) Update(msg tea.Msg) (cmd tea.Cmd) {
-	if hotkeys.Match(msg, hotkeys.SoftQuit) {
-		m.stage = updateStgDone
-		return tea.Println("cancelled")
-	}
-
-	switch m.stage {
-	case updateStgName:
-		if hotkeys.Match(msg, hotkeys.Invoke) {
-			m.stage = updateStgEmail
-			m.nameTI.Blur()
-			m.emailTI.Focus()
-			return textinput.Blink
-		}
-		m.nameTI, cmd = m.nameTI.Update(msg)
-	case updateStgEmail:
-		if hotkeys.Match(msg, hotkeys.Invoke) {
-			user := connection.CurrentUser()
-			changed := false
-			name := m.nameTI.Value()
-			email := m.emailTI.Value()
-			if name != "" && name != user.Name {
-				user.Name = name
-				changed = true
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			// just to be safe, forcefully refresh our local info
+			if err := connection.RefreshCurrentUser(); err != nil {
+				return "", "", err
 			}
-			if email != "" && email != user.Email {
-				user.Email = email
-				changed = true
+			mi := connection.CurrentUser()
+			var allEmpty = true
+			// set empty information to whatever the current information on the server is
+			username := strings.TrimSpace(fields["username"].Provider.Get())
+			if username == "" {
+				username = mi.Username
+			} else {
+				allEmpty = false
 			}
-			if !changed {
-				m.stage = updateStgDone
-				return tea.Println("no changes made")
+			name := strings.TrimSpace(fields["name"].Provider.Get())
+			if name == "" {
+				name = mi.Name
+			} else {
+				allEmpty = false
 			}
-			if err := connection.Client.UpdateUser(user); err != nil {
-				m.stage = updateStgDone
-				return tea.Printf("failed to update user: %v", err)
+			email := strings.TrimSpace(fields["email"].Provider.Get())
+			if email == "" {
+				email = mi.Email
+			} else {
+				allEmpty = false
 			}
-			m.stage = updateStgDone
-			return tea.Printf("successfully updated user '%s'", user.Username)
-		}
-		m.emailTI, cmd = m.emailTI.Update(msg)
-	}
-	return cmd
+			if allEmpty {
+				return "", "", errors.New("no changes made")
+			}
+			defer connection.RefreshCurrentUser()
+
+			if err := connection.Client.UpdateUserInfo(connection.CurrentUser().ID, username, name, email); err != nil {
+				return "", "", err
+			}
+			return "", "", nil
+		},
+		scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "update",
+				Usage: fmt.Sprint("update ",
+					ft.Optional("--new-username=<USERNAME>"), " ",
+					ft.Optional("--new-name=<NAME>"), " ",
+					ft.Optional("--new-email=<EMAIL>")),
+			},
+			Short: "Update your user information.",
+			Long:  "Update the basic details of the current user. Empty values will remain unchanged.",
+		})
 }
-
-func (m *updateUserModel) View() string {
-	user := connection.CurrentUser()
-	switch m.stage {
-	case updateStgName:
-		return fmt.Sprintf("Name (current: %s):\n%s\n\n  %s",
-			user.Name,
-			m.nameTI.View(),
-			stylesheet.Cur.DisabledText.Render("↲ continue • esc cancel • leave empty to keep current"))
-	case updateStgEmail:
-		return fmt.Sprintf("Name: %s\nEmail (current: %s):\n%s\n\n  %s",
-			displayTIValue(m.nameTI, user.Name),
-			user.Email,
-			m.emailTI.View(),
-			stylesheet.Cur.DisabledText.Render("↲ submit • esc cancel • leave empty to keep current"))
-	}
-	return ""
-}
-
-func displayTIValue(ti textinput.Model, fallback string) string {
-	if v := ti.Value(); v != "" {
-		return v
-	}
-	return fallback + " (unchanged)"
-}
-
-func (m *updateUserModel) Done() bool { return m.stage == updateStgDone }
-
-func (m *updateUserModel) Reset() error {
-	m.nameTI = textinput.Model{}
-	m.emailTI = textinput.Model{}
-	m.stage = updateStgName
-	return nil
-}
-
-func (m *updateUserModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	user := connection.CurrentUser()
-
-	m.nameTI = stylesheet.NewTI("", true)
-	m.nameTI.Placeholder = user.Name
-	m.nameTI.Width = 40
-	m.nameTI.Focus()
-
-	m.emailTI = stylesheet.NewTI("", true)
-	m.emailTI.Placeholder = user.Email
-	m.emailTI.Width = 40
-	m.emailTI.Blur()
-
-	return "", textinput.Blink, nil
-}
-
-//#endregion update
