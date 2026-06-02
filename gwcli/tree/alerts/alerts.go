@@ -395,8 +395,8 @@ func save() action.Pair {
 	return scaffoldselect.NewSelectAction("configure search-saving for a set of alerts",
 		"Configure whether searches that trigger an alert should be automatically saved and for how long.\n"+
 			"Use --enable (with a duration) or --disable to set explicitly. "+
-			"If you do not provide either flag, the alert will be toggled and retain whatever its previous duration was, "+
-			"defaulting to "+defaultDuration.String()+" if no duration is set.",
+			"If you do not provide either flag, the alert will be toggled and retain whatever its previous duration was. "+
+			"If an alert would be enabled but have a save duration of 0, it will default to "+defaultDuration.String()+".",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
@@ -408,7 +408,8 @@ func save() action.Pair {
 		},
 		func(ID string, fs *pflag.FlagSet) (success string, _ error) {
 			// checked by validate
-			enable, _ := fs.GetDuration("enable")
+			enable, _ := fs.GetBool("enable")
+			duration, _ := fs.GetDuration("duration")
 			disable, _ := fs.GetBool("disable")
 
 			a, err := connection.Client.GetAlert(ID)
@@ -416,18 +417,26 @@ func save() action.Pair {
 				return "", err
 			}
 			a.SaveSearchEnabled = !a.SaveSearchEnabled
-			if enable != 0 {
+			if duration != 0 { // duration was provided
+				a.SaveSearchDuration = int32(duration.Seconds())
+			}
+			if enable {
 				a.SaveSearchEnabled = true
-				a.SaveSearchDuration = int32(enable.Seconds())
 			} else if disable {
 				a.SaveSearchEnabled = false
 			}
+
+			// if save would be enabled with a duration of 0, default it
+			if a.SaveSearchEnabled && a.SaveSearchDuration == 0 {
+				a.SaveSearchDuration = int32(defaultDuration.Seconds())
+			}
+
 			a, err = connection.Client.UpdateAlert(a)
 			if err != nil {
 				return "", err
 			}
 			if a.SaveSearchEnabled {
-				success = fmt.Sprintf("alert will save triggering search for %d seconds", a.SaveSearchDuration)
+				success = fmt.Sprintf("alert will save triggering searches for %d seconds", a.SaveSearchDuration)
 			} else {
 				success = "alert will not save triggering searches"
 			}
@@ -439,19 +448,20 @@ func save() action.Pair {
 				Use: "save",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					fs.Duration("enable", 0, "enable search saving for the given duration.\n"+
+					fs.Bool("enable", false, "enable search saving.\n"+
 						"Mutually exclusive with --disable")
-					fs.Bool("disable", false, "disable search saving\n"+
+					fs.Duration("duration", 0, "duration for which to save a triggering search")
+					fs.Bool("disable", false, "disable search saving.\n"+
 						"Mutually exclusive with --enable")
 					return fs
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				enable, err := fs.GetDuration("enable")
+				enable, err := fs.GetBool("enable")
 				clilog.GetFlag(err)
 				disable, err := fs.GetBool("disable")
 				clilog.GetFlag(err)
-				if enable != 0 && disable {
+				if enable && disable {
 					return ft.ErrMutuallyExclusive("enable", "disable").Error(), nil
 				}
 				return "", nil
