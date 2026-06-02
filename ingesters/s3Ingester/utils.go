@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -279,11 +279,28 @@ var (
 	awsUrlRegex = regexp.MustCompile(`s3[-\.]?([a-zA-Z\-0-9]+)?\.amazonaws\.com`)
 )
 
-func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket string, rdr reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet, maxLineSize int, attachMetadata bool) (sz int64, s3rtt, rtt time.Duration, err error) {
+type s3Handler interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+}
+
+func ProcessContext(
+	obj types.Object,
+	ctx context.Context,
+	svc s3Handler,
+	bucket string,
+	rdr reader,
+	tg *timegrinder.TimeGrinder,
+	src net.IP,
+	tag entry.EntryTag,
+	proc *processors.ProcessorSet,
+	maxLineSize int,
+	attachMetadata bool,
+) (sz int64, s3rtt, rtt time.Duration, err error) {
 	var r *s3.GetObjectOutput
 	now := time.Now()
-	r, err = svc.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(bucket),
+	r, err = svc.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: new(bucket),
 		Key:    obj.Key,
 	})
 	if err != nil {
