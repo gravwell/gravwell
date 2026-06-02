@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
@@ -68,6 +69,13 @@ var profilerFile *os.File
 // ensures the logger is set up,
 // and attempts to log the user into the gravwell instance.
 func ppre(cmd *cobra.Command, args []string) error {
+	// set global interactivity state
+	if ni, err := cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
+		return clilog.GetFlag(err) // if this fails, we have royally screwed up
+	} else {
+		state.SetInteractive(!ni)
+	}
+
 	if isNoColor(cmd.Flags()) {
 		stylesheet.Cur = stylesheet.Plain()
 		stylesheet.NoColor = true
@@ -127,10 +135,7 @@ func isNoColor(fs *pflag.FlagSet) bool {
 			})
 		return true
 	}
-
-	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name()); err != nil {
-		panic(err)
-	} else if noInteractive {
+	if !state.Interactive() {
 		clilog.Writer.Debug("disabled_color",
 			rfc5424.SDParam{
 				Name:  "reason",
@@ -165,12 +170,12 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to connect to server %s: %w", server, err)
 		}
 	}
-	username, password, apiToken, noInteractive, err := GatherCredentials(cmd.Flags())
+	username, password, apiToken, err := GatherCredentials(cmd.Flags())
 	if err != nil {
 		return err
 	}
 	// pass all information to Login to decide how to proceed
-	if err := connection.Login(username, password, apiToken, noInteractive); err != nil {
+	if err := connection.Login(username, password, apiToken, !state.Interactive()); err != nil {
 		return err
 	}
 	return nil
@@ -178,16 +183,12 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 }
 
 // GatherCredentials reads username, password, and api token from flags and the environment, returning all set values.
-func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToken *string, noInteractive bool, _ error) {
-
+func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToken *string, _ error) {
 	// gather credentials to pass to the login process
 	// cobra will guarantee !(username && (api||eapi))
-	noInteractive, err := flags.GetBool(ft.NoInteractive.Name())
-	if err != nil {
-		return "", nil, nil, false, err
-	}
 	{ // fetch api token
 		var tkn string
+		var err error
 		if tkn, err = flags.GetString("api"); err != nil {
 			clilog.GetFlag(err)
 		} else if tkn != "" {
@@ -202,10 +203,10 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 	{ // fetch username and password
 		// sanity check: if passfile was set but username was not, that's an error
 		if flags.Changed("passfile") && !flags.Changed("username") {
-			return "", nil, nil, false, errors.New("--passfile requires --username")
+			return "", nil, nil, errors.New("--passfile requires --username")
 
 		}
-
+		var err error
 		if username, err = flags.GetString("username"); err != nil {
 			clilog.GetFlag(err)
 		} else if strings.TrimSpace(username) != "" {
@@ -215,7 +216,7 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 				clilog.GetFlag(err)
 			} else if strings.TrimSpace(passfilePath) != "" {
 				if p, err := skimPassFile(passfilePath); err != nil {
-					return "", nil, nil, false, err
+					return "", nil, nil, err
 				} else if p != "" {
 					password = &p
 				}

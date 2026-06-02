@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -58,12 +59,7 @@ func changePassword() action.Pair {
 				return nil
 			}
 
-			ni, err := c.Flags().GetBool(ft.NoInteractive.Name())
-			if err != nil {
-				clilog.GetFlag(err)
-				ni = true
-			}
-			if !ni {
+			if state.Interactive() {
 				return mother.Spawn(c.Root(), c, args)
 			}
 			if currentPass == "" {
