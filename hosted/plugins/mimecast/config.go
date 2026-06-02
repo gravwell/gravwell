@@ -12,7 +12,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 const (
@@ -23,32 +23,22 @@ const (
 )
 
 type Config struct {
-	Ingester_UUID       string
-	Lookback            int    // in hours
-	Client_Id           string `json:"-"`
-	Client_Secret       string `json:"-"`
-	Api                 []Api
-	Host                string
-	Tag_Name            string
-	Tag_Prefix          string
-	Preprocessor        []string
-	Requests_Per_Minute int
-	Request_Interval    int // in seconds
+	hosted.BaseConfig
+	hosted.MultiTagConfig
+	hosted.PollingConfig
+	Client_Id     string `json:"-"` // DO NOT send this when marshalling
+	Client_Secret string `json:"-"` // DO NOT send this when marshalling
+	Api           []Api
+	Host          string
+	Preprocessor  []string
 }
 
 func (c *Config) Verify() error {
 	if c.Host == "" {
 		c.Host = defaultHost
 	}
-	if c.Lookback <= 0 {
-		c.Lookback = defaultLookback
-	}
-	if c.Requests_Per_Minute <= 0 {
-		c.Requests_Per_Minute = defaultRequestsPerMinute
-	}
-	if c.Request_Interval <= 0 {
-		c.Request_Interval = defaultInterval
-	}
+	c.PollingConfig.ApplyDefaults(defaultLookback, defaultRequestsPerMinute,
+		defaultInterval)
 	if c.Client_Id == "" {
 		return errors.New("Client-Id not specified")
 	}
@@ -61,21 +51,13 @@ func (c *Config) Verify() error {
 		}
 	}
 	if c.Tag_Name != "" && len(c.Api) > 1 {
-		return fmt.Errorf("Tag-Name '%s' is only supported when specifying a single API", c.Tag_Name)
+		return fmt.Errorf("Tag-Name %q is only supported when specifying a single API",
+			c.Tag_Name)
 	}
-	if c.Tag_Prefix != "" && c.Tag_Name != "" {
-		return fmt.Errorf("Tag-Prefix cannot be used with Tag-Name")
+	if err := c.MultiTagConfig.ValidateTags(); err != nil {
+		return err
 	}
 	return nil
-}
-
-func (c *Config) UUID() uuid.UUID {
-	if c.Ingester_UUID != "" {
-		if r, err := uuid.Parse(c.Ingester_UUID); err == nil {
-			return r
-		}
-	}
-	return uuid.Nil
 }
 
 func (c *Config) Tags() (tags []string) {

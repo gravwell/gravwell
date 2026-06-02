@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -28,8 +29,8 @@ func TestConfig_Verify(t *testing.T) {
 		{
 			name: "valid UUID and interval",
 			config: Config{
-				Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000",
-				Interval:      "100ms",
+				BaseConfig: hosted.BaseConfig{Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000"},
+				Interval:   "100ms",
 			},
 			wantErr: false,
 		},
@@ -75,7 +76,7 @@ func TestConfig_Verify_GeneratesUUID(t *testing.T) {
 func TestConfig_Verify_PreservesExistingUUID(t *testing.T) {
 	originalUUID := "550e8400-e29b-41d4-a716-446655440000"
 	cfg := Config{
-		Ingester_UUID: originalUUID,
+		BaseConfig: hosted.BaseConfig{Ingester_UUID: originalUUID},
 	}
 	if err := cfg.Verify(); err != nil {
 		t.Fatalf("Config.Verify() unexpected error: %v", err)
@@ -143,9 +144,9 @@ func TestConfig_interval(t *testing.T) {
 
 func TestConfig_UUID(t *testing.T) {
 	tests := []struct {
-		name          string
-		ingesterUUID  string
-		want          uuid.UUID
+		name         string
+		ingesterUUID string
+		want         uuid.UUID
 	}{
 		{
 			name:         "empty UUID",
@@ -172,7 +173,7 @@ func TestConfig_UUID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				Ingester_UUID: tt.ingesterUUID,
+				BaseConfig: hosted.BaseConfig{Ingester_UUID: tt.ingesterUUID},
 			}
 			got := cfg.UUID()
 			if got != tt.want {
