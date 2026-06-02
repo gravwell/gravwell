@@ -44,6 +44,11 @@ func AtLeast1ArgRequired(argNamePlural string) string {
 	return "you must specify at least 1 argument (" + argNamePlural + ")"
 }
 
+// ErrFlagIsRequired states that the given flag (sans dashes!) is required.
+func ErrFlagIsRequired(flagNameNoDashes string) error {
+	return errors.New("--" + flagNameNoDashes + " is required")
+}
+
 // InteractivityNYI returns a coloured tea.Println stating that interactivity for this action is not ready yet.
 //
 // Should be returned by SetArgs' onStart return.
