@@ -4,18 +4,21 @@ package flows
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -401,14 +404,7 @@ func parse() action.Pair {
 		"check the validity of a given flow",
 		"Parses a flow string to check it for errors and malformations",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
-			var flowStr string
-			if parseFileContent != "" {
-				flowStr = parseFileContent
-			} else {
-				// slurp from arguments
-				flowStr = strings.Join(fs.Args(), " ") // if they were split on spaces, ensure those spaces remain
-			}
-			res, err := connection.Client.ParseFlow(flowStr)
+			res, err := connection.Client.ParseFlow(parseFileContent)
 			if err != nil {
 				return err.Error(), nil
 			}
@@ -429,20 +425,51 @@ func parse() action.Pair {
 				Usage: "parse " + ft.MutuallyExclusive([]string{"<flow string>", "--path=path/to/file"}),
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "file containing the flow to parse")
+					ft.Path.Register(fs, "", "file containing the flow to parse.\n"+
+						"Mutually exclusive with --stdin and bare arguments")
+					fs.Bool("stdin", false, ft.NonInteractiveOnly()+" read the flow string from stdin.\n"+
+						"Mutually exclusive with --path")
 					return fs
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				parseFileContent = "" // ensure it is clear before each action
-				if pth, err := fs.GetString(ft.Path.Name()); err != nil {
-					clilog.GetFlag(err)
-				} else if pth = strings.TrimSpace(pth); pth != "" {
+
+				bare := []string{}
+				for _, arg := range fs.Args() {
+					arg = strings.TrimSpace(arg)
+					if arg != "" {
+						bare = append(bare, arg)
+					}
+				}
+				pth, err := fs.GetString(ft.Path.Name())
+				clilog.GetFlag(err)
+				stdin, err := fs.GetBool("stdin")
+				clilog.GetFlag(err)
+				if state.Interactive() && stdin {
+					return phrases.ErrFlagNoInteractiveOnly("--stdin").Error(), nil
+				}
+				if (pth != "" && stdin) || (pth != "" && len(bare) > 0) || (stdin && len(bare) > 0) { // check for MX
+					return english.OxfordWordSeries([]string{"--path", "--stdin", "bare arguments"}, "and") + " are mutually exclusive", nil
+				}
+
+				// figure out where we are reading from
+				if pth = strings.TrimSpace(pth); pth != "" {
 					b, err := os.ReadFile(pth)
 					if err != nil {
 						return err.Error(), nil // probably user error or an issue with the filesystem; return as invalid
 					}
 					parseFileContent = string(b)
+				} else if stdin {
+					b, err := io.ReadAll(os.Stdin)
+					if err != nil {
+						return err.Error(), nil
+					}
+					parseFileContent = string(b)
+				} else if len(bare) > 0 {
+					parseFileContent = strings.Join(bare, " ") // if they were split on spaces, ensure those spaces remain
+				} else { // nothing was set, fail out
+					return "one of --path, --stdin, or bare argument is required", nil
 				}
 				return "", nil
 			},

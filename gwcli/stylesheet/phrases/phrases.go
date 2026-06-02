@@ -56,6 +56,13 @@ func InteractivityNYI() tea.Cmd {
 	return stylesheet.ErrPrintf("interactivity not yet implemented")
 }
 
+// ErrFlagNoInteractiveOnly states that this flag/thing can only be used when -x is specified.
+//
+// Does NOT prefix "--".
+func ErrFlagNoInteractiveOnly(flagNameWithDashes string) error {
+	return errors.New(flagNameWithDashes + " requires --no-interactive (-x)")
+}
+
 // SuccessfullyCreatedItem states that an item of type itemSingular was created and can be identified with ID.
 //
 // If ID is empty, it will be omitted.
