@@ -303,7 +303,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
 	rootCmd.PersistentPostRunE = ppost
-	rootCmd.Version = uniques.Version
+	rootCmd.Version = state.Version
 
 	// if we are testing, wire up outputs
 	if stdout != nil {

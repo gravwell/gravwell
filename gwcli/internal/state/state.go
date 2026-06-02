@@ -15,4 +15,6 @@ func Interactive() bool {
 	return interactive
 }
 
+const Version string = "v0.8"
+
 // TODO move debug mode into here rather than repeatedly checking on clilog.Level
