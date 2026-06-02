@@ -75,13 +75,13 @@ func (rm *runtimeManager) createRunners(c *cfgType, ib base.IngesterBase) (err e
 		return fmt.Errorf("nil config, can't create runners")
 	}
 	for name, builder := range c.Builders() {
-		var ig hosted.Ingester
-		if ig, err = builder.Build(rm.igst); err != nil {
-			return fmt.Errorf("failed to build %s plugin %s: %w", builder.Kind(), name, err)
-		}
-		rt, err := rm.createNativeRuntime(builder.Kind(), name, builder.UUID())
+		rt, bw, err := rm.createNativeRuntime(builder.Kind(), name, builder.UUID())
 		if err != nil {
 			return fmt.Errorf("failed to create runtime for %s plugin %s: %w", builder.Kind(), name, err)
+		}
+		var ig hosted.Ingester
+		if ig, err = builder.Build(rm.igst, bw.Sync); err != nil {
+			return fmt.Errorf("failed to build %s plugin %s: %w", builder.Kind(), name, err)
 		}
 		runner, err := hosted.NewNativeRunner(builder.ID(), name, builder.Version(), builder.UUID(), ig, rt)
 		if err != nil {
@@ -96,19 +96,13 @@ func (rm *runtimeManager) createRunners(c *cfgType, ib base.IngesterBase) (err e
 			continue // just skip it
 		}
 		rm.mp[builder.UUID()] = wrappedRunner{Runner: runner}
-		// TODO(2073): Register individual plugins as child ingesters
-		//rm.igst.RegisterChild(builder.UUID().String(), ingest.IngesterState{
-		//	Configuration:
-		//})
 	}
 	return nil
 }
 
 // createNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context
-func (rm *runtimeManager) createNativeRuntime(kind, name string, ingesterUUID uuid.UUID) (rt hosted.Runtime, err error) {
-	// grab a new native runtime based on the kind, name, and UUID
+func (rm *runtimeManager) createNativeRuntime(kind, name string, ingesterUUID uuid.UUID) (rt hosted.Runtime, bw *storage.BucketWriter, err error) {
 	ingesterID := fmt.Sprintf("%s/%s/%s", kind, name, ingesterUUID.String())
-	var bw *storage.BucketWriter
 	// get a bucket writer for this specific ingester to maintain state
 	if bw, err = rm.sh.GetBucketWriter(ingesterID); err != nil {
 		err = fmt.Errorf("failed to get bucket writer for hosted ingester %s: %w", ingesterID, err)

@@ -56,8 +56,12 @@ type TesterBuilder struct {
 	Builder[*tester.Config]
 }
 
-func (tb *TesterBuilder) Build(tn hosted.TagNegotiator) (hosted.Ingester, error) {
-	return tester.NewTesterIngester(*(tb.config), tn)
+func (tb *TesterBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	t, err := tester.NewTesterIngester(*(tb.config), tn)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJobWithSync(t, syncFn), nil
 }
 
 func NewTesterBuilder(config *tester.Config, kind, id, version string) *TesterBuilder {
@@ -75,7 +79,7 @@ type OktaBuilder struct {
 	Builder[*okta.Config]
 }
 
-func (ob *OktaBuilder) Build(tn hosted.TagNegotiator) (hosted.Ingester, error) {
+func (ob *OktaBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
 	return okta.NewOktaIngester(*(ob.config), tn)
 }
 
@@ -94,8 +98,8 @@ type MimecastBuilder struct {
 	Builder[*mimecast.Config]
 }
 
-func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator) (hosted.Ingester, error) {
-	return mimecast.New(mb.config), nil
+func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(mimecast.New(mb.config), syncFn), nil
 }
 
 func NewMimecastBuilder(config *mimecast.Config, kind, id, version string) *MimecastBuilder {
