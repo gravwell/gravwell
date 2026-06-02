@@ -155,9 +155,13 @@ func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 		p.WriteString(cur.Name())
 		cur.LocalFlags().VisitAll(func(f *pflag.Flag) {
 			if f.Changed {
-				p.WriteString(fmt.Sprintf(" --%v=\"%v\"", f.Name, f.Value))
+				fmt.Fprintf(&p, " --%v=\"%v\"", f.Name, f.Value)
 			}
 		})
+		if len(trailingTokens) > 0 {
+			p.WriteString(" ")
+			p.WriteString(strings.Join(trailingTokens, " "))
+		}
 		m.ti.SetValue(p.String())
 
 		// have mother immediate act on the data we placed on her prompt
@@ -238,7 +242,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.dieOnChildDone {
 		m.exiting = true
 		connection.End()
-		return m, tea.Sequence(tea.Println("Bye"), tea.Quit)
+		return m, tea.Quit
 	}
 
 	// check for first boot immediate processing
@@ -404,6 +408,9 @@ func processInput(m *Mother) tea.Cmd {
 	} else if wr.EndCmd != nil {
 		if action.Is(wr.EndCmd) {
 			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
+			if m.dieOnChildDone { // don't bother with history
+				return cmd
+			}
 			if cmd == nil {
 				return historyCmd
 			}
