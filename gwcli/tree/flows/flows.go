@@ -426,6 +426,7 @@ func parse() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
+				Usage: "parse " + ft.MutuallyExclusive([]string{"<flow string>", "--path=path/to/file"}),
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					ft.Path.Register(fs, "", "file containing the flow to parse")
