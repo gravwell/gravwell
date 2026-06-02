@@ -165,10 +165,7 @@ func searchGroup() action.Pair {
 			success, bootInteractive, err := handleNonInteractive(set, clear, c.Flags().Args())
 			if err != nil {
 				if bootInteractive { // try to boot interactive mode instead of printing the error
-					x, err := c.Flags().GetBool(ft.NoInteractive.Name())
-					if err != nil {
-						clilog.GetFlag(err)
-					} else if x { // no dice
+					if !state.Interactive() { // no dice
 						return err
 					}
 					return mother.Spawn(c.Root(), c, args)

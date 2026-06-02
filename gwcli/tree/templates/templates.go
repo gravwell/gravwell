@@ -74,10 +74,14 @@ func wrap(ts []types.Template) []wrappedTemplate {
 			}
 			fmt.Fprintf(&sb, "%s=%s", v.Name, v.Label)
 			if v.Description != "" {
-				sb.WriteString(" \"" + v.Description + "\"")
+				sb.WriteString(" \"")
+				sb.WriteString(v.Description)
+				sb.WriteString("\"")
 			}
 			if v.DefaultValue != "" {
-				sb.WriteString(" Default: \"" + v.DefaultValue + "\"")
+				sb.WriteString(" Default: \"")
+				sb.WriteString(v.DefaultValue)
+				sb.WriteString("\"")
 			}
 			vars[j] = sb.String()
 		}

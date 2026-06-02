@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -31,10 +32,8 @@ func updateValue() action.Pair {
 		"Update the value stored in a secret. The secret is identified by its ID.\n"+
 			"Use "+ft.MutuallyExclusive([]string{"--value", "--file"})+" to provide the new value.", nil,
 		func(c *cobra.Command, remaining []string) error {
-			x, err := c.Flags().GetBool(ft.NoInteractive.Name())
-			clilog.GetFlag(err)
 			if c.Flags().NArg() != 1 {
-				if x {
+				if !state.Interactive() {
 					return errors.New(phrases.Exactly1ArgRequired("secret ID"))
 				}
 				return mother.Spawn(c.Root(), c, remaining)
@@ -46,7 +45,7 @@ func updateValue() action.Pair {
 			} else if inv != "" {
 				return errors.New(inv)
 			} else if value == "" {
-				if x {
+				if !state.Interactive() {
 					return errors.New("you must supply --value or --file")
 				}
 				return mother.Spawn(c.Root(), c, remaining)
