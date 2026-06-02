@@ -9,6 +9,7 @@
 package storage
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -546,6 +547,11 @@ func TestBucketWriter_NilChecks(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for PutInt64 on nil BucketWriter")
 	}
+
+	err = bw.Sync()
+	if err == nil {
+		t.Error("Expected error for Sync on nil BucketWriter")
+	}
 }
 
 func TestBoltHandler_NilChecks(t *testing.T) {
@@ -603,5 +609,191 @@ func TestBucketWriter_EmptyValues(t *testing.T) {
 	}
 	if len(retrieved2) != 0 {
 		t.Errorf("Expected empty/nil byte slice, got length %d", len(retrieved2))
+	}
+}
+
+// openTestDB is a helper that opens a BoltHandler and a named BucketWriter,
+// registering cleanup via t.Cleanup.
+func openTestDB(t *testing.T, bucketName string) (*BoltHandler, *BucketWriter) {
+	t.Helper()
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	sh, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("OpenBoltHandler: %v", err)
+	}
+	t.Cleanup(func() { sh.Close() })
+	bw, err := sh.GetBucketWriter(bucketName)
+	if err != nil {
+		t.Fatalf("GetBucketWriter: %v", err)
+	}
+	return sh, bw
+}
+
+// TestBucketWriter_Sync verifies that Sync completes without error on a valid
+// BucketWriter and that data written before Sync is readable after.
+func TestBucketWriter_Sync(t *testing.T) {
+	_, bw := openTestDB(t, "sync_bucket")
+
+	if err := bw.PutString("k", "v"); err != nil {
+		t.Fatalf("PutString: %v", err)
+	}
+	if err := bw.Sync(); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	got, err := bw.GetString("k")
+	if err != nil {
+		t.Fatalf("GetString after Sync: %v", err)
+	}
+	if got != "v" {
+		t.Errorf("expected %q, got %q", "v", got)
+	}
+}
+
+// TestBucketWriter_PersistsAcrossReopen verifies that data survives a close
+// and reopen of the database. This is the fundamental contract of persistent storage.
+func TestBucketWriter_PersistsAcrossReopen(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "persist.db")
+
+	// Write and close.
+	sh, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	bw, err := sh.GetBucketWriter("bucket")
+	if err != nil {
+		t.Fatalf("GetBucketWriter: %v", err)
+	}
+	wantStr := "persisted"
+	wantTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	wantInt := int64(42)
+	if err := bw.PutString("s", wantStr); err != nil {
+		t.Fatalf("PutString: %v", err)
+	}
+	if err := bw.PutTime("t", wantTime); err != nil {
+		t.Fatalf("PutTime: %v", err)
+	}
+	if err := bw.PutInt64("i", wantInt); err != nil {
+		t.Fatalf("PutInt64: %v", err)
+	}
+	if err := sh.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// Reopen and verify.
+	sh2, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("second open: %v", err)
+	}
+	defer sh2.Close()
+	bw2, err := sh2.GetBucketWriter("bucket")
+	if err != nil {
+		t.Fatalf("GetBucketWriter on reopen: %v", err)
+	}
+	if got, err := bw2.GetString("s"); err != nil {
+		t.Errorf("GetString: %v", err)
+	} else if got != wantStr {
+		t.Errorf("string: got %q, want %q", got, wantStr)
+	}
+	if got, err := bw2.GetTime("t"); err != nil {
+		t.Errorf("GetTime: %v", err)
+	} else if !got.Equal(wantTime) {
+		t.Errorf("time: got %v, want %v", got, wantTime)
+	}
+	if got, err := bw2.GetInt64("i"); err != nil {
+		t.Errorf("GetInt64: %v", err)
+	} else if got != wantInt {
+		t.Errorf("int64: got %d, want %d", got, wantInt)
+	}
+}
+
+// TestBucketWriter_UseAfterClose verifies that operations on a closed
+// BoltHandler return errors rather than panicking.
+func TestBucketWriter_UseAfterClose(t *testing.T) {
+	sh, bw := openTestDB(t, "after_close")
+
+	// Close explicitly before the test ends. The t.Cleanup will try again but that's fine.
+	if err := sh.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if err := bw.PutString("k", "v"); err == nil {
+		t.Error("expected error writing to closed handler")
+	}
+	if _, err := bw.GetString("k"); err == nil {
+		t.Error("expected error reading from closed handler")
+	}
+	if err := bw.Sync(); err == nil {
+		t.Error("expected error syncing closed handler")
+	}
+}
+
+// TestBoltHandler_SecondOpenFails verifies that BoltDB's file lock prevents
+// two concurrent opens of the same database file.
+func TestBoltHandler_SecondOpenFails(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "lock.db")
+
+	sh1, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	defer sh1.Close()
+
+	// Second open should fail (bolt timeout is 1s).
+	_, err = OpenBoltHandler(dbPath, false)
+	if err == nil {
+		t.Error("expected second open to fail due to file lock")
+	}
+}
+
+// TestBucketWriter_EmptyKeyError verifies that Put and Get reject empty keys.
+func TestBucketWriter_EmptyKeyError(t *testing.T) {
+	_, bw := openTestDB(t, "emptykey")
+
+	if err := bw.Put("", []byte("v")); err == nil {
+		t.Error("expected error for Put with empty key")
+	}
+	if _, err := bw.Get(""); err == nil {
+		t.Error("expected error for Get with empty key")
+	}
+}
+
+// TestBucketWriter_ConcurrentWrites verifies that concurrent writes to
+// different keys in the same bucket do not corrupt data.
+func TestBucketWriter_ConcurrentWrites(t *testing.T) {
+	_, bw := openTestDB(t, "concurrent")
+
+	const goroutines = 20
+	errCh := make(chan error, goroutines)
+
+	for i := range goroutines {
+		go func(n int) {
+			key := fmt.Sprintf("key-%d", n)
+			val := fmt.Sprintf("val-%d", n)
+			if err := bw.PutString(key, val); err != nil {
+				errCh <- err
+				return
+			}
+			errCh <- nil
+		}(i)
+	}
+
+	for range goroutines {
+		if err := <-errCh; err != nil {
+			t.Errorf("concurrent write failed: %v", err)
+		}
+	}
+
+	// Verify all values are correct.
+	for i := range goroutines {
+		key := fmt.Sprintf("key-%d", i)
+		want := fmt.Sprintf("val-%d", i)
+		got, err := bw.GetString(key)
+		if err != nil {
+			t.Errorf("GetString(%q): %v", key, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("key %q: got %q, want %q", key, got, want)
+		}
 	}
 }
