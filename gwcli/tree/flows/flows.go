@@ -45,6 +45,7 @@ func NewNav() *cobra.Command {
 			cancel(),
 			backfillToggle(),
 			clearResults(),
+			parse(),
 		},
 	)
 }
@@ -388,5 +389,61 @@ func clearResults() action.Pair {
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "clear"},
+		})
+}
+
+// content contained in the file pointed to by --path, if applicable.
+var parseFileContent string
+
+// tests a given flow string
+func parse() action.Pair {
+	return scaffold.NewBasicAction("parse",
+		"check the validity of a given flow",
+		"Parses a flow string to check it for errors and malformations",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			var flowStr string
+			if parseFileContent != "" {
+				flowStr = parseFileContent
+			} else {
+				// slurp from arguments
+				flowStr = strings.Join(fs.Args(), " ") // if they were split on spaces, ensure those spaces remain
+			}
+			res, err := connection.Client.ParseFlow(flowStr)
+			if err != nil {
+				return err.Error(), nil
+			}
+			if !res.OK {
+				var sb strings.Builder
+				for i, npf := range res.Failures {
+					fmt.Fprintf(&sb, "Node %d:\n", i)
+					for i, err := range npf.Errors {
+						fmt.Fprintf(&sb, "\t[%d]: %s\n", i, err)
+					}
+				}
+				return sb.String(), nil
+			}
+			return "successfully parsed flow", nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Path.Register(fs, "", "file containing the flow to parse")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				parseFileContent = "" // ensure it is clear before each action
+				if pth, err := fs.GetString(ft.Path.Name()); err != nil {
+					clilog.GetFlag(err)
+				} else if pth = strings.TrimSpace(pth); pth != "" {
+					b, err := os.ReadFile(pth)
+					if err != nil {
+						return err.Error(), nil // probably user error or an issue with the filesystem; return as invalid
+					}
+					parseFileContent = string(b)
+				}
+				return "", nil
+			},
 		})
 }
