@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package actionables provides actions for managing Gravwell pivots (actionable items).
+// Package actionables provides actions for managing actionables (formerly pivots).
 package actionables
 
 import (
@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -48,6 +49,7 @@ func NewNav() *cobra.Command {
 			delete(),
 			jsonAction(),
 			replace(),
+			edit(),
 		})
 }
 
@@ -277,54 +279,64 @@ func replace() action.Pair {
 		})
 }
 
-// TODO reimplement when scaffoldedit upgrade is done
-// editAction updates a pivot's name and/or description.
-/*func editAction() action.Pair {
+// edit allows a user to update the basic metadata of an actionable.
+func edit() action.Pair {
 	cfg := scaffoldedit.Config{
-		"name":        scaffoldedit.FieldName("pivot"),
-		"description": scaffoldedit.FieldDescription("pivot"),
+		"name":        scaffoldedit.FieldName("actionable"),
+		"description": scaffoldedit.FieldDescription("actionable"),
+		"labels":      scaffoldedit.FieldLabels(),
 	}
-	funcs := scaffoldedit.SubroutineSet[string, types.WirePivot]{
-		SelectSub: func(id string) (types.WirePivot, error) {
-			uid, err := uuid.Parse(id)
+	funcs := scaffoldedit.SubroutineSet[string, types.Actionable]{
+		SelectSub: func(ID string) (types.Actionable, error) {
+			return connection.Client.GetActionable(ID)
+		},
+		FetchSub: func() ([]types.Actionable, error) {
+			lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
-				return types.WirePivot{}, err
+				return nil, err
 			}
-			return connection.Client.GetPivot(uid)
+			return lr.Results, nil
 		},
-		FetchSub: func() ([]types.WirePivot, error) {
-			return connection.Client.ListPivots()
-		},
-		GetFieldSub: func(item types.WirePivot, fieldKey string) (string, error) {
+		GetFieldSub: func(item types.Actionable, fieldKey string) (string, error) {
 			switch fieldKey {
 			case "name":
 				return item.Name, nil
 			case "description":
 				return item.Description, nil
+			case "labels":
+				return strings.Join(item.Labels, ","), nil
 			}
 			return "", fmt.Errorf("unknown field key: %v", fieldKey)
 		},
-		SetFieldSub: func(item *types.WirePivot, fieldKey, val string) (string, error) {
+		SetFieldSub: func(item *types.Actionable, fieldKey, val string) (string, error) {
 			switch fieldKey {
 			case "name":
 				item.Name = val
 			case "description":
 				item.Description = val
+			case "labels":
+				item.Labels = []string{}
+				for lbl := range strings.SplitSeq(val, ",") {
+					lbl = strings.TrimSpace(lbl)
+					if lbl == "" {
+						continue
+					}
+					item.Labels = append(item.Labels, lbl)
+				}
 			default:
 				return "", fmt.Errorf("unknown field key: %v", fieldKey)
 			}
 			return "", nil
 		},
-		GetTitleSub:       func(item types.WirePivot) string { return item.Name },
-		GetDescriptionSub: func(item types.WirePivot) string { return item.Description },
-		UpdateSub: func(data *types.WirePivot) (string, error) {
-			uid := data.ThingUUID
-			_, err := connection.Client.SetPivot(uid, *data)
-			return data.Name, err
+		GetTitleSub:       func(item types.Actionable) string { return item.Name },
+		GetDescriptionSub: func(item types.Actionable) string { return item.Description },
+		UpdateSub: func(data *types.Actionable) (string, error) {
+			result, err := connection.Client.UpdateActionable(*data)
+			return result.Name, err
 		},
 	}
-	return scaffoldedit.NewEditAction("pivot", "pivots", cfg, funcs)
-}*/
+	return scaffoldedit.NewEditAction("actionable", "actionables", cfg, funcs)
+}
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("actionable", "actionables",
