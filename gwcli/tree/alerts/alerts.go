@@ -12,10 +12,10 @@ package alerts
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -50,6 +50,7 @@ func NewNav() *cobra.Command {
 			delete(),
 			alertscreate.Action(),
 			dispatchers(),
+			save(),
 		})
 }
 
@@ -280,7 +281,8 @@ func toggle() action.Pair {
 func dispatchers() action.Pair {
 	return scaffoldselect.NewSelectAction("set the dispatchers for a set of alerts",
 		"Add, remove, or replace dispatchers (triggers) for an alert. "+
-			"Use --add to add dispatchers, --remove to remove them, or neither to replace the entire list.", "dispatcher",
+			"Use --add to add dispatchers, --remove to remove them, or neither to replace the entire list.",
+		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
@@ -380,6 +382,77 @@ func dispatchers() action.Pair {
 				clilog.GetFlag(err)
 				if add && remove {
 					return ft.ErrMutuallyExclusive("add", "remove").Error(), nil
+				}
+				return "", nil
+			},
+		})
+}
+
+const defaultDuration = 1 * time.Hour
+
+// save lets the user configure whether triggered searches should be saved and for how long.
+func save() action.Pair {
+	return scaffoldselect.NewSelectAction("configure search-saving for a set of alerts",
+		"Configure whether searches that trigger an alert should be automatically saved and for how long.\n"+
+			"Use --enable (with a duration) or --disable to set explicitly. "+
+			"If you do not provide either flag, the alert will be toggled and retain whatever its previous duration was, "+
+			"defaulting to "+defaultDuration.String()+" if no duration is set.",
+		"alert ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			return alertsToGeneric(a), nil
+
+		},
+		func(ID string, fs *pflag.FlagSet) (success string, _ error) {
+			// checked by validate
+			enable, _ := fs.GetDuration("enable")
+			disable, _ := fs.GetBool("disable")
+
+			a, err := connection.Client.GetAlert(ID)
+			if err != nil {
+				return "", err
+			}
+			a.SaveSearchEnabled = !a.SaveSearchEnabled
+			if enable != 0 {
+				a.SaveSearchEnabled = true
+				a.SaveSearchDuration = int32(enable.Seconds())
+			} else if disable {
+				a.SaveSearchEnabled = false
+			}
+			a, err = connection.Client.UpdateAlert(a)
+			if err != nil {
+				return "", err
+			}
+			if a.SaveSearchEnabled {
+				success = fmt.Sprintf("alert will save triggering search for %d seconds", a.SaveSearchDuration)
+			} else {
+				success = "alert will not save triggering searches"
+			}
+
+			return success, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "save",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Duration("enable", 0, "enable search saving for the given duration.\n"+
+						"Mutually exclusive with --disable")
+					fs.Bool("disable", false, "disable search saving\n"+
+						"Mutually exclusive with --enable")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				enable, err := fs.GetDuration("enable")
+				clilog.GetFlag(err)
+				disable, err := fs.GetBool("disable")
+				clilog.GetFlag(err)
+				if enable != 0 && disable {
+					return ft.ErrMutuallyExclusive("enable", "disable").Error(), nil
 				}
 				return "", nil
 			},
