@@ -13,6 +13,7 @@ func TestSplitCSV(t *testing.T) {
 		name     string
 		input    string
 		expected []string
+		wantErr  bool
 	}{
 		{name: "empty", input: "", expected: nil},
 		{name: "single", input: "bucket1", expected: []string{"bucket1"}},
@@ -20,10 +21,18 @@ func TestSplitCSV(t *testing.T) {
 		{name: "with spaces", input: " a , b , c ", expected: []string{"a", "b", "c"}},
 		{name: "trailing comma", input: "a,b,", expected: []string{"a", "b"}},
 		{name: "empty entries", input: "a,,b", expected: []string{"a", "b"}},
+		{name: "quoted field with comma", input: `"a,b",c`, expected: []string{"a,b", "c"}},
+		{name: "invalid quoting", input: `a,"b`, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, splitCSV(tt.input))
+			got, err := splitCSV(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
 		})
 	}
 }

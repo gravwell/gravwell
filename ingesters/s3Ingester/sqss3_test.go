@@ -15,8 +15,8 @@ func TestNewSQSS3Listener_Endpoint(t *testing.T) {
 		Queue:            "http://localhost:9324/q",
 		Endpoint:         "http://localhost:9324",
 		Credentials_Type: "static",
-		ID:               "akid",
-		Secret:           "secret",
+		ID:               "test-access-key-id",
+		Secret:           "test-secret-key",
 		Reader:           "line",
 		TagName:          "default",
 	}

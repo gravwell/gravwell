@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"strings"
@@ -45,16 +46,19 @@ func RegisterFlags(fs *flag.FlagSet, cfg *Config) {
 
 	// These are parsed as comma-separated strings via custom handling.
 	fs.Func("s3-buckets", "Comma-separated list of S3 buckets", func(s string) error {
-		cfg.Buckets = splitCSV(s)
-		return nil
+		var err error
+		cfg.Buckets, err = splitCSV(s)
+		return err
 	})
 	fs.Func("sqs-queues", "Comma-separated list of SQS queue URLs", func(s string) error {
-		cfg.SQSQueues = splitCSV(s)
-		return nil
+		var err error
+		cfg.SQSQueues, err = splitCSV(s)
+		return err
 	})
 	fs.Func("kinesis-streams", "Comma-separated list of Kinesis stream names", func(s string) error {
-		cfg.KinesisStreams = splitCSV(s)
-		return nil
+		var err error
+		cfg.KinesisStreams, err = splitCSV(s)
+		return err
 	})
 }
 
@@ -84,17 +88,22 @@ func (c *Config) KinesisEnabled() bool {
 	return len(c.KinesisStreams) > 0
 }
 
-func splitCSV(s string) []string {
+func splitCSV(s string) ([]string, error) {
 	if s == "" {
-		return nil
+		return nil, nil
 	}
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
+	reader := csv.NewReader(strings.NewReader(s))
+	reader.TrimLeadingSpace = true
+	record, err := reader.Read()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(record))
+	for _, f := range record {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			out = append(out, f)
 		}
 	}
-	return out
+	return out, nil
 }

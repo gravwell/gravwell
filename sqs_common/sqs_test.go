@@ -40,7 +40,7 @@ func TestSQSListener(t *testing.T) {
 			conf: &Config{
 				Queue:       "https://sqs.us-east-1.amazonaws.com/12345/my-queue",
 				Region:      "us-east-1",
-				Credentials: credentials.NewStaticCredentialsProvider("akid", "secret", ""),
+				Credentials: credentials.NewStaticCredentialsProvider("test-access-key-id", "test-secret-key", ""),
 			},
 			expectedEndpoint: "",
 		},
@@ -50,7 +50,7 @@ func TestSQSListener(t *testing.T) {
 				Queue:       "http://localhost:9324/000000000000/test-queue",
 				Region:      "elasticmq",
 				Endpoint:    "http://localhost:9324",
-				Credentials: credentials.NewStaticCredentialsProvider("akid", "secret", ""),
+				Credentials: credentials.NewStaticCredentialsProvider("test-access-key-id", "test-secret-key", ""),
 			},
 			expectedEndpoint: "http://localhost:9324",
 		},
@@ -80,15 +80,15 @@ func TestGetCredentials(t *testing.T) {
 		wantErr      bool
 		wantNilCreds bool
 	}{
-		{"static valid", "static", "akid", "secret", false, false},
-		{"static, missing id", "static", "", "secret", true, false},
-		{"static, missing secret", "static", "akid", "", true, false},
+		{"static valid", "static", "test-access-key-id", "test-secret-key", false, false},
+		{"static, missing id", "static", "", "test-secret-key", true, false},
+		{"static, missing secret", "static", "test-access-key-id", "", true, false},
 		// environment returns nil intentionally — SQSListener omits the credentials
 		// option and lets the SDK use its default provider chain, which includes env vars.
 		{"environment", "environment", "", "", false, true},
 		{"ec2 role", "ec2role", "", "", false, false},
 		{"invalid type", "foobar", "", "", true, false},
-		{"default (static)", "", "akid", "secret", false, false},
+		{"default (static)", "", "test-access-key-id", "test-secret-key", false, false},
 	}
 
 	for _, tt := range tests {
