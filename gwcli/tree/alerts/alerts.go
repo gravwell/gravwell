@@ -12,8 +12,11 @@ package alerts
 import (
 	"fmt"
 	"slices"
+
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -21,12 +24,14 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	alertscreate "github.com/gravwell/gravwell/v4/gwcli/tree/alerts/create"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -44,8 +49,34 @@ func NewNav() *cobra.Command {
 			toggle(),
 			delete(),
 			alertscreate.Action(),
+			dispatchers(),
 		})
 }
+
+//#region helpers
+
+func alertsToGeneric(a types.AlertListResponse) (g []multiselectlist.SelectableItem[string]) {
+	// sort on name
+	slices.SortStableFunc(a.Results,
+		func(a, b types.Alert) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+	g = make([]multiselectlist.SelectableItem[string], len(a.Results))
+	for i, a := range a.Results {
+		g[i] = &listitem.Generic{
+			Selected_:  false,
+			ID_:        a.ID,
+			Name:       a.Name,
+			SecondLine: a.Description,
+
+			ShowDisabled: true,
+			Enabled:      !a.Disabled,
+		}
+	}
+	return g
+}
+
+//#region actions
 
 // set and unset by list's ValidateArgs
 var (
@@ -147,24 +178,7 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			// sort on name
-			slices.SortStableFunc(alerts.Results,
-				func(a, b types.Alert) int {
-					return strings.Compare(a.Name, b.Name)
-				})
-			var items = make([]multiselectlist.SelectableItem[string], len(alerts.Results))
-			for i, a := range alerts.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        a.ID,
-					Name:       a.Name,
-					SecondLine: a.Description,
-
-					ShowDisabled: true,
-					Enabled:      !a.Disabled,
-				}
-			}
-			return items, nil
+			return alertsToGeneric(alerts), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -257,6 +271,115 @@ func toggle() action.Pair {
 				}
 				if toggleEnable && toggleDisable {
 					return ft.ErrMutuallyExclusive("enable", "disable").Error(), nil
+				}
+				return "", nil
+			},
+		})
+}
+
+func dispatchers() action.Pair {
+	return scaffoldselect.NewSelectAction("set the dispatchers for a set of alerts",
+		"Add, remove, or replace dispatchers (triggers) for an alert. "+
+			"Use --add to add dispatchers, --remove to remove them, or neither to replace the entire list.", "dispatcher",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			return alertsToGeneric(a), nil
+
+		},
+		func(ID string, fs *pflag.FlagSet) (success string, _ error) {
+			// we've already checked all flags
+			dIDs, _ := fs.GetStringSlice("dispatcher-ids")
+			add, _ := fs.GetBool("add")
+			remove, _ := fs.GetBool("remove")
+			a, err := connection.Client.GetAlert(ID)
+			if err != nil {
+				return "", err
+			}
+			if add {
+				clilog.Writer.Info("adding dispatchers to alert", log.KV("alert ID", ID), log.KV("dispatcher IDs", dIDs))
+				added, duplicate := 0, 0
+				for _, dID := range dIDs {
+					if !slices.ContainsFunc(a.Dispatchers, func(d types.AlertDispatcher) bool { return d.ID == dID }) {
+						a.Dispatchers = append(a.Dispatchers, types.AlertDispatcher{ID: dID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
+						added += 1
+					} else {
+						duplicate += 1
+					}
+				}
+				success = fmt.Sprintf("added %s to alert %s (ID: %s)", english.Plural(added, "dispatcher", ""), a.Name, a.ID)
+				if duplicate > 0 {
+					success += fmt.Sprintf("; skipped %d duplicates", duplicate)
+				}
+			} else if remove {
+				found := 0
+				clilog.Writer.Info("removing dispatchers from alert", log.KV("alert ID", ID), log.KV("dispatcher IDs", dIDs))
+				a.Dispatchers = slices.DeleteFunc(a.Dispatchers, func(ad types.AlertDispatcher) bool {
+					for _, dID := range dIDs {
+						if ad.ID == dID {
+							found += 1
+							return true
+						}
+					}
+					return false
+				})
+				success = fmt.Sprintf("removed %d (of %d given) %s from alert %s (ID: %s); %d remaining",
+					found, len(dIDs), english.PluralWord(found, "dispatcher", ""), a.Name, a.ID, len(a.Dispatchers))
+			} else {
+				clilog.Writer.Info("replacing dispatchers on alert", log.KV("alert ID", ID), log.KV("new dispatcher IDs", dIDs), log.KV("old dispatchers", a.Dispatchers))
+				a.Dispatchers = make([]types.AlertDispatcher, len(dIDs))
+				for i, dID := range dIDs {
+					a.Dispatchers[i] = types.AlertDispatcher{ID: dID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH}
+				}
+				success = fmt.Sprintf("replaced dispatchers on alert %s (ID: %s)", a.Name, a.ID)
+			}
+
+			if _, err := connection.Client.UpdateAlert(a); err != nil {
+				return "", err
+			}
+			return success, nil // success built in each branch
+
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "dispatchers",
+				Aliases: []string{"dispatcher"},
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.StringSlice("dispatcher-ids", nil, "REQUIRED. IDs of the dispatchers to add/remove/replace from each alert")
+					fs.Bool("add", false, "add the dispatchers specified by --dispatcher-ids to each alert"+
+						" Mutually exclusive with --remove")
+					fs.Bool("remove", false, "remove the dispatchers specified by --dispatcher-ids from each alert."+
+						" Mutually exclusive with --add")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if dIDs, err := fs.GetStringSlice("dispatcher-ids"); err != nil { // this is a fatal error
+					return "", clilog.GetFlag(err)
+				} else if len(dIDs) < 1 {
+					return phrases.ErrFlagIsRequired("dispatcher-ids").Error(), nil
+				} else {
+					// ensure each dispatcher ID is valid
+					lr, err := connection.Client.ListScheduledSearches(&types.QueryOptions{AdminMode: connection.AdminMode()})
+					if err != nil {
+						return "", err
+					}
+
+					for _, dID := range dIDs {
+						if !slices.ContainsFunc(lr.Results, func(ss types.ScheduledSearch) bool { return ss.ID == dID }) {
+							return phrases.ErrUnknownIdentifier(dID, "scheduled search ID").Error(), nil
+						}
+					}
+				}
+				add, err := fs.GetBool("add")
+				clilog.GetFlag(err)
+				remove, err := fs.GetBool("remove")
+				clilog.GetFlag(err)
+				if add && remove {
+					return ft.ErrMutuallyExclusive("add", "remove").Error(), nil
 				}
 				return "", nil
 			},
