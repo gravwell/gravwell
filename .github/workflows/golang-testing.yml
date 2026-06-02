@@ -276,6 +276,8 @@ jobs:
       run: go mod download
 
     - name: Run e2e tests
+      env:
+        TESTCONTAINERS_RYUK_DISABLED: "true"
       run: |
         cd ./e2e
         go test -v -artifacts ./...
