@@ -260,8 +260,6 @@ func (m *updateModel) Update(msg tea.Msg) tea.Cmd {
 		m.stage = quitting
 		return tea.Println(clilog.ErrInternal{}.Error())
 	}
-	// nothing actionable occurred
-	return nil
 }
 
 func (m *updateModel) View() string {
