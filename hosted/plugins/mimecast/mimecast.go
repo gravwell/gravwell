@@ -331,6 +331,9 @@ func (m *Mimecast) entries(ctx context.Context, url string) (iter.Seq[[]byte], e
 	if err != nil {
 		return nil, err
 	}
+	// The DefaultClient is used here as the event.URL is a presigned URL (generally to an aws S3 bucket).
+	// Rate Limits don't apply, and using m.client would pass credentials to AWS.
+	// can't defer drain since we return an iterator
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		utils.DrainResponse(response)
