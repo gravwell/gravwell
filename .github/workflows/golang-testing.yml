@@ -273,14 +273,14 @@ jobs:
         cache: false
 
     - name: Go Mod Download
+      working-directory: e2e
       run: go mod download
 
     - name: Run e2e tests
+      working-directory: e2e
       env:
         TESTCONTAINERS_RYUK_DISABLED: "true"
-      run: |
-        cd ./e2e
-        go test -v -artifacts ./...
+      run: go test -v -artifacts ./...
 
     - name: Upload test artifacts
       if: always()

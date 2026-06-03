@@ -143,7 +143,7 @@ func Start() {
 		ctx,
 		image,
 		network.WithNetwork([]string{"gravwell"}, net),
-		tc.WithExposedPorts("80/tcp"),
+		tc.WithExposedPorts("80/tcp", "4023/tcp"),
 		tc.WithImagePlatform(*platform),
 		tc.WithFiles(licenseFile, config),
 		tc.WithEnv(map[string]string{
