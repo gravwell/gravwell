@@ -12,9 +12,11 @@ package uniques
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -136,4 +138,25 @@ func Help(c *cobra.Command, _ []string) {
 	}
 
 	fmt.Fprint(c.OutOrStdout(), sb.String())
+}
+
+// LogStackTrace returns a log containing the call tree that triggered this call.
+// It is the more general-purpose cousin to scaffold.IdentifyCaller()
+func LogStackTrace() rfc5424.SDParam {
+	var raw = make([]uintptr, 7) // arbitrary depth
+
+	count := runtime.Callers(2, raw) // skip ourselves
+	frames := runtime.CallersFrames(raw[:count])
+	if frames == nil || count == 0 {
+		return rfc5424.SDParam{Name: "Stack Trace", Value: "UNKNOWN"}
+	}
+	var sb strings.Builder
+	for {
+		frame, more := frames.Next()
+		fmt.Fprintf(&sb, "%v:%v\n", frame.Function, frame.Line)
+		if !more {
+			break
+		}
+	}
+	return rfc5424.SDParam{Name: "Stack Trace", Value: strings.TrimSpace(sb.String())}
 }

@@ -22,6 +22,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
@@ -162,6 +163,8 @@ func Init(path string, lvlString string) error {
 		Writer.Close()
 		return err
 	}
+
+	state.SetDebugMode()
 
 	return nil
 }

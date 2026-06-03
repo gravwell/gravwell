@@ -28,11 +28,13 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/shlex"
@@ -112,6 +114,12 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 //
 // Renderer is only to be used for tests; it should be left nil otherwise.
 func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.Renderer) Mother {
+	// sanity check
+	if state.DebugMode() && !state.Interactive() {
+		clilog.Writer.Warn("Something has gone horribly wrong! Mother is being spawned, but interactivity is disallowed!",
+			uniques.LogStackTrace())
+	}
+
 	// spin up builtins
 	initBuiltins()
 
@@ -249,6 +257,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.processOnStartup {
 		m.processOnStartup = false
 		m.dieOnChildDone = true
+		state.SetDirectInvoked()
 		return m, processInput(&m)
 	}
 
