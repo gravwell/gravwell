@@ -22,6 +22,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/groups"
@@ -53,6 +55,7 @@ func NewNav() *cobra.Command {
 			addIndexer(),
 			backup(),
 			restore(),
+			Status("status"),
 		},
 	)
 }
@@ -336,4 +339,74 @@ func restore() action.Pair {
 				return "", nil
 			},
 		})
+}
+
+// Status displays if your account is an administrator and if you are currently in admin mode.
+// NOTE: this action is provided to both the `admin` nav (as `status`) and the `self` nav. Hence the export.
+func Status(use string) action.Pair {
+	return scaffold.NewBasicAction(use, "display your admin status or toggle admin mode", "Displays whether or not you are an admin.\n"+
+		"In interactive mode, -t can be used to toggle "+stylesheet.Cur.ErrorText.Render("admin mode")+" which will attach admin=true to future request.\n"+
+		"For the most part, this just implies --all in calls that support it, resulting in lists displaying results from all users.\n"+
+		"\n"+
+		"Exercise caution in admin mode, as it gives access to objects belonging to other users and makes it easy to break things.\n"+
+		"Admin mode does not persist between sessions and has no effect if invoked non-interactively.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			isAdministrator, err := connection.Client.IsAdmin()
+			if err != nil {
+				return "failed to fetch administrator status: " + err.Error(), nil
+			}
+			var statusSB strings.Builder
+			if isAdministrator {
+				statusSB.WriteString("You are an administrator.\n")
+			} else {
+				statusSB.WriteString("You are not an administrator.\n")
+			}
+			// if we are not spinning up a full, interactive shell, admin mode doesn't matter.
+			if !state.Interactive() && !state.DirectInvoked() {
+				return statusSB.String(), nil
+			}
+
+			{ // branch on toggle flag
+				t, err := fs.GetBool("toggle")
+				clilog.GetFlag(err)
+				if t {
+					return toggle(isAdministrator)
+				}
+			}
+
+			// attach admin mode to the output string
+			if inAdminMode := connection.AdminMode(); inAdminMode {
+				statusSB.WriteString("You are in admin mode.\n")
+				if isAdministrator {
+					statusSB.WriteString("Yet, you are somehow in admin mode.\n" +
+						"Admin mode will be ineffectual.\n")
+				}
+			} else {
+				statusSB.WriteString("You are not in admin mode.\n")
+			}
+			return statusSB.String(), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: use + " " + ft.Optional("--toggle"),
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.BoolP("toggle", "t", false, ft.InteractiveOnly()+" Toggle admin mode for this session.")
+					return fs
+				},
+			},
+		})
+}
+
+func toggle(isAdministrator bool) (string, tea.Cmd) {
+	if !isAdministrator {
+		return "Only administrators can toggle admin mode", nil
+	}
+	if !connection.Client.AdminMode() {
+		connection.Client.SetAdminMode()
+		return "You are now in admin mode", nil
+	}
+	connection.Client.ClearAdminMode()
+	return "You are no longer in admin mode", nil
+
 }
