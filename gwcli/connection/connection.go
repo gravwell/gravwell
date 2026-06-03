@@ -736,18 +736,13 @@ func RefreshCurrentUser() error {
 	return nil
 }
 
-//#region super functions
-// This region covers functions that wrap/bolster Client functionality.
-// Typically only necessary for special purposes (like AdminMode returning false if the connection DNE)
-
+// AdminMode returns if the client is current in admin mode (aka: passing the admin param as a query opt).
 func AdminMode() bool {
 	if Client == nil {
 		return false
 	}
 	return Client.AdminMode()
 }
-
-//#endregion super functions
 
 // ParseJWT does as it says on the tin.
 // The given string is unmarshaled into 3 chunks (header, payload, signature) and returned.
