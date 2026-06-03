@@ -1,3 +1,5 @@
+//go:build noci
+
 package self_test
 
 import (
