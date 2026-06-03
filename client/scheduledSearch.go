@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // GetScheduledSearchList returns scheduled searches the user has access to.
@@ -190,7 +190,7 @@ func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line,
 		Version: int(lang),
 		Script:  data,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, scheduledSearchParseUrl(), req, &resp); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPut, scheduledSearchParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 	if resp.OK {

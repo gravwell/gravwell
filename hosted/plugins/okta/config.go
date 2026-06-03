@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 const (
@@ -36,9 +36,9 @@ var (
 
 type Config struct {
 	hosted.BaseConfig
-	Request_Batch_Size int    // how many entries do we request per HTTP request
-	Request_Per_Minute int    // what is our basic request rate
-	Request_Burst      int    // leaky bucket burstability
+	Request_Batch_Size int // how many entries do we request per HTTP request
+	Request_Per_Minute int // what is our basic request rate
+	Request_Burst      int // leaky bucket burstability
 	Domain             string
 	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
 }
