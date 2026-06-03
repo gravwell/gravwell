@@ -69,6 +69,15 @@ func NewDeleteAction[I scaffold.Id_t](
 	del DeleteFunc[I],
 	fch FetchFunc[I],
 	opts Options) action.Pair {
+
+	var usage string
+	if opts.AddtlFlags != nil {
+		usage = ft.Optional("FLAGS")
+	} else {
+		usage = ft.Optional("--dryrun")
+	}
+	usage += " " + ft.VariadicArgs(singular, true)
+
 	cmd := treeutils.GenerateAction(
 		"delete",
 		"delete one or more "+plural,
@@ -103,7 +112,7 @@ func NewDeleteAction[I scaffold.Id_t](
 				return errors.New("all operations failed")
 			}
 			return nil
-		}, treeutils.GenerateActionOptions{Usage: ft.Optional("flags") + ""}) // TODO this should use the new ft.VariadicArgs
+		}, treeutils.GenerateActionOptions{Usage: usage})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
 	opts.Apply(cmd)
