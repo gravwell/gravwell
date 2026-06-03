@@ -12,6 +12,7 @@ package scaffolddelete_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -31,9 +32,9 @@ func TestMain(m *testing.M) {
 
 // #region test helpers
 
-func del(dryrun bool, id string) error {
-	if id == "bad" {
-		return errors.New("unknown item (bad) in the collection")
+func del(dryrun bool, ID string) error {
+	if strings.Contains(ID, "bad") {
+		return errors.New("unknown item (" + ID + ") in the collection")
 	}
 	return nil
 }
@@ -67,14 +68,15 @@ func TestNonInteractive(t *testing.T) {
 		wantOut string
 		wantErr string
 	}{
-		{"delete single item", []string{"alpha"}, "widget (ID alpha) deleted", ""},
-		{"delete multiple items", []string{"alpha", "beta"}, "widget (ID alpha) deleted\nwidget (ID beta) deleted", ""},
-		{"dryrun single item", []string{"--dryrun", "alpha"}, "DRYRUN: widget (ID alpha) would have been deleted", ""},
+		{"delete single item", []string{"alpha"}, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha"), ""},
+		{"delete multiple items", []string{"alpha", "beta"}, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha") + "\n" + fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "beta"), ""},
+		{"dryrun single item", []string{"--dryrun", "alpha"}, fmt.Sprintf(scaffolddelete.DryrunSuccessTextF, "widget", "alpha"), ""},
 		{"dryrun multiple items", []string{"--dryrun", "alpha", "gamma"},
-			"DRYRUN: widget (ID alpha) would have been deleted\nDRYRUN: widget (ID gamma) would have been deleted", ""},
+			fmt.Sprintf(scaffolddelete.DryrunSuccessTextF, "widget", "alpha") + "\n" + fmt.Sprintf(scaffolddelete.DryrunSuccessTextF, "widget", "gamma"), ""},
 		{"delete none", nil, "", "you must specify at least 1 argument"},
 		{"delete unknown item", []string{"bad"}, "", "unknown item (bad) in the collection"},
-		{"one good one bad", []string{"alpha", "bad"}, "widget (ID alpha) deleted", "unknown item (bad)"},
+		{"multiple unknown items", []string{"bad", "bad2"}, "", "failed to delete widget (ID bad): unknown item (bad) in the collection\nfailed to delete widget (ID bad2): unknown item (bad2) in the collection\nError: all operations failed all operations failed"},
+		{"one good one bad", []string{"alpha", "bad"}, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha"), "unknown item (bad)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -140,6 +142,10 @@ func TestInteractiveCycle(t *testing.T) {
 			pair.Model.Update(testsupport.SendHotkey(hotkeys.Select))
 			// Submit selection (Invoke continues to confirmation)
 			pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
+			// check confirmation view for the Beta ID
+			v := pair.Model.View()
+			assert.Contains(t, v, "Deleting 1 widget:")
+			assert.Contains(t, v, "Beta")
 			// Now in confirmation mode - submit the confirmation
 			cmd := pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
 			assert.True(t, pair.Model.Done())
@@ -148,21 +154,6 @@ func TestInteractiveCycle(t *testing.T) {
 				assert.Contains(t, msg, "beta")
 			}
 		})
-	})
-
-	t.Run("with dryrun flag skips confirmation", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
-		testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{"--dryrun"}, 50, 20, false, nil, false)
-
-		// Select first item and submit
-		pair.Model.Update(testsupport.SendHotkey(hotkeys.Select))
-		cmd := pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
-		// Dryrun should skip confirmation and go straight to done
-		assert.True(t, pair.Model.Done())
-		if cmd != nil {
-			msg := testsupport.ExtractPrintLineMessageString(t, cmd, true, 0)
-			assert.Contains(t, msg, "DRYRUN")
-		}
 	})
 
 	t.Run("IDs via bare args skip interactive", func(t *testing.T) {

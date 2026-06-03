@@ -185,7 +185,7 @@ func (m *updateModel) SetArgs(_ *pflag.FlagSet, args []string, width, height int
 		}
 		items := make([]list.Item, len(lr.Results))
 		for i, secret := range lr.Results {
-			items[i] = listitem.Generic{
+			items[i] = &listitem.Generic{
 				ID_:        secret.ID,
 				Name:       secret.Name,
 				SecondLine: secret.Description,

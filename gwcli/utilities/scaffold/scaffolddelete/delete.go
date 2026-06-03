@@ -20,10 +20,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -32,7 +34,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/client"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -44,8 +45,8 @@ type DeleteFunc[I scaffold.Id_t] func(dryrun bool, ID I) error
 type FetchFunc[I scaffold.Id_t] func() ([]multiselectlist.SelectableItem[I], error)
 
 const (
-	dryrunSuccessTextF = "DRYRUN: %v (ID %v) would have been deleted"
-	deleteSuccessTextF = "%v (ID %v) deleted"
+	DryrunSuccessTextF = "DRYRUN: %v (ID: %v) would have been deleted"
+	DeleteSuccessTextF = "%v (ID: %v) deleted"
 )
 
 const heightBuffer = 4
@@ -81,27 +82,21 @@ func NewDeleteAction[I scaffold.Id_t](
 			}
 
 			if len(IDs) == 0 {
-				if noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
-					return err
-				} else if noInteractive {
-					return errors.New(phrases.AtLeast1ArgRequired(plural))
+				if state.Interactive() {
+					return mother.Spawn(c.Root(), c, s)
 				}
-				// spin up mother
-				return mother.Spawn(c.Root(), c, s)
+				return errors.New(phrases.AtLeast1ArgRequired(plural))
 			}
 
 			// non-interactive: delete each given id
 			var atLeastOneSuccess bool
-			for _, ID := range IDs {
-				if err := del(dryrun, ID); err != nil {
-					fmt.Fprintf(c.ErrOrStderr(), "failed to delete %v (ID %v): %v", singular, ID, err)
-					continue
-				}
-				atLeastOneSuccess = true
-				if dryrun {
-					fmt.Fprintf(c.OutOrStdout(), dryrunSuccessTextF+"\n", singular, ID)
+			results := attemptDeletions(singular, IDs, dryrun, del)
+			for _, res := range results {
+				if res.err != nil {
+					fmt.Fprintln(c.ErrOrStderr(), res.err.Error())
 				} else {
-					fmt.Fprintf(c.OutOrStdout(), deleteSuccessTextF+"\n", singular, ID)
+					fmt.Fprintln(c.OutOrStdout(), res.success)
+					atLeastOneSuccess = true
 				}
 			}
 			if !atLeastOneSuccess {
@@ -139,6 +134,52 @@ func getFlags[I scaffold.Id_t](fs *pflag.FlagSet) (ids []I, dryrun bool, _ error
 	return
 }
 
+// attemptDeletion is the actual deletion actor, used to keep the behavior of each entry point uniform.
+func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, del DeleteFunc[I]) (results []struct {
+	success string
+	err     error
+}) {
+	results = make([]struct {
+		success string
+		err     error
+	}, len(IDs))
+	for i, ID := range IDs {
+		if err := del(dryrun, ID); err != nil {
+			if phrases.IsNotFoundErr(err) {
+				results[i] = struct {
+					success string
+					err     error
+				}{"", phrases.ErrUnknownIdentifier(ID, singular)}
+			} else {
+				results[i] = struct {
+					success string
+					err     error
+				}{
+					"", fmt.Errorf("failed to delete %v (ID %v): %v", singular, ID, err),
+				}
+			}
+			continue
+		}
+		// success
+		if dryrun {
+			results[i] = struct {
+				success string
+				err     error
+			}{
+				fmt.Sprintf(DryrunSuccessTextF, singular, ID), nil,
+			}
+		} else {
+			results[i] = struct {
+				success string
+				err     error
+			}{
+				fmt.Sprintf(DeleteSuccessTextF, singular, ID), nil,
+			}
+		}
+	}
+	return results
+}
+
 //#region interactive mode (model) implementation
 
 type mode uint
@@ -154,8 +195,8 @@ type deleteModel[I scaffold.Id_t] struct {
 	itemPlural   string // "macros", "kits", "queries"
 	mode         mode   // current mode
 	dryrun       bool
-	df           DeleteFunc[I] // function to delete an item
-	ff           FetchFunc[I]  // function to get all delete-able items
+	del          DeleteFunc[I] // function to delete an item
+	fch          FetchFunc[I]  // function to get all delete-able items
 
 	// selecting mode
 	msl multiselectlist.Model[I]
@@ -171,11 +212,67 @@ func newDeleteModel[I scaffold.Id_t](singular, plural string, del DeleteFunc[I],
 		itemSingular: singular,
 		itemPlural:   plural,
 		mode:         modeSelecting,
-		df:           del,
-		ff:           fch,
+		del:          del,
+		fch:          fch,
 	}
 	d.flagset = flags()
 	return d
+}
+
+func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
+	// fetch deleteable items
+	itms, err := d.fch()
+	if err != nil {
+		return "", nil, err
+	}
+
+	// if there are no items to delete, die
+	if len(itms) < 1 {
+		d.mode = modeDone
+		return "", tea.Printf("You have no %v that can be deleted", d.itemPlural), nil
+	}
+
+	adjustedHeight := max(0, height-heightBuffer)
+	d.msl = multiselectlist.New(itms, width, adjustedHeight, multiselectlist.Options{})
+	d.msl.SetShowStatusBar(true)
+	d.msl.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+	d.msl.Title = "Delete " + d.itemPlural
+
+	// initialize confirmation with a single choice: "item selection"
+	d.confirm.Init([]string{"item selection"}, uint(width), uint(height))
+
+	// parse flags
+	if err := d.flagset.Parse(tokens); err != nil {
+		return err.Error(), nil, nil
+	}
+	IDs, dryrun, err := getFlags[I](&d.flagset)
+	if err != nil {
+		return "", nil, err
+	}
+	d.dryrun = dryrun
+
+	if len(IDs) > 0 {
+		// Pre-select items by flag and skip directly to result
+		d.mode = modeDone
+		var atLeastOneSuccess bool
+		results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del)
+		cmds := make([]tea.Cmd, len(results))
+		for i, res := range results {
+			if res.err != nil {
+				cmds[i] = tea.Println(res.err.Error())
+			} else {
+				cmds[i] = tea.Println(res.success)
+				atLeastOneSuccess = true
+			}
+		}
+		if !atLeastOneSuccess {
+			cmds = append(cmds, tea.Println("all operations failed"))
+		}
+		return "", tea.Sequence(cmds...), nil
+	}
+
+	return "", nil, nil
 }
 
 func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
@@ -199,19 +296,8 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 		if d.msl.Done() {
 			d.msl.Undone() // in case we come back
 
-			selected := d.msl.GetSelectedItems()
-			if len(selected) < 1 {
+			if len(d.msl.GetSelectedItems()) < 1 {
 				return d.msl.NewStatusMessage("you must select at least 1 " + d.itemSingular)
-			}
-
-			// If dryrun, skip confirmation and immediately report results
-			if d.dryrun {
-				d.mode = modeDone
-				var cmds []tea.Cmd
-				for _, itm := range selected {
-					cmds = append(cmds, tea.Printf(dryrunSuccessTextF, d.itemSingular, itm.ID()))
-				}
-				return tea.Batch(cmds...)
 			}
 
 			// transition to confirmation
@@ -232,15 +318,25 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 			// perform the actual deletions
 			d.mode = modeDone
 			selected := d.msl.GetSelectedItems()
-			var resultCmds []tea.Cmd
-			for _, itm := range selected {
-				if err := d.df(false, itm.ID()); err != nil {
-					resultCmds = append(resultCmds, tea.Printf("Failed to delete %v (ID %v): %v", d.itemSingular, itm.ID(), err))
+			IDs := make([]I, len(selected))
+			for i, sel := range selected {
+				IDs[i] = sel.ID()
+			}
+			var atLeastOneSuccess bool
+			results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del)
+			cmds := make([]tea.Cmd, len(results))
+			for i, res := range results {
+				if res.err != nil {
+					cmds[i] = tea.Println(res.err.Error())
 				} else {
-					resultCmds = append(resultCmds, tea.Printf(deleteSuccessTextF, d.itemSingular, itm.ID()))
+					cmds[i] = tea.Println(res.success)
+					atLeastOneSuccess = true
 				}
 			}
-			return tea.Batch(cmd, tea.Sequence(resultCmds...))
+			if !atLeastOneSuccess {
+				cmds = append(cmds, tea.Println("all operations failed"))
+			}
+			return tea.Sequence(cmds...)
 		}
 		// choice 0 == return to list
 		_ = choice
@@ -254,7 +350,11 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 func (d *deleteModel[I]) buildConfirmHeader() {
 	selected := d.msl.GetSelectedItems()
 	var lines []string
-	lines = append(lines, fmt.Sprintf("Deleting %d %v:", len(selected), d.itemPlural))
+	if d.dryrun {
+		lines = append(lines, fmt.Sprintf("Faux-deleting %v:", english.Plural(len(selected), d.itemSingular, "")))
+	} else {
+		lines = append(lines, fmt.Sprintf("Deleting %v:", english.Plural(len(selected), d.itemSingular, "")))
+	}
 	for _, itm := range selected {
 		lines = append(lines, fmt.Sprintf("  • %v", itm.Title()))
 	}
@@ -285,64 +385,4 @@ func (d *deleteModel[I]) Reset() error {
 	d.msl = multiselectlist.Model[I]{}
 	d.confirm = confirmation.Model{}
 	return nil
-}
-
-func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
-	invalid string, onStart tea.Cmd, err error) {
-	// fetch deleteable items
-	itms, err := d.ff()
-	if err != nil {
-		return "", nil, err
-	}
-
-	// if there are no items to delete, die
-	if len(itms) < 1 {
-		d.mode = modeDone
-		return "", tea.Printf("You have no %v that can be deleted", d.itemPlural), nil
-	}
-
-	adjustedHeight := max(0, height-heightBuffer)
-	d.msl = multiselectlist.New(itms, width, adjustedHeight, multiselectlist.Options{})
-	d.msl.SetShowStatusBar(true)
-	d.msl.StatusMessageLifetime = stylesheet.StatusMessageLifetime
-	d.msl.Title = "Delete " + d.itemPlural
-
-	// initialize confirmation with a single choice: "item selection"
-	d.confirm.Init([]string{"item selection"}, uint(width), uint(height))
-
-	// parse flags
-	if err := d.flagset.Parse(tokens); err != nil {
-		return err.Error(), nil, nil
-	}
-	ids, dryrun, err := getFlags[I](&d.flagset)
-	if err != nil {
-		return "", nil, err
-	}
-	d.dryrun = dryrun
-
-	if len(ids) > 0 {
-		// Pre-select items by flag and skip directly to result
-		d.mode = modeDone
-		var resultCmds []tea.Cmd
-		for _, id := range ids {
-			if err := d.df(dryrun, id); err != nil {
-				// check for sentinel errors
-				if cerr, ok := err.(*client.ClientError); ok && cerr.StatusCode == 404 {
-					resultCmds = append(resultCmds, tea.Printf("Did not find a valid %v with ID %v", d.itemSingular, id))
-				} else {
-					return "", nil, err
-				}
-			} else if dryrun {
-				resultCmds = append(resultCmds, tea.Printf(dryrunSuccessTextF, d.itemSingular, id))
-			} else {
-				resultCmds = append(resultCmds, tea.Printf(deleteSuccessTextF, d.itemSingular, id))
-			}
-		}
-		if len(resultCmds) == 0 {
-			return "", nil, nil
-		}
-		return "", tea.Sequence(resultCmds...), nil
-	}
-
-	return "", nil, nil
 }

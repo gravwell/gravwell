@@ -223,7 +223,7 @@ func replace() action.Pair {
 			for i, actionable := range lr.Results {
 				items[i] = &listitem.Generic{
 					Selected_:    false,
-					ID_:          actionable.Name,
+					ID_:          actionable.ID,
 					Name:         actionable.Name,
 					SecondLine:   actionable.Description,
 					ShowDisabled: true,

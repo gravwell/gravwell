@@ -678,7 +678,6 @@ func (p *TextAreaProvider) Update(hovered bool, msg tea.Msg) (cmd tea.Cmd, takeo
 	if hovered && hotkeys.Match(msg, hotkeys.Select) {
 		p.takeover = true
 		p.ta.Focus()
-		p.ta.Focus()
 		return nil, true
 	}
 	return cmd, false
