@@ -1,6 +1,6 @@
 module mimecast
 
-go 1.26.3
+go 1.26.4
 
 require github.com/gravwell/gravwell/v4 v4.0.0-00010101000000-000000000000
 
