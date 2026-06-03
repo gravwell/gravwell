@@ -38,6 +38,7 @@ func NewNav() *cobra.Command {
 			changePassword(),
 			searchGroup(),
 			update(),
+			logoutAll(),
 		})
 }
 
@@ -223,6 +224,22 @@ func groups() action.Pair {
 					fmt.Fprintf(&sb, "%s (ID: %d)\n", grp.Name, grp.ID)
 				}
 				return sb.String()[:sb.Len()-1], nil
+			},
+		})
+}
+
+func logoutAll() action.Pair {
+	return scaffold.NewBasicAction("logout-all", "logout all sessions", "Terminate all active sessions for your user.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			if err := connection.Client.LogoutAll(); err != nil {
+				return err.Error(), nil
+			}
+			connection.End()
+			return "Successfully logged out all sessions", tea.Quit
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage:   "logout-all",
+				Aliases: []string{"boot"},
 			},
 		})
 }
