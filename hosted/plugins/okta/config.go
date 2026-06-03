@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 const (
@@ -34,11 +35,11 @@ var (
 )
 
 type Config struct {
-	Ingester_UUID      string // set the UUID for the ingester
-	Request_Batch_Size int    // how many entries do we request per HTTP request
-	Request_Per_Minute int    // what is our basic request rate
-	Request_Burst      int    // leaky bucket burstability
-	Domain             string // account domain
+	hosted.BaseConfig
+	Request_Batch_Size int // how many entries do we request per HTTP request
+	Request_Per_Minute int // what is our basic request rate
+	Request_Burst      int // leaky bucket burstability
+	Domain             string
 	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
 }
 
@@ -68,20 +69,10 @@ func (c *Config) Verify() (err error) {
 		return
 	}
 
-	// check the UUID
 	if c.Ingester_UUID == `` {
 		return errors.New("missing Ingester-UUID")
 	} else if _, err = uuid.Parse(c.Ingester_UUID); err != nil {
 		return fmt.Errorf("invalid Ingester-UUID %q %w", c.Ingester_UUID, err)
 	}
-	return // all good
-}
-
-func (c *Config) UUID() uuid.UUID {
-	if c.Ingester_UUID != `` {
-		if r, err := uuid.Parse(c.Ingester_UUID); err == nil {
-			return r
-		}
-	}
-	return uuid.Nil
+	return
 }
