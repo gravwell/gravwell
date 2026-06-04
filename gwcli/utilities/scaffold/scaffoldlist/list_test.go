@@ -76,7 +76,7 @@ func TestShowColumns_AllFlag(t *testing.T) {
 		aliased["Export.YV.YungCuz"] = "YC"
 
 		pair := scaffoldlist.NewListAction("test function", "this is a test function",
-			nuclearThrone{}, func(fs *pflag.FlagSet) ([]nuclearThrone, error) {
+			nuclearThrone{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]nuclearThrone, error) {
 				return data, nil
 			},
 			maps.Clone(aliased), scaffoldlist.Options{})
@@ -251,7 +251,7 @@ func TestMotherCycle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				nuclearThrone{}, func(fs *pflag.FlagSet) ([]nuclearThrone, error) {
+				nuclearThrone{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]nuclearThrone, error) {
 					return data, nil
 				},
 				maps.Clone(aliased),
@@ -371,7 +371,7 @@ func TestNonInteractive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+				types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 					// generate some garbage data
 					ms := make([]types.Flow, 5)
 					for i := range 5 {
@@ -487,7 +487,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+				types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 					// generate some garbage data
 					ms := make([]types.Flow, 5)
 					for i := range 5 {
@@ -526,7 +526,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 func TestHelpGeneration(t *testing.T) {
 	// generate help text we can parse
 	pair := scaffoldlist.NewListAction("test function", "this is a test function",
-		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
+		types.Macro{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Macro, error) {
 			// generate some garbage data
 			ms := make([]types.Macro, 5)
 			for i := range 5 {
@@ -603,7 +603,7 @@ func TestEmptyMessage(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				pair := scaffoldlist.NewListAction("test function", "this is a test function",
-					types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+					types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 						// always return nil
 						return nil, nil
 					},
@@ -632,7 +632,7 @@ func TestEmptyMessage(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				pair := scaffoldlist.NewListAction("test function", "this is a test function",
-					types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+					types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 						// always return nil
 						return nil, nil
 					},
@@ -654,4 +654,75 @@ func TestEmptyMessage(t *testing.T) {
 		}
 	})
 
+}
+
+func TestOmitFlags(t *testing.T) {
+	t.Run("omitting flags removes them from help text", func(t *testing.T) {
+		tests := []struct {
+			name string
+			omit scaffoldlist.OmitFlags
+		}{
+			{"no omissions includes all", scaffoldlist.OmitFlags{}},
+			{"omit --all", scaffoldlist.OmitFlags{All: true}},
+			{"omit --all and --include-deleted", scaffoldlist.OmitFlags{All: true, IncludeDeleted: true}},
+		}
+		var sbOut, sbErr strings.Builder
+		for _, tt := range tests {
+			sbOut.Reset()
+			sbErr.Reset()
+			t.Run(tt.name, func(t *testing.T) {
+				pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
+					func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+						return []nuclearThrone{}, nil
+					},
+					nil,
+					scaffoldlist.Options{Omit: tt.omit})
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				uniques.Help(pair.Action, nil)
+				help := sbOut.String()
+				if tt.omit.All {
+					assert.NotContains(t, help, "--"+ft.AllColumns.Name())
+				} else {
+					assert.Contains(t, help, "--"+ft.AllColumns.Name())
+				}
+				if tt.omit.IncludeDeleted {
+					assert.NotContains(t, help, "--"+ft.IncludeDeleted.Name())
+				} else {
+					assert.Contains(t, help, "--"+ft.IncludeDeleted.Name())
+				}
+			})
+		}
+	})
+	t.Run("omitted flags errors if invoked", func(t *testing.T) {
+		t.Run("interactive", func(t *testing.T) {
+			tests := []struct {
+				name    string
+				omit    scaffoldlist.OmitFlags
+				setArgs []string
+
+				expectError bool
+			}{} // TODO
+			var sbOut, sbErr strings.Builder
+			for _, tt := range tests {
+				sbOut.Reset()
+				sbErr.Reset()
+				t.Run(tt.name, func(t *testing.T) {
+					pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
+						func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+							return []nuclearThrone{}, nil
+						},
+						nil,
+						scaffoldlist.Options{Omit: tt.omit})
+					pair.Action.SetOut(&sbOut)
+					pair.Action.SetErr(&sbErr)
+					pair.Action.SetArgs(tt.setArgs)
+					err := pair.Action.Execute()
+					assert.Equal(t, tt.expectError, err != nil)
+				})
+
+			}
+		})
+
+	})
 }

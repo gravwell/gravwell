@@ -58,6 +58,7 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -104,7 +105,7 @@ const (
 )
 
 // ListDataFunc is a function that retrieves an array of structs of type dataStruct
-type ListDataFunc[dataStruct_t any] func(*pflag.FlagSet) ([]dataStruct_t, error)
+type ListDataFunc[dataStruct_t any] func(addtlFlags *pflag.FlagSet, params DataParameters) ([]dataStruct_t, error)
 
 // AddtlFlagFunc (if not nil) bolts additional flags onto this action for later during the data func.
 type AddtlFlagFunc func() pflag.FlagSet
@@ -190,11 +191,16 @@ func NewListAction[dataStruct_t any](short, long string,
 	var defaultColumnsDQ = findDefaultColumns(options, DQToAlias)
 
 	// generate a non-interactive action
-	run := generateRunE(dataFunc, options, DQToAlias, AliasToDQ)
+	runE := generateRunE(dataFunc, options, DQToAlias, AliasToDQ)
 
-	// generate usage and example
-	actionOptions := treeutils.GenerateActionOptions{Example: "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()}
+	// generate default usage and example
+	var actionOptions treeutils.GenerateActionOptions
 	{
+		actionOptions.Example = "--" + ft.JSON.Name()
+		if !options.Omit.All {
+			actionOptions.Example += " --" + ft.AllColumns.Name()
+		}
+
 		formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
 		if options.Pretty != nil {
 			formats = append(formats, "--pretty")
@@ -202,10 +208,10 @@ func NewListAction[dataStruct_t any](short, long string,
 		actionOptions.Usage = fmt.Sprintf("%v %v", ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
 	}
 
-	cmd := treeutils.GenerateAction("list", short, long, nil, run, actionOptions)
+	cmd := treeutils.GenerateAction("list", short, long, nil, runE, actionOptions)
 	options.Apply(cmd)
 
-	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias)))
+	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias), options.Omit))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 
@@ -276,17 +282,12 @@ func generateRunE[dataStruct_t any](
 		}
 
 		var (
-			noInteractive bool
-			outFile       *os.File
-			format        outputFormat
-			columns       []string
+			outFile *os.File
+			format  outputFormat
+			columns []string
 		)
 		// gather flags and set up variables required for listOutput
 		var err error
-		noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
-		if err != nil {
-			clilog.GetFlag(err)
-		}
 		outFile, err = initOutFile(c.Flags())
 		if err != nil {
 			return err
@@ -302,7 +303,7 @@ func generateRunE[dataStruct_t any](
 		format = determineFormat(c.Flags(), opts.Pretty != nil)
 
 		// execute the actual list and format call
-		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias)
+		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias, opts.Omit)
 		if err != nil {
 			return err
 		}
@@ -310,7 +311,7 @@ func generateRunE[dataStruct_t any](
 		// if we generated no output, make that explicit to the user via the empty message
 		// (unless we are in no-interactive mode, where our output is likely to be piped, or writing to a file).
 		if s == "" {
-			if outFile == nil && !noInteractive {
+			if outFile == nil && !state.Interactive() {
 				fmt.Fprintln(c.OutOrStdout(), opts.EmptyMessage)
 			}
 			return nil

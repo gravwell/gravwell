@@ -84,6 +84,7 @@ func listOutput[struct_t any](
 	dataFunc ListDataFunc[struct_t],
 	prettyFunc PrettyPrinterFunc,
 	DQToAlias map[string]string,
+	omit OmitFlags,
 ) (string, error) {
 	// hand off control to pretty
 	if format == formatPretty {
@@ -94,7 +95,7 @@ func listOutput[struct_t any](
 	}
 
 	// massage the data for weave
-	data, err := dataFunc(fs)
+	data, err := dataFunc(fs, DataParameters{QueryOpts: getQueryOptions(fs, omit)})
 	if err != nil {
 		return "", err
 	}
@@ -122,40 +123,6 @@ func listOutput[struct_t any](
 		err = fmt.Errorf("unknown output format (%d)", format)
 	}
 	return toRet, err
-}
-
-// buildFlagSet returns a flagset composed of the default list flags,
-// additional flags defined for this action,
-// and --pretty if a prettyFunc was defined.
-//
-// defaultColumnsAliased are the columns to display as defaults alongside --columns.
-// They are expected to have aliases applied and will not be coerced.
-func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string) *pflag.FlagSet {
-	fs := pflag.FlagSet{}
-	ft.CSV.Register(&fs)
-	ft.JSON.Register(&fs)
-	ft.Table.Register(&fs)
-	fs.StringSliceP( // manually register string slice so we can set a default
-		ft.SelectColumns.Name(),
-		ft.SelectColumns.Shorthand(),
-		defaultColumnsAliased,
-		ft.SelectColumns.Usage())
-
-	ft.ShowColumns.Register(&fs)
-
-	ft.Output.Register(&fs)
-	ft.Append.Register(&fs)
-	ft.AllColumns.Register(&fs)
-
-	// if prettyFunc was defined, bolt on pretty
-	if prettyDefined {
-		fs.Bool("pretty", false, "display results as prettified text.\n"+
-			"Takes precedence over other format flags.\n"+
-			"May or may not respect columns, default or selected via --"+ft.SelectColumns.Name()+".")
-	}
-
-	return &fs
-
 }
 
 // Opens a file, per the given --output and --append flags in the flagset, and returns its handle.
