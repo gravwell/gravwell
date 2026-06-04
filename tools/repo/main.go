@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,23 +17,34 @@ var mods = []string{
 	"./tools/mock/mimecast",
 }
 
+var (
+	ErrUnknownCommand = errors.New("unknown command")
+	ErrBadArgs        = errors.New("bad arguments")
+)
+
 // main is expected to be run relative to the repo root.
 // this should only be run via go tool repo [cmd] [args]
 func main() {
 	command := os.Args[1]
+	var err error
 	switch command {
 	case "tidy":
-		tidy(os.Args[2:])
+		err = tidy(os.Args[2:])
 	case "bump-runtime":
-		bump(os.Args[2:])
+		err = bump(os.Args[2:])
+	default:
+		err = ErrUnknownCommand
+	}
+	if err != nil {
+		fmt.Printf("error running command %q: %v\n", command, err)
+		os.Exit(1)
 	}
 }
 
-func tidy(args []string) {
+func tidy(args []string) error {
 	wd, err := os.Getwd()
 	if err != nil {
-		fmt.Println("error:", err)
-		os.Exit(1)
+		return err
 	}
 	for _, mod := range mods {
 		cmd := exec.Command("go", "mod", "tidy")
@@ -41,10 +53,10 @@ func tidy(args []string) {
 		cmd.Dir = filepath.Clean(wd + "/" + mod)
 		err = cmd.Run()
 		if err != nil {
-			fmt.Println("error:", err)
-			os.Exit(1)
+			return err
 		}
 	}
+	return nil
 }
 
 var runtimes = []string{
@@ -54,16 +66,14 @@ var runtimes = []string{
 	"./tools/mock/mimecast/Dockerfile",
 }
 
-func bump(args []string) {
+func bump(args []string) error {
 	if len(args) < 2 {
-		fmt.Println("expected args [from] [to]")
-		os.Exit(1)
+		return fmt.Errorf("%w: expected 2 args: [from] [to]", ErrBadArgs)
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
-		fmt.Println("error:", err)
-		os.Exit(1)
+		return err
 	}
 	from := args[0]
 	to := args[1]
@@ -71,18 +81,16 @@ func bump(args []string) {
 	for _, mod := range mods {
 		file := filepath.Clean(fmt.Sprintf("%s/%s/go.mod", wd, mod))
 		if err := replace(file, from, to); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(1)
+			return err
 		}
 	}
 	for _, ref := range runtimes {
 		file := filepath.Clean(fmt.Sprintf("%s/%s", wd, ref))
 		if err := replace(file, from, to); err != nil {
-			fmt.Println("error:", err)
-			os.Exit(1)
+			return err
 		}
 	}
-	tidy(os.Args[2:])
+	return tidy(os.Args[2:])
 }
 
 func replace(path, from, to string) error {
