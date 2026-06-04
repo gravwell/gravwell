@@ -272,6 +272,20 @@ func generateRunE[dataStruct_t any](
 	dataFn ListDataFunc[dataStruct_t], opts Options,
 	DQToAlias, AliasToDQ map[string]string) func(c *cobra.Command, _ []string) error {
 	return func(c *cobra.Command, _ []string) error {
+		// this runs prior to validation as:
+		// 1) show-columns skips validation
+		// 2) scaffoldlist validation should fire first
+		showColumns, columns, outFile, format, inv := getFlags(c.Flags(), DQToAlias, AliasToDQ, opts.Pretty != nil)
+		if inv != "" {
+			return errors.New(inv)
+		} else if showColumns {
+			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
+			return nil
+		}
+		if outFile != nil {
+			defer outFile.Close()
+		}
+
 		// run custom validation
 		if opts.ValidateArgs != nil {
 			if invalid, err := opts.ValidateArgs(c.Flags()); err != nil {
@@ -279,15 +293,6 @@ func generateRunE[dataStruct_t any](
 			} else if invalid != "" {
 				return errors.New(invalid)
 			}
-		}
-
-		showColumns, columns, outFile, format, err := getFlags(c.Flags(), DQToAlias, AliasToDQ, opts.Pretty != nil)
-		if showColumns {
-			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
-			return nil
-		}
-		if outFile != nil {
-			defer outFile.Close()
 		}
 
 		// execute the actual list and format call

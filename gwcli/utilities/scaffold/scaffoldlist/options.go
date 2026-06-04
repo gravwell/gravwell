@@ -121,21 +121,22 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit OmitF
 	return &fs
 }
 
+// fetches values from the flagset that scaffoldlist uses directly (as opposed to getQueryOptions()).
 func getFlags(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, prettyDefined bool) (
-	showColumns bool, columns []string, outFile *os.File, format outputFormat, invalid string, err error,
+	showColumns bool, columns []string, outFile *os.File, format outputFormat, invalid string,
 ) {
 	show, err := fs.GetBool(FlagNameShowColumns)
 	clilog.GetFlag(err)
 	if show { // job's done
-		return true, nil, nil, 0, "", nil
+		return true, nil, nil, 0, ""
 	}
 	if outFile, err = initOutFile(fs); err != nil {
-		return
+		return true, nil, nil, 0, err.Error()
 	} else if outFile != nil {
-		// TODO can we get away with no disabling color here?
+		// TODO can we get away without disabling color here?
 	}
 	if columns, invalid = getColumns(fs, DQToAlias, AliasToDQ); invalid != "" {
-		return
+		return true, nil, nil, 0, invalid
 	}
 	format = determineFormat(fs, prettyDefined)
 	return

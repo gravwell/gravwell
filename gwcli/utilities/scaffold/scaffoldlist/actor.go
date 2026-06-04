@@ -63,20 +63,21 @@ func newListAction[dataStruct_t any](
 	return la
 }
 
-// SetArgs is called when the action is invoked by the user and Mother *enters* handoff mode.
-// Mother parses flags and provides us a handle to check against.
 func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
-	// refresh flags
 	la.fs = buildFlagSet(la.options.Pretty != nil, aliasColumns(la.defaultColumnsDQ, la.dqToAlias), la.options.Omit)
 	if la.options.AddtlFlags != nil {
 		la.fs.AddFlagSet(la.options.AddtlFlags())
 	}
-	err = la.fs.Parse(tokens) // TODO do we need to store the fs in la?
+	err = la.fs.Parse(tokens)
 	if err != nil {
 		return err.Error(), nil, nil
 	}
 
+	la.showColumns, la.columns, la.outFile, la.format, invalid = getFlags(la.fs, la.dqToAlias, la.aliasToDQ, la.options.Pretty != nil)
+	if la.showColumns {
+		return "", nil, nil
+	}
 	// run custom validation
 	if la.options.ValidateArgs != nil {
 		if invalid, err := la.options.ValidateArgs(la.fs); err != nil {
@@ -86,15 +87,11 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 		}
 	}
 
-	la.showColumns, la.columns, la.outFile, la.format, err = getFlags(la.fs, la.dqToAlias, la.aliasToDQ, la.options.Pretty != nil)
-	if err != nil {
-		return "", nil, err
-	}
-	return "", nil, nil
+	return invalid, nil, nil
 }
 
-// Update takes in a msg (some event that occurred, like a window redraw or a key press) and acts on it.
-// List only ever needs to update once; it figures out what data is to be displayed, fetches it, and spits it out above the prompt.
+// Update drives interactivity.
+// List only ever needs to update once; it figures out what data to display, fetches it, and spits it out above the prompt.
 func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	if la.done {
 		return nil
@@ -160,12 +157,12 @@ func (la *ListAction[T]) Reset() error {
 	la.done = false
 	la.columns = la.defaultColumnsDQ
 	la.showColumns = false
+	la.fs = &pflag.FlagSet{}
 	if la.outFile != nil {
 		la.outFile.Close()
 	}
 	la.outFile = nil
-
-	// flags are refreshed in SetArgs to guarantee they are built even on first run
+	la.format = 0
 
 	return nil
 }
