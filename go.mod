@@ -2,7 +2,7 @@ module github.com/gravwell/gravwell/v4
 
 go 1.26.4
 
-tool github.com/gravwell/gravwell/v3/tools/repo
+tool github.com/gravwell/gravwell/v4/tools/repo
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.5.1
