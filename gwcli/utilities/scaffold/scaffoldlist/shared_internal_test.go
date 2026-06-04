@@ -26,7 +26,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// Testing for unexported functions in shared, as many of these are critical.
+// While most testing should be done in the standalone Testing for unexported functions, as many of these are critical.
 
 func Test_initOutFile(t *testing.T) {
 	tDir := t.TempDir()
@@ -238,12 +238,12 @@ func Test_getColumns(t *testing.T) {
 
 	t.Run("--all", func(t *testing.T) {
 		fs := buildFlagSet(false, nil, OmitFlags{}) // default cols shouldn't matter for this
-		if err := fs.Parse([]string{"--" + ft.AllColumns.Name()}); err != nil {
+		if err := fs.Parse([]string{"--" + FlagNameSelectAllColumns}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		want := []string{"Alexander", "Marika", "Morgot", "Ranni"} // aliases don't affect all
 		if !slices.Equal(got, want) {
@@ -255,12 +255,12 @@ func Test_getColumns(t *testing.T) {
 
 		requestedColumns := []string{"Alexander", "Ranni", "Ranni", "Marika"}
 
-		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
+		if err := fs.Parse([]string{"--" + FlagNameSelectColumns + "=" + strings.Join(requestedColumns, ",")}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		if !slices.Equal(got, requestedColumns) {
 			t.Fatal(testsupport.ExpectedActual(requestedColumns, got))
@@ -271,12 +271,12 @@ func Test_getColumns(t *testing.T) {
 
 		requestedColumns := []string{"Radagon", "Alexander", "Ranni", "Margit"}
 
-		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
+		if err := fs.Parse([]string{"--" + FlagNameSelectColumns + "=" + strings.Join(requestedColumns, ",")}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		want := []string{"Marika", "Alexander", "Ranni", "Morgot"}
 		if !slices.Equal(got, want) {
@@ -292,9 +292,9 @@ func Test_getColumns(t *testing.T) {
 		if err := fs.Parse([]string{}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		if !slices.Equal(got, defaultColumns) {
 			t.Fatal(testsupport.ExpectedActual(defaultColumns, got))

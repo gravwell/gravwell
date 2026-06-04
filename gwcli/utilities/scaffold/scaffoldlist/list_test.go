@@ -5,6 +5,7 @@ package scaffoldlist_test
 import (
 	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -68,7 +70,7 @@ func TestShowColumns_AllFlag(t *testing.T) {
 	})
 
 	// now test it from the outside
-	t.Run("via --"+ft.ShowColumns.Name(), func(t *testing.T) {
+	t.Run("via --"+scaffoldlist.FlagNameSelectColumns, func(t *testing.T) {
 		data := []nuclearThrone{} // the data itself doesn't matter
 
 		aliased := maps.Clone(ntDQs)
@@ -82,7 +84,7 @@ func TestShowColumns_AllFlag(t *testing.T) {
 			maps.Clone(aliased), scaffoldlist.Options{})
 
 		uniques.AttachPersistentFlags(pair.Action)
-		testsupport.CheckSetArgs(t, pair.Model.SetArgs, pair.Action.Flags(), []string{"--" + ft.ShowColumns.Name()}, 80, 80,
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, pair.Action.Flags(), []string{"--" + scaffoldlist.FlagNameShowColumns}, 80, 80,
 			false, nil, false)
 		// all is returned from a tea.Cmd from Update
 		cmd := pair.Model.Update(nil)
@@ -562,20 +564,16 @@ func TestHelpGeneration(t *testing.T) {
 	}
 
 	t.Run("default columns are shown inline with --columns", func(t *testing.T) {
-		// identify the end of flag usage, as default values should be listed directly after
-		usageLines := strings.Split(ft.SelectColumns.Usage(), "\n")
-		_, after, found := strings.Cut(help, usageLines[len(usageLines)-1])
-		if !found {
-			t.Fatal("failed to find the end of the usage line")
-		}
-		// we should find defaults appended to this line
+		want := []string{"ItemID", "Name", "Expansion"} // should be aliases, including auto-aliasing for "CommonFields."
 
-		wantDefaultColumns := "ItemID,Name,Expansion" // should be aliases, including auto-aliasing for "CommonFields."
-		if !strings.Contains(after, wantDefaultColumns) {
-			t.Fatalf("default columns are not properly represented."+
-				"Substring \"%v\" not found in default columns chunk \"%v\"",
-				wantDefaultColumns, after)
-		}
+		rgx := regexp.MustCompile(`\(default\s\[(.*)\]`)
+		capGroups := rgx.FindStringSubmatch(help)
+		t.Log("capture groups: ", capGroups)
+		require.Len(t, capGroups, 2) // 0 should be entire expression, 1 should be cap
+		s := capGroups[1]
+		require.NotEmpty(t, s)
+		got := strings.Split(s, ",")
+		assert.True(t, slices.Equal(want, got), "want:%v\ngot:%v", want, got)
 	})
 	t.Run("custom example shown", func(t *testing.T) {
 		// find the "example" line
@@ -586,6 +584,45 @@ func TestHelpGeneration(t *testing.T) {
 		exampleLine, _, _ := strings.Cut(after, "\n")
 		if !strings.Contains(exampleLine, "use tkn1 tkn2 --csv") {
 			t.Fatalf("custom example text not found in example line: %v", exampleLine)
+		}
+	})
+	t.Run("omitting flags removes them from help text", func(t *testing.T) {
+		tests := []struct {
+			name string
+			omit scaffoldlist.OmitFlags
+		}{
+			{"no omissions includes all", scaffoldlist.OmitFlags{}},
+			{"omit --all", scaffoldlist.OmitFlags{AllData: true}},
+			{"omit --all and --include-deleted", scaffoldlist.OmitFlags{AllData: true, IncludeDeleted: true}},
+		}
+		var sbOut, sbErr strings.Builder
+		// the "--all" prefix is likely be used in multiple ways, so we can't just for contents
+		rgxAllData := regexp.MustCompile(`\s+--all\s+`)
+		for _, tt := range tests {
+			sbOut.Reset()
+			sbErr.Reset()
+			t.Run(tt.name, func(t *testing.T) {
+				pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
+					func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+						return []nuclearThrone{}, nil
+					},
+					nil,
+					scaffoldlist.Options{Omit: tt.omit})
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				uniques.Help(pair.Action, nil)
+				help := sbOut.String()
+				if tt.omit.AllData {
+					assert.NotRegexp(t, rgxAllData, help)
+				} else {
+					assert.Regexp(t, rgxAllData, help)
+				}
+				if tt.omit.IncludeDeleted {
+					assert.NotContains(t, help, "--"+ft.IncludeDeleted.Name())
+				} else {
+					assert.Contains(t, help, "--"+ft.IncludeDeleted.Name())
+				}
+			})
 		}
 	})
 }
@@ -657,43 +694,7 @@ func TestEmptyMessage(t *testing.T) {
 }
 
 func TestOmitFlags(t *testing.T) {
-	t.Run("omitting flags removes them from help text", func(t *testing.T) {
-		tests := []struct {
-			name string
-			omit scaffoldlist.OmitFlags
-		}{
-			{"no omissions includes all", scaffoldlist.OmitFlags{}},
-			{"omit --all", scaffoldlist.OmitFlags{AllData: true}},
-			{"omit --all and --include-deleted", scaffoldlist.OmitFlags{AllData: true, IncludeDeleted: true}},
-		}
-		var sbOut, sbErr strings.Builder
-		for _, tt := range tests {
-			sbOut.Reset()
-			sbErr.Reset()
-			t.Run(tt.name, func(t *testing.T) {
-				pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
-					func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
-						return []nuclearThrone{}, nil
-					},
-					nil,
-					scaffoldlist.Options{Omit: tt.omit})
-				pair.Action.SetOut(&sbOut)
-				pair.Action.SetErr(&sbErr)
-				uniques.Help(pair.Action, nil)
-				help := sbOut.String()
-				if tt.omit.AllData {
-					assert.NotContains(t, help, "--"+scaffoldlist.FlagNameAllData)
-				} else {
-					assert.Contains(t, help, "--"+scaffoldlist.FlagNameAllData)
-				}
-				if tt.omit.IncludeDeleted {
-					assert.NotContains(t, help, "--"+ft.IncludeDeleted.Name())
-				} else {
-					assert.Contains(t, help, "--"+ft.IncludeDeleted.Name())
-				}
-			})
-		}
-	})
+
 	t.Run("omitted flags errors if invoked", func(t *testing.T) {
 		t.Run("interactive", func(t *testing.T) {
 			tests := []struct {
@@ -701,11 +702,15 @@ func TestOmitFlags(t *testing.T) {
 				omit    scaffoldlist.OmitFlags
 				setArgs []string
 
-				expectError bool
+				expectError    bool
+				expectedParams scaffoldlist.DataParameters // only checked if !error
 			}{
 				{"all flags can be set with no omissions",
 					scaffoldlist.OmitFlags{},
-					[]string{"--" + scaffoldlist.FlagNameAllData, "--" + scaffoldlist.FlagNameSelectAllColumns}, false},
+					[]string{"--" + scaffoldlist.FlagNameAllData, "--" + scaffoldlist.FlagNameSelectAllColumns},
+					false,
+					scaffoldlist.DataParameters{}, // TODO
+				},
 			}
 			var sbOut, sbErr strings.Builder
 			for _, tt := range tests {
@@ -724,7 +729,8 @@ func TestOmitFlags(t *testing.T) {
 					pair.Action.SetErr(&sbErr)
 					pair.Action.SetArgs(tt.setArgs)
 					err := pair.Action.Execute()
-					assert.Equal(t, tt.expectError, err != nil)
+					require.Equal(t, tt.expectError, err != nil)
+					require.Equal(t, tt.expectedParams, gotParams)
 				})
 
 			}
