@@ -49,6 +49,7 @@ Implementations will probably look a lot like:
 package scaffolddelete
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -57,6 +58,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -77,9 +79,9 @@ type deleteFunc[I scaffold.Id_t] func(dryrun bool, id I) error
 // It must return an array of a struct that implements the Item interface.
 type fetchFunc[I scaffold.Id_t] func() ([]Item[I], error)
 
-// text to display when deletion is skipped due to error
+var errAbstainDelete string = clilog.ErrInternal{}.Error() + ".\nAbstained from deletion."
+
 const (
-	errorNoDeleteText = "An error occurred: %v.\nAbstained from deletion."
 	dryrunSuccessText = "DRYRUN: %v (ID %v) would have been deleted"
 	deleteSuccessText = "%v (ID %v) deleted"
 )
@@ -116,41 +118,34 @@ func NewDeleteAction[I scaffold.Id_t](
 		"delete a "+singular,
 		"delete a "+singular+" by id or selection",
 		[]string{},
-		func(c *cobra.Command, s []string) {
+		func(c *cobra.Command, s []string) error {
 			// fetch values from flags
 			id, dryrun, err := fetchFlagValues[I](c.Flags())
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
+				return err
 			}
 
 			var zero I
 			if id == zero {
 				if noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
-					clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-					return
+					return err
 				} else if noInteractive {
-					fmt.Fprintln(c.ErrOrStderr(), "--id is required in no-interactive mode")
-					return
+					return errors.New("--id is required in no-interactive mode")
 				}
 				// spin up mother
-				if err := mother.Spawn(c.Root(), c, s); err != nil {
-					clilog.Tee(clilog.CRITICAL, c.ErrOrStderr(),
-						"failed to spawn a mother instance: "+err.Error())
-				}
-				return
+				return mother.Spawn(c.Root(), c, s)
 
 			}
 
 			if err := del(dryrun, id); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
+				return err
 			} else if dryrun {
 				fmt.Fprintf(c.OutOrStdout(), dryrunSuccessText+"\n", singular, id)
 			} else {
 				fmt.Fprintf(c.OutOrStdout(), deleteSuccessText+"\n",
 					singular, id)
 			}
+			return nil
 		}, treeutils.GenerateActionOptions{Usage: "--id=" + ft.Mandatory(singular+" id")})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
@@ -241,16 +236,15 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 		d.list.SetSize(d.width, d.height)
 		return nil
 	}
-	keyMsg, isKeyMsg := msg.(tea.KeyMsg)
 	var cmd tea.Cmd
 	// branch on current mode
 	switch d.mode {
 	case selecting:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter { // special handling for Enter key
+		if hotkeys.Match(msg, hotkeys.Invoke) { // special handling for Enter key
 			baseitm := d.list.Items()[d.list.Index()]
 			if itm, ok := baseitm.(Item[I]); !ok {
-				clilog.Writer.Warnf("failed to type assert %#v as an item", baseitm)
-				return tea.Printf(errorNoDeleteText+"\n", "failed type assertion")
+				clilog.TypeAssert(baseitm, Item[I]{})
+				return tea.Println(errAbstainDelete)
 			} else {
 				d.selectedItem = itm
 			}
@@ -268,12 +262,12 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 
 		d.list, cmd = d.list.Update(msg)
 	case confirming:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter {
+		if hotkeys.Match(msg, hotkeys.Invoke) {
 			// check for confirmation (after cleaning up the input)
 			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
 				d.mode = quitting
 				if err := d.df(d.dryrun, d.selectedItem.id); err != nil {
-					return tea.Printf(errorNoDeleteText+"\n", err)
+					return tea.Println(err, "\n", errAbstainDelete)
 				}
 				return tea.Printf(deleteSuccessText,
 					d.itemSingular, d.selectedItem.id)
@@ -300,8 +294,7 @@ func (d *deleteModel[I]) View() string {
 			return "Not deleting any " + d.itemPlural + "..."
 		}
 		if searchitm, ok := itm.(Item[I]); !ok {
-			clilog.Writer.Warnf("Failed to type assert selected %v", itm)
-			return "An error has occurred. Exitting..."
+			return clilog.TypeAssert(itm, Item[I]{}).Error()
 		} else {
 			return fmt.Sprintf("Deleting %v...\n", searchitm.Description())
 		}
@@ -363,7 +356,6 @@ func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 	// while Item[I] satisfies the list.Item interface, Go will not implicitly
 	// convert []Item[I] -> []list.Item
 	// remember to assert these items as Item[I] on use
-	// TODO do we hide this in here, at the cost of an extra n? Or move it out to ff?
 	simpleitems := make([]list.Item, len(itms))
 	for i := range itms {
 		simpleitems[i] = itms[i]
@@ -371,7 +363,7 @@ func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 
 	// create list from the generated delegate
 	d.list = stylesheet.NewList(simpleitems, width, height, d.itemSingular, d.itemPlural)
-
+	hotkeys.ApplyToList(&d.list.KeyMap)
 	// flags and flagset
 	if err := d.flagset.Parse(tokens); err != nil {
 		return err.Error(), nil, nil

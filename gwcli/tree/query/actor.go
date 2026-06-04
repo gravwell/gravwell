@@ -16,7 +16,6 @@ When a search has been submitted, this model is still invoked by Mother, but it 
 */
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -240,12 +239,12 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	// pass message to the active view
-	var cmds []tea.Cmd
+	var cmd tea.Cmd
 	if q.focusedEditor { // editor view active
-		cmds = []tea.Cmd{q.editor.update(msg)}
+		cmd = q.editor.update(msg)
 	} else { // modifiers view active
 		var submit bool
-		cmds, submit = q.modifiers.update(msg)
+		cmd, submit = q.modifiers.update(msg)
 		if submit {
 			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
 				return q.submitQuery(qry)
@@ -254,7 +253,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 		}
 	}
 
-	return tea.Batch(cmds...)
+	return cmd
 }
 
 func (q *query) View() string {
@@ -332,11 +331,6 @@ func (q *query) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 	}
 
 	flags := querysupport.TransmogrifyFlags(&localFS)
-
-	// check for script mode (invalid, as Mother is already running)
-	if flags.NoInteractive { // TODO this check should be performed by Mother
-		return "", nil, errors.New("cannot invoke no-interactive mode while in interactive mode")
-	}
 
 	qry := strings.TrimSpace(strings.Join(localFS.Args(), " "))
 	valid, err := testQryValidity(qry)

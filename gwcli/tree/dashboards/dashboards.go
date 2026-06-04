@@ -15,12 +15,16 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -38,50 +42,51 @@ func NewDashboardNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{},
 		[]action.Pair{
-			newDashboardsListAction(),
-			newDashboardDeleteAction(),
+			listAction(),
+			deleteAction(),
+			cloneAction(),
 		})
 }
 
 //#region list
 
-func newDashboardsListAction() action.Pair {
-	const (
-		short string = "list dashboards"
-		long  string = "list dashboards available to you and the system"
-	)
-
-	return scaffoldlist.NewListAction(short, long,
+func listAction() action.Pair {
+	return scaffoldlist.NewListAction("list dashboards", "list dashboards available to you and the system",
 		types.Dashboard{}, list,
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"ID", "Name", "Description"}})
+		nil,
+		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags}, DefaultColumns: []string{
+			"ID",
+			"Name",
+			"Description",
+		}})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "dashboards")
 
-	return addtlFlags
+	return &addtlFlags
 }
 
 func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 	if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-		uniques.ErrGetFlag("dashboards list", err)
+		clilog.GetFlag(err)
 	} else if all {
-		return connection.Client.GetAllDashboards()
+		r, err := connection.Client.ListAllDashboards(nil)
+		return r.Results, err
 	}
-	return connection.Client.GetUserDashboards(connection.CurrentUser().UID)
+	r, err := connection.Client.ListDashboards(nil)
+	return r.Results, err
 }
-
-//#endregion list
 
 //#region delete
 
-func newDashboardDeleteAction() action.Pair {
+func deleteAction() action.Pair {
 	return scaffolddelete.NewDeleteAction("dashboard", "dashboards",
 		del, fch)
 }
 
-func del(dryrun bool, id uint64) error {
+func del(dryrun bool, id string) error {
 	if dryrun {
 		_, err := connection.Client.GetDashboard(id)
 		return err
@@ -89,21 +94,54 @@ func del(dryrun bool, id uint64) error {
 	return connection.Client.DeleteDashboard(id)
 }
 
-func fch() ([]scaffolddelete.Item[uint64], error) {
-	ud, err := connection.Client.GetUserDashboards(connection.CurrentUser().UID)
+func fch() ([]scaffolddelete.Item[string], error) {
+	ud, err := connection.Client.ListDashboards(&types.QueryOptions{Filters: []types.Filter{{Key: "OwnerID", Operation: "=", Values: []any{connection.CurrentUser().ID}}}})
 	if err != nil {
 		return nil, err
 	}
 	// not too important to sort this one
-	var items = make([]scaffolddelete.Item[uint64], len(ud))
-	for i, u := range ud {
+	var items = make([]scaffolddelete.Item[string], len(ud.Results))
+	for i, u := range ud.Results {
 		items[i] = scaffolddelete.NewItem(u.Name,
 			fmt.Sprintf("Updated: %v\n%s",
-				ud[i].Updated.Format(time.RFC822), ud[i].Description),
+				ud.Results[i].UpdatedAt.Format(time.RFC822), ud.Results[i].Description),
 			u.ID)
 	}
 
 	return items, nil
 }
 
-//#endregion delete
+func cloneAction() action.Pair {
+	return scaffoldselect.NewSelectAction("clone dashboards", "create a copy of one or many dashboards.",
+		"dashboard",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			dlr, err := connection.Client.ListDashboards(nil)
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[string], len(dlr.Results))
+			for i, dash := range dlr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        dash.ID,
+					Name:       dash.Name,
+					SecondLine: dash.Description,
+				}
+			}
+			return items, nil
+		},
+		func(ID string, _ *pflag.FlagSet) (success string, _ error) {
+			cur, err := connection.Client.GetDashboard(ID)
+			if err != nil {
+				return "", err
+			}
+			new, err := connection.Client.CreateDashboard(cur)
+			if err != nil {
+				return "", err
+			}
+			return "cloned dashboard " + cur.Name + " into dashboard " + new.Name, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "clone"},
+		})
+}
