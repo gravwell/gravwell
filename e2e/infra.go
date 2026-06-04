@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/containerd/errdefs"
 	"github.com/gravwell/gravwell/v3/client"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
@@ -51,16 +53,23 @@ var mtx sync.RWMutex
 var started bool
 
 func buildIngesters() {
+	if err := Build("gravwell/ingesters:e2e", "./e2e/Dockerfile", "."); err != nil {
+		panic(err)
+	}
+}
+
+func Build(tag, file, context string) error {
 	var stdout, stderr bytes.Buffer
-	docker := exec.Command("docker", "buildx", "build", "-t", "gravwell/ingesters:e2e", "-f", "./e2e/Dockerfile", "--platform", *ingestPlatform, ".")
+	docker := exec.Command("docker", "buildx", "build", "-t", tag, "-f", file, "--platform", *ingestPlatform, context)
 	docker.Dir = RepoRoot()
 	docker.Stdout = &stdout
 	docker.Stderr = &stderr
 	if err := docker.Run(); err != nil {
 		fmt.Println(stderr.String())
 		fmt.Println(stdout.String())
-		panic(err)
+		return err
 	}
+	return nil
 }
 
 func findDirContaining(signal string) (string, error) {
@@ -152,15 +161,25 @@ func Start() {
 			"DISABLE_simple_relay":   "TRUE",
 		}),
 		tc.WithWaitStrategyAndDeadline(
-			60*time.Second, // if it takes this long to start we're cooked
-			wait.ForListeningPort("80/tcp"),
+			30*time.Second, // if it takes this long to start we're cooked
+			wait.ForListeningPort("80/tcp").WithPollInterval(time.Second),
 			// we don't expose the ingest port so eval the listen from within the container
-			wait.ForListeningPort("4023/tcp").SkipExternalCheck(),
-			WaitForIngest(),
+			wait.ForListeningPort("4023/tcp").SkipExternalCheck().WithPollInterval(time.Second),
+			wait.ForFile("/opt/gravwell/log/info.log").WithMatcher(func(reader io.Reader) error {
+				contents, err := io.ReadAll(reader)
+				if err != nil {
+					return err
+				}
+				if !strings.Contains(string(contents), "Ingest and search server started") {
+					return errdefs.ErrNotFound
+				}
+				return nil
+			}).WithPollInterval(time.Second),
+			WaitForIngest().WithPollInterval(time.Second),
 		),
 	)
 	if err != nil {
-		fmt.Println("failed to create gravwell instance", err)
+		fmt.Println("failed to create gravwell instance:", err)
 		os.Exit(1)
 	}
 }
@@ -171,9 +190,19 @@ func Start() {
 // - We can login
 // - We can search
 // - We have ingested entries
-type IngestStrategy struct{}
+type IngestStrategy struct {
+	interval time.Duration
+}
 
-func (i IngestStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+func (i *IngestStrategy) WithPollInterval(interval time.Duration) *IngestStrategy {
+	i.interval = interval
+	return i
+}
+
+func (i *IngestStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+	if i.interval == 0 {
+		i.interval = 100 * time.Millisecond
+	}
 	host, err := target.Host(ctx)
 	if err != nil {
 		return fmt.Errorf("ingest wait target must expose port 80: %v", err)
@@ -190,7 +219,7 @@ func (i IngestStrategy) WaitUntilReady(ctx context.Context, target wait.Strategy
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(i.interval):
 			err = c.Login("admin", "changeme")
 			if err != nil {
 				continue

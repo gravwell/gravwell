@@ -4,39 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"os/exec"
 	"testing"
 	"time"
 
 	"gravwell/e2e"
 
-	"github.com/docker/docker/api/types/build"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var (
-	mockDockerfile = tc.FromDockerfile{
-		Dockerfile: "./tools/mock/mimecast/Dockerfile",
-		Context:    e2e.RepoRoot(),
-		Repo:       "mimecast-mock",
-		BuildOptionsModifier: func(options *build.ImageBuildOptions) {
-			options.Version = build.BuilderBuildKit
-		},
-	}
-)
-
 func TestMimecast(t *testing.T) {
 	// test containers doesn't pull well with buildkit
-	if err := exec.Command("docker", "pull", "golang:1.26.4").Run(); err != nil {
+	if err := e2e.Build("mimecast-mock", "./tools/mock/mimecast/Dockerfile", "."); err != nil {
 		t.Fatal(err)
 	}
-	if err := exec.Command("docker", "pull", "busybox:latest").Run(); err != nil {
-		t.Fatal(err)
-	}
-	mock, err := tc.Run(t.Context(), "",
+	mock, err := tc.Run(t.Context(), "mimecase-mock",
 		e2e.WithDefaults(t, "mimecast-mock",
-			tc.WithDockerfile(mockDockerfile),
 			tc.WithExposedPorts("8080/tcp"),
 			tc.WithWaitStrategy(wait.ForLog("starting server")),
 		)...,
@@ -64,8 +47,8 @@ func TestMimecast(t *testing.T) {
 	fetcher, err := tc.Run(t.Context(), "gravwell/hosted:e2e",
 		e2e.WithDefaults(t, "hosted-mimecast",
 			tc.WithWaitStrategyAndDeadline(
-				10*time.Second,
-				wait.ForLog("Successfully connected to ingesters"),
+				15*time.Second,
+				wait.ForLog("Successfully connected to ingesters").WithPollInterval(time.Second),
 			),
 			e2e.WithConfig(t, "testdata/mimecast.conf", "hosted_runner.conf", e2e.DefaultConfig),
 		)...,
