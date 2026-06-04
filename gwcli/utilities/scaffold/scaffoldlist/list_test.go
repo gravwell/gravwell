@@ -663,8 +663,8 @@ func TestOmitFlags(t *testing.T) {
 			omit scaffoldlist.OmitFlags
 		}{
 			{"no omissions includes all", scaffoldlist.OmitFlags{}},
-			{"omit --all", scaffoldlist.OmitFlags{All: true}},
-			{"omit --all and --include-deleted", scaffoldlist.OmitFlags{All: true, IncludeDeleted: true}},
+			{"omit --all", scaffoldlist.OmitFlags{AllData: true}},
+			{"omit --all and --include-deleted", scaffoldlist.OmitFlags{AllData: true, IncludeDeleted: true}},
 		}
 		var sbOut, sbErr strings.Builder
 		for _, tt := range tests {
@@ -681,10 +681,10 @@ func TestOmitFlags(t *testing.T) {
 				pair.Action.SetErr(&sbErr)
 				uniques.Help(pair.Action, nil)
 				help := sbOut.String()
-				if tt.omit.All {
-					assert.NotContains(t, help, "--"+ft.AllColumns.Name())
+				if tt.omit.AllData {
+					assert.NotContains(t, help, "--"+scaffoldlist.FlagNameAllData)
 				} else {
-					assert.Contains(t, help, "--"+ft.AllColumns.Name())
+					assert.Contains(t, help, "--"+scaffoldlist.FlagNameAllData)
 				}
 				if tt.omit.IncludeDeleted {
 					assert.NotContains(t, help, "--"+ft.IncludeDeleted.Name())
@@ -702,14 +702,20 @@ func TestOmitFlags(t *testing.T) {
 				setArgs []string
 
 				expectError bool
-			}{} // TODO
+			}{
+				{"all flags can be set with no omissions",
+					scaffoldlist.OmitFlags{},
+					[]string{"--" + scaffoldlist.FlagNameAllData, "--" + scaffoldlist.FlagNameSelectAllColumns}, false},
+			}
 			var sbOut, sbErr strings.Builder
 			for _, tt := range tests {
 				sbOut.Reset()
 				sbErr.Reset()
 				t.Run(tt.name, func(t *testing.T) {
+					var gotParams scaffoldlist.DataParameters
 					pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
 						func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+							gotParams = params
 							return []nuclearThrone{}, nil
 						},
 						nil,

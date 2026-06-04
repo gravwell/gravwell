@@ -59,7 +59,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -102,6 +101,11 @@ const (
 	outFilePerm         os.FileMode = 0644
 	exportedColumnsOnly bool        = true // only allow users to query for exported fields as columns?
 	ShowColumnSep       string      = "; " // separator between column names when printing list of available columns
+
+	FlagNameSelectAllColumns string = "all-columns"  // fetch data for all columns, ignoring defaults
+	FlagNameShowColumns      string = "show-columns" // display available columns instead of fetching data
+	FlagNameSelectColumns    string = "columns"      // select which columns to display data for instead of using the defaults.
+	FlagNameAllData          string = "all"          // fetch data from all users instead of just the current user
 )
 
 // ListDataFunc is a function that retrieves an array of structs of type dataStruct
@@ -196,16 +200,21 @@ func NewListAction[dataStruct_t any](short, long string,
 	// generate default usage and example
 	var actionOptions treeutils.GenerateActionOptions
 	{
-		actionOptions.Example = "--" + ft.JSON.Name()
-		if !options.Omit.All {
-			actionOptions.Example += " --" + ft.AllColumns.Name()
-		}
+		actionOptions.Example = "--" + ft.JSON.Name() + " --" + FlagNameSelectAllColumns
 
 		formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
 		if options.Pretty != nil {
 			formats = append(formats, "--pretty")
 		}
-		actionOptions.Usage = fmt.Sprintf("%v %v", ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
+		actionOptions.Usage = fmt.Sprintf("%s %s %s %s",
+			ft.Optional("--"+FlagNameShowColumns),
+			ft.Optional(ft.MutuallyExclusive(formats)),
+			ft.MutuallyExclusive([]string{
+				ft.Optional("--" + FlagNameSelectColumns + "=col1,col2,..."),
+				ft.Optional("--" + FlagNameSelectAllColumns),
+			}),
+			ft.Optional("FLAGS"),
+		)
 	}
 
 	cmd := treeutils.GenerateAction("list", short, long, nil, runE, actionOptions)
@@ -272,35 +281,14 @@ func generateRunE[dataStruct_t any](
 			}
 		}
 
-		// check for --show-columns
-		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name()); err != nil {
-			clilog.GetFlag(err)
-			return err
-		} else if sc {
+		showColumns, columns, outFile, format, err := getFlags(c.Flags(), DQToAlias, AliasToDQ, opts.Pretty != nil)
+		if showColumns {
 			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
 			return nil
 		}
-
-		var (
-			outFile *os.File
-			format  outputFormat
-			columns []string
-		)
-		// gather flags and set up variables required for listOutput
-		var err error
-		outFile, err = initOutFile(c.Flags())
-		if err != nil {
-			return err
-		} else if outFile != nil {
+		if outFile != nil {
 			defer outFile.Close()
-			// ensure color is disabled.
-			stylesheet.Cur = stylesheet.Plain()
 		}
-		columns, err = getColumns(c.Flags(), DQToAlias, AliasToDQ)
-		if err != nil {
-			return err
-		}
-		format = determineFormat(c.Flags(), opts.Pretty != nil)
 
 		// execute the actual list and format call
 		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias, opts.Omit)
@@ -309,7 +297,7 @@ func generateRunE[dataStruct_t any](
 		}
 
 		// if we generated no output, make that explicit to the user via the empty message
-		// (unless we are in no-interactive mode, where our output is likely to be piped, or writing to a file).
+		// (unless we are in no-interactive mode (where our output is likely to be piped) or writing to a file).
 		if s == "" {
 			if outFile == nil && !state.Interactive() {
 				fmt.Fprintln(c.OutOrStdout(), opts.EmptyMessage)

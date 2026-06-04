@@ -19,8 +19,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/pflag"
 )
@@ -170,44 +168,6 @@ func normalizeToDQ(columns []string, DQToAlias map[string]string, AliasToDQ map[
 		unknown = append(unknown, col)
 	}
 	return normalized, unknown
-}
-
-// getColumns figures out which columns this request should receive and returns the DQ version of each.
-//
-// In order of priority:
-//
-//  1. all columns (if --all), sorted alphabetically
-//
-//  2. selected columns (if --columns=<>), retaining given order
-//
-//  3. default columns, sorted alphabetically
-//
-// ! default columns are *not* normalized; they are expected to already be DQ'd.
-func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) ([]string, error) {
-	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
-		return nil, clilog.GetFlag(err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
-	} else if all {
-		// normalize all
-		normal, unknown := normalizeToDQ(sortColumns(slices.Collect(maps.Keys(DQToAlias))), DQToAlias, AliasToDQ)
-		// we should never get unknown columns when giving the full set; this is a developer error
-		if len(unknown) > 0 {
-			clilog.Writer.Error("got unknown columns while normalizing the full column set.",
-				log.KV("unknown columns", unknown),
-				scaffold.IdentifyCaller())
-			return nil, clilog.ErrInternal{}
-		}
-		return normal, nil
-	}
-	// even if --columns was not specified, we can use it to fetch defaults
-	selectedCols, err := fs.GetStringSlice(ft.SelectColumns.Name())
-	if err != nil {
-		return nil, clilog.GetFlag(err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
-	}
-	normalized, unknown := normalizeToDQ(selectedCols, DQToAlias, AliasToDQ)
-	if len(unknown) > 0 {
-		return nil, fmt.Errorf("--%s has unknown columns/aliases: %v", ft.SelectColumns.Name(), unknown)
-	}
-	return normalized, nil
 }
 
 // The sorting mechanism list uses when an order is not specified (ex: --columns is not given).

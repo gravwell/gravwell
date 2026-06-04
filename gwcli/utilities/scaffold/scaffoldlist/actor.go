@@ -19,7 +19,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/spf13/pflag"
 )
@@ -31,8 +30,9 @@ type ListAction[dataStruct any] struct {
 	showColumns bool           // print columns and exit
 	fs          *pflag.FlagSet // current flagset, parsed or unparsed
 	outFile     *os.File       // file to output results to (or nil)
+	format      outputFormat
 
-	// individualized for each use of scaffoldlist
+	// individualized for each use of scaffoldlist (shielded from .Reset())
 	defaultColumnsDQ []string                 // columns to output if --all and --columns=<> are unspecified
 	dqToAlias        map[string]string        // DQ column names -> alias (alias will be "" if a column does not have an alias)
 	aliasToDQ        map[string]string        // inverse of dqToAlias
@@ -72,16 +72,9 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 	if la.options.AddtlFlags != nil {
 		la.fs.AddFlagSet(la.options.AddtlFlags())
 	}
-	err = la.fs.Parse(tokens)
+	err = la.fs.Parse(tokens) // TODO do we need to store the fs in la?
 	if err != nil {
 		return err.Error(), nil, nil
-	}
-
-	// check for --show-columns
-	if la.showColumns, err = la.fs.GetBool(ft.ShowColumns.Name()); err != nil {
-		return "", nil, err
-	} else if la.showColumns { // all done
-		return "", nil, nil
 	}
 
 	// run custom validation
@@ -93,17 +86,10 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 		}
 	}
 
-	if la.columns, err = getColumns(la.fs, la.dqToAlias, la.aliasToDQ); err != nil {
-		// treat these errors as invalids
-		return err.Error(), nil, nil
-	}
-
-	if f, err := initOutFile(la.fs); err != nil {
+	la.showColumns, la.columns, la.outFile, la.format, err = getFlags(la.fs, la.dqToAlias, la.aliasToDQ, la.options.Pretty != nil)
+	if err != nil {
 		return "", nil, err
-	} else {
-		la.outFile = f
 	}
-
 	return "", nil, nil
 }
 

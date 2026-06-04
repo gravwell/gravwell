@@ -9,13 +9,19 @@
 package scaffoldlist
 
 import (
+	"fmt"
+	"maps"
+	"os"
 	"regexp"
+	"slices"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
 )
 
@@ -67,7 +73,7 @@ type Options struct {
 // Anything set to true in here will have its equivalent flag turned off for this action.
 // For example: if an asset type doesn't tombstone, --include-delete should probably be disabled.
 type OmitFlags struct {
-	All            bool
+	AllData        bool
 	IncludeDeleted bool
 }
 
@@ -82,18 +88,25 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit OmitF
 	ft.CSV.Register(&fs)
 	ft.JSON.Register(&fs)
 	ft.Table.Register(&fs)
-	fs.StringSliceP( // manually register string slice so we can set a default
-		ft.SelectColumns.Name(),
-		ft.SelectColumns.Shorthand(),
-		defaultColumnsAliased,
-		ft.SelectColumns.Usage())
 
-	ft.ShowColumns.Register(&fs)
+	fs.StringSliceP(FlagNameSelectColumns, "", defaultColumnsAliased,
+		"comma-separated list of columns to include in the results.\n"+
+			"Use --"+FlagNameShowColumns+" to see the full list of columns.\n"+
+			"Mutually exclusive with --"+FlagNameSelectAllColumns)
+
+	fs.Bool(FlagNameShowColumns, false, "display available columns (for use with --columns) and exit.\n"+
+		"Causes all other flags to be ignored")
 
 	ft.Output.Register(&fs)
 	ft.Append.Register(&fs)
-	if !omit.All {
-		ft.AllColumns.Register(&fs)
+	fs.Bool(FlagNameSelectAllColumns, false,
+		"displays data from all columns, ignoring the default column set.\n"+
+			"Mutually exclusive with --"+FlagNameSelectColumns)
+
+	if !omit.AllData {
+		fs.Bool(FlagNameAllData, false, "requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
+			"Ignored if you are not an admin.\n"+
+			"Implied by admin mode")
 	}
 	if !omit.IncludeDeleted {
 		ft.IncludeDeleted.Register(&fs)
@@ -102,10 +115,71 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit OmitF
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+
 			"Takes precedence over other format flags.\n"+
-			"May or may not respect columns, default or selected via --"+ft.SelectColumns.Name()+".")
+			"May or may not respect columns, default or selected")
 	}
 
 	return &fs
+}
+
+func getFlags(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, prettyDefined bool) (
+	showColumns bool, columns []string, outFile *os.File, format outputFormat, invalid string, err error,
+) {
+	show, err := fs.GetBool(FlagNameShowColumns)
+	clilog.GetFlag(err)
+	if show { // job's done
+		return true, nil, nil, 0, "", nil
+	}
+	if outFile, err = initOutFile(fs); err != nil {
+		return
+	} else if outFile != nil {
+		// TODO can we get away with no disabling color here?
+	}
+	if columns, invalid = getColumns(fs, DQToAlias, AliasToDQ); invalid != "" {
+		return
+	}
+	format = determineFormat(fs, prettyDefined)
+	return
+}
+
+// getColumns figures out which columns this request should receive and returns the DQ version of each.
+//
+// In order of priority:
+//
+//  1. all columns (if --all), sorted alphabetically
+//
+//  2. selected columns (if --columns=<>), retaining given order
+//
+//  3. default columns, sorted alphabetically
+func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) (_ []string, invalid string) {
+	selectAll, err := fs.GetBool(FlagNameSelectAllColumns) // this will return either the user-spec'd columns or the default columns
+	clilog.GetFlag(err)
+	selectColumns, err := fs.GetStringSlice(FlagNameSelectColumns)
+	clilog.GetFlag(err)
+
+	// MX check
+	if selectAll && len(selectColumns) > 0 {
+		return nil, ft.ErrMutuallyExclusive(FlagNameSelectAllColumns, FlagNameSelectColumns).Error()
+	}
+
+	// collect columns
+	if selectAll {
+		// normalize all column names
+		normal, unknown := normalizeToDQ(sortColumns(slices.Collect(maps.Keys(DQToAlias))), DQToAlias, AliasToDQ)
+		// we should never get unknown columns when giving the full set; this is a developer error
+		if len(unknown) > 0 {
+			clilog.Writer.Error("got unknown columns while normalizing the full column set.",
+				log.KV("unknown columns", unknown),
+				scaffold.IdentifyCaller())
+			return nil, clilog.ErrInternal{}.Error() // this isn't technically an invalid but its also super unlikely to ever happen so...
+		}
+		return normal, ""
+	}
+
+	normalized, unknown := normalizeToDQ(selectColumns, DQToAlias, AliasToDQ)
+	if len(unknown) > 0 {
+		return nil, fmt.Sprintf("unknown columns: %v", unknown)
+	}
+	return normalized, ""
 }
 
 // DataParameters is the set of information that a user may provide the action that is unhandled by scaffoldlist itself.
@@ -125,10 +199,10 @@ func getQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
 		qo.IncludeDeleted, err = fs.GetBool(ft.IncludeDeleted.Name())
 		clilog.GetFlag(err)
 	}
-	if !omit.All {
+	if !omit.AllData {
 		qo.AdminMode = connection.AdminMode()
 		if !qo.AdminMode { // check for --all override
-			qo.AdminMode, err = fs.GetBool(ft.AllColumns.Name())
+			qo.AdminMode, err = fs.GetBool("--all")
 			clilog.GetFlag(err)
 		}
 	}
