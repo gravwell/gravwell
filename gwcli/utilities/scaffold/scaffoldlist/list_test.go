@@ -4,6 +4,8 @@ package scaffoldlist_test
 
 import (
 	"maps"
+	"os"
+	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -11,8 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -409,6 +413,74 @@ func TestNonInteractive(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("write to output file", func(t *testing.T) {
+		outPath := path.Join(t.ArtifactDir(), "output"+randomdata.Digits(6)+".txt")
+		pair := scaffoldlist.NewListAction("test function", "this is a test function",
+			types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
+				// generate some garbage data
+				ms := make([]types.Flow, 5)
+				for i := range 5 {
+					iStr := strconv.FormatInt(int64(i), 10)
+					ms[i] = types.Flow{
+						CommonFields: types.CommonFields{
+							Name:      "Name_" + iStr,
+							CreatedAt: time.Unix(5, 0).UTC(),
+							ID:        iStr,
+							Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+						},
+						Flow: "Flow_" + iStr}
+				}
+
+				return ms, nil
+			},
+			map[string]string{"CommonFields.Name": "FlowName"},
+			scaffoldlist.Options{})
+		pair.Action.SetArgs([]string{"--csv", "-o=" + outPath, "--columns=ID,Disabled,Schedule"})
+		assert.Nil(t, pair.Action.Execute())
+		gotContent, err := os.ReadFile(outPath)
+		require.Nil(t, err)
+		assert.Equal(t, string(gotContent), `ID,Disabled,Schedule
+0,false,
+1,false,
+2,false,
+3,false,
+4,false,
+`)
+	})
+}
+
+func TestMutualExclusion(t *testing.T) {
+	t.Run("--"+scaffoldlist.FlagNameSelectAllColumns+"& --"+scaffoldlist.FlagNameSelectColumns, func(t *testing.T) {
+		pair := scaffoldlist.NewListAction("test function", "this is a test function",
+			types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
+				return nil, nil
+			},
+			map[string]string{"CommonFields.Name": "FlowName"},
+			scaffoldlist.Options{})
+		pair.Action.SetArgs([]string{"--" + scaffoldlist.FlagNameSelectAllColumns, "--" + scaffoldlist.FlagNameSelectColumns + "=Rogue"})
+		err := pair.Action.Execute()
+		assert.ErrorContains(t, err, "mutually exclusive")
+	})
+	t.Run("options: DefaultColumns & DefaultColumnsFromExcludeRegex", func(t *testing.T) {
+		recovered := false
+		defer func() {
+			assert.True(t, recovered)
+		}()
+		defer func() {
+			recover()
+			recovered = true
+		}()
+		scaffoldlist.NewListAction("test function", "this is a test function",
+			types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
+				return nil, nil
+			},
+			map[string]string{"CommonFields.Name": "FlowName"},
+			scaffoldlist.Options{
+				DefaultColumns:                 []string{"a", "b", "c"},
+				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{regexp.MustCompile("d")},
+			})
+	})
 }
 
 // Collection of tests to check that the "CommonFields." and "AutomationCommonFields." prefixes are not visible to a user.
@@ -667,7 +739,12 @@ func TestEmptyMessage(t *testing.T) {
 			{"override set with -x", scaffoldlist.Options{EmptyMessage: "override set"}, []string{"-x"}, ""},
 		}
 		for _, tt := range tests {
+			state.SetInteractive(false)
 			t.Run(tt.name, func(t *testing.T) {
+				if slices.Contains(tt.setArgs, "-x") {
+					state.SetInteractive(true)
+				}
+
 				pair := scaffoldlist.NewListAction("test function", "this is a test function",
 					types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 						// always return nil
@@ -694,9 +771,8 @@ func TestEmptyMessage(t *testing.T) {
 }
 
 func TestOmitFlags(t *testing.T) {
-
 	t.Run("omitted flags errors if invoked", func(t *testing.T) {
-		t.Run("interactive", func(t *testing.T) {
+		t.Run("non-interactive", func(t *testing.T) {
 			tests := []struct {
 				name    string
 				omit    scaffoldlist.OmitFlags
@@ -707,9 +783,39 @@ func TestOmitFlags(t *testing.T) {
 			}{
 				{"all flags can be set with no omissions",
 					scaffoldlist.OmitFlags{},
-					[]string{"--" + scaffoldlist.FlagNameAllData, "--" + scaffoldlist.FlagNameSelectAllColumns},
+					[]string{
+						"--" + scaffoldlist.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
 					false,
-					scaffoldlist.DataParameters{}, // TODO
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{
+							IncludeDeleted: true,
+							AdminMode:      true,
+						},
+					},
+				},
+				{"--all cannot be set when omitted",
+					scaffoldlist.OmitFlags{AllData: true},
+					[]string{
+						"--" + scaffoldlist.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omitted",
+					scaffoldlist.OmitFlags{IncludeDeleted: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
 				},
 			}
 			var sbOut, sbErr strings.Builder
@@ -729,12 +835,90 @@ func TestOmitFlags(t *testing.T) {
 					pair.Action.SetErr(&sbErr)
 					pair.Action.SetArgs(tt.setArgs)
 					err := pair.Action.Execute()
-					require.Equal(t, tt.expectError, err != nil)
+					require.Equal(t, tt.expectError, err != nil, err)
+					if err != nil { // nothing should be set if we failed
+						require.Zero(t, gotParams)
+						return
+					}
 					require.Equal(t, tt.expectedParams, gotParams)
 				})
 
 			}
 		})
+	})
 
+	t.Run("omitted flags errors if invoked", func(t *testing.T) {
+		t.Run("non-interactive", func(t *testing.T) {
+			tests := []struct {
+				name    string
+				omit    scaffoldlist.OmitFlags
+				setArgs []string
+
+				expectSetArgsInv, expectSetArgsError bool
+				expectedParams                       scaffoldlist.DataParameters // only checked if !error
+			}{
+				{"all flags can be set with no omissions",
+					scaffoldlist.OmitFlags{},
+					[]string{
+						"--" + scaffoldlist.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					false, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{
+							IncludeDeleted: true,
+							AdminMode:      true,
+						},
+					},
+				},
+				{"--all cannot be set when omitted",
+					scaffoldlist.OmitFlags{AllData: true},
+					[]string{
+						"--" + scaffoldlist.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omitted",
+					scaffoldlist.OmitFlags{IncludeDeleted: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					var gotParams scaffoldlist.DataParameters
+					pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
+						func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+							gotParams = params
+							return []nuclearThrone{}, nil
+						},
+						nil,
+						scaffoldlist.Options{Omit: tt.omit})
+
+					uniques.AttachPersistentFlags(pair.Action)
+					inv, _, err := pair.Model.SetArgs(pair.Action.Flags(), tt.setArgs, 80, 60)
+					require.Equal(t, tt.expectSetArgsError, (err != nil), err)
+					require.Equal(t, tt.expectSetArgsInv, (inv != ""), inv)
+
+					if tt.expectSetArgsError || tt.expectSetArgsInv {
+						return
+					}
+
+					pair.Model.Update(nil)
+					require.Equal(t, tt.expectedParams, gotParams)
+				})
+			}
+
+		})
 	})
 }

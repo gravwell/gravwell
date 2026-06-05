@@ -132,8 +132,6 @@ func getFlags(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, prettyD
 	}
 	if outFile, err = initOutFile(fs); err != nil {
 		return true, nil, nil, 0, err.Error()
-	} else if outFile != nil {
-		// TODO can we get away without disabling color here?
 	}
 	if columns, invalid = getColumns(fs, DQToAlias, AliasToDQ); invalid != "" {
 		return true, nil, nil, 0, invalid
@@ -152,13 +150,13 @@ func getFlags(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, prettyD
 //
 //  3. default columns, sorted alphabetically
 func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) (_ []string, invalid string) {
-	selectAll, err := fs.GetBool(FlagNameSelectAllColumns) // this will return either the user-spec'd columns or the default columns
+	selectAll, err := fs.GetBool(FlagNameSelectAllColumns)
 	clilog.GetFlag(err)
-	selectColumns, err := fs.GetStringSlice(FlagNameSelectColumns)
+	selectColumns, err := fs.GetStringSlice(FlagNameSelectColumns) // this will return either the user-spec'd columns or the default columns
 	clilog.GetFlag(err)
 
 	// MX check
-	if selectAll && len(selectColumns) > 0 {
+	if selectAll && fs.Changed(FlagNameSelectColumns) {
 		return nil, ft.ErrMutuallyExclusive(FlagNameSelectAllColumns, FlagNameSelectColumns).Error()
 	}
 
@@ -203,7 +201,7 @@ func getQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
 	if !omit.AllData {
 		qo.AdminMode = connection.AdminMode()
 		if !qo.AdminMode { // check for --all override
-			qo.AdminMode, err = fs.GetBool("--all")
+			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
 			clilog.GetFlag(err)
 		}
 	}

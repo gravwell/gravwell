@@ -136,9 +136,9 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 		return nil, nil
 	}
 	var flags = os.O_CREATE | os.O_WRONLY
-	if append, err := fs.GetBool(ft.Append.Name()); err != nil {
-		return nil, err
-	} else if append {
+	append, err := fs.GetBool(ft.Append.Name())
+	clilog.GetFlag(err)
+	if append {
 		flags |= os.O_APPEND
 	} else {
 		flags |= os.O_TRUNC

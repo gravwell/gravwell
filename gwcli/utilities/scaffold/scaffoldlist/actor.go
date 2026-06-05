@@ -75,7 +75,9 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 	}
 
 	la.showColumns, la.columns, la.outFile, la.format, invalid = getFlags(la.fs, la.dqToAlias, la.aliasToDQ, la.options.Pretty != nil)
-	if la.showColumns {
+	if invalid != "" {
+		return invalid, nil, nil
+	} else if la.showColumns {
 		return "", nil, nil
 	}
 	// run custom validation
