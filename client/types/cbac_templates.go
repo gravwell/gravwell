@@ -18,13 +18,16 @@ const (
 )
 
 var (
-	fullTagAccess            = TagAccess{Grants: []string{`*`}}
-	fullCapabilityState      CapabilityState
-	adminOnlyCapabilityState CapabilityState
-	fullCapStringList        []string
-	fullCapList              []Capability
-	templateSet              []CapabilityTemplate
-	capabilitySet            = [...]CapabilityDesc{
+	fullTagAccess = TagAccess{Grants: []string{`*`}}
+	// fullCapabilityState represents the "caps" a user has when cbac is not enabled.
+	fullCapabilityState CapabilityState
+	fullCapStringList   []string
+	// fullCapList is used by most cbac related functions to filter available caps
+	// or when listing caps this slice is iterated to ensure only known caps are included.
+	// This MUST include all possible caps or listing caps on a token/user will not return all caps assigned.
+	fullCapList   []Capability
+	templateSet   []CapabilityTemplate
+	capabilitySet = [...]CapabilityDesc{
 		Search.CapabilityDesc(),
 		Download.CapabilityDesc(),
 		AttachSearch.CapabilityDesc(),
@@ -120,9 +123,17 @@ var (
 func init() {
 	fullCapList = make([]Capability, 0, len(capabilitySet))
 	fullCapStringList = make([]string, 0, len(capabilitySet))
+	userCapList := make([]Capability, 0, len(capabilitySet))
+	fullCapabilityState = CapabilityState{
+		Grants: make([]string, 0, len(fullCapList)),
+	}
 	for _, v := range capabilitySet {
-		if v.TokenOnly || v.AdminOnly {
-			continue
+		if !(v.AdminOnly && v.TokenOnly) {
+			// Both of these lists are represent access for normal users (non-admins)
+			// We don't want AdminOnly or TokenOnly caps in this list to avoid assigning them or saying they have a cap
+			// that in reality they don't have.
+			userCapList = append(userCapList, v.Cap)
+			fullCapabilityState.Grants = append(fullCapabilityState.Grants, v.Cap.Name())
 		}
 		fullCapList = append(fullCapList, v.Cap)
 		fullCapStringList = append(fullCapStringList, v.Cap.Name())
@@ -131,7 +142,7 @@ func init() {
 		CapabilityTemplate{
 			Name: TemplateFullUserName,
 			Desc: "Standard user that can operate all aspects of Gravwell.\nThis user has full access to automations.",
-			Caps: fullCapList,
+			Caps: userCapList,
 		},
 		CapabilityTemplate{
 			Name: TemplateReadOnlyName,
@@ -139,19 +150,6 @@ func init() {
 			Caps: readOnlyCapList,
 		},
 	}
-	fullCapabilityState = CapabilityState{
-		Grants: make([]string, 0, len(fullCapList)),
-	}
-	for _, c := range fullCapList {
-		fullCapabilityState.Grants = append(fullCapabilityState.Grants, c.Name())
-	}
-	adminOnlyCapabilityState = CapabilityState{
-		Grants: make([]string, 0, len(adminOnlyCapList)),
-	}
-	for _, c := range adminOnlyCapList {
-		adminOnlyCapabilityState.Grants = append(adminOnlyCapabilityState.Grants, c.Name())
-	}
-
 }
 
 func AllTagAccess() TagAccess {
