@@ -77,6 +77,7 @@ type OmitFlags struct {
 
 	AllData        bool
 	IncludeDeleted bool
+	Limit          bool
 }
 
 // buildFlagSet returns a flagset composed of the default list flags,
@@ -92,34 +93,24 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit OmitF
 	ft.Table.Register(&fs)
 
 	fs.StringSliceP(FlagNameSelectColumns, "", defaultColumnsAliased,
-		"comma-separated list of columns to include in the results.\n"+
+		"Comma-separated list of columns to include in the results.\n"+
 			"Use --"+FlagNameShowColumns+" to see the full list of columns.\n"+
 			"Mutually exclusive with --"+FlagNameSelectAllColumns)
 
-	fs.Bool(FlagNameShowColumns, false, "display available columns (for use with --columns) and exit.\n"+
+	fs.Bool(FlagNameShowColumns, false, "Display available columns (for use with --columns) and exit.\n"+
 		"Causes all other flags to be ignored")
 
 	ft.Output.Register(&fs)
 	ft.Append.Register(&fs)
 	fs.Bool(FlagNameSelectAllColumns, false,
-		"displays data from all columns, ignoring the default column set.\n"+
+		"Displays data from all columns, ignoring the default column set.\n"+
 			"Mutually exclusive with --"+FlagNameSelectColumns)
 
-	// attach query option flags, depending on their omit state
-	if !omit.Everything {
-		if !omit.AllData {
-			fs.Bool(FlagNameAllData, false, "requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
-				"Ignored if you are not an admin.\n"+
-				"Implied by admin mode")
-		}
-		if !omit.IncludeDeleted {
-			ft.IncludeDeleted.Register(&fs)
-		}
-	}
+	installQueryOptionsFlags(&fs, omit)
 
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
-		fs.Bool("pretty", false, "display results as prettified text.\n"+
+		fs.Bool("pretty", false, "Display results as prettified text.\n"+
 			"Takes precedence over other format flags.\n"+
 			"May or may not respect columns, default or selected")
 	}
@@ -195,6 +186,25 @@ type DataParameters struct {
 	QueryOpts *types.QueryOptions
 }
 
+func installQueryOptionsFlags(fs *pflag.FlagSet, omit OmitFlags) {
+	if omit.Everything {
+		return
+	}
+	// attach query option flags, depending on their omit state
+
+	if !omit.AllData {
+		fs.Bool(FlagNameAllData, false, "Requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
+			"Ignored if you are not an admin.\n"+
+			"Implied by admin mode")
+	}
+	if !omit.IncludeDeleted {
+		ft.IncludeDeleted.Register(fs)
+	}
+	if !omit.Limit {
+		fs.Int(FlagNameLimit, 0, "Limit the number of items to return")
+	}
+}
+
 // getQueryOptions generates a QueryOptions struck from the given flagset (omit flags that were not set).
 func getQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
 	var err error
@@ -212,6 +222,13 @@ func getQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
 		if !qo.AdminMode { // check for --all override
 			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
 			clilog.GetFlag(err)
+		}
+	}
+	if !omit.Limit {
+		lim, err := fs.GetInt(FlagNameLimit)
+		clilog.GetFlag(err)
+		if lim > 0 {
+			qo.Limit = lim
 		}
 	}
 

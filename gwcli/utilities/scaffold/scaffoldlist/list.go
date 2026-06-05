@@ -106,6 +106,7 @@ const (
 	FlagNameShowColumns      string = "show-columns" // display available columns instead of fetching data
 	FlagNameSelectColumns    string = "columns"      // select which columns to display data for instead of using the defaults.
 	FlagNameAllData          string = "all"          // fetch data from all users instead of just the current user
+	FlagNameLimit            string = "limit"        // limit the number of elements returned
 )
 
 // ListDataFunc is a function that retrieves an array of structs of type dataStruct
@@ -208,11 +209,15 @@ func NewListAction[dataStruct_t any](short, long string,
 		}
 		actionOptions.Usage = fmt.Sprintf("%s %s %s %s",
 			ft.Optional("--"+FlagNameShowColumns),
-			ft.Optional(ft.MutuallyExclusive(formats)),
-			ft.MutuallyExclusive([]string{
-				ft.Optional("--" + FlagNameSelectColumns + "=col1,col2,..."),
-				ft.Optional("--" + FlagNameSelectAllColumns),
-			}),
+			ft.Optional(
+				ft.MutuallyExclusive(formats),
+			),
+			ft.Optional(
+				ft.MutuallyExclusive([]string{
+					"--" + FlagNameSelectColumns + "=col1,col2,...",
+					"--" + FlagNameSelectAllColumns,
+				}),
+			),
 			ft.Optional("FLAGS"),
 		)
 	}

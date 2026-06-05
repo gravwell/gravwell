@@ -673,7 +673,9 @@ func TestHelpGeneration(t *testing.T) {
 		}{
 			{"no omissions includes all", scaffoldlist.OmitFlags{}},
 			{"omit --all", scaffoldlist.OmitFlags{AllData: true}},
+			{"omit --limit", scaffoldlist.OmitFlags{Limit: true}},
 			{"omit --all and --include-deleted", scaffoldlist.OmitFlags{AllData: true, IncludeDeleted: true}},
+			{"omit everything", scaffoldlist.OmitFlags{Everything: true}},
 		}
 		var sbOut, sbErr strings.Builder
 		// the "--all" prefix is likely be used in multiple ways, so we can't just for contents
@@ -692,15 +694,22 @@ func TestHelpGeneration(t *testing.T) {
 				pair.Action.SetErr(&sbErr)
 				uniques.Help(pair.Action, nil)
 				help := sbOut.String()
-				if tt.omit.AllData {
+
+				if tt.omit.AllData || tt.omit.Everything {
 					assert.NotRegexp(t, rgxAllData, help)
 				} else {
 					assert.Regexp(t, rgxAllData, help)
 				}
-				if tt.omit.IncludeDeleted {
+				if tt.omit.IncludeDeleted || tt.omit.Everything {
 					assert.NotContains(t, help, "--"+ft.IncludeDeleted.Name())
 				} else {
 					assert.Contains(t, help, "--"+ft.IncludeDeleted.Name())
+				}
+
+				if tt.omit.Limit || tt.omit.Everything {
+					assert.NotContains(t, help, "--"+scaffoldlist.FlagNameLimit)
+				} else {
+					assert.Contains(t, help, "--"+scaffoldlist.FlagNameLimit)
 				}
 			})
 		}
@@ -840,6 +849,28 @@ func TestOmitFlags(t *testing.T) {
 					scaffoldlist.OmitFlags{Everything: true},
 					[]string{
 						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--limit can be set when omitted",
+					scaffoldlist.OmitFlags{},
+					[]string{
+						"--" + scaffoldlist.FlagNameLimit + "=8",
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{Limit: 8},
+					},
+				},
+				{"--limit cannot be set when omitted",
+					scaffoldlist.OmitFlags{Limit: true},
+					[]string{
+						"--" + scaffoldlist.FlagNameLimit,
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
 					},
 					true,
