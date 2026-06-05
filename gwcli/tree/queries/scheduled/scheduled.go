@@ -58,7 +58,7 @@ func list() action.Pair {
 			if id, err := fs.GetString("id"); err != nil {
 				clilog.GetFlag(err)
 			} else if id != "" {
-				ss, err := connection.Client.GetScheduledSearch(id)
+				ss, err := connection.Client.GetScheduledSearchEx(id, params.QueryOpts)
 				return []types.ScheduledSearch{ss}, err
 			}
 			list, err := connection.Client.ListScheduledSearches(params.QueryOpts)

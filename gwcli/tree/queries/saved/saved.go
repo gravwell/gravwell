@@ -49,10 +49,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list your saved queries", "lists all saved queries associated to your user",
 		types.SavedQuery{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.SavedQuery, error) {
 			r, err := connection.Client.ListSavedQueries(param.QueryOpts)
-			if err != nil {
-				return nil, err
-			}
-			return r.Results, nil
+			return r.Results, err
 		},
 		nil,
 		scaffoldlist.Options{

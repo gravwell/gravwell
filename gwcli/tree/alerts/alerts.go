@@ -92,33 +92,28 @@ func alertsList() action.Pair {
 	)
 
 	return scaffoldlist.NewListAction(short, long, types.Alert{},
-		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Alert, error) {
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
+
 			if listConsumerID != "" {
-				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
-					Filters: []types.Filter{
-						{
-							Key:       "Consumers.ID",
-							Operation: "=",
-							Values:    []any{listConsumerID},
-						},
-					},
+				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+					Key:       "Consumers.ID",
+					Operation: "=",
+					Values:    []any{listConsumerID},
 				})
+				resp, err := connection.Client.ListAlerts(params.QueryOpts)
 				return resp.Results, err
 
 			} else if listDispatcherID != "" {
-				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
-					Filters: []types.Filter{
-						{
-							Key:       "Dispatchers.ID",
-							Operation: "=",
-							Values:    []any{listDispatcherID},
-						},
-					},
+				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+					Key:       "Dispatchers.ID",
+					Operation: "=",
+					Values:    []any{listDispatcherID},
 				})
+				resp, err := connection.Client.ListAlerts(params.QueryOpts)
 				return resp.Results, err
 			}
 
-			resp, err := connection.Client.ListAlerts(nil)
+			resp, err := connection.Client.ListAlerts(params.QueryOpts)
 			return resp.Results, err
 		},
 		nil,

@@ -55,7 +55,7 @@ func newKitsListAction() action.Pair {
 				"KitState.Description",
 				"KitState.Version",
 			},
-			Omit: scaffoldlist.OmitFlags{IncludeDeleted: true},
+			Omit: scaffoldlist.OmitFlags{IncludeDeleted: true, Limit: true},
 		})
 }
 

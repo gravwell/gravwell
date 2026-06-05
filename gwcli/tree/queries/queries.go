@@ -60,15 +60,8 @@ func past() action.Pair {
 	return scaffoldlist.NewListAction(
 		short, long,
 		types.SearchHistoryEntry{},
-		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
-			opts := &types.QueryOptions{}
-			if count, err := fs.GetInt("count"); err != nil { // TODO extract Count
-				clilog.GetFlag(err)
-			} else if count > 0 {
-				opts.Limit = count
-			}
-
-			resp, err := connection.Client.ListSearchHistory(opts)
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
+			resp, err := connection.Client.ListSearchHistory(params.QueryOpts)
 			if err != nil {
 				// check for explicit no records error
 				if strings.Contains(err.Error(), "No record") {
@@ -81,18 +74,11 @@ func past() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: pastUse, AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{Use: pastUse},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"EffectiveQuery",
 				"Launched",
 			},
 		})
-}
-
-func flags() *pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Int("count", 0, "the number of past searches to display.\n"+
-		"If negative or 0, fetches entire history")
-	return &addtlFlags
 }
