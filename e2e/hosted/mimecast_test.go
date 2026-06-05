@@ -64,8 +64,8 @@ func TestMimecast(t *testing.T) {
 	fetcher, err := tc.Run(t.Context(), "gravwell/hosted:e2e",
 		e2e.WithDefaults(t, "hosted-mimecast",
 			tc.WithWaitStrategyAndDeadline(
-				10*time.Second,
-				wait.ForLog("Successfully connected to ingesters"),
+				15*time.Second,
+				wait.ForLog("Successfully connected to ingesters").WithPollInterval(time.Second),
 			),
 			e2e.WithConfig(t, "testdata/mimecast.conf", "hosted_runner.conf", e2e.DefaultConfig),
 		)...,

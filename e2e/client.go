@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -37,37 +38,64 @@ func GetClient(t *testing.T) *client.Client {
 
 // RunSearch will run a query over a time.Duration and return the entries and log them as an artifact.
 // It will wait for the search to complete to simplify querying in a test.
-func RunSearch(t *testing.T, c *client.Client, query string, d time.Duration) []types.StringTagEntry {
-	t.Helper()
-	var err error
+func search(c *client.Client, query string, d time.Duration) (ents []types.StringTagEntry, s client.Search, err error) {
 	if err = c.ParseSearch(query); err != nil {
-		t.Fatalf("failed to parse search query: %v", err)
+		err = fmt.Errorf("failed to parse search query: %v", err)
+		return
 	}
-	var s client.Search
 	if s, err = c.StartSearch(query, time.Now().Add(-d), time.Now(), false); err != nil {
-		t.Fatalf("failed to start search: %v", err)
+		err = fmt.Errorf("failed to start search: %v", err)
+		return
 	} else if err = c.WaitForSearch(s); err != nil {
-		t.Fatalf("failed to wait for search: %v", err)
+		err = fmt.Errorf("failed to wait for search: %v", err)
+		return
 	}
 
 	var cnt uint64
 	var done bool
 	if cnt, done, err = c.GetAvailableEntryCount(s); err != nil || !done {
-		t.Fatalf("error getting entry count: %v, count: %v, done: %v", err, cnt, done)
+		err = fmt.Errorf("error getting entry count: %v, count: %v, done: %v", err, cnt, done)
+		return
 	}
 	if cnt == 0 {
-		return []types.StringTagEntry{}
+		return
 	}
 
-	ent, err := c.GetEntries(s, 0, cnt)
+	ents, err = c.GetEntries(s, 0, cnt)
 	if err != nil {
-		t.Fatalf("failed to get entries: %v", err)
+		err = fmt.Errorf("failed to get entries: %v", err)
+		return
+	}
+
+	return
+}
+
+// RunSearch will run a query over a time.Duration and return the entries and log them as an artifact.
+// It will wait for the search to complete to simplify querying in a test.
+func RunSearch(t *testing.T, c *client.Client, query string, d time.Duration) []types.StringTagEntry {
+	t.Helper()
+	ents, s, err := search(c, query, d)
+	if err != nil {
+		t.Fatalf("failed to search: %v", err)
 	}
 	if err = c.DeleteSearch(s.ID); err != nil {
 		t.Logf("failed to delete search entry: %v", err)
 	}
 
-	WriteQueryResults(t, slug.Make(query), ent)
+	WriteQueryResults(t, slug.Make(query), ents)
 
-	return ent
+	return ents
+}
+
+func WaitForEntries(t *testing.T, c *client.Client, query string, d time.Duration, entries int, timeout time.Duration) ([]types.StringTagEntry, error) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		results := RunSearch(t, c, query, d)
+		if len(results) >= entries {
+			return results, nil
+		}
+		time.Sleep(time.Second)
+	}
+	return nil, fmt.Errorf("timed out waiting for results")
 }
