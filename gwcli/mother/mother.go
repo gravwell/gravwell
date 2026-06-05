@@ -187,7 +187,7 @@ func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 var _ tea.Model = Mother{}
 
 func (m Mother) Init() tea.Cmd {
-	return tea.WindowSize() // TODO we can likely junk this
+	return nil
 }
 
 // Update (specifically Mother's Update()) is always the entrypoint for BubbleTea to drive.

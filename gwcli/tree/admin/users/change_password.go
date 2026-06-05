@@ -180,7 +180,7 @@ func (m *changePasswordModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, 
 		itms = append(itms, listitem.NewUserItem(user, false))
 	}
 	itms = slices.Clip(itms)
-	if len(itms) == 0 { // TODO ensure we have self change-password set
+	if len(itms) == 0 {
 		return "there are no other users. If you want to change your own password, use " + stylesheet.Cur.Action.Render("~ self change-password"), nil, nil
 	}
 

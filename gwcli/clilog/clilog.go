@@ -225,7 +225,6 @@ func GetFlag(err error) ErrInternal {
 		return ErrInternal{}
 	}
 	if Writer != nil {
-		// TODO test call depth
 		Writer.Warn("flag-get failure", log.KV("parent", log.CallLoc(1)), log.KVErr(err))
 	}
 	return ErrInternal{}

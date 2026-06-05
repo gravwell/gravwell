@@ -188,7 +188,7 @@ func edit() action.Pair {
 				Usage:    "email associated to this user",
 				Order:    160,
 			},
-			// TODO include admin bool
+			// TODO include admin bool after the scaffoldcreate/edit merge
 		},
 		scaffoldedit.SubroutineSet[int32, types.User]{
 			SelectSub: func(id int32) (item types.User, err error) {
@@ -274,7 +274,7 @@ func sessionsAction() action.Pair {
 		"Get all active sessions for the specified user IDs.\n"+
 			"If --since is not set, it will default to fetching all records for the past 48 hours.",
 		session{},
-		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]session, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]session, error) {
 			allSessions := []types.Session{}
 			for _, uid := range sessionUIDs {
 				userSessions, err := connection.Client.Sessions(uid)
@@ -385,6 +385,7 @@ func sessionsAction() action.Pair {
 				}
 				return "", nil
 			},
+			Omit: scaffoldlist.OmitFlags{Everything: true},
 		},
 	)
 }
