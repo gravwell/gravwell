@@ -48,17 +48,14 @@ func NewNav() *cobra.Command {
 func show() action.Pair {
 	return scaffoldlist.NewListAction("display email configuration", "Display the current email/SMTP configuration.",
 		types.UserMailConfig{},
-		func(fs *pflag.FlagSet) ([]types.UserMailConfig, error) {
+		func(_ *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.UserMailConfig, error) {
 			mc, err := connection.Client.MailConfig()
-			if err != nil {
-				return nil, err
-			}
-			return []types.UserMailConfig{mc}, nil
+			return []types.UserMailConfig{mc}, err
 		},
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "show"},
-			Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) {
+			Pretty: func(_ *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				mc, err := connection.Client.MailConfig()
 				if err != nil {
 					return "", err
@@ -68,6 +65,9 @@ func show() action.Pair {
 				}
 				return fmt.Sprintf("Server: %s\nPort: %d\nUsername: %s\nUseTLS: %v\nInsecureSkipVerify: %v",
 					mc.Server, mc.Port, mc.Username, mc.UseTLS, mc.InsecureSkipVerify), nil
+			},
+			Omit: scaffoldlist.OmitFlags{
+				Everything: true,
 			},
 		})
 }

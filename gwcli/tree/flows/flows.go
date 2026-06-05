@@ -58,12 +58,9 @@ func NewNav() *cobra.Command {
 func listFlows() action.Pair {
 	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
 		types.Flow{},
-		func(fs *pflag.FlagSet) ([]types.Flow, error) {
-			baseList, err := connection.Client.ListFlows(nil)
-			if err != nil {
-				return nil, err
-			}
-			return baseList.Results, nil
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Flow, error) {
+			baseList, err := connection.Client.ListFlows(params.QueryOpts)
+			return baseList.Results, err
 		},
 		nil,
 		scaffoldlist.Options{

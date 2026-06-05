@@ -33,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -83,25 +84,21 @@ const (
 // #region list
 
 func list() action.Pair {
-	const (
-		short string = "list extractors"
-		long  string = "list autoextractions available to you and the system"
-	)
 
 	return scaffoldlist.NewListAction(
-		short,
-		long,
+		"list extractors",
+		"List autoextractions available to you",
 		types.AX{},
-		func(fs *pflag.FlagSet) ([]types.AX, error) {
-			if id, err := fs.GetString("id"); err != nil {
-				clilog.GetFlag(err)
-			} else if id != "" {
-				clilog.Writer.Infof("Fetching ax with id \"%v\"", id)
-				d, err := connection.Client.GetExtraction(id)
+		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.AX, error) {
+			id, err := fs.GetString("id")
+			clilog.GetFlag(err)
+			if id != "" {
+				clilog.Writer.Info("Fetching ax by ID", log.KV("ID", id))
+				d, err := connection.Client.GetExtraction(id) // TODO this needs an EX equivalent, no?
 				return []types.AX{d}, err
 			}
 
-			lr, err := connection.Client.ListExtractions(nil)
+			lr, err := connection.Client.ListExtractions(param.QueryOpts)
 			return lr.Results, err
 
 		},

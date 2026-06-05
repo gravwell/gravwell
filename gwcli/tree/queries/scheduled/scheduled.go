@@ -54,7 +54,16 @@ func list() action.Pair {
 		long  = "prints out all scheduled queries."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.ScheduledSearch{}, listScheduledSearch,
+		types.ScheduledSearch{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.ScheduledSearch, error) {
+			if id, err := fs.GetString("id"); err != nil {
+				clilog.GetFlag(err)
+			} else if id != "" {
+				ss, err := connection.Client.GetScheduledSearch(id)
+				return []types.ScheduledSearch{ss}, err
+			}
+			list, err := connection.Client.ListScheduledSearches(params.QueryOpts)
+			return list.Results, err
+		},
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
@@ -77,23 +86,6 @@ func flags() *pflag.FlagSet {
 		"This id can be a standard, numeric ID or a uuid.")
 
 	return &addtlFlags
-}
-
-func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
-	if all, err := fs.GetBool("all"); err != nil {
-		clilog.GetFlag(err)
-	} else if all {
-		list, err := connection.Client.ListAllScheduledSearches(nil)
-		return list.Results, err
-	}
-	if id, err := fs.GetString("id"); err != nil {
-		clilog.GetFlag(err)
-	} else if id != "" {
-		ss, err := connection.Client.GetScheduledSearch(id)
-		return []types.ScheduledSearch{ss}, err
-	}
-	list, err := connection.Client.ListScheduledSearches(nil)
-	return list.Results, err
 }
 
 //#endregion list

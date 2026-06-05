@@ -17,10 +17,8 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -57,18 +55,8 @@ func listAction() action.Pair {
 		long  string = "View secrets available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.Secret{}, func(fs *pflag.FlagSet) ([]types.Secret, error) {
-			if all, err := fs.GetBool("all"); err != nil {
-				clilog.GetFlag(err)
-			} else if all {
-				resp, err := connection.Client.ListAllSecrets(nil)
-				if err != nil {
-					return nil, err
-				}
-				return resp.Results, nil
-			}
-
-			resp, err := connection.Client.ListSecrets(nil)
+		types.Secret{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Secret, error) {
+			resp, err := connection.Client.ListSecrets(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -81,14 +69,8 @@ func listAction() action.Pair {
 				"CommonFields.Name",
 				"CommonFields.Description",
 			},
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{},
 		})
-}
-
-func flags() *pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "secrets")
-	return &addtlFlags
 }
 
 func create() action.Pair {

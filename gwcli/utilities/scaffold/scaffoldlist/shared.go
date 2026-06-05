@@ -84,16 +84,18 @@ func listOutput[struct_t any](
 	DQToAlias map[string]string,
 	omit OmitFlags,
 ) (string, error) {
+	params := DataParameters{QueryOpts: getQueryOptions(fs, omit)}
+
 	// hand off control to pretty
 	if format == formatPretty {
 		if prettyFunc == nil {
 			return "", errors.New("format is pretty, but prettyFunc is nil")
 		}
-		return prettyFunc(dqColumns, DQToAlias)
+		return prettyFunc(fs, dqColumns, DQToAlias, params)
 	}
 
 	// massage the data for weave
-	data, err := dataFunc(fs, DataParameters{QueryOpts: getQueryOptions(fs, omit)})
+	data, err := dataFunc(fs, params)
 	if err != nil {
 		return "", err
 	}

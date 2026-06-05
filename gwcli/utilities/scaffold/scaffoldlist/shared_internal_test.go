@@ -328,7 +328,7 @@ var ntDQs = map[string]string{
 
 func Test_listOutput(t *testing.T) {
 	t.Run("pretty", func(t *testing.T) {
-		ppf := func(_ []string, _ map[string]string) (string, error) {
+		ppf := func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ DataParameters) (string, error) {
 			return "pretty", nil
 		}
 		out, err := listOutput[struct{}](buildFlagSet(true, nil, OmitFlags{}), formatPretty, nil, nil, ppf, nil, OmitFlags{})

@@ -92,7 +92,7 @@ func alertsList() action.Pair {
 	)
 
 	return scaffoldlist.NewListAction(short, long, types.Alert{},
-		func(fs *pflag.FlagSet) ([]types.Alert, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Alert, error) {
 			if listConsumerID != "" {
 				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
 					Filters: []types.Filter{

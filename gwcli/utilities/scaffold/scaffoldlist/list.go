@@ -115,7 +115,7 @@ type ListDataFunc[dataStruct_t any] func(addtlFlags *pflag.FlagSet, params DataP
 type AddtlFlagFunc func() pflag.FlagSet
 
 // A PrettyPrinterFunc defines a free-form function for outputting a pretty string for human consumption.
-type PrettyPrinterFunc func(DQColumns []string, DQToAlias map[string]string) (string, error)
+type PrettyPrinterFunc func(addtlFlags *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params DataParameters) (string, error)
 
 // NewListAction creates and returns a cobra.Command suitable for use as a list action,
 // complete with common flags and a generic run function operating off the given ListDataFunc.

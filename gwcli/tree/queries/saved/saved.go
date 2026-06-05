@@ -16,10 +16,8 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -49,17 +47,8 @@ func NewSavedNav() *cobra.Command {
 
 func list() action.Pair {
 	return scaffoldlist.NewListAction("list your saved queries", "lists all saved queries associated to your user",
-		types.SavedQuery{}, func(fs *pflag.FlagSet) ([]types.SavedQuery, error) {
-			if all, err := fs.GetBool("all"); err != nil {
-				return nil, clilog.GetFlag(err)
-			} else if all {
-				r, err := connection.Client.ListAllSavedQueries(nil)
-				if err != nil {
-					return nil, err
-				}
-				return r.Results, nil
-			}
-			r, err := connection.Client.ListSavedQueries(nil)
+		types.SavedQuery{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.SavedQuery, error) {
+			r, err := connection.Client.ListSavedQueries(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -67,15 +56,9 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{AddtlFlags: flags},
+			CommonOptions:  scaffold.CommonOptions{},
 			DefaultColumns: []string{"CommonFields.ID", "CommonFields.Name", "CommonFields.Description", "Query"},
 		})
-}
-
-func flags() *pflag.FlagSet {
-	addtlFlags := &pflag.FlagSet{}
-	ft.GetAll.Register(addtlFlags, true, "saved queries", "")
-	return addtlFlags
 }
 
 //#endregion list

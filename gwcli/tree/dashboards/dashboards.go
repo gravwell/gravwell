@@ -13,10 +13,8 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -49,31 +47,16 @@ func NewNav() *cobra.Command {
 
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list dashboards", "list dashboards available to you and the system",
-		types.Dashboard{}, list,
+		types.Dashboard{}, func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Dashboard, error) {
+			r, err := connection.Client.ListDashboards(params.QueryOpts)
+			return r.Results, err
+		},
 		nil,
-		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags}, DefaultColumns: []string{
+		scaffoldlist.Options{DefaultColumns: []string{
 			"ID",
 			"Name",
 			"Description",
 		}})
-}
-
-func flags() *pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "dashboards")
-
-	return &addtlFlags
-}
-
-func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
-	if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-		clilog.GetFlag(err)
-	} else if all {
-		r, err := connection.Client.ListAllDashboards(nil)
-		return r.Results, err
-	}
-	r, err := connection.Client.ListDashboards(nil)
-	return r.Results, err
 }
 
 //#region delete

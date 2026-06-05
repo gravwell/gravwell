@@ -65,36 +65,12 @@ func list() action.Pair {
 		long  string = "Lists information about the files you have access to."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.File{}, func(fs *pflag.FlagSet) ([]types.File, error) {
-			// check for all
-			all, err := fs.GetBool(ft.GetAll.Name())
-			if err != nil {
-				clilog.GetFlag(err)
-			}
-
-			var flr types.FileListResponse
-			if all {
-				flr, err = connection.Client.ListAllFiles(nil)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				flr, err = connection.Client.ListFiles(nil)
-				if err != nil {
-					return nil, err
-				}
-			}
-			return flr.Results, nil
+		types.File{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.File, error) {
+			flr, err := connection.Client.ListFiles(param.QueryOpts)
+			return flr.Results, err
 		},
 		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					var fs = &pflag.FlagSet{}
-					ft.GetAll.Register(fs, true, "files")
-					return fs
-				},
-			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",

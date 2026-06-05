@@ -18,7 +18,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -26,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -62,8 +62,8 @@ func list() action.Pair {
 		long  string = "Lists information about the API tokens you have access to."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.Token{}, func(fs *pflag.FlagSet) ([]types.Token, error) {
-			resp, err := connection.Client.ListTokens(nil)
+		types.Token{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Token, error) {
+			resp, err := connection.Client.ListTokens(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -81,14 +81,12 @@ func list() action.Pair {
 }
 
 func get() action.Pair {
-	var tokens []types.Token // tokens for the current run; reset by ValidateArgs
 	return scaffoldlist.NewListAction(
 		"get token details",
 		"Retrieves details about specified tokens, based on list of IDs provided as arguments.",
 		types.Token{},
-		func(fs *pflag.FlagSet) ([]types.Token, error) {
-
-			return tokens, nil
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Token, error) {
+			return getTokens(fs.Args(), params)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -96,7 +94,11 @@ func get() action.Pair {
 				Use:     "get",
 				Example: "get ID1 ID2",
 			},
-			Pretty: func(_ []string, _ map[string]string) (string, error) {
+			Pretty: func(addtlFlags *pflag.FlagSet, _ []string, _ map[string]string, params scaffoldlist.DataParameters) (string, error) {
+				tokens, err := getTokens(addtlFlags.Args(), params)
+				if err != nil {
+					return "", err
+				}
 				// find the longest ID to use as the width
 				var longestIDLen int
 				for _, tkn := range tokens {
@@ -112,24 +114,27 @@ func get() action.Pair {
 				return sb.String(), nil
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				tokens = []types.Token{} // clear cache
 				if len(fs.Args()) < 1 {
 					return "you must provide at least one token ID", nil
-				}
-				// fetch and cache the tokens
-				for _, id := range fs.Args() {
-					t, err := connection.Client.GetToken(id)
-					if err != nil {
-						if errors.Is(err, client.ErrNotFound) || strings.Contains(err.Error(), "Not Found") {
-							return "unknown token ID: " + id, nil
-						}
-						return "", fmt.Errorf("failed to get token %v: %w", id, err)
-					}
-					tokens = append(tokens, t)
 				}
 				return "", nil
 			},
 		})
+}
+
+func getTokens(bare []string, params scaffoldlist.DataParameters) ([]types.Token, error) {
+	var tokens = make([]types.Token, len(bare))
+	for i, id := range bare {
+		t, err := connection.Client.GetTokenEx(id, params.QueryOpts)
+		if err != nil {
+			if phrases.IsNotFoundErr(err) {
+				return nil, phrases.ErrUnknownIdentifier(id, "token ID")
+			}
+			return nil, fmt.Errorf("failed to get token %v: %w", id, err)
+		}
+		tokens[i] = t
+	}
+	return tokens, nil
 }
 
 // prettyTokens pretty-prints the given token and returns it.
@@ -140,21 +145,35 @@ func prettyToken(t types.Token, longestIDLen int) string {
 	)
 
 	var identitySb strings.Builder
-	identitySb.WriteString(stylesheet.Cur.Field("ID", fieldWidth) + t.ID + "\n")
-	identitySb.WriteString(stylesheet.Cur.Field("Name", fieldWidth) + t.Name + "\n")
+	identitySb.WriteString(stylesheet.Cur.Field("ID", fieldWidth))
+	identitySb.WriteString(t.ID)
+	identitySb.WriteString("\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Name", fieldWidth))
+	identitySb.WriteString(t.Name)
+	identitySb.WriteString("\n")
 	if t.Description != "" {
-		identitySb.WriteString(stylesheet.Cur.Field("Description", fieldWidth) + t.Description + "\n")
+		identitySb.WriteString(stylesheet.Cur.Field("Description", fieldWidth))
+		identitySb.WriteString(t.Description)
+		identitySb.WriteString("\n")
 	}
-	identitySb.WriteString(stylesheet.Cur.Field("Owner", fieldWidth) + fmt.Sprintf("%v", t.Owner.Name) + "\n")
-	identitySb.WriteString(stylesheet.Cur.Field("Created", fieldWidth) + t.CreatedAt.Format("2006-01-02 15:04:05 UTC") + "\n")
-	identitySb.WriteString(stylesheet.Cur.Field("Updated", fieldWidth) + t.UpdatedAt.Format("2006-01-02 15:04:05 UTC"))
+	identitySb.WriteString(stylesheet.Cur.Field("Owner", fieldWidth))
+	identitySb.WriteString(fmt.Sprintf("%v", t.Owner.Name))
+	identitySb.WriteString("\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Created", fieldWidth))
+	identitySb.WriteString(t.CreatedAt.Format("2006-01-02 15:04:05 UTC"))
+	identitySb.WriteString("\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Updated", fieldWidth))
+	identitySb.WriteString(t.UpdatedAt.Format("2006-01-02 15:04:05 UTC"))
 
 	var expirySb strings.Builder
-	expirySb.WriteString(stylesheet.Cur.Field("Expires", fieldWidth) + t.ExpiresString())
+	expirySb.WriteString(stylesheet.Cur.Field("Expires", fieldWidth))
+	expirySb.WriteString(t.ExpiresString())
 	if t.Expired() {
-		expirySb.WriteString(" " + stylesheet.Cur.ErrorText.Render("(EXPIRED)"))
+		expirySb.WriteString(" ")
+		expirySb.WriteString(stylesheet.Cur.ErrorText.Render("(EXPIRED)"))
 	} else if !t.ExpiresAt.IsZero() {
-		expirySb.WriteString(" " + stylesheet.Cur.SecondaryText.Render("(active)"))
+		expirySb.WriteString(" ")
+		expirySb.WriteString(stylesheet.Cur.SecondaryText.Render("(active)"))
 	}
 
 	var capsSb strings.Builder

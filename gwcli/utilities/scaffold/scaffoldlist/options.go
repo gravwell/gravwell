@@ -73,6 +73,8 @@ type Options struct {
 // Anything set to true in here will have its equivalent flag turned off for this action.
 // For example: if an asset type doesn't tombstone, --include-delete should probably be disabled.
 type OmitFlags struct {
+	Everything bool // disable everything. This is useful if the ListDataFunc doesn't take query opts.
+
 	AllData        bool
 	IncludeDeleted bool
 }
@@ -103,14 +105,18 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit OmitF
 		"displays data from all columns, ignoring the default column set.\n"+
 			"Mutually exclusive with --"+FlagNameSelectColumns)
 
-	if !omit.AllData {
-		fs.Bool(FlagNameAllData, false, "requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
-			"Ignored if you are not an admin.\n"+
-			"Implied by admin mode")
+	// attach query option flags, depending on their omit state
+	if !omit.Everything {
+		if !omit.AllData {
+			fs.Bool(FlagNameAllData, false, "requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
+				"Ignored if you are not an admin.\n"+
+				"Implied by admin mode")
+		}
+		if !omit.IncludeDeleted {
+			ft.IncludeDeleted.Register(&fs)
+		}
 	}
-	if !omit.IncludeDeleted {
-		ft.IncludeDeleted.Register(&fs)
-	}
+
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+
@@ -193,6 +199,9 @@ type DataParameters struct {
 func getQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
 	var err error
 	var qo = &types.QueryOptions{}
+	if omit.Everything {
+		return qo
+	}
 
 	if !omit.IncludeDeleted {
 		qo.IncludeDeleted, err = fs.GetBool(ft.IncludeDeleted.Name())

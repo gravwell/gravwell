@@ -177,13 +177,19 @@ func TestMotherCycle(t *testing.T) {
 				"(3.14-2.4i),plant2",
 		},
 		{"default pretty",
-			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
+			scaffoldlist.Options{
+				Pretty: func(fs *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params scaffoldlist.DataParameters) (string, error) {
+					return "pretty", nil
+				}},
 			[]string{},
 			false, false,
 			"pretty",
 		},
 		{"pretty defined, but --table given",
-			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
+			scaffoldlist.Options{
+				Pretty: func(fs *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params scaffoldlist.DataParameters) (string, error) {
+					return "pretty", nil
+				}},
 			[]string{"--table"},
 			false, false,
 			"┌───────────────┬───────────────┬───────────────┬───────────────┐\n" +
@@ -196,7 +202,9 @@ func TestMotherCycle(t *testing.T) {
 		},
 		{"as JSON with excluded defaults and pretty defined",
 			scaffoldlist.Options{
-				Pretty:                         func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil },
+				Pretty: func(fs *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params scaffoldlist.DataParameters) (string, error) {
+					return "pretty", nil
+				},
 				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{regexp.MustCompile("Plant")},
 			},
 			[]string{"--json"},
@@ -806,8 +814,30 @@ func TestOmitFlags(t *testing.T) {
 						&types.QueryOptions{},
 					},
 				},
+				{"--all cannot be set when omit.Everything",
+					scaffoldlist.OmitFlags{Everything: true},
+					[]string{
+						"--" + scaffoldlist.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
 				{"--include-deleted cannot be set when omitted",
 					scaffoldlist.OmitFlags{IncludeDeleted: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omit.Everything",
+					scaffoldlist.OmitFlags{Everything: true},
 					[]string{
 						"--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -882,8 +912,30 @@ func TestOmitFlags(t *testing.T) {
 						&types.QueryOptions{},
 					},
 				},
+				{"--all cannot be set when omit.Everything",
+					scaffoldlist.OmitFlags{Everything: true},
+					[]string{
+						"--" + scaffoldlist.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
 				{"--include-deleted cannot be set when omitted",
 					scaffoldlist.OmitFlags{IncludeDeleted: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omit.Everything",
+					scaffoldlist.OmitFlags{Everything: true},
 					[]string{
 						"--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage

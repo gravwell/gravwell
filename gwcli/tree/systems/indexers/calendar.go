@@ -43,7 +43,69 @@ func newCalendarAction() action.Pair {
 	)
 	var aliases = []string{"entries"}
 
-	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, data,
+	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.CalendarEntry, error) {
+		// all parameters, the globals, are managed by ValidateArgs()
+
+		wells, err := fs.GetStringSlice("wells")
+		if err != nil {
+			return nil, clilog.GetFlag(err)
+		}
+
+		// if an indexer was specified, get stats for that specific indexer
+		if idxrUUID.Valid {
+			clilog.Writer.Debugf("indexer=%v|start=%v|end=%v|given wells=%v", idxrUUID.UUID.String(), start, end, wells)
+
+			// if no wells were given, get all wells associated to this indexer
+			if len(wells) == 0 {
+				wellData, err := connection.Client.WellData()
+				if err != nil {
+					return nil, err
+				}
+				if wellData[idxrName].UUID != idxrUUID.UUID { // sanity check
+					err := fmt.Errorf("derived UUID (%v) does not match UUID of indexer associated to well data by name (%v)", idxrUUID.UUID, wellData[idxrName].UUID)
+					clilog.Writer.Errorf("%v", err)
+					return nil, err
+				}
+				wells = make([]string, len(wellData[idxrName].Wells))
+				for i, w := range wellData[idxrName].Wells {
+					wells[i] = w.ID
+				}
+			}
+
+			return connection.Client.GetIndexerCalendarStats(idxrUUID.UUID, start, end, wells)
+		}
+
+		clilog.Writer.Debugf("start=%v|end=%v|given wells=%v", start, end, wells)
+
+		// if no wells were given, get all wells
+		if len(wells) == 0 {
+			// if no wells were specified, fetch all wells from all indexers
+			wellData, err := connection.Client.WellData()
+			if err != nil {
+				return nil, err
+			}
+			var (
+				set sync.Map // well id -> 1
+				wg  sync.WaitGroup
+			)
+			for _, wd := range wellData {
+				wg.Add(1)
+				go func(data types.IndexerWellData) {
+					defer wg.Done()
+					for _, well := range data.Wells {
+						set.Store(well.ID, 1)
+					}
+				}(wd)
+			}
+			wg.Wait()
+			set.Range(func(key, value any) bool {
+				wells = append(wells, key.(string))
+				return true
+			})
+		}
+
+		return connection.Client.GetCalendarStats(start, end, wells)
+	},
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -87,6 +149,7 @@ func newCalendarAction() action.Pair {
 
 				return "", nil
 			},
+			Omit: scaffoldlist.OmitFlags{Everything: true},
 		})
 }
 
@@ -156,69 +219,4 @@ func validateTime(fs *pflag.FlagSet, flagName string) (v time.Time, invalid stri
 		return v, "--" + flagName + " must be a valid date formatted as YYYY-MM-DD", nil
 	}
 	return t, "", nil
-}
-
-// actual fetch function
-func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
-	// all parameters, the globals, are managed by ValidateArgs()
-
-	wells, err := fs.GetStringSlice("wells")
-	if err != nil {
-		return nil, clilog.GetFlag(err)
-	}
-
-	// if an indexer was specified, get stats for that specific indexer
-	if idxrUUID.Valid {
-		clilog.Writer.Debugf("indexer=%v|start=%v|end=%v|given wells=%v", idxrUUID.UUID.String(), start, end, wells)
-
-		// if no wells were given, get all wells associated to this indexer
-		if len(wells) == 0 {
-			wellData, err := connection.Client.WellData()
-			if err != nil {
-				return nil, err
-			}
-			if wellData[idxrName].UUID != idxrUUID.UUID { // sanity check
-				err := fmt.Errorf("derived UUID (%v) does not match UUID of indexer associated to well data by name (%v)", idxrUUID.UUID, wellData[idxrName].UUID)
-				clilog.Writer.Errorf("%v", err)
-				return nil, err
-			}
-			wells = make([]string, len(wellData[idxrName].Wells))
-			for i, w := range wellData[idxrName].Wells {
-				wells[i] = w.ID
-			}
-		}
-
-		return connection.Client.GetIndexerCalendarStats(idxrUUID.UUID, start, end, wells)
-	}
-
-	clilog.Writer.Debugf("start=%v|end=%v|given wells=%v", start, end, wells)
-
-	// if no wells were given, get all wells
-	if len(wells) == 0 {
-		// if no wells were specified, fetch all wells from all indexers
-		wellData, err := connection.Client.WellData()
-		if err != nil {
-			return nil, err
-		}
-		var (
-			set sync.Map // well id -> 1
-			wg  sync.WaitGroup
-		)
-		for _, wd := range wellData {
-			wg.Add(1)
-			go func(data types.IndexerWellData) {
-				defer wg.Done()
-				for _, well := range data.Wells {
-					set.Store(well.ID, 1)
-				}
-			}(wd)
-		}
-		wg.Wait()
-		set.Range(func(key, value any) bool {
-			wells = append(wells, key.(string))
-			return true
-		})
-	}
-
-	return connection.Client.GetCalendarStats(start, end, wells)
 }

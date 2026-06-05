@@ -60,9 +60,9 @@ func past() action.Pair {
 	return scaffoldlist.NewListAction(
 		short, long,
 		types.SearchHistoryEntry{},
-		func(fs *pflag.FlagSet) ([]types.SearchHistoryEntry, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
 			opts := &types.QueryOptions{}
-			if count, err := fs.GetInt("count"); err != nil {
+			if count, err := fs.GetInt("count"); err != nil { // TODO extract Count
 				clilog.GetFlag(err)
 			} else if count > 0 {
 				opts.Limit = count

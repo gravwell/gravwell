@@ -18,10 +18,8 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -99,18 +97,8 @@ func list() action.Pair {
 		long  string = "view templates available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		wrappedTemplate{}, func(fs *pflag.FlagSet) ([]wrappedTemplate, error) {
-			if all, err := fs.GetBool("all"); err != nil {
-				clilog.GetFlag(err)
-			} else if all {
-				resp, err := connection.Client.ListAllTemplates(nil)
-				if err != nil {
-					return nil, err
-				}
-				return wrap(resp.Results), nil
-			}
-
-			resp, err := connection.Client.ListTemplates(nil)
+		wrappedTemplate{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedTemplate, error) {
+			resp, err := connection.Client.ListTemplates(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -120,7 +108,6 @@ func list() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
 				addtlFlags := &pflag.FlagSet{}
-				ft.GetAll.Register(addtlFlags, true, "templates")
 				return addtlFlags
 			}},
 
@@ -134,75 +121,8 @@ func list() action.Pair {
 		})
 }
 
-// TODO we will need a submodule to handle variables. Create currently cannot handle this.
-/*func create() action.Pair {
-	fields := map[string]scaffoldcreate.Field{
-		"name":  scaffoldcreate.FieldName("template"),
-		"desc":  scaffoldcreate.FieldDescription("template"),
-		"query": scaffoldcreate.FieldPath("template"),
-		"variables": scaffoldcreate.Field{
-			Required: false,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				// TODO
-				return ti
-			},
-		},
-		"labels": scaffoldcreate.FieldLabels(),
-	}
-
-	return scaffoldcreate.NewCreateAction("resource", fields,
-		func(cfg map[string]scaffoldcreate.Field, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			// check that path is valid and the file exists
-			if fi, err := os.Stat(fieldValues["path"]); err != nil {
-				switch {
-				case errors.Is(err, filesystem.ErrNotExist):
-					return "", fmt.Sprintf("file '%v' not found", fieldValues["path"]), nil
-				}
-				return "", fmt.Sprintf("failed to access path: %v", err), nil
-			} else if fi.IsDir() {
-				return "", "path must point to a file", nil
-			}
-			// transmute to resource struct
-			var labels []string
-			if lbls, found := fieldValues["labels"]; !found {
-				return "", "", errors.New("failed to find \"labels\" field")
-			} else if lbls = strings.TrimSpace(lbls); lbls != "" {
-				labels = strings.Split(lbls, ",")
-			}
-
-			data := types.Resource{
-				CommonFields: types.CommonFields{
-					Name:        fieldValues["name"],
-					Description: fieldValues["desc"],
-					Labels:      labels,
-				},
-			}
-
-			resp, err := connection.Client.CreateResource(data)
-			// upload the file
-			f, err := os.Open(fieldValues["path"])
-			if err != nil {
-				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
-				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "open file"})
-				return resp.ID, "", errors.New(errStr)
-			}
-			defer f.Close()
-			b, err := io.ReadAll(f)
-			if err != nil {
-				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
-				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "slurp file"})
-				return resp.ID, "", errors.New(errStr)
-			}
-			if err := connection.Client.PopulateResource(resp.ID, b); err != nil {
-				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
-				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "populate"})
-				return resp.ID, "", errors.New(errStr)
-			}
-
-			return resp.ID, "", err
-		}, nil)
-}*/
+// TODO create.
+// Create will need either a JSON adaptation or some bespoke providers.
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("template", "templates",

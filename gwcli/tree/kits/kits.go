@@ -12,10 +12,7 @@ package kits
 import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -40,36 +37,26 @@ func NewNav() *cobra.Command {
 
 func newKitsListAction() action.Pair {
 	const short string = "list installed and staged kits"
-	var long = "lists kits available to your user" +
-		"(or all kits on the system, via the --" + ft.GetAll.Name() + " flag if you are an admin)"
 
 	return scaffoldlist.NewListAction(
-		short, long,
-		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
-			// if --all, use the admin version
-			if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-				clilog.GetFlag(err)
-			} else if all {
+		short, "Lists kits available to your user",
+		types.IdKitState{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.IdKitState, error) {
+			if param.QueryOpts.AdminMode {
 				return connection.Client.AdminListKits()
 			}
 
 			return connection.Client.ListKits()
 		},
 		nil,
-		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+		scaffoldlist.Options{
 			DefaultColumns: []string{
 				"UUID",
 				"KitState.Name",
 				"KitState.Description",
 				"KitState.Version",
-			}})
-}
-
-func flags() *pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "kits")
-
-	return &addtlFlags
+			},
+			Omit: scaffoldlist.OmitFlags{IncludeDeleted: true},
+		})
 }
 
 //#endregion list
