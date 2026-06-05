@@ -124,7 +124,7 @@ func download() action.Pair {
 
 // create allows creation of a playbook, optionally with content.
 func create() action.Pair {
-	path := scaffoldcreate.FieldPath("")
+	path := scaffoldcreate.FieldPath("", true)
 	path.Flag.Usage = "path to the markdown file to use as the playbook's contents"
 	return scaffoldcreate.NewCreateAction("playbook",
 		map[string]scaffoldcreate.Field{

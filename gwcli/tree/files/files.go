@@ -129,7 +129,7 @@ func create() action.Pair {
 		map[string]scaffoldcreate.Field{
 			"name":   scaffoldcreate.FieldName("file"),
 			"desc":   scaffoldcreate.FieldDescription("file"),
-			"path":   scaffoldcreate.FieldPath("file"),
+			"path":   scaffoldcreate.FieldPath("file", false),
 			"labels": scaffoldcreate.FieldLabels(),
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
@@ -143,15 +143,15 @@ func create() action.Pair {
 			if lbls := cfg["labels"].Provider.Get(); lbls != "" {
 				labels = strings.Split(lbls, ",")
 			}
-
-			// TODO make file content/path non-mandatory
-
-			// get a reader on the file
-			f, err := os.Open(filePath)
-			if err != nil {
-				return 0, "", err
+			var f *os.File
+			if filePath != "" {
+				// get a reader on the file
+				f, err = os.Open(filePath)
+				if err != nil {
+					return 0, "", err
+				}
+				defer f.Close()
 			}
-			defer f.Close()
 
 			var inMeta = types.File{
 				CommonFields: types.CommonFields{
@@ -165,9 +165,10 @@ func create() action.Pair {
 			if err != nil {
 				return 0, "", fmt.Errorf("failed to create empty file: %w", err)
 			}
-			// populate the file
-			if _, err := connection.Client.PopulateFileFromReader(outMeta.ID, f); err != nil {
-				return 0, "", fmt.Errorf("failed to populate file: %w", err)
+			if f != nil {
+				if _, err := connection.Client.PopulateFileFromReader(outMeta.ID, f); err != nil {
+					return 0, "", fmt.Errorf("failed to populate file: %w", err)
+				}
 			}
 
 			return outMeta.ID, "", nil

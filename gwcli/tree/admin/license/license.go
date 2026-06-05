@@ -222,7 +222,7 @@ func licenseSerial() action.Pair {
 func licenseUpdate() action.Pair {
 	return scaffoldcreate.NewCreateAction("license",
 		map[string]scaffoldcreate.Field{
-			"path": scaffoldcreate.FieldPath("license file"),
+			"path": scaffoldcreate.FieldPath("license file", true),
 		},
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			path := fields["path"].Provider.Get()

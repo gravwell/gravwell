@@ -85,7 +85,7 @@ func importCreate() action.Pair {
 			"name":      scaffoldcreate.FieldName("flow"),
 			"desc":      scaffoldcreate.FieldDescription("flow"),
 			"frequency": scaffoldcreate.FieldFrequency(),
-			"path":      scaffoldcreate.FieldPath("file containing a flow in JSON form"),
+			"path":      scaffoldcreate.FieldPath("file containing a flow in JSON form", true),
 			"groups": {
 				Required: false,
 				Title:    "Groups",

@@ -169,10 +169,10 @@ func FieldDescription(singular string) Field {
 
 // FieldPath returns a struct suited for file path specification inputs.
 // Order == 80.
-func FieldPath(singular string) Field {
+func FieldPath(singular string, required bool) Field {
 	return Field{
 		Title:    ft.Path.Name(),
-		Required: true,
+		Required: required,
 		Flag: FlagConfig{
 			Name:      ft.Path.Name(),
 			Usage:     ft.Path.Usage(singular),
@@ -244,3 +244,51 @@ func FieldPassword(required bool, fc FlagConfig, order int) Field {
 		},
 	}
 }
+
+var DefaultFieldGroupSelectionFlags = FlagConfig{
+	Name:  "groups",
+	Usage: "Groups IDs to associate to the item",
+}
+
+// TODO come back to this after the scaffoldcreate and scaffoldedit merger/upgrade
+// FieldGroupSelection returns a struct suitable for allowing a user to select (via an MSL) which groups they would like to be included.
+//
+// Any non-empty fields in fcOverride will be applied (assuming noFlag is set).
+/*func FieldGroupSelection(required, noFlag bool, fcOverride FlagConfig, order int) Field {
+
+	f := Field{
+		Title:    "Groups",
+		Required: required,
+		Order:    order,
+		Provider: NewMSLProvider(nil, // we can't install items at tree-build time,
+			MSLOptions{
+				SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+					lr, err := connection.Client.ListGroups(nil) // TODO pass in query options
+					if err != nil {
+						clilog.Writer.Error("failed to get groups", log.KVErr(err))
+						return nil
+					}
+					currentItems = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+					for i, g := range lr.Results {
+						currentItems[i] = listitem.NewGroupItem(g, false)
+					}
+
+				},
+			},
+		),
+	}
+	if !noFlag {
+		f.Flag = DefaultFieldGroupSelectionFlags
+		if fcOverride.Name != "" {
+			f.Flag.Name = fcOverride.Name
+		}
+		if fcOverride.Shorthand != 0 {
+			f.Flag.Shorthand = fcOverride.Shorthand
+		}
+		if fcOverride.Usage != "" {
+			f.Flag.Usage = fcOverride.Usage
+		}
+	}
+
+	return f
+}*/

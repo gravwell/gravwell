@@ -113,10 +113,9 @@ func get() action.Pair {
 }
 
 func create() action.Pair {
-	path := scaffoldcreate.FieldPath("")
+	path := scaffoldcreate.FieldPath("", false)
 	path.Flag.Usage = "path to the JSON file containing the actionable's contents. " +
 		"If not provided, the actionable will be created empty."
-	path.Required = false
 	return scaffoldcreate.NewCreateAction("actionable",
 		map[string]scaffoldcreate.Field{
 			"name":        scaffoldcreate.FieldName("actionable"),

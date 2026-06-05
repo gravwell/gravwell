@@ -146,7 +146,7 @@ func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		"name":   scaffoldcreate.FieldName("resource"),
 		"desc":   scaffoldcreate.FieldDescription("resource"),
-		"path":   scaffoldcreate.FieldPath("resource"),
+		"path":   scaffoldcreate.FieldPath("resource", true),
 		"labels": scaffoldcreate.FieldLabels(),
 	}
 
