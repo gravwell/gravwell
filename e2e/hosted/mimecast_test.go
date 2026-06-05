@@ -75,8 +75,6 @@ func TestMimecast(t *testing.T) {
 			"/opt/gravwell/log/hosted_runner.log",
 			"/opt/gravwell/log/error.log",
 		})
-		// run for the artifact, help debugging
-		_ = e2e.RunSearch(t, e2e.GetClient(t), "tag=gravwell syslog Appname==mimecast", time.Hour)
 		e2e.Terminate(t, fetcher)
 		e2e.Terminate(t, mock)
 	})
