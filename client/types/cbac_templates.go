@@ -25,7 +25,9 @@ var (
 	// fullCapList is used by most cbac related functions to filter available caps
 	// or when listing caps this slice is iterated to ensure only known caps are included.
 	// This MUST include all possible caps or listing caps on a token/user will not return all caps assigned.
-	fullCapList   []Capability
+	fullCapList []Capability
+	// userCapList stores all caps a non-admin user could be assigned
+	userCapList   []Capability
 	templateSet   []CapabilityTemplate
 	capabilitySet = [...]CapabilityDesc{
 		Search.CapabilityDesc(),
@@ -123,7 +125,7 @@ var (
 func init() {
 	fullCapList = make([]Capability, 0, len(capabilitySet))
 	fullCapStringList = make([]string, 0, len(capabilitySet))
-	userCapList := make([]Capability, 0, len(capabilitySet))
+	userCapList = make([]Capability, 0, len(capabilitySet))
 	fullCapabilityState = CapabilityState{
 		Grants: make([]string, 0, len(fullCapList)),
 	}
