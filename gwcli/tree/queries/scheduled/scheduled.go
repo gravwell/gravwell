@@ -92,74 +92,62 @@ func flags() *pflag.FlagSet {
 
 //#region create
 
-const ( // field keys
-	createNameKey     = "name"
-	createDescKey     = "desc"
-	createFreqKey     = "freq"
-	createQryKey      = "qry"
-	createDurationKey = "dur"
-)
-
 // create creates the action for creating new scheduled queries.
 func create() action.Pair {
-	fields := map[string]scaffoldcreate.Field{
-		createQryKey: scaffoldcreate.Field{
-			Required: true,
-			Title:    "query",
-			Flag:     scaffoldcreate.FlagConfig{Usage: "query to schedule", Shorthand: 'q'},
-			Provider: &scaffoldcreate.TextProvider{},
-			Order:    150,
-		},
-		createDurationKey: scaffoldcreate.Field{
-			Required: true,
-			Title:    "duration",
-			Flag:     scaffoldcreate.FlagConfig{Name: "duration", Usage: "the time span the query will look back over"},
-			Provider: &scaffoldcreate.TextProvider{
-				CustomInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
+	return scaffoldcreate.NewCreateAction("scheduled query",
+		map[string]scaffoldcreate.Field{
+			"qry": {
+				Required: true,
+				Title:    "query",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "query to schedule", Shorthand: 'q'},
+				Provider: &scaffoldcreate.TextProvider{},
+				Order:    150,
 			},
-			Order: 140,
-		},
-		createNameKey: scaffoldcreate.FieldName("query"),
-		createDescKey: scaffoldcreate.FieldDescription("query"),
-
-		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
-			Required: true,
-			Title:    "frequency",
-			Flag:     scaffoldcreate.FlagConfig{Name: ft.Frequency.Name(), Usage: ft.Frequency.Usage()},
-			Provider: &scaffoldcreate.TextProvider{
-				CustomInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", false)
-					ti.Placeholder = "* * * * *"
-					ti.Validate = validate.CronRuneValidator
-					return ti
+			"dur": {
+				Required: true,
+				Title:    "duration",
+				Flag:     scaffoldcreate.FlagConfig{Name: "duration", Usage: "the time span the query will look back over"},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
 				},
+				Order: 140,
 			},
-			DefaultValue: "", // no default value
-			Order:        50,
+			"name": scaffoldcreate.FieldName("query"),
+			"desc": scaffoldcreate.FieldDescription("query"),
+
+			"freq": { // manually build so we have more control
+				Required: true,
+				Title:    "frequency",
+				Flag:     scaffoldcreate.FlagConfig{Name: ft.Frequency.Name(), Usage: ft.Frequency.Usage()},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("", false)
+						ti.Placeholder = "* * * * *"
+						ti.Validate = validate.CronRuneValidator
+						return ti
+					},
+				},
+				DefaultValue: "", // no default value
+				Order:        50,
+			},
+			// TODO add group selection
 		},
-	}
+		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
+			var (
+				name      = cfg["name"].Provider.Get()
+				desc      = cfg["desc"].Provider.Get()
+				freq      = cfg["freq"].Provider.Get()
+				qry       = cfg["qry"].Provider.Get()
+				durString = cfg["dur"].Provider.Get()
+			)
+			dur, err := time.ParseDuration(durString)
+			if err != nil { // report as invalid parameter, not an error
+				return nil, err.Error(), nil
+			}
 
-	return scaffoldcreate.NewCreateAction("scheduled query", fields, createFunc, scaffoldcreate.Options{})
+			return connection.CreateScheduledSearch(name, desc, freq, qry, dur)
+		}, scaffoldcreate.Options{})
 }
-
-// driver function for scheduled create
-func createFunc(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
-	var (
-		name      = cfg[createNameKey].Provider.Get()
-		desc      = cfg[createDescKey].Provider.Get()
-		freq      = cfg[createFreqKey].Provider.Get()
-		qry       = cfg[createQryKey].Provider.Get()
-		durString = cfg[createDurationKey].Provider.Get()
-	)
-	dur, err := time.ParseDuration(durString)
-	if err != nil { // report as invalid parameter, not an error
-		return nil, err.Error(), nil
-	}
-
-	return connection.CreateScheduledSearch(name, desc, freq, qry, dur)
-}
-
-//#endregion create
 
 //#region delete
 
@@ -298,7 +286,3 @@ func edit() action.Pair {
 
 	return scaffoldedit.NewEditAction(singular, "scheduled searches", cfg, funcs)
 }
-
-//#endregion edit
-
-// cancelAction, backfillToggle, setOffset, and clearResults are defined in interactive.go
