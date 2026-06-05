@@ -30,10 +30,8 @@ func TestTesterPlugin(t *testing.T) {
 		e2e.Fatal(t, err)
 	}
 
-	time.Sleep(10 * time.Second)
-
 	c := e2e.GetClient(t)
-	ent := e2e.RunSearch(t, c, "tag=test", time.Hour)
+	ent := e2e.WaitForEntries(t, c, "tag=test", time.Hour, 1, 30*time.Second)
 
 	if len(ent) == 0 {
 		t.Fatal("No entries found")

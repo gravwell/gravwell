@@ -75,6 +75,8 @@ func TestMimecast(t *testing.T) {
 			"/opt/gravwell/log/hosted_runner.log",
 			"/opt/gravwell/log/error.log",
 		})
+		// run for the artifact, help debugging
+		_ = e2e.RunSearch(t, e2e.GetClient(t), "tag=gravwell syslog Appname==mimecast", time.Hour)
 		e2e.Terminate(t, fetcher)
 		e2e.Terminate(t, mock)
 	})
@@ -82,16 +84,12 @@ func TestMimecast(t *testing.T) {
 		e2e.Fatal(t, err)
 	}
 
-	time.Sleep(10 * time.Second)
-
 	c := e2e.GetClient(t)
-	// run for the artifact, help debugging
-	_ = e2e.RunSearch(t, c, "tag=gravwell syslog Appname==mimecast", time.Hour)
-	if ent := e2e.RunSearch(t, c, "tag=mimecast-audit", time.Hour*24); len(ent) == 0 {
+	if ent := e2e.WaitForEntries(t, c, "tag=mimecast-audit", time.Hour*24, 1, 30*time.Second); len(ent) == 0 {
 		e2e.Fatal(t, "no audit entries found")
 	}
 
-	if ent := e2e.RunSearch(t, c, "tag=mimecast-mta-delivery", time.Hour*24); len(ent) < 100 {
+	if ent := e2e.WaitForEntries(t, c, "tag=mimecast-mta-delivery", time.Hour*24, 100, 60*time.Second); len(ent) < 100 {
 		e2e.Fatalf(t, "got %d entries, less than expected 100 mta entries ", len(ent))
 	}
 
