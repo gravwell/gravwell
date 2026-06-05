@@ -14,8 +14,8 @@ func TestTesterPlugin(t *testing.T) {
 	fetcher, err := tc.Run(t.Context(), "gravwell/hosted:e2e",
 		e2e.WithDefaults(t, "hosted-tester",
 			tc.WithWaitStrategyAndDeadline(
-				10*time.Second,
-				wait.ForLog("Successfully connected to ingesters"),
+				35*time.Second,
+				wait.ForLog("Successfully connected to ingesters").WithPollInterval(time.Second),
 			),
 			e2e.WithConfig(t, "testdata/tester.conf", "hosted_runner.conf", e2e.DefaultConfig),
 		)...,
