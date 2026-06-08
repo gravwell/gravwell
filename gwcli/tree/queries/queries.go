@@ -33,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/scheduled"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -56,20 +57,17 @@ func NewNav() *cobra.Command {
 			stop(),
 			importAction(),
 			save(),
+			background(),
+			delete(),
+			setGroup(),
 		})
 }
 
 // #region past queries
 
 func past() action.Pair {
-	const (
-		pastUse string = "past"
-		short   string = "display search history"
-		long    string = "display past searches made by your user"
-	)
-
 	return scaffoldlist.NewListAction(
-		short, long,
+		"display search history", "display past searches made by your user",
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
 			resp, err := connection.Client.ListSearchHistory(params.QueryOpts)
@@ -85,7 +83,7 @@ func past() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: pastUse},
+			CommonOptions: scaffold.CommonOptions{Use: "past"},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"EffectiveQuery",
@@ -130,7 +128,7 @@ func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[s
 		if s.Error != "" {
 			secondLine.WriteString(stylesheet.Cur.ErrorText.Render(s.Error))
 		} else {
-			secondLine.WriteString(fmt.Sprintf("(started: %v) progress: %v", s.LaunchInfo.Started, s.State.Progress))
+			fmt.Fprintf(&secondLine, "(started: %v) progress: %v", s.LaunchInfo.Started, s.State.Progress)
 		}
 		data[i] = &listitem.Generic{
 			ID_:        s.ID,
@@ -147,11 +145,12 @@ func info() action.Pair {
 		types.SearchInfo{}, func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchInfo, error) {
 			return SIDs, nil
 		},
-		nil, // TODO aliases, make sure fields match to list's alias
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "info",
 			},
+			DefaultColumns: []string{"ID", "UID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() > 1 {
 					return phrases.AtLeast1ArgRequired("query IDs"), nil
@@ -182,7 +181,7 @@ func listAction() action.Pair {
 }
 
 func stop() action.Pair {
-	return scaffoldselect.NewSelectAction("stop an active query", "Stop a running query", "search ID",
+	return scaffoldselect.NewSelectAction("stop an active query", "Stop a running query without deleting it entirely.", "search ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
@@ -240,7 +239,7 @@ func save() action.Pair {
 			if expire, err := addtlFlags.GetTime("expire"); err != nil {
 				clilog.GetFlag(err)
 			} else if !expire.IsZero() {
-				ssp.SearchLaunchInfo.Expires = expire
+				ssp.Expires = expire
 			}
 
 			if err := connection.Client.SaveSearch(ID, ssp); err != nil {
@@ -258,6 +257,82 @@ func save() action.Pair {
 					fs.Time("expire", time.Time{}, []string{uniques.SearchTimeFormat}, "override the expiration time of the this search")
 					return fs
 				},
+			},
+		},
+	)
+}
+
+func background() action.Pair {
+	return scaffoldselect.NewSelectAction("background a search",
+		"Background the specified search such that it can continue running without any connected clients.\n"+
+			"Note that backgrounded searches do not persist across webserver restarts;"+
+			"to keep results around permanently, use the “Save results” option.\n"+
+			"Unsaved background queries are automatically deleted after 7 days. Save your search to preserve results permanently.\n"+
+			"\n"+
+			"Use `queries attach` to foreground a search.",
+		"search ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			return fetchActiveSearchesForMSL(false)
+		},
+		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
+			if err := connection.Client.BackgroundSearch(ID); err != nil {
+				return "", err
+			}
+			return "backgrounded search " + ID, nil
+		},
+		scaffoldselect.Options{})
+}
+
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("search ID", "search IDs",
+		func(dryrun bool, ID string) error {
+			if dryrun {
+				_, err := connection.Client.SearchStatus(ID)
+				return err
+			}
+			return connection.Client.DeleteSearch(ID)
+		},
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			return fetchActiveSearchesForMSL(false)
+		},
+		scaffolddelete.Options{})
+}
+
+// TODO this should be converted to a scaffoldcreate with two MSL fields after the scaffoldcreate/edit merge.
+func setGroup() action.Pair {
+	var GIDs []int32 // managed in validate args
+	return scaffoldselect.NewSelectAction("set or wipe the group read permissions of a search",
+		"Modify with groups can read a set of searches. Omitting --groups removes all groups from the selected searches.",
+		"group ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			return fetchActiveSearchesForMSL(false)
+		},
+		func(ID string, _ *pflag.FlagSet) (success string, _ error) {
+			if err := connection.Client.SetGroups(ID, GIDs); err != nil {
+				return "", err
+			}
+			if len(GIDs) < 1 {
+				return "cleared read groups from search " + ID, nil
+			}
+			return fmt.Sprint("assigned read access for GIDs ", GIDs, " to search "+ID), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "set-groups",
+				Aliases: []string{"set-group"},
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Int32Slice("groups", nil, "Groups to grant read access to the search. You must have access to the group."+
+						"If you omit this flag, all groups will be removed from the selected searches.")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				// check they we have at least one search and at least one group
+				GIDs, err = fs.GetInt32Slice("groups")
+				clilog.GetFlag(err)
+
+				return "", nil
 			},
 		},
 	)
