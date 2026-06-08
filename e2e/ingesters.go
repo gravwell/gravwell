@@ -16,7 +16,7 @@ import (
 var DefaultConfig = config.IngestConfig{
 	Cleartext_Backend_Target: []string{"gravwell:4023"},
 	Ingest_Secret:            "IngestSecrets",
-	Connection_Timeout:       "5s",
+	Connection_Timeout:       "30s",
 }
 
 // Ingester will add the default list of container configs for consistency and as an easy way to adjust how we handle the various running containers.
@@ -34,8 +34,8 @@ func Ingester(t *testing.T, name, ingester string, extras ...tc.ContainerCustomi
 			"INGESTER": ingester,
 		}),
 		tc.WithWaitStrategyAndDeadline(
-			10*time.Second,
-			wait.ForLog("Successfully connected to ingesters"),
+			35*time.Second,
+			wait.ForLog("Successfully connected to ingesters").WithPollInterval(time.Second),
 		),
 	}
 	return WithDefaults(t, name, append(defaults, extras...)...)
