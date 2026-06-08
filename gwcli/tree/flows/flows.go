@@ -41,22 +41,21 @@ func NewNav() *cobra.Command {
 		[]string{"flow"},
 		nil,
 		[]action.Pair{
-			listFlows(),
+			listActions(),
 			importCreate(),
 			download(),
 			delete(),
 			cancel(),
 			backfillToggle(),
-			clearResults(),
+			clear(),
 			parse(),
 		},
 	)
 }
 
-//#region list
-
-func listFlows() action.Pair {
-	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
+func listActions() action.Pair {
+	return scaffoldlist.NewListAction("list flows",
+		"Lists information about flows you can access.",
 		types.Flow{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Flow, error) {
 			baseList, err := connection.Client.ListFlows(params.QueryOpts)
@@ -74,12 +73,9 @@ func listFlows() action.Pair {
 	)
 }
 
-//#endregion list
-
-var validGIDs map[int32]string // cached each SetArg so we don't hit the backend on every key
-
 // importCreate is the create function for flows, but the flow itself is created from JSON slurped from a file
 func importCreate() action.Pair {
+	var validGIDs map[int32]string // cached each SetArg so we don't hit the backend on every key
 	return scaffoldcreate.NewCreateAction("flow",
 		map[string]scaffoldcreate.Field{
 			"name":      scaffoldcreate.FieldName("flow"),
@@ -359,7 +355,7 @@ func backfillToggle() action.Pair {
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "toggle-backfill",
+				Use: "backfill",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Bool("enable", false, "enable backfill")
@@ -374,7 +370,7 @@ func backfillToggle() action.Pair {
 		})
 }
 
-func clearResults() action.Pair {
+func clear() action.Pair {
 	return scaffoldselect.NewSelectAction("clear results for flows",
 		"Clear the execution results (including errors and state) for one or several flows.",
 		"flow",
