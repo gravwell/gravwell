@@ -97,6 +97,8 @@ func main() {
 	var listeners []*eventhubs.ListenerHandle
 	// this is where we keep track of what we're receiving on
 	var readers []readerInfo
+	// protect concurrent appends (Lock) and iterations (RLock) across goroutines
+	var listenerMtx sync.RWMutex
 
 	// This little goroutine tries to keep persistence updated in case of catastrophic
 	// failure, without totally smashing the disk like it would if we allowed an update
@@ -116,7 +118,11 @@ func main() {
 			case <-quitSig:
 				return
 			case <-ticker.C:
-				for _, r := range readers {
+				listenerMtx.RLock()
+				snapshot := make([]readerInfo, len(readers))
+				copy(snapshot, readers)
+				listenerMtx.RUnlock()
+				for _, r := range snapshot {
 					// read it from the memory persister
 					checkpoint, err := memPersist.Read(r.namespace, r.hub, r.consumerGroup, r.partitionID)
 					if err != nil {
@@ -211,16 +217,19 @@ func main() {
 			}
 			tg, err := timegrinder.NewTimeGrinder(tcfg)
 			if err != nil {
+				// failed to create a timegrinder object, do not attempt to parse the time off of hub messages
 				hubDef.Parse_Time = false
-			}
-			if hubDef.Assume_Local_Timezone {
-				tg.SetLocalTime()
-			}
-			if hubDef.Timezone_Override != `` {
-				err = tg.SetTimezone(hubDef.Timezone_Override)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", hubDef.Timezone_Override, err)
-					return
+				lg.Error("timegrinder error", log.KVErr(err))
+			} else {
+				if hubDef.Assume_Local_Timezone {
+					tg.SetLocalTime()
+				}
+				if hubDef.Timezone_Override != `` {
+					err = tg.SetTimezone(hubDef.Timezone_Override)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", hubDef.Timezone_Override, err)
+						return
+					}
 				}
 			}
 
@@ -305,8 +314,10 @@ func main() {
 					lg.Error("failed to start event hub partition receiver", log.KVErr(err))
 					return
 				}
+				listenerMtx.Lock()
 				listeners = append(listeners, handle)
-				readers = append(readers, readerInfo{hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, hubDef.Consumer_Group, partitionID})
+				readers = append(readers, readerInfo{hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, cg, partitionID})
+				listenerMtx.Unlock()
 				lg.Info("started receiver for partition", log.KV("consumer-group", cg), log.KV("partition", partitionID))
 			}
 			<-quitSig
@@ -320,7 +331,11 @@ func main() {
 	exitFn()
 
 	// Tell every event handler to close
-	for _, h := range listeners {
+	listenerMtx.RLock()
+	listenerSnapshot := make([]*eventhubs.ListenerHandle, len(listeners))
+	copy(listenerSnapshot, listeners)
+	listenerMtx.RUnlock()
+	for _, h := range listenerSnapshot {
 		cctx, cf := context.WithTimeout(ctx, 2*time.Second)
 		h.Close(cctx)
 		cf()

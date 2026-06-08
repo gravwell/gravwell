@@ -44,9 +44,8 @@ func TestHttp(t *testing.T) {
 		t.Errorf("got bad http status %d", resp.StatusCode)
 	}
 
-	time.Sleep(5 * time.Second)
 	c := e2e.GetClient(t)
-	ent := e2e.RunSearch(t, c, "tag=http", time.Minute)
+	ent := e2e.WaitForEntries(t, c, "tag=http", time.Minute, 1, 30*time.Second)
 	if len(ent) != 1 {
 		e2e.Fatalf(t, "got %d entries, want 1", len(ent))
 	}
