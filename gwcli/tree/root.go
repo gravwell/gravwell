@@ -35,6 +35,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/cbac"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/email"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
@@ -352,6 +353,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 		actionables.NewNav,
 		admin.NewNav,
 		alerts.NewNav,
+		cbac.NewNav,
 		dashboards.NewNav,
 		email.NewNav,
 		extractors.NewNav,
