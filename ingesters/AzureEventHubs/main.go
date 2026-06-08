@@ -213,8 +213,9 @@ func main() {
 			}
 			tg, err := timegrinder.NewTimeGrinder(tcfg)
 			if err != nil {
-				//failed to create a timegrinder object, do not attempt to parse the time off of hub messages
+				// failed to create a timegrinder object, do not attempt to parse the time off of hub messages
 				hubDef.Parse_Time = false
+				lg.Error("timegrinder error", log.KVErr(err))
 			} else {
 				if hubDef.Assume_Local_Timezone {
 					tg.SetLocalTime()
