@@ -311,7 +311,7 @@ func main() {
 				}
 				listenerMtx.Lock()
 				listeners = append(listeners, handle)
-				readers = append(readers, readerInfo{hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, hubDef.Consumer_Group, partitionID})
+				readers = append(readers, readerInfo{hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, cg, partitionID})
 				listenerMtx.Unlock()
 				lg.Info("started receiver for partition", log.KV("consumer-group", cg), log.KV("partition", partitionID))
 			}
