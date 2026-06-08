@@ -87,15 +87,25 @@ func RunSearch(t *testing.T, c *client.Client, query string, d time.Duration) []
 	return ents
 }
 
-func WaitForEntries(t *testing.T, c *client.Client, query string, d time.Duration, entries int, timeout time.Duration) ([]types.StringTagEntry, error) {
+func WaitForEntries(t *testing.T, c *client.Client, query string, d time.Duration, entries int, timeout time.Duration) []types.StringTagEntry {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
+	var lasterr error
 	for time.Now().Before(deadline) {
-		results := RunSearch(t, c, query, d)
+		results, s, err := search(c, query, d)
+		if err != nil {
+			lasterr = err
+		} else {
+			if err = c.DeleteSearch(s.ID); err != nil {
+				t.Logf("failed to delete search entry: %v", err)
+			}
+		}
 		if len(results) >= entries {
-			return results, nil
+			WriteQueryResults(t, slug.Make(query), results)
+			return results
 		}
 		time.Sleep(time.Second)
 	}
-	return nil, fmt.Errorf("timed out waiting for results")
+	t.Fatalf("timed out after %s waiting for %v entries for search %q, error: %v", timeout.String(), entries, query, lasterr)
+	return nil
 }
