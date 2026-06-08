@@ -97,8 +97,8 @@ func main() {
 	var listeners []*eventhubs.ListenerHandle
 	// this is where we keep track of what we're receiving on
 	var readers []readerInfo
-	// protect concurrent appends from multiple hub goroutines
-	var listenerMtx sync.Mutex
+	// protect concurrent appends (Lock) and iterations (RLock) across goroutines
+	var listenerMtx sync.RWMutex
 
 	// This little goroutine tries to keep persistence updated in case of catastrophic
 	// failure, without totally smashing the disk like it would if we allowed an update
@@ -118,7 +118,11 @@ func main() {
 			case <-quitSig:
 				return
 			case <-ticker.C:
-				for _, r := range readers {
+				listenerMtx.RLock()
+				snapshot := make([]readerInfo, len(readers))
+				copy(snapshot, readers)
+				listenerMtx.RUnlock()
+				for _, r := range snapshot {
 					// read it from the memory persister
 					checkpoint, err := memPersist.Read(r.namespace, r.hub, r.consumerGroup, r.partitionID)
 					if err != nil {
@@ -327,7 +331,11 @@ func main() {
 	exitFn()
 
 	// Tell every event handler to close
-	for _, h := range listeners {
+	listenerMtx.RLock()
+	listenerSnapshot := make([]*eventhubs.ListenerHandle, len(listeners))
+	copy(listenerSnapshot, listeners)
+	listenerMtx.RUnlock()
+	for _, h := range listenerSnapshot {
 		cctx, cf := context.WithTimeout(ctx, 2*time.Second)
 		h.Close(cctx)
 		cf()
