@@ -17,8 +17,6 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -65,19 +63,8 @@ type Options struct {
 	// Uses DefaultEmptyMessage if unset.
 	EmptyMessage string
 
-	// Select flags to omit from this action, causing their values to always default to false/nil and the flags themselves to not be shown in help text.
-	Omit OmitFlags
-}
-
-// OmitFlags allows disabling flags for a specific action.
-// Anything set to true in here will have its equivalent flag turned off for this action.
-// For example: if an asset type doesn't tombstone, --include-delete should probably be disabled.
-type OmitFlags struct {
-	Everything bool // disable everything. This is useful if the ListDataFunc doesn't take query opts.
-
-	AllData        bool
-	IncludeDeleted bool
-	Limit          bool
+	// Omit allows disabling flags for this action, causing their values to always default to false/nil and the flags themselves to not be shown in help text.
+	Omit scaffold.OmitFlags
 }
 
 // buildFlagSet returns a flagset composed of the default list flags,
@@ -86,7 +73,7 @@ type OmitFlags struct {
 //
 // defaultColumnsAliased are the columns to display as defaults alongside --columns.
 // They are expected to have aliases applied and will not be coerced.
-func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit OmitFlags) *pflag.FlagSet {
+func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit scaffold.OmitFlags) *pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	ft.CSV.Register(&fs)
 	ft.JSON.Register(&fs)
@@ -106,7 +93,7 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit OmitF
 		"Displays data from all columns, ignoring the default column set.\n"+
 			"Mutually exclusive with --"+FlagNameSelectColumns)
 
-	installQueryOptionsFlags(&fs, omit)
+	scaffold.InstallQueryOptionsFlags(&fs, omit)
 
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
@@ -184,53 +171,4 @@ func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) (_ []
 // but --all will be as it must be handled by the ListDataFunc itself.
 type DataParameters struct {
 	QueryOpts *types.QueryOptions
-}
-
-func installQueryOptionsFlags(fs *pflag.FlagSet, omit OmitFlags) {
-	if omit.Everything {
-		return
-	}
-	// attach query option flags, depending on their omit state
-
-	if !omit.AllData {
-		fs.Bool(FlagNameAllData, false, "Requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
-			"Ignored if you are not an admin.\n"+
-			"Implied by admin mode")
-	}
-	if !omit.IncludeDeleted {
-		ft.IncludeDeleted.Register(fs)
-	}
-	if !omit.Limit {
-		fs.Int(FlagNameLimit, 0, "Limit the number of items to return")
-	}
-}
-
-// getQueryOptions generates a QueryOptions struck from the given flagset (omit flags that were not set).
-func getQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
-	var err error
-	var qo = &types.QueryOptions{}
-	if omit.Everything {
-		return qo
-	}
-
-	if !omit.IncludeDeleted {
-		qo.IncludeDeleted, err = fs.GetBool(ft.IncludeDeleted.Name())
-		clilog.GetFlag(err)
-	}
-	if !omit.AllData {
-		qo.AdminMode = connection.AdminMode()
-		if !qo.AdminMode { // check for --all override
-			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
-			clilog.GetFlag(err)
-		}
-	}
-	if !omit.Limit {
-		lim, err := fs.GetInt(FlagNameLimit)
-		clilog.GetFlag(err)
-		if lim > 0 {
-			qo.Limit = lim
-		}
-	}
-
-	return qo
 }

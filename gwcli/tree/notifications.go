@@ -44,7 +44,7 @@ func notifications() action.Pair {
 			DefaultColumns: []string{
 				"Sender", "Msg", "Broadcast", "Level",
 			},
-			Omit: scaffoldlist.OmitFlags{
+			Omit: scaffold.OmitFlags{
 				Everything: true,
 			},
 		},

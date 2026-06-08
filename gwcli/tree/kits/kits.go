@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -55,7 +56,7 @@ func newKitsListAction() action.Pair {
 				"KitState.Description",
 				"KitState.Version",
 			},
-			Omit: scaffoldlist.OmitFlags{IncludeDeleted: true, Limit: true},
+			Omit: scaffold.OmitFlags{IncludeDeleted: true, Limit: true},
 		})
 }
 

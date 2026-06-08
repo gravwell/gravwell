@@ -12,6 +12,7 @@ package ingesters
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -81,5 +82,5 @@ func listAction() action.Pair {
 				}
 			}
 			return wrap, nil
-		}, nil, scaffoldlist.Options{Omit: scaffoldlist.OmitFlags{Everything: true}})
+		}, nil, scaffoldlist.Options{Omit: scaffold.OmitFlags{Everything: true}})
 }

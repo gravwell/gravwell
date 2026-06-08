@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/utils/weave"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
 
@@ -82,9 +83,9 @@ func listOutput[struct_t any](
 	dataFunc ListDataFunc[struct_t],
 	prettyFunc PrettyPrinterFunc,
 	DQToAlias map[string]string,
-	omit OmitFlags,
+	omit scaffold.OmitFlags,
 ) (string, error) {
-	params := DataParameters{QueryOpts: getQueryOptions(fs, omit)}
+	params := DataParameters{QueryOpts: scaffold.GetQueryOptions(fs, omit)}
 
 	// hand off control to pretty
 	if format == formatPretty {

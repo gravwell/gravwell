@@ -193,6 +193,6 @@ func listUsers() action.Pair {
 				return "", nil
 			},
 			EmptyMessage: "this group has no users",
-			Omit:         scaffoldlist.OmitFlags{Everything: true},
+			Omit:         scaffold.OmitFlags{Everything: true},
 		})
 }

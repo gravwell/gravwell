@@ -66,7 +66,7 @@ func show() action.Pair {
 				return fmt.Sprintf("Server: %s\nPort: %d\nUsername: %s\nUseTLS: %v\nInsecureSkipVerify: %v",
 					mc.Server, mc.Port, mc.Username, mc.UseTLS, mc.InsecureSkipVerify), nil
 			},
-			Omit: scaffoldlist.OmitFlags{
+			Omit: scaffold.OmitFlags{
 				Everything: true,
 			},
 		})

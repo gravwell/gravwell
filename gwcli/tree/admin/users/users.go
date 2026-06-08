@@ -385,7 +385,7 @@ func sessionsAction() action.Pair {
 				}
 				return "", nil
 			},
-			Omit: scaffoldlist.OmitFlags{Everything: true},
+			Omit: scaffold.OmitFlags{Everything: true},
 		},
 	)
 }

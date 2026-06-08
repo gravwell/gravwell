@@ -136,7 +136,7 @@ func sessions() action.Pair {
 				}
 				return "", nil
 			},
-			Omit: scaffoldlist.OmitFlags{Everything: true},
+			Omit: scaffold.OmitFlags{Everything: true},
 		})
 }
 
@@ -161,7 +161,7 @@ func groups() action.Pair {
 				}
 				return sb.String()[:sb.Len()-1], nil
 			},
-			Omit: scaffoldlist.OmitFlags{Everything: true},
+			Omit: scaffold.OmitFlags{Everything: true},
 		})
 }
 

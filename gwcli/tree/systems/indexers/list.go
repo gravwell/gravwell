@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/pflag"
 )
@@ -150,7 +151,7 @@ func list() action.Pair {
 			"Storage.EntryCountCold":   "Cold.Count",
 		},
 		scaffoldlist.Options{
-			Omit: scaffoldlist.OmitFlags{Everything: true},
+			Omit: scaffold.OmitFlags{Everything: true},
 		})
 }
 

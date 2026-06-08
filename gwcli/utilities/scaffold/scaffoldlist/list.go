@@ -105,8 +105,6 @@ const (
 	FlagNameSelectAllColumns string = "all-columns"  // fetch data for all columns, ignoring defaults
 	FlagNameShowColumns      string = "show-columns" // display available columns instead of fetching data
 	FlagNameSelectColumns    string = "columns"      // select which columns to display data for instead of using the defaults.
-	FlagNameAllData          string = "all"          // fetch data from all users instead of just the current user
-	FlagNameLimit            string = "limit"        // limit the number of elements returned
 )
 
 // ListDataFunc is a function that retrieves an array of structs of type dataStruct
