@@ -52,7 +52,7 @@ var (
 	chaosWorkers = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
 	tsPsychoMode = flag.Bool("time-is-an-illusion", false, "Ingest with worst-case timestamp ordering (this is a chaos-mode flag)")
 	randSrc      = flag.Bool("randomize-source", false, "randomize source IP")
-	maxEntrySize = flag.Int("max-entry-size", 1024*1024*1024, "Maximum entry size to limit to")
+	maxEntrySize = flag.Int("max-entry-size", 32*1024*1024, "Maximum entry size to limit to") // set to something dumb just so that we know megaJSON will work
 )
 
 var (
