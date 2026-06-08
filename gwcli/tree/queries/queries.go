@@ -93,6 +93,8 @@ func past() action.Pair {
 }
 
 // if details, uses ListSearchDetails to return ALL data relevant to a search.
+//
+// TODO install omit
 func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[string], error) {
 	if details {
 		lsd, err := connection.Client.ListSearchDetails()
@@ -174,10 +176,19 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list active queries", "List all current queries.",
 		types.SearchCtrlStatus{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchCtrlStatus, error) {
+			if params.QueryOpts.AdminMode {
+				return connection.Client.ListAllSearchStatuses()
+			}
 			return connection.Client.ListSearchStatuses()
 		},
-		nil, // TODO aliases
-		scaffoldlist.Options{})
+		nil,
+		scaffoldlist.Options{
+			Omit: scaffold.OmitFlags{
+				AllData:        false,
+				IncludeDeleted: true,
+				Limit:          true,
+			},
+		})
 }
 
 func stop() action.Pair {
