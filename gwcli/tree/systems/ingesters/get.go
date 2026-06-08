@@ -12,9 +12,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -38,15 +37,15 @@ func get() action.Pair {
 			// check that we were given ingesters to fetch
 			hostPrefix, err := fs.GetString(flagHostname)
 			if err != nil {
-				return nil, uniques.ErrGetFlag(use, err)
+				return nil, clilog.GetFlag(err)
 			}
 			uuidPrefix, err := fs.GetString(flagUUID)
 			if err != nil {
-				return nil, uniques.ErrGetFlag(use, err)
+				return nil, clilog.GetFlag(err)
 			}
 			namePrefix, err := fs.GetString(flagName)
 			if err != nil {
-				return nil, uniques.ErrGetFlag(use, err)
+				return nil, clilog.GetFlag(err)
 			}
 
 			ss, err := connection.Client.GetIngesterStats()
@@ -71,33 +70,33 @@ func get() action.Pair {
 
 			// drop keys
 			return slices.Collect(maps.Values(ingesters)), nil
-		}, scaffoldlist.Options{
-			Use: use,
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.String(flagHostname, "", "prefix-match ingesters on hostname")
-				fs.String(flagUUID, "", "prefix-match ingesters on uuid")
-				fs.String(flagName, "", "prefix-match ingesters on name")
-				return fs
+		}, nil, scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     use,
+				Example: fmt.Sprintf("%v --%s=12345", flagHostname, use),
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.String(flagHostname, "", "prefix-match ingesters on hostname")
+					fs.String(flagUUID, "", "prefix-match ingesters on uuid")
+					fs.String(flagName, "", "prefix-match ingesters on name")
+					return fs
+				},
 			},
 			DefaultColumns: []string{"Indexer", "RemoteAddress", "Size", "Uptime", "Tags", "Name", "Version", "UUID", "Label", "IP", "Hostname", "Entries", "StateSize", "CacheState", "CacheSize", "Children"},
-			CmdMods: func(c *cobra.Command) {
-				c.Example = fmt.Sprintf("%v --%s=12345", flagHostname, use)
-			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// validate that at least one of the additional flags was given
 				// check that we were given ingesters to fetch
 				hostPrefix, err := fs.GetString("hostname")
 				if err != nil {
-					return "", uniques.ErrGetFlag(use, err)
+					return "", clilog.GetFlag(err)
 				}
 				uuidPrefix, err := fs.GetString("uuid")
 				if err != nil {
-					return "", uniques.ErrGetFlag(use, err)
+					return "", clilog.GetFlag(err)
 				}
 				namePrefix, err := fs.GetString("name")
 				if err != nil {
-					return "", uniques.ErrGetFlag(use, err)
+					return "", clilog.GetFlag(err)
 				}
 
 				// we cannot use c.MarkFlagsOneRequired("hostname", "uuid", "name") as it will not be factored into SetArgs

@@ -9,71 +9,71 @@
 /*
 Package scaffoldcreate provides a template for building actions that create new data or configuration.
 
-A create action creates a shallow list of inputs for the user to fill via flags or interactive
-TIs before being passed back to the progenitor to transform into usable data for their create
-function.
+Create actions are composed of Fields and a CreateFunc:
 
-The available fields are fairly configurable, the progenitor provides their own map of Field
-structs, and easily extensible, the struct can have more options or formats bolted on without too
-much trouble.
+1) Fields define the inputs users have access to and how they are displayed.
+Each field defines details (title, flag info, etc) and a provider.
+Providers are the heavy-lifters of fields and provide the logic and views of each field.
+Providers must fit the the Provider interface; a handful of common Providers are also provided.
+Similarly, prefer using the prebuilt fields (ex: scaffoldcreate.FieldName) for common fields as they have an appropriate Provider attached.
+
+2) CreateFunc is the function called when the user submits the create form.
+It can access field data via fields[<>].Provider.Get().
 
 This scaffold is a bit easier to extend than Delete and List, given it did not require generics.
 
-Look to the scheduled query creation action (external to the one built into DataScope) or macro
-creation action as two examples of implementation styles.
-
-! Once a Config is given by the caller, it should be considered ReadOnly.
-
-NOTE: More complex creation with nested options and mutli-stage flows should be built
-independently. This scaffold is intended for simple, handful-of-field creations.
+! The field map, once given to NewCreateAction, should be considered read-only.
 
 Example implementation:
 
 	func NewCreateAction() action.Pair {
-		n := scaffoldcreate.NewField(true, "name", 100)
-		d := scaffoldcreate.NewField(true, "value", 90)
-		fields := scaffoldcreate.Config{
-			"name":  n,
-			"value": d,
-			"field3": scaffoldcreate.Field{
-				Required:      true,
-				Title:         "field3",
-				Usage:         "field 3 usage",
-				Type:          scaffoldcreate.Text,
-				FlagName:      "flagn",
-				FlagShorthand: 'f',
-				DefaultValue:  "",
-				TI: struct {
-					Order       int
-					Placeholder string
-					Validator   func(s string) error
-				}{
-					Order: 80,
-				},
+		fields := map[string]scaffoldcreate.Field{
+			"name":  scaffoldcreate.NewField(true, "name", 100),
+			"value": scaffoldcreate.NewField(true, "value", 90),
+			"capabilities": {
+				Required: false,
+				Title:    "capabilities",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "comma-separated list of capabilities to grant the token", Shorthand: 'c'},
+				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var itms []multiselectlist.SelectableItem[string]
+						// Hijack SetArgs to change the items available in the list.
+						// ...
+						return itms
+					},
+				}),
+				Order: 80,
 			},
 		}
 
 		return scaffoldcreate.NewCreateAction("", fields, create)
 	}
 
-	func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values) (any, string, error) {
-		id, err := connection.Client.X()
+	func create(fields map[string]scaffoldcreate.Field, vals scaffoldcreate.Values) (any, string, error) {
+		name := fields["name"].Provider.Get()
+		value := fields["value"].Provider.Get()
+		caps := fields["capabilities"].Provider.Get()
+		id, err := connection.Client.X(name, value, caps)
 		return id, "", err
 	}
 */
 package scaffoldcreate
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
-	"sync"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -84,18 +84,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	errMissingRequiredFlags string = "missing required flags %v"
-	createdSuccessfully     string = "Successfully created %v (ID: %v)."
-	minFieldWidth           uint   = 25
-)
-
-// A Config maps keys -> Field; used as (ReadOnly) configuration for this creation instance
-type Config = map[string]Field
-
-type Values = map[string]string
-
-// CreateFunc defines the format of the subroutine that must be passed for creating data.
+// CreateFuncT defines the format of the subroutine that must be passed for creating data.
 // The function's return values must be:
 //
 // the id of the newly created value (likely as returned by the Gravwell backend)
@@ -103,30 +92,37 @@ type Values = map[string]string
 // a reason the create attempt was invalid (or the empty string)
 //
 // and an error that occurred (or nil). This is different than an invalid reason and is likely a bubbling up of an error from the client library.
-type CreateFunc func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error)
+type CreateFuncT func(fields map[string]Field, fs *pflag.FlagSet) (id any, invalid string, err error)
 
-func NewCreateAction(singular string,
-	fields Config,
-	create CreateFunc,
-	addtlFlags func() pflag.FlagSet) action.Pair {
+// NewCreateAction returns an action pair (covering interactive and non-interactive use) capable of creating new data based on user input.
+// You must tell the create action what kind of data it accepts (in the form of fields) and
+// what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
+//
+// Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
+//
+// On success, prints phrases.SuccessfullyCreatedItem().
+func NewCreateAction(singular string, fields map[string]Field, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
 	if singular == "" {
-		panic("")
+		clilog.Writer.Error("singular noun cannot be empty. Defaulting to \"UNKNOWN\"", scaffold.IdentifyCaller())
+		singular = "UNKNOWN"
 	}
 
-	// pull flags from provided fields
-	var flags = installFlagsFromFields(fields)
-	if addtlFlags != nil {
-		afs := addtlFlags()
-		flags.AddFlagSet(&afs)
+	// check that every field has a provider
+	for key := range fields {
+		if fields[key].Provider == nil {
+			clilog.Writer.Error("field is missing a provider", attachLogInfo(key)...)
+			delete(fields, key)
+		}
 	}
+	// pull createFlags from provided fields
+	var createFlags = installFlagsFromFields(fields)
 
-	// pull required flags from cfg
+	// pull required flags from cfg to set usage
 	requiredFlags := make([]string, 0)
 	for _, v := range fields {
-		if v.Required && v.FlagName != "" {
-			// switch on v.Type... when there is more than 1
-			txt := "--" + v.FlagName + "=" + ft.Mandatory("string")
+		if v.Required && v.Flag.Name != "" {
+			txt := "--" + v.Flag.Name + "=" + ft.Mandatory("string")
 			requiredFlags = append(requiredFlags, txt)
 		}
 	}
@@ -136,77 +132,47 @@ func NewCreateAction(singular string,
 		"create a "+singular,     // short
 		"create a new "+singular, // long
 		[]string{},               // aliases
-		func(c *cobra.Command, s []string) {
-			// get standard flags
+		func(c *cobra.Command, s []string) error {
+			// check non-interactive
 			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+				return err
 			}
-			// get field flags
-			var values map[string]string
-			if vals, mr, err := getValuesFromFlags(c.Flags(), fields); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+			// check and set flags; spool up mother to prompt for missing required flags if !non-interactive
+			if mr, err := setValuesFromFlags(c.Flags(), fields); err != nil {
+				return err
 			} else if mr != nil {
 				if !noInteractive {
-					if err := mother.Spawn(c.Root(), c, s); err != nil {
-						clilog.Writer.Critical(err.Error())
-					}
-					return
-				} else {
-					fmt.Fprintf(c.OutOrStdout(), errMissingRequiredFlags+"\n", mr)
+					return mother.Spawn(c.Root(), c, s)
 				}
-				return
-			} else {
-				values = vals
+				return errors.New(phrases.MissingRequiredFields(mr))
 			}
+
+			// if all files were valid and we aren't missing any requires, we can attempt to jump directly into creation.
+			// gather all values to pass to the create func
 
 			// attempt to create the new X
-			if id, inv, err := create(fields, values, c.Flags()); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
-				return
+			if id, inv, err := createFunc(fields, c.Flags()); err != nil {
+				return err
 			} else if inv != "" { // some of the flags were invalid
 				fmt.Fprintln(c.OutOrStdout(), inv)
-				return
+				return errors.New(inv)
 			} else {
-				fmt.Fprintf(c.OutOrStdout(), "Successfully created %v (ID: %v).", singular, id)
+				fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem(singular, id))
 			}
+			return nil
 		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
 
-	// attach mined flags to cmd
-	cmd.Flags().AddFlagSet(&flags)
+	opts.Apply(cmd)
 
-	return action.NewPair(cmd, newCreateModel(fields, singular, create, addtlFlags))
-}
+	cmd.Flags().AddFlagSet(&createFlags)
 
-// Given a parsed flagset and the field configuration, builds a corollary map of field values.
-//
-// Returns the values for each flag (default if unset), a list of required fields (as their flag
-// names) that were not set, and an error (if one occurred).
-func getValuesFromFlags(fs *pflag.FlagSet, fields Config) (
-	values Values, missingRequireds []string, err error,
-) {
-	values = make(Values)
-	for k, f := range fields {
-		switch f.Type {
-		case Text:
-
-			flagVal, err := fs.GetString(f.FlagName)
-			if err != nil {
-				return nil, nil, err
-			}
-			// if this value is required, but unset, add it to the list
-			if f.Required && !fs.Changed(f.FlagName) {
-				missingRequireds = append(missingRequireds, f.FlagName)
-			}
-
-			values[k] = flagVal
-		default:
-			panic("developer error: unknown field type: " + f.Type)
-		}
+	// initialize every field
+	for key := range fields {
+		fields[key].Provider.Initialize(fields[key].DefaultValue, fields[key].Required)
 	}
-	return values, missingRequireds, nil
+
+	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, opts))
 }
 
 //#region interactive mode (model) implementation
@@ -220,6 +186,13 @@ const (
 	quitting              // done
 )
 
+type inputs struct {
+	selected uint     // currently focused item (index correlates to "ordered"+1 (submit))
+	err      string   // a reason inputs are invalid. Currently only holds the most-recently set error. Disables submit if set.
+	ordered  []string // list of keys, ordered at create-time by Config.Field.Order
+	takeover string   // key of the field currently running the show
+}
+
 // interactive model that builds out inputs based on the read-only Config supplied on creation.
 type createModel struct {
 	mode mode
@@ -228,77 +201,67 @@ type createModel struct {
 
 	singular string // "macro", "search", etc
 
-	fields Config // RO configuration provided by the caller
+	fields map[string]Field // RO configuration provided by the caller
 
-	orderedTIs         []scaffold.KeyedTI // Ordered array of map keys, based on Config.TI.Order
-	selected           uint               // currently focused ti (in key order index)
-	longestFieldLength int                // the longest field name of the TIs
+	inputs             inputs
+	longestTitleLength int // max len(field.Title) across all fields; set at create time for title alignment
 
-	inputErr  string // the reason inputs are invalid
 	createErr string // the reason the last create failed (not for invalid parameters)
 
 	// function to provide additional flags for this specific create instance
-	addtlFlagFunc func() pflag.FlagSet
+	addtlFlagFunc func() *pflag.FlagSet
 	// current state of the flagset, Reset to addtlFlagFunc + installFlags
 	fs pflag.FlagSet
-	cf CreateFunc // function to create the new entity
+	cf CreateFuncT // function to create the new entity
 }
 
+// SubmitSelect returns if the select button is currently selected by the user.
 func (c *createModel) SubmitSelected() bool {
-	return c.selected == uint(len(c.orderedTIs))
+	return c.inputs.selected == uint(len(c.inputs.ordered))
 }
 
 // Creates and returns a create Model, ready for interactive usage via Mother.
-func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc func() pflag.FlagSet) *createModel {
+func newCreateModel(fields map[string]Field, singular string, createFunc CreateFuncT, opts Options) *createModel {
 	c := &createModel{
-		mode:          inputting,
-		width:         defaultWidth,
-		singular:      singular,
-		fields:        fields,
-		orderedTIs:    make([]scaffold.KeyedTI, 0),
-		addtlFlagFunc: addtlFlagFunc,
-		cf:            cf,
+		mode:     inputting,
+		width:    defaultWidth,
+		singular: singular,
+		fields:   fields,
+		inputs: inputs{
+			ordered: slices.Collect(maps.Keys(fields)),
+		},
+		addtlFlagFunc: opts.AddtlFlags,
+		cf:            createFunc,
 	}
 
-	// set flags by mining flags and, if applicable, tacking on additional flags
+	// set flags by mining fields and, if applicable, tacking on additional flags
 	c.fs = installFlagsFromFields(fields)
 	if c.addtlFlagFunc != nil {
 		addtlFlags := c.addtlFlagFunc()
-		c.fs.AddFlagSet(&addtlFlags)
+		c.fs.AddFlagSet(addtlFlags)
 	}
 
-	for k, f := range fields {
-		// generate the TI
-		kti := scaffold.KeyedTI{
-			Key:        k,
-			FieldTitle: f.Title,
-			Required:   f.Required,
+	slices.SortStableFunc(c.inputs.ordered, func(aKey, bKey string) int {
+		// sort on order, then alpha on title
+		switch {
+		case fields[aKey].Order < fields[bKey].Order:
+			return 1
+		case fields[aKey].Order > fields[bKey].Order:
+			return -1
 		}
-		// if a custom func was not given, use the default generation
-		if f.CustomTIFuncInit == nil {
-			kti.TI = stylesheet.NewTI(f.DefaultValue, !f.Required)
-		} else {
-			kti.TI = f.CustomTIFuncInit()
-		}
-
-		c.orderedTIs = append(c.orderedTIs, kti)
-
-		// note the longest Title for later formatting
-		if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
-			c.longestFieldLength = w
-		}
-	}
-	// buffer the field length
-	if c.longestFieldLength < int(minFieldWidth) {
-		c.longestFieldLength = int(minFieldWidth)
-	}
-	// sort keys from highest order to lowest order
-	slices.SortFunc(c.orderedTIs, func(a, b scaffold.KeyedTI) int {
-		return fields[b.Key].Order - fields[a.Key].Order
+		return strings.Compare(fields[aKey].Title, fields[bKey].Title)
 	})
 
-	if len(c.orderedTIs) > 0 {
-		c.orderedTIs[0].TI.Focus()
+	// compute longestFieldLength for title column alignment in View()
+	for _, field := range fields {
+		if titleLen := len(field.Title); titleLen > c.longestTitleLength {
+			c.longestTitleLength = titleLen
+		}
+	}
+
+	// focus the first input
+	if len(c.inputs.ordered) > 0 {
+		c.fields[c.inputs.ordered[0]].Provider.ToggleFocus(true)
 	}
 
 	return c
@@ -312,129 +275,212 @@ func (c *createModel) Init() tea.Cmd {
 func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	if c.mode == quitting {
 		return nil
+	} else if c.inputs.takeover != "" {
+		cmd, takeover := c.fields[c.inputs.takeover].Provider.Update(true, msg) // takeover mode implies selected
+		if !takeover {
+			c.inputs.takeover = ""
+		}
+		return cmd
+
 	}
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		c.inputErr = ""  // clear last input error
-		c.createErr = "" // clear error from last create attempt
-		switch keyMsg.Type {
-		case tea.KeyUp, tea.KeyShiftTab:
-			c.focusPrevious()
-			return textinput.Blink
-		case tea.KeyDown:
-			c.focusNext()
-			return textinput.Blink
-		case tea.KeyEnter:
-			if c.SubmitSelected() {
-				// extract values from TIs
-				values, mr := c.extractValuesFromTIs()
-				if mr != nil {
-					if len(mr) == 1 {
-						c.inputErr = fmt.Sprintf("%v is required", mr[0])
-					} else {
-						c.inputErr = fmt.Sprintf("%v are required", mr)
-					}
-					return nil
-				}
-				id, invalid, err := c.cf(c.fields, values, &c.fs)
-				if err != nil {
-					c.createErr = err.Error()
-					return nil
-				} else if invalid != "" {
-					c.inputErr = invalid
-					return nil
-				}
-				// done, die
-				c.mode = quitting
-				return tea.Println(fmt.Sprintf(createdSuccessfully, c.singular, id))
-			} else {
-				c.focusNext()
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		c.width = sizeMsg.Width
+		// forward this message to each field
+		var cmds []tea.Cmd
+		for i, key := range c.inputs.ordered {
+			if cmd, _ := c.fields[key].Provider.Update(i == int(c.inputs.selected), msg); cmd != nil {
+				cmds = append(cmds, cmd)
 			}
 		}
-	} else if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		c.width = sizeMsg.Width
+		if len(cmds) > 0 {
+			return tea.Batch(cmds...)
+		}
+		return nil
+	} else if hotkeys.Match(msg, hotkeys.CursorUp) {
+		c.focusPrevious()
+		return textinput.Blink
+	} else if hotkeys.Match(msg, hotkeys.CursorDown) {
+		c.focusNext()
+		return textinput.Blink
+	} else if hotkeys.Match(msg, hotkeys.Invoke, hotkeys.Select) && c.SubmitSelected() {
+		// double check that all fields are satisfied
+		c.checkSatisfaction(false)
+		if c.inputs.err != "" {
+			return nil
+		}
+		id, invalid, err := c.cf(c.fields, &c.fs)
+		if err != nil {
+			c.createErr = err.Error()
+			return nil
+		} else if invalid != "" {
+			c.inputs.err = invalid
+			return nil
+		}
+		// done, die
+		c.mode = quitting
+		return tea.Println(phrases.SuccessfullyCreatedItem(c.singular, id))
+	}
+	if c.SubmitSelected() { // if submit is selected and it wasn't handled above, we don't care about it
 		return nil
 	}
-	if !c.SubmitSelected() {
-		// pass message to currently focused ti
-		var cmd tea.Cmd
-		c.orderedTIs[c.selected].TI, cmd = c.orderedTIs[c.selected].TI.Update(msg)
-		return cmd
+
+	// pass the message to the currently selected input
+
+	p := c.selectedField().Provider
+	cmd, takeover := p.Update(true, msg)
+	if takeover {
+		c.inputs.takeover = c.inputs.ordered[c.inputs.selected]
 	}
-	return nil
+	c.checkSatisfaction(false)
+	return cmd
 }
 
-// Blurs the current ti, selects and focuses the next (indexically) one.
-func (c *createModel) focusNext() {
-	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Blur()
-	}
-	c.selected += 1
-	if c.selected > uint(len(c.orderedTIs)) { // jump to start
-		c.selected = 0
-	}
-	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Focus()
-	}
+func (c *createModel) selectedField() Field {
+	return c.fields[c.inputs.ordered[c.inputs.selected]]
 }
 
-// Blurs the current ti, selects and focuses the previous (indexically) one.
-func (c *createModel) focusPrevious() {
-	// if we are not on the submit button, then blur
-	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Blur()
-	}
-	if c.selected == 0 { // wrap to submit button
-		c.selected = uint(len(c.orderedTIs))
-	} else {
-		c.selected -= 1
-	}
-	// if we are not on the submit button, then focus
-	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Focus()
-	}
-}
-
-// Generates the corrollary value map from the TIs.
+// sets inputs.err to the reason of the first invalid field, then exits.
+// Empties inputs.err out iff every field is satisfied.
 //
-// Returns the values for each TI (mapped to their Config key), a list of required fields (as their
-// field.Title names) that were not set, and an error (if one occurred).
-func (c *createModel) extractValuesFromTIs() (
-	values Values, missingRequireds []string,
-) {
-	values = make(Values)
-	for _, kti := range c.orderedTIs {
-		val := strings.TrimSpace(kti.TI.Value())
-		field := c.fields[kti.Key]
-		if val == "" && field.Required {
-			missingRequireds = append(missingRequireds, field.Title)
+// If selcetedOnly is set, only the currently selected field is checked.
+func (c *createModel) checkSatisfaction(selectedOnly bool) {
+	check := func(f Field) bool {
+		if f.Required && f.Provider.Get() == "" {
+			c.inputs.err = phrases.MissingRequiredFields([]string{f.Title})
+			return true
 		}
 
-		values[kti.Key] = val
+		if invalid := f.Provider.Satisfied(); invalid != "" {
+			c.inputs.err = invalid
+			return true
+		}
+		c.inputs.err = ""
+		return false
 	}
-
-	return values, missingRequireds
+	if selectedOnly {
+		check(c.selectedField())
+		return
+	}
+	for _, key := range c.inputs.ordered {
+		if check(c.fields[key]) {
+			return
+		}
+	}
 }
 
-// Iterates through the keymap, drawing each ti and title in key key order
+// Blurs the current input, selects and focuses the next one c.inputs.ordered.
+func (c *createModel) focusNext() {
+	c.focusInput(false)
+	c.inputs.selected += 1
+	if c.inputs.selected > uint(len(c.inputs.ordered)) { // jump to start
+		c.inputs.selected = 0
+	}
+	c.focusInput(true)
+}
+
+// Blurs the current input, selects and focuses the previous one in c.inputs.ordered.
+func (c *createModel) focusPrevious() {
+	c.focusInput(false)
+
+	if c.inputs.selected == 0 { // wrap to submit button
+		c.inputs.selected = uint(len(c.inputs.ordered))
+	} else {
+		c.inputs.selected -= 1
+	}
+	c.focusInput(true)
+}
+
+// focusInput toggles the focus on the currently selected input (doing nothing if submit is selected).
+// If !focus, blurs the input.
+func (c *createModel) focusInput(focus bool) {
+	if c.SubmitSelected() {
+		return
+	}
+	key := c.inputs.ordered[c.inputs.selected]
+	c.fields[key].Provider.ToggleFocus(focus)
+}
+
+// View composes each field's view into a set, using the total width of TitleValue views to center Line and second-line views.
 func (c *createModel) View() string {
-
-	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), c.orderedTIs, c.selected)
-
-	var wrapSty = lipgloss.NewStyle().Width(c.longestFieldLength)
-
-	var inE, cE string
-	if c.inputErr != "" {
-		inE = wrapSty.Render(c.inputErr)
-	}
-	if c.createErr != "" {
-		cE = wrapSty.Render(c.createErr)
+	if c.inputs.takeover != "" {
+		_, v, _ := c.fields[c.inputs.takeover].Provider.View(true, c.width)
+		return v
 	}
 
-	return inputs +
-		"\n" +
-		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
-			stylesheet.ViewSubmitButton(c.SubmitSelected(), inE, cE),
-		)
+	// View operates in two passes:
+	// one to collect and measure the width of TitleValue views
+	// one to center remaining views and compose the final, returned view.
+
+	views, setWidth := c.collectViewValues()
+	if setWidth == 0 { // if we somehow have no TitleValues, use the entire pane
+		setWidth = c.width
+	}
+
+	// build final lines, centering Line/secondLine entries under modalWidth
+	centerSty := lipgloss.NewStyle().Width(setWidth).AlignHorizontal(lipgloss.Center)
+	lines := make([]string, 0, len(views))
+	for _, v := range views {
+		if v.toCenter {
+			lines = append(lines, centerSty.MaxHeight(2).Render(v.content))
+		} else {
+			lines = append(lines, v.content)
+		}
+	}
+
+	// compose the titles and inputs
+	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
+
+	// generate submit button centered under the modal
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), setWidth, c.inputs.err, c.createErr)
+	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
+
+}
+
+// a material is a component view, collected from a Field.
+type material struct {
+	content  string
+	toCenter bool // should this line be centered in the final composition
+}
+
+// collectViewValues gathers the material views, composes TitleValues, and measures the greatest line-width seen amongst the TitleValues.
+//
+// Returns the views (ordered as c.inputs.ordered) and the widest TitleView seen in the set.
+// The width should be used to center lines tagged with toCenter.
+func (c *createModel) collectViewValues() (views []material, setWidth int) {
+	views = make([]material, 0, len(c.inputs.ordered))
+	for i, key := range c.inputs.ordered {
+		field := c.fields[key]
+		kind, value, secondLine := c.fields[key].Provider.View(i == int(c.inputs.selected), c.width)
+
+		switch kind {
+		case TitleValue:
+			// left-pad so all titles are right-aligned to a consistent column width
+			padding := strings.Repeat(" ", c.longestTitleLength-len(field.Title))
+			pip := stylesheet.Pip(c.inputs.selected, uint(i))
+			var styledTitle string
+			if field.Required {
+				styledTitle = stylesheet.RequiredTitle(field.Title)
+			} else {
+				styledTitle = stylesheet.OptionalTitle(field.Title)
+			}
+			line := padding + pip + styledTitle + value
+			views = append(views, material{content: line, toCenter: false})
+			if w := lipgloss.Width(line); w > setWidth {
+				setWidth = w
+			}
+		case Line:
+			views = append(views, material{
+				content:  stylesheet.Pip(c.inputs.selected, uint(i)) + value,
+				toCenter: true,
+			})
+		}
+		// attach second line, if provided; always centered
+		if secondLine != "" {
+			views = append(views, material{content: secondLine, toCenter: true})
+		}
+	}
+
+	return views, setWidth
 }
 
 func (c *createModel) Done() bool {
@@ -444,61 +490,44 @@ func (c *createModel) Done() bool {
 func (c *createModel) Reset() error {
 	c.mode = inputting
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	// reset TIs
-	go func() {
-		for i := range c.orderedTIs {
-			c.orderedTIs[i].TI.Reset()
-			c.orderedTIs[i].TI.Blur()
-		}
-		wg.Done()
-	}()
-	// refresh flags to their original, unparsed and unvalued state
-	go func() {
-		c.fs = installFlagsFromFields(c.fields)
-		if c.addtlFlagFunc != nil {
-			addtlFlags := c.addtlFlagFunc()
-			c.fs.AddFlagSet(&addtlFlags)
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
+	for _, key := range c.inputs.ordered {
+		c.fields[key].Provider.Reset()
+	}
 
 	c.createErr = ""
-	c.inputErr = ""
-	c.selected = 0
-	if len(c.orderedTIs) > 0 {
-		c.orderedTIs[0].TI.Focus()
-	}
+	c.inputs.err = ""
+	c.inputs.selected = 0
+	c.focusInput(true)
 	return nil
 }
 
-func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
 	if err := c.fs.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
 	}
 
-	// we do not need to check missing requires when run from mother
-	flagVals, _, err := getValuesFromFlags(&c.fs, c.fields)
-	if err != nil {
-		return "", nil, err
+	// call SetArg hooks
+	for _, key := range c.inputs.ordered {
+		c.fields[key].Provider.SetArgs(width, height)
 	}
 
-	for i, kti := range c.orderedTIs {
-		// set flag values as the starter values in their corresponding TI
-		c.orderedTIs[i].TI.SetValue(flagVals[kti.Key])
-		// if a TI has a CustomSetArg, call it now
-		if c.fields[kti.Key].CustomTIFuncSetArg != nil {
-			c.orderedTIs[i].TI = c.fields[kti.Key].CustomTIFuncSetArg(&kti.TI)
-		}
+	if _, err := setValuesFromFlags(&c.fs, c.fields); err != nil {
+		return "", nil, err
 	}
 
 	c.width = width
 
+	// set the error immediately based on starting satisfaction states.
+	// This is really just to set the error to the first missing required field's error.
+	c.checkSatisfaction(false)
 	return "", nil, nil
 }
 
-//#endregion
+// attachLogInfo returns 3 SDParams that are useful to attach to most/every log: key, type, and caller identity.
+func attachLogInfo(key string) []rfc5424.SDParam {
+	return []rfc5424.SDParam{
+		{Name: "field_key", Value: key},
+		scaffold.IdentifyCaller(),
+	}
+}
