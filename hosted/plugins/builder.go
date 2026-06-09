@@ -118,7 +118,7 @@ type MSGraphBuilder struct {
 	Builder[*msgraph.Config]
 }
 
-func (msgb *MSGraphBuilder) Build(tn hosted.TagNegotiator) (hosted.Ingester, error) {
+func (msgb *MSGraphBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
 	return msgraph.NewIngester(msgb.config), nil
 }
 
