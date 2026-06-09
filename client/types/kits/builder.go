@@ -42,7 +42,7 @@ type Builder struct {
 
 // BuilderConfig sets basic options for a kit.
 type BuilderConfig struct {
-	Version      uint
+	Version      int
 	Name         string
 	Description  string // A short description of the kit
 	Readme       string // A more detailed description of the kit

@@ -638,10 +638,10 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//kits
-	if ks, err := nc.ListKits(); err != nil {
+	if ks, err := nc.ListKits(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to list kits %w", err)
-	} else if len(ks) > 0 {
-		for _, k := range ks {
+	} else if len(ks.Results) > 0 {
+		for _, k := range ks.Results {
 			if k.OwnerID == id {
 				if err := nc.ForceDeleteKit(k.ID); err != nil {
 					return fmt.Errorf("failed to purge user kit %v - %w", k.ID, err)
@@ -651,10 +651,10 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//kit builds
-	if kbs, err := nc.ListKitBuildHistory(); err != nil {
+	if kbs, err := nc.ListKitBuildHistory(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to list kit build history %w", err)
-	} else if len(kbs) > 0 {
-		for _, k := range kbs {
+	} else if len(kbs.Results) > 0 {
+		for _, k := range kbs.Results {
 			if err := nc.DeleteKitBuildHistory(k.ID); err != nil {
 				return fmt.Errorf("failed to purge user kit build request %v - %w", k.ID, err)
 			}

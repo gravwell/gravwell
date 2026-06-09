@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	Version            uint  = 3
+	Version            int   = 3
 	ManifestName             = `MANIFEST`
 	ManifestSigName          = `SIGNATURE`
 	maxManifestSize    int64 = 1024 * 1024
@@ -46,7 +46,7 @@ type Manifest struct {
 	Name         string
 	Desc         string
 	Readme       string
-	Version      uint
+	Version      int
 	MinVersion   types.CanonicalVersion
 	MaxVersion   types.CanonicalVersion
 	Icon         string

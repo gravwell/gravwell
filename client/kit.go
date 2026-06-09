@@ -19,8 +19,6 @@ import (
 	"os"
 
 	"github.com/gravwell/gravwell/v4/client/types"
-
-	"github.com/google/uuid"
 )
 
 const (
@@ -86,7 +84,7 @@ func (c *Client) UploadKit(p string) (pc types.KitState, err error) {
 // PullKit tells the webserver to stage the kit with the specified GUID for installation,
 // pulling the kit from the kit server. A KitState object containing information
 // about the kit is returned on success.
-func (c *Client) PullKit(guid uuid.UUID) (pc types.KitState, err error) {
+func (c *Client) PullKit(id string) (pc types.KitState, err error) {
 	var mp io.Writer
 	var req *http.Request
 	bb := bytes.NewBuffer(nil)
@@ -94,7 +92,7 @@ func (c *Client) PullKit(guid uuid.UUID) (pc types.KitState, err error) {
 	if mp, err = wtr.CreateFormField(`remote`); err != nil {
 		return
 	}
-	if _, err = mp.Write([]byte(guid.String())); err != nil {
+	if _, err = mp.Write([]byte(id)); err != nil {
 		return
 	}
 
@@ -120,20 +118,33 @@ func (c *Client) ListRemoteKits(all bool) (mds []types.KitMetadata, err error) {
 }
 
 // ListKits returns a list of all installed and staged kits.
-func (c *Client) ListKits() (pkgs []types.KitState, err error) {
-	err = c.getStaticURL(kitUrl(), &pkgs)
+func (c *Client) ListKits(opts *types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err = c.postStaticURL(KIT_LIST_URL, opts, &pkgs)
 	return
 }
 
-// KitInfo returns information about a particular installed/staged kit, specified
-// by the kit's UUID.
-func (c *Client) KitInfo(id uuid.UUID) (ki types.KitState, err error) {
-	err = c.getStaticURL(kitIdUrl(id.String()), &ki)
+// ListAllKits returns a list of all installed and staged kits.
+func (c *Client) ListAllKits(opts *types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true
+	err = c.postStaticURL(KIT_LIST_URL, opts, &pkgs)
+	return
+}
+
+// GetKit returns information about a particular installed/staged kit, specified
+// by the kit's unique ID.
+func (c *Client) GetKit(id string) (ki types.KitState, err error) {
+	err = c.getStaticURL(kitIdUrl(id), &ki)
 	return
 }
 
 // InstallKit tells the webserver to install a staged kit. The id parameter
-// is the UUID of the staged kit. The cfg parameter provides install-time
+// is the ID of the staged kit. The cfg parameter provides install-time
 // options.
 func (c *Client) InstallKit(id string, cfg types.KitConfig) (err error) {
 	err = c.putStaticURL(kitIdUrl(id), cfg)
@@ -141,7 +152,7 @@ func (c *Client) InstallKit(id string, cfg types.KitConfig) (err error) {
 }
 
 // ModifyKit tells the webserver to change parameters on an installed kit.
-// The id parameter is the UUID of the installed kit. The cfg parameter provides
+// The id parameter is the ID of the installed kit. The cfg parameter provides
 // the desired changes, with the following fields being respected: Global, InstallationGroup,
 // and Labels.
 func (c *Client) ModifyKit(id string, cfg types.KitConfig) (report types.KitModifyReport, err error) {
@@ -149,7 +160,7 @@ func (c *Client) ModifyKit(id string, cfg types.KitConfig) (report types.KitModi
 	return
 }
 
-// DeleteKit uninstalls a kit (specified by UUID). Note that if kit items
+// DeleteKit uninstalls a kit (specified by ID). Note that if kit items
 // have been modified, DeleteKit will return an error; use ForceDeleteKit to
 // remove the kit regardless.
 func (c *Client) DeleteKit(id string) (err error) {
@@ -160,13 +171,13 @@ func (c *Client) DeleteKit(id string) (err error) {
 // DeleteKitEx attempts to uninstall a kit. If kit items have been modified,
 // it will return an error and a list of modified items. If nothing has been
 // changed, it returns an empty list and a nil error.
-func (c *Client) DeleteKitEx(id string) ([]types.SourcedKitItem, error) {
+func (c *Client) DeleteKitEx(id string) ([]types.ModifiedKitItem, error) {
 	var resp *http.Response
 	var err error
 	resp, err = c.methodRequestURL(http.MethodDelete, kitIdUrl(id), ``, nil)
 	if err != nil {
 		// this means we weren't able to get a request to the server, return the error
-		return []types.SourcedKitItem{}, err
+		return []types.ModifiedKitItem{}, err
 	}
 	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK {
@@ -175,33 +186,23 @@ func (c *Client) DeleteKitEx(id string) ([]types.SourcedKitItem, error) {
 		// 2. Other errors (kit doesn't exist, malformed ID, etc.)
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return []types.SourcedKitItem{}, err
+			return []types.ModifiedKitItem{}, err
 		}
 		var ks struct {
-			ModifiedItems []types.SourcedKitItem
+			ModifiedItems []types.ModifiedKitItem
 			Error         string
 		}
 		if err := json.Unmarshal(body, &ks); err != nil {
 			// This was a type 2 error: "something else"
-			return []types.SourcedKitItem{}, fmt.Errorf("Bad status %v: %v", resp.Status, string(body))
+			return []types.ModifiedKitItem{}, fmt.Errorf("Bad status %v: %v", resp.Status, string(body))
 		}
 		return ks.ModifiedItems, errors.New(ks.Error)
 	}
 	// Success, the kit should be deleted now.
-	return []types.SourcedKitItem{}, nil
+	return []types.ModifiedKitItem{}, nil
 }
 
-// AdminDeleteKit is an admin-only function which can delete a kit owned by
-// any user.
-func (c *Client) AdminDeleteKit(id string) (err error) {
-	c.SetAdminMode()
-	err = c.deleteStaticURL(kitIdUrl(id), nil)
-	c.ClearAdminMode()
-
-	return
-}
-
-// ForceDeleteKit uninstalls a kit (specified by UUID) regardless of any
+// ForceDeleteKit uninstalls a kit (specified by ID) regardless of any
 // changes made since installation.
 func (c *Client) ForceDeleteKit(id string) (err error) {
 	params := []urlParam{
@@ -213,7 +214,7 @@ func (c *Client) ForceDeleteKit(id string) (err error) {
 
 // BuildKit builds a new kit. The parameter 'pbr' contains information about
 // the kit to be built, including lists of objects to include. On success, the
-// returned KitBuildResponse will contain a UUID which can be used to download
+// returned KitBuildResponse will contain a ID which can be used to download
 // the kit via the KitDownloadRequest function.
 func (c *Client) BuildKit(pbr types.KitBuildRequest) (r types.KitBuildResponse, err error) {
 	err = c.postStaticURL(kitBuildUrl(), pbr, &r)
@@ -233,18 +234,6 @@ func (c *Client) KitDownloadRequest(id string) (*http.Response, error) {
 	return c.DownloadRequest(kitDownloadUrl(id))
 }
 
-// AdminListKits is an admin-only function which lists all kits on the system.
-// Non-administrators will get the same list as returned by ListKits.
-func (c *Client) AdminListKits() (pkgs []types.KitState, err error) {
-	c.SetAdminMode()
-	if err = c.getStaticURL(kitUrl(), &pkgs); err != nil {
-		pkgs = nil
-	}
-	c.ClearAdminMode()
-
-	return
-}
-
 // KitStatuses returns the statuses of any ongoing or completed kit installations.
 func (c *Client) KitStatuses() (statuses []types.InstallStatus, err error) {
 	err = c.getStaticURL(kitStatusUrl(), &statuses)
@@ -254,8 +243,11 @@ func (c *Client) KitStatuses() (statuses []types.InstallStatus, err error) {
 // ListKitBuildHistory returns KitBuildRequests for all kits previously built by the
 // user. Note that only the most recent build request is stored for each unique
 // kit ID (e.g. "io.gravwell.foo").
-func (c *Client) ListKitBuildHistory() (hist []types.KitBuildRequest, err error) {
-	err = c.getStaticURL(kitBuildHistoryUrl(), &hist)
+func (c *Client) ListKitBuildHistory(opts *types.QueryOptions) (hist types.KitBuildRequestListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err = c.postStaticURL(KIT_BUILD_HISTORY_LIST_URL, opts, &hist)
 	return
 }
 

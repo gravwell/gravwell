@@ -45,7 +45,7 @@ type KitConfig struct {
 	OverwriteExisting     bool `json:",omitempty"`
 	AllowUnsigned         bool `json:",omitempty"`
 	InstallationReaders   ACL
-	InstallationWriters   Access
+	InstallationWriters   ACL
 	Labels                []string `json:",omitempty"` // labels applied to each *item*
 	KitLabels             []string `json:",omitempty"` // labels applied to the *kit* itself
 	ConfigMacros          []KitConfigMacro
@@ -62,6 +62,7 @@ type KitItem struct {
 
 	// The fields below may be set depending on the type.
 	DefaultDeploymentRules AutomationDeployConfig `json:",omitempty"` // set by automations (scripts, scheduled searches, flows)
+	Tags                   []string               `json:,omitempty"`  // set by AXes
 }
 
 func (ki KitItem) Validate() error {
@@ -89,25 +90,32 @@ func (ki KitItem) Filename() string {
 	return ki.Name + `.` + string(ki.Type)
 }
 
-// SourcedKitItem is wraps a KitItem with additional information regarding the
+// ModifiedKitItem is wraps a KitItem with additional information regarding the
 // kit's version and origin.
-type SourcedKitItem struct {
+type ModifiedKitItem struct {
 	KitItem
 	KitID      string
-	KitVersion uint
+	KitVersion int
 	KitName    string
+	Diff       map[string]KitModifiedContents
+}
+
+// KitModifiedContents shows the original (kit-installed) and current
+// (presumably user-modified) values of a single field in a kit asset
+// which has been detected as modified.
+type KitModifiedContents struct {
+	Original any
+	Modified any
 }
 
 // KitState is the data type that is actually stored in the registry
 type KitState struct {
 	CommonFields
 
-	KitFileHash string // The hash of the kit file itself, which we store for later referece
+	KitFileHash string // The hash of the kit file itself, which we store for later reference
 
 	KitID                string // e.g. "io.gravwell.foo"
-	Version              uint
-	Name                 string
-	Description          string
+	KitVersion           int
 	Readme               string
 	Icon                 string //use for icon when in the context of a kit
 	Banner               string //use for banner in a kit
@@ -125,8 +133,13 @@ type KitState struct {
 	InstallationVersion CanonicalVersion // the Gravwell version in use when this kit was installed
 
 	// Items below are set during staging and can be ignored if Installed == true
-	ModifiedItems    []SourcedKitItem // Items which were installed by a previous version of the kit and have been modified by the user
-	ConflictingItems []KitItem        // items which will overwrite a user-created object
+	ModifiedItems    []ModifiedKitItem // Items which were installed by a previous version of the kit and have been modified by the user
+	ConflictingItems []KitItem         // items which will overwrite a user-created object
+}
+
+type KitStateListResponse struct {
+	BaseListResponse
+	Results []KitState `json:"results"`
 }
 
 type KitEmbeddedItem struct {
@@ -139,7 +152,7 @@ type KitBuildRequest struct {
 	CommonFields
 	KitID                 string
 	Readme                string
-	KitVersion            uint
+	KitVersion            int
 	MinVersion            CanonicalVersion  `json:",omitempty"`
 	MaxVersion            CanonicalVersion  `json:",omitempty"`
 	Dashboards            []string          `json:",omitempty"`
@@ -152,7 +165,7 @@ type KitBuildRequest struct {
 	Macros                []string          `json:",omitempty"`
 	Extractors            []string          `json:",omitempty"`
 	Files                 []string          `json:",omitempty"`
-	SearchLibraries       []string          `json:",omitempty"` // Saved Queries go here... compatibility for now.
+	SavedQueries          []string          `json:",omitempty"`
 	Playbooks             []string          `json:",omitempty"`
 	Alerts                []string          `json:",omitempty"`
 	EmbeddedItems         []KitEmbeddedItem `json:",omitempty"`
@@ -165,9 +178,9 @@ type KitBuildRequest struct {
 	BuildDate             time.Time `db:"build_date"`
 }
 
-type StoredBuildRequest struct {
-	KitBuildRequest
-	BuildDate time.Time
+type KitBuildRequestListResponse struct {
+	BaseListResponse
+	Results []KitBuildRequest `json:"results"`
 }
 
 type KitBuildResponse struct {
@@ -287,7 +300,7 @@ func (pbr *KitBuildRequest) Validate() error {
 	idMp := map[KitDependency]es{}
 	for _, dp := range pbr.Dependencies {
 		if _, ok := idMp[dp]; ok {
-			return fmt.Errorf("dependency %s %d is duplicated", dp.ID, dp.MinVersion)
+			return fmt.Errorf("dependency %s %d is duplicated", dp.KitID, dp.MinVersion)
 		}
 		idMp[dp] = empty
 	}
@@ -302,7 +315,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SavedQueries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
 		return errors.New("build request does not contain any items")
 	}
@@ -330,19 +343,19 @@ func randKitId() string {
 
 // KitDependency declares a series of kits and minimum version requirements
 type KitDependency struct {
-	ID         string
-	MinVersion uint
+	KitID      string
+	MinVersion int
 }
 
 // KitMetadata is a struct that is primarily served by the
 // kit server, we use this to record info about a kit so the GUI
 // and hint to users what kits they shoudld install.
 type KitMetadata struct {
-	ID            string // e.g. "io.gravwell.foo"
+	KitID         string // e.g. "io.gravwell.foo"
 	Name          string
 	Description   string
-	UUID          string // Identifies a specific build of the kit, makes it easy to download
-	Version       uint
+	ID            string // Identifies a specific build of the kit, makes it easy to download
+	Version       int
 	Readme        string
 	Signed        bool
 	AdminRequired bool

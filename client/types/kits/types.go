@@ -9,8 +9,6 @@
 package kits
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +23,7 @@ type PackedFile struct {
 	Description string
 	Labels      []string
 	Size        uint64 `json:",omitempty"`
-	Hash        []byte `json:",omitempty"`
+	Hash        string `json:",omitempty"`
 	Data        []byte `json:",omitempty"`
 }
 
@@ -38,10 +36,9 @@ func PackFile(f types.File, content []byte) (p PackedFile) {
 		Labels:      f.Labels,
 		Size:        f.Size,
 		Data:        content,
+		Hash:        f.Hash,
 	}
-	if f.Hash != "" {
-		p.Hash, _ = hex.DecodeString(f.Hash)
-	}
+
 	return
 }
 
@@ -55,10 +52,6 @@ func (p *PackedFile) Validate() error {
 	if len(p.Data) == 0 && len(p.Hash) == 0 {
 		return nil //short circuit, if its empty there is no hash
 	}
-	// recompute hash and size and use the new data,
-	// per https://github.com/gravwell/gravwell/pull/2305#discussion_r3126385394
-	hsh := md5.Sum(p.Data)
-	p.Hash = hsh[:]
 	p.Size = uint64(len(p.Data))
 	return nil
 }
@@ -81,15 +74,17 @@ func (p *PackedFile) JSONMetadata() (json.RawMessage, error) {
 
 // PackedMacro is a stripped-down representation of a macro object for inclusion in a kit.
 type PackedMacro struct {
+	ID          string
 	Name        string
 	Description string
 	Expansion   string `json:",omitempty"`
 	Labels      []string
 }
 
-// PackSearchMacro turns a regular SearchMacro object into a PackedMacro.
-func PackSearchMacro(m *types.Macro) (p PackedMacro) {
+// PackMacro turns a regular Macro object into a PackedMacro.
+func PackMacro(m types.Macro) (p PackedMacro) {
 	p = PackedMacro{
+		ID:          m.ID,
 		Name:        m.Name,
 		Description: m.Description,
 		Expansion:   m.Expansion,
@@ -102,6 +97,8 @@ func PackSearchMacro(m *types.Macro) (p PackedMacro) {
 func (pm *PackedMacro) Validate() error {
 	if pm.Name == `` {
 		return errors.New("Missing macro name")
+	} else if pm.ID == `` {
+		return errors.New("Missing macro ID")
 	} else if pm.Expansion == `` {
 		return errors.New("Missing macro expansion")
 	}
@@ -111,10 +108,12 @@ func (pm *PackedMacro) Validate() error {
 // JSONMetadata returns additional information about the macro.
 func (pm *PackedMacro) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
+		ID          string
 		Name        string
 		Description string
 		Expansion   string
 	}{
+		ID:          pm.ID,
 		Name:        pm.Name,
 		Description: pm.Description,
 		Expansion:   pm.Expansion,
@@ -125,14 +124,14 @@ func (pm *PackedMacro) JSONMetadata() (json.RawMessage, error) {
 // PackedResource is a stripped-down representation of a resource for inclusion in a kit.
 type PackedResource struct {
 	ID            string
-	VersionNumber int // resource version #, increment at each Write
-	ResourceName  string
+	Name          string
 	Description   string
 	Labels        []string
 	Size          uint64
-	Hash          []byte
+	Hash          string
 	Data          []byte
 	ContentType   string
+	FileExtension string
 }
 
 // PackResourceUpdate takes a ResourceUpdate (which contains a complete description of a
@@ -140,28 +139,22 @@ type PackedResource struct {
 func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
 	p = PackedResource{
 		ID:            ru.Metadata.ID,
-		VersionNumber: ru.Metadata.Version,
-		ResourceName:  ru.Metadata.Name,
+		Name:          ru.Metadata.Name,
 		Description:   ru.Metadata.Description,
 		Labels:        ru.Metadata.Labels,
 		Size:          ru.Metadata.Size,
+		Hash:          ru.Metadata.Hash,
 		Data:          ru.Bytes(),
 		ContentType:   ru.Metadata.ContentType,
+		FileExtension: ru.Metadata.FileExtension,
 	}
-	if ru.Metadata.Hash != "" {
-		p.Hash, _ = hex.DecodeString(ru.Metadata.Hash)
-	}
-	if p.VersionNumber == 0 {
-		p.VersionNumber = 1
-	}
+
 	return
 }
 
 // Validate checks the contents of a PackedResource for validity.
 func (p *PackedResource) Validate() error {
-	if p.VersionNumber <= 0 {
-		return errors.New("Invalid version number")
-	} else if len(p.ResourceName) == 0 {
+	if len(p.Name) == 0 {
 		return errors.New("Invalid resource name")
 	} else if p.Size != uint64(len(p.Data)) {
 		return errors.New("mismatched data and data size")
@@ -169,33 +162,21 @@ func (p *PackedResource) Validate() error {
 	if len(p.Data) == 0 && len(p.Hash) == 0 {
 		return nil //short circuit, if its empty there is no hash
 	}
-	hsh := md5.Sum(p.Data)
-	if len(hsh) != len(p.Hash) {
-		return errors.New("invalid data hash")
-	} else {
-		for i := range p.Hash {
-			if p.Hash[i] != hsh[i] {
-				return errors.New("Bad data hash")
-			}
-		}
-	}
 	return nil
 }
 
 // JSONMetadata returns additional information about the resource.
 func (p *PackedResource) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
-		VersionNumber int
-		ResourceName  string
-		Description   string
-		Size          uint64
-		Labels        []string
+		Name        string
+		Description string
+		Size        uint64
+		Labels      []string
 	}{
-		VersionNumber: p.VersionNumber,
-		ResourceName:  p.ResourceName,
-		Description:   p.Description,
-		Size:          p.Size,
-		Labels:        p.Labels,
+		Name:        p.Name,
+		Description: p.Description,
+		Size:        p.Size,
+		Labels:      p.Labels,
 	})
 	return json.RawMessage(b), err
 }
@@ -207,15 +188,14 @@ type PackedScheduledSearch struct {
 	Labels      []string
 	Schedule    string // when to run: a cron spec
 
-	SearchString           string `json:",omitempty"` // The actual search to run
-	Duration               int64  `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
-	DefaultDeploymentRules types.AutomationDeployConfig
-	ID                     string // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
-	SearchReference        string // Used if we're referencing a search query asset by ID instead of including the search directly.
+	SearchString    string `json:",omitempty"` // The actual search to run
+	Duration        int64  `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
+	ID              string // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
+	SearchReference string // Used if we're referencing a search query asset by ID instead of including the search directly.
 }
 
 // PackScheduledSearch converts a ScheduledSearch into a PackedScheduledSearch for inclusion in a kit.
-func PackScheduledSearch(ss *types.ScheduledSearch) (p PackedScheduledSearch) {
+func PackScheduledSearch(ss types.ScheduledSearch) (p PackedScheduledSearch) {
 	p = PackedScheduledSearch{
 		ID:              ss.ID,
 		Name:            ss.Name,
@@ -263,21 +243,19 @@ func (pss *PackedScheduledSearch) Unpackage(uid int32, gids []int32) (ss types.S
 // JSONMetadata returns additional info about the PackedScheduledSearch in JSON format.
 func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
-		Name                   string
-		Description            string
-		Schedule               string
-		SearchString           string `json:",omitempty"`
-		SearchReference        string `json:",omitempty"`
-		Duration               int64  `json:",omitempty"`
-		DefaultDeploymentRules types.AutomationDeployConfig
+		Name            string
+		Description     string
+		Schedule        string
+		SearchString    string `json:",omitempty"`
+		SearchReference string `json:",omitempty"`
+		Duration        int64  `json:",omitempty"`
 	}{
-		Name:                   pss.Name,
-		Description:            pss.Description,
-		Schedule:               pss.Schedule,
-		SearchString:           pss.SearchString,
-		SearchReference:        pss.SearchReference,
-		Duration:               pss.Duration,
-		DefaultDeploymentRules: pss.DefaultDeploymentRules,
+		Name:            pss.Name,
+		Description:     pss.Description,
+		Schedule:        pss.Schedule,
+		SearchString:    pss.SearchString,
+		SearchReference: pss.SearchReference,
+		Duration:        pss.Duration,
 	})
 	return json.RawMessage(b), err
 }
@@ -290,13 +268,12 @@ type PackedScheduledScript struct {
 	Labels      []string
 	Schedule    string // when to run: a cron spec
 
-	Script                 string `json:",omitempty"`
-	ScriptLanguage         types.ScriptLang
-	DefaultDeploymentRules types.AutomationDeployConfig
+	Script         string `json:",omitempty"`
+	ScriptLanguage types.ScriptLang
 }
 
 // PackScheduledScript converts a ScheduledScript into a PackedScheduledScript for inclusion in a kit.
-func PackScheduledScript(ss *types.ScheduledScript) (p PackedScheduledScript) {
+func PackScheduledScript(ss types.ScheduledScript) (p PackedScheduledScript) {
 	p = PackedScheduledScript{
 		ID:             ss.ID,
 		Name:           ss.Name,
@@ -338,15 +315,13 @@ func (pss *PackedScheduledScript) Unpackage(uid int32, gids []int32) (ss types.S
 // JSONMetadata returns additional info about the PackedScheduledScript in JSON format.
 func (pss *PackedScheduledScript) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
-		Name                   string
-		Description            string
-		Schedule               string
-		DefaultDeploymentRules types.AutomationDeployConfig
+		Name        string
+		Description string
+		Schedule    string
 	}{
-		Name:                   pss.Name,
-		Description:            pss.Description,
-		Schedule:               pss.Schedule,
-		DefaultDeploymentRules: pss.DefaultDeploymentRules,
+		Name:        pss.Name,
+		Description: pss.Description,
+		Schedule:    pss.Schedule,
 	})
 	return json.RawMessage(b), err
 }
@@ -359,12 +334,11 @@ type PackedFlow struct {
 	Labels      []string
 	Schedule    string // when to run: a cron spec
 
-	Flow                   string
-	DefaultDeploymentRules types.AutomationDeployConfig
+	Flow string
 }
 
 // PackFlow converts a Flow into a PackedFlow for inclusion in a kit.
-func PackFlow(ss *types.Flow) (p PackedFlow) {
+func PackFlow(ss types.Flow) (p PackedFlow) {
 	p = PackedFlow{
 		ID:          ss.ID,
 		Name:        ss.Name,
@@ -404,15 +378,13 @@ func (pss *PackedFlow) Unpackage(uid int32, gids []int32) (ss types.Flow) {
 // JSONMetadata returns additional info about the PackedFlow in JSON format.
 func (pss *PackedFlow) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
-		Name                   string
-		Description            string
-		Schedule               string
-		DefaultDeploymentRules types.AutomationDeployConfig
+		Name        string
+		Description string
+		Schedule    string
 	}{
-		Name:                   pss.Name,
-		Description:            pss.Description,
-		Schedule:               pss.Schedule,
-		DefaultDeploymentRules: pss.DefaultDeploymentRules,
+		Name:        pss.Name,
+		Description: pss.Description,
+		Schedule:    pss.Schedule,
 	})
 	return json.RawMessage(b), err
 }
@@ -484,7 +456,7 @@ type PackedPlaybook struct {
 }
 
 // PackPlaybook converts a Playbook into a PackedPlaybook for inclusion in a kit.
-func PackPlaybook(pb *types.Playbook) (p PackedPlaybook) {
+func PackPlaybook(pb types.Playbook) (p PackedPlaybook) {
 	p = PackedPlaybook{
 		ID:            pb.ID,
 		Name:          pb.Name,
