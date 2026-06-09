@@ -68,18 +68,14 @@ func TestAlertFilter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		period    string
-		wantEmpty bool
-		wantErr   bool
+		name     string
+		period   string
+		expected string
 	}{
-		{name: "unset returns empty", period: "", wantEmpty: true},
-		{name: "invalid returns err", period: "bogus", wantErr: true},
-		{name: "zero returns empty", period: "0s", wantEmpty: true},
-		{name: "negative returns err", period: "-1h", wantErr: true},
-		{name: "valid 24h returns filter", period: "24h", wantEmpty: false},
-		{name: "valid 48h returns filter", period: "48h", wantEmpty: false},
-		{name: "valid 7d returns filter", period: "168h", wantEmpty: false},
+		{name: "unset uses default 48h", period: "", expected: "48h"},
+		{name: "valid 24h returns filter", period: "24h", expected: "24h"},
+		{name: "valid 48h returns filter", period: "48h", expected: "48h"},
+		{name: "valid 7d returns filter", period: "168h", expected: "168h"},
 	}
 
 	for _, tt := range tests {
@@ -88,23 +84,18 @@ func TestAlertFilter(t *testing.T) {
 			cfg := &cfgType{Global: global{Reachback_Period: tt.period}}
 			filter, err := cfg.alertFilter()
 
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-
-			if tt.wantEmpty {
-				assert.Empty(t, filter)
-				return
-			}
-
+			require.NoError(t, err)
 			require.NotEmpty(t, filter)
 			assert.True(t, strings.HasPrefix(filter, "createdDateTime ge"), "filter should start with OData datetime prefix, got %q", filter)
 
 			ts, err := time.Parse(time.RFC3339, strings.TrimPrefix(filter, "createdDateTime ge "))
 			require.NoError(t, err, "timestamp in filter should be valid RFC3339")
 			assert.True(t, ts.Before(time.Now()), "filter timestamp should be in the past")
-			assert.True(t, time.Since(ts) < 200*time.Hour, "filter timestamp should be within a reasonable range of the configured period")
+
+			if tt.expected != "" {
+				expectedDuration, _ := time.ParseDuration(tt.expected)
+				assert.True(t, time.Since(ts) < (expectedDuration+time.Hour), "filter timestamp should be within expected period")
+			}
 		})
 	}
 }

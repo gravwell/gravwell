@@ -203,20 +203,9 @@ func (c *cfgType) lookbackPeriod() time.Duration {
 }
 
 // alertFilter returns an OData $filter string scoped to the lookback window,
-// or an empty string if no Lookback_Period is configured.
+// using the configured Reachback_Period or defaulting to the lookbackPeriod() value.
 func (c *cfgType) alertFilter() (string, error) {
-	lookback := strings.TrimSpace(c.Global.Reachback_Period)
-	if lookback == "" {
-		return "", nil
-	}
-
-	lookbackDuration, err := time.ParseDuration(lookback)
-	if err != nil || lookbackDuration < 0 {
-		return "", fmt.Errorf("invalid duration filter %q", lookback)
-	}
-	if lookbackDuration == 0 {
-		return "", nil
-	}
+	lookbackDuration := c.lookbackPeriod()
 
 	filter := fmt.Sprintf("createdDateTime ge %s", time.Now().Add(-lookbackDuration).UTC().Format(time.RFC3339))
 	return filter, nil
