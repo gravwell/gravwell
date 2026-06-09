@@ -42,11 +42,6 @@ import (
 // ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
 type CollectItemsFunc[ID_t scaffold.Id_t] func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[ID_t], error)
 
-type result struct {
-	output  string
-	success bool // dictates (stdout or stderr) and/or text color
-}
-
 // OperateFunc performs the actual operation (toggling, cloning, updating, etc) on the final set of selected IDs.
 // ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
 //
@@ -56,7 +51,7 @@ type result struct {
 // You may return no results and a nil error; scaffoldselect will simply exit silently.
 //
 // an error should be used for a fatal error where processing cannot continue; invalid arguments and non-fatal errors can go in results.
-type OperateFunc[ID_t scaffold.Id_t] func(IDs []ID_t, addtlFlags *pflag.FlagSet) (results []result, _ error)
+type OperateFunc[ID_t scaffold.Id_t] func(IDs []ID_t, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error)
 
 func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 	selectedItemSingular string,
@@ -102,12 +97,12 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 		}
 		var numSuccesses, numErrors uint
 		for _, res := range results {
-			if res.success {
+			if res.Success {
 				numSuccesses += 1
-				fmt.Fprintln(cmd.OutOrStdout(), res.output)
+				fmt.Fprintln(cmd.OutOrStdout(), res.Output)
 			} else {
 				numErrors += 1
-				fmt.Fprintln(cmd.ErrOrStderr(), res.output)
+				fmt.Fprintln(cmd.ErrOrStderr(), res.Output)
 			}
 		}
 		return finalError(numSuccesses, numErrors)
@@ -145,7 +140,7 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 // Every result will have out set; successful operations with no success string are not returned.
 //
 // Returns iff any of the arguments fail the FromString conversion.
-func autonomous[ID_t scaffold.Id_t](fs *pflag.FlagSet, op OperateFunc[ID_t], singular string) (_ []result, fatal error) {
+func autonomous[ID_t scaffold.Id_t](fs *pflag.FlagSet, op OperateFunc[ID_t], singular string) (_ []scaffold.Result, fatal error) {
 	var casts = make([]ID_t, fs.NArg())
 	for i, a := range fs.Args() {
 		cast, err := scaffold.FromString[ID_t](a)
@@ -255,19 +250,19 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 }
 
 // teaPrintlnResults returns a set of tea Cmds to print the results (color-coded) and suffixes finalError
-func teaPrintlnResults(results []result) tea.Cmd {
+func teaPrintlnResults(results []scaffold.Result) tea.Cmd {
 	if len(results) == 0 {
 		return nil
 	}
 	cmds := make([]tea.Cmd, len(results))
 	var numSuccesses, numErrors uint
 	for i, res := range results {
-		if res.success {
+		if res.Success {
 			numSuccesses += 1
-			cmds[i] = tea.Println(res.output)
+			cmds[i] = tea.Println(res.Output)
 		} else {
 			numErrors += 1
-			cmds[i] = tea.Println(stylesheet.Cur.ErrorText.Render(res.output))
+			cmds[i] = tea.Println(stylesheet.Cur.ErrorText.Render(res.Output))
 		}
 	}
 	if err := finalError(numSuccesses, numErrors); err != nil {
