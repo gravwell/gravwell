@@ -80,7 +80,7 @@ func (c cfgType) Verify() error {
 		return errors.New("invalid connection timeout")
 	}
 	if c.Global.Ingest_Secret == "" {
-		return errors.New("ingest-Secret not specified")
+		return errors.New(`config key "Ingest_Secret" is required but not specified`)
 	}
 	//ensure there is at least one target
 	connCount := len(c.Global.Cleartext_Backend_Target) +

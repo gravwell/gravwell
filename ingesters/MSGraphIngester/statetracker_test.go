@@ -12,7 +12,7 @@ import (
 func newTestTracker(t *testing.T) *stateTracker {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "state.db")
-	tracker, err := NewTracker(path, 48*time.Hour, nil)
+	tracker, err := NewTracker(path, 48*time.Hour, nil, nil)
 	require.NoError(t, err)
 	return tracker
 }
@@ -29,7 +29,7 @@ func TestNewTracker(t *testing.T) {
 
 	t.Run("invalid path returns error", func(t *testing.T) {
 		t.Parallel()
-		_, err := NewTracker("/nonexistent/path/state.db", 48*time.Hour, nil)
+		_, err := NewTracker("/nonexistent/path/state.db", 48*time.Hour, nil, nil)
 		assert.Error(t, err)
 	})
 }
@@ -88,17 +88,15 @@ func TestStateTracker_HorizonEviction(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "state.db")
 	horizon := 1 * time.Hour
-	tracker, err := NewTracker(path, horizon, nil)
+	tracker, err := NewTracker(path, horizon, nil, nil)
 	require.NoError(t, err)
 
 	oldID := "old-alert"
 	newID := "new-alert"
 
-	// Record the old entry directly into the stateMap, bypassing the tempMap
-	// so it survives the first tick and can be tested for eviction.
 	tracker.Lock()
-	tracker.stateMap[oldID] = time.Now().Add(-2 * time.Hour) // Older than the horizon.
-	tracker.stateMap[newID] = time.Now()                     // Still within the horizon.
+	tracker.stateMap[oldID] = time.Now().Add(-2 * time.Hour)
+	tracker.stateMap[newID] = time.Now()
 	tracker.Unlock()
 
 	assert.True(t, tracker.IdExists(oldID), "%q should exist before eviction", oldID)
@@ -118,7 +116,7 @@ func TestStateTracker_Persistence(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.db")
 
-	tracker1, err := NewTracker(path, 48*time.Hour, nil)
+	tracker1, err := NewTracker(path, 48*time.Hour, nil, nil)
 	require.NoError(t, err)
 
 	persistedID := "persisted-id"
@@ -126,11 +124,10 @@ func TestStateTracker_Persistence(t *testing.T) {
 	require.NoError(t, tracker1.RecordId(persistedID, time.Now()))
 
 	tracker1.Lock()
-	// Flushes tempMap into stateMap and into disk (nil ingester means Sync is skipped).
 	require.NoError(t, tracker1.tickNoLock())
 	tracker1.Unlock()
 
-	tracker2, err := NewTracker(path, 48*time.Hour, nil)
+	tracker2, err := NewTracker(path, 48*time.Hour, nil, nil)
 	require.NoError(t, err)
 
 	assert.True(t, tracker2.IdExists(persistedID), "%q written by first tracker should be visible to second tracker")
@@ -147,11 +144,9 @@ func TestStateTracker_TempMapPromotedOnTick(t *testing.T) {
 	require.NoError(t, tracker.RecordId(tempID, time.Now()))
 
 	tracker.Lock()
-	// After tick w/ nil ingester, Sync is skipped but promotion should still happen.
 	require.NoError(t, tracker.tickNoLock())
 	tracker.Unlock()
 
-	// After tick, the id should be promoted to stateMap.
 	assert.True(t, tracker.IdExists(tempID))
 	tracker.Lock()
 	assert.Contains(t, tracker.stateMap, tempID)

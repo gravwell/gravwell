@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -106,6 +107,44 @@ func TestAlertFilter(t *testing.T) {
 			assert.True(t, time.Since(ts) < 200*time.Hour, "filter timestamp should be within a reasonable range of the configured period")
 		})
 	}
+}
+
+func TestVerify(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing ingest-secret returns error", func(t *testing.T) {
+		t.Parallel()
+		cfg := &cfgType{
+			Global: global{
+				IngestConfig: config.IngestConfig{
+					Ingest_Secret: "",
+				},
+			},
+			ContentType: map[string]*contentType{
+				"alerts": {Tag_Name: "test", Content_Type: "alerts"},
+			},
+		}
+		err := cfg.Verify()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), `Ingest-Secret`)
+	})
+
+	t.Run("valid config passes", func(t *testing.T) {
+		t.Parallel()
+		cfg := &cfgType{
+			Global: global{
+				IngestConfig: config.IngestConfig{
+					Ingest_Secret:            "test-secret",
+					Cleartext_Backend_Target: []string{"127.0.0.1:4024"},
+				},
+			},
+			ContentType: map[string]*contentType{
+				"alerts": {Tag_Name: "test", Content_Type: "alerts"},
+			},
+		}
+		err := cfg.Verify()
+		assert.NoError(t, err)
+	})
 }
 
 func TestTags(t *testing.T) {
