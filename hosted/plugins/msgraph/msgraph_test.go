@@ -30,7 +30,7 @@ func newMockRuntime(ctx context.Context) *mockRuntime {
 	return &mockRuntime{entries: []entry.Entry{}, store: map[string][]byte{}, tags: map[string]entry.EntryTag{}, ctx: ctx, cancel: cancel}
 }
 
-func (m *mockRuntime) Alive() bool             { return true }
+func (m *mockRuntime) Alive() bool              { return true }
 func (m *mockRuntime) Context() context.Context { return m.ctx }
 func (m *mockRuntime) Sleep(d time.Duration) bool {
 	select {
@@ -248,6 +248,9 @@ func TestConfig_Verify(t *testing.T) {
 		{name: "bad type", cfg: Config{Tenant_ID: "t", Client_ID: "c", Client_Secret: "s", Content_Type: []ContentType{"x"}}, wantErr: true},
 		{name: "tag+multi", cfg: Config{Tenant_ID: "t", Client_ID: "c", Client_Secret: "s", Content_Type: []ContentType{ContentAlerts, ContentSecureScores}, Tag_Name: "x"}, wantErr: true},
 		{name: "tag+prefix", cfg: Config{Tenant_ID: "t", Client_ID: "c", Client_Secret: "s", Content_Type: []ContentType{ContentAlerts}, Tag_Name: "x", Tag_Prefix: "y"}, wantErr: true},
+		{name: "negative lookback", cfg: Config{Tenant_ID: "t", Client_ID: "c", Client_Secret: "s", Content_Type: []ContentType{ContentAlerts}, Lookback: -1}, wantErr: true},
+		{name: "negative requests per min", cfg: Config{Tenant_ID: "t", Client_ID: "c", Client_Secret: "s", Content_Type: []ContentType{ContentAlerts}, Requests_Per_Minute: -1}, wantErr: true},
+		{name: "negative request interval", cfg: Config{Tenant_ID: "t", Client_ID: "c", Client_Secret: "s", Content_Type: []ContentType{ContentAlerts}, Request_Interval: -1}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

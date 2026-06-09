@@ -82,6 +82,15 @@ func (c *Config) Verify() error {
 	if c.Tag_Name != "" && c.Tag_Prefix != "" {
 		errs = append(errs, ErrInvalidConfigValue{Message: "Tag-Name and Tag-Prefix cannot be used together"})
 	}
+	if c.Lookback < 0 {
+		errs = append(errs, ErrInvalidConfigValue{Field: "Lookback", Message: "cannot be negative"})
+	}
+	if c.Requests_Per_Minute < 0 {
+		errs = append(errs, ErrInvalidConfigValue{Field: "Requests-Per-Minute", Message: "cannot be negative"})
+	}
+	if c.Request_Interval < 0 {
+		errs = append(errs, ErrInvalidConfigValue{Field: "Request-Interval", Message: "cannot be negative"})
+	}
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
