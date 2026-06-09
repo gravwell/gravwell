@@ -137,6 +137,83 @@ func TestVerify(t *testing.T) {
 					Ingest_Secret:            "test-secret",
 					Cleartext_Backend_Target: []string{"127.0.0.1:4024"},
 				},
+				Tenant_ID: "test-tenant-id",
+			},
+			ContentType: map[string]*contentType{
+				"alerts": {Tag_Name: "test", Content_Type: "alerts"},
+			},
+		}
+		err := cfg.Verify()
+		assert.NoError(t, err)
+	})
+
+	t.Run("missing tenant ID and domain returns error", func(t *testing.T) {
+		t.Parallel()
+		cfg := &cfgType{
+			Global: global{
+				IngestConfig: config.IngestConfig{
+					Ingest_Secret:            "test-secret",
+					Cleartext_Backend_Target: []string{"127.0.0.1:4024"},
+				},
+			},
+			ContentType: map[string]*contentType{
+				"alerts": {Tag_Name: "test", Content_Type: "alerts"},
+			},
+		}
+		err := cfg.Verify()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Tenant-ID")
+		assert.Contains(t, err.Error(), "Tenant-Domain")
+	})
+
+	t.Run("missing tenant ID but valid domain passes", func(t *testing.T) {
+		t.Parallel()
+		cfg := &cfgType{
+			Global: global{
+				IngestConfig: config.IngestConfig{
+					Ingest_Secret:            "test-secret",
+					Cleartext_Backend_Target: []string{"127.0.0.1:4024"},
+				},
+				Tenant_Domain: "test-domain.com",
+			},
+			ContentType: map[string]*contentType{
+				"alerts": {Tag_Name: "test", Content_Type: "alerts"},
+			},
+		}
+		err := cfg.Verify()
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid reachback period returns error", func(t *testing.T) {
+		t.Parallel()
+		cfg := &cfgType{
+			Global: global{
+				IngestConfig: config.IngestConfig{
+					Ingest_Secret:            "test-secret",
+					Cleartext_Backend_Target: []string{"127.0.0.1:4024"},
+				},
+				Tenant_ID:        "test-tenant-id",
+				Reachback_Period: "invalid-duration",
+			},
+			ContentType: map[string]*contentType{
+				"alerts": {Tag_Name: "test", Content_Type: "alerts"},
+			},
+		}
+		err := cfg.Verify()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Reachback_Period")
+	})
+
+	t.Run("valid reachback period passes", func(t *testing.T) {
+		t.Parallel()
+		cfg := &cfgType{
+			Global: global{
+				IngestConfig: config.IngestConfig{
+					Ingest_Secret:            "test-secret",
+					Cleartext_Backend_Target: []string{"127.0.0.1:4024"},
+				},
+				Tenant_ID:        "test-tenant-id",
+				Reachback_Period: "24h",
 			},
 			ContentType: map[string]*contentType{
 				"alerts": {Tag_Name: "test", Content_Type: "alerts"},

@@ -82,7 +82,6 @@ func (c cfgType) Verify() error {
 	if c.Global.Ingest_Secret == "" {
 		return errors.New(`config key "Ingest_Secret" is required but not specified`)
 	}
-	//ensure there is at least one target
 	connCount := len(c.Global.Cleartext_Backend_Target) +
 		len(c.Global.Encrypted_Backend_Target) +
 		len(c.Global.Pipe_Backend_Target)
@@ -104,6 +103,29 @@ func (c cfgType) Verify() error {
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("content type %s preprocessor %s error: %v", k, v.Preprocessor, err)
 		}
+	}
+	if err := c.verifyTenant(); err != nil {
+		return err
+	}
+	if err := c.verifyReachback(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *cfgType) verifyTenant() error {
+	if c.Global.Tenant_ID == "" && c.Global.Tenant_Domain == "" {
+		return errors.New("either Tenant-ID or Tenant-Domain must be provided")
+	}
+	return nil
+}
+
+func (c *cfgType) verifyReachback() error {
+	if c.Global.Reachback_Period == "" {
+		return nil
+	}
+	if _, err := time.ParseDuration(strings.TrimSpace(c.Global.Reachback_Period)); err != nil {
+		return fmt.Errorf("invalid Reachback_Period duration: %w", err)
 	}
 	return nil
 }
