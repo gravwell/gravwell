@@ -90,7 +90,7 @@ func main() {
 
 	debugout("Started ingester muxer\n")
 
-	tracker, err := NewTracker(cfg.Global.State_Store_Location, cfg.lookbackPeriod(), igst)
+	tracker, err := NewTracker(cfg.Global.State_Store_Location, cfg.lookbackPeriod(), igst, lg)
 	if err != nil {
 		lg.Fatal("failed to initialize state file", log.KVErr(err))
 	}
