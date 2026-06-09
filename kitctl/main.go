@@ -30,7 +30,7 @@ var (
 	fID       = flag.String("id", "", "Kit ID")
 	fName     = flag.String("name", "", "Kit/item name")
 	fDesc     = flag.String("desc", "", "Kit/item description")
-	fVersion  = flag.Uint("version", 0, "Kit version")
+	fVersion  = flag.Int("version", 0, "Kit version")
 	fMinVer   = flag.String("minver", "", "Minimum version")
 	fMaxVer   = flag.String("maxver", "", "Maximum version")
 	fZeroHash = flag.Bool("zero-hash", false, "When unpacking zero hash values in MANIFEST (simplifies management in version control)")
@@ -120,7 +120,7 @@ func kitInfo(args []string) {
 	fmt.Printf("•Dependencies:\n")
 	if len(mf.Dependencies) > 0 {
 		for _, d := range mf.Dependencies {
-			fmt.Printf("	%v >= %v\n", d.ID, d.MinVersion)
+			fmt.Printf("	%v >= %v\n", d.KitID, d.MinVersion)
 		}
 	} else {
 		fmt.Printf("	none\n")
@@ -150,7 +150,7 @@ func dep(args []string) {
 	switch args[0] {
 	case "list":
 		for _, m := range mf.Dependencies {
-			fmt.Printf("%v >= %v\n", m.ID, m.MinVersion)
+			fmt.Printf("%v >= %v\n", m.KitID, m.MinVersion)
 		}
 	case "add":
 		// Make sure all the required flags are set
@@ -168,13 +168,13 @@ func dep(args []string) {
 		}
 		// Now walk all the existing dependencies and make sure it doesn't conflict
 		for _, m := range mf.Dependencies {
-			if m.ID == *fID {
+			if m.KitID == *fID {
 				log.Fatalf("New dependency conflicts with existing: %+v", m)
 			}
 		}
 		// Create the dep
 		d := types.KitDependency{
-			ID:         *fID,
+			KitID:      *fID,
 			MinVersion: *fVersion,
 		}
 		// Insert it into the manifest
@@ -186,7 +186,7 @@ func dep(args []string) {
 			log.Fatalf("Must specify dependency to delete with -id flag")
 		}
 		for i, m := range mf.Dependencies {
-			if m.ID == *fID {
+			if m.KitID == *fID {
 				mf.Dependencies = append(mf.Dependencies[:i], mf.Dependencies[i+1:]...)
 				break
 			}
@@ -269,7 +269,7 @@ func configMacro(args []string) {
 		}
 		// And then check regular macros
 		for _, m := range mf.Items {
-			if m.Type == kits.Macro && m.Name == *fName {
+			if m.Type == types.KitAssetMacro && m.Name == *fName {
 				log.Fatalf("New config macro conflicts with existing regular macro: %+v", m)
 			}
 		}
@@ -306,7 +306,7 @@ func initKit(args []string) {
 	if _, err = os.Stat("MANIFEST"); !os.IsNotExist(err) {
 		log.Fatalf("MANIFEST file already exists, aborting")
 	}
-	version := uint(1)
+	version := int(1)
 	if *fVersion > 0 {
 		version = *fVersion
 	}
@@ -385,13 +385,13 @@ func packKit(args []string) {
 		log.Fatalf("Could not get builder: %v", err)
 	}
 
-	marshallAdd := func(itm kits.Item, obj interface{}) error {
+	marshallAdd := func(itm types.KitItem, obj interface{}) error {
 		bts, err := json.Marshal(obj)
 		if err != nil {
-			return fmt.Errorf("Could not marshal %v %v: %v", itm.Type.String(), itm.Name, err)
+			return fmt.Errorf("Could not marshal %v %v: %v", itm.Type, itm.Name, err)
 		}
-		if err := bldr.Add(itm.Name, itm.Type, bts); err != nil {
-			return fmt.Errorf("Couldn't add %v %v: %v", itm.Type.String(), itm.Name, err)
+		if err := bldr.Add(itm, bts); err != nil {
+			return fmt.Errorf("Couldn't add %v %v: %v", itm.Type, itm.Name, err)
 		}
 		return nil
 	}
@@ -400,7 +400,7 @@ func packKit(args []string) {
 	for _, itm := range mf.Items {
 		switch itm.Type {
 		// Some types have special "packed" versions
-		case kits.Resource:
+		case types.KitAssetResource:
 			pr, err := readResource(wd, itm.Name)
 			if err != nil {
 				log.Fatalf("Could not read resource %v: %v", itm.Name, err)
@@ -408,7 +408,7 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, pr); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Macro:
+		case types.KitAssetMacro:
 			pm, err := readMacro(wd, itm.Name)
 			if err != nil {
 				log.Fatalf("Could not read macro %v: %v", itm.Name, err)
@@ -416,102 +416,102 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, pm); err != nil {
 				log.Fatal(err)
 			}
-		case kits.ScheduledSearch:
-			x, err := readScheduledSearch(wd, itm.Name)
+		case types.KitAssetScheduledSearch:
+			x, err := readScheduledSearch(wd, itm.ID)
 			if err != nil {
-				log.Fatalf("Could not read scheduled search %v: %v", itm.Name, err)
+				log.Fatalf("Could not read scheduled search %v: %v", itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.ScheduledScript:
-			x, err := readScheduledScript(wd, itm.Name)
+		case types.KitAssetScheduledScript:
+			x, err := readScheduledScript(wd, itm.ID)
 			if err != nil {
-				log.Fatalf("Could not read scheduled script %v: %v", itm.Name, err)
+				log.Fatalf("Could not read scheduled script %v: %v", itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Flow:
-			x, err := readFlow(wd, itm.Name)
+		case types.KitAssetFlow:
+			x, err := readFlow(wd, itm.ID)
 			if err != nil {
-				log.Fatalf("Could not read flow %v: %v", itm.Name, err)
+				log.Fatalf("Could not read flow %v: %v", itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Dashboard:
-			x, err := readDashboard(wd, itm.Name)
+		case types.KitAssetDashboard:
+			x, err := readDashboard(wd, itm.ID)
 			if err != nil {
-				log.Fatalf("Could not read dashboard %v: %v", itm.Name, err)
+				log.Fatalf("Could not read dashboard %v: %v", itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Template:
+		case types.KitAssetTemplate:
 			var x kits.PackedUserTemplate
-			if x, err = readTemplate(wd, itm.Name); err != nil {
-				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+			if x, err = readTemplate(wd, itm.ID); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Actionable:
+		case types.KitAssetActionable:
 			var x kits.PackedActionable
 			if err := genericRead(wd, itm, &x); err != nil {
-				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
 		// Other types just ship as-is
-		case kits.Extractor:
+		case types.KitAssetAX:
 			var x kits.PackedAX
-			if x, err = readExtractor(wd, itm.Name); err != nil {
-				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+			if x, err = readExtractor(wd, itm.ID); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.File:
+		case types.KitAssetFile:
 			var x kits.PackedFile
-			if x, err = readFile(wd, itm.Name); err != nil {
-				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+			if x, err = readFile(wd, itm.ID); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.SearchLibrary:
+		case types.KitAssetSavedQuery:
 			var x kits.PackedSavedQuery
-			if x, err = readSearchLibrary(wd, itm.Name); err != nil {
-				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+			if x, err = readSearchLibrary(wd, itm.ID); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Playbook:
+		case types.KitAssetPlaybook:
 			var x kits.PackedPlaybook
-			if x, err = readPlaybook(wd, itm.Name); err != nil {
-				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+			if x, err = readPlaybook(wd, itm.ID); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.Alert:
+		case types.KitAssetAlert:
 			var x kits.PackedAlert
 			if err = genericRead(wd, itm, &x); err != nil {
-				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
-		case kits.License:
+		case types.KitAssetLicense:
 			x, err := readLicense(wd, itm.Name)
 			if err != nil {
 				log.Fatalf("Could not read license %v: %v", itm.Name, err)
 			}
-			if err := bldr.Add(itm.Name, itm.Type, x); err != nil {
-				log.Fatalf("Couldn't add %v %v: %v", itm.Type.String(), itm.Name, err)
+			if err := bldr.Add(itm, x); err != nil {
+				log.Fatalf("Couldn't add %v %v: %v", itm.Type, itm.Name, err)
 			}
 		default:
 			log.Fatalf("Error parsing item %v, unknown item type %v", itm.Name, itm.Type)
@@ -681,153 +681,151 @@ func unpackKit(args []string) {
 
 func unpackKitItems(wd string, rdr *kits.Reader) error {
 	// Walk each kit item
-	return rdr.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
+	return rdr.Process(func(itm types.KitItem, rdr io.Reader) error {
 		var err error
 		// For each item:
 		// Verify the hash of the file
 		// Unmarshal the item
 		// Write it out into split content/metadata files.
-		switch tp {
+		switch itm.Type {
 		// These types have special "packed" versions
-		case kits.Resource:
+		case types.KitAssetResource:
 			var pr kits.PackedResource
 			if err = json.NewDecoder(rdr).Decode(&pr); err != nil {
-				return fmt.Errorf("Failed to decode resource %v: %v", name, err)
+				return fmt.Errorf("Failed to decode resource %v: %v", itm.Name, err)
 			}
-			pr.ResourceName = name
 			if err = pr.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate resource %v: %v", name, err)
+				return fmt.Errorf("Failed to validate resource %v: %v", itm.Name, err)
 			}
 			// We write out the resource into two separate files
 			if err := writeResource(wd, pr); err != nil {
-				return fmt.Errorf("Failed to write out resource %v: %v", name, err)
+				return fmt.Errorf("Failed to write out resource %v: %v", itm.Name, err)
 			}
-		case kits.Macro:
+		case types.KitAssetMacro:
 			var pm kits.PackedMacro
 			if err = json.NewDecoder(rdr).Decode(&pm); err != nil {
-				return fmt.Errorf("Failed to decode macro %v: %v", name, err)
+				return fmt.Errorf("Failed to decode macro %v: %v", itm.Name, err)
 			}
 			if err = pm.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate macro %v: %v", name, err)
+				return fmt.Errorf("Failed to validate macro %v: %v", itm.Name, err)
 			}
 			if err := writeMacro(wd, pm); err != nil {
-				return fmt.Errorf("Failed to write out macro %v: %v", name, err)
+				return fmt.Errorf("Failed to write out macro %v: %v", itm.Name, err)
 			}
-		case kits.ScheduledSearch:
+		case types.KitAssetScheduledSearch:
 			var p kits.PackedScheduledSearch
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode scheduled search %v: %v", name, err)
+				return fmt.Errorf("Failed to decode scheduled search %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate scheduled search %v: %v", name, err)
+				return fmt.Errorf("Failed to validate scheduled search %v: %v", itm.ID, err)
 			}
-			if err := writeScheduledSearch(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out scheduled search %v: %v", name, err)
+			if err := writeScheduledSearch(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out scheduled search %v: %v", itm.ID, err)
 			}
-		case kits.ScheduledScript:
+		case types.KitAssetScheduledScript:
 			var p kits.PackedScheduledScript
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode scheduled script %v: %v", name, err)
+				return fmt.Errorf("Failed to decode scheduled script %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate scheduled script %v: %v", name, err)
+				return fmt.Errorf("Failed to validate scheduled script %v: %v", itm.ID, err)
 			}
-			if err := writeScheduledScript(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out scheduled script %v: %v", name, err)
+			if err := writeScheduledScript(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out scheduled script %v: %v", itm.ID, err)
 			}
-		case kits.Flow:
+		case types.KitAssetFlow:
 			var p kits.PackedFlow
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode flow %v: %v", name, err)
+				return fmt.Errorf("Failed to decode flow %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate flow %v: %v", name, err)
+				return fmt.Errorf("Failed to validate flow %v: %v", itm.ID, err)
 			}
-			if err := writeFlow(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out flow %v: %v", name, err)
+			if err := writeFlow(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out flow %v: %v", itm.ID, err)
 			}
-		case kits.Dashboard:
+		case types.KitAssetDashboard:
 			var p kits.PackedDashboard
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode dashboard %v: %v", name, err)
+				return fmt.Errorf("Failed to decode dashboard %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate dashboard %v: %v", name, err)
+				return fmt.Errorf("Failed to validate dashboard %v: %v", itm.ID, err)
 			}
-			if err := writeDashboard(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out dashboard %v: %v", name, err)
+			if err := writeDashboard(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out dashboard %v: %v", itm.ID, err)
 			}
-		case kits.Template:
+		case types.KitAssetTemplate:
 			var p kits.PackedUserTemplate
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
-			if err := writeTemplate(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			if err := writeTemplate(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
-		case kits.Actionable:
+		case types.KitAssetActionable:
 			var p kits.PackedActionable
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
-			if err := genericWrite(wd, tp, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			if err := genericWrite(wd, itm, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
 		// Other types just ship as-is
-		case kits.Extractor:
+		case types.KitAssetAX:
 			var p kits.PackedAX
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode extractor %v: %v", name, err)
+				return fmt.Errorf("Failed to decode extractor %v: %v", itm.ID, err)
 			}
-			if err := writeExtractor(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			if err := writeExtractor(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
-		case kits.File:
+		case types.KitAssetFile:
 			var pf kits.PackedFile
 			if err = json.NewDecoder(rdr).Decode(&pf); err != nil {
-				return fmt.Errorf("Failed to decode file %v: %v", name, err)
+				return fmt.Errorf("Failed to decode file %v: %v", itm.ID, err)
 			}
-			pf.Name = name
 			if err = pf.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate file %v: %v", name, err)
+				return fmt.Errorf("Failed to validate file %v: %v", itm.ID, err)
 			}
 			if err := writeFile(wd, pf); err != nil {
-				return fmt.Errorf("Failed to write out file %v: %v", name, err)
+				return fmt.Errorf("Failed to write out file %v: %v", itm.ID, err)
 			}
-		case kits.SearchLibrary:
+		case types.KitAssetSavedQuery:
 			var p kits.PackedSavedQuery
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
-			if err := writeSearchLibrary(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			if err := writeSearchLibrary(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
-		case kits.Playbook:
+		case types.KitAssetPlaybook:
 			var p kits.PackedPlaybook
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
-			if err := writePlaybook(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			if err := writePlaybook(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
-		case kits.Alert:
+		case types.KitAssetAlert:
 			var p kits.PackedAlert
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
-			if err := genericWrite(wd, tp, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			if err := genericWrite(wd, itm, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
-		case kits.License:
+		case types.KitAssetLicense:
 			var p []byte
 			if p, err = io.ReadAll(rdr); err != nil {
-				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
-			if err := writeLicense(wd, name, p); err != nil {
-				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			if err := writeLicense(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
 		default:
-			return fmt.Errorf("Error parsing item %v, unknown item type %v", name, tp)
+			return fmt.Errorf("Error parsing item %v, unknown item type %v", itm.ID, itm.Type)
 		}
 		return nil
 	})
