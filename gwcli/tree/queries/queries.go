@@ -239,7 +239,9 @@ func importAction() action.Pair {
 }
 
 func save() action.Pair {
-	return scaffoldselect.NewSelectAction("save a search", "", //TODO
+	return scaffoldselect.NewSelectAction("save a search",
+		"Request that a search be saved and optionally modify the expiration or add a name and notes.\n"+
+			"Saving a search will keep the results around until you explicitly delete them.",
 		"search ID",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
