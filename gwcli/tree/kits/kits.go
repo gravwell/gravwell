@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	pflagtypes "github.com/gravwell/gravwell/v4/gwcli/utilities/pflag_types"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -63,16 +65,52 @@ func NewNav() *cobra.Command {
 }
 
 func listAction() action.Pair {
+	var uuidsFlag *pflag.Flag
 	return scaffoldlist.NewListAction(
 		"list installed and staged kits", "Lists kits visible to you or, if you are an admin, available on this system.",
 		types.IdKitState{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.IdKitState, error) {
+			var err error
+			var kits []types.IdKitState
 			if param.QueryOpts.AdminMode {
-				return connection.Client.AdminListKits()
+				kits, err = connection.Client.AdminListKits()
+			} else {
+				kits, err = connection.Client.ListKits()
 			}
-			return connection.Client.ListKits()
+			if err != nil {
+				return nil, err
+			}
+			if implodedFilters := strings.Trim(uuidsFlag.Value.String(), "[]"); implodedFilters != "" {
+				var filters = make(map[uuid.UUID]any, 0)
+				for raw := range strings.SplitSeq(implodedFilters, ",") {
+					filter, err := uuid.Parse(raw)
+					clilog.Writer.Warn("failed to parse uuid from UUIDSliceValue.String(). This should have been caught by UUIDSliceValue.Set().",
+						log.KV("raw", raw),
+						log.KVErr(err))
+					filters[filter] = 0
+				}
+				// one more sanity check: only filter if we actually, you know, got filters.
+				if len(filters) > 0 {
+					var filtered []types.IdKitState
+					// filter down kits
+					for _, kit := range kits {
+						if _, found := filters[kit.UUID]; found {
+							filtered = append(filtered, kit)
+						}
+					}
+					kits = filtered
+				}
+			}
+			return kits, nil
 		},
 		nil,
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					uuidsFlag = fs.VarPF(pflagtypes.NewUUIDSliceValue(nil, ','), "uuids", "", "Fetch a specific set of kits by UUID")
+					return fs
+				},
+			},
 			DefaultColumns: []string{
 				"UUID",
 				"KitState.Name",
