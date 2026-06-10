@@ -38,9 +38,8 @@ var _ pflag.Value = &UUIDValue{}
 
 // UUIDSliceValue implements a slice of google/uuid as a pflag.Value.
 type UUIDSliceValue struct {
-	value   *[]uuid.UUID
-	changed bool
-	sep     rune
+	value *[]uuid.UUID
+	sep   rune
 }
 
 // NewUUIDSliceValue deep-copies the given UUID slice and sets it as the starter value for the returned UUIDSliceValue.
