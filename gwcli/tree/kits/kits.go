@@ -11,8 +11,12 @@ package kits
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
+	"path"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -30,6 +34,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -52,6 +57,7 @@ func NewNav() *cobra.Command {
 			upload(),
 			pull(),
 			remote(),
+			download(),
 			buildKit(),
 		})
 }
@@ -150,8 +156,9 @@ func upload() action.Pair {
 			return ks.Name + " (ID: " + ks.ID + ")", "", nil
 		},
 		scaffoldcreate.Options{
-			Short: "upload a kit file",
-			Long:  "Upload a kit file and stage it for installation.",
+			CommonOptions: scaffold.CommonOptions{Use: "upload"},
+			Short:         "upload a kit file",
+			Long:          "Upload a kit file and stage it for installation.",
 		},
 	)
 }
@@ -198,14 +205,16 @@ func pull() action.Pair {
 			}
 			return results, nil
 		},
-		scaffoldselect.Options{})
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "pull"},
+		})
 }
 
 func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
 		types.KitMetadata{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitMetadata, error) {
-			return connection.Client.ListRemoteKits(params.QueryOpts.AdminMode) // TODO what does all do? // TODO we need to document it in the client library.
+			return connection.Client.ListRemoteKits(params.QueryOpts.AdminMode)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -216,6 +225,105 @@ func remote() action.Pair {
 				IncludeDeleted: true,
 				Limit:          true,
 			},
+		})
+}
+
+func download() action.Pair {
+	return scaffoldselect.NewSelectAction(
+		"download a kit to a local directory",
+		"Download a kit, remote or on the connected Gravwell system, into a local directory",
+		"kit ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			local, err := connection.Client.ListKits()
+			if err != nil {
+				clilog.Writer.Warn("failed to list local kits", log.KVErr(err))
+			}
+			remote, err := connection.Client.ListRemoteKits(false)
+			if err != nil {
+				clilog.Writer.Warn("failed to list remote kits", log.KVErr(err))
+			}
+			if len(local) > 1 && len(remote) > 1 {
+				return nil, errors.New("both local and remote kits failed to return any results")
+			}
+			items := make([]multiselectlist.SelectableItem[string], len(local)+len(remote))
+			for i, k := range local {
+				items[i] = &listitem.Generic{
+					ID_:        k.ID,
+					Name:       k.Name,
+					SecondLine: "(local) " + k.Description,
+				}
+			}
+			for i, k := range remote {
+				items[i+len(local)] = &listitem.Generic{
+					ID_:        k.ID,
+					Name:       k.Name,
+					SecondLine: "(remote) " + k.Description,
+				}
+			}
+			return items, nil
+		},
+		func(UUIDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			noClobber, err := addtlFlags.GetBool("no-clobber")
+			clilog.GetFlag(err)
+			// root ourselves
+			var root *os.Root
+			dir, err := addtlFlags.GetString(ft.DirName)
+			clilog.GetFlag(err)
+			if err := os.MkdirAll(dir, fs.ModeDir); err != nil {
+				return nil, err
+			} else if root, err = os.OpenRoot(dir); err != nil {
+				return nil, err
+			}
+			results = make([]scaffold.Result, len(UUIDs))
+			for i, UUID := range UUIDs {
+				resp, err := connection.Client.KitDownloadRequest(UUID)
+				if err != nil {
+					if phrases.IsNotFoundErr(err) {
+						results[i].Output = phrases.ErrUnknownIdentifier(UUID, "kit ID").Error()
+					} else {
+						results[i].Output = err.Error()
+					}
+					continue
+				} else if resp == nil { // this should never pop, but just to be safe...
+					clilog.Writer.Error("Something is horribly broken: KitDownloadRequest returned a nil error and a nil response!",
+						log.KV("kit ID", UUID))
+					return nil, clilog.ErrInternal{}
+				}
+				fileName := UUID + ".kit"
+				filePath := path.Join(dir, fileName)
+				// if the file exists and noClobber was specified return an error for this ID
+				if _, err := root.Stat(fileName); !errors.Is(err, fs.ErrNotExist) && noClobber {
+					results[i].Output = filePath + " already exists and --no-clobber was specified"
+					continue
+				}
+				f, err := root.Create(fileName)
+				if err != nil {
+					results[i].Output = ""
+					continue
+				}
+				copied, err := io.Copy(f, resp.Body)
+				if err != nil {
+					clilog.Writer.Warn("failed to copy to kit data to file", log.KVErr(err))
+					results[i].Output = err.Error()
+				} else {
+					results[i] = scaffold.Result{
+						Output:  fmt.Sprintf("downloaded kit %s to %s (%d bytes written)", UUID, filePath, copied),
+						Success: true,
+					}
+				}
+				f.Close()
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "download",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.String(ft.DirName, ".", ft.DirUsagePrefix+"place downloaded kits. Creates the directory if necessary.")
+					fs.Bool("no-clobber", false, "do not truncate files with matching names. Instead, return an error.")
+					return fs
+				}},
 		})
 }
 
