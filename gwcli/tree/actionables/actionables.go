@@ -266,7 +266,9 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return []scaffold.Result{{Output: fmt.Sprintf("replaced actionable definition of %s (ID: %s)", a.Name, a.ID)}}, nil
+			return []scaffold.Result{
+				{Output: fmt.Sprintf("replaced actionable definition of %s (ID: %s)", a.Name, a.ID), Success: true},
+			}, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

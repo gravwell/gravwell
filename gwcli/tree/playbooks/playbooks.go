@@ -118,9 +118,9 @@ func download() action.Pair {
 				if err != nil {
 					return nil, err
 				}
-				return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, f.Name())}}, nil
+				return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, f.Name()), Success: true}}, nil
 			}
-			return []scaffold.Result{{Output: pb.Body + "\n"}}, nil
+			return []scaffold.Result{{Output: pb.Body + "\n", Success: true}}, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

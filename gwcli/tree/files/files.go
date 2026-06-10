@@ -302,7 +302,7 @@ func replace() action.Pair {
 				}
 				results[i] = scaffold.Result{
 					Output:  fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d", updatedFile.Name, updatedFile.ID, updatedFile.Size),
-					Success: false,
+					Success: true,
 				}
 			}
 			return results, nil

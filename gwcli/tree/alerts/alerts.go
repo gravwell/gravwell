@@ -245,7 +245,7 @@ func toggle() action.Pair {
 				}
 				results[i] = scaffold.Result{
 					Output:  fmt.Sprintf("Alert %s (ID: %s) %s", alert.Name, alert.ID, verb),
-					Success: false,
+					Success: true,
 				}
 			}
 			return results, nil
@@ -332,11 +332,9 @@ func dispatchers() action.Pair {
 					found := 0
 					clilog.Writer.Info("removing dispatchers from alert", log.KV("alert ID", ID), log.KV("dispatcher IDs", dIDs))
 					a.Dispatchers = slices.DeleteFunc(a.Dispatchers, func(ad types.AlertDispatcher) bool {
-						for _, dID := range dIDs {
-							if ad.ID == dID {
-								found += 1
-								return true
-							}
+						if slices.Contains(dIDs, ad.ID) {
+							found += 1
+							return true
 						}
 						return false
 					})
@@ -462,8 +460,8 @@ func save() action.Pair {
 					results[i] = scaffold.Result{Output: fmt.Sprintf("failed to update alert %s (ID: %s): %v", a.Name, ID, err)}
 					continue
 				}
-				results[i] = scaffold.Result{}
 
+				results[i] = scaffold.Result{Success: true}
 				if a.SaveSearchEnabled {
 					results[i].Output = fmt.Sprintf("alert %s (ID: %s) will save triggering searches for %d seconds", a.Name, a.ID, a.SaveSearchDuration)
 				} else {
