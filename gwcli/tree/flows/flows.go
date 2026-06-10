@@ -283,11 +283,16 @@ func cancel() action.Pair {
 			// we don't appear to currently have that capability via the client library
 			return listFlowItems()
 		},
-		func(id string, _ *pflag.FlagSet) (success string, err error) {
-			if err := connection.Client.CancelFlow(id); err != nil {
-				return "", err
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.CancelFlow(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to cancel flow %s: %v", ID, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("successfully cancelled flow %s", ID)}
+				}
 			}
-			return fmt.Sprintf("successfully cancelled flow %s", id), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "cancel"},
@@ -327,31 +332,37 @@ func backfillToggle() action.Pair {
 			}
 			return itms, nil
 		},
-		func(id string, fs *pflag.FlagSet) (success string, err error) {
+		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 
-			flow, err := connection.Client.GetFlow(id)
-			if err != nil {
-				return "", err
-			}
-			flow.BackfillEnabled = !flow.BackfillEnabled
-			if enable {
-				flow.BackfillEnabled = true
-			} else if disable {
-				flow.BackfillEnabled = false
-			}
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				flow, err := connection.Client.GetFlow(ID)
+				if err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to get flow %s: %v", ID, err)}
+					continue
+				}
+				flow.BackfillEnabled = !flow.BackfillEnabled
+				if enable {
+					flow.BackfillEnabled = true
+				} else if disable {
+					flow.BackfillEnabled = false
+				}
 
-			if err := connection.Client.UpdateFlow(flow); err != nil {
-				return "", err
+				if err := connection.Client.UpdateFlow(flow); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to update backfill for flow %s: %v", ID, err)}
+					continue
+				}
+				state := "enabled"
+				if !flow.BackfillEnabled {
+					state = "disabled"
+				}
+				results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("flow '%s' backfill %s", ID, state)}
 			}
-			state := "enabled"
-			if !flow.BackfillEnabled {
-				state = "disabled"
-			}
-			return fmt.Sprintf("flow '%s' backfill %s", id, state), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -377,11 +388,16 @@ func clear() action.Pair {
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return listFlowItems()
 		},
-		func(id string, _ *pflag.FlagSet) (success string, err error) {
-			if err := connection.Client.ClearFlowResults(id); err != nil {
-				return "", err
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.ClearFlowResults(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to clear results for flow %s: %v", ID, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("successfully cleared results for flow %s", ID)}
+				}
 			}
-			return fmt.Sprintf("successfully cleared results for flow %s", id), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "clear"},

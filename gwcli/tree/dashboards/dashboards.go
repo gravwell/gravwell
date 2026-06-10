@@ -10,6 +10,8 @@
 package dashboards
 
 import (
+	"fmt"
+
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -111,16 +113,31 @@ func cloneAction() action.Pair {
 			}
 			return items, nil
 		},
-		func(ID string, _ *pflag.FlagSet) (success string, _ error) {
-			cur, err := connection.Client.GetDashboard(ID)
-			if err != nil {
-				return "", err
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, id := range IDs {
+				cur, err := connection.Client.GetDashboard(id)
+				if err != nil {
+					results[i] = scaffold.Result{
+						Output:  fmt.Sprintf("failed to clone dashboard %s: %v", id, err),
+						Success: false,
+					}
+					continue
+				}
+				new, err := connection.Client.CreateDashboard(cur)
+				if err != nil {
+					results[i] = scaffold.Result{
+						Output:  fmt.Sprintf("failed to clone dashboard %s: %v", id, err),
+						Success: false,
+					}
+					continue
+				}
+				results[i] = scaffold.Result{
+					Output:  "cloned dashboard " + cur.Name + " into dashboard " + new.Name,
+					Success: true,
+				}
 			}
-			new, err := connection.Client.CreateDashboard(cur)
-			if err != nil {
-				return "", err
-			}
-			return "cloned dashboard " + cur.Name + " into dashboard " + new.Name, nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "clone"},

@@ -361,11 +361,16 @@ func cancel() action.Pair {
 			}
 			return itms, nil
 		},
-		func(id string, _ *pflag.FlagSet) (success string, err error) {
-			if err := connection.Client.CancelScheduledSearch(id); err != nil {
-				return "", err
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.CancelScheduledSearch(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: "successfully cancelled scheduled search " + ID}
+				}
 			}
-			return "successfully cancelled scheduled search " + id, nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "cancel"},
@@ -400,31 +405,37 @@ func backfillToggle() action.Pair {
 
 			return itms, nil
 		},
-		func(id string, fs *pflag.FlagSet) (success string, err error) {
+		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 
-			ss, err := connection.Client.GetScheduledSearch(id)
-			if err != nil {
-				return "", err
-			}
-			ss.BackfillEnabled = !ss.BackfillEnabled
-			if enable {
-				ss.BackfillEnabled = true
-			} else if disable {
-				ss.BackfillEnabled = false
-			}
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				ss, err := connection.Client.GetScheduledSearch(ID)
+				if err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+					continue
+				}
+				ss.BackfillEnabled = !ss.BackfillEnabled
+				if enable {
+					ss.BackfillEnabled = true
+				} else if disable {
+					ss.BackfillEnabled = false
+				}
 
-			if err := connection.Client.UpdateScheduledSearch(ss); err != nil {
-				return "", err
+				if err := connection.Client.UpdateScheduledSearch(ss); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+				} else {
+					state := "enabled"
+					if !ss.BackfillEnabled {
+						state = "disabled"
+					}
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("scheduled search '%s' backfill %s", ID, state)}
+				}
 			}
-			state := "enabled"
-			if !ss.BackfillEnabled {
-				state = "disabled"
-			}
-			return fmt.Sprintf("scheduled search '%s' backfill %s", id, state), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -458,11 +469,16 @@ func clear() action.Pair {
 			}
 			return itms, nil
 		},
-		func(id string, _ *pflag.FlagSet) (success string, err error) {
-			if err := connection.Client.ClearScheduledSearchResults(id); err != nil {
-				return "", err
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.ClearScheduledSearchResults(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("successfully cleared results for scheduled search %s", ID)}
+				}
 			}
-			return fmt.Sprintf("successfully cleared results for scheduled search %s", id), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "clear"},

@@ -10,6 +10,7 @@
 package playbooks
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -82,7 +84,7 @@ func download() action.Pair {
 			}
 			return data, nil
 		},
-		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// check for output
 			out, err := addtlFlags.GetString(ft.Output.Name())
 			clilog.GetFlag(err)
@@ -90,24 +92,35 @@ func download() action.Pair {
 			if out != "" {
 				f, err = os.Create(out)
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 				defer f.Close()
 			}
-
-			pb, err := connection.Client.GetPlaybook(ID)
+			// This is an exactly1 function
+			if len(IDs) != 1 {
+				clilog.Writer.Warn("exactly1 function with incorrect number of IDs made it to operate()",
+					log.KV("count", len(IDs)),
+					scaffold.IdentifyCaller())
+				if len(IDs) == 0 {
+					return nil, errors.New(phrases.Exactly1ArgRequired("playbook ID"))
+				}
+			}
+			pb, err := connection.Client.GetPlaybook(IDs[0])
 			if err != nil {
-				return "", err
+				if phrases.IsNotFoundErr(err) {
+					return nil, phrases.ErrUnknownIdentifier(IDs[0], "playbook ID")
+				} else {
+					return nil, err
+				}
 			}
 			if f != nil {
 				n, err := f.WriteString(pb.Body)
 				if err != nil {
-					return "", err
+					return nil, err
 				}
-				return phrases.SuccessfullyWroteToFile(n, f.Name()), nil
+				return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, f.Name())}}, nil
 			}
-			return pb.Body + "\n", nil
-
+			return []scaffold.Result{{Output: pb.Body + "\n"}}, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

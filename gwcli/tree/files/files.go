@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -266,7 +267,7 @@ func delete() action.Pair {
 
 func replace() action.Pair {
 	return scaffoldselect.NewSelectAction("replace file contents",
-		"Populate a file with the contents of a local file, clobbering any existing data",
+		"Populate one or many files with the contents of a single local file, clobbering any existing data",
 		"file ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: connection.AdminMode()})
@@ -279,18 +280,32 @@ func replace() action.Pair {
 			}
 			return items, nil
 		},
-		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
 			// slurp file
 			pth, _ := addtlFlags.GetString(ft.Path.Name())
 			contentF, err := os.Open(pth)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			updatedFile, err := connection.Client.PopulateFileFromReader(ID, contentF)
-			if err != nil {
-				return "", err
+			for i, ID := range IDs {
+				if _, err := contentF.Seek(0, 0); err != nil {
+					clilog.Writer.Warn("failed to rewind file", log.KV("file path", pth), log.KVErr(err))
+				}
+				updatedFile, err := connection.Client.PopulateFileFromReader(ID, contentF)
+				if err != nil {
+					results[i] = scaffold.Result{
+						Output:  fmt.Sprintf("failed to repopulate file %s (ID: %s): %v", contentF.Name(), ID, err),
+						Success: false,
+					}
+					continue
+				}
+				results[i] = scaffold.Result{
+					Output:  fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d", updatedFile.Name, updatedFile.ID, updatedFile.Size),
+					Success: false,
+				}
 			}
-			return fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d", updatedFile.Name, updatedFile.ID, updatedFile.Size), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

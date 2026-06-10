@@ -13,7 +13,6 @@ All query creation is done at the top-level query action.
 package queries
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -196,14 +195,22 @@ func stop() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
-		func(ID string, _ *pflag.FlagSet) (success string, _ error) {
-			if err := connection.Client.StopSearch(ID); err != nil {
-				if phrases.IsNotFoundErr(err) {
-					return "", errors.New("there are no running searches with the ID: " + ID)
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.StopSearch(ID); err != nil {
+					var msg string
+					if phrases.IsNotFoundErr(err) {
+						msg = "there are no running searches with the ID: " + ID
+					} else {
+						msg = fmt.Sprintf("failed to stop search %s: %v", ID, err)
+					}
+					results[i] = scaffold.Result{Success: false, Output: msg}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: "stopped search " + ID}
 				}
-				return "", err
 			}
-			return "stopped search " + ID, nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -237,7 +244,8 @@ func save() action.Pair {
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
-		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+
 			name, err := addtlFlags.GetString(ft.Name.Name())
 			clilog.GetFlag(err)
 			notes, err := addtlFlags.GetString("notes")
@@ -252,11 +260,15 @@ func save() action.Pair {
 			} else if !expire.IsZero() {
 				ssp.Expires = expire
 			}
-
-			if err := connection.Client.SaveSearch(ID, ssp); err != nil {
-				return "", err
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.SaveSearch(ID, ssp); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to save search %s: %v", ID, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: "saved search " + ID}
+				}
 			}
-			return "saved search " + ID, nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -285,11 +297,16 @@ func background() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
-		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
-			if err := connection.Client.BackgroundSearch(ID); err != nil {
-				return "", err
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.BackgroundSearch(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to background search %s: %v", ID, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: "backgrounded search " + ID}
+				}
 			}
-			return "backgrounded search " + ID, nil
+			return results, nil
 		},
 		scaffoldselect.Options{})
 }
@@ -318,14 +335,18 @@ func setGroup() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
-		func(ID string, _ *pflag.FlagSet) (success string, _ error) {
-			if err := connection.Client.SetGroups(ID, GIDs); err != nil {
-				return "", err
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.SetGroups(ID, GIDs); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to set groups for search %s: %v", ID, err)}
+				} else if len(GIDs) < 1 {
+					results[i] = scaffold.Result{Success: true, Output: "cleared read groups from search " + ID}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("assigned read access for GIDs %v to search %s", GIDs, ID)}
+				}
 			}
-			if len(GIDs) < 1 {
-				return "cleared read groups from search " + ID, nil
-			}
-			return fmt.Sprint("assigned read access for GIDs ", GIDs, " to search "+ID), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
