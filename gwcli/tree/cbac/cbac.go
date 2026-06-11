@@ -12,6 +12,7 @@ package cbac
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -21,9 +22,12 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -41,6 +45,7 @@ func NewNav() *cobra.Command {
 			listTemplates(),
 			myCapabilities(),
 			get(),
+			edit(),
 			replace(),
 		})
 }
@@ -51,7 +56,15 @@ func listCapabilities() action.Pair {
 		"List every capability by its canonical name and description",
 		types.CapabilityDesc{},
 		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.CapabilityDesc, error) {
-			return connection.Client.CapabilityList()
+			caps, err := connection.Client.CapabilityList()
+			if err != nil {
+				return nil, err
+			}
+			// sort by cat
+			slices.SortStableFunc(caps, func(a, b types.CapabilityDesc) int {
+				return strings.Compare(string(a.Category), string(b.Category))
+			})
+			return caps, nil
 		},
 		map[string]string{
 			"Cap":  "ID",
@@ -62,7 +75,7 @@ func listCapabilities() action.Pair {
 				Use:     "capabilities",
 				Aliases: []string{"caps", "list-caps", "list-capabilities"},
 			},
-			DefaultColumns: []string{"Cap", "Name", "Desc"},
+			DefaultColumns: []string{"Category", "Name", "Desc"},
 		})
 }
 
@@ -72,7 +85,6 @@ func listTemplates() action.Pair {
 		"List every capability grouping (template)",
 		types.CapabilityTemplate{},
 		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.CapabilityTemplate, error) {
-			// TODO we may need additional processing to display the capabilities in each template
 			return connection.Client.CapabilityTemplateList()
 		},
 		map[string]string{
@@ -83,7 +95,7 @@ func listTemplates() action.Pair {
 				Use:     "templates",
 				Aliases: []string{"list-templates"},
 			},
-			DefaultColumns: []string{"Name", "Desc"},
+			DefaultColumns: []string{"Name", "Desc", "Caps"},
 		})
 }
 
@@ -142,7 +154,7 @@ func myCapabilities() action.Pair {
 		})
 }
 
-type getCaps struct {
+type getCaps struct { // TODO should we be using this for list as well?
 	ID string
 	types.CapabilityState
 }
@@ -208,22 +220,34 @@ func get() action.Pair {
 
 // Fine-grain toggle over a single user's or group's capabilities.
 // TODO this would work better as a multistage (issues#2433)
-// TODO this should be a scaffoldselect, but scaffoldselect has operate called against each ID, when we would much prefer to batch submit.
-/*func edit() action.Pair {
-	var id int32  // id if the entity to fetch
-	var user bool // if not user, then group
+func edit() action.Pair {
+	var ( // everything here is destroyed and then re-set in validate
+		id            int32  // id if the entity to fetch
+		user          bool   // if not user, then group
+		grant, revoke bool   // only do this, do not toggle
+		noun          string // "user" or "group"
+	)
 	return scaffoldselect.NewSelectAction(
 		"edit capabilities",
 		"Tune the capabilities assigned to a single user or group.\n"+
-			"Named capabilities will be toggled, unless --enable or --disable are set, in which case redundant operations will be ignored.",
+			"If neither --grant nor --revoke are specified, the given set will supplant the set of capabilities assigned to the user or group.\n"+
+			"Use "+stylesheet.Cur.Action.Render("cbac replace")+" if you wish to replace the capabilities of multiple groups/users at once.",
 		"capability name",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			// NOTE(rlandau): grant/revoke do not affect cap collection for interactive mode; they only alter how the final set is constructed.
+
 			// fetch all caps
-			// TODO
+			caps, err := connection.Client.CapabilityList()
+			if err != nil {
+				return nil, err
+			}
+			// sort by cat
+			slices.SortStableFunc(caps, func(a, b types.CapabilityDesc) int {
+				return strings.Compare(string(a.Category), string(b.Category))
+			})
 
 			// preselect using the caps the user/group has
 			var cs types.CapabilityState
-			var err error
 			if user {
 				cs, err = connection.Client.GetUserCapabilities(id)
 			} else {
@@ -232,58 +256,193 @@ func get() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			caps, err := cs.CapabilityList()
-			if err != nil {
-				typ := "user"
-				if !user {
-					typ = "group"
-				}
-				clilog.Writer.Warn("failed to transform capability state into capability list",
-					log.KV("ID", id), log.KV("type", typ),
-					log.KVErr(err))
-				return nil, err
+			// transform cs into a map for faster lookups
+			preselections := map[string]bool{}
+			for _, grant := range cs.Grants {
+				preselections[grant] = true
 			}
-			// TODO
 
 			data := make([]multiselectlist.SelectableItem[string], len(caps))
 			for i, cap := range caps {
-				data[i] = wrapCapForMSL(cap)
+				data[i] = &multiselectlist.DefaultSelectableItem[string]{
+					ID_:          cap.Name,
+					Title_:       cap.Name,
+					Description_: cap.Desc,
+					Selected_:    preselections[cap.Name],
+				}
 			}
 			return data, nil
 		},
-		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
-			// TODO
+		func(CanonicalCapNames []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, err error) {
+			// IDs now contains the full set of selected capabilities the user should have.
+			// We need to compare it against their current set and toggle, only grant, or only revoke based on the given flags.
+			// As we validate bare arguments, we can guarantee that the list of cap names contains only valid caps.
+
+			switch {
+			case grant: // add selected caps not in the entity's current set
+				results = make([]scaffold.Result, 0, len(CanonicalCapNames))
+				var (
+					caps types.CapabilityState
+				)
+				if user {
+					caps, err = connection.Client.GetUserCapabilities(id)
+				} else {
+					caps, err = connection.Client.GetGroupCapabilities(id)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to refetch current %s capabilities: %w", noun, err)
+				}
+				// insert
+				slices.Sort(caps.Grants)
+				clilog.Writer.Debugf("%s ID %d current caps: %v", noun, id, caps)
+				for _, cap := range CanonicalCapNames {
+					idx, found := slices.BinarySearch(caps.Grants, cap)
+					if !found {
+						caps.Grants = slices.Insert(caps.Grants, idx, cap)
+						results = append(results, scaffold.Result{
+							Success: true,
+							Output:  fmt.Sprintf("added capability '%s' to %s %d", cap, noun, id),
+						})
+					} else {
+						clilog.Writer.Debug("redundant cap specified", log.KV("name", cap))
+					}
+				}
+
+				if user {
+					err = connection.Client.SetUserCapabilities(id, caps)
+				} else {
+					err = connection.Client.SetGroupCapabilities(id, caps)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to install updated set of caps into %s: %w", noun, err)
+				}
+
+				return slices.Clip(results), err
+			case revoke:
+				results = make([]scaffold.Result, 0, len(CanonicalCapNames))
+				var (
+					caps types.CapabilityState
+				)
+				if user {
+					caps, err = connection.Client.GetUserCapabilities(id)
+				} else {
+					caps, err = connection.Client.GetGroupCapabilities(id)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to refetch current %s capabilities: %w", noun, err)
+				}
+				// remove caps
+				slices.Sort(caps.Grants)
+				clilog.Writer.Debugf("%s ID %d current caps: %v", noun, id, caps)
+				for _, cap := range CanonicalCapNames {
+					idx, found := slices.BinarySearch(caps.Grants, cap)
+					if !found {
+						clilog.Writer.Debug("cap specified for deletion not found in target's cap set", log.KV("name", cap))
+						continue
+					}
+					caps.Grants = slices.Delete(caps.Grants, idx, idx+1)
+					results = append(results, scaffold.Result{
+						Success: true,
+						Output:  fmt.Sprintf("removed capability '%s' from %s %d", cap, noun, id),
+					})
+				}
+
+				if user {
+					err = connection.Client.SetUserCapabilities(id, caps)
+				} else {
+					err = connection.Client.SetGroupCapabilities(id, caps)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to install updated set of caps into %s: %w", noun, err)
+				}
+
+				return slices.Clip(results), err
+			default: // supplant cap set with the selections
+				cs := types.CapabilityState{Grants: CanonicalCapNames}
+				if user {
+					err = connection.Client.SetUserCapabilities(id, cs)
+				} else {
+					err = connection.Client.SetGroupCapabilities(id, cs)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to install updated set of caps into %s: %w", noun, err)
+				}
+				return []scaffold.Result{
+					{Success: true, Output: fmt.Sprintf("replaced %s ID %d's capability set with %v", noun, id, CanonicalCapNames)},
+				}, nil
+			}
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
+				Use: "edit",
+				Usage: "edit " +
+					ft.MutuallyExclusive([]string{"--uid", "--gid"}) +
+					ft.Optional(ft.MutuallyExclusive([]string{"--grant", "--revoke"})),
+				Example: "edit --uid=5",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					fs.Bool("clear", false, "drop all current permissions before assigning the given set")
-					fs.Int32("uid", 0, "IDs of the users to edit.\n"+
+					fs.Int32("uid", 0, "ID of the user to edit.\n"+
 						"Mutually exclusive with --gid")
-					fs.Int32("gid", 0, "IDs of the groups to edit.\n"+
+					fs.Int32("gid", 0, "ID of the group to edit.\n"+
 						"Mutually exclusive with --uid")
+					fs.Bool("grant", false, "Only grant caps; no caps will be removed through this call")
+					fs.Bool("revoke", false, "Only revoke caps; no caps will be added through this call")
 					return fs
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				id, err = fs.GetInt32("uid")
+				// ensure all prior data is destroyed
+				id = 0
+				user, grant, revoke = false, false, false
+				noun = ""
+
+				// fetch specifications for this run
+				uid, err := fs.GetInt32("uid")
 				clilog.GetFlag(err)
+				if uid != 0 {
+					noun = "user"
+					id = uid
+				}
 				gid, err := fs.GetInt32("gid")
 				clilog.GetFlag(err)
 				if gid != 0 {
 					if id != 0 {
 						return "--uid and --gid are mutually exclusive", nil
 					}
-					gid = id
+					noun = "group"
+					id = gid
 				}
 				if id == 0 {
 					return "you must specify --uid or --gid", nil
 				}
+				grant, err = fs.GetBool("grant")
+				clilog.GetFlag(err)
+				revoke, err = fs.GetBool("revoke")
+				clilog.GetFlag(err)
+				if grant && revoke {
+					return "--grant and --revoke are mutually exclusive", nil
+				}
+
+				// ensure that pre-selected cap names are valid
+				bare := fs.Args()
+				if len(bare) > 0 {
+					caps, err := connection.Client.CapabilityList()
+					if err != nil {
+						return "", err
+					}
+					for _, arg := range bare {
+						if !slices.ContainsFunc(caps, func(c types.CapabilityDesc) bool {
+							return c.Name == arg
+						}) {
+							return arg + " is not a valid, canonical capability name", nil
+						}
+					}
+				}
+
 				return "", nil
 			},
 		})
-}*/
+}
 
 // TODO this would work better as a multistage (issues#2433)
 func replace() action.Pair {
