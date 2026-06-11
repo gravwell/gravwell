@@ -38,11 +38,16 @@ import (
 )
 
 // CollectItemsFunc is used in interactive mode to populate the list of selectable items.
+// It will NOT be called if DirectInvoked or NoInteractive.
 //
 // ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
 type CollectItemsFunc[ID_t scaffold.Id_t] func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[ID_t], error)
 
 // OperateFunc performs the actual operation (toggling, cloning, updating, etc) on the final set of selected IDs.
+//
+// - IDs is the set of identifiers the user provided as bare arguments or interactively selected from the items in CollectItems.
+// As a user can bypass CollectItems by prioviding bare arguments, these IDs are not guaranteed to be valid.
+//
 // ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
 //
 // results will be printed as they are given, in the order given.
