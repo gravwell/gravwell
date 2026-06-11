@@ -46,7 +46,7 @@ func NewNav() *cobra.Command {
 			myCapabilities(),
 			get(),
 			edit(),
-			replace(),
+			set(),
 		})
 }
 
@@ -142,6 +142,11 @@ func myCapabilities() action.Pair {
 				}
 			}
 
+			// sort by cat
+			slices.SortStableFunc(caps, func(a, b capExp) int {
+				return strings.Compare(string(a.Category), string(b.Category))
+			})
+
 			return caps, nil
 		},
 		nil, // implicit in the wrapper type
@@ -150,7 +155,7 @@ func myCapabilities() action.Pair {
 				Use:     "my",
 				Aliases: []string{"self", "current", "my-capabilities", "my-caps"},
 			},
-			DefaultColumns: []string{"Cap", "Name", "UserGrant", "GroupGrants"},
+			DefaultColumns: []string{"Category", "Name", "UserGrant", "GroupGrants"},
 		})
 }
 
@@ -445,7 +450,7 @@ func edit() action.Pair {
 }
 
 // TODO this would work better as a multistage (issues#2433)
-func replace() action.Pair {
+func set() action.Pair {
 	return scaffoldcreate.NewCreateAction("capabilities",
 		map[string]scaffoldcreate.Field{
 			"users": {
@@ -496,7 +501,7 @@ func replace() action.Pair {
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						lr, err := connection.Client.ListGroups(nil)
 						if err != nil {
-							clilog.Writer.Error("failed to get user list", log.KVErr(err))
+							clilog.Writer.Error("failed to get group list", log.KVErr(err))
 						} else if len(lr.Results) < 1 {
 							return nil
 						}
@@ -532,7 +537,7 @@ func replace() action.Pair {
 						data := make([]multiselectlist.SelectableItem[string], len(allCaps))
 						for i, cap := range allCaps {
 							data[i] = &multiselectlist.DefaultSelectableItem[string]{
-								ID_:          strconv.FormatInt(int64(cap.Cap), 10),
+								ID_:          cap.Name,
 								Title_:       cap.Name,
 								Description_: cap.Desc,
 							}
@@ -542,29 +547,26 @@ func replace() action.Pair {
 				}),
 			},
 		},
-		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (_ any, invalid string, _ error) {
 			// get set of entities to update
 			var uids []int32
-			if s := fields["users"].Provider.Get(); true {
-				for sUID := range strings.SplitSeq(s, scaffoldcreate.MSLProviderSeparator) {
-					id, err := strconv.ParseInt(sUID, 10, 32)
-					if err != nil {
-						clilog.Writer.Error("failed to parse user ID from MSLProvider Get() into int32", log.KV("string", sUID), log.KVErr(err))
-						return 0, "", clilog.ErrInternal{}
-					}
-					uids = append(uids, int32(id))
+			for sUID := range strings.SplitSeq(fields["users"].Provider.Get(), scaffoldcreate.MSLProviderSeparator) {
+				id, err := strconv.ParseInt(sUID, 10, 32)
+				if err != nil {
+					clilog.Writer.Error("failed to parse user ID from MSLProvider Get() into int32", log.KV("string", sUID), log.KVErr(err))
+					return 0, "", clilog.ErrInternal{}
 				}
+				uids = append(uids, int32(id))
 			}
+
 			var gids []int32
-			if s := fields["groups"].Provider.Get(); true {
-				for sGID := range strings.SplitSeq(s, scaffoldcreate.MSLProviderSeparator) {
-					id, err := strconv.ParseInt(sGID, 10, 32)
-					if err != nil {
-						clilog.Writer.Error("failed to parse group ID from MSLProvider Get() into int32", log.KV("string", sGID), log.KVErr(err))
-						return 0, "", clilog.ErrInternal{}
-					}
-					gids = append(gids, int32(id))
+			for sGID := range strings.SplitSeq(fields["groups"].Provider.Get(), scaffoldcreate.MSLProviderSeparator) {
+				id, err := strconv.ParseInt(sGID, 10, 32)
+				if err != nil {
+					clilog.Writer.Error("failed to parse group ID from MSLProvider Get() into int32", log.KV("string", sGID), log.KVErr(err))
+					return 0, "", clilog.ErrInternal{}
 				}
+				gids = append(gids, int32(id))
 			}
 
 			if len(uids)+len(gids) < 1 { // nonsense request
@@ -590,7 +592,10 @@ func replace() action.Pair {
 			return 0, "", nil // TODO what will this print?
 		},
 		scaffoldcreate.Options{
-			Short: "replace capabilities of users and groups",
-			Long:  "Supplant the capabilities of each selected user and group by providing a new set of capabilities.",
+			CommonOptions: scaffold.CommonOptions{
+				Use: "set",
+			},
+			Short: "set capabilities of users and groups",
+			Long:  "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
 		})
 }
