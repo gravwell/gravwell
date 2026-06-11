@@ -50,6 +50,7 @@ func NewNav() *cobra.Command {
 			sessionsAction(),
 			changePassword(),
 			toggleAdmin(),
+			//history(),
 		})
 }
 
@@ -464,3 +465,18 @@ func unlock() action.Pair {
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no locked accounts you can unlock." },
 		})
 }
+
+// TODO history cannot be completed with GetUserSearchHistory() dead.
+/*func history() action.Pair {
+	return scaffoldlist.NewListAction("display users' search histories", "Get the search history of users by their UID",
+		types.SearchHistoryEntry{},
+		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
+			lr, err := connection.Client.ListSearchHistory(params.QueryOpts)
+			return lr.Results, err
+		}, nil, scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "search-history",
+			},
+		},
+	)
+}*/
