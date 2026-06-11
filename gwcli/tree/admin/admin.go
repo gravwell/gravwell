@@ -21,8 +21,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -32,6 +34,7 @@ import (
 	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -522,6 +525,449 @@ func validateBackup() action.Pair {
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
 					return phrases.AtLeast1ArgRequired("path to backup file"), nil
+				}
+				return "", nil
+			},
+		})
+}
+
+func massChown() action.Pair {
+	return scaffold.NewBasicAction("mass-chown", "transfer all items to another user",
+		"Mass transfer all items owned by one user to another user",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			from, _ := fs.GetInt32("from")
+
+			// ensure we are in admin mode to ensure we get all data
+			if !connection.Client.AdminMode() {
+				connection.Client.SetAdminMode()
+				defer connection.Client.ClearAdminMode()
+			}
+			// fetch ALL items owned by the FROM user
+			data := make([]multiselectlist.SelectableItem[string], 0)
+			qo := &types.QueryOptions{
+				Filters: []types.Filter{
+					{Key: "OwnerID", Operation: "=", Values: []any{from}},
+				},
+			}
+
+			// saved queries
+			if lr, err := connection.Client.ListAllSavedQueries(qo); err != nil {
+				clilog.Writer.Error("failed to get saved queries", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// dashboards
+			if lr, err := connection.Client.ListAllDashboards(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// kits
+			// TODO currently being skipped, as they were skipped pre-6.0.0
+			// extractions
+			if lr, err := connection.Client.ListAllExtractions(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// actionables
+			if lr, err := connection.Client.ListAllActionables(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// playbooks
+			if lr, err := connection.Client.ListAllPlaybooks(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// scheduled searches
+			if lr, err := connection.Client.ListAllScheduledSearches(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// scheduled scripts
+			if lr, err := connection.Client.ListAllScheduledScripts(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// files
+			if lr, err := connection.Client.ListAllFiles(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// templates
+			if lr, err := connection.Client.ListAllTemplates(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// resources
+			if lr, err := connection.Client.ListAllResources(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// macros
+			if lr, err := connection.Client.ListAllMacros(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// flows
+			if lr, err := connection.Client.ListAllFlows(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// alerts
+			if lr, err := connection.Client.ListAllAlerts(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Int32("to", 0, "user ID  to transfer ownership to")
+					fs.Int32("from", 0, "user ID to transfer ownership from")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				to, err := fs.GetInt32("to")
+				clilog.GetFlag(err)
+				from, err := fs.GetInt32("from")
+				clilog.GetFlag(err)
+				if to == 0 && from == 0 {
+					return "--to and --from are required", nil
+				} else if to == 0 {
+					return "--to is required", nil
+				} else if from == 0 {
+					return "--from is required", nil
+				} else if to == from {
+					return "refusing to transfer items from and to the same user", nil
+				}
+				return "", nil
+			},
+		})
+}
+
+func chown() action.Pair {
+	return scaffoldselect.NewSelectAction("change individual data ownership",
+		"Transfer ownership of specific data from one user to another.",
+		"item",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			from, _ := addtlFlags.GetInt32("from")
+
+			// ensure we are in admin mode to ensure we get all data
+			if !connection.Client.AdminMode() {
+				connection.Client.SetAdminMode()
+				defer connection.Client.ClearAdminMode()
+			}
+			// fetch ALL items owned by the FROM user
+			data := make([]multiselectlist.SelectableItem[string], 0)
+			qo := &types.QueryOptions{
+				Filters: []types.Filter{
+					{Key: "OwnerID", Operation: "=", Values: []any{from}},
+				},
+			}
+
+			// saved queries
+			if lr, err := connection.Client.ListAllSavedQueries(qo); err != nil {
+				clilog.Writer.Error("failed to get saved queries", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// dashboards
+			if lr, err := connection.Client.ListAllDashboards(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// kits
+			// TODO currently being skipped, as they were skipped pre-6.0.0
+			// extractions
+			if lr, err := connection.Client.ListAllExtractions(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// actionables
+			if lr, err := connection.Client.ListAllActionables(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// playbooks
+			if lr, err := connection.Client.ListAllPlaybooks(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// scheduled searches
+			if lr, err := connection.Client.ListAllScheduledSearches(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// scheduled scripts
+			if lr, err := connection.Client.ListAllScheduledScripts(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// files
+			if lr, err := connection.Client.ListAllFiles(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// templates
+			if lr, err := connection.Client.ListAllTemplates(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// resources
+			if lr, err := connection.Client.ListAllResources(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// macros
+			if lr, err := connection.Client.ListAllMacros(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// flows
+			if lr, err := connection.Client.ListAllFlows(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			// alerts
+			if lr, err := connection.Client.ListAllAlerts(qo); err != nil {
+				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
+				return nil, err
+			} else {
+				for _, res := range lr.Results {
+					data = append(data, &listitem.Generic{
+						ID_:        res.ID,
+						Name:       res.Name,
+						SecondLine: res.Description,
+					})
+				}
+			}
+			return data, nil
+		},
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			// TODO
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Int32("to", 0, "user ID  to transfer ownership to")
+					fs.Int32("from", 0, "user ID to transfer ownership from")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				to, err := fs.GetInt32("to")
+				clilog.GetFlag(err)
+				from, err := fs.GetInt32("from")
+				clilog.GetFlag(err)
+				if to == 0 && from == 0 {
+					return "--to and --from are required", nil
+				} else if to == 0 {
+					return "--to is required", nil
+				} else if from == 0 {
+					return "--from is required", nil
+				} else if to == from {
+					return "refusing to transfer items from and to the same user", nil
 				}
 				return "", nil
 			},
