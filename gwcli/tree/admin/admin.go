@@ -30,7 +30,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/license"
 	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -56,6 +58,7 @@ func NewNav() *cobra.Command {
 			backup(),
 			restore(),
 			Status("status"),
+			listUserSearchStorage(),
 		},
 	)
 }
@@ -223,7 +226,10 @@ func addIndexer() action.Pair {
 			}
 			var sb strings.Builder
 			for k, v := range errors {
-				sb.WriteString(k + ": " + v + "\n")
+				sb.WriteString(k)
+				sb.WriteString(": ")
+				sb.WriteString(v)
+				sb.WriteString("\n")
 			}
 			out := strings.TrimRight(sb.String(), "\n")
 			if out == "" {
@@ -408,5 +414,74 @@ func toggle(isAdministrator bool) (string, tea.Cmd) {
 	}
 	connection.Client.ClearAdminMode()
 	return "You are no longer in admin mode", nil
+
+}
+
+type userSearchStorage struct {
+	UID      int32
+	Username string // username
+	Stored   string // humanized int64
+}
+
+func listUserSearchStorage() action.Pair {
+	return scaffoldlist.NewListAction("show the storage of each user's searches",
+		"Display the cumulative storage space consumed by each user's active searches.\n"+
+			"This does not factor in other items related to this user that are stored on the system.",
+		userSearchStorage{},
+		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]userSearchStorage, error) {
+			statuses, err := connection.Client.ListAllSearchStatuses()
+			if err != nil {
+				return nil, err
+			} else if len(statuses) < 1 {
+				return nil, nil
+			}
+			storageMap := map[int32]int64{}
+			for _, s := range statuses {
+				if s.StoredData > 0 {
+					storageMap[s.UID] += s.StoredData // starts as bytes
+				}
+			}
+			if len(storageMap) < 1 {
+				return nil, nil
+			}
+
+			// map usernames to their IDs and humanize storage costs
+			userMap, err := connection.Client.GetUserMap()
+			if err != nil { // failing to fetch usernames is fine, just make sure the map is initialized
+				clilog.Writer.Warn("failed to fetch list of users", log.KVErr(err))
+			} else if userMap == nil {
+				userMap = map[int32]string{}
+			}
+			storage := make([]userSearchStorage, len(storageMap))
+			// sort by size, descending
+			sorted := slices.Collect(maps.Keys(storageMap))
+			slices.SortStableFunc(sorted, func(uidA, uidB int32) int {
+				if storageMap[uidA] < storageMap[uidB] {
+					return 1
+				} else if storageMap[uidA] > storageMap[uidB] {
+					return -1
+				}
+				return 0
+			})
+			for i, uid := range sorted {
+				username := "[unknown]"
+				if u, found := userMap[uid]; found {
+					username = u
+				}
+				storage[i] = userSearchStorage{
+					UID:      uid,
+					Username: username,
+					Stored:   ingest.HumanSize(uint64(storageMap[uid])),
+				}
+			}
+			return storage, nil
+		},
+		nil, scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "search-storage",
+			},
+			DefaultColumns: []string{"Username", "UID", "Stored"},
+			EmptyMessage:   "There are no active searches currently storing data."},
+	)
 
 }
