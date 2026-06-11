@@ -10,7 +10,6 @@
 package kits
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,7 +18,6 @@ import (
 	"path"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -54,20 +52,19 @@ func NewNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
-			delete(),
+			uninstall(),
 			//install(),
 			upload(),
 			pull(),
 			remote(),
 			download(),
-			buildKit(),
 		})
 }
 
 func listAction() action.Pair {
 	var uuidsFlag *pflag.Flag
 	return scaffoldlist.NewListAction(
-		"list installed and staged kits", "Lists kits visible to you or, if you are an admin, available on this system.",
+		"list installed and staged kits", "Lists system kits visible to you or, if you are an admin, available on this system.",
 		types.IdKitState{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.IdKitState, error) {
 			var err error
 			var kits []types.IdKitState
@@ -105,6 +102,7 @@ func listAction() action.Pair {
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"get"},
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					uuidsFlag = fs.VarPF(pflagtypes.NewUUIDSliceValue(nil, ','), "uuids", "", "Fetch a specific set of kits by UUID")
@@ -121,7 +119,7 @@ func listAction() action.Pair {
 		})
 }
 
-func delete() action.Pair {
+func uninstall() action.Pair {
 	return scaffolddelete.NewDeleteAction("kit", "kits",
 		func(dryrun bool, id string) error {
 			if dryrun {
@@ -152,12 +150,13 @@ func delete() action.Pair {
 			return items, nil
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"uninstall", "remove"},
+				Use:     "uninstall",
+				Aliases: []string{"delete", "remove"},
 			},
 		})
 }
 
-// TODO I'm not convinced we can reliably filter down to staged kits.
+// TODO
 /*func install() action.Pair {
 	return scaffoldselect.NewSelectAction("install a staged kit",
 		"Install a kit that has been uploaded/staged, queuing it for full installed.",
@@ -368,7 +367,7 @@ func download() action.Pair {
 // buildKit assembles a kit from a JSON build-request file and returns the resulting kit UUID.
 // The JSON must match the types.KitBuildRequest structure.
 // See https://docs.gravwell.io/api/kits.html for the spec.
-func buildKit() action.Pair {
+/*func buildKit() action.Pair {
 	return scaffold.NewBasicAction("build", "build a kit from a JSON spec file",
 		"Assemble a new kit from a JSON file that describes its contents.\n"+
 			"The JSON must conform to the KitBuildRequest schema.\n\n"+
@@ -406,3 +405,4 @@ func buildKit() action.Pair {
 			},
 		})
 }
+*/
