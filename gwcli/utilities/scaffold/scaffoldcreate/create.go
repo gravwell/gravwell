@@ -124,6 +124,8 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 			} else if inv != "" { // some of the flags were invalid
 				fmt.Fprintln(c.OutOrStdout(), inv)
 				return errors.New(inv)
+			} else if opts.IDIsSuccessMessage {
+				fmt.Fprint(c.OutOrStdout(), id)
 			} else {
 				fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem(singular, id))
 			}
@@ -180,6 +182,8 @@ type createModel struct {
 	// current state of the flagset, Reset to addtlFlagFunc + installFlags
 	fs pflag.FlagSet
 	cf CreateFuncT // function to create the new entity
+
+	IDIsSuccessMessage bool
 }
 
 // SubmitSelect returns if the select button is currently selected by the user.
@@ -197,8 +201,9 @@ func newCreateModel(fields map[string]Field, singular string, createFunc CreateF
 		inputs: inputs{
 			ordered: slices.Collect(maps.Keys(fields)),
 		},
-		addtlFlagFunc: opts.AddtlFlags,
-		cf:            createFunc,
+		addtlFlagFunc:      opts.AddtlFlags,
+		cf:                 createFunc,
+		IDIsSuccessMessage: opts.IDIsSuccessMessage,
 	}
 
 	// set flags by mining fields and, if applicable, tacking on additional flags
@@ -285,7 +290,11 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		}
 		// done, die
 		c.mode = quitting
+		if c.IDIsSuccessMessage {
+			return tea.Println(id)
+		}
 		return tea.Println(phrases.SuccessfullyCreatedItem(c.singular, id))
+
 	}
 	if c.SubmitSelected() { // if submit is selected and it wasn't handled above, we don't care about it
 		return nil
