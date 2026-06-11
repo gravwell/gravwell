@@ -23,39 +23,6 @@ It can access field data via fields[<>].Provider.Get().
 This scaffold is a bit easier to extend than Delete and List, given it did not require generics.
 
 ! The field map, once given to NewCreateAction, should be considered read-only.
-
-Example implementation:
-
-	func NewCreateAction() action.Pair {
-		fields := map[string]scaffoldcreate.Field{
-			"name":  scaffoldcreate.NewField(true, "name", 100),
-			"value": scaffoldcreate.NewField(true, "value", 90),
-			"capabilities": {
-				Required: false,
-				Title:    "capabilities",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "comma-separated list of capabilities to grant the token", Shorthand: 'c'},
-				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
-					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						var itms []multiselectlist.SelectableItem[string]
-						// Hijack SetArgs to change the items available in the list.
-						// ...
-						return itms
-					},
-				}),
-				Order: 80,
-			},
-		}
-
-		return scaffoldcreate.NewCreateAction("", fields, create)
-	}
-
-	func create(fields map[string]scaffoldcreate.Field, vals scaffoldcreate.Values) (any, string, error) {
-		name := fields["name"].Provider.Get()
-		value := fields["value"].Provider.Get()
-		caps := fields["capabilities"].Provider.Get()
-		id, err := connection.Client.X(name, value, caps)
-		return id, "", err
-	}
 */
 package scaffoldcreate
 
