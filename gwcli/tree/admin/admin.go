@@ -12,6 +12,7 @@ package admin
 
 import (
 	"fmt"
+	"gravwell/pkg/utils"
 	"maps"
 	"os"
 	"slices"
@@ -59,6 +60,7 @@ func NewNav() *cobra.Command {
 			restore(),
 			Status("status"),
 			listUserSearchStorage(),
+			validateBackup(),
 		},
 	)
 }
@@ -483,5 +485,45 @@ func listUserSearchStorage() action.Pair {
 			DefaultColumns: []string{"Username", "UID", "Stored"},
 			EmptyMessage:   "There are no active searches currently storing data."},
 	)
+}
 
+func validateBackup() action.Pair {
+	return scaffold.NewBasicAction("validate-backup", "validate backup files",
+		"Test that local gravwell backups are valid.",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			var sb strings.Builder
+			for _, path := range fs.Args() {
+				f, err := os.Open(path)
+				if err != nil {
+					sb.WriteString(stylesheet.Cur.ErrorText.Render(err.Error()))
+					sb.WriteString("\n")
+					continue
+				}
+				// the load does a full validation of the underlying
+				ht, err := utils.LoadHashingTar(f, types.CanonicalVersion{}, types.CanonicalVersion{})
+				if err != nil {
+					fmt.Fprintf(&sb, "backup %s is invalid: %v\n", path, err)
+					f.Close()
+					continue
+				}
+				objCount, version, err := ht.Info()
+				if err != nil {
+					fmt.Fprintf(&sb, "backup %s is invalid: %v\n", path, err)
+					f.Close()
+					continue
+				}
+				fmt.Fprintf(&sb, "backup %s validated with %d objects (created by Gravwell version %s)\n",
+					path, objCount, version.Build.CanonicalVersion.String())
+				f.Close()
+			}
+			return sb.String(), nil
+		},
+		scaffold.BasicOptions{
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() < 1 {
+					return phrases.AtLeast1ArgRequired("path to backup file"), nil
+				}
+				return "", nil
+			},
+		})
 }
