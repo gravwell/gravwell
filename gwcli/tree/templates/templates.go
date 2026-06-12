@@ -12,19 +12,25 @@ Package templates defines the templates nav, which holds data related to... er, 
 package templates
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -44,6 +50,7 @@ For instance, templates which expect an IP address as their variable can be used
 			//create(),
 			delete(),
 			edit(),
+			show(),
 			//download(),
 		})
 }
@@ -204,4 +211,96 @@ func edit() action.Pair {
 		},
 	}
 	return scaffoldedit.NewEditAction("template", "templates", cfg, funcs)
+}
+
+// for to/from JSON
+type content struct {
+	Query     string
+	Variables []types.TemplateVariable
+}
+
+func show() action.Pair {
+	return scaffoldselect.NewSelectAction("display template contents", "Display the contents of a template", "template",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			templates, err := connection.Client.ListTemplates(nil) // TODO need to pass in params
+			if err != nil {
+				return nil, err
+			}
+			data := make([]multiselectlist.SelectableItem[string], len(templates.Results))
+			for i, template := range templates.Results {
+				data[i] = &listitem.Generic{
+					ID_:        template.ID,
+					Name:       template.Name,
+					SecondLine: template.Description,
+				}
+			}
+			return data, nil
+		},
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())
+			clilog.GetFlag(err)
+
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				template, err := connection.Client.GetTemplate(ID)
+				if phrases.IsNotFoundErr(err) {
+					results[i] = scaffold.Result{
+						Output: phrases.ErrUnknownIdentifier(ID, "flow ID").Error(),
+					}
+					continue
+				} else if err != nil {
+					clilog.Writer.Warn("failed to get template", log.KV("ID", ID), log.KVErr(err))
+					results[i] = scaffold.Result{
+						Output: err.Error(),
+					}
+					continue
+				}
+				// compose output
+				if asJSON {
+					content := content{Query: template.Query, Variables: template.Variables}
+					b, err := json.Marshal(content)
+					if err != nil {
+						clilog.Writer.Error("failed to marshal content", log.KV("content", content), log.KVErr(err))
+						results[i] = scaffold.Result{Output: "failed to marshal content: " + err.Error()}
+						continue
+					}
+					results[i] = scaffold.Result{Success: true, Output: string(b)}
+					continue
+				}
+				var sb strings.Builder
+				sb.WriteString("ID ")
+				sb.WriteString(ID)
+				sb.WriteString(": ")
+				sb.WriteString(template.Query)
+				sb.WriteString("\n")
+				for _, variable := range template.Variables {
+					requiredString := ""
+					if variable.Required {
+						requiredString = " (required)"
+					}
+					fmt.Fprintf(&sb,
+						"\t%s=%s%s\n"+
+							"\t\t%s\n",
+						variable.Name, variable.DefaultValue, requiredString,
+						variable.Description)
+				}
+
+				results[i] = scaffold.Result{
+					Success: true,
+					Output:  sb.String()[:sb.Len()-1],
+				}
+
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "show",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.JSON.Register(fs)
+					return fs
+				},
+			},
+		})
 }
