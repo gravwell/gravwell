@@ -10,6 +10,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -664,8 +665,9 @@ func unpackKit(args []string) {
 	// if zero-hash flag is set, zero out all the hashes in the manifest
 	if *fZeroHash {
 		// Zero out all the hashes in the manifest
+		zeroHash := [sha256.Size]byte{}
 		for i := range mf.Items {
-			mf.Items[i].Hash = [sha256.Size]byte{}
+			mf.Items[i].Hash = hex.EncodeToString(zeroHash[:])
 		}
 	}
 

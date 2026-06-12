@@ -40,7 +40,7 @@ require (
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
 	github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d
-	github.com/gravwell/gravwell/v3 v3.8.73
+	github.com/gravwell/gravwell/v3 v3.8.80-0.20260515215027-220e2449b547
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
 	github.com/gravwell/jsonparser v0.0.0-20241122184510-d9e3b05f5d3b
@@ -50,7 +50,7 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jaswdr/faker/v2 v2.3.2
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.6
 	github.com/magefile/mage v1.17.2
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.3
