@@ -128,6 +128,9 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 			return nil, err
 		}
 
+		// ensure SetArgs has been called here in case we need to late-populate
+		// This is a hack while we await mono#2448.
+		fields[key].Provider.SetArgs(80, 60)
 		if invalid := fields[key].Provider.Set(v); invalid != "" {
 			return nil, fmt.Errorf("%s is not a valid input to --%s: %s", v, fields[key].Flag.Name, invalid)
 		}

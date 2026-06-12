@@ -407,6 +407,7 @@ func edit() action.Pair {
 				if uid != 0 {
 					noun = "user"
 					id = uid
+					user = true
 				}
 				gid, err := fs.GetInt32("gid")
 				clilog.GetFlag(err)
@@ -521,8 +522,9 @@ func set() action.Pair {
 				Title:    "Capabilities",
 				Required: false,
 				Flag: scaffoldcreate.FlagConfig{
-					Name:  "capabilities",
-					Usage: "Canonical names of the capabilities to set",
+					Name: "caps",
+					Usage: "Canonical names of the capabilities to set." +
+						"Omitting this field will clear all capabilities from specified users and groups!",
 				},
 				Order: 160,
 				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
@@ -550,23 +552,29 @@ func set() action.Pair {
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (_ any, invalid string, _ error) {
 			// get set of entities to update
 			var uids []int32
-			for sUID := range strings.SplitSeq(fields["users"].Provider.Get(), scaffoldcreate.MSLProviderSeparator) {
-				id, err := strconv.ParseInt(sUID, 10, 32)
-				if err != nil {
-					clilog.Writer.Error("failed to parse user ID from MSLProvider Get() into int32", log.KV("string", sUID), log.KVErr(err))
-					return 0, "", clilog.ErrInternal{}
+			users := strings.TrimSpace(fields["users"].Provider.Get())
+			if users != "" {
+				for sUID := range strings.SplitSeq(users, scaffoldcreate.MSLProviderSeparator) {
+					id, err := strconv.ParseInt(sUID, 10, 32)
+					if err != nil {
+						clilog.Writer.Error("failed to parse user ID from MSLProvider Get() into int32", log.KV("string", sUID), log.KVErr(err))
+						return 0, "", clilog.ErrInternal{}
+					}
+					uids = append(uids, int32(id))
 				}
-				uids = append(uids, int32(id))
 			}
 
 			var gids []int32
-			for sGID := range strings.SplitSeq(fields["groups"].Provider.Get(), scaffoldcreate.MSLProviderSeparator) {
-				id, err := strconv.ParseInt(sGID, 10, 32)
-				if err != nil {
-					clilog.Writer.Error("failed to parse group ID from MSLProvider Get() into int32", log.KV("string", sGID), log.KVErr(err))
-					return 0, "", clilog.ErrInternal{}
+			groups := strings.TrimSpace(fields["groups"].Provider.Get())
+			if groups != "" {
+				for sGID := range strings.SplitSeq(groups, scaffoldcreate.MSLProviderSeparator) {
+					id, err := strconv.ParseInt(sGID, 10, 32)
+					if err != nil {
+						clilog.Writer.Error("failed to parse group ID from MSLProvider Get() into int32", log.KV("string", sGID), log.KVErr(err))
+						return 0, "", clilog.ErrInternal{}
+					}
+					gids = append(gids, int32(id))
 				}
-				gids = append(gids, int32(id))
 			}
 
 			if len(uids)+len(gids) < 1 { // nonsense request
@@ -575,27 +583,56 @@ func set() action.Pair {
 
 			// construct set of new caps
 			var newCaps types.CapabilityState
-			for cap := range strings.SplitSeq(fields["caps"].Provider.Get(), scaffoldcreate.MSLProviderSeparator) {
-				newCaps.Grants = append(newCaps.Grants, cap)
+			if caps := strings.TrimSpace(fields["caps"].Provider.Get()); caps != "" {
+				for cap := range strings.SplitSeq(caps, scaffoldcreate.MSLProviderSeparator) {
+					newCaps.Grants = append(newCaps.Grants, cap)
+				}
 			}
+
 			// execute
 			for _, uid := range uids {
 				if err := connection.Client.SetUserCapabilities(uid, newCaps); err != nil {
-					return 0, "", err
+					return 0, "", fmt.Errorf("uid: %w", err)
 				}
 			}
 			for _, gid := range gids {
 				if err := connection.Client.SetGroupCapabilities(gid, newCaps); err != nil {
-					return 0, "", err
+					return 0, "", fmt.Errorf("gid: %w", err)
 				}
 			}
-			return 0, "", nil // TODO what will this print?
+
+			var sb strings.Builder
+			// craft success message
+			if len(newCaps.Grants) < 1 {
+				sb.WriteString("removed all capabilities from")
+			} else {
+				sb.WriteString("replaced the capabilities of")
+			}
+			if len(uids) > 0 {
+				fmt.Fprintf(&sb, " users %v", uids)
+			}
+			if len(gids) > 0 {
+				if len(uids) > 0 {
+					fmt.Fprintf(&sb, " and")
+				}
+				fmt.Fprintf(&sb, " groups %v", gids)
+			}
+			if len(newCaps.Grants) > 1 {
+				fmt.Fprintf(&sb, " with %v", newCaps.Grants)
+			}
+
+			return "Replaced the capabilities of ", "", nil // TODO custom success message
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "set",
+				Usage: "set " +
+					ft.MutuallyExclusive([]string{"--uids", "--gids"}) +
+					ft.Mandatory("--caps"),
+				Aliases: []string{"replace"},
 			},
-			Short: "set capabilities of users and groups",
-			Long:  "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
+			Short:              "set capabilities of users and groups",
+			Long:               "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
+			IDIsSuccessMessage: true,
 		})
 }
