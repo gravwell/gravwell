@@ -9,7 +9,6 @@
 package types
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -58,7 +57,7 @@ type KitItem struct {
 	Description string
 	Type        KitAssetType
 	ID          string // Unique
-	Hash        [sha256.Size]byte
+	Hash        string
 
 	// The fields below may be set depending on the type.
 	DefaultDeploymentRules AutomationDeployConfig `json:",omitempty"` // set by automations (scripts, scheduled searches, flows)

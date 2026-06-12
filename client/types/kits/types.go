@@ -9,7 +9,6 @@
 package kits
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -56,22 +55,6 @@ func (p *PackedFile) Validate() error {
 	return nil
 }
 
-// JSONMetadata returns additional information about the file.
-func (p *PackedFile) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name        string
-		Description string
-		Size        uint64
-		Labels      []string
-	}{
-		Name:        p.Name,
-		Description: p.Description,
-		Size:        p.Size,
-		Labels:      p.Labels,
-	})
-	return json.RawMessage(b), err
-}
-
 // PackedMacro is a stripped-down representation of a macro object for inclusion in a kit.
 type PackedMacro struct {
 	ID          string
@@ -103,22 +86,6 @@ func (pm *PackedMacro) Validate() error {
 		return errors.New("Missing macro expansion")
 	}
 	return nil
-}
-
-// JSONMetadata returns additional information about the macro.
-func (pm *PackedMacro) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		ID          string
-		Name        string
-		Description string
-		Expansion   string
-	}{
-		ID:          pm.ID,
-		Name:        pm.Name,
-		Description: pm.Description,
-		Expansion:   pm.Expansion,
-	})
-	return json.RawMessage(b), err
 }
 
 // PackedResource is a stripped-down representation of a resource for inclusion in a kit.
@@ -163,22 +130,6 @@ func (p *PackedResource) Validate() error {
 		return nil //short circuit, if its empty there is no hash
 	}
 	return nil
-}
-
-// JSONMetadata returns additional information about the resource.
-func (p *PackedResource) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name        string
-		Description string
-		Size        uint64
-		Labels      []string
-	}{
-		Name:        p.Name,
-		Description: p.Description,
-		Size:        p.Size,
-		Labels:      p.Labels,
-	})
-	return json.RawMessage(b), err
 }
 
 // PackedScheduledSearch is a stripped-down representation of a scheduled search for inclusion in a kit.
@@ -240,26 +191,6 @@ func (pss *PackedScheduledSearch) Unpackage(uid int32, gids []int32) (ss types.S
 	return
 }
 
-// JSONMetadata returns additional info about the PackedScheduledSearch in JSON format.
-func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name            string
-		Description     string
-		Schedule        string
-		SearchString    string `json:",omitempty"`
-		SearchReference string `json:",omitempty"`
-		Duration        int64  `json:",omitempty"`
-	}{
-		Name:            pss.Name,
-		Description:     pss.Description,
-		Schedule:        pss.Schedule,
-		SearchString:    pss.SearchString,
-		SearchReference: pss.SearchReference,
-		Duration:        pss.Duration,
-	})
-	return json.RawMessage(b), err
-}
-
 // PackedScheduledScript is a stripped-down representation of a scheduled script for inclusion in a kit.
 type PackedScheduledScript struct {
 	ID          string
@@ -312,20 +243,6 @@ func (pss *PackedScheduledScript) Unpackage(uid int32, gids []int32) (ss types.S
 	return
 }
 
-// JSONMetadata returns additional info about the PackedScheduledScript in JSON format.
-func (pss *PackedScheduledScript) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name        string
-		Description string
-		Schedule    string
-	}{
-		Name:        pss.Name,
-		Description: pss.Description,
-		Schedule:    pss.Schedule,
-	})
-	return json.RawMessage(b), err
-}
-
 // PackedFlow is a stripped-down representation of a flow for inclusion in a kit.
 type PackedFlow struct {
 	ID          string
@@ -375,20 +292,6 @@ func (pss *PackedFlow) Unpackage(uid int32, gids []int32) (ss types.Flow) {
 	return
 }
 
-// JSONMetadata returns additional info about the PackedFlow in JSON format.
-func (pss *PackedFlow) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name        string
-		Description string
-		Schedule    string
-	}{
-		Name:        pss.Name,
-		Description: pss.Description,
-		Schedule:    pss.Schedule,
-	})
-	return json.RawMessage(b), err
-}
-
 // PackedDashboard is a stripped-down type used for dashboards in kits.
 type PackedDashboard struct {
 	ID          string
@@ -424,20 +327,6 @@ func (pd *PackedDashboard) Validate() error {
 		return fmt.Errorf("Missing dashboard name")
 	}
 	return nil
-}
-
-// JSONMetadata returns additional info about the PackedDashboard in JSON format.
-func (pd *PackedDashboard) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		ID          string
-		Name        string
-		Description string
-	}{
-		ID:          pd.ID,
-		Name:        pd.Name,
-		Description: pd.Description,
-	})
-	return json.RawMessage(b), err
 }
 
 // PackedPlaybook is a stripped-down representation of a playbook for inclusion in a kit.
@@ -499,20 +388,6 @@ func (pp *PackedPlaybook) Unpackage(uid int32, gids []int32) (pb types.Playbook)
 	return
 }
 
-// JSONMetadata returns additional info about the PackedPlaybook in JSON format.
-func (pp *PackedPlaybook) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		ID          string
-		Name        string
-		Description string
-	}{
-		ID:          pp.ID,
-		Name:        pp.Name,
-		Description: pp.Description,
-	})
-	return json.RawMessage(b), err
-}
-
 type PackedActionable struct {
 	ID          string
 	Name        string
@@ -530,19 +405,6 @@ func PackActionable(t types.Actionable) (put PackedActionable) {
 	put.Labels = t.Labels
 	put.Disabled = t.Disabled
 	return
-}
-
-func (put *PackedActionable) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		ID          string
-		Name        string
-		Description string
-	}{
-		ID:          put.ID,
-		Name:        put.Name,
-		Description: put.Description,
-	})
-	return json.RawMessage(b), err
 }
 
 // PackedAlert is a stripped-down representation of an alert for inclusion in a kit.
@@ -592,20 +454,6 @@ func (pa *PackedAlert) Validate() error {
 	return nil
 }
 
-// JSONMetadata returns additional info about the PackedAlert in JSON format.
-func (pa *PackedAlert) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		ID          string
-		Name        string
-		Description string
-	}{
-		ID:          pa.ID,
-		Name:        pa.Name,
-		Description: pa.Description,
-	})
-	return json.RawMessage(b), err
-}
-
 // PackedSavedQuery is a stripped-down representation of a saved query for inclusion in a kit.
 type PackedSavedQuery struct {
 	ID                 string
@@ -637,20 +485,6 @@ func (psq *PackedSavedQuery) Validate() error {
 		return errors.New("Missing query")
 	}
 	return nil
-}
-
-// JSONMetadata returns additional info about the PackedSavedQuery in JSON format.
-func (psq *PackedSavedQuery) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name        string
-		Description string
-		Query       string
-	}{
-		Name:        psq.Name,
-		Description: psq.Description,
-		Query:       psq.Query,
-	})
-	return json.RawMessage(b), err
 }
 
 // PackedAX is a stripped-down representation of an auto-extractor for inclusion in a kit.
@@ -692,22 +526,6 @@ func (pa *PackedAX) Validate() error {
 	return nil
 }
 
-// JSONMetadata returns additional info about the PackedAX in JSON format.
-func (pa *PackedAX) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name   string
-		Desc   string `json:"desc,omitempty"`
-		Module string
-		Tags   []string
-	}{
-		Name:   pa.Name,
-		Desc:   pa.Description,
-		Module: pa.Module,
-		Tags:   pa.Tags,
-	})
-	return json.RawMessage(b), err
-}
-
 type PackedUserTemplate struct {
 	ID          string
 	Name        string
@@ -725,17 +543,4 @@ func PackTemplate(t types.Template) (put PackedUserTemplate) {
 	put.Variables = t.Variables
 	put.Labels = t.Labels
 	return
-}
-
-func (put *PackedUserTemplate) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		ID          string
-		Name        string
-		Description string
-	}{
-		ID:          put.ID,
-		Name:        put.Name,
-		Description: put.Description,
-	})
-	return json.RawMessage(b), err
 }

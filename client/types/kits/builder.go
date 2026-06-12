@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 
+	"encoding/hex"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -299,11 +300,12 @@ func getTempFile() (f *os.File, err error) {
 	return
 }
 
-func GetHash(v []byte) [sha256.Size]byte {
-	return sha256.Sum256(v)
+func GetHash(v []byte) string {
+	hsh := sha256.Sum256(v)
+	return hex.EncodeToString(hsh[0:sha256.Size])
 }
 
-func getReaderHash(rdr io.ReadSeeker) (hsh [sha256.Size]byte, err error) {
+func getReaderHash(rdr io.ReadSeeker) (hsh string, err error) {
 	var n int64
 	//grab current position
 	if n, err = rdr.Seek(0, 1); err != nil {
@@ -325,7 +327,7 @@ func getReaderHash(rdr io.ReadSeeker) (hsh [sha256.Size]byte, err error) {
 	if bts := h.Sum(nil); len(bts) != sha256.Size {
 		err = ErrInvalidHash
 	} else {
-		copy(hsh[0:sha256.Size], bts)
+		hsh = hex.EncodeToString(bts[0:sha256.Size])
 	}
 	return
 }

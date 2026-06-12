@@ -16,6 +16,7 @@ import (
 	"io"
 	"path/filepath"
 
+	"encoding/hex"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
@@ -178,7 +179,7 @@ type SigVerificationFunc func(manifest []byte, sig []byte) error
 // It returns two errors, one from the signature verification function and
 // one for all other errors.
 func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest Manifest, sigerr error, err error) {
-	fileHashes := map[string][sha256.Size]byte{}
+	fileHashes := map[string]string{}
 	var m, s []byte
 	var hdr *tar.Header
 
@@ -218,7 +219,7 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 				return
 			}
 			copy(v[0:sha256.Size], x)
-			fileHashes[hdr.Name] = v
+			fileHashes[hdr.Name] = hex.EncodeToString(v[:])
 		}
 	}
 	//check that we got a manifest

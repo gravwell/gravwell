@@ -1,7 +1,14 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package types
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -24,17 +31,4 @@ type SavedQueryTimeframe struct {
 type SavedQueryListResponse struct {
 	BaseListResponse
 	Results []SavedQuery `json:"results"`
-}
-
-func (sq *SavedQuery) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name        string
-		Description string
-		Query       string
-	}{
-		Name:        sq.Name,
-		Description: sq.Description,
-		Query:       sq.Query,
-	})
-	return json.RawMessage(b), err
 }

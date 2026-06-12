@@ -72,25 +72,3 @@ func TestAddIcon(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-func TestMarshal(t *testing.T) {
-	a := types.KitItem{
-		Name: `foo`,
-		ID:   uuid.New().String(),
-		Type: types.KitAssetScheduledSearch,
-	}
-	for i := range a.Hash {
-		a.Hash[i] = byte(i)
-	}
-	bts, err := json.Marshal(a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var b types.KitItem
-	if err = json.Unmarshal(bts, &b); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(a, b) {
-		t.Fatal("bad marshal unmarshal")
-	}
-}
