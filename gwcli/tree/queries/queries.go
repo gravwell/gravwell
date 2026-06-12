@@ -107,7 +107,7 @@ func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[s
 				secondLine.WriteString("error: ")
 				secondLine.WriteString(stylesheet.Cur.ErrorText.Render(s.Error))
 			} else {
-				secondLine.WriteString(fmt.Sprintf("duration: %s | item count: %v", s.Duration, s.ItemCount))
+				fmt.Fprintf(&secondLine, "duration: %s | item count: %v", s.Duration, s.ItemCount)
 			}
 			items[i] = &listitem.Generic{
 				ID_:        s.ID,

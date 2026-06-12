@@ -273,20 +273,16 @@ func composeDetails(a attachable) string {
 
 	// generate the details body
 	var detailSB strings.Builder
-	detailSB.WriteString(fmt.Sprintf(
-		sty.detailFieldText.Render("Range")+": %v --> %v\n\n"+
-			sty.detailFieldText.Render("Started")+": %v\n"+
-			sty.detailFieldText.Render("Clients")+": %d\n"+
-			sty.detailFieldText.Render("Storage")+": %dB",
-		a.StartRange.String(), a.EndRange.String(),
-		a.LaunchInfo.Started,
-		a.AttachedClients,
-		a.StoredData))
+	fmt.Fprintf(&detailSB, "%s: %v --> %v\n\n%s: %v\n%s: %d\n%s: %dB",
+		sty.detailFieldText.Render("Range"), a.StartRange.String(), a.EndRange.String(),
+		sty.detailFieldText.Render("Started"), a.LaunchInfo.Started,
+		sty.detailFieldText.Render("Clients"), a.AttachedClients,
+		sty.detailFieldText.Render("Storage"), a.StoredData)
 	if a.NoHistory {
-		detailSB.WriteString("\n" + stylesheet.Cur.SecondaryText.Render("No History Mode"))
+		fmt.Fprintf(&detailSB, "\n%s", stylesheet.Cur.SecondaryText.Render("No History Mode"))
 	}
 	if a.Error != "" {
-		detailSB.WriteString("\nError: " + stylesheet.Cur.ErrorText.Render(a.Error))
+		fmt.Fprintf(&detailSB, "\nError: %s", stylesheet.Cur.ErrorText.Render(a.Error))
 	}
 
 	// wrap detail view in a border

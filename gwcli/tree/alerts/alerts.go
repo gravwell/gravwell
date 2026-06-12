@@ -136,11 +136,14 @@ func alertsList() action.Pair {
 				"TargetTag",
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, _ error) {
-				if listConsumerID, invalid = validateListID("consumer", fs); invalid != "" {
-					return invalid, nil
+				var err error
+				listConsumerID, err = fs.GetString("consumer")
+				if err != nil {
+					return "", clilog.GetFlag(err)
 				}
-				if listDispatcherID, invalid = validateListID("dispatcher", fs); invalid != "" {
-					return invalid, nil
+				listDispatcherID, err = fs.GetString("dispatcher")
+				if err != nil {
+					return "", clilog.GetFlag(err)
 				}
 
 				if listConsumerID != "" && listDispatcherID != "" {
@@ -149,15 +152,6 @@ func alertsList() action.Pair {
 				return "", nil
 			},
 		})
-}
-
-// helper function for list's ValidateArgs.
-func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid string) {
-	s, err := fs.GetString(flagName)
-	if err != nil {
-		clilog.GetFlag(err)
-	}
-	return s, ""
 }
 
 func delete() action.Pair {

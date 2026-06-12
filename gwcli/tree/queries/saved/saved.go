@@ -72,7 +72,7 @@ func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		createNameKey: scaffoldcreate.FieldName("saved query"),
 		createDescKey: scaffoldcreate.FieldDescription("saved query"),
-		createQueryKey: scaffoldcreate.Field{
+		createQueryKey: {
 			Required: true,
 			Title:    "query",
 			Flag:     scaffoldcreate.FlagConfig{Name: "query", Usage: "the query to save"},

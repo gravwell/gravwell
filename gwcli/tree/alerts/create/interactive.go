@@ -1,6 +1,7 @@
 package alertscreate
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -130,11 +131,11 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			c.stage = stageConfirm
 			// set header lines
 			c.confirmation.HeaderLines = []string{
-				"Creating new alert \"" + c.metadata.name.Value() + "\"",
-				"with " + strconv.FormatInt(int64(len(hlDispatchers)), 10) + " dispatchers",
-				"[" + strings.Join(hlDispatchers, " ") + "]",
-				"and " + strconv.FormatInt(int64(len(hlConsumers)), 10) + " consumers",
-				"[" + strings.Join(hlConsumers, " ") + "]",
+				fmt.Sprintf("Creating new alert \"%s\"", c.metadata.name.Value()),
+				fmt.Sprintf("with %d dispatchers", len(hlDispatchers)),
+				fmt.Sprintf("[%s]", strings.Join(hlDispatchers, " ")),
+				fmt.Sprintf("and %d consumers", len(hlConsumers)),
+				fmt.Sprintf("[%s]", strings.Join(hlConsumers, " ")),
 			}
 		}
 		return cmd

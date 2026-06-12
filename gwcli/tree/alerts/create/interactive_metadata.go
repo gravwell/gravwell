@@ -215,7 +215,8 @@ func (m *metadata) View() string {
 
 	sb.WriteString(stylesheet.ViewSubmitLikeButton("continue", m.selected == metaContinue, titleLength*2, m.inputErr))
 
-	sb.WriteString("\n" + hotkeys.DefaultView(titleLength*2))
+	sb.WriteByte('\n')
+	sb.WriteString(hotkeys.DefaultView(titleLength*2))
 	return sb.String()
 }
 
@@ -229,7 +230,8 @@ func (m *metadata) viewline(sb *strings.Builder, required bool, title string, nu
 		left += stylesheet.OptionalTitle(title)
 	}
 
-	sb.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, left+" ", view) + "\n")
+	sb.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, left+" ", view))
+	sb.WriteByte('\n')
 }
 
 // Reset junks all data in metadata, allowing it to be reused as if freshly created.
