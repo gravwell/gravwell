@@ -17,14 +17,19 @@ package tree
 import (
 	"errors"
 	"fmt"
+	"gravwell/pkg/scripting"
 	"io"
+	"math"
 	"os"
 	"runtime/pprof"
 	"strings"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -32,6 +37,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
@@ -55,6 +61,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tokens"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -300,6 +307,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 			query.NewQueryAction(),
 			showTags(),
 			notifications(),
+			executeScript(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
@@ -400,4 +408,74 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	}
 
 	return 0
+}
+
+func executeScript() action.Pair {
+	return scaffold.NewBasicAction("script", "execute an anko script", "Run an anko script in a VM on the connected Gravwell system",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			network, err := fs.GetBool("network")
+			clilog.GetFlag(err)
+			duration, err := fs.GetDuration("duration")
+			clilog.GetFlag(err)
+			duration = time.Duration(math.Abs(float64(duration)))
+			maxRuntime, err := fs.GetDuration("max-runtime")
+			clilog.GetFlag(err)
+			maxRuntime = time.Duration(math.Abs(float64(maxRuntime)))
+
+			var sb strings.Builder
+			for _, pth := range fs.Args() {
+				body, err := os.ReadFile(pth)
+				if err != nil {
+					fmt.Fprintf(&sb, "failed to read script %v: %v\n", pth, err)
+					continue
+				}
+
+				if line, column, err := connection.Client.ParseScheduledScript(string(body), types.ScriptAnko); err != nil {
+					fmt.Fprintf(&sb, "%v is invalid: L%d:%d %v\n", pth, line, column, err)
+					continue
+				}
+				cfg := scripting.ScriptConfig{
+					SR:             scripting.NewLocalScriptRunner(connection.Client),
+					Language:       types.ScriptAnko,
+					Content:        string(body),
+					DisableNetwork: !network,
+					Debug:          true,
+					Start:          time.Now(),
+					Duration:       duration,
+					MaxRunTime:     maxRuntime,
+				}
+				svm, err := scripting.NewScriptVM(cfg)
+				if err != nil {
+					fmt.Fprintf(&sb, "failed to containerize script %v: %v\n", pth, err)
+					continue
+				}
+				out, err := svm.Run()
+				if err != nil {
+					fmt.Fprintf(&sb, "failed to run script %v: %v\n", pth, err)
+					continue
+				}
+				fmt.Fprintf(&sb, "Script %v executed successfully\n", pth)
+				if len(out) > 0 {
+					fmt.Fprintf(&sb, "_____DEBUG OUTPUT_____\n%s\n______________________\n", string(out))
+				}
+			}
+			return sb.String(), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("network", false, "Enable networking when running the scripts")
+					fs.Duration("duration", time.Minute, "Duration the scripts should execute over from the moment it begins")
+					fs.Duration("max-runtime", 10*time.Minute, "Maximum duration the scripts may execute for")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() < 1 {
+					return phrases.AtLeast1ArgRequired("paths/to/anko scripts"), nil
+				}
+				return "", nil
+			},
+		})
 }
