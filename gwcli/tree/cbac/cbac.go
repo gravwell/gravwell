@@ -160,8 +160,8 @@ func myCapabilities() action.Pair {
 }
 
 type getCaps struct { // TODO should we be using this for list as well?
-	ID string
-	types.CapabilityState
+	ID     string // uid/gid
+	Grants []string
 }
 
 // TODO this is admin only
@@ -180,8 +180,8 @@ func get() action.Pair {
 					return nil, fmt.Errorf("%s: %w", uidString, err)
 				}
 				items = append(items, getCaps{
-					ID:              uidString,
-					CapabilityState: u,
+					ID:     uidString,
+					Grants: u.Grants,
 				})
 			}
 			for _, gid := range gids {
@@ -191,8 +191,8 @@ func get() action.Pair {
 					return nil, fmt.Errorf("%s: %w", gidString, err)
 				}
 				items = append(items, getCaps{
-					ID:              gidString,
-					CapabilityState: g,
+					ID:     gidString,
+					Grants: g.Grants,
 				})
 			}
 			return items, nil
