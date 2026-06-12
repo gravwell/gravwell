@@ -51,6 +51,8 @@ func NewUUIDSliceValue(val []uuid.UUID, separator rune) *UUIDSliceValue {
 	return usv
 }
 
+// String stringifies the underlying uuid slice as an array of uuid strings, separated by the sep given at construct time and wrapped in brackets.
+// Returns "[]" if it holds no values.
 func (v *UUIDSliceValue) String() string {
 	if v.value == nil || len(*v.value) < 1 {
 		return "[]"
