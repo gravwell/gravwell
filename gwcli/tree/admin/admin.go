@@ -11,14 +11,17 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"gravwell/pkg/utils"
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -64,6 +67,8 @@ func NewNav() *cobra.Command {
 			Status("status"),
 			listUserSearchStorage(),
 			validateBackup(),
+			massChown(),
+			chown(),
 		},
 	)
 }
@@ -533,194 +538,327 @@ func validateBackup() action.Pair {
 
 func massChown() action.Pair {
 	return scaffold.NewBasicAction("mass-chown", "transfer all items to another user",
-		"Mass transfer all items owned by one user to another user",
+		"Mass transfer all items owned by one user to another user.\n"+
+			"Please note that tokens and kits do not current support owner reassignment and will be skipped.",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
 			from, _ := fs.GetInt32("from")
-
+			noFail, _ := fs.GetBool("no-fail")
 			// ensure we are in admin mode to ensure we get all data
 			if !connection.Client.AdminMode() {
 				connection.Client.SetAdminMode()
 				defer connection.Client.ClearAdminMode()
 			}
-			// fetch ALL items owned by the FROM user
-			data := make([]multiselectlist.SelectableItem[string], 0)
 			qo := &types.QueryOptions{
 				Filters: []types.Filter{
 					{Key: "OwnerID", Operation: "=", Values: []any{from}},
 				},
 			}
 
+			var sb strings.Builder
+
 			// saved queries
 			if lr, err := connection.Client.ListAllSavedQueries(qo); err != nil {
-				clilog.Writer.Error("failed to get saved queries", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get saved queries: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateSavedQuery(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown saved query %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "saved query")
 			}
 			// dashboards
 			if lr, err := connection.Client.ListAllDashboards(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get dashboards: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateDashboard(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown dashboard %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "dashboard")
 			}
 			// kits
-			// TODO currently being skipped, as they were skipped pre-6.0.0
+			sb.WriteString("chowning kits is not currently supported")
+
 			// extractions
 			if lr, err := connection.Client.ListAllExtractions(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get extractions: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateExtraction(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown extraction %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "extraction")
 			}
 			// actionables
 			if lr, err := connection.Client.ListAllActionables(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get actionables: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateActionable(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown actionables %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "actionable")
 			}
 			// playbooks
 			if lr, err := connection.Client.ListAllPlaybooks(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get playbooks: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdatePlaybook(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown playbooks %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "playbook")
 			}
 			// scheduled searches
 			if lr, err := connection.Client.ListAllScheduledSearches(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get scheduled searches: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if err := connection.Client.UpdateScheduledSearch(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown scheduled search %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "scheduled search")
 			}
 			// scheduled scripts
 			if lr, err := connection.Client.ListAllScheduledScripts(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get scheduled scripts: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if err := connection.Client.UpdateScheduledScript(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown scheduled script %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "scheduled script")
 			}
 			// files
 			if lr, err := connection.Client.ListAllFiles(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get files: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateFileMetadata(res.ID, res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown file %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "file")
 			}
 			// templates
 			if lr, err := connection.Client.ListAllTemplates(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get templates: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateTemplate(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown templates %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "template")
 			}
 			// resources
 			if lr, err := connection.Client.ListAllResources(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get resources: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if err := connection.Client.UpdateResourceMetadata(res.ID, res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown resource %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "resource")
 			}
 			// macros
 			if lr, err := connection.Client.ListAllMacros(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get macros: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if err := connection.Client.UpdateMacro(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown macro %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "macro")
 			}
 			// flows
 			if lr, err := connection.Client.ListAllFlows(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get flows: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if err := connection.Client.UpdateFlow(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown flow %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "flow")
 			}
 			// alerts
 			if lr, err := connection.Client.ListAllAlerts(qo); err != nil {
-				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
-				return nil, err
-			} else {
-				for _, res := range lr.Results {
-					data = append(data, &listitem.Generic{
-						ID_:        res.ID,
-						Name:       res.Name,
-						SecondLine: res.Description,
-					})
+				clilog.Tee(clilog.ERROR, &sb, "failed to get alerts: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
 				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateAlert(res); err != nil {
+						fmt.Fprintf(&sb, "failed to chown alert %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "alert")
 			}
+
+			// TODO update if secrets and tokens can *now* be updated
+			// secrets
+			if lr, err := connection.Client.ListAllSecrets(qo); err != nil {
+				clilog.Tee(clilog.ERROR, &sb, "failed to get secrets: "+err.Error()+"\n")
+				if !noFail {
+					return sb.String(), nil
+				}
+			} else {
+				var success uint
+				for _, res := range lr.Results {
+					res.CommonFields.OwnerID = from
+					if _, err := connection.Client.UpdateSecret(res.ID, types.SecretCreate{CommonFields: res.CommonFields}); err != nil {
+						fmt.Fprintf(&sb, "failed to chown alert %s: %v", res.ID, err)
+						if !noFail {
+							return sb.String(), nil
+						}
+					} else {
+						success += 1
+					}
+				}
+				chownedString(&sb, success, "alert")
+			}
+			// tokens
+			sb.WriteString(stylesheet.Italicize("NOTE: tokens do not support owner reassignment"))
+
+			return sb.String(), nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -728,6 +866,7 @@ func massChown() action.Pair {
 					fs := &pflag.FlagSet{}
 					fs.Int32("to", 0, "user ID  to transfer ownership to")
 					fs.Int32("from", 0, "user ID to transfer ownership from")
+					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
 					return fs
 				},
 			},
@@ -745,9 +884,29 @@ func massChown() action.Pair {
 				} else if to == from {
 					return "refusing to transfer items from and to the same user", nil
 				}
+				// make sure both from and to exist
+				users, err := connection.Client.GetUserMap()
+				if err != nil {
+					return "", err
+				}
+				if _, found := users[to]; !found {
+					return strconv.FormatInt(int64(to), 10) + " is not a valid uid", nil
+				} else if _, found := users[from]; !found {
+					return strconv.FormatInt(int64(from), 10) + " is not a valid uid", nil
+				}
 				return "", nil
 			},
 		})
+}
+
+func chownedString(out *strings.Builder, successes uint, noun string) {
+	if successes < 1 {
+		return
+	}
+	out.WriteString("successfully chowned ")
+	out.WriteString(english.Plural(int(successes), noun, ""))
+
+	out.WriteString("\n")
 }
 
 func chown() action.Pair {
@@ -944,7 +1103,28 @@ func chown() action.Pair {
 			return data, nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
-			// TODO
+			from, _ := addtlFlags.GetInt32("from")
+			to, _ := addtlFlags.GetInt32("to")
+			noFail, _ := addtlFlags.GetBool("no-fail")
+
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				err := transferEntity(ID, from, to)
+				if err != nil {
+					results[i] = scaffold.Result{
+						Output: err.Error(),
+					}
+					if !noFail {
+						return results, nil // we already made changes, so we want to make sure they get printed too
+					}
+				} else {
+					results[i] = scaffold.Result{
+						Success: true,
+						Output:  "chowned " + ID,
+					}
+				}
+			}
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -952,6 +1132,7 @@ func chown() action.Pair {
 					fs := &pflag.FlagSet{}
 					fs.Int32("to", 0, "user ID  to transfer ownership to")
 					fs.Int32("from", 0, "user ID to transfer ownership from")
+					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
 					return fs
 				},
 			},
@@ -972,4 +1153,72 @@ func chown() action.Pair {
 				return "", nil
 			},
 		})
+}
+
+func transferEntity(ID string, from, to int32) error {
+	// IDs are always prefixed with their type, but that type may span two words.
+	exploded := strings.Split(ID, "-")
+	if len(exploded) < 2 { // this should never be true
+		return errors.New("failed to parse ID " + ID)
+	}
+	one, two := exploded[0], exploded[1]
+	// check against 1 word types
+	switch one {
+	case "dashboard":
+		itm, err := connection.Client.GetDashboard(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "dashboard")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("dashboard (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdateDashboard(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "dashboard")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "extraction":
+		itm, err := connection.Client.GetExtraction(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "extraction")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("extraction (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdateExtraction(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "extraction")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	}
+	// check against 2 word types
+	switch one + "-" + two {
+	case "saved-query":
+		itm, err := connection.Client.GetSavedQuery(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "saved query")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("saved query (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdateSavedQuery(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "saved query")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// if we made it this far, we failed to identify the entity type
+	err := fmt.Errorf("failed to map ID %s to an entity type", ID)
+	clilog.Writer.Warn(err.Error())
+	return err
 }
