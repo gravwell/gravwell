@@ -14,17 +14,21 @@ package templates
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -47,11 +51,11 @@ For instance, templates which expect an IP address as their variable can be used
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
-			//create(),
 			delete(),
 			edit(),
 			show(),
-			//download(),
+			create(),
+			jsonAction(),
 		})
 }
 
@@ -127,9 +131,6 @@ func list() action.Pair {
 			},
 		})
 }
-
-// TODO create.
-// Create will need either a JSON adaptation or some bespoke providers.
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("template", "templates",
@@ -303,4 +304,87 @@ func show() action.Pair {
 				},
 			},
 		})
+}
+
+func create() action.Pair {
+	return scaffoldcreate.NewCreateAction("template",
+		map[string]scaffoldcreate.Field{
+			"name":   scaffoldcreate.FieldName("template"),
+			"desc":   scaffoldcreate.FieldDescription("template"),
+			"path":   scaffoldcreate.FieldPath("template specification", true),
+			"labels": scaffoldcreate.FieldLabels(),
+		},
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			var (
+				content  content
+				emptyStr string
+			)
+			if pth := strings.TrimSpace(fields["path"].Provider.Get()); pth != "" {
+				b, err := os.ReadFile(pth)
+				if err != nil {
+					return 0, "", err
+				}
+				if err := json.Unmarshal(b, &content); err != nil {
+					return 0, "", err
+				}
+			} else {
+				emptyStr = " empty " // inserting into the success line to confirm that no actual data were given
+			}
+
+			var lbls []string
+			if exploded := strings.Split(strings.TrimSpace(fields["labels"].Provider.Get()), ","); len(exploded) > 0 {
+				lbls = exploded
+			}
+
+			newTemplate, err := connection.Client.CreateTemplate(types.Template{
+				CommonFields: types.CommonFields{
+					Name:        fields["name"].Provider.Get(),
+					Description: fields["desc"].Provider.Get(),
+					Labels:      lbls,
+				},
+				Query:     content.Query,
+				Variables: content.Variables,
+			})
+			if err != nil {
+				return 0, "", err
+			}
+			return phrases.SuccessfullyCreatedItem(emptyStr+"template", newTemplate.ID), "", nil
+
+		},
+		scaffoldcreate.Options{
+			Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
+				"Call " + stylesheet.Cur.Action.Render("templates json") + " to see the format of the JSON file.",
+			IDIsSuccessMessage: true,
+		})
+}
+
+func jsonAction() action.Pair {
+	return scaffold.NewBasicAction("json", "display template JSON schema",
+		"Print the JSON schema expected for creating templates via the cli.",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			return `{
+  "Query": "my example query",
+  "Variables": [
+    {
+      "Name": "NAME1",
+      "Label": "lbl",
+      "Description": "my variable description",
+      "Required": true,
+      "DefaultValue": "default",
+      "PreviewValue": "preview"
+    },
+    {
+      "Name": "NAME2",
+      "Label": "lbl",
+      "Description": "my variable description",
+      "Required": true,
+      "DefaultValue": "default",
+      "PreviewValue": "preview"
+    }
+  ]
+}`, nil
+		},
+		scaffold.BasicOptions{},
+	)
+
 }
