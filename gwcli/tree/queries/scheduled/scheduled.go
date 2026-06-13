@@ -49,6 +49,7 @@ func NewScheduledNav() *cobra.Command {
 			cancel(),
 			backfillToggle(),
 			clear(),
+			createScript(),
 		})
 }
 
@@ -483,4 +484,23 @@ func clear() action.Pair {
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "clear"},
 		})
+}
+
+func createScript() action.Pair {
+	return scaffoldcreate.NewCreateAction("scheduled script",
+		map[string]scaffoldcreate.Field{
+			"name":        scaffoldcreate.FieldName("scheduled script"),
+			"description": scaffoldcreate.FieldDescription("scheduled script"),
+			"path":        scaffoldcreate.FieldPath("script", true),
+			"schedule":    scaffoldcreate.FieldFrequency(),
+		},
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			connection.Client.CreateScheduledScript(types.ScheduledScript{
+				// TODO
+			})
+		},
+		scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "from-script"},
+		},
+	)
 }
