@@ -247,6 +247,16 @@ func (pbr *KitBuildRequest) Validate() error {
 	if pbr.Version == 0 {
 		pbr.Version = 1
 	}
+	// if it's not set at all, just set it
+	if !pbr.MinVersion.Enabled() {
+		pbr.MinVersion = CanonicalVersion{Major: 6}
+	} else if pbr.MinVersion.Major < 6 {
+		// if it's set but too old, error
+		return errors.New("MinVersion on newly-built kits must now exceed 6.0.0")
+	}
+	if pbr.MaxVersion.Enabled() && pbr.MinVersion.Compare(pbr.MaxVersion) < 0 {
+		return errors.New("MaxVersion must exceed MinVersion")
+	}
 	if slices.Contains(pbr.Dashboards, "") {
 		return errors.New("empty dashboard ID")
 	}
