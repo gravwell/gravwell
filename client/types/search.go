@@ -62,10 +62,9 @@ type Element struct {
 
 // A GenerateAXRequest contains a tag name and a set of entries.
 // It is used by clients to request all possible extractions from the given entries.
-// All entries should have the same tag.
 type GenerateAXRequest struct {
 	Tag     string
-	Entries []SearchEntry
+	Entries []string
 }
 
 // A GenerateAXResponse contains an autoextractor definition
@@ -78,8 +77,7 @@ type GenerateAXResponse struct {
 	// lots of data, because other modules like winlog should take precedence if they
 	// succeed.
 	Confidence float64
-	Entries    []SearchEntry
-	Explore    []ExploreResult
+	Entries    []ResultsTableCell
 }
 
 // ExploreRequest is used to request that the webserver perform a complete cracking of
