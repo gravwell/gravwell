@@ -12,6 +12,7 @@ package scheduled
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -489,18 +490,86 @@ func clear() action.Pair {
 func createScript() action.Pair {
 	return scaffoldcreate.NewCreateAction("scheduled script",
 		map[string]scaffoldcreate.Field{
+			"lang": scaffoldcreate.Field{
+				Title:    "Language",
+				Required: true,
+				Flag: scaffoldcreate.FlagConfig{
+					Name: "language",
+					Usage: "Set the language the script is written in." +
+						"Possible values: 'go', 'anko'.",
+				},
+				DefaultValue: "anko",
+				Order:        200,
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("anko", false)
+						ti.Validate = func(s string) error {
+							_, err := types.ParseScriptLang(s)
+							return err
+						}
+						return ti
+					},
+				},
+			},
 			"name":        scaffoldcreate.FieldName("scheduled script"),
 			"description": scaffoldcreate.FieldDescription("scheduled script"),
 			"path":        scaffoldcreate.FieldPath("script", true),
 			"schedule":    scaffoldcreate.FieldFrequency(),
+			"enabled": {
+				Title: "Enabled?", Required: false,
+				Flag:     scaffoldcreate.FlagConfig{},
+				Order:    30,
+				Provider: &scaffoldcreate.BoolProvider{},
+			},
+			"backfill": {
+				Title: "Backfill?", Required: false,
+				Flag:     scaffoldcreate.FlagConfig{},
+				Order:    20,
+				Provider: &scaffoldcreate.BoolProvider{},
+			},
 		},
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			connection.Client.CreateScheduledScript(types.ScheduledScript{
-				// TODO
+			pth := fields["path"].Provider.Get()
+			flowContent, err := os.ReadFile(pth)
+			if err != nil {
+				return 0, "", err
+			}
+
+			enabled, err := strconv.ParseBool(fields["enabled"].Provider.Get())
+			if err != nil {
+				return 0, err.Error(), nil
+			}
+			backfill, _ := strconv.ParseBool(fields["backfill"].Provider.Get())
+			if err != nil {
+				return 0, err.Error(), nil
+			}
+
+			lang, err := types.ParseScriptLang(fields["lang"].Provider.Get())
+			if err != nil {
+				return 0, err.Error(), nil
+			}
+
+			new, err := connection.Client.CreateScheduledScript(types.ScheduledScript{
+				CommonFields: types.CommonFields{
+					Name:        fields["name"].Provider.Get(),
+					Description: fields["desc"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
+				},
+				AutomationCommonFields: types.AutomationCommonFields{
+					Schedule:        fields["schedule"].Provider.Get(),
+					Disabled:        !enabled,
+					BackfillEnabled: backfill,
+				},
+				Script:         string(flowContent),
+				ScriptLanguage: lang,
 			})
+			return new.ID, "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "from-script"},
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "script",
+				Aliases: []string{"from-script", "create-script"},
+			},
 		},
 	)
 }
