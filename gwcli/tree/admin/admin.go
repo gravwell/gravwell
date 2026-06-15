@@ -911,7 +911,8 @@ func chownedString(out *strings.Builder, successes uint, noun string) {
 
 func chown() action.Pair {
 	return scaffoldselect.NewSelectAction("change individual data ownership",
-		"Transfer ownership of specific data from one user to another.",
+		"Transfer ownership of specific data from one user to another."+
+			"Chowning kits and secrets is not currently supported, but all other asset types are.",
 		"item",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			from, _ := addtlFlags.GetInt32("from")
@@ -1128,6 +1129,12 @@ func chown() action.Pair {
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
+				Use: "chown",
+				Usage: fmt.Sprintf("chown %s %s %s %s",
+					ft.Mandatory("--to <UID>"), ft.Mandatory("--from <UID>"),
+					ft.Optional("--no-fail"),
+					ft.VariadicArgs("entity ID", true)),
+				Example: "chown --to=1 --from 5 dashboard-abc-def-ghi scheduled-search-one-two-three",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Int32("to", 0, "user ID  to transfer ownership to")
@@ -1196,6 +1203,134 @@ func transferEntity(ID string, from, to int32) error {
 			return err
 		}
 		return nil
+	case "actionable":
+		itm, err := connection.Client.GetActionable(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "actionable")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("actionable (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdateActionable(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "actionable")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "playbook":
+		itm, err := connection.Client.GetPlaybook(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "playbook")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("playbook (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdatePlaybook(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "playbook")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "template":
+		itm, err := connection.Client.GetTemplate(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "template")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("template (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdateTemplate(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "template")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "macro":
+		itm, err := connection.Client.GetMacro(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "macro")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("macro (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if err := connection.Client.UpdateMacro(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "macro")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "flow":
+		itm, err := connection.Client.GetFlow(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "flow")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("flow (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if err := connection.Client.UpdateFlow(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "flow")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "alert":
+		itm, err := connection.Client.GetAlert(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "alert")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("alert (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdateAlert(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "alert")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "file":
+		itm, err := connection.Client.GetFileMetadata(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "file")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("file (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if _, err := connection.Client.UpdateFileMetadata(ID, itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "file")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "resource":
+		itm, err := connection.Client.GetResourceMetadata(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "resource")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("resource (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if err := connection.Client.UpdateResourceMetadata(ID, itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "resource")
+		} else if err != nil {
+			return err
+		}
+		return nil
 	}
 	// check against 2 word types
 	switch one + "-" + two {
@@ -1211,6 +1346,38 @@ func transferEntity(ID string, from, to int32) error {
 		itm.OwnerID = to
 		if _, err := connection.Client.UpdateSavedQuery(itm); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "saved query")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "scheduled-search":
+		itm, err := connection.Client.GetScheduledSearch(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "scheduled search")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("scheduled search (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if err := connection.Client.UpdateScheduledSearch(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "scheduled search")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	case "scheduled-script":
+		itm, err := connection.Client.GetScheduledScript(ID)
+		if phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "scheduled script")
+		} else if err != nil {
+			return err
+		} else if from != itm.OwnerID {
+			return fmt.Errorf("scheduled script (ID: %s) does not belong to from-user (ID: %d)", ID, from)
+		}
+		itm.OwnerID = to
+		if err := connection.Client.UpdateScheduledScript(itm); phrases.IsNotFoundErr(err) {
+			return phrases.ErrUnknownIdentifier(ID, "scheduled script")
 		} else if err != nil {
 			return err
 		}
