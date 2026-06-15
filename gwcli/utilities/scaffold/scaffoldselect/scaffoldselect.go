@@ -48,7 +48,7 @@ type CollectItemsFunc[ID_t scaffold.Id_t] func(addtlFlags *pflag.FlagSet) ([]mul
 type OperateFunc[ID_t scaffold.Id_t] func(id ID_t, addtlFlags *pflag.FlagSet) (success string, _ error)
 
 func NewSelectAction[ID_t scaffold.Id_t](short, long string,
-	singular string,
+	selectedItemSingular string,
 	collectItems CollectItemsFunc[ID_t],
 	op OperateFunc[ID_t],
 	options Options) action.Pair {
@@ -78,14 +78,14 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 				return mother.Spawn(cmd.Root(), cmd, args)
 			}
 			if options.Exactly1 {
-				return errors.New(phrases.Exactly1ArgRequired(singular))
+				return errors.New(phrases.Exactly1ArgRequired(selectedItemSingular))
 			}
-			return errors.New(phrases.AtLeast1ArgRequired(english.PluralWord(0, singular, "")))
+			return errors.New(phrases.AtLeast1ArgRequired(english.PluralWord(0, selectedItemSingular, "")))
 		} else if cmd.Flags().NArg() > 1 && options.Exactly1 {
-			return errors.New(phrases.Exactly1ArgRequired(singular))
+			return errors.New(phrases.Exactly1ArgRequired(selectedItemSingular))
 		}
 
-		results, inv := autonomous(cmd.Flags(), op, singular)
+		results, inv := autonomous(cmd.Flags(), op, selectedItemSingular)
 		if inv != "" {
 			return errors.New(inv)
 		}
@@ -105,12 +105,13 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 	// generate usage based on given options
 	var usage strings.Builder
 	if options.AddtlFlags != nil && options.AddtlFlags().NArg() > 0 {
-		usage.WriteString(ft.Optional("flags") + " ")
+		usage.WriteString(ft.Optional("flags"))
+		usage.WriteString(" ")
 	}
 	if options.Exactly1 {
-		usage.WriteString(ft.Mandatory(singular))
+		usage.WriteString(ft.Mandatory(selectedItemSingular))
 	} else {
-		usage.WriteString(ft.VariadicArgs(singular, true))
+		usage.WriteString(ft.VariadicArgs(selectedItemSingular, true))
 	}
 
 	cmd := treeutils.GenerateAction("select", short, long, nil, runE,
@@ -118,7 +119,7 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 	options.Apply(cmd)
 
 	model := &selectModel[ID_t]{
-		singular:     singular,
+		singular:     selectedItemSingular,
 		collectItems: collectItems,
 		op:           op,
 

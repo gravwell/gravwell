@@ -26,7 +26,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewSystemsNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "systems"
 		short string = "systems and health of the instance"

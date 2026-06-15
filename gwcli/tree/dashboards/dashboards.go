@@ -10,9 +10,6 @@
 package dashboards
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -30,7 +27,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewDashboardNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "dashboards"
 		short string = "manage your dashboards"
@@ -83,7 +80,7 @@ func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 
 func deleteAction() action.Pair {
 	return scaffolddelete.NewDeleteAction("dashboard", "dashboards",
-		del, fch)
+		del, fch, scaffolddelete.Options{})
 }
 
 func del(dryrun bool, id string) error {
@@ -94,18 +91,19 @@ func del(dryrun bool, id string) error {
 	return connection.Client.DeleteDashboard(id)
 }
 
-func fch() ([]scaffolddelete.Item[string], error) {
-	ud, err := connection.Client.ListDashboards(&types.QueryOptions{Filters: []types.Filter{{Key: "OwnerID", Operation: "=", Values: []any{connection.CurrentUser().ID}}}})
+func fch() ([]multiselectlist.SelectableItem[string], error) {
+	lr, err := connection.Client.ListDashboards(&types.QueryOptions{Filters: []types.Filter{{Key: "OwnerID", Operation: "=", Values: []any{connection.CurrentUser().ID}}}})
 	if err != nil {
 		return nil, err
 	}
-	// not too important to sort this one
-	var items = make([]scaffolddelete.Item[string], len(ud.Results))
-	for i, u := range ud.Results {
-		items[i] = scaffolddelete.NewItem(u.Name,
-			fmt.Sprintf("Updated: %v\n%s",
-				ud.Results[i].UpdatedAt.Format(time.RFC822), ud.Results[i].Description),
-			u.ID)
+	var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+	for i, d := range lr.Results {
+		items[i] = &listitem.Generic{
+			Selected_:  false,
+			ID_:        d.ID,
+			Name:       d.Name,
+			SecondLine: d.Description,
+		}
 	}
 
 	return items, nil

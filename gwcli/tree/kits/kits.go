@@ -23,7 +23,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewKitsNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "kits"
 		short string = "view kits associated to this instance"

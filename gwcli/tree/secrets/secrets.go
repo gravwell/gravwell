@@ -9,20 +9,17 @@ package secrets
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/*
-Package resources defines the resources nav, which holds data related to persistent data.
-*/
-
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -40,20 +37,21 @@ func NewNav() *cobra.Command {
 		use   string = "secrets"
 		short string = "manage secret data that can be fed into other actions"
 		long  string = "Gravwell can store secret strings for use in other actions (typically flows)." +
-			" Once created, the user cannot read the contents of the secret again, although they may change the value later." +
+			" Once created, the user cannot read the contents of the secret again, although the value can be updated." +
 			" The user may then refer to the secret in certain node types when building a flow."
 	)
 	return treeutils.GenerateNav(use, short, long, []string{"secret"},
 		[]*cobra.Command{},
 		[]action.Pair{
-			list(),
+			listAction(),
 			create(),
 			delete(),
 			edit(),
+			updateValue(),
 		})
 }
 
-func list() action.Pair {
+func listAction() action.Pair {
 	const (
 		short string = "list secrets on the system"
 		long  string = "View secrets available to your user."
@@ -142,21 +140,23 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteSecret(id)
 		},
-		func() ([]scaffolddelete.Item[string], error) {
-			secrets, err := connection.Client.ListSecrets(nil)
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListSecrets(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			slices.SortStableFunc(secrets.Results,
-				func(a, b types.Secret) int {
-					return strings.Compare(a.Name, b.Name)
-				})
-			var items = make([]scaffolddelete.Item[string], len(secrets.Results))
-			for i, r := range secrets.Results {
-				items[i] = scaffolddelete.NewItem(r.Name, r.Description, r.ID)
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, s := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        s.ID,
+					Name:       s.Name,
+					SecondLine: s.Description,
+				}
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 func edit() action.Pair {

@@ -17,12 +17,14 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -104,16 +106,19 @@ func Test_checkNoColor(t *testing.T) {
 			fs := new(pflag.FlagSet)
 			ft.NoColor.Register(fs)
 			ft.NoInteractive.Register(fs)
-			fs.Parse(tt.args)
+			assert.Nil(t, fs.Parse(tt.args))
 
 			// prep environment variables
-
 			for key, value := range maps.All(tt.envs) {
 				if err := os.Setenv(key, value); err != nil {
 					t.Fatalf("failed to set env var: %v", err)
 				}
 			}
-
+			// check for no-interactive, and be sure to reset it
+			ni, err := fs.GetBool(ft.NoInteractive.Name())
+			assert.Nil(t, err)
+			state.SetInteractive(!ni)
+			defer state.SetInteractive(false)
 			if gotColorEnabled := isNoColor(fs); gotColorEnabled != tt.wantNoColor {
 				t.Errorf("checkNoColor() = %v, want %v", gotColorEnabled, tt.wantNoColor)
 			}
@@ -124,16 +129,15 @@ func Test_checkNoColor(t *testing.T) {
 func TestGatherCredentials(t *testing.T) {
 	tDir := t.TempDir()
 	tests := []struct {
-		name              string // description of this test case
-		args              []string
-		setupFunc         func(t *testing.T)
-		wantUsername      string
-		wantPasswordNil   bool
-		wantPassword      string
-		wantAPIKeyNil     bool
-		wantAPIKey        string
-		wantNoInteractive bool
-		wantErr           bool
+		name            string // description of this test case
+		args            []string
+		setupFunc       func(t *testing.T)
+		wantUsername    string
+		wantPasswordNil bool
+		wantPassword    string
+		wantAPIKeyNil   bool
+		wantAPIKey      string
+		wantErr         bool
 	}{
 		{"zilch should return no data and no error",
 			nil, nil,
@@ -141,13 +145,11 @@ func TestGatherCredentials(t *testing.T) {
 			true, "",
 			true, "",
 			false,
-			false,
 		},
 		{"only username",
 			[]string{"--username=naru"}, nil,
 			"naru", true, "",
 			true, "",
-			false,
 			false,
 		},
 		{"apikey",
@@ -155,7 +157,6 @@ func TestGatherCredentials(t *testing.T) {
 			"",
 			true, "",
 			false, "mykey",
-			true,
 			false,
 		},
 		{"username, passfile, eapikey",
@@ -174,7 +175,6 @@ func TestGatherCredentials(t *testing.T) {
 			false, "mypass",
 			false, "mykey2",
 			false,
-			false,
 		},
 		{"epass",
 			[]string{"-u=user"},
@@ -185,7 +185,6 @@ func TestGatherCredentials(t *testing.T) {
 			"user",
 			false, "enviropass",
 			true, "",
-			false,
 			false,
 		},
 		{"epass but no username supplied", // shouldn't error, but also shouldn't pick up the password
@@ -198,7 +197,6 @@ func TestGatherCredentials(t *testing.T) {
 			true, "",
 			true, "",
 			false,
-			false,
 		},
 		{"passfile but no username supplied",
 			[]string{"-p=" + path.Join(tDir, "pass.txt")}, // shouldn't matter if this file actually exists
@@ -206,7 +204,6 @@ func TestGatherCredentials(t *testing.T) {
 			"",
 			true, "",
 			true, "",
-			false,
 			true,
 		},
 		{"passfile DNE",
@@ -215,7 +212,6 @@ func TestGatherCredentials(t *testing.T) {
 			"",
 			true, "",
 			true, "",
-			false,
 			true,
 		},
 	}
@@ -231,7 +227,7 @@ func TestGatherCredentials(t *testing.T) {
 			if err := cmd.ParseFlags(tt.args); err != nil {
 				t.Fatal(err)
 			}
-			gotUsername, gotPassword, gotAPIKey, gotNoInteractive, gotErr := GatherCredentials(cmd.Flags())
+			gotUsername, gotPassword, gotAPIKey, gotErr := GatherCredentials(cmd.Flags())
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("GatherCredentials() failed: %v", gotErr)
@@ -258,10 +254,6 @@ func TestGatherCredentials(t *testing.T) {
 				t.Error("did not expect nil api key")
 			} else if !tt.wantAPIKeyNil && (tt.wantAPIKey != *gotAPIKey) {
 				t.Error("incorrect api key", testsupport.ExpectedActual(tt.wantPassword, *gotAPIKey))
-			}
-
-			if tt.wantNoInteractive != gotNoInteractive {
-				t.Error("incorrect no interactive", testsupport.ExpectedActual(tt.wantNoInteractive, gotNoInteractive))
 			}
 		})
 	}

@@ -39,7 +39,7 @@ const (
 
 var aliases []string = []string{"searches"}
 
-func NewQueriesNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{scheduled.NewScheduledNav(), saved.NewSavedNav()},
 		[]action.Pair{

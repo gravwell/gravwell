@@ -28,13 +28,16 @@ const (
 
 var aliases []string = []string{"me"}
 
-func NewSelfNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases, nil,
 		[]action.Pair{
 			admin(),
 			MyInfo(),
 			sessions(),
 			groups(),
+			changePassword(),
+			searchGroup(),
+			update(),
 		})
 }
 

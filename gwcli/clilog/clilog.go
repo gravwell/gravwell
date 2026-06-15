@@ -218,6 +218,9 @@ func Active(lvl Level) bool {
 // Returns ErrInternal, which the caller may return if this failure is fatal.
 // It is safe to ignore the return value.
 func GetFlag(err error) ErrInternal {
+	if err == nil {
+		return ErrInternal{}
+	}
 	if Writer != nil {
 		// TODO test call depth
 		Writer.Warn("flag-get failure", log.KV("parent", log.CallLoc(1)), log.KVErr(err))

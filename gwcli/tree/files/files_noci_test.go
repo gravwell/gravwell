@@ -14,6 +14,8 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -71,22 +73,22 @@ func TestCreateEditDownload(t *testing.T) {
 		}
 	}
 	// check for the new file
-	fileID, desc, lbls := listForItem(t, fileName, fileSize)
+	fileID, desc, fileLbls := listForItem(t, fileName, fileSize)
 	// validate
 	if desc != fileDesc {
 		t.Error("retrieved incorrect description", testsupport.ExpectedActual(fileDesc, desc))
 	}
-	if !testsupport.SlicesUnorderedEqual(lbls, []string{""}) { // we did not provide any labels, so split should return a single, empty element
-		t.Error("assigned labels do not match given labels", testsupport.ExpectedActual([]string{}, lbls))
+	if !testsupport.SlicesUnorderedEqual(fileLbls, []string{""}) { // we did not provide any labels, so split should return a single, empty element
+		t.Error("assigned labels do not match given labels", testsupport.ExpectedActual([]string{}, fileLbls))
 	}
 	t.Logf("found new file with %v", fileID)
 
 	// check that we can alter one of the properties
+	fileLbls = []string{"lbl1", "lbl2", "thirdthing"}
 	{
-		lbls := []string{"lbl1", "lbl2", "thirdthing"}
 		var sbErr strings.Builder
 		if ec := tree.Execute(append(meta, []string{"files", "edit", "-i", fileID,
-			"--labels=" + strings.Join(lbls, ","), // just add some labels
+			"--labels=" + strings.Join(fileLbls, ","), // just add some labels
 		}...), nil, &sbErr); ec != 0 {
 			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
@@ -97,19 +99,19 @@ func TestCreateEditDownload(t *testing.T) {
 		if desc != setDesc {
 			t.Error("incorrect description", testsupport.ExpectedActual(desc, setDesc))
 		}
-		if !testsupport.SlicesUnorderedEqual(lbls, setLbls) {
-			t.Error("incorrect labels set by edit", testsupport.ExpectedActual(lbls, setLbls))
+		if !testsupport.SlicesUnorderedEqual(fileLbls, setLbls) {
+			t.Error("incorrect labels set by edit", testsupport.ExpectedActual(fileLbls, setLbls))
 		}
 	}
 
 	// check for the altered file
-	fileID, desc, lbls = listForItem(t, fileName, fileSize)
+	fileID, desc, fileLbls = listForItem(t, fileName, fileSize)
 	// validate
 	if desc != fileDesc { // should not have changed
 		t.Error("retrieved incorrect description", testsupport.ExpectedActual(fileDesc, desc))
 	}
-	if !testsupport.SlicesUnorderedEqual(lbls, []string{"lbl1", "lbl2", "thirdthing"}) { // we did not provide any labels, so split should return a single, empty element
-		t.Error("assigned labels do not match given labels", testsupport.ExpectedActual([]string{}, lbls))
+	if !testsupport.SlicesUnorderedEqual(fileLbls, []string{"lbl1", "lbl2", "thirdthing"}) { // we did not provide any labels, so split should return a single, empty element
+		t.Error("assigned labels do not match given labels", testsupport.ExpectedActual([]string{}, fileLbls))
 	}
 	t.Logf("found edited file with %v", fileID)
 
@@ -117,29 +119,50 @@ func TestCreateEditDownload(t *testing.T) {
 
 	// redownload the file
 	{
-		resultPath := path.Join(tDir, "redown.txt")
-		args := append(meta, []string{"files", "download",
-			"-o", resultPath,
-			fileID}...)
-		t.Logf("downloading file (ID: %v) via '%v'", fileID, args)
-		// execute spins up singletons for us
-		var sbErr strings.Builder
-		if ec := tree.Execute(args, nil, &sbErr); ec != 0 {
-			t.Fatal("bad error code. STDERR: ", sbErr.String())
-		}
-		// check the file
-		dl, err := os.ReadFile(resultPath)
-		if err != nil {
-			t.Fatal("failed to read download: ", err)
-		}
-		orig, err := os.ReadFile(filePath)
+		actualContent := downloadFile(t, fileID)
+		expectedContent, err := os.ReadFile(filePath)
 		if err != nil {
 			t.Fatal("failed to read original file: ", err)
 		}
-		if string(dl) != string(orig) {
-			t.Error(testsupport.ExpectedActual(string(orig), string(dl)))
-		}
+		assert.Equal(t, string(expectedContent), actualContent)
 	}
+	// replace the content of the file
+	var (
+		newFilePath string
+		newFileSize int64
+	)
+	{ // create new content
+		newFilePath = path.Join(tDir, t.Name()+"create_replace.txt")
+		f, err := os.Create(newFilePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.WriteString(randomdata.RandStringRunes(50))
+		f.Sync()
+		fi, err := f.Stat()
+		if err != nil {
+			t.Fatal()
+		}
+		newFileSize = fi.Size()
+		f.Close()
+	}
+	var sbOut, sbErr strings.Builder
+	require.Zero(t,
+		tree.Execute(append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "files", "replace", "--path", newFilePath, fileID),
+			&sbOut, &sbErr),
+		sbErr.String(),
+	)
+	{ // validate metadata and new contents
+		gotID, gotDescription, gotLbls := listForItem(t, fileName, newFileSize)
+		assert.Equal(t, fileID, gotID)
+		assert.Equal(t, fileDesc, gotDescription)
+		assert.Equal(t, fileLbls, gotLbls)
+		actualContent := downloadFile(t, fileID)
+		expectedContent, err := os.ReadFile(newFilePath)
+		assert.Nil(t, err)
+		assert.Equal(t, string(expectedContent), string(actualContent))
+	}
+
 }
 
 // listForItem executes "list", identifies a row with the given name, and returns its details.
@@ -195,4 +218,21 @@ func listForItem(t *testing.T, name string, size int64) (id string, description 
 	}
 	t.Fatalf("found no rows with name %v. Rows: %v", name, rows[1:])
 	return
+}
+
+func downloadFile(t *testing.T, fileID string) (content string) {
+	resultPath := path.Join(t.ArtifactDir(), "download"+randomdata.Digits(8)+".txt")
+	args := append(meta, []string{"files", "download", "-o", resultPath, fileID}...)
+	t.Logf("downloading file (ID: %v) to %s", fileID, resultPath)
+	// execute spins up singletons for us
+	var sbErr strings.Builder
+	if ec := tree.Execute(args, nil, &sbErr); ec != 0 {
+		t.Fatal("bad error code. STDERR: ", sbErr.String())
+	}
+	// check the file
+	dl, err := os.ReadFile(resultPath)
+	if err != nil {
+		t.Fatal("failed to read download: ", err)
+	}
+	return string(dl)
 }

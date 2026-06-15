@@ -17,6 +17,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -52,6 +53,18 @@ func NewTI(defVal string, optional bool) textinput.Model {
 		}
 	}
 	return ti
+}
+
+// NewTA creates a textarea with common attributes that respect the current stylesheet.
+func NewTA() textarea.Model {
+	ta := textarea.New()
+	ta.Prompt = ""
+	ta.Blur()
+	//ta.FocusedStyle =  Cur.ComposableSty.FocusedBorder // TODO
+
+	ta.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
+	ta.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")
+	return ta
 }
 
 //#region For Cobra Usage
