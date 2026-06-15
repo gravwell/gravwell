@@ -508,11 +508,6 @@ func create() action.Pair {
 			},
 		},
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			var lbls []string
-			if exploded := strings.Split(strings.TrimSpace(fields["labels"].Provider.Get()), ","); len(exploded) > 0 {
-				lbls = exploded
-			}
-
 			pth := fields["path"].Provider.Get()
 			flowContent, err := os.ReadFile(pth)
 			if err != nil {
@@ -526,7 +521,7 @@ func create() action.Pair {
 				CommonFields: types.CommonFields{
 					Name:        fields["name"].Provider.Get(),
 					Description: fields["desc"].Provider.Get(),
-					Labels:      lbls,
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
 				},
 				AutomationCommonFields: types.AutomationCommonFields{
 					Schedule:        fields["schedule"].Provider.Get(),

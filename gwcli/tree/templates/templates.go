@@ -331,16 +331,11 @@ func create() action.Pair {
 				emptyStr = " empty " // inserting into the success line to confirm that no actual data were given
 			}
 
-			var lbls []string
-			if exploded := strings.Split(strings.TrimSpace(fields["labels"].Provider.Get()), ","); len(exploded) > 0 {
-				lbls = exploded
-			}
-
 			newTemplate, err := connection.Client.CreateTemplate(types.Template{
 				CommonFields: types.CommonFields{
 					Name:        fields["name"].Provider.Get(),
 					Description: fields["desc"].Provider.Get(),
-					Labels:      lbls,
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
 				},
 				Query:     content.Query,
 				Variables: content.Variables,

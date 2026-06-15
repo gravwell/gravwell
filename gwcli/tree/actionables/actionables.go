@@ -131,14 +131,8 @@ func create() action.Pair {
 				CommonFields: types.CommonFields{
 					Name:        fields["name"].Provider.Get(),
 					Description: fields["description"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
 				},
-			}
-			for lbl := range strings.SplitSeq(fields["labels"].Provider.Get(), ",") {
-				lbl = strings.TrimSpace(lbl)
-				if lbl == "" {
-					continue
-				}
-				spec.CommonFields.Labels = append(spec.CommonFields.Labels, lbl)
 			}
 
 			// attempt to read from the given JSON, if provided

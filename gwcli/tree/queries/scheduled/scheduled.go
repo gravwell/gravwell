@@ -539,7 +539,7 @@ func createScript() action.Pair {
 			if err != nil {
 				return 0, err.Error(), nil
 			}
-			backfill, _ := strconv.ParseBool(fields["backfill"].Provider.Get())
+			backfill, err := strconv.ParseBool(fields["backfill"].Provider.Get())
 			if err != nil {
 				return 0, err.Error(), nil
 			}
@@ -563,7 +563,7 @@ func createScript() action.Pair {
 				Script:         string(flowContent),
 				ScriptLanguage: lang,
 			})
-			return new.ID, "", nil
+			return new.ID, "", err
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{

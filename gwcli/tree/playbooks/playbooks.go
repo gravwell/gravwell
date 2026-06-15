@@ -170,7 +170,7 @@ func create() action.Pair {
 				CommonFields: types.CommonFields{
 					Name:        cfg["name"].Provider.Get(),
 					Description: cfg["desc"].Provider.Get(),
-					Labels:      strings.Split(strings.TrimSpace(cfg["labels"].Provider.Get()), ","),
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
 				Body: body,
 			}

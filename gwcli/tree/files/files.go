@@ -136,14 +136,11 @@ func create() action.Pair {
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var (
 				name, desc, filePath string
-				labels               []string
 			)
 			name = cfg["name"].Provider.Get()
 			desc = cfg["desc"].Provider.Get()
 			filePath = cfg["path"].Provider.Get()
-			if lbls := cfg["labels"].Provider.Get(); lbls != "" {
-				labels = strings.Split(lbls, ",")
-			}
+
 			var f *os.File
 			if filePath != "" {
 				// get a reader on the file
@@ -158,7 +155,7 @@ func create() action.Pair {
 				CommonFields: types.CommonFields{
 					Name:        name,
 					Description: desc,
-					Labels:      labels,
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
 			}
 

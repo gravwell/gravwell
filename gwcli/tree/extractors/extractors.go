@@ -78,7 +78,6 @@ const (
 	fieldKeyArgs   = "args"
 	fieldUsageArgs = "module-specific arguments used to change the behavior of the extraction module.\n" +
 		"NOTE: The regex processor does not support arguments"
-	fieldKeyLabels = "labels"
 )
 
 // #region list
@@ -133,7 +132,7 @@ func create() action.Pair {
 		map[string]scaffoldcreate.Field{
 			fieldKeyName: scaffoldcreate.FieldName("extractor"),
 			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
-			fieldKeyModule: scaffoldcreate.Field{
+			fieldKeyModule: {
 				Required: true,
 				Title:    "module",
 				Flag:     scaffoldcreate.FlagConfig{Name: "module", Usage: "extraction module to use. Call `extractors modules` to list available options.", Shorthand: 'm'},
@@ -156,7 +155,7 @@ func create() action.Pair {
 				DefaultValue: "",
 				Order:        80,
 			},
-			fieldKeyTags: scaffoldcreate.Field{
+			fieldKeyTags: {
 				Required: true,
 				Title:    "tags",
 				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: "tags this ax will extract from. There can only be one extractor per tag.", Shorthand: 't'},
@@ -179,14 +178,14 @@ func create() action.Pair {
 				},
 				Order: 70,
 			},
-			fieldKeyParams: scaffoldcreate.Field{
+			fieldKeyParams: {
 				Required: true,
 				Title:    "Params/regex",
 				Flag:     scaffoldcreate.FlagConfig{Name: "params", Usage: fieldUsageParams},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    60,
 			},
-			fieldKeyArgs: scaffoldcreate.Field{
+			fieldKeyArgs: {
 				Required:     false,
 				Title:        "arguments/options",
 				Flag:         scaffoldcreate.FlagConfig{Name: "args", Usage: fieldUsageArgs},
@@ -194,7 +193,7 @@ func create() action.Pair {
 				DefaultValue: "",
 				Order:        50,
 			},
-			fieldKeyLabels: fLabels,
+			"labels": fLabels,
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
 			// no need to nil check; Required boolean enforces that for us
@@ -204,7 +203,7 @@ func create() action.Pair {
 				CommonFields: types.CommonFields{
 					Name:        cfg[fieldKeyName].Provider.Get(),
 					Description: cfg[fieldKeyDesc].Provider.Get(),
-					Labels:      strings.Split(strings.ReplaceAll(cfg[fieldKeyLabels].Provider.Get(), " ", ""), ","),
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
 				Module: cfg[fieldKeyModule].Provider.Get(),
 				Tags:   strings.Split(strings.ReplaceAll(cfg[fieldKeyTags].Provider.Get(), " ", ""), ","),
@@ -356,7 +355,7 @@ func edit() action.Pair {
 			FlagName: "args",
 			Order:    50,
 		},
-		fieldKeyLabels: fLabels,
+		"labels": fLabels,
 	},
 		scaffoldedit.SubroutineSet[string, types.AX]{
 			SelectSub: func(id string) (item types.AX, err error) {
@@ -383,7 +382,7 @@ func edit() action.Pair {
 					return item.Params, nil
 				case fieldKeyArgs:
 					return item.Args, nil
-				case fieldKeyLabels:
+				case "labels":
 					return strings.Join(item.Labels, ","), nil
 				}
 				return "", fmt.Errorf("unknown field key: %v", fieldKey)
@@ -402,7 +401,7 @@ func edit() action.Pair {
 					item.Params = val
 				case fieldKeyArgs:
 					item.Args = val
-				case fieldKeyLabels:
+				case "labels":
 					item.Labels = strings.Split(val, ",")
 				default:
 					return "", fmt.Errorf("unknown field key: %v", fieldKey)
