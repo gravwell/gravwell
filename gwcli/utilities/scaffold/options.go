@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -94,9 +94,6 @@ type OmitFlags struct {
 	Limit          bool
 }
 
-// this can be extracted if we find ourselves using it more
-var italics = lipgloss.NewStyle().Italic(true)
-
 // InstallQueryOptionsFlags attaches query option flags to the flagset if there were not omitted.
 //
 // Should be paired with GetQueryOptions.
@@ -107,7 +104,7 @@ func InstallQueryOptionsFlags(fs *pflag.FlagSet, omit OmitFlags) {
 	// attach query option flags, depending on their omit state
 
 	if !omit.AllData {
-		fs.Bool(FlagNameAllData, false, "Requests that results include data from "+italics.Render("all")+" users and groups instead of just yours.\n"+
+		fs.Bool(FlagNameAllData, false, "Requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
 			"Ignored if you are not an admin.\n"+
 			"Implied by admin mode")
 	}
