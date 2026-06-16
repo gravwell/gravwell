@@ -64,7 +64,7 @@ type Element struct {
 // It is used by clients to request all possible extractions from the given entries.
 type GenerateAXRequest struct {
 	Tag     string
-	Entries []string
+	Entries [][]byte
 }
 
 // A GenerateAXResponse contains an autoextractor definition
