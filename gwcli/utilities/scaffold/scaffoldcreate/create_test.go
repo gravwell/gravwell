@@ -69,7 +69,7 @@ func TestOptions(t *testing.T) {
 	act := scaffoldcreate.NewCreateAction("test",
 		map[string]scaffoldcreate.Field{
 			"name": scaffoldcreate.FieldName("test"),
-			"path": scaffoldcreate.FieldPath("test"),
+			"path": scaffoldcreate.FieldPath("test", true),
 			"cust": { // converted into an int
 				Required: false,
 				Title:    "customs",

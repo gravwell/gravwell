@@ -170,10 +170,10 @@ func FieldDescription(singular string) Field {
 
 // FieldPath returns a struct suited for file path specification inputs.
 // Order == 80.
-func FieldPath(singular string) Field {
+func FieldPath(singular string, required bool) Field {
 	return Field{
 		Title:    ft.Path.Name(),
-		Required: true,
+		Required: required,
 		Flag: FlagConfig{
 			Name:      ft.Path.Name(),
 			Usage:     ft.Path.Usage(singular),
