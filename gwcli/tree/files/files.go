@@ -190,7 +190,7 @@ func create() action.Pair {
 				return 0, "", fmt.Errorf("failed to create empty file: %w", err)
 			}
 			// populate the file
-			if _, err := connection.Client.PopulateFileFromReader(outMeta.ID, f); err != nil {
+			if _, err := connection.Client.PopulateFileFromPath(outMeta.ID, filePath); err != nil {
 				return 0, "", fmt.Errorf("failed to populate file: %w", err)
 			}
 
@@ -305,11 +305,7 @@ func replace() action.Pair {
 		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
 			// slurp file
 			pth, _ := addtlFlags.GetString(ft.Path.Name())
-			contentF, err := os.Open(pth)
-			if err != nil {
-				return "", err
-			}
-			updatedFile, err := connection.Client.PopulateFileFromReader(ID, contentF)
+			updatedFile, err := connection.Client.PopulateFileFromPath(ID, pth)
 			if err != nil {
 				return "", err
 			}
