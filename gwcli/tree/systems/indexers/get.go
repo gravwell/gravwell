@@ -29,7 +29,7 @@ func get() action.Pair {
 	)
 
 	return scaffoldlist.NewListAction("get details about a specific indexer", long, deepIndexerInfo{},
-		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]deepIndexerInfo, error) {
 			dii := deepIndexerInfo{Name: strings.TrimSpace(fs.Arg(0))}
 
 			if !dii.fetchByName() {
@@ -68,6 +68,7 @@ func get() action.Pair {
 				}
 				return "", nil
 			},
+			Omit: scaffold.OmitFlags{Everything: true},
 		})
 }
 

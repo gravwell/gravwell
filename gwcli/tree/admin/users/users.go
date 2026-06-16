@@ -55,8 +55,8 @@ func NewNav() *cobra.Command {
 
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
-		func(fs *pflag.FlagSet) ([]types.User, error) {
-			resp, err := connection.Client.ListUsers(nil)
+		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.User, error) {
+			resp, err := connection.Client.ListUsers(param.QueryOpts)
 			return resp.Results, err
 		}, nil, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
 }
@@ -274,7 +274,7 @@ func sessionsAction() action.Pair {
 		"Get all active sessions for the specified user IDs.\n"+
 			"If --since is not set, it will default to fetching all records for the past 48 hours.",
 		session{},
-		func(fs *pflag.FlagSet) ([]session, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]session, error) {
 			allSessions := []types.Session{}
 			for _, uid := range sessionUIDs {
 				userSessions, err := connection.Client.Sessions(uid)
@@ -385,6 +385,7 @@ func sessionsAction() action.Pair {
 				}
 				return "", nil
 			},
+			Omit: scaffold.OmitFlags{Everything: true},
 		},
 	)
 }

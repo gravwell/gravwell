@@ -126,7 +126,7 @@ func sessions() action.Pair {
 	return scaffoldlist.NewListAction("display your active sessions",
 		"Displays information about how and where you are currently logged in.\n"+
 			"If --since is not set, it will default to fetching all records for the past 48 hours.", session{},
-		func(fs *pflag.FlagSet) ([]session, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]session, error) {
 			rawSessions, err := connection.Client.MySessions()
 			if err != nil {
 				return nil, err
@@ -200,18 +200,19 @@ func sessions() action.Pair {
 				}
 				return "", nil
 			},
+			Omit: scaffold.OmitFlags{Everything: true},
 		})
 }
 
 func groups() action.Pair {
 	return scaffoldlist.NewListAction("display your group memberships", "Display groups you are a part of.", types.Group{},
-		func(fs *pflag.FlagSet) ([]types.Group, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Group, error) {
 			return connection.Client.Groups()
 		},
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "groups"},
-			Pretty: func(_ []string, _ map[string]string) (string, error) {
+			Pretty: func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				groups, err := connection.Client.Groups()
 				if err != nil {
 					return "", err

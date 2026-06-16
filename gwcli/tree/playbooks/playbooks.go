@@ -49,8 +49,8 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list playbooks", "List playbooks available to your user.",
 		types.Playbook{},
-		func(fs *pflag.FlagSet) ([]types.Playbook, error) {
-			resp, err := connection.Client.ListPlaybooks(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Playbook, error) {
+			resp, err := connection.Client.ListPlaybooks(params.QueryOpts)
 			return resp.Results, err
 		},
 		nil,

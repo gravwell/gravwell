@@ -85,7 +85,7 @@ func licenseInfo() action.Pair {
 		"display information about the current license",
 		"Displays details about the currently installed Gravwell license.",
 		wrappedLicenseInfo{},
-		func(fs *pflag.FlagSet) ([]wrappedLicenseInfo, error) {
+		func(_ *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]wrappedLicenseInfo, error) {
 			li, err := connection.Client.GetLicenseInfo()
 			if err != nil {
 				return nil, err
@@ -102,7 +102,7 @@ func licenseInfo() action.Pair {
 				"Version",
 				"Expiration",
 			},
-			Pretty: func(_ []string, _ map[string]string) (string, error) {
+			Pretty: func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				li, err := connection.Client.GetLicenseInfo()
 				if err != nil {
 					return "", err
@@ -137,6 +137,7 @@ func licenseInfo() action.Pair {
 					},
 				)
 			},
+			Omit: scaffold.OmitFlags{Everything: true},
 		},
 	)
 }

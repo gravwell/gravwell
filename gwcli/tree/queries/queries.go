@@ -51,24 +51,11 @@ func NewNav() *cobra.Command {
 // #region past queries
 
 func past() action.Pair {
-	const (
-		pastUse string = "past"
-		short   string = "display search history"
-		long    string = "display past searches made by your user"
-	)
-
 	return scaffoldlist.NewListAction(
-		short, long,
+		"display search history", "display past searches made by your user",
 		types.SearchHistoryEntry{},
-		func(fs *pflag.FlagSet) ([]types.SearchHistoryEntry, error) {
-			opts := &types.QueryOptions{}
-			if count, err := fs.GetInt("count"); err != nil {
-				clilog.GetFlag(err)
-			} else if count > 0 {
-				opts.Limit = count
-			}
-
-			resp, err := connection.Client.ListSearchHistory(opts)
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
+			resp, err := connection.Client.ListSearchHistory(params.QueryOpts)
 			if err != nil {
 				// check for explicit no records error
 				if strings.Contains(err.Error(), "No record") {
@@ -81,7 +68,7 @@ func past() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: pastUse, AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{Use: "past"},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"EffectiveQuery",

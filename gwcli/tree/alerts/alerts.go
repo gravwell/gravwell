@@ -92,33 +92,28 @@ func alertsList() action.Pair {
 	)
 
 	return scaffoldlist.NewListAction(short, long, types.Alert{},
-		func(fs *pflag.FlagSet) ([]types.Alert, error) {
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
+
 			if listConsumerID != "" {
-				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
-					Filters: []types.Filter{
-						{
-							Key:       "Consumers.ID",
-							Operation: "=",
-							Values:    []any{listConsumerID},
-						},
-					},
+				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+					Key:       "Consumers.ID",
+					Operation: "=",
+					Values:    []any{listConsumerID},
 				})
+				resp, err := connection.Client.ListAlerts(params.QueryOpts)
 				return resp.Results, err
 
 			} else if listDispatcherID != "" {
-				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
-					Filters: []types.Filter{
-						{
-							Key:       "Dispatchers.ID",
-							Operation: "=",
-							Values:    []any{listDispatcherID},
-						},
-					},
+				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+					Key:       "Dispatchers.ID",
+					Operation: "=",
+					Values:    []any{listDispatcherID},
 				})
+				resp, err := connection.Client.ListAlerts(params.QueryOpts)
 				return resp.Results, err
 			}
 
-			resp, err := connection.Client.ListAlerts(nil)
+			resp, err := connection.Client.ListAlerts(params.QueryOpts)
 			return resp.Results, err
 		},
 		nil,
@@ -141,11 +136,14 @@ func alertsList() action.Pair {
 				"TargetTag",
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, _ error) {
-				if listConsumerID, invalid = validateListID("consumer", fs); invalid != "" {
-					return invalid, nil
+				var err error
+				listConsumerID, err = fs.GetString("consumer")
+				if err != nil {
+					return "", clilog.GetFlag(err)
 				}
-				if listDispatcherID, invalid = validateListID("dispatcher", fs); invalid != "" {
-					return invalid, nil
+				listDispatcherID, err = fs.GetString("dispatcher")
+				if err != nil {
+					return "", clilog.GetFlag(err)
 				}
 
 				if listConsumerID != "" && listDispatcherID != "" {
@@ -154,15 +152,6 @@ func alertsList() action.Pair {
 				return "", nil
 			},
 		})
-}
-
-// helper function for list's ValidateArgs.
-func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid string) {
-	s, err := fs.GetString(flagName)
-	if err != nil {
-		clilog.GetFlag(err)
-	}
-	return s, ""
 }
 
 func delete() action.Pair {

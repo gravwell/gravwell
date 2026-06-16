@@ -32,8 +32,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // a flag is the minimum required for accessing and registering a flag for use in other actions.
@@ -267,78 +265,12 @@ var (
 		typ:   types.Int32,
 	}
 
-	//#region scaffoldlist/columns
-
-	// ShowColumns (--show-columns) is a local flag used by scaffold list to display all known columns.
-	// Unlikely to be used outside of actions that implement scaffold list.
-	ShowColumns = simple{
-		name:  "show-columns",
-		usage: "display the list of fully qualified column names and exit",
+	IncludeDeleted = simple{
+		name:  "include-deleted",
+		usage: "include data marked for deletion",
 		typ:   types.Bool,
 	}
-
-	// SelectColumns (--columns) is a local flag used by scaffold list to select which columns to display, overriding the default.
-	// Unlikely to be used outside of actions that implement scaffold list.
-	SelectColumns = stringSliceRegister{
-		name: "columns",
-		usage: "comma-separated list of columns to include in the results.\n" +
-			"Use --" + ShowColumns.name + " to see the full list of columns",
-	}
-
-	// AllColumns (--all-columns) is a local flag used by scaffold list to force the action to display data from all available columns.
-	// Unlikely to be used outside of actions that implement scaffold list.
-	AllColumns = simple{
-		name: "all-columns",
-		usage: "displays data from all columns, ignoring the default column set.\n" +
-			"Overrides --" + SelectColumns.name,
-		typ: types.Bool,
-	}
-
-	// #endregion scaffoldlist/columns
 )
-
-// need custom handling for GetAll.
-// Does not fit the flag interface, but it has similar enough usage so what's it matter?
-type getAllFlag struct {
-}
-
-// GetAll is a local flag that tells the implementing action to fetch all items, rather than just the current user's items (or something to that effect).
-// For example, providing this to macros should fetch all macros on the instance, rather than just your macros.
-var GetAll = getAllFlag{}
-
-func (gaf getAllFlag) Name() string { return "all" }
-
-// Register installs this flag in the given flagset.
-//
-// requiresAdmin prefixes "ADMIN ONLY" to the usage.
-//
-// plural is the plural form of the thing being fetched.
-//
-// usageSuffixLines an optional set of ordered sentences to be attached (separated by newlines) to the usage of this flag.
-// Each line will be titled cased and have a period appended.
-func (gaf getAllFlag) Register(fs *pflag.FlagSet, requiresAdmin bool, plural string, usageSuffixLines ...string) {
-	usage := "Lists all " + plural + " on the system."
-	if requiresAdmin {
-		usage = "ADMIN ONLY." + usage
-	}
-	// append each extra line
-	if usageSuffixLines != nil {
-		usage += "\n"
-		var (
-			sb  strings.Builder
-			ttl = cases.Title(language.English)
-		)
-		for _, line := range usageSuffixLines {
-			l := ttl.String(line)
-			if !strings.HasSuffix(l, ".") {
-				l += "."
-			}
-			sb.WriteString(l)
-		}
-	}
-
-	fs.Bool("all", false, strings.TrimSuffix(strings.TrimSpace(usage), "."))
-}
 
 // Frequency is a local flag for defining a cron-style interval in which something occurs.
 var Frequency = simple{
@@ -367,6 +299,9 @@ var Path = singular{
 	shorthand:   'f',
 	usagePrefix: "path to the",
 }
+
+const DirName = "dir"
+const DirUsagePrefix = "directory to "
 
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
 func WarnFlagIgnore(ignoredFlag, causeFlag string) string {

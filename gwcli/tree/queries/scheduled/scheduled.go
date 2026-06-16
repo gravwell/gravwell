@@ -40,24 +40,35 @@ func NewScheduledNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			create(),
-			list(),
+			listAction(),
 			delete(),
 			edit(),
 		})
 }
 
-//#region list
-
-func list() action.Pair {
-	var (
-		short = "list scheduled queries"
-		long  = "prints out all scheduled queries."
-	)
-	return scaffoldlist.NewListAction(short, long,
-		types.ScheduledSearch{}, listScheduledSearch,
+// also serves as GET
+func listAction() action.Pair {
+	return scaffoldlist.NewListAction(
+		"list scheduled queries",
+		"Lists information about scheduled searches you can access.",
+		types.ScheduledSearch{},
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.ScheduledSearch, error) {
+			if id, err := fs.GetString("id"); err != nil {
+				clilog.GetFlag(err)
+			} else if id != "" {
+				ss, err := connection.Client.GetScheduledSearchEx(id, params.QueryOpts)
+				return []types.ScheduledSearch{ss}, err
+			}
+			list, err := connection.Client.ListScheduledSearches(params.QueryOpts)
+			return list.Results, err
+		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.String("id", "", "fetches the scheduled search associated to the given id.")
+				return &fs
+			}},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -69,46 +80,6 @@ func list() action.Pair {
 		})
 }
 
-func flags() *pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all schedule searches on the system.\n"+
-		"Supersedes --id.")
-	addtlFlags.String("id", "", "fetches the scheduled search associated to the given id."+
-		"This id can be a standard, numeric ID or a uuid.")
-
-	return &addtlFlags
-}
-
-func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
-	if all, err := fs.GetBool("all"); err != nil {
-		clilog.GetFlag(err)
-	} else if all {
-		list, err := connection.Client.ListAllScheduledSearches(nil)
-		return list.Results, err
-	}
-	if id, err := fs.GetString("id"); err != nil {
-		clilog.GetFlag(err)
-	} else if id != "" {
-		ss, err := connection.Client.GetScheduledSearch(id)
-		return []types.ScheduledSearch{ss}, err
-	}
-	list, err := connection.Client.ListScheduledSearches(nil)
-	return list.Results, err
-}
-
-//#endregion list
-
-//#region create
-
-const ( // field keys
-	createNameKey     = "name"
-	createDescKey     = "desc"
-	createFreqKey     = "freq"
-	createQryKey      = "qry"
-	createDurationKey = "dur"
-)
-
-// create creates the action for creating new scheduled queries.
 func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		createQryKey: scaffoldcreate.Field{

@@ -57,8 +57,8 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list actionables",
 		"List actionables available to your user.",
 		types.Actionable{},
-		func(fs *pflag.FlagSet) ([]types.Actionable, error) {
-			lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Actionable, error) {
+			lr, err := connection.Client.ListActionables(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}

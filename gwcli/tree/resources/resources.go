@@ -66,18 +66,8 @@ func list() action.Pair {
 		long  string = "view resources available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.Resource{}, func(fs *pflag.FlagSet) ([]types.Resource, error) {
-			if all, err := fs.GetBool("all"); err != nil {
-				clilog.GetFlag(err)
-			} else if all {
-				resp, err := connection.Client.ListAllResources(nil)
-				if err != nil {
-					return nil, err
-				}
-				return resp.Results, nil
-			}
-
-			resp, err := connection.Client.ListResources(nil)
+		types.Resource{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.Resource, error) {
+			resp, err := connection.Client.ListResources(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -92,14 +82,8 @@ func list() action.Pair {
 				"Size",
 				"ContentType",
 			},
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{},
 		})
-}
-
-func flags() *pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "resources")
-	return &addtlFlags
 }
 
 func download() action.Pair {
@@ -162,7 +146,7 @@ func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		"name":   scaffoldcreate.FieldName("resource"),
 		"desc":   scaffoldcreate.FieldDescription("resource"),
-		"path":   scaffoldcreate.FieldPath("resource"),
+		"path":   scaffoldcreate.FieldPath("resource", true),
 		"labels": scaffoldcreate.FieldLabels(),
 	}
 
