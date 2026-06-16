@@ -12,21 +12,29 @@ Package templates defines the templates nav, which holds data related to... er, 
 package templates
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -43,10 +51,11 @@ For instance, templates which expect an IP address as their variable can be used
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
-			//create(),
 			delete(),
 			edit(),
-			//download(),
+			show(),
+			create(),
+			jsonAction(),
 		})
 }
 
@@ -203,4 +212,174 @@ func edit() action.Pair {
 		},
 	}
 	return scaffoldedit.NewEditAction("template", "templates", cfg, funcs)
+}
+
+// for to/from JSON
+type content struct {
+	Query     string
+	Variables []types.TemplateVariable
+}
+
+func show() action.Pair {
+	return scaffoldselect.NewSelectAction("display template contents", "Display the contents of a template", "template",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			templates, err := connection.Client.ListTemplates(nil) // TODO need to pass in params
+			if err != nil {
+				return nil, err
+			}
+			data := make([]multiselectlist.SelectableItem[string], len(templates.Results))
+			for i, template := range templates.Results {
+				data[i] = &listitem.Generic{
+					ID_:        template.ID,
+					Name:       template.Name,
+					SecondLine: template.Description,
+				}
+			}
+			return data, nil
+		},
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())
+			clilog.GetFlag(err)
+
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				template, err := connection.Client.GetTemplate(ID)
+				if phrases.IsNotFoundErr(err) {
+					results[i] = scaffold.Result{
+						Output: phrases.ErrUnknownIdentifier(ID, "flow ID").Error(),
+					}
+					continue
+				} else if err != nil {
+					clilog.Writer.Warn("failed to get template", log.KV("ID", ID), log.KVErr(err))
+					results[i] = scaffold.Result{
+						Output: err.Error(),
+					}
+					continue
+				}
+				// compose output
+				if asJSON {
+					content := content{Query: template.Query, Variables: template.Variables}
+					b, err := json.Marshal(content)
+					if err != nil {
+						clilog.Writer.Error("failed to marshal content", log.KV("content", content), log.KVErr(err))
+						results[i] = scaffold.Result{Output: "failed to marshal content: " + err.Error()}
+						continue
+					}
+					results[i] = scaffold.Result{Success: true, Output: string(b)}
+					continue
+				}
+				var sb strings.Builder
+				sb.WriteString("ID ")
+				sb.WriteString(ID)
+				sb.WriteString(": ")
+				sb.WriteString(template.Query)
+				sb.WriteString("\n")
+				for _, variable := range template.Variables {
+					requiredString := ""
+					if variable.Required {
+						requiredString = " (required)"
+					}
+					fmt.Fprintf(&sb,
+						"\t%s=%s%s\n"+
+							"\t\t%s\n",
+						variable.Name, variable.DefaultValue, requiredString,
+						variable.Description)
+				}
+
+				results[i] = scaffold.Result{
+					Success: true,
+					Output:  sb.String()[:sb.Len()-1],
+				}
+
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "show",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.JSON.Register(fs)
+					return fs
+				},
+			},
+		})
+}
+
+func create() action.Pair {
+	return scaffoldcreate.NewCreateAction("template",
+		map[string]scaffoldcreate.Field{
+			"name":   scaffoldcreate.FieldName("template"),
+			"desc":   scaffoldcreate.FieldDescription("template"),
+			"path":   scaffoldcreate.FieldPath("template specification", true),
+			"labels": scaffoldcreate.FieldLabels(),
+		},
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			var (
+				content  content
+				emptyStr string
+			)
+			if pth := strings.TrimSpace(fields["path"].Provider.Get()); pth != "" {
+				b, err := os.ReadFile(pth)
+				if err != nil {
+					return 0, "", err
+				}
+				if err := json.Unmarshal(b, &content); err != nil {
+					return 0, "", err
+				}
+			} else {
+				emptyStr = " empty " // inserting into the success line to confirm that no actual data were given
+			}
+
+			newTemplate, err := connection.Client.CreateTemplate(types.Template{
+				CommonFields: types.CommonFields{
+					Name:        fields["name"].Provider.Get(),
+					Description: fields["desc"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
+				},
+				Query:     content.Query,
+				Variables: content.Variables,
+			})
+			if err != nil {
+				return 0, "", err
+			}
+			return phrases.SuccessfullyCreatedItem(emptyStr+"template", newTemplate.ID), "", nil
+
+		},
+		scaffoldcreate.Options{
+			Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
+				"Call " + stylesheet.Cur.Action.Render("templates json") + " to see the format of the JSON file.",
+			IDIsSuccessMessage: true,
+		})
+}
+
+func jsonAction() action.Pair {
+	return scaffold.NewBasicAction("json", "display template JSON schema",
+		"Print the JSON schema expected for creating templates via the cli.",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			return `{
+  "Query": "my example query",
+  "Variables": [
+    {
+      "Name": "NAME1",
+      "Label": "lbl",
+      "Description": "my variable description",
+      "Required": true,
+      "DefaultValue": "default",
+      "PreviewValue": "preview"
+    },
+    {
+      "Name": "NAME2",
+      "Label": "lbl",
+      "Description": "my variable description",
+      "Required": true,
+      "DefaultValue": "default",
+      "PreviewValue": "preview"
+    }
+  ]
+}`, nil
+		},
+		scaffold.BasicOptions{},
+	)
+
 }
