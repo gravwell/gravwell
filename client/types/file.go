@@ -8,11 +8,6 @@
 
 package types
 
-type FileContentType struct {
-	ContentType string
-	Body        []byte
-}
-
 // File contains metadata about the file, but not the actual bytes.
 type File struct {
 	CommonFields
