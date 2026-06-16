@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -31,81 +32,16 @@ var aliases []string = []string{"me"}
 func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases, nil,
 		[]action.Pair{
-			admin(),
 			MyInfo(),
 			sessions(),
 			groups(),
 			changePassword(),
 			searchGroup(),
 			update(),
+			logoutAll(),
+			admin.Status("admin"),
 		})
 }
-
-//#region admin mode
-
-func admin() action.Pair {
-	const (
-		use   string = "admin"
-		short string = "display or modify your admin status"
-		long  string = "If called bare, admin displays whether or not you are an admin (and thus can enter admin mode).\n" +
-			"Use -t to toggle your admin status, which will attach admin=true to future queries.\n" +
-			"Exercise caution in admin mode, as it gives access to objects belonging to other users and makes it easy to break things.\n" +
-			"Admin mode does not persist between sessions."
-	)
-	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			isAdministrator, err := connection.Client.IsAdmin()
-			if err != nil {
-				return "failed to fetch administrator status: " + err.Error(), nil
-			}
-
-			// branch on toggle flag
-			if t, err := fs.GetBool("toggle"); err != nil {
-				clilog.GetFlag(err)
-			} else if t {
-				return toggle(isAdministrator)
-			}
-
-			// display state
-			inAdminMode := connection.Client.AdminMode()
-			if isAdministrator {
-				var not string
-				if !inAdminMode {
-					not = " not"
-				}
-				return "You are an administrator.\n" + "You are in" + not + " admin mode.", nil
-			}
-			var s = "You are not an administrator."
-			if inAdminMode {
-				s += "\nYet, you are somehow in admin mode.\nYour admin mode flag will be ignored. Please file a bug report."
-			}
-			return s, nil
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.BoolP("toggle", "t", false, "toggle your admin status")
-					return fs
-				},
-			},
-		})
-}
-
-func toggle(isAdministrator bool) (string, tea.Cmd) {
-	if !isAdministrator {
-		return "Only administrators can toggle admin mode", nil
-	}
-	if !connection.Client.AdminMode() {
-		connection.Client.SetAdminMode()
-		return "You are now in admin mode", nil
-	}
-	connection.Client.ClearAdminMode()
-	return "You are no longer in admin mode", nil
-
-}
-
-//#endregion admin mode
 
 // wrapper for types.Session to limit the information sessions returns.
 type session struct {
@@ -224,6 +160,23 @@ func groups() action.Pair {
 					fmt.Fprintf(&sb, "%s (ID: %d)\n", grp.Name, grp.ID)
 				}
 				return sb.String()[:sb.Len()-1], nil
+			},
+			Omit: scaffold.OmitFlags{Everything: true},
+		})
+}
+
+func logoutAll() action.Pair {
+	return scaffold.NewBasicAction("logout-all", "logout all sessions", "Terminate all active sessions for your user.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			if err := connection.Client.LogoutAll(); err != nil {
+				return err.Error(), nil
+			}
+			connection.End()
+			return "Successfully logged out all sessions", tea.Quit
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage:   "logout-all",
+				Aliases: []string{"boot"},
 			},
 		})
 }
