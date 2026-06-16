@@ -10,7 +10,10 @@
 package scheduled
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -28,6 +31,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
@@ -43,6 +47,10 @@ func NewScheduledNav() *cobra.Command {
 			listAction(),
 			delete(),
 			edit(),
+			cancel(),
+			backfillToggle(),
+			clear(),
+			createScript(),
 		})
 }
 
@@ -263,21 +271,259 @@ func edit() action.Pair {
 
 			return "", nil
 
-		},
-		GetTitleSub: func(item types.ScheduledSearch) string {
-			return fmt.Sprintf("%s (executes '%s')", item.Name, item.SearchString)
-		},
-		GetDescriptionSub: func(item types.ScheduledSearch) string {
-			return fmt.Sprintf("(%s) %s", item.Schedule, item.Description)
-		},
-		UpdateSub: func(data *types.ScheduledSearch) (identifier string, err error) {
-			return data.Name, connection.Client.UpdateScheduledSearch(*data)
-		},
+func wrapSS(ss types.ScheduledSearch) *listitem.Generic {
+	line := fmt.Sprintf("[%s] %s", ss.Schedule, ss.SearchString)
+	if ss.Description != "" {
+		line += " - " + ss.Description
 	}
-
-	return scaffoldedit.NewEditAction(singular, "scheduled searches", cfg, funcs)
+	return &listitem.Generic{
+		ID_:          ss.ID,
+		Name:         ss.Name,
+		SecondLine:   line,
+		ShowDisabled: true,
+		Enabled:      !ss.Disabled,
+	}
 }
 
-//#endregion edit
+func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
+	enable, err = fs.GetBool("enable")
+	if err != nil {
+		clilog.GetFlag(err)
+		return
+	}
+	disable, err = fs.GetBool("disable")
+	if err != nil {
+		clilog.GetFlag(err)
+		return
+	}
+	if enable && disable {
+		return false, false, ft.ErrMutuallyExclusive("enable", "disable")
+	}
+	return
+}
 
-// cancelAction, backfillToggle, setOffset, and clearResults are defined in interactive.go
+func cancel() action.Pair {
+	return scaffoldselect.NewSelectAction("cancel running scheduled searches",
+		"Cancel one or several currently-executing scheduled searches by ID.",
+		"scheduled search",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			l, err := connection.Client.ListScheduledSearches(nil)
+			if err != nil {
+				return nil, err
+			}
+			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
+			for i, ss := range l.Results {
+				itms[i] = wrapSS(ss)
+			}
+			return itms, nil
+		},
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.CancelScheduledSearch(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: "successfully cancelled scheduled search " + ID}
+				}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "cancel"},
+		})
+}
+
+func backfillToggle() action.Pair {
+	return scaffoldselect.NewSelectAction("toggle scheduled search backfill",
+		"Toggle backfill for one or several scheduled searches.\n"+
+			"Backfill causes the automation to run for missed time periods.\n"+
+			"Use --enable or --disable to set explicitly.",
+		"scheduled search",
+		func(fs *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			enable, disable, err := getBackfillFlags(fs)
+			if err != nil {
+				return nil, err
+			}
+			l, err := connection.Client.ListScheduledSearches(nil)
+			if err != nil {
+				return nil, err
+			}
+			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
+			for i, ss := range l.Results {
+				if enable && ss.BackfillEnabled {
+					continue
+				} else if disable && !ss.BackfillEnabled {
+					continue
+				}
+
+				itms[i] = wrapSS(ss)
+			}
+
+			return itms, nil
+		},
+		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			enable, disable, err := getBackfillFlags(fs)
+			if err != nil {
+				return nil, err
+			}
+
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				ss, err := connection.Client.GetScheduledSearch(ID)
+				if err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+					continue
+				}
+				ss.BackfillEnabled = !ss.BackfillEnabled
+				if enable {
+					ss.BackfillEnabled = true
+				} else if disable {
+					ss.BackfillEnabled = false
+				}
+
+				if err := connection.Client.UpdateScheduledSearch(ss); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+				} else {
+					state := "enabled"
+					if !ss.BackfillEnabled {
+						state = "disabled"
+					}
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("scheduled search '%s' backfill %s", ID, state)}
+				}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "backfill",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("enable", false, "enable backfill")
+					fs.Bool("disable", false, "disable backfill")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				_, _, err = getBackfillFlags(fs)
+				return "", err
+			},
+		})
+}
+
+func clear() action.Pair {
+	return scaffoldselect.NewSelectAction("clear results for scheduled searches",
+		"Clear the execution results (including errors and state) for one or several scheduled searches.",
+		"scheduled search",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			l, err := connection.Client.ListScheduledSearches(nil)
+			if err != nil {
+				return nil, err
+			}
+			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
+			for i, ss := range l.Results {
+				itms[i] = wrapSS(ss)
+			}
+			return itms, nil
+		},
+		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.ClearScheduledSearchResults(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: err.Error()}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("successfully cleared results for scheduled search %s", ID)}
+				}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "clear"},
+		})
+}
+
+func createScript() action.Pair {
+	return scaffoldcreate.NewCreateAction("scheduled script",
+		map[string]scaffoldcreate.Field{
+			"lang": scaffoldcreate.Field{
+				Title:    "Language",
+				Required: true,
+				Flag: scaffoldcreate.FlagConfig{
+					Name: "language",
+					Usage: "Set the language the script is written in." +
+						"Possible values: 'go', 'anko'.",
+				},
+				DefaultValue: "anko",
+				Order:        200,
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("anko", false)
+						ti.Validate = func(s string) error {
+							_, err := types.ParseScriptLang(s)
+							return err
+						}
+						return ti
+					},
+				},
+			},
+			"name":        scaffoldcreate.FieldName("scheduled script"),
+			"description": scaffoldcreate.FieldDescription("scheduled script"),
+			"path":        scaffoldcreate.FieldPath("script", true),
+			"schedule":    scaffoldcreate.FieldFrequency(),
+			"enabled": {
+				Title: "Enabled?", Required: false,
+				Flag:     scaffoldcreate.FlagConfig{},
+				Order:    30,
+				Provider: &scaffoldcreate.BoolProvider{},
+			},
+			"backfill": {
+				Title: "Backfill?", Required: false,
+				Flag:     scaffoldcreate.FlagConfig{},
+				Order:    20,
+				Provider: &scaffoldcreate.BoolProvider{},
+			},
+		},
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			pth := fields["path"].Provider.Get()
+			flowContent, err := os.ReadFile(pth)
+			if err != nil {
+				return 0, "", err
+			}
+
+			enabled, err := strconv.ParseBool(fields["enabled"].Provider.Get())
+			if err != nil {
+				return 0, err.Error(), nil
+			}
+			backfill, err := strconv.ParseBool(fields["backfill"].Provider.Get())
+			if err != nil {
+				return 0, err.Error(), nil
+			}
+
+			lang, err := types.ParseScriptLang(fields["lang"].Provider.Get())
+			if err != nil {
+				return 0, err.Error(), nil
+			}
+
+			new, err := connection.Client.CreateScheduledScript(types.ScheduledScript{
+				CommonFields: types.CommonFields{
+					Name:        fields["name"].Provider.Get(),
+					Description: fields["desc"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
+				},
+				AutomationCommonFields: types.AutomationCommonFields{
+					Schedule:        fields["schedule"].Provider.Get(),
+					Disabled:        !enabled,
+					BackfillEnabled: backfill,
+				},
+				Script:         string(flowContent),
+				ScriptLanguage: lang,
+			})
+			return new.ID, "", err
+		},
+		scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "script",
+				Aliases: []string{"from-script", "create-script"},
+			},
+		},
+	)
+}
