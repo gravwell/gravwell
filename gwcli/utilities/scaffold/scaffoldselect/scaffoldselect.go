@@ -38,14 +38,25 @@ import (
 )
 
 // CollectItemsFunc is used in interactive mode to populate the list of selectable items.
+// It will NOT be called if DirectInvoked or NoInteractive.
 //
 // ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
 type CollectItemsFunc[ID_t scaffold.Id_t] func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[ID_t], error)
 
-// OperateFunc performs the actual operation (toggling, cloning, updating, etc) on a given ID.
+// OperateFunc performs the actual operation (toggling, cloning, updating, etc) on the final set of selected IDs.
+//
+// - IDs is the set of identifiers the user provided as bare arguments or interactively selected from the items in CollectItems.
+// As a user can bypass CollectItems by prioviding bare arguments, these IDs are not guaranteed to be valid.
 //
 // ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
-type OperateFunc[ID_t scaffold.Id_t] func(id ID_t, addtlFlags *pflag.FlagSet) (success string, _ error)
+//
+// results will be printed as they are given, in the order given.
+// You may return one result per ID (in which case, the ID should be included in output) or a single result;
+// scaffoldselect does no further processing of this output aside from printing to stderr or stdout (if non-interactive).
+// You may return no results and a nil error; scaffoldselect will simply exit silently.
+//
+// an error should be used for a fatal error where processing cannot continue; invalid arguments and non-fatal errors can go in results.
+type OperateFunc[ID_t scaffold.Id_t] func(IDs []ID_t, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error)
 
 func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 	selectedItemSingular string,
@@ -85,18 +96,18 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 			return errors.New(phrases.Exactly1ArgRequired(selectedItemSingular))
 		}
 
-		results, inv := autonomous(cmd.Flags(), op, selectedItemSingular)
-		if inv != "" {
-			return errors.New(inv)
+		results, err := autonomous(cmd.Flags(), op, selectedItemSingular)
+		if err != nil {
+			return err
 		}
 		var numSuccesses, numErrors uint
 		for _, res := range results {
-			if res.success {
+			if res.Success {
 				numSuccesses += 1
-				fmt.Fprintln(cmd.OutOrStdout(), res.out)
+				fmt.Fprintln(cmd.OutOrStdout(), res.Output)
 			} else {
 				numErrors += 1
-				fmt.Fprintln(cmd.ErrOrStderr(), res.out)
+				fmt.Fprintln(cmd.ErrOrStderr(), res.Output)
 			}
 		}
 		return finalError(numSuccesses, numErrors)
@@ -133,17 +144,10 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 // Assumes NArg has already been checked.
 // Every result will have out set; successful operations with no success string are not returned.
 //
-// Returns inv iff any of the arguments fail the FromString conversion.
-func autonomous[ID_t scaffold.Id_t](fs *pflag.FlagSet, op OperateFunc[ID_t], singular string) (results []struct {
-	out     string
-	success bool
-}, inv string) {
-	results = make([]struct {
-		out     string
-		success bool
-	}, 0, fs.NArg())
-
-	for _, a := range fs.Args() {
+// Returns iff any of the arguments fail the FromString conversion.
+func autonomous[ID_t scaffold.Id_t](fs *pflag.FlagSet, op OperateFunc[ID_t], singular string) (_ []scaffold.Result, fatal error) {
+	var casts = make([]ID_t, fs.NArg())
+	for i, a := range fs.Args() {
 		cast, err := scaffold.FromString[ID_t](a)
 		if err != nil {
 			var zero ID_t
@@ -152,23 +156,16 @@ func autonomous[ID_t scaffold.Id_t](fs *pflag.FlagSet, op OperateFunc[ID_t], sin
 				log.KV("target type", reflect.TypeOf(zero)),
 				scaffold.IdentifyCaller(),
 			)
-			return nil, a + " is not a valid " + singular
+			return nil, errors.New(a + " is not a valid " + singular)
 		}
-
-		if success, err := op(cast, fs); err != nil {
-			results = append(results, struct {
-				out     string
-				success bool
-			}{err.Error(), false})
-		} else if success != "" {
-			results = append(results, struct {
-				out     string
-				success bool
-			}{success, true})
-		}
+		casts[i] = cast
+	}
+	results, err := op(casts, fs)
+	if err != nil {
+		return nil, err
 	}
 
-	return slices.Clip(results), ""
+	return slices.Clip(results), nil
 }
 
 // finalError returns an error based on the number of errors.
@@ -221,28 +218,13 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 		if m.fs.NArg() > 1 && m.options.Exactly1 {
 			return phrases.Exactly1ArgRequired(m.singular), nil, nil
 		}
-		results, inv := autonomous(m.fs, m.op, m.singular)
-		if inv != "" {
-			return inv, nil, nil
+		results, err := autonomous(m.fs, m.op, m.singular)
+		if err != nil {
+			return "", nil, err
 		}
+
 		m.done = true
-		var (
-			numSuccesses, numErrors uint
-			cmds                    []tea.Cmd
-		)
-		for _, res := range results {
-			if res.success {
-				numSuccesses += 1
-				cmds = append(cmds, tea.Println(res.out))
-			} else {
-				numErrors += 1
-				cmds = append(cmds, tea.Println(stylesheet.Cur.ErrorText.Render(res.out)))
-			}
-		}
-		if err := finalError(numSuccesses, numErrors); err != nil {
-			cmds = append(cmds, tea.Println(err.Error()))
-		}
-		return "", tea.Sequence(cmds...), nil
+		return "", teaPrintlnResults(results), nil
 	}
 
 	// we were not given any arguments; spool up the selection list
@@ -272,11 +254,34 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 	return "", nil, nil
 }
 
+// teaPrintlnResults returns a set of tea Cmds to print the results (color-coded) and suffixes finalError
+func teaPrintlnResults(results []scaffold.Result) tea.Cmd {
+	if len(results) == 0 {
+		return nil
+	}
+	cmds := make([]tea.Cmd, len(results))
+	var numSuccesses, numErrors uint
+	for i, res := range results {
+		if res.Success {
+			numSuccesses += 1
+			cmds[i] = tea.Println(res.Output)
+		} else {
+			numErrors += 1
+			cmds[i] = tea.Println(stylesheet.Cur.ErrorText.Render(res.Output))
+		}
+	}
+	if err := finalError(numSuccesses, numErrors); err != nil {
+		cmds = append(cmds, tea.Println(err.Error()))
+	}
+	return tea.Sequence(cmds...)
+}
+
 func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	if m.options.Exactly1 {
 		if hotkeys.ButtonPressed(msg) { // accept invoke or select
 			m.done = true
+			// collect the set of IDs
 			itm := m.l.SelectedItem()
 			if itm == nil {
 				clilog.Writer.Error("nil item selected from list.Model")
@@ -287,14 +292,11 @@ func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 				var zero multiselectlist.SelectableItem[ID_t]
 				return tea.Println(clilog.TypeAssert(itm, zero).Error())
 			}
-			success, err := m.op(selItm.ID(), m.fs)
+			results, err := m.op([]ID_t{selItm.ID()}, m.fs)
 			if err != nil {
 				return tea.Println(err.Error())
 			}
-			if success != "" {
-				return tea.Println(success)
-			}
-			return nil
+			return teaPrintlnResults(results)
 		}
 
 		m.l, cmd = m.l.Update(msg)
@@ -314,25 +316,16 @@ func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 		m.msl.Undone()
 		return m.msl.NewStatusMessage("select at least 1 " + m.singular)
 	}
-	var cmds = make([]tea.Cmd, 0, len(itms))
-	atLeastOneSuccess := false
-	for _, itm := range itms {
-		if success, err := m.op(itm.ID(), m.fs); err != nil {
-			cmds = append(cmds, tea.Println(err))
-		} else {
-			atLeastOneSuccess = true
-			if success != "" {
-				cmds = append(cmds, tea.Println(success))
-			}
-		}
+	IDs := make([]ID_t, len(itms))
+	// collect IDs
+	for i, itm := range itms {
+		IDs[i] = itm.ID()
 	}
-	cmds = slices.Clip(cmds)
-	if !atLeastOneSuccess {
-		cmds = append(cmds, tea.Println("all operations failed"))
+	results, err := m.op(IDs, m.fs)
+	if err != nil {
+		return tea.Println(stylesheet.Cur.ErrorText.Render(err.Error()))
 	}
-
-	return tea.Sequence(cmds...)
-
+	return teaPrintlnResults(results)
 }
 
 func (m *selectModel[ID_t]) View() string {
