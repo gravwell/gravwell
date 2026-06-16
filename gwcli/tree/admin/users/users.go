@@ -410,11 +410,16 @@ func lock() action.Pair {
 			items = slices.Clip(items)
 			return items, nil
 		},
-		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
-			if err := connection.Client.LockUserAccount(ID); err != nil {
-				return "", fmt.Errorf("failed to lock user account %d: %v", ID, err)
+		func(IDs []int32, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, id := range IDs {
+				if err := connection.Client.LockUserAccount(id); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to lock user account %d: %v", id, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("User %d locked", id)}
+				}
 			}
-			return fmt.Sprintf("User %v locked", ID), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -441,11 +446,16 @@ func unlock() action.Pair {
 			items = slices.Clip(items)
 			return items, nil
 		},
-		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
-			if err := connection.Client.UnlockUserAccount(ID); err != nil {
-				return "", fmt.Errorf("failed to unlock user account %d: %v", ID, err)
+		func(IDs []int32, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.UnlockUserAccount(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to unlock user account %d: %v", ID, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("User %d unlocked", ID)}
+				}
 			}
-			return fmt.Sprintf("User %v unlocked", ID), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

@@ -11,6 +11,7 @@ package actionables
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -113,10 +115,9 @@ func get() action.Pair {
 }
 
 func create() action.Pair {
-	path := scaffoldcreate.FieldPath("")
+	path := scaffoldcreate.FieldPath("", false)
 	path.Flag.Usage = "path to the JSON file containing the actionable's contents. " +
 		"If not provided, the actionable will be created empty."
-	path.Required = false
 	return scaffoldcreate.NewCreateAction("actionable",
 		map[string]scaffoldcreate.Field{
 			"name":        scaffoldcreate.FieldName("actionable"),
@@ -130,14 +131,8 @@ func create() action.Pair {
 				CommonFields: types.CommonFields{
 					Name:        fields["name"].Provider.Get(),
 					Description: fields["description"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
 				},
-			}
-			for lbl := range strings.SplitSeq(fields["labels"].Provider.Get(), ",") {
-				lbl = strings.TrimSpace(lbl)
-				if lbl == "" {
-					continue
-				}
-				spec.CommonFields.Labels = append(spec.CommonFields.Labels, lbl)
 			}
 
 			// attempt to read from the given JSON, if provided
@@ -232,31 +227,42 @@ func replace() action.Pair {
 			}
 			return items, nil
 		},
-		func(ID string, fs *pflag.FlagSet) (success string, _ error) {
+		func(IDs []string, fs *pflag.FlagSet) (_ []scaffold.Result, _ error) {
+			// This is an exactly1 function
+			if len(IDs) != 1 {
+				clilog.Writer.Warn("exactly1 function with incorrect number of IDs made it to operate()",
+					log.KV("count", len(IDs)),
+					scaffold.IdentifyCaller())
+				if len(IDs) == 0 {
+					return nil, errors.New(phrases.Exactly1ArgRequired("playbook ID"))
+				}
+			}
 			// fetch the actionables existing metadata; we only want to update the contents
-			a, err := connection.Client.GetActionable(ID)
+			a, err := connection.Client.GetActionable(IDs[0])
 			if err != nil {
 				if phrases.IsNotFoundErr(err) {
-					return "", phrases.ErrUnknownIdentifier(ID, "actionable ID")
+					return nil, phrases.ErrUnknownIdentifier(IDs[0], "actionable ID")
 				}
-				return "", err
+				return nil, err
 			}
 			// unmarshal the given json as contents
 			pth, _ := fs.GetString(ft.Path.Name())
 			f, err := os.Open(pth)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			defer f.Close()
 			dcdr := json.NewDecoder(f)
 			if err := dcdr.Decode(&a.Contents); err != nil {
-				return "", err
+				return nil, err
 			}
 			a, err = connection.Client.UpdateActionable(a)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			return fmt.Sprintf("replaced actionable definition of %s (ID: %s)", a.Name, a.ID), nil
+			return []scaffold.Result{
+				{Output: fmt.Sprintf("replaced actionable definition of %s (ID: %s)", a.Name, a.ID), Success: true},
+			}, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

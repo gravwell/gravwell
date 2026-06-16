@@ -164,16 +164,11 @@ func create() action.Pair {
 				return "", "path must point to a file", nil
 			}
 			// transmute to resource struct
-			var labels []string
-			if lbls := cfg["labels"].Provider.Get(); strings.TrimSpace(lbls) != "" {
-				labels = strings.Split(strings.TrimSpace(lbls), ",")
-			}
-
 			data := types.Resource{
 				CommonFields: types.CommonFields{
 					Name:        cfg["name"].Provider.Get(),
 					Description: cfg["desc"].Provider.Get(),
-					Labels:      labels,
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
 			}
 
