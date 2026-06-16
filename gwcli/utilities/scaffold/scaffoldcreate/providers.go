@@ -386,13 +386,16 @@ func (p *MSLProvider) Set(val string) (invalid string) {
 	if val == "" {
 		return ""
 	}
-	vals := strings.Split(val, ",")
+	vals := strings.Split(val, MSLProviderSeparator)
 	_, notFound := p.msl.SelectItems(vals)
 	if len(notFound) > 0 {
 		return fmt.Sprintf("IDs %v not found", notFound)
 	}
 	return ""
 }
+
+// MSLProviderSeparator is the separator used to split values given to Set and returned from Get.
+const MSLProviderSeparator string = ","
 
 // Get returns the set of selected items as a comma-separated list.
 func (p *MSLProvider) Get() string {
@@ -401,7 +404,7 @@ func (p *MSLProvider) Get() string {
 	for i, di := range dis {
 		ss[i] = di.ID()
 	}
-	return strings.Join(ss, ",")
+	return strings.Join(ss, MSLProviderSeparator)
 }
 
 func (p *MSLProvider) ToggleFocus(_ bool) {
