@@ -11,6 +11,7 @@ package scaffoldcreate
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -204,6 +205,16 @@ func FieldLabels() Field {
 	}
 }
 
+// GetLabelsFromField extracts the actual labels from a FieldLabels.
+// Returns nil if the field was not populated
+func GetLabelsFromField(f Field) []string {
+	var lbls []string
+	if exploded := strings.Split(strings.TrimSpace(f.Provider.Get()), ","); len(exploded) > 0 {
+		lbls = exploded
+	}
+	return lbls
+}
+
 // FieldFrequency returns a struct suitable for taking in the frequency of something occurring as a cron string.
 // Attaches uniques.CronRuneValidator and shorthand -c.
 // Order == 50.
@@ -244,3 +255,9 @@ func FieldPassword(required bool, fc FlagConfig, order int) Field {
 		},
 	}
 }
+
+var DefaultFieldGroupSelectionFlags = FlagConfig{
+	Name:  "groups",
+	Usage: "Groups IDs to associate to the item",
+}
+
