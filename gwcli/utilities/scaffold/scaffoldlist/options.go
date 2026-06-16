@@ -9,9 +9,17 @@
 package scaffoldlist
 
 import (
+	"fmt"
+	"maps"
+	"os"
 	"regexp"
+	"slices"
 
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
 )
 
@@ -54,4 +62,113 @@ type Options struct {
 	// The message that will be printed if the listFunc returns no data (and no error).
 	// Uses DefaultEmptyMessage if unset.
 	EmptyMessage string
+
+	// Omit allows disabling flags for this action, causing their values to always default to false/nil and the flags themselves to not be shown in help text.
+	Omit scaffold.OmitFlags
+}
+
+// buildFlagSet returns a flagset composed of the default list flags,
+// additional flags defined for this action,
+// and --pretty if a prettyFunc was defined.
+//
+// defaultColumnsAliased are the columns to display as defaults alongside --columns.
+// They are expected to have aliases applied and will not be coerced.
+func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit scaffold.OmitFlags) *pflag.FlagSet {
+	fs := pflag.FlagSet{}
+	ft.CSV.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.Table.Register(&fs)
+
+	fs.StringSliceP(FlagNameSelectColumns, "", defaultColumnsAliased,
+		"Comma-separated list of columns to include in the results.\n"+
+			"Use --"+FlagNameShowColumns+" to see the full list of columns.\n"+
+			"Mutually exclusive with --"+FlagNameSelectAllColumns)
+
+	fs.Bool(FlagNameShowColumns, false, "Display available columns (for use with --columns) and exit.\n"+
+		"Causes all other flags to be ignored")
+
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	fs.Bool(FlagNameSelectAllColumns, false,
+		"Displays data from all columns, ignoring the default column set.\n"+
+			"Mutually exclusive with --"+FlagNameSelectColumns)
+
+	scaffold.InstallQueryOptionsFlags(&fs, omit)
+
+	// if prettyFunc was defined, bolt on pretty
+	if prettyDefined {
+		fs.Bool("pretty", false, "Display results as prettified text.\n"+
+			"Takes precedence over other format flags.\n"+
+			"May or may not respect columns, default or selected")
+	}
+
+	return &fs
+}
+
+// fetches values from the flagset that scaffoldlist uses directly (as opposed to getQueryOptions()).
+func getFlags(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, prettyDefined bool) (
+	showColumns bool, columns []string, outFile *os.File, format outputFormat, invalid string,
+) {
+	show, err := fs.GetBool(FlagNameShowColumns)
+	clilog.GetFlag(err)
+	if show { // job's done
+		return true, nil, nil, 0, ""
+	}
+	if outFile, err = initOutFile(fs); err != nil {
+		return true, nil, nil, 0, err.Error()
+	}
+	if columns, invalid = getColumns(fs, DQToAlias, AliasToDQ); invalid != "" {
+		return true, nil, nil, 0, invalid
+	}
+	format = determineFormat(fs, prettyDefined)
+	return
+}
+
+// getColumns figures out which columns this request should receive and returns the DQ version of each.
+//
+// In order of priority:
+//
+//  1. all columns (if --all), sorted alphabetically
+//
+//  2. selected columns (if --columns=<>), retaining given order
+//
+//  3. default columns, sorted alphabetically
+func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) (_ []string, invalid string) {
+	selectAll, err := fs.GetBool(FlagNameSelectAllColumns)
+	clilog.GetFlag(err)
+	selectColumns, err := fs.GetStringSlice(FlagNameSelectColumns) // this will return either the user-spec'd columns or the default columns
+	clilog.GetFlag(err)
+
+	// MX check
+	if selectAll && fs.Changed(FlagNameSelectColumns) {
+		return nil, ft.ErrMutuallyExclusive(FlagNameSelectAllColumns, FlagNameSelectColumns).Error()
+	}
+
+	// collect columns
+	if selectAll {
+		// normalize all column names
+		normal, unknown := normalizeToDQ(sortColumns(slices.Collect(maps.Keys(DQToAlias))), DQToAlias, AliasToDQ)
+		// we should never get unknown columns when giving the full set; this is a developer error
+		if len(unknown) > 0 {
+			clilog.Writer.Error("got unknown columns while normalizing the full column set.",
+				log.KV("unknown columns", unknown),
+				scaffold.IdentifyCaller())
+			return nil, clilog.ErrInternal{}.Error() // this isn't technically an invalid but its also super unlikely to ever happen so...
+		}
+		return normal, ""
+	}
+
+	normalized, unknown := normalizeToDQ(selectColumns, DQToAlias, AliasToDQ)
+	if len(unknown) > 0 {
+		return nil, fmt.Sprintf("unknown columns: %v", unknown)
+	}
+	return normalized, ""
+}
+
+// DataParameters is the set of information that a user may provide the action that is unhandled by scaffoldlist itself.
+//
+// For example, --show-columns will not be included as it is handled automatically,
+// but --all will be as it must be handled by the ListDataFunc itself.
+type DataParameters struct {
+	QueryOpts *types.QueryOptions
 }
