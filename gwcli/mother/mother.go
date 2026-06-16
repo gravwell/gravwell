@@ -155,9 +155,13 @@ func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 		p.WriteString(cur.Name())
 		cur.LocalFlags().VisitAll(func(f *pflag.Flag) {
 			if f.Changed {
-				p.WriteString(fmt.Sprintf(" --%v=\"%v\"", f.Name, f.Value))
+				fmt.Fprintf(&p, " --%v=\"%v\"", f.Name, f.Value)
 			}
 		})
+		if len(trailingTokens) > 0 {
+			p.WriteString(" ")
+			p.WriteString(strings.Join(trailingTokens, " "))
+		}
 		m.ti.SetValue(p.String())
 
 		// have mother immediate act on the data we placed on her prompt
@@ -238,7 +242,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.dieOnChildDone {
 		m.exiting = true
 		connection.End()
-		return m, tea.Sequence(tea.Println("Bye"), tea.Quit)
+		return m, tea.Quit
 	}
 
 	// check for first boot immediate processing
@@ -342,17 +346,23 @@ func (m Mother) View() string {
 		ns, as, bs string
 	)
 	for _, suggestion := range m.suggestions.nav {
-		sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters) + suggestion.FullName[len(suggestion.MatchedCharacters):] + " ")
+		sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
+		sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		sb.WriteString(" ")
 	}
 	ns = strings.TrimSpace(sb.String()) // chip last space
 	sb.Reset()
 	for _, suggestion := range m.suggestions.action {
-		sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters) + suggestion.FullName[len(suggestion.MatchedCharacters):] + " ")
+		sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))
+		sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		sb.WriteString(" ")
 	}
 	as = strings.TrimSpace(sb.String()) // chip last space
 	sb.Reset()
 	for _, suggestion := range m.suggestions.bi {
-		sb.WriteString(stylesheet.Cur.TertiaryText.Render(suggestion.MatchedCharacters) + suggestion.FullName[len(suggestion.MatchedCharacters):] + " ")
+		sb.WriteString(stylesheet.Cur.TertiaryText.Render(suggestion.MatchedCharacters))
+		sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		sb.WriteString(" ")
 	}
 	bs = strings.TrimSpace(sb.String()) // chip last space
 
@@ -404,6 +414,9 @@ func processInput(m *Mother) tea.Cmd {
 	} else if wr.EndCmd != nil {
 		if action.Is(wr.EndCmd) {
 			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
+			if m.dieOnChildDone { // don't bother with history
+				return cmd
+			}
 			if cmd == nil {
 				return historyCmd
 			}
@@ -591,14 +604,17 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 			trimmedSubChildren := strings.TrimSpace(subchildren.String())
 			s.WriteString(fmt.Sprintf("%s%s - %s\n", sigils.Indent, name, child.Short))
 			if trimmedSubChildren != "" {
-				s.WriteString(sigils.Indent + sigils.Indent + trimmedSubChildren + "\n")
+				s.WriteString(sigils.Indent + sigils.Indent)
+				s.WriteString(trimmedSubChildren)
+				s.WriteString("\n")
 			}
 		}
 	}
 
 	// write help footer
-	s.WriteString("\nTry " + stylesheet.Cur.ExampleText.Render("help help") +
-		" for information on using the help command.")
+	s.WriteString("\nTry ")
+	s.WriteString(stylesheet.Cur.ExampleText.Render("help help"))
+	s.WriteString(" for information on using the help command.")
 
 	// chomp last newline and return
 	return tea.Println(strings.TrimSuffix(s.String(), "\n"))

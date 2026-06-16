@@ -12,16 +12,19 @@ Package templates defines the templates nav, which holds data related to... er, 
 package templates
 
 import (
-	"slices"
+	"fmt"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -42,9 +45,52 @@ For instance, templates which expect an IP address as their variable can be used
 			list(),
 			//create(),
 			delete(),
+			edit(),
 			//download(),
-			//edit(),
 		})
+}
+
+// wrap templates so we can better display variables
+type wrappedTemplate struct {
+	types.CommonFields
+
+	Query     string
+	Variables string
+}
+
+func wrap(ts []types.Template) []wrappedTemplate {
+	wrapped := make([]wrappedTemplate, len(ts))
+	for i, t := range ts {
+		w := wrappedTemplate{
+			CommonFields: t.CommonFields,
+
+			Query: t.Query,
+		}
+		var vars = make([]string, len(t.Variables))
+		for j, v := range t.Variables {
+			var sb strings.Builder
+			if v.Required {
+				sb.WriteString("(required) ")
+			}
+			fmt.Fprintf(&sb, "%s=%s", v.Name, v.Label)
+			if v.Description != "" {
+				sb.WriteString(" \"")
+				sb.WriteString(v.Description)
+				sb.WriteString("\"")
+			}
+			if v.DefaultValue != "" {
+				sb.WriteString(" Default: \"")
+				sb.WriteString(v.DefaultValue)
+				sb.WriteString("\"")
+			}
+			vars[j] = sb.String()
+		}
+		w.Variables = strings.Join(vars, ";")
+		wrapped[i] = w
+	}
+
+	return wrapped
+
 }
 
 func list() action.Pair {
@@ -53,7 +99,7 @@ func list() action.Pair {
 		long  string = "view templates available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.Template{}, func(fs *pflag.FlagSet) ([]types.Template, error) {
+		wrappedTemplate{}, func(fs *pflag.FlagSet) ([]wrappedTemplate, error) {
 			if all, err := fs.GetBool("all"); err != nil {
 				clilog.GetFlag(err)
 			} else if all {
@@ -61,14 +107,14 @@ func list() action.Pair {
 				if err != nil {
 					return nil, err
 				}
-				return resp.Results, nil
+				return wrap(resp.Results), nil
 			}
 
 			resp, err := connection.Client.ListTemplates(nil)
 			if err != nil {
 				return nil, err
 			}
-			return resp.Results, nil
+			return wrap(resp.Results), nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -167,19 +213,75 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteTemplate(id)
 		},
-		func() ([]scaffolddelete.Item[string], error) {
-			templates, err := connection.Client.ListAllTemplates(nil)
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListTemplates(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			slices.SortStableFunc(templates.Results,
-				func(a, b types.Template) int {
-					return strings.Compare(a.Name, b.Name)
-				})
-			var items = make([]scaffolddelete.Item[string], len(templates.Results))
-			for i, r := range templates.Results {
-				items[i] = scaffolddelete.NewItem(r.Name, r.Description, r.ID)
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, t := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        t.ID,
+					Name:       t.Name,
+					SecondLine: t.Description,
+				}
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
+}
+
+func edit() action.Pair {
+	cfg := scaffoldedit.Config{
+		"name":        scaffoldedit.FieldName("template"),
+		"description": scaffoldedit.FieldDescription("template"),
+		"query": &scaffoldedit.Field{
+			Required: true,
+			Title:    "Query",
+			Usage:    "the query string for this template",
+			FlagName: "query",
+			Order:    60,
+		},
+	}
+	funcs := scaffoldedit.SubroutineSet[string, types.Template]{
+		SelectSub: func(id string) (types.Template, error) {
+			return connection.Client.GetTemplate(id)
+		},
+		FetchSub: func() ([]types.Template, error) {
+			resp, err := connection.Client.ListTemplates(nil)
+			return resp.Results, err
+		},
+		GetFieldSub: func(item types.Template, fieldKey string) (string, error) {
+			switch fieldKey {
+			case "name":
+				return item.Name, nil
+			case "description":
+				return item.Description, nil
+			case "query":
+				return item.Query, nil
+			}
+			return "", fmt.Errorf("unknown field key: %v", fieldKey)
+		},
+		SetFieldSub: func(item *types.Template, fieldKey, val string) (string, error) {
+			switch fieldKey {
+			case "name":
+				item.Name = val
+			case "description":
+				item.Description = val
+			case "query":
+				item.Query = val
+			default:
+				return "", fmt.Errorf("unknown field key: %v", fieldKey)
+			}
+			return "", nil
+		},
+		GetTitleSub:       func(item types.Template) string { return item.Name },
+		GetDescriptionSub: func(item types.Template) string { return item.Description },
+		UpdateSub: func(data *types.Template) (string, error) {
+			_, err := connection.Client.UpdateTemplate(*data)
+			return data.Name, err
+		},
+	}
+	return scaffoldedit.NewEditAction("template", "templates", cfg, funcs)
 }

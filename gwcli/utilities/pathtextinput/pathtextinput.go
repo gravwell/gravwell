@@ -17,6 +17,8 @@ type Model struct {
 	// we need to wrap and hide base.
 	textinput.Model
 	pwd string
+
+	defaultPWD string
 }
 
 //var _ tea.Model = Model{}
@@ -36,7 +38,9 @@ type Options struct {
 //
 // Remember to focus it!
 func New(opt Options) Model {
-	m := Model{pwd: opt.PWD}
+	m := Model{
+		pwd: opt.PWD,
+	}
 	if m.pwd == "" {
 		dir, err := os.Getwd()
 		if err != nil {
@@ -45,10 +49,13 @@ func New(opt Options) Model {
 		}
 		m.pwd = dir
 	}
+
 	// ensure m.pwd ends with a slash
 	if !strings.HasSuffix(m.pwd, "/") {
 		m.pwd += "/"
 	}
+	m.defaultPWD = m.pwd
+
 	if opt.CustomTI == nil {
 		m.Model = textinput.New()
 	} else {
@@ -103,4 +110,12 @@ func deriveCompletions(root, input string) (completions []string) {
 // PWD returns the directory that this pti is operating (and basing all paths) out of.
 func (m Model) PWD() string {
 	return m.pwd
+}
+
+// Reset resets the TI, returns it to the PWD defined by options, and blurs.
+func (m *Model) Reset() {
+	m.Model.Reset()
+	m.pwd = m.defaultPWD
+	m.Model.SetSuggestions(deriveCompletions(m.pwd, m.Model.Value()))
+	m.Model.Blur()
 }

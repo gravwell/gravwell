@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 )
@@ -110,7 +111,7 @@ type Model struct {
 
 // ShortHelp shows combined cursor up/down.
 func (m Model) ShortHelp() []key.Binding {
-	return []key.Binding{key.NewBinding(key.WithHelp(sigils.UpDown, "up/down")), m.Invoke}
+	return []key.Binding{key.NewBinding(key.WithHelp(sigils.UpDown, "up/down"), key.WithKeys(sigils.UpDown)), m.Invoke}
 }
 
 func (m Model) FullHelp() [][]key.Binding {
@@ -193,4 +194,51 @@ func Match(msg tea.Msg, b ...key.Binding) bool {
 // ButtonPressed returns true iff the message was a select or invoke hotkey (either works for pressing buttons).
 func ButtonPressed(msg tea.Msg) bool {
 	return Match(msg, Invoke, Select)
+}
+
+// MoveCursor determines if and how the field-cursor should be moved up or down.
+//
+// If handled, set your field-cursor and discard the msg.
+//
+// currentIndex is the (0-indexed) current index of your field-cursor.
+//
+// fieldCount is the *total* (1-indexed) number of options, including submit button (if applicable). Used to determine wraps.
+//
+// selectedTA should be set iff the currently selected field is a text area; otherwise, leave it nil.
+func MoveCursor(msg tea.Msg, currentIndex, fieldCount uint, selectedTA *textarea.Model) (handled bool, updateTA bool, newIndex uint) {
+	// ! This function only fills its niche because, currently, textareas are the only model that require special cursor handling.
+	// If we find/create other, we will have to figure out an interface we can use.
+
+	// ! This function has a known visual bug:
+	// Because we cannot actually interact with fields from within this subroutine,
+	// we cannot force the textarea to wrap its cursor when we wrap the fields.
+	// In other words, if a user wraps from the top field to the bottom field and navigates back to a textarea,
+	// they will be placed back on line 0, not the bottom line.
+
+	// first, check if the message is even relevant
+	switch {
+	case Match(msg, CursorUp):
+		// check if the currently selected field is a relevant TA
+		if selectedTA != nil && selectedTA.Focused() &&
+			((selectedTA.LineCount() != 0) && (selectedTA.Line() != 0)) {
+			return false, true, currentIndex // this message should be passed to the TA instead
+		}
+		if currentIndex == 0 { // wrap
+			return true, false, fieldCount - 1
+		}
+		return true, false, currentIndex - 1
+	case Match(msg, CursorDown):
+		// check if the currently selected field is a relevant TA
+		if selectedTA != nil && selectedTA.Focused() &&
+			((selectedTA.LineCount() != 0) && (selectedTA.Line() != selectedTA.LineCount()-1)) {
+			return false, true, currentIndex // this message should be passed to the TA instead
+		}
+		if currentIndex == fieldCount-1 { // wrap
+			return true, false, 0
+		}
+		return true, false, currentIndex + 1
+	}
+	// nope, not my problem
+	return false, false, currentIndex
+
 }

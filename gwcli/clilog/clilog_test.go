@@ -14,7 +14,6 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 )
 
@@ -145,7 +144,7 @@ func TestInitializeFromArgs(t *testing.T) {
 		// prep for outpath
 		pth := path.Join(t.TempDir(), "t.log")
 
-		args := []string{"--" + ft.LogPath.Name() + "=" + pth, "--" + ft.LogLevel.Name() + "=DEBUG"}
+		args := []string{"--" + clilog.FlagLogPath.Name + "=" + pth, "--" + clilog.FlagLogLevel.Name + "=DEBUG"}
 		t.Log("args: \"", args, "\"")
 		clilog.InitializeFromArgs(args)
 		// check level

@@ -582,7 +582,7 @@ func verifyLoggedInStatus(expectedUsername string) error {
 	if _, err := connection.Client.ListMacros(nil); err != nil {
 		return fmt.Errorf("failed to fetch macros: %v", err)
 	}
-	if _, err := connection.Client.ListAllPivots(); err != nil {
+	if _, err := connection.Client.ListActionables(nil); err != nil {
 		return fmt.Errorf("failed to list pivots: %v", err)
 	}
 	if _, err := connection.Client.TokenCapabilities(); err != nil {

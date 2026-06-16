@@ -4,22 +4,29 @@ package flows
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 	"github.com/spf13/cobra"
@@ -34,16 +41,21 @@ func NewNav() *cobra.Command {
 		[]string{"flow"},
 		nil,
 		[]action.Pair{
-			list(),
+			listFlows(),
 			importCreate(),
 			download(),
+			delete(),
+			cancel(),
+			backfillToggle(),
+			clearResults(),
+			parse(),
 		},
 	)
 }
 
 //#region list
 
-func list() action.Pair {
+func listFlows() action.Pair {
 	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
 		types.Flow{},
 		func(fs *pflag.FlagSet) ([]types.Flow, error) {
@@ -203,4 +215,263 @@ func download() action.Pair {
 				}
 				return "", nil
 			}})
+}
+
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("flow", "flows",
+		func(dryrun bool, id string) error {
+			if dryrun {
+				_, err := connection.Client.GetFlow(id)
+				return err
+			}
+			return connection.Client.DeleteFlow(id)
+		},
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListFlows(nil)
+			if err != nil {
+				return nil, err
+			}
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, f := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        f.ID,
+					Name:       f.Name,
+					SecondLine: f.Description,
+				}
+			}
+
+			return items, nil
+		}, scaffolddelete.Options{})
+}
+
+func listFlowItems() ([]multiselectlist.SelectableItem[string], error) {
+	baseList, err := connection.Client.ListFlows(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	itms := make([]multiselectlist.SelectableItem[string], len(baseList.Results))
+	for i, f := range baseList.Results {
+		itms[i] = &listitem.Generic{
+			ID_:          f.ID,
+			Name:         f.Name,
+			SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
+			ShowDisabled: true,
+			Enabled:      !f.Disabled,
+		}
+	}
+	return itms, nil
+}
+
+func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
+	enable, err = fs.GetBool("enable")
+	if err != nil {
+		clilog.GetFlag(err)
+		return
+	}
+	disable, err = fs.GetBool("disable")
+	if err != nil {
+		clilog.GetFlag(err)
+		return
+	}
+	if enable && disable {
+		return false, false, ft.ErrMutuallyExclusive("enable", "disable")
+	}
+	return
+}
+
+func cancel() action.Pair {
+	return scaffoldselect.NewSelectAction("cancel running flows",
+		"Cancel one or several currently-executing flows.",
+		"flow",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			// ! this does not filter down to running-only
+			// we don't appear to currently have that capability via the client library
+			return listFlowItems()
+		},
+		func(id string, _ *pflag.FlagSet) (success string, err error) {
+			if err := connection.Client.CancelFlow(id); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("successfully cancelled flow %s", id), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "cancel"},
+		})
+}
+
+func backfillToggle() action.Pair {
+	return scaffoldselect.NewSelectAction("toggle flow backfill",
+		"Toggle backfill for one or several flows.\n"+
+			"Backfill causes the automation to run for missed time periods.\n"+
+			"Use --enable or --disable to set explicitly.",
+		"flow",
+		func(fs *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			enable, disable, err := getBackfillFlags(fs)
+			if err != nil {
+				return nil, err
+			}
+
+			baseList, err := connection.Client.ListFlows(nil)
+			if err != nil {
+				return nil, err
+			}
+			itms := make([]multiselectlist.SelectableItem[string], 0, len(baseList.Results))
+			for _, f := range baseList.Results {
+				if enable && f.BackfillEnabled {
+					continue
+				} else if disable && !f.BackfillEnabled {
+					continue
+				}
+				itms = append(itms, &listitem.Generic{
+					ID_:          f.ID,
+					Name:         f.Name,
+					SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
+					ShowDisabled: true,
+					Enabled:      !f.Disabled,
+				})
+			}
+			return itms, nil
+		},
+		func(id string, fs *pflag.FlagSet) (success string, err error) {
+			enable, disable, err := getBackfillFlags(fs)
+			if err != nil {
+				return "", err
+			}
+
+			flow, err := connection.Client.GetFlow(id)
+			if err != nil {
+				return "", err
+			}
+			flow.BackfillEnabled = !flow.BackfillEnabled
+			if enable {
+				flow.BackfillEnabled = true
+			} else if disable {
+				flow.BackfillEnabled = false
+			}
+
+			if err := connection.Client.UpdateFlow(flow); err != nil {
+				return "", err
+			}
+			state := "enabled"
+			if !flow.BackfillEnabled {
+				state = "disabled"
+			}
+			return fmt.Sprintf("flow '%s' backfill %s", id, state), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "toggle-backfill",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("enable", false, "enable backfill")
+					fs.Bool("disable", false, "disable backfill")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				_, _, err = getBackfillFlags(fs)
+				return "", err
+			},
+		})
+}
+
+func clearResults() action.Pair {
+	return scaffoldselect.NewSelectAction("clear results for flows",
+		"Clear the execution results (including errors and state) for one or several flows.",
+		"flow",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			return listFlowItems()
+		},
+		func(id string, _ *pflag.FlagSet) (success string, err error) {
+			if err := connection.Client.ClearFlowResults(id); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("successfully cleared results for flow %s", id), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "clear"},
+		})
+}
+
+// content contained in the file pointed to by --path, if applicable.
+var parseFileContent string
+
+// tests a given flow string
+func parse() action.Pair {
+	return scaffold.NewBasicAction("parse",
+		"check the validity of a given flow",
+		"Parses a flow string to check it for errors and malformations",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			res, err := connection.Client.ParseFlow(parseFileContent)
+			if err != nil {
+				return err.Error(), nil
+			}
+			if !res.OK {
+				var sb strings.Builder
+				for i, npf := range res.Failures {
+					fmt.Fprintf(&sb, "Node %d:\n", i)
+					for i, err := range npf.Errors {
+						fmt.Fprintf(&sb, "\t[%d]: %s\n", i, err)
+					}
+				}
+				return sb.String(), nil
+			}
+			return "successfully parsed flow", nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: "parse " + ft.MutuallyExclusive([]string{"<flow string>", "--path=path/to/file"}),
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Path.Register(fs, "", "file containing the flow to parse.\n"+
+						"Mutually exclusive with --stdin and bare arguments")
+					fs.Bool("stdin", false, ft.NonInteractiveOnly()+" read the flow string from stdin.\n"+
+						"Mutually exclusive with --path")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				parseFileContent = "" // ensure it is clear before each action
+
+				bare := []string{}
+				for _, arg := range fs.Args() {
+					arg = strings.TrimSpace(arg)
+					if arg != "" {
+						bare = append(bare, arg)
+					}
+				}
+				pth, err := fs.GetString(ft.Path.Name())
+				clilog.GetFlag(err)
+				stdin, err := fs.GetBool("stdin")
+				clilog.GetFlag(err)
+				if state.Interactive() && stdin {
+					return phrases.ErrFlagNoInteractiveOnly("--stdin").Error(), nil
+				}
+				if (pth != "" && stdin) || (pth != "" && len(bare) > 0) || (stdin && len(bare) > 0) { // check for MX
+					return english.OxfordWordSeries([]string{"--path", "--stdin", "bare arguments"}, "and") + " are mutually exclusive", nil
+				}
+
+				// figure out where we are reading from
+				if pth = strings.TrimSpace(pth); pth != "" {
+					b, err := os.ReadFile(pth)
+					if err != nil {
+						return err.Error(), nil // probably user error or an issue with the filesystem; return as invalid
+					}
+					parseFileContent = string(b)
+				} else if stdin {
+					b, err := io.ReadAll(os.Stdin)
+					if err != nil {
+						return err.Error(), nil
+					}
+					parseFileContent = string(b)
+				} else if len(bare) > 0 {
+					parseFileContent = strings.Join(bare, " ") // if they were split on spaces, ensure those spaces remain
+				} else { // nothing was set, fail out
+					return "one of --path, --stdin, or bare argument is required", nil
+				}
+				return "", nil
+			},
+		})
 }

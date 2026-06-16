@@ -29,11 +29,14 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/email"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/files"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/flows"
@@ -41,6 +44,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/playbooks"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
@@ -65,6 +69,13 @@ var profilerFile *os.File
 // ensures the logger is set up,
 // and attempts to log the user into the gravwell instance.
 func ppre(cmd *cobra.Command, args []string) error {
+	// set global interactivity state
+	if ni, err := cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
+		return clilog.GetFlag(err) // if this fails, we have royally screwed up
+	} else {
+		state.SetInteractive(!ni)
+	}
+
 	if isNoColor(cmd.Flags()) {
 		stylesheet.Cur = stylesheet.Plain()
 		stylesheet.NoColor = true
@@ -124,10 +135,7 @@ func isNoColor(fs *pflag.FlagSet) bool {
 			})
 		return true
 	}
-
-	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name()); err != nil {
-		panic(err)
-	} else if noInteractive {
+	if !state.Interactive() {
 		clilog.Writer.Debug("disabled_color",
 			rfc5424.SDParam{
 				Name:  "reason",
@@ -162,12 +170,12 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to connect to server %s: %w", server, err)
 		}
 	}
-	username, password, apiToken, noInteractive, err := GatherCredentials(cmd.Flags())
+	username, password, apiToken, err := GatherCredentials(cmd.Flags())
 	if err != nil {
 		return err
 	}
 	// pass all information to Login to decide how to proceed
-	if err := connection.Login(username, password, apiToken, noInteractive); err != nil {
+	if err := connection.Login(username, password, apiToken, !state.Interactive()); err != nil {
 		return err
 	}
 	return nil
@@ -175,16 +183,12 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 }
 
 // GatherCredentials reads username, password, and api token from flags and the environment, returning all set values.
-func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToken *string, noInteractive bool, _ error) {
-
+func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToken *string, _ error) {
 	// gather credentials to pass to the login process
 	// cobra will guarantee !(username && (api||eapi))
-	noInteractive, err := flags.GetBool(ft.NoInteractive.Name())
-	if err != nil {
-		return "", nil, nil, false, err
-	}
 	{ // fetch api token
 		var tkn string
+		var err error
 		if tkn, err = flags.GetString("api"); err != nil {
 			clilog.GetFlag(err)
 		} else if tkn != "" {
@@ -199,10 +203,10 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 	{ // fetch username and password
 		// sanity check: if passfile was set but username was not, that's an error
 		if flags.Changed("passfile") && !flags.Changed("username") {
-			return "", nil, nil, false, errors.New("--passfile requires --username")
+			return "", nil, nil, errors.New("--passfile requires --username")
 
 		}
-
+		var err error
 		if username, err = flags.GetString("username"); err != nil {
 			clilog.GetFlag(err)
 		} else if strings.TrimSpace(username) != "" {
@@ -212,7 +216,7 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 				clilog.GetFlag(err)
 			} else if strings.TrimSpace(passfilePath) != "" {
 				if p, err := skimPassFile(passfilePath); err != nil {
-					return "", nil, nil, false, err
+					return "", nil, nil, err
 				} else if p != "" {
 					password = &p
 				}
@@ -299,7 +303,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
 	rootCmd.PersistentPostRunE = ppost
-	rootCmd.Version = uniques.Version
+	rootCmd.Version = state.Version
 
 	// if we are testing, wire up outputs
 	if stdout != nil {
@@ -345,19 +349,22 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	// attach children
 	// spawn the cobra commands in parallel
 	var cmdFn = []func() *cobra.Command{
+		actionables.NewNav,
 		admin.NewNav,
-		alerts.NewAlertsNav,
-		extractors.NewExtractorsNav,
+		alerts.NewNav,
+		dashboards.NewNav,
+		email.NewNav,
+		extractors.NewNav,
 		files.NewNav,
 		flows.NewNav,
-		macros.NewMacrosNav,
-		queries.NewQueriesNav,
-		kits.NewKitsNav,
-		dashboards.NewDashboardNav,
-		resources.NewResourcesNav,
+		kits.NewNav,
+		macros.NewNav,
+		playbooks.NewNav,
+		queries.NewNav,
+		resources.NewNav,
 		secrets.NewNav,
-		self.NewSelfNav,
-		systemshealth.NewSystemsNav,
+		self.NewNav,
+		systemshealth.NewNav,
 		templates.NewNav,
 		tokens.NewNav,
 	}
@@ -382,6 +389,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
 		return nil
 	})
+	rootCmd.SilenceErrors = true // we will print errors ourself
 
 	err := rootCmd.Execute()
 	if err != nil {

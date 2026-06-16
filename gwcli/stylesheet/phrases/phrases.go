@@ -12,9 +12,12 @@
 package phrases
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 )
@@ -41,11 +44,23 @@ func AtLeast1ArgRequired(argNamePlural string) string {
 	return "you must specify at least 1 argument (" + argNamePlural + ")"
 }
 
+// ErrFlagIsRequired states that the given flag (sans dashes!) is required.
+func ErrFlagIsRequired(flagNameNoDashes string) error {
+	return errors.New("--" + flagNameNoDashes + " is required")
+}
+
 // InteractivityNYI returns a coloured tea.Println stating that interactivity for this action is not ready yet.
 //
 // Should be returned by SetArgs' onStart return.
 func InteractivityNYI() tea.Cmd {
 	return stylesheet.ErrPrintf("interactivity not yet implemented")
+}
+
+// ErrFlagNoInteractiveOnly states that this flag/thing can only be used when -x is specified.
+//
+// Does NOT prefix "--".
+func ErrFlagNoInteractiveOnly(flagNameWithDashes string) error {
+	return errors.New(flagNameWithDashes + " requires --no-interactive (-x)")
 }
 
 // SuccessfullyCreatedItem states that an item of type itemSingular was created and can be identified with ID.
@@ -102,3 +117,23 @@ func (sid ErrUnknownSID) Error() string {
 }
 
 var _ error = ErrUnknownSID("")
+
+// IsNotFoundErr returns whether or not the given error should be treated as a Not Found error.
+// We have to use this function as client.ErrNotFound is not reliably used... yet.
+//
+// Typically paired with ErrUnknownIdentifier.
+//
+// This function can be replaced once issues#2483 is done.
+func IsNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, client.ErrNotFound) ||
+		strings.Contains(err.Error(), "sql: no rows in result set") ||
+		err.Error() == "Not Found"
+}
+
+// ErrUnknownIdentifier returns the string "<ID> is not a known <thingType>".
+func ErrUnknownIdentifier(ID any, thingType string) error {
+	return fmt.Errorf("%v is not a known %s", ID, thingType)
+}

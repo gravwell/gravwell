@@ -22,7 +22,6 @@ import (
 	"os"
 	"strings"
 
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
@@ -60,6 +59,34 @@ const (
 	FATAL    Level = 6
 )
 
+// ! These flags were pulled out of flagtext to avoid import cycles.
+
+// FlagLogPath contains details of the flag used to define where clilog logs to.
+var FlagLogPath struct {
+	Name         string
+	Shorthand    string
+	DefaultValue string
+	Description  string
+} = struct {
+	Name         string
+	Shorthand    string
+	DefaultValue string
+	Description  string
+}{"log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs"}
+
+// FlagLogLevel contains details of the flag used to set the verbosity of clilog.
+var FlagLogLevel struct {
+	Name         string
+	DefaultValue string
+	Description  string
+} = struct {
+	Name         string
+	DefaultValue string
+	Description  string
+}{"loglevel", "INFO", "log level for developer logs (-l).\n" +
+	"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n" +
+	"NOTE: DEBUG mode may enable additional validation checks and may have a minor performance impact."}
+
 // Writer is the logging singleton.
 var Writer *log.Logger
 
@@ -75,8 +102,9 @@ func InitializeFromArgs(args []string) {
 	}
 	// args may include flags unrelated to the logger; ignore them
 	logFlags := pflag.NewFlagSet("logging", pflag.PanicOnError)
-	ft.LogPath.Register(logFlags)
-	ft.LogLevel.Register(logFlags)
+	logFlags.StringP(FlagLogPath.Name, FlagLogPath.Shorthand, FlagLogPath.DefaultValue, FlagLogPath.Description)
+	logFlags.String(FlagLogLevel.Name, FlagLogLevel.DefaultValue, FlagLogLevel.Description)
+
 	logFlags.BoolP("help", "h", false, "") // re-define the help flag
 
 	logFlags.ParseErrorsWhitelist = pflag.ParseErrorsWhitelist{UnknownFlags: true}
@@ -84,11 +112,11 @@ func InitializeFromArgs(args []string) {
 		panic(err) // if this pops, something has gone horribly wrong and we need to know
 	}
 
-	path, err := logFlags.GetString(ft.LogPath.Name())
+	path, err := logFlags.GetString(FlagLogPath.Name)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to get log path flag to initialize clilog: ", err)
 	}
-	lvl, err := logFlags.GetString(ft.LogLevel.Name())
+	lvl, err := logFlags.GetString(FlagLogLevel.Name)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to get log level flag to initialize clilog: ", err)
 	}
@@ -190,6 +218,9 @@ func Active(lvl Level) bool {
 // Returns ErrInternal, which the caller may return if this failure is fatal.
 // It is safe to ignore the return value.
 func GetFlag(err error) ErrInternal {
+	if err == nil {
+		return ErrInternal{}
+	}
 	if Writer != nil {
 		// TODO test call depth
 		Writer.Warn("flag-get failure", log.KV("parent", log.CallLoc(1)), log.KVErr(err))

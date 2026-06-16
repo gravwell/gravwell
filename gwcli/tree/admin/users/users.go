@@ -13,8 +13,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -23,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -42,9 +45,11 @@ func NewNav() *cobra.Command {
 			create(),
 			delete(),
 			edit(),
-			lockAction(),
-			unlockAction(),
+			lock(),
+			unlock(),
 			sessionsAction(),
+			changePassword(),
+			toggleAdmin(),
 		})
 }
 
@@ -62,28 +67,40 @@ func create() action.Pair {
 			"username": {
 				Required: true,
 				Title:    "Username",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "unique username to assign"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-username",
+					Usage: "unique username to assign",
+				},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    200,
 			},
 			"name": {
 				Required: true,
 				Title:    "Name",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "actual name of the user"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-name",
+					Usage: "actual name of the user",
+				},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    180,
 			},
 			"email": {
 				Required: true,
 				Title:    "Email",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "email associated to this user"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-email",
+					Usage: "email associated to this user",
+				},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    160,
 			},
 			"password": {
 				Required: true,
 				Title:    "Password",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "initial password for the user"},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "new-password",
+					Usage: "initial password for the user",
+				},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
@@ -96,6 +113,10 @@ func create() action.Pair {
 			"admin": {
 				Required: false,
 				Title:    "admin",
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  "is-admin",
+					Usage: "mark the new user as an admin",
+				},
 				Provider: &scaffoldcreate.BoolProvider{},
 				Order:    120,
 			},
@@ -132,18 +153,18 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteUser(id)
 		},
-		func() ([]scaffolddelete.Item[int32], error) {
-			users, err := connection.Client.ListUsers(nil)
+		func() ([]multiselectlist.SelectableItem[int32], error) {
+			lr, err := connection.Client.ListUsers(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]scaffolddelete.Item[int32], len(users.Results))
-			for i, user := range users.Results {
-
-				items[i] = scaffolddelete.NewItem(user.Name, descriptionLine(user.Admin, user.Email), user.ID)
+			var items = make([]multiselectlist.SelectableItem[int32], len(lr.Results))
+			for i, u := range lr.Results {
+				items[i] = listitem.NewUserItem(u, false)
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 func edit() action.Pair {
@@ -300,7 +321,7 @@ func sessionsAction() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
-				Usage:   fmt.Sprintf("sessions %s %s %s ...", ft.Optional("FLAGS"), ft.Mandatory("UserID1"), ft.Optional("UserID2")),
+				Usage:   "sessions " + ft.Optional("Flags") + " " + ft.VariadicArgs("UID", true),
 				Example: "sessions 1 8",
 				Aliases: []string{"session"},
 				AddtlFlags: func() *pflag.FlagSet {
@@ -368,4 +389,67 @@ func sessionsAction() action.Pair {
 	)
 }
 
-//#endregion sessions
+func lock() action.Pair {
+	return scaffoldselect.NewSelectAction(
+		"lock user accounts", "Lock one or several user accounts.\n"+
+			"The user will be unable to log in until unlocked, and all existing sessions will be terminated.",
+		"account",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
+			ulr, err := connection.Client.ListUsers(nil)
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr.Results))
+			for _, user := range ulr.Results {
+				if user.ID == connection.CurrentUser().ID || user.Locked {
+					continue
+				}
+				items = append(items, listitem.NewUserItem(user, false))
+			}
+			items = slices.Clip(items)
+			return items, nil
+		},
+		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
+			if err := connection.Client.LockUserAccount(ID); err != nil {
+				return "", fmt.Errorf("failed to lock user account %d: %v", ID, err)
+			}
+			return fmt.Sprintf("User %v locked", ID), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "lock",
+			},
+			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no unlocked accounts you can lock." },
+		})
+}
+
+func unlock() action.Pair {
+	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account",
+		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
+			ulr, err := connection.Client.ListUsers(nil)
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr.Results))
+			for _, user := range ulr.Results {
+				if user.ID == connection.CurrentUser().ID || !user.Locked {
+					continue
+				}
+				items = append(items, listitem.NewUserItem(user, false))
+			}
+			items = slices.Clip(items)
+			return items, nil
+		},
+		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
+			if err := connection.Client.UnlockUserAccount(ID); err != nil {
+				return "", fmt.Errorf("failed to unlock user account %d: %v", ID, err)
+			}
+			return fmt.Sprintf("User %v unlocked", ID), nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "unlock",
+			},
+			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no locked accounts you can unlock." },
+		})
+}

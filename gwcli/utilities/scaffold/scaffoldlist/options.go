@@ -50,4 +50,8 @@ type Options struct {
 	//
 	// Will not be called if --show-columns is specified.
 	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
+
+	// The message that will be printed if the listFunc returns no data (and no error).
+	// Uses DefaultEmptyMessage if unset.
+	EmptyMessage string
 }

@@ -72,12 +72,23 @@ var minSubmitButtonWidth = Cur.ComposableSty.ComplimentaryBorder.GetBorderLeftSi
 	len("submit") + 1 + 2 // +1 expected pip width & +2 padding
 
 // ViewSubmitButton displays... a submit button.
-// It displays one of the errors if set, 1, then 2.
-// If not displaying either, it displays a box with "submit" in it.
+//
+// It displays the first non-nil error in place of the button text.
 //
 // The returned object will be centered relative to width.
 // Width should be > 4 to ensure text is wrapped properly without screwing up the border.
 func ViewSubmitButton(selected bool, paneWidth int, errors ...string) string {
+	return ViewSubmitLikeButton("submit", selected, paneWidth, errors...)
+}
+
+// ViewSubmitLikeButton displays... a button with the given text.
+//
+// It displays the first non-nil error in place of the button text.
+//
+// The returned object will be centered relative to width.
+// Width should be > 4 to ensure text is wrapped properly without screwing up the border.
+func ViewSubmitLikeButton(btnText string, selected bool, paneWidth int, errors ...string) string {
+	btnText = strings.ToLower(btnText)
 	// sanity check width
 	if paneWidth < minSubmitButtonWidth {
 		clilog.Writer.Warnf("pane width is below minimum (%v); overriding to minimum", minSubmitButtonWidth)
@@ -105,7 +116,7 @@ func ViewSubmitButton(selected bool, paneWidth int, errors ...string) string {
 		return lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(paneWidth).Render(
 			lipgloss.JoinHorizontal(lipgloss.Center,
 				pip,
-				Button("submit"),
+				Button(btnText),
 			))
 	}
 

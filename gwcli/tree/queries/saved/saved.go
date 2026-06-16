@@ -11,15 +11,16 @@ package saved
 
 import (
 	"fmt"
-	"slices"
-	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -40,6 +41,7 @@ func NewSavedNav() *cobra.Command {
 			create(),
 			delete(),
 			edit(),
+			show(),
 		})
 }
 
@@ -182,31 +184,60 @@ func edit() action.Pair {
 //#region delete
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("saved query", "saved queries", func(dryrun bool, id string) error {
-		if dryrun {
-			_, err := connection.Client.GetSavedQuery(id)
-			return err
-		}
-		return connection.Client.DeleteSavedQuery(id)
-	},
-		func() ([]scaffolddelete.Item[string], error) {
-			qs, err := connection.Client.ListSavedQueries(nil)
+	return scaffolddelete.NewDeleteAction("saved query", "saved queries",
+		func(dryrun bool, id string) error {
+			if dryrun {
+				_, err := connection.Client.GetSavedQuery(id)
+				return err
+			}
+			return connection.Client.DeleteSavedQuery(id)
+		},
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListSavedQueries(nil)
 			if err != nil {
 				return nil, err
 			}
-			slices.SortFunc(qs.Results, func(q1, q2 types.SavedQuery) int {
-				return strings.Compare(q1.Name, q2.Name)
-			})
-			var items = make([]scaffolddelete.Item[string], len(qs.Results))
-			for i, q := range qs.Results {
-				items[i] = scaffolddelete.NewItem(
-					q.Name,
-					fmt.Sprintf("Query: '%v'\n%v",
-						stylesheet.Cur.SecondaryText.Render(q.Query), q.Description),
-					q.ID)
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, p := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        p.ID,
+					Name:       p.Name,
+					SecondLine: p.Description,
+				}
 			}
+
 			return items, nil
-		})
+		}, scaffolddelete.Options{})
 }
 
 //#endregion delete
+
+//#region show
+
+func show() action.Pair {
+	return scaffold.NewBasicAction("show", "display a saved query",
+		"Display the full details of a saved query by its ID.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			id := fs.Arg(0)
+			sq, err := connection.Client.GetSavedQuery(id)
+			if err != nil {
+				return err.Error(), nil
+			}
+			return fmt.Sprintf("Name:        %s\nDescription: %s\nQuery:       %s",
+				sq.Name, sq.Description, sq.Query), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"print", "get"},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("saved query ID"), nil
+				}
+				return "", nil
+			},
+		})
+}
+
+//#endregion show

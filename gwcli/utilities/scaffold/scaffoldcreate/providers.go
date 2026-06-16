@@ -9,11 +9,13 @@
 package scaffoldcreate
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -24,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 )
 
 type ViewKind uint
@@ -77,6 +80,8 @@ var _ FieldProvider = &TextProvider{}
 var _ FieldProvider = &PathProvider{}
 var _ FieldProvider = &MSLProvider{}
 var _ FieldProvider = &BoolProvider{}
+var _ FieldProvider = &NumberProvider{}
+var _ FieldProvider = &TextAreaProvider{}
 
 type TextProvider struct {
 	ti textinput.Model
@@ -403,12 +408,18 @@ func (p *MSLProvider) ToggleFocus(_ bool) {
 	// MSL doesn't actually care if it is in focus
 }
 
+//#region bool provider
+
 type BoolProvider struct {
 	initial bool // starter value to be .Reset() to
 	state   bool
+
+	// Used to hook SetArgs for custom alterations at each action invocation.
+	// Useful for pre-populating.
+	CustomSetArgs func() bool
 }
 
-// Initialize sets value to BooleanProvider.Initial.
+// Initialize sets value to default value iff it passes ParseBool.
 func (p *BoolProvider) Initialize(def string, _ bool) {
 	if b, err := strconv.ParseBool(def); err == nil {
 		p.initial = b
@@ -420,8 +431,12 @@ func (p *BoolProvider) Initialize(def string, _ bool) {
 // Reset returns value to .Initial
 func (p *BoolProvider) Reset() { p.state = p.initial }
 
-// SetArgs has no effect.
-func (p *BoolProvider) SetArgs(_, _ int) {}
+// SetArgs only calls the custom set args, if given.
+func (p *BoolProvider) SetArgs(_, _ int) {
+	if p.CustomSetArgs != nil {
+		p.state = p.CustomSetArgs()
+	}
+}
 
 func (p *BoolProvider) Update(selected bool, msg tea.Msg) (_ tea.Cmd, takeover bool) {
 	if selected && hotkeys.Match(msg, hotkeys.Select) {
@@ -458,3 +473,254 @@ func (p *BoolProvider) Get() string {
 }
 
 func (p *BoolProvider) ToggleFocus(focus bool) {}
+
+//#region number provider
+
+type NumberProvider struct {
+	initial int64
+
+	ti textinput.Model
+
+	DigitLimit uint // if set, limits the number of digits that can be put in the TI
+
+	// Used to hook SetArgs for custom alterations at each action invocation.
+	// Useful for setting suggestions/validation based on current data.
+	CustomSetArgs func(textinput.Model) textinput.Model
+}
+
+// Initialize sets value to default value iff it passes ParseInt.
+func (p *NumberProvider) Initialize(def string, required bool) {
+	p.ti = stylesheet.NewTI("", !required)
+	p.ti.Validate = func(s string) error {
+		s = strings.TrimSpace(s)
+		if required && (s == "" || s == "0") {
+			return errors.New("field is required")
+		}
+		if len(s) > 0 && s[0] == '-' { // do not numeric-test a minus sign
+			s = s[1:]
+		}
+		return validate.Numeric(s)
+	}
+	if p.DigitLimit != 0 {
+		p.ti.CharLimit = int(p.DigitLimit)
+	}
+	if def != "" {
+		if i, err := strconv.ParseInt(def, 10, 64); err == nil {
+			p.initial = i
+		}
+	}
+
+	p.Reset()
+}
+func (p *NumberProvider) Reset() {
+	p.ti.Reset()
+	p.ti.SetValue(strconv.FormatInt(p.initial, 10))
+
+}
+
+func (p *NumberProvider) SetArgs(_, _ int) {
+	if p.CustomSetArgs != nil {
+		p.ti = p.CustomSetArgs(p.ti)
+	}
+}
+
+func (p *NumberProvider) Update(_ bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
+	p.ti, cmd = p.ti.Update(msg)
+	return cmd, false
+}
+
+func (p *NumberProvider) View(_ bool, _ int) (_ ViewKind, value, _ string) {
+	return TitleValue, p.ti.View(), ""
+}
+
+func (p *NumberProvider) Satisfied() (invalid string) {
+	if p.ti.Err != nil {
+		return p.ti.Err.Error()
+	}
+	return ""
+}
+
+func (p *NumberProvider) Set(val string) (invalid string) {
+	if val = strings.TrimSpace(val); val == "" {
+		return ""
+	}
+	if _, err := strconv.ParseInt(val, 10, 64); err != nil {
+		return err.Error()
+	}
+
+	p.ti.SetValue(val)
+	return ""
+}
+
+func (p *NumberProvider) Get() string {
+	return p.ti.Value()
+}
+
+func (p *NumberProvider) ToggleFocus(focus bool) {
+	if focus {
+		p.ti.Focus()
+		return
+	}
+	p.ti.Blur()
+}
+
+func DefaultTextAreaUnselectedText(hovered bool) (titleLine, secondLine string) {
+	value := "edit content"
+	if hovered {
+		return sigils.Right + value + sigils.Left, ""
+	}
+	return value, ""
+}
+
+// TextAreaProvider provides a button, like the MSL provider, that opens up a TextArea for taking in large, text content.
+// It can be configured to provide Markdown syntax highlighting (provided via Glamour).
+type TextAreaProvider struct {
+	ta textarea.Model
+
+	// are we in takeover mode?
+	takeover bool
+
+	// If set, applies Markdown syntax highlighting to the content.
+	//Markdown bool
+
+	// NormalModeDisplay generates the text to display inline with other fields (ex: when the TextArea is not in takeover mode).
+	//
+	// Hovered is true if the user's cursor is on this field, but has not yet invoked it (aka Takeover is not yet true).
+	//
+	// titleLine is the text to display to the right of the title and should always be populated.
+	//
+	// If you are returning, a secondLine, you should do so consistently; doing so inconsistently can cause the screen to jitter.
+	//
+	// Defaults to DefaultTextAreaUnselectedText
+	NormalModeDisplay func(hovered bool) (titleLine, secondLine string)
+
+	// Function to supplant the default textarea creation.
+	//
+	// Because it is called at tree-build time, you can NOT use the connection singleton (it has not be spun up yet).
+	CustomInit func(defaultValue string, required bool) textarea.Model
+	// Function to call each Reset instead of textinput.Reset().
+	CustomReset func(textarea.Model) textarea.Model
+	// Used to hook SetArgs for custom alterations at each action invocation.
+	// Useful for setting validation and/or starter content.
+	CustomSetArgs func(textarea.Model) textarea.Model
+}
+
+func (p *TextAreaProvider) Initialize(defaultValue string, required bool) {
+	if p.CustomInit != nil {
+		p.ta = p.CustomInit(defaultValue, required)
+	} else {
+		p.ta = stylesheet.NewTA()
+		p.ta.SetValue(defaultValue)
+	}
+	if p.NormalModeDisplay == nil {
+		p.NormalModeDisplay = DefaultTextAreaUnselectedText
+	}
+}
+
+func (p *TextAreaProvider) Reset() {
+	if p.CustomReset != nil {
+		p.ta = p.CustomReset(p.ta)
+		return
+	}
+	p.ta.Reset()
+}
+
+func (p *TextAreaProvider) SetArgs(width, height int) {
+	if p.CustomSetArgs != nil {
+		p.ta = p.CustomSetArgs(p.ta)
+	}
+	p.ta.SetWidth(width)
+	p.ta.SetHeight(height - 4)
+}
+
+func (p *TextAreaProvider) Update(hovered bool, msg tea.Msg) (cmd tea.Cmd, takeover bool) {
+	// if the message is a window size message, it should always be passed to the ta
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		// make sure the TA leaves rooms for the submit button
+		wsm.Height -= 4
+
+		p.ta, cmd = p.ta.Update(wsm)
+		return cmd, p.takeover
+	}
+	// if we are already in takeover mode, just hand off control
+	if p.takeover {
+		// check for the submit button
+		if hotkeys.ButtonPressed(msg) && !p.ta.Focused() {
+			// exit and reset takeover mode
+			p.takeover = false
+			p.ta.Blur() // shouldn't matter, but just in case
+			return nil, false
+		}
+		{ // check for cursor movement
+			var curIdx uint
+			var ta *textarea.Model
+			if p.ta.Focused() {
+				curIdx = 0
+				ta = &p.ta
+			} else {
+				curIdx = 1
+			}
+			if handled, _, newIndex := hotkeys.MoveCursor(msg, curIdx, uint(2), ta); handled && newIndex != curIdx {
+				if newIndex == 0 {
+					p.ta.Focus()
+				} else {
+					p.ta.Blur()
+				}
+
+				return nil, true
+			}
+		}
+		p.ta, cmd = p.ta.Update(msg)
+		return cmd, true
+	}
+
+	// check for takeover mode invocation
+	if hovered && hotkeys.Match(msg, hotkeys.Select) {
+		p.takeover = true
+		p.ta.Focus()
+		return nil, true
+	}
+	return cmd, false
+}
+
+func (p *TextAreaProvider) View(selected bool, _ int) (_ ViewKind, value, secondLine string) {
+	if p.takeover {
+		// sanity check that we are currently selected;
+		// if we are in takeover mode and not selected, something is probably wrong.
+		if !selected {
+			clilog.Writer.Warnf("TA provider is in takeover mode, but is not selected!")
+		}
+
+		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.ta.Focused(), p.ta.Width()), ""
+	}
+	main, secondLine := p.NormalModeDisplay(selected)
+
+	return TitleValue, main, secondLine
+}
+
+func (p *TextAreaProvider) Satisfied() (invalid string) {
+	if p.ta.Err != nil {
+		return p.ta.Err.Error()
+	}
+	return ""
+}
+
+func (p *TextAreaProvider) Set(val string) (invalid string) {
+	p.ta.SetValue(val)
+	if p.ta.Err != nil {
+		return p.ta.Err.Error()
+	}
+	return ""
+}
+
+func (p *TextAreaProvider) Get() string {
+	return p.ta.Value()
+}
+
+func (p *TextAreaProvider) ToggleFocus(focus bool) {
+	if focus {
+		p.ta.Focus()
+		return
+	}
+	p.ta.Blur()
+}

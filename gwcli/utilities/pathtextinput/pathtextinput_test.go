@@ -14,6 +14,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSuggestions(t *testing.T) {
@@ -168,9 +170,24 @@ func TestSuggestions(t *testing.T) {
 			if pti.Value() != want {
 				t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
 			}
+			// Tests to ensure that everything is properly reset and works as intended post-reset.
+			t.Run("everything continues to work after a reset", func(t *testing.T) {
+				pti.Reset()
+				assert.Empty(t, pti.Value())
+				assert.False(t, pti.Focused())
+				want := "fi"
+				pti.Focus()
+				pti.SetValue("fi")
+				pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+				require.Equal(t, want, pti.Value())
+
+				// check that it completes dir1
+				want = "file1"
+				pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+				require.Equal(t, want, pti.Value())
+			})
 		})
 	})
-
 }
 
 // Tests that the ti still works as intended when fed an absolute path.
