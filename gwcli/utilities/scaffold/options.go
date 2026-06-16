@@ -12,6 +12,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -69,4 +74,79 @@ func (co CommonOptions) Apply(cmd *cobra.Command) {
 	if co.AddtlFlags != nil {
 		cmd.Flags().AddFlagSet(co.AddtlFlags())
 	}
+}
+
+//#region OmitFlags
+
+const (
+	FlagNameAllData string = "all"   // fetch data from all users instead of just the current user
+	FlagNameLimit   string = "limit" // limit the number of elements returned
+)
+
+// OmitFlags allows disabling flags for a specific action.
+// Anything set to true in here will have its equivalent flag turned off for this action.
+// For example: if an asset type doesn't tombstone, --include-delete should probably be disabled.
+type OmitFlags struct {
+	Everything bool // disable everything. This is useful if the ListDataFunc doesn't take query opts.
+
+	AllData        bool
+	IncludeDeleted bool
+	Limit          bool
+}
+
+// this can be extracted if we find ourselves using it more
+var italics = lipgloss.NewStyle().Italic(true)
+
+// InstallQueryOptionsFlags attaches query option flags to the flagset if there were not omitted.
+//
+// Should be paired with GetQueryOptions.
+func InstallQueryOptionsFlags(fs *pflag.FlagSet, omit OmitFlags) {
+	if omit.Everything {
+		return
+	}
+	// attach query option flags, depending on their omit state
+
+	if !omit.AllData {
+		fs.Bool(FlagNameAllData, false, "Requests that results include data from "+italics.Render("all")+" users and groups instead of just yours.\n"+
+			"Ignored if you are not an admin.\n"+
+			"Implied by admin mode")
+	}
+	if !omit.IncludeDeleted {
+		ft.IncludeDeleted.Register(fs)
+	}
+	if !omit.Limit {
+		fs.Int(FlagNameLimit, 0, "Limit the number of items to return")
+	}
+}
+
+// GetQueryOptions extracts QueryOptions from the given flagset.
+//
+// Should be paired with InstallQueryOptionsFlags().
+func GetQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
+	var err error
+	var qo = &types.QueryOptions{}
+	if omit.Everything {
+		return qo
+	}
+
+	if !omit.IncludeDeleted {
+		qo.IncludeDeleted, err = fs.GetBool(ft.IncludeDeleted.Name())
+		clilog.GetFlag(err)
+	}
+	if !omit.AllData {
+		qo.AdminMode = connection.AdminMode()
+		if !qo.AdminMode { // check for --all override
+			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
+			clilog.GetFlag(err)
+		}
+	}
+	if !omit.Limit {
+		lim, err := fs.GetInt(FlagNameLimit)
+		clilog.GetFlag(err)
+		if lim > 0 {
+			qo.Limit = lim
+		}
+	}
+
+	return qo
 }
