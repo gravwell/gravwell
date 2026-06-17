@@ -88,6 +88,14 @@ func listAction() action.Pair {
 		})
 }
 
+const ( // field keys
+	createNameKey     = "name"
+	createDescKey     = "desc"
+	createFreqKey     = "freq"
+	createQryKey      = "qry"
+	createDurationKey = "dur"
+)
+
 func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		createQryKey: scaffoldcreate.Field{
@@ -181,95 +189,148 @@ func delete() action.Pair {
 		}, scaffolddelete.Options{})
 }
 
-//#endregion delete
-
-//#region edit
-
-const ( // field keys
-	editNameKey     = "name"
-	editDescKey     = "description"
-	editSearchKey   = "search"
-	editScheduleKey = "schedule"
-)
-
-const singular string = "scheduled search"
-
 func edit() action.Pair {
-	cfg := scaffoldedit.Config{
-		editNameKey: &scaffoldedit.Field{
-			Required: true,
-			Title:    "name",
-			Usage:    ft.Name.Usage(singular),
-			FlagName: ft.Name.Name(),
-			Order:    100,
-		},
-		editDescKey: &scaffoldedit.Field{
-			Required: true,
-			Title:    "description",
-			Usage:    ft.Description.Usage(singular),
-			FlagName: ft.Description.Name(),
-			Order:    80,
-		},
-		editSearchKey: &scaffoldedit.Field{
-			Required: true,
-			Title:    "query",
-			Usage:    "the query executed by this scheduled search",
-			FlagName: "query",
-			Order:    60,
-		},
-		editScheduleKey: &scaffoldedit.Field{
-			Required: true,
-			Title:    "frequency",
-			Usage:    ft.Frequency.Usage(),
-			FlagName: ft.Frequency.Name(),
-			Order:    40,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				ti.Placeholder = "* * * * *"
-				ti.Validate = validate.CronRuneValidator
-				return ti
+	return scaffoldedit.NewEditAction("scheduled search", "scheduled searches",
+		scaffoldedit.Config{
+			"name": &scaffoldedit.Field{
+				Required: true,
+				Title:    "Name",
+				Usage:    ft.Name.Usage("scheduled search"),
+				FlagName: ft.Name.Name(),
+				Order:    200,
 			},
+			"description": &scaffoldedit.Field{
+				Required: true,
+				Title:    "Description",
+				Usage:    ft.Description.Usage("scheduled search"),
+				FlagName: ft.Description.Name(),
+				Order:    180,
+			},
+			"search": &scaffoldedit.Field{
+				Required: true,
+				Title:    "Search",
+				Usage:    "the search executed by this scheduled search",
+				FlagName: "search",
+				Order:    160,
+			},
+			"frequency": &scaffoldedit.Field{
+				Required: true,
+				Title:    "Frequency",
+				Usage:    ft.Frequency.Usage(),
+				FlagName: ft.Frequency.Name(),
+				Order:    140,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "* * * * *"
+					ti.Validate = validate.CronRuneValidator
+					return ti
+				},
+			},
+			"duration": &scaffoldedit.Field{
+				Required: true,
+				Title:    "Duration",
+				Usage:    "how many seconds back to pass. Must be negative.",
+				FlagName: "duration",
+				Order:    120,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Validate = func(s string) error {
+						if s == "" {
+							return errors.New("duration is required")
+						}
+						return validate.NegativeNumber(s)
+					}
+					return ti
+				},
+			},
+			"offset": &scaffoldedit.Field{
+				Required: true,
+				Title:    "Offset",
+				Usage:    "how many seconds to offset the search timeframe. Must be negative.",
+				FlagName: "offset",
+				Order:    100,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Validate = func(s string) error {
+						if s == "" {
+							return errors.New("offset is required")
+						}
+						return validate.NegativeNumber(s)
+					}
+					return ti
+				},
+			},
+			// TODO introduce SearchSinceLastRun bool after the scaffoldcreate/edit merge
+			// TODO introduce enabled after the scaffoldcreate/edit merge
+			// TODO introduce backfill after the scaffoldcreate/edit merge
 		},
-	}
+		scaffoldedit.SubroutineSet[string, types.ScheduledSearch]{
+			// GetScheduledSearch can take an int32 or uuid
+			SelectSub: func(id string) (item types.ScheduledSearch, err error) {
+				return connection.Client.GetScheduledSearch(id)
+			},
+			FetchSub: func() (items []types.ScheduledSearch, err error) {
+				list, err := connection.Client.ListScheduledSearches(nil)
+				return list.Results, err
+			},
+			GetFieldSub: func(item types.ScheduledSearch, fieldKey string) (value string, err error) {
+				switch fieldKey {
+				case "name":
+					return item.Name, nil
+				case "description":
+					return item.Description, nil
+				case "search":
+					return item.SearchString, nil
+				case "frequency":
+					return item.Schedule, nil
+				case "duration":
+					return strconv.FormatInt(item.Duration, 10), nil
+				case "offset":
+					return strconv.FormatInt(item.TimeframeOffset, 10), nil
+				}
 
-	funcs := scaffoldedit.SubroutineSet[string, types.ScheduledSearch]{
-		// GetScheduledSearch can take an int32 or uuid
-		SelectSub: func(id string) (item types.ScheduledSearch, err error) {
-			return connection.Client.GetScheduledSearch(id)
-		},
-		FetchSub: func() (items []types.ScheduledSearch, err error) {
-			list, err := connection.Client.ListScheduledSearches(nil)
-			return list.Results, err
-		},
-		GetFieldSub: func(item types.ScheduledSearch, fieldKey string) (value string, err error) {
-			switch fieldKey {
-			case editNameKey:
-				return item.Name, nil
-			case editDescKey:
-				return item.Description, nil
-			case editSearchKey:
-				return item.SearchString, nil
-			case editScheduleKey:
-				return item.Schedule, nil
-			}
+				return "", fmt.Errorf("unknown get field key: %v", fieldKey)
+			},
+			SetFieldSub: func(item *types.ScheduledSearch, fieldKey, val string) (invalid string, err error) {
+				switch fieldKey {
+				case "name":
+					item.Name = val
+				case "description":
+					item.Description = val
+				case "search":
+					item.SearchString = val
+				case "frequency":
+					item.Schedule = val
+				case "duration":
+					dur, err := strconv.ParseInt(val, 10, 64)
+					if err != nil {
+						return err.Error(), nil
+					}
+					item.Duration = dur
+				case "offset":
+					offset, err := strconv.ParseInt(val, 10, 64)
+					if err != nil {
+						return err.Error(), nil
+					}
+					item.TimeframeOffset = offset
+				default:
+					return "", fmt.Errorf("unknown set field key: %v", fieldKey)
+				}
 
-			return "", fmt.Errorf("unknown get field key: %v", fieldKey)
-		},
-		SetFieldSub: func(item *types.ScheduledSearch, fieldKey, val string) (invalid string, err error) {
-			switch fieldKey {
-			case editNameKey:
-				item.Name = val
-			case editDescKey:
-				item.Description = val
-			case editSearchKey:
-				item.SearchString = val
-			case editScheduleKey:
-				item.Schedule = val
-			default:
-				return "", fmt.Errorf("unknown set field key: %v", fieldKey)
-			}
+				return "", nil
 
-			return "", nil
+			},
+			GetTitleSub: func(item types.ScheduledSearch) string {
+				return fmt.Sprintf("%s (executes '%s')", item.Name, item.SearchString)
+			},
+			GetDescriptionSub: func(item types.ScheduledSearch) string {
+				return fmt.Sprintf("(%s) %s", item.Schedule, item.Description)
+			},
+			UpdateSub: func(data *types.ScheduledSearch) (identifier string, err error) {
+				return data.Name, connection.Client.UpdateScheduledSearch(*data)
+			},
+		})
+}
 
 func wrapSS(ss types.ScheduledSearch) *listitem.Generic {
 	line := fmt.Sprintf("[%s] %s", ss.Schedule, ss.SearchString)
