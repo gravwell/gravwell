@@ -539,6 +539,7 @@ func massChown() action.Pair {
 			"Please note that tokens and kits do not current support owner reassignment and will be skipped.",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
 			from, _ := fs.GetInt32("from")
+			to, _ := fs.GetInt32("to")
 			noFail, _ := fs.GetBool("no-fail")
 			// ensure we are in admin mode to ensure we get all data
 			if !connection.Client.AdminMode() {
@@ -562,7 +563,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateSavedQuery(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown saved query %s: %v", res.ID, err)
 						if !noFail {
@@ -583,7 +584,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateDashboard(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown dashboard %s: %v", res.ID, err)
 						if !noFail {
@@ -596,7 +597,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "dashboard")
 			}
 			// kits
-			sb.WriteString("chowning kits is not currently supported")
+			sb.WriteString("chowning kits is not currently supported\n")
 
 			// extractions
 			if lr, err := connection.Client.ListAllExtractions(qo); err != nil {
@@ -607,7 +608,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateExtraction(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown extraction %s: %v", res.ID, err)
 						if !noFail {
@@ -628,7 +629,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateActionable(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown actionables %s: %v", res.ID, err)
 						if !noFail {
@@ -649,7 +650,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdatePlaybook(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown playbooks %s: %v", res.ID, err)
 						if !noFail {
@@ -670,7 +671,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if err := connection.Client.UpdateScheduledSearch(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown scheduled search %s: %v", res.ID, err)
 						if !noFail {
@@ -691,7 +692,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if err := connection.Client.UpdateScheduledScript(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown scheduled script %s: %v", res.ID, err)
 						if !noFail {
@@ -712,7 +713,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateFileMetadata(res.ID, res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown file %s: %v", res.ID, err)
 						if !noFail {
@@ -733,7 +734,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateTemplate(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown templates %s: %v", res.ID, err)
 						if !noFail {
@@ -754,7 +755,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateResourceMetadata(res.ID, res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown resource %s: %v", res.ID, err)
 						if !noFail {
@@ -775,7 +776,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if err := connection.Client.UpdateMacro(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown macro %s: %v", res.ID, err)
 						if !noFail {
@@ -796,7 +797,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if err := connection.Client.UpdateFlow(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown flow %s: %v", res.ID, err)
 						if !noFail {
@@ -817,7 +818,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateAlert(res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown alert %s: %v", res.ID, err)
 						if !noFail {
@@ -839,7 +840,7 @@ func massChown() action.Pair {
 			} else {
 				var success uint
 				for _, res := range lr.Results {
-					res.CommonFields.OwnerID = from
+					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateSecret(res.ID, types.SecretCreate{CommonFields: res.CommonFields}); err != nil {
 						fmt.Fprintf(&sb, "failed to chown alert %s: %v", res.ID, err)
 						if !noFail {
