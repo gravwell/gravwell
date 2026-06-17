@@ -13,11 +13,6 @@ import (
 	"io"
 )
 
-type ResourceContentType struct {
-	ContentType string
-	Body        []byte
-}
-
 type ResourceUpdate struct {
 	Metadata Resource
 	Data     []byte

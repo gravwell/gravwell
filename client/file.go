@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -94,20 +96,42 @@ func (c *Client) GetFileMetadata(id string) (types.File, error) {
 
 // PopulateFile sets the content of the specified file to the given data.
 //
+// Extension should include the dot (ex: ".csv").
+//
 // Returns the metadata of the populated/updated file.
-func (c *Client) PopulateFile(id string, data []byte) (types.File, error) {
+func (c *Client) PopulateFile(id string, extension string, data []byte) (types.File, error) {
 	if uint64(len(data)) > maxFileSize {
 		return types.File{}, ErrOversizedFile
 	}
-	return c.PopulateFileFromReader(id, bytes.NewBuffer(data))
+	return c.PopulateFileFromReader(id, extension, bytes.NewBuffer(data))
+}
+
+// PopulateFileFromPath sets the content of the specified file to that of the file at the given path.
+// Extension is taken verbatim from the path.
+//
+// Returns the metadata of the populated/updated file.
+func (c *Client) PopulateFileFromPath(id string, pth string) (types.File, error) {
+	f, err := os.Open(pth)
+	if err != nil {
+		return types.File{}, err
+	}
+
+	// sanity check the length
+	if fi, err := f.Stat(); err != nil {
+		return types.File{}, err
+	} else if uint64(fi.Size()) > maxFileSize {
+		return types.File{}, ErrOversizedFile
+	}
+
+	return c.PopulateFileFromReader(id, filepath.Ext(pth), f)
 }
 
 // PopulateFileFromReader sets the contents of the specified file to that of the given reader.
 //
+// Extension should include the dot (ex: ".csv").
+//
 // Returns the metadata of the populated/updated file.
-func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, error) {
-	// This is functionally the same as PopulateResourceFromReader
-
+func (c *Client) PopulateFileFromReader(id string, extension string, data io.Reader) (types.File, error) {
 	var resp *http.Response
 
 	//get a pipe rolling with something that always closes it
@@ -116,8 +140,8 @@ func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, 
 	defer rdr.Close()
 
 	mpw := newMpWriter(wtr)
-	//write the file portion (the name is ignored)
-	part, err := mpw.CreateFormFile(fileField, `file`)
+	//write the file portion; we only care about the extension as name is stored in metadata.
+	part, err := mpw.CreateFormFile(fileField, `file`+extension)
 	if err != nil {
 		return types.File{}, err
 	}
