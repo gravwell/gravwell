@@ -3,6 +3,7 @@ package ingesters
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/pflag"
 )
@@ -28,7 +29,7 @@ func list() action.Pair {
 	}
 
 	return scaffoldlist.NewListAction(short, long, wrappedIngesterStats{},
-		func(fs *pflag.FlagSet) ([]wrappedIngesterStats, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]wrappedIngesterStats, error) {
 			// GetIngesterStats returns data according to each indexer.
 			// We extract just the ingester stats sub items.
 			// The rest of the stats are inside of the indexer-specific actions.
@@ -55,5 +56,7 @@ func list() action.Pair {
 				}
 			}
 			return wrap, nil
-		}, nil, scaffoldlist.Options{})
+		}, nil, scaffoldlist.Options{
+			Omit: scaffold.OmitFlags{Everything: true},
+		})
 }

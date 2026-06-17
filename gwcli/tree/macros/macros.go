@@ -27,7 +27,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/spf13/cobra"
 
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -59,20 +58,12 @@ func NewNav() *cobra.Command {
 
 func list() action.Pair {
 	return scaffoldlist.NewListAction("list your macros", "lists all macros associated to your user, a group, or the system itself",
-		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
-			if all, err := fs.GetBool("all"); err != nil {
-				return nil, clilog.GetFlag(err)
-			} else if all { // fetch all macros instead of just user macros
-				r, err := connection.Client.ListAllMacros(nil)
-				if err != nil {
-					return nil, err
-				}
-				return r.Results, nil
-			}
-			if gid, err := fs.GetInt32("group"); err != nil {
-				return nil, clilog.GetFlag(err)
-			} else if gid != 0 { // fetch all macros our group ID can read
-				macros, err := connection.Client.ListAllMacros(nil)
+		types.Macro{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Macro, error) {
+			gid, err := fs.GetInt32("group")
+			clilog.GetFlag(err)
+			if gid != 0 { // fetch all macros our group ID can read
+				// TODO inject the group ID filter here rather than manually filtering after the fact
+				macros, err := connection.Client.ListAllMacros(params.QueryOpts)
 				if err != nil {
 					return nil, err
 				}
@@ -84,11 +75,8 @@ func list() action.Pair {
 				}
 				return macroResults, nil
 			}
-			r, err := connection.Client.ListMacros(nil)
-			if err != nil {
-				return nil, err
-			}
-			return r.Results, nil
+			r, err := connection.Client.ListMacros(params.QueryOpts)
+			return r.Results, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -103,7 +91,6 @@ func list() action.Pair {
 
 func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "macros", "Supersedes --group")
 	addtlFlags.Int32("group", 0, "fetches all macros shared with the given group id")
 	return &addtlFlags
 }
