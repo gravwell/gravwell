@@ -33,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -62,11 +63,6 @@ func NewNav() *cobra.Command {
 
 // field map keys used by edit and create for consistent access.
 const (
-	fieldKeyName     = "name"
-	fieldKeyDesc     = "desc"
-	fieldKeyModule   = "module"
-	fieldKeyTags     = "tags"
-	fieldKeyParams   = "params"
 	fieldUsageParams = "regex to apply to extract.\n" +
 		"There are a few important notes about how an extraction parameter is defined:\n" +
 		"1) Each extraction parameter's value must be defined as a string and double or single quoted.\n" +
@@ -74,34 +70,28 @@ const (
 		`ex: “\b” would be the backspace command (character 0x08) not the literal “\b".` + "\n" +
 		`3) Single quoted strings are raw and not subjected to string escape rules.` + "\n" +
 		`ex: '\b' is literally the backslash character followed by the 'b' character, not a backspace.`
-	fieldKeyArgs   = "args"
 	fieldUsageArgs = "module-specific arguments used to change the behavior of the extraction module.\n" +
 		"NOTE: The regex processor does not support arguments"
-	fieldKeyLabels = "labels"
 )
 
 // #region list
 
 func list() action.Pair {
-	const (
-		short string = "list extractors"
-		long  string = "list autoextractions available to you and the system"
-	)
 
 	return scaffoldlist.NewListAction(
-		short,
-		long,
+		"list extractors",
+		"List autoextractions available to you",
 		types.AX{},
-		func(fs *pflag.FlagSet) ([]types.AX, error) {
-			if id, err := fs.GetString("id"); err != nil {
-				clilog.GetFlag(err)
-			} else if id != "" {
-				clilog.Writer.Infof("Fetching ax with id \"%v\"", id)
-				d, err := connection.Client.GetExtraction(id)
+		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.AX, error) {
+			id, err := fs.GetString("id")
+			clilog.GetFlag(err)
+			if id != "" {
+				clilog.Writer.Info("Fetching ax by ID", log.KV("ID", id))
+				d, err := connection.Client.GetExtraction(id) // TODO this needs an EX equivalent, no?
 				return []types.AX{d}, err
 			}
 
-			lr, err := connection.Client.ListExtractions(nil)
+			lr, err := connection.Client.ListExtractions(param.QueryOpts)
 			return lr.Results, err
 
 		},
@@ -134,9 +124,9 @@ func create() action.Pair {
 
 	return scaffoldcreate.NewCreateAction("extractor",
 		map[string]scaffoldcreate.Field{
-			fieldKeyName: scaffoldcreate.FieldName("extractor"),
-			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
-			fieldKeyModule: scaffoldcreate.Field{
+			"name": scaffoldcreate.FieldName("extractor"),
+			"desc": scaffoldcreate.FieldDescription("extractor"),
+			"module": {
 				Required: true,
 				Title:    "module",
 				Flag:     scaffoldcreate.FlagConfig{Name: "module", Usage: "extraction module to use. Call `extractors modules` to list available options.", Shorthand: 'm'},
@@ -159,7 +149,7 @@ func create() action.Pair {
 				DefaultValue: "",
 				Order:        80,
 			},
-			fieldKeyTags: scaffoldcreate.Field{
+			"tags": {
 				Required: true,
 				Title:    "tags",
 				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: "tags this ax will extract from. There can only be one extractor per tag.", Shorthand: 't'},
@@ -182,14 +172,14 @@ func create() action.Pair {
 				},
 				Order: 70,
 			},
-			fieldKeyParams: scaffoldcreate.Field{
+			"params": {
 				Required: true,
 				Title:    "Params/regex",
 				Flag:     scaffoldcreate.FlagConfig{Name: "params", Usage: fieldUsageParams},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    60,
 			},
-			fieldKeyArgs: scaffoldcreate.Field{
+			"args": {
 				Required:     false,
 				Title:        "arguments/options",
 				Flag:         scaffoldcreate.FlagConfig{Name: "args", Usage: fieldUsageArgs},
@@ -197,7 +187,7 @@ func create() action.Pair {
 				DefaultValue: "",
 				Order:        50,
 			},
-			fieldKeyLabels: fLabels,
+			"labels": fLabels,
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
 			// no need to nil check; Required boolean enforces that for us
@@ -205,14 +195,14 @@ func create() action.Pair {
 			// map fields back into the underlying type
 			axd := types.AX{
 				CommonFields: types.CommonFields{
-					Name:        cfg[fieldKeyName].Provider.Get(),
-					Description: cfg[fieldKeyDesc].Provider.Get(),
-					Labels:      strings.Split(strings.ReplaceAll(cfg[fieldKeyLabels].Provider.Get(), " ", ""), ","),
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
-				Module: cfg[fieldKeyModule].Provider.Get(),
-				Tags:   strings.Split(strings.ReplaceAll(cfg[fieldKeyTags].Provider.Get(), " ", ""), ","),
-				Params: cfg[fieldKeyParams].Provider.Get(),
-				Args:   cfg[fieldKeyArgs].Provider.Get(),
+				Module: cfg["module"].Provider.Get(),
+				Tags:   strings.Split(strings.ReplaceAll(cfg["tags"].Provider.Get(), " ", ""), ","),
+				Params: cfg["params"].Provider.Get(),
+				Args:   cfg["args"].Provider.Get(),
 			}
 
 			// check for dryrun
@@ -322,9 +312,9 @@ func edit() action.Pair {
 	fLabels := scaffoldedit.FieldLabels()
 	fLabels.Order = 40
 	return scaffoldedit.NewEditAction("extractor", "extractors", scaffoldedit.Config{
-		fieldKeyName: scaffoldedit.FieldName("extractor"),
-		fieldKeyDesc: scaffoldedit.FieldDescription("extractor"),
-		fieldKeyModule: &scaffoldedit.Field{
+		"name": scaffoldedit.FieldName("extractor"),
+		"desc": scaffoldedit.FieldDescription("extractor"),
+		"module": &scaffoldedit.Field{
 			Required:      true,
 			Title:         "module",
 			Usage:         "extraction module to use. Call `extractors modules` to list available options.",
@@ -332,7 +322,7 @@ func edit() action.Pair {
 			FlagShorthand: 'm',
 			Order:         80,
 		},
-		fieldKeyTags: &scaffoldedit.Field{
+		"tags": &scaffoldedit.Field{
 			Required:      true,
 			Title:         "tags",
 			Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
@@ -345,21 +335,21 @@ func edit() action.Pair {
 				return ti
 			},
 		},
-		fieldKeyParams: &scaffoldedit.Field{
+		"params": &scaffoldedit.Field{
 			Required: false,
 			Title:    "params/regex",
 			Usage:    fieldUsageParams,
 			FlagName: "params",
 			Order:    60,
 		},
-		fieldKeyArgs: &scaffoldedit.Field{
+		"args": &scaffoldedit.Field{
 			Required: false,
 			Title:    "arguments/options",
 			Usage:    fieldUsageArgs,
 			FlagName: "args",
 			Order:    50,
 		},
-		fieldKeyLabels: fLabels,
+		"labels": fLabels,
 	},
 		scaffoldedit.SubroutineSet[string, types.AX]{
 			SelectSub: func(id string) (item types.AX, err error) {
@@ -374,38 +364,38 @@ func edit() action.Pair {
 			},
 			GetFieldSub: func(item types.AX, fieldKey string) (value string, err error) {
 				switch fieldKey {
-				case fieldKeyName:
+				case "name":
 					return item.Name, nil
-				case fieldKeyDesc:
+				case "desc":
 					return item.Description, nil
-				case fieldKeyModule:
+				case "module":
 					return item.Module, nil
-				case fieldKeyTags:
+				case "tags":
 					return strings.Join(item.Tags, ","), nil
-				case fieldKeyParams:
+				case "params":
 					return item.Params, nil
-				case fieldKeyArgs:
+				case "args":
 					return item.Args, nil
-				case fieldKeyLabels:
+				case "labels":
 					return strings.Join(item.Labels, ","), nil
 				}
 				return "", fmt.Errorf("unknown field key: %v", fieldKey)
 			},
 			SetFieldSub: func(item *types.AX, fieldKey, val string) (invalid string, err error) {
 				switch fieldKey {
-				case fieldKeyName:
+				case "name":
 					item.Name = val
-				case fieldKeyDesc:
+				case "desc":
 					item.Description = val
-				case fieldKeyModule:
+				case "module":
 					item.Module = val
-				case fieldKeyTags:
+				case "tags":
 					item.Tags = strings.Split(val, ",")
-				case fieldKeyParams:
+				case "params":
 					item.Params = val
-				case fieldKeyArgs:
+				case "args":
 					item.Args = val
-				case fieldKeyLabels:
+				case "labels":
 					item.Labels = strings.Split(val, ",")
 				default:
 					return "", fmt.Errorf("unknown field key: %v", fieldKey)
