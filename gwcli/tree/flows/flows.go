@@ -49,11 +49,10 @@ func NewNav() *cobra.Command {
 			backfillToggle(),
 			clear(),
 			parse(),
+			create(),
 		},
 	)
 }
-
-//#region list
 
 func listActions() action.Pair {
 	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
@@ -484,4 +483,57 @@ func parse() action.Pair {
 				return "", nil
 			},
 		})
+}
+
+func create() action.Pair {
+	return scaffoldcreate.NewCreateAction("flow",
+		map[string]scaffoldcreate.Field{
+			"name":     scaffoldcreate.FieldName("flow"),
+			"desc":     scaffoldcreate.FieldDescription("flow"),
+			"path":     scaffoldcreate.FieldPath("flow specification", true),
+			"labels":   scaffoldcreate.FieldLabels(),
+			"schedule": scaffoldcreate.FieldFrequency(),
+			"enabled": {
+				Title: "Enabled?", Required: false,
+				Flag:     scaffoldcreate.FlagConfig{},
+				Order:    30,
+				Provider: &scaffoldcreate.BoolProvider{},
+			},
+			"backfill": {
+				Title: "Backfill?", Required: false,
+				Flag:     scaffoldcreate.FlagConfig{},
+				Order:    20,
+				Provider: &scaffoldcreate.BoolProvider{},
+			},
+		},
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			pth := fields["path"].Provider.Get()
+			flowContent, err := os.ReadFile(pth)
+			if err != nil {
+				return 0, "", err
+			}
+
+			enabled, _ := strconv.ParseBool(fields["enabled"].Provider.Get())
+			backfill, _ := strconv.ParseBool(fields["backfill"].Provider.Get())
+
+			newFlow, err := connection.Client.CreateFlow(types.Flow{
+				CommonFields: types.CommonFields{
+					Name:        fields["name"].Provider.Get(),
+					Description: fields["desc"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
+				},
+				AutomationCommonFields: types.AutomationCommonFields{
+					Schedule:        fields["schedule"].Provider.Get(),
+					Disabled:        !enabled,
+					BackfillEnabled: backfill,
+				},
+				Flow: string(flowContent),
+			})
+			if err != nil {
+				return 0, "", err
+			}
+			return newFlow.ID, "", nil
+		},
+		scaffoldcreate.Options{})
+
 }
