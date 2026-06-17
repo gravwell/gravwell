@@ -755,7 +755,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = from
-					if err := connection.Client.UpdateResourceMetadata(res.ID, res); err != nil {
+					if _, err := connection.Client.UpdateResourceMetadata(res.ID, res); err != nil {
 						fmt.Fprintf(&sb, "failed to chown resource %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -830,8 +830,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "alert")
 			}
 
-			// TODO update if secrets and tokens can *now* be updated
-			// secrets
+			// secrets // TODO test
 			if lr, err := connection.Client.ListAllSecrets(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get secrets: "+err.Error()+"\n")
 				if !noFail {
@@ -1322,7 +1321,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("resource (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if err := connection.Client.UpdateResourceMetadata(ID, itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateResourceMetadata(ID, itm); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "resource")
 		} else if err != nil {
 			return err
