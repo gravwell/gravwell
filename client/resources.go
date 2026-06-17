@@ -18,7 +18,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 )
@@ -97,13 +97,13 @@ func (mpw *mpWriter) Close() (err error) {
 // Extension is taken verbatim from the path.
 //
 // Returns the metadata of the populated/updated resource.
-func (c *Client) PopulateResourceFromPath(id string, filepath string) (types.Resource, error) {
-	f, err := os.Open(filepath)
+func (c *Client) PopulateResourceFromPath(id string, pth string) (types.Resource, error) {
+	f, err := os.Open(pth)
 	if err != nil {
 		return types.Resource{}, err
 	}
 
-	return c.PopulateResourceFromReader(id, path.Ext(filepath), f)
+	return c.PopulateResourceFromReader(id, filepath.Ext(pth), f)
 }
 
 // PopulateResourceFromReader sets the contents of the specified resource to that of the given reader.

@@ -16,7 +16,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -110,8 +110,8 @@ func (c *Client) PopulateFile(id string, extension string, data []byte) (types.F
 // Extension is taken verbatim from the path.
 //
 // Returns the metadata of the populated/updated file.
-func (c *Client) PopulateFileFromPath(id string, filepath string) (types.File, error) {
-	f, err := os.Open(filepath)
+func (c *Client) PopulateFileFromPath(id string, pth string) (types.File, error) {
+	f, err := os.Open(pth)
 	if err != nil {
 		return types.File{}, err
 	}
@@ -123,7 +123,7 @@ func (c *Client) PopulateFileFromPath(id string, filepath string) (types.File, e
 		return types.File{}, ErrOversizedFile
 	}
 
-	return c.PopulateFileFromReader(id, path.Ext(filepath), f)
+	return c.PopulateFileFromReader(id, filepath.Ext(pth), f)
 }
 
 // PopulateFileFromReader sets the contents of the specified file to that of the given reader.
