@@ -9,6 +9,9 @@
 package admin_test
 
 import (
+	"encoding/csv"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -74,10 +77,11 @@ func TestMassChown(t *testing.T) {
 	var sbOut, sbErr strings.Builder
 	// create a second user
 	var (
-		u2Username string = randomdata.SillyName()
-		u2Password string = randomdata.Month()
+		u2Username = randomdata.SillyName()
+		u2Password = randomdata.Month()
 	)
-	args := append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "admin", "users", "create",
+	adminMeta := testsupport.MetaArgs(t, false, testsupport.WithDefaults())
+	args := append(adminMeta, "admin", "users", "create",
 		"--new-email="+randomdata.Email(),
 		"--new-username="+u2Username,
 		"--new-password="+u2Password,
@@ -87,19 +91,89 @@ func TestMassChown(t *testing.T) {
 	sbOut.Reset()
 	sbErr.Reset()
 
-	// create a bunch of data under a second user
-	u2Meta := testsupport.MetaArgs(t, false, testsupport.WithUsernamePassword(u2Username, u2Password))
+	{ // create a bunch of data under a second user
+		u2Meta := testsupport.MetaArgs(t, false, testsupport.WithServer(false, ""), testsupport.WithUsernamePassword(u2Username, u2Password))
+		// saved query
+		executeTree(t, &sbOut, &sbErr, u2Meta, "queries", "saved", "create", "--name="+u2Username+"_saved", "--query=\"tag=gravwell | limit 2\"")
+		// dashboards
+		// the TUI doesn't have the ability to create dashboards, so we are just skipping this for now.
+		// kits
+		// kit chowning isn't supported
+		// extractors
+		require.Zero(t, tree.Execute(append(adminMeta, "extractors", "find", "default"), &sbOut, &sbErr), sbErr.String()) // make sure we don't have a pre-existing extractor
+		_, ID, found := strings.Cut(sbOut.String(), "ID: ")
+		if found {
+			ID, _, found = strings.Cut(ID, "\n")
+			if found {
+				require.Zero(t, tree.Execute(append(adminMeta, "extractors", "delete", ID), &sbOut, &sbErr), sbErr.String()) // kill the preexisting ax
+			}
+		}
+		sbOut.Reset()
+		sbErr.Reset()
+		executeTree(t, &sbOut, &sbErr, u2Meta, "extractors", "create", "--name="+u2Username+"_extractor", "--module=csv", "--tags=default", "--params='babs'")
+		// actionables
+		executeTree(t, &sbOut, &sbErr, u2Meta, "actionables", "create", "--name="+u2Username+"_actionable")
+		// playbooks
+		executeTree(t, &sbOut, &sbErr, u2Meta, "playbook", "create", "--name="+u2Username+"_playbook_1")
+		// scheduled searches
+		executeTree(t, &sbOut, &sbErr, u2Meta, "queries", "scheduled", "create", "--name="+u2Username+"_saved",
+			"--frequency=1 1 * * *",
+			"--query=\"tag=gravwell | limit 2\"",
+			"--duration", "1h",
+		)
+		// TODO add more asset types
+	}
+
+	var u2ID uint32
+	{ // find second user's ID
+		args := append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "admin", "users", "list", "--csv", "--columns=ID,Username")
+		require.Zero(t, tree.Execute(args, &sbOut, &sbErr), sbErr.String())
+		out := sbOut.String()
+		rdr := csv.NewReader(strings.NewReader(out))
+		hdr, err := rdr.Read()
+		require.Nil(t, err)
+		require.True(t, slices.Equal(hdr, []string{"ID", "Username"}))
+		records, err := rdr.ReadAll()
+		require.Nil(t, err)
+		for _, record := range records {
+			if record[1] == u2Username {
+				uid, err := strconv.ParseUint(record[0], 10, 32)
+				require.Nil(t, err)
+				u2ID = uint32(uid)
+			}
+		}
+		sbOut.Reset()
+		sbErr.Reset()
+		require.NotZero(t, u2ID, "failed to read second user's ID from users list")
+	}
+
+	// take ownership of all of it
+	args = append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "admin", "mass-chown",
+		"--to=1", "--from="+strconv.FormatUint(uint64(u2ID), 10))
+	require.Zero(t, tree.Execute(args, &sbOut, &sbErr), sbErr.String())
+	t.Log(sbOut.String())
+	require.Empty(t, sbErr.String())
+	sbOut.Reset()
+	sbErr.Reset()
+	// confirm we now own every item
 	// saved query
-	executeTree(t, &sbOut, &sbErr, u2Meta, "queries", "saved", "create", "--name="+u2Username+"saved", "--query=\"tag=gravwell | limit 2\"")
+	findName(t, &sbOut, &sbErr, u2Username+"_saved", adminMeta, []string{"queries", "saved"}, []string{"ID", "Name"})
 	// dashboards
 	// the TUI doesn't have the ability to create dashboards, so we are just skipping this for now.
 	// kits
 	// kit chowning isn't supported
-	// extractions
-
-	executeTree(t, &sbOut, &sbErr, u2Meta, "queries", "saved", "create", "--name="+u2Username+"saved", "--query=\"tag=gravwell | limit 2\"")
-	// take ownership of all of it
-	// TODO
+	// extractors
+	findName(t, &sbOut, &sbErr, u2Username+"_extractor", adminMeta, []string{"extractors"}, []string{"ID", "Name"})
+	// actionables
+	findName(t, &sbOut, &sbErr, u2Username+"_actionable", adminMeta, []string{"actionables"}, []string{"ID", "Name"})
+	// playbooks
+	findName(t, &sbOut, &sbErr, u2Username+"_playbook_1", adminMeta, []string{"playbooks"}, []string{"ID", "Name"})
+	// scheduled searches
+	/*	executeTree(t, &sbOut, &sbErr, adminMeta, "queries", "scheduled", "create", "--name="+u2Username+"_saved",
+		"--frequency=1 1 * * *",
+		"--query=\"tag=gravwell | limit 2\"",
+		"--duration", "1h",
+	)*/
 }
 
 // helper function.
@@ -107,6 +181,37 @@ func TestMassChown(t *testing.T) {
 func executeTree(t *testing.T, sbOut, sbErr *strings.Builder, meta []string, args ...string) {
 	t.Helper()
 	require.Zero(t, tree.Execute(append(meta, args...), sbOut, sbErr), sbErr.String())
+	require.Empty(t, sbErr.String())
 	sbOut.Reset()
 	sbErr.Reset()
+}
+
+// automatically prefixes --csv and --columns to args
+func findName(t *testing.T, sbOut, sbErr *strings.Builder, expectedName string, meta, parentNavPath, columns []string) {
+	t.Helper()
+	defer sbOut.Reset()
+	defer sbErr.Reset()
+	// compose args
+	args := slices.Concat(meta, parentNavPath, []string{"list", "--csv", "--columns=" + strings.Join(columns, ",")})
+	t.Log("findName args: ", args)
+	require.Zero(t, tree.Execute(args, sbOut, sbErr), sbErr.String(), sbErr.String())
+	require.Empty(t, sbErr.String())
+	// check each column for the name
+	rdr := csv.NewReader(strings.NewReader(sbOut.String()))
+	t.Logf("parsing out:\n%v", sbOut.String())
+	{ // check header length
+		hdr, err := rdr.Read()
+		require.Nil(t, err)
+		assert.Len(t, hdr, len(hdr))
+	}
+	{ // find the name
+		records, err := rdr.ReadAll()
+		require.NoError(t, err)
+		for _, record := range records {
+			if slices.Contains(record, expectedName) {
+				return
+			}
+		}
+		t.Fatalf("failed to find item name %s in records %v", expectedName, records)
+	}
 }
