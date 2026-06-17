@@ -45,15 +45,22 @@ func newKitsListAction() action.Pair {
 
 	return scaffoldlist.NewListAction(
 		short, long,
-		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
+		types.KitState{}, func(fs *pflag.FlagSet) ([]types.KitState, error) {
 			// if --all, use the admin version
-			if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
+			var resp types.KitStateListResponse
+			var err error
+			var all bool
+			if all, err = fs.GetBool(ft.GetAll.Name()); err != nil {
 				clilog.GetFlag(err)
 			} else if all {
-				return connection.Client.AdminListKits()
+				resp, err = connection.Client.ListAllKits(nil)
+			} else {
+				resp, err = connection.Client.ListKits(nil)
 			}
-
-			return connection.Client.ListKits()
+			if err != nil {
+				return nil, err
+			}
+			return resp.Results, nil
 		},
 		nil,
 		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},

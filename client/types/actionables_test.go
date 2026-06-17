@@ -75,8 +75,7 @@ func TestActionableContentRoundTrip(t *testing.T) {
 				},
 			},
 			{
-				Name:             "Open URL",
-				NoValueURLEncode: true,
+				Name: "Open URL",
 				Command: ActionableCommand{
 					Type:      ACTIONABLE_COMMAND_URL,
 					Reference: "https://example.com/lookup?ip=_VALUE_",

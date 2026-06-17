@@ -17,6 +17,7 @@ import (
 	"os"
 	"testing"
 
+	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
@@ -209,7 +210,7 @@ func TestBuilderAddSigned(t *testing.T) {
 
 type tstruct struct {
 	tp  types.KitAssetType
-	hsh [sha256.Size]byte
+	hsh string
 }
 
 func TestProcess(t *testing.T) {
@@ -334,16 +335,16 @@ func genRandomBuff() (b []byte, err error) {
 	return
 }
 
-func getReaderTestHash(rdr io.Reader) (hsh [sha256.Size]byte) {
+func getReaderTestHash(rdr io.Reader) string {
 	//generate hash
 	h := sha256.New()
 	if _, err := io.Copy(h, rdr); err != nil {
-		return
+		return ""
 	}
 	if bts := h.Sum(nil); len(bts) == sha256.Size {
-		copy(hsh[0:sha256.Size], bts)
+		return hex.EncodeToString(bts[:])
 	}
-	return
+	return "" // shouldn't happen
 }
 
 func gzipCompressFile(p string) (err error) {

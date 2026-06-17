@@ -235,11 +235,11 @@ func (pbr *KitBuildRequest) validateReferencedFile(val, name string) error {
 }
 
 func (pbr *KitBuildRequest) Validate() error {
-	if pbr.ID = strings.TrimSpace(pbr.ID); len(pbr.ID) == 0 {
-		pbr.ID = randKitId()
+	if pbr.KitID = strings.TrimSpace(pbr.ID); len(pbr.ID) == 0 {
+		return errors.New("empty KitID")
 	}
 	if !isLetterNumberPeriod(pbr.ID) {
-		return errors.New("Invalid ID")
+		return errors.New("invalid KitID")
 	}
 	if pbr.Name = strings.TrimSpace(pbr.Name); len(pbr.Name) == 0 {
 		return errors.New("empty Name")

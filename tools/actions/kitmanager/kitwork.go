@@ -90,19 +90,21 @@ func pullKit(cli *client.Client, kbrBase types.KitBuildRequest) (err error) {
 func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) (kbr types.KitBuildRequest, err error) {
 	// initialize the KBR with the things that are not going to change
 	kbr = types.KitBuildRequest{
-		ID:                kbrBase.ID,
-		Name:              kbrBase.Name,
-		Readme:            kbrBase.Readme,
-		Version:           kbrBase.Version,
-		MinVersion:        kbrBase.MinVersion,
-		MaxVersion:        kbrBase.MaxVersion,
-		EmbeddedItems:     kbrBase.EmbeddedItems,
-		Icon:              kbrBase.Icon,
-		Banner:            kbrBase.Banner,
-		Cover:             kbrBase.Cover,
-		Dependencies:      kbrBase.Dependencies,
-		ConfigMacros:      kbrBase.ConfigMacros,
-		ScriptDeployRules: kbrBase.ScriptDeployRules,
+		KitID: kbrBase.KitID,
+		CommonFields: types.CommonFields{
+			Name: kbrBase.Name,
+		},
+		Readme:                kbrBase.Readme,
+		KitVersion:            kbrBase.Version,
+		MinVersion:            kbrBase.MinVersion,
+		MaxVersion:            kbrBase.MaxVersion,
+		EmbeddedItems:         kbrBase.EmbeddedItems,
+		Icon:                  kbrBase.Icon,
+		Banner:                kbrBase.Banner,
+		Cover:                 kbrBase.Cover,
+		Dependencies:          kbrBase.Dependencies,
+		ConfigMacros:          kbrBase.ConfigMacros,
+		AutomationDeployRules: kbrBase.AutomationDeployRules,
 	}
 	label := targetLabel(kbr.ID)
 	// sweep through all the types in the kit build list and check for the appropriate labels on each
@@ -206,8 +208,8 @@ func getSearchLibraryItems(cli *client.Client, label string, orig types.KitBuild
 		return
 	}
 	for _, sl := range items.Results {
-		if slices.Contains(orig.SearchLibraries, sl.ID) || slices.Contains(sl.Labels, label) {
-			kbr.SearchLibraries = append(kbr.SearchLibraries, sl.ID)
+		if slices.Contains(orig.SavedQueries, sl.ID) || slices.Contains(sl.Labels, label) {
+			kbr.SavedQueries = append(kbr.SavedQueries, sl.ID)
 		}
 	}
 	return
@@ -404,17 +406,17 @@ func pushKit(cli *client.Client, force bool) (err error) {
 	// to the version in the manifest and force is not true, then we need to error out because we don't want to accidentally
 	// overwrite a newer kit with an older one.  If we have a kit with the same ID but a lower version,
 	// then we can proceed with the deployment because the manifest version will overwrite the existing kit version on the server.
-	var kits []types.IdKitState
-	if kits, err = cli.ListKits(); err != nil {
+	var kits types.KitStateListResponse
+	if kits, err = cli.ListAllKits(nil); err != nil {
 		err = fmt.Errorf("failed to get list of kits from server: %w", err)
 		return
 	}
-	for _, k := range kits {
+	for _, k := range kits.Results {
 		if k.ID == mf.ID {
 			if k.Version >= mf.Version {
 				if force {
 					// go delete the kit
-					if err = cli.DeleteKit(k.UUID.String()); err != nil {
+					if err = cli.DeleteKit(k.ID); err != nil {
 						err = fmt.Errorf("failed to delete existing kit with ID %s: %w", k.ID, err)
 						return
 					}
@@ -475,19 +477,21 @@ func pushKit(cli *client.Client, force bool) (err error) {
 	}
 
 	cfg := types.KitConfig{
-		OverwriteExisting:  true,
-		Global:             kitGlobal,
-		ConfigMacros:       mf.ConfigMacros,
-		InstallationGroups: groups,
-		Labels:             kitLabels,
-		InstallationWriteAccess: types.Access{
+		OverwriteExisting: true,
+		InstallationReaders: types.ACL{
+			Global: kitGlobal,
+			GIDs:   groups,
+		},
+		ConfigMacros: mf.ConfigMacros,
+		Labels:       kitLabels,
+		InstallationWriters: types.ACL{
 			Global: kitWriteGlobal,
 			GIDs:   writeGroups,
 		},
 	}
 
 	// install the kit using the specified KitConfig values
-	if err = cli.InstallKit(state.UUID, cfg); err != nil {
+	if err = cli.InstallKit(state.ID, cfg); err != nil {
 		err = fmt.Errorf("failed to install kit on server: %w", err)
 		return
 	}

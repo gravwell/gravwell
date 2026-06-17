@@ -642,7 +642,7 @@ func (c *Client) uploadMultipartFileMethod(method, url, field, name string, rdr 
 }
 
 // getBodyErr pulls a possible error message out of the response body
-// and returns it as a string.  We will yank a maximum of 256 bytes
+// and returns it as a string.  We will yank a maximum of 4096 bytes
 func getBodyErr(rc io.Reader) string {
 	resp := make([]byte, 4096)
 	n, err := rc.Read(resp)
