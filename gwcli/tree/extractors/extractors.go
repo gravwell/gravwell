@@ -518,8 +518,11 @@ func find() action.Pair {
 			results = make([]scaffold.Result, len(tags))
 			for i, tag := range tags {
 				ax, err := connection.Client.FindExtraction(tag)
-				if err != nil {
-					results[i].Output = "failed to get extraction for " + tag
+				if phrases.IsNotFoundErr(err) {
+					results[i].Output = "tag '" + tag + "' does not have an extractor"
+					results[i].Success = true
+				} else if err != nil {
+					results[i].Output = "failed to get extractor for " + tag
 				} else {
 					results[i].Output = fmt.Sprintf("tag '%v' uses extractor '%v'\n"+
 						"ID: %v\n"+
