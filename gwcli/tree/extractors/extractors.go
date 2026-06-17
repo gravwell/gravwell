@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 
@@ -58,6 +60,7 @@ func NewNav() *cobra.Command {
 			modules(),
 			edit(),
 			importUpload(),
+			find(),
 		})
 }
 
@@ -483,6 +486,55 @@ func importUpload() action.Pair {
 					return phrases.Exactly1ArgRequired("file path"), nil
 				}
 				return "", nil
+			},
+		})
+}
+
+func find() action.Pair {
+	return scaffoldselect.NewSelectAction("find a tag's extractor", "Display information about the extractor associated to a selected tag",
+		"tag",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			tags, err := connection.Client.GetTags()
+			if err != nil {
+				return nil, err
+			}
+			data := make([]multiselectlist.SelectableItem[string], 0, len(tags))
+			for _, tag := range tags {
+				ax, err := connection.Client.FindExtraction(tag)
+				if phrases.IsNotFoundErr(err) { // no associated ax
+					continue
+				} else if err != nil {
+					return nil, err
+				}
+				data = append(data, &listitem.Generic{
+					ID_:        tag,
+					Name:       tag,
+					SecondLine: fmt.Sprintf("%s(%s): %s", ax.Name, ax.Module, ax.Description),
+				})
+			}
+			return slices.Clip(data), nil
+		},
+		func(tags []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(tags))
+			for i, tag := range tags {
+				ax, err := connection.Client.FindExtraction(tag)
+				if err != nil {
+					results[i].Output = "failed to get extraction for " + tag
+				} else {
+					results[i].Output = fmt.Sprintf("tag '%v' uses extractor '%v'\n"+
+						"ID: %v\n"+
+						"Module: %v\n"+
+						"Args: %v\n"+
+						"Other tags: %v",
+						tag, ax.Name, ax.ID, ax.Module, ax.Args, slices.DeleteFunc(ax.Tags, func(s string) bool { return s == tag }))
+					results[i].Success = true
+				}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "find",
 			},
 		})
 }
