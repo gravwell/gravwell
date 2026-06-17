@@ -13,7 +13,6 @@ package admin
 import (
 	"errors"
 	"fmt"
-	"gravwell/pkg/utils"
 	"maps"
 	"os"
 	"slices"
@@ -66,7 +65,7 @@ func NewNav() *cobra.Command {
 			restore(),
 			Status("status"),
 			listUserSearchStorage(),
-			validateBackup(),
+			//validateBackup(),
 			massChown(),
 			chown(),
 		},
@@ -492,7 +491,7 @@ func listUserSearchStorage() action.Pair {
 	)
 }
 
-func validateBackup() action.Pair {
+/*func validateBackup() action.Pair {
 	return scaffold.NewBasicAction("validate-backup", "validate backup files",
 		"Test that local gravwell backups are valid.",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
@@ -531,7 +530,7 @@ func validateBackup() action.Pair {
 				return "", nil
 			},
 		})
-}
+}*/
 
 func massChown() action.Pair {
 	return scaffold.NewBasicAction("mass-chown", "transfer all items to another user",
