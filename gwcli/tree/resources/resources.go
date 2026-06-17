@@ -16,6 +16,7 @@ import (
 	"fmt"
 	filesystem "io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -297,11 +298,12 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
+			ext := filepath.Ext(pth)
 			for i, ID := range IDs {
 				if _, err := contentF.Seek(0, 0); err != nil {
 					clilog.Writer.Warn("failed to rewind file", log.KV("file path", pth), log.KVErr(err))
 				}
-				err := connection.Client.PopulateResourceFromReader(ID, contentF)
+				updated, err := connection.Client.PopulateResourceFromReader(ID, ext, contentF)
 				if err != nil {
 					results[i] = scaffold.Result{
 						Output:  fmt.Sprintf("failed to repopulate resource %s (ID: %s): %v", contentF.Name(), ID, err),
@@ -309,18 +311,11 @@ func replace() action.Pair {
 					}
 					continue
 				}
-				updatedResource, err := connection.Client.GetResourceMetadata(ID)
-				if err != nil {
-					results[i] = scaffold.Result{
-						Output:  fmt.Sprintf("failed to confirm resource update: %v", err),
-						Success: false,
-					}
-				} else {
-					results[i] = scaffold.Result{
-						Output: fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d",
-							updatedResource.Name, updatedResource.ID, updatedResource.Size),
-						Success: true,
-					}
+
+				results[i] = scaffold.Result{
+					Output: fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d",
+						updated.Name, updated.ID, updated.Size),
+					Success: true,
 				}
 
 			}
