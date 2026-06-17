@@ -77,7 +77,14 @@ type GenerateAXResponse struct {
 	// lots of data, because other modules like winlog should take precedence if they
 	// succeed.
 	Confidence float64
-	Entries    []ResultsTableCell
+	Entries    []AXEntry
+}
+
+// An AXEntry is reduced subset of [ResultsTableCell] containing the data
+// extracted using an [AXDefinition]
+type AXEntry struct {
+	Value    []byte
+	Elements []Element
 }
 
 // ExploreRequest is used to request that the webserver perform a complete cracking of
