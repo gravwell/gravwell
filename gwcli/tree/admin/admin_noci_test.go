@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 	"github.com/stretchr/testify/assert"
@@ -67,4 +68,45 @@ func TestLogLevelGetSet(t *testing.T) {
 		curLevel = strings.ToLower(strings.TrimSpace(after))
 		require.Equal(t, setLevel, curLevel)
 	})
+}
+
+func TestMassChown(t *testing.T) {
+	var sbOut, sbErr strings.Builder
+	// create a second user
+	var (
+		u2Username string = randomdata.SillyName()
+		u2Password string = randomdata.Month()
+	)
+	args := append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "admin", "users", "create",
+		"--new-email="+randomdata.Email(),
+		"--new-username="+u2Username,
+		"--new-password="+u2Password,
+		"--new-name="+randomdata.FirstName(0),
+	)
+	require.Zero(t, tree.Execute(args, &sbOut, &sbErr), sbErr.String())
+	sbOut.Reset()
+	sbErr.Reset()
+
+	// create a bunch of data under a second user
+	u2Meta := testsupport.MetaArgs(t, false, testsupport.WithUsernamePassword(u2Username, u2Password))
+	// saved query
+	executeTree(t, &sbOut, &sbErr, u2Meta, "queries", "saved", "create", "--name="+u2Username+"saved", "--query=\"tag=gravwell | limit 2\"")
+	// dashboards
+	// the TUI doesn't have the ability to create dashboards, so we are just skipping this for now.
+	// kits
+	// kit chowning isn't supported
+	// extractions
+
+	executeTree(t, &sbOut, &sbErr, u2Meta, "queries", "saved", "create", "--name="+u2Username+"saved", "--query=\"tag=gravwell | limit 2\"")
+	// take ownership of all of it
+	// TODO
+}
+
+// helper function.
+// Calls tree.Execute, dies if a non-zero EC is returned, and resets the string builders.
+func executeTree(t *testing.T, sbOut, sbErr *strings.Builder, meta []string, args ...string) {
+	t.Helper()
+	require.Zero(t, tree.Execute(append(meta, args...), sbOut, sbErr), sbErr.String())
+	sbOut.Reset()
+	sbErr.Reset()
 }
