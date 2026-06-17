@@ -858,6 +858,7 @@ func massChown() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
+				Usage: "mass-chown --from=<UID> --to=<UID>",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Int32("to", 0, "user ID  to transfer ownership to")
