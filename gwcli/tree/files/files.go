@@ -24,7 +24,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -163,10 +162,9 @@ func create() action.Pair {
 			if err != nil {
 				return 0, "", fmt.Errorf("failed to create empty file: %w", err)
 			}
-			if f != nil {
-				if _, err := connection.Client.PopulateFileFromReader(outMeta.ID, f); err != nil {
-					return 0, "", fmt.Errorf("failed to populate file: %w", err)
-				}
+			// populate the file
+			if _, err := connection.Client.PopulateFileFromPath(outMeta.ID, filePath); err != nil {
+				return 0, "", fmt.Errorf("failed to populate file: %w", err)
 			}
 
 			return outMeta.ID, "", nil
@@ -279,29 +277,18 @@ func replace() action.Pair {
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
-			// slurp file
-			pth, _ := addtlFlags.GetString(ft.Path.Name())
-			contentF, err := os.Open(pth)
-			if err != nil {
-				return nil, err
-			}
-			for i, ID := range IDs {
-				if _, err := contentF.Seek(0, 0); err != nil {
-					clilog.Writer.Warn("failed to rewind file", log.KV("file path", pth), log.KVErr(err))
-				}
-				updatedFile, err := connection.Client.PopulateFileFromReader(ID, contentF)
+			for _, ID := range IDs {
+				pth, _ := addtlFlags.GetString(ft.Path.Name())
+				_, err := connection.Client.PopulateFileFromPath(ID, pth)
 				if err != nil {
-					results[i] = scaffold.Result{
-						Output:  fmt.Sprintf("failed to repopulate file %s (ID: %s): %v", contentF.Name(), ID, err),
-						Success: false,
-					}
-					continue
-				}
-				results[i] = scaffold.Result{
-					Output:  fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d", updatedFile.Name, updatedFile.ID, updatedFile.Size),
-					Success: true,
+					results = append(results, scaffold.Result{Output: err.Error()})
+				} else {
+					results = append(results, scaffold.Result{
+						Success: true,
+						Output:  fmt.Sprintf("populated file ID %s with the contents of %s", ID, pth)})
 				}
 			}
+
 			return results, nil
 		},
 		scaffoldselect.Options{

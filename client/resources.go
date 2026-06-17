@@ -11,11 +11,14 @@ package client
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 )
@@ -52,9 +55,13 @@ func (c *Client) ListAllResources(opts *types.QueryOptions) (rm types.ResourceLi
 	return
 }
 
-// PopulateResource updates the contents of the resource with the specified ID.
-func (c *Client) PopulateResource(id string, data []byte) error {
-	return c.PopulateResourceFromReader(id, bytes.NewReader(data))
+// PopulateResource sets the content of the specified resource to the given data.
+//
+// Extension should include the dot (ex: ".csv").
+//
+// Returns the metadata of the populated/updated resource.
+func (c *Client) PopulateResource(id string, extension string, data []byte) (types.Resource, error) {
+	return c.PopulateResourceFromReader(id, extension, bytes.NewReader(data))
 }
 
 type mpWriter struct {
@@ -86,10 +93,25 @@ func (mpw *mpWriter) Close() (err error) {
 	return
 }
 
-// PopulateResourceFromReader updates the contents of the specified resource using
-// data read from an io.Reader rather than a slice of bytes.
-func (c *Client) PopulateResourceFromReader(id string, data io.Reader) (err error) {
-	var part io.Writer
+// PopulateResourceFromPath sets the content of the specified resource to that of the file at the given path.
+// Extension is taken verbatim from the path.
+//
+// Returns the metadata of the populated/updated resource.
+func (c *Client) PopulateResourceFromPath(id string, pth string) (types.Resource, error) {
+	f, err := os.Open(pth)
+	if err != nil {
+		return types.Resource{}, err
+	}
+
+	return c.PopulateResourceFromReader(id, filepath.Ext(pth), f)
+}
+
+// PopulateResourceFromReader sets the contents of the specified resource to that of the given reader.
+//
+// Extension should include the dot (ex: ".csv").
+//
+// Returns the metadata of the populated/updated resource.
+func (c *Client) PopulateResourceFromReader(id string, extension string, data io.Reader) (types.Resource, error) {
 	var resp *http.Response
 
 	//get a pipe rolling with something that always closes it
@@ -98,9 +120,10 @@ func (c *Client) PopulateResourceFromReader(id string, data io.Reader) (err erro
 	defer rdr.Close()
 
 	mpw := newMpWriter(wtr)
-	//write the file portion (the name is ignored)
-	if part, err = mpw.CreateFormFile(fileField, `file`); err != nil {
-		return
+	//write the file portion; we only care about the extension as name is stored in metadata.
+	part, err := mpw.CreateFormFile(fileField, `file`+extension)
+	if err != nil {
+		return types.Resource{}, err
 	}
 	contentType := mpw.FormDataContentType()
 
@@ -117,22 +140,29 @@ func (c *Client) PopulateResourceFromReader(id string, data io.Reader) (err erro
 
 	resp, err = c.methodRequestURL(http.MethodPut, resourcesIdRawUrl(id), contentType, rdr)
 	if err != nil {
-		return err
+		return types.Resource{}, err
 	}
 	defer drainResponse(resp)
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
-		err = ErrNotAuthed
+		return types.Resource{}, ErrNotAuthed
 	} else if resp.StatusCode != http.StatusOK {
 		if s := getBodyErr(resp.Body); len(s) > 0 {
 			err = errors.New(s)
 		} else {
 			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
 		}
+		return types.Resource{}, err
 	}
 
-	return
+	// decode the metadata response
+	confirmation := types.Resource{}
+	if err := json.NewDecoder(resp.Body).Decode(&confirmation); err != nil {
+		return types.Resource{}, err
+	}
+
+	return confirmation, nil
 }
 
 // DeleteResource removes a resource by ID by marking it deleted in the database.
@@ -151,8 +181,9 @@ func (c *Client) CleanupResources() error {
 }
 
 // UpdateResourceMetadata sets the specified resource's metadata.
-func (c *Client) UpdateResourceMetadata(id string, metadata types.Resource) error {
-	return c.putStaticURL(resourcesIdUrl(id), metadata)
+func (c *Client) UpdateResourceMetadata(id string, metadata types.Resource) (updated types.File, err error) {
+	err = c.methodStaticPushURL(http.MethodPut, resourcesIdUrl(id), metadata, &updated, nil, nil)
+	return updated, err
 }
 
 // GetResourceMetadata gets the specified resource's metadata.
