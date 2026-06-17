@@ -61,8 +61,7 @@ type KitItem struct {
 
 	// The fields below may be set depending on the type.
 	DefaultDeploymentRules AutomationDeployConfig `json:",omitempty"` // set by automations (scripts, scheduled searches, flows)
-	Tags                   []string               `json:,omitempty"`  // set by AXes
-}
+	Tags                   []string               `json:",omitempty"` // set by AXes
 
 func (ki KitItem) Validate() error {
 	if ki.Name == "" {
