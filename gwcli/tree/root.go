@@ -17,19 +17,14 @@ package tree
 import (
 	"errors"
 	"fmt"
-	"gravwell/pkg/scripting"
 	"io"
-	"math"
 	"os"
 	"runtime/pprof"
 	"strings"
-	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client"
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -37,7 +32,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
@@ -61,7 +55,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tokens"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -307,7 +300,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 			query.NewQueryAction(),
 			showTags(),
 			notifications(),
-			executeScript(),
+			//executeScript(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
@@ -410,7 +403,9 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func executeScript() action.Pair {
+// TODO This relies on backend libraries that the TUI doesn't have access to as it is in Mono.
+// We will need a decision on how to proceed.
+/*func executeScript() action.Pair {
 	return scaffold.NewBasicAction("script", "execute an anko script", "Run an anko script in a VM on the connected Gravwell system",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
 			network, err := fs.GetBool("network")
@@ -478,4 +473,4 @@ func executeScript() action.Pair {
 				return "", nil
 			},
 		})
-}
+}*/
