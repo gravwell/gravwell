@@ -294,7 +294,7 @@ func TestNonInteractive(t *testing.T) {
 			scaffoldlist.Options{},
 			[]string{"-x", "--show-columns"},
 			"BackfillEnabled; Can.Delete; Can.Modify; Can.Share; CreatedAt; DeletedAt; Description; Disabled; Flow; FlowName; " +
-				"ID; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
+				"ID; Kit; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
 				"LastModifiedBy.DeletedAt; LastModifiedBy.Email; LastModifiedBy.Groups; LastModifiedBy.ID; LastModifiedBy.LastLogin; " +
 				"LastModifiedBy.Locked; LastModifiedBy.MFA.RecoveryCodes.Codes; LastModifiedBy.MFA.RecoveryCodes.Enabled; " +
 				"LastModifiedBy.MFA.RecoveryCodes.Generated; LastModifiedBy.MFA.RecoveryCodes.Remaining; LastModifiedBy.MFA.TOTP.Enabled; " +
@@ -431,7 +431,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 				}},
 			[]string{"--csv"},
 			false,
-			"BackfillEnabled,Disabled,Schedule,CreatedAt,DeletedAt,Description,ItemID,Labels,Name,Owner.Admin,Owner.CreatedAt,Owner.DefaultSearchGroups,Owner.DeletedAt,Owner.Email,Owner.Groups,Owner.ID,Owner.LastLogin,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Generated,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.UpdatedAt,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,UpdatedAt,Version,Writers.GIDs,Writers.Global,Flow\n" +
+			"BackfillEnabled,Disabled,Schedule,CreatedAt,DeletedAt,Description,ItemID,Kit,Labels,Name,Owner.Admin,Owner.CreatedAt,Owner.DefaultSearchGroups,Owner.DeletedAt,Owner.Email,Owner.Groups,Owner.ID,Owner.LastLogin,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Generated,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.UpdatedAt,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,UpdatedAt,Version,Writers.GIDs,Writers.Global,Flow\n" +
 				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,0,[],Name_0,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_0\n" +
 				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,1,[],Name_1,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_1\n" +
 				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,2,[],Name_2,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_2\n" +
