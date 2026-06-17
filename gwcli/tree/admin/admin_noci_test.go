@@ -1,3 +1,5 @@
+//go:build noci
+
 /*************************************************************************
  * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
