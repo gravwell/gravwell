@@ -14,7 +14,6 @@ package resources
 import (
 	"errors"
 	"fmt"
-	"io"
 	filesystem "io/fs"
 	"os"
 	"strings"
@@ -195,20 +194,7 @@ func create() action.Pair {
 
 			resp, err := connection.Client.CreateResource(data)
 			// upload the file
-			f, err := os.Open(filePath)
-			if err != nil {
-				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
-				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "open file"})
-				return resp.ID, "", errors.New(errStr)
-			}
-			defer f.Close()
-			b, err := io.ReadAll(f)
-			if err != nil {
-				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
-				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "slurp file"})
-				return resp.ID, "", errors.New(errStr)
-			}
-			if err := connection.Client.PopulateResource(resp.ID, b); err != nil {
+			if _, err := connection.Client.PopulateResourceFromPath(resp.ID, filePath); err != nil {
 				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
 				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "populate"})
 				return resp.ID, "", errors.New(errStr)
@@ -300,7 +286,8 @@ func edit() action.Pair {
 			return item.Description
 		},
 		UpdateSub: func(data *types.Resource) (identifier string, err error) {
-			return data.Name, connection.Client.UpdateResourceMetadata(data.ID, *data)
+			_, err = connection.Client.UpdateResourceMetadata(data.ID, *data)
+			return data.Name, err
 		},
 	})
 }
