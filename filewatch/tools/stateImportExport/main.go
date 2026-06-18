@@ -17,7 +17,7 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/filewatch"
+	"github.com/gravwell/gravwell/v4/filewatch"
 )
 
 func main() {

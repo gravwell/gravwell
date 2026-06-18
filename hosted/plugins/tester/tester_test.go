@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -30,7 +30,7 @@ func TestConfig_Verify(t *testing.T) {
 			name: "valid UUID and interval",
 			config: Config{
 				BaseConfig: hosted.BaseConfig{Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000"},
-				Interval:      "100ms",
+				Interval:   "100ms",
 			},
 			wantErr: false,
 		},
