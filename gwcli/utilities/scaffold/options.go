@@ -34,10 +34,13 @@ type BasicOptions struct {
 // Would be a pretty crap UX if scaffoldList's Usage override applied differently than scaffoldCreate's.
 type CommonOptions struct {
 	// Override the scaffold's default use/handle.
-	// Ex: call the action something other than "list", despite using scaffoldlist.
 	//
 	// Use should be a single word using only ASCII characters and may be coerced for usability.
 	Use string
+	// Override scaffold's default one-line action description.
+	Short string
+	// Override scaffold's default action description.
+	Long string
 	// Override the default usage line printed in this command's help text.
 	// Usage should follow the format: "<use> <mandatory flags> [optional flags] [parameters...].
 	Usage string
@@ -57,6 +60,12 @@ func (co CommonOptions) Apply(cmd *cobra.Command) {
 	if co.Use = strings.TrimSpace(co.Use); co.Use != "" {
 		co.Use = strings.ReplaceAll(co.Use, " ", "_")
 		cmd.Use = co.Use
+	}
+	if co.Short = strings.TrimSpace(co.Short); co.Short != "" {
+		cmd.Short = co.Short
+	}
+	if co.Long = strings.TrimSpace(co.Long); co.Long != "" {
+		cmd.Long = co.Long
 	}
 
 	if co.Usage != "" {
