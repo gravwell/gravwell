@@ -346,7 +346,7 @@ func edit() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("actionable", "actionables",
+	return scaffolddelete.NewDeleteAction("actionable",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetActionable(id)

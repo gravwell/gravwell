@@ -145,21 +145,35 @@ func prettyToken(t types.Token, longestIDLen int) string {
 	)
 
 	var identitySb strings.Builder
-	identitySb.WriteString(stylesheet.Cur.Field("ID", fieldWidth) + t.ID + "\n")
-	identitySb.WriteString(stylesheet.Cur.Field("Name", fieldWidth) + t.Name + "\n")
+	identitySb.WriteString(stylesheet.Cur.Field("ID", fieldWidth))
+	identitySb.WriteString(t.ID)
+	identitySb.WriteString("\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Name", fieldWidth))
+	identitySb.WriteString(t.Name)
+	identitySb.WriteString("\n")
 	if t.Description != "" {
-		identitySb.WriteString(stylesheet.Cur.Field("Description", fieldWidth) + t.Description + "\n")
+		identitySb.WriteString(stylesheet.Cur.Field("Description", fieldWidth))
+		identitySb.WriteString(t.Description)
+		identitySb.WriteString("\n")
 	}
-	identitySb.WriteString(stylesheet.Cur.Field("Owner", fieldWidth) + fmt.Sprintf("%v", t.Owner.Name) + "\n")
-	identitySb.WriteString(stylesheet.Cur.Field("Created", fieldWidth) + t.CreatedAt.Format("2006-01-02 15:04:05 UTC") + "\n")
-	identitySb.WriteString(stylesheet.Cur.Field("Updated", fieldWidth) + t.UpdatedAt.Format("2006-01-02 15:04:05 UTC"))
+	identitySb.WriteString(stylesheet.Cur.Field("Owner", fieldWidth))
+	identitySb.WriteString(fmt.Sprintf("%v", t.Owner.Name))
+	identitySb.WriteString("\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Created", fieldWidth))
+	identitySb.WriteString(t.CreatedAt.Format("2006-01-02 15:04:05 UTC"))
+	identitySb.WriteString("\n")
+	identitySb.WriteString(stylesheet.Cur.Field("Updated", fieldWidth))
+	identitySb.WriteString(t.UpdatedAt.Format("2006-01-02 15:04:05 UTC"))
 
 	var expirySb strings.Builder
-	expirySb.WriteString(stylesheet.Cur.Field("Expires", fieldWidth) + t.ExpiresString())
+	expirySb.WriteString(stylesheet.Cur.Field("Expires", fieldWidth))
+	expirySb.WriteString(t.ExpiresString())
 	if t.Expired() {
-		expirySb.WriteString(" " + stylesheet.Cur.ErrorText.Render("(EXPIRED)"))
+		expirySb.WriteString(" ")
+		expirySb.WriteString(stylesheet.Cur.ErrorText.Render("(EXPIRED)"))
 	} else if !t.ExpiresAt.IsZero() {
-		expirySb.WriteString(" " + stylesheet.Cur.SecondaryText.Render("(active)"))
+		expirySb.WriteString(" ")
+		expirySb.WriteString(stylesheet.Cur.SecondaryText.Render("(active)"))
 	}
 
 	var capsSb strings.Builder
@@ -328,7 +342,7 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("token", "tokens",
+	return scaffolddelete.NewDeleteAction("token",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetToken(id)

@@ -65,11 +65,11 @@ const heightBuffer = 4
 // FetchFunc is a function that fetches all delete-able records for the user to pick from.
 // It is primarily used in interactive mode, as this is bypassed if a user states IDs as args.
 func NewDeleteAction[I scaffold.Id_t](
-	singular, plural string,
+	singular string,
 	del DeleteFunc[I],
 	fch FetchFunc[I],
 	opts Options) action.Pair {
-
+	plural := english.PluralWord(2, singular, "")
 	var usage string
 	if opts.AddtlFlags != nil {
 		usage = ft.Optional("FLAGS")

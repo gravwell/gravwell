@@ -84,7 +84,7 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("group", "groups",
+	return scaffolddelete.NewDeleteAction("group",
 		func(dryrun bool, id int32) error {
 			if dryrun {
 				_, err := connection.Client.GetGroup(id)

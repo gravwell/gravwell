@@ -133,7 +133,7 @@ func list() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("template", "templates",
+	return scaffolddelete.NewDeleteAction("template",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetTemplate(id)

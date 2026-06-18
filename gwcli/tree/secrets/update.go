@@ -181,7 +181,7 @@ func (m *updateModel) SetArgs(_ *pflag.FlagSet, args []string, width, height int
 			return "", nil, err
 		}
 		if len(lr.Results) < 1 {
-			return "", nil, errors.New("You have no available secrets")
+			return "", nil, errors.New("you have no available secrets")
 		}
 		items := make([]list.Item, len(lr.Results))
 		for i, secret := range lr.Results {

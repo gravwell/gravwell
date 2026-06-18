@@ -81,7 +81,7 @@ func TestNonInteractive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var sbOut, sbErr strings.Builder
-			pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+			pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 			uniques.AttachPersistentFlags(pair.Action)
 			pair.Action.SetOut(&sbOut)
 			pair.Action.SetErr(&sbErr)
@@ -105,7 +105,7 @@ func TestNonInteractive(t *testing.T) {
 
 func TestInteractiveCycle(t *testing.T) {
 	t.Run("no data returns done with message", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del,
+		pair := scaffolddelete.NewDeleteAction("widget", del,
 			func() ([]multiselectlist.SelectableItem[string], error) { return nil, nil },
 			scaffolddelete.Options{})
 		inv, cmd, err := pair.Model.SetArgs(nil, []string{}, 50, 20)
@@ -117,7 +117,7 @@ func TestInteractiveCycle(t *testing.T) {
 
 	t.Run("fetch error", func(t *testing.T) {
 		fetchErr := errors.New("network error")
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del,
+		pair := scaffolddelete.NewDeleteAction("widget", del,
 			func() ([]multiselectlist.SelectableItem[string], error) { return nil, fetchErr },
 			scaffolddelete.Options{})
 		_, _, err := pair.Model.SetArgs(nil, []string{}, 50, 20)
@@ -125,7 +125,7 @@ func TestInteractiveCycle(t *testing.T) {
 	})
 
 	t.Run("with items, no flags (interactive mode)", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 		testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{}, 50, 20, false, nil, false)
 
 		t.Run("check initial view", func(t *testing.T) {
@@ -157,7 +157,7 @@ func TestInteractiveCycle(t *testing.T) {
 	})
 
 	t.Run("IDs via bare args skip interactive", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 		inv, cmd, err := pair.Model.SetArgs(nil, []string{"alpha", "beta"}, 50, 20)
 		assert.Empty(t, inv)
 		assert.Nil(t, err)
@@ -166,7 +166,7 @@ func TestInteractiveCycle(t *testing.T) {
 	})
 
 	t.Run("bad flags returns invalid", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 		inv, _, err := pair.Model.SetArgs(nil, []string{"--nonexistent"}, 50, 20)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, inv)
@@ -175,7 +175,7 @@ func TestInteractiveCycle(t *testing.T) {
 
 func TestModelLifecycle(t *testing.T) {
 	t.Run("reset after done", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
 		assert.Nil(t, err)
 		assert.True(t, pair.Model.Done())
@@ -185,7 +185,7 @@ func TestModelLifecycle(t *testing.T) {
 	})
 
 	t.Run("repeated use", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 
 		// First use
 		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
@@ -200,7 +200,7 @@ func TestModelLifecycle(t *testing.T) {
 	})
 
 	t.Run("view when done", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, pair.Model.View())
@@ -208,7 +208,7 @@ func TestModelLifecycle(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
-	pair := scaffolddelete.NewDeleteAction("widget", "widgets", del, collectItems, scaffolddelete.Options{})
+	pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
 
 	assert.Equal(t, "delete", pair.Action.Use)
 	assert.Contains(t, pair.Action.Short, "widgets")

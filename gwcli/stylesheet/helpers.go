@@ -207,14 +207,16 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 
 		// generate the segment head
 		head := splitterSty.Render(leftDiv) + segment.StylizedTitle + splitterSty.Render(rightDiv)
-		sb.WriteString(head + "\n")
+		sb.WriteString(head)
+		sb.WriteString("\n")
 
 		var footer bool
 		if i == len(segments)-1 { // use the border with a footer
 			footer = true
 		}
 		if segment.Contents != "" {
-			sb.WriteString(borderStyle.Border(bs, false, true, footer, true).Width(width).Render(segment.Contents) + "\n")
+			sb.WriteString(borderStyle.Border(bs, false, true, footer, true).Width(width).Render(segment.Contents))
+			sb.WriteString("\n")
 		}
 	}
 

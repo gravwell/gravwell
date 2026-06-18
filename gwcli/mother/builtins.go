@@ -100,7 +100,8 @@ func listHistory(m *Mother, _ *cobra.Command, _ []string) tea.Cmd {
 
 	// print the oldest record first, so newest record is directly over prompt
 	for i := len(rs) - 1; i > 0; i-- {
-		toPrint.WriteString(rs[i] + "\n")
+		toPrint.WriteString(rs[i])
+		toPrint.WriteString("\n")
 	}
 
 	// chomp last newline
