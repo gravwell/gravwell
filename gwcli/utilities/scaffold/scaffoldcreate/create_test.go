@@ -93,6 +93,8 @@ func TestOptions(t *testing.T) {
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "alt",
+				Short:   "my short description",
+				Long:    "my long description",
 				Aliases: aliases,
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
@@ -100,8 +102,6 @@ func TestOptions(t *testing.T) {
 					return fs
 				},
 			},
-			Short: "my short description",
-			Long:  "my long description",
 		},
 	)
 	if act.Action.Use != "alt" {

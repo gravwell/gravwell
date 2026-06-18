@@ -103,7 +103,7 @@ type CreateFuncT func(fields map[string]Field, fs *pflag.FlagSet) (id any, inval
 // On success, prints phrases.SuccessfullyCreatedItem().
 func NewCreateAction(singular string, fields map[string]Field, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
-	if singular == "" {
+	if singular = strings.TrimSpace(singular); singular == "" {
 		clilog.Writer.Error("singular noun cannot be empty. Defaulting to \"UNKNOWN\"", scaffold.IdentifyCaller())
 		singular = "UNKNOWN"
 	}
@@ -130,7 +130,7 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 	cmd := treeutils.GenerateAction(
 		"create",                 // use
 		"create a "+singular,     // short
-		"create a new "+singular, // long
+		"Create a new "+singular, // long
 		[]string{},               // aliases
 		func(c *cobra.Command, s []string) error {
 			// check non-interactive

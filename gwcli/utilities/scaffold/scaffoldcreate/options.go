@@ -15,10 +15,6 @@ import (
 
 type Options struct {
 	scaffold.CommonOptions
-	// Override scaffoldcreate's default one-line action description.
-	Short string
-	// Override scaffoldcreate's default action description.
-	Long string
 	// If set, the any "id" returned from CreateFunc will be printed bare, rather than being fed into phrases.SuccessfullyCreatedItem.
 	IDIsSuccessMessage bool
 }
