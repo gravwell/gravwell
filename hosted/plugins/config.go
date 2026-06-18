@@ -86,7 +86,7 @@ type IngesterBuilder interface {
 	Kind() string
 	ID() string
 	Version() string
-	Build(hosted.TagNegotiator) (hosted.Ingester, error)
+	Build(hosted.TagNegotiator, func() error) (hosted.Ingester, error)
 	Config() any
 }
 
