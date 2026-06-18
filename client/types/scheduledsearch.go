@@ -28,7 +28,7 @@ const (
 
 type ScriptLang uint
 
-type ScriptDeployConfig struct {
+type AutomationDeployConfig struct {
 	Disabled       bool
 	RunImmediately bool
 }

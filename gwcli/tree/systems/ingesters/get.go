@@ -33,7 +33,7 @@ func get() action.Pair {
 	)
 
 	return scaffoldlist.NewListAction(short, long, wrappedIngesterStats{},
-		func(fs *pflag.FlagSet) ([]wrappedIngesterStats, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]wrappedIngesterStats, error) {
 			// check that we were given ingesters to fetch
 			hostPrefix, err := fs.GetString(flagHostname)
 			if err != nil {
@@ -105,6 +105,7 @@ func get() action.Pair {
 				}
 				return "", nil
 			},
+			Omit: scaffold.OmitFlags{Everything: true},
 		})
 }
 

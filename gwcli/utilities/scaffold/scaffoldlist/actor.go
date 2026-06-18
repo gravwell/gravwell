@@ -19,7 +19,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/spf13/pflag"
 )
@@ -31,8 +30,9 @@ type ListAction[dataStruct any] struct {
 	showColumns bool           // print columns and exit
 	fs          *pflag.FlagSet // current flagset, parsed or unparsed
 	outFile     *os.File       // file to output results to (or nil)
+	format      outputFormat
 
-	// individualized for each use of scaffoldlist
+	// individualized for each use of scaffoldlist (shielded from .Reset())
 	defaultColumnsDQ []string                 // columns to output if --all and --columns=<> are unspecified
 	dqToAlias        map[string]string        // DQ column names -> alias (alias will be "" if a column does not have an alias)
 	aliasToDQ        map[string]string        // inverse of dqToAlias
@@ -63,12 +63,9 @@ func newListAction[dataStruct_t any](
 	return la
 }
 
-// SetArgs is called when the action is invoked by the user and Mother *enters* handoff mode.
-// Mother parses flags and provides us a handle to check against.
 func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
-	// refresh flags
-	la.fs = buildFlagSet(la.options.Pretty != nil, aliasColumns(la.defaultColumnsDQ, la.dqToAlias))
+	la.fs = buildFlagSet(la.options.Pretty != nil, aliasColumns(la.defaultColumnsDQ, la.dqToAlias), la.options.Omit)
 	if la.options.AddtlFlags != nil {
 		la.fs.AddFlagSet(la.options.AddtlFlags())
 	}
@@ -77,13 +74,12 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 		return err.Error(), nil, nil
 	}
 
-	// check for --show-columns
-	if la.showColumns, err = la.fs.GetBool(ft.ShowColumns.Name()); err != nil {
-		return "", nil, err
-	} else if la.showColumns { // all done
+	la.showColumns, la.columns, la.outFile, la.format, invalid = getFlags(la.fs, la.dqToAlias, la.aliasToDQ, la.options.Pretty != nil)
+	if invalid != "" {
+		return invalid, nil, nil
+	} else if la.showColumns {
 		return "", nil, nil
 	}
-
 	// run custom validation
 	if la.options.ValidateArgs != nil {
 		if invalid, err := la.options.ValidateArgs(la.fs); err != nil {
@@ -93,22 +89,11 @@ func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 		}
 	}
 
-	if la.columns, err = getColumns(la.fs, la.dqToAlias, la.aliasToDQ); err != nil {
-		// treat these errors as invalids
-		return err.Error(), nil, nil
-	}
-
-	if f, err := initOutFile(la.fs); err != nil {
-		return "", nil, err
-	} else {
-		la.outFile = f
-	}
-
-	return "", nil, nil
+	return invalid, nil, nil
 }
 
-// Update takes in a msg (some event that occurred, like a window redraw or a key press) and acts on it.
-// List only ever needs to update once; it figures out what data is to be displayed, fetches it, and spits it out above the prompt.
+// Update drives interactivity.
+// List only ever needs to update once; it figures out what data to display, fetches it, and spits it out above the prompt.
 func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	if la.done {
 		return nil
@@ -129,7 +114,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 		la.columns,
 		la.dataFunc,
 		la.options.Pretty,
-		la.dqToAlias)
+		la.dqToAlias, la.options.Omit)
 	if err != nil {
 		// log and print the error
 		clilog.Writer.Error(err.Error())
@@ -174,12 +159,12 @@ func (la *ListAction[T]) Reset() error {
 	la.done = false
 	la.columns = la.defaultColumnsDQ
 	la.showColumns = false
+	la.fs = &pflag.FlagSet{}
 	if la.outFile != nil {
 		la.outFile.Close()
 	}
 	la.outFile = nil
-
-	// flags are refreshed in SetArgs to guarantee they are built even on first run
+	la.format = 0
 
 	return nil
 }

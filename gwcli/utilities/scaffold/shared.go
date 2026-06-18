@@ -119,3 +119,9 @@ func IdentifyCaller() rfc5424.SDParam {
 
 	return identifier
 }
+
+// Result is a helper struct for passing around outcomes. It may be used slightly differently between each implementation.
+type Result struct {
+	Output  string // the actual, text result.
+	Success bool   // dictates (stdout or stderr) and/or text color
+}

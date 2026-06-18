@@ -4,14 +4,19 @@ package scaffoldlist_test
 
 import (
 	"maps"
+	"os"
+	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -20,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -68,7 +74,7 @@ func TestShowColumns_AllFlag(t *testing.T) {
 	})
 
 	// now test it from the outside
-	t.Run("via --"+ft.ShowColumns.Name(), func(t *testing.T) {
+	t.Run("via --"+scaffoldlist.FlagNameSelectColumns, func(t *testing.T) {
 		data := []nuclearThrone{} // the data itself doesn't matter
 
 		aliased := maps.Clone(ntDQs)
@@ -76,13 +82,13 @@ func TestShowColumns_AllFlag(t *testing.T) {
 		aliased["Export.YV.YungCuz"] = "YC"
 
 		pair := scaffoldlist.NewListAction("test function", "this is a test function",
-			nuclearThrone{}, func(fs *pflag.FlagSet) ([]nuclearThrone, error) {
+			nuclearThrone{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]nuclearThrone, error) {
 				return data, nil
 			},
 			maps.Clone(aliased), scaffoldlist.Options{})
 
 		uniques.AttachPersistentFlags(pair.Action)
-		testsupport.CheckSetArgs(t, pair.Model.SetArgs, pair.Action.Flags(), []string{"--" + ft.ShowColumns.Name()}, 80, 80,
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, pair.Action.Flags(), []string{"--" + scaffoldlist.FlagNameShowColumns}, 80, 80,
 			false, nil, false)
 		// all is returned from a tea.Cmd from Update
 		cmd := pair.Model.Update(nil)
@@ -171,13 +177,19 @@ func TestMotherCycle(t *testing.T) {
 				"(3.14-2.4i),plant2",
 		},
 		{"default pretty",
-			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
+			scaffoldlist.Options{
+				Pretty: func(fs *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params scaffoldlist.DataParameters) (string, error) {
+					return "pretty", nil
+				}},
 			[]string{},
 			false, false,
 			"pretty",
 		},
 		{"pretty defined, but --table given",
-			scaffoldlist.Options{Pretty: func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil }},
+			scaffoldlist.Options{
+				Pretty: func(fs *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params scaffoldlist.DataParameters) (string, error) {
+					return "pretty", nil
+				}},
 			[]string{"--table"},
 			false, false,
 			"┌───────────────┬───────────────┬───────────────┬───────────────┐\n" +
@@ -190,7 +202,9 @@ func TestMotherCycle(t *testing.T) {
 		},
 		{"as JSON with excluded defaults and pretty defined",
 			scaffoldlist.Options{
-				Pretty:                         func(DQColumns []string, DQToAlias map[string]string) (string, error) { return "pretty", nil },
+				Pretty: func(fs *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params scaffoldlist.DataParameters) (string, error) {
+					return "pretty", nil
+				},
 				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{regexp.MustCompile("Plant")},
 			},
 			[]string{"--json"},
@@ -251,7 +265,7 @@ func TestMotherCycle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				nuclearThrone{}, func(fs *pflag.FlagSet) ([]nuclearThrone, error) {
+				nuclearThrone{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]nuclearThrone, error) {
 					return data, nil
 				},
 				maps.Clone(aliased),
@@ -294,7 +308,7 @@ func TestNonInteractive(t *testing.T) {
 			scaffoldlist.Options{},
 			[]string{"-x", "--show-columns"},
 			"BackfillEnabled; Can.Delete; Can.Modify; Can.Share; CreatedAt; DeletedAt; Description; Disabled; Flow; FlowName; " +
-				"ID; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
+				"ID; Kit; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
 				"LastModifiedBy.DeletedAt; LastModifiedBy.Email; LastModifiedBy.Groups; LastModifiedBy.ID; LastModifiedBy.LastLogin; " +
 				"LastModifiedBy.Locked; LastModifiedBy.MFA.RecoveryCodes.Codes; LastModifiedBy.MFA.RecoveryCodes.Enabled; " +
 				"LastModifiedBy.MFA.RecoveryCodes.Generated; LastModifiedBy.MFA.RecoveryCodes.Remaining; LastModifiedBy.MFA.TOTP.Enabled; " +
@@ -304,7 +318,7 @@ func TestNonInteractive(t *testing.T) {
 				"LatestResults.AutomationResultsCommonFields.LastRunDuration; LatestResults.AutomationResultsCommonFields.LastSearchIDs; " +
 				"LatestResults.CommonFields.Can.Delete; LatestResults.CommonFields.Can.Modify; LatestResults.CommonFields.Can.Share; " +
 				"LatestResults.CommonFields.CreatedAt; LatestResults.CommonFields.DeletedAt; LatestResults.CommonFields.Description; " +
-				"LatestResults.CommonFields.ID; LatestResults.CommonFields.Labels; LatestResults.CommonFields.LastModifiedBy.Admin; " +
+				"LatestResults.CommonFields.ID; LatestResults.CommonFields.Kit; LatestResults.CommonFields.Labels; LatestResults.CommonFields.LastModifiedBy.Admin; " +
 				"LatestResults.CommonFields.LastModifiedBy.CreatedAt; LatestResults.CommonFields.LastModifiedBy.DefaultSearchGroups; " +
 				"LatestResults.CommonFields.LastModifiedBy.DeletedAt; LatestResults.CommonFields.LastModifiedBy.Email; " +
 				"LatestResults.CommonFields.LastModifiedBy.Groups; LatestResults.CommonFields.LastModifiedBy.ID; " +
@@ -371,7 +385,7 @@ func TestNonInteractive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+				types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 					// generate some garbage data
 					ms := make([]types.Flow, 5)
 					for i := range 5 {
@@ -407,6 +421,74 @@ func TestNonInteractive(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("write to output file", func(t *testing.T) {
+		outPath := path.Join(t.ArtifactDir(), "output"+randomdata.Digits(6)+".txt")
+		pair := scaffoldlist.NewListAction("test function", "this is a test function",
+			types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
+				// generate some garbage data
+				ms := make([]types.Flow, 5)
+				for i := range 5 {
+					iStr := strconv.FormatInt(int64(i), 10)
+					ms[i] = types.Flow{
+						CommonFields: types.CommonFields{
+							Name:      "Name_" + iStr,
+							CreatedAt: time.Unix(5, 0).UTC(),
+							ID:        iStr,
+							Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+						},
+						Flow: "Flow_" + iStr}
+				}
+
+				return ms, nil
+			},
+			map[string]string{"CommonFields.Name": "FlowName"},
+			scaffoldlist.Options{})
+		pair.Action.SetArgs([]string{"--csv", "-o=" + outPath, "--columns=ID,Disabled,Schedule"})
+		assert.Nil(t, pair.Action.Execute())
+		gotContent, err := os.ReadFile(outPath)
+		require.Nil(t, err)
+		assert.Equal(t, string(gotContent), `ID,Disabled,Schedule
+0,false,
+1,false,
+2,false,
+3,false,
+4,false,
+`)
+	})
+}
+
+func TestMutualExclusion(t *testing.T) {
+	t.Run("--"+scaffoldlist.FlagNameSelectAllColumns+"& --"+scaffoldlist.FlagNameSelectColumns, func(t *testing.T) {
+		pair := scaffoldlist.NewListAction("test function", "this is a test function",
+			types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
+				return nil, nil
+			},
+			map[string]string{"CommonFields.Name": "FlowName"},
+			scaffoldlist.Options{})
+		pair.Action.SetArgs([]string{"--" + scaffoldlist.FlagNameSelectAllColumns, "--" + scaffoldlist.FlagNameSelectColumns + "=Rogue"})
+		err := pair.Action.Execute()
+		assert.ErrorContains(t, err, "mutually exclusive")
+	})
+	t.Run("options: DefaultColumns & DefaultColumnsFromExcludeRegex", func(t *testing.T) {
+		recovered := false
+		defer func() {
+			assert.True(t, recovered)
+		}()
+		defer func() {
+			recover()
+			recovered = true
+		}()
+		scaffoldlist.NewListAction("test function", "this is a test function",
+			types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
+				return nil, nil
+			},
+			map[string]string{"CommonFields.Name": "FlowName"},
+			scaffoldlist.Options{
+				DefaultColumns:                 []string{"a", "b", "c"},
+				DefaultColumnsFromExcludeRegex: []*regexp.Regexp{regexp.MustCompile("d")},
+			})
+	})
 }
 
 // Collection of tests to check that the "CommonFields." and "AutomationCommonFields." prefixes are not visible to a user.
@@ -431,12 +513,12 @@ func TestAutoAliasPrefix(t *testing.T) {
 				}},
 			[]string{"--csv"},
 			false,
-			"BackfillEnabled,Disabled,Schedule,CreatedAt,DeletedAt,Description,ItemID,Labels,Name,Owner.Admin,Owner.CreatedAt,Owner.DefaultSearchGroups,Owner.DeletedAt,Owner.Email,Owner.Groups,Owner.ID,Owner.LastLogin,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Generated,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.UpdatedAt,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,UpdatedAt,Version,Writers.GIDs,Writers.Global,Flow\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,0,[],Name_0,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_0\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,1,[],Name_1,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_1\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,2,[],Name_2,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_2\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,3,[],Name_3,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_3\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,4,[],Name_4,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_4",
+			"BackfillEnabled,Disabled,Schedule,CreatedAt,DeletedAt,Description,ItemID,Kit,Labels,Name,Owner.Admin,Owner.CreatedAt,Owner.DefaultSearchGroups,Owner.DeletedAt,Owner.Email,Owner.Groups,Owner.ID,Owner.LastLogin,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Generated,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.UpdatedAt,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,UpdatedAt,Version,Writers.GIDs,Writers.Global,Flow\n" +
+				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,0,,[],Name_0,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_0\n" +
+				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,1,,[],Name_1,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_1\n" +
+				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,2,,[],Name_2,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_2\n" +
+				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,3,,[],Name_3,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_3\n" +
+				"false,false,,1970-01-01 00:00:05 +0000 UTC,0001-01-01 00:00:00 +0000 UTC,,4,,[],Name_4,false,0001-01-01 00:00:00 +0000 UTC,[],0001-01-01 00:00:00 +0000 UTC,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_4",
 		},
 		{"csv with exclude default CommonFields.* (should exclude all CommonFields and AutomationCommonFields)",
 			scaffoldlist.Options{
@@ -487,7 +569,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldlist.NewListAction("test function", "this is a test function",
-				types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+				types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 					// generate some garbage data
 					ms := make([]types.Flow, 5)
 					for i := range 5 {
@@ -526,7 +608,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 func TestHelpGeneration(t *testing.T) {
 	// generate help text we can parse
 	pair := scaffoldlist.NewListAction("test function", "this is a test function",
-		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
+		types.Macro{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Macro, error) {
 			// generate some garbage data
 			ms := make([]types.Macro, 5)
 			for i := range 5 {
@@ -562,20 +644,16 @@ func TestHelpGeneration(t *testing.T) {
 	}
 
 	t.Run("default columns are shown inline with --columns", func(t *testing.T) {
-		// identify the end of flag usage, as default values should be listed directly after
-		usageLines := strings.Split(ft.SelectColumns.Usage(), "\n")
-		_, after, found := strings.Cut(help, usageLines[len(usageLines)-1])
-		if !found {
-			t.Fatal("failed to find the end of the usage line")
-		}
-		// we should find defaults appended to this line
+		want := []string{"ItemID", "Name", "Expansion"} // should be aliases, including auto-aliasing for "CommonFields."
 
-		wantDefaultColumns := "ItemID,Name,Expansion" // should be aliases, including auto-aliasing for "CommonFields."
-		if !strings.Contains(after, wantDefaultColumns) {
-			t.Fatalf("default columns are not properly represented."+
-				"Substring \"%v\" not found in default columns chunk \"%v\"",
-				wantDefaultColumns, after)
-		}
+		rgx := regexp.MustCompile(`\(default\s\[(.*)\]`)
+		capGroups := rgx.FindStringSubmatch(help)
+		t.Log("capture groups: ", capGroups)
+		require.Len(t, capGroups, 2) // 0 should be entire expression, 1 should be cap
+		s := capGroups[1]
+		require.NotEmpty(t, s)
+		got := strings.Split(s, ",")
+		assert.True(t, slices.Equal(want, got), "want:%v\ngot:%v", want, got)
 	})
 	t.Run("custom example shown", func(t *testing.T) {
 		// find the "example" line
@@ -586,6 +664,54 @@ func TestHelpGeneration(t *testing.T) {
 		exampleLine, _, _ := strings.Cut(after, "\n")
 		if !strings.Contains(exampleLine, "use tkn1 tkn2 --csv") {
 			t.Fatalf("custom example text not found in example line: %v", exampleLine)
+		}
+	})
+	t.Run("omitting flags removes them from help text", func(t *testing.T) {
+		tests := []struct {
+			name string
+			omit scaffold.OmitFlags
+		}{
+			{"no omissions includes all", scaffold.OmitFlags{}},
+			{"omit --all", scaffold.OmitFlags{AllData: true}},
+			{"omit --limit", scaffold.OmitFlags{Limit: true}},
+			{"omit --all and --include-deleted", scaffold.OmitFlags{AllData: true, IncludeDeleted: true}},
+			{"omit everything", scaffold.OmitFlags{Everything: true}},
+		}
+		var sbOut, sbErr strings.Builder
+		// the "--all" prefix is likely be used in multiple ways, so we can't just for contents
+		rgxAllData := regexp.MustCompile(`\s+--all\s+`)
+		for _, tt := range tests {
+			sbOut.Reset()
+			sbErr.Reset()
+			t.Run(tt.name, func(t *testing.T) {
+				pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
+					func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+						return []nuclearThrone{}, nil
+					},
+					nil,
+					scaffoldlist.Options{Omit: tt.omit})
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				uniques.Help(pair.Action, nil)
+				help := sbOut.String()
+
+				if tt.omit.AllData || tt.omit.Everything {
+					assert.NotRegexp(t, rgxAllData, help)
+				} else {
+					assert.Regexp(t, rgxAllData, help)
+				}
+				if tt.omit.IncludeDeleted || tt.omit.Everything {
+					assert.NotContains(t, help, "--"+ft.IncludeDeleted.Name())
+				} else {
+					assert.Contains(t, help, "--"+ft.IncludeDeleted.Name())
+				}
+
+				if tt.omit.Limit || tt.omit.Everything {
+					assert.NotContains(t, help, "--"+scaffold.FlagNameLimit)
+				} else {
+					assert.Contains(t, help, "--"+scaffold.FlagNameLimit)
+				}
+			})
 		}
 	})
 }
@@ -603,7 +729,7 @@ func TestEmptyMessage(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				pair := scaffoldlist.NewListAction("test function", "this is a test function",
-					types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+					types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 						// always return nil
 						return nil, nil
 					},
@@ -630,9 +756,14 @@ func TestEmptyMessage(t *testing.T) {
 			{"override set with -x", scaffoldlist.Options{EmptyMessage: "override set"}, []string{"-x"}, ""},
 		}
 		for _, tt := range tests {
+			state.SetInteractive(false)
 			t.Run(tt.name, func(t *testing.T) {
+				if slices.Contains(tt.setArgs, "-x") {
+					state.SetInteractive(true)
+				}
+
 				pair := scaffoldlist.NewListAction("test function", "this is a test function",
-					types.Flow{}, func(fs *pflag.FlagSet) ([]types.Flow, error) {
+					types.Flow{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Flow, error) {
 						// always return nil
 						return nil, nil
 					},
@@ -654,4 +785,223 @@ func TestEmptyMessage(t *testing.T) {
 		}
 	})
 
+}
+
+func TestOmitFlags(t *testing.T) {
+	t.Run("omitted flags errors if invoked", func(t *testing.T) {
+		t.Run("non-interactive", func(t *testing.T) {
+			tests := []struct {
+				name    string
+				omit    scaffold.OmitFlags
+				setArgs []string
+
+				expectError    bool
+				expectedParams scaffoldlist.DataParameters // only checked if !error
+			}{
+				{"all flags can be set with no omissions",
+					scaffold.OmitFlags{},
+					[]string{
+						"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{
+							IncludeDeleted: true,
+							AdminMode:      true,
+						},
+					},
+				},
+				{"--all cannot be set when omitted",
+					scaffold.OmitFlags{AllData: true},
+					[]string{
+						"--" + scaffold.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--all cannot be set when omit.Everything",
+					scaffold.OmitFlags{Everything: true},
+					[]string{
+						"--" + scaffold.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omitted",
+					scaffold.OmitFlags{IncludeDeleted: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omit.Everything",
+					scaffold.OmitFlags{Everything: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--limit can be set when omitted",
+					scaffold.OmitFlags{},
+					[]string{
+						"--" + scaffold.FlagNameLimit + "=8",
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{Limit: 8},
+					},
+				},
+				{"--limit cannot be set when omitted",
+					scaffold.OmitFlags{Limit: true},
+					[]string{
+						"--" + scaffold.FlagNameLimit,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+			}
+			var sbOut, sbErr strings.Builder
+			for _, tt := range tests {
+				sbOut.Reset()
+				sbErr.Reset()
+				t.Run(tt.name, func(t *testing.T) {
+					var gotParams scaffoldlist.DataParameters
+					pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
+						func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+							gotParams = params
+							return []nuclearThrone{}, nil
+						},
+						nil,
+						scaffoldlist.Options{Omit: tt.omit})
+					pair.Action.SetOut(&sbOut)
+					pair.Action.SetErr(&sbErr)
+					pair.Action.SetArgs(tt.setArgs)
+					err := pair.Action.Execute()
+					require.Equal(t, tt.expectError, err != nil, err)
+					if err != nil { // nothing should be set if we failed
+						require.Zero(t, gotParams)
+						return
+					}
+					require.Equal(t, tt.expectedParams, gotParams)
+				})
+
+			}
+		})
+	})
+
+	t.Run("omitted flags errors if invoked", func(t *testing.T) {
+		t.Run("non-interactive", func(t *testing.T) {
+			tests := []struct {
+				name    string
+				omit    scaffold.OmitFlags
+				setArgs []string
+
+				expectSetArgsInv, expectSetArgsError bool
+				expectedParams                       scaffoldlist.DataParameters // only checked if !error
+			}{
+				{"all flags can be set with no omissions",
+					scaffold.OmitFlags{},
+					[]string{
+						"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					false, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{
+							IncludeDeleted: true,
+							AdminMode:      true,
+						},
+					},
+				},
+				{"--all cannot be set when omitted",
+					scaffold.OmitFlags{AllData: true},
+					[]string{
+						"--" + scaffold.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--all cannot be set when omit.Everything",
+					scaffold.OmitFlags{Everything: true},
+					[]string{
+						"--" + scaffold.FlagNameAllData,
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omitted",
+					scaffold.OmitFlags{IncludeDeleted: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+				{"--include-deleted cannot be set when omit.Everything",
+					scaffold.OmitFlags{Everything: true},
+					[]string{
+						"--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true, false,
+					scaffoldlist.DataParameters{
+						&types.QueryOptions{},
+					},
+				},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					var gotParams scaffoldlist.DataParameters
+					pair := scaffoldlist.NewListAction("test", "test", nuclearThrone{},
+						func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]nuclearThrone, error) {
+							gotParams = params
+							return []nuclearThrone{}, nil
+						},
+						nil,
+						scaffoldlist.Options{Omit: tt.omit})
+
+					uniques.AttachPersistentFlags(pair.Action)
+					inv, _, err := pair.Model.SetArgs(pair.Action.Flags(), tt.setArgs, 80, 60)
+					require.Equal(t, tt.expectSetArgsError, (err != nil), err)
+					require.Equal(t, tt.expectSetArgsInv, (inv != ""), inv)
+
+					if tt.expectSetArgsError || tt.expectSetArgsInv {
+						return
+					}
+
+					pair.Model.Update(nil)
+					require.Equal(t, tt.expectedParams, gotParams)
+				})
+			}
+
+		})
+	})
 }

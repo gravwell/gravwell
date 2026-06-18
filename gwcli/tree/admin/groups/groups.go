@@ -57,8 +57,8 @@ func NewNav() *cobra.Command {
 func listGroups() action.Pair {
 	return scaffoldlist.NewListAction("list groups", "Retrieves the list of groups available on the system",
 		types.Group{},
-		func(fs *pflag.FlagSet) ([]types.Group, error) {
-			resp, err := connection.Client.ListGroups(nil)
+		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Group, error) {
+			resp, err := connection.Client.ListGroups(params.QueryOpts)
 			return resp.Results, err
 		},
 		nil,
@@ -161,7 +161,7 @@ var listUsersGID int32
 func listUsers() action.Pair {
 	return scaffoldlist.NewListAction("list users in a group", "Display the users that are members of a given group.",
 		types.User{},
-		func(fs *pflag.FlagSet) ([]types.User, error) {
+		func(_ *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.User, error) {
 			return connection.Client.GetGroupUsers(listUsersGID)
 		},
 		nil,
@@ -193,5 +193,6 @@ func listUsers() action.Pair {
 				return "", nil
 			},
 			EmptyMessage: "this group has no users",
+			Omit:         scaffold.OmitFlags{Everything: true},
 		})
 }

@@ -9,22 +9,24 @@
 package types
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
-
-	"github.com/google/uuid"
-	"github.com/gravwell/jsonparser"
 )
 
 const (
 	kitIdBase    string = `io.gravwell.user.`
 	kitIdRandLen int    = 8
+)
+
+var (
+	ErrInvalidType = errors.New("invalid KitItem Type")
+	ErrInvalidName = errors.New("invalid KitItem Name")
+	ErrInvalidId   = errors.New("invalid KitItem ID")
 )
 
 type KitConfigMacro struct {
@@ -39,127 +41,145 @@ type KitConfigMacro struct {
 // KitConfig represents rules, labels, and other configuration options used
 // during kit installation.
 type KitConfig struct {
-	OverwriteExisting       bool  `json:",omitempty"`
-	Global                  bool  `json:",omitempty"`
-	AllowExternalResource   bool  `json:",omitempty"`
-	AllowUnsigned           bool  `json:",omitempty"`
-	InstallationGroup       int32 `json:",omitempty"` // deprecated, use InstallationGroups instead
-	InstallationGroups      []int32
-	InstallationWriteAccess Access
-	Labels                  []string `json:",omitempty"` // labels applied to each *item*
-	KitLabels               []string `json:",omitempty"` // labels applied to the *kit* itself
-	ConfigMacros            []KitConfigMacro
-	ScriptDeployRules       map[string]ScriptDeployConfig // overrides for defaults
+	OverwriteExisting     bool `json:",omitempty"`
+	AllowUnsigned         bool `json:",omitempty"`
+	InstallationReaders   ACL
+	InstallationWriters   ACL
+	Labels                []string `json:",omitempty"` // labels applied to each *item*
+	KitLabels             []string `json:",omitempty"` // labels applied to the *kit* itself
+	ConfigMacros          []KitConfigMacro
+	AutomationDeployRules map[string]AutomationDeployConfig // overrides for defaults
 }
 
 // KitItem implements the generic container for each item in a kit (dashboard, query, etc)
 type KitItem struct {
-	Name           string
-	Type           string
-	ID             string          `json:",omitempty"`
-	AdditionalInfo json.RawMessage `json:",omitempty"`
-	Hash           [sha256.Size]byte
+	Name        string // User-friendly
+	Description string
+	Type        KitAssetType
+	ID          string // Unique
+	Hash        string
+
+	// The fields below may be set depending on the type.
+	DefaultDeploymentRules AutomationDeployConfig `json:",omitempty"` // set by automations (scripts, scheduled searches, flows)
+	Tags                   []string               `json:",omitempty"` // set by AXes
 }
 
-// SourcedKitItem is wraps a KitItem with additional information regarding the
+func (ki KitItem) Validate() error {
+	if ki.Name == "" {
+		return ErrInvalidName
+	} else if ki.ID == "" {
+		return ErrInvalidId
+	}
+	if !ki.Type.Valid() {
+		return ErrInvalidType
+	}
+	return nil
+}
+
+func (ki KitItem) String() (r string) {
+	r = fmt.Sprintf("%s %s %s", ki.ID, ki.Type, ki.Name)
+	if v := ki.Description; len(v) != 0 {
+		r += ` ` + v
+	}
+	return
+}
+
+// Filename returns a suitable filename for the item.
+func (ki KitItem) Filename() string {
+	return ki.Name + `.` + string(ki.Type)
+}
+
+// ModifiedKitItem is wraps a KitItem with additional information regarding the
 // kit's version and origin.
-type SourcedKitItem struct {
+type ModifiedKitItem struct {
 	KitItem
 	KitID      string
-	KitVersion uint
+	KitVersion int
 	KitName    string
+	Diff       map[string]KitModifiedContents
 }
 
-// KitState is the data type that is actually stored in the datastore
+// KitModifiedContents shows the original (kit-installed) and current
+// (presumably user-modified) values of a single field in a kit asset
+// which has been detected as modified.
+type KitModifiedContents struct {
+	Original any
+	Modified any
+}
+
+// KitState is the data type that is actually stored in the registry
 type KitState struct {
-	ID                   string
-	Name                 string
-	Description          string
+	CommonFields
+
+	KitFileHash string // The hash of the kit file itself, which we store for later reference
+
+	KitID                string // e.g. "io.gravwell.foo"
+	KitVersion           int
 	Readme               string
-	UUID                 string
+	Icon                 string //use for icon when in the context of a kit
+	Banner               string //use for banner in a kit
+	Cover                string //use for cover image on a kit
 	Signed               bool
-	AdminRequired        bool
 	MinVersion           CanonicalVersion `json:",omitempty"`
 	MaxVersion           CanonicalVersion `json:",omitempty"`
-	UID                  int32            `json:",omitempty"`
-	Version              uint
 	Items                []KitItem
-	Labels               []string
-	Icon                 string           //use for icon when in the context of a kit
-	Banner               string           //use for banner in a kit
-	Cover                string           //use for cover image on a kit
-	ModifiedItems        []SourcedKitItem // Items which were installed by a previous version of the kit and have been modified by the user
-	ConflictingItems     []KitItem        // items which will overwrite a user-created object
 	RequiredDependencies []KitMetadata
-	Installed            bool             //true means everything was pushed in, false means it is JUST staged
-	InstallationTime     time.Time        // the time at which this kit was installed
-	InstallationVersion  CanonicalVersion // the Gravwell version in use when this kit was installed
 	ConfigMacros         []KitConfigMacro
-	Metadata             json.RawMessage `json:",omitempty"`
+
+	// These fields are only set once the kit is actually installed, not just staged
+	Installed           bool             //true means everything was pushed in, false means it is JUST staged
+	InstallationTime    time.Time        // the time at which this kit was installed
+	InstallationVersion CanonicalVersion // the Gravwell version in use when this kit was installed
+
+	// Items below are set during staging and can be ignored if Installed == true
+	ModifiedItems    []ModifiedKitItem // Items which were installed by a previous version of the kit and have been modified by the user
+	ConflictingItems []KitItem         // items which will overwrite a user-created object
 }
 
-// KitManifest is the data store native type for the Kit
-type KitManifest struct {
-	UID         int32
-	GIDs        []int32
-	Global      bool
-	WriteAccess Access
-	UUID        uuid.UUID
-	Data        []byte
-	WebserverID uuid.UUID // which webserver created this manifest: needed to manage staged manifests & on-disk kit files
-	Synced      bool
-}
-
-// IdKitState is used when sending back lists via a ADMIN request (show uid and gid)
-type IdKitState struct {
-	UUID        uuid.UUID
-	UID         int32
-	GIDs        []int32
-	Global      bool
-	WriteAccess Access
-	KitState
+type KitStateListResponse struct {
+	BaseListResponse
+	Results []KitState `json:"results"`
 }
 
 type KitEmbeddedItem struct {
 	KitItem
-	Content []byte `json:",omitempty"` //the actual contents of the kit
+	Content []byte `json:",omitempty"` //the actual contents of the item e.g. a license
 }
 
 // KitBuildRequest is used to request a kit be built
 type KitBuildRequest struct {
-	ID                string
-	Name              string
-	Description       string
-	Readme            string
-	Version           uint
-	MinVersion        CanonicalVersion  `json:",omitempty"`
-	MaxVersion        CanonicalVersion  `json:",omitempty"`
-	Dashboards        []string          `json:",omitempty"`
-	Templates         []string          `json:",omitempty"`
-	Actionables       []string          `json:",omitempty"`
-	Resources         []string          `json:",omitempty"`
-	ScheduledSearches []string          `json:",omitempty"`
-	ScheduledScripts  []string          `json:",omitempty"`
-	Flows             []string          `json:",omitempty"`
-	Macros            []string          `json:",omitempty"`
-	Extractors        []string          `json:",omitempty"`
-	Files             []string          `json:",omitempty"`
-	SearchLibraries   []string          `json:",omitempty"` // Saved Queries go here... compatibility for now.
-	Playbooks         []string          `json:",omitempty"`
-	Alerts            []string          `json:",omitempty"`
-	EmbeddedItems     []KitEmbeddedItem `json:",omitempty"`
-	Icon              string            `json:",omitempty"`
-	Banner            string            `json:",omitempty"`
-	Cover             string            `json:",omitempty"`
-	Dependencies      []KitDependency   `json:",omitempty"`
-	ConfigMacros      []KitConfigMacro
-	ScriptDeployRules map[string]ScriptDeployConfig
+	CommonFields
+	KitID                 string
+	Readme                string
+	KitVersion            int
+	MinVersion            CanonicalVersion  `json:",omitempty"`
+	MaxVersion            CanonicalVersion  `json:",omitempty"`
+	Dashboards            []string          `json:",omitempty"`
+	Templates             []string          `json:",omitempty"`
+	Actionables           []string          `json:",omitempty"`
+	Resources             []string          `json:",omitempty"`
+	ScheduledSearches     []string          `json:",omitempty"`
+	ScheduledScripts      []string          `json:",omitempty"`
+	Flows                 []string          `json:",omitempty"`
+	Macros                []string          `json:",omitempty"`
+	Extractors            []string          `json:",omitempty"`
+	Files                 []string          `json:",omitempty"`
+	SavedQueries          []string          `json:",omitempty"`
+	Playbooks             []string          `json:",omitempty"`
+	Alerts                []string          `json:",omitempty"`
+	EmbeddedItems         []KitEmbeddedItem `json:",omitempty"`
+	Icon                  string            `json:",omitempty"`
+	Banner                string            `json:",omitempty"`
+	Cover                 string            `json:",omitempty"`
+	Dependencies          []KitDependency   `json:",omitempty"`
+	ConfigMacros          []KitConfigMacro
+	AutomationDeployRules map[string]AutomationDeployConfig
+	BuildDate             time.Time `db:"build_date"`
 }
 
-type StoredBuildRequest struct {
-	UID int32
-	KitBuildRequest
-	BuildDate time.Time
+type KitBuildRequestListResponse struct {
+	BaseListResponse
+	Results []KitBuildRequest `json:"results"`
 }
 
 type KitBuildResponse struct {
@@ -168,17 +188,7 @@ type KitBuildResponse struct {
 	UID  int32 `json:",omitempty"`
 }
 
-func (pm *KitManifest) Encode(v interface{}) (err error) {
-	pm.Data, err = json.Marshal(v)
-	return
-}
-
-func (pm *KitManifest) Decode(v interface{}) (err error) {
-	err = json.Unmarshal(pm.Data, v)
-	return
-}
-
-func (ps *KitState) UpdateItem(name, tp, id string) error {
+func (ps *KitState) UpdateItem(name string, tp KitAssetType, id string) error {
 	for i := range ps.Items {
 		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
 			ps.Items[i].ID = id
@@ -198,7 +208,7 @@ func (ps *KitState) AddItem(itm KitItem) error {
 	return nil
 }
 
-func (ps *KitState) GetItem(name, tp string) (KitItem, error) {
+func (ps *KitState) GetItem(name string, tp KitAssetType) (KitItem, error) {
 	for i := range ps.Items {
 		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
 			return ps.Items[i], nil
@@ -207,7 +217,7 @@ func (ps *KitState) GetItem(name, tp string) (KitItem, error) {
 	return KitItem{}, errors.New("not found")
 }
 
-func (ps *KitState) RemoveItem(name, tp string) error {
+func (ps *KitState) RemoveItem(name string, tp KitAssetType) error {
 	for i := range ps.Items {
 		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
 			ps.Items = append(ps.Items[:i], ps.Items[i+1:]...)
@@ -218,26 +228,18 @@ func (ps *KitState) RemoveItem(name, tp string) error {
 }
 
 func (pbr *KitBuildRequest) validateReferencedFile(val, name string) error {
-	//iterate through the files and make sure the file exists
-	var ok bool
-	for _, v := range pbr.Files {
-		if v == val {
-			ok = true
-			break
-		}
-	}
-	if !ok {
+	if !slices.Contains(pbr.Files, val) {
 		return fmt.Errorf("The %s file ID %s is not included in the kit", name, val)
 	}
 	return nil
 }
 
 func (pbr *KitBuildRequest) Validate() error {
-	if pbr.ID = strings.TrimSpace(pbr.ID); len(pbr.ID) == 0 {
-		pbr.ID = randKitId()
+	if pbr.KitID = strings.TrimSpace(pbr.KitID); len(pbr.KitID) == 0 {
+		return errors.New("empty KitID")
 	}
-	if !isLetterNumberPeriod(pbr.ID) {
-		return errors.New("Invalid ID")
+	if !isLetterNumberPeriod(pbr.KitID) {
+		return errors.New("invalid KitID")
 	}
 	if pbr.Name = strings.TrimSpace(pbr.Name); len(pbr.Name) == 0 {
 		return errors.New("empty Name")
@@ -245,58 +247,48 @@ func (pbr *KitBuildRequest) Validate() error {
 	if pbr.Version == 0 {
 		pbr.Version = 1
 	}
-	for i := range pbr.Dashboards {
-		if pbr.Dashboards[i] == "" {
-			return errors.New("empty dashboard ID")
-		}
+	// if it's not set at all, just set it
+	if !pbr.MinVersion.Enabled() {
+		pbr.MinVersion = CanonicalVersion{Major: 6}
+	} else if pbr.MinVersion.Major < 6 {
+		// if it's set but too old, error
+		return errors.New("MinVersion on newly-built kits must now exceed 6.0.0")
+	}
+	if pbr.MaxVersion.Enabled() && pbr.MinVersion.Compare(pbr.MaxVersion) < 0 {
+		return errors.New("MaxVersion must exceed MinVersion")
+	}
+	if slices.Contains(pbr.Dashboards, "") {
+		return errors.New("empty dashboard ID")
 	}
 	for i := range pbr.Resources {
 		pbr.Resources[i] = strings.TrimSpace(pbr.Resources[i]) //clean it
 	}
-	for i := range pbr.ScheduledSearches {
-		if pbr.ScheduledSearches[i] == "" {
-			return fmt.Errorf("empty scheduled search ID")
-		}
+	if slices.Contains(pbr.ScheduledSearches, "") {
+		return fmt.Errorf("empty scheduled search ID")
 	}
-	for i := range pbr.ScheduledScripts {
-		if pbr.ScheduledScripts[i] == "" {
-			return fmt.Errorf("empty scheduled script ID")
-		}
+	if slices.Contains(pbr.ScheduledScripts, "") {
+		return fmt.Errorf("empty scheduled script ID")
 	}
-	for i := range pbr.Flows {
-		if pbr.Flows[i] == "" {
-			return fmt.Errorf("empty flow ID")
-		}
+	if slices.Contains(pbr.Flows, "") {
+		return fmt.Errorf("empty flow ID")
 	}
-	for i := range pbr.Macros {
-		if pbr.Macros[i] == "" {
-			return errors.New("invalid macro ID")
-		}
+	if slices.Contains(pbr.Macros, "") {
+		return errors.New("invalid macro ID")
 	}
-	for i := range pbr.Templates {
-		if pbr.Templates[i] == "" {
-			return errors.New("invalid template ID")
-		}
+	if slices.Contains(pbr.Templates, "") {
+		return errors.New("invalid template ID")
 	}
-	for i := range pbr.Actionables {
-		if pbr.Actionables[i] == "" {
-			return errors.New("invalid actionable ID")
-		}
+	if slices.Contains(pbr.Actionables, "") {
+		return errors.New("invalid actionable ID")
 	}
-	for i := range pbr.Files {
-		if pbr.Files[i] == "" {
-			return errors.New("invalid file ID")
-		}
+	if slices.Contains(pbr.Files, "") {
+		return errors.New("invalid file ID")
 	}
-	for i := range pbr.Playbooks {
-		if pbr.Playbooks[i] == "" {
-			return errors.New("empty playbook ID")
-		}
+	if slices.Contains(pbr.Playbooks, "") {
+		return errors.New("empty playbook ID")
 	}
-	for i := range pbr.Alerts {
-		if pbr.Alerts[i] == "" {
-			return errors.New("empty alert ID")
-		}
+	if slices.Contains(pbr.Alerts, "") {
+		return errors.New("empty alert ID")
 	}
 
 	if pbr.Icon != `` {
@@ -317,7 +309,7 @@ func (pbr *KitBuildRequest) Validate() error {
 	idMp := map[KitDependency]es{}
 	for _, dp := range pbr.Dependencies {
 		if _, ok := idMp[dp]; ok {
-			return fmt.Errorf("dependency %s %d is duplicated", dp.ID, dp.MinVersion)
+			return fmt.Errorf("dependency %s %d is duplicated", dp.KitID, dp.MinVersion)
 		}
 		idMp[dp] = empty
 	}
@@ -332,7 +324,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SavedQueries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
 		return errors.New("build request does not contain any items")
 	}
@@ -358,39 +350,21 @@ func randKitId() string {
 	return kitIdBase + string(b)
 }
 
-func (ki *KitItem) DescriptionString() (s string) {
-	//check if there is a Desc fild in the raw json
-	var err error
-	if s, err = jsonparser.GetString([]byte(ki.AdditionalInfo), `Description`); err != nil {
-		s = ``
-	}
-	return
-}
-
-func (ki KitItem) String() (r string) {
-	r = fmt.Sprintf("%s %s %s", ki.ID, ki.Type, ki.Name)
-	if v := ki.DescriptionString(); len(v) != 0 {
-		r += ` ` + v
-	}
-	return
-}
-
 // KitDependency declares a series of kits and minimum version requirements
 type KitDependency struct {
-	ID         string
-	MinVersion uint
+	KitID      string
+	MinVersion int
 }
 
 // KitMetadata is a struct that is primarily served by the
 // kit server, we use this to record info about a kit so the GUI
 // and hint to users what kits they shoudld install.
 type KitMetadata struct {
-	ID            string
+	KitID         string // e.g. "io.gravwell.foo"
 	Name          string
-	GUID          string `json:",omitempty"` // DEPRECATED, TODO: remove
-	UUID          string
-	Version       uint
 	Description   string
+	ID            string // Identifies a specific build of the kit, makes it easy to download
+	Version       int
 	Readme        string
 	Signed        bool
 	AdminRequired bool

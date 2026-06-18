@@ -15,7 +15,7 @@ import (
 
 func notifications() action.Pair {
 	return scaffoldlist.NewListAction("view your notifications", "review your notifications, new or previously seen", types.Notification{},
-		func(fs *pflag.FlagSet) ([]types.Notification, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Notification, error) {
 			seen, err := fs.GetBool("seen")
 			if err != nil {
 				clilog.GetFlag(err)
@@ -41,9 +41,11 @@ func notifications() action.Pair {
 					return fs
 				},
 			},
-
 			DefaultColumns: []string{
 				"Sender", "Msg", "Broadcast", "Level",
+			},
+			Omit: scaffold.OmitFlags{
+				Everything: true,
 			},
 		},
 	)

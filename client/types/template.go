@@ -8,8 +8,6 @@
 
 package types
 
-import "encoding/json"
-
 // Template is a stored Gravwell query template with variables.
 type Template struct {
 	CommonFields
@@ -30,15 +28,4 @@ type TemplateVariable struct {
 type TemplateListResponse struct {
 	BaseListResponse
 	Results []Template `json:"results"`
-}
-
-func (t *Template) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		Name        string
-		Description string
-	}{
-		Name:        t.Name,
-		Description: t.Description,
-	})
-	return json.RawMessage(b), err
 }

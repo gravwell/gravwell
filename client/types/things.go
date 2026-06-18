@@ -11,7 +11,6 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,38 +115,4 @@ func (t *Thing) DecodeContents(obj interface{}) error {
 		return err
 	}
 	return nil
-}
-
-// PackedUserTemplate type used for templates in packages
-// TODO #761 move this into kits/types.go
-type PackedUserTemplate struct {
-	ID          string
-	Name        string
-	Description string
-	Query       string
-	Variables   []TemplateVariable
-	Labels      []string
-}
-
-func (t Template) Pack() (put PackedUserTemplate) {
-	put.ID = t.ID
-	put.Name = t.Name
-	put.Description = t.Description
-	put.Query = t.Query
-	put.Variables = t.Variables
-	put.Labels = t.Labels
-	return
-}
-
-func (put *PackedUserTemplate) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		ID          string
-		Name        string
-		Description string
-	}{
-		ID:          put.ID,
-		Name:        put.Name,
-		Description: put.Description,
-	})
-	return json.RawMessage(b), err
 }

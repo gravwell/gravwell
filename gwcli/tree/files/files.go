@@ -65,36 +65,12 @@ func list() action.Pair {
 		long  string = "Lists information about the files you have access to."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.File{}, func(fs *pflag.FlagSet) ([]types.File, error) {
-			// check for all
-			all, err := fs.GetBool(ft.GetAll.Name())
-			if err != nil {
-				clilog.GetFlag(err)
-			}
-
-			var flr types.FileListResponse
-			if all {
-				flr, err = connection.Client.ListAllFiles(nil)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				flr, err = connection.Client.ListFiles(nil)
-				if err != nil {
-					return nil, err
-				}
-			}
-			return flr.Results, nil
+		types.File{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.File, error) {
+			flr, err := connection.Client.ListFiles(param.QueryOpts)
+			return flr.Results, err
 		},
 		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					var fs = &pflag.FlagSet{}
-					ft.GetAll.Register(fs, true, "files")
-					return fs
-				},
-			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -153,35 +129,32 @@ func create() action.Pair {
 		map[string]scaffoldcreate.Field{
 			"name":   scaffoldcreate.FieldName("file"),
 			"desc":   scaffoldcreate.FieldDescription("file"),
-			"path":   scaffoldcreate.FieldPath("file"),
+			"path":   scaffoldcreate.FieldPath("file", false),
 			"labels": scaffoldcreate.FieldLabels(),
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var (
 				name, desc, filePath string
-				labels               []string
 			)
 			name = cfg["name"].Provider.Get()
 			desc = cfg["desc"].Provider.Get()
 			filePath = cfg["path"].Provider.Get()
-			if lbls := cfg["labels"].Provider.Get(); lbls != "" {
-				labels = strings.Split(lbls, ",")
-			}
 
-			// TODO make file content/path non-mandatory
-
-			// get a reader on the file
-			f, err := os.Open(filePath)
-			if err != nil {
-				return 0, "", err
+			var f *os.File
+			if filePath != "" {
+				// get a reader on the file
+				f, err = os.Open(filePath)
+				if err != nil {
+					return 0, "", err
+				}
+				defer f.Close()
 			}
-			defer f.Close()
 
 			var inMeta = types.File{
 				CommonFields: types.CommonFields{
 					Name:        name,
 					Description: desc,
-					Labels:      labels,
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
 			}
 
@@ -289,7 +262,7 @@ func delete() action.Pair {
 
 func replace() action.Pair {
 	return scaffoldselect.NewSelectAction("replace file contents",
-		"Populate a file with the contents of a local file, clobbering any existing data",
+		"Populate one or many files with the contents of a single local file, clobbering any existing data",
 		"file ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: connection.AdminMode()})
@@ -302,14 +275,21 @@ func replace() action.Pair {
 			}
 			return items, nil
 		},
-		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
-			// slurp file
-			pth, _ := addtlFlags.GetString(ft.Path.Name())
-			updatedFile, err := connection.Client.PopulateFileFromPath(ID, pth)
-			if err != nil {
-				return "", err
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				pth, _ := addtlFlags.GetString(ft.Path.Name())
+				f, err := connection.Client.PopulateFileFromPath(ID, pth)
+				if err != nil {
+					results[i] = scaffold.Result{Output: err.Error()}
+				} else {
+					results[i] = scaffold.Result{
+						Success: true,
+						Output:  fmt.Sprintf("populated file %s (ID: %s) with the contents of %s", f.Name, ID, pth)}
+				}
 			}
-			return fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d", updatedFile.Name, updatedFile.ID, updatedFile.Size), nil
+
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

@@ -11,6 +11,7 @@ package scaffoldcreate
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -128,6 +129,9 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 			return nil, err
 		}
 
+		// ensure SetArgs has been called here in case we need to late-populate
+		// This is a hack while we await mono#2448.
+		fields[key].Provider.SetArgs(80, 60)
 		if invalid := fields[key].Provider.Set(v); invalid != "" {
 			return nil, fmt.Errorf("%s is not a valid input to --%s: %s", v, fields[key].Flag.Name, invalid)
 		}
@@ -169,10 +173,10 @@ func FieldDescription(singular string) Field {
 
 // FieldPath returns a struct suited for file path specification inputs.
 // Order == 80.
-func FieldPath(singular string) Field {
+func FieldPath(singular string, required bool) Field {
 	return Field{
 		Title:    ft.Path.Name(),
-		Required: true,
+		Required: required,
 		Flag: FlagConfig{
 			Name:      ft.Path.Name(),
 			Usage:     ft.Path.Usage(singular),
@@ -202,6 +206,22 @@ func FieldLabels() Field {
 			},
 		},
 	}
+}
+
+// GetLabelsFromField extracts the actual labels from a FieldLabels.
+// Returns nil if the field was not populated
+func GetLabelsFromField(f Field) []string {
+	var lbls []string
+	exploded := strings.SplitSeq(strings.TrimSpace(f.Provider.Get()), ",")
+	for s := range exploded {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		lbls = append(lbls, s)
+	}
+
+	return lbls
 }
 
 // FieldFrequency returns a struct suitable for taking in the frequency of something occurring as a cron string.
@@ -243,4 +263,9 @@ func FieldPassword(required bool, fc FlagConfig, order int) Field {
 			},
 		},
 	}
+}
+
+var DefaultFieldGroupSelectionFlags = FlagConfig{
+	Name:  "groups",
+	Usage: "Groups IDs to associate to the item",
 }

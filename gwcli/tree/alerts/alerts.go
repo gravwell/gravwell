@@ -92,33 +92,28 @@ func alertsList() action.Pair {
 	)
 
 	return scaffoldlist.NewListAction(short, long, types.Alert{},
-		func(fs *pflag.FlagSet) ([]types.Alert, error) {
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
+
 			if listConsumerID != "" {
-				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
-					Filters: []types.Filter{
-						{
-							Key:       "Consumers.ID",
-							Operation: "=",
-							Values:    []any{listConsumerID},
-						},
-					},
+				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+					Key:       "Consumers.ID",
+					Operation: "=",
+					Values:    []any{listConsumerID},
 				})
+				resp, err := connection.Client.ListAlerts(params.QueryOpts)
 				return resp.Results, err
 
 			} else if listDispatcherID != "" {
-				resp, err := connection.Client.ListAlerts(&types.QueryOptions{
-					Filters: []types.Filter{
-						{
-							Key:       "Dispatchers.ID",
-							Operation: "=",
-							Values:    []any{listDispatcherID},
-						},
-					},
+				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+					Key:       "Dispatchers.ID",
+					Operation: "=",
+					Values:    []any{listDispatcherID},
 				})
+				resp, err := connection.Client.ListAlerts(params.QueryOpts)
 				return resp.Results, err
 			}
 
-			resp, err := connection.Client.ListAlerts(nil)
+			resp, err := connection.Client.ListAlerts(params.QueryOpts)
 			return resp.Results, err
 		},
 		nil,
@@ -141,11 +136,14 @@ func alertsList() action.Pair {
 				"TargetTag",
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, _ error) {
-				if listConsumerID, invalid = validateListID("consumer", fs); invalid != "" {
-					return invalid, nil
+				var err error
+				listConsumerID, err = fs.GetString("consumer")
+				if err != nil {
+					return "", clilog.GetFlag(err)
 				}
-				if listDispatcherID, invalid = validateListID("dispatcher", fs); invalid != "" {
-					return invalid, nil
+				listDispatcherID, err = fs.GetString("dispatcher")
+				if err != nil {
+					return "", clilog.GetFlag(err)
 				}
 
 				if listConsumerID != "" && listDispatcherID != "" {
@@ -154,15 +152,6 @@ func alertsList() action.Pair {
 				return "", nil
 			},
 		})
-}
-
-// helper function for list's ValidateArgs.
-func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid string) {
-	s, err := fs.GetString(flagName)
-	if err != nil {
-		clilog.GetFlag(err)
-	}
-	return s, ""
 }
 
 func delete() action.Pair {
@@ -222,25 +211,38 @@ func toggle() action.Pair {
 			}
 			return items, nil
 		},
-		func(ID string, addtlFlags *pflag.FlagSet) (success string, _ error) {
-			alert, err := connection.Client.GetAlert(ID)
-			if err != nil {
-				return "", err
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				alert, err := connection.Client.GetAlert(ID)
+				if err != nil {
+					results[i] = scaffold.Result{
+						Output: fmt.Sprintf("failed to fetch base alert %s (ID: %s)", alert.Name, alert.ID),
+					}
+					continue
+				}
+				alert.Disabled = !alert.Disabled
+				if toggleEnable {
+					alert.Disabled = false
+				} else if toggleDisable {
+					alert.Disabled = true
+				}
+				if _, err := connection.Client.UpdateAlert(alert); err != nil {
+					results[i] = scaffold.Result{
+						Output: fmt.Sprintf("failed to update alert %s (ID: %s) (to Disabled=%v)", alert.Name, alert.ID, alert.Disabled),
+					}
+					continue
+				}
+				verb := "enabled"
+				if alert.Disabled {
+					verb = "disabled"
+				}
+				results[i] = scaffold.Result{
+					Output:  fmt.Sprintf("Alert %s (ID: %s) %s", alert.Name, alert.ID, verb),
+					Success: true,
+				}
 			}
-			alert.Disabled = !alert.Disabled
-			if toggleEnable {
-				alert.Disabled = false
-			} else if toggleDisable {
-				alert.Disabled = true
-			}
-			if _, err := connection.Client.UpdateAlert(alert); err != nil {
-				return "", err
-			}
-			verb := "enabled"
-			if alert.Disabled {
-				verb = "disabled"
-			}
-			return fmt.Sprintf("Alert \"%s\" %s", alert.Name, verb), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -291,58 +293,71 @@ func dispatchers() action.Pair {
 			return alertsToGeneric(a), nil
 
 		},
-		func(ID string, fs *pflag.FlagSet) (success string, _ error) {
+		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// we've already checked all flags
 			dIDs, _ := fs.GetStringSlice("dispatcher-ids")
 			add, _ := fs.GetBool("add")
 			remove, _ := fs.GetBool("remove")
-			a, err := connection.Client.GetAlert(ID)
-			if err != nil {
-				return "", err
-			}
-			if add {
-				clilog.Writer.Info("adding dispatchers to alert", log.KV("alert ID", ID), log.KV("dispatcher IDs", dIDs))
-				added, duplicate := 0, 0
-				for _, dID := range dIDs {
-					if !slices.ContainsFunc(a.Dispatchers, func(d types.AlertDispatcher) bool { return d.ID == dID }) {
-						a.Dispatchers = append(a.Dispatchers, types.AlertDispatcher{ID: dID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
-						added += 1
-					} else {
-						duplicate += 1
-					}
+
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				a, err := connection.Client.GetAlert(ID)
+				if err != nil {
+					results[i] = scaffold.Result{Output: fmt.Sprintf("failed to get alert %s (ID: %s): %v", a.Name, ID, err)}
 				}
-				success = fmt.Sprintf("added %s to alert %s (ID: %s)", english.Plural(added, "dispatcher", ""), a.Name, a.ID)
-				if duplicate > 0 {
-					success += fmt.Sprintf("; skipped %d duplicates", duplicate)
-				}
-			} else if remove {
-				found := 0
-				clilog.Writer.Info("removing dispatchers from alert", log.KV("alert ID", ID), log.KV("dispatcher IDs", dIDs))
-				a.Dispatchers = slices.DeleteFunc(a.Dispatchers, func(ad types.AlertDispatcher) bool {
+				// add or remove each specified dispatcher
+				if add {
+					clilog.Writer.Info("adding dispatchers to alert", log.KV("alert ID", ID), log.KV("dispatcher IDs", dIDs))
+					added, duplicate := 0, 0
 					for _, dID := range dIDs {
-						if ad.ID == dID {
+						if !slices.ContainsFunc(a.Dispatchers, func(d types.AlertDispatcher) bool { return d.ID == dID }) {
+							a.Dispatchers = append(a.Dispatchers, types.AlertDispatcher{ID: dID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
+							added += 1
+						} else {
+							duplicate += 1
+						}
+					}
+					results[i] = scaffold.Result{Success: true}
+					results[i].Output = fmt.Sprintf("added %s to alert %s (ID: %s)", english.Plural(added, "dispatcher", ""), a.Name, a.ID)
+					if duplicate > 0 {
+						results[i].Output += fmt.Sprintf("; skipped %d duplicates", duplicate)
+					}
+				} else if remove {
+					found := 0
+					clilog.Writer.Info("removing dispatchers from alert", log.KV("alert ID", ID), log.KV("dispatcher IDs", dIDs))
+					a.Dispatchers = slices.DeleteFunc(a.Dispatchers, func(ad types.AlertDispatcher) bool {
+						if slices.Contains(dIDs, ad.ID) {
 							found += 1
 							return true
 						}
+						return false
+					})
+					results[i] = scaffold.Result{
+						Success: true,
+						Output: fmt.Sprintf("removed %d (of %d given) %s from alert %s (ID: %s); %d remaining",
+							found, len(dIDs), english.PluralWord(found, "dispatcher", ""), a.Name, a.ID, len(a.Dispatchers)),
 					}
-					return false
-				})
-				success = fmt.Sprintf("removed %d (of %d given) %s from alert %s (ID: %s); %d remaining",
-					found, len(dIDs), english.PluralWord(found, "dispatcher", ""), a.Name, a.ID, len(a.Dispatchers))
-			} else {
-				clilog.Writer.Info("replacing dispatchers on alert", log.KV("alert ID", ID), log.KV("new dispatcher IDs", dIDs), log.KV("old dispatchers", a.Dispatchers))
-				a.Dispatchers = make([]types.AlertDispatcher, len(dIDs))
-				for i, dID := range dIDs {
-					a.Dispatchers[i] = types.AlertDispatcher{ID: dID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH}
+				} else {
+					clilog.Writer.Info("replacing dispatchers on alert", log.KV("alert ID", ID), log.KV("new dispatcher IDs", dIDs), log.KV("old dispatchers", a.Dispatchers))
+					a.Dispatchers = make([]types.AlertDispatcher, len(dIDs))
+					for i, dID := range dIDs {
+						a.Dispatchers[i] = types.AlertDispatcher{ID: dID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH}
+					}
+					results[i] = scaffold.Result{
+						Success: true,
+						Output:  fmt.Sprintf("replaced dispatchers on alert %s (ID: %s)", a.Name, a.ID),
+					}
 				}
-				success = fmt.Sprintf("replaced dispatchers on alert %s (ID: %s)", a.Name, a.ID)
-			}
 
-			if _, err := connection.Client.UpdateAlert(a); err != nil {
-				return "", err
+				if _, err := connection.Client.UpdateAlert(a); err != nil {
+					results[i] = scaffold.Result{
+						Success: false,
+						Output:  fmt.Sprintf("failed to update alert: %v\nOriginal operation: %v", err, results[i].Output),
+					}
+				}
+				// successful result is already built
 			}
-			return success, nil // success built in each branch
-
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -406,42 +421,48 @@ func save() action.Pair {
 			return alertsToGeneric(a), nil
 
 		},
-		func(ID string, fs *pflag.FlagSet) (success string, _ error) {
+		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// checked by validate
 			enable, _ := fs.GetBool("enable")
 			duration, _ := fs.GetDuration("duration")
 			disable, _ := fs.GetBool("disable")
 
-			a, err := connection.Client.GetAlert(ID)
-			if err != nil {
-				return "", err
-			}
-			a.SaveSearchEnabled = !a.SaveSearchEnabled
-			if duration != 0 { // duration was provided
-				a.SaveSearchDuration = int32(duration.Seconds())
-			}
-			if enable {
-				a.SaveSearchEnabled = true
-			} else if disable {
-				a.SaveSearchEnabled = false
-			}
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				a, err := connection.Client.GetAlert(ID)
+				if err != nil {
+					results[i] = scaffold.Result{Output: fmt.Sprintf("failed to fetch alert by ID %s: %v", ID, err)}
+					continue
+				}
+				a.SaveSearchEnabled = !a.SaveSearchEnabled
+				if duration != 0 { // duration was provided
+					a.SaveSearchDuration = int32(duration.Seconds())
+				}
+				if enable {
+					a.SaveSearchEnabled = true
+				} else if disable {
+					a.SaveSearchEnabled = false
+				}
 
-			// if save would be enabled with a duration of 0, default it
-			if a.SaveSearchEnabled && a.SaveSearchDuration == 0 {
-				a.SaveSearchDuration = int32(defaultDuration.Seconds())
-			}
+				// if save would be enabled with a duration of 0, default it
+				if a.SaveSearchEnabled && a.SaveSearchDuration == 0 {
+					a.SaveSearchDuration = int32(defaultDuration.Seconds())
+				}
 
-			a, err = connection.Client.UpdateAlert(a)
-			if err != nil {
-				return "", err
-			}
-			if a.SaveSearchEnabled {
-				success = fmt.Sprintf("alert will save triggering searches for %d seconds", a.SaveSearchDuration)
-			} else {
-				success = "alert will not save triggering searches"
-			}
+				a, err = connection.Client.UpdateAlert(a)
+				if err != nil {
+					results[i] = scaffold.Result{Output: fmt.Sprintf("failed to update alert %s (ID: %s): %v", a.Name, ID, err)}
+					continue
+				}
 
-			return success, nil
+				results[i] = scaffold.Result{Success: true}
+				if a.SaveSearchEnabled {
+					results[i].Output = fmt.Sprintf("alert %s (ID: %s) will save triggering searches for %d seconds", a.Name, a.ID, a.SaveSearchDuration)
+				} else {
+					results[i].Output = fmt.Sprintf("alert %s (ID: %s) will not save triggering searches", a.Name, a.ID)
+				}
+			}
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

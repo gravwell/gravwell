@@ -54,11 +54,14 @@ func TestTextProvider(t *testing.T) {
 	t.Run("full mother cycle + hook set args to alter the TI", func(t *testing.T) {
 		t.Parallel()
 		// tests that TextProvider both successfully applies a CustomSetArgs and operates as expected over the course of a full Mother cycle
-		var invocationCount = 0
+		var (
+			invocationCount = 0
+			charLimit       = 2
+		)
 		provider := &scaffoldcreate.TextProvider{CustomSetArgs: func(m textinput.Model) textinput.Model {
-			// count invocations and set the TI's char limit to invocation count so we have something to check that TIs are being updated
+			// count invocations and set the TI's char limit so we have something to check that TIs are being updated
 			invocationCount += 1
-			m.CharLimit = invocationCount
+			m.CharLimit = charLimit
 			return m
 		}}
 		f := scaffoldcreate.NewField("invoke", false, provider)
@@ -105,9 +108,11 @@ func TestTextProvider(t *testing.T) {
 		if x := provider.Get(); x != "" {
 			t.Fatal("provider value not destroyed by Reset. Lingering value: ", x)
 		}
-		testsupport.CheckSetArgs(t, pair.Model.SetArgs, &pflag.FlagSet{}, []string{"-t=YungVenuz"}, 0, 0, false, nil, false)
-		if x := provider.Get(); x != "Yun" { // should be limited by our CharLimit
-			t.Fatal("bad value after second SetArgs", testsupport.ExpectedActual("Yun", x))
+		charLimit = 5
+
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, &pflag.FlagSet{}, []string{"-t=Wo hui ying wen"}, 0, 0, false, nil, false)
+		if x := provider.Get(); x != "Wo hu" { // should be limited by our CharLimit
+			t.Fatal("bad value after second SetArgs", testsupport.ExpectedActual("Wo hu", x))
 		}
 
 	})

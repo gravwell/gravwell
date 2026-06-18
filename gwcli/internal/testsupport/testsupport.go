@@ -17,16 +17,17 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/pflag"
 )
 
@@ -363,11 +364,14 @@ func MetaArgs(t *testing.T, allowInteractive bool, opts ...func(t *testing.T) []
 	return meta
 }
 
-// WithUsernamePassword includes -u and sets the given password into the test environment.
+// WithUsernamePassword includes -u and the password via a passfile.
 func WithUsernamePassword(u, p string) func(t *testing.T) []string {
 	return func(t *testing.T) []string {
-		t.Setenv(cfgdir.EnvKeyPassword, p)
-		return []string{"-u", u}
+		pth := path.Join(t.TempDir(), "pass-"+randomdata.Alphanumeric(10)+".txt")
+		if err := os.WriteFile(pth, []byte(p), 0755); err != nil {
+			t.Fatalf("failed to create passfile for login: %v", err)
+		}
+		return []string{"-u", u, "--passfile=" + pth}
 	}
 }
 

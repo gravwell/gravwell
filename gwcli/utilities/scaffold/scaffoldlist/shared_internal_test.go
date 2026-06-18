@@ -23,10 +23,11 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
 
-// Testing for unexported functions in shared, as many of these are critical.
+// While most testing should be done in the standalone Testing for unexported functions, as many of these are critical.
 
 func Test_initOutFile(t *testing.T) {
 	tDir := t.TempDir()
@@ -40,7 +41,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path", func(t *testing.T) {
-		fs := buildFlagSet(false, nil)
+		fs := buildFlagSet(false, nil, scaffold.OmitFlags{})
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -49,7 +50,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path with pretty defined", func(t *testing.T) {
-		fs := buildFlagSet(true, nil)
+		fs := buildFlagSet(true, nil, scaffold.OmitFlags{})
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -69,7 +70,7 @@ func Test_initOutFile(t *testing.T) {
 		orig.Sync()
 		orig.Close()
 
-		fs := buildFlagSet(false, nil)
+		fs := buildFlagSet(false, nil, scaffold.OmitFlags{})
 		fs.Parse([]string{"-o", path})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -90,7 +91,7 @@ func TestInvertedMaps(t *testing.T) {
 		t.Fatal("failed to spawn logger:", err)
 	}
 	pair := NewListAction("test", "test", types.Flow{},
-		func(fs *pflag.FlagSet) ([]types.Flow, error) {
+		func(fs *pflag.FlagSet, _ DataParameters) ([]types.Flow, error) {
 			return nil, nil
 		},
 		map[string]string{"CommonFields.Can.Delete": "DeleteCap", "AutomationCommonFields.Timezone": "TZ"},
@@ -159,7 +160,7 @@ func Test_determineFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// generate flagset
-			fs := buildFlagSet(tt.prettyDefined, nil)
+			fs := buildFlagSet(tt.prettyDefined, nil, scaffold.OmitFlags{})
 			fs.Parse(tt.args)
 			if got := determineFormat(fs, tt.prettyDefined); got != tt.want {
 				t.Errorf("determineFormat() = %v, want %v", got, tt.want)
@@ -237,13 +238,13 @@ func Test_getColumns(t *testing.T) {
 	}
 
 	t.Run("--all", func(t *testing.T) {
-		fs := buildFlagSet(false, nil) // default cols shouldn't matter for this
-		if err := fs.Parse([]string{"--" + ft.AllColumns.Name()}); err != nil {
+		fs := buildFlagSet(false, nil, scaffold.OmitFlags{}) // default cols shouldn't matter for this
+		if err := fs.Parse([]string{"--" + FlagNameSelectAllColumns}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		want := []string{"Alexander", "Marika", "Morgot", "Ranni"} // aliases don't affect all
 		if !slices.Equal(got, want) {
@@ -251,32 +252,32 @@ func Test_getColumns(t *testing.T) {
 		}
 	})
 	t.Run("--columns selects only DQ, duplicate columns", func(t *testing.T) {
-		fs := buildFlagSet(false, nil) // default cols shouldn't matter for this
+		fs := buildFlagSet(false, nil, scaffold.OmitFlags{}) // default cols shouldn't matter for this
 
 		requestedColumns := []string{"Alexander", "Ranni", "Ranni", "Marika"}
 
-		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
+		if err := fs.Parse([]string{"--" + FlagNameSelectColumns + "=" + strings.Join(requestedColumns, ",")}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		if !slices.Equal(got, requestedColumns) {
 			t.Fatal(testsupport.ExpectedActual(requestedColumns, got))
 		}
 	})
 	t.Run("--columns selects DQ+Alias mix", func(t *testing.T) {
-		fs := buildFlagSet(false, nil)
+		fs := buildFlagSet(false, nil, scaffold.OmitFlags{})
 
 		requestedColumns := []string{"Radagon", "Alexander", "Ranni", "Margit"}
 
-		if err := fs.Parse([]string{"--" + ft.SelectColumns.Name() + "=" + strings.Join(requestedColumns, ",")}); err != nil {
+		if err := fs.Parse([]string{"--" + FlagNameSelectColumns + "=" + strings.Join(requestedColumns, ",")}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		want := []string{"Marika", "Alexander", "Ranni", "Morgot"}
 		if !slices.Equal(got, want) {
@@ -287,14 +288,14 @@ func Test_getColumns(t *testing.T) {
 		// default columns are expected to be DQ
 		defaultColumns := []string{"Morgot"}
 
-		fs := buildFlagSet(false, defaultColumns)
+		fs := buildFlagSet(false, defaultColumns, scaffold.OmitFlags{})
 
 		if err := fs.Parse([]string{}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := getColumns(fs, DQToAlias, AliasToDQ)
-		if err != nil {
-			t.Fatal(err)
+		got, inv := getColumns(fs, DQToAlias, AliasToDQ)
+		if inv != "" {
+			t.Fatal(inv)
 		}
 		if !slices.Equal(got, defaultColumns) {
 			t.Fatal(testsupport.ExpectedActual(defaultColumns, got))
@@ -328,10 +329,10 @@ var ntDQs = map[string]string{
 
 func Test_listOutput(t *testing.T) {
 	t.Run("pretty", func(t *testing.T) {
-		ppf := func(_ []string, _ map[string]string) (string, error) {
+		ppf := func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ DataParameters) (string, error) {
 			return "pretty", nil
 		}
-		out, err := listOutput[struct{}](buildFlagSet(true, nil), formatPretty, nil, nil, ppf, nil)
+		out, err := listOutput[struct{}](buildFlagSet(true, nil, scaffold.OmitFlags{}), formatPretty, nil, nil, ppf, nil, scaffold.OmitFlags{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -347,7 +348,7 @@ func Test_listOutput(t *testing.T) {
 		{Plant: "no popo", Rogue: complex64(9i + -1)},
 	}
 
-	dataFunc := func(fs *pflag.FlagSet) ([]nuclearThrone, error) { return data, nil }
+	dataFunc := func(fs *pflag.FlagSet, _ DataParameters) ([]nuclearThrone, error) { return data, nil }
 
 	aliased := maps.Clone(ntDQs)
 	aliased["Robot"] = "munch"
@@ -378,7 +379,7 @@ func Test_listOutput(t *testing.T) {
 	}
 	for i, tt := range tests {
 		t.Run(strconv.FormatInt(int64(i+1), 10), func(t *testing.T) {
-			out, err := listOutput(buildFlagSet(false, nil), tt.format, tt.dqColumns, dataFunc, nil, aliased)
+			out, err := listOutput(buildFlagSet(false, nil, scaffold.OmitFlags{}), tt.format, tt.dqColumns, dataFunc, nil, aliased, scaffold.OmitFlags{})
 			if err != nil {
 				t.Error(err)
 			}
