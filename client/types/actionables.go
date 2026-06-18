@@ -45,13 +45,12 @@ type ActionableTrigger struct {
 
 // ActionableAction defines an action that can be performed when an actionable is triggered.
 type ActionableAction struct {
-	Name             string
-	Description      string
-	Placeholder      string
-	NoValueURLEncode bool                    `json:",omitempty"`
-	Start            *ActionableTimeVariable `json:",omitempty"`
-	End              *ActionableTimeVariable `json:",omitempty"`
-	Command          ActionableCommand
+	Name        string
+	Description string
+	Placeholder string
+	Start       *ActionableTimeVariable `json:",omitempty"`
+	End         *ActionableTimeVariable `json:",omitempty"`
+	Command     ActionableCommand
 }
 
 // ActionableTimeVariable describes time-range options for an action's start or end.

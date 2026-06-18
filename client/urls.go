@@ -145,14 +145,16 @@ const (
 	TAGS_URL                         = "/api/tags"
 	INDEXER_MANAGE_ADD_URL           = "/api/indexer/manage/add"
 	KIT_URL                          = `/api/kits`
+	KIT_LIST_URL                     = `/api/kits/list`
 	KIT_ID_URL                       = `/api/kits/%s`
 	KIT_BUILD_URL                    = `/api/kits/build`
 	KIT_BUILD_ID_URL                 = `/api/kits/build/%s`
 	KIT_STATUS_URL                   = `/api/kits/status`
-	KIT_STATUS_ID_URL                = `/api/kits/status/%s`
+	KIT_STATUS_ID_URL                = `/api/kits/status/%v`
 	KIT_REMOTE_LIST_URL              = `/api/kits/remote/list`
 	KIT_REMOTE_LIST_ALL_URL          = `/api/kits/remote/list/all`
 	KIT_BUILD_HISTORY_URL            = `/api/kits/build/history`
+	KIT_BUILD_HISTORY_LIST_URL       = `/api/kits/build/history/list`
 	KIT_BUILD_HISTORY_ID_URL         = `/api/kits/build/history/%s`
 	EXTRACTORS_URL                   = `/api/autoextractors`
 	EXTRACTORS_LIST_URL              = `/api/autoextractors/list`
@@ -518,7 +520,7 @@ func kitStatusUrl() string {
 	return KIT_STATUS_URL
 }
 
-func kitStatusIdUrl(id string) string {
+func kitStatusIdUrl(id int) string {
 	return fmt.Sprintf(KIT_STATUS_ID_URL, id)
 }
 

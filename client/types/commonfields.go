@@ -12,6 +12,7 @@ const (
 	AssetAX                     AssetType = "ax"
 	AssetSavedQuery             AssetType = "saved_query"
 	AssetResource               AssetType = "resource"
+	AssetFile                   AssetType = "file"
 	AssetTemplate               AssetType = "template"
 	AssetSearchHistory          AssetType = "search_history"
 	AssetUserPreference         AssetType = "user_preference"
@@ -22,7 +23,43 @@ const (
 	AssetScheduledSearchResults AssetType = "scheduled_search_results"
 	AssetScheduledScriptResults AssetType = "scheduled_script_results"
 	AssetFlowResults            AssetType = "flow_results"
+	AssetAlert                  AssetType = "alert"
+	AssetPlaybook               AssetType = "playbook"
+	AssetDashboard              AssetType = "dashboard"
+	AssetActionable             AssetType = "actionable"
+	AssetKitBuildRequest        AssetType = "kit_build_request"
 )
+
+// AssetTypeMap maps the string value of each AssetType constant to its AssetType value.
+var AssetTypeMap = map[string]AssetType{
+	string(AssetMacro):                  AssetMacro,
+	string(AssetToken):                  AssetToken,
+	string(AssetAX):                     AssetAX,
+	string(AssetSavedQuery):             AssetSavedQuery,
+	string(AssetResource):               AssetResource,
+	string(AssetFile):                   AssetFile,
+	string(AssetTemplate):               AssetTemplate,
+	string(AssetSearchHistory):          AssetSearchHistory,
+	string(AssetUserPreference):         AssetUserPreference,
+	string(AssetSecret):                 AssetSecret,
+	string(AssetScheduledSearch):        AssetScheduledSearch,
+	string(AssetScheduledScript):        AssetScheduledScript,
+	string(AssetFlow):                   AssetFlow,
+	string(AssetScheduledSearchResults): AssetScheduledSearchResults,
+	string(AssetScheduledScriptResults): AssetScheduledScriptResults,
+	string(AssetFlowResults):            AssetFlowResults,
+	string(AssetAlert):                  AssetAlert,
+	string(AssetPlaybook):               AssetPlaybook,
+	string(AssetDashboard):              AssetDashboard,
+	string(AssetActionable):             AssetActionable,
+	string(AssetKitBuildRequest):        AssetKitBuildRequest,
+}
+
+// ValidateAssetType returns true if s corresponds to a known AssetType.
+func ValidateAssetType(s string) bool {
+	_, ok := AssetTypeMap[s]
+	return ok
+}
 
 type CommonFields struct {
 	Type      AssetType
@@ -47,6 +84,9 @@ type CommonFields struct {
 	Description string
 	Labels      []string
 	Version     int
+
+	// If set, associates the asset with a kit of the specified ID
+	Kit string
 
 	// Auto-generated for the requesting user based on permissions of this object.
 	Can Actions

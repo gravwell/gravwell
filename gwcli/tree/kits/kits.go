@@ -12,7 +12,6 @@ package kits
 import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -44,15 +43,18 @@ func newKitsListAction() action.Pair {
 
 	return scaffoldlist.NewListAction(
 		short, long,
-		types.IdKitState{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.IdKitState, error) {
-			// if --all, use the admin version
-			if all, err := fs.GetBool("all"); err != nil {
-				clilog.GetFlag(err)
-			} else if all {
-				return connection.Client.AdminListKits()
+		types.KitState{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitState, error) {
+			var err error
+			var resp types.KitStateListResponse
+			if params.QueryOpts.AdminMode {
+				resp, err = connection.Client.ListAllKits(nil)
+			} else {
+				resp, err = connection.Client.ListKits(nil)
 			}
-
-			return connection.Client.ListKits()
+			if err != nil {
+				return nil, err
+			}
+			return resp.Results, nil
 		},
 		nil,
 		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
