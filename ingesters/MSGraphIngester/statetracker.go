@@ -78,7 +78,7 @@ func (st *stateTracker) initStates() error {
 	//we have a valid file, attempt to load states if the file isn't empty
 	fi, err = st.stateFout.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to stat open file: %v", err)
+		return fmt.Errorf("failed to stat open file: %w", err)
 	}
 	if fi.Size() > 0 {
 		if err = gob.NewDecoder(st.stateFout).Decode(&st.stateMap); err != nil {
