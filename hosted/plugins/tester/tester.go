@@ -4,6 +4,7 @@ package tester
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -74,5 +75,6 @@ func (tt *TesterIngester) Handle(_ context.Context, rt hosted.Runtime) (*hosted.
 	}); err != nil {
 		rt.Error("failed to write entry", log.KVErr(err))
 	}
+	rt.Error("testing errors", log.KVErr(errors.New("test err")))
 	return hosted.ContinueAfter(tt.interval()), nil
 }

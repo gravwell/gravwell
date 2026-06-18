@@ -178,6 +178,7 @@ func (l *Logger) Clone(hostname, appname string) (r *Logger, err error) {
 	defer l.mtx.Unlock()
 	r = &Logger{
 		metadata: l.metadata,
+		wtrs:     make([]io.WriteCloser, len(l.wtrs)),
 		rls:      make([]Relay, len(l.rls)),
 		lrls:     make([]LevelRelay, len(l.lrls)),
 		mtx:      sync.Mutex{},
@@ -185,6 +186,7 @@ func (l *Logger) Clone(hostname, appname string) (r *Logger, err error) {
 		hot:      l.hot,
 		raw:      l.raw,
 	}
+	copy(r.wtrs, l.wtrs)
 	copy(r.rls, l.rls)
 	copy(r.lrls, l.lrls)
 	if hostname != `` {
