@@ -139,7 +139,7 @@ func main() {
 		var window timegrinder.TimestampWindow
 		window, err = cfg.Global.GlobalTimestampWindow()
 		if err != nil {
-			return
+			lg.Fatal("failed to create global timestamp window", log.KVErr(err))
 		}
 		tcfg := timegrinder.Config{
 			TSWindow:           window,
