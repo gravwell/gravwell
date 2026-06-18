@@ -118,6 +118,7 @@ func main() {
 		tenantDomain: cfg.Global.Tenant_Domain,
 	}, &http.Client{})
 	if err != nil {
+		// return zero because this may be due to credentials so we don't want to invoke crash handler
 		lg.FatalCode(0, "failed to create graph client", log.KVErr(err))
 	}
 
