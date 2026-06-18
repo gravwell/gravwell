@@ -491,7 +491,7 @@ func pushKit(cli *client.Client, force bool) (err error) {
 	}
 
 	// install the kit using the specified KitConfig values
-	if err = cli.InstallKit(state.ID, cfg); err != nil {
+	if _, err = cli.InstallKit(state.ID, cfg); err != nil {
 		err = fmt.Errorf("failed to install kit on server: %w", err)
 		return
 	}
