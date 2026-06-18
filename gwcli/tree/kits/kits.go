@@ -12,17 +12,18 @@ package kits
 import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func NewKitsNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "kits"
 		short string = "view kits associated to this instance"
@@ -44,24 +45,38 @@ func newKitsListAction() action.Pair {
 
 	return scaffoldlist.NewListAction(
 		short, long,
-		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
+		types.KitState{}, func(fs *pflag.FlagSet) ([]types.KitState, error) {
 			// if --all, use the admin version
-			if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-				uniques.ErrGetFlag("kist list", err)
+			var resp types.KitStateListResponse
+			var err error
+			var all bool
+			if all, err = fs.GetBool(ft.GetAll.Name()); err != nil {
+				clilog.GetFlag(err)
 			} else if all {
-				return connection.Client.AdminListKits()
+				resp, err = connection.Client.ListAllKits(nil)
+			} else {
+				resp, err = connection.Client.ListKits(nil)
 			}
-
-			return connection.Client.ListKits()
+			if err != nil {
+				return nil, err
+			}
+			return resp.Results, nil
 		},
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UUID", "KitState.Name", "KitState.Description", "KitState.Version"}})
+		nil,
+		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			DefaultColumns: []string{
+				"UUID",
+				"KitState.Name",
+				"KitState.Description",
+				"KitState.Version",
+			}})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "kist")
+	ft.GetAll.Register(&addtlFlags, true, "kits")
 
-	return addtlFlags
+	return &addtlFlags
 }
 
 //#endregion list

@@ -36,6 +36,8 @@ var (
 
 	//helper that calls out ok responses as just 200
 	stdOk = []int{http.StatusOK}
+
+	adminParam = ezParam("admin", "true")
 )
 
 type urlParam struct {
@@ -552,60 +554,6 @@ func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time
 	return stats, err
 }
 
-// GetUserList gets a listing of users with basic info like UID, name, email, etc.
-func (c *Client) GetUserList() ([]types.UserDetails, error) {
-	det := []types.UserDetails{}
-	if err := c.getStaticURL(USERS_LIST_URL, &det); err != nil {
-		return nil, err
-	}
-	return det, nil
-}
-
-// LookupUser looks up a UserDetails object given a username
-// if the username is not found, ErrNotFound is returned
-func (c *Client) LookupUser(username string) (ud types.UserDetails, err error) {
-	var lst []types.UserDetails
-	if lst, err = c.GetUserList(); err != nil {
-		return
-	}
-	for _, l := range lst {
-		if l.User == username {
-			ud = l
-			return
-		}
-	}
-
-	err = ErrNotFound
-	return
-}
-
-// GetGroupList gets a listing of groups with basic info like GID, name, desc.
-func (c *Client) GetGroupList() ([]types.GroupDetails, error) {
-	det := []types.GroupDetails{}
-	if err := c.getStaticURL(GROUP_URL, &det); err != nil {
-		return nil, err
-	}
-	return det, nil
-}
-
-// LookupGroup looks up a GroupDetails object given a group name
-// if the group name is not found, ErrNotFound is returned
-func (c *Client) LookupGroup(groupname string) (gd types.GroupDetails, err error) {
-	var lst []types.GroupDetails
-	if lst, err = c.GetGroupList(); err != nil {
-		return
-	}
-	for _, l := range lst {
-		if l.Name == groupname {
-			gd = l
-			return
-		}
-	}
-
-	err = ErrNotFound
-	return
-}
-
 // a test get without locking. For internal calls
 func (c *Client) nolockTestGet(path string) error {
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, path)
@@ -694,9 +642,9 @@ func (c *Client) uploadMultipartFileMethod(method, url, field, name string, rdr 
 }
 
 // getBodyErr pulls a possible error message out of the response body
-// and returns it as a string.  We will yank a maximum of 256 bytes
+// and returns it as a string.  We will yank a maximum of 4096 bytes
 func getBodyErr(rc io.Reader) string {
-	resp := make([]byte, 256)
+	resp := make([]byte, 4096)
 	n, err := rc.Read(resp)
 	if (err != nil && err != io.EOF) || n <= 0 {
 		return ""
