@@ -146,8 +146,8 @@ func (c *Client) GetKit(id string) (ki types.KitState, err error) {
 // InstallKit tells the webserver to install a staged kit. The id parameter
 // is the ID of the staged kit. The cfg parameter provides install-time
 // options.
-func (c *Client) InstallKit(id string, cfg types.KitConfig) (err error) {
-	err = c.putStaticURL(kitIdUrl(id), cfg)
+func (c *Client) InstallKit(id string, cfg types.KitConfig) (installId int, err error) {
+	err = c.methodStaticPushURL(http.MethodPut, kitIdUrl(id), cfg, &installId, nil, nil)
 	return
 }
 
@@ -237,6 +237,12 @@ func (c *Client) KitDownloadRequest(id string) (*http.Response, error) {
 // KitStatuses returns the statuses of any ongoing or completed kit installations.
 func (c *Client) KitStatuses() (statuses []types.InstallStatus, err error) {
 	err = c.getStaticURL(kitStatusUrl(), &statuses)
+	return
+}
+
+// KitStatus returns the status of a particular kit installation
+func (c *Client) KitStatus(id int) (status types.InstallStatus, err error) {
+	err = c.getStaticURL(kitStatusIdUrl(id), &status)
 	return
 }
 
