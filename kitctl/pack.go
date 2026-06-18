@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"encoding/hex"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
 )
@@ -31,8 +32,9 @@ func writeResource(dir string, pr kits.PackedResource) error {
 	}
 
 	// Now drop two files: .meta and .contents
-	contentPath := filepath.Join(p, fmt.Sprintf("%v.contents", pr.ResourceName))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", pr.ResourceName))
+	// We use the name because for resources, it's guaranteed to be unique.
+	contentPath := filepath.Join(p, fmt.Sprintf("%v.contents", pr.Name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", pr.Name))
 	if err := os.WriteFile(contentPath, pr.Data, 0644); err != nil {
 		return err
 	}
@@ -62,7 +64,7 @@ func readResource(dir string, name string) (pr kits.PackedResource, err error) {
 	pr.Data, err = os.ReadFile(contentPath)
 	hsh := md5.New()
 	hsh.Write(pr.Data)
-	pr.Hash = hsh.Sum(nil)
+	pr.Hash = hex.EncodeToString(hsh.Sum(nil))
 	pr.Size = uint64(len(pr.Data))
 	return
 }
@@ -79,6 +81,7 @@ func writeMacro(dir string, pm kits.PackedMacro) error {
 	}
 
 	// Now drop two files: .meta and .expansion
+	// Name is guaranteed unique, so use it
 	expansionPath := filepath.Join(p, fmt.Sprintf("%v.expansion", pm.Name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", pm.Name))
 	if err := os.WriteFile(expansionPath, []byte(pm.Expansion), 0644); err != nil {
@@ -141,11 +144,11 @@ func writeFile(dir string, x kits.PackedFile) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readFile(dir, name string) (pf kits.PackedFile, err error) {
+func readFile(dir, id string) (pf kits.PackedFile, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "file")
-	contentPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	contentPath := filepath.Join(p, fmt.Sprintf("%v.contents", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 
 	// Read the metadata file first
 	var bts []byte
@@ -160,7 +163,7 @@ func readFile(dir, name string) (pf kits.PackedFile, err error) {
 	pf.Data, err = os.ReadFile(contentPath)
 	hsh := md5.New()
 	hsh.Write(pf.Data)
-	pf.Hash = hsh.Sum(nil)
+	pf.Hash = hex.EncodeToString(hsh.Sum(nil))
 	pf.Size = uint64(len(pf.Data))
 	return
 }
@@ -169,7 +172,7 @@ func readFile(dir, name string) (pf kits.PackedFile, err error) {
  * Search Library
  **************************************************************************/
 
-func writeSearchLibrary(dir string, name string, x types.SavedQuery) error {
+func writeSearchLibrary(dir string, id string, x kits.PackedSavedQuery) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -177,8 +180,8 @@ func writeSearchLibrary(dir string, name string, x types.SavedQuery) error {
 	}
 
 	// Now drop two files: .meta and .query
-	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	if err := os.WriteFile(queryPath, []byte(x.Query), 0644); err != nil {
 		return err
 	}
@@ -190,11 +193,11 @@ func writeSearchLibrary(dir string, name string, x types.SavedQuery) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readSearchLibrary(dir, name string) (x types.SavedQuery, err error) {
+func readSearchLibrary(dir, id string) (x kits.PackedSavedQuery, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
-	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -218,7 +221,7 @@ func readSearchLibrary(dir, name string) (x types.SavedQuery, err error) {
  * Extractors
  **************************************************************************/
 
-func writeExtractor(dir string, name string, x types.AX) error {
+func writeExtractor(dir string, id string, x kits.PackedAX) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -226,9 +229,9 @@ func writeExtractor(dir string, name string, x types.AX) error {
 	}
 
 	// Now drop three files: .meta, .params, and .args
-	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
-	argsPath := filepath.Join(p, fmt.Sprintf("%v.args", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", id))
+	argsPath := filepath.Join(p, fmt.Sprintf("%v.args", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	if err := os.WriteFile(paramsPath, []byte(x.Params), 0644); err != nil {
 		return err
 	}
@@ -244,12 +247,12 @@ func writeExtractor(dir string, name string, x types.AX) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readExtractor(dir, name string) (x types.AX, err error) {
+func readExtractor(dir, id string) (x kits.PackedAX, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
-	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
-	argsPath := filepath.Join(p, fmt.Sprintf("%v.args", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", id))
+	argsPath := filepath.Join(p, fmt.Sprintf("%v.args", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -279,7 +282,7 @@ func readExtractor(dir, name string) (x types.AX, err error) {
  * Templates
  **************************************************************************/
 
-func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
+func writeTemplate(dir string, id string, x kits.PackedUserTemplate) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "template")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -287,8 +290,8 @@ func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
 	}
 
 	// Now drop two files: .meta and .query
-	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	if err := os.WriteFile(queryPath, []byte(x.Query), 0644); err != nil {
 		return err
 	}
@@ -300,11 +303,11 @@ func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
+func readTemplate(dir, id string) (x kits.PackedUserTemplate, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "template")
-	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -328,7 +331,7 @@ func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
  * Playbooks
  **************************************************************************/
 
-func writePlaybook(dir string, name string, x types.Playbook) error {
+func writePlaybook(dir string, id string, x kits.PackedPlaybook) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "playbook")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -336,8 +339,8 @@ func writePlaybook(dir string, name string, x types.Playbook) error {
 	}
 
 	// Now drop two files: .meta and .body
-	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	if err := os.WriteFile(bodyPath, []byte(x.Body), 0644); err != nil {
 		return err
 	}
@@ -350,11 +353,11 @@ func writePlaybook(dir string, name string, x types.Playbook) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readPlaybook(dir, name string) (x types.Playbook, err error) {
+func readPlaybook(dir, id string) (x kits.PackedPlaybook, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "playbook")
-	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -381,7 +384,7 @@ func readPlaybook(dir, name string) (x types.Playbook, err error) {
  * Scheduled Search
  **************************************************************************/
 
-func writeScheduledSearch(dir string, name string, x kits.PackedScheduledSearch) error {
+func writeScheduledSearch(dir string, id string, x kits.PackedScheduledSearch) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "scheduled")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -389,8 +392,8 @@ func writeScheduledSearch(dir string, name string, x kits.PackedScheduledSearch)
 	}
 
 	// Now drop files
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", id))
 	if err := os.WriteFile(searchPath, []byte(x.SearchString), 0644); err != nil {
 		return err
 	}
@@ -402,10 +405,10 @@ func writeScheduledSearch(dir string, name string, x kits.PackedScheduledSearch)
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err error) {
+func readScheduledSearch(dir, id string) (x kits.PackedScheduledSearch, err error) {
 	p := filepath.Join(dir, "scheduled")
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -427,7 +430,7 @@ func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err er
  * Scheduled Script
  **************************************************************************/
 
-func writeScheduledScript(dir string, name string, x kits.PackedScheduledScript) error {
+func writeScheduledScript(dir string, id string, x kits.PackedScheduledScript) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "scheduled")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -435,8 +438,8 @@ func writeScheduledScript(dir string, name string, x kits.PackedScheduledScript)
 	}
 
 	// Now drop files
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", id))
 	if err := os.WriteFile(scriptPath, []byte(x.Script), 0644); err != nil {
 		return err
 	}
@@ -448,10 +451,10 @@ func writeScheduledScript(dir string, name string, x kits.PackedScheduledScript)
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readScheduledScript(dir, name string) (x kits.PackedScheduledScript, err error) {
+func readScheduledScript(dir, id string) (x kits.PackedScheduledScript, err error) {
 	p := filepath.Join(dir, "scheduled")
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -474,7 +477,7 @@ func readScheduledScript(dir, name string) (x kits.PackedScheduledScript, err er
  * Flow
  **************************************************************************/
 
-func writeFlow(dir string, name string, x kits.PackedFlow) error {
+func writeFlow(dir string, id string, x kits.PackedFlow) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "scheduled")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -482,8 +485,8 @@ func writeFlow(dir string, name string, x kits.PackedFlow) error {
 	}
 
 	// Now drop files
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", id))
 	if err := os.WriteFile(flowPath, []byte(x.Flow), 0644); err != nil {
 		return err
 	}
@@ -495,10 +498,10 @@ func writeFlow(dir string, name string, x kits.PackedFlow) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readFlow(dir, name string) (x kits.PackedFlow, err error) {
+func readFlow(dir, id string) (x kits.PackedFlow, err error) {
 	p := filepath.Join(dir, "scheduled")
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -520,7 +523,7 @@ func readFlow(dir, name string) (x kits.PackedFlow, err error) {
  * Dashboard
  **************************************************************************/
 
-func writeDashboard(dir string, name string, x kits.PackedDashboard) error {
+func writeDashboard(dir string, id string, x kits.PackedDashboard) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "dashboard")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -528,7 +531,7 @@ func writeDashboard(dir string, name string, x kits.PackedDashboard) error {
 	}
 
 	// Just one file for now
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -536,9 +539,9 @@ func writeDashboard(dir string, name string, x kits.PackedDashboard) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readDashboard(dir, name string) (x kits.PackedDashboard, err error) {
+func readDashboard(dir, id string) (x kits.PackedDashboard, err error) {
 	p := filepath.Join(dir, "dashboard")
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
 	// Read the metadata file
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -578,15 +581,15 @@ func readLicense(dir, name string) (x []byte, err error) {
  * Generic
  **************************************************************************/
 
-func genericWrite(dir string, tp kits.ItemType, name string, x interface{}) error {
+func genericWrite(dir string, itm types.KitItem, x interface{}) error {
 	// Make sure the parent exists
-	p := filepath.Join(dir, tp.Ext())
+	p := filepath.Join(dir, string(itm.Type))
 	if err := os.MkdirAll(p, 0755); err != nil {
 		return err
 	}
 
 	// Just drop it all in a single file
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", itm.ID))
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -594,9 +597,9 @@ func genericWrite(dir string, tp kits.ItemType, name string, x interface{}) erro
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func genericRead(dir string, itm kits.Item, obj interface{}) (err error) {
-	p := filepath.Join(dir, itm.Type.Ext())
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", itm.Name))
+func genericRead(dir string, itm types.KitItem, obj interface{}) (err error) {
+	p := filepath.Join(dir, string(itm.Type))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", itm.ID))
 	// Read the metadata file
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)

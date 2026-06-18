@@ -27,8 +27,8 @@ github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 h1:WY4eTW+ErqI0rbV
 github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66/go.mod h1:RUZts//u8V+P37LqSghbTYaMGDdTOJooQGHzbjfSIZA=
 github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d h1:igftIwuKhYlFW5Tviy/z2SDYVX/4jPkOZ721kdK/Wbc=
 github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
-github.com/gravwell/gravwell/v3 v3.8.73 h1:vjjpDuxkPp07FBksfa1t4qvataQldkTuooWgV5nsa+A=
-github.com/gravwell/gravwell/v3 v3.8.73/go.mod h1:PV/ocpgw7cy1+9TDiCj2r5rOBuoQDlqTb73orHnQ09s=
+github.com/gravwell/gravwell/v3 v3.8.80-0.20260515215027-220e2449b547 h1:Kr0aKts5r4Rg8NL7NVRyZ2LoC+pjp66LlqS0F7pZ0zE=
+github.com/gravwell/gravwell/v3 v3.8.80-0.20260515215027-220e2449b547/go.mod h1:ISo9EvEiMfbEbyqXNlgVX8k/sbtynMLUwKLLmfQTWb0=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37 h1:e4PALq0O9WtWnnVReBr9DR8aMeyk/+EtszqaxX9sm5c=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/gravwell/jsonparser v0.0.0-20241122184510-d9e3b05f5d3b h1:rqZ1+XCWZKor9S4lGia3htswkurC+PNNRfsEyzsNXQM=
@@ -47,9 +47,8 @@ github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORN
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
+github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
-github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
-github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
 github.com/miekg/dns v1.1.56 h1:5imZaSeoRNvpM9SzWNhEcP9QliKiz20/dA2QabIGVnE=
 github.com/miekg/dns v1.1.56/go.mod h1:cRm6Oo2C8TY9ZS/TqsSrseAcncm74lfK5G+ikN2SWWY=
 github.com/minio/highwayhash v1.0.3 h1:kbnuUMoHYyVl7szWjSxJnxw11k2U709jqFPPmIUyD6Q=
@@ -60,8 +59,8 @@ github.com/open2b/scriggo v0.56.1/go.mod h1:FJS0k7CaKq2sNlrqAGMwU4dCltYqC1c+Eak3
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rogpeppe/go-internal v1.6.1 h1:/FiVV8dS/e+YqF2JvO3yXRFbBLTIuSDkuC7aBOAvL+k=
-github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
+github.com/rogpeppe/go-internal v1.15.0 h1:D0RCU5rMAp+SpgkiNdrjfJ+LX4J1M32V2NeCY7EJ6hc=
+github.com/rogpeppe/go-internal v1.15.0/go.mod h1:DrUVZyrJU+txYW5/1kwtXQSMFio52ZOxX7yM1VHvnxs=
 github.com/shirou/gopsutil v2.20.9+incompatible h1:msXs2frUV+O/JLva9EDLpuJ84PrFsdCTCQex8PUdtkQ=
 github.com/shirou/gopsutil v2.20.9+incompatible/go.mod h1:5b4v6he4MtMOwMlS0TUMTu2PcXUg8+E1lC7eC3UO/RA=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

@@ -9,7 +9,6 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -132,25 +131,6 @@ func (dc AX) Encode(fout io.Writer, hdr string) (err error) {
 		return
 	}
 	return
-}
-
-func (dc AX) JSONMetadata() (ro json.RawMessage, err error) {
-	x := &struct {
-		Name   string   `json:"name,omitempty"`
-		Desc   string   `json:"desc,omitempty"`
-		Module string   `json:"module"`
-		Tags   []string `json:"tags"`
-	}{
-		Name:   dc.Name,
-		Desc:   dc.Description,
-		Module: dc.Module,
-		Tags:   dc.Tags,
-	}
-	if x.Desc == `` {
-		x.Desc = fmt.Sprintf("%s extractor for tags %v", x.Module, dc.Tags)
-	}
-	b, err := json.Marshal(x)
-	return json.RawMessage(b), err
 }
 
 func (dc AX) Equal(v AX) bool {
