@@ -424,13 +424,13 @@ func update() action.Pair {
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "update",
+				Use:   "update",
+				Short: "Update your user information.",
+				Long:  "Update the basic details of the current user. Empty values will remain unchanged.",
 				Usage: fmt.Sprint("update ",
 					ft.Optional("--new-username=<USERNAME>"), " ",
 					ft.Optional("--new-name=<NAME>"), " ",
 					ft.Optional("--new-email=<EMAIL>")),
 			},
-			Short: "Update your user information.",
-			Long:  "Update the basic details of the current user. Empty values will remain unchanged.",
 		})
 }

@@ -237,10 +237,10 @@ func configure() action.Pair {
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "configure",
+				Short:   "configure email settings",
+				Long:    "Set the SMTP server settings used for sending email notifications.",
 				Aliases: []string{"add", "create", "update"},
 			},
-			Short: "configure email settings",
-			Long:  "Set the SMTP server settings used for sending email notifications.",
 		})
 }
 

@@ -320,8 +320,10 @@ func create() action.Pair {
 			_, err = outFile.WriteString(tf.Value)
 			return tf.ID, "", err
 		}, scaffoldcreate.Options{
-			Long: "Create a new token. " +
-				"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless --path is specified.",
+			CommonOptions: scaffold.CommonOptions{
+				Long: "Create a new token. " +
+					"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless --path is specified.",
+			},
 		})
 }
 

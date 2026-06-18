@@ -29,13 +29,8 @@ import (
 )
 
 func NewNav() *cobra.Command {
-	const (
-		use   string = "files"
-		short string = "manage extra files you have uploaded"
-		long  string = "Files can be used to store small files for use in playbooks, cover images for kits, etc.\n" +
-			"See https://docs.gravwell.io/gui/files/files.html for more information."
-	)
-	return treeutils.GenerateNav(use, short, long, []string{"file"}, nil,
+	return treeutils.GenerateNav("files", "manage extra files you have uploaded", "Files can be used to store small files for use in playbooks, cover images for kits, etc.\n"+
+		"See https://docs.gravwell.io/gui/files/files.html for more information.", []string{"file"}, nil,
 		[]action.Pair{
 			list(),
 			download(),
@@ -74,7 +69,6 @@ func list() action.Pair {
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
-				"CommonFields.Type",
 				"CommonFields.Labels",
 
 				"Size",

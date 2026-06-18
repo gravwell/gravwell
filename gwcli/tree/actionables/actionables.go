@@ -150,10 +150,11 @@ func create() action.Pair {
 			return new.ID, "", err
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{},
-			Long: "Create a new actionable empty or from JSON." +
-				"Call " + stylesheet.Cur.Action.Render("json") + " to view the required schema or" +
-				" call " + stylesheet.Cur.Action.Render("get --json <ID>") + " to view an existing actionable as JSON.",
+			CommonOptions: scaffold.CommonOptions{
+				Long: "Create a new actionable empty or from JSON." +
+					"Call " + stylesheet.Cur.Action.Render("json") + " to view the required schema or" +
+					" call " + stylesheet.Cur.Action.Render("get --json <ID>") + " to view an existing actionable as JSON.",
+			},
 		})
 }
 

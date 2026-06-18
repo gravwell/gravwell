@@ -625,14 +625,14 @@ func set() action.Pair {
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "set",
+				Use:   "set",
+				Short: "set capabilities of users and groups",
+				Long:  "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
 				Usage: "set " +
 					ft.MutuallyExclusive([]string{"--uids", "--gids"}) +
 					ft.Mandatory("--caps"),
 				Aliases: []string{"replace"},
 			},
-			Short:              "set capabilities of users and groups",
-			Long:               "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
 			IDIsSuccessMessage: true,
 		})
 }
