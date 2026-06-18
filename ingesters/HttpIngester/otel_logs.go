@@ -55,9 +55,18 @@ type otelLogsHandler struct {
 }
 
 func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	var now time.Time
+	var entriesCount int
+	var byteCount int64
+
 	if cfg.debugPosts {
-		now = time.Now()
+		now := time.Now()
+		defer func() {
+			kvs := []rfc5424.SDParam{
+				log.KV("bytes", byteCount), log.KV("entries", entriesCount),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			}
+			h.igst.Info("OpenTelemetry logs request", kvs...)
+		}()
 	}
 
 	ll := log.NewLoggerWithKV(oh.lgr,
@@ -134,9 +143,6 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 		}
 	}
 
-	var entriesCount int
-	var byteCount int64
-
 	for _, rl := range req.ResourceLogs {
 		if err := oh.processResourceLogs(h, cfg, rl, ip, &entriesCount, &byteCount); err != nil {
 			ll.Error("failed to process resource logs", log.KVErr(err))
@@ -147,14 +153,6 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 
 	w.Header().Set("Content-Type", contentType)
 	w.Write(respBytes)
-
-	if cfg.debugPosts {
-		kvs := []rfc5424.SDParam{
-			log.KV("bytes", byteCount), log.KV("entries", entriesCount),
-			log.KV("ms", time.Since(now).Milliseconds()),
-		}
-		h.igst.Info("OpenTelemetry logs request", kvs...)
-	}
 }
 
 func (oh *otelLogsHandler) processResourceLogs(h *handler, cfg routeHandler, rl *lpb.ResourceLogs, ip net.IP, entriesCount *int, byteCount *int64) error {
