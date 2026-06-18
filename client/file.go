@@ -48,17 +48,21 @@ func (c *Client) CreateFile(f types.File) (result types.File, err error) {
 
 // GetFile returns the specified file's contents.
 func (c *Client) GetFile(id string) ([]byte, error) {
-	return c.GetFileEx(id, nil)
+	return c.GetFileEx(id, nil, 0)
 }
 
 // GetFileEx returns the specified file's contents.
 // If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
-func (c *Client) GetFileEx(id string, opts *types.QueryOptions) ([]byte, error) {
+// Up to previewBytes will be returned; if 0, everything is returned.
+func (c *Client) GetFileEx(id string, opts *types.QueryOptions, previewBytes uint64) ([]byte, error) {
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
 
-	resp, err := c.methodParamRequestURL(http.MethodGet, filesIdRawUrl(id), map[string]string{"include_deleted": strconv.FormatBool(opts.IncludeDeleted)}, nil)
+	resp, err := c.methodParamRequestURL(http.MethodGet, filesIdRawUrl(id), map[string]string{
+		"include_deleted": strconv.FormatBool(opts.IncludeDeleted),
+		"bytes":           strconv.FormatUint(previewBytes, 10),
+	}, nil)
 	if err != nil {
 		return nil, err
 	}

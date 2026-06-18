@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 )
@@ -201,13 +202,22 @@ func (c *Client) GetResourceMetadata(id string) (types.Resource, error) {
 // 2. Resources shared with a group to which the user belongs are next
 // 3. Global resources are the lowest priority
 func (c *Client) GetResource(name string) ([]byte, error) {
+	return c.GetResourceEx(name, 0)
+}
+
+// GetResourceEx returns the contents of the resource with the specified name, up to previewBytes (if 0, everything is returned).
+//
+// Follows the name/ID logic of GetResource.
+func (c *Client) GetResourceEx(name string, previewBytes uint64) ([]byte, error) {
 	var meta types.Resource
 	err := c.getStaticURL(resourcesLookupUrl(name), &meta)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.methodRequestURL(http.MethodGet, resourcesIdRawUrl(meta.ID), ``, nil)
+	resp, err := c.methodParamRequestURL(http.MethodGet, resourcesIdRawUrl(meta.ID), map[string]string{
+		"bytes": strconv.FormatUint(previewBytes, 10),
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
