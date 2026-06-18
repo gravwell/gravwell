@@ -277,15 +277,15 @@ func replace() action.Pair {
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
-			for _, ID := range IDs {
+			for i, ID := range IDs {
 				pth, _ := addtlFlags.GetString(ft.Path.Name())
-				_, err := connection.Client.PopulateFileFromPath(ID, pth)
+				f, err := connection.Client.PopulateFileFromPath(ID, pth)
 				if err != nil {
-					results = append(results, scaffold.Result{Output: err.Error()})
+					results[i] = scaffold.Result{Output: err.Error()}
 				} else {
-					results = append(results, scaffold.Result{
+					results[i] = scaffold.Result{
 						Success: true,
-						Output:  fmt.Sprintf("populated file ID %s with the contents of %s", ID, pth)})
+						Output:  fmt.Sprintf("populated file %s (ID: %s) with the contents of %s", f.Name, ID, pth)}
 				}
 			}
 

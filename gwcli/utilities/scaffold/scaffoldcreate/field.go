@@ -212,9 +212,15 @@ func FieldLabels() Field {
 // Returns nil if the field was not populated
 func GetLabelsFromField(f Field) []string {
 	var lbls []string
-	if exploded := strings.Split(strings.TrimSpace(f.Provider.Get()), ","); len(exploded) > 0 {
-		lbls = exploded
+	exploded := strings.SplitSeq(strings.TrimSpace(f.Provider.Get()), ",")
+	for s := range exploded {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		lbls = append(lbls, s)
 	}
+
 	return lbls
 }
 
@@ -263,4 +269,3 @@ var DefaultFieldGroupSelectionFlags = FlagConfig{
 	Name:  "groups",
 	Usage: "Groups IDs to associate to the item",
 }
-

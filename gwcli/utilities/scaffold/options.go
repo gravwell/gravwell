@@ -85,7 +85,7 @@ const (
 
 // OmitFlags allows disabling flags for a specific action.
 // Anything set to true in here will have its equivalent flag turned off for this action.
-// For example: if an asset type doesn't tombstone, --include-delete should probably be disabled.
+// For example: if an asset type doesn't tombstone, --include-deleted should probably be disabled.
 type OmitFlags struct {
 	Everything bool // disable everything. This is useful if the ListDataFunc doesn't take query opts.
 

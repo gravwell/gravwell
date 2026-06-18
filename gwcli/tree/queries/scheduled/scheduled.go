@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -409,18 +410,18 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
-			for i, ss := range l.Results {
+			itms := make([]multiselectlist.SelectableItem[string], 0, len(l.Results))
+			for _, ss := range l.Results {
 				if enable && ss.BackfillEnabled {
 					continue
 				} else if disable && !ss.BackfillEnabled {
 					continue
 				}
 
-				itms[i] = wrapSS(ss)
+				itms = append(itms, wrapSS(ss))
 			}
 
-			return itms, nil
+			return slices.Clip(itms), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)

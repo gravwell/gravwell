@@ -234,7 +234,7 @@ func replace() action.Pair {
 					log.KV("count", len(IDs)),
 					scaffold.IdentifyCaller())
 				if len(IDs) == 0 {
-					return nil, errors.New(phrases.Exactly1ArgRequired("playbook ID"))
+					return nil, errors.New(phrases.Exactly1ArgRequired("actionable ID"))
 				}
 			}
 			// fetch the actionables existing metadata; we only want to update the contents

@@ -246,7 +246,7 @@ func show() action.Pair {
 				template, err := connection.Client.GetTemplate(ID)
 				if phrases.IsNotFoundErr(err) {
 					results[i] = scaffold.Result{
-						Output: phrases.ErrUnknownIdentifier(ID, "flow ID").Error(),
+						Output: phrases.ErrUnknownIdentifier(ID, "template ID").Error(),
 					}
 					continue
 				} else if err != nil {
@@ -311,7 +311,7 @@ func create() action.Pair {
 		map[string]scaffoldcreate.Field{
 			"name":   scaffoldcreate.FieldName("template"),
 			"desc":   scaffoldcreate.FieldDescription("template"),
-			"path":   scaffoldcreate.FieldPath("template specification", true),
+			"path":   scaffoldcreate.FieldPath("template specification", false),
 			"labels": scaffoldcreate.FieldLabels(),
 		},
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {

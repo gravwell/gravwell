@@ -532,7 +532,7 @@ func set() action.Pair {
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						allCaps, err := connection.Client.CapabilityList()
 						if err != nil {
-							clilog.Writer.Error("failed to get user list", log.KVErr(err))
+							clilog.Writer.Error("failed to get capability list", log.KVErr(err))
 						} else if len(allCaps) < 1 {
 							return nil
 						}

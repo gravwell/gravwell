@@ -298,6 +298,7 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
+			defer clilog.CloseFile(contentF)
 			ext := filepath.Ext(pth)
 			for i, ID := range IDs {
 				if _, err := contentF.Seek(0, 0); err != nil {

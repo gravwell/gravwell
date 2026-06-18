@@ -153,7 +153,7 @@ func info() action.Pair {
 			},
 			DefaultColumns: []string{"ID", "UID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				if fs.NArg() > 1 {
+				if fs.NArg() < 1 {
 					return phrases.AtLeast1ArgRequired("query IDs"), nil
 				}
 				SIDs = []types.SearchInfo{}
@@ -232,6 +232,7 @@ func importAction() action.Pair {
 			if err != nil {
 				return 0, "", err
 			}
+			defer clilog.CloseFile(f)
 			return 0, "", connection.Client.ImportSearch(f, 0)
 
 		},

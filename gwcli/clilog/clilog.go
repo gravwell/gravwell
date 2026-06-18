@@ -228,6 +228,14 @@ func GetFlag(err error) ErrInternal {
 	return ErrInternal{}
 }
 
+// CloseFile closes the give file and logs the error if one occurred.
+func CloseFile(f *os.File) {
+	if err := f.Close(); err != nil {
+		Writer.Warn("failed to close file", log.KV("parent", log.CallLoc(1)), log.KVErr(err))
+	}
+
+}
+
 // TypeAssert logs an error that an assertion failed.
 // Most commonly used when asserting list.Item to a local, enriched type.
 //

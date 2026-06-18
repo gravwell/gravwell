@@ -46,7 +46,7 @@ type CollectItemsFunc[ID_t scaffold.Id_t] func(addtlFlags *pflag.FlagSet) ([]mul
 // OperateFunc performs the actual operation (toggling, cloning, updating, etc) on the final set of selected IDs.
 //
 // - IDs is the set of identifiers the user provided as bare arguments or interactively selected from the items in CollectItems.
-// As a user can bypass CollectItems by prioviding bare arguments, these IDs are not guaranteed to be valid.
+// As a user can bypass CollectItems by providing bare arguments, these IDs are not guaranteed to be valid.
 //
 // ! addtlFlags will be nil if you do not define an addtlFlagFunc in Options.
 //

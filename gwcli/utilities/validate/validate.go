@@ -23,11 +23,14 @@ import (
 
 // NegativeNumber returns an error if s is not a negative number.
 // Returns nil if s is empty.
-func NegativeNumber(s string) (err error) {
+func NegativeNumber(s string) error {
 	if s = strings.TrimSpace(s); s == "" {
 		return nil
 	}
-	_, err = strconv.ParseInt(s, 10, 64)
+	i, err := strconv.ParseInt(s, 10, 64)
+	if i > -1 {
+		return errors.New(s + " is not negative")
+	}
 	return err
 }
 
