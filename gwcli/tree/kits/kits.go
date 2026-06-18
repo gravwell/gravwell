@@ -17,7 +17,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -182,7 +181,7 @@ func pull() action.Pair {
 			items := []multiselectlist.SelectableItem[string]{}
 			for i, m := range meta {
 				items[i] = &listitem.Generic{
-					ID_:        m.UUID,
+					ID_:        m.ID,
 					Name:       m.Name,
 					SecondLine: m.Description,
 				}
@@ -191,22 +190,15 @@ func pull() action.Pair {
 		},
 		func(UUIDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(UUIDs))
-			for i, id := range UUIDs {
-				parsed, err := uuid.Parse(id)
-				if err != nil {
-					err = fmt.Errorf("failed to parse remote kit UUID: %w", err)
-					clilog.Writer.Error(err.Error())
-					results[i] = scaffold.Result{Output: err.Error()}
-					continue
-				}
-				ks, err := connection.Client.PullKit(parsed) // TODO GUID is depreciated. Using UUID until we have final confirmation
+			for i, ID := range UUIDs {
+				ks, err := connection.Client.PullKit(ID)
 				if err != nil {
 					results[i] = scaffold.Result{Output: err.Error()}
 					continue
 				}
 				results[i] = scaffold.Result{
 					Success: true,
-					Output:  fmt.Sprintf("staged kit %s (ID: %s / UUID: %s)", ks.Name, ks.ID, ks.UUID),
+					Output:  fmt.Sprintf("staged kit %s (ID: %s / KitID: %s)", ks.Name, ks.ID, ks.KitID),
 				}
 			}
 			return results, nil
@@ -240,7 +232,7 @@ func download() action.Pair {
 		"Download a kit, remote or on the connected Gravwell system, into a local directory",
 		"kit ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			local, err := connection.Client.ListKits()
+			local, err := connection.Client.ListKits(nil)
 			if err != nil {
 				clilog.Writer.Warn("failed to list local kits", log.KVErr(err))
 			}
@@ -248,11 +240,11 @@ func download() action.Pair {
 			if err != nil {
 				clilog.Writer.Warn("failed to list remote kits", log.KVErr(err))
 			}
-			if len(local) > 1 && len(remote) > 1 {
+			if len(local.Results) > 1 && len(remote) > 1 {
 				return nil, errors.New("both local and remote kits failed to return any results")
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(local)+len(remote))
-			for i, k := range local {
+			items := make([]multiselectlist.SelectableItem[string], len(local.Results)+len(remote))
+			for i, k := range local.Results {
 				items[i] = &listitem.Generic{
 					ID_:        k.ID,
 					Name:       k.Name,
@@ -260,7 +252,7 @@ func download() action.Pair {
 				}
 			}
 			for i, k := range remote {
-				items[i+len(local)] = &listitem.Generic{
+				items[i+len(local.Results)] = &listitem.Generic{
 					ID_:        k.ID,
 					Name:       k.Name,
 					SecondLine: "(remote) " + k.Description,
