@@ -73,7 +73,7 @@ func (st *stateTracker) initStates() error {
 	//is a regular file, attempt to open it RW
 	st.stateFout, err = os.OpenFile(st.filePath, os.O_RDWR, 0550) //u+rw and g+rw but no nothing else
 	if err != nil {
-		return fmt.Errorf("failed to open state file RW: %v", err)
+		return fmt.Errorf("failed to open state file RW: %w", err)
 	}
 	//we have a valid file, attempt to load states if the file isn't empty
 	fi, err = st.stateFout.Stat()
