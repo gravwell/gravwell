@@ -69,10 +69,12 @@ const (
 	fieldUsageParams = "The extraction definition. It must be single (raw) or double quoted (subject to string escape rules).\n" +
 		"Usage and syntax is dependant on module.\n" +
 		"See https://docs.gravwell.io/configuration/autoextractors.html for more info"
+	fieldUsageArgs = "Module-specific arguments used to change the behavior of the extraction module"
+)
 
-	fieldUsageArgs   = "Module-specific arguments used to change the behavior of the extraction module"
-	fieldUsageModule = "Extraction module to use. Call `extractors modules` to list available options."
-	fieldUsageTags   = "Tags this ax will extract from. There can only be one extractor per tag."
+var (
+	fieldUsageModule = "Extraction module to use. Call " + stylesheet.Path(true, "~", "extractors", "modules") + " to list available options."
+	fieldUsageTags   = "Tags this ax will extract from. Call " + stylesheet.Path(true, "~", "tags") + " There can only be one extractor per tag."
 )
 
 // #region list

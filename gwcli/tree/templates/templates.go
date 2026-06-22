@@ -349,7 +349,7 @@ func create() action.Pair {
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
-					"Call " + stylesheet.Cur.Action.Render("templates json") + " to see the format of the JSON file.",
+					"Call " + stylesheet.Path(true, "~", "templates", "json") + " to see the format of the JSON file.",
 			},
 
 			IDIsSuccessMessage: true,
