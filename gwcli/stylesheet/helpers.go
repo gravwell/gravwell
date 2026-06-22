@@ -240,3 +240,23 @@ var italics = lipgloss.NewStyle().Italic(true)
 func Italicize(s string) string {
 	return italics.Render(s)
 }
+
+// Path colors and joins each item in path.
+// Every path element will be colored as a nav; the last one will be colored as an action iff lastIsAction is set.
+func Path(lastIsAction bool, path ...string) string {
+	var sb strings.Builder
+	if len(path) < 1 {
+		return ""
+	}
+	// add every precursor colored as a nav
+	for _, pth := range path[:len(path)-1] {
+		sb.WriteString(Cur.Nav.Render(pth))
+		sb.WriteString(" ")
+	}
+	if lastIsAction {
+		sb.WriteString(Cur.Action.Render(path[len(path)-1]))
+	} else {
+		sb.WriteString(Cur.Nav.Render(path[len(path)-1]))
+	}
+	return sb.String()
+}

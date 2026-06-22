@@ -10,6 +10,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/muesli/termenv"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckBox(t *testing.T) {
@@ -21,6 +23,25 @@ func TestRadiobox(t *testing.T) {
 	if tmp := stylesheet.Radiobox(true); tmp != "(✓)" {
 		t.Fatal("incorrect checkbox.", testsupport.ExpectedActual("(✓)", tmp))
 	}
+}
+
+// Checks that stylesheet.Path wraps each element in the correct ANSI color markers
+func TestPathColoring(t *testing.T) {
+	// spawn Cur
+	stylesheet.Cur = stylesheet.Classic()
+
+	r := lipgloss.NewRenderer(nil)
+	r.SetColorProfile(termenv.ANSI256)
+	stylesheet.Cur.Nav = stylesheet.Cur.Nav.Renderer(r)
+	stylesheet.Cur.Action = stylesheet.Cur.Action.Renderer(r)
+	t.Run("last element is an action", func(t *testing.T) {
+		got := stylesheet.Path(true, "nav1", "nav2", "action")
+		require.Equal(t, "\x1b[38;5;141mnav1\x1b[0m \x1b[38;5;141mnav2\x1b[0m \x1b[38;5;158maction\x1b[0m", got)
+	})
+	t.Run("last element is a nav", func(t *testing.T) {
+		got := stylesheet.Path(false, "nav1", "nav2", "nav3")
+		require.Equal(t, "\x1b[38;5;141mnav1\x1b[0m \x1b[38;5;141mnav2\x1b[0m \x1b[38;5;141mnav3\x1b[0m", got)
+	})
 }
 
 // NOTE(rlandau): these tests are weird, given we are trying to test multiline text "visually".
