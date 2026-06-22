@@ -269,3 +269,23 @@ var DefaultFieldGroupSelectionFlags = FlagConfig{
 	Name:  "groups",
 	Usage: "Groups IDs to associate to the item",
 }
+
+// FieldSearchDuration returns a struct suitable for taking in a search duration.
+func FieldSearchDuration(required bool, order int) Field {
+	return Field{
+		Title:    "Duration",
+		Required: required,
+		Flag: FlagConfig{
+			Name:  "duration",
+			Usage: "Time span the query will look back over",
+		},
+		Provider: &TextProvider{
+			CustomInit: func() textinput.Model {
+				ti := stylesheet.NewTI("", false)
+				ti.Placeholder = "1h2m3s4ms"
+				return ti
+			},
+		},
+		Order: order,
+	}
+}
