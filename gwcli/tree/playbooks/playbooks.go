@@ -189,7 +189,7 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("playbook", "playbooks",
+	return scaffolddelete.NewDeleteAction("playbook",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetPlaybook(id)

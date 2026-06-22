@@ -64,7 +64,7 @@ func listAction() action.Pair {
 //#region delete
 
 func deleteAction() action.Pair {
-	return scaffolddelete.NewDeleteAction("dashboard", "dashboards",
+	return scaffolddelete.NewDeleteAction("dashboard",
 		del, fch, scaffolddelete.Options{})
 }
 

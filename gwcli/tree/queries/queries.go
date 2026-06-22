@@ -315,7 +315,7 @@ func background() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("search ID", "search IDs",
+	return scaffolddelete.NewDeleteAction("search ID",
 		func(dryrun bool, ID string) error {
 			if dryrun {
 				_, err := connection.Client.SearchStatus(ID)

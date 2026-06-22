@@ -232,7 +232,7 @@ func edit() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("file", "files",
+	return scaffolddelete.NewDeleteAction("file",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetFileMetadata(id)

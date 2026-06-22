@@ -211,7 +211,7 @@ func download() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("flow", "flows",
+	return scaffolddelete.NewDeleteAction("flow",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetFlow(id)

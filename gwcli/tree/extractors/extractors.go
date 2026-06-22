@@ -250,7 +250,7 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("extractor", "extractors",
+	return scaffolddelete.NewDeleteAction("extractor",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetExtraction(id)

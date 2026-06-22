@@ -188,7 +188,7 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("resource", "resources",
+	return scaffolddelete.NewDeleteAction("resource",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetResourceMetadata(id)
@@ -307,7 +307,7 @@ func replace() action.Pair {
 				updated, err := connection.Client.PopulateResourceFromReader(ID, ext, contentF)
 				if err != nil {
 					results[i] = scaffold.Result{
-						Output:  fmt.Sprintf("failed to repopulate resource %s (ID: %s): %v", contentF.Name(), ID, err),
+						Output:  fmt.Sprintf("failed to repopulate resource %s (ID: %s) from %v: %v", updated.Name, ID, pth, err),
 						Success: false,
 					}
 					continue

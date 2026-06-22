@@ -86,7 +86,7 @@ func listAction() action.Pair {
 }
 
 func uninstall() action.Pair {
-	return scaffolddelete.NewDeleteAction("kit", "kits",
+	return scaffolddelete.NewDeleteAction("kit",
 		func(dryrun bool, ID string) error {
 			if dryrun {
 				_, err := connection.Client.GetKit(ID)
