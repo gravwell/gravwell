@@ -81,7 +81,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -92,6 +91,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection/mfaprompt"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/objlog"
@@ -560,13 +560,9 @@ func end() error {
 	return nil
 }
 
-// CreateScheduledSearch is a validation wrapper around Client.CreateScheduledSearch to provide consistent
-// validation, logging, and errors.
+// CreateScheduledSearch is a validation wrapper around Client.CreateScheduledSearch to provide consistent validation, logging, and errors.
 //
-// Returns:
-//   - an ID on success, -1 on failure
-//   - a reason on invalid parameters
-//   - and an error iff the server returns an error
+// Duration will be passed in as negative seconds.
 func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 	id string, invalid string, err error,
 ) {
@@ -575,67 +571,26 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 		return id, "cannot schedule an empty query", nil
 	} else if name == "" || freq == "" {
 		return id, "name and frequency are required", nil
-	} else if dur < 0 {
-		return id, fmt.Sprintf("duration must be positive (given:%v)", dur), nil
 	}
-
-	exploded := strings.Split(freq, " ")
-	// validate cron format (`0-59` `0-23` `1-31` `1-12` `0-7`, ranges inclusive)
-	if len(exploded) != 5 {
-		return id, "frequency must have 5 elements, in the format '* * * * *'", nil
-	}
-	if inv := invalidCronWord(exploded[0], "minute", 0, 59); inv != "" {
-		return id, inv, nil
-	}
-	if inv := invalidCronWord(exploded[1], "hour", 0, 23); inv != "" {
-		return id, inv, nil
-	}
-	if inv := invalidCronWord(exploded[2], "day of the month", 1, 31); inv != "" {
-		return id, inv, nil
-	}
-	if inv := invalidCronWord(exploded[3], "month", 1, 12); inv != "" {
-		return id, inv, nil
-	}
-	if inv := invalidCronWord(exploded[4], "day of the week", 0, 6); inv != "" {
-		return id, inv, nil
+	if err := validate.CronRuneValidator(freq); err != nil {
+		return "", err.Error(), nil
 	}
 
 	// submit the request
 	clilog.Writer.Debugf("Scheduling query %v (%v) for %v", name, qry, freq)
-	// TODO provide a dialogue for selecting groups/permissions
-	spec := types.ScheduledSearch{
-		CommonFields: types.CommonFields{
-			Name:        name,
-			Description: desc,
-		},
-		AutomationCommonFields: types.AutomationCommonFields{
-			Schedule: freq,
-		},
-		SearchString: qry,
-		Duration:     int64(dur.Seconds()),
-	}
-	var result types.ScheduledSearch
-	result, err = Client.CreateScheduledSearch(spec)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to schedule search: %v", err)
-	}
-	return result.ID, "", nil
-}
-
-// Validates the given cron word, ensuring it parses and is between the two bounds (inclusively).
-// entryNumber is the order of this word ("first", "second", "third", ...).
-func invalidCronWord(word, idxDescriptor string, lowBound, highBound int) (invalid string) {
-	if i, err := strconv.Atoi(word); err != nil {
-		// check for astrisk
-		if runes := []rune(word); len(runes) == 1 && runes[0] == '*' {
-			return ""
-		}
-		return "failed to parse " + word
-	} else if i < lowBound || i > highBound {
-		return fmt.Sprintf("%s must be between %d and %d, inclusively",
-			idxDescriptor, lowBound, highBound)
-	}
-	return ""
+	result, err := Client.CreateScheduledSearch(
+		types.ScheduledSearch{
+			CommonFields: types.CommonFields{
+				Name:        name,
+				Description: desc,
+			},
+			AutomationCommonFields: types.AutomationCommonFields{
+				Schedule: freq,
+			},
+			SearchString: qry,
+			Duration:     -int64(dur.Abs().Seconds()),
+		})
+	return result.ID, "", err
 }
 
 // StartQuery validates and submits the given query to the connected server instance.
