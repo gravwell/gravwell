@@ -64,17 +64,15 @@ func NewNav() *cobra.Command {
 		})
 }
 
-// field map keys used by edit and create for consistent access.
+// ensure consistency between edit and create
 const (
-	fieldUsageParams = "regex to apply to extract.\n" +
-		"There are a few important notes about how an extraction parameter is defined:\n" +
-		"1) Each extraction parameter's value must be defined as a string and double or single quoted.\n" +
-		`2) Double quoted strings are subject to string escape rules (pay attention when using regex).` + "\n" +
-		`ex: “\b” would be the backspace command (character 0x08) not the literal “\b".` + "\n" +
-		`3) Single quoted strings are raw and not subjected to string escape rules.` + "\n" +
-		`ex: '\b' is literally the backslash character followed by the 'b' character, not a backspace.`
-	fieldUsageArgs = "module-specific arguments used to change the behavior of the extraction module.\n" +
-		"NOTE: The regex processor does not support arguments"
+	fieldUsageParams = "The extraction definition. It must be single (raw) or double quoted (subject to string escape rules).\n" +
+		"Usage and syntax is dependant on module.\n" +
+		"See https://docs.gravwell.io/configuration/autoextractors.html for more info"
+
+	fieldUsageArgs   = "Module-specific arguments used to change the behavior of the extraction module"
+	fieldUsageModule = "Extraction module to use. Call `extractors modules` to list available options."
+	fieldUsageTags   = "Tags this ax will extract from. There can only be one extractor per tag."
 )
 
 // #region list
@@ -131,8 +129,8 @@ func create() action.Pair {
 			"desc": scaffoldcreate.FieldDescription("extractor"),
 			"module": {
 				Required: true,
-				Title:    "module",
-				Flag:     scaffoldcreate.FlagConfig{Name: "module", Usage: "extraction module to use. Call `extractors modules` to list available options.", Shorthand: 'm'},
+				Title:    "Module",
+				Flag:     scaffoldcreate.FlagConfig{Name: "module", Usage: fieldUsageModule},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
@@ -154,8 +152,8 @@ func create() action.Pair {
 			},
 			"tags": {
 				Required: true,
-				Title:    "tags",
-				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: "tags this ax will extract from. There can only be one extractor per tag.", Shorthand: 't'},
+				Title:    "Tags",
+				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: fieldUsageTags},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
@@ -177,15 +175,15 @@ func create() action.Pair {
 			},
 			"params": {
 				Required: true,
-				Title:    "Params/regex",
-				Flag:     scaffoldcreate.FlagConfig{Name: "params", Usage: fieldUsageParams},
+				Title:    "Parameters",
+				Flag:     scaffoldcreate.FlagConfig{Name: "module-parameters", Usage: fieldUsageParams},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    60,
 			},
 			"args": {
 				Required:     false,
-				Title:        "arguments/options",
-				Flag:         scaffoldcreate.FlagConfig{Name: "args", Usage: fieldUsageArgs},
+				Title:        "Arguments",
+				Flag:         scaffoldcreate.FlagConfig{Name: "module-arguments", Usage: fieldUsageArgs},
 				Provider:     &scaffoldcreate.TextProvider{},
 				DefaultValue: "",
 				Order:        50,
@@ -240,6 +238,10 @@ func create() action.Pair {
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
+				Example: "create --" + ft.Name.Name() + "=testcsv " +
+					"--" + ft.Description.Name() + "=\"CSV auto-extraction for the super ugly CSV data\" " +
+					"--module csv " +
+					"--module-parameters" + "ts, name, id, guid, src, srcport, dst, dstport, data, country, city, hash",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					ft.Dryrun.Register(fs)
@@ -262,7 +264,8 @@ func delete() action.Pair {
 				var sb strings.Builder
 				sb.WriteString("failed to delete ax with warning(s):")
 				for _, wr := range wrs {
-					sb.WriteString("\n" + wr.Err.Error())
+					sb.WriteString("\n")
+					sb.WriteString(wr.Err.Error())
 				}
 				clilog.Writer.Warn(sb.String())
 				return errors.New(sb.String())
@@ -318,20 +321,18 @@ func edit() action.Pair {
 		"name": scaffoldedit.FieldName("extractor"),
 		"desc": scaffoldedit.FieldDescription("extractor"),
 		"module": &scaffoldedit.Field{
-			Required:      true,
-			Title:         "module",
-			Usage:         "extraction module to use. Call `extractors modules` to list available options.",
-			FlagName:      "module",
-			FlagShorthand: 'm',
-			Order:         80,
+			Required: true,
+			Title:    "Module",
+			Usage:    fieldUsageModule,
+			FlagName: "module",
+			Order:    80,
 		},
 		"tags": &scaffoldedit.Field{
-			Required:      true,
-			Title:         "tags",
-			Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
-			FlagName:      "tags",
-			FlagShorthand: 't',
-			Order:         70,
+			Required: true,
+			Title:    "Tags",
+			Usage:    fieldUsageTags,
+			FlagName: "tags",
+			Order:    70,
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
 				ti.Placeholder = "tag1,tag2,tag3"
@@ -340,16 +341,16 @@ func edit() action.Pair {
 		},
 		"params": &scaffoldedit.Field{
 			Required: false,
-			Title:    "params/regex",
+			Title:    "Parameters",
+			FlagName: "module-parameters",
 			Usage:    fieldUsageParams,
-			FlagName: "params",
 			Order:    60,
 		},
 		"args": &scaffoldedit.Field{
 			Required: false,
-			Title:    "arguments/options",
+			Title:    "Arguments",
+			FlagName: "module-arguments",
 			Usage:    fieldUsageArgs,
-			FlagName: "args",
 			Order:    50,
 		},
 		"labels": fLabels,
@@ -458,7 +459,8 @@ func importUpload() action.Pair {
 						Name:  warn.Name,
 						Value: fmt.Sprint(warn.Err),
 					}
-					sb.WriteString(stylesheet.Cur.ErrorText.Render(fmt.Sprintf("Warning: %v: %v", warn.Name, warn.Err)) + "\n")
+					sb.WriteString(stylesheet.Cur.ErrorText.Render(fmt.Sprintf("Warning: %v: %v", warn.Name, warn.Err)))
+					sb.WriteString("\n")
 				}
 
 				clilog.Writer.Warn("extractor update caused warnings", params...)
