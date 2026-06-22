@@ -68,6 +68,7 @@ func newKitsListAction() action.Pair {
 				"KitID",
 				"CommonFields.Name",
 				"CommonFields.Description",
+				"CommonFields.ID",
 				"KitVersion",
 			}})
 }
