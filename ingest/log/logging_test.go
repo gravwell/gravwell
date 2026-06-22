@@ -90,7 +90,7 @@ func TestValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testOutputs(t, lgr)
+	testOutputs(t, lgr, filepath.Join(tempdir, testFile))
 }
 
 func TestRawValue(t *testing.T) {
@@ -100,7 +100,7 @@ func TestRawValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	lgr.raw = true
-	testOutputs(t, lgr)
+	testOutputs(t, lgr, pth)
 	bts, err := os.ReadFile(pth)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestRawValue(t *testing.T) {
 
 }
 
-func testOutputs(t *testing.T, lgr *Logger) {
+func testOutputs(t *testing.T, lgr *Logger, file string) {
 	var err error
 	if err = lgr.Warnf("ERROR test: %d", 99); err != nil {
 		t.Fatal(err)
@@ -138,7 +138,7 @@ func testOutputs(t *testing.T, lgr *Logger) {
 	if err = lgr.Close(); err != nil {
 		t.Fatal(err)
 	}
-	bts, err := os.ReadFile(filepath.Join(tempdir, testFile))
+	bts, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
 	}
