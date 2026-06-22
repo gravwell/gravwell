@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -283,6 +284,10 @@ func FieldSearchDuration(required bool, order int) Field {
 			CustomInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
 				ti.Placeholder = "1h2m3s4ms"
+				ti.Validate = func(s string) error {
+					_, err := time.ParseDuration(s)
+					return err
+				}
 				return ti
 			},
 		},
