@@ -38,19 +38,15 @@ import (
 )
 
 func NewNav() *cobra.Command {
-	const (
-		use   string = "kits"
-		short string = "view kits associated to this instance"
-		long  string = "Kits bundle up of related items (dashboards, queries, scheduled searches," +
-			" autoextractors) for easy installation."
-	)
 	var aliases = []string{"kit"}
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav("kits", "view kits associated to this instance",
+		"Kits bundle up of related items (dashboards, queries, scheduled searches, autoextractors) for easy installation.",
+		aliases,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			uninstall(),
-			//install(),
+			install(),
 			upload(),
 			pull(),
 			remote(),
@@ -122,29 +118,76 @@ func uninstall() action.Pair {
 		})
 }
 
-// TODO
-/*func install() action.Pair {
+func install() action.Pair {
 	return scaffoldselect.NewSelectAction("install a staged kit",
-		"Install a kit that has been uploaded/staged, queuing it for full installed.",
+		"Install a kit that has been uploaded/staged, queuing it for full installation.",
 		"kit",
-		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[uuid.UUID], error) {
-			ks, err := connection.Client.KitStatuses()
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			ks, err := connection.Client.ListKits(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			items := []multiselectlist.SelectableItem[uuid.UUID]{}
-			for _, kit := range ks {
-				if kit.CurrentStep
-			}
-		},
-		func(IDs []ID_t, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
-			for i, ID := range IDs {
+			items := []multiselectlist.SelectableItem[string]{}
+			for _, kit := range ks.Results {
+				if kit.Installed {
+					continue
+				}
 
+				items = append(items, &listitem.Generic{
+					ID_:        kit.ID,
+					Name:       kit.Name,
+					SecondLine: fmt.Sprintf("(Version: %v) %s", kit.Version, kit.Description),
+				})
 			}
+			return items, nil
 		},
-		scaffoldselect.Options{},
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			overwriteExisting, err := addtlFlags.GetBool("overwrite-existing")
+			clilog.GetFlag(err)
+			allowUnsigned, err := addtlFlags.GetBool("allow-unsigned")
+			clilog.GetFlag(err)
+			itemLabels, err := addtlFlags.GetStringArray("item-label")
+			clilog.GetFlag(err)
+			kitLabels, err := addtlFlags.GetStringArray("kit-label")
+			clilog.GetFlag(err)
+
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				_, err := connection.Client.InstallKit(ID,
+					types.KitConfig{
+						OverwriteExisting: overwriteExisting,
+						AllowUnsigned:     allowUnsigned,
+						Labels:            itemLabels,
+						KitLabels:         kitLabels,
+					},
+				)
+				if err != nil {
+					results[i] = scaffold.Result{Output: "failed to install kit " + ID + ": " + err.Error()}
+					continue
+				}
+				results[i] = scaffold.Result{
+					Success: true,
+					Output:  "installed kit " + ID,
+				}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("overwrite-existing", false, "Overwrite existing assets")
+					fs.Bool("allow-unsigned", false, "Allow installation of unsigned kits")
+					fs.StringArray("item-label", nil, "Label to apply to each item of each kit. "+
+						"Each instance of --item-labels will create exactly one item label; they will not be split on commas")
+					fs.StringArray("kit-label", nil, "Label to apply to each kit. "+
+						"Each instance of --kit-labels will create exactly one kit label; they will not be split on commas")
+					return fs
+				},
+			},
+		},
 	)
-}*/
+}
 
 func upload() action.Pair {
 	return scaffoldcreate.NewCreateAction("kit",
@@ -216,7 +259,10 @@ func remote() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{Use: "remote"},
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "remotes",
+				Aliases: []string{"list-remotes", "remote", "list-remote"},
+			},
 			DefaultColumns: []string{"UUID", "Name", "Description", "Version"},
 			Omit: scaffold.OmitFlags{
 				AllData:        false,
