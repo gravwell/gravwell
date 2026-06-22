@@ -99,9 +99,9 @@ func create() action.Pair {
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    150,
 			},
-			"dur":  scaffoldcreate.FieldSearchDuration(true, 140),
-			"name": scaffoldcreate.FieldName("query"),
-			"desc": scaffoldcreate.FieldDescription("query"),
+			"duration": scaffoldcreate.FieldSearchDuration(true, 140),
+			"name":     scaffoldcreate.FieldName("query"),
+			"desc":     scaffoldcreate.FieldDescription("query"),
 
 			"freq": { // manually build so we have more control
 				Required: true,
@@ -125,7 +125,7 @@ func create() action.Pair {
 				desc      = cfg["desc"].Provider.Get()
 				freq      = cfg["freq"].Provider.Get()
 				qry       = cfg["qry"].Provider.Get()
-				durString = cfg["dur"].Provider.Get()
+				durString = cfg["duration"].Provider.Get()
 			)
 			dur, err := time.ParseDuration(durString)
 			if err != nil { // report as invalid parameter, not an error
@@ -207,16 +207,15 @@ func edit() action.Pair {
 			"duration": &scaffoldedit.Field{
 				Required: true,
 				Title:    "Duration",
-				Usage:    "how many seconds back to pass. Must be negative.",
+				Usage:    "Time span the query will look back over",
 				FlagName: "duration",
 				Order:    120,
 				CustomTIFuncInit: func() textinput.Model {
 					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "1h2m3s4ms"
 					ti.Validate = func(s string) error {
-						if s == "" {
-							return errors.New("duration is required")
-						}
-						return validate.NegativeNumber(s)
+						_, err := time.ParseDuration(s)
+						return err
 					}
 					return ti
 				},
@@ -280,11 +279,11 @@ func edit() action.Pair {
 				case "frequency":
 					item.Schedule = val
 				case "duration":
-					dur, err := strconv.ParseInt(val, 10, 64)
+					dur, err := time.ParseDuration(val)
 					if err != nil {
 						return err.Error(), nil
 					}
-					item.Duration = dur
+					item.Duration = -int64(dur.Abs().Seconds())
 				case "offset":
 					offset, err := strconv.ParseInt(val, 10, 64)
 					if err != nil {
