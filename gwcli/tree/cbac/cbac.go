@@ -621,7 +621,7 @@ func set() action.Pair {
 				fmt.Fprintf(&sb, " with %v", newCaps.Grants)
 			}
 
-			return "Replaced the capabilities of ", "", nil // TODO custom success message
+			return sb.String(), "", nil
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
