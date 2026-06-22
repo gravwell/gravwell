@@ -1,6 +1,8 @@
 package hosted
 
 import (
+	"bufio"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,4 +38,18 @@ func TestTesterPlugin(t *testing.T) {
 	if len(ent) == 0 {
 		t.Fatal("No entries found")
 	}
+
+	t.Run("Check Logs", func(t *testing.T) {
+		r, err := fetcher.CopyFileFromContainer(t.Context(), "/opt/gravwell/log/hosted_runner.log")
+		if err != nil {
+			t.Fatal(err)
+		}
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), "testing errors") {
+				return
+			}
+		}
+		t.Fatal("failed to find testing errors in log file")
+	})
 }
