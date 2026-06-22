@@ -70,15 +70,9 @@ func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 		clilog.GetFlag(err)
 	} else if all {
 		r, err := connection.Client.ListAllDashboards(nil)
-		if err != nil {
-			return nil, err
-		}
 		return r.Results, err
 	}
 	r, err := connection.Client.ListDashboards(nil)
-	if err != nil {
-		return nil, err
-	}
 	return r.Results, err
 }
 
