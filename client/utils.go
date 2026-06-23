@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -75,4 +76,26 @@ func decodeJWTExpires(jwt string) (r time.Time) {
 		}
 	}
 	return
+}
+
+// checkResponse tests the given http response for common errors and aliases them as appropriate.
+// If a non-200 status code is given, the response's body will be automatically drained.
+func checkResponse(c *Client, resp *http.Response) error {
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	defer drainResponse(resp)
+
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		c.state = STATE_LOGGED_OFF
+		return ErrNotAuthed
+	case http.StatusNotFound:
+		return ErrNotFound
+	default: // unhandled code; check body for error
+		if s := getBodyErr(resp.Body); len(s) > 0 {
+			return errors.New(s)
+		}
+		return fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
+	}
 }
