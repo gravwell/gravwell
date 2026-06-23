@@ -12,8 +12,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -142,18 +140,7 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 	resp, err = c.methodRequestURL(http.MethodPut, resourcesIdRawUrl(id), contentType, rdr)
 	if err != nil {
 		return types.Resource{}, err
-	}
-	defer drainResponse(resp)
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return types.Resource{}, ErrNotAuthed
-	} else if resp.StatusCode != http.StatusOK {
-		if s := getBodyErr(resp.Body); len(s) > 0 {
-			err = errors.New(s)
-		} else {
-			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
-		}
+	} else if err := checkResponse(c, resp); err != nil {
 		return types.Resource{}, err
 	}
 
@@ -206,17 +193,19 @@ func (c *Client) GetResource(name string) ([]byte, error) {
 }
 
 // GetResourceEx returns the contents of the resource with the specified name, up to previewBytes (if 0, everything is returned).
-//
 // Follows the name/ID logic of GetResource.
+//
+// If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
+// Up to previewBytes will be returned; if 0, everything is returned.
 func (c *Client) GetResourceEx(name string, opts *types.QueryOptions, previewBytes uint64) ([]byte, error) {
-	var meta types.Resource
-	err := c.getStaticURL(resourcesLookupUrl(name), &meta)
-	if err != nil {
-		return nil, err
-	}
-
 	if opts == nil {
 		opts = &types.QueryOptions{}
+	}
+
+	var meta types.Resource
+	err := c.getStaticURL(resourcesLookupUrl(name), &meta, ezParam("include_deleted", opts.IncludeDeleted))
+	if err != nil {
+		return nil, err
 	}
 
 	resp, err := c.methodParamRequestURL(http.MethodGet, resourcesIdRawUrl(meta.ID), map[string]string{
@@ -225,6 +214,8 @@ func (c *Client) GetResourceEx(name string, opts *types.QueryOptions, previewByt
 	}, nil)
 	if err != nil {
 		return nil, err
+	} else if err := checkResponse(c, resp); err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 	return io.ReadAll(resp.Body)
@@ -232,13 +223,13 @@ func (c *Client) GetResourceEx(name string, opts *types.QueryOptions, previewByt
 
 // LookupResource attempts to resolve the resource with the specified
 // user-friendly name. It follows precedence as defined on the GetResource method.
-func (c *Client) LookupResource(name string) (string, error) {
-	var id string
-	err := c.getStaticURL(resourcesLookupUrl(name), &id)
+func (c *Client) LookupResource(name string) (types.Resource, error) {
+	var meta types.Resource
+	err := c.getStaticURL(resourcesLookupUrl(name), &meta)
 	if err != nil {
-		return "", err
+		return types.Resource{}, err
 	}
-	return id, nil
+	return meta, nil
 }
 
 // CloneResource creates a copy of an existing resource (specified by ID) with the

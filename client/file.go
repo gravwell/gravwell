@@ -65,18 +65,7 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions, previewBytes uin
 	}, nil)
 	if err != nil {
 		return nil, err
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		drainResponse(resp)
-		return nil, ErrNotAuthed
-	} else if resp.StatusCode != http.StatusOK {
-		if s := getBodyErr(resp.Body); len(s) > 0 {
-			err = errors.New(s)
-		} else {
-			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
-		}
-		drainResponse(resp)
+	} else if err := checkResponse(c, resp); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
