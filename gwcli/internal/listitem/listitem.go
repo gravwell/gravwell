@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 )
 
 // Generic provides a general-purpose list item for types that do not require much special handling to be stuffed into a list.Model or MSL.
@@ -214,9 +215,9 @@ func GetGroup(l *list.Model) (types.Group, error) {
 
 // WrapDashboards returns an MSL and list.Model ready array of the given dashboards.
 // No items are marked as selected.
-func WrapDashboards(dashboards []types.Dashboard) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(dashboards))
-	for i, itm := range dashboards {
+func WrapDashboards(x []types.Dashboard) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
 		items[i] = &Generic{
 			ID_:        itm.ID,
 			Name:       itm.Name,
@@ -228,9 +229,9 @@ func WrapDashboards(dashboards []types.Dashboard) []multiselectlist.SelectableIt
 
 // WrapTemplates returns an MSL and list.Model ready array of the given templates.
 // No items are marked as selected.
-func WrapTemplates(templates []types.Template) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(templates))
-	for i, itm := range templates {
+func WrapTemplates(x []types.Template) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
 		items[i] = &Generic{
 			ID_:        itm.ID,
 			Name:       itm.Name,
@@ -242,9 +243,9 @@ func WrapTemplates(templates []types.Template) []multiselectlist.SelectableItem[
 
 // WrapActionables returns an MSL and list.Model ready array of the given actionables.
 // No items are marked as selected.
-func WrapActionables(actionables []types.Actionable) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(actionables))
-	for i, itm := range actionables {
+func WrapActionables(x []types.Actionable) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
 		items[i] = &Generic{
 			Selected_:    false,
 			ID_:          itm.ID,
@@ -257,17 +258,98 @@ func WrapActionables(actionables []types.Actionable) []multiselectlist.Selectabl
 	return items
 }
 
-// WrapFlows returns an MSL and list.Model ready array of the given actionables.
+// WrapFlows returns an MSL and list.Model ready array of the given flows.
 // No items are marked as selected.
-func WrapFlows(flows []types.Flow) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(flows))
-	for i, itm := range flows {
+func WrapFlows(x []types.Flow) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
 		items[i] = &Generic{
 			ID_:          itm.ID,
 			Name:         itm.Name,
 			SecondLine:   fmt.Sprintf("[%s] %s", itm.Schedule, itm.Description),
 			ShowDisabled: true,
 			Enabled:      !itm.Disabled,
+		}
+	}
+	return items
+}
+
+// WrapScheduledSearches returns an MSL and list.Model ready array of the given scheduled searches.
+// No items are marked as selected.
+func WrapScheduledSearches(x []types.ScheduledSearch) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		line := fmt.Sprintf("[%s] %s", itm.Schedule, itm.SearchString)
+		if itm.Description != "" {
+			line += " - " + itm.Description
+		}
+		items[i] = &Generic{
+			ID_:          itm.ID,
+			Name:         itm.Name,
+			SecondLine:   line,
+			ShowDisabled: true,
+			Enabled:      !itm.Disabled,
+		}
+	}
+	return items
+}
+
+// WrapResources returns an MSL and list.Model ready array of the given resources.
+// No items are marked as selected.
+func WrapResources(x []types.Resource) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		items[i] = &Generic{
+			Selected_:  false,
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+		}
+	}
+	return items
+}
+
+// WrapMacros returns an MSL and list.Model ready array of the given macros.
+// No items are marked as selected.
+func WrapMacros(x []types.Macro) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		items[i] = &Generic{
+			Selected_:  false,
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: itm.Description,
+		}
+	}
+	return items
+}
+
+// WrapAXs returns an MSL and list.Model ready array of the given extractors.
+// No items are marked as selected.
+func WrapAXs(x []types.AX) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		items[i] = &Generic{
+			Selected_: false,
+			ID_:       itm.ID,
+			Name:      itm.Name,
+			SecondLine: fmt.Sprintf("%s/%s|%s", stylesheet.Cur.SecondaryText.Render(itm.Module),
+				stylesheet.Cur.SecondaryText.Render("["+strings.Join(itm.Tags, " ")+"]"),
+				itm.Description),
+		}
+	}
+	return items
+}
+
+// WrapFiles returns an MSL and list.Model ready array of the given files.
+// No items are marked as selected.
+func WrapFiles(x []types.File) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		items[i] = &Generic{
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
 		}
 	}
 	return items
