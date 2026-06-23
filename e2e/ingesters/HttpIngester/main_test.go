@@ -2,10 +2,9 @@ package HttpIngester
 
 import (
 	"fmt"
+	"gravwell/e2e"
 	"testing"
 	"time"
-
-	"gravwell/e2e"
 
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -19,13 +18,14 @@ func TestMain(m *testing.M) {
 	e2e.Cleanup()
 }
 
-func setup(t *testing.T, name string) (*tc.DockerContainer, string) {
+func setup(t *testing.T, name string, extras ...tc.ContainerCustomizer) (*tc.DockerContainer, string) {
+	cc := append([]tc.ContainerCustomizer{
+		e2e.WithConfig(t, fmt.Sprintf("testdata/%s.conf", name), "gravwell_http_ingester.conf", e2e.DefaultConfig),
+		tc.WithExposedPorts("80/tcp"),
+		tc.WithAdditionalWaitStrategyAndDeadline(10*time.Second, wait.NewHTTPStrategy("/health/check").WithPollInterval(time.Second)),
+	}, extras...)
 	ingester, err := tc.Run(t.Context(), "",
-		e2e.Ingester(t, name, "HttpIngester",
-			e2e.WithConfig(t, fmt.Sprintf("testdata/%s.conf", name), "gravwell_http_ingester.conf", e2e.DefaultConfig),
-			tc.WithExposedPorts("80/tcp"),
-			tc.WithAdditionalWaitStrategyAndDeadline(10*time.Second, wait.NewHTTPStrategy("/health/check").WithPollInterval(time.Second)),
-		)...,
+		e2e.Ingester(t, name, "HttpIngester", cc...)...,
 	)
 	t.Cleanup(func() {
 		e2e.SaveTestFiles(t, ingester, e2e.Log, []string{

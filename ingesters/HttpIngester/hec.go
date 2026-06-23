@@ -171,27 +171,27 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		log.KV("url", r.URL.RequestURI()),
 	)
 
-	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
-	if err != nil {
-		ll.Error("failed to create limited decoder", log.KVErr(err))
-		hh.respInternalServerError(w)
-		return
-	}
-
 	if cfg.debugPosts {
 		now := time.Now()
 		defer func() {
 			//Log how many bytes and entries were on this config
-			kvs := []rfc5424.SDParam{log.KV("host", ip),
-				log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-				log.KV("bytes", dec.TotalRead()), log.KV("entries", counter),
+			kvs := append(requestKV(w, r),
+				log.KV("HEC-Listener", hh.name),
+				log.KV("entries", counter),
 				log.KV("ms", time.Since(now).Milliseconds()),
-			}
+			)
 			if tgo.hot() {
 				kvs = append(kvs, tgo.LogKV())
 			}
 			h.igst.Info("HEC request", kvs...)
 		}()
+	}
+
+	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
+	if err != nil {
+		ll.Error("failed to create limited decoder", log.KVErr(err))
+		hh.respInternalServerError(w)
+		return
 	}
 
 	//check if the query url has a tag or sourcetype parameter
@@ -277,7 +277,7 @@ loop:
 				}
 			}
 		}
-		debugout("Sending entry %+v", e)
+		debugout("Sending entry %+v\n", e)
 		if err = h.handleEntryEx(cfg, &e); err != nil {
 			//cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 			ll.Error("failed to send entry", log.KVErr(err))
@@ -348,16 +348,15 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	if cfg.debugPosts {
 		now := time.Now()
 		defer func() {
-			kvs := []rfc5424.SDParam{log.KV("host", ip),
-				log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-				log.KV("bytes", data), log.KV("entries", count),
+			kvs := append(requestKV(w, r),
+				log.KV("entries", count),
 				log.KV("ms", time.Since(now).Milliseconds()),
-			}
+			)
 			if tgo.hot() {
 				kvs = append(kvs, tgo.LogKV())
 			}
 			//Log how many bytes and entries were on this config
-			h.igst.Info("raw HEC request", kvs...)
+			ll.Info("raw HEC request", kvs...)
 		}()
 	}
 	//check if the query url has a tag or sourcetype parameter
@@ -378,7 +377,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		}
 		if err != nil {
 			if err != io.EOF {
-				h.lgr.Error("failed to read complete post", log.KV("address", ip), log.KVErr(err))
+				ll.Error("failed to read complete post", log.KV("address", ip), log.KVErr(err))
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -389,7 +388,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 			continue //skip empty newlines
 		}
 		if err = h.handleEntry(cfg, ln, ip, defaultTag); err != nil {
-			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+			ll.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			hh.respInvalidDataFormat(w, count)
 			return
 		}

@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -88,11 +87,10 @@ func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 	if cfg.debugPosts {
 		now := time.Now()
 		defer func() {
-			kvs := []rfc5424.SDParam{log.KV("host", ip),
-				log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-				log.KV("bytes", bodyReadLimit-lr.N), log.KV("entries", len(batch)),
+			kvs := append(requestKV(w, r),
+				log.KV("entries", len(batch)),
 				log.KV("ms", time.Since(now).Milliseconds()),
-			}
+			)
 			h.igst.Info("Amazon Firehose Event", kvs...)
 		}()
 	}

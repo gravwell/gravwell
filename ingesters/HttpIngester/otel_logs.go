@@ -19,7 +19,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -61,10 +60,11 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 	if cfg.debugPosts {
 		now := time.Now()
 		defer func() {
-			kvs := []rfc5424.SDParam{
-				log.KV("bytes", byteCount), log.KV("entries", entriesCount),
+			kvs := append(requestKV(w, r),
+				log.KV("otel-logs-listener", oh.name),
+				log.KV("entries", entriesCount),
 				log.KV("ms", time.Since(now).Milliseconds()),
-			}
+			)
 			h.igst.Info("OpenTelemetry logs request", kvs...)
 		}()
 	}
