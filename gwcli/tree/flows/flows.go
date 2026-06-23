@@ -224,37 +224,16 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, f := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        f.ID,
-					Name:       f.Name,
-					SecondLine: f.Description,
-				}
-			}
-
-			return items, nil
+			return listitem.WrapFlows(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
 func listFlowItems() ([]multiselectlist.SelectableItem[string], error) {
-	baseList, err := connection.Client.ListFlows(nil)
+	lr, err := connection.Client.ListFlows(nil)
 	if err != nil {
 		return nil, err
 	}
-
-	itms := make([]multiselectlist.SelectableItem[string], len(baseList.Results))
-	for i, f := range baseList.Results {
-		itms[i] = &listitem.Generic{
-			ID_:          f.ID,
-			Name:         f.Name,
-			SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
-			ShowDisabled: true,
-			Enabled:      !f.Disabled,
-		}
-	}
-	return itms, nil
+	return listitem.WrapFlows(lr.Results), nil
 }
 
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
@@ -315,22 +294,16 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], 0, len(baseList.Results))
+			itms := make([]types.Flow, 0, len(baseList.Results))
 			for _, f := range baseList.Results {
 				if enable && f.BackfillEnabled {
 					continue
 				} else if disable && !f.BackfillEnabled {
 					continue
 				}
-				itms = append(itms, &listitem.Generic{
-					ID_:          f.ID,
-					Name:         f.Name,
-					SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
-					ShowDisabled: true,
-					Enabled:      !f.Disabled,
-				})
+				itms = append(itms, f)
 			}
-			return itms, nil
+			return listitem.WrapFlows(itms), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)

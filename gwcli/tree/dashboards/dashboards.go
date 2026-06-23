@@ -81,17 +81,7 @@ func fch() ([]multiselectlist.SelectableItem[string], error) {
 	if err != nil {
 		return nil, err
 	}
-	var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-	for i, d := range lr.Results {
-		items[i] = &listitem.Generic{
-			Selected_:  false,
-			ID_:        d.ID,
-			Name:       d.Name,
-			SecondLine: d.Description,
-		}
-	}
-
-	return items, nil
+	return listitem.WrapDashboards(lr.Results), nil
 }
 
 func cloneAction() action.Pair {
@@ -102,16 +92,7 @@ func cloneAction() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(dlr.Results))
-			for i, dash := range dlr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        dash.ID,
-					Name:       dash.Name,
-					SecondLine: dash.Description,
-				}
-			}
-			return items, nil
+			return listitem.WrapDashboards(dlr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

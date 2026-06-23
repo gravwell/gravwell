@@ -8,6 +8,7 @@
 
 // Package listitem defines common list types so we don't have a bunch of duplicate structs floating around any time list.Model or
 // multiselectlist.Model are used.
+// Some Wrap functions are provided so MSLs of a given type look and operate comparably between actions.
 package listitem
 
 import (
@@ -209,4 +210,65 @@ func GetGroup(l *list.Model) (types.Group, error) {
 		return types.Group{}, clilog.TypeAssert(l.SelectedItem(), &Group{})
 	}
 	return g.G, nil
+}
+
+// WrapDashboards returns an MSL and list.Model ready array of the given dashboards.
+// No items are marked as selected.
+func WrapDashboards(dashboards []types.Dashboard) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(dashboards))
+	for i, itm := range dashboards {
+		items[i] = &Generic{
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: itm.Description,
+		}
+	}
+	return items
+}
+
+// WrapTemplates returns an MSL and list.Model ready array of the given templates.
+// No items are marked as selected.
+func WrapTemplates(templates []types.Template) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(templates))
+	for i, itm := range templates {
+		items[i] = &Generic{
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: itm.Description,
+		}
+	}
+	return items
+}
+
+// WrapActionables returns an MSL and list.Model ready array of the given actionables.
+// No items are marked as selected.
+func WrapActionables(actionables []types.Actionable) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(actionables))
+	for i, itm := range actionables {
+		items[i] = &Generic{
+			Selected_:    false,
+			ID_:          itm.ID,
+			Name:         itm.Name,
+			SecondLine:   itm.Description,
+			ShowDisabled: true,
+			Enabled:      !itm.Disabled,
+		}
+	}
+	return items
+}
+
+// WrapFlows returns an MSL and list.Model ready array of the given actionables.
+// No items are marked as selected.
+func WrapFlows(flows []types.Flow) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(flows))
+	for i, itm := range flows {
+		items[i] = &Generic{
+			ID_:          itm.ID,
+			Name:         itm.Name,
+			SecondLine:   fmt.Sprintf("[%s] %s", itm.Schedule, itm.Description),
+			ShowDisabled: true,
+			Enabled:      !itm.Disabled,
+		}
+	}
+	return items
 }

@@ -146,17 +146,8 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, t := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        t.ID,
-					Name:       t.Name,
-					SecondLine: t.Description,
-				}
-			}
 
-			return items, nil
+			return listitem.WrapTemplates(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -223,19 +214,11 @@ type content struct {
 func show() action.Pair {
 	return scaffoldselect.NewSelectAction("display template contents", "Display the contents of a template", "template",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			templates, err := connection.Client.ListTemplates(nil) // TODO need to pass in params
+			lr, err := connection.Client.ListTemplates(nil) // TODO need to pass in params
 			if err != nil {
 				return nil, err
 			}
-			data := make([]multiselectlist.SelectableItem[string], len(templates.Results))
-			for i, template := range templates.Results {
-				data[i] = &listitem.Generic{
-					ID_:        template.ID,
-					Name:       template.Name,
-					SecondLine: template.Description,
-				}
-			}
-			return data, nil
+			return listitem.WrapTemplates(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())

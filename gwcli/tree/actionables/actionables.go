@@ -215,18 +215,7 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, actionable := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:    false,
-					ID_:          actionable.ID,
-					Name:         actionable.Name,
-					SecondLine:   actionable.Description,
-					ShowDisabled: true,
-					Enabled:      !actionable.Disabled,
-				}
-			}
-			return items, nil
+			return listitem.WrapActionables(lr.Results), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (_ []scaffold.Result, _ error) {
 			// This is an exactly1 function
@@ -359,18 +348,7 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, p := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:    false,
-					ID_:          p.ID,
-					Name:         p.Name,
-					SecondLine:   p.Description,
-					ShowDisabled: true,
-					Enabled:      !p.Disabled,
-				}
-			}
 
-			return items, nil
+			return listitem.WrapActionables(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
