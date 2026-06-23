@@ -74,15 +74,8 @@ func download() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			data := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, pb := range lr.Results {
-				data[i] = &listitem.Generic{
-					ID_:        pb.ID,
-					Name:       pb.Name,
-					SecondLine: pb.Description,
-				}
-			}
-			return data, nil
+
+			return listitem.WrapPlaybooks(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// check for output
@@ -202,17 +195,8 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, p := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        p.ID,
-					Name:       p.Name,
-					SecondLine: p.Description,
-				}
-			}
 
-			return items, nil
+			return listitem.WrapPlaybooks(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 

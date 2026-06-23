@@ -14,8 +14,6 @@ import (
 	"slices"
 	"time"
 
-	"strings"
-
 	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -45,36 +43,13 @@ func NewNav() *cobra.Command {
 	)
 	return treeutils.GenerateNav(use, short, long, []string{"alert"}, []*cobra.Command{},
 		[]action.Pair{
-			alertsList(),
+			listAction(),
 			toggle(),
 			delete(),
 			alertscreate.Action(),
 			dispatchers(),
 			save(),
 		})
-}
-
-//#region helpers
-
-func alertsToGeneric(a types.AlertListResponse) (g []multiselectlist.SelectableItem[string]) {
-	// sort on name
-	slices.SortStableFunc(a.Results,
-		func(a, b types.Alert) int {
-			return strings.Compare(a.Name, b.Name)
-		})
-	g = make([]multiselectlist.SelectableItem[string], len(a.Results))
-	for i, a := range a.Results {
-		g[i] = &listitem.Generic{
-			Selected_:  false,
-			ID_:        a.ID,
-			Name:       a.Name,
-			SecondLine: a.Description,
-
-			ShowDisabled: true,
-			Enabled:      !a.Disabled,
-		}
-	}
-	return g
 }
 
 //#region actions
@@ -85,13 +60,8 @@ var (
 	listDispatcherID string
 )
 
-func alertsList() action.Pair {
-	const (
-		short string = "list your alerts"
-		long  string = "lists alerts associated to your user. If admin mode is active, returns all alerts for all users."
-	)
-
-	return scaffoldlist.NewListAction(short, long, types.Alert{},
+func listAction() action.Pair {
+	return scaffoldlist.NewListAction("list your alerts", "Lists alerts associated to your user.", types.Alert{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
 
 			if listConsumerID != "" {
@@ -164,11 +134,11 @@ func delete() action.Pair {
 			return connection.Client.DeleteAlert(id)
 		},
 		func() ([]multiselectlist.SelectableItem[string], error) {
-			alerts, err := connection.Client.ListAlerts(nil)
+			lr, err := connection.Client.ListAlerts(nil)
 			if err != nil {
 				return nil, err
 			}
-			return alertsToGeneric(alerts), nil
+			return listitem.WrapAlerts(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -286,11 +256,11 @@ func dispatchers() action.Pair {
 			"Use --add to add dispatchers, --remove to remove them, or neither to replace the entire list.",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			return alertsToGeneric(a), nil
+			return listitem.WrapAlerts(lr.Results), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
@@ -414,11 +384,11 @@ func save() action.Pair {
 			"If an alert would be enabled but have a save duration of 0, it will default to "+defaultDuration.String()+".",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			return alertsToGeneric(a), nil
+			return listitem.WrapAlerts(lr.Results), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {

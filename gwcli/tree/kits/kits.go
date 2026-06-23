@@ -332,7 +332,7 @@ func build() action.Pair {
 			"flows": {
 				Title:    "Flows",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "flows", Usage: "Comma-separated list of flows IDs to include in the kit."},
+				Flag:     scaffoldcreate.FlagConfig{Name: "flows", Usage: "Comma-separated list of flow IDs to include in the kit."},
 				Order:    480,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
@@ -366,7 +366,7 @@ func build() action.Pair {
 			"resources": {
 				Title:    "Resources",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "resources", Usage: "Comma-separated list of resources IDs to include in the kit."},
+				Flag:     scaffoldcreate.FlagConfig{Name: "resources", Usage: "Comma-separated list of resource IDs to include in the kit."},
 				Order:    440,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
@@ -383,7 +383,7 @@ func build() action.Pair {
 			"macros": {
 				Title:    "Macros",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "macros", Usage: "Comma-separated list of macros IDs to include in the kit."},
+				Flag:     scaffoldcreate.FlagConfig{Name: "macros", Usage: "Comma-separated list of macro IDs to include in the kit."},
 				Order:    420,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
@@ -424,13 +424,13 @@ func build() action.Pair {
 			"files": {
 				Title:    "Files",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "files", Usage: "Comma-separated list of files IDs to include in the kit."},
+				Flag:     scaffoldcreate.FlagConfig{Name: "files", Usage: "Comma-separated list of file IDs to include in the kit."},
 				Order:    360,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: true})
 						if err != nil {
-							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
+							clilog.Writer.Warn("failed to fetch files", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
 						return listitem.WrapFiles(lr.Results)
@@ -439,18 +439,38 @@ func build() action.Pair {
 				},
 			},
 			"playbooks": {
-				Title:    "KitVersion",
+				Title:    "Playbooks",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "playbooks", Usage: "Comma-separated list of playbook IDs to include in the kit."},
 				Order:    340,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListPlaybooks(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch playbooks", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapPlaybooks(lr.Results)
+					},
+				},
+				},
 			},
 			"alerts": {
-				Title:    "KitVersion",
+				Title:    "Alerts",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "alerts", Usage: "Comma-separated list of alert IDs to include in the kit."},
 				Order:    320,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch alert", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapAlerts(lr.Results)
+					},
+				},
+				},
 			},
 			"embedded items": {
 				Title:    "KitVersion",

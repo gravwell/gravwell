@@ -13,6 +13,7 @@ package listitem
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -350,6 +351,41 @@ func WrapFiles(x []types.File) []multiselectlist.SelectableItem[string] {
 			ID_:        itm.ID,
 			Name:       itm.Name,
 			SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+		}
+	}
+	return items
+}
+
+// WrapPlaybooks returns an MSL and list.Model ready array of the given playbooks.
+// No items are marked as selected.
+func WrapPlaybooks(x []types.Playbook) []multiselectlist.SelectableItem[string] {
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		items[i] = &Generic{
+			Selected_:  false,
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: itm.Description,
+		}
+	}
+	return items
+}
+
+// WrapAlerts returns an MSL and list.Model ready array of the given alerts.
+// No items are marked as selected.
+func WrapAlerts(x []types.Alert) []multiselectlist.SelectableItem[string] {
+	// sort on name
+	slices.SortStableFunc(x, func(a, b types.Alert) int { return strings.Compare(a.Name, b.Name) })
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		items[i] = &Generic{
+			Selected_:  false,
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: itm.Description,
+
+			ShowDisabled: true,
+			Enabled:      !itm.Disabled,
 		}
 	}
 	return items
