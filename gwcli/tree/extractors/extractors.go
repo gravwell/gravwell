@@ -279,19 +279,8 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, ax := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_: false,
-					ID_:       ax.ID,
-					Name:      ax.Name,
-					SecondLine: fmt.Sprintf("%s/%s|%s", stylesheet.Cur.SecondaryText.Render(ax.Module),
-						stylesheet.Cur.SecondaryText.Render("["+strings.Join(ax.Tags, " ")+"]"),
-						ax.Description),
-				}
-			}
 
-			return items, nil
+			return listitem.WrapAXs(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -491,7 +480,7 @@ func find() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			data := make([]multiselectlist.SelectableItem[string], 0, len(tags))
+			data := make([]types.AX, 0, len(tags))
 			for _, tag := range tags {
 				ax, err := connection.Client.FindExtraction(tag)
 				if phrases.IsNotFoundErr(err) { // no associated ax
@@ -499,13 +488,9 @@ func find() action.Pair {
 				} else if err != nil {
 					return nil, err
 				}
-				data = append(data, &listitem.Generic{
-					ID_:        tag,
-					Name:       tag,
-					SecondLine: fmt.Sprintf("%s(%s): %s", ax.Name, ax.Module, ax.Description),
-				})
+				data = append(data, ax)
 			}
-			return slices.Clip(data), nil
+			return listitem.WrapAXs(slices.Clip(data)), nil
 		},
 		func(tags []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(tags))

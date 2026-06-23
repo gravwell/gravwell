@@ -201,17 +201,8 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, r := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        r.ID,
-					Name:       r.Name,
-					SecondLine: r.Description,
-				}
-			}
 
-			return items, nil
+			return listitem.WrapResources(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -284,11 +275,7 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, f := range lr.Results {
-				items[i] = resourceToGeneric(f, false)
-			}
-			return items, nil
+			return listitem.WrapResources(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -341,15 +328,4 @@ func replace() action.Pair {
 			},
 			Exactly1: true,
 		})
-}
-
-//#region helpers
-
-func resourceToGeneric(f types.Resource, selected bool) *listitem.Generic {
-	return &listitem.Generic{
-		Selected_:  selected,
-		ID_:        f.ID,
-		Name:       f.Name,
-		SecondLine: fmt.Sprintf("(Size: %v) %s", f.Size, f.Description),
-	}
 }

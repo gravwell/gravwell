@@ -355,48 +355,88 @@ func build() action.Pair {
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						lr, err := connection.Client.ListScheduledSearches(&types.QueryOptions{AdminMode: true})
 						if err != nil {
-							clilog.Writer.Warn("failed to fetch flows", scaffold.IdentifyCaller(), log.KVErr(err))
+							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapFlows(lr.Results)
+						return listitem.WrapScheduledSearches(lr.Results)
 					},
 				},
 				},
 			},
 			"resources": {
-				Title:    "KitVersion",
+				Title:    "Resources",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "resources", Usage: "Comma-separated list of resources IDs to include in the kit."},
 				Order:    440,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapResources(lr.Results)
+					},
+				},
+				},
 			},
 			"macros": {
-				Title:    "KitVersion",
+				Title:    "Macros",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "macros", Usage: "Comma-separated list of macros IDs to include in the kit."},
 				Order:    420,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListMacros(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch macros", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapMacros(lr.Results)
+					},
+				},
+				},
 			},
-			"search libraries": {
+			"search libraries": { // TODO
 				Title:    "KitVersion",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""},
 				Order:    400,
-				Provider: nil, // TODO
+				Provider: nil,
 			},
-			"extractions": {
-				Title:    "KitVersion",
+			"ax": {
+				Title:    "AXs",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "ax", Usage: "Comma-separated list of extractor IDs to include in the kit."},
 				Order:    380,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapAXs(lr.Results)
+					},
+				},
+				},
 			},
 			"files": {
-				Title:    "KitVersion",
+				Title:    "Files",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "files", Usage: "Comma-separated list of files IDs to include in the kit."},
 				Order:    360,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapFiles(lr.Results)
+					},
+				},
+				},
 			},
 			"playbooks": {
 				Title:    "KitVersion",

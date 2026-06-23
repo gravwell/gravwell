@@ -153,17 +153,7 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, ss := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        ss.ID,
-					Name:       ss.Name,
-					SecondLine: fmt.Sprintf("(Duration: %v) %s", time.Duration(ss.Duration), ss.Description),
-				}
-			}
-
-			return items, nil
+			return listitem.WrapScheduledSearches(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -309,20 +299,6 @@ func edit() action.Pair {
 		})
 }
 
-func wrapSS(ss types.ScheduledSearch) *listitem.Generic {
-	line := fmt.Sprintf("[%s] %s", ss.Schedule, ss.SearchString)
-	if ss.Description != "" {
-		line += " - " + ss.Description
-	}
-	return &listitem.Generic{
-		ID_:          ss.ID,
-		Name:         ss.Name,
-		SecondLine:   line,
-		ShowDisabled: true,
-		Enabled:      !ss.Disabled,
-	}
-}
-
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
 	enable, err = fs.GetBool("enable")
 	if err != nil {
@@ -345,15 +321,11 @@ func cancel() action.Pair {
 		"Cancel one or several currently-executing scheduled searches by ID.",
 		"scheduled search",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			l, err := connection.Client.ListScheduledSearches(nil)
+			lr, err := connection.Client.ListScheduledSearches(nil)
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
-			for i, ss := range l.Results {
-				itms[i] = wrapSS(ss)
-			}
-			return itms, nil
+			return listitem.WrapScheduledSearches(lr.Results), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -386,7 +358,7 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], 0, len(l.Results))
+			itms := make([]types.ScheduledSearch, 0, len(l.Results))
 			for _, ss := range l.Results {
 				if enable && ss.BackfillEnabled {
 					continue
@@ -394,10 +366,10 @@ func backfillToggle() action.Pair {
 					continue
 				}
 
-				itms = append(itms, wrapSS(ss))
+				itms = append(itms, ss)
 			}
 
-			return slices.Clip(itms), nil
+			return listitem.WrapScheduledSearches(slices.Clip(itms)), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)
@@ -453,15 +425,11 @@ func clear() action.Pair {
 		"Clear the execution results (including errors and state) for one or several scheduled searches.",
 		"scheduled search",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			l, err := connection.Client.ListScheduledSearches(nil)
+			lr, err := connection.Client.ListScheduledSearches(nil)
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
-			for i, ss := range l.Results {
-				itms[i] = wrapSS(ss)
-			}
-			return itms, nil
+			return listitem.WrapScheduledSearches(lr.Results), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

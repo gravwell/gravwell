@@ -232,16 +232,7 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, m := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        m.ID,
-					Name:       m.Name,
-					SecondLine: m.Description,
-				}
-			}
 
-			return items, nil
+			return listitem.WrapMacros(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
