@@ -390,3 +390,20 @@ func WrapAlerts(x []types.Alert) []multiselectlist.SelectableItem[string] {
 	}
 	return items
 }
+
+// WrapSavedQueries returns an MSL and list.Model ready array of the given saved queries.
+// No items are marked as selected.
+func WrapSavedQueries(x []types.SavedQuery) []multiselectlist.SelectableItem[string] {
+	// sort on name
+	slices.SortStableFunc(x, func(a, b types.SavedQuery) int { return strings.Compare(a.Name, b.Name) })
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	for i, itm := range x {
+		items[i] = &Generic{
+			Selected_:  false,
+			ID_:        itm.ID,
+			Name:       itm.Name,
+			SecondLine: itm.Description,
+		}
+	}
+	return items
+}

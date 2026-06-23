@@ -30,12 +30,11 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// NewSavedNav returns a nav with children relating to saved query handling.
 func NewSavedNav() *cobra.Command {
 	var aliases = []string{"library", "searchlibrary"}
 	return treeutils.GenerateNav("saved", "manage saved queries", "Saved queries are stored queries that can be retrieved and reused.", aliases, []*cobra.Command{},
 		[]action.Pair{
-			list(),
+			listAction(),
 			create(),
 			delete(),
 			edit(),
@@ -43,10 +42,8 @@ func NewSavedNav() *cobra.Command {
 		})
 }
 
-//#region list
-
-func list() action.Pair {
-	return scaffoldlist.NewListAction("list your saved queries", "lists all saved queries associated to your user",
+func listAction() action.Pair {
+	return scaffoldlist.NewListAction("list your saved queries", "Lists all saved queries associated to your user",
 		types.SavedQuery{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.SavedQuery, error) {
 			r, err := connection.Client.ListSavedQueries(param.QueryOpts)
 			return r.Results, err
@@ -58,21 +55,11 @@ func list() action.Pair {
 		})
 }
 
-//#endregion list
-
-//#region create
-
-const (
-	createNameKey  = "name"
-	createDescKey  = "desc"
-	createQueryKey = "query"
-)
-
 func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
-		createNameKey: scaffoldcreate.FieldName("saved query"),
-		createDescKey: scaffoldcreate.FieldDescription("saved query"),
-		createQueryKey: scaffoldcreate.Field{
+		"name": scaffoldcreate.FieldName("saved query"),
+		"desc": scaffoldcreate.FieldDescription("saved query"),
+		"query": {
 			Required: true,
 			Title:    "query",
 			Flag:     scaffoldcreate.FlagConfig{Name: "query", Usage: "the query to save"},
@@ -84,25 +71,19 @@ func create() action.Pair {
 	return scaffoldcreate.NewCreateAction("saved query", fields,
 		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
 			sq := types.SavedQuery{}
-			sq.Name = cfg[createNameKey].Provider.Get()
-			sq.Description = cfg[createDescKey].Provider.Get()
-			sq.Query = cfg[createQueryKey].Provider.Get()
+			sq.Name = cfg["name"].Provider.Get()
+			sq.Description = cfg["desc"].Provider.Get()
+			sq.Query = cfg["query"].Provider.Get()
 
 			result, err := connection.Client.CreateSavedQuery(sq)
 			return result.ID, "", err
 		}, scaffoldcreate.Options{})
 }
 
-//#endregion create
-
-//#region edit
-
-const singular string = "saved query"
-
 func edit() action.Pair {
 	cfg := scaffoldedit.Config{
-		"name":        scaffoldedit.FieldName(singular),
-		"description": scaffoldedit.FieldDescription(singular),
+		"name":        scaffoldedit.FieldName("saved query"),
+		"description": scaffoldedit.FieldDescription("saved query"),
 		"query": &scaffoldedit.Field{
 			Required: true,
 			Title:    "query",
@@ -156,12 +137,8 @@ func edit() action.Pair {
 		},
 	}
 
-	return scaffoldedit.NewEditAction(singular, "saved queries", cfg, funcs)
+	return scaffoldedit.NewEditAction("saved query", "saved queries", cfg, funcs)
 }
-
-//#endregion edit
-
-//#region delete
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("saved query",
@@ -177,23 +154,10 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, p := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        p.ID,
-					Name:       p.Name,
-					SecondLine: p.Description,
-				}
-			}
 
-			return items, nil
+			return listitem.WrapSavedQueries(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
-
-//#endregion delete
-
-//#region show
 
 func show() action.Pair {
 	return scaffold.NewBasicAction("show", "display a saved query",
@@ -219,5 +183,3 @@ func show() action.Pair {
 			},
 		})
 }
-
-//#endregion show
