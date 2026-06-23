@@ -52,9 +52,9 @@ func listAction() action.Pair {
 		types.Dashboard{}, list,
 		nil,
 		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags}, DefaultColumns: []string{
-			"ID",
-			"Name",
-			"Description",
+			"CommonFields.ID",
+			"CommonFields.Name",
+			"CommonFields.Description",
 		}})
 }
 

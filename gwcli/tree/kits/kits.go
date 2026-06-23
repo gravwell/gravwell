@@ -65,10 +65,11 @@ func newKitsListAction() action.Pair {
 		nil,
 		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
-				"UUID",
-				"KitState.Name",
-				"KitState.Description",
-				"KitState.Version",
+				"KitID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"CommonFields.ID",
+				"KitVersion",
 			}})
 }
 
