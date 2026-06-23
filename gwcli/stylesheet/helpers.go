@@ -231,3 +231,10 @@ func RequiredTitle(s string) string {
 func OptionalTitle(s string) string {
 	return Cur.SecondaryText.Render(s + ":")
 }
+
+var italics = lipgloss.NewStyle().Italic(true)
+
+// Italicize makes the text a little drunk.
+func Italicize(s string) string {
+	return italics.Render(s)
+}

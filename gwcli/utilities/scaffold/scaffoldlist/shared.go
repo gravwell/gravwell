@@ -19,9 +19,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/utils/weave"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
 
@@ -84,17 +83,20 @@ func listOutput[struct_t any](
 	dataFunc ListDataFunc[struct_t],
 	prettyFunc PrettyPrinterFunc,
 	DQToAlias map[string]string,
+	omit scaffold.OmitFlags,
 ) (string, error) {
+	params := DataParameters{QueryOpts: scaffold.GetQueryOptions(fs, omit)}
+
 	// hand off control to pretty
 	if format == formatPretty {
 		if prettyFunc == nil {
 			return "", errors.New("format is pretty, but prettyFunc is nil")
 		}
-		return prettyFunc(dqColumns, DQToAlias)
+		return prettyFunc(fs, dqColumns, DQToAlias, params)
 	}
 
 	// massage the data for weave
-	data, err := dataFunc(fs)
+	data, err := dataFunc(fs, params)
 	if err != nil {
 		return "", err
 	}
@@ -124,40 +126,6 @@ func listOutput[struct_t any](
 	return toRet, err
 }
 
-// buildFlagSet returns a flagset composed of the default list flags,
-// additional flags defined for this action,
-// and --pretty if a prettyFunc was defined.
-//
-// defaultColumnsAliased are the columns to display as defaults alongside --columns.
-// They are expected to have aliases applied and will not be coerced.
-func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string) *pflag.FlagSet {
-	fs := pflag.FlagSet{}
-	ft.CSV.Register(&fs)
-	ft.JSON.Register(&fs)
-	ft.Table.Register(&fs)
-	fs.StringSliceP( // manually register string slice so we can set a default
-		ft.SelectColumns.Name(),
-		ft.SelectColumns.Shorthand(),
-		defaultColumnsAliased,
-		ft.SelectColumns.Usage())
-
-	ft.ShowColumns.Register(&fs)
-
-	ft.Output.Register(&fs)
-	ft.Append.Register(&fs)
-	ft.AllColumns.Register(&fs)
-
-	// if prettyFunc was defined, bolt on pretty
-	if prettyDefined {
-		fs.Bool("pretty", false, "display results as prettified text.\n"+
-			"Takes precedence over other format flags.\n"+
-			"May or may not respect columns, default or selected via --"+ft.SelectColumns.Name()+".")
-	}
-
-	return &fs
-
-}
-
 // Opens a file, per the given --output and --append flags in the flagset, and returns its handle.
 // Returns nil if the flags do not call for a file.
 func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
@@ -171,9 +139,9 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 		return nil, nil
 	}
 	var flags = os.O_CREATE | os.O_WRONLY
-	if append, err := fs.GetBool(ft.Append.Name()); err != nil {
-		return nil, err
-	} else if append {
+	append, err := fs.GetBool(ft.Append.Name())
+	clilog.GetFlag(err)
+	if append {
 		flags |= os.O_APPEND
 	} else {
 		flags |= os.O_TRUNC
@@ -203,44 +171,6 @@ func normalizeToDQ(columns []string, DQToAlias map[string]string, AliasToDQ map[
 		unknown = append(unknown, col)
 	}
 	return normalized, unknown
-}
-
-// getColumns figures out which columns this request should receive and returns the DQ version of each.
-//
-// In order of priority:
-//
-//  1. all columns (if --all), sorted alphabetically
-//
-//  2. selected columns (if --columns=<>), retaining given order
-//
-//  3. default columns, sorted alphabetically
-//
-// ! default columns are *not* normalized; they are expected to already be DQ'd.
-func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) ([]string, error) {
-	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
-		return nil, clilog.GetFlag(err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
-	} else if all {
-		// normalize all
-		normal, unknown := normalizeToDQ(sortColumns(slices.Collect(maps.Keys(DQToAlias))), DQToAlias, AliasToDQ)
-		// we should never get unknown columns when giving the full set; this is a developer error
-		if len(unknown) > 0 {
-			clilog.Writer.Error("got unknown columns while normalizing the full column set.",
-				log.KV("unknown columns", unknown),
-				scaffold.IdentifyCaller())
-			return nil, clilog.ErrInternal{}
-		}
-		return normal, nil
-	}
-	// even if --columns was not specified, we can use it to fetch defaults
-	selectedCols, err := fs.GetStringSlice(ft.SelectColumns.Name())
-	if err != nil {
-		return nil, clilog.GetFlag(err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
-	}
-	normalized, unknown := normalizeToDQ(selectedCols, DQToAlias, AliasToDQ)
-	if len(unknown) > 0 {
-		return nil, fmt.Errorf("--%s has unknown columns/aliases: %v", ft.SelectColumns.Name(), unknown)
-	}
-	return normalized, nil
 }
 
 // The sorting mechanism list uses when an order is not specified (ex: --columns is not given).

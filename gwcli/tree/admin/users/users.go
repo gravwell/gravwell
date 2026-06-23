@@ -55,8 +55,8 @@ func NewNav() *cobra.Command {
 
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
-		func(fs *pflag.FlagSet) ([]types.User, error) {
-			resp, err := connection.Client.ListUsers(nil)
+		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.User, error) {
+			resp, err := connection.Client.ListUsers(param.QueryOpts)
 			return resp.Results, err
 		}, nil, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
 }
@@ -274,7 +274,7 @@ func sessionsAction() action.Pair {
 		"Get all active sessions for the specified user IDs.\n"+
 			"If --since is not set, it will default to fetching all records for the past 48 hours.",
 		session{},
-		func(fs *pflag.FlagSet) ([]session, error) {
+		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]session, error) {
 			allSessions := []types.Session{}
 			for _, uid := range sessionUIDs {
 				userSessions, err := connection.Client.Sessions(uid)
@@ -385,6 +385,7 @@ func sessionsAction() action.Pair {
 				}
 				return "", nil
 			},
+			Omit: scaffold.OmitFlags{Everything: true},
 		},
 	)
 }
@@ -409,11 +410,16 @@ func lock() action.Pair {
 			items = slices.Clip(items)
 			return items, nil
 		},
-		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
-			if err := connection.Client.LockUserAccount(ID); err != nil {
-				return "", fmt.Errorf("failed to lock user account %d: %v", ID, err)
+		func(IDs []int32, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, id := range IDs {
+				if err := connection.Client.LockUserAccount(id); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to lock user account %d: %v", id, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("User %d locked", id)}
+				}
 			}
-			return fmt.Sprintf("User %v locked", ID), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -440,11 +446,16 @@ func unlock() action.Pair {
 			items = slices.Clip(items)
 			return items, nil
 		},
-		func(ID int32, _ *pflag.FlagSet) (success string, _ error) {
-			if err := connection.Client.UnlockUserAccount(ID); err != nil {
-				return "", fmt.Errorf("failed to unlock user account %d: %v", ID, err)
+		func(IDs []int32, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				if err := connection.Client.UnlockUserAccount(ID); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to unlock user account %d: %v", ID, err)}
+				} else {
+					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("User %d unlocked", ID)}
+				}
 			}
-			return fmt.Sprintf("User %v unlocked", ID), nil
+			return results, nil
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{

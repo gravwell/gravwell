@@ -92,7 +92,7 @@ func TestCreateEditDownload(t *testing.T) {
 	{
 		t.Logf("deleting secret %v", secretID)
 		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, []string{"secrets", "delete", "--id", secretID}...), nil, &sbErr); ec != 0 {
+		if ec := tree.Execute(append(meta, []string{"secrets", "delete", secretID}...), nil, &sbErr); ec != 0 {
 			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 	}

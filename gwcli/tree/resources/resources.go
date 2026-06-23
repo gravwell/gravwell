@@ -16,6 +16,7 @@ import (
 	"fmt"
 	filesystem "io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,7 +34,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -56,6 +59,7 @@ func NewNav() *cobra.Command {
 			delete(),
 			download(),
 			edit(),
+			replace(),
 		})
 }
 
@@ -65,18 +69,8 @@ func list() action.Pair {
 		long  string = "view resources available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.Resource{}, func(fs *pflag.FlagSet) ([]types.Resource, error) {
-			if all, err := fs.GetBool("all"); err != nil {
-				clilog.GetFlag(err)
-			} else if all {
-				resp, err := connection.Client.ListAllResources(nil)
-				if err != nil {
-					return nil, err
-				}
-				return resp.Results, nil
-			}
-
-			resp, err := connection.Client.ListResources(nil)
+		types.Resource{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.Resource, error) {
+			resp, err := connection.Client.ListResources(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -91,14 +85,8 @@ func list() action.Pair {
 				"Size",
 				"ContentType",
 			},
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{},
 		})
-}
-
-func flags() *pflag.FlagSet {
-	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "resources")
-	return &addtlFlags
 }
 
 func download() action.Pair {
@@ -161,7 +149,7 @@ func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
 		"name":   scaffoldcreate.FieldName("resource"),
 		"desc":   scaffoldcreate.FieldDescription("resource"),
-		"path":   scaffoldcreate.FieldPath("resource"),
+		"path":   scaffoldcreate.FieldPath("resource", true),
 		"labels": scaffoldcreate.FieldLabels(),
 	}
 
@@ -179,16 +167,11 @@ func create() action.Pair {
 				return "", "path must point to a file", nil
 			}
 			// transmute to resource struct
-			var labels []string
-			if lbls := cfg["labels"].Provider.Get(); strings.TrimSpace(lbls) != "" {
-				labels = strings.Split(strings.TrimSpace(lbls), ",")
-			}
-
 			data := types.Resource{
 				CommonFields: types.CommonFields{
 					Name:        cfg["name"].Provider.Get(),
 					Description: cfg["desc"].Provider.Get(),
-					Labels:      labels,
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
 			}
 
@@ -290,4 +273,83 @@ func edit() action.Pair {
 			return data.Name, err
 		},
 	})
+}
+
+func replace() action.Pair {
+	return scaffoldselect.NewSelectAction("replace resource contents",
+		"Populate one or many resources with the contents of a single local file, clobbering any existing data",
+		"resource ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, f := range lr.Results {
+				items[i] = resourceToGeneric(f, false)
+			}
+			return items, nil
+		},
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			// slurp file
+			pth, _ := addtlFlags.GetString(ft.Path.Name())
+			contentF, err := os.Open(pth)
+			if err != nil {
+				return nil, err
+			}
+			defer clilog.CloseFile(contentF)
+			ext := filepath.Ext(pth)
+			for i, ID := range IDs {
+				if _, err := contentF.Seek(0, 0); err != nil {
+					clilog.Writer.Warn("failed to rewind file", log.KV("file path", pth), log.KVErr(err))
+				}
+				updated, err := connection.Client.PopulateResourceFromReader(ID, ext, contentF)
+				if err != nil {
+					results[i] = scaffold.Result{
+						Output:  fmt.Sprintf("failed to repopulate resource %s (ID: %s): %v", contentF.Name(), ID, err),
+						Success: false,
+					}
+					continue
+				}
+
+				results[i] = scaffold.Result{
+					Output: fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d",
+						updated.Name, updated.ID, updated.Size),
+					Success: true,
+				}
+
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "replace",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Path.Register(fs, "", "local file to replace the resource contents")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				pth, err := fs.GetString(ft.Path.Name())
+				clilog.GetFlag(err)
+				if pth == "" {
+					return "--path is required", nil
+				}
+				return "", nil
+			},
+			Exactly1: true,
+		})
+}
+
+//#region helpers
+
+func resourceToGeneric(f types.Resource, selected bool) *listitem.Generic {
+	return &listitem.Generic{
+		Selected_:  selected,
+		ID_:        f.ID,
+		Name:       f.Name,
+		SecondLine: fmt.Sprintf("(Size: %v) %s", f.Size, f.Description),
+	}
 }

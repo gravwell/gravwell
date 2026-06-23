@@ -21,6 +21,19 @@ import (
 	"github.com/robfig/cron"
 )
 
+// NegativeNumber returns an error if s is not a negative number.
+// Returns nil if s is empty.
+func NegativeNumber(s string) error {
+	if s = strings.TrimSpace(s); s == "" {
+		return nil
+	}
+	i, err := strconv.ParseInt(s, 10, 64)
+	if i > -1 {
+		return errors.New(s + " is not negative")
+	}
+	return err
+}
+
 // Numeric returns an error if s is not composed solely of digits.
 func Numeric(s string) (err error) {
 	s = strings.TrimSpace(s)

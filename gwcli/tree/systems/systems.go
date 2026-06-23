@@ -64,7 +64,7 @@ func newStorageAction() action.Pair {
 	)
 
 	return scaffoldlist.NewListAction(short, long, namedStorage{},
-		func(fs *pflag.FlagSet) ([]namedStorage, error) {
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]namedStorage, error) {
 			ss, err := connection.Client.GetStorageStats()
 			if err != nil {
 				return []namedStorage{}, err
@@ -103,7 +103,7 @@ type idxrState struct {
 func state() action.Pair {
 	return scaffoldlist.NewListAction("display indexer state", "Displays the current error state of each indexer.",
 		idxrState{},
-		func(fs *pflag.FlagSet) ([]idxrState, error) {
+		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]idxrState, error) {
 			idxrs, err := connection.Client.GetSystemDescriptions()
 			if err != nil {
 				return nil, err
@@ -126,7 +126,7 @@ func state() action.Pair {
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{Use: "state"},
-			Pretty: func(_ []string, _ map[string]string) (string, error) {
+			Pretty: func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				idxrs, err := connection.Client.GetSystemDescriptions()
 				if err != nil {
 					return "", err
@@ -160,5 +160,6 @@ func state() action.Pair {
 				}
 				return sb.String()[:sb.Len()-1], nil
 			},
+			Omit: scaffold.OmitFlags{Everything: true},
 		})
 }

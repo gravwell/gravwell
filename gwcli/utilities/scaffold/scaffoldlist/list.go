@@ -58,7 +58,7 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -101,16 +101,20 @@ const (
 	outFilePerm         os.FileMode = 0644
 	exportedColumnsOnly bool        = true // only allow users to query for exported fields as columns?
 	ShowColumnSep       string      = "; " // separator between column names when printing list of available columns
+
+	FlagNameSelectAllColumns string = "all-columns"  // fetch data for all columns, ignoring defaults
+	FlagNameShowColumns      string = "show-columns" // display available columns instead of fetching data
+	FlagNameSelectColumns    string = "columns"      // select which columns to display data for instead of using the defaults.
 )
 
 // ListDataFunc is a function that retrieves an array of structs of type dataStruct
-type ListDataFunc[dataStruct_t any] func(*pflag.FlagSet) ([]dataStruct_t, error)
+type ListDataFunc[dataStruct_t any] func(addtlFlags *pflag.FlagSet, params DataParameters) ([]dataStruct_t, error)
 
 // AddtlFlagFunc (if not nil) bolts additional flags onto this action for later during the data func.
 type AddtlFlagFunc func() pflag.FlagSet
 
 // A PrettyPrinterFunc defines a free-form function for outputting a pretty string for human consumption.
-type PrettyPrinterFunc func(DQColumns []string, DQToAlias map[string]string) (string, error)
+type PrettyPrinterFunc func(addtlFlags *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, params DataParameters) (string, error)
 
 // NewListAction creates and returns a cobra.Command suitable for use as a list action,
 // complete with common flags and a generic run function operating off the given ListDataFunc.
@@ -190,22 +194,36 @@ func NewListAction[dataStruct_t any](short, long string,
 	var defaultColumnsDQ = findDefaultColumns(options, DQToAlias)
 
 	// generate a non-interactive action
-	run := generateRunE(dataFunc, options, DQToAlias, AliasToDQ)
+	runE := generateRunE(dataFunc, options, DQToAlias, AliasToDQ)
 
-	// generate usage and example
-	actionOptions := treeutils.GenerateActionOptions{Example: "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()}
+	// generate default usage and example
+	var actionOptions treeutils.GenerateActionOptions
 	{
+		actionOptions.Example = "--" + ft.JSON.Name() + " --" + FlagNameSelectAllColumns
+
 		formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
 		if options.Pretty != nil {
 			formats = append(formats, "--pretty")
 		}
-		actionOptions.Usage = fmt.Sprintf("%v %v", ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
+		actionOptions.Usage = fmt.Sprintf("%s %s %s %s",
+			ft.Optional("--"+FlagNameShowColumns),
+			ft.Optional(
+				ft.MutuallyExclusive(formats),
+			),
+			ft.Optional(
+				ft.MutuallyExclusive([]string{
+					"--" + FlagNameSelectColumns + "=col1,col2,...",
+					"--" + FlagNameSelectAllColumns,
+				}),
+			),
+			ft.Optional("FLAGS"),
+		)
 	}
 
-	cmd := treeutils.GenerateAction("list", short, long, nil, run, actionOptions)
+	cmd := treeutils.GenerateAction("list", short, long, nil, runE, actionOptions)
 	options.Apply(cmd)
 
-	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias)))
+	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias), options.Omit))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 
@@ -257,6 +275,20 @@ func generateRunE[dataStruct_t any](
 	dataFn ListDataFunc[dataStruct_t], opts Options,
 	DQToAlias, AliasToDQ map[string]string) func(c *cobra.Command, _ []string) error {
 	return func(c *cobra.Command, _ []string) error {
+		// this runs prior to validation as:
+		// 1) show-columns skips validation
+		// 2) scaffoldlist validation should fire first
+		showColumns, columns, outFile, format, inv := getFlags(c.Flags(), DQToAlias, AliasToDQ, opts.Pretty != nil)
+		if inv != "" {
+			return errors.New(inv)
+		} else if showColumns {
+			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
+			return nil
+		}
+		if outFile != nil {
+			defer outFile.Close()
+		}
+
 		// run custom validation
 		if opts.ValidateArgs != nil {
 			if invalid, err := opts.ValidateArgs(c.Flags()); err != nil {
@@ -266,51 +298,16 @@ func generateRunE[dataStruct_t any](
 			}
 		}
 
-		// check for --show-columns
-		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name()); err != nil {
-			clilog.GetFlag(err)
-			return err
-		} else if sc {
-			fmt.Fprintln(c.OutOrStdout(), ShowColumns(DQToAlias))
-			return nil
-		}
-
-		var (
-			noInteractive bool
-			outFile       *os.File
-			format        outputFormat
-			columns       []string
-		)
-		// gather flags and set up variables required for listOutput
-		var err error
-		noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
-		if err != nil {
-			clilog.GetFlag(err)
-		}
-		outFile, err = initOutFile(c.Flags())
-		if err != nil {
-			return err
-		} else if outFile != nil {
-			defer outFile.Close()
-			// ensure color is disabled.
-			stylesheet.Cur = stylesheet.Plain()
-		}
-		columns, err = getColumns(c.Flags(), DQToAlias, AliasToDQ)
-		if err != nil {
-			return err
-		}
-		format = determineFormat(c.Flags(), opts.Pretty != nil)
-
 		// execute the actual list and format call
-		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias)
+		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias, opts.Omit)
 		if err != nil {
 			return err
 		}
 
 		// if we generated no output, make that explicit to the user via the empty message
-		// (unless we are in no-interactive mode, where our output is likely to be piped, or writing to a file).
+		// (unless we are in no-interactive mode (where our output is likely to be piped) or writing to a file).
 		if s == "" {
-			if outFile == nil && !noInteractive {
+			if outFile == nil && !state.Interactive() {
 				fmt.Fprintln(c.OutOrStdout(), opts.EmptyMessage)
 			}
 			return nil
