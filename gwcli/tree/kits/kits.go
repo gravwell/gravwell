@@ -347,11 +347,21 @@ func build() action.Pair {
 				},
 			},
 			"scheduled searches": {
-				Title:    "KitVersion",
+				Title:    "Scheduled Searches",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "scheduled-searches", Usage: "Comma-separated list of scheduled search IDs to include in the kit."},
 				Order:    460,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListScheduledSearches(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch flows", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapFlows(lr.Results)
+					},
+				},
+				},
 			},
 			"resources": {
 				Title:    "KitVersion",

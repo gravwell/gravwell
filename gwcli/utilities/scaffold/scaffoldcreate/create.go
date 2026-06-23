@@ -426,12 +426,12 @@ func (c *createModel) View() string {
 
 	// build final lines, centering Line/secondLine entries under modalWidth
 	centerSty := lipgloss.NewStyle().Width(setWidth).AlignHorizontal(lipgloss.Center)
-	lines := make([]string, 0, len(views))
-	for _, v := range views {
+	lines := make([]string, len(views))
+	for i, v := range views {
 		if v.toCenter {
-			lines = append(lines, centerSty.MaxHeight(2).Render(v.content))
+			lines[i] = centerSty.MaxHeight(2).Render(v.content)
 		} else {
-			lines = append(lines, v.content)
+			lines[i] = v.content
 		}
 	}
 
@@ -488,7 +488,7 @@ func (c *createModel) collectViewValues() (views []material, setWidth int) {
 		}
 	}
 
-	return views, setWidth
+	return slices.Clip(views), setWidth
 }
 
 func (c *createModel) Done() bool {

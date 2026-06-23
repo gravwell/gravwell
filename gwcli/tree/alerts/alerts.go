@@ -209,7 +209,7 @@ func toggle() action.Pair {
 					Enabled:      !alert.Disabled,
 				})
 			}
-			return items, nil
+			return slices.Clip(items), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

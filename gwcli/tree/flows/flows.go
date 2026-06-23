@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -303,7 +304,7 @@ func backfillToggle() action.Pair {
 				}
 				itms = append(itms, f)
 			}
-			return listitem.WrapFlows(itms), nil
+			return listitem.WrapFlows(slices.Clip(itms)), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)

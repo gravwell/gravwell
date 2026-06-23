@@ -297,10 +297,10 @@ func create() action.Pair {
 
 			if caps := cfg["capabilities"].Provider.Get(); strings.TrimSpace(caps) != "" {
 				raw := strings.Split(strings.TrimSpace(caps), ",")
-				tc.Capabilities = make([]string, 0, len(raw))
-				for _, c := range raw {
+				tc.Capabilities = make([]string, len(raw))
+				for i, c := range raw {
 					if trimmed := strings.TrimSpace(c); trimmed != "" {
-						tc.Capabilities = append(tc.Capabilities, trimmed)
+						tc.Capabilities[i] = trimmed
 					}
 				}
 			}
