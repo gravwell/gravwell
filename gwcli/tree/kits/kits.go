@@ -16,15 +16,21 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -256,6 +262,13 @@ func pull() action.Pair {
 func build() action.Pair {
 	return scaffoldcreate.NewCreateAction("kit",
 		map[string]scaffoldcreate.Field{
+			"name": {
+				Title:    "Name",
+				Required: true,
+				Flag:     scaffoldcreate.FlagConfig{Name: "name", Usage: "Name to use for the kit"},
+				Order:    650,
+				Provider: &scaffoldcreate.TextProvider{},
+			},
 			"kit ID": {
 				Title:    "KitID",
 				Required: true,
@@ -397,18 +410,11 @@ func build() action.Pair {
 				},
 				},
 			},
-			"search libraries": { // TODO
-				Title:    "KitVersion",
-				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""},
-				Order:    400,
-				Provider: nil,
-			},
 			"ax": {
 				Title:    "AXs",
 				Required: false,
 				Flag:     scaffoldcreate.FlagConfig{Name: "ax", Usage: "Comma-separated list of extractor IDs to include in the kit."},
-				Order:    380,
+				Order:    400,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: true})
@@ -425,7 +431,7 @@ func build() action.Pair {
 				Title:    "Files",
 				Required: false,
 				Flag:     scaffoldcreate.FlagConfig{Name: "files", Usage: "Comma-separated list of file IDs to include in the kit."},
-				Order:    360,
+				Order:    380,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: true})
@@ -442,7 +448,7 @@ func build() action.Pair {
 				Title:    "Playbooks",
 				Required: false,
 				Flag:     scaffoldcreate.FlagConfig{Name: "playbooks", Usage: "Comma-separated list of playbook IDs to include in the kit."},
-				Order:    340,
+				Order:    360,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						lr, err := connection.Client.ListPlaybooks(&types.QueryOptions{AdminMode: true})
@@ -451,6 +457,23 @@ func build() action.Pair {
 							return nil
 						}
 						return listitem.WrapPlaybooks(lr.Results)
+					},
+				},
+				},
+			},
+			"saved queries": {
+				Title:    "Saved Queries",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "saved-queries", Usage: "Comma-separated list of saved query IDs to include in the kit."},
+				Order:    340,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListSavedQueries(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch saved queries", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapSavedQueries(lr.Results)
 					},
 				},
 				},
@@ -473,11 +496,26 @@ func build() action.Pair {
 				},
 			},
 			"embedded items": {
-				Title:    "KitVersion",
+				Title:    "Embedded Items",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Flag:     scaffoldcreate.FlagConfig{Name: "embedded-items", Usage: "Path to directory of auxiliary items to embed in the kit."},
 				Order:    300,
-				Provider: nil, // TODO
+				Provider: &scaffoldcreate.PathProvider{
+					Options: pathtextinput.Options{
+						CustomTI: func() textinput.Model {
+							ti := stylesheet.NewTI("", true)
+							ti.Placeholder = "path/to/directory"
+							return ti
+						},
+					},
+				},
+			},
+			"recursive embed": {
+				Title:    "Recur into Embedded Dir?",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "recursive-embed", Usage: "Should the --embedded-items directory recur into subdirectories?"},
+				Order:    299,
+				Provider: &scaffoldcreate.BoolProvider{},
 			},
 			"icon": {
 				Title:    "Icon",
@@ -486,26 +524,165 @@ func build() action.Pair {
 				Order:    280,
 				Provider: &scaffoldcreate.PathProvider{},
 			},
+			"local copy": {
+				Title:    "Download Local Copy",
+				Required: false,
+				Flag: scaffoldcreate.FlagConfig{Name: "download", Usage: "Local path to download the new kit to after creation. " +
+					"If given a directory, a new file will be created inside of it. " +
+					"If given a path to a file that already exists, that file will be truncated unless --no-clobber is set"},
+				Order:    260,
+				Provider: &scaffoldcreate.PathProvider{},
+			},
 		},
-		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(fields map[string]scaffoldcreate.Field, afs *pflag.FlagSet) (id any, invalid string, err error) {
+			kitVersion, err := strconv.ParseInt(fields["kit version"].Provider.Get(), 10, 32)
+			if err != nil {
+				return 0, fmt.Sprint("failed to get kit version: ", err), nil
+			}
+
+			// upload icon as a file
+			var iconID string
+			if iconPath := strings.TrimSpace(fields["icon"].Provider.Get()); iconPath != "" {
+				resp, err := connection.Client.CreateFile(types.File{
+					CommonFields: types.CommonFields{
+						Name:        "Kit Icon (" + fields["name"].Provider.Get() + ")",
+						Description: "Icon for locally built kit " + fields["name"].Provider.Get() + " (KitID: " + fields["kitID"].Provider.Get() + ")",
+					},
+				})
+				if err != nil {
+					clilog.Writer.Error("failed to create icon as file", log.KVErr(err))
+					return 0, "", err
+				}
+				resp, err = connection.Client.PopulateFileFromPath(resp.ID, iconPath)
+				if err != nil {
+					clilog.Writer.Error("failed to populate icon file", log.KVErr(err), log.KV("path", iconPath))
+					return 0, "", err
+				}
+				clilog.Writer.Info("created icon as file", log.KV("ID", resp.ID), log.KV("path", iconPath))
+				iconID = resp.ID
+			}
+
+			// collected items to embed
+			var embed []types.KitEmbeddedItem
+			if embedDir := strings.TrimSpace(fields["embedded items"].Provider.Get()); embedDir != "" {
+				recur, err := strconv.ParseBool(fields["recursive embed"].Provider.Get())
+				if err != nil {
+					clilog.Writer.Error("failed to parse bool provider", log.KVErr(err))
+					return 0, "", clilog.ErrInternal{}
+				}
+				dir, err := os.ReadDir(embedDir)
+				if err != nil {
+					clilog.Writer.Warn("failed to read embed directory", log.KVErr(err))
+					return 0, err.Error(), nil
+				}
+				for _, entry := range dir {
+					if !entry.IsDir() {
+						embed = append(embed, types.KitEmbeddedItem{KitItem: types.KitItem{
+							Name: filepath.Base(s),
+							Type: types.KitAssetFile,
+						}})
+					}
+				}
+			}
 
 			kbr := types.KitBuildRequest{
-				KitID:      fields["kitID"].Provider.Get(),
-				Readme:     fields["readme"].Provider.Get(),
-				KitVersion: 1,
+				CommonFields: types.CommonFields{
+					Name: fields["name"].Provider.Get(),
+				},
+				KitID:             fields["kitID"].Provider.Get(),
+				Readme:            fields["readme"].Provider.Get(),
+				KitVersion:        int(kitVersion),
+				Dashboards:        strings.Split(strings.TrimSpace(fields["dashboards"].Provider.Get()), ","),
+				Templates:         strings.Split(strings.TrimSpace(fields["templates"].Provider.Get()), ","),
+				Actionables:       strings.Split(strings.TrimSpace(fields["actionables"].Provider.Get()), ","),
+				Flows:             strings.Split(strings.TrimSpace(fields["flows"].Provider.Get()), ","),
+				ScheduledSearches: strings.Split(strings.TrimSpace(fields["scheduled searches"].Provider.Get()), ","),
+				Resources:         strings.Split(strings.TrimSpace(fields["resources"].Provider.Get()), ","),
+				Macros:            strings.Split(strings.TrimSpace(fields["macros"].Provider.Get()), ","),
+				Extractors:        strings.Split(strings.TrimSpace(fields["ax"].Provider.Get()), ","),
+				Files:             strings.Split(strings.TrimSpace(fields["files"].Provider.Get()), ","),
+				Playbooks:         strings.Split(strings.TrimSpace(fields["playbook"].Provider.Get()), ","),
+				SavedQueries:      strings.Split(strings.TrimSpace(fields["saved queries"].Provider.Get()), ","),
+				Alerts:            strings.Split(strings.TrimSpace(fields["alerts"].Provider.Get()), ","),
+				EmbeddedItems:     nil, // TODO
+				Icon:              iconID,
 			}
+
+			if err := kbr.Validate(); err != nil {
+				return 0, err.Error(), nil
+			}
+
 			resp, err := connection.Client.BuildKit(kbr)
 			if err != nil {
 				return 0, "", err
 			}
-			return resp.UID, "", nil
+
+			if dlPath := strings.TrimSpace(fields["local copy"].Provider.Get()); dlPath != "" {
+				clilog.Writer.Debug("downloading local copy of new kit", log.KV("path", dlPath))
+				pth := dlPath
+				if fi, err := os.Stat(dlPath); err != nil {
+					return 0, "", fmt.Errorf("failed to download local copy: %w", err)
+				} else if errors.Is(err, fs.ErrNotExist) {
+					// DNE, do nothing
+				} else if fi.IsDir() { // create path under directory
+					pth = filepath.Join(dlPath, kbr.Name+".kit")
+				} else { // path already exists, points to a pre-existing file
+					noClobber, err := afs.GetBool("no-clobber")
+					clilog.GetFlag(err)
+					if noClobber {
+						return 0, dlPath + " already exists and --no-cobber was specified", nil
+					}
+				}
+
+				f, err := os.Create(pth)
+				if err != nil {
+					clilog.Writer.Warn("failed to download local copy",
+						log.KVErr(err),
+						log.KV("stage", "create file"),
+						log.KV("path", pth))
+					return 0, err.Error(), nil
+				}
+				defer f.Close()
+
+				// if a download path was specified, retrieve a local copy
+				dlresp, err := connection.Client.KitDownloadRequest(resp.UUID)
+				if err != nil {
+					clilog.Writer.Warn("failed to download local copy",
+						log.KVErr(err),
+						log.KV("stage", "issue dl request"),
+						log.KV("kit ID", resp.UUID))
+					return 0, "", fmt.Errorf("failed to download local copy: %w", err)
+				}
+				defer dlresp.Body.Close()
+				if _, err := io.Copy(f, dlresp.Body); err != nil {
+					clilog.Writer.Warn("failed to download local copy",
+						log.KVErr(err),
+						log.KV("stage", "write to file"),
+						log.KV("path", pth),
+						log.KV("kit ID", resp.UUID))
+					return 0, "", err
+				}
+				return fmt.Sprintf("created new kit %s (ID: %v/KitID: %v/Version: %v) and downloaded local copy to %s",
+					kbr.Name, resp.UUID, kbr.KitID, kbr.KitVersion, pth), "", nil
+			}
+
+			return fmt.Sprintf("created new kit %s (ID: %v/KitID: %v/Version: %v)", kbr.Name, resp.UUID, kbr.KitID, kbr.KitVersion), "", nil
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use:     "build",
-				Example: "build --kit-id=com.mykit.", // TODO
+				Use: "build",
+				Example: "build --kit-id=com.me.mykit --name=mykit " +
+					"--dashboards=dashboard-one-two-three-four,dashboard-yi-er-san-si " +
+					"--icon=/home/me/icon.png " +
+					"--download=/home/me/Downloads/",
 				Aliases: []string{"pack", "create", "new"},
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("no-clobber", false, "do not truncate files with matching names. Instead, return an error.")
+					return fs
+				},
 			},
+			IDIsSuccessMessage: true,
 		},
 	)
 }
