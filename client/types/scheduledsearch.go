@@ -267,7 +267,22 @@ type ScheduledSearch struct {
 	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
 	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
 	TimeframeOffset    int64  // How many seconds to offset the search timeframe, MUST BE NEGATIVE
-	LatestResults      ScheduledSearchResults
+	LatestResults      *ScheduledSearchResults
+}
+
+func (s *ScheduledSearch) GetLastRunTime() (lastRun time.Time) {
+	if s.LatestResults == nil {
+		return time.Time{}
+	}
+	lastRun = s.LatestResults.LastRun
+	return
+}
+
+func (s *ScheduledSearch) GetLastSearchIDs() []string {
+	if s.LatestResults == nil {
+		return []string{}
+	}
+	return s.LatestResults.LastSearchIDs
 }
 
 // ScheduledSearchResults represents the results of a ScheduledSearch execution.
@@ -287,7 +302,29 @@ type ScheduledScript struct {
 
 	Script         string     // If set, execute the contents rather than running SearchString
 	ScriptLanguage ScriptLang // what script type is this: anko, go
-	LatestResults  ScheduledScriptResults
+	LatestResults  *ScheduledScriptResults
+}
+
+func (s *ScheduledScript) GetLastRunTime() (lastRun time.Time) {
+	if s.LatestResults == nil {
+		return time.Time{}
+	}
+	lastRun = s.LatestResults.LastRun
+	return
+}
+
+func (s *ScheduledScript) GetLastSearchIDs() []string {
+	if s.LatestResults == nil {
+		return []string{}
+	}
+	return s.LatestResults.LastSearchIDs
+}
+
+func (s *ScheduledScript) GetLastPersistentMaps() map[string]map[string]any {
+	if s.LatestResults == nil {
+		return map[string]map[string]any{}
+	}
+	return s.LatestResults.PersistentMaps
 }
 
 // ScheduledScriptResults represents the results of a ScheduledScript execution.
@@ -296,9 +333,9 @@ type ScheduledScriptResults struct {
 
 	AutomationResultsCommonFields
 
-	ScheduledScriptID string                            // references the ScheduledScript this result belongs to
-	DebugOutput       []byte                            // output of the script if debugmode was enabled
-	PersistentMaps    map[string]map[string]interface{} // a place to stash variables between runs
+	ScheduledScriptID string                    // references the ScheduledScript this result belongs to
+	DebugOutput       []byte                    // output of the script if debugmode was enabled
+	PersistentMaps    map[string]map[string]any // a place to stash variables between runs
 }
 
 // Flow represents a flow-type automation to run on a schedule.
@@ -308,7 +345,29 @@ type Flow struct {
 	AutomationCommonFields
 
 	Flow          string // The flow specification itself
-	LatestResults FlowResults
+	LatestResults *FlowResults
+}
+
+func (f *Flow) GetLastRunTime() (lastRun time.Time) {
+	if f.LatestResults == nil {
+		return time.Time{}
+	}
+	lastRun = f.LatestResults.LastRun
+	return
+}
+
+func (f *Flow) GetLastSearchIDs() []string {
+	if f.LatestResults == nil {
+		return []string{}
+	}
+	return f.LatestResults.LastSearchIDs
+}
+
+func (f *Flow) GetLastPersistentMaps() map[string]map[string]any {
+	if f.LatestResults == nil {
+		return map[string]map[string]any{}
+	}
+	return f.LatestResults.PersistentMaps
 }
 
 // FlowResults represents the results of a Flow execution.
@@ -317,10 +376,10 @@ type FlowResults struct {
 
 	AutomationResultsCommonFields
 
-	FlowID          string                            // references the Flow this result belongs to
-	FlowNodeResults map[int]FlowNodeResult            // results for each node in the flow
-	DebugOutput     []byte                            // output of the script if debugmode was enabled
-	PersistentMaps  map[string]map[string]interface{} // a place to stash variables between runs
+	FlowID          string                    // references the Flow this result belongs to
+	FlowNodeResults map[int]FlowNodeResult    // results for each node in the flow
+	DebugOutput     []byte                    // output of the script if debugmode was enabled
+	PersistentMaps  map[string]map[string]any // a place to stash variables between runs
 }
 
 // AutomationDebugRequest is what gets submitted to the webserver when we're requesting a debug run of an automation.
