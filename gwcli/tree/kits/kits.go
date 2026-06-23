@@ -251,6 +251,198 @@ func pull() action.Pair {
 		})
 }
 
+// NOTE(rlandau): we don't have a great way to pass the QueryOptions into the SetArgs hooks in fields as fields has no way to access the current FlagSet.
+// Until we rework scaffoldcreate+scaffoldedit, we are just going to assume admin mode is set.
+func build() action.Pair {
+	return scaffoldcreate.NewCreateAction("kit",
+		map[string]scaffoldcreate.Field{
+			"kit ID": {
+				Title:    "KitID",
+				Required: true,
+				Flag:     scaffoldcreate.FlagConfig{Name: "kit-id", Usage: "ID to use for the kit"},
+				Order:    600,
+				Provider: &scaffoldcreate.TextProvider{},
+			},
+			"readme": {
+				Title:    "README",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "readme", Usage: "Longform description of the new kit"},
+				Order:    580,
+				Provider: &scaffoldcreate.TextAreaProvider{},
+			},
+			"kit version": {
+				Title:        "Kit Version",
+				Required:     false,
+				Flag:         scaffoldcreate.FlagConfig{Name: "kit-version", Usage: "Initial version for the new kit. Defaults to 1."},
+				DefaultValue: "1",
+				Order:        560,
+				Provider:     nil, // TODO
+			},
+			"dashboards": {
+				Title:    "Dashboards",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "dashboards", Usage: "Comma-separated list of dashboard IDs to include in the kit."},
+				Order:    540,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListDashboards(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch dashboards", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapDashboards(lr.Results)
+					},
+				},
+				},
+			},
+			"templates": {
+				Title:    "Templates",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "templates", Usage: "Comma-separated list of template IDs to include in the kit."},
+				Order:    520,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListTemplates(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch templates", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapTemplates(lr.Results)
+					},
+				},
+				},
+			},
+			"actionables": {
+				Title:    "Actionables",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "actionables", Usage: "Comma-separated list of actionable IDs to include in the kit."},
+				Order:    500,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch actionables", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapActionables(lr.Results)
+					},
+				},
+				},
+			},
+			"flows": {
+				Title:    "Flows",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "flows", Usage: "Comma-separated list of flows IDs to include in the kit."},
+				Order:    480,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						lr, err := connection.Client.ListFlows(&types.QueryOptions{AdminMode: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch flows", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapFlows(lr.Results)
+					},
+				},
+				},
+			},
+			"scheduled searches": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    460,
+				Provider: nil, // TODO
+			},
+			"resources": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    440,
+				Provider: nil, // TODO
+			},
+			"macros": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    420,
+				Provider: nil, // TODO
+			},
+			"search libraries": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    400,
+				Provider: nil, // TODO
+			},
+			"extractions": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    380,
+				Provider: nil, // TODO
+			},
+			"files": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    360,
+				Provider: nil, // TODO
+			},
+			"playbooks": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    340,
+				Provider: nil, // TODO
+			},
+			"alerts": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    320,
+				Provider: nil, // TODO
+			},
+			"embedded items": {
+				Title:    "KitVersion",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "", Usage: ""}, // TODO
+				Order:    300,
+				Provider: nil, // TODO
+			},
+			"icon": {
+				Title:    "Icon",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "kit-icon", Usage: "New kit's icon"},
+				Order:    280,
+				Provider: &scaffoldcreate.PathProvider{},
+			},
+		},
+		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+
+			kbr := types.KitBuildRequest{
+				KitID:      fields["kitID"].Provider.Get(),
+				Readme:     fields["readme"].Provider.Get(),
+				KitVersion: 1,
+			}
+			resp, err := connection.Client.BuildKit(kbr)
+			if err != nil {
+				return 0, "", err
+			}
+			return resp.UID, "", nil
+		},
+		scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "build",
+				Example: "build --kit-id=com.mykit.", // TODO
+				Aliases: []string{"pack", "create", "new"},
+			},
+		},
+	)
+}
+
+// Rebuild a kit from a previous build request, incrementing the version.
+// TODO rebuild. We can probably leverage build instead of a wholly new action.
+
 func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
 		types.KitMetadata{},
@@ -263,7 +455,7 @@ func remote() action.Pair {
 				Use:     "remotes",
 				Aliases: []string{"list-remotes", "remote", "list-remote"},
 			},
-			DefaultColumns: []string{"UUID", "Name", "Description", "Version"},
+			DefaultColumns: []string{"ID", "KitID", "Name", "Description", "Version"},
 			Omit: scaffold.OmitFlags{
 				AllData:        false,
 				IncludeDeleted: true,
@@ -370,46 +562,3 @@ func download() action.Pair {
 				}},
 		})
 }
-
-// buildKit assembles a kit from a JSON build-request file and returns the resulting kit UUID.
-// The JSON must match the types.KitBuildRequest structure.
-// See https://docs.gravwell.io/api/kits.html for the spec.
-/*func buildKit() action.Pair {
-	return scaffold.NewBasicAction("build", "build a kit from a JSON spec file",
-		"Assemble a new kit from a JSON file that describes its contents.\n"+
-			"The JSON must conform to the KitBuildRequest schema.\n\n"+
-			"On success the new kit UUID is printed; the kit will then appear in the staged list\n"+
-			"and can be downloaded with the 'kits download' action.\n\n"+
-			"See https://docs.gravwell.io/api/kits.html for the expected JSON structure.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
-			path := fs.Arg(0)
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Sprintf("failed to read file '%s': %v", path, err), nil
-			}
-			var req types.KitBuildRequest
-			if err := json.Unmarshal(raw, &req); err != nil {
-				return fmt.Sprintf("failed to parse build-request JSON: %v", err), nil
-			}
-			resp, err := connection.Client.BuildKit(req)
-			if err != nil {
-				return err.Error(), nil
-			}
-			return fmt.Sprintf("built kit '%s' (UUID: %s, size: %d bytes)", req.Name, resp.UUID, resp.Size), nil
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("build %s", ft.Mandatory("build-spec.json")),
-			},
-			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				if fs.NArg() != 1 {
-					return phrases.Exactly1ArgRequired("path to build-spec JSON file"), nil
-				}
-				if _, err := os.Stat(fs.Arg(0)); err != nil {
-					return fmt.Sprintf("cannot access file '%s': %v", fs.Arg(0), err), nil
-				}
-				return "", nil
-			},
-		})
-}
-*/
