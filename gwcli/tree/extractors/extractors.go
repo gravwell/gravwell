@@ -243,8 +243,9 @@ func create() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Example: "create --" + ft.Name.Name() + "=testcsv " +
 					"--" + ft.Description.Name() + "=\"CSV auto-extraction for the super ugly CSV data\" " +
+					"--tags=csv" +
 					"--module csv " +
-					"--module-parameters" + "ts, name, id, guid, src, srcport, dst, dstport, data, country, city, hash",
+					"--module-parameters " + "\"ts, name, id, guid, src, srcport, dst, dstport, data, country, city, hash\"",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					ft.Dryrun.Register(fs)
