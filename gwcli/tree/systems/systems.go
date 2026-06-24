@@ -165,6 +165,6 @@ func state() action.Pair {
 				}
 				return sb.String()[:sb.Len()-1], nil
 			},
-			Omit: scaffold.OmitFlags{Everything: true},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})
 }

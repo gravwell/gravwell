@@ -223,7 +223,7 @@ func NewListAction[dataStruct_t any](short, long string,
 	cmd := treeutils.GenerateAction("list", short, long, nil, runE, actionOptions)
 	options.Apply(cmd)
 
-	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias), options.Omit))
+	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias), options.QueryOptionsFlags))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 
@@ -299,7 +299,7 @@ func generateRunE[dataStruct_t any](
 		}
 
 		// execute the actual list and format call
-		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias, opts.Omit)
+		s, err := listOutput(c.Flags(), format, columns, dataFn, opts.Pretty, DQToAlias, opts.QueryOptionsFlags)
 		if err != nil {
 			return err
 		}

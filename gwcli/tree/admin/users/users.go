@@ -385,7 +385,7 @@ func sessionsAction() action.Pair {
 				}
 				return "", nil
 			},
-			Omit: scaffold.OmitFlags{Everything: true},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		},
 	)
 }

@@ -689,7 +689,7 @@ func TestHelpGeneration(t *testing.T) {
 						return []nuclearThrone{}, nil
 					},
 					nil,
-					scaffoldlist.Options{Omit: tt.omit})
+					scaffoldlist.Options{QueryOptionsFlags: tt.omit})
 				pair.Action.SetOut(&sbOut)
 				pair.Action.SetErr(&sbErr)
 				uniques.Help(pair.Action, nil)
@@ -872,7 +872,7 @@ func TestOmitFlags(t *testing.T) {
 							return []nuclearThrone{}, nil
 						},
 						nil,
-						scaffoldlist.Options{Omit: tt.omit})
+						scaffoldlist.Options{QueryOptionsFlags: tt.omit})
 					pair.Action.SetOut(&sbOut)
 					pair.Action.SetErr(&sbErr)
 					pair.Action.SetArgs(tt.setArgs)
@@ -967,7 +967,7 @@ func TestOmitFlags(t *testing.T) {
 							return []nuclearThrone{}, nil
 						},
 						nil,
-						scaffoldlist.Options{Omit: tt.omit})
+						scaffoldlist.Options{QueryOptionsFlags: tt.omit})
 
 					uniques.AttachPersistentFlags(pair.Action)
 					inv, _, err := pair.Model.SetArgs(pair.Action.Flags(), tt.setArgs, 80, 60)

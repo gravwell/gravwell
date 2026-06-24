@@ -151,7 +151,7 @@ func list() action.Pair {
 			"Storage.EntryCountCold":   "Cold.Count",
 		},
 		scaffoldlist.Options{
-			Omit: scaffold.OmitFlags{Everything: true},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})
 }
 

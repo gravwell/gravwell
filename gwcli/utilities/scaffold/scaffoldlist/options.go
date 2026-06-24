@@ -63,8 +63,8 @@ type Options struct {
 	// Uses DefaultEmptyMessage if unset.
 	EmptyMessage string
 
-	// Omit allows disabling flags for this action, causing their values to always default to false/nil and the flags themselves to not be shown in help text.
-	Omit scaffold.QOBuilder
+	// QueryOptionsFlags can take a QOBuilder to configure how this action should handle query options flags.
+	QueryOptionsFlags scaffold.QOBuilder
 }
 
 // buildFlagSet returns a flagset composed of the default list flags,

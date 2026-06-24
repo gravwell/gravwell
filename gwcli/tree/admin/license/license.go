@@ -137,7 +137,7 @@ func licenseInfo() action.Pair {
 					},
 				)
 			},
-			Omit: scaffold.OmitFlags{Everything: true},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		},
 	)
 }

@@ -77,5 +77,5 @@ func listAction() action.Pair {
 				}
 			}
 			return wrap, nil
-		}, nil, scaffoldlist.Options{Omit: scaffold.OmitFlags{Everything: true}})
+		}, nil, scaffoldlist.Options{QueryOptionsFlags: scaffold.QOOmit{Everything: true}})
 }

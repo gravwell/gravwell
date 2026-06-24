@@ -182,7 +182,7 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			Omit: scaffold.OmitFlags{
+			QueryOptionsFlags: scaffold.QOOmit{
 				AllData:        false,
 				IncludeDeleted: true,
 				Limit:          true,
