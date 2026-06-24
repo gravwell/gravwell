@@ -195,7 +195,7 @@ func TestIngest(t *testing.T) {
 
 - **Use `e2e.Fatal` / `e2e.Fatalf` instead of `t.Fatal`.** The e2e wrappers save Gravwell instance logs before failing, which makes debugging with `-artifacts` much easier.
 
-- **Give ingestion time to propagate.** After sending data, add a `time.Sleep` before querying. Ingestion is asynchronous — entries may take a few seconds to become searchable.
+- **Use `e2e.WaitForEntries`.** This helps avoid test flakes due to ingest timing being unreliable in GitHub Runners.
 
 - **Keep config templates in `testdata/`.** This is the standard Go convention and keeps test data co-located with the tests that use it.
 

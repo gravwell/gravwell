@@ -87,7 +87,7 @@ func (trw *trackingRW) Write(b []byte) (r int, err error) {
 
 // requestKV gets commons request metadata and returns a slice of log params.
 // This should be run after writing the response (eg in a defered func) in
-// order to capture the response code and bytes written.
+// order to capture the response code and bytes read.
 func requestKV(w http.ResponseWriter, r *http.Request) []rfc5424.SDParam {
 	params := make([]rfc5424.SDParam, 0, 5)
 	if trw, ok := w.(*trackingRW); ok {

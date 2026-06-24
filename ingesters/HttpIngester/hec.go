@@ -187,13 +187,6 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		}()
 	}
 
-	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
-	if err != nil {
-		ll.Error("failed to create limited decoder", log.KVErr(err))
-		hh.respInternalServerError(w)
-		return
-	}
-
 	//check if the query url has a tag or sourcetype parameter
 	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
@@ -201,6 +194,13 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 	} else if ok {
 		tgo = override
 		defaultTag = tg
+	}
+
+	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
+	if err != nil {
+		ll.Error("failed to create limited decoder", log.KVErr(err))
+		hh.respInternalServerError(w)
+		return
 	}
 
 loop:
@@ -356,7 +356,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 				kvs = append(kvs, tgo.LogKV())
 			}
 			//Log how many bytes and entries were on this config
-			ll.Info("raw HEC request", kvs...)
+			h.igst.Info("raw HEC request", kvs...)
 		}()
 	}
 	//check if the query url has a tag or sourcetype parameter
