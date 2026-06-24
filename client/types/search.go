@@ -60,14 +60,6 @@ type Element struct {
 	Filters     []string
 }
 
-// A GenerateAXRequest contains a tag name and a set of entries.
-// It is used by clients to request all possible extractions from the given entries.
-// All entries should have the same tag.
-type GenerateAXRequest struct {
-	Tag     string
-	Entries []SearchEntry
-}
-
 // A GenerateAXResponse contains an autoextractor definition
 // and corresponding Element extractions as gathered from a single extraction module
 type GenerateAXResponse struct {

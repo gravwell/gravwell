@@ -95,6 +95,7 @@ const (
 	SEARCH_CTRL_ENTRIES_URL          = `/api/searchctrl/%s/renderer/%s`
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_CTRL_LAUNCH_URL           = `/api/searchctrl/launch`
+	SEARCH_CTRL_GENERATE_AX_URL      = `/api/searchctrl/%s/generate-extractor`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
 	NOTIFICATIONS_URL                = `/api/notifications`
 	NOTIFICATIONS_ID_URL             = `/api/notifications/%d`
@@ -160,7 +161,6 @@ const (
 	EXTRACTORS_ID_URL                = `/api/autoextractors/%s`
 	EXTRACTORS_SYNC_URL              = `/api/autoextractors/sync`
 	EXTRACTORS_ENGINES_URL           = `/api/autoextractors/engines`
-	EXPLORE_GENERATE_URL             = `/api/explore/generate`
 	TEMPLATES_URL                    = "/api/templates"
 	TEMPLATES_ID_URL                 = "/api/templates/%s"
 	TEMPLATES_ID_DETAILS_URL         = "/api/templates/%s/details"
@@ -582,8 +582,8 @@ func extractionEnginesUrl() string {
 	return EXTRACTORS_ENGINES_URL
 }
 
-func exploreGenerateUrl() string {
-	return EXPLORE_GENERATE_URL
+func exploreGenerateUrl(sid string) string {
+	return fmt.Sprintf(SEARCH_CTRL_GENERATE_AX_URL, sid)
 }
 
 func templatesUrl() string {

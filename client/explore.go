@@ -15,11 +15,7 @@ import "github.com/gravwell/gravwell/v4/client/types"
 // The map keys are extraction modules, e.g. "json" or "winlog". The map values are arrays of
 // GenerateAXResponse structures, each representing one possible extraction of the data, including
 // an AX definition which can be installed if the user deems the extraction appropriate.
-func (c *Client) ExploreGenerate(tag string, ents []types.SearchEntry) (mp map[string][]types.GenerateAXResponse, err error) {
-	req := types.GenerateAXRequest{
-		Tag:     tag,
-		Entries: ents,
-	}
-	err = c.postStaticURL(exploreGenerateUrl(), req, &mp)
+func (c *Client) ExploreGenerate(sid string) (mp map[string][]types.GenerateAXResponse, err error) {
+	err = c.postStaticURL(exploreGenerateUrl(sid), nil, &mp)
 	return
 }
