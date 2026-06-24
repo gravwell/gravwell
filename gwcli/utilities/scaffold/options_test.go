@@ -35,6 +35,9 @@ func TestQOBuilder(t *testing.T) {
 		{"include include-deleted & limit",
 			scaffold.QOInclude{IncludeDeleted: true, Limit: true},
 			types.QueryOptions{IncludeDeleted: true, Limit: 5}},
+		{"include nothing",
+			scaffold.QOInclude{},
+			types.QueryOptions{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
