@@ -394,7 +394,7 @@ func save() action.Pair {
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// checked by validate
 			enable, _ := fs.GetBool("enable")
-			duration, _ := fs.GetDuration("duration")
+			duration, _ := fs.GetDuration(ft.DurationName)
 			disable, _ := fs.GetBool("disable")
 
 			results = make([]scaffold.Result, len(IDs))
@@ -439,10 +439,10 @@ func save() action.Pair {
 				Use: "save",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					fs.Bool("enable", false, "enable search saving.\n"+
+					fs.Bool("enable", false, "Enable search saving.\n"+
 						"Mutually exclusive with --disable")
-					fs.Duration("duration", 0, "duration for which to save a triggering search")
-					fs.Bool("disable", false, "disable search saving.\n"+
+					fs.Duration(ft.DurationName, 0, "Duration for which to save a triggering search. Must be positive.")
+					fs.Bool("disable", false, "Disable search saving.\n"+
 						"Mutually exclusive with --enable")
 					return fs
 				},
@@ -454,6 +454,11 @@ func save() action.Pair {
 				clilog.GetFlag(err)
 				if enable && disable {
 					return ft.ErrMutuallyExclusive("enable", "disable").Error(), nil
+				}
+				duration, err := fs.GetDuration(ft.DurationName)
+				clilog.GetFlag(err)
+				if duration < 0 {
+					return "duration must be positive", nil
 				}
 				return "", nil
 			},

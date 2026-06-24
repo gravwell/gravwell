@@ -303,6 +303,8 @@ var Path = singular{
 const DirName = "dir"
 const DirUsagePrefix = "directory to "
 
+const DurationName = "duration"
+
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
 func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
 	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)

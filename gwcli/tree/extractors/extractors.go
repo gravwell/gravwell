@@ -74,7 +74,8 @@ const (
 
 var (
 	fieldUsageModule = "Extraction module to use. Call " + stylesheet.Path(true, "~", "extractors", "modules") + " to list available options."
-	fieldUsageTags   = "Tags this ax will extract from. Call " + stylesheet.Path(true, "~", "tags") + " There can only be one extractor per tag."
+	fieldUsageTags   = "Tags this ax will extract from. Call " + stylesheet.Path(true, "~", "tags") + " to list available options. " +
+		"There can only be one extractor per tag."
 )
 
 // #region list

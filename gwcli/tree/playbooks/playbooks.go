@@ -139,8 +139,8 @@ func create() action.Pair {
 			"content": {
 				Title:    "Content",
 				Required: false,
-				Flag: scaffoldcreate.FlagConfig{Usage: "Markdown content of the new playbook." +
-					"Use " + ft.Path.Name() + " to read content from a file instead."}, // TODO prepopulate this TA with the file's contents
+				Flag: scaffoldcreate.FlagConfig{Usage: "Markdown content of the new playbook. " +
+					"Use " + ft.Path.Name() + " to read content from a file instead."},
 				Order:    80,
 				Provider: &scaffoldcreate.TextAreaProvider{},
 			},
@@ -174,7 +174,7 @@ func create() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "markdown file")
+					ft.Path.Register(fs, "", "markdown file. Overwrites --content.")
 					return fs
 				},
 			},

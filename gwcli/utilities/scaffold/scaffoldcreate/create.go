@@ -76,6 +76,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -153,6 +154,7 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 
 			// attempt to create the new X
 			if id, inv, err := createFunc(fields, c.Flags()); err != nil {
+				clilog.Writer.Warn("failed to create item", scaffold.IdentifyCaller(), log.KVErr(err))
 				return err
 			} else if inv != "" { // some of the flags were invalid
 				fmt.Fprintln(c.OutOrStdout(), inv)

@@ -55,6 +55,7 @@ func NewNav() *cobra.Command {
 			install(),
 			upload(),
 			pull(),
+			build(),
 			remote(),
 			download(),
 		})
@@ -562,29 +563,16 @@ func build() action.Pair {
 				iconID = resp.ID
 			}
 
-			// collected items to embed
-			var embed []types.KitEmbeddedItem
-			if embedDir := strings.TrimSpace(fields["embedded items"].Provider.Get()); embedDir != "" {
-				recur, err := strconv.ParseBool(fields["recursive embed"].Provider.Get())
-				if err != nil {
-					clilog.Writer.Error("failed to parse bool provider", log.KVErr(err))
-					return 0, "", clilog.ErrInternal{}
-				}
-				dir, err := os.ReadDir(embedDir)
-				if err != nil {
-					clilog.Writer.Warn("failed to read embed directory", log.KVErr(err))
-					return 0, err.Error(), nil
-				}
-				for _, entry := range dir {
-					if !entry.IsDir() {
-						embed = append(embed, types.KitEmbeddedItem{KitItem: types.KitItem{
-							Name: filepath.Base(s),
-							Type: types.KitAssetFile,
-						}})
-					}
-				}
+			// collect items to embed
+			recur, err := strconv.ParseBool(fields["recursive embed"].Provider.Get())
+			if err != nil {
+				clilog.Writer.Error("failed to parse bool provider", log.KVErr(err))
+				return 0, "", clilog.ErrInternal{}
 			}
-
+			embed, err := collectEmbeddedItems(strings.TrimSpace(fields["embedded items"].Provider.Get()), recur)
+			if err != nil {
+				return 0, "", err
+			}
 			kbr := types.KitBuildRequest{
 				CommonFields: types.CommonFields{
 					Name: fields["name"].Provider.Get(),
@@ -604,7 +592,7 @@ func build() action.Pair {
 				Playbooks:         strings.Split(strings.TrimSpace(fields["playbook"].Provider.Get()), ","),
 				SavedQueries:      strings.Split(strings.TrimSpace(fields["saved queries"].Provider.Get()), ","),
 				Alerts:            strings.Split(strings.TrimSpace(fields["alerts"].Provider.Get()), ","),
-				EmbeddedItems:     nil, // TODO
+				EmbeddedItems:     embed,
 				Icon:              iconID,
 			}
 
@@ -685,6 +673,37 @@ func build() action.Pair {
 			IDIsSuccessMessage: true,
 		},
 	)
+}
+
+func collectEmbeddedItems(dirPath string, recur bool) ([]types.KitEmbeddedItem, error) {
+	if dirPath == "" {
+		return nil, nil
+	} else if fi, err := os.Stat(dirPath); err != nil {
+		return nil, err
+	} else if !fi.IsDir() {
+		return nil, errors.New("collection path must be a directory")
+	}
+	dir, err := os.ReadDir(dirPath)
+	if err != nil {
+		clilog.Writer.Warn("failed to read embed directory", log.KVErr(err))
+		return nil, err
+	}
+	items := []types.KitEmbeddedItem{}
+	for _, entry := range dir {
+		if !entry.IsDir() {
+			items = append(items, types.KitEmbeddedItem{KitItem: types.KitItem{
+				Name: filepath.Base(entry.Name()),
+				Type: types.KitAssetFile,
+			}})
+		} else if recur {
+			if sub, err := collectEmbeddedItems(filepath.Join(dirPath, entry.Name()), recur); err != nil {
+				return nil, err
+			} else if len(sub) > 0 {
+				items = append(items, sub...)
+			}
+		}
+	}
+	return items, nil
 }
 
 // Rebuild a kit from a previous build request, incrementing the version.
