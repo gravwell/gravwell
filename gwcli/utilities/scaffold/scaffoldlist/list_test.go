@@ -669,13 +669,13 @@ func TestHelpGeneration(t *testing.T) {
 	t.Run("omitting flags removes them from help text", func(t *testing.T) {
 		tests := []struct {
 			name string
-			omit scaffold.OmitFlags
+			omit scaffold.QOOmit
 		}{
-			{"no omissions includes all", scaffold.OmitFlags{}},
-			{"omit --all", scaffold.OmitFlags{AllData: true}},
-			{"omit --limit", scaffold.OmitFlags{Limit: true}},
-			{"omit --all and --include-deleted", scaffold.OmitFlags{AllData: true, IncludeDeleted: true}},
-			{"omit everything", scaffold.OmitFlags{Everything: true}},
+			{"no omissions includes all", scaffold.QOOmit{}},
+			{"omit --all", scaffold.QOOmit{AllData: true}},
+			{"omit --limit", scaffold.QOOmit{Limit: true}},
+			{"omit --all and --include-deleted", scaffold.QOOmit{AllData: true, IncludeDeleted: true}},
+			{"omit everything", scaffold.QOOmit{Everything: true}},
 		}
 		var sbOut, sbErr strings.Builder
 		// the "--all" prefix is likely be used in multiple ways, so we can't just for contents
@@ -792,14 +792,23 @@ func TestOmitFlags(t *testing.T) {
 		t.Run("non-interactive", func(t *testing.T) {
 			tests := []struct {
 				name    string
-				omit    scaffold.OmitFlags
+				omit    scaffold.QOBuilder
 				setArgs []string
 
 				expectError    bool
 				expectedParams scaffoldlist.DataParameters // only checked if !error
 			}{
+				{"no flags can be set if QOBuilder is nil",
+					nil,
+					[]string{
+						"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
+					},
+					true,
+					scaffoldlist.DataParameters{},
+				},
 				{"all flags can be set with no omissions",
-					scaffold.OmitFlags{},
+					scaffold.QOOmit{},
 					[]string{
 						"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -813,7 +822,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--all cannot be set when omitted",
-					scaffold.OmitFlags{AllData: true},
+					scaffold.QOOmit{AllData: true},
 					[]string{
 						"--" + scaffold.FlagNameAllData,
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -824,7 +833,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--all cannot be set when omit.Everything",
-					scaffold.OmitFlags{Everything: true},
+					scaffold.QOOmit{Everything: true},
 					[]string{
 						"--" + scaffold.FlagNameAllData,
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -835,7 +844,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--include-deleted cannot be set when omitted",
-					scaffold.OmitFlags{IncludeDeleted: true},
+					scaffold.QOOmit{IncludeDeleted: true},
 					[]string{
 						"--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -846,7 +855,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--include-deleted cannot be set when omit.Everything",
-					scaffold.OmitFlags{Everything: true},
+					scaffold.QOOmit{Everything: true},
 					[]string{
 						"--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -857,7 +866,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--limit can be set when omitted",
-					scaffold.OmitFlags{},
+					nil,
 					[]string{
 						"--" + scaffold.FlagNameLimit + "=8",
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -868,7 +877,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--limit cannot be set when omitted",
-					scaffold.OmitFlags{Limit: true},
+					scaffold.QOOmit{Limit: true},
 					[]string{
 						"--" + scaffold.FlagNameLimit,
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -912,14 +921,14 @@ func TestOmitFlags(t *testing.T) {
 		t.Run("non-interactive", func(t *testing.T) {
 			tests := []struct {
 				name    string
-				omit    scaffold.OmitFlags
+				omit    scaffold.QOBuilder
 				setArgs []string
 
 				expectSetArgsInv, expectSetArgsError bool
 				expectedParams                       scaffoldlist.DataParameters // only checked if !error
 			}{
 				{"all flags can be set with no omissions",
-					scaffold.OmitFlags{},
+					nil,
 					[]string{
 						"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -933,7 +942,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--all cannot be set when omitted",
-					scaffold.OmitFlags{AllData: true},
+					scaffold.QOOmit{AllData: true},
 					[]string{
 						"--" + scaffold.FlagNameAllData,
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -944,7 +953,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--all cannot be set when omit.Everything",
-					scaffold.OmitFlags{Everything: true},
+					scaffold.QOOmit{Everything: true},
 					[]string{
 						"--" + scaffold.FlagNameAllData,
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -955,7 +964,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--include-deleted cannot be set when omitted",
-					scaffold.OmitFlags{IncludeDeleted: true},
+					scaffold.QOOmit{IncludeDeleted: true},
 					[]string{
 						"--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage
@@ -966,7 +975,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 				},
 				{"--include-deleted cannot be set when omit.Everything",
-					scaffold.OmitFlags{Everything: true},
+					scaffold.QOOmit{Everything: true},
 					[]string{
 						"--" + ft.IncludeDeleted.Name(),
 						"--" + scaffoldlist.FlagNameSelectColumns + "=Rogue", // include an unrelated flag just for better coverage

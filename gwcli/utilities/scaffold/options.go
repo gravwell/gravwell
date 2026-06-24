@@ -15,7 +15,6 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -88,14 +87,72 @@ func (co CommonOptions) Apply(cmd *cobra.Command) {
 //#region OmitFlags
 
 const (
-	FlagNameAllData string = "all"   // fetch data from all users instead of just the current user
-	FlagNameLimit   string = "limit" // limit the number of elements returned
+	FlagNameAllData  string = "all" // fetch data from all users instead of just the current user
+	FlagUsageAllData string = "Requests that results include data from all users and groups instead of just yours.\n" +
+		"Ignored if you are not an admin.\n" +
+		"Implied by admin mode"
+	FlagNameLimit string = "limit" // limit the number of elements returned
 )
 
-// OmitFlags allows disabling flags for a specific action.
+type QOBuilder interface {
+	// Install flags into the given set based on what options should be available to the user for this action.
+	Install(fs *pflag.FlagSet)
+	// QueryOptions composes a QO from the flagset
+	QueryOptions(fs *pflag.FlagSet) *types.QueryOptions
+}
+
+var _ QOBuilder = QOOmit{}
+var _ QOBuilder = QOInclude{}
+
+type QOInclude struct {
+	Everything     bool
+	AllData        bool
+	IncludeDeleted bool
+	Limit          bool
+}
+
+func (o QOInclude) Install(fs *pflag.FlagSet) {
+	if o.Everything || o.AllData {
+		fs.Bool(FlagNameAllData, false, FlagUsageAllData)
+	}
+	if o.Everything || o.IncludeDeleted {
+		ft.IncludeDeleted.Register(fs)
+	}
+	if o.Everything || o.Limit {
+		fs.Int(FlagNameLimit, 0, "Limit the number of items to return")
+	}
+}
+
+func (o QOInclude) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
+	var err error
+	var qo = &types.QueryOptions{}
+
+	if o.Everything || o.IncludeDeleted {
+		qo.IncludeDeleted, err = fs.GetBool(ft.IncludeDeleted.Name())
+		clilog.GetFlag(err)
+	}
+	if o.Everything || o.AllData {
+		qo.AdminMode = connection.AdminMode()
+		if !qo.AdminMode { // check for --all override
+			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
+			clilog.GetFlag(err)
+		}
+	}
+	if o.Everything || o.Limit {
+		lim, err := fs.GetInt(FlagNameLimit)
+		clilog.GetFlag(err)
+		if lim > 0 {
+			qo.Limit = lim
+		}
+	}
+
+	return qo
+}
+
+// QOOmit is a blacklist; itenables QueryOptions by default, requiring each be turned off individually.
 // Anything set to true in here will have its equivalent flag turned off for this action.
 // For example: if an asset type doesn't tombstone, --include-deleted should probably be disabled.
-type OmitFlags struct {
+type QOOmit struct {
 	Everything bool // disable everything. This is useful if the ListDataFunc doesn't take query opts.
 
 	AllData        bool
@@ -103,50 +160,41 @@ type OmitFlags struct {
 	Limit          bool
 }
 
-// InstallQueryOptionsFlags attaches query option flags to the flagset if there were not omitted.
-//
-// Should be paired with GetQueryOptions.
-func InstallQueryOptionsFlags(fs *pflag.FlagSet, omit OmitFlags) {
-	if omit.Everything {
+func (o QOOmit) Install(fs *pflag.FlagSet) {
+	if o.Everything {
 		return
 	}
-	// attach query option flags, depending on their omit state
 
-	if !omit.AllData {
-		fs.Bool(FlagNameAllData, false, "Requests that results include data from "+stylesheet.Italicize("all")+" users and groups instead of just yours.\n"+
-			"Ignored if you are not an admin.\n"+
-			"Implied by admin mode")
+	if !o.AllData {
+		fs.Bool(FlagNameAllData, false, FlagUsageAllData)
 	}
-	if !omit.IncludeDeleted {
+	if !o.IncludeDeleted {
 		ft.IncludeDeleted.Register(fs)
 	}
-	if !omit.Limit {
+	if !o.Limit {
 		fs.Int(FlagNameLimit, 0, "Limit the number of items to return")
 	}
 }
 
-// GetQueryOptions extracts QueryOptions from the given flagset.
-//
-// Should be paired with InstallQueryOptionsFlags().
-func GetQueryOptions(fs *pflag.FlagSet, omit OmitFlags) *types.QueryOptions {
+func (o QOOmit) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
 	var err error
 	var qo = &types.QueryOptions{}
-	if omit.Everything {
+	if o.Everything {
 		return qo
 	}
 
-	if !omit.IncludeDeleted {
+	if !o.IncludeDeleted {
 		qo.IncludeDeleted, err = fs.GetBool(ft.IncludeDeleted.Name())
 		clilog.GetFlag(err)
 	}
-	if !omit.AllData {
+	if !o.AllData {
 		qo.AdminMode = connection.AdminMode()
 		if !qo.AdminMode { // check for --all override
 			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
 			clilog.GetFlag(err)
 		}
 	}
-	if !omit.Limit {
+	if !o.Limit {
 		lim, err := fs.GetInt(FlagNameLimit)
 		clilog.GetFlag(err)
 		if lim > 0 {

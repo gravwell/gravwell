@@ -23,7 +23,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
 
@@ -41,7 +40,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path", func(t *testing.T) {
-		fs := buildFlagSet(false, nil, scaffold.OmitFlags{})
+		fs := buildFlagSet(false, nil, nil)
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -50,7 +49,7 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path with pretty defined", func(t *testing.T) {
-		fs := buildFlagSet(true, nil, scaffold.OmitFlags{})
+		fs := buildFlagSet(true, nil, nil)
 		fs.Parse([]string{"-o", ""})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -70,7 +69,7 @@ func Test_initOutFile(t *testing.T) {
 		orig.Sync()
 		orig.Close()
 
-		fs := buildFlagSet(false, nil, scaffold.OmitFlags{})
+		fs := buildFlagSet(false, nil, nil)
 		fs.Parse([]string{"-o", path})
 		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
@@ -160,7 +159,7 @@ func Test_determineFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// generate flagset
-			fs := buildFlagSet(tt.prettyDefined, nil, scaffold.OmitFlags{})
+			fs := buildFlagSet(tt.prettyDefined, nil, nil)
 			fs.Parse(tt.args)
 			if got := determineFormat(fs, tt.prettyDefined); got != tt.want {
 				t.Errorf("determineFormat() = %v, want %v", got, tt.want)
@@ -238,7 +237,7 @@ func Test_getColumns(t *testing.T) {
 	}
 
 	t.Run("--all", func(t *testing.T) {
-		fs := buildFlagSet(false, nil, scaffold.OmitFlags{}) // default cols shouldn't matter for this
+		fs := buildFlagSet(false, nil, nil) // default cols shouldn't matter for this
 		if err := fs.Parse([]string{"--" + FlagNameSelectAllColumns}); err != nil {
 			t.Fatal(err)
 		}
@@ -252,7 +251,7 @@ func Test_getColumns(t *testing.T) {
 		}
 	})
 	t.Run("--columns selects only DQ, duplicate columns", func(t *testing.T) {
-		fs := buildFlagSet(false, nil, scaffold.OmitFlags{}) // default cols shouldn't matter for this
+		fs := buildFlagSet(false, nil, nil) // default cols shouldn't matter for this
 
 		requestedColumns := []string{"Alexander", "Ranni", "Ranni", "Marika"}
 
@@ -268,7 +267,7 @@ func Test_getColumns(t *testing.T) {
 		}
 	})
 	t.Run("--columns selects DQ+Alias mix", func(t *testing.T) {
-		fs := buildFlagSet(false, nil, scaffold.OmitFlags{})
+		fs := buildFlagSet(false, nil, nil)
 
 		requestedColumns := []string{"Radagon", "Alexander", "Ranni", "Margit"}
 
@@ -288,7 +287,7 @@ func Test_getColumns(t *testing.T) {
 		// default columns are expected to be DQ
 		defaultColumns := []string{"Morgot"}
 
-		fs := buildFlagSet(false, defaultColumns, scaffold.OmitFlags{})
+		fs := buildFlagSet(false, defaultColumns, nil)
 
 		if err := fs.Parse([]string{}); err != nil {
 			t.Fatal(err)
@@ -332,7 +331,7 @@ func Test_listOutput(t *testing.T) {
 		ppf := func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ DataParameters) (string, error) {
 			return "pretty", nil
 		}
-		out, err := listOutput[struct{}](buildFlagSet(true, nil, scaffold.OmitFlags{}), formatPretty, nil, nil, ppf, nil, scaffold.OmitFlags{})
+		out, err := listOutput[struct{}](buildFlagSet(true, nil, nil), formatPretty, nil, nil, ppf, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -379,7 +378,7 @@ func Test_listOutput(t *testing.T) {
 	}
 	for i, tt := range tests {
 		t.Run(strconv.FormatInt(int64(i+1), 10), func(t *testing.T) {
-			out, err := listOutput(buildFlagSet(false, nil, scaffold.OmitFlags{}), tt.format, tt.dqColumns, dataFunc, nil, aliased, scaffold.OmitFlags{})
+			out, err := listOutput(buildFlagSet(false, nil, nil), tt.format, tt.dqColumns, dataFunc, nil, aliased, nil)
 			if err != nil {
 				t.Error(err)
 			}
