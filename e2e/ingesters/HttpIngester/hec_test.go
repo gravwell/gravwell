@@ -11,6 +11,7 @@ import (
 	"gravwell/e2e"
 
 	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -32,6 +33,22 @@ func TestHec(t *testing.T) {
 
 		c := e2e.GetClient(t)
 		assert(t, e2e.WaitForEntries(t, c, "tag=hec-testing words -e DATA raw hec", time.Minute, 1, 30*time.Second), 1, data)
+	})
+
+	t.Run("auth fails with bad token", func(t *testing.T) {
+		req, err := http.NewRequest("POST", endpoint+"/services/collector/event", strings.NewReader(`{"event": "hec blah"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Splunk failure")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+		}
 	})
 
 	t.Run("debug posts", func(t *testing.T) {
@@ -62,8 +79,10 @@ func assert(t *testing.T, ent []types.StringTagEntry, count int, data string) {
 	if len(ent) != count {
 		e2e.Fatalf(t, "got %d entries, want %d", len(ent), count)
 	}
-	if string(ent[0].Data) != data {
-		e2e.Fatalf(t, "got %q, want %q", string(ent[0].Data), data)
+	for i, entry := range ent {
+		if string(entry.Data) != data {
+			e2e.Fatalf(t, "got %s, want %s, for entry %d", string(entry.Data), data, i)
+		}
 	}
 }
 
@@ -116,14 +135,14 @@ func TestHecNoDebug(t *testing.T) {
 }
 
 func SendHecEvent(t *testing.T, endpoint string, data io.Reader) {
-	send(t, endpoint+"/services/collector/event", data)
+	sendHec(t, endpoint+"/services/collector/event", data)
 }
 
 func SendHecRaw(t *testing.T, endpoint string, data io.Reader) {
-	send(t, endpoint+"/services/collector/raw", data)
+	sendHec(t, endpoint+"/services/collector/raw", data)
 }
 
-func send(t *testing.T, endpoint string, data io.Reader) {
+func sendHec(t *testing.T, endpoint string, data io.Reader) {
 	req, err := http.NewRequest("POST", endpoint, data)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +152,7 @@ func send(t *testing.T, endpoint string, data io.Reader) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer utils.DrainResponse(resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("got bad http status %d", resp.StatusCode)
 	}
