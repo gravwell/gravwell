@@ -84,7 +84,7 @@ func listAction() action.Pair {
 				"KitVersion",
 				"Installed",
 			},
-			Omit: scaffold.OmitFlags{IncludeDeleted: true},
+			QueryOptionsFlags: scaffold.QOOmit{IncludeDeleted: true},
 		})
 }
 
@@ -204,7 +204,7 @@ func upload() action.Pair {
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			ks, err := connection.Client.UploadKit(fields["path"].Provider.Get())
 			if err != nil {
-				return 0, "", nil
+				return 0, "", err
 			}
 			return ks.Name + " (ID: " + ks.ID + ")", "", nil
 		},
@@ -547,7 +547,7 @@ func build() action.Pair {
 				resp, err := connection.Client.CreateFile(types.File{
 					CommonFields: types.CommonFields{
 						Name:        "Kit Icon (" + fields["name"].Provider.Get() + ")",
-						Description: "Icon for locally built kit " + fields["name"].Provider.Get() + " (KitID: " + fields["kitID"].Provider.Get() + ")",
+						Description: "Icon for locally built kit " + fields["name"].Provider.Get() + " (KitID: " + fields["kit ID"].Provider.Get() + ")",
 					},
 				})
 				if err != nil {
@@ -577,7 +577,7 @@ func build() action.Pair {
 				CommonFields: types.CommonFields{
 					Name: fields["name"].Provider.Get(),
 				},
-				KitID:             fields["kitID"].Provider.Get(),
+				KitID:             fields["kit ID"].Provider.Get(),
 				Readme:            fields["readme"].Provider.Get(),
 				KitVersion:        int(kitVersion),
 				Dashboards:        strings.Split(strings.TrimSpace(fields["dashboards"].Provider.Get()), ","),
@@ -589,7 +589,7 @@ func build() action.Pair {
 				Macros:            strings.Split(strings.TrimSpace(fields["macros"].Provider.Get()), ","),
 				Extractors:        strings.Split(strings.TrimSpace(fields["ax"].Provider.Get()), ","),
 				Files:             strings.Split(strings.TrimSpace(fields["files"].Provider.Get()), ","),
-				Playbooks:         strings.Split(strings.TrimSpace(fields["playbook"].Provider.Get()), ","),
+				Playbooks:         strings.Split(strings.TrimSpace(fields["playbooks"].Provider.Get()), ","),
 				SavedQueries:      strings.Split(strings.TrimSpace(fields["saved queries"].Provider.Get()), ","),
 				Alerts:            strings.Split(strings.TrimSpace(fields["alerts"].Provider.Get()), ","),
 				EmbeddedItems:     embed,
@@ -608,10 +608,11 @@ func build() action.Pair {
 			if dlPath := strings.TrimSpace(fields["local copy"].Provider.Get()); dlPath != "" {
 				clilog.Writer.Debug("downloading local copy of new kit", log.KV("path", dlPath))
 				pth := dlPath
-				if fi, err := os.Stat(dlPath); err != nil {
+				fi, err := os.Stat(dlPath)
+				if errors.Is(err, fs.ErrNotExist) {
+					// perfect, we can just create this directly
+				} else if err != nil {
 					return 0, "", fmt.Errorf("failed to download local copy: %w", err)
-				} else if errors.Is(err, fs.ErrNotExist) {
-					// DNE, do nothing
 				} else if fi.IsDir() { // create path under directory
 					pth = filepath.Join(dlPath, kbr.Name+".kit")
 				} else { // path already exists, points to a pre-existing file
@@ -722,7 +723,7 @@ func remote() action.Pair {
 				Aliases: []string{"list-remotes", "remote", "list-remote"},
 			},
 			DefaultColumns: []string{"ID", "KitID", "Name", "Description", "Version"},
-			Omit: scaffold.OmitFlags{
+			QueryOptionsFlags: scaffold.QOOmit{
 				AllData:        false,
 				IncludeDeleted: true,
 				Limit:          true,
@@ -744,7 +745,7 @@ func download() action.Pair {
 			if err != nil {
 				clilog.Writer.Warn("failed to list remote kits", log.KVErr(err))
 			}
-			if len(local.Results) > 1 && len(remote) > 1 {
+			if len(local.Results) < 1 && len(remote) < 1 {
 				return nil, errors.New("both local and remote kits failed to return any results")
 			}
 			items := make([]multiselectlist.SelectableItem[string], len(local.Results)+len(remote))
