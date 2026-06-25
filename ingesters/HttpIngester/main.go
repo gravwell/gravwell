@@ -111,15 +111,20 @@ func main() {
 		lg.Fatal("failed to load configuration", log.KVErr(err))
 	}
 	var httpLogger *dlog.Logger
-	if debugOn || cfg.LogLevel() == `INFO` {
+	if debugOn || cfg.LogLevel() == `INFO` || cfg.LogLevel() == `DEBUG` {
 		httpLogger = lg.StandardLogger()
 	} else {
 		httpLogger = dlog.New(io.Discard, ``, 0)
 	}
 
+	var chain http.Handler = hnd
+	if debugOn {
+		chain = newDebugMiddleware(lg, hnd)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.Bind,
-		Handler:           hnd,
+		Handler:           chain,
 		ReadHeaderTimeout: httpServerReadHeaderTimeout,
 		IdleTimeout:       httpServerIdleConnTimeout,
 		ErrorLog:          httpLogger,
