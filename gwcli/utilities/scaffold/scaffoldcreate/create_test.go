@@ -170,6 +170,35 @@ func TestOptions(t *testing.T) {
 		assert.Equal(t, wantCust, setCust)
 		assert.Equal(t, wantTestbool, setTestbool)
 	})
+	t.Run("validate args", func(t *testing.T) {
+		// we want to test 3 things:
+		// 1) validate args is called (also that it can pass and fail normally)
+		// 2) field-generated flags are accessible from validate
+		// 3) additional flags are accessible from validate
+		pair := scaffoldcreate.NewCreateAction("test",
+			map[string]scaffoldcreate.Field{
+				"one": {
+					Title:    "field",
+					Flag:     scaffoldcreate.FlagConfig{Name: "ff", Usage: "test field flag"},
+					Provider: &scaffoldcreate.NumberProvider{},
+				},
+			},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				return 1, "", nil
+			},
+			scaffoldcreate.Options{
+				CommonOptions: scaffold.CommonOptions{
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Bool("nonfield", false, "addtl flag")
+						return fs
+					},
+				},
+			})
+		// TODO run non-interactive
+		// TODO run a Mother cycle
+		// TODO run twice to check resetting
+	})
 }
 
 // Tests that boolean providers operate as we expect.
