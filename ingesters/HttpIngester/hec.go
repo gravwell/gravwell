@@ -159,10 +159,10 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 }
 
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	var now time.Time
 	defaultTag := cfg.tag
 	var tgo tagOverride
 	resp := respSuccess
+	var counter int
 
 	// get a local logger up that will always add some more info
 	ll := log.NewLoggerWithKV(h.lgr,
@@ -172,8 +172,21 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 	)
 
 	if cfg.debugPosts {
-		now = time.Now()
+		now := time.Now()
+		defer func() {
+			//Log how many bytes and entries were on this config
+			kvs := append(requestKV(w, r),
+				log.KV("HEC-Listener", hh.name),
+				log.KV("entries", counter),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			)
+			if tgo.hot() {
+				kvs = append(kvs, tgo.LogKV())
+			}
+			h.igst.Info("HEC request", kvs...)
+		}()
 	}
+
 	//check if the query url has a tag or sourcetype parameter
 	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
@@ -189,7 +202,7 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		hh.respInternalServerError(w)
 		return
 	}
-	var counter int
+
 loop:
 	for ; ; counter++ {
 		var ts entry.Timestamp
@@ -264,7 +277,7 @@ loop:
 				}
 			}
 		}
-		debugout("Sending entry %+v", e)
+		debugout("Sending entry %+v\n", e)
 		if err = h.handleEntryEx(cfg, &e); err != nil {
 			//cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 			ll.Error("failed to send entry", log.KVErr(err))
@@ -283,19 +296,6 @@ loop:
 	}
 
 	hh.writeResponse(w, resp)
-	if cfg.debugPosts {
-		//Log how many bytes and entries were on this config
-		kvs := []rfc5424.SDParam{log.KV("host", ip),
-			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter),
-			log.KV("ms", time.Since(now).Milliseconds()),
-		}
-		if tgo.hot() {
-			kvs = append(kvs, tgo.LogKV())
-		}
-		h.igst.Info("HEC request", kvs...)
-	}
-
 }
 
 func (hh *hecHandler) setAck(channel string, resp ack) {
@@ -334,7 +334,6 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	var count int
 	var data int
-	var now time.Time
 	defaultTag := cfg.tag
 	var tgo tagOverride
 	resp := ack{Text: "Success"}
@@ -347,7 +346,18 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	)
 
 	if cfg.debugPosts {
-		now = time.Now()
+		now := time.Now()
+		defer func() {
+			kvs := append(requestKV(w, r),
+				log.KV("entries", count),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			)
+			if tgo.hot() {
+				kvs = append(kvs, tgo.LogKV())
+			}
+			//Log how many bytes and entries were on this config
+			h.igst.Info("raw HEC request", kvs...)
+		}()
 	}
 	//check if the query url has a tag or sourcetype parameter
 	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
@@ -367,7 +377,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		}
 		if err != nil {
 			if err != io.EOF {
-				h.lgr.Error("failed to read complete post", log.KV("address", ip), log.KVErr(err))
+				ll.Error("failed to read complete post", log.KV("address", ip), log.KVErr(err))
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -378,7 +388,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 			continue //skip empty newlines
 		}
 		if err = h.handleEntry(cfg, ln, ip, defaultTag); err != nil {
-			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+			ll.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			hh.respInvalidDataFormat(w, count)
 			return
 		}
@@ -393,18 +403,6 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		hh.setAck(ch, resp)
 	}
 	hh.writeResponse(w, resp)
-	if cfg.debugPosts {
-		kvs := []rfc5424.SDParam{log.KV("host", ip),
-			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", data), log.KV("entries", count),
-			log.KV("ms", time.Since(now).Milliseconds()),
-		}
-		if tgo.hot() {
-			kvs = append(kvs, tgo.LogKV())
-		}
-		//Log how many bytes and entries were on this config
-		h.igst.Info("raw HEC request", kvs...)
-	}
 }
 
 func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

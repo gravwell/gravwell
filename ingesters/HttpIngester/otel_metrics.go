@@ -20,7 +20,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -66,9 +65,19 @@ type otelHandler struct {
 }
 
 func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	var now time.Time
+	var entriesCount int
+	var byteCount int64
+
 	if cfg.debugPosts {
-		now = time.Now()
+		now := time.Now()
+		defer func() {
+			kvs := append(requestKV(w, r),
+				log.KV("otel-listener", oh.name),
+				log.KV("entries", entriesCount),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			)
+			h.igst.Info("OpenTelemetry metrics request", kvs...)
+		}()
 	}
 
 	ll := log.NewLoggerWithKV(oh.lgr,
@@ -145,9 +154,6 @@ func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWrite
 		}
 	}
 
-	var entriesCount int
-	var byteCount int64
-
 	for _, rm := range req.ResourceMetrics {
 		if err := oh.processResourceMetrics(h, cfg, rm, ip, &entriesCount, &byteCount); err != nil {
 			ll.Error("failed to process resource metrics", log.KVErr(err))
@@ -158,14 +164,6 @@ func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWrite
 
 	w.Header().Set("Content-Type", contentType)
 	w.Write(respBytes)
-
-	if cfg.debugPosts {
-		kvs := []rfc5424.SDParam{
-			log.KV("bytes", byteCount), log.KV("entries", entriesCount),
-			log.KV("ms", time.Since(now).Milliseconds()),
-		}
-		h.igst.Info("OpenTelemetry metrics request", kvs...)
-	}
 }
 
 func (oh *otelHandler) processResourceMetrics(h *handler, cfg routeHandler, rm *mpb.ResourceMetrics, ip net.IP, entriesCount *int, byteCount *int64) error {
