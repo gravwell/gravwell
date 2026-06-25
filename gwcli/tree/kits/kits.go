@@ -182,6 +182,7 @@ func install() action.Pair {
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
+				Use: "install",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Bool("overwrite-existing", false, "Overwrite existing assets")
@@ -274,7 +275,7 @@ func build() action.Pair {
 			"kit ID": {
 				Title:    "KitID",
 				Required: true,
-				Flag:     scaffoldcreate.FlagConfig{Name: "kit-id", Usage: "ID to use for the kit"},
+				Flag:     scaffoldcreate.FlagConfig{Name: "kit-id", Usage: "ID to use for the kit. Only letters, numbers, and '.' are allowed."},
 				Order:    600,
 				Provider: &scaffoldcreate.TextProvider{},
 			},
@@ -291,7 +292,7 @@ func build() action.Pair {
 				Flag:         scaffoldcreate.FlagConfig{Name: "kit-version", Usage: "Initial version for the new kit. Defaults to 1."},
 				DefaultValue: "1",
 				Order:        560,
-				Provider:     nil, // TODO
+				Provider:     &scaffoldcreate.NumberProvider{},
 			},
 			"dashboards": {
 				Title:    "Dashboards",
@@ -415,7 +416,7 @@ func build() action.Pair {
 			"ax": {
 				Title:    "AXs",
 				Required: false,
-				Flag:     scaffoldcreate.FlagConfig{Name: "ax", Usage: "Comma-separated list of extractor IDs to include in the kit."},
+				Flag:     scaffoldcreate.FlagConfig{Name: "axs", Usage: "Comma-separated list of extractor IDs to include in the kit."},
 				Order:    400,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
@@ -581,24 +582,24 @@ func build() action.Pair {
 				KitID:             fields["kit ID"].Provider.Get(),
 				Readme:            fields["readme"].Provider.Get(),
 				KitVersion:        int(kitVersion),
-				Dashboards:        strings.Split(strings.TrimSpace(fields["dashboards"].Provider.Get()), ","),
-				Templates:         strings.Split(strings.TrimSpace(fields["templates"].Provider.Get()), ","),
-				Actionables:       strings.Split(strings.TrimSpace(fields["actionables"].Provider.Get()), ","),
-				Flows:             strings.Split(strings.TrimSpace(fields["flows"].Provider.Get()), ","),
-				ScheduledSearches: strings.Split(strings.TrimSpace(fields["scheduled searches"].Provider.Get()), ","),
-				Resources:         strings.Split(strings.TrimSpace(fields["resources"].Provider.Get()), ","),
-				Macros:            strings.Split(strings.TrimSpace(fields["macros"].Provider.Get()), ","),
-				Extractors:        strings.Split(strings.TrimSpace(fields["ax"].Provider.Get()), ","),
-				Files:             strings.Split(strings.TrimSpace(fields["files"].Provider.Get()), ","),
-				Playbooks:         strings.Split(strings.TrimSpace(fields["playbooks"].Provider.Get()), ","),
-				SavedQueries:      strings.Split(strings.TrimSpace(fields["saved queries"].Provider.Get()), ","),
-				Alerts:            strings.Split(strings.TrimSpace(fields["alerts"].Provider.Get()), ","),
+				Dashboards:        getSliceOrNil(fields["dashboards"].Provider.Get()),
+				Templates:         getSliceOrNil(fields["templates"].Provider.Get()),
+				Actionables:       getSliceOrNil(fields["actionables"].Provider.Get()),
+				Flows:             getSliceOrNil(fields["flows"].Provider.Get()),
+				ScheduledSearches: getSliceOrNil(fields["scheduled searches"].Provider.Get()),
+				Resources:         getSliceOrNil(fields["resources"].Provider.Get()),
+				Macros:            getSliceOrNil(fields["macros"].Provider.Get()),
+				Extractors:        getSliceOrNil(fields["ax"].Provider.Get()),
+				Files:             getSliceOrNil(fields["files"].Provider.Get()),
+				Playbooks:         getSliceOrNil(fields["playbooks"].Provider.Get()),
+				SavedQueries:      getSliceOrNil(fields["saved queries"].Provider.Get()),
+				Alerts:            getSliceOrNil(fields["alerts"].Provider.Get()),
 				EmbeddedItems:     embed,
 				Icon:              iconID,
 			}
 
 			if err := kbr.Validate(); err != nil {
-				return 0, err.Error(), nil
+				return 0, "invalid build: " + err.Error(), nil
 			}
 
 			resp, err := connection.Client.BuildKit(kbr)
@@ -675,6 +676,17 @@ func build() action.Pair {
 			IDIsSuccessMessage: true,
 		},
 	)
+}
+
+func getSliceOrNil(g string) []string {
+	var IDs []string
+	for id := range strings.SplitSeq(g, ",") {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			IDs = append(IDs, id)
+		}
+	}
+	return IDs
 }
 
 func collectEmbeddedItems(dirPath string, recur bool) ([]types.KitEmbeddedItem, error) {
