@@ -41,7 +41,7 @@ func WriteArtifact(t *testing.T, a ArtifactType, name string, content []byte) {
 func WriteQueryResults(t *testing.T, name string, ent []types.StringTagEntry) {
 	var buf bytes.Buffer
 	for _, e := range ent {
-		fmt.Fprintf(&buf, "tag: %s, ts: %s, data: %s\n", e.Tag, e.TS.Format(time.RFC3339), e.String())
+		fmt.Fprintf(&buf, "tag: %s, ts: %s, data: %s, evs: %v\n", e.Tag, e.TS.Format(time.RFC3339), e.String(), e.Enumerated)
 	}
 	WriteArtifact(t, SearchResults, name, buf.Bytes())
 }
