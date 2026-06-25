@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCleanPathSuggestions(t *testing.T) {
@@ -117,83 +118,58 @@ func TestOptions(t *testing.T) {
 		t.Error("incorrect aliases", testsupport.ExpectedActual(aliases, act.Action.Aliases))
 	}
 
-	tests := []struct {
-		testName string
-		args     []string
-		setArgs  struct {
-			wantInvalid bool
-			wantErr     bool
+	setName, setPath, setCust, setTestbool = "", "", 0, false // reset stuff set in createFunc
+	t.Run("standard run", func(t *testing.T) {
+		wantName := "nm"
+		wantPath := "/tmp"
+		wantCust := 1
+		wantTestbool := true
+		rootFS := pflag.FlagSet{}
+		// set args
+		testsupport.CheckSetArgs(t,
+			act.Model.SetArgs,
+			&rootFS,
+			[]string{"--name=nm", "--path=/tmp", "--custom", fmt.Sprint(1), "--testbool"}, 50, 30,
+			false, nil, false)
+		for _, upd := range []tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)} {
+			act.Model.Update(upd)
 		}
-		updates []tea.Msg // remember to hit enter if you want things populated
+		act.Model.View()
 
-		wantName     string
-		wantPath     string
-		wantCust     int
-		wantTestbool bool
-	}{
-		{"set all fields and addtl flags from args",
-			[]string{"--name=nm", "--path=/tmp", "--custom", fmt.Sprint(1), "--testbool"},
-			struct {
-				wantInvalid bool
-				wantErr     bool
-			}{false, false},
-			[]tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)},
-			"nm", "/tmp", 1, true,
-		},
-	}
+		act.Model.Reset()
 
-	for _, tt := range tests {
-		// reset sets before the next test
-		setName, setPath, setCust, setTestbool = "", "", 0, false
-		t.Run(tt.testName, func(t *testing.T) {
-			rootFS := pflag.FlagSet{}
-			{ // set args
-				testsupport.CheckSetArgs(t, act.Model.SetArgs, &rootFS, tt.args, 50, 30,
-					tt.setArgs.wantInvalid, nil, tt.setArgs.wantErr)
-				/*				invalid, cmd, err := act.Model.SetArgs(, tt.args, 50, 30)
-								if invalid != tt.setArgs.wantInvalid {
-									t.Error("setArgs: incorrect invalid", testsupport.ExpectedActual(tt.setArgs.wantInvalid, invalid))
-								}
-								if tt.setArgs.wantCmd && (cmd == nil) {
-									t.Error("setArgs: expected cmd but cmd is nil")
-								} else if !tt.setArgs.wantCmd && (cmd != nil) {
-									t.Error("setArgs: expected nil cmd but cmd is not nil")
-								}
-								if tt.setArgs.wantErr && (err == nil) {
-									t.Error("setArgs: expected error but err is nil")
-								} else if !tt.setArgs.wantErr && (err != nil) {
-									t.Error("setArgs: expected nil error but err is not nil")
-								}
-								if err != nil {
-									return
-								}*/
-			}
-			{ // update
-				for _, upd := range tt.updates {
-					act.Model.Update(upd)
-				}
-			}
-			{ // view
-				act.Model.View()
-			}
-			{ // reset
-				act.Model.Reset()
-			}
-			// check results
-			if setName != tt.wantName {
-				t.Error("incorrect name value", testsupport.ExpectedActual(tt.wantName, setName))
-			}
-			if setPath != tt.wantPath {
-				t.Error("incorrect path value", testsupport.ExpectedActual(tt.wantPath, setPath))
-			}
-			if setCust != tt.wantCust {
-				t.Error("incorrect cust value", testsupport.ExpectedActual(tt.wantCust, setCust))
-			}
-			if setTestbool != tt.wantTestbool {
-				t.Error("incorrect testBool value", testsupport.ExpectedActual(tt.wantTestbool, setTestbool))
-			}
-		})
-	}
+		// check results
+		assert.Equal(t, wantName, setName)
+		assert.Equal(t, wantPath, setPath)
+		assert.Equal(t, wantCust, setCust)
+		assert.Equal(t, wantTestbool, setTestbool)
+	})
+	setName, setPath, setCust, setTestbool = "", "", 0, false // reset stuff set in createFunc
+	t.Run("rerun with no sets or new sets to ensure everything gets reset and clobbered properly", func(t *testing.T) {
+		wantName := "nm2"
+		wantPath := "/tmp/2"
+		wantCust := 0
+		wantTestbool := false
+		rootFS := pflag.FlagSet{}
+		// set args
+		testsupport.CheckSetArgs(t,
+			act.Model.SetArgs,
+			&rootFS,
+			[]string{"--name=nm2", "--path=/tmp/2"}, 50, 30,
+			false, nil, false)
+		for _, upd := range []tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)} {
+			act.Model.Update(upd)
+		}
+		act.Model.View()
+
+		act.Model.Reset()
+
+		// check results
+		assert.Equal(t, wantName, setName)
+		assert.Equal(t, wantPath, setPath)
+		assert.Equal(t, wantCust, setCust)
+		assert.Equal(t, wantTestbool, setTestbool)
+	})
 }
 
 // Tests that boolean providers operate as we expect.
