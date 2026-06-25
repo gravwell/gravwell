@@ -55,7 +55,7 @@ func NewField(title string, required bool, provider FieldProvider) Field {
 // If Flag.Name is empty, it will be derived from Title.
 //
 // All flags are read as strings (subject to change).
-func installFlagsFromFields(fields map[string]Field) pflag.FlagSet {
+func generateFlagSetFromFields(fields map[string]Field) pflag.FlagSet {
 	var flags pflag.FlagSet
 	for key, f := range fields {
 		if f.Flag.Name == "" {

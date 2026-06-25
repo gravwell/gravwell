@@ -19,43 +19,6 @@ Similarly, prefer using the prebuilt fields (ex: scaffoldcreate.FieldName) for c
 
 2) CreateFunc is the function called when the user submits the create form.
 It can access field data via fields[<>].Provider.Get().
-
-This scaffold is a bit easier to extend than Delete and List, given it did not require generics.
-
-! The field map, once given to NewCreateAction, should be considered read-only.
-
-Example implementation:
-
-	func NewCreateAction() action.Pair {
-		fields := map[string]scaffoldcreate.Field{
-			"name":  scaffoldcreate.NewField(true, "name", 100),
-			"value": scaffoldcreate.NewField(true, "value", 90),
-			"capabilities": {
-				Required: false,
-				Title:    "capabilities",
-				Flag:     scaffoldcreate.FlagConfig{Usage: "comma-separated list of capabilities to grant the token", Shorthand: 'c'},
-				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
-					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						var itms []multiselectlist.SelectableItem[string]
-						// Hijack SetArgs to change the items available in the list.
-						// ...
-						return itms
-					},
-				}),
-				Order: 80,
-			},
-		}
-
-		return scaffoldcreate.NewCreateAction("", fields, create)
-	}
-
-	func create(fields map[string]scaffoldcreate.Field, vals scaffoldcreate.Values) (any, string, error) {
-		name := fields["name"].Provider.Get()
-		value := fields["value"].Provider.Get()
-		caps := fields["capabilities"].Provider.Get()
-		id, err := connection.Client.X(name, value, caps)
-		return id, "", err
-	}
 */
 package scaffoldcreate
 
@@ -69,6 +32,7 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -117,7 +81,7 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 		}
 	}
 	// pull createFlags from provided fields
-	var createFlags = installFlagsFromFields(fields)
+	var createFlags = generateFlagSetFromFields(fields)
 
 	// pull required flags from cfg to set usage
 	requiredFlags := make([]string, 0)
@@ -134,16 +98,20 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 		"Create a new "+singular, // long
 		[]string{},               // aliases
 		func(c *cobra.Command, s []string) error {
-			// check non-interactive
-			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name())
-			if err != nil {
-				return err
+			// immediately validate arguments
+			if opts.ValidateArgs != nil {
+				if inv, err := opts.ValidateArgs(c.Flags()); err != nil {
+					return err
+				} else if inv != "" {
+					return errors.New(inv)
+				}
 			}
+
 			// check and set flags; spool up mother to prompt for missing required flags if !non-interactive
 			if mr, err := setValuesFromFlags(c.Flags(), fields); err != nil {
 				return err
 			} else if mr != nil {
-				if !noInteractive {
+				if state.Interactive() {
 					return mother.Spawn(c.Root(), c, s)
 				}
 				return errors.New(phrases.MissingRequiredFields(mr))
@@ -212,13 +180,12 @@ type createModel struct {
 
 	createErr string // the reason the last create failed (not for invalid parameters)
 
-	// function to provide additional flags for this specific create instance
-	addtlFlagFunc func() *pflag.FlagSet
 	// current state of the flagset, Reset to addtlFlagFunc + installFlags
 	fs pflag.FlagSet
-	cf CreateFuncT // function to create the new entity
 
-	IDIsSuccessMessage bool
+	options Options
+
+	cf CreateFuncT // function to create the new entity
 }
 
 // SubmitSelect returns if the select button is currently selected by the user.
@@ -236,15 +203,14 @@ func newCreateModel(fields map[string]Field, singular string, createFunc CreateF
 		inputs: inputs{
 			ordered: slices.Collect(maps.Keys(fields)),
 		},
-		addtlFlagFunc:      opts.AddtlFlags,
-		cf:                 createFunc,
-		IDIsSuccessMessage: opts.IDIsSuccessMessage,
+		options: opts,
+		cf:      createFunc,
 	}
 
 	// set flags by mining fields and, if applicable, tacking on additional flags
-	c.fs = installFlagsFromFields(fields)
-	if c.addtlFlagFunc != nil {
-		addtlFlags := c.addtlFlagFunc()
+	c.fs = generateFlagSetFromFields(fields)
+	if c.options.AddtlFlags != nil {
+		addtlFlags := c.options.AddtlFlags()
 		c.fs.AddFlagSet(addtlFlags)
 	}
 
@@ -325,7 +291,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		}
 		// done, die
 		c.mode = quitting
-		if c.IDIsSuccessMessage {
+		if c.options.IDIsSuccessMessage {
 			return tea.Println(id)
 		}
 		return tea.Println(phrases.SuccessfullyCreatedItem(c.singular, id))
@@ -504,6 +470,7 @@ func (c *createModel) Reset() error {
 		c.fields[key].Provider.Reset()
 	}
 
+	c.fs = pflag.FlagSet{} // rebuilt in SetArgs
 	c.createErr = ""
 	c.inputs.err = ""
 	c.inputs.selected = 0
@@ -513,8 +480,20 @@ func (c *createModel) Reset() error {
 
 func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
+	c.fs = generateFlagSetFromFields(c.fields)
+	if c.options.AddtlFlags != nil {
+		c.fs.AddFlagSet(c.options.AddtlFlags())
+	}
+
 	if err := c.fs.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
+	}
+	if c.options.ValidateArgs != nil {
+		if inv, err := c.options.ValidateArgs(&c.fs); err != nil {
+			return "", nil, err
+		} else if inv != "" {
+			return inv, nil, nil
+		}
 	}
 
 	// call SetArg hooks
