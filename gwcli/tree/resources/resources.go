@@ -12,23 +12,37 @@ Package resources defines the resources nav, which holds data related to persist
 package resources
 
 import (
-	"slices"
+	"errors"
+	"fmt"
+	filesystem "io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/resources/list"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
-func NewResourcesNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "resources"
 		short string = "manage persistent search data"
@@ -37,44 +51,305 @@ func NewResourcesNav() *cobra.Command {
 			" Resources are used by a number of modules for things such as storing lookup tables," +
 			" scripts, and more. A resource is simply a stream of bytes."
 	)
-	return treeutils.GenerateNav(use, short, long, nil,
+	return treeutils.GenerateNav(use, short, long, []string{"resource"},
 		[]*cobra.Command{},
 		[]action.Pair{
-			list.NewResourcesListAction(),
+			list(),
+			create(),
 			delete(),
+			download(),
+			edit(),
+			replace(),
 		})
+}
+
+func list() action.Pair {
+	const (
+		short string = "list resources on the system"
+		long  string = "view resources available to your user."
+	)
+	return scaffoldlist.NewListAction(short, long,
+		types.Resource{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.Resource, error) {
+			resp, err := connection.Client.ListResources(param.QueryOpts)
+			if err != nil {
+				return nil, err
+			}
+			return resp.Results, nil
+		},
+		map[string]string{"Size": "SizeBytes"},
+		scaffoldlist.Options{
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"Size",
+				"ContentType",
+			},
+			CommonOptions: scaffold.CommonOptions{},
+		})
+}
+
+func download() action.Pair {
+	return scaffold.NewBasicAction("download", "download a resource", "Download a resource for use locally.\n"+
+		"Prints to STDOUT unless -o is specified.\n"+
+		"You may specify resource by name or ID.\n\n"+
+		"Because resources can be shared, and resources are not required to have globally-unique names,"+
+		"the following precedence is used when selecting a resource by user-friendly name:\n"+
+		"1. Resources owned by the user always have highest priority\n"+
+		"2. Resources shared with a group to which the user belongs are next\n"+
+		"3. Global resources are the lowest priority.",
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			// arg length checked by the options
+			id := fs.Arg(0)
+			outPath, err := fs.GetString(ft.Output.Name())
+			if err != nil {
+				clilog.GetFlag(err)
+			}
+			clilog.Writer.Info("downloading resource", rfc5424.SDParam{Name: "resource_ID", Value: id})
+			data, err := connection.Client.GetResource(id)
+			if err != nil {
+				return err.Error(), nil
+			}
+			// write to file or stdout
+			if outPath != "" {
+				out, err := os.Create(outPath)
+				if err != nil {
+					return err.Error(), nil
+				}
+				defer out.Close()
+				n, err := out.WriteString(string(data))
+				if err != nil {
+					return err.Error(), nil
+				}
+				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+			}
+			return string(data), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("flags"), ft.Mandatory("resource ID")),
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Output.Register(fs)
+					return fs
+				},
+			},
+
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return phrases.Exactly1ArgRequired("resource ID"), nil
+				}
+				return "", nil
+			},
+		},
+	)
+}
+
+func create() action.Pair {
+	fields := map[string]scaffoldcreate.Field{
+		"name":   scaffoldcreate.FieldName("resource"),
+		"desc":   scaffoldcreate.FieldDescription("resource"),
+		"path":   scaffoldcreate.FieldPath("resource", true),
+		"labels": scaffoldcreate.FieldLabels(),
+	}
+
+	return scaffoldcreate.NewCreateAction("resource", fields,
+		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			filePath := cfg["path"].Provider.Get()
+			// check that path is valid and the file exists
+			if fi, err := os.Stat(filePath); err != nil {
+				switch {
+				case errors.Is(err, filesystem.ErrNotExist):
+					return "", fmt.Sprintf("file '%v' not found", filePath), nil
+				}
+				return "", fmt.Sprintf("failed to access path: %v", err), nil
+			} else if fi.IsDir() {
+				return "", "path must point to a file", nil
+			}
+			// transmute to resource struct
+			data := types.Resource{
+				CommonFields: types.CommonFields{
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
+				},
+			}
+
+			resp, err := connection.Client.CreateResource(data)
+			// upload the file
+			if _, err := connection.Client.PopulateResourceFromPath(resp.ID, filePath); err != nil {
+				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
+				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "populate"})
+				return resp.ID, "", errors.New(errStr)
+			}
+
+			return resp.ID, "", err
+		}, scaffoldcreate.Options{})
 }
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("resource", "resources",
-		func(dryrun bool, id uuid.UUID) error {
+		func(dryrun bool, id string) error {
 			if dryrun {
-				_, err := connection.Client.GetResourceMetadata(id.String())
+				_, err := connection.Client.GetResourceMetadata(id)
 				return err
 			}
-			return connection.Client.DeleteResource(id.String())
+			return connection.Client.DeleteResource(id)
 		},
-		func() ([]scaffolddelete.Item[uuid.UUID], error) {
-			resources, err := connection.Client.GetResourceList()
+		func() ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			slices.SortStableFunc(resources,
-				func(a, b types.ResourceMetadata) int {
-					return strings.Compare(a.ResourceName, b.ResourceName)
-				})
-			var items = make([]scaffolddelete.Item[uuid.UUID], len(resources))
-			for i, r := range resources {
-				id, err := uuid.Parse(r.GUID)
-				if err != nil {
-					clilog.Writer.Warn("failed to parse GUID of resource",
-						rfc5424.SDParam{Name: "GUID", Value: r.GUID},
-						rfc5424.SDParam{Name: "Name", Value: r.ResourceName},
-					)
-					id = uuid.Nil
+			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, r := range lr.Results {
+				items[i] = &listitem.Generic{
+					Selected_:  false,
+					ID_:        r.ID,
+					Name:       r.Name,
+					SecondLine: r.Description,
 				}
-				items[i] = scaffolddelete.NewItem(r.ResourceName, r.Description, id)
+			}
+
+			return items, nil
+		}, scaffolddelete.Options{})
+}
+
+func edit() action.Pair {
+	return scaffoldedit.NewEditAction("resource", "resources", scaffoldedit.Config{
+		"name":   scaffoldedit.FieldName("resource"),
+		"desc":   scaffoldedit.FieldDescription("resource"),
+		"labels": scaffoldedit.FieldLabels(),
+	}, scaffoldedit.SubroutineSet[string, types.Resource]{
+		SelectSub: func(id string) (item types.Resource, err error) { // get a specific resource
+			return connection.Client.GetResourceMetadata(id)
+		},
+		FetchSub: func() (items []types.Resource, err error) { // get all available resources
+			resp, err := connection.Client.ListResources(nil)
+			if err != nil {
+				return nil, err
+			}
+			return resp.Results, nil
+		},
+		GetFieldSub: func(item types.Resource, fieldKey string) (value string, err error) {
+			switch fieldKey {
+			case "name":
+				return item.Name, nil
+			case "desc":
+				return item.Description, nil
+			case "labels":
+				return strings.Join(item.Labels, ","), nil
+			}
+			return "", fmt.Errorf("unknown field key: %v", fieldKey)
+		},
+		SetFieldSub: func(item *types.Resource, fieldKey, val string) (invalid string, err error) {
+			if item == nil {
+				return "", errors.New("cannot set nil item")
+			}
+			switch fieldKey {
+			case "name":
+				if strings.Contains(val, " ") {
+					return "name may not contain spaces", nil
+				}
+				val = strings.ToUpper(val)
+				item.Name = val
+			case "desc":
+				item.Description = val
+			case "labels":
+				item.Labels = strings.Split(val, ",")
+			default:
+				return "", fmt.Errorf("unknown field key: %v", fieldKey)
+			}
+			return
+		},
+		GetTitleSub: func(item types.Resource) string {
+			return item.Name
+		},
+		GetDescriptionSub: func(item types.Resource) string {
+			return item.Description
+		},
+		UpdateSub: func(data *types.Resource) (identifier string, err error) {
+			_, err = connection.Client.UpdateResourceMetadata(data.ID, *data)
+			return data.Name, err
+		},
+	})
+}
+
+func replace() action.Pair {
+	return scaffoldselect.NewSelectAction("replace resource contents",
+		"Populate one or many resources with the contents of a single local file, clobbering any existing data",
+		"resource ID",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, f := range lr.Results {
+				items[i] = resourceToGeneric(f, false)
 			}
 			return items, nil
+		},
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			// slurp file
+			pth, _ := addtlFlags.GetString(ft.Path.Name())
+			contentF, err := os.Open(pth)
+			if err != nil {
+				return nil, err
+			}
+			defer clilog.CloseFile(contentF)
+			ext := filepath.Ext(pth)
+			for i, ID := range IDs {
+				if _, err := contentF.Seek(0, 0); err != nil {
+					clilog.Writer.Warn("failed to rewind file", log.KV("file path", pth), log.KVErr(err))
+				}
+				updated, err := connection.Client.PopulateResourceFromReader(ID, ext, contentF)
+				if err != nil {
+					results[i] = scaffold.Result{
+						Output:  fmt.Sprintf("failed to repopulate resource %s (ID: %s): %v", contentF.Name(), ID, err),
+						Success: false,
+					}
+					continue
+				}
+
+				results[i] = scaffold.Result{
+					Output: fmt.Sprintf("replaced file contents of %s (ID: %s). New size: %d",
+						updated.Name, updated.ID, updated.Size),
+					Success: true,
+				}
+
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "replace",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Path.Register(fs, "", "local file to replace the resource contents")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				pth, err := fs.GetString(ft.Path.Name())
+				clilog.GetFlag(err)
+				if pth == "" {
+					return "--path is required", nil
+				}
+				return "", nil
+			},
+			Exactly1: true,
 		})
+}
+
+//#region helpers
+
+func resourceToGeneric(f types.Resource, selected bool) *listitem.Generic {
+	return &listitem.Generic{
+		Selected_:  selected,
+		ID_:        f.ID,
+		Name:       f.Name,
+		SecondLine: fmt.Sprintf("(Size: %v) %s", f.Size, f.Description),
+	}
 }

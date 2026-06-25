@@ -13,16 +13,15 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func NewKitsNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "kits"
 		short string = "view kits associated to this instance"
@@ -40,28 +39,38 @@ func NewKitsNav() *cobra.Command {
 func newKitsListAction() action.Pair {
 	const short string = "list installed and staged kits"
 	var long = "lists kits available to your user" +
-		"(or all kits on the system, via the --" + ft.GetAll.Name() + " flag if you are an admin)"
+		"(or all kits on the system, via the --all flag if you are an admin)"
 
 	return scaffoldlist.NewListAction(
 		short, long,
-		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
-			// if --all, use the admin version
-			if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-				uniques.ErrGetFlag("kist list", err)
-			} else if all {
-				return connection.Client.AdminListKits()
+		types.KitState{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitState, error) {
+			var err error
+			var resp types.KitStateListResponse
+			if params.QueryOpts.AdminMode {
+				resp, err = connection.Client.ListAllKits(nil)
+			} else {
+				resp, err = connection.Client.ListKits(nil)
 			}
-
-			return connection.Client.ListKits()
+			if err != nil {
+				return nil, err
+			}
+			return resp.Results, nil
 		},
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UUID", "KitState.Name", "KitState.Description", "KitState.Version"}})
+		nil,
+		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			DefaultColumns: []string{
+				"KitID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+				"CommonFields.ID",
+				"KitVersion",
+			}})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "kist")
-
-	return addtlFlags
+	addtlFlags.Bool("all", false, "Get all kits available on the system.")
+	return &addtlFlags
 }
 
 //#endregion list
