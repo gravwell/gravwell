@@ -146,7 +146,7 @@ func TestIngest(t *testing.T) {
     ingester, err := tc.Run(t.Context(), "",
         e2e.Ingester(t, "myingester", "MyNewIngester",
             e2e.WithConfig(t, "testdata/myingester.conf", "myingester.conf", e2e.DefaultConfig),
-            // add tc.WithExposedPorts(), tc.WithWaitStrategy(), etc. as needed
+            // add tc.WithExposedPorts(), tc.WithAdditionalWaitStrategy(), etc. as needed
         )...,
     )
     t.Cleanup(func() {
@@ -161,13 +161,11 @@ func TestIngest(t *testing.T) {
     }
 
     // ... send data to the ingester ...
-
-    // Allow time for ingestion
-    time.Sleep(5 * time.Second)
-
+	
     // Query Gravwell and assert
     c := e2e.GetClient(t)
-    ent := e2e.RunSearch(t, c, "tag=mytag", time.Minute)
+	// the first query should use WaitForEntries to avoid timeouts. Follow-up queries may be run with e2e.RunSearch
+    ent := e2e.WaitForEntries(t, c, "tag=mytag", time.Minute, 1, 30*time.Second)
     if len(ent) != 1 {
         e2e.Fatalf(t, "got %d entries, want 1", len(ent))
     }
@@ -195,9 +193,9 @@ func TestIngest(t *testing.T) {
 
 - **Use `t.Cleanup` for teardown.** Always register cleanup immediately after starting a container. This ensures logs are captured and containers are stopped even when tests fail.
 
-- **Use `e2e.Fatal` / `e2e.Fatalf` instead of `t.Fatal`.** The e2e wrappers save Gravwell instance logs before failing, which makes debugging much easier.
+- **Use `e2e.Fatal` / `e2e.Fatalf` instead of `t.Fatal`.** The e2e wrappers save Gravwell instance logs before failing, which makes debugging with `-artifacts` much easier.
 
-- **Give ingestion time to propagate.** After sending data, add a `time.Sleep` before querying. Ingestion is asynchronous — entries may take a few seconds to become searchable.
+- **Use `e2e.WaitForEntries`.** This helps avoid test flakes due to ingest timing being unreliable in GitHub Runners.
 
 - **Keep config templates in `testdata/`.** This is the standard Go convention and keeps test data co-located with the tests that use it.
 
