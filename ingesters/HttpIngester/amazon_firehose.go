@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -81,15 +80,22 @@ type record struct {
 }
 
 func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	var now time.Time
+	bodyReadLimit := int64(maxBody + 256)
+	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
+	var batch []*entry.Entry
+
 	if cfg.debugPosts {
-		now = time.Now()
+		now := time.Now()
+		defer func() {
+			kvs := append(requestKV(w, r),
+				log.KV("entries", len(batch)),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			)
+			h.igst.Info("Amazon Firehose Event", kvs...)
+		}()
 	}
 
 	var kr AFHRequest
-	bodyReadLimit := int64(maxBody + 256)
-
-	lr := io.LimitedReader{R: rdr, N: int64(bodyReadLimit)}
 	if err := json.NewDecoder(&lr).Decode(&kr); err != nil {
 		//check if the request was just too large
 		if lr.N == 0 {
@@ -105,7 +111,7 @@ func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 		return
 	}
 	reqTS := entry.FromStandard(kr.TS())
-	batch := make([]*entry.Entry, 0, len(kr.Records))
+	batch = make([]*entry.Entry, 0, len(kr.Records))
 	for _, r := range kr.Records {
 		e := &entry.Entry{
 			TS:   reqTS,
@@ -125,15 +131,6 @@ func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 		sendAFHError(w, http.StatusInternalServerError, kr.RequestId, err)
 	} else {
 		sendAFHOk(w, kr.RequestId)
-
-		if cfg.debugPosts {
-			kvs := []rfc5424.SDParam{log.KV("host", ip),
-				log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-				log.KV("bytes", bodyReadLimit-lr.N), log.KV("entries", len(batch)),
-				log.KV("ms", time.Since(now).Milliseconds()),
-			}
-			h.igst.Info("Amazon Firehose Event", kvs...)
-		}
 	}
 }
 
