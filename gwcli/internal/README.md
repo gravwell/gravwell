@@ -1,0 +1,1 @@
+An internal package in a non-library is somewhat nonsensical (as none of the code is intended to be imported by other code), so we are instead using it to denote meta packages used to support gwcli. At the time of writing, that just means the `testsupport` package.
