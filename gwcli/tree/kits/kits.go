@@ -56,6 +56,7 @@ func NewNav() *cobra.Command {
 			upload(),
 			pull(),
 			build(),
+			buildRequests(),
 			remote(),
 			download(),
 		})
@@ -705,6 +706,26 @@ func collectEmbeddedItems(dirPath string, recur bool) ([]types.KitEmbeddedItem, 
 		}
 	}
 	return items, nil
+}
+
+func buildRequests() action.Pair {
+	return scaffoldlist.NewListAction(
+		"list kit build requests",
+		"Display details about prior kit builds, including their ID so a rebuild request can be issued to "+stylesheet.Path(true, "kits", "build")+"."+
+			"Note that only the most recent build request is stored for each unique kit ID (e.g. \"io.gravwell.foo\").",
+		types.KitBuildRequest{},
+		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitBuildRequest, error) {
+			lr, err := connection.Client.ListKitBuildHistory(params.QueryOpts)
+			return lr.Results, err
+		},
+		nil,
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "build-requests",
+				Aliases: []string{"list-build-requests", "list-builds", "build-request"},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 // Rebuild a kit from a previous build request, incrementing the version.
