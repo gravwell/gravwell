@@ -11,16 +11,20 @@
 package scaffoldcreate_test
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 )
@@ -175,29 +179,135 @@ func TestOptions(t *testing.T) {
 		// 1) validate args is called (also that it can pass and fail normally)
 		// 2) field-generated flags are accessible from validate
 		// 3) additional flags are accessible from validate
-		pair := scaffoldcreate.NewCreateAction("test",
-			map[string]scaffoldcreate.Field{
-				"one": {
-					Title:    "field",
-					Flag:     scaffoldcreate.FlagConfig{Name: "ff", Usage: "test field flag"},
-					Provider: &scaffoldcreate.NumberProvider{},
-				},
-			},
-			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
-				return 1, "", nil
-			},
-			scaffoldcreate.Options{
-				CommonOptions: scaffold.CommonOptions{
-					AddtlFlags: func() *pflag.FlagSet {
-						fs := &pflag.FlagSet{}
-						fs.Bool("nonfield", false, "addtl flag")
-						return fs
+		fieldOne, nonField := 0, false // set in createFunc
+		validateNonField := false      // set in validate
+		generatePair := func() action.Pair {
+			pair := scaffoldcreate.NewCreateAction("test",
+				map[string]scaffoldcreate.Field{
+					"one": {
+						Title:    "field",
+						Flag:     scaffoldcreate.FlagConfig{Name: "ff", Usage: "test field flag"},
+						Provider: &scaffoldcreate.NumberProvider{},
 					},
 				},
+				func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+					// set external values so we can check
+					parsed, err := strconv.ParseInt(fields["one"].Provider.Get(), 10, 32)
+					if err != nil {
+						return 0, "", err
+					}
+					fieldOne = int(parsed)
+					nonField, err = fs.GetBool("nonfield")
+					if err != nil {
+						return 0, "", err
+					}
+
+					return 1, "", nil
+				},
+				scaffoldcreate.Options{
+					CommonOptions: scaffold.CommonOptions{
+						AddtlFlags: func() *pflag.FlagSet {
+							fs := &pflag.FlagSet{}
+							fs.Bool("nonfield", false, "addtl flag")
+							return fs
+						},
+					},
+					ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+						// set external values so we can check
+						validateNonField, err = fs.GetBool("nonfield")
+						if err != nil {
+							return "", err
+						}
+						switch fs.NArg() {
+						case 0:
+							return "", nil
+						case 1:
+							return "one param is invalid", nil
+						default:
+							return "", errors.New("more than one param is an error")
+						}
+					},
+				})
+			uniques.AttachPersistentFlags(pair.Action)
+			return pair
+		}
+		t.Run("non-interactive", func(t *testing.T) {
+			t.Run("validate catches bad args and createFun is never called", func(t *testing.T) {
+				pair := generatePair()
+				var sbOut, sbErr strings.Builder
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				pair.Action.SetArgs([]string{"--nonfield", "arg1", "arg2", "arg3"}) // check validate
+				assert.Error(t, pair.Action.Execute())
+				// none of the createFunc values should be set
+				assert.Zero(t, fieldOne)
+				assert.False(t, nonField)
+				// but the validate value should be
+				assert.True(t, validateNonField)
 			})
-		// TODO run non-interactive
-		// TODO run a Mother cycle
-		// TODO run twice to check resetting
+			fieldOne, nonField = 0, false
+			validateNonField = false
+			t.Run("validate and create both succeed and everything is set", func(t *testing.T) {
+				pair := generatePair()
+				var sbOut, sbErr strings.Builder
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				pair.Action.SetArgs([]string{"--ff=1", "--nonfield"})
+				assert.Nil(t, pair.Action.Execute())
+				// none of the external values should be set
+				assert.Equal(t, 1, fieldOne)
+				assert.True(t, nonField)
+				assert.True(t, validateNonField)
+			})
+			fieldOne, nonField = 0, false
+			validateNonField = false
+			t.Run("validate and create both succeed, but nothing is set", func(t *testing.T) {
+				pair := generatePair()
+				var sbOut, sbErr strings.Builder
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				pair.Action.SetArgs(nil)
+				assert.Nil(t, pair.Action.Execute())
+				// none of the external values should be set
+				assert.Zero(t, fieldOne)
+				assert.False(t, nonField)
+				assert.False(t, validateNonField)
+			})
+		})
+		t.Run("interactive", func(t *testing.T) {
+			pair := generatePair()
+			t.Run("check that we are caught by validate", func(t *testing.T) {
+				testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{"--nonfield", "one", "two", "three"}, 80, 50, false, nil, true)
+				assert.True(t, validateNonField)
+				assert.False(t, nonField)
+			})
+			// run once to check that everything is set properly
+			t.Run("first run", func(t *testing.T) {
+				testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{"--nonfield", "--ff=5"}, 80, 50, false, nil, false)
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
+				pair.Model.View()
+				assert.True(t, pair.Model.Done())
+				assert.True(t, validateNonField)
+				assert.True(t, nonField)
+				assert.True(t, validateNonField)
+				assert.Equal(t, 5, fieldOne)
+				assert.Nil(t, pair.Model.Reset())
+			})
+			// run twice to check that everything resets properly
+			t.Run("second run", func(t *testing.T) {
+				testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{}, 80, 50, false, nil, false)
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
+				pair.Model.View()
+				assert.True(t, pair.Model.Done())
+				assert.False(t, validateNonField)
+				assert.False(t, nonField)
+				assert.False(t, validateNonField)
+				assert.Zero(t, fieldOne)
+				assert.Nil(t, pair.Model.Reset())
+			})
+		})
 	})
 }
 
