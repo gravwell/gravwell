@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -263,6 +264,7 @@ func pull() action.Pair {
 // NOTE(rlandau): we don't have a great way to pass the QueryOptions into the SetArgs hooks in fields as fields has no way to access the current FlagSet.
 // Until we rework scaffoldcreate+scaffoldedit, we are just going to assume admin mode is set.
 func build() action.Pair {
+	var rebuildKBR *types.KitBuildRequest // if --rebuild was set, this will point to the requested rebuild
 	return scaffoldcreate.NewCreateAction("kit",
 		map[string]scaffoldcreate.Field{
 			"name": {
@@ -270,21 +272,42 @@ func build() action.Pair {
 				Required: true,
 				Flag:     scaffoldcreate.FlagConfig{Name: "name", Usage: "Name to use for the kit"},
 				Order:    650,
-				Provider: &scaffoldcreate.TextProvider{},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomSetArgs: func(m textinput.Model) textinput.Model {
+						if rebuildKBR != nil {
+							m.SetValue(rebuildKBR.Name)
+						}
+						return m
+					},
+				},
 			},
 			"kit ID": {
 				Title:    "KitID",
 				Required: true,
 				Flag:     scaffoldcreate.FlagConfig{Name: "kit-id", Usage: "ID to use for the kit. Only letters, numbers, and '.' are allowed."},
 				Order:    600,
-				Provider: &scaffoldcreate.TextProvider{},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomSetArgs: func(m textinput.Model) textinput.Model {
+						if rebuildKBR != nil {
+							m.SetValue(rebuildKBR.KitID)
+						}
+						return m
+					},
+				},
 			},
 			"readme": {
 				Title:    "README",
 				Required: false,
 				Flag:     scaffoldcreate.FlagConfig{Name: "readme", Usage: "Longform description of the new kit"},
 				Order:    580,
-				Provider: &scaffoldcreate.TextAreaProvider{},
+				Provider: &scaffoldcreate.TextAreaProvider{
+					CustomSetArgs: func(m textarea.Model) textarea.Model {
+						if rebuildKBR != nil {
+							m.SetValue(rebuildKBR.Readme)
+						}
+						return m
+					},
+				},
 			},
 			"kit version": {
 				Title:        "Kit Version",
@@ -292,7 +315,13 @@ func build() action.Pair {
 				Flag:         scaffoldcreate.FlagConfig{Name: "kit-version", Usage: "Initial version for the new kit. Defaults to 1."},
 				DefaultValue: "1",
 				Order:        560,
-				Provider:     &scaffoldcreate.NumberProvider{},
+				Provider: &scaffoldcreate.NumberProvider{
+					CustomSetArgs: func(m textinput.Model) textinput.Model {
+						if rebuildKBR != nil {
+							m.SetValue(strconv.FormatInt(int64(rebuildKBR.KitVersion), 10))
+						}
+						return m
+					}},
 			},
 			"dashboards": {
 				Title:    "Dashboards",
@@ -306,7 +335,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch dashboards", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapDashboards(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -323,7 +352,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch templates", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapTemplates(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -340,7 +369,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch actionables", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapActionables(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -357,7 +386,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch flows", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapFlows(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -374,7 +403,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapScheduledSearches(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -391,7 +420,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapResources(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -408,7 +437,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch macros", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapMacros(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -425,7 +454,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAXs(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -442,7 +471,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch files", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapFiles(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -459,7 +488,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch playbooks", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapPlaybooks(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -476,7 +505,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch saved queries", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapSavedQueries(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -493,7 +522,7 @@ func build() action.Pair {
 							clilog.Writer.Warn("failed to fetch alert", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAlerts(lr.Results)
+						return listitem.WrapAssets(lr.Results)
 					},
 				},
 				},
@@ -669,9 +698,34 @@ func build() action.Pair {
 				Aliases: []string{"pack", "create", "new"},
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					fs.Bool("no-clobber", false, "do not truncate files with matching names. Instead, return an error.")
+					fs.Bool("no-clobber", false, "Do not truncate files with matching names. Instead, return an error.")
+					fs.String("rebuild", "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID.")
 					return fs
 				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				// ensure we clobber any prior rebuild request
+				rebuildKBR = nil
+
+				rebuild, err := fs.GetString("rebuild")
+				clilog.GetFlag(err)
+				if rebuild != "" {
+					lr, err := connection.Client.ListKitBuildHistory(&types.QueryOptions{
+						Filters: []types.Filter{{Key: "KitID", Operation: "=", Values: []any{rebuild}}},
+					})
+					if err != nil {
+						return "", err
+					}
+					if len(lr.Results) < 1 {
+						return "failed to find any build requests for kitID '" + rebuild + "'", nil
+					} else if len(lr.Results) > 1 {
+						clilog.Writer.Warn("found multiple build requests", log.KV("KitID", rebuild))
+					}
+					rebuildKBR = &lr.Results[0]
+
+				}
+
+				return "", nil
 			},
 			IDIsSuccessMessage: true,
 		},
@@ -736,6 +790,7 @@ func buildRequests() action.Pair {
 				Use:     "build-requests",
 				Aliases: []string{"list-build-requests", "list-builds", "build-request"},
 			},
+			DefaultColumns:    []string{"KitID", "KitVersion", "BuildDate"},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
 }

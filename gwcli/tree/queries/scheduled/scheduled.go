@@ -153,7 +153,7 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapScheduledSearches(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -325,7 +325,7 @@ func cancel() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapScheduledSearches(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -369,7 +369,7 @@ func backfillToggle() action.Pair {
 				itms = append(itms, ss)
 			}
 
-			return listitem.WrapScheduledSearches(slices.Clip(itms)), nil
+			return listitem.WrapAssets(slices.Clip(itms)), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)
@@ -429,7 +429,7 @@ func clear() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapScheduledSearches(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

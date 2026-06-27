@@ -225,7 +225,7 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapFlows(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -234,7 +234,7 @@ func listFlowItems() ([]multiselectlist.SelectableItem[string], error) {
 	if err != nil {
 		return nil, err
 	}
-	return listitem.WrapFlows(lr.Results), nil
+	return listitem.WrapAssets(lr.Results), nil
 }
 
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
@@ -304,7 +304,7 @@ func backfillToggle() action.Pair {
 				}
 				itms = append(itms, f)
 			}
-			return listitem.WrapFlows(slices.Clip(itms)), nil
+			return listitem.WrapAssets(slices.Clip(itms)), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)

@@ -155,7 +155,7 @@ func delete() action.Pair {
 				return nil, err
 			}
 
-			return listitem.WrapSavedQueries(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 

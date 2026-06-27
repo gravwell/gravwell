@@ -138,7 +138,7 @@ func delete() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAlerts(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -260,7 +260,7 @@ func dispatchers() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAlerts(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
@@ -388,7 +388,7 @@ func save() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAlerts(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {

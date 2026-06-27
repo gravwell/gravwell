@@ -75,7 +75,7 @@ func download() action.Pair {
 				return nil, err
 			}
 
-			return listitem.WrapPlaybooks(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// check for output
@@ -196,7 +196,7 @@ func delete() action.Pair {
 				return nil, err
 			}
 
-			return listitem.WrapPlaybooks(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 

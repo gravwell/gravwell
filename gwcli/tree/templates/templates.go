@@ -147,7 +147,7 @@ func delete() action.Pair {
 				return nil, err
 			}
 
-			return listitem.WrapTemplates(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -218,7 +218,7 @@ func show() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapTemplates(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())

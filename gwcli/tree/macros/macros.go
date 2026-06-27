@@ -233,6 +233,6 @@ func delete() action.Pair {
 				return nil, err
 			}
 
-			return listitem.WrapMacros(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }

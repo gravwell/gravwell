@@ -13,7 +13,6 @@ package listitem
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -21,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 // Generic provides a general-purpose list item for types that do not require much special handling to be stuffed into a list.Model or MSL.
@@ -214,196 +214,167 @@ func GetGroup(l *list.Model) (types.Group, error) {
 	return g.G, nil
 }
 
-// WrapDashboards returns an MSL and list.Model ready array of the given dashboards.
-// No items are marked as selected.
-func WrapDashboards(x []types.Dashboard) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: itm.Description,
-		}
-	}
-	return items
+type WrappableAsset interface {
+	[]types.Dashboard | []types.Template |
+		[]types.Actionable | []types.Flow |
+		[]types.ScheduledSearch | []types.Resource |
+		[]types.Macro | []types.SavedQuery |
+		[]types.AX | []types.File |
+		[]types.Playbook | []types.Alert
 }
 
-// WrapTemplates returns an MSL and list.Model ready array of the given templates.
-// No items are marked as selected.
-func WrapTemplates(x []types.Template) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: itm.Description,
-		}
+// WrapAssets returns an MSL- and list.Model-ready array of the given items.
+// Selections may be done by giving a preselection map (all but the first preselection map will be ignored), which will search for preselection[x[i].ID] == true.
+func WrapAssets[asset_t WrappableAsset](x asset_t, preselected ...map[string]bool) []multiselectlist.SelectableItem[string] {
+	if len(x) < 1 {
+		return nil
 	}
-	return items
-}
-
-// WrapActionables returns an MSL and list.Model ready array of the given actionables.
-// No items are marked as selected.
-func WrapActionables(x []types.Actionable) []multiselectlist.SelectableItem[string] {
 	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			Selected_:    false,
-			ID_:          itm.ID,
-			Name:         itm.Name,
-			SecondLine:   itm.Description,
-			ShowDisabled: true,
-			Enabled:      !itm.Disabled,
-		}
+	var selected map[string]bool
+	if len(selected) > 0 {
+		selected = preselected[0]
+	} else {
+		selected = map[string]bool{}
 	}
-	return items
-}
+	// you can't type assert generics, but the generic still works as a constraint so this any-cast is functionally equivalent.
+	switch t := any(x).(type) {
+	case []types.Dashboard:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
 
-// WrapFlows returns an MSL and list.Model ready array of the given flows.
-// No items are marked as selected.
-func WrapFlows(x []types.Flow) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			ID_:          itm.ID,
-			Name:         itm.Name,
-			SecondLine:   fmt.Sprintf("[%s] %s", itm.Schedule, itm.Description),
-			ShowDisabled: true,
-			Enabled:      !itm.Disabled,
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
 		}
-	}
-	return items
-}
+	case []types.Template:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
 
-// WrapScheduledSearches returns an MSL and list.Model ready array of the given scheduled searches.
-// No items are marked as selected.
-func WrapScheduledSearches(x []types.ScheduledSearch) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		line := fmt.Sprintf("[%s] %s", itm.Schedule, itm.SearchString)
-		if itm.Description != "" {
-			line += " - " + itm.Description
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
 		}
-		items[i] = &Generic{
-			ID_:          itm.ID,
-			Name:         itm.Name,
-			SecondLine:   line,
-			ShowDisabled: true,
-			Enabled:      !itm.Disabled,
-		}
-	}
-	return items
-}
+	case []types.Actionable:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
 
-// WrapResources returns an MSL and list.Model ready array of the given resources.
-// No items are marked as selected.
-func WrapResources(x []types.Resource) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			Selected_:  false,
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+				ID_:          itm.ID,
+				Name:         itm.Name,
+				SecondLine:   itm.Description,
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
 		}
-	}
-	return items
-}
+	case []types.Flow:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
 
-// WrapMacros returns an MSL and list.Model ready array of the given macros.
-// No items are marked as selected.
-func WrapMacros(x []types.Macro) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			Selected_:  false,
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: itm.Description,
+				ID_:          itm.ID,
+				Name:         itm.Name,
+				SecondLine:   fmt.Sprintf("[%s] %s", itm.Schedule, itm.Description),
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
 		}
-	}
-	return items
-}
+	case []types.ScheduledSearch:
+		for i, itm := range t {
+			line := fmt.Sprintf("[%s] %s", itm.Schedule, itm.SearchString)
+			if itm.Description != "" {
+				line += " - " + itm.Description
+			}
 
-// WrapAXs returns an MSL and list.Model ready array of the given extractors.
-// No items are marked as selected.
-func WrapAXs(x []types.AX) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			Selected_: false,
-			ID_:       itm.ID,
-			Name:      itm.Name,
-			SecondLine: fmt.Sprintf("%s/%s|%s", stylesheet.Cur.SecondaryText.Render(itm.Module),
-				stylesheet.Cur.SecondaryText.Render("["+strings.Join(itm.Tags, " ")+"]"),
-				itm.Description),
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:          itm.ID,
+				Name:         itm.Name,
+				SecondLine:   line,
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
 		}
-	}
-	return items
-}
+	case []types.Resource:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
 
-// WrapFiles returns an MSL and list.Model ready array of the given files.
-// No items are marked as selected.
-func WrapFiles(x []types.File) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+			}
 		}
-	}
-	return items
-}
+	case []types.Macro:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
 
-// WrapPlaybooks returns an MSL and list.Model ready array of the given playbooks.
-// No items are marked as selected.
-func WrapPlaybooks(x []types.Playbook) []multiselectlist.SelectableItem[string] {
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			Selected_:  false,
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: itm.Description,
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
 		}
-	}
-	return items
-}
-
-// WrapAlerts returns an MSL and list.Model ready array of the given alerts.
-// No items are marked as selected.
-func WrapAlerts(x []types.Alert) []multiselectlist.SelectableItem[string] {
-	// sort on name
-	slices.SortStableFunc(x, func(a, b types.Alert) int { return strings.Compare(a.Name, b.Name) })
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			Selected_:  false,
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: itm.Description,
-
-			ShowDisabled: true,
-			Enabled:      !itm.Disabled,
+	case []types.SavedQuery:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_:  false,
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
 		}
-	}
-	return items
-}
+	case []types.AX:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
 
-// WrapSavedQueries returns an MSL and list.Model ready array of the given saved queries.
-// No items are marked as selected.
-func WrapSavedQueries(x []types.SavedQuery) []multiselectlist.SelectableItem[string] {
-	// sort on name
-	slices.SortStableFunc(x, func(a, b types.SavedQuery) int { return strings.Compare(a.Name, b.Name) })
-	items := make([]multiselectlist.SelectableItem[string], len(x))
-	for i, itm := range x {
-		items[i] = &Generic{
-			Selected_:  false,
-			ID_:        itm.ID,
-			Name:       itm.Name,
-			SecondLine: itm.Description,
+				ID_:  itm.ID,
+				Name: itm.Name,
+				SecondLine: fmt.Sprintf("%s/%s|%s", stylesheet.Cur.SecondaryText.Render(itm.Module),
+					stylesheet.Cur.SecondaryText.Render("["+strings.Join(itm.Tags, " ")+"]"),
+					itm.Description),
+			}
 		}
+	case []types.File:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+			}
+		}
+	case []types.Playbook:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.Alert:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_:  selected[itm.ID],
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
+		}
+		return items
+	default:
+		clilog.Writer.Warn("failed to wrap list: unknown type", log.KV("call", log.CallLoc(1)), log.KV("type(x)", t))
 	}
 	return items
 }

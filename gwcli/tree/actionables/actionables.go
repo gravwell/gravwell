@@ -215,7 +215,7 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapActionables(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (_ []scaffold.Result, _ error) {
 			// This is an exactly1 function
@@ -349,6 +349,6 @@ func delete() action.Pair {
 				return nil, err
 			}
 
-			return listitem.WrapActionables(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }

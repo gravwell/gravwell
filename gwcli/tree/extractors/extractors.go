@@ -282,7 +282,7 @@ func delete() action.Pair {
 				return nil, err
 			}
 
-			return listitem.WrapAXs(lr.Results), nil
+			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{})
 }
 
@@ -492,7 +492,7 @@ func find() action.Pair {
 				}
 				data = append(data, ax)
 			}
-			return listitem.WrapAXs(slices.Clip(data)), nil
+			return listitem.WrapAssets(slices.Clip(data)), nil
 		},
 		func(tags []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(tags))
