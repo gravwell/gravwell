@@ -176,7 +176,7 @@ func searchGroup() action.Pair {
 			fmt.Fprintln(c.OutOrStdout(), success)
 			return nil
 		}, treeutils.GenerateActionOptions{
-			Usage: ft.MutuallyExclusive([]string{ft.Optional("--set"), ft.Optional("--clear")}) +
+			Usage: ft.MutuallyExclusive(ft.Optional("--set"), ft.Optional("--clear")) +
 				" " + ft.VariadicArgs("GID", false)},
 	)
 	cmd.Flags().AddFlagSet(searchGroupsFlags())

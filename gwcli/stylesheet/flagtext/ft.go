@@ -336,7 +336,7 @@ func Optional(text string) string {
 }
 
 // MutuallyExclusive wraps and returns the given elements in curly braces to indicate that they are mutually exclusive with one another.
-func MutuallyExclusive(texts []string) string {
+func MutuallyExclusive(texts ...string) string {
 	return "{" + strings.Join(texts, "|") + "}"
 }
 

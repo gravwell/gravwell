@@ -51,7 +51,7 @@ func GenerateNav(use, short, long string, aliases []string,
 					}
 					kids[i] = stylesheet.ColorCommandName(c)
 				}
-				fmt.Fprintf(c.OutOrStdout(), "%s %s", c.Name(), ft.MutuallyExclusive(kids))
+				fmt.Fprintf(c.OutOrStdout(), "%s %s", c.Name(), ft.MutuallyExclusive(kids...))
 			} else {
 				fmt.Fprintf(c.OutOrStdout(), "%s [subcommand]", c.Name())
 			}

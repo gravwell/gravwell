@@ -168,7 +168,7 @@ func listUsers() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "users",
-				Usage: "users " + ft.MutuallyExclusive([]string{"--csv", "--json", "--table"}) +
+				Usage: "users " + ft.MutuallyExclusive("--csv", "--json", "--table") +
 					" " + ft.Optional("flags") + " " + ft.Mandatory("group ID"),
 				Example: "users 2",
 			},

@@ -381,8 +381,8 @@ func edit() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use: "edit",
 				Usage: "edit " +
-					ft.MutuallyExclusive([]string{"--uid", "--gid"}) +
-					ft.Optional(ft.MutuallyExclusive([]string{"--grant", "--revoke"})),
+					ft.MutuallyExclusive("--uid", "--gid") +
+					ft.Optional(ft.MutuallyExclusive("--grant", "--revoke")),
 				Example: "edit --uid=5",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
@@ -629,7 +629,7 @@ func set() action.Pair {
 				Short: "set capabilities of users and groups",
 				Long:  "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
 				Usage: "set " +
-					ft.MutuallyExclusive([]string{"--uids", "--gids"}) +
+					ft.MutuallyExclusive("--uids", "--gids") +
 					ft.Mandatory("--caps"),
 				Aliases: []string{"replace"},
 			},

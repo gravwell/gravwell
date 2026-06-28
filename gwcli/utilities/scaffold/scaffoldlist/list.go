@@ -208,13 +208,13 @@ func NewListAction[dataStruct_t any](short, long string,
 		actionOptions.Usage = fmt.Sprintf("%s %s %s %s",
 			ft.Optional("--"+FlagNameShowColumns),
 			ft.Optional(
-				ft.MutuallyExclusive(formats),
+				ft.MutuallyExclusive(formats...),
 			),
 			ft.Optional(
-				ft.MutuallyExclusive([]string{
-					"--" + FlagNameSelectColumns + "=col1,col2,...",
-					"--" + FlagNameSelectAllColumns,
-				}),
+				ft.MutuallyExclusive(
+					"--"+FlagNameSelectColumns+"=col1,col2,...",
+					"--"+FlagNameSelectAllColumns,
+				),
 			),
 			ft.Optional("FLAGS"),
 		)
