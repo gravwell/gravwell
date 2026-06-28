@@ -261,6 +261,11 @@ func pull() action.Pair {
 		})
 }
 
+const (
+	buildFlagRebuild        string = "rebuild"
+	buildFlagAppendEmbedded string = "append-embedded"
+)
+
 // NOTE(rlandau): we don't have a great way to pass the QueryOptions into the SetArgs hooks in fields as fields has no way to access the current FlagSet.
 // Until we rework scaffoldcreate+scaffoldedit, we are just going to assume admin mode is set.
 func build() action.Pair {
@@ -633,7 +638,8 @@ func build() action.Pair {
 				return 0, fmt.Sprint("failed to get kit version: ", err), nil
 			}
 
-			// upload icon as a file
+			// if a path was given, use that as the icon.
+			// if we are in rebuild and a path wasn't given, do not clobber the prior icon.
 			var iconID string
 			if iconPath := strings.TrimSpace(fields["icon"].Provider.Get()); iconPath != "" {
 				resp, err := connection.Client.CreateFile(types.File{
@@ -653,6 +659,8 @@ func build() action.Pair {
 				}
 				clilog.Writer.Info("created icon as file", log.KV("ID", resp.ID), log.KV("path", iconPath))
 				iconID = resp.ID
+			} else if rebuildKBR.Icon != "" {
+				iconID = rebuildKBR.Icon
 			}
 
 			// collect items to embed
@@ -665,6 +673,12 @@ func build() action.Pair {
 			if err != nil {
 				return 0, "", err
 			}
+			if appendEmbedded, err := afs.GetBool(buildFlagAppendEmbedded); err != nil {
+				clilog.GetFlag(err)
+			} else if appendEmbedded && rebuildKBR != nil {
+				embed = append(rebuildKBR.EmbeddedItems, embed...)
+			}
+
 			kbr := types.KitBuildRequest{
 				CommonFields: types.CommonFields{
 					Name: fields["name"].Provider.Get(),
@@ -760,9 +774,11 @@ func build() action.Pair {
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Bool("no-clobber", false, "Do not truncate files with matching names. Instead, return an error.")
-					fs.String("rebuild", "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID. "+
+					fs.String(buildFlagRebuild, "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID. "+
 						"As embedded items cannot be selected individually, providing a new path (interactively or "+
-						"via --embedded-items) will clobber (or append to, if --append-embedded is given) existing embedded items.")
+						"via --embedded-items) will clobber (or append to, if --"+buildFlagAppendEmbedded+" is given) existing embedded items.")
+					fs.Bool(buildFlagAppendEmbedded, false, "Only applies when --"+buildFlagRebuild+" is specified. "+
+						"If embedded items are specified, they will be appended to the current set instead of clobbering it.")
 					return fs
 				},
 			},
@@ -770,7 +786,7 @@ func build() action.Pair {
 				// ensure we clobber any prior rebuild request
 				rebuildKBR = nil
 
-				rebuild, err := fs.GetString("rebuild")
+				rebuild, err := fs.GetString(buildFlagRebuild)
 				clilog.GetFlag(err)
 				if rebuild != "" {
 					lr, err := connection.Client.ListKitBuildHistory(&types.QueryOptions{
