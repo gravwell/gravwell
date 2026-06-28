@@ -263,13 +263,14 @@ func pull() action.Pair {
 
 const (
 	buildFlagRebuild        string = "rebuild"
+	buildFlagRepack         string = "repack"
 	buildFlagAppendEmbedded string = "append-embedded"
 )
 
 // NOTE(rlandau): we don't have a great way to pass the QueryOptions into the SetArgs hooks in fields as fields has no way to access the current FlagSet.
 // Until we rework scaffoldcreate+scaffoldedit, we are just going to assume admin mode is set.
 func build() action.Pair {
-	var rebuildKBR *types.KitBuildRequest // if --rebuild was set, this will point to the requested rebuild
+	var priorKBR *types.KitBuildRequest // if --rebuild was set, this will point to the requested rebuild
 	return scaffoldcreate.NewCreateAction("kit",
 		map[string]scaffoldcreate.Field{
 			"name": {
@@ -279,8 +280,8 @@ func build() action.Pair {
 				Order:    650,
 				Provider: &scaffoldcreate.TextProvider{
 					CustomSetArgs: func(m textinput.Model) textinput.Model {
-						if rebuildKBR != nil {
-							m.SetValue(rebuildKBR.Name)
+						if priorKBR != nil {
+							m.SetValue(priorKBR.Name)
 						}
 						return m
 					},
@@ -293,8 +294,8 @@ func build() action.Pair {
 				Order:    600,
 				Provider: &scaffoldcreate.TextProvider{
 					CustomSetArgs: func(m textinput.Model) textinput.Model {
-						if rebuildKBR != nil {
-							m.SetValue(rebuildKBR.KitID)
+						if priorKBR != nil {
+							m.SetValue(priorKBR.KitID)
 						}
 						return m
 					},
@@ -307,8 +308,8 @@ func build() action.Pair {
 				Order:    580,
 				Provider: &scaffoldcreate.TextAreaProvider{
 					CustomSetArgs: func(m textarea.Model) textarea.Model {
-						if rebuildKBR != nil {
-							m.SetValue(rebuildKBR.Readme)
+						if priorKBR != nil {
+							m.SetValue(priorKBR.Readme)
 						}
 						return m
 					},
@@ -322,8 +323,8 @@ func build() action.Pair {
 				Order:        560,
 				Provider: &scaffoldcreate.NumberProvider{
 					CustomSetArgs: func(m textinput.Model) textinput.Model {
-						if rebuildKBR != nil {
-							m.SetValue(strconv.FormatInt(int64(rebuildKBR.KitVersion), 10))
+						if priorKBR != nil {
+							m.SetValue(strconv.FormatInt(int64(priorKBR.KitVersion), 10))
 						}
 						return m
 					}},
@@ -336,8 +337,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Dashboards {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Dashboards {
 								preselections[x] = true
 							}
 						}
@@ -360,8 +361,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Templates {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Templates {
 								preselections[x] = true
 							}
 						}
@@ -417,8 +418,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.ScheduledSearches {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.ScheduledSearches {
 								preselections[x] = true
 							}
 						}
@@ -440,8 +441,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Resources {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Resources {
 								preselections[x] = true
 							}
 						}
@@ -463,8 +464,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Macros {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Macros {
 								preselections[x] = true
 							}
 						}
@@ -486,8 +487,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Extractors {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Extractors {
 								preselections[x] = true
 							}
 						}
@@ -509,8 +510,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Files {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Files {
 								preselections[x] = true
 							}
 						}
@@ -532,8 +533,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Playbooks {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Playbooks {
 								preselections[x] = true
 							}
 						}
@@ -555,8 +556,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.SavedQueries {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.SavedQueries {
 								preselections[x] = true
 							}
 						}
@@ -578,8 +579,8 @@ func build() action.Pair {
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
 						var preselections = map[string]bool{}
-						if rebuildKBR != nil { // build preselections
-							for _, x := range rebuildKBR.Alerts {
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Alerts {
 								preselections[x] = true
 							}
 						}
@@ -659,8 +660,8 @@ func build() action.Pair {
 				}
 				clilog.Writer.Info("created icon as file", log.KV("ID", resp.ID), log.KV("path", iconPath))
 				iconID = resp.ID
-			} else if rebuildKBR.Icon != "" {
-				iconID = rebuildKBR.Icon
+			} else if priorKBR.Icon != "" {
+				iconID = priorKBR.Icon
 			}
 
 			// collect items to embed
@@ -675,8 +676,8 @@ func build() action.Pair {
 			}
 			if appendEmbedded, err := afs.GetBool(buildFlagAppendEmbedded); err != nil {
 				clilog.GetFlag(err)
-			} else if appendEmbedded && rebuildKBR != nil {
-				embed = append(rebuildKBR.EmbeddedItems, embed...)
+			} else if appendEmbedded && priorKBR != nil {
+				embed = append(priorKBR.EmbeddedItems, embed...)
 			}
 
 			kbr := types.KitBuildRequest{
@@ -777,18 +778,28 @@ func build() action.Pair {
 					fs.String(buildFlagRebuild, "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID. "+
 						"As embedded items cannot be selected individually, providing a new path (interactively or "+
 						"via --embedded-items) will clobber (or append to, if --"+buildFlagAppendEmbedded+" is given) existing embedded items.")
-					fs.Bool(buildFlagAppendEmbedded, false, "Only applies when --"+buildFlagRebuild+" is specified. "+
-						"If embedded items are specified, they will be appended to the current set instead of clobbering it.")
+					fs.Bool(buildFlagAppendEmbedded, false, "Only applies when --"+buildFlagRebuild+" or --"+buildFlagRepack+" are specified. "+
+						"If embedded items are specified, they will be appended to the current set instead of clobbering it.\n"+
+						"Mutually exclusive with "+buildFlagRebuild)
+					fs.String(buildFlagRepack, "", "Instead of composing a kit from scratch, build a kit based off a currently-installed kit by its (unique, not KitID) ID. "+
+						"As embedded items cannot be selected individually, providing a path (interactively or "+
+						"via --embedded-items) will clobber (or append to, if --"+buildFlagAppendEmbedded+" is given) existing embedded items.\n"+
+						"Mutually exclusive with "+buildFlagRebuild)
 					return fs
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				// ensure we clobber any prior rebuild request
-				rebuildKBR = nil
+				// ensure we clobber any prior rebuild/repack request
+				priorKBR = nil
 
+				// check for rebuild or repack
 				rebuild, err := fs.GetString(buildFlagRebuild)
 				clilog.GetFlag(err)
-				if rebuild != "" {
+				repack, err := fs.GetString(buildFlagRepack)
+				clilog.GetFlag(err)
+				if rebuild != "" && repack != "" {
+					return ft.MutuallyExclusive("--"+buildFlagRebuild, "--"+buildFlagRepack), nil
+				} else if rebuild != "" {
 					lr, err := connection.Client.ListKitBuildHistory(&types.QueryOptions{
 						Filters: []types.Filter{{Key: "KitID", Operation: "=", Values: []any{rebuild}}},
 					})
@@ -800,10 +811,66 @@ func build() action.Pair {
 					} else if len(lr.Results) > 1 {
 						clilog.Writer.Warn("found multiple build requests", log.KV("KitID", rebuild))
 					}
-					rebuildKBR = &lr.Results[0]
+					priorKBR = &lr.Results[0]
+				} else if repack != "" {
+					lr, err := connection.Client.ListKits(&types.QueryOptions{
+						Filters: []types.Filter{{Key: "ID", Operation: "=", Values: []any{repack}}},
+					})
+					if err != nil {
+						return "", err
+					}
+					if len(lr.Results) < 1 {
+						return "failed to find any build requests for kitID '" + rebuild + "'", nil
+					} else if len(lr.Results) > 1 {
+						clilog.Writer.Warn("found multiple build requests", log.KV("KitID", rebuild))
+					}
+					from := lr.Results[0]
+					// generate a build request from the named kit
+					priorKBR = &types.KitBuildRequest{
+						CommonFields:  from.CommonFields,
+						KitID:         from.KitID,
+						Readme:        from.Readme,
+						KitVersion:    from.KitVersion,
+						MinVersion:    from.MinVersion,
+						MaxVersion:    from.MaxVersion,
+						Icon:          from.Icon,
+						Banner:        from.Banner,
+						Cover:         from.Cover,
+						EmbeddedItems: priorKBR.EmbeddedItems,
+						ConfigMacros:  from.ConfigMacros,
+					}
 
+					for _, item := range from.Items {
+						switch item.Type {
+						case types.KitAssetDashboard:
+							priorKBR.Dashboards = append(priorKBR.Dashboards, item.ID)
+						case types.KitAssetTemplate:
+							priorKBR.Templates = append(priorKBR.Templates, item.ID)
+						case types.KitAssetActionable:
+							priorKBR.Actionables = append(priorKBR.Actionables, item.ID)
+						case types.KitAssetResource:
+							priorKBR.Resources = append(priorKBR.Resources, item.ID)
+						case types.KitAssetScheduledSearch:
+							priorKBR.ScheduledSearches = append(priorKBR.ScheduledSearches, item.ID)
+						case types.KitAssetScheduledScript:
+							priorKBR.ScheduledScripts = append(priorKBR.ScheduledScripts, item.ID)
+						case types.KitAssetFlow:
+							priorKBR.Flows = append(priorKBR.Flows, item.ID)
+						case types.KitAssetMacro:
+							priorKBR.Macros = append(priorKBR.Macros, item.ID)
+						case types.KitAssetAX:
+							priorKBR.Extractors = append(priorKBR.Extractors, item.ID)
+						case types.KitAssetFile:
+							priorKBR.Files = append(priorKBR.Files, item.ID)
+						case types.KitAssetSavedQuery:
+							priorKBR.SavedQueries = append(priorKBR.SavedQueries, item.ID)
+						case types.KitAssetPlaybook:
+							priorKBR.Playbooks = append(priorKBR.Playbooks, item.ID)
+						case types.KitAssetAlert:
+							priorKBR.Alerts = append(priorKBR.Alerts, item.ID)
+						}
+					}
 				}
-
 				return "", nil
 			},
 			IDIsSuccessMessage: true,
@@ -873,9 +940,6 @@ func buildRequests() action.Pair {
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
 }
-
-// Rebuild a kit from a previous build request, incrementing the version.
-// TODO rebuild. We can probably leverage build instead of a wholly new action.
 
 func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
