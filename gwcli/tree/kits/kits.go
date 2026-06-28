@@ -330,12 +330,19 @@ func build() action.Pair {
 				Order:    540,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Dashboards {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListDashboards(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch dashboards", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -347,12 +354,18 @@ func build() action.Pair {
 				Order:    520,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Templates {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListTemplates(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch templates", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -398,12 +411,18 @@ func build() action.Pair {
 				Order:    460,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.ScheduledSearches {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListScheduledSearches(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -415,12 +434,18 @@ func build() action.Pair {
 				Order:    440,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Resources {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -432,12 +457,18 @@ func build() action.Pair {
 				Order:    420,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Macros {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListMacros(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch macros", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -449,12 +480,18 @@ func build() action.Pair {
 				Order:    400,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Extractors {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -466,12 +503,18 @@ func build() action.Pair {
 				Order:    380,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Files {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch files", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -483,12 +526,18 @@ func build() action.Pair {
 				Order:    360,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Playbooks {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListPlaybooks(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch playbooks", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -500,12 +549,18 @@ func build() action.Pair {
 				Order:    340,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.SavedQueries {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListSavedQueries(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch saved queries", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -517,12 +572,18 @@ func build() action.Pair {
 				Order:    320,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if rebuildKBR != nil { // build preselections
+							for _, x := range rebuildKBR.Alerts {
+								preselections[x] = true
+							}
+						}
 						lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch alert", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr.Results, preselections)
 					},
 				},
 				},
@@ -699,7 +760,9 @@ func build() action.Pair {
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.Bool("no-clobber", false, "Do not truncate files with matching names. Instead, return an error.")
-					fs.String("rebuild", "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID.")
+					fs.String("rebuild", "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID. "+
+						"As embedded items cannot be selected individually, providing a new path (interactively or "+
+						"via --embedded-items) will clobber (or append to, if --append-embedded is given) existing embedded items.")
 					return fs
 				},
 			},
