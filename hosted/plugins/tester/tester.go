@@ -4,6 +4,7 @@ package tester
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,8 +25,8 @@ const (
 )
 
 type Config struct {
-	Ingester_UUID string // set the UUID for the ingester
-	Interval      string // how often to send an entry, this should be a string parsable by time.ParseDuration
+	hosted.BaseConfig
+	Interval string // how often to send an entry; must be parsable by time.ParseDuration
 }
 
 func (c *Config) Verify() (err error) {
@@ -48,15 +49,6 @@ func (c *Config) interval() time.Duration {
 	return dur
 }
 
-func (c *Config) UUID() uuid.UUID {
-	if c.Ingester_UUID != `` {
-		if r, err := uuid.Parse(c.Ingester_UUID); err == nil {
-			return r
-		}
-	}
-	return uuid.Nil
-}
-
 type TesterIngester struct {
 	Config
 	tag entry.EntryTag
@@ -75,27 +67,14 @@ func NewTesterIngester(cfg Config, tn hosted.TagNegotiator) (tt *TesterIngester,
 	return
 }
 
-func (tt *TesterIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
-	tckr := time.NewTicker(tt.interval())
-	defer tckr.Stop()
-
-	rt.Info("starting", log.KV("uuid", tt.UUID()))
-mainLoop:
-	for {
-		select {
-		case <-ctx.Done():
-			break mainLoop
-		case t := <-tckr.C:
-			lerr := rt.Write(entry.Entry{
-				TS:   entry.FromStandard(t),
-				Tag:  tt.tag,
-				Data: []byte(`test entry`),
-			})
-			if lerr != nil {
-				rt.Error("tester: failed to write entry: %v", log.KVErr(lerr))
-			}
-		}
+func (tt *TesterIngester) Handle(_ context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
+	if err := rt.Write(entry.Entry{
+		TS:   entry.Now(),
+		Tag:  tt.tag,
+		Data: []byte(`test entry`),
+	}); err != nil {
+		rt.Error("failed to write entry", log.KVErr(err))
 	}
-	rt.Info("exiting", log.KV("uuid", tt.UUID()))
-	return
+	rt.Error("testing errors", log.KVErr(errors.New("test err")))
+	return hosted.ContinueAfter(tt.interval()), nil
 }
