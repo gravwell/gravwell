@@ -214,7 +214,7 @@ func GetGroup(l *list.Model) (types.Group, error) {
 	return g.G, nil
 }
 
-type WrappableAsset interface {
+type wrappableAsset interface {
 	[]types.Dashboard | []types.Template |
 		[]types.Actionable | []types.Flow |
 		[]types.ScheduledSearch | []types.Resource |
@@ -225,7 +225,7 @@ type WrappableAsset interface {
 
 // WrapAssets returns an MSL- and list.Model-ready array of the given items.
 // Selections may be done by giving a preselection map (all but the first preselection map will be ignored), which will search for preselection[x[i].ID] == true.
-func WrapAssets[asset_t WrappableAsset](x asset_t, preselected ...map[string]bool) []multiselectlist.SelectableItem[string] {
+func WrapAssets[asset_t wrappableAsset](x asset_t, preselected ...map[string]bool) []multiselectlist.SelectableItem[string] {
 	if len(x) < 1 {
 		return nil
 	}
