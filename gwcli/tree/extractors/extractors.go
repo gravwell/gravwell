@@ -49,7 +49,7 @@ func NewNav() *cobra.Command {
 		long  string = "Autoextractors describe how to extract fields from tagged, unstructured data."
 	)
 
-	var aliases = []string{"extractor", "ex", "ax", "autoextractor", "autoextractors"}
+	var aliases = []string{"extractor", "ex", "ax", "autoextractor", "autoextractors", "axs"}
 
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{},
@@ -61,6 +61,7 @@ func NewNav() *cobra.Command {
 			edit(),
 			importUpload(),
 			find(),
+			clear(),
 		})
 }
 
@@ -520,4 +521,59 @@ func find() action.Pair {
 				Use: "find",
 			},
 		})
+}
+
+func clear() action.Pair {
+	return scaffoldselect.NewSelectAction("clear a tag's extractor", "Unassign and delete whatever extractor is on the given tag(s).", "ax",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			// make a list of tags that have extractors
+			tags := map[string]types.AX{}
+			for _, ax := range lr.Results {
+				for _, t := range ax.Tags {
+					tags[t] = ax
+				}
+			}
+			data := make([]multiselectlist.SelectableItem[string], len(tags))
+			var i int
+			for tag, ax := range tags {
+				data[i] = &listitem.Generic{
+					ID_:        tag,
+					Name:       tag,
+					SecondLine: fmt.Sprintf("AX: %s (ID: %s)", ax.Name, ax.ID),
+				}
+				i += 1
+			}
+
+			return data, nil
+		},
+		func(tags []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(tags))
+
+			for i, tag := range tags {
+				ax, err := connection.Client.FindExtraction(tag)
+				if phrases.IsNotFoundErr(err) {
+					results[i] = scaffold.Result{Success: true, Output: "tag '" + tag + "' does not have an extractor"}
+					continue
+				}
+				if err != nil {
+					results[i] = scaffold.Result{Output: err.Error()}
+					continue
+				}
+
+				warns, err := connection.Client.DeleteExtraction(ax.ID)
+				if err != nil {
+					results[i] = scaffold.Result{Output: "failed to update ax: " + err.Error()}
+					continue
+				} else if len(warns) > 0 {
+					clilog.Writer.Warn("updating the AX triggered warnings", log.KV("warnings", warns))
+				}
+				results[i] = scaffold.Result{Success: true, Output: "removed ax '" + ax.Name + "' from tag '" + tag + "'"}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{Use: "clear"}})
 }
