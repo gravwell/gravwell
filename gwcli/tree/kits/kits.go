@@ -661,7 +661,7 @@ func build() action.Pair {
 				}
 				clilog.Writer.Info("created icon as file", log.KV("ID", resp.ID), log.KV("path", iconPath))
 				iconID = resp.ID
-			} else if priorKBR.Icon != "" {
+			} else if priorKBR != nil && priorKBR.Icon != "" {
 				iconID = priorKBR.Icon
 			}
 
