@@ -92,8 +92,8 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteGroup(id)
 		},
-		func() ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListGroups(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
+			lr, err := connection.Client.ListGroups(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {

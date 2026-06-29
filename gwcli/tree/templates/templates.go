@@ -141,14 +141,14 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteTemplate(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTemplates(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListTemplates(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {

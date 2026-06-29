@@ -149,14 +149,14 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteSavedQuery(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListSavedQueries(nil)
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListSavedQueries(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func show() action.Pair {

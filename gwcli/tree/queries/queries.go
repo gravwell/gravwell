@@ -323,10 +323,10 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteSearch(ID)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
+		func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
-		scaffolddelete.Options{})
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOOmit{Everything: true}})
 }
 
 // TODO this should be converted to a scaffoldcreate with two MSL fields after the scaffoldcreate/edit merge.

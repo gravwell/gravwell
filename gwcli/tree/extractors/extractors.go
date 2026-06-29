@@ -276,14 +276,14 @@ func delete() action.Pair {
 			}
 			return nil
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(nil)
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListExtractions(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func modules() action.Pair {

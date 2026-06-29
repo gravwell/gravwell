@@ -133,13 +133,14 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteAlert(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(nil)
+		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListAlerts(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{})
+		},
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 var toggleEnable, toggleDisable bool

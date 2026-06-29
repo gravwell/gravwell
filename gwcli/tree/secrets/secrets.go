@@ -116,8 +116,8 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteSecret(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListSecrets(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListSecrets(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +132,7 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {

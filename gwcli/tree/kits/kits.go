@@ -99,8 +99,8 @@ func uninstall() action.Pair {
 			}
 			return connection.Client.DeleteKit(ID)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			pkgs, err := connection.Client.ListKits(nil)
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			pkgs, err := connection.Client.ListKits(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -124,6 +124,7 @@ func uninstall() action.Pair {
 					return fs
 				},
 			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
 }
 

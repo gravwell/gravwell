@@ -343,12 +343,13 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeleteActionable(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListActionables(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{})
+		},
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }

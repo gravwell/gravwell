@@ -40,12 +40,10 @@ func NewNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
-			deleteAction(),
-			cloneAction(),
+			delete(),
+			clone(),
 		})
 }
-
-//#region list
 
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list dashboards", "list dashboards available to you and the system",
@@ -61,30 +59,26 @@ func listAction() action.Pair {
 		}})
 }
 
-//#region delete
-
-func deleteAction() action.Pair {
+func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("dashboard",
-		del, fch, scaffolddelete.Options{})
+		func(dryrun bool, id string) error {
+			if dryrun {
+				_, err := connection.Client.GetDashboard(id)
+				return err
+			}
+			return connection.Client.DeleteDashboard(id)
+		},
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListDashboards(params.QueryOpts)
+			if err != nil {
+				return nil, err
+			}
+			return listitem.WrapAssets(lr.Results), nil
+		},
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
-func del(dryrun bool, id string) error {
-	if dryrun {
-		_, err := connection.Client.GetDashboard(id)
-		return err
-	}
-	return connection.Client.DeleteDashboard(id)
-}
-
-func fch() ([]multiselectlist.SelectableItem[string], error) {
-	lr, err := connection.Client.ListDashboards(&types.QueryOptions{Filters: []types.Filter{{Key: "OwnerID", Operation: "=", Values: []any{connection.CurrentUser().ID}}}})
-	if err != nil {
-		return nil, err
-	}
-	return listitem.WrapAssets(lr.Results), nil
-}
-
-func cloneAction() action.Pair {
+func clone() action.Pair {
 	return scaffoldselect.NewSelectAction("clone dashboards", "create a copy of one or many dashboards.",
 		"dashboard",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {

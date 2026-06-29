@@ -190,14 +190,14 @@ func delete() action.Pair {
 			}
 			return connection.Client.DeletePlaybook(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListPlaybooks(nil)
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListPlaybooks(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {
