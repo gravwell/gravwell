@@ -195,9 +195,9 @@ func install() action.Pair {
 					fs.Bool("overwrite-existing", false, "Overwrite existing assets")
 					fs.Bool("allow-unsigned", false, "Allow installation of unsigned kits")
 					fs.StringArray("item-label", nil, "Label to apply to each item of each kit. "+
-						"Each instance of --item-labels will create exactly one item label; they will not be split on commas")
+						"Each instance of --item-label will create exactly one item label; they will not be split on commas")
 					fs.StringArray("kit-label", nil, "Label to apply to each kit. "+
-						"Each instance of --kit-labels will create exactly one kit label; they will not be split on commas")
+						"Each instance of --kit-label will create exactly one kit label; they will not be split on commas")
 					return fs
 				},
 			},
@@ -732,7 +732,7 @@ func build() action.Pair {
 					noClobber, err := afs.GetBool("no-clobber")
 					clilog.GetFlag(err)
 					if noClobber {
-						return 0, dlPath + " already exists and --no-cobber was specified", nil
+						return 0, dlPath + " already exists and --no-clobber was specified", nil
 					}
 				}
 
@@ -1025,7 +1025,7 @@ func download() action.Pair {
 			var root *os.Root
 			dir, err := addtlFlags.GetString(ft.DirName)
 			clilog.GetFlag(err)
-			if err := os.MkdirAll(dir, 0644); err != nil {
+			if err := os.MkdirAll(dir, 0755); err != nil {
 				return nil, err
 			} else if root, err = os.OpenRoot(dir); err != nil {
 				return nil, err

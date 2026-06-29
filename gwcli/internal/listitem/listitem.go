@@ -322,7 +322,7 @@ func WrapAssets[asset_t wrappableAsset](x asset_t, preselected ...map[string]boo
 	case []types.SavedQuery:
 		for i, itm := range t {
 			items[i] = &Generic{
-				Selected_:  false,
+				Selected_:  selected[itm.ID],
 				ID_:        itm.ID,
 				Name:       itm.Name,
 				SecondLine: itm.Description,
