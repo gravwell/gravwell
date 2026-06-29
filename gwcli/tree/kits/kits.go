@@ -92,10 +92,15 @@ func listAction() action.Pair {
 
 func uninstall() action.Pair {
 	return scaffolddelete.NewDeleteAction("kit",
-		func(dryrun bool, ID string) error {
+		func(dryrun bool, ID string, fs *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetKit(ID)
 				return err
+			}
+			if force, err := fs.GetBool("force"); err != nil {
+				clilog.GetFlag(err)
+			} else if force {
+				return connection.Client.ForceDeleteKit(ID)
 			}
 			return connection.Client.DeleteKit(ID)
 		},
@@ -146,7 +151,7 @@ func install() action.Pair {
 				items = append(items, &listitem.Generic{
 					ID_:        kit.ID,
 					Name:       kit.Name,
-					SecondLine: fmt.Sprintf("(Version: %v) %s", kit.Version, kit.Description),
+					SecondLine: fmt.Sprintf("(Version: %v/Kit Version: %v) %s", kit.Version, kit.KitVersion, kit.Description),
 				})
 			}
 			return items, nil
@@ -228,11 +233,11 @@ func pull() action.Pair {
 		"Pull a remote kit and stage it for installation in the local system.",
 		"kit UUID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			meta, err := connection.Client.ListRemoteKits(false) // TODO incorporate QueryOptions.All
+			meta, err := connection.Client.ListRemoteKits(false)
 			if err != nil {
 				return nil, err
 			}
-			items := []multiselectlist.SelectableItem[string]{}
+			items := make([]multiselectlist.SelectableItem[string], len(meta))
 			for i, m := range meta {
 				items[i] = &listitem.Generic{
 					ID_:        m.ID,
@@ -821,24 +826,24 @@ func build() action.Pair {
 						return "", err
 					}
 					if len(lr.Results) < 1 {
-						return "failed to find any build requests for kitID '" + rebuild + "'", nil
+						return "failed to find any build requests for kitID '" + repack + "'", nil
 					} else if len(lr.Results) > 1 {
-						clilog.Writer.Warn("found multiple build requests", log.KV("KitID", rebuild))
+						clilog.Writer.Warn("found multiple build requests", log.KV("KitID", repack))
 					}
 					from := lr.Results[0]
 					// generate a build request from the named kit
 					priorKBR = &types.KitBuildRequest{
-						CommonFields:  from.CommonFields,
-						KitID:         from.KitID,
-						Readme:        from.Readme,
-						KitVersion:    from.KitVersion,
-						MinVersion:    from.MinVersion,
-						MaxVersion:    from.MaxVersion,
-						Icon:          from.Icon,
-						Banner:        from.Banner,
-						Cover:         from.Cover,
-						EmbeddedItems: priorKBR.EmbeddedItems,
-						ConfigMacros:  from.ConfigMacros,
+						CommonFields: from.CommonFields,
+						KitID:        from.KitID,
+						Readme:       from.Readme,
+						KitVersion:   from.KitVersion,
+						MinVersion:   from.MinVersion,
+						MaxVersion:   from.MaxVersion,
+						Icon:         from.Icon,
+						Banner:       from.Banner,
+						Cover:        from.Cover,
+						//EmbeddedItems: from.emb, // TODO issues#2555
+						ConfigMacros: from.ConfigMacros,
 					}
 
 					for _, item := range from.Items {
@@ -869,6 +874,15 @@ func build() action.Pair {
 							priorKBR.Playbooks = append(priorKBR.Playbooks, item.ID)
 						case types.KitAssetAlert:
 							priorKBR.Alerts = append(priorKBR.Alerts, item.ID)
+						/*case types.KitAssetExternal: // TODO issues#2555
+							priorKBR.EmbeddedItems = append(priorKBR.EmbeddedItems, types.KitEmbeddedItem{})
+						case types.KitAssetLicense:
+							priorKBR.EmbeddedItems = append(priorKBR.EmbeddedItems, types.KitEmbeddedItem{
+								KitItem: types.KitItem{},
+								Content: item.AdditionalInfo,
+							})*/
+						default:
+							clilog.Writer.Warn("unknown kit item type", log.KV("type", item.Type), log.KV("item ID", item.ID), scaffold.IdentifyCaller())
 						}
 					}
 				}
@@ -906,10 +920,17 @@ func collectEmbeddedItems(dirPath string, recur bool) ([]types.KitEmbeddedItem, 
 	items := []types.KitEmbeddedItem{}
 	for _, entry := range dir {
 		if !entry.IsDir() {
-			items = append(items, types.KitEmbeddedItem{KitItem: types.KitItem{
-				Name: filepath.Base(entry.Name()),
-				Type: types.KitAssetFile,
-			}})
+			content, err := os.ReadFile(filepath.Join(dirPath, entry.Name()))
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, types.KitEmbeddedItem{
+				KitItem: types.KitItem{
+					Name: filepath.Base(entry.Name()),
+					Type: types.KitAssetFile,
+				},
+				Content: content,
+			})
 		} else if recur {
 			if sub, err := collectEmbeddedItems(filepath.Join(dirPath, entry.Name()), recur); err != nil {
 				return nil, err
@@ -1004,49 +1025,17 @@ func download() action.Pair {
 			var root *os.Root
 			dir, err := addtlFlags.GetString(ft.DirName)
 			clilog.GetFlag(err)
-			if err := os.MkdirAll(dir, fs.ModeDir); err != nil {
+			if err := os.MkdirAll(dir, 0644); err != nil {
 				return nil, err
 			} else if root, err = os.OpenRoot(dir); err != nil {
 				return nil, err
 			}
 			results = make([]scaffold.Result, len(UUIDs))
 			for i, UUID := range UUIDs {
-				resp, err := connection.Client.KitDownloadRequest(UUID)
+				results[i], err = downloadKit(UUID, dir, root, noClobber)
 				if err != nil {
-					if phrases.IsNotFoundErr(err) {
-						results[i].Output = phrases.ErrUnknownIdentifier(UUID, "kit ID").Error()
-					} else {
-						results[i].Output = err.Error()
-					}
-					continue
-				} else if resp == nil { // this should never pop, but just to be safe...
-					clilog.Writer.Error("Something is horribly broken: KitDownloadRequest returned a nil error and a nil response!",
-						log.KV("kit ID", UUID))
-					return nil, clilog.ErrInternal{}
+					return nil, err
 				}
-				fileName := UUID + ".kit"
-				filePath := path.Join(dir, fileName)
-				// if the file exists and noClobber was specified return an error for this ID
-				if _, err := root.Stat(fileName); !errors.Is(err, fs.ErrNotExist) && noClobber {
-					results[i].Output = filePath + " already exists and --no-clobber was specified"
-					continue
-				}
-				f, err := root.Create(fileName)
-				if err != nil {
-					results[i].Output = ""
-					continue
-				}
-				copied, err := io.Copy(f, resp.Body)
-				if err != nil {
-					clilog.Writer.Warn("failed to copy to kit data to file", log.KVErr(err))
-					results[i].Output = err.Error()
-				} else {
-					results[i] = scaffold.Result{
-						Output:  fmt.Sprintf("downloaded kit %s to %s (%d bytes written)", UUID, filePath, copied),
-						Success: true,
-					}
-				}
-				f.Close()
 			}
 			return results, nil
 		},
@@ -1060,4 +1049,45 @@ func download() action.Pair {
 					return fs
 				}},
 		})
+}
+
+// helper function for download()
+func downloadKit(ID string, outputDir string, root *os.Root, noClobber bool) (res scaffold.Result, _ error) {
+	resp, err := connection.Client.KitDownloadRequest(ID)
+	if err != nil {
+		if phrases.IsNotFoundErr(err) {
+			res.Output = phrases.ErrUnknownIdentifier(ID, "kit ID").Error()
+		} else {
+			res.Output = err.Error()
+		}
+		return res, nil
+	} else if resp == nil { // this should never pop, but just to be safe...
+		clilog.Writer.Error("Something is horribly broken: KitDownloadRequest returned a nil error and a nil response!",
+			log.KV("kit ID", ID))
+		return scaffold.Result{}, clilog.ErrInternal{}
+	}
+	defer resp.Body.Close()
+	fileName := ID + ".kit"
+	filePath := path.Join(outputDir, fileName)
+	// if the file exists and noClobber was specified return an error for this ID
+	if _, err := root.Stat(fileName); !errors.Is(err, fs.ErrNotExist) && noClobber {
+		res.Output = filePath + " already exists and --no-clobber was specified"
+		return res, nil
+	}
+	f, err := root.Create(fileName)
+	if err != nil {
+		res.Output = err.Error()
+		return res, nil
+	}
+	defer f.Close()
+	copied, err := io.Copy(f, resp.Body)
+	if err != nil {
+		clilog.Writer.Warn("failed to copy to kit data to file", log.KVErr(err))
+		res.Output = err.Error()
+		return res, nil
+	}
+	return scaffold.Result{
+		Output:  fmt.Sprintf("downloaded kit %s to %s (%d bytes written)", ID, filePath, copied),
+		Success: true,
+	}, nil
 }

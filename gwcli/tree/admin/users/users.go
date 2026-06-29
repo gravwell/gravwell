@@ -146,7 +146,7 @@ func create() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("user",
-		func(dryrun bool, id int32) error {
+		func(dryrun bool, id int32, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetUser(id)
 				return err

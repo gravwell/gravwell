@@ -134,7 +134,7 @@ func list() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("template",
-		func(dryrun bool, id string) error {
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetTemplate(id)
 				return err

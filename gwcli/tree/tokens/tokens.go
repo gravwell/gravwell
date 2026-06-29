@@ -343,7 +343,7 @@ func create() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("token",
-		func(dryrun bool, id string) error {
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetToken(id)
 				return err

@@ -189,7 +189,7 @@ func create() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("resource",
-		func(dryrun bool, id string) error {
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetResourceMetadata(id)
 				return err

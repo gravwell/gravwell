@@ -231,7 +231,7 @@ func WrapAssets[asset_t wrappableAsset](x asset_t, preselected ...map[string]boo
 	}
 	items := make([]multiselectlist.SelectableItem[string], len(x))
 	var selected map[string]bool
-	if len(selected) > 0 {
+	if len(preselected) > 0 {
 		selected = preselected[0]
 	} else {
 		selected = map[string]bool{}

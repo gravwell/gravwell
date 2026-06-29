@@ -39,7 +39,7 @@ import (
 )
 
 // DeleteFunc is the driver function for this action; it performs the (faux-, on dryrun) deletion once an item is picked.
-type DeleteFunc[I scaffold.Id_t] func(dryrun bool, ID I) error
+type DeleteFunc[I scaffold.Id_t] func(dryrun bool, ID I, fs *pflag.FlagSet) error
 
 // FetchFunc is the precursor function; it fetches and formats the list of delete-able items.
 // It is called iff we enter interactive mode.
@@ -97,7 +97,7 @@ func NewDeleteAction[I scaffold.Id_t](singular string, del DeleteFunc[I], fch Fe
 
 			// non-interactive: delete each given id
 			var atLeastOneSuccess bool
-			results := attemptDeletions(singular, IDs, dryrun, del)
+			results := attemptDeletions(singular, IDs, dryrun, del, c.Flags())
 			for _, res := range results {
 				if res.err != nil {
 					fmt.Fprintln(c.ErrOrStderr(), res.err.Error())
@@ -153,7 +153,7 @@ func getFlags[I scaffold.Id_t](fs *pflag.FlagSet) (ids []I, dryrun bool, _ error
 }
 
 // attemptDeletion is the actual deletion actor, used to keep the behavior of each entry point uniform.
-func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, del DeleteFunc[I]) (results []struct {
+func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, del DeleteFunc[I], fs *pflag.FlagSet) (results []struct {
 	success string
 	err     error
 }) {
@@ -162,7 +162,7 @@ func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, de
 		err     error
 	}, len(IDs))
 	for i, ID := range IDs {
-		if err := del(dryrun, ID); err != nil {
+		if err := del(dryrun, ID, fs); err != nil {
 			if phrases.IsNotFoundErr(err) {
 				results[i] = struct {
 					success string
@@ -230,6 +230,9 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, heigh
 	invalid string, onStart tea.Cmd, err error) {
 	// parse flags
 	d.flagset = flags()
+	if d.options.AddtlFlags != nil {
+		d.flagset.AddFlagSet(d.options.AddtlFlags())
+	}
 	if d.options.QueryOptionsFlags != nil {
 		d.options.QueryOptionsFlags.Install(&d.flagset)
 	}
@@ -241,6 +244,26 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, heigh
 		return "", nil, err
 	}
 	d.dryrun = dryrun
+
+	if len(IDs) > 0 {
+		// Pre-select items by flag and skip directly to result
+		d.mode = modeDone
+		var atLeastOneSuccess bool
+		results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del, &d.flagset)
+		cmds := make([]tea.Cmd, len(results))
+		for i, res := range results {
+			if res.err != nil {
+				cmds[i] = tea.Println(res.err.Error())
+			} else {
+				cmds[i] = tea.Println(res.success)
+				atLeastOneSuccess = true
+			}
+		}
+		if !atLeastOneSuccess {
+			cmds = append(cmds, tea.Println("all operations failed"))
+		}
+		return "", tea.Sequence(cmds...), nil
+	}
 
 	// fetch deleteable items
 	params := DataParameters{}
@@ -266,26 +289,6 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, heigh
 
 	// initialize confirmation with a single choice: "item selection"
 	d.confirm.Init([]string{"item selection"}, uint(width), uint(height))
-
-	if len(IDs) > 0 {
-		// Pre-select items by flag and skip directly to result
-		d.mode = modeDone
-		var atLeastOneSuccess bool
-		results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del)
-		cmds := make([]tea.Cmd, len(results))
-		for i, res := range results {
-			if res.err != nil {
-				cmds[i] = tea.Println(res.err.Error())
-			} else {
-				cmds[i] = tea.Println(res.success)
-				atLeastOneSuccess = true
-			}
-		}
-		if !atLeastOneSuccess {
-			cmds = append(cmds, tea.Println("all operations failed"))
-		}
-		return "", tea.Sequence(cmds...), nil
-	}
 
 	return "", nil, nil
 }
@@ -338,7 +341,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 				IDs[i] = sel.ID()
 			}
 			var atLeastOneSuccess bool
-			results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del)
+			results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del, &d.flagset)
 			cmds := make([]tea.Cmd, len(results))
 			for i, res := range results {
 				if res.err != nil {

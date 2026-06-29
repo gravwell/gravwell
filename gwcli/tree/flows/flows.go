@@ -213,7 +213,7 @@ func download() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("flow",
-		func(dryrun bool, id string) error {
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetFlow(id)
 				return err

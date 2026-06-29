@@ -16,15 +16,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,11 +39,27 @@ func TestMain(m *testing.M) {
 
 // #region test helpers
 
-func del(dryrun bool, ID string) error {
-	if strings.Contains(ID, "bad") {
-		return errors.New("unknown item (" + ID + ") in the collection")
+// pair with afsCustom()
+func genDelFunc(gotCustom *int16) func(dryrun bool, ID string, fs *pflag.FlagSet) error {
+	return func(dryrun bool, ID string, fs *pflag.FlagSet) error {
+		if cust, err := fs.GetInt16("custom"); err != nil {
+			return err
+		} else if gotCustom != nil {
+			*gotCustom = cust
+		}
+		if strings.Contains(ID, "bad") {
+			return errors.New("unknown item (" + ID + ") in the collection")
+		}
+		return nil
+
 	}
-	return nil
+}
+
+// pair with genDelFunc
+func afsCustom() *pflag.FlagSet {
+	fs := &pflag.FlagSet{}
+	fs.Int16("custom", 0, "")
+	return fs
 }
 
 func collectItems(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
@@ -142,7 +161,7 @@ func TestQueryOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotDataParams scaffolddelete.DataParameters
 			pair := scaffolddelete.NewDeleteAction("egg",
-				func(dryrun bool, ID string) error {
+				func(dryrun bool, ID string, fs *pflag.FlagSet) error {
 					return nil
 				},
 				func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
@@ -170,25 +189,34 @@ func TestQueryOptions(t *testing.T) {
 
 func TestNonInteractive(t *testing.T) {
 	tests := []struct {
-		name    string
-		args    []string
-		wantOut string
-		wantErr string
+		name                string
+		args                []string
+		wantCustomFlagValue int16
+		wantOut             string
+		wantErr             string
 	}{
-		{"delete single item", []string{"alpha"}, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha"), ""},
-		{"delete multiple items", []string{"alpha", "beta"}, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha") + "\n" + fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "beta"), ""},
-		{"dryrun single item", []string{"--dryrun", "alpha"}, fmt.Sprintf(scaffolddelete.DryrunSuccessTextF, "widget", "alpha"), ""},
-		{"dryrun multiple items", []string{"--dryrun", "alpha", "gamma"},
+		{"delete single item", []string{"alpha"}, 0, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha"), ""},
+		{"delete multiple items", []string{"--custom=-140", "alpha", "beta"}, -140, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha") + "\n" + fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "beta"), ""},
+		{"dryrun single item", []string{"--dryrun", "alpha"}, 0, fmt.Sprintf(scaffolddelete.DryrunSuccessTextF, "widget", "alpha"), ""},
+		{"dryrun multiple items", []string{"--dryrun", "--custom", "5", "alpha", "gamma"}, 5,
 			fmt.Sprintf(scaffolddelete.DryrunSuccessTextF, "widget", "alpha") + "\n" + fmt.Sprintf(scaffolddelete.DryrunSuccessTextF, "widget", "gamma"), ""},
-		{"delete none", nil, "", "you must specify at least 1 argument"},
-		{"delete unknown item", []string{"bad"}, "", "unknown item (bad) in the collection"},
-		{"multiple unknown items", []string{"bad", "bad2"}, "", "failed to delete widget (ID bad): unknown item (bad) in the collection\nfailed to delete widget (ID bad2): unknown item (bad2) in the collection\nError: all operations failed all operations failed"},
-		{"one good one bad", []string{"alpha", "bad"}, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha"), "unknown item (bad)"},
+		{"delete none", nil, 0, "", "you must specify at least 1 argument"},
+		{"delete unknown item", []string{"bad"}, 0, "", "unknown item (bad) in the collection"},
+		{"multiple unknown items", []string{"bad", "bad2"}, 0, "", "failed to delete widget (ID bad): unknown item (bad) in the collection\nfailed to delete widget (ID bad2): unknown item (bad2) in the collection\nError: all operations failed all operations failed"},
+		{"one good one bad", []string{"alpha", "bad"}, 0, fmt.Sprintf(scaffolddelete.DeleteSuccessTextF, "widget", "alpha"), "unknown item (bad)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var sbOut, sbErr strings.Builder
-			pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
+			var gotCustom int16
+			pair := scaffolddelete.NewDeleteAction("widget",
+				genDelFunc(&gotCustom),
+				collectItems,
+				scaffolddelete.Options{
+					CommonOptions: scaffold.CommonOptions{
+						AddtlFlags: afsCustom,
+					},
+				})
 			uniques.AttachPersistentFlags(pair.Action)
 			pair.Action.SetOut(&sbOut)
 			pair.Action.SetErr(&sbErr)
@@ -203,16 +231,38 @@ func TestNonInteractive(t *testing.T) {
 				assert.Contains(t, errStr, tt.wantErr)
 				return
 			}
+			assert.Equal(t, tt.wantCustomFlagValue, gotCustom)
 			assert.Nil(t, err)
 			assert.Empty(t, stderr)
 			assert.Equal(t, tt.wantOut, stdout)
 		})
 	}
+
+	t.Run("Not Found from delFunc", func(t *testing.T) {
+		pair := scaffolddelete.NewDeleteAction("orb",
+			func(dryrun bool, ID string, fs *pflag.FlagSet) error {
+				if ID == "notfound" {
+					return client.ErrNotFound
+				}
+				return nil
+			},
+			func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+				return nil, nil
+			},
+			scaffolddelete.Options{})
+		var sbErr strings.Builder
+		pair.Action.SetErr(&sbErr)
+		pair.Action.SetArgs([]string{"notfound"})
+		require.NotNil(t, pair.Action.Execute())
+		assert.Contains(t, sbErr.String(), phrases.ErrUnknownIdentifier("notfound", "orb").Error())
+	})
 }
 
 func TestInteractiveCycle(t *testing.T) {
-	t.Run("no data returns done with message", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", del,
+	t.Run("no data returns message from SetArgs and sets Done", func(t *testing.T) {
+		var gotCustom int16
+		pair := scaffolddelete.NewDeleteAction("widget",
+			genDelFunc(&gotCustom),
 			func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
 				return nil, nil
 			},
@@ -226,18 +276,20 @@ func TestInteractiveCycle(t *testing.T) {
 
 	t.Run("fetch error", func(t *testing.T) {
 		fetchErr := errors.New("network error")
-		pair := scaffolddelete.NewDeleteAction("widget", del,
+		var gotCustom int16
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(&gotCustom),
 			func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
 				return nil, fetchErr
 			},
-			scaffolddelete.Options{})
+			scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
 		_, _, err := pair.Model.SetArgs(nil, []string{}, 50, 20)
 		assert.ErrorIs(t, err, fetchErr)
 	})
 
 	t.Run("with items, no flags (interactive mode)", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
-		testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{}, 50, 20, false, nil, false)
+		var gotCustom int16
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(&gotCustom), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{"--custom=20"}, 50, 20, false, nil, false)
 
 		t.Run("check initial view", func(t *testing.T) {
 			pair.Model.Update(nil)
@@ -265,10 +317,11 @@ func TestInteractiveCycle(t *testing.T) {
 				assert.Contains(t, msg, "beta")
 			}
 		})
+		assert.EqualValues(t, 20, gotCustom)
 	})
 
 	t.Run("IDs via bare args skip interactive", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
 		inv, cmd, err := pair.Model.SetArgs(nil, []string{"alpha", "beta"}, 50, 20)
 		assert.Empty(t, inv)
 		assert.Nil(t, err)
@@ -277,7 +330,7 @@ func TestInteractiveCycle(t *testing.T) {
 	})
 
 	t.Run("bad flags returns invalid", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
 		inv, _, err := pair.Model.SetArgs(nil, []string{"--nonexistent"}, 50, 20)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, inv)
@@ -286,7 +339,7 @@ func TestInteractiveCycle(t *testing.T) {
 
 func TestModelLifecycle(t *testing.T) {
 	t.Run("reset after done", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
 		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
 		assert.Nil(t, err)
 		assert.True(t, pair.Model.Done())
@@ -296,7 +349,7 @@ func TestModelLifecycle(t *testing.T) {
 	})
 
 	t.Run("repeated use", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
 
 		// First use
 		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
@@ -311,15 +364,17 @@ func TestModelLifecycle(t *testing.T) {
 	})
 
 	t.Run("view when done", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
-		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
+		var gotCustom int16
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(&gotCustom), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		_, _, err := pair.Model.SetArgs(nil, []string{"--custom", "-1", "alpha"}, 50, 20)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, pair.Model.View())
+		assert.EqualValues(t, -1, gotCustom)
 	})
 }
 
 func TestOptions(t *testing.T) {
-	pair := scaffolddelete.NewDeleteAction("widget", del, collectItems, scaffolddelete.Options{})
+	pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
 
 	assert.Equal(t, "delete", pair.Action.Use)
 	assert.Contains(t, pair.Action.Short, "widgets")

@@ -142,7 +142,7 @@ func edit() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("saved query",
-		func(dryrun bool, id string) error {
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetSavedQuery(id)
 				return err

@@ -85,7 +85,7 @@ func create() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("group",
-		func(dryrun bool, id int32) error {
+		func(dryrun bool, id int32, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetGroup(id)
 				return err

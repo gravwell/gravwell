@@ -220,7 +220,7 @@ func edit() action.Pair {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("macro",
-		func(dryrun bool, id string) error {
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetMacro(id)
 				return err
