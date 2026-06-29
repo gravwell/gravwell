@@ -139,10 +139,13 @@ func (vp *VectorProc) Process(ents []*entry.Entry) (rset []*entry.Entry, err err
 
 	embeddings, eerr := vp.getEmbeddings(inputs)
 	if eerr != nil {
+		// In passthrough mode we keep going quietly and emit the originals
+		// untouched. Otherwise surface the error so the ingester logs it; the
+		// batch is dropped.
 		if vp.Passthrough_On_Error {
-			return ents, err
+			return ents, nil
 		}
-		return
+		return nil, eerr
 	}
 
 	for n, i := range idx {

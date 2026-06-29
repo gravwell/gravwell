@@ -213,27 +213,14 @@ func TestVectorProcessor(t *testing.T) {
 	}
 }
 
-func TestVectorProcessorSkippedOnError(t *testing.T) {
-	ts := vectorEmbeddingEndpoint(t)
-	defer ts.Close()
-
-	endpoint := "http://" + ts.Listener.Addr().String() + "/v1/embeddings"
-	cfg := VectorConfig{
-		Model:    "test-model",
-		Endpoint: endpoint,
-		Token:    "test-token",
-	}
-	p, err := NewVectorProcessor(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Mix of valid and invalid endpoints — the second entry will fail embedding
-	goodEnt := makeVectorEntry(`{"data": "good"}`, 1)
+func TestVectorProcessorErrorSurfaced(t *testing.T) {
+	// Default (non-passthrough) config: a failing endpoint must surface the
+	// error so the ingester can log it, and drop the batch.
 	badCfg := VectorConfig{
-		Model:    "test-model",
-		Endpoint: "http://localhost:1/unreachable",
-		Token:    "bad-token",
+		Model:          "test-model",
+		Endpoint:       "http://localhost:1/unreachable",
+		Token:          "bad-token",
+		Retry_Attempts: 1,
 	}
 	badProc, err := NewVectorProcessor(badCfg)
 	if err != nil {
@@ -241,23 +228,31 @@ func TestVectorProcessorSkippedOnError(t *testing.T) {
 	}
 	badEnt := makeVectorEntry(`{"data": "bad"}`, 2)
 
-	rset, err := p.Process([]*entry.Entry{goodEnt})
-	if err != nil {
-		t.Fatalf("should not error: %v", err)
+	rset, err := badProc.Process([]*entry.Entry{badEnt})
+	if err == nil {
+		t.Fatal("expected an error to be surfaced on embedding failure, got nil")
 	}
-	if len(rset) != 1 {
-		t.Fatalf("expected 1 result for good entry, got %d", len(rset))
+	if len(rset) != 0 {
+		t.Errorf("expected batch dropped on error, got %d results", len(rset))
+	}
+}
+
+func TestVectorProcessorNonRetryableRoute(t *testing.T) {
+	// An invalid route (404) is non-retryable and must still surface an error.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer ts.Close()
+
+	cfg := VectorConfig{Model: "m", Endpoint: ts.URL + "/wrong/route", Token: "test-token"}
+	p, err := NewVectorProcessor(cfg)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	rset2, err := badProc.Process([]*entry.Entry{badEnt})
-	if err != nil {
-		t.Fatalf("processor should not return error: %v", err)
-	}
-	// Bad entry should be skipped (nil result), good entries included
-	for _, e := range rset2 {
-		if e == badEnt {
-			t.Errorf("bad entry should have been skipped")
-		}
+	_, err = p.Process([]*entry.Entry{makeVectorEntry("hi", 1)})
+	if err == nil {
+		t.Fatal("expected error for invalid route, got nil")
 	}
 }
 
