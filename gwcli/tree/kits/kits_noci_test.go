@@ -41,6 +41,8 @@ func TestBuildAndUpload(t *testing.T) {
 		resourceIDs[1] = createAsset(t, meta, []string{"resource", "create", "--name", randomdata.FullName(2), "--path", r1ContentsPath})
 	}
 	// extractor
+	var sbErr strings.Builder
+	require.Zero(t, tree.Execute(append(meta, "axs", "clear", "csv"), nil, &sbErr), sbErr.String())
 	extractorID = createAsset(t, meta, []string{"extractors", "create",
 		"--name", "csvAX",
 		"--module", "csv",

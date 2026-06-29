@@ -46,7 +46,7 @@ func TestEmailConfigurationGetSet(t *testing.T) {
 				"email", "show",
 			),
 			&stdout,
-			&stderr))
+			&stderr), stderr.String())
 		require.Empty(t, stderr.String())
 		require.Equal(t, "you do not have a mail server configured", strings.TrimSpace(strings.ToLower(stdout.String())))
 	})
