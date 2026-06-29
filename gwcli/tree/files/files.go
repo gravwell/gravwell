@@ -123,16 +123,6 @@ func create() action.Pair {
 			desc = cfg["desc"].Provider.Get()
 			filePath = cfg["path"].Provider.Get()
 
-			var f *os.File
-			if filePath != "" {
-				// get a reader on the file
-				f, err = os.Open(filePath)
-				if err != nil {
-					return 0, "", err
-				}
-				defer f.Close()
-			}
-
 			var inMeta = types.File{
 				CommonFields: types.CommonFields{
 					Name:        name,
@@ -146,10 +136,11 @@ func create() action.Pair {
 				return 0, "", fmt.Errorf("failed to create empty file: %w", err)
 			}
 			// populate the file
-			if _, err := connection.Client.PopulateFileFromPath(outMeta.ID, filePath); err != nil {
-				return 0, "", fmt.Errorf("failed to populate file: %w", err)
+			if filePath != "" {
+				if _, err := connection.Client.PopulateFileFromPath(outMeta.ID, filePath); err != nil {
+					return 0, "", fmt.Errorf("failed to populate file: %w", err)
+				}
 			}
-
 			return outMeta.ID, "", nil
 		}, scaffoldcreate.Options{})
 }
