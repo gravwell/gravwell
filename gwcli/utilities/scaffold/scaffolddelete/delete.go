@@ -42,7 +42,9 @@ import (
 type DeleteFunc[I scaffold.Id_t] func(dryrun bool, ID I) error
 
 // FetchFunc is the precursor function; it fetches and formats the list of delete-able items.
-type FetchFunc[I scaffold.Id_t] func() ([]multiselectlist.SelectableItem[I], error)
+// It is called iff we enter interactive mode.
+// If the action is non-interactive or direct-invoked and IDs are given, we skip directly to the DeleteFunc.
+type FetchFunc[I scaffold.Id_t] func(param DataParameters) ([]multiselectlist.SelectableItem[I], error)
 
 const (
 	DryrunSuccessTextF = "DRYRUN: %v (ID: %v) would have been deleted"
@@ -64,11 +66,7 @@ const heightBuffer = 4
 //
 // FetchFunc is a function that fetches all delete-able records for the user to pick from.
 // It is primarily used in interactive mode, as this is bypassed if a user states IDs as args.
-func NewDeleteAction[I scaffold.Id_t](
-	singular string,
-	del DeleteFunc[I],
-	fch FetchFunc[I],
-	opts Options) action.Pair {
+func NewDeleteAction[I scaffold.Id_t](singular string, del DeleteFunc[I], fch FetchFunc[I], opts Options) action.Pair {
 	plural := english.PluralWord(2, singular, "")
 	var usage string
 	if opts.AddtlFlags != nil {
@@ -115,8 +113,19 @@ func NewDeleteAction[I scaffold.Id_t](
 		}, treeutils.GenerateActionOptions{Usage: usage})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
+	if opts.QueryOptionsFlags != nil {
+		opts.QueryOptionsFlags.Install(cmd.Flags())
+
+	}
 	opts.Apply(cmd)
-	d := newDeleteModel(singular, plural, del, fch)
+	d := &deleteModel[I]{
+		itemSingular: singular,
+		itemPlural:   plural,
+		mode:         modeSelecting,
+		del:          del,
+		fch:          fch,
+		options:      opts,
+	}
 	return action.NewPair(cmd, d)
 }
 
@@ -206,6 +215,7 @@ type deleteModel[I scaffold.Id_t] struct {
 	dryrun       bool
 	del          DeleteFunc[I] // function to delete an item
 	fch          FetchFunc[I]  // function to get all delete-able items
+	options      Options
 
 	// selecting mode
 	msl multiselectlist.Model[I]
@@ -216,22 +226,28 @@ type deleteModel[I scaffold.Id_t] struct {
 	flagset pflag.FlagSet
 }
 
-func newDeleteModel[I scaffold.Id_t](singular, plural string, del DeleteFunc[I], fch FetchFunc[I]) *deleteModel[I] {
-	d := &deleteModel[I]{
-		itemSingular: singular,
-		itemPlural:   plural,
-		mode:         modeSelecting,
-		del:          del,
-		fch:          fch,
-	}
-	d.flagset = flags()
-	return d
-}
-
 func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
+	// parse flags
+	d.flagset = flags()
+	if d.options.QueryOptionsFlags != nil {
+		d.options.QueryOptionsFlags.Install(&d.flagset)
+	}
+	if err := d.flagset.Parse(tokens); err != nil {
+		return err.Error(), nil, nil
+	}
+	IDs, dryrun, err := getFlags[I](&d.flagset)
+	if err != nil {
+		return "", nil, err
+	}
+	d.dryrun = dryrun
+
 	// fetch deleteable items
-	itms, err := d.fch()
+	params := DataParameters{}
+	if d.options.QueryOptionsFlags != nil {
+		params.QueryOpts = d.options.QueryOptionsFlags.QueryOptions(&d.flagset)
+	}
+	itms, err := d.fch(params)
 	if err != nil {
 		return "", nil, err
 	}
@@ -250,16 +266,6 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, heigh
 
 	// initialize confirmation with a single choice: "item selection"
 	d.confirm.Init([]string{"item selection"}, uint(width), uint(height))
-
-	// parse flags
-	if err := d.flagset.Parse(tokens); err != nil {
-		return err.Error(), nil, nil
-	}
-	IDs, dryrun, err := getFlags[I](&d.flagset)
-	if err != nil {
-		return "", nil, err
-	}
-	d.dryrun = dryrun
 
 	if len(IDs) > 0 {
 		// Pre-select items by flag and skip directly to result
@@ -390,7 +396,6 @@ func (d *deleteModel[I]) Done() bool {
 
 func (d *deleteModel[I]) Reset() error {
 	d.mode = modeSelecting
-	d.flagset = flags()
 	d.msl = multiselectlist.Model[I]{}
 	d.confirm = confirmation.Model{}
 	return nil

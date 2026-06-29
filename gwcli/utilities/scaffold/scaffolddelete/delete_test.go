@@ -16,13 +16,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -39,7 +43,7 @@ func del(dryrun bool, ID string) error {
 	return nil
 }
 
-func collectItems() ([]multiselectlist.SelectableItem[string], error) {
+func collectItems(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
 	return []multiselectlist.SelectableItem[string]{
 		&multiselectlist.DefaultSelectableItem[string]{
 			Title_:       "Alpha",
@@ -60,6 +64,109 @@ func collectItems() ([]multiselectlist.SelectableItem[string], error) {
 }
 
 // #endregion
+
+func TestQueryOptions(t *testing.T) {
+	// we don't call the FetchFunc in non-interactive/direct, so we can only test interactive
+	tests := []struct {
+		name           string
+		QOBuilder      scaffold.QOBuilder
+		args           []string
+		wantInvalid    bool
+		wantDataParams scaffolddelete.DataParameters
+	}{
+		{"no flags can be set if QOBuilder is nil",
+			nil,
+			[]string{
+				"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+				"--" + ft.Dryrun.Name(), // include an unrelated flag just for better coverage
+			},
+			true,
+			scaffolddelete.DataParameters{},
+		},
+		{"all flags can be set if Omit is used with no omissions",
+			scaffold.QOOmit{},
+			[]string{
+				"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+				"--" + ft.Dryrun.Name(), // include an unrelated flag just for better coverage
+			},
+			false,
+			scaffolddelete.DataParameters{
+				&types.QueryOptions{
+					IncludeDeleted: true,
+					AdminMode:      true,
+				},
+			},
+		},
+		{"all flags can be set if Include is used with everything",
+			scaffold.QOInclude{Everything: true},
+			[]string{
+				"--" + scaffold.FlagNameAllData, "--" + ft.IncludeDeleted.Name(),
+				"--" + scaffold.FlagNameLimit, "5",
+				"--" + ft.Dryrun.Name(), // include an unrelated flag just for better coverage
+			},
+			false,
+			scaffolddelete.DataParameters{
+				&types.QueryOptions{
+					IncludeDeleted: true,
+					AdminMode:      true,
+					Limit:          5,
+				},
+			},
+		},
+		{"--all cannot be set when omitted",
+			scaffold.QOOmit{AllData: true},
+			[]string{
+				"--" + scaffold.FlagNameAllData,
+				"--" + ft.Dryrun.Name(), // include an unrelated flag just for better coverage
+			},
+			true,
+			scaffolddelete.DataParameters{
+				&types.QueryOptions{},
+			},
+		},
+		{"--all cannot be set when omit.Everything",
+			scaffold.QOOmit{Everything: true},
+			[]string{
+				"--" + scaffold.FlagNameAllData,
+				"--" + ft.Dryrun.Name(), // include an unrelated flag just for better coverage
+			},
+			true,
+			scaffolddelete.DataParameters{
+				&types.QueryOptions{},
+			},
+		},
+	}
+	var sbErr strings.Builder
+	for _, tt := range tests {
+		sbErr.Reset()
+		t.Run(tt.name, func(t *testing.T) {
+			var gotDataParams scaffolddelete.DataParameters
+			pair := scaffolddelete.NewDeleteAction("egg",
+				func(dryrun bool, ID string) error {
+					return nil
+				},
+				func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+					gotDataParams = param
+					return nil, nil
+				},
+				scaffolddelete.Options{QueryOptionsFlags: tt.QOBuilder})
+
+			// We should always get an OnStart (either stating that no items were returned or direct-invoking DelFunc)
+			inv, _, err := pair.Model.SetArgs(nil, tt.args, 80, 50)
+			require.Nil(t, err)
+			require.Equal(t, tt.wantInvalid, inv != "")
+			//pair.Model.Update(nil)
+			//pair.Model.View()
+			pair.Model.Done()
+			pair.Model.Reset()
+
+			if !tt.wantInvalid {
+				assert.Equal(t, tt.wantDataParams, gotDataParams, sbErr.String())
+			}
+
+		})
+	}
+}
 
 func TestNonInteractive(t *testing.T) {
 	tests := []struct {
@@ -106,7 +213,9 @@ func TestNonInteractive(t *testing.T) {
 func TestInteractiveCycle(t *testing.T) {
 	t.Run("no data returns done with message", func(t *testing.T) {
 		pair := scaffolddelete.NewDeleteAction("widget", del,
-			func() ([]multiselectlist.SelectableItem[string], error) { return nil, nil },
+			func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+				return nil, nil
+			},
 			scaffolddelete.Options{})
 		inv, cmd, err := pair.Model.SetArgs(nil, []string{}, 50, 20)
 		assert.Empty(t, inv)
@@ -118,7 +227,9 @@ func TestInteractiveCycle(t *testing.T) {
 	t.Run("fetch error", func(t *testing.T) {
 		fetchErr := errors.New("network error")
 		pair := scaffolddelete.NewDeleteAction("widget", del,
-			func() ([]multiselectlist.SelectableItem[string], error) { return nil, fetchErr },
+			func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+				return nil, fetchErr
+			},
 			scaffolddelete.Options{})
 		_, _, err := pair.Model.SetArgs(nil, []string{}, 50, 20)
 		assert.ErrorIs(t, err, fetchErr)
