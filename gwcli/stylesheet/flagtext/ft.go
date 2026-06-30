@@ -319,6 +319,8 @@ func DeriveFlagName(title string) string {
 		switch r {
 		case '.', '\\', '/', '\'', '"', '|', ' ':
 			return '-'
+		case '?', '!':
+			return 0
 		}
 		return r
 	}, title)
