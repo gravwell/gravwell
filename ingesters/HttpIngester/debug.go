@@ -24,24 +24,28 @@ type debugLogger interface {
 }
 
 type debugLoggingMiddlware struct {
-	logger debugLogger
-	next   http.Handler
+	logger      debugLogger
+	next        http.Handler
+	allRequests bool
 }
 
-func newDebugLoggingMiddleware(next http.Handler, logger debugLogger) *debugLoggingMiddlware {
+func newDebugLoggingMiddleware(next http.Handler, logger debugLogger, all bool) *debugLoggingMiddlware {
 	return &debugLoggingMiddlware{
-		logger: logger,
-		next:   next,
+		logger:      logger,
+		next:        next,
+		allRequests: all,
 	}
 }
 
 func (d *debugLoggingMiddlware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	d.next.ServeHTTP(w, r)
 
-	rkv := requestKV(w, r)
-	d.logger.Debug("http debug", rkv...)
-	for k, v := range r.Header {
-		d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+	if d.allRequests || responseCode(w) >= 400 {
+		rkv := requestKV(w, r)
+		d.logger.Debug("http debug", rkv...)
+		for k, v := range r.Header {
+			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+		}
 	}
 }
 
@@ -60,10 +64,12 @@ func newDebugLoggingHandler(next handleFunc, logger debugLogger) *debugLoggingHa
 func (d *debugLoggingHandler) Handle(h *handler, rh routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	d.next(h, rh, w, r, rdr, ip)
 
-	rkv := requestKV(w, r)
-	d.logger.Debug("http debug", rkv...)
-	for k, v := range r.Header {
-		d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+	if responseCode(w) >= 400 {
+		rkv := requestKV(w, r)
+		d.logger.Debug("http debug", rkv...)
+		for k, v := range r.Header {
+			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+		}
 	}
 }
 
@@ -99,10 +105,12 @@ func (d *debugLoggingAuther) AuthRequest(r *http.Request) error {
 
 func (d *debugLoggingAuther) Login(w http.ResponseWriter, r *http.Request) {
 	d.next.Login(w, r)
-	rkv := requestKV(w, r)
-	d.logger.Debug("http debug", rkv...)
-	for k, v := range r.Header {
-		d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+	if responseCode(w) >= 400 {
+		rkv := requestKV(w, r)
+		d.logger.Debug("http debug", rkv...)
+		for k, v := range r.Header {
+			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+		}
 	}
 }
 
@@ -174,7 +182,6 @@ func requestKV(w http.ResponseWriter, r *http.Request) []rfc5424.SDParam {
 	params := make([]rfc5424.SDParam, 0, 5)
 	if trw, ok := w.(*trackingRW); ok {
 		params = append(params, log.KV("code", trw.code))
-
 	}
 	if trc, ok := r.Body.(*trackingRC); ok {
 		params = append(params, log.KV("bytes", trc.bytes))
@@ -184,4 +191,11 @@ func requestKV(w http.ResponseWriter, r *http.Request) []rfc5424.SDParam {
 		log.KV("url", r.URL.RequestURI()),
 		log.KV("ip", getRemoteIP(r)),
 	)
+}
+
+func responseCode(w http.ResponseWriter) int {
+	if trw, ok := w.(*trackingRW); ok {
+		return trw.code
+	}
+	return 0
 }

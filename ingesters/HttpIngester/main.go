@@ -126,7 +126,7 @@ func main() {
 
 	var chain http.Handler = hnd
 	if debugOn {
-		chain = newDebugLoggingMiddleware(hnd, DefaultDebugLogger)
+		chain = newDebugLoggingMiddleware(hnd, DefaultDebugLogger, true)
 	}
 	// little wacky to check debugOn again, but we only want to add the
 	// tracking once, and it needs to be first.
