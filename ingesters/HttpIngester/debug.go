@@ -1,31 +1,122 @@
 package main
 
 import (
+	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"time"
+	"os"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
+var DefaultDebugLogger debugLogger
+
+func init() {
+	l := log.New(os.Stdout)
+	l.SetLevel(log.DEBUG)
+	DefaultDebugLogger = l
+}
+
 type debugLogger interface {
 	Debug(msg string, sds ...rfc5424.SDParam) error
 }
 
-type debugMiddleware struct {
+type debugLoggingMiddlware struct {
 	logger debugLogger
 	next   http.Handler
 }
 
-func newDebugMiddleware(logger debugLogger, next http.Handler) *debugMiddleware {
-	return &debugMiddleware{
+func newDebugLoggingMiddleware(next http.Handler, logger debugLogger) *debugLoggingMiddlware {
+	return &debugLoggingMiddlware{
 		logger: logger,
 		next:   next,
 	}
 }
 
-func (d *debugMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (d *debugLoggingMiddlware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	d.next.ServeHTTP(w, r)
+
+	rkv := requestKV(w, r)
+	d.logger.Debug("http debug", rkv...)
+	for k, v := range r.Header {
+		d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+	}
+}
+
+type debugLoggingHandler struct {
+	logger debugLogger
+	next   handleFunc
+}
+
+func newDebugLoggingHandler(next handleFunc, logger debugLogger) *debugLoggingHandler {
+	return &debugLoggingHandler{
+		logger: logger,
+		next:   next,
+	}
+}
+
+func (d *debugLoggingHandler) Handle(h *handler, rh routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	d.next(h, rh, w, r, rdr, ip)
+
+	rkv := requestKV(w, r)
+	d.logger.Debug("http debug", rkv...)
+	for k, v := range r.Header {
+		d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+	}
+}
+
+type debugLoggingAuther struct {
+	logger debugLogger
+	next   authHandler
+}
+
+func newDebugLoggingAuther(next authHandler, logger debugLogger) *debugLoggingAuther {
+	return &debugLoggingAuther{
+		logger: logger,
+		next:   next,
+	}
+}
+
+func (d *debugLoggingAuther) AuthRequest(r *http.Request) error {
+	err := d.next.AuthRequest(r)
+	// This is really wacky. We only handle the error case as otherwise the
+	// request continues to another handler...
+	if err != nil {
+		rw := &trackingRW{
+			code: http.StatusUnauthorized, // lie because custom interfaces...
+		}
+		rkv := requestKV(rw, r)
+		d.logger.Debug("http debug", rkv...)
+		for k, v := range r.Header {
+			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+		}
+	}
+
+	return err
+}
+
+func (d *debugLoggingAuther) Login(w http.ResponseWriter, r *http.Request) {
+	d.next.Login(w, r)
+	rkv := requestKV(w, r)
+	d.logger.Debug("http debug", rkv...)
+	for k, v := range r.Header {
+		d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
+	}
+}
+
+type trackingMiddleware struct {
+	next http.Handler
+}
+
+func newTrackingMiddleware(next http.Handler) *trackingMiddleware {
+	return &trackingMiddleware{
+		next: next,
+	}
+}
+
+func (d *trackingMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wrapped := &trackingRW{
 		ResponseWriter: w,
 	}
@@ -35,15 +126,6 @@ func (d *debugMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = body
 
 	d.next.ServeHTTP(wrapped, r)
-
-	rkv := requestKV(wrapped, r)
-	d.logger.Debug("http debug", rkv...)
-	debugout("http debug: %s %v\n", time.Now().Format(time.RFC3339), rkv)
-	// We don't want to log the headers as that likely makes it to a gravwell instance.
-	// This would result in token leaks.
-	for k, v := range r.Header {
-		debugout("\t%v: %v\n", k, v)
-	}
 }
 
 // trackingRC wraps an io.ReadCloser and keeps track of how many bytes were read.
