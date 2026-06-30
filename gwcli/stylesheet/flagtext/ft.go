@@ -305,6 +305,13 @@ const DirUsagePrefix = "directory to "
 
 const DurationName = "duration"
 
+const (
+	BackfillName      = "backfill"
+	BackfillBoolUsage = "Enables backfill, causing the automation to run for missed time periods."
+
+	EnableBoolUsage = "Enable the newly created automation."
+)
+
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
 func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
 	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)

@@ -469,13 +469,18 @@ func create() action.Pair {
 			"schedule": scaffoldcreate.FieldFrequency(),
 			"enabled": {
 				Title: "Enabled?", Required: false,
-				Flag:     scaffoldcreate.FlagConfig{},
+				Flag: scaffoldcreate.FlagConfig{
+					Usage: ft.EnableBoolUsage,
+				},
 				Order:    30,
 				Provider: &scaffoldcreate.BoolProvider{},
 			},
 			"backfill": {
 				Title: "Backfill?", Required: false,
-				Flag:     scaffoldcreate.FlagConfig{},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  ft.BackfillName,
+					Usage: ft.BackfillBoolUsage,
+				},
 				Order:    20,
 				Provider: &scaffoldcreate.BoolProvider{},
 			},
