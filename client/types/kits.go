@@ -60,8 +60,9 @@ type KitItem struct {
 	Hash        string
 
 	// The fields below may be set depending on the type.
-	DefaultDeploymentRules AutomationDeployConfig `json:",omitempty"` // set by automations (scripts, scheduled searches, flows)
+	DefaultDeploymentRules AutomationDeployConfig // set by automations (scripts, scheduled searches, flows)
 	Tags                   []string               `json:",omitempty"` // set by AXes
+	LicenseText            string                 `json:",omitempty"` // used for the License type
 }
 
 func (ki KitItem) Validate() error {
