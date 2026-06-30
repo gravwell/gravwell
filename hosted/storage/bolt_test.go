@@ -9,6 +9,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -108,6 +109,21 @@ func TestBoltHandler_OpenReadOnly(t *testing.T) {
 		t.Fatalf("error opening database, perms: %s, err: %v", infoMode, err)
 	}
 	defer b.Close()
+}
+
+func TestBoltHandler_OpenLocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "locked.db")
+	sh, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("Failed to open state handler: %v", err)
+	}
+	defer sh.Close()
+
+	_, err = OpenBoltHandler(dbPath, false)
+	if !errors.Is(err, ErrFileLocked) {
+		t.Fatalf("unexpected err checking for locked state file: %v", err)
+	}
 }
 
 func TestBoltConfig_Verify(t *testing.T) {

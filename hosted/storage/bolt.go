@@ -12,9 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"syscall"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+)
+
+var (
+	ErrFileLocked = errors.New("file is locked")
 )
 
 type BoltConfig struct {
@@ -35,16 +40,26 @@ func (s *BoltConfig) Verify() (err error) {
 		return errors.New("missing state path")
 	}
 
-	//go attempt to open and close the state file
+	// go attempt to open and close the state file
 	var sh *BoltHandler
 	if sh, err = OpenBoltHandler(s.Path, s.Sync); err != nil {
-		err = fmt.Errorf("failed to open state file %w", err)
+		// If the file is locked that likely means we're already running.
+		// The config is most likely pointing to a valid db so config is valid.
+		if errors.Is(err, ErrFileLocked) {
+			err = nil
+			return
+		}
+		err = fmt.Errorf("failed to open state file: %w", err)
 	} else if err = sh.Close(); err != nil {
-		err = fmt.Errorf("failed to close state file %w", err)
+		err = fmt.Errorf("failed to close state file: %w", err)
 	}
 	return
 }
 
+// OpenBoltHandler ensures we have read and write permission to the db file
+// before attempting to open it as a bolt db. It also checks for a special case
+// where the db is locked by another process to allow callers to handle this
+// scenario as bolt does not expose this to us.
 func OpenBoltHandler(pth string, sync bool) (sh *BoltHandler, err error) {
 	opt := bolt.Options{
 		NoSync:  !sync,
@@ -59,6 +74,11 @@ func OpenBoltHandler(pth string, sync bool) (sh *BoltHandler, err error) {
 	if exists && info.Mode().Perm()&0o200 == 0 { // exists && !writable
 		return nil, errors.New("existing state file is not writable")
 	}
+	if locked, err := checkLocked(pth); err != nil {
+		return nil, err
+	} else if locked {
+		return nil, ErrFileLocked
+	}
 	var db *bolt.DB
 	if db, err = bolt.Open(pth, 0600, &opt); err == nil {
 		sh = &BoltHandler{
@@ -66,6 +86,27 @@ func OpenBoltHandler(pth string, sync bool) (sh *BoltHandler, err error) {
 		}
 	}
 	return
+}
+
+// checkLocked is used to manually check if a file is locked. The boltdb
+// locking code suppressing the EWOULDBLOCK code and only returns a timeout.
+func checkLocked(path string) (locked bool, err error) {
+	file, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	fd := file.Fd()
+	if err = syscall.Flock(int(fd), syscall.LOCK_NB|syscall.LOCK_SH); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return true, nil
+		}
+		return false, fmt.Errorf("lock check failed: %w", err)
+	}
+	if err = syscall.Flock(int(fd), syscall.LOCK_UN); err != nil {
+		return false, fmt.Errorf("unlock from check failed: %w", err)
+	}
+	return false, nil
 }
 
 func (sh *BoltHandler) check() (err error) {
