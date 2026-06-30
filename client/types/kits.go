@@ -60,8 +60,9 @@ type KitItem struct {
 	Hash        string
 
 	// The fields below may be set depending on the type.
-	DefaultDeploymentRules AutomationDeployConfig `json:",omitempty"` // set by automations (scripts, scheduled searches, flows)
+	DefaultDeploymentRules AutomationDeployConfig // set by automations (scripts, scheduled searches, flows)
 	Tags                   []string               `json:",omitempty"` // set by AXes
+	LicenseText            string                 `json:",omitempty"` // used for the License type
 }
 
 func (ki KitItem) Validate() error {
@@ -174,7 +175,7 @@ type KitBuildRequest struct {
 	Dependencies          []KitDependency   `json:",omitempty"`
 	ConfigMacros          []KitConfigMacro
 	AutomationDeployRules map[string]AutomationDeployConfig
-	BuildDate             time.Time `db:"build_date"`
+	BuildDate             time.Time
 }
 
 type KitBuildRequestListResponse struct {
@@ -360,24 +361,23 @@ type KitDependency struct {
 // kit server, we use this to record info about a kit so the GUI
 // and hint to users what kits they shoudld install.
 type KitMetadata struct {
-	KitID         string // e.g. "io.gravwell.foo"
-	Name          string
-	Description   string
-	ID            string // Identifies a specific build of the kit, makes it easy to download
-	Version       int
-	Readme        string
-	Signed        bool
-	AdminRequired bool
-	MinVersion    CanonicalVersion
-	MaxVersion    CanonicalVersion
-	Size          int64
-	Created       time.Time
-	Ingesters     []string //ingesters associated with the kit
-	Tags          []string //tags associated with the kit
-	Assets        []KitMetadataAsset
-	Dependencies  []KitDependency
-	Items         []KitItem
-	ConfigMacros  []KitConfigMacro
+	KitID        string // e.g. "io.gravwell.foo"
+	Name         string
+	Description  string
+	ID           string // Identifies a specific build of the kit, makes it easy to download
+	Version      int
+	Readme       string
+	Signed       bool
+	MinVersion   CanonicalVersion
+	MaxVersion   CanonicalVersion
+	Size         int64
+	Created      time.Time
+	Ingesters    []string //ingesters associated with the kit
+	Tags         []string //tags associated with the kit
+	Assets       []KitMetadataAsset
+	Dependencies []KitDependency
+	Items        []KitItem
+	ConfigMacros []KitConfigMacro
 }
 
 // KitMetadataAsset stores items that might be associated with kits when hosting them
