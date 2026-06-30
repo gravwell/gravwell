@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -280,6 +281,7 @@ type SearchInfo struct {
 	TimeZoomDisabled      bool            //Renderer does not support zooming around data based on time
 	QueryTimeSpecified    bool            // True if the query contains start/end constraints
 	RenderDownloadFormats []string        `json:",omitempty"`
+	RenderSettings        *RenderSettings `json:",omitempty"`
 	Metadata              json.RawMessage `json:",omitempty"` //additional metadata associated with a search
 	Name                  string          `json:",omitempty"`
 	CollapsingIndex       int
@@ -317,12 +319,224 @@ type SearchLaunchInfo struct {
 	Expires time.Time `json:"expires,omitempty"`
 }
 
+// A RenderSettings has the information necessary for client to render searches using legacy renderer modules.
+// All variants of RenderSettings use the "Renderer" property as a discriminator.
+type RenderSettings struct {
+	Chart      *RSChart
+	P2P        *RSP2P
+	Number     *RSNumber
+	Heatmap    *RSHeatmap
+	Pointmap   *RSPointmap
+	StackGraph *RSStackGraph
+	WordCloud  *RSWordCloud
+	Tabular    *RSTabular
+	Fdg        *RSFdg
+}
+
+func (rs RenderSettings) MarshalJSON() ([]byte, error) {
+	val := reflect.ValueOf(rs)
+	var active any
+
+	// Using reflection to accommodate future renderers and have a catch all for more than one setting defined
+	for _, field := range val.Fields() {
+		if field.Kind() == reflect.Pointer {
+			if !field.IsNil() {
+				if active != nil {
+					return nil, fmt.Errorf("multiple render settings options specified in RenderSettings, only one can be active at a time")
+				}
+				active = field.Interface()
+			}
+		}
+	}
+	if active == nil {
+		return nil, fmt.Errorf("no render settings option specified in RenderSettings")
+	}
+	return json.Marshal(active)
+}
+
+func (rs *RenderSettings) UnmarshalJSON(data []byte) error {
+	var temp struct {
+		Renderer string `json:"renderer"`
+	}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	switch temp.Renderer {
+	case "chart":
+		var chart RSChart
+		if err := json.Unmarshal(data, &chart); err != nil {
+			return err
+		}
+		rs.Chart = &chart
+	case "point2point":
+		var p2p RSP2P
+		if err := json.Unmarshal(data, &p2p); err != nil {
+			return err
+		}
+		rs.P2P = &p2p
+	case "numbercard", "gauge":
+		var number RSNumber
+		if err := json.Unmarshal(data, &number); err != nil {
+			return err
+		}
+		rs.Number = &number
+	case "heatmap":
+		var heatmap RSHeatmap
+		if err := json.Unmarshal(data, &heatmap); err != nil {
+			return err
+		}
+		rs.Heatmap = &heatmap
+	case "pointmap":
+		var pointmap RSPointmap
+		if err := json.Unmarshal(data, &pointmap); err != nil {
+			return err
+		}
+		rs.Pointmap = &pointmap
+	case "stackgraph":
+		var stackgraph RSStackGraph
+		if err := json.Unmarshal(data, &stackgraph); err != nil {
+			return err
+		}
+		rs.StackGraph = &stackgraph
+	case "wordcloud":
+		var wordcloud RSWordCloud
+		if err := json.Unmarshal(data, &wordcloud); err != nil {
+			return err
+		}
+		rs.WordCloud = &wordcloud
+	case "table", "hex", "pcap", "raw", "text":
+		var tabular RSTabular
+		if err := json.Unmarshal(data, &tabular); err != nil {
+			return err
+		}
+		rs.Tabular = &tabular
+	case "fdg":
+		var fdg RSFdg
+		if err := json.Unmarshal(data, &fdg); err != nil {
+			return err
+		}
+		rs.Fdg = &fdg
+	default:
+		return fmt.Errorf("unknown renderer %s", temp.Renderer)
+	}
+	return nil
+}
+
+type RenderBinning struct {
+	Count float64 `json:"count"`
+	Width float64 `json:"width"`
+}
+
+type RSChart struct {
+	// Value "chart"
+	Renderer string          `json:"renderer"`
+	Channels RSChartChannels `json:"channels"`
+	Binning  *RenderBinning  `json:"binning,omitempty"`
+}
+
+type RSChartChannels struct {
+	Category string `json:"category"`
+	Nominal  string `json:"nominal"`
+	Temporal string `json:"temporal,omitempty"`
+}
+
+type RSP2P struct {
+	// Value "point2point"
+	Renderer string        `json:"renderer"`
+	Channels RSP2PChannels `json:"channels"`
+}
+
+type RSP2PChannels struct {
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Magnitude string `json:"magnitude,omitempty"`
+}
+
+type RSNumber struct {
+	// Value "numbercard" or "gauge"
+	Renderer string           `json:"renderer"`
+	Channels RSNumberChannels `json:"channels"`
+}
+
+type RSNumberChannels struct {
+	Value string `json:"value"`
+	Min   string `json:"min,omitempty"`
+	Max   string `json:"max,omitempty"`
+}
+
+type RSHeatmap struct {
+	// Value "heatmap"
+	Renderer string            `json:"renderer"`
+	Channels RSHeatmapChannels `json:"channels"`
+}
+
+type RSHeatmapChannels struct {
+	Location string `json:"location"`
+	Tooltip  string `json:"tooltip,omitempty"`
+}
+
+type RSPointmap struct {
+	// Value "pointmap"
+	Renderer string             `json:"renderer"`
+	Channels RSPointmapChannels `json:"channels"`
+}
+
+type RSPointmapChannels struct {
+	Location  string `json:"location"`
+	Magnitude string `json:"magnitude,omitempty"`
+}
+
+type RSStackGraph struct {
+	// Value "stackgraph"
+	Renderer string               `json:"renderer"`
+	Channels RSStackGraphChannels `json:"channels"`
+}
+
+type RSStackGraphChannels struct {
+	Category string `json:"category"`
+	Nominal  string `json:"nominal"`
+	Color    string `json:"color,omitempty"`
+}
+
+type RSWordCloud struct {
+	// Value "wordcloud"
+	Renderer string              `json:"renderer"`
+	Channels RSWordCloudChannels `json:"channels"`
+}
+
+type RSWordCloudChannels struct {
+	Name      string `json:"name"`
+	Magnitude string `json:"magnitude"`
+}
+
+type RSTabular struct {
+	// Value "table", "hex", "pcap", "raw", "text"
+	Renderer string            `json:"renderer"`
+	Channels RSTabularChannels `json:"channels"`
+}
+
+type RSTabularChannels struct {
+	Columns []string `json:"columns"`
+}
+
+type RSFdg struct {
+	// Value "fdg"
+	Renderer string        `json:"renderer"`
+	Channels RSFdgChannels `json:"channels"`
+}
+
+type RSFdgChannels struct {
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Magnitude string `json:"magnitude,omitempty"`
+}
+
 type ImportInfo struct {
 	Imported  bool
 	Time      time.Time //timestamp of when the results were imported
 	BatchName string    //potential import batch name
 	BatchInfo string    //potential import batch notes
-
 }
 
 type StatsUpdate struct {
