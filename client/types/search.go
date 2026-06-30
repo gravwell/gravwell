@@ -567,6 +567,7 @@ type SearchCtrlStatus struct {
 type SearchDownloadRequest struct {
 	Format    string         `json:"format"`
 	Rows      []RowSelection `json:"rows,omitempty"`
+	// TODO  This should be a pointer... Fix here?
 	Timeframe Timeframe      `json:"timeframe,omitempty"`
 }
 
