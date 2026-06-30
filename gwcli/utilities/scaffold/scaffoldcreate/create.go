@@ -28,6 +28,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -48,6 +49,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+const createErrLifetime time.Duration = 5 * time.Second
 
 // CreateFuncT defines the format of the subroutine that must be passed for creating data.
 // The function's return values must be:
@@ -284,6 +287,15 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		id, invalid, err := c.cf(c.fields, &c.fs)
 		if err != nil {
 			c.createErr = err.Error()
+			time.AfterFunc(createErrLifetime, func() func() {
+				origErr := c.createErr
+				return func() {
+					// if the error has not changed since we set this timer, clear it
+					if c.createErr == origErr {
+						c.createErr = ""
+					}
+				}
+			}())
 			return nil
 		} else if invalid != "" {
 			c.inputs.err = invalid
