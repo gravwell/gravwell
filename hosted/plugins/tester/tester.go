@@ -27,8 +27,9 @@ const (
 type Config struct {
 	hosted.BaseConfig
 	hosted.SingleTagConfig
-	Interval string // how often to send an entry; must be parsable by time.ParseDuration
-	Silent   bool
+	Interval    string // how often to send an entry; must be parsable by time.ParseDuration
+	Silent      bool
+	Test_Errors bool
 }
 
 func (c *Config) Verify() (err error) {
@@ -81,6 +82,8 @@ func (tt *TesterIngester) Handle(_ context.Context, rt hosted.Runtime) (*hosted.
 	}); err != nil {
 		rt.Error("failed to write entry", log.KVErr(err))
 	}
-	rt.Error("testing errors", log.KVErr(errors.New("test err")))
+	if tt.Test_Errors {
+		rt.Error("testing errors", log.KVErr(errors.New("test err")))
+	}
 	return hosted.ContinueAfter(tt.interval()), nil
 }
