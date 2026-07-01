@@ -89,7 +89,7 @@ func OpenBoltHandler(pth string, sync bool) (sh *BoltHandler, err error) {
 }
 
 // checkLocked is used to manually check if a file is locked. The boltdb
-// locking code suppressing the EWOULDBLOCK code and only returns a timeout.
+// locking code suppresses the EWOULDBLOCK code and only returns a timeout.
 func checkLocked(path string) (locked bool, err error) {
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
