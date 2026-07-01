@@ -30,7 +30,7 @@ func TestConfig_Verify(t *testing.T) {
 			name: "valid UUID and interval",
 			config: Config{
 				BaseConfig: hosted.BaseConfig{Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000"},
-				Interval:      "100ms",
+				Interval:   "100ms",
 			},
 			wantErr: false,
 		},
@@ -181,4 +181,26 @@ func TestConfig_UUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTesterIngester_Handle(t *testing.T) {
+	t.Run("is silent", func(t *testing.T) {
+		tester := &TesterIngester{
+			Config: Config{
+				Silent: true,
+			},
+		}
+		rt := &hosted.NativeRuntime{} // wacky, but nothing should be called...
+
+		res, err := tester.Handle(t.Context(), rt)
+		if err != nil {
+			t.Fatalf("TesterIngester.Handle() unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatalf("TesterIngester.Handle() returned nil response")
+		}
+		if res.Delay != defaultInterval {
+			t.Fatalf("TesterIngester.Handle() returned wrong delay")
+		}
+	})
 }
