@@ -41,7 +41,7 @@ func pullKit(cli *client.Client, kbrBase types.KitBuildRequest) (err error) {
 	}
 	// initiate the download request
 	var resp *http.Response
-	if resp, err = cli.KitDownloadRequest(kresp.UUID); err != nil {
+	if resp, err = cli.KitDownloadRequest(kresp.ID); err != nil {
 		err = fmt.Errorf("failed to initiate kit download: %w", err)
 		return
 	}
