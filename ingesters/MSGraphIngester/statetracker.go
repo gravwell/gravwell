@@ -82,7 +82,7 @@ func (st *stateTracker) initStates() error {
 	}
 	if fi.Size() > 0 {
 		if err = gob.NewDecoder(st.stateFout).Decode(&st.stateMap); err != nil {
-			return fmt.Errorf("failed to load existing states: %v", err)
+			return fmt.Errorf("failed to load existing states: %w", err)
 		}
 	}
 	return nil
