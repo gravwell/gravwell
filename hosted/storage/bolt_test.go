@@ -9,6 +9,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -110,6 +111,21 @@ func TestBoltHandler_OpenReadOnly(t *testing.T) {
 	defer b.Close()
 }
 
+func TestBoltHandler_OpenLocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "locked.db")
+	sh, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("Failed to open state handler: %v", err)
+	}
+	defer sh.Close()
+
+	_, err = OpenBoltHandler(dbPath, false)
+	if !errors.Is(err, ErrFileLocked) {
+		t.Fatalf("unexpected err checking for locked state file: %v", err)
+	}
+}
+
 func TestBoltConfig_Verify(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -155,6 +171,20 @@ func TestBoltConfig_Verify(t *testing.T) {
 				t.Errorf("Verify() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestBoltConfig_VerifyLocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "locked_verify.db")
+	sh, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("Failed to open state handler: %v", err)
+	}
+	defer sh.Close()
+	cfg := &BoltConfig{Path: dbPath, Sync: false}
+	if err := cfg.Verify(); err != nil {
+		t.Fatalf("expected Verify() to succeed when db is locked: %v", err)
 	}
 }
 
