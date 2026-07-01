@@ -26,7 +26,9 @@ const (
 
 type Config struct {
 	hosted.BaseConfig
+	hosted.SingleTagConfig
 	Interval    string // how often to send an entry; must be parsable by time.ParseDuration
+	Silent      bool
 	Test_Errors bool
 }
 
@@ -62,13 +64,17 @@ func NewTesterIngester(cfg Config, tn hosted.TagNegotiator) (tt *TesterIngester,
 	tt = &TesterIngester{
 		Config: cfg,
 	}
-	if tt.tag, err = tn.NegotiateTag(Tag); err != nil {
+	if tt.tag, err = tn.NegotiateTag(cfg.ResolveTag(Tag)); err != nil {
 		return
 	}
 	return
 }
 
 func (tt *TesterIngester) Handle(_ context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
+	if tt.Silent {
+		return hosted.ContinueAfter(tt.interval()), nil
+	}
+
 	if err := rt.Write(entry.Entry{
 		TS:   entry.Now(),
 		Tag:  tt.tag,

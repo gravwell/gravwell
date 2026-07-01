@@ -182,3 +182,25 @@ func TestConfig_UUID(t *testing.T) {
 		})
 	}
 }
+
+func TestTesterIngester_Handle(t *testing.T) {
+	t.Run("is silent", func(t *testing.T) {
+		tester := &TesterIngester{
+			Config: Config{
+				Silent: true,
+			},
+		}
+		rt := &hosted.NativeRuntime{} // wacky, but nothing should be called...
+
+		res, err := tester.Handle(t.Context(), rt)
+		if err != nil {
+			t.Fatalf("TesterIngester.Handle() unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatalf("TesterIngester.Handle() returned nil response")
+		}
+		if res.Delay != defaultInterval {
+			t.Fatalf("TesterIngester.Handle() returned wrong delay")
+		}
+	})
+}
