@@ -231,7 +231,7 @@ func pull() action.Pair {
 	return scaffoldselect.NewSelectAction(
 		"pull a kit from a remote repository",
 		"Pull a remote kit and stage it for installation in the local system.",
-		"kit UUID",
+		"kit",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			meta, err := connection.Client.ListRemoteKits(false)
 			if err != nil {
@@ -247,9 +247,9 @@ func pull() action.Pair {
 			}
 			return items, nil
 		},
-		func(UUIDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
-			results = make([]scaffold.Result, len(UUIDs))
-			for i, ID := range UUIDs {
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
 				ks, err := connection.Client.PullKit(ID)
 				if err != nil {
 					results[i] = scaffold.Result{Output: err.Error()}
@@ -752,12 +752,12 @@ func build() action.Pair {
 				defer f.Close()
 
 				// if a download path was specified, retrieve a local copy
-				dlresp, err := connection.Client.KitDownloadRequest(resp.UUID)
+				dlresp, err := connection.Client.KitDownloadRequest(resp.ID)
 				if err != nil {
 					clilog.Writer.Warn("failed to download local copy",
 						log.KVErr(err),
 						log.KV("stage", "issue dl request"),
-						log.KV("kit ID", resp.UUID))
+						log.KV("kit ID", resp.ID))
 					return 0, "", fmt.Errorf("failed to download local copy: %w", err)
 				}
 				defer dlresp.Body.Close()
@@ -766,14 +766,14 @@ func build() action.Pair {
 						log.KVErr(err),
 						log.KV("stage", "write to file"),
 						log.KV("path", pth),
-						log.KV("kit ID", resp.UUID))
+						log.KV("kit ID", resp.ID))
 					return 0, "", err
 				}
 				return fmt.Sprintf("created new kit %s (ID: %v/KitID: %v/Version: %v) and downloaded local copy to %s",
-					kbr.Name, resp.UUID, kbr.KitID, kbr.KitVersion, pth), "", nil
+					kbr.Name, resp.ID, kbr.KitID, kbr.KitVersion, pth), "", nil
 			}
 
-			return fmt.Sprintf("created new kit %s (ID: %v/KitID: %v/Version: %v)", kbr.Name, resp.UUID, kbr.KitID, kbr.KitVersion), "", nil
+			return fmt.Sprintf("created new kit %s (ID: %v/KitID: %v/Version: %v)", kbr.Name, resp.ID, kbr.KitID, kbr.KitVersion), "", nil
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
