@@ -89,9 +89,7 @@ func (c *Client) authenticate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%w: request failed: %w", ErrAuthentication, err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer utils.DrainResponse(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		var authErr AuthErrorResponse
