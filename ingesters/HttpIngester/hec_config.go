@@ -238,10 +238,18 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 			return fmt.Errorf("HEC authentication error %w", err)
 		}
 		hh.hecHealth.auth = hh.auth // give the health handler access to the auth struct pointer too
+		var h handleFunc = hh.handle
+		var raw handleFunc = hh.handleRaw
+		var a authHandler = hh.auth
+		if *debugListener == k {
+			h = newDebugLoggingHandler(h, DefaultDebugLogger).Handle
+			raw = newDebugLoggingHandler(raw, DefaultDebugLogger).Handle
+			a = newDebugLoggingAuther(a, DefaultDebugLogger)
+		}
 		hcfg := routeHandler{
-			handler:       hh.handle,
+			handler:       h,
 			paramAttacher: getAttacher(v.Attach_URL_Parameter),
-			auth:          hh.auth,
+			auth:          a,
 			debugPosts:    v.Debug_Posts,
 		}
 
@@ -295,7 +303,7 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 			return fmt.Errorf("failed to add HEC-Compatible-Listener ACK health handler %w", err)
 		}
 		// add in the raw handler
-		hcfg.handler = hh.handleRaw
+		hcfg.handler = raw
 		if err = hnd.addHandler(http.MethodPost, path.Join(bp, `raw`), hcfg); err != nil {
 			return fmt.Errorf("failed to add HEC-Compatible-Listener handler %w", err)
 		}

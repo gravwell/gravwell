@@ -110,13 +110,7 @@ func TestHecNoDebug(t *testing.T) {
 		SendHecEvent(t, endpoint, strings.NewReader(data))
 
 		c := e2e.GetClient(t)
-		ent := e2e.WaitForEntries(t, c, "tag=hec-no-debug words -e DATA hec no debug", time.Minute, 1, 30*time.Second)
-		if len(ent) != 1 {
-			e2e.Fatalf(t, "got %d entries, want 1", len(ent))
-		}
-		if string(ent[0].Data) != "hec no debug" {
-			e2e.Fatalf(t, "got %s, want %s", string(ent[0].Data), "hec no debug")
-		}
+		assert(t, e2e.WaitForEntries(t, c, "tag=hec-no-debug words -e DATA hec no debug", time.Minute, 1, 30*time.Second), 1, "hec no debug")
 	})
 
 	t.Run("raw ingest", func(t *testing.T) {
@@ -124,13 +118,7 @@ func TestHecNoDebug(t *testing.T) {
 		SendHecRaw(t, endpoint, strings.NewReader(data))
 
 		c := e2e.GetClient(t)
-		ent := e2e.WaitForEntries(t, c, "tag=hec-no-debug words -e DATA raw hec no debug", time.Minute, 1, 30*time.Second)
-		if len(ent) != 1 {
-			e2e.Fatalf(t, "got %d entries, want 1", len(ent))
-		}
-		if string(ent[0].Data) != data {
-			e2e.Fatalf(t, "got %s, want %s", string(ent[0].Data), data)
-		}
+		assert(t, e2e.WaitForEntries(t, c, "tag=hec-no-debug words -e DATA raw hec no debug", time.Minute, 1, 30*time.Second), 1, data)
 	})
 }
 
