@@ -847,7 +847,6 @@ func build() action.Pair {
 						Icon:         from.Icon,
 						Banner:       from.Banner,
 						Cover:        from.Cover,
-						//EmbeddedItems: from.emb, // TODO issues#2555
 						ConfigMacros: from.ConfigMacros,
 					}
 
@@ -879,13 +878,13 @@ func build() action.Pair {
 							priorKBR.Playbooks = append(priorKBR.Playbooks, item.ID)
 						case types.KitAssetAlert:
 							priorKBR.Alerts = append(priorKBR.Alerts, item.ID)
-						/*case types.KitAssetExternal: // TODO issues#2555
-							priorKBR.EmbeddedItems = append(priorKBR.EmbeddedItems, types.KitEmbeddedItem{})
+						/*case types.KitAssetExternal: // external is unused
+						priorKBR.EmbeddedItems = append(priorKBR.EmbeddedItems, types.KitEmbeddedItem{})*/
 						case types.KitAssetLicense:
 							priorKBR.EmbeddedItems = append(priorKBR.EmbeddedItems, types.KitEmbeddedItem{
 								KitItem: types.KitItem{},
-								Content: item.AdditionalInfo,
-							})*/
+								Content: []byte(item.LicenseText),
+							})
 						default:
 							clilog.Writer.Warn("unknown kit item type", log.KV("type", item.Type), log.KV("item ID", item.ID), scaffold.IdentifyCaller())
 						}
