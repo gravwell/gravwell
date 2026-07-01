@@ -155,18 +155,9 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 		return errors.New("Invalid response")
 	}
 	defer drainResponse(resp)
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
-	} else if resp.StatusCode == http.StatusNotFound {
-		return ErrNotFound
-	}
-
-	statOk := respOk(resp.StatusCode, okResponses...)
-	//either its in the list, or the list is empty and StatusOK is implied
-	if !(statOk || (resp.StatusCode == http.StatusOK && len(okResponses) == 0)) {
+	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResponses...) {
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
-		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return aliasResponseError(c, resp)
 	}
 
 	if obj != nil {
@@ -233,13 +224,9 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 		return errors.New("Invalid response")
 	}
 	defer drainResponse(resp)
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
-	}
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
-		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return aliasResponseError(c, resp)
 	}
 
 	if recvObj != nil {
@@ -286,15 +273,10 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 		return errors.New("Invalid response")
 	}
 	defer drainResponse(resp)
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
-	}
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
-		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return aliasResponseError(c, resp)
 	}
-
 	if recvObj != nil {
 		if err := json.NewDecoder(resp.Body).Decode(&recvObj); err != nil {
 			return err

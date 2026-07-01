@@ -140,7 +140,7 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 	resp, err = c.methodRequestURL(http.MethodPut, resourcesIdRawUrl(id), contentType, rdr)
 	if err != nil {
 		return types.Resource{}, err
-	} else if err := checkResponse(c, resp); err != nil {
+	} else if err := aliasResponseError(c, resp); err != nil {
 		return types.Resource{}, err
 	}
 
@@ -214,7 +214,7 @@ func (c *Client) GetResourceEx(name string, opts *types.QueryOptions, previewByt
 	})
 	if err != nil {
 		return nil, err
-	} else if err := checkResponse(c, resp); err != nil {
+	} else if err := aliasResponseError(c, resp); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
