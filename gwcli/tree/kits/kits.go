@@ -680,10 +680,15 @@ func build() action.Pair {
 			if err != nil {
 				return 0, "", err
 			}
-			if appendEmbedded, err := afs.GetBool(buildFlagAppendEmbedded); err != nil {
+			// check if the user wants us to append embeds or truncate
+			if priorKBR != nil {
+				appendEmbedded, err := afs.GetBool(buildFlagAppendEmbedded)
 				clilog.GetFlag(err)
-			} else if appendEmbedded && priorKBR != nil {
-				embed = append(priorKBR.EmbeddedItems, embed...)
+				if appendEmbedded {
+					embed = append(embed, priorKBR.EmbeddedItems...)
+				} else {
+					embed = priorKBR.EmbeddedItems
+				}
 			}
 
 			kbr := types.KitBuildRequest{
