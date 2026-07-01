@@ -121,8 +121,8 @@ type KitState struct {
 	Banner               string //use for banner in a kit
 	Cover                string //use for cover image on a kit
 	Signed               bool
-	MinVersion           CanonicalVersion `json:",omitempty"`
-	MaxVersion           CanonicalVersion `json:",omitempty"`
+	MinVersion           CanonicalVersion
+	MaxVersion           CanonicalVersion
 	Items                []KitItem
 	RequiredDependencies []KitMetadata
 	ConfigMacros         []KitConfigMacro
@@ -153,8 +153,8 @@ type KitBuildRequest struct {
 	KitID                 string
 	Readme                string
 	KitVersion            int
-	MinVersion            CanonicalVersion  `json:",omitempty"`
-	MaxVersion            CanonicalVersion  `json:",omitempty"`
+	MinVersion            CanonicalVersion
+	MaxVersion            CanonicalVersion
 	Dashboards            []string          `json:",omitempty"`
 	Templates             []string          `json:",omitempty"`
 	Actionables           []string          `json:",omitempty"`
@@ -184,9 +184,9 @@ type KitBuildRequestListResponse struct {
 }
 
 type KitBuildResponse struct {
-	UUID string
-	Size int64
-	UID  int32 `json:",omitempty"`
+	ID      string
+	Size    int64
+	OwnerID int32
 }
 
 func (ps *KitState) UpdateItem(name string, tp KitAssetType, id string) error {
@@ -396,6 +396,11 @@ func (kma KitMetadataAsset) String() (s string) {
 	}
 	s += fmt.Sprintf("%s (%s) %s", kma.Type, kma.Source, kma.Legend)
 	return
+}
+
+type RemoteKitListResponse struct {
+	BaseListResponse
+	Results []KitMetadata `json:"results"`
 }
 
 type InstallStatus struct {
