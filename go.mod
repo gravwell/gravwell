@@ -25,7 +25,7 @@ require (
 	github.com/crewjam/rfc5424 v0.1.0
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/duosecurity/duo_api_golang v0.0.0-20250128191753-8aff7fde9979
-	github.com/fsnotify/fsnotify v1.7.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gdamore/tcell/v2 v2.6.1-0.20231203215052-2917c3801e73
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.8.1
