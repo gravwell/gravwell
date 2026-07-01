@@ -233,12 +233,12 @@ func pull() action.Pair {
 		"Pull a remote kit and stage it for installation in the local system.",
 		"kit",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			meta, err := connection.Client.ListRemoteKits(false)
+			lr, err := connection.Client.ListRemoteKits(false)
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(meta))
-			for i, m := range meta {
+			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
+			for i, m := range lr.Results {
 				items[i] = &listitem.Generic{
 					ID_:        m.ID,
 					Name:       m.Name,
@@ -971,7 +971,8 @@ func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
 		types.KitMetadata{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitMetadata, error) {
-			return connection.Client.ListRemoteKits(params.QueryOpts.AdminMode)
+			lr, err := connection.Client.ListRemoteKits(params.QueryOpts.AdminMode)
+			return lr.Results, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -994,27 +995,27 @@ func download() action.Pair {
 		"Download a kit, remote or on the connected Gravwell system, into a local directory",
 		"kit ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			local, err := connection.Client.ListKits(nil)
+			lrLocal, err := connection.Client.ListKits(nil)
 			if err != nil {
 				clilog.Writer.Warn("failed to list local kits", log.KVErr(err))
 			}
-			remote, err := connection.Client.ListRemoteKits(false)
+			lrRemote, err := connection.Client.ListRemoteKits(false)
 			if err != nil {
 				clilog.Writer.Warn("failed to list remote kits", log.KVErr(err))
 			}
-			if len(local.Results) < 1 && len(remote) < 1 {
+			if len(lrLocal.Results) < 1 && len(lrRemote.Results) < 1 {
 				return nil, errors.New("both local and remote kits failed to return any results")
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(local.Results)+len(remote))
-			for i, k := range local.Results {
+			items := make([]multiselectlist.SelectableItem[string], len(lrLocal.Results)+len(lrRemote.Results))
+			for i, k := range lrLocal.Results {
 				items[i] = &listitem.Generic{
 					ID_:        k.ID,
 					Name:       k.Name,
 					SecondLine: "(local) " + k.Description,
 				}
 			}
-			for i, k := range remote {
-				items[i+len(local.Results)] = &listitem.Generic{
+			for i, k := range lrRemote.Results {
+				items[i+len(lrLocal.Results)] = &listitem.Generic{
 					ID_:        k.ID,
 					Name:       k.Name,
 					SecondLine: "(remote) " + k.Description,
