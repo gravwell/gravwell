@@ -28,7 +28,7 @@ type stateTracker struct {
 	stateMap map[string]time.Time
 	tempMap  map[string]time.Time
 
-	horizon   time.Duration
+	horizon   time.Duration // how long should we wait before pulling stuff out of the state map
 	filePath  string
 	stateFout *os.File
 }
