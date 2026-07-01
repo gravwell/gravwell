@@ -431,7 +431,9 @@ func (c *Client) methodRequestURL(method, url, contentType string, body io.Reade
 	return
 }
 
-func (c *Client) methodParamRequestURL(method, uri string, params map[string]string, body io.Writer) (resp *http.Response, err error) {
+// methodParamRequestURL builds and submits a request against the specified uri.
+// Returns an error iff the request failed. You must check the resp's status code yourself.
+func (c *Client) methodParamRequestURL(method, uri string, params map[string]string) (resp *http.Response, err error) {
 	var req *http.Request
 	if req, err = http.NewRequest(method, fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, uri), nil); err != nil {
 		return

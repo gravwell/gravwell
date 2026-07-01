@@ -62,7 +62,7 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions, previewBytes uin
 	resp, err := c.methodParamRequestURL(http.MethodGet, filesIdRawUrl(id), map[string]string{
 		"include_deleted": strconv.FormatBool(opts.IncludeDeleted),
 		"bytes":           strconv.FormatUint(previewBytes, 10),
-	}, nil)
+	})
 	if err != nil {
 		return nil, err
 	} else if err := checkResponse(c, resp); err != nil {
