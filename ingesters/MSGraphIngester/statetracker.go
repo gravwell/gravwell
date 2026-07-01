@@ -24,7 +24,7 @@ import (
 type stateTracker struct {
 	sync.Mutex
 	igst     *ingest.IngestMuxer
-	log      *log.Logger
+	lg       *log.Logger
 	stateMap map[string]time.Time
 	tempMap  map[string]time.Time
 
@@ -33,11 +33,11 @@ type stateTracker struct {
 	stateFout *os.File
 }
 
-func NewTracker(statePath string, horizon time.Duration, igst *ingest.IngestMuxer, log *log.Logger) (*stateTracker, error) {
+func NewTracker(statePath string, horizon time.Duration, igst *ingest.IngestMuxer, lg *log.Logger) (*stateTracker, error) {
 	st := &stateTracker{
 		filePath: statePath,
 		igst:     igst,
-		log:      log,
+		lg:       lg,
 		horizon:  horizon,
 	}
 
@@ -170,8 +170,8 @@ func (st *stateTracker) Start() {
 		for range t {
 			st.Lock()
 			if err := st.tickNoLock(); err != nil {
-				if st.log != nil {
-					st.log.Warn("state tracker tick failed", log.KVErr(err))
+				if st.lg != nil {
+					st.lg.Warn("state tracker tick failed", log.KVErr(err))
 				}
 			}
 			st.Unlock()
@@ -182,8 +182,8 @@ func (st *stateTracker) Start() {
 func (st *stateTracker) Close() {
 	st.Lock()
 	if err := st.tickNoLock(); err != nil {
-		if st.log != nil {
-			st.log.Warn("state tracker close failed", log.KVErr(err))
+		if st.lg != nil {
+			st.lg.Warn("state tracker close failed", log.KVErr(err))
 		}
 	}
 	st.Unlock()
