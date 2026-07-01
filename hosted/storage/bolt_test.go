@@ -174,6 +174,20 @@ func TestBoltConfig_Verify(t *testing.T) {
 	}
 }
 
+func TestBoltConfig_VerifyLocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "locked_verify.db")
+	sh, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("Failed to open state handler: %v", err)
+	}
+	defer sh.Close()
+	cfg := &BoltConfig{Path: dbPath, Sync: false}
+	if err := cfg.Verify(); err != nil {
+		t.Fatalf("expected Verify() to succeed when db is locked: %v", err)
+	}
+}
+
 func TestBucketWriter_ByteOperations(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "bucket_test.db")
