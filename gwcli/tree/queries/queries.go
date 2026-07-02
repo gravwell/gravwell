@@ -88,6 +88,7 @@ func past() action.Pair {
 				"EffectiveQuery",
 				"Launched",
 			},
+			QueryOptionsFlags: scaffold.QOInclude{AllData: true, Limit: true},
 		})
 }
 
