@@ -385,8 +385,13 @@ func includeOtelLogsListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgTy
 			return fmt.Errorf("TimestampWindow is invalid %w", err)
 		}
 
+		var h handleFunc = oh.handle
+		if *debugListener == k {
+			h = newDebugLoggingHandler(h, DefaultDebugLogger).Handle
+		}
+
 		hcfg := routeHandler{
-			handler:    oh.handle,
+			handler:    h,
 			debugPosts: v.Debug_Posts,
 		}
 
@@ -417,6 +422,9 @@ func includeOtelLogsListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgTy
 		if pth, ah, err := v.NewAuthHandler(hnd.lgr); err != nil {
 			return fmt.Errorf("failed to get a new authentication handler %w", err)
 		} else {
+			if *debugListener == k {
+				ah = newDebugLoggingAuther(ah, DefaultDebugLogger)
+			}
 			if pth != `` {
 				// add custom auth handler for this URL
 				if err = hnd.addAuthHandler(http.MethodPost, pth, ah); err != nil {
