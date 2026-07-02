@@ -162,11 +162,11 @@ func (c *Client) PopulateFileFromReader(id string, extension string, data io.Rea
 	if err != nil {
 		return types.File{}, err
 	}
-	defer drainResponse(resp)
 
 	if err := aliasResponseError(c, resp); err != nil {
 		return types.File{}, err
 	}
+	defer drainResponse(resp)
 
 	// decode the metadata response
 	confirmation := types.File{}

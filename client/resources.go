@@ -143,6 +143,7 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 	} else if err := aliasResponseError(c, resp); err != nil {
 		return types.Resource{}, err
 	}
+	defer drainResponse(resp)
 
 	// decode the metadata response
 	confirmation := types.Resource{}

@@ -154,11 +154,11 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResponses...) {
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
 		return aliasResponseError(c, resp)
 	}
+	defer drainResponse(resp)
 
 	if obj != nil {
 		if err := json.NewDecoder(resp.Body).Decode(&obj); err != nil {
@@ -223,11 +223,11 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
 		return aliasResponseError(c, resp)
 	}
+	defer drainResponse(resp)
 
 	if recvObj != nil {
 		if err := json.NewDecoder(resp.Body).Decode(&recvObj); err != nil {
@@ -272,11 +272,12 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
 		return aliasResponseError(c, resp)
 	}
+	defer drainResponse(resp)
+
 	if recvObj != nil {
 		if err := json.NewDecoder(resp.Body).Decode(&recvObj); err != nil {
 			return err
