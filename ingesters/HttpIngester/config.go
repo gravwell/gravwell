@@ -341,6 +341,35 @@ func (c *cfgType) MaxBody() int {
 	return c.Max_Body
 }
 
+func (c *cfgType) HasDebugListener() bool {
+	for _, v := range c.Listener {
+		if v.Debug_Posts {
+			return true
+		}
+	}
+	for _, v := range c.HECListener {
+		if v.Debug_Posts {
+			return true
+		}
+	}
+	for _, v := range c.AFHListener {
+		if v.Debug_Posts {
+			return true
+		}
+	}
+	for _, v := range c.OtelListener {
+		if v.Debug_Posts {
+			return true
+		}
+	}
+	for _, v := range c.OtelLogsListener {
+		if v.Debug_Posts {
+			return true
+		}
+	}
+	return false
+}
+
 func (g gbl) ValidateTLS() (err error) {
 	if !g.TLSEnabled() {
 		//not enabled
