@@ -32,12 +32,12 @@ require (
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/duosecurity/duo_api_golang v0.0.0-20250128191753-8aff7fde9979
 	github.com/evertras/bubble-table v0.17.1
-	github.com/fsnotify/fsnotify v1.7.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gdamore/tcell/v2 v2.6.1-0.20231203215052-2917c3801e73
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.8.1
 	github.com/gofrs/flock v0.8.0
-	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/renameio v1.0.1
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
@@ -60,7 +60,6 @@ require (
 	github.com/magefile/mage v1.17.2
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
-	github.com/open-networks/go-msgraph v0.3.1
 	github.com/open2b/scriggo v0.56.1
 	github.com/pquerna/otp v1.5.0
 	github.com/rivo/tview v0.0.0-20240118093911-742cf086196e
