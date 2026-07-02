@@ -567,8 +567,7 @@ type SearchCtrlStatus struct {
 type SearchDownloadRequest struct {
 	Format    string         `json:"format"`
 	Rows      []RowSelection `json:"rows,omitempty"`
-	// TODO  This should be a pointer... Fix here?
-	Timeframe Timeframe      `json:"timeframe,omitempty"`
+	Timeframe *Timeframe     `json:"timeframe,omitempty"`
 }
 
 type RowSelection struct {
@@ -635,7 +634,11 @@ type Timeframe struct {
 	Start time.Time `json:"start"`
 }
 
-func (tf Timeframe) IsEmpty() bool {
+func (tf *Timeframe) IsEmpty() bool {
+	if tf == nil {
+		return false
+	}
+
 	return tf.Start.IsZero() && tf.End.IsZero()
 }
 

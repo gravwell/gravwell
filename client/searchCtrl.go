@@ -1065,7 +1065,7 @@ func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRa
 	var sdr types.SearchDownloadResponse
 	sdr, err = c.SearchDownloadRequestWithContext(ctx, sid, types.SearchDownloadRequest{
 		Format: format,
-		Timeframe: types.Timeframe{
+		Timeframe: &types.Timeframe{
 			Start: tr.StartTS.StandardTime(),
 			End:   tr.EndTS.StandardTime(),
 		},
