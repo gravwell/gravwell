@@ -21,13 +21,17 @@ package ft
 // If a flag needs to modify its parameters (custom usage, set a default value), Name(), Usage(), and Shorthand() are available for manual installation.
 
 import (
+	"errors"
 	"fmt"
 	"go/types"
+	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // a flag is the minimum required for accessing and registering a flag for use in other actions.
@@ -46,10 +50,11 @@ var _ flag = stringSliceRegister{}
 
 // a simple is the basic/standard implementation of the flag interface
 type simple struct {
-	name      string
-	shorthand rune
-	usage     string
-	typ       types.BasicKind
+	name         string
+	shorthand    rune
+	usage        string
+	defaultValue string // cast to the appropriate type if supplied
+	typ          types.BasicKind
 }
 
 // Name returns the name of the flag, with no dashes (--<name>).
@@ -84,9 +89,19 @@ func (s simple) Register(fs *pflag.FlagSet) {
 	// Therefore, this will do well enough for a helper function of this low priority.
 	switch s.typ {
 	case types.Bool:
-		fs.BoolP(s.name, s.Shorthand(), false, s.usage)
+		var defaultValue bool
+		if s.defaultValue != "" {
+			defaultValue, _ = strconv.ParseBool(s.defaultValue)
+		}
+		fs.BoolP(s.name, s.Shorthand(), defaultValue, s.usage)
 	case types.String:
-		fs.StringP(s.name, s.Shorthand(), "", s.usage)
+		fs.StringP(s.name, s.Shorthand(), s.defaultValue, s.usage)
+	case types.Int32:
+		var defaultValue int64
+		if s.defaultValue != "" {
+			defaultValue, _ = strconv.ParseInt(s.defaultValue, 10, 32)
+		}
+		fs.Int32P(s.name, s.Shorthand(), int32(defaultValue), s.Usage())
 	default:
 		panic(fmt.Sprintf("unhandled type: %v", s.typ))
 	}
@@ -113,6 +128,10 @@ func (s stringSliceRegister) Shorthand() string {
 		return ""
 	}
 	return string(s.shorthand)
+}
+
+func (s stringSliceRegister) Usage() string {
+	return s.usage
 }
 
 // Register installs this flag (with its standard type) in the given flagset.
@@ -154,155 +173,109 @@ func (s singular) Usage(singular string) string {
 
 // Register installs this flag as a string in the given flagset.
 // It is a helper function to provide consistent usage.
-func (s singular) Register(fs *pflag.FlagSet, singular string) {
-	fs.StringP(s.Name(), s.Shorthand(), "", s.Usage(singular))
+func (s singular) Register(fs *pflag.FlagSet, defaultVal string, singular string) {
+	fs.StringP(s.Name(), s.Shorthand(), defaultVal, s.Usage(singular))
 }
 
-// NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
-var NoInteractive = simple{
-	name:      "no-interactive",
-	shorthand: 'x',
-	usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
-		"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode",
-	typ: types.Bool,
-}
-
-// Dryrun (--dryrun) is a local flag implemented by actions (typically deletes) to describe actions that would have been taken had --dryrun not been set.
-var Dryrun = simple{
-	name:  "dryrun",
-	usage: "feigns the request action, instead displaying the effects that would have occurred",
-	typ:   types.Bool,
-}
-
-// NoColor is a global flag that disables color and stylization across the board.
-// It is primarily handled by Mother, in ppre().
-var NoColor = simple{
-	name:  "no-color",
-	usage: "disables colourized output",
-	typ:   types.Bool,
-}
-
-//#region output manipulation
-
-// Output (-o) is a local flag implemented by actions to redirect their results to a file.
-// Should be paired with --append; often also paired with --json and --csv.
-var Output = simple{
-	name:      "output",
-	shorthand: 'o',
-	usage: "file to write results to.\n" +
-		"Truncates file unless --" + Append.name + " is also given",
-	typ: types.String,
-}
-
-// Append (--append) is a local flag implemented with --output to indicated that the target file should be appended to instead of truncated.
-var Append = simple{
-	name:  "append",
-	usage: "append to the given output file instead of truncating it",
-	typ:   types.Bool,
-}
-
-// CSV (--csv) is a local flag implemented --output to indicated that results should be in csv format.
-var CSV = simple{
-	name: "csv",
-	usage: "display results as CSV.\n" +
-		"Mutually exclusive with --json, --table",
-	typ: types.Bool,
-}
-
-// JSON (--json) is a local flag implemented --output to indicated that results should be in json format.
-var JSON = simple{
-	name: "json",
-	usage: "display results as JSON.\n" +
-		"Mutually exclusive with --csv, --table",
-	typ: types.Bool,
-}
-
-// Table (--table) is a local flag implemented --output to indicated that results should be outputted as a fancy table.
-var Table = simple{
-	name: "table",
-	usage: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
-		"Default if no format flags are given",
-	typ: types.Bool,
-}
-
-//#endregion output manipulation
-
-//#region scaffoldlist/columns
-
-// ShowColumns (--show-columns) is a local flag used by scaffold list to display all known columns.
-// Unlikely to be used outside of actions that implement scaffold list.
-var ShowColumns = simple{
-	name:  "show-columns",
-	usage: "display the list of fully qualified column names and exit",
-	typ:   types.Bool,
-}
-
-// SelectColumns (--columns) is a local flag used by scaffold list to select which columns to display, overriding the default.
-// Unlikely to be used outside of actions that implement scaffold list.
-var SelectColumns = stringSliceRegister{
-	name: "columns",
-	usage: "comma-separated list of columns to include in the results\n." +
-		"Use --" + ShowColumns.name + " to see the full list of columns",
-}
-
-// AllColumns (--all-columns) is a local flag used by scaffold list to force the action to display data from all available columns.
-// Unlikely to be used outside of actions that implement scaffold list.
-var AllColumns = simple{
-	name: "all-columns",
-	usage: "displays data from all columns, ignoring the default column set.\n" +
-		"Overrides --" + SelectColumns.name,
-	typ: types.Bool,
-}
-
-//#endregion scaffoldlist/columns
-
-// need custom handling for GetAll.
-// Does not fit the flag interface, but it has similar enough usage so what's it matter?
-type getAllFlag struct {
-}
-
-// GetAll is a local flag that tells the implementing action to fetch all items, rather than just the current user's items (or something to that effect).
-// For example, providing this to macros should fetch all macros on the instance, rather than just your macros.
-var GetAll = getAllFlag{}
-
-func (gaf getAllFlag) Name() string { return "all" }
-
-// Register installs this flag in the given flagset.
-//
-// requiresAdmin prefixes "ADMIN ONLY" to the usage.
-//
-// plural is the plural form of the thing being fetched.
-//
-// usageSuffixLines an optional set of ordered sentences to be attached (separated by newlines) to the usage of this flag.
-// Each line will be titled cased and have a period appended.
-func (gaf getAllFlag) Register(fs *pflag.FlagSet, requiresAdmin bool, plural string, usageSuffixLines ...string) {
-	usage := "Lists all " + plural + " on the system."
-	if requiresAdmin {
-		usage = "ADMIN ONLY." + usage
+var (
+	// NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
+	NoInteractive = simple{
+		name:      "no-interactive",
+		shorthand: 'x',
+		usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
+			"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode",
+		typ: types.Bool,
 	}
-	// append each extra line
-	if usageSuffixLines != nil {
-		usage += "\n"
-		var (
-			sb  strings.Builder
-			ttl = cases.Title(language.English)
-		)
-		for _, line := range usageSuffixLines {
-			l := ttl.String(line)
-			if !strings.HasSuffix(l, ".") {
-				l += "."
-			}
-			sb.WriteString(l)
-		}
+	// Dryrun (--dryrun) is a local flag implemented by actions (typically deletes) to describe actions that would have been taken had --dryrun not been set.
+	Dryrun = simple{
+		name:  "dryrun",
+		usage: "feigns the request action, instead displaying the effects that would have occurred",
+		typ:   types.Bool,
+	}
+	// NoColor is a global flag that disables color and stylization across the board.
+	// It is primarily handled by Mother, in ppre().
+	NoColor = simple{
+		name:  "no-color",
+		usage: "disables colourized output",
+		typ:   types.Bool,
 	}
 
-	fs.Bool("all", false, strings.TrimSuffix(strings.TrimSpace(usage), "."))
-}
+	//#region authentication
+	API = simple{
+		name:  "api",
+		usage: "the path to a file containing an API key to authenticate with",
+		typ:   types.String,
+	}
+	EAPI = simple{
+		name:  "eapi",
+		usage: "read the API key from environment variable \"" + cfgdir.EnvKeyAPI + "\".",
+		typ:   types.Bool,
+	}
+
+	//#endregion
+
+	//#region output manipulation
+
+	// Output (-o) is a local flag implemented by actions to redirect their results to a file.
+	// Should be paired with --append; often also paired with --json and --csv.
+	Output = simple{
+		name:      "output",
+		shorthand: 'o',
+		usage: "file to write results to.\n" +
+			"Truncates file unless --" + Append.name + " is also given",
+		typ: types.String,
+	}
+
+	// Append (--append) is a local flag implemented with --output to indicated that the target file should be appended to instead of truncated.
+	Append = simple{
+		name:  "append",
+		usage: "append to the given output file instead of truncating it",
+		typ:   types.Bool,
+	}
+
+	// CSV (--csv) is a local flag implemented --output to indicated that results should be in csv format.
+	CSV = simple{
+		name: "csv",
+		usage: "display results as CSV.\n" +
+			"Mutually exclusive with --json, --table",
+		typ: types.Bool,
+	}
+
+	// JSON (--json) is a local flag implemented --output to indicated that results should be in json format.
+	JSON = simple{
+		name: "json",
+		usage: "display results as JSON.\n" +
+			"Mutually exclusive with --csv, --table",
+		typ: types.Bool,
+	}
+
+	// Table (--table) is a local flag implemented --output to indicated that results should be outputted as a fancy table.
+	Table = simple{
+		name: "table",
+		usage: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
+			"Default if no format flags are given",
+		typ: types.Bool,
+	}
+
+	// #endregion output manipulation
+
+	UID = simple{
+		name:  "UID",
+		usage: "ID of the user",
+		typ:   types.Int32,
+	}
+
+	IncludeDeleted = simple{
+		name:  "include-deleted",
+		usage: "include data marked for deletion",
+		typ:   types.Bool,
+	}
+)
 
 // Frequency is a local flag for defining a cron-style interval in which something occurs.
 var Frequency = simple{
 	name:      "frequency",
-	shorthand: 'f',
+	shorthand: 'c',
 	usage:     "cron-style scheduling for scheduled execution",
 }
 
@@ -319,6 +292,16 @@ var Name = singular{
 	shorthand:   'n',
 	usagePrefix: "name of the",
 }
+
+// Path is a local flag to allow a user to specify a path to a thing (typically a file).
+var Path = singular{
+	name:        "path",
+	shorthand:   'f',
+	usagePrefix: "path to the",
+}
+
+const DirName = "dir"
+const DirUsagePrefix = "directory to "
 
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
 func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
@@ -353,4 +336,42 @@ func Optional(text string) string {
 // MutuallyExclusive wraps and returns the given elements in curly braces to indicate that they are mutually exclusive with one another.
 func MutuallyExclusive(texts []string) string {
 	return "{" + strings.Join(texts, "|") + "}"
+}
+
+// ErrMutuallyExclusive returns a user-friendly error declaring that all given items were given, but are mutually exclusive.
+//
+// Flags should be given sans "--" prefix.
+//
+// Returns ErrInternal's text if len(flags) < 2.
+func ErrMutuallyExclusive(mxFlags ...string) error {
+	if len(mxFlags) < 2 {
+		clilog.Writer.Warn("ErrMutuallyExclusive called with fewer than 2 flags", log.KV("caller", log.CallLoc(1)), log.KV("flags", mxFlags))
+		return clilog.ErrInternal{}
+	}
+
+	flagList := "--" + strings.Join(mxFlags[:len(mxFlags)-1], ", --") // condense all but the last
+	return errors.New(flagList + ", and --" + mxFlags[len(mxFlags)-1] + " are mutually exclusive")
+}
+
+// flagCaveatStyle sets what extra notes on flag descriptions look like.
+var flagCaveatStyle = lipgloss.NewStyle().Italic(true)
+
+// InteractiveOnly returns a string to be prefixed to the description of flags that only have an effect in interactive mode.
+// These flags should simply be ignored in non-interactive mode.
+func InteractiveOnly() string {
+	return flagCaveatStyle.Render("Interactive only.")
+}
+
+func NonInteractiveOnly() string {
+	return flagCaveatStyle.Render("Non-Interactive only.")
+}
+
+// VariadicArgs returns Usage text for actions that take a variable number of the same argument.
+//
+// itemName will be used as "<itemName>1 <itemName>2 ... <itemName>N".
+func VariadicArgs(itemName string, atLeastOneRequired bool) string {
+	if atLeastOneRequired {
+		return Mandatory(itemName+"1") + " " + Optional(itemName+"2 ... "+itemName+"N")
+	}
+	return Optional(itemName + "1" + " " + itemName + "2 ... " + itemName + "N")
 }
