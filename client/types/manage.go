@@ -36,11 +36,11 @@ type ShardInfo struct {
 	Name        string
 	Start       time.Time
 	End         time.Time
-	Entries     uint64           //number of entries in the shard
-	Size        uint64           //raw size of data in the shard
-	Stored      uint64           //actual disk usage of the shard
-	RemoteState ReplicationState `json:",omitempty"`
-	Cold        bool             //true if the shard is in the code storage
+	Entries     uint64 //number of entries in the shard
+	Size        uint64 //raw size of data in the shard
+	Stored      uint64 //actual disk usage of the shard
+	RemoteState ReplicationState
+	Cold        bool //true if the shard is in the code storage
 	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
 	Fragmentation uint
 }

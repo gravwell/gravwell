@@ -60,7 +60,7 @@ type KitItem struct {
 	Hash        string
 
 	// The fields below may be set depending on the type.
-	DefaultDeploymentRules AutomationDeployConfig `json:",omitempty"` // set by automations (scripts, scheduled searches, flows)
+	DefaultDeploymentRules AutomationDeployConfig // set by automations (scripts, scheduled searches, flows)
 	Tags                   []string               `json:",omitempty"` // set by AXes
 }
 
@@ -120,8 +120,8 @@ type KitState struct {
 	Banner               string //use for banner in a kit
 	Cover                string //use for cover image on a kit
 	Signed               bool
-	MinVersion           CanonicalVersion `json:",omitempty"`
-	MaxVersion           CanonicalVersion `json:",omitempty"`
+	MinVersion           CanonicalVersion
+	MaxVersion           CanonicalVersion
 	Items                []KitItem
 	RequiredDependencies []KitMetadata
 	ConfigMacros         []KitConfigMacro
@@ -152,8 +152,8 @@ type KitBuildRequest struct {
 	KitID                 string
 	Readme                string
 	KitVersion            int
-	MinVersion            CanonicalVersion  `json:",omitempty"`
-	MaxVersion            CanonicalVersion  `json:",omitempty"`
+	MinVersion            CanonicalVersion
+	MaxVersion            CanonicalVersion
 	Dashboards            []string          `json:",omitempty"`
 	Templates             []string          `json:",omitempty"`
 	Actionables           []string          `json:",omitempty"`

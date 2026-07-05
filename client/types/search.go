@@ -170,10 +170,10 @@ type LaunchResponse struct {
 	RefreshInterval uint //refresh interval in seconds
 
 	// unified info that is always needed
-	SearchID     string     `json:",omitempty"`
-	RenderModule string     `json:",omitempty"`
-	RenderCmd    string     `json:",omitempty"`
-	Info         SearchInfo `json:",omitempty"`
+	SearchID     string `json:",omitempty"`
+	RenderModule string `json:",omitempty"`
+	RenderCmd    string `json:",omitempty"`
+	Info         SearchInfo
 
 	// Errors, warnings, etc.
 	Messages []Message
@@ -213,13 +213,13 @@ type StartSearchResponse struct {
 	// what the user typed
 	RawQuery string `json:",omitempty"`
 	//what the actual search being processed is after attaching render module
-	SearchString         string           `json:",omitempty"`
-	RenderModule         string           `json:",omitempty"`
-	RenderCmd            string           `json:",omitempty"`
-	OutputSearchSubproto string           `json:",omitempty"`
-	SearchID             string           `json:",omitempty"`
-	SearchStartRange     time.Time        `json:",omitempty"`
-	SearchEndRange       time.Time        `json:",omitempty"`
+	SearchString         string `json:",omitempty"`
+	RenderModule         string `json:",omitempty"`
+	RenderCmd            string `json:",omitempty"`
+	OutputSearchSubproto string `json:",omitempty"`
+	SearchID             string `json:",omitempty"`
+	SearchStartRange     time.Time
+	SearchEndRange       time.Time
 	Background           bool             `json:",omitempty"`
 	NonTemporal          bool             `json:",omitempty"`
 	CollapsingIndex      int              // index of the first collapsed module
@@ -288,7 +288,7 @@ type SearchInfo struct {
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
 	EVs                   []string   // EVs produced by the search
-	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
+	Import                ImportInfo //information attached if there this search is saved and from an external import
 	// Preview indicates that this search is a preview search
 	// this means that the query most likely did not cover the entire time range that was originally requested
 	// A preview search is used when a user is trying to understand what they have or establish AX relationships
@@ -297,7 +297,7 @@ type SearchInfo struct {
 	Error string `json:",omitempty"`
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
-	Stats      StatsInfo        `json:",omitempty"`
+	Stats      StatsInfo
 }
 
 type SearchLaunchInfo struct {
@@ -310,11 +310,11 @@ type SearchLaunchInfo struct {
 
 	// Started is the timestamp of when the search was started.  This is used to inform
 	// the GUI and/or clients on when the query was actually started.
-	Started time.Time `json:"started,omitempty"`
+	Started time.Time `json:"started"`
 
 	// Expires marks when when the search should expire/be deleted,
 	// it may be the zero value which means never
-	Expires time.Time `json:"expires,omitempty"`
+	Expires time.Time `json:"expires"`
 }
 
 type ImportInfo struct {
@@ -353,7 +353,7 @@ type SearchCtrlStatus struct {
 type SearchDownloadRequest struct {
 	Format    string         `json:"format"`
 	Rows      []RowSelection `json:"rows,omitempty"`
-	Timeframe Timeframe      `json:"timeframe,omitempty"`
+	Timeframe Timeframe      `json:"timeframe"`
 }
 
 type RowSelection struct {

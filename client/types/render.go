@@ -122,14 +122,14 @@ var (
 type TransformOperator string
 
 type ResultsRequest struct {
-	Fence  Geofence            `json:"fence,omitempty"`
-	End    time.Time           `json:"end,omitempty"`
+	Fence  Geofence            `json:"fence"`
+	End    time.Time           `json:"end"`
 	Limit  uint64              `json:"limit,omitempty"`
 	Offset uint64              `json:"offset,omitempty"`
 	Sort   []ResultsSort       `json:"sort,omitempty"`
-	Start  time.Time           `json:"start,omitempty"`
+	Start  time.Time           `json:"start"`
 	SID    string              `json:"sid"`
-	Stats  ResultsRequestStats `json:"stats,omitempty"`
+	Stats  ResultsRequestStats `json:"stats"`
 }
 
 type ResultsSort struct {
@@ -142,7 +142,7 @@ type ResultsSort struct {
 
 type ResultsRequestStats struct {
 	Operations ResultsRequestStatsOperationList `json:"operations,omitempty"`
-	Over       ResultsRequestStatsOver          `json:"over,omitempty"`
+	Over       ResultsRequestStatsOver          `json:"over"`
 }
 
 type ResultsRequestStatsOperationList = []StatsOperation
@@ -219,13 +219,13 @@ type ResultsGraphNode struct {
 }
 
 type TimeRange struct {
-	StartTS entry.Timestamp `json:",omitempty"`
-	EndTS   entry.Timestamp `json:",omitempty"`
+	StartTS entry.Timestamp
+	EndTS   entry.Timestamp
 }
 
 type EntryRange struct {
-	StartTS entry.Timestamp `json:",omitempty"`
-	EndTS   entry.Timestamp `json:",omitempty"`
+	StartTS entry.Timestamp
+	EndTS   entry.Timestamp
 	First   uint64
 	Last    uint64
 }
@@ -411,17 +411,17 @@ type IngesterStatsResponse struct {
 }
 
 type SearchStatsRequest struct {
-	SetCount int64           `json:",omitempty"`
-	SetStart entry.Timestamp `json:",omitempty"`
-	SetEnd   entry.Timestamp `json:",omitempty"`
+	SetCount int64 `json:",omitempty"`
+	SetStart entry.Timestamp
+	SetEnd   entry.Timestamp
 	Addendum json.RawMessage `json:",omitempty"`
 }
 
 type SearchStatsResponse struct {
-	Addendum    json.RawMessage   `json:",omitempty"`
-	RangeStart  entry.Timestamp   `json:",omitempty"`
-	RangeEnd    entry.Timestamp   `json:",omitempty"`
-	Current     entry.Timestamp   `json:",omitempty"`
+	Addendum    json.RawMessage `json:",omitempty"`
+	RangeStart  entry.Timestamp
+	RangeEnd    entry.Timestamp
+	Current     entry.Timestamp
 	Set         []StatSet         `json:",omitempty"`
 	OverviewSet []OverviewStatSet `json:",omitempty"`
 	Size        int               `json:",omitempty"`
@@ -483,8 +483,8 @@ type SearchMetadataRaw struct {
 type SearchMetadataEntry struct {
 	Name   string
 	Type   string
-	Number SearchMetadataNumber `json:",omitempty"`
-	Raw    SearchMetadataRaw    `json:",omitempty"`
+	Number SearchMetadataNumber
+	Raw    SearchMetadataRaw
 }
 
 type SourceMetadataEntry struct {

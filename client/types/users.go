@@ -80,8 +80,8 @@ type UserDetails struct {
 	Email      string
 	Admin      bool
 	Locked     bool
-	TS         time.Time `json:",omitempty"`
-	DefaultGID int32     `json:",omitempty"`
+	TS         time.Time
+	DefaultGID int32 `json:",omitempty"`
 	Groups     []GroupDetails
 	MFA        MFAUserConfig
 	Hash       []byte `json:"-"` //do not include in API responses

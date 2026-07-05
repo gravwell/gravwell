@@ -70,14 +70,14 @@ type HostSysStats struct {
 	CPUUsage              float64
 	CPUCount              int `json:",omitempty"`
 	HostHash              string
-	Net                   NetworkUsage `json:",omitempty"`
+	Net                   NetworkUsage
 	IO                    []DiskIO
-	VirtSystem            string       `json:",omitempty"` // e.g. "kvm" or "xen"
-	VirtRole              string       `json:",omitempty"` // "host" or "guest"
-	BuildInfo             BuildInfo    `json:",omitempty"` // e.g. 3.3.1
-	LoadAverage           load.AvgStat `json:",omitempty"`
+	VirtSystem            string    `json:",omitempty"` // e.g. "kvm" or "xen"
+	VirtRole              string    `json:",omitempty"` // "host" or "guest"
+	BuildInfo             BuildInfo // e.g. 3.3.1
+	LoadAverage           load.AvgStat
 	Iowait                float64
-	PSI                   PSIStats `json:"psi,omitempty"` // Pressure Stall Information, for CPU, memory, and IO
+	PSI                   PSIStats `json:"psi"` // Pressure Stall Information, for CPU, memory, and IO
 }
 
 type DeploymentInfo struct {
@@ -91,9 +91,9 @@ type DeploymentInfo struct {
 }
 
 type PSIStats struct {
-	CPU    PressureStats `json:"cpu,omitempty"`
-	Memory PressureStats `json:"memory,omitempty"`
-	IO     PressureStats `json:"io,omitempty"`
+	CPU    PressureStats `json:"cpu"`
+	Memory PressureStats `json:"memory"`
+	IO     PressureStats `json:"io"`
 }
 
 type PressureStats struct {
