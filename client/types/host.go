@@ -77,7 +77,7 @@ type HostSysStats struct {
 	BuildInfo             BuildInfo // e.g. 3.3.1
 	LoadAverage           load.AvgStat
 	Iowait                float64
-	PSI                   PSIStats `json:"psi"` // Pressure Stall Information, for CPU, memory, and IO
+	PSI                   PSIStats // Pressure Stall Information, for CPU, memory, and IO
 }
 
 type DeploymentInfo struct {
@@ -91,20 +91,20 @@ type DeploymentInfo struct {
 }
 
 type PSIStats struct {
-	CPU    PressureStats `json:"cpu"`
-	Memory PressureStats `json:"memory"`
-	IO     PressureStats `json:"io"`
+	CPU    PressureStats
+	Memory PressureStats
+	IO     PressureStats
 }
 
 type PressureStats struct {
-	SomeAvg10  float64 `json:"some_avg_10"`
-	SomeAvg60  float64 `json:"some_avg_60"`
-	SomeAvg300 float64 `json:"some_avg_300"`
+	SomeAvg10  float64
+	SomeAvg60  float64
+	SomeAvg300 float64
 
 	// "full" lines are only present in memory and IO pressure files, not CPU
-	FullAvg10  float64 `json:"full_avg_10"`
-	FullAvg60  float64 `json:"full_avg_60"`
-	FullAvg300 float64 `json:"full_avg_300"`
+	FullAvg10  float64
+	FullAvg60  float64
+	FullAvg300 float64
 }
 
 func (si SysInfo) Empty() bool {

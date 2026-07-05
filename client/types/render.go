@@ -122,27 +122,27 @@ var (
 type TransformOperator string
 
 type ResultsRequest struct {
-	Fence  Geofence            `json:"fence"`
-	End    time.Time           `json:"end"`
-	Limit  uint64              `json:"limit,omitempty"`
-	Offset uint64              `json:"offset,omitempty"`
-	Sort   []ResultsSort       `json:"sort,omitempty"`
-	Start  time.Time           `json:"start"`
-	SID    string              `json:"sid"`
-	Stats  ResultsRequestStats `json:"stats"`
+	Fence  Geofence
+	End    time.Time
+	Limit  uint64        `json:",omitempty"`
+	Offset uint64        `json:",omitempty"`
+	Sort   []ResultsSort `json:",omitempty"`
+	Start  time.Time
+	SID    string
+	Stats  ResultsRequestStats
 }
 
 type ResultsSort struct {
-	Column string `json:"column"`
+	Column string
 	// One of "asc" | "desc"
-	Direction string `json:"direction,omitempty"`
+	Direction string `json:",omitempty"`
 	// One of "string" | "number" | "IP" | "time"
-	SortAs string `json:"sortAs,omitempty"`
+	SortAs string `json:",omitempty"`
 }
 
 type ResultsRequestStats struct {
-	Operations ResultsRequestStatsOperationList `json:"operations,omitempty"`
-	Over       ResultsRequestStatsOver          `json:"over"`
+	Operations ResultsRequestStatsOperationList `json:",omitempty"`
+	Over       ResultsRequestStatsOver
 }
 
 type ResultsRequestStatsOperationList = []StatsOperation
@@ -154,27 +154,27 @@ type ResultsRequestStatsOver struct {
 }
 
 type ResultsRequestStatsOverCount struct {
-	Count int `json:"count"`
+	Count int
 }
 
 type ResultsRequestStatsOverWidth struct {
-	Width int `json:"width"`
+	Width int
 }
 
 type StatsInfo struct {
 	// If omitted, no stats operations are fixed.
-	FixedStatsOperation []StatsOperation `json:"fixedStatsOperations,omitempty"`
+	FixedStatsOperation []StatsOperation `json:",omitempty"`
 	// One of: "querySpecifiedRenderer" | "incompatibleWithFinalModule". If omitted, stats operations are not disabled.
-	StatsOperationsDisabled string `json:"statsOperationsDisabled,omitempty"`
+	StatsOperationsDisabled string `json:",omitempty"`
 }
 
 type StatsOperation struct {
-	As string   `json:"as,omitempty"`
-	By []string `json:"by,omitempty"`
+	As string   `json:",omitempty"`
+	By []string `json:",omitempty"`
 	// The EV to perform the operation on. If omitted, the operand will be the entire entry.
-	Operand string `json:"operand,omitempty"`
+	Operand string `json:",omitempty"`
 	// one of "count" | "sum" | "avg" | "min" | "max"
-	Operation string `json:"operation"`
+	Operation string
 }
 
 // ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
@@ -184,13 +184,13 @@ type ResultsResponse struct {
 }
 
 type ResultsTable struct {
-	HasExplore       bool                           `json:"hasExplore"`
-	Kind             string                         `json:"kind"`
-	BinCount         int                            `json:"binCount"`
-	BinWidth         float64                        `json:"binWidth"`
-	Columns          []string                       `json:"columns"`
-	Rows             []map[string]*ResultsTableCell `json:"rows"`
-	TotalResultCount int64                          `json:"totalResultCount"`
+	HasExplore       bool
+	Kind             string
+	BinCount         int
+	BinWidth         float64
+	Columns          []string
+	Rows             []map[string]*ResultsTableCell
+	TotalResultCount int64
 }
 
 type ResultsTableCell struct {
@@ -200,22 +200,22 @@ type ResultsTableCell struct {
 }
 
 type ResultsGraph struct {
-	Kind                     string             `json:"kind"`
-	Links                    []ResultsGraphLink `json:"links"`
-	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
-	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
-	Nodes                    []ResultsGraphNode `json:"nodes"`
+	Kind                     string
+	Links                    []ResultsGraphLink
+	NodeEnumeratedValueNames []string
+	LinkEnumeratedValueNames []string
+	Nodes                    []ResultsGraphNode
 }
 
 type ResultsGraphLink struct {
-	Source           string            `json:"source"`
-	Target           string            `json:"target"`
-	EnumeratedValues map[string]string `json:"enumeratedValues"`
+	Source           string
+	Target           string
+	EnumeratedValues map[string]string
 }
 
 type ResultsGraphNode struct {
-	EnumeratedValues map[string]string `json:"enumeratedValues"`
-	ID               string            `json:"id"`
+	EnumeratedValues map[string]string
+	ID               string
 }
 
 type TimeRange struct {

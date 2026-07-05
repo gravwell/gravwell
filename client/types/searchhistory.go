@@ -24,5 +24,5 @@ type SearchHistoryEntry struct {
 
 type SearchHistoryListResponse struct {
 	BaseListResponse
-	Results []SearchHistoryEntry `json:"results"`
+	Results []SearchHistoryEntry
 }

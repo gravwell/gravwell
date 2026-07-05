@@ -535,15 +535,15 @@ type UserPreference struct {
 
 type UserPreferenceResponse struct {
 	BaseListResponse
-	Results []UserPreference `json:"results"`
+	Results []UserPreference
 }
 
 type UserListResponse struct {
 	BaseListResponse
-	Results []User `json:"results"`
+	Results []User
 }
 
 type GroupListResponse struct {
 	BaseListResponse
-	Results []Group `json:"results"`
+	Results []Group
 }
