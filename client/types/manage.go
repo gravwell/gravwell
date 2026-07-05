@@ -107,40 +107,40 @@ func (wi *WellInfo) Empty() bool {
 }
 
 type StorageStats struct {
-	CoverageStart    time.Time `json:"coverageStart"`
-	CoverageEnd      time.Time `json:"coverageEnd"`
-	DataIngestedHot  uint64    `json:"dataIngestedHot"`
-	DataIngestedCold uint64    `json:"dataIngestedCold"`
-	DataStoredHot    uint64    `json:"dataStoredHot"`
-	DataStoredCold   uint64    `json:"dataStoredCold"`
-	EntryCountHot    uint64    `json:"entryCountHot"`
-	EntryCountCold   uint64    `json:"entryCountCold"`
+	CoverageStart    time.Time
+	CoverageEnd      time.Time
+	DataIngestedHot  uint64
+	DataIngestedCold uint64
+	DataStoredHot    uint64
+	DataStoredCold   uint64
+	EntryCountHot    uint64
+	EntryCountCold   uint64
 }
 
 type PerWellStorageStats struct {
 	StorageStats
-	Accelerator    string   `json:"accelerator"`
-	Engine         string   `json:"engine"`
-	PathCold       string   `json:"pathCold"`
-	PathHot        string   `json:"pathHot"`
-	ShardCountCold uint64   `json:"shardCountCold"`
-	ShardCountHot  uint64   `json:"shardCountHot"`
-	Tags           []string `json:"tags"`
-	WellName       string   `json:"wellName"`
+	Accelerator    string
+	Engine         string
+	PathCold       string
+	PathHot        string
+	ShardCountCold uint64
+	ShardCountHot  uint64
+	Tags           []string
+	WellName       string
 	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
-	Fragmentation uint `json:"fragmentation"`
+	Fragmentation uint
 }
 
 type CalendarRequest struct {
-	Start time.Time `json:"start"`
-	End   time.Time `json:"end"`
-	Wells []string  `json:"wells"`
+	Start time.Time
+	End   time.Time
+	Wells []string
 }
 
 type CalendarEntry struct {
-	Date         string `json:"date"`
-	DataIngested uint64 `json:"dataIngested"`
-	EntryCount   uint64 `json:"entryCount"`
+	Date         string
+	DataIngested uint64
+	EntryCount   uint64
 }
 
 type IndexerWellData struct {
@@ -152,10 +152,10 @@ type IndexerWellData struct {
 }
 
 type SearchQueue struct {
-	InFlight    int `json:"running_current"`
-	MaxInFlight int `json:"running_maximum"`
-	Enqueued    int `json:"queued_current"`
-	MaxEnqueued int `json:"queued_maximum"`
+	InFlight    int
+	MaxInFlight int
+	Enqueued    int
+	MaxEnqueued int
 }
 
 func (iwd *IndexerWellData) Sort() {

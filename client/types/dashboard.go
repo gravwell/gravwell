@@ -80,5 +80,5 @@ type DashboardTileConfig struct {
 
 type DashboardListResponse struct {
 	BaseListResponse
-	Results []Dashboard `json:"results"`
+	Results []Dashboard
 }
