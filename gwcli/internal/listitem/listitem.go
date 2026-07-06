@@ -8,6 +8,7 @@
 
 // Package listitem defines common list types so we don't have a bunch of duplicate structs floating around any time list.Model or
 // multiselectlist.Model are used.
+// Some Wrap functions are provided so MSLs of a given type look and operate comparably between actions.
 package listitem
 
 import (
@@ -18,6 +19,8 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 // Generic provides a general-purpose list item for types that do not require much special handling to be stuffed into a list.Model or MSL.
@@ -209,4 +212,169 @@ func GetGroup(l *list.Model) (types.Group, error) {
 		return types.Group{}, clilog.TypeAssert(l.SelectedItem(), &Group{})
 	}
 	return g.G, nil
+}
+
+type wrappableAsset interface {
+	[]types.Dashboard | []types.Template |
+		[]types.Actionable | []types.Flow |
+		[]types.ScheduledSearch | []types.Resource |
+		[]types.Macro | []types.SavedQuery |
+		[]types.AX | []types.File |
+		[]types.Playbook | []types.Alert
+}
+
+// WrapAssets returns an MSL- and list.Model-ready array of the given items.
+// Selections may be done by giving a preselection map (all but the first preselection map will be ignored), which will search for preselection[x[i].ID] == true.
+func WrapAssets[asset_t wrappableAsset](x asset_t, preselected ...map[string]bool) []multiselectlist.SelectableItem[string] {
+	if len(x) < 1 {
+		return nil
+	}
+	items := make([]multiselectlist.SelectableItem[string], len(x))
+	var selected map[string]bool
+	if len(preselected) > 0 {
+		selected = preselected[0]
+	} else {
+		selected = map[string]bool{}
+	}
+	// you can't type assert generics, but the generic still works as a constraint so this any-cast is functionally equivalent.
+	switch t := any(x).(type) {
+	case []types.Dashboard:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.Template:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.Actionable:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:          itm.ID,
+				Name:         itm.Name,
+				SecondLine:   itm.Description,
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
+		}
+	case []types.Flow:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:          itm.ID,
+				Name:         itm.Name,
+				SecondLine:   fmt.Sprintf("[%s] %s", itm.Schedule, itm.Description),
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
+		}
+	case []types.ScheduledSearch:
+		for i, itm := range t {
+			line := fmt.Sprintf("[%s] %s", itm.Schedule, itm.SearchString)
+			if itm.Description != "" {
+				line += " - " + itm.Description
+			}
+
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:          itm.ID,
+				Name:         itm.Name,
+				SecondLine:   line,
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
+		}
+	case []types.Resource:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+			}
+		}
+	case []types.Macro:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.SavedQuery:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_:  selected[itm.ID],
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.AX:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:  itm.ID,
+				Name: itm.Name,
+				SecondLine: fmt.Sprintf("%s/%s|%s", stylesheet.Cur.SecondaryText.Render(itm.Module),
+					stylesheet.Cur.SecondaryText.Render("["+strings.Join(itm.Tags, " ")+"]"),
+					itm.Description),
+			}
+		}
+	case []types.File:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: fmt.Sprintf("(Size: %v) %s", itm.Size, itm.Description),
+			}
+		}
+	case []types.Playbook:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.Alert:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_:  selected[itm.ID],
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
+		}
+		return items
+	default:
+		clilog.Writer.Warn("failed to wrap list: unknown type", log.KV("call", log.CallLoc(1)), log.KV("type(x)", t))
+	}
+	return items
 }

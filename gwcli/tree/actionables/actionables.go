@@ -150,10 +150,11 @@ func create() action.Pair {
 			return new.ID, "", err
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{},
-			Long: "Create a new actionable empty or from JSON." +
-				"Call " + stylesheet.Cur.Action.Render("json") + " to view the required schema or" +
-				" call " + stylesheet.Cur.Action.Render("get --json <ID>") + " to view an existing actionable as JSON.",
+			CommonOptions: scaffold.CommonOptions{
+				Long: "Create a new actionable empty or from JSON. " +
+					"Call " + stylesheet.Path(true, "~", "actionables", "json") + " to view the required schema or " +
+					"call " + stylesheet.Path(true, "~", "actionables", "get", "<ID>") + " to view an existing actionable as JSON.",
+			},
 		})
 }
 
@@ -214,18 +215,7 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, actionable := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:    false,
-					ID_:          actionable.ID,
-					Name:         actionable.Name,
-					SecondLine:   actionable.Description,
-					ShowDisabled: true,
-					Enabled:      !actionable.Disabled,
-				}
-			}
-			return items, nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (_ []scaffold.Result, _ error) {
 			// This is an exactly1 function
@@ -345,31 +335,21 @@ func edit() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("actionable", "actionables",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("actionable",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetActionable(id)
 				return err
 			}
 			return connection.Client.DeleteActionable(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListActionables(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, p := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:    false,
-					ID_:          p.ID,
-					Name:         p.Name,
-					SecondLine:   p.Description,
-					ShowDisabled: true,
-					Enabled:      !p.Disabled,
-				}
-			}
 
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		},
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }

@@ -19,6 +19,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const mslHeighBuffer uint = 2 // how many lines to buffer the height fed to each MSL
+
 type stage = uint
 
 const (
@@ -60,6 +62,15 @@ func (c *createModel) Init() tea.Cmd {
 }
 
 func (c *createModel) Update(msg tea.Msg) tea.Cmd {
+	// intercept WSMs to buffer height for header lines
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		wsm.Height -= 8
+		var cmds = make([]tea.Cmd, 2)
+		c.dispatchersModel, cmds[0] = c.dispatchersModel.Update(wsm)
+		c.consumersModel, cmds[1] = c.consumersModel.Update(wsm)
+		return tea.Batch(cmds...)
+	}
+
 	var cmd tea.Cmd
 	switch c.stage {
 	case stageDispatchers:
@@ -244,9 +255,10 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			i += 1
 		}
 
-		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, multiselectlist.Options{})
+		c.dispatchersModel = multiselectlist.New(dispatchers, width, height-int(mslHeighBuffer), multiselectlist.Options{})
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.dispatchersModel.StatusMessageOnSelect = true
+		c.dispatchersModel.Title = "Select Dispatchers"
 	})
 
 	consumers := make([]multiselectlist.SelectableItem[string], len(availConsumers))
@@ -261,9 +273,10 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			}
 			i += 1
 		}
-		c.consumersModel = multiselectlist.New(consumers, width, height, multiselectlist.Options{})
+		c.consumersModel = multiselectlist.New(consumers, width, height-int(mslHeighBuffer), multiselectlist.Options{})
 		c.consumersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.consumersModel.StatusMessageOnSelect = true
+		c.consumersModel.Title = "Select Consumers"
 	})
 	wg.Wait()
 

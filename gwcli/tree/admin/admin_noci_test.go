@@ -112,7 +112,7 @@ func TestMassChown(t *testing.T) {
 		}
 		sbOut.Reset()
 		sbErr.Reset()
-		executeTree(t, &sbOut, &sbErr, u2Meta, "extractors", "create", "--name="+u2Username+"_extractor", "--module=csv", "--tags=default", "--params='babs'")
+		executeTree(t, &sbOut, &sbErr, u2Meta, "extractors", "create", "--name="+u2Username+"_extractor", "--module=csv", "--tags=default", "--module-parameters='babs'")
 		// actionables
 		executeTree(t, &sbOut, &sbErr, u2Meta, "actionables", "create", "--name="+u2Username+"_actionable")
 		// playbooks

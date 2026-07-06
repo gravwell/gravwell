@@ -283,6 +283,22 @@ type ExpectedWalkResult struct {
 }
 
 func TestWalk(t *testing.T) {
+	/*
+		root/
+		├── Anav/ (aliases: "Anav_alias")
+		│   └── action_a_1
+		├── Bnav/
+		│   ├── BAaction
+		│   ├── BBaction
+		│   └── BCaction (aliases: "BCaction_alias1", "BCaction_alias2", "BCaction_alias3")
+		├── Cnav
+		│	├── CAaction
+		│   ├── CBaction
+		│   └── CCnav (aliases: "CCnav_alias")
+		|		├── CCAaction
+		└── Daction/
+	*/
+
 	// build a tree to walk
 	root := newNav("root", "short", "long", nil, []*cobra.Command{
 		newNav("Anav", "short", "long", []string{"Anav_alias"}, nil),
@@ -328,6 +344,8 @@ func TestWalk(t *testing.T) {
 			ExpectedWalkResult{"CBaction", nil, "", false, false}},
 		{"circuitous route with excess whitespace", "    Cnav CCnav", "..    .. Bnav ~   Cnav CBaction  ",
 			ExpectedWalkResult{"CBaction", nil, "", false, false}},
+		{"nav with unknown token afterwards", "", "Bnav myunknownaction",
+			ExpectedWalkResult{"Bnav", nil, "", false, true}},
 
 		// builtins
 		{"simple builtin", "", "builtin1",
@@ -416,7 +434,6 @@ func TestWalk(t *testing.T) {
 		actual, err := traverse.Walk(nil, "excess tokens", builtins)
 		testWalkResult(t, actual, err, ExpectedWalkResult{"", nil, "", false, true})
 	})
-
 }
 
 // helper for TestWalk

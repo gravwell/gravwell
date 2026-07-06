@@ -89,80 +89,57 @@ func listAction() action.Pair {
 		})
 }
 
-const ( // field keys
-	createNameKey     = "name"
-	createDescKey     = "desc"
-	createFreqKey     = "freq"
-	createQryKey      = "qry"
-	createDurationKey = "dur"
-)
-
 func create() action.Pair {
-	fields := map[string]scaffoldcreate.Field{
-		createQryKey: scaffoldcreate.Field{
-			Required: true,
-			Title:    "query",
-			Flag:     scaffoldcreate.FlagConfig{Usage: "query to schedule", Shorthand: 'q'},
-			Provider: &scaffoldcreate.TextProvider{},
-			Order:    150,
-		},
-		createDurationKey: scaffoldcreate.Field{
-			Required: true,
-			Title:    "duration",
-			Flag:     scaffoldcreate.FlagConfig{Name: "duration", Usage: "the time span the query will look back over"},
-			Provider: &scaffoldcreate.TextProvider{
-				CustomInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
+	return scaffoldcreate.NewCreateAction("scheduled query",
+		map[string]scaffoldcreate.Field{
+			"qry": {
+				Required: true,
+				Title:    "query",
+				Flag:     scaffoldcreate.FlagConfig{Usage: "query to schedule", Shorthand: 'q'},
+				Provider: &scaffoldcreate.TextProvider{},
+				Order:    150,
 			},
-			Order: 140,
-		},
-		createNameKey: scaffoldcreate.FieldName("query"),
-		createDescKey: scaffoldcreate.FieldDescription("query"),
+			"duration": scaffoldcreate.FieldSearchDuration(true, 140),
+			"name":     scaffoldcreate.FieldName("query"),
+			"desc":     scaffoldcreate.FieldDescription("query"),
 
-		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
-			Required: true,
-			Title:    "frequency",
-			Flag:     scaffoldcreate.FlagConfig{Name: ft.Frequency.Name(), Usage: ft.Frequency.Usage()},
-			Provider: &scaffoldcreate.TextProvider{
-				CustomInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", false)
-					ti.Placeholder = "* * * * *"
-					ti.Validate = validate.CronRuneValidator
-					return ti
+			"freq": { // manually build so we have more control
+				Required: true,
+				Title:    "frequency",
+				Flag:     scaffoldcreate.FlagConfig{Name: ft.Frequency.Name(), Usage: ft.Frequency.Usage()},
+				Provider: &scaffoldcreate.TextProvider{
+					CustomInit: func() textinput.Model {
+						ti := stylesheet.NewTI("", false)
+						ti.Placeholder = "* * * * *"
+						ti.Validate = validate.CronRuneValidator
+						return ti
+					},
 				},
+				DefaultValue: "", // no default value
+				Order:        50,
 			},
-			DefaultValue: "", // no default value
-			Order:        50,
 		},
-	}
+		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
+			var (
+				name      = cfg["name"].Provider.Get()
+				desc      = cfg["desc"].Provider.Get()
+				freq      = cfg["freq"].Provider.Get()
+				qry       = cfg["qry"].Provider.Get()
+				durString = cfg["duration"].Provider.Get()
+			)
+			dur, err := time.ParseDuration(durString)
+			if err != nil { // report as invalid parameter, not an error
+				return nil, err.Error(), nil
+			}
 
-	return scaffoldcreate.NewCreateAction("scheduled query", fields, createFunc, scaffoldcreate.Options{})
+			return connection.CreateScheduledSearch(name, desc, freq, qry, dur)
+		},
+		scaffoldcreate.Options{})
 }
 
-// driver function for scheduled create
-func createFunc(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
-	var (
-		name      = cfg[createNameKey].Provider.Get()
-		desc      = cfg[createDescKey].Provider.Get()
-		freq      = cfg[createFreqKey].Provider.Get()
-		qry       = cfg[createQryKey].Provider.Get()
-		durString = cfg[createDurationKey].Provider.Get()
-	)
-	dur, err := time.ParseDuration(durString)
-	if err != nil { // report as invalid parameter, not an error
-		return nil, err.Error(), nil
-	}
-
-	return connection.CreateScheduledSearch(name, desc, freq, qry, dur)
-}
-
-//#endregion create
-
-//#region delete
-
-// builds the scheduled search delete action
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("query", "queries",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("query",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetScheduledSearch(id)
 				return err
@@ -171,23 +148,13 @@ func delete() action.Pair {
 			return connection.Client.DeleteScheduledSearch(id)
 
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledSearches(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListScheduledSearches(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, ss := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        ss.ID,
-					Name:       ss.Name,
-					SecondLine: fmt.Sprintf("(Duration: %v) %s", time.Duration(ss.Duration), ss.Description),
-				}
-			}
-
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {
@@ -230,16 +197,15 @@ func edit() action.Pair {
 			"duration": &scaffoldedit.Field{
 				Required: true,
 				Title:    "Duration",
-				Usage:    "how many seconds back to pass. Must be negative.",
+				Usage:    "Time span the query will look back over",
 				FlagName: "duration",
 				Order:    120,
 				CustomTIFuncInit: func() textinput.Model {
 					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "1h2m3s4ms"
 					ti.Validate = func(s string) error {
-						if s == "" {
-							return errors.New("duration is required")
-						}
-						return validate.NegativeNumber(s)
+						_, err := time.ParseDuration(s)
+						return err
 					}
 					return ti
 				},
@@ -303,11 +269,11 @@ func edit() action.Pair {
 				case "frequency":
 					item.Schedule = val
 				case "duration":
-					dur, err := strconv.ParseInt(val, 10, 64)
+					dur, err := time.ParseDuration(val)
 					if err != nil {
 						return err.Error(), nil
 					}
-					item.Duration = dur
+					item.Duration = -int64(dur.Abs().Seconds())
 				case "offset":
 					offset, err := strconv.ParseInt(val, 10, 64)
 					if err != nil {
@@ -333,20 +299,6 @@ func edit() action.Pair {
 		})
 }
 
-func wrapSS(ss types.ScheduledSearch) *listitem.Generic {
-	line := fmt.Sprintf("[%s] %s", ss.Schedule, ss.SearchString)
-	if ss.Description != "" {
-		line += " - " + ss.Description
-	}
-	return &listitem.Generic{
-		ID_:          ss.ID,
-		Name:         ss.Name,
-		SecondLine:   line,
-		ShowDisabled: true,
-		Enabled:      !ss.Disabled,
-	}
-}
-
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
 	enable, err = fs.GetBool("enable")
 	if err != nil {
@@ -369,15 +321,11 @@ func cancel() action.Pair {
 		"Cancel one or several currently-executing scheduled searches by ID.",
 		"scheduled search",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			l, err := connection.Client.ListScheduledSearches(nil)
+			lr, err := connection.Client.ListScheduledSearches(nil)
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
-			for i, ss := range l.Results {
-				itms[i] = wrapSS(ss)
-			}
-			return itms, nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -410,7 +358,7 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], 0, len(l.Results))
+			itms := make([]types.ScheduledSearch, 0, len(l.Results))
 			for _, ss := range l.Results {
 				if enable && ss.BackfillEnabled {
 					continue
@@ -418,10 +366,10 @@ func backfillToggle() action.Pair {
 					continue
 				}
 
-				itms = append(itms, wrapSS(ss))
+				itms = append(itms, ss)
 			}
 
-			return slices.Clip(itms), nil
+			return listitem.WrapAssets(slices.Clip(itms)), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)
@@ -477,15 +425,11 @@ func clear() action.Pair {
 		"Clear the execution results (including errors and state) for one or several scheduled searches.",
 		"scheduled search",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			l, err := connection.Client.ListScheduledSearches(nil)
+			lr, err := connection.Client.ListScheduledSearches(nil)
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], len(l.Results))
-			for i, ss := range l.Results {
-				itms[i] = wrapSS(ss)
-			}
-			return itms, nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -506,7 +450,7 @@ func clear() action.Pair {
 func createScript() action.Pair {
 	return scaffoldcreate.NewCreateAction("scheduled script",
 		map[string]scaffoldcreate.Field{
-			"lang": scaffoldcreate.Field{
+			"lang": {
 				Title:    "Language",
 				Required: true,
 				Flag: scaffoldcreate.FlagConfig{
@@ -530,6 +474,7 @@ func createScript() action.Pair {
 			"name":        scaffoldcreate.FieldName("scheduled script"),
 			"description": scaffoldcreate.FieldDescription("scheduled script"),
 			"path":        scaffoldcreate.FieldPath("script", true),
+			"labels":      scaffoldcreate.FieldLabels(),
 			"schedule":    scaffoldcreate.FieldFrequency(),
 			"enabled": {
 				Title: "Enabled?", Required: false,
@@ -568,7 +513,7 @@ func createScript() action.Pair {
 			new, err := connection.Client.CreateScheduledScript(types.ScheduledScript{
 				CommonFields: types.CommonFields{
 					Name:        fields["name"].Provider.Get(),
-					Description: fields["desc"].Provider.Get(),
+					Description: fields["description"].Provider.Get(),
 					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
 				},
 				AutomationCommonFields: types.AutomationCommonFields{

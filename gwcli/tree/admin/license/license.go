@@ -137,7 +137,7 @@ func licenseInfo() action.Pair {
 					},
 				)
 			},
-			Omit: scaffold.OmitFlags{Everything: true},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		},
 	)
 }
@@ -237,9 +237,9 @@ func licenseUpdate() action.Pair {
 			}
 
 			// surface any per-indexer warnings
-			msgs := make([]string, 0, len(warnings))
-			for _, w := range warnings {
-				msgs = append(msgs, fmt.Sprintf("%s: %s", w.Name, w.Err))
+			msgs := make([]string, len(warnings))
+			for i, w := range warnings {
+				msgs[i] = fmt.Sprintf("%s: %s", w.Name, w.Err)
 			}
 			return "license updated with warnings:\n" + strings.Join(msgs, "\n"), "", nil
 		},

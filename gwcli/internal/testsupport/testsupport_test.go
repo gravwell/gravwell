@@ -16,11 +16,13 @@ package testsupport
 
 import (
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSlicesUnorderedEqual(t *testing.T) {
@@ -100,6 +102,24 @@ func TestSendHotkey(t *testing.T) {
 			} else if tt.want.Type == tea.KeyRunes && slices.Compare(tt.want.Runes, got.Runes) != 0 {
 				t.Error("rune set mismatch", ExpectedActual(string(tt.want.Runes), string(got.Runes)))
 			}
+		})
+	}
+}
+
+func TestFindID(t *testing.T) {
+	tests := []struct {
+		stdout string
+		want   string
+	}{
+		{"(ID: macro-one-two-three-four)", "macro-one-two-three-four"},
+		{"successfully created (ID: macro-one-two-three-four)", "macro-one-two-three-four"},
+		{"successfully deleted (ID: my-asset-one-two-three-four-five-six-seven)", "my-asset-one-two-three-four-five-six-seven"},
+		{"ID my-asset-one-two-three-four-five-six-seven", ""},
+	}
+	for i, tt := range tests {
+		t.Run(strconv.FormatInt(int64(i), 10), func(t *testing.T) {
+			got := FindID(tt.stdout)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

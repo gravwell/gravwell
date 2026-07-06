@@ -11,17 +11,22 @@
 package scaffoldcreate_test
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCleanPathSuggestions(t *testing.T) {
@@ -93,6 +98,8 @@ func TestOptions(t *testing.T) {
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "alt",
+				Short:   "my short description",
+				Long:    "my long description",
 				Aliases: aliases,
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
@@ -100,8 +107,6 @@ func TestOptions(t *testing.T) {
 					return fs
 				},
 			},
-			Short: "my short description",
-			Long:  "my long description",
 		},
 	)
 	if act.Action.Use != "alt" {
@@ -117,83 +122,193 @@ func TestOptions(t *testing.T) {
 		t.Error("incorrect aliases", testsupport.ExpectedActual(aliases, act.Action.Aliases))
 	}
 
-	tests := []struct {
-		testName string
-		args     []string
-		setArgs  struct {
-			wantInvalid bool
-			wantErr     bool
+	setName, setPath, setCust, setTestbool = "", "", 0, false // reset stuff set in createFunc
+	t.Run("standard run", func(t *testing.T) {
+		wantName := "nm"
+		wantPath := "/tmp"
+		wantCust := 1
+		wantTestbool := true
+		rootFS := pflag.FlagSet{}
+		// set args
+		testsupport.CheckSetArgs(t,
+			act.Model.SetArgs,
+			&rootFS,
+			[]string{"--name=nm", "--path=/tmp", "--custom", fmt.Sprint(1), "--testbool"}, 50, 30,
+			false, nil, false)
+		for _, upd := range []tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)} {
+			act.Model.Update(upd)
 		}
-		updates []tea.Msg // remember to hit enter if you want things populated
+		act.Model.View()
 
-		wantName     string
-		wantPath     string
-		wantCust     int
-		wantTestbool bool
-	}{
-		{"set all fields and addtl flags from args",
-			[]string{"--name=nm", "--path=/tmp", "--custom", fmt.Sprint(1), "--testbool"},
-			struct {
-				wantInvalid bool
-				wantErr     bool
-			}{false, false},
-			[]tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)},
-			"nm", "/tmp", 1, true,
-		},
-	}
+		act.Model.Reset()
 
-	for _, tt := range tests {
-		// reset sets before the next test
-		setName, setPath, setCust, setTestbool = "", "", 0, false
-		t.Run(tt.testName, func(t *testing.T) {
-			rootFS := pflag.FlagSet{}
-			{ // set args
-				testsupport.CheckSetArgs(t, act.Model.SetArgs, &rootFS, tt.args, 50, 30,
-					tt.setArgs.wantInvalid, nil, tt.setArgs.wantErr)
-				/*				invalid, cmd, err := act.Model.SetArgs(, tt.args, 50, 30)
-								if invalid != tt.setArgs.wantInvalid {
-									t.Error("setArgs: incorrect invalid", testsupport.ExpectedActual(tt.setArgs.wantInvalid, invalid))
-								}
-								if tt.setArgs.wantCmd && (cmd == nil) {
-									t.Error("setArgs: expected cmd but cmd is nil")
-								} else if !tt.setArgs.wantCmd && (cmd != nil) {
-									t.Error("setArgs: expected nil cmd but cmd is not nil")
-								}
-								if tt.setArgs.wantErr && (err == nil) {
-									t.Error("setArgs: expected error but err is nil")
-								} else if !tt.setArgs.wantErr && (err != nil) {
-									t.Error("setArgs: expected nil error but err is not nil")
-								}
-								if err != nil {
-									return
-								}*/
-			}
-			{ // update
-				for _, upd := range tt.updates {
-					act.Model.Update(upd)
-				}
-			}
-			{ // view
-				act.Model.View()
-			}
-			{ // reset
-				act.Model.Reset()
-			}
-			// check results
-			if setName != tt.wantName {
-				t.Error("incorrect name value", testsupport.ExpectedActual(tt.wantName, setName))
-			}
-			if setPath != tt.wantPath {
-				t.Error("incorrect path value", testsupport.ExpectedActual(tt.wantPath, setPath))
-			}
-			if setCust != tt.wantCust {
-				t.Error("incorrect cust value", testsupport.ExpectedActual(tt.wantCust, setCust))
-			}
-			if setTestbool != tt.wantTestbool {
-				t.Error("incorrect testBool value", testsupport.ExpectedActual(tt.wantTestbool, setTestbool))
-			}
+		// check results
+		assert.Equal(t, wantName, setName)
+		assert.Equal(t, wantPath, setPath)
+		assert.Equal(t, wantCust, setCust)
+		assert.Equal(t, wantTestbool, setTestbool)
+	})
+	setName, setPath, setCust, setTestbool = "", "", 0, false // reset stuff set in createFunc
+	t.Run("rerun with no sets or new sets to ensure everything gets reset and clobbered properly", func(t *testing.T) {
+		wantName := "nm2"
+		wantPath := "/tmp/2"
+		wantCust := 0
+		wantTestbool := false
+		rootFS := pflag.FlagSet{}
+		// set args
+		testsupport.CheckSetArgs(t,
+			act.Model.SetArgs,
+			&rootFS,
+			[]string{"--name=nm2", "--path=/tmp/2"}, 50, 30,
+			false, nil, false)
+		for _, upd := range []tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp), testsupport.SendHotkey(hotkeys.Invoke)} {
+			act.Model.Update(upd)
+		}
+		act.Model.View()
+
+		act.Model.Reset()
+
+		// check results
+		assert.Equal(t, wantName, setName)
+		assert.Equal(t, wantPath, setPath)
+		assert.Equal(t, wantCust, setCust)
+		assert.Equal(t, wantTestbool, setTestbool)
+	})
+	t.Run("validate args", func(t *testing.T) {
+		// we want to test 3 things:
+		// 1) validate args is called (also that it can pass and fail normally)
+		// 2) field-generated flags are accessible from validate
+		// 3) additional flags are accessible from validate
+		fieldOne, nonField := 0, false // set in createFunc
+		validateNonField := false      // set in validate
+		generatePair := func() action.Pair {
+			pair := scaffoldcreate.NewCreateAction("test",
+				map[string]scaffoldcreate.Field{
+					"one": {
+						Title:    "field",
+						Flag:     scaffoldcreate.FlagConfig{Name: "ff", Usage: "test field flag"},
+						Provider: &scaffoldcreate.NumberProvider{},
+					},
+				},
+				func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+					// set external values so we can check
+					parsed, err := strconv.ParseInt(fields["one"].Provider.Get(), 10, 32)
+					if err != nil {
+						return 0, "", err
+					}
+					fieldOne = int(parsed)
+					nonField, err = fs.GetBool("nonfield")
+					if err != nil {
+						return 0, "", err
+					}
+
+					return 1, "", nil
+				},
+				scaffoldcreate.Options{
+					CommonOptions: scaffold.CommonOptions{
+						AddtlFlags: func() *pflag.FlagSet {
+							fs := &pflag.FlagSet{}
+							fs.Bool("nonfield", false, "addtl flag")
+							return fs
+						},
+					},
+					ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+						// set external values so we can check
+						validateNonField, err = fs.GetBool("nonfield")
+						if err != nil {
+							return "", err
+						}
+						switch fs.NArg() {
+						case 0:
+							return "", nil
+						case 1:
+							return "one param is invalid", nil
+						default:
+							return "", errors.New("more than one param is an error")
+						}
+					},
+				})
+			uniques.AttachPersistentFlags(pair.Action)
+			return pair
+		}
+		t.Run("non-interactive", func(t *testing.T) {
+			t.Run("validate catches bad args and createFun is never called", func(t *testing.T) {
+				pair := generatePair()
+				var sbOut, sbErr strings.Builder
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				pair.Action.SetArgs([]string{"--nonfield", "arg1", "arg2", "arg3"}) // check validate
+				assert.Error(t, pair.Action.Execute())
+				// none of the createFunc values should be set
+				assert.Zero(t, fieldOne)
+				assert.False(t, nonField)
+				// but the validate value should be
+				assert.True(t, validateNonField)
+			})
+			fieldOne, nonField = 0, false
+			validateNonField = false
+			t.Run("validate and create both succeed and everything is set", func(t *testing.T) {
+				pair := generatePair()
+				var sbOut, sbErr strings.Builder
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				pair.Action.SetArgs([]string{"--ff=1", "--nonfield"})
+				assert.Nil(t, pair.Action.Execute())
+				// none of the external values should be set
+				assert.Equal(t, 1, fieldOne)
+				assert.True(t, nonField)
+				assert.True(t, validateNonField)
+			})
+			fieldOne, nonField = 0, false
+			validateNonField = false
+			t.Run("validate and create both succeed, but nothing is set", func(t *testing.T) {
+				pair := generatePair()
+				var sbOut, sbErr strings.Builder
+				pair.Action.SetOut(&sbOut)
+				pair.Action.SetErr(&sbErr)
+				pair.Action.SetArgs(nil)
+				assert.Nil(t, pair.Action.Execute())
+				// none of the external values should be set
+				assert.Zero(t, fieldOne)
+				assert.False(t, nonField)
+				assert.False(t, validateNonField)
+			})
 		})
-	}
+		t.Run("interactive", func(t *testing.T) {
+			pair := generatePair()
+			t.Run("check that we are caught by validate", func(t *testing.T) {
+				testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{"--nonfield", "one", "two", "three"}, 80, 50, false, nil, true)
+				assert.True(t, validateNonField)
+				assert.False(t, nonField)
+			})
+			// run once to check that everything is set properly
+			t.Run("first run", func(t *testing.T) {
+				testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{"--nonfield", "--ff=5"}, 80, 50, false, nil, false)
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
+				pair.Model.View()
+				assert.True(t, pair.Model.Done())
+				assert.True(t, validateNonField)
+				assert.True(t, nonField)
+				assert.True(t, validateNonField)
+				assert.Equal(t, 5, fieldOne)
+				assert.Nil(t, pair.Model.Reset())
+			})
+			// run twice to check that everything resets properly
+			t.Run("second run", func(t *testing.T) {
+				testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{}, 80, 50, false, nil, false)
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorUp))
+				pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
+				pair.Model.View()
+				assert.True(t, pair.Model.Done())
+				assert.False(t, validateNonField)
+				assert.False(t, nonField)
+				assert.False(t, validateNonField)
+				assert.Zero(t, fieldOne)
+				assert.Nil(t, pair.Model.Reset())
+			})
+		})
+	})
 }
 
 // Tests that boolean providers operate as we expect.

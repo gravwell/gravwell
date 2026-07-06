@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"time"
 
@@ -165,6 +166,7 @@ func fetchTableResults(s *grav.Search) (columns []string, rows []types.TableRow,
 		low = high
 		high = high + pageSize
 	}
+	rows = slices.Clip(rows)
 
 	// save off columns
 	columns = r.Entries.Columns

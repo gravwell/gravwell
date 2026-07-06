@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -257,6 +258,18 @@ func SendHotkey(b key.Binding) tea.KeyMsg {
 	msg.Runes = []rune(k)
 
 	return msg
+}
+
+var rgxID = regexp.MustCompile(`\(ID:(.*)\)`)
+
+// FindID attempts to fish out the ID of a newly created asset by hunting for the "(ID: <asset ID>)" substring.
+// Returns the first match ("<asset ID>") or the empty string.
+func FindID(stdout string) string {
+	matches := rgxID.FindStringSubmatch(stdout)
+	if len(matches) > 1 { // 0: the full regex match, 1: the capture group
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
 }
 
 var keyByName = map[string]tea.KeyType{

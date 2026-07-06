@@ -172,7 +172,7 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 
 	// get the item to edit
 	if itm, err = funcs.SelectSub(id); err != nil {
-		return fmt.Errorf("Failed to select %s (id: %v): %w", singular, id, err)
+		return fmt.Errorf("failed to select %s (id: %v): %w", singular, id, err)
 	}
 
 	var fieldUpdated bool   // was a value actually changed?
@@ -202,7 +202,7 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 	}
 
 	if !fieldUpdated { // only bother to update if at least one field was changed
-		return errors.New("no field would be updated; quitting...")
+		return errors.New("no field would be updated; quitting")
 	}
 
 	// perform the actual update

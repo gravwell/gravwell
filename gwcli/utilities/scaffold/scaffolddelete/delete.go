@@ -39,10 +39,12 @@ import (
 )
 
 // DeleteFunc is the driver function for this action; it performs the (faux-, on dryrun) deletion once an item is picked.
-type DeleteFunc[I scaffold.Id_t] func(dryrun bool, ID I) error
+type DeleteFunc[I scaffold.Id_t] func(dryrun bool, ID I, fs *pflag.FlagSet) error
 
 // FetchFunc is the precursor function; it fetches and formats the list of delete-able items.
-type FetchFunc[I scaffold.Id_t] func() ([]multiselectlist.SelectableItem[I], error)
+// It is called iff we enter interactive mode.
+// If the action is non-interactive or direct-invoked and IDs are given, we skip directly to the DeleteFunc.
+type FetchFunc[I scaffold.Id_t] func(param DataParameters) ([]multiselectlist.SelectableItem[I], error)
 
 const (
 	DryrunSuccessTextF = "DRYRUN: %v (ID: %v) would have been deleted"
@@ -64,12 +66,8 @@ const heightBuffer = 4
 //
 // FetchFunc is a function that fetches all delete-able records for the user to pick from.
 // It is primarily used in interactive mode, as this is bypassed if a user states IDs as args.
-func NewDeleteAction[I scaffold.Id_t](
-	singular, plural string,
-	del DeleteFunc[I],
-	fch FetchFunc[I],
-	opts Options) action.Pair {
-
+func NewDeleteAction[I scaffold.Id_t](singular string, del DeleteFunc[I], fch FetchFunc[I], opts Options) action.Pair {
+	plural := english.PluralWord(2, singular, "")
 	var usage string
 	if opts.AddtlFlags != nil {
 		usage = ft.Optional("FLAGS")
@@ -99,7 +97,7 @@ func NewDeleteAction[I scaffold.Id_t](
 
 			// non-interactive: delete each given id
 			var atLeastOneSuccess bool
-			results := attemptDeletions(singular, IDs, dryrun, del)
+			results := attemptDeletions(singular, IDs, dryrun, del, c.Flags())
 			for _, res := range results {
 				if res.err != nil {
 					fmt.Fprintln(c.ErrOrStderr(), res.err.Error())
@@ -115,8 +113,19 @@ func NewDeleteAction[I scaffold.Id_t](
 		}, treeutils.GenerateActionOptions{Usage: usage})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
+	if opts.QueryOptionsFlags != nil {
+		opts.QueryOptionsFlags.Install(cmd.Flags())
+
+	}
 	opts.Apply(cmd)
-	d := newDeleteModel(singular, plural, del, fch)
+	d := &deleteModel[I]{
+		itemSingular: singular,
+		itemPlural:   plural,
+		mode:         modeSelecting,
+		del:          del,
+		fch:          fch,
+		options:      opts,
+	}
 	return action.NewPair(cmd, d)
 }
 
@@ -144,7 +153,7 @@ func getFlags[I scaffold.Id_t](fs *pflag.FlagSet) (ids []I, dryrun bool, _ error
 }
 
 // attemptDeletion is the actual deletion actor, used to keep the behavior of each entry point uniform.
-func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, del DeleteFunc[I]) (results []struct {
+func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, del DeleteFunc[I], fs *pflag.FlagSet) (results []struct {
 	success string
 	err     error
 }) {
@@ -153,7 +162,7 @@ func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, de
 		err     error
 	}, len(IDs))
 	for i, ID := range IDs {
-		if err := del(dryrun, ID); err != nil {
+		if err := del(dryrun, ID, fs); err != nil {
 			if phrases.IsNotFoundErr(err) {
 				results[i] = struct {
 					success string
@@ -206,6 +215,7 @@ type deleteModel[I scaffold.Id_t] struct {
 	dryrun       bool
 	del          DeleteFunc[I] // function to delete an item
 	fch          FetchFunc[I]  // function to get all delete-able items
+	options      Options
 
 	// selecting mode
 	msl multiselectlist.Model[I]
@@ -216,22 +226,51 @@ type deleteModel[I scaffold.Id_t] struct {
 	flagset pflag.FlagSet
 }
 
-func newDeleteModel[I scaffold.Id_t](singular, plural string, del DeleteFunc[I], fch FetchFunc[I]) *deleteModel[I] {
-	d := &deleteModel[I]{
-		itemSingular: singular,
-		itemPlural:   plural,
-		mode:         modeSelecting,
-		del:          del,
-		fch:          fch,
-	}
-	d.flagset = flags()
-	return d
-}
-
 func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
+	// parse flags
+	d.flagset = flags()
+	if d.options.AddtlFlags != nil {
+		d.flagset.AddFlagSet(d.options.AddtlFlags())
+	}
+	if d.options.QueryOptionsFlags != nil {
+		d.options.QueryOptionsFlags.Install(&d.flagset)
+	}
+	if err := d.flagset.Parse(tokens); err != nil {
+		return err.Error(), nil, nil
+	}
+	IDs, dryrun, err := getFlags[I](&d.flagset)
+	if err != nil {
+		return "", nil, err
+	}
+	d.dryrun = dryrun
+
+	if len(IDs) > 0 {
+		// Pre-select items by flag and skip directly to result
+		d.mode = modeDone
+		var atLeastOneSuccess bool
+		results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del, &d.flagset)
+		cmds := make([]tea.Cmd, len(results))
+		for i, res := range results {
+			if res.err != nil {
+				cmds[i] = tea.Println(res.err.Error())
+			} else {
+				cmds[i] = tea.Println(res.success)
+				atLeastOneSuccess = true
+			}
+		}
+		if !atLeastOneSuccess {
+			cmds = append(cmds, tea.Println("all operations failed"))
+		}
+		return "", tea.Sequence(cmds...), nil
+	}
+
 	// fetch deleteable items
-	itms, err := d.fch()
+	params := DataParameters{}
+	if d.options.QueryOptionsFlags != nil {
+		params.QueryOpts = d.options.QueryOptionsFlags.QueryOptions(&d.flagset)
+	}
+	itms, err := d.fch(params)
 	if err != nil {
 		return "", nil, err
 	}
@@ -250,36 +289,6 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, heigh
 
 	// initialize confirmation with a single choice: "item selection"
 	d.confirm.Init([]string{"item selection"}, uint(width), uint(height))
-
-	// parse flags
-	if err := d.flagset.Parse(tokens); err != nil {
-		return err.Error(), nil, nil
-	}
-	IDs, dryrun, err := getFlags[I](&d.flagset)
-	if err != nil {
-		return "", nil, err
-	}
-	d.dryrun = dryrun
-
-	if len(IDs) > 0 {
-		// Pre-select items by flag and skip directly to result
-		d.mode = modeDone
-		var atLeastOneSuccess bool
-		results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del)
-		cmds := make([]tea.Cmd, len(results))
-		for i, res := range results {
-			if res.err != nil {
-				cmds[i] = tea.Println(res.err.Error())
-			} else {
-				cmds[i] = tea.Println(res.success)
-				atLeastOneSuccess = true
-			}
-		}
-		if !atLeastOneSuccess {
-			cmds = append(cmds, tea.Println("all operations failed"))
-		}
-		return "", tea.Sequence(cmds...), nil
-	}
 
 	return "", nil, nil
 }
@@ -332,7 +341,7 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 				IDs[i] = sel.ID()
 			}
 			var atLeastOneSuccess bool
-			results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del)
+			results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del, &d.flagset)
 			cmds := make([]tea.Cmd, len(results))
 			for i, res := range results {
 				if res.err != nil {
@@ -390,7 +399,6 @@ func (d *deleteModel[I]) Done() bool {
 
 func (d *deleteModel[I]) Reset() error {
 	d.mode = modeSelecting
-	d.flagset = flags()
 	d.msl = multiselectlist.Model[I]{}
 	d.confirm = confirmation.Model{}
 	return nil

@@ -147,19 +147,24 @@ func state() action.Pair {
 				var sb strings.Builder
 				for idxr, stats := range idxrs {
 					// pad indexers to all the same length
-					sb.WriteString(strings.Repeat(" ", longestNameLength-len(idxr)) + idxr + " ")
+					sb.WriteString(strings.Repeat(" ", longestNameLength-len(idxr)))
+					sb.WriteString(idxr)
+					sb.WriteString(" ")
 
 					// colourize state based on whether or not it is in error
 					if stats.Error == "" {
-						sb.WriteString("is " + stylesheet.Cur.PrimaryText.Render("OK"))
+						sb.WriteString("is ")
+						sb.WriteString(stylesheet.Cur.PrimaryText.Render("OK"))
 					} else {
-						sb.WriteString("is " + stylesheet.Cur.ErrorText.Render("in error!") + "\n")
+						sb.WriteString("is ")
+						sb.WriteString(stylesheet.Cur.ErrorText.Render("in error!"))
+						sb.WriteString("\n")
 						sb.WriteString(stylesheet.Cur.ErrorText.Render(stats.Error))
 					}
 					sb.WriteRune('\n')
 				}
 				return sb.String()[:sb.Len()-1], nil
 			},
-			Omit: scaffold.OmitFlags{Everything: true},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})
 }

@@ -35,7 +35,7 @@ func TestDeriveFlagName(t *testing.T) {
 // A rather off-the-wall test to ensure that the brackets used to indicate flag semantics (mandatory, optional, mutually exclusive) are varied.
 func TestUnequalBrackets(t *testing.T) {
 	text := "some text"
-	if m, o, me := ft.Mandatory(text), ft.Optional(text), ft.MutuallyExclusive([]string{text}); m == o || m == me || o == me {
+	if m, o, me := ft.Mandatory(text), ft.Optional(text), ft.MutuallyExclusive(text); m == o || m == me || o == me {
 		t.Fatalf("flag semantic brackets must differ. Got: Mandatory=%v|Optional=%v|Mutually Exclusive=%v", m, o, me)
 	}
 }

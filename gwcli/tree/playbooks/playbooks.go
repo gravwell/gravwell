@@ -74,15 +74,8 @@ func download() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			data := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, pb := range lr.Results {
-				data[i] = &listitem.Generic{
-					ID_:        pb.ID,
-					Name:       pb.Name,
-					SecondLine: pb.Description,
-				}
-			}
-			return data, nil
+
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// check for output
@@ -146,8 +139,8 @@ func create() action.Pair {
 			"content": {
 				Title:    "Content",
 				Required: false,
-				Flag: scaffoldcreate.FlagConfig{Usage: "Markdown content of the new playbook." +
-					"Use " + ft.Path.Name() + " to read content from a file instead."}, // TODO prepopulate this TA with the file's contents
+				Flag: scaffoldcreate.FlagConfig{Usage: "Markdown content of the new playbook. " +
+					"Use " + ft.Path.Name() + " to read content from a file instead."},
 				Order:    80,
 				Provider: &scaffoldcreate.TextAreaProvider{},
 			},
@@ -181,7 +174,7 @@ func create() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "markdown file")
+					ft.Path.Register(fs, "", "markdown file. Overwrites --content.")
 					return fs
 				},
 			},
@@ -189,31 +182,22 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("playbook", "playbooks",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("playbook",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetPlaybook(id)
 				return err
 			}
 			return connection.Client.DeletePlaybook(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListPlaybooks(nil)
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListPlaybooks(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, p := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        p.ID,
-					Name:       p.Name,
-					SecondLine: p.Description,
-				}
-			}
 
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {

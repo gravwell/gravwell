@@ -463,7 +463,7 @@ func TestJWTRefreshing(t *testing.T) {
 		t.Error("token file was not updated while we were sleeping")
 	}
 	// validate that we can still make calls
-	_, err = connection.Client.ListKits()
+	_, err = connection.Client.ListKits(nil)
 	if err != nil {
 		t.Error("client failed to fetch kits:", err)
 	}

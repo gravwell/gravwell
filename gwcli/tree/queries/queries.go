@@ -88,6 +88,7 @@ func past() action.Pair {
 				"EffectiveQuery",
 				"Launched",
 			},
+			QueryOptionsFlags: scaffold.QOInclude{AllData: true, Limit: true},
 		})
 }
 
@@ -182,7 +183,7 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			Omit: scaffold.OmitFlags{
+			QueryOptionsFlags: scaffold.QOOmit{
 				AllData:        false,
 				IncludeDeleted: true,
 				Limit:          true,
@@ -315,18 +316,18 @@ func background() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("search ID", "search IDs",
-		func(dryrun bool, ID string) error {
+	return scaffolddelete.NewDeleteAction("search ID",
+		func(dryrun bool, ID string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.SearchStatus(ID)
 				return err
 			}
 			return connection.Client.DeleteSearch(ID)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
+		func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
-		scaffolddelete.Options{})
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOOmit{Everything: true}})
 }
 
 // TODO this should be converted to a scaffoldcreate with two MSL fields after the scaffoldcreate/edit merge.

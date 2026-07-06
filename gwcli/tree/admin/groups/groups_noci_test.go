@@ -153,7 +153,7 @@ func TestComplete(t *testing.T) {
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"admin", "groups", "delete",
-				"--id="+strconv.FormatInt(int64(groupID), 10),
+				strconv.FormatInt(int64(groupID), 10),
 			),
 			&stdout,
 			&stderr))

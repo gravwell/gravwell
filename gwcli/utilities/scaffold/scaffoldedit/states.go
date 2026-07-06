@@ -132,7 +132,8 @@ func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) 
 	var sb strings.Builder // reused each cycle
 	for i, kti := range ktis {
 		// apply consistent left padding, then pip
-		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.Title)) + stylesheet.Pip(selectedIdx, uint(i)))
+		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.Title)))
+		sb.WriteString(stylesheet.Pip(selectedIdx, uint(i)))
 		// colourize and attach title
 		if kti.Required {
 			sb.WriteString(stylesheet.RequiredTitle(kti.Title))
