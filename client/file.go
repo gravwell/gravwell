@@ -11,7 +11,6 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,10 +61,10 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions, previewBytes uin
 	resp, err := c.methodParamRequestURL(http.MethodGet, filesIdRawUrl(id), map[string]string{
 		"include_deleted": strconv.FormatBool(opts.IncludeDeleted),
 		"bytes":           strconv.FormatUint(previewBytes, 10),
-	}, nil)
+	})
 	if err != nil {
 		return nil, err
-	} else if err := checkResponse(c, resp); err != nil {
+	} else if err := aliasResponseError(c, resp); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -163,19 +162,11 @@ func (c *Client) PopulateFileFromReader(id string, extension string, data io.Rea
 	if err != nil {
 		return types.File{}, err
 	}
-	defer drainResponse(resp)
 
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return types.File{}, ErrNotAuthed
-	} else if resp.StatusCode != http.StatusOK {
-		if s := getBodyErr(resp.Body); len(s) > 0 {
-			err = errors.New(s)
-		} else {
-			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
-		}
+	if err := aliasResponseError(c, resp); err != nil {
 		return types.File{}, err
 	}
+	defer drainResponse(resp)
 
 	// decode the metadata response
 	confirmation := types.File{}
