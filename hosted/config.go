@@ -3,9 +3,14 @@ package hosted
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrInvalidIngesterUUID = errors.New("invalid Ingester-UUID")
 )
 
 // ParseUUID attempts to parse an ingester UUID string.
@@ -26,6 +31,18 @@ type BaseConfig struct {
 
 func (b *BaseConfig) UUID() uuid.UUID {
 	return ParseUUID(b.Ingester_UUID)
+}
+
+// VerifyIngesterUUIDWithFallback validates the Ingester-UUID field is a valid UUID.
+// Sets fallback as Ingester-UUID if its empty.
+// Returns ErrInvalidIngesterUUID if we could not parse Ingester-UUID.
+func (b *BaseConfig) VerifyIngesterUUIDWithFallback(fallback string) error {
+	if b.Ingester_UUID == `` {
+		b.Ingester_UUID = fallback
+	} else if _, err := uuid.Parse(b.Ingester_UUID); err != nil {
+		return fmt.Errorf("%w %q %w", ErrInvalidIngesterUUID, b.Ingester_UUID, err)
+	}
+	return nil
 }
 
 // SingleTagConfig holds a single tag name.

@@ -16,10 +16,11 @@ import (
 )
 
 const (
-	defaultHost              = "https://api.services.mimecast.com"
-	defaultLookback          = 24
-	defaultRequestsPerMinute = 5
-	defaultInterval          = 300
+	defaultHost                     = "https://api.services.mimecast.com"
+	defaultLookback                 = 24
+	defaultRequestsPerMinute        = 5
+	defaultInterval                 = 300
+	defaultIngesterUUIDStr   string = "e528af50-3ccf-41be-b930-78ae9e10648d"
 )
 
 type Config struct {
@@ -57,6 +58,11 @@ func (c *Config) Verify() error {
 	if err := c.MultiTagConfig.ValidateTags(); err != nil {
 		return err
 	}
+
+	if err := c.VerifyIngesterUUIDWithFallback(defaultIngesterUUIDStr); err != nil {
+		return err
+	}
+
 	return nil
 }
 

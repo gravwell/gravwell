@@ -1,6 +1,7 @@
 package hosted
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -196,4 +197,69 @@ func TestPollingConfig_PendingOrInterval(t *testing.T) {
 			t.Errorf("expected 30s delay, got %v", c.Delay)
 		}
 	})
+}
+
+func TestVerifyIngesterUUIDWithFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		input      string
+		fallback   string
+		wantErr    bool
+		wantUUID   string
+		errWrapped bool
+	}{
+		{
+			name:       "empty sets fallback",
+			input:      "",
+			fallback:   "fallback-uuid",
+			wantErr:    false,
+			wantUUID:   "fallback-uuid",
+			errWrapped: false,
+		},
+		{
+			name:       "valid UUID passes through",
+			input:      "550e8400-e29b-41d4-a716-446655440000",
+			fallback:   "fallback",
+			wantErr:    false,
+			wantUUID:   "550e8400-e29b-41d4-a716-446655440000",
+			errWrapped: false,
+		},
+		{
+			name:       "invalid UUID returns error",
+			input:      "not-a-uuid",
+			fallback:   "fallback",
+			wantErr:    true,
+			wantUUID:   "not-a-uuid",
+			errWrapped: true,
+		},
+		{
+			name:       "invalid UUID does not override",
+			input:      "bogus-uuid-string",
+			fallback:   "d3667414-e373-4692-a1e2-3a18147e5aa6",
+			wantErr:    true,
+			wantUUID:   "bogus-uuid-string",
+			errWrapped: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			b := BaseConfig{Ingester_UUID: tt.input}
+			err := b.VerifyIngesterUUIDWithFallback(tt.fallback)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("VerifyIngesterUUIDWithFallback(%q, %q) error = %v, wantErr %v", tt.input, tt.fallback, err, tt.wantErr)
+			}
+			if tt.errWrapped {
+				if !errors.Is(err, ErrInvalidIngesterUUID) {
+					t.Errorf("expected error to wrap ErrInvalidIngesterUUID, got %v", err)
+				}
+			}
+			if b.Ingester_UUID != tt.wantUUID {
+				t.Errorf("Ingester_UUID = %q, want %q", b.Ingester_UUID, tt.wantUUID)
+			}
+		})
+	}
 }

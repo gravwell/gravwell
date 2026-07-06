@@ -13,15 +13,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 const (
-	defaultLookbackHours          = 168 // 7 days
-	defaultRequestsPerMin         = 10
-	defaultRequestIntervalSeconds = 30
-	defaultGraphHost              = "https://graph.microsoft.com"
-	defaultAuthHost               = "https://login.microsoftonline.com"
+	defaultLookbackHours                 = 168 // 7 days
+	defaultRequestsPerMin                = 10
+	defaultRequestIntervalSeconds        = 30
+	defaultGraphHost                     = "https://graph.microsoft.com"
+	defaultAuthHost                      = "https://login.microsoftonline.com"
+	defaultIngesterUUIDStr        string = "d3667414-e373-4692-a1e2-3a18147e5aa6"
 )
 
 type ErrInvalidConfigValue struct {
@@ -38,7 +39,7 @@ func (err ErrInvalidConfigValue) Error() string {
 
 // Config is the hosted plugin configuration for the MS Graph Security ingester.
 type Config struct {
-	Ingester_UUID       string
+	hosted.BaseConfig
 	Tenant_ID           string
 	Client_ID           string
 	Client_Secret       string `json:"-"`
@@ -92,6 +93,10 @@ func (c *Config) Verify() error {
 		errs = append(errs, ErrInvalidConfigValue{Field: "Request-Interval", Message: "cannot be negative"})
 	}
 
+	if err := c.VerifyIngesterUUIDWithFallback(defaultIngesterUUIDStr); err != nil {
+		errs = append(errs, err)
+	}
+
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
@@ -103,16 +108,6 @@ func (c *Config) Verify() error {
 	c.Auth_Host = cmp.Or(c.Auth_Host, defaultAuthHost)
 
 	return nil
-}
-
-// UUID returns the parsed ingester UUID, or uuid.Nil if empty/invalid UUID.
-func (c *Config) UUID() uuid.UUID {
-	if c.Ingester_UUID != "" {
-		if val, err := uuid.Parse(c.Ingester_UUID); err == nil {
-			return val
-		}
-	}
-	return uuid.Nil
 }
 
 // Tags returns all of the tags we're configured for based off the configured content types.

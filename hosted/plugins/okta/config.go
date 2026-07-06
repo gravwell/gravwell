@@ -14,8 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
+)
+
+const (
+	defaultIngesterUUIDStr string = "55af6d4e-3d04-431b-b860-b15b921a46c5"
 )
 
 const (
@@ -69,10 +72,9 @@ func (c *Config) Verify() (err error) {
 		return
 	}
 
-	if c.Ingester_UUID == `` {
-		return errors.New("missing Ingester-UUID")
-	} else if _, err = uuid.Parse(c.Ingester_UUID); err != nil {
-		return fmt.Errorf("invalid Ingester-UUID %q %w", c.Ingester_UUID, err)
+	if err := c.VerifyIngesterUUIDWithFallback(defaultIngesterUUIDStr); err != nil {
+		return err
 	}
+
 	return
 }
