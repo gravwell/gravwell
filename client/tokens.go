@@ -21,9 +21,9 @@ func (c *Client) TokenCapabilities() (cl []string, err error) {
 	return
 }
 
-// CreateToken instantiates a new token. Note that this is the only
-// case in which a TokenFull object (containing the Value field) is
-// returned.
+// CreateToken instantiates a new token. CreateToken and RegenToken are
+// the only cases in which a TokenFull object (containing the Value field)
+// is returned.
 func (c *Client) CreateToken(tc types.Token) (tf types.TokenFull, err error) {
 	err = c.postStaticURL(tokensUrl(), tc, &tf)
 	return
