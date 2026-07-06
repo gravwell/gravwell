@@ -389,7 +389,7 @@ func (c *Client) GetLibFile(repo, commit, fn string) (bts []byte, err error) {
 	}
 	mp[`path`] = fn
 	var resp *http.Response
-	if resp, err = c.methodParamRequestURL(http.MethodGet, LIBS_URL, mp, nil); err == nil {
+	if resp, err = c.methodParamRequestURL(http.MethodGet, LIBS_URL, mp); err == nil {
 		if resp.StatusCode != 200 {
 			if err = decodeBodyError(resp.Body); err == nil {
 				err = fmt.Errorf("Invalid response code: %s(%d)", resp.Status, resp.StatusCode)
