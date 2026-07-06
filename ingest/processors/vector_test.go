@@ -10,6 +10,7 @@ package processors
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -420,5 +421,155 @@ func TestVectorProcessorRetry(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&calls); got != 3 {
 		t.Errorf("expected 3 attempts (2 rate-limited + 1 success), got %d", got)
+	}
+}
+
+func TestVectorEmptyEmbedding(t *testing.T) {
+	// Each data entry has the correct count but zero-length embeddings.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req embeddingRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		resp := struct {
+			Data []struct {
+				Index     int       `json:"index"`
+				Embedding []float64 `json:"embedding"`
+			} `json:"data"`
+		}{Data: nil}
+		for i := range len(req.Input) {
+			resp.Data = append(resp.Data, struct {
+				Index     int       `json:"index"`
+				Embedding []float64 `json:"embedding"`
+			}{Index: i, Embedding: []float64{}})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer ts.Close()
+
+	cfg := VectorConfig{Model: "m", Endpoint: ts.URL + "/v1/embeddings", Token: "test-token"}
+	p, err := NewVectorProcessor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rset, err := p.Process([]*entry.Entry{makeVectorEntry("empty embed test", 1)})
+	if err == nil {
+		t.Fatal("expected error for empty embedding, got nil")
+	}
+	if !errors.Is(err, ErrEmptyEmbedding) {
+		t.Errorf("expected ErrEmptyEmbedding, got %v", err)
+	}
+	if rset != nil {
+		t.Errorf("expected nil result set on error, got %d entries", len(rset))
+	}
+}
+
+func TestVectorWrongEmbeddingCount(t *testing.T) {
+	// Provider returns fewer embeddings than requested — must return ErrEmbeddingCount.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req embeddingRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		resp := struct {
+			Data []struct {
+				Index     int       `json:"index"`
+				Embedding []float64 `json:"embedding"`
+			} `json:"data"`
+		}{Data: nil}
+		// Send only 1 embedding when we requested 2.
+		resp.Data = append(resp.Data, struct {
+			Index     int       `json:"index"`
+			Embedding []float64 `json:"embedding"`
+		}{Index: 0, Embedding: []float64{0.5}})
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer ts.Close()
+
+	cfg := VectorConfig{Model: "m", Endpoint: ts.URL + "/v1/embeddings", Token: "test-token"}
+	p, err := NewVectorProcessor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rset, err := p.Process([]*entry.Entry{makeVectorEntry("count mismatch 1", 1), makeVectorEntry("count mismatch 2", 1)})
+	if err == nil {
+		t.Fatal("expected error for wrong embedding count, got nil")
+	}
+	var wantErr = ErrEmbeddingCount
+	if !errors.Is(err, wantErr) {
+		t.Errorf("expected %v, got %v", wantErr, err)
+	}
+	if rset != nil {
+		t.Errorf("expected nil result set on error, got %d entries", len(rset))
+	}
+}
+
+func TestVectorTooManyEmbeddings(t *testing.T) {
+	// Provider returns more embeddings than requested — must return ErrEmbeddingCount.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req embeddingRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		resp := struct {
+			Data []struct {
+				Index     int       `json:"index"`
+				Embedding []float64 `json:"embedding"`
+			} `json:"data"`
+		}{Data: nil}
+		// Send 3 embeddings when we requested 2.
+		for i := range 3 {
+			resp.Data = append(resp.Data, struct {
+				Index     int       `json:"index"`
+				Embedding []float64 `json:"embedding"`
+			}{Index: i, Embedding: []float64{0.1}})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer ts.Close()
+
+	cfg := VectorConfig{Model: "m", Endpoint: ts.URL + "/v1/embeddings", Token: "test-token"}
+	p, err := NewVectorProcessor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rset, err := p.Process([]*entry.Entry{makeVectorEntry("too many 1", 1), makeVectorEntry("too many 2", 1)})
+	if err == nil {
+		t.Fatal("expected error for too many embeddings, got nil")
+	}
+	if !errors.Is(err, ErrEmbeddingCount) {
+		t.Errorf("expected ErrEmbeddingCount, got %v", err)
+	}
+	if rset != nil {
+		t.Errorf("expected nil result set on error, got %d entries", len(rset))
+	}
+}
+
+func TestVectorInvalidEmbeddingResponse(t *testing.T) {
+	// Provider returns non-JSON body — must return a JSON parse error.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{invalid json`))
+	}))
+	defer ts.Close()
+
+	cfg := VectorConfig{Model: "m", Endpoint: ts.URL + "/v1/embeddings", Token: "test-token"}
+	p, err := NewVectorProcessor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = p.Process([]*entry.Entry{makeVectorEntry("bad json", 1)})
+	if err == nil {
+		t.Fatal("expected JSON parse error, got nil")
 	}
 }

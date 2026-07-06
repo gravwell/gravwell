@@ -31,13 +31,14 @@ const (
 	defaultVectorRetryAttempts = 3
 	vectorRetryBaseDelay       = 250 * time.Millisecond
 	vectorRetryMaxDelay        = 5 * time.Second
+	maxEmbeddingResponseSize   = 1 << 20 // 1 MB — guard against unbounded response bodies
 )
 
 var (
-	ErrMissingModel    = errors.New("Missing Model in vector config")
-	ErrMissingEndpoint = errors.New("Missing Endpoint in vector config")
-	ErrInvalidEndpoint = errors.New("Invalid Endpoint in vector config")
-	ErrEmptyEmbedding  = errors.New("Empty embedding response")
+	ErrMissingModel    = errors.New("missing model in vector config")
+	ErrMissingEndpoint = errors.New("missing endpoint in vector config")
+	ErrInvalidEndpoint = errors.New("invalid endpoint in vector config")
+	ErrEmptyEmbedding  = errors.New("empty embedding response")
 	ErrEmbeddingCount  = errors.New("Embedding response count does not match request")
 )
 
@@ -132,6 +133,7 @@ func (vp *VectorProc) Process(ents []*entry.Entry) (rset []*entry.Entry, err err
 		idx = append(idx, i)
 		inputs = append(inputs, string(ent.Data))
 	}
+	// Reuse the slice backing store — zero-copy reset to length 0, capacity preserved.
 	rset = ents[:0]
 	if len(inputs) == 0 {
 		return
@@ -233,8 +235,11 @@ func (vp *VectorProc) doEmbeddingRequest(reqBody []byte, want int) ([][]float64,
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxEmbeddingResponseSize))
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, false, fmt.Errorf("embedding response exceeded %d bytes", maxEmbeddingResponseSize)
+		}
 		return nil, true, err
 	}
 
