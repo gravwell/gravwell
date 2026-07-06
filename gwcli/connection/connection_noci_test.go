@@ -477,9 +477,11 @@ func TestJWTRefreshing(t *testing.T) {
 func generateAPIToken(t *testing.T, testclient *grav.Client) (tkn string) {
 	const tknfailVal string = "UNSET"
 	tf, err := testclient.CreateToken(
-		types.TokenCreate{
-			Name:         "LoginMFAToken",
-			Description:  "API token for the LoginMFA tests",
+		types.Token{
+			CommonFields: types.CommonFields{
+				Name:        "LoginMFAToken",
+				Description: "API token for the LoginMFA tests",
+			},
 			ExpiresAt:    time.Now().Add(apiTokenExpiryDur),
 			Capabilities: []string{"ListUsers", "ListGroups", "ListGroupMembers", "MacroRead", "PivotRead"}})
 	if err != nil {
