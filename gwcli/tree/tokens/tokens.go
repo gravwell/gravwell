@@ -291,9 +291,11 @@ func create() action.Pair {
 
 	return scaffoldcreate.NewCreateAction("token", fields,
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			tc := types.TokenCreate{
-				Name:        cfg["name"].Provider.Get(),
-				Description: cfg["desc"].Provider.Get(),
+			tc := types.Token{
+				CommonFields: types.CommonFields{
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
+				},
 			}
 
 			if caps := cfg["capabilities"].Provider.Get(); strings.TrimSpace(caps) != "" {
@@ -431,7 +433,7 @@ func regenerate() action.Pair {
 			},
 			UpdateSub: func(data *types.Token) (identifier string, err error) {
 				tr := types.TokenRegeneration{
-					Expires: data.ExpiresAt,
+					ExpiresAt: data.ExpiresAt,
 				}
 				tf, err := connection.Client.RegenToken(data.ID, tr)
 				if err != nil {

@@ -89,9 +89,11 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "failed to retrieve capabilities list: %v\n", err)
 		os.Exit(1)
 	}
-	tkn, err := client.CreateToken(types.TokenCreate{
-		Name:         "integration_test_login_token",
-		Description:  "grants all capabilities",
+	tkn, err := client.CreateToken(types.Token{
+		CommonFields: types.CommonFields{
+			Name:        "integration_test_login_token",
+			Description: "grants all capabilities",
+		},
 		ExpiresAt:    time.Now().Add(time.Hour),
 		Capabilities: caps,
 	})

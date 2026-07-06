@@ -21,10 +21,10 @@ func (c *Client) TokenCapabilities() (cl []string, err error) {
 	return
 }
 
-// CreateToken instantiates a new token. Note that this is the only
-// case in which a TokenFull object (containing the Value field) is
-// returned.
-func (c *Client) CreateToken(tc types.TokenCreate) (tf types.TokenFull, err error) {
+// CreateToken instantiates a new token. CreateToken and RegenToken are
+// the only cases in which a TokenFull object (containing the Value field)
+// is returned.
+func (c *Client) CreateToken(tc types.Token) (tf types.TokenFull, err error) {
 	err = c.postStaticURL(tokensUrl(), tc, &tf)
 	return
 }
@@ -59,8 +59,8 @@ func (c *Client) GetTokenEx(id string, opts *types.QueryOptions) (types.Token, e
 }
 
 // UpdateToken modifies an existing token.
-func (c *Client) UpdateToken(id string, tr types.TokenCreate) (t types.Token, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(id), tr, &t, nil, nil)
+func (c *Client) UpdateToken(tr types.Token) (t types.Token, err error) {
+	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(tr.ID), tr, &t, nil, nil)
 	return
 }
 
