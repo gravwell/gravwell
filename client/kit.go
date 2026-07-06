@@ -112,7 +112,7 @@ func (c *Client) PullKit(id string) (pc types.KitState, err error) {
 }
 
 // ListRemoteKits returns a list of kits available on the kit server.
-func (c *Client) ListRemoteKits(all bool) (mds []types.KitMetadata, err error) {
+func (c *Client) ListRemoteKits(all bool) (mds types.RemoteKitListResponse, err error) {
 	err = c.getStaticURL(remoteKitUrl(all), &mds)
 	return
 }
