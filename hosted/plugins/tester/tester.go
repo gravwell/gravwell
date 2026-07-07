@@ -40,7 +40,7 @@ func (c *Config) Verify() (err error) {
 			return err
 		}
 	}
-	if err := c.VerifyIngesterUUID(); err != nil {
+	if err := c.BaseConfig.Verify(); err != nil {
 		return err
 	}
 

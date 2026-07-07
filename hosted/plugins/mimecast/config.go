@@ -61,7 +61,7 @@ func (c *Config) Verify() error {
 		return err
 	}
 
-	if err := c.VerifyIngesterUUID(); err != nil {
+	if err := c.BaseConfig.Verify(); err != nil {
 		return err
 	}
 

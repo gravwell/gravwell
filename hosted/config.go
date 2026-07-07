@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrInvalidIngesterUUID = errors.New("invalid Ingester-UUID")
+	ErrInvalidConfigValue = errors.New("invalid config value")
 )
 
 // ParseUUID attempts to parse an ingester UUID string.
@@ -38,11 +38,11 @@ func (b *BaseConfig) ApplyDefaultIngesterUUID(defaultIngesterUUID string) {
 	b.Ingester_UUID = cmp.Or(b.Ingester_UUID, defaultIngesterUUID)
 }
 
-// VerifyIngesterUUID validates the Ingester-UUID field is a valid UUID.
-// Returns ErrInvalidIngesterUUID if we could not parse Ingester-UUID.
-func (b *BaseConfig) VerifyIngesterUUID() error {
+// Verify validates required fields.
+// Returns ErrInvalidConfigValue if something fails validation.
+func (b *BaseConfig) Verify() error {
 	if _, err := uuid.Parse(b.Ingester_UUID); err != nil {
-		return fmt.Errorf("%w %q %w", ErrInvalidIngesterUUID, b.Ingester_UUID, err)
+		return fmt.Errorf("%w: invalid Ingester-UUID %q %w", ErrInvalidConfigValue, b.Ingester_UUID, err)
 	}
 	return nil
 }

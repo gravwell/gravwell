@@ -95,7 +95,7 @@ func (c *Config) Verify() error {
 		errs = append(errs, ErrInvalidConfigValue{Field: "Request-Interval", Message: "cannot be negative"})
 	}
 
-	if err := c.VerifyIngesterUUID(); err != nil {
+	if err := c.BaseConfig.Verify(); err != nil {
 		errs = append(errs, err)
 	}
 

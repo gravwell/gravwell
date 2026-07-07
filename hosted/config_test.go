@@ -1,49 +1,58 @@
 package hosted
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// TestBaseConfig_VerifyIngesterUUID_Valid catches that valid UUIDs pass validation.
-func TestBaseConfig_VerifyIngesterUUID_Valid(t *testing.T) {
+// TestBaseConfig_Verify_Valid catches that valid UUIDs pass validation.
+func TestBaseConfig_Verify_Valid(t *testing.T) {
 	t.Parallel()
 	b := BaseConfig{Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000"}
-	if err := b.VerifyIngesterUUID(); err != nil {
-		t.Errorf("VerifyIngesterUUID() = %v, want nil", err)
+	if err := b.Verify(); err != nil {
+		t.Errorf("Verify() = %v, want nil", err)
 	}
 }
 
-// TestBaseConfig_VerifyIngesterUUID_Invalid catches that invalid UUIDs return ErrInvalidIngesterUUID.
-func TestBaseConfig_VerifyIngesterUUID_Invalid(t *testing.T) {
+// TestBaseConfig_Verify_Invalid catches that invalid UUIDs return ErrInvalidConfigValue.
+func TestBaseConfig_Verify_Invalid(t *testing.T) {
 	t.Parallel()
 	b := BaseConfig{Ingester_UUID: "not-a-uuid"}
-	err := b.VerifyIngesterUUID()
+	err := b.Verify()
 	if err == nil {
-		t.Fatal("VerifyIngesterUUID() = nil, want error")
+		t.Fatal("Verify() = nil, want error")
 	}
-	if err.Error() == "" {
-		t.Error("VerifyIngesterUUID() error message is empty")
+	if !errors.Is(err, ErrInvalidConfigValue) {
+		t.Errorf("Verify() error = %v, want wrapped %v", err, ErrInvalidConfigValue)
 	}
 }
 
-// TestBaseConfig_VerifyIngesterUUID_Empty catches that empty UUID is treated as invalid by uuid.Parse.
-func TestBaseConfig_VerifyIngesterUUID_Empty(t *testing.T) {
+// TestBaseConfig_Verify_Empty catches that empty UUID is rejected by validation.
+func TestBaseConfig_Verify_Empty(t *testing.T) {
 	t.Parallel()
 	b := BaseConfig{Ingester_UUID: ""}
-	if err := b.VerifyIngesterUUID(); err == nil {
-		t.Errorf("VerifyIngesterUUID() = nil, want error for empty string (uuid.Parse rejects it)")
+	err := b.Verify()
+	if err == nil {
+		t.Errorf("Verify() = nil, want error for empty string")
+	}
+	if !errors.Is(err, ErrInvalidConfigValue) {
+		t.Errorf("Verify() error = %v, want wrapped %v", err, ErrInvalidConfigValue)
 	}
 }
 
-// TestBaseConfig_VerifyIngesterUUID_Malformed catches that shorter UUID strings are rejected.
-func TestBaseConfig_VerifyIngesterUUID_Malformed(t *testing.T) {
+// TestBaseConfig_Verify_Malformed catches that shorter UUID strings are rejected.
+func TestBaseConfig_Verify_Malformed(t *testing.T) {
 	t.Parallel()
 	b := BaseConfig{Ingester_UUID: "550e8400-e29b-41d4"}
-	if err := b.VerifyIngesterUUID(); err == nil {
-		t.Fatal("VerifyIngesterUUID() = nil, want error for malformed UUID")
+	err := b.Verify()
+	if err == nil {
+		t.Fatal("Verify() = nil, want error for malformed UUID")
+	}
+	if !errors.Is(err, ErrInvalidConfigValue) {
+		t.Errorf("Verify() error = %v, want wrapped %v", err, ErrInvalidConfigValue)
 	}
 }
 
