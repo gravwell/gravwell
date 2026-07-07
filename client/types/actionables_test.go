@@ -14,7 +14,7 @@ import (
 )
 
 func TestActionableTriggerUnmarshalObject(t *testing.T) {
-	data := []byte(`{"Pattern":"test.*","Hyperlink":false,"Disabled":true}`)
+	data := []byte(`{"Pattern":"test.*","ActivatesOn":"selection","Disabled":true}`)
 	var trigger ActionableTrigger
 	if err := json.Unmarshal(data, &trigger); err != nil {
 		t.Fatal(err)
@@ -22,8 +22,8 @@ func TestActionableTriggerUnmarshalObject(t *testing.T) {
 	if trigger.Pattern != "test.*" {
 		t.Fatalf("unexpected pattern: %q", trigger.Pattern)
 	}
-	if trigger.Hyperlink {
-		t.Fatal("expected Hyperlink=false")
+	if trigger.ActivatesOn != "selection" {
+		t.Fatalf("expected ActivatesOn=selection, got %q", trigger.ActivatesOn)
 	}
 	if !trigger.Disabled {
 		t.Fatal("expected Disabled=true")
@@ -31,13 +31,13 @@ func TestActionableTriggerUnmarshalObject(t *testing.T) {
 }
 
 func TestActionableTriggerMarshal(t *testing.T) {
-	trigger := ActionableTrigger{Pattern: "foo", Hyperlink: true, Disabled: false}
+	trigger := ActionableTrigger{Pattern: "foo", ActivatesOn: "always", Disabled: false}
 	data, err := json.Marshal(trigger)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Always marshals as object form.
-	expected := `{"Pattern":"foo","Hyperlink":true,"Disabled":false}`
+	expected := `{"Pattern":"foo","ActivatesOn":"always","Disabled":false}`
 	if string(data) != expected {
 		t.Fatalf("expected %s, got %s", expected, string(data))
 	}
@@ -47,43 +47,36 @@ func TestActionableContentRoundTrip(t *testing.T) {
 	input := ActionableContent{
 		MenuLabel: "My Pivot",
 		Triggers: []ActionableTrigger{
-			{Pattern: `\d+\.\d+\.\d+\.\d+`, Hyperlink: true, Disabled: false},
+			{Pattern: `\d+\.\d+\.\d+\.\d+`, ActivatesOn: "always", Disabled: false},
 		},
 		Actions: []ActionableAction{
 			{
-				Name:        "Query IP",
-				Description: "Look up IP",
-				Placeholder: "Enter IP",
+				Type:               ACTIONABLE_COMMAND_QUERY,
+				Name:               "Query IP",
+				Description:        "Look up IP",
+				Query:              "tag=netflow src==_VALUE_",
+				TriggerPlaceholder: "_VALUE_",
+			},
+			{
+				Type:        ACTIONABLE_COMMAND_DASHBOARD,
+				Name:        "Open Dashboard",
+				DashboardID: "some-uuid",
+				Variable:    "ip",
+			},
+			{
+				Type:               ACTIONABLE_COMMAND_URL,
+				Name:               "Open URL",
+				TemplateURL:        "https://example.com/lookup?ip=_VALUE_",
+				TriggerPlaceholder: "_VALUE_",
+				OpenInModal:        true,
+				ModalWidthPercent:  80,
+				NoValueUrlEncode:   true,
 				Start: &ActionableTimeVariable{
 					Type:   "string",
 					Format: "YYYY-MM-DD",
 				},
 				End: &ActionableTimeVariable{
-					Type: "timestamp",
-				},
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_QUERY,
-					Reference: "tag=netflow src==_VALUE_",
-				},
-			},
-			{
-				Name: "Open Dashboard",
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_DASHBOARD,
-					Reference: "some-uuid",
-					Options:   &ActionableCommandOptions{Variable: "ip"},
-				},
-			},
-			{
-				Name: "Open URL",
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_URL,
-					Reference: "https://example.com/lookup?ip=_VALUE_",
-					Options: &ActionableCommandOptions{
-						Modal:            true,
-						ModalWidth:       "80",
-						NoValueURLEncode: true,
-					},
+					Type: "unix",
 				},
 			},
 		},
