@@ -6,13 +6,14 @@ require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/gosimple/slug v1.15.0
-	github.com/gravwell/gravwell/v3 v3.0.0-00010101000000-000000000000
+	github.com/gravwell/gravwell/v3 v3.8.81
 	github.com/testcontainers/testcontainers-go v0.41.0
 	go.opentelemetry.io/proto/otlp v1.10.0
 	google.golang.org/protobuf v1.36.11
 )
 
-replace github.com/gravwell/gravwell/v3 => ..
+// todo(2278) update to v4 post next-major beta
+// replace github.com/gravwell/gravwell/v4 => ..
 
 require (
 	dario.cat/mergo v1.0.2 // indirect

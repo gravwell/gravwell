@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // TestIngest returns whether or not this client is allowed to ingest data
@@ -144,7 +144,7 @@ func (c *Client) ingest(cb ingestCallback, tag, src, tp string, ignoreTimestamp,
 	}
 	req.Header.Set(`Content-Type`, wtr.FormDataContentType())
 	okResps := []int{http.StatusOK, http.StatusMultiStatus}
-	if err = c.staticRequest(req, &resp, okResps); err != nil {
+	if err = c.staticRequest(req, &resp, okResps, nil); err != nil {
 		if err != io.EOF {
 			return
 		}
