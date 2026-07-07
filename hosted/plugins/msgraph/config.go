@@ -56,6 +56,8 @@ type Config struct {
 // Verify validates the configuration has correct values set. It also sets defaults for values that can be defaulted.
 // Returns all validation errors if there are multiple.
 func (c *Config) Verify() error {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	var errs []error
 	if c.Tenant_ID == "" {
 		errs = append(errs, ErrInvalidConfigValue{Field: "Tenant-ID", Message: "not specified"})
@@ -93,7 +95,7 @@ func (c *Config) Verify() error {
 		errs = append(errs, ErrInvalidConfigValue{Field: "Request-Interval", Message: "cannot be negative"})
 	}
 
-	if err := c.VerifyIngesterUUIDWithFallback(defaultIngesterUUIDStr); err != nil {
+	if err := c.VerifyIngesterUUID(); err != nil {
 		errs = append(errs, err)
 	}
 

@@ -13,14 +13,11 @@ import (
 )
 
 const (
+	Tag                    string = `test`
+	Name                   string = `tester`
+	ID                     string = `tester.ingesters.gravwell.io`
+	Version                string = `1.0.0` // must be canonical version string with only major.minor.point
 	defaultIngesterUUIDStr string = "4f1c35f6-6af6-4103-8fdc-df2c63026f0d"
-)
-
-const (
-	Tag     string = `test`
-	Name    string = `tester`
-	ID      string = `tester.ingesters.gravwell.io`
-	Version string = `1.0.0` // must be canonical version string with only major.minor.point
 )
 
 const (
@@ -36,12 +33,14 @@ type Config struct {
 }
 
 func (c *Config) Verify() (err error) {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Interval != `` {
 		if _, err := time.ParseDuration(c.Interval); err != nil {
 			return err
 		}
 	}
-	if err := c.VerifyIngesterUUIDWithFallback(defaultIngesterUUIDStr); err != nil {
+	if err := c.VerifyIngesterUUID(); err != nil {
 		return err
 	}
 

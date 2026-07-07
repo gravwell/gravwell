@@ -33,13 +33,15 @@ func (b *BaseConfig) UUID() uuid.UUID {
 	return ParseUUID(b.Ingester_UUID)
 }
 
-// VerifyIngesterUUIDWithFallback validates the Ingester-UUID field is a valid UUID.
-// Sets fallback as Ingester-UUID if its empty.
+// ApplyDefaultIngesterUUID applies a default ingester UUID if none is provided.
+func (b *BaseConfig) ApplyDefaultIngesterUUID(defaultIngesterUUID string) {
+	b.Ingester_UUID = cmp.Or(b.Ingester_UUID, defaultIngesterUUID)
+}
+
+// VerifyIngesterUUID validates the Ingester-UUID field is a valid UUID.
 // Returns ErrInvalidIngesterUUID if we could not parse Ingester-UUID.
-func (b *BaseConfig) VerifyIngesterUUIDWithFallback(fallback string) error {
-	if b.Ingester_UUID == `` {
-		b.Ingester_UUID = fallback
-	} else if _, err := uuid.Parse(b.Ingester_UUID); err != nil {
+func (b *BaseConfig) VerifyIngesterUUID() error {
+	if _, err := uuid.Parse(b.Ingester_UUID); err != nil {
 		return fmt.Errorf("%w %q %w", ErrInvalidIngesterUUID, b.Ingester_UUID, err)
 	}
 	return nil

@@ -35,6 +35,8 @@ type Config struct {
 }
 
 func (c *Config) Verify() error {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Host == "" {
 		c.Host = defaultHost
 	}
@@ -59,7 +61,7 @@ func (c *Config) Verify() error {
 		return err
 	}
 
-	if err := c.VerifyIngesterUUIDWithFallback(defaultIngesterUUIDStr); err != nil {
+	if err := c.VerifyIngesterUUID(); err != nil {
 		return err
 	}
 
