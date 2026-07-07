@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 )
@@ -94,9 +93,8 @@ func (chatProtocol) ParseRequest(body []byte, authHeader string) (*protocol.Pars
 		return nil, errors.New("chat request has no messages")
 	}
 	pr := &protocol.ParsedRequest{
-		Model:      req.Model,
-		Stream:     req.Stream,
-		APIKeyHash: hashBearer(authHeader),
+		Model:  req.Model,
+		Stream: req.Stream,
 	}
 	pr.MessageHashes = make([]string, len(req.Messages))
 	for i, m := range req.Messages {
@@ -239,21 +237,4 @@ func hashMessage(m chatMessage) string {
 		h.Write([]byte(m.ToolCallID))
 	}
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-// hashBearer turns an Authorization header value into a short opaque identifier
-// suitable for grouping requests without storing the key itself. Returns empty
-// string if no Bearer token is present.
-func hashBearer(authHeader string) string {
-	const prefix = "Bearer "
-	authHeader = strings.TrimSpace(authHeader)
-	if !strings.HasPrefix(authHeader, prefix) {
-		return ""
-	}
-	token := strings.TrimSpace(authHeader[len(prefix):])
-	if token == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:8]) // 64-bit prefix is enough to group, not to recover the key
 }

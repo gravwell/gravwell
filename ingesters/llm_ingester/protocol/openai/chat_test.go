@@ -15,7 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 )
 
-func TestParseResponse_TextToolAndUsage(t *testing.T) {
+func TestParseResponseTextToolAndUsage(t *testing.T) {
 	body := []byte(`{
 		"id":"resp-1",
 		"model":"gpt-4o",
@@ -58,7 +58,7 @@ func TestParseResponse_TextToolAndUsage(t *testing.T) {
 	}
 }
 
-func TestParseResponse_NoUsageNoContent(t *testing.T) {
+func TestParseResponseNoUsageNoContent(t *testing.T) {
 	// A response with an empty assistant message and no usage should not
 	// synthesize spurious events.
 	body := []byte(`{"id":"r","model":"m","choices":[{"index":0,"message":{"role":"assistant","content":""}}]}`)
@@ -71,13 +71,13 @@ func TestParseResponse_NoUsageNoContent(t *testing.T) {
 	}
 }
 
-func TestParseResponse_Invalid(t *testing.T) {
+func TestParseResponseInvalid(t *testing.T) {
 	if _, err := (chatProtocol{}).ParseResponse([]byte("not json")); err == nil {
 		t.Error("expected error for invalid response body")
 	}
 }
 
-func TestParseRequest_NoMessages(t *testing.T) {
+func TestParseRequestNoMessages(t *testing.T) {
 	if _, err := (chatProtocol{}).ParseRequest([]byte(`{"model":"m","messages":[]}`), ""); err == nil {
 		t.Error("expected error for request with no messages")
 	}
@@ -114,7 +114,7 @@ func TestContentToBytes(t *testing.T) {
 	}
 }
 
-func TestMessageToEvent_Roles(t *testing.T) {
+func TestMessageToEventRoles(t *testing.T) {
 	tests := []struct {
 		role     string
 		wantType string
@@ -137,34 +137,5 @@ func TestMessageToEvent_Roles(t *testing.T) {
 	ev := messageToEvent(chatMessage{Role: roleTool, ToolCallID: "call_9", Content: json.RawMessage(`"res"`)})
 	if ev.ToolCallID != "call_9" {
 		t.Errorf("tool_call_id = %q, want call_9", ev.ToolCallID)
-	}
-}
-
-func TestHashBearer(t *testing.T) {
-	a := hashBearer("Bearer sk-aaa")
-	b := hashBearer("Bearer sk-bbb")
-	if a == "" || b == "" {
-		t.Fatal("bearer hash empty for present token")
-	}
-	if a == b {
-		t.Error("distinct tokens hashed to same value")
-	}
-	// stable for the same token
-	if a != hashBearer("Bearer sk-aaa") {
-		t.Error("hash not stable for identical token")
-	}
-	// surrounding whitespace tolerated
-	if a != hashBearer("  Bearer sk-aaa  ") {
-		t.Error("whitespace changed the hash")
-	}
-	// no/empty bearer -> empty
-	if hashBearer("") != "" {
-		t.Error("empty header should hash to empty string")
-	}
-	if hashBearer("Bearer ") != "" {
-		t.Error("empty token should hash to empty string")
-	}
-	if hashBearer("Basic abc") != "" {
-		t.Error("non-bearer scheme should hash to empty string")
 	}
 }

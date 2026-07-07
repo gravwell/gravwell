@@ -27,11 +27,10 @@ import (
 const (
 	defaultMaxBody    = 16 * 1024 * 1024 // 16 MiB
 	defaultSessionTTL = 30 * time.Minute
-	defaultUpstream   = "https://api.openai.com"
 
-	logModeDeltas           = "deltas"
-	logModeUserOnly         = "user-only"
-	logModeFullConversation = "full-conversation"
+	logModeDeltas           = "delta"
+	logModeUserOnly         = "user"
+	logModeFullConversation = "full"
 )
 
 type gbl struct {
@@ -54,7 +53,8 @@ type listener struct {
 	Log_Mode                          string
 	Log_Tool_Calls                    bool
 	Log_Usage                         bool
-	Redact_Authorization              bool
+	Client_Authorization              string
+	Upstream_Authorization            string
 	Session_TTL                       string
 	Max_Body                          int
 	TLS_Certificate_File              string
@@ -63,8 +63,10 @@ type listener struct {
 	Preprocessor                      []string
 
 	// derived during Verify
-	sessionTTL  time.Duration
-	upstreamURL *url.URL
+	sessionTTL         time.Duration
+	upstreamURL        *url.URL
+	clientAuthHeader   string
+	upstreamAuthHeader string
 }
 
 type cfgType struct {
@@ -127,7 +129,7 @@ func (l *listener) validate() error {
 		return errors.New("missing Bind")
 	}
 	if l.Upstream_URL == "" {
-		l.Upstream_URL = defaultUpstream
+		return errors.New("missing Upstream-URL")
 	}
 	u, err := url.Parse(l.Upstream_URL)
 	if err != nil {
@@ -180,7 +182,27 @@ func (l *listener) validate() error {
 			return fmt.Errorf("TLS keypair: %w", err)
 		}
 	}
+	// Auth tokens are configured bare; we speak Bearer to both the client and
+	// the upstream. Empty tokens leave the corresponding header handling off.
+	if l.Client_Authorization != "" {
+		l.clientAuthHeader = "Bearer " + l.Client_Authorization
+	}
+	if l.Upstream_Authorization != "" {
+		l.upstreamAuthHeader = "Bearer " + l.Upstream_Authorization
+	}
 	return nil
+}
+
+// ClientAuthHeader returns the full Authorization header value an inbound client
+// must present, or "" when no client authentication is required.
+func (l *listener) ClientAuthHeader() string {
+	return l.clientAuthHeader
+}
+
+// UpstreamAuthHeader returns the Authorization header value to inject on the
+// upstream request, or "" to pass the client's Authorization through unchanged.
+func (l *listener) UpstreamAuthHeader() string {
+	return l.upstreamAuthHeader
 }
 
 func (l *listener) TLSEnabled() bool {

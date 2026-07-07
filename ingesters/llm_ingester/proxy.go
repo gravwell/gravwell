@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -26,6 +25,12 @@ import (
 )
 
 // proxyHandler is the http.Handler for one [Listener] entry.
+//
+// This intentionally reimplements the request-forwarding machinery of
+// net/http/httputil.ReverseProxy rather than embedding it: we need to tap the
+// upstream response body as it streams (see handleStream) to feed the SSE
+// reassembler while the bytes flow to the client, which ReverseProxy does not
+// expose. The header handling below mirrors ReverseProxy's hop-by-hop rules.
 type proxyHandler struct {
 	name     string
 	cfg      *listener
@@ -34,7 +39,7 @@ type proxyHandler struct {
 	pproc    *processors.ProcessorSet
 	sessions *sessionStore
 	upstream *http.Client
-	pathSet  map[string]struct{}
+	pathSet  map[string]bool
 	lg       *log.Logger
 }
 
@@ -56,17 +61,17 @@ func newProxyHandler(name string, cfg *listener, proto protocol.Protocol, tag en
 		pproc:    pproc,
 		sessions: sessions,
 		upstream: &http.Client{Transport: tr},
-		pathSet:  map[string]struct{}{},
+		pathSet:  make(map[string]bool),
 		lg:       lg,
 	}
 	for _, p := range proto.Paths() {
-		ph.pathSet[p] = struct{}{}
+		ph.pathSet[p] = true
 	}
 	return ph
 }
 
 func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.pathSet[r.URL.Path]; !ok {
+	if !h.pathSet[r.URL.Path] {
 		http.NotFound(w, r)
 		return
 	}
@@ -83,16 +88,28 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		lg:           h.lg,
 	}
 
+	// Gate inbound requests when a client credential is configured. Reject
+	// before reading the (potentially large) body.
+	if want := h.cfg.ClientAuthHeader(); want != "" && r.Header.Get("Authorization") != want {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	body, err := io.ReadAll(io.LimitReader(r.Body, int64(h.cfg.Max_Body)+1))
 	r.Body.Close()
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
-		emitError(ec, "read_body", err)
+		if h.lg != nil {
+			h.lg.Warn("failed to read request body", log.KV("listener", h.name), log.KVErr(err))
+		}
 		return
 	}
 	if len(body) > h.cfg.Max_Body {
 		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-		emitError(ec, "body_too_large", fmt.Errorf("body exceeds %d bytes", h.cfg.Max_Body))
+		if h.lg != nil {
+			h.lg.Warn("request body too large",
+				log.KV("listener", h.name), log.KV("max_body", h.cfg.Max_Body))
+		}
 		return
 	}
 
@@ -104,14 +121,14 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.lg.Warn("failed to parse request body, forwarding without ingest",
 				log.KV("listener", h.name), log.KVErr(err))
 		}
-		h.forwardWithoutIngest(w, r, body, ec)
+		h.forwardWithoutIngest(w, r, body)
 		return
 	}
 	ec.model = parsedReq.Model
 	ec.stream = parsedReq.Stream
-	ec.apiKeyHash = parsedReq.APIKeyHash
 
-	sessionID, newSession := h.sessions.Resolve(parsedReq.APIKeyHash, parsedReq.MessageHashes)
+	// Sessions are partitioned by client IP
+	sessionID, newSession := h.sessions.Resolve(ec.clientIP.String(), parsedReq.MessageHashes)
 	ec.sessionID = sessionID
 	ec.newSession = newSession
 
@@ -121,7 +138,9 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.forwardUpstream(r, body)
 	if err != nil {
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
-		emitError(ec, "upstream_failed", err)
+		if h.lg != nil {
+			h.lg.Warn("upstream request failed", log.KV("listener", h.name), log.KVErr(err))
+		}
 		return
 	}
 	defer resp.Body.Close()
@@ -135,8 +154,10 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if _, err := io.Copy(w, resp.Body); err != nil && h.lg != nil {
 			h.lg.Warn("copy upstream error body", log.KVErr(err))
 		}
-		ec.durationMs = time.Since(started).Milliseconds()
-		emitError(ec, "upstream_status", fmt.Errorf("upstream returned %d", resp.StatusCode))
+		if h.lg != nil {
+			h.lg.Warn("upstream returned error status",
+				log.KV("listener", h.name), log.KV("status", resp.StatusCode))
+		}
 		return
 	}
 
@@ -152,27 +173,30 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // executes it. The original body must be re-readable so we hand a fresh reader.
 func (h *proxyHandler) forwardUpstream(r *http.Request, body []byte) (*http.Response, error) {
 	upstream := h.cfg.UpstreamURL()
-	outURL := *upstream
-	outURL.Path = singleJoiningSlash(upstream.Path, r.URL.Path)
+	outURL := upstream.JoinPath(r.URL.Path)
 	outURL.RawQuery = r.URL.RawQuery
 	out, err := http.NewRequestWithContext(r.Context(), r.Method, outURL.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	// Forward all client headers (Content-Type, provider-specific headers,
-	// etc.) minus hop-by-hop headers, honoring the Redact-Authorization flag.
-	copyRequestHeaders(out, r, h.cfg.Redact_Authorization)
+	// etc.) minus hop-by-hop headers. When an upstream credential is
+	// configured it replaces the client's Authorization; otherwise the
+	// client's Authorization passes through unchanged.
+	copyRequestHeaders(out, r, h.cfg.UpstreamAuthHeader())
 	setForwardedFor(out, r)
 	return h.upstream.Do(out)
 }
 
 // forwardWithoutIngest is used when we can't parse the request — still proxy
 // the bytes so the client gets a usable response.
-func (h *proxyHandler) forwardWithoutIngest(w http.ResponseWriter, r *http.Request, body []byte, ec *emitCtx) {
+func (h *proxyHandler) forwardWithoutIngest(w http.ResponseWriter, r *http.Request, body []byte) {
 	resp, err := h.forwardUpstream(r, body)
 	if err != nil {
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
-		emitError(ec, "upstream_failed", err)
+		if h.lg != nil {
+			h.lg.Warn("upstream request failed", log.KV("listener", h.name), log.KVErr(err))
+		}
 		return
 	}
 	defer resp.Body.Close()
@@ -188,7 +212,9 @@ func (h *proxyHandler) forwardWithoutIngest(w http.ResponseWriter, r *http.Reque
 func (h *proxyHandler) handleBuffered(w http.ResponseWriter, resp *http.Response, ec *emitCtx) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		emitError(ec, "read_upstream_body", err)
+		if h.lg != nil {
+			h.lg.Warn("read upstream body", log.KV("listener", h.name), log.KVErr(err))
+		}
 		return
 	}
 	if _, err := w.Write(body); err != nil && h.lg != nil {
@@ -196,7 +222,9 @@ func (h *proxyHandler) handleBuffered(w http.ResponseWriter, resp *http.Response
 	}
 	parsed, err := h.proto.ParseResponse(body)
 	if err != nil {
-		emitError(ec, "parse_response", err)
+		if h.lg != nil {
+			h.lg.Warn("parse upstream response", log.KV("listener", h.name), log.KVErr(err))
+		}
 		return
 	}
 	ec.requestID = parsed.RequestID
@@ -226,7 +254,7 @@ streamLoop:
 			if flusher != nil {
 				flusher.Flush()
 			}
-			if ferr := reass.Feed(append([]byte(nil), chunk...)); ferr != nil && h.lg != nil {
+			if ferr := reass.Feed(bytes.Clone(chunk)); ferr != nil && h.lg != nil {
 				h.lg.Warn("stream parse error",
 					log.KV("listener", h.name), log.KVErr(ferr))
 			}
@@ -238,12 +266,14 @@ streamLoop:
 			break streamLoop
 		}
 	}
-	if streamErr != nil {
-		emitError(ec, "stream_io", streamErr)
+	if streamErr != nil && h.lg != nil {
+		h.lg.Warn("stream io error", log.KV("listener", h.name), log.KVErr(streamErr))
 	}
 	parsed, err := reass.Finalize()
 	if err != nil {
-		emitError(ec, "finalize_stream", err)
+		if h.lg != nil {
+			h.lg.Warn("finalize stream", log.KV("listener", h.name), log.KVErr(err))
+		}
 		return
 	}
 	ec.requestID = parsed.RequestID
@@ -266,6 +296,7 @@ func isEventStream(ct string) bool {
 // hopByHopHeaders are not forwarded between client/server hops (RFC 7230).
 var hopByHopHeaders = map[string]struct{}{
 	"Connection":          {},
+	"Proxy-Connection":    {},
 	"Keep-Alive":          {},
 	"Proxy-Authenticate":  {},
 	"Proxy-Authorization": {},
@@ -275,41 +306,64 @@ var hopByHopHeaders = map[string]struct{}{
 	"Upgrade":             {},
 }
 
-func copyRequestHeaders(dst, src *http.Request, redactAuth bool) {
+// connectionHeaders returns the set of header names named in the source's
+// Connection header. Per RFC 7230 §6.1 these are hop-by-hop for this connection
+// and must not be forwarded, in addition to the well-known hopByHopHeaders.
+// This mirrors net/http/httputil.ReverseProxy's handling.
+func connectionHeaders(h http.Header) map[string]struct{} {
+	var extra map[string]struct{}
+	for _, f := range h["Connection"] {
+		for sf := range strings.SplitSeq(f, ",") {
+			if sf = http.CanonicalHeaderKey(strings.TrimSpace(sf)); sf != "" {
+				if extra == nil {
+					extra = make(map[string]struct{})
+				}
+				extra[sf] = struct{}{}
+			}
+		}
+	}
+	return extra
+}
+
+// copyRequestHeaders copies client headers to the upstream request, dropping
+// hop-by-hop headers. When upstreamAuth is non-empty the client's Authorization
+// is dropped and replaced with upstreamAuth; when empty it passes through.
+func copyRequestHeaders(dst, src *http.Request, upstreamAuth string) {
+	connDrop := connectionHeaders(src.Header)
 	for k, vs := range src.Header {
-		if _, drop := hopByHopHeaders[http.CanonicalHeaderKey(k)]; drop {
+		ck := http.CanonicalHeaderKey(k)
+		if _, drop := hopByHopHeaders[ck]; drop {
 			continue
 		}
-		if redactAuth && http.CanonicalHeaderKey(k) == "Authorization" {
+		if _, drop := connDrop[ck]; drop {
 			continue
+		}
+		if upstreamAuth != "" && ck == "Authorization" {
+			continue // replaced below with the configured upstream credential
 		}
 		for _, v := range vs {
 			dst.Header.Add(k, v)
 		}
 	}
+	if upstreamAuth != "" {
+		dst.Header.Set("Authorization", upstreamAuth)
+	}
 }
 
 func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
+	connDrop := connectionHeaders(resp.Header)
 	for k, vs := range resp.Header {
-		if _, drop := hopByHopHeaders[http.CanonicalHeaderKey(k)]; drop {
+		ck := http.CanonicalHeaderKey(k)
+		if _, drop := hopByHopHeaders[ck]; drop {
+			continue
+		}
+		if _, drop := connDrop[ck]; drop {
 			continue
 		}
 		for _, v := range vs {
 			w.Header().Add(k, v)
 		}
 	}
-}
-
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasPrefix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		return a + "/" + b
-	}
-	return a + b
 }
 
 // setForwardedFor appends the immediate peer's IP to the X-Forwarded-For chain,

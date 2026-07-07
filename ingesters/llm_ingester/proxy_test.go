@@ -82,7 +82,7 @@ func doChat(t *testing.T, ph *proxyHandler, body, auth string) *httptest.Respons
 	return w
 }
 
-func TestProxy_NonStreaming(t *testing.T) {
+func TestProxyNonStreaming(t *testing.T) {
 	var cap upstreamCapture
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
@@ -135,26 +135,125 @@ func TestProxy_NonStreaming(t *testing.T) {
 	}
 }
 
-func TestProxy_RedactAuthorization(t *testing.T) {
-	var cap upstreamCapture
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// authCaptureServer returns a mock upstream that records the Authorization
+// header it received and replies with a canned chat response.
+func authCaptureServer(cap *upstreamCapture) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cap.gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, chatRespBody)
+	}))
+}
+
+func TestProxyInjectsUpstreamAuthorization(t *testing.T) {
+	var cap upstreamCapture
+	srv := authCaptureServer(&cap)
+	defer srv.Close()
+
+	ph, _ := newTestHandler(t, srv.URL, func(l *listener) { l.Upstream_Authorization = "sk-real" })
+	w := doChat(t, ph, chatReqBody, "Bearer sk-client")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	if cap.gotAuth != "Bearer sk-real" {
+		t.Errorf("upstream Authorization = %q, want the injected upstream credential", cap.gotAuth)
+	}
+}
+
+func TestProxyPassesClientAuthorizationWhenNoUpstreamConfigured(t *testing.T) {
+	var cap upstreamCapture
+	srv := authCaptureServer(&cap)
+	defer srv.Close()
+
+	ph, _ := newTestHandler(t, srv.URL, nil)
+	w := doChat(t, ph, chatReqBody, "Bearer sk-client")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	if cap.gotAuth != "Bearer sk-client" {
+		t.Errorf("upstream Authorization = %q, want the client's Authorization passed through", cap.gotAuth)
+	}
+}
+
+func TestProxyClientAuthorizationGate(t *testing.T) {
+	var cap upstreamCapture
+	srv := authCaptureServer(&cap)
+	defer srv.Close()
+
+	ph, _ := newTestHandler(t, srv.URL, func(l *listener) {
+		l.Client_Authorization = "gate-token"
+		l.Upstream_Authorization = "sk-real"
+	})
+
+	// Correct client credential: request is gated in and the upstream sees the
+	// injected credential, never the client's gate token.
+	w := doChat(t, ph, chatReqBody, "Bearer gate-token")
+	if w.Code != http.StatusOK {
+		t.Fatalf("authorized status = %d, want 200", w.Code)
+	}
+	if cap.gotAuth != "Bearer sk-real" {
+		t.Errorf("upstream Authorization = %q, want the injected upstream credential", cap.gotAuth)
+	}
+
+	// Wrong credential is rejected before the upstream is contacted.
+	cap.gotAuth = "sentinel"
+	w = doChat(t, ph, chatReqBody, "Bearer wrong-token")
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("bad-credential status = %d, want 401", w.Code)
+	}
+	// Missing credential is likewise rejected.
+	w = doChat(t, ph, chatReqBody, "")
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("missing-credential status = %d, want 401", w.Code)
+	}
+	if cap.gotAuth != "sentinel" {
+		t.Errorf("upstream was contacted on rejected request (saw Authorization %q)", cap.gotAuth)
+	}
+}
+
+func TestProxyDropsConnectionNamedHeaders(t *testing.T) {
+	var gotUpgrade, gotXHop, gotConn, gotContentType string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUpgrade = r.Header.Get("Upgrade")
+		gotXHop = r.Header.Get("X-Hop")
+		gotConn = r.Header.Get("Connection")
+		gotContentType = r.Header.Get("Content-Type")
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, chatRespBody)
 	}))
 	defer srv.Close()
 
-	ph, _ := newTestHandler(t, srv.URL, func(l *listener) { l.Redact_Authorization = true })
-	w := doChat(t, ph, chatReqBody, "Bearer sk-secret")
+	ph, _ := newTestHandler(t, srv.URL, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(chatReqBody))
+	req.Header.Set("Content-Type", "application/json")
+	// Connection names X-Hop as connection-scoped, so it must be stripped along
+	// with the well-known hop-by-hop headers (Connection, Upgrade).
+	req.Header.Set("Connection", "X-Hop, Upgrade")
+	req.Header.Set("X-Hop", "secret")
+	req.Header.Set("Upgrade", "websocket")
+	req.RemoteAddr = "203.0.113.7:5555"
+	w := httptest.NewRecorder()
+	ph.ServeHTTP(w, req)
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
-	if cap.gotAuth != "" {
-		t.Errorf("Authorization should be redacted, upstream saw %q", cap.gotAuth)
+	if gotXHop != "" {
+		t.Errorf("X-Hop should be dropped (named in Connection), upstream saw %q", gotXHop)
+	}
+	if gotUpgrade != "" {
+		t.Errorf("Upgrade is hop-by-hop and should be dropped, upstream saw %q", gotUpgrade)
+	}
+	if gotConn != "" {
+		t.Errorf("Connection is hop-by-hop and should be dropped, upstream saw %q", gotConn)
+	}
+	// End-to-end headers must still make it through.
+	if gotContentType != "application/json" {
+		t.Errorf("Content-Type should be forwarded, upstream saw %q", gotContentType)
 	}
 }
 
-func TestProxy_Streaming(t *testing.T) {
+func TestProxyStreaming(t *testing.T) {
 	sse := "data: {\"id\":\"s1\",\"model\":\"gpt-4o\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hel\"}}]}\n\n" +
 		"data: {\"id\":\"s1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"lo\"}}]}\n\n" +
 		"data: [DONE]\n\n"
@@ -191,27 +290,26 @@ func TestProxy_Streaming(t *testing.T) {
 	}
 }
 
-func TestProxy_UpstreamError(t *testing.T) {
+func TestProxyUpstreamError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		io.WriteString(w, `{"error":"boom"}`)
 	}))
 	defer srv.Close()
 
-	ph, c := newTestHandler(t, srv.URL, nil)
+	ph, _ := newTestHandler(t, srv.URL, nil)
 	w := doChat(t, ph, chatReqBody, "Bearer sk-test")
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", w.Code)
 	}
+	// An upstream 5xx is piped straight through to the client verbatim; the
+	// proxy logs it rather than ingesting an event.
 	if w.Body.String() != `{"error":"boom"}` {
 		t.Errorf("error body not piped through: %q", w.Body.String())
 	}
-	if countType(c.eventTypes(t), protocol.EventProxyError) < 1 {
-		t.Error("expected a proxy.error event for an upstream 5xx")
-	}
 }
 
-func TestProxy_UnparseableRequestForwarded(t *testing.T) {
+func TestProxyUnparseableRequestForwarded(t *testing.T) {
 	var reached bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reached = true
@@ -234,7 +332,7 @@ func TestProxy_UnparseableRequestForwarded(t *testing.T) {
 	}
 }
 
-func TestProxy_UnknownPath404(t *testing.T) {
+func TestProxyUnknownPath404(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
 	ph, _ := newTestHandler(t, srv.URL, nil)

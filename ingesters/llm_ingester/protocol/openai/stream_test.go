@@ -9,7 +9,6 @@
 package openai
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
@@ -33,7 +32,7 @@ func findEvent(p *protocol.ParsedResponse, typ string) *protocol.Event {
 	return nil
 }
 
-func TestSSEReassembler_TextOnly(t *testing.T) {
+func TestSSEReassemblerTextOnly(t *testing.T) {
 	r := newSSEReassembler()
 	stream := `data: {"id":"x1","model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant","content":"Hel"}}]}
 
@@ -66,7 +65,7 @@ data: [DONE]
 	}
 }
 
-func TestSSEReassembler_FragmentedFeed(t *testing.T) {
+func TestSSEReassemblerFragmentedFeed(t *testing.T) {
 	r := newSSEReassembler()
 	full := `data: {"id":"y","model":"m","choices":[{"index":0,"delta":{"content":"abc"}}]}
 
@@ -91,7 +90,7 @@ data: [DONE]
 	}
 }
 
-func TestSSEReassembler_ToolCalls(t *testing.T) {
+func TestSSEReassemblerToolCalls(t *testing.T) {
 	r := newSSEReassembler()
 	stream := `data: {"id":"z","model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"get_weather","arguments":"{\"loc\""}}]}}]}
 
@@ -120,7 +119,7 @@ data: [DONE]
 	}
 }
 
-func TestSSEReassembler_Usage(t *testing.T) {
+func TestSSEReassemblerUsage(t *testing.T) {
 	r := newSSEReassembler()
 	stream := `data: {"id":"u","model":"m","choices":[{"index":0,"delta":{"content":"hi"}}]}
 
@@ -143,7 +142,7 @@ data: [DONE]
 	}
 }
 
-func TestSSEReassembler_EmptyStream(t *testing.T) {
+func TestSSEReassemblerEmptyStream(t *testing.T) {
 	r := newSSEReassembler()
 	feedAll(t, r, "data: [DONE]\n\n")
 	if _, err := r.Finalize(); err == nil {
@@ -151,7 +150,7 @@ func TestSSEReassembler_EmptyStream(t *testing.T) {
 	}
 }
 
-func TestParseRequest_HashesStable(t *testing.T) {
+func TestParseRequestHashesStable(t *testing.T) {
 	p := chatProtocol{}
 	bodyA := []byte(`{"model":"m","messages":[{"role":"system","content":"S"},{"role":"user","content":"hi"}]}`)
 	bodyB := []byte(`{"model":"m","messages":[{"role":"system","content":"S"},{"role":"user","content":"hi"},{"role":"assistant","content":"ok"},{"role":"user","content":"next"}]}`)
@@ -169,24 +168,5 @@ func TestParseRequest_HashesStable(t *testing.T) {
 	}
 	if a.MessageHashes[0] != b.MessageHashes[0] || a.MessageHashes[1] != b.MessageHashes[1] {
 		t.Fatal("message hashes for identical messages diverged")
-	}
-}
-
-func TestParseRequest_AuthHash(t *testing.T) {
-	p := chatProtocol{}
-	body := []byte(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`)
-	r1, err := p.ParseRequest(body, "Bearer sk-aaa")
-	if err != nil {
-		t.Fatalf("ParseRequest: %v", err)
-	}
-	r2, err := p.ParseRequest(body, "Bearer sk-bbb")
-	if err != nil {
-		t.Fatalf("ParseRequest: %v", err)
-	}
-	if r1.APIKeyHash == r2.APIKeyHash || r1.APIKeyHash == "" {
-		t.Fatalf("api key hashes degenerate: %q %q", r1.APIKeyHash, r2.APIKeyHash)
-	}
-	if !strings.HasPrefix(r1.APIKeyHash, r1.APIKeyHash[:4]) {
-		t.Fatal("expected hex string")
 	}
 }

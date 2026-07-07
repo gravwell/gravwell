@@ -6,10 +6,10 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// LLM proxy ingester. Acts as an OpenAI-compatible HTTP proxy that forwards
-// chat-completion traffic to the upstream provider while ingesting structured
-// events (user prompts, assistant replies, tool calls, token usage) into
-// Gravwell.
+// LLM proxy ingester. Acts as an OpenAI-compatible (for now) HTTP proxy that
+// forwards chat-completion traffic to the upstream provider while ingesting
+// structured events (user prompts, assistant replies, tool calls, token usage)
+// into Gravwell.
 package main
 
 import (

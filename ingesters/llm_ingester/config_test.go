@@ -16,18 +16,16 @@ import (
 // validListener returns a minimally-valid listener for mutation in table tests.
 func validListener() *listener {
 	return &listener{
-		Bind:     ":4180",
-		Protocol: "openai-chat",
+		Bind:         ":4180",
+		Protocol:     "openai-chat",
+		Upstream_URL: "http://example.com",
 	}
 }
 
-func TestListenerValidate_Defaults(t *testing.T) {
+func TestListenerValidateDefaults(t *testing.T) {
 	l := validListener()
 	if err := l.validate(); err != nil {
 		t.Fatalf("validate: %v", err)
-	}
-	if l.Upstream_URL != defaultUpstream {
-		t.Errorf("Upstream_URL default = %q, want %q", l.Upstream_URL, defaultUpstream)
 	}
 	if l.Log_Mode != logModeDeltas {
 		t.Errorf("Log_Mode default = %q, want %q", l.Log_Mode, logModeDeltas)
@@ -43,7 +41,7 @@ func TestListenerValidate_Defaults(t *testing.T) {
 	}
 }
 
-func TestListenerValidate_Errors(t *testing.T) {
+func TestListenerValidateErrors(t *testing.T) {
 	tests := []struct {
 		name   string
 		mutate func(*listener)
@@ -71,7 +69,7 @@ func TestListenerValidate_Errors(t *testing.T) {
 	}
 }
 
-func TestListenerValidate_SessionTTLParsed(t *testing.T) {
+func TestListenerValidateSessionTTLParsed(t *testing.T) {
 	l := validListener()
 	l.Session_TTL = "45m"
 	if err := l.validate(); err != nil {
@@ -82,7 +80,7 @@ func TestListenerValidate_SessionTTLParsed(t *testing.T) {
 	}
 }
 
-func TestVerify_NoListeners(t *testing.T) {
+func TestVerifyNoListeners(t *testing.T) {
 	c := &cfgType{Listener: map[string]*listener{}}
 	if err := c.Verify(); err == nil {
 		t.Error("expected error when no listeners are defined")
@@ -99,6 +97,7 @@ func TestListenerAccessors(t *testing.T) {
 	}
 	if l.UpstreamURL() == nil {
 		t.Error("UpstreamURL nil after validate")
+
 	}
 	if l.SessionTTL() != defaultSessionTTL {
 		t.Errorf("SessionTTL = %v", l.SessionTTL())

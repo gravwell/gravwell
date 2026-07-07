@@ -178,7 +178,7 @@ func (r *sseReassembler) Finalize() (*protocol.ParsedResponse, error) {
 		out.Events = append(out.Events, protocol.Event{
 			Type:    protocol.EventAssistantMessage,
 			Role:    roleAssistant,
-			Content: append([]byte(nil), r.content.Bytes()...),
+			Content: bytes.Clone(r.content.Bytes()),
 		})
 	}
 	for _, idx := range r.toolKeys {
@@ -188,7 +188,7 @@ func (r *sseReassembler) Finalize() (*protocol.ParsedResponse, error) {
 			Role:       roleAssistant,
 			ToolName:   pt.name,
 			ToolCallID: pt.id,
-			Content:    append([]byte(nil), pt.args.Bytes()...),
+			Content:    bytes.Clone(pt.args.Bytes()),
 		})
 	}
 	if r.usage != nil {

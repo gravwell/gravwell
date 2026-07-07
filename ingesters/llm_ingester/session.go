@@ -9,6 +9,7 @@
 package main
 
 import (
+	"slices"
 	"sync"
 	"time"
 
@@ -26,16 +27,16 @@ type sessionEntry struct {
 }
 
 // sessionStore performs auto-derived session matching for stateless chat APIs.
-// Sessions are scoped by API-key hash so traffic from different keys never
-// cross-matches.
+// Sessions are partitioned by client IP so traffic from different clients
+// never cross-matches.
 type sessionStore struct {
-	mu      sync.Mutex
-	byKey   map[string][]*sessionEntry
-	ttl     time.Duration
-	persist *utils.State
+	mu       sync.Mutex
+	byClient map[string][]*sessionEntry
+	ttl      time.Duration
+	persist  *utils.State
 
 	// MatchResult / cap configuration
-	maxPerKey int
+	maxPerClient int
 }
 
 // persistedSessions is the on-disk form. We can change the in-memory layout
@@ -47,7 +48,7 @@ type persistedSessions struct {
 }
 
 type persistedEntry struct {
-	APIKey   string
+	Client   string
 	ID       string
 	Hashes   []string
 	LastSeen time.Time
@@ -57,9 +58,9 @@ const sessionStoreVersion = 1
 
 func newSessionStore(ttl time.Duration, statePath string) (*sessionStore, error) {
 	s := &sessionStore{
-		byKey:     map[string][]*sessionEntry{},
-		ttl:       ttl,
-		maxPerKey: 256,
+		byClient:     map[string][]*sessionEntry{},
+		ttl:          ttl,
+		maxPerClient: 256,
 	}
 	if statePath != "" {
 		st, err := utils.NewState(statePath, 0600)
@@ -85,10 +86,10 @@ func (s *sessionStore) load(p *persistedSessions) {
 		}
 		entry := &sessionEntry{
 			ID:       e.ID,
-			Hashes:   append([]string(nil), e.Hashes...),
+			Hashes:   slices.Clone(e.Hashes),
 			LastSeen: e.LastSeen,
 		}
-		s.byKey[e.APIKey] = append(s.byKey[e.APIKey], entry)
+		s.byClient[e.Client] = append(s.byClient[e.Client], entry)
 	}
 }
 
@@ -96,24 +97,24 @@ func (s *sessionStore) load(p *persistedSessions) {
 // hashes is the canonical per-message hash sequence (latest message last).
 // It returns the session ID and a boolean indicating whether this was a new
 // session (no matching prefix found).
-func (s *sessionStore) Resolve(apiKeyHash string, hashes []string) (string, bool) {
+func (s *sessionStore) Resolve(client string, hashes []string) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.evictLocked()
+	s.evictNolock()
 	if len(hashes) == 0 {
 		// nothing to match on; mint
-		return s.mintLocked(apiKeyHash, hashes), true
+		return s.mintNolock(client, hashes), true
 	}
 	// We compare against hashes[:n-1] (everything except the just-added user
 	// turn). The previous request's stored sequence should be a prefix of that.
 	prefix := hashes[:len(hashes)-1]
-	candidates := s.byKey[apiKeyHash]
+	candidates := s.byClient[client]
 	var best *sessionEntry
 	bestLen := -1
 	for _, c := range candidates {
 		n := matchLen(c.Hashes, prefix)
 		// require at least one matching message; otherwise this is a new
-		// conversation that happens to start the same way as the API key's
+		// conversation that happens to start the same way as this client's
 		// first ever turn — still mint a new session.
 		if n > 0 && n >= len(c.Hashes) && n > bestLen {
 			best = c
@@ -121,11 +122,11 @@ func (s *sessionStore) Resolve(apiKeyHash string, hashes []string) (string, bool
 		}
 	}
 	if best != nil {
-		best.Hashes = append([]string(nil), hashes...)
+		best.Hashes = slices.Clone(hashes)
 		best.LastSeen = time.Now()
 		return best.ID, false
 	}
-	return s.mintLocked(apiKeyHash, hashes), true
+	return s.mintNolock(client, hashes), true
 }
 
 // matchLen returns the length of the common prefix between a (a stored session
@@ -135,38 +136,36 @@ func matchLen(a, b []string) int {
 	if len(a) > len(b) {
 		return 0
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return 0
-		}
+	if !slices.Equal(a, b[:len(a)]) {
+		return 0
 	}
 	return len(a)
 }
 
-func (s *sessionStore) mintLocked(apiKeyHash string, hashes []string) string {
+func (s *sessionStore) mintNolock(client string, hashes []string) string {
 	id := uuid.New().String()
 	entry := &sessionEntry{
 		ID:       id,
-		Hashes:   append([]string(nil), hashes...),
+		Hashes:   slices.Clone(hashes),
 		LastSeen: time.Now(),
 	}
-	bucket := s.byKey[apiKeyHash]
+	bucket := s.byClient[client]
 	bucket = append(bucket, entry)
-	if len(bucket) > s.maxPerKey {
+	if len(bucket) > s.maxPerClient {
 		// drop the oldest
-		bucket = bucket[len(bucket)-s.maxPerKey:]
+		bucket = bucket[len(bucket)-s.maxPerClient:]
 	}
-	s.byKey[apiKeyHash] = bucket
+	s.byClient[client] = bucket
 	return id
 }
 
-// evictLocked drops entries older than the TTL. Caller holds s.mu.
-func (s *sessionStore) evictLocked() {
+// evictNolock drops entries older than the TTL. Caller holds s.mu.
+func (s *sessionStore) evictNolock() {
 	if s.ttl <= 0 {
 		return
 	}
 	cutoff := time.Now().Add(-s.ttl)
-	for k, bucket := range s.byKey {
+	for k, bucket := range s.byClient {
 		filtered := bucket[:0]
 		for _, e := range bucket {
 			if !e.LastSeen.Before(cutoff) {
@@ -174,9 +173,9 @@ func (s *sessionStore) evictLocked() {
 			}
 		}
 		if len(filtered) == 0 {
-			delete(s.byKey, k)
+			delete(s.byClient, k)
 		} else {
-			s.byKey[k] = filtered
+			s.byClient[k] = filtered
 		}
 	}
 }
@@ -188,15 +187,15 @@ func (s *sessionStore) Flush() error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.evictLocked()
+	s.evictNolock()
 	p := persistedSessions{
 		Version: sessionStoreVersion,
 		Now:     time.Now(),
 	}
-	for k, bucket := range s.byKey {
+	for k, bucket := range s.byClient {
 		for _, e := range bucket {
 			p.Entries = append(p.Entries, persistedEntry{
-				APIKey:   k,
+				Client:   k,
 				ID:       e.ID,
 				Hashes:   e.Hashes,
 				LastSeen: e.LastSeen,

@@ -6,8 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package protocol defines the contract that LLM provider modules implement
-// so the proxy core can parse requests/responses without knowing the vendor.
+// Package protocol defines an LLM provider so the proxy core can parse
+// requests/responses without knowing the vendor.
 package protocol
 
 import (
@@ -23,9 +23,6 @@ const (
 	EventToolCall         = "response.tool_call"
 	EventToolResult       = "request.tool_result"
 	EventUsage            = "response.usage"
-	// EventProxyError is a synthetic event the proxy emits for its own
-	// diagnostics (upstream failures, unparseable bodies, etc.).
-	EventProxyError = "proxy.error"
 )
 
 // TokenUsage captures token accounting for a single response.
@@ -54,7 +51,6 @@ type ParsedRequest struct {
 	Stream        bool
 	Events        []Event
 	MessageHashes []string // canonical per-message hashes, ordered (for session prefix matching)
-	APIKeyHash    string   // sha256 hex of upstream auth bearer (or empty)
 }
 
 // ParsedResponse is the result of parsing an upstream LLM response.

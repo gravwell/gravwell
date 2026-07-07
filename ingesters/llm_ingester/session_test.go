@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func TestSession_NewConversation(t *testing.T) {
+func TestSessionNewConversation(t *testing.T) {
 	s, err := newSessionStore(time.Hour, "")
 	if err != nil {
 		t.Fatalf("newSessionStore: %v", err)
@@ -28,7 +28,7 @@ func TestSession_NewConversation(t *testing.T) {
 	}
 }
 
-func TestSession_Continuation(t *testing.T) {
+func TestSessionContinuation(t *testing.T) {
 	s, _ := newSessionStore(time.Hour, "")
 	// turn 1: system + user1
 	id1, new1 := s.Resolve("k1", []string{"sys", "user1"})
@@ -53,19 +53,19 @@ func TestSession_Continuation(t *testing.T) {
 	}
 }
 
-func TestSession_DifferentAPIKeysIsolated(t *testing.T) {
+func TestSessionDifferentClientsIsolated(t *testing.T) {
 	s, _ := newSessionStore(time.Hour, "")
-	id1, _ := s.Resolve("k1", []string{"sys", "user1"})
-	id2, isNew := s.Resolve("k2", []string{"sys", "user1", "asst1", "user2"})
+	id1, _ := s.Resolve("client1", []string{"sys", "user1"})
+	id2, isNew := s.Resolve("client2", []string{"sys", "user1", "asst1", "user2"})
 	if !isNew {
-		t.Error("different api key with overlapping content must still mint a new session")
+		t.Error("different client with overlapping content must still mint a new session")
 	}
 	if id1 == id2 {
-		t.Error("sessions across different api keys must not share an id")
+		t.Error("sessions across different clients must not share an id")
 	}
 }
 
-func TestSession_BranchingMintsNew(t *testing.T) {
+func TestSessionBranchingMintsNew(t *testing.T) {
 	s, _ := newSessionStore(time.Hour, "")
 	s.Resolve("k1", []string{"sys", "user1"})
 	// A divergent conversation starting with a different system prompt should mint a new session.
@@ -78,7 +78,7 @@ func TestSession_BranchingMintsNew(t *testing.T) {
 	}
 }
 
-func TestSession_TTLEviction(t *testing.T) {
+func TestSessionTTLEviction(t *testing.T) {
 	s, _ := newSessionStore(10*time.Millisecond, "")
 	s.Resolve("k1", []string{"sys", "user1"})
 	time.Sleep(50 * time.Millisecond)
@@ -88,7 +88,7 @@ func TestSession_TTLEviction(t *testing.T) {
 	}
 }
 
-func TestSession_Persistence(t *testing.T) {
+func TestSessionPersistence(t *testing.T) {
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "sessions.state")
 

@@ -104,7 +104,7 @@ func sampleConversation() []protocol.Event {
 	}
 }
 
-func TestEmitRequestEvents_UserOnly(t *testing.T) {
+func TestEmitRequestEventsUserOnly(t *testing.T) {
 	ec, c := newCapturingCtx(logModeUserOnly, true, true)
 	emitRequestEvents(ec, sampleConversation())
 	types := c.eventTypes(t)
@@ -116,7 +116,7 @@ func TestEmitRequestEvents_UserOnly(t *testing.T) {
 	}
 }
 
-func TestEmitRequestEvents_FullConversation(t *testing.T) {
+func TestEmitRequestEventsFullConversation(t *testing.T) {
 	ec, c := newCapturingCtx(logModeFullConversation, true, true)
 	emitRequestEvents(ec, sampleConversation())
 	types := c.eventTypes(t)
@@ -126,7 +126,7 @@ func TestEmitRequestEvents_FullConversation(t *testing.T) {
 	}
 }
 
-func TestEmitRequestEvents_DeltasNewSession(t *testing.T) {
+func TestEmitRequestEventsDeltasNewSession(t *testing.T) {
 	ec, c := newCapturingCtx(logModeDeltas, true, true)
 	ec.newSession = true
 	emitRequestEvents(ec, sampleConversation())
@@ -144,7 +144,7 @@ func TestEmitRequestEvents_DeltasNewSession(t *testing.T) {
 	}
 }
 
-func TestEmitRequestEvents_DeltasContinuation(t *testing.T) {
+func TestEmitRequestEventsDeltasContinuation(t *testing.T) {
 	ec, c := newCapturingCtx(logModeDeltas, true, true)
 	ec.newSession = false
 	emitRequestEvents(ec, sampleConversation())
@@ -158,7 +158,7 @@ func TestEmitRequestEvents_DeltasContinuation(t *testing.T) {
 	}
 }
 
-func TestEmitRequestEvents_DeltasToolResultTail(t *testing.T) {
+func TestEmitRequestEventsDeltasToolResultTail(t *testing.T) {
 	// A turn where the client sends back tool results after an assistant turn.
 	evs := []protocol.Event{
 		{Type: protocol.EventUserMessage, Role: "user", Content: []byte("u1")},
@@ -179,7 +179,7 @@ func TestEmitRequestEvents_DeltasToolResultTail(t *testing.T) {
 	}
 }
 
-func TestEmitResponseEvents_Toggles(t *testing.T) {
+func TestEmitResponseEventsToggles(t *testing.T) {
 	resp := []protocol.Event{
 		{Type: protocol.EventAssistantMessage, Role: "assistant", Content: []byte("reply")},
 		{Type: protocol.EventToolCall, Role: "assistant", ToolName: "f", ToolCallID: "c1"},
@@ -211,12 +211,11 @@ func TestEmitResponseEvents_Toggles(t *testing.T) {
 	}
 }
 
-func TestBuildEntry_EnumeratedValues(t *testing.T) {
+func TestBuildEntryEnumeratedValues(t *testing.T) {
 	ec, _ := newCapturingCtx(logModeDeltas, true, true)
 	ec.sessionID = "sess-1"
 	ec.requestID = "req-1"
 	ec.model = "gpt-4o"
-	ec.apiKeyHash = "abcd"
 	ec.upstreamCode = 200
 	ec.durationMs = 42
 	ec.stream = true
@@ -245,7 +244,6 @@ func TestBuildEntry_EnumeratedValues(t *testing.T) {
 		"model":             "gpt-4o",
 		"protocol":          "openai-chat",
 		"listener":          "test",
-		"api_key_hash":      "abcd",
 		"upstream_status":   int64(200),
 		"duration_ms":       int64(42),
 		"stream":            true,

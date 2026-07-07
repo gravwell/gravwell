@@ -31,7 +31,6 @@ type emitCtx struct {
 	clientIP     net.IP
 	sessionID    string
 	newSession   bool
-	apiKeyHash   string
 	upstreamCode int
 	stream       bool
 	requestID    string
@@ -110,19 +109,6 @@ func emitResponseEvents(ec *emitCtx, evs []protocol.Event) {
 	}
 }
 
-// emitError writes a synthetic error event for diagnosing the proxy.
-func emitError(ec *emitCtx, kind string, err error) {
-	ev := protocol.Event{
-		Type:    protocol.EventProxyError,
-		Content: []byte(err.Error()),
-	}
-	e := buildEntry(ec, ev)
-	if errAdd := e.AddEnumeratedValueEx("error_kind", kind); errAdd != nil && ec.lg != nil {
-		ec.lg.Warn("failed to add error_kind EV", log.KVErr(errAdd))
-	}
-	send(ec, e)
-}
-
 func writeEvent(ec *emitCtx, ev protocol.Event) {
 	send(ec, buildEntry(ec, ev))
 }
@@ -161,9 +147,6 @@ func buildEntry(ec *emitCtx, ev protocol.Event) *entry.Entry {
 	}
 	addEV(ec, e, "protocol", ec.protocolName)
 	addEV(ec, e, "listener", ec.listenerName)
-	if ec.apiKeyHash != "" {
-		addEV(ec, e, "api_key_hash", ec.apiKeyHash)
-	}
 	if ec.upstreamCode != 0 {
 		addEV(ec, e, "upstream_status", int64(ec.upstreamCode))
 	}
