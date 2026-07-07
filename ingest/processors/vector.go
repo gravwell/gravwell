@@ -39,7 +39,7 @@ var (
 	ErrMissingEndpoint = errors.New("missing endpoint in vector config")
 	ErrInvalidEndpoint = errors.New("invalid endpoint in vector config")
 	ErrEmptyEmbedding  = errors.New("empty embedding response")
-	ErrEmbeddingCount  = errors.New("Embedding response count does not match request")
+	ErrEmbeddingCount  = errors.New("embedding response count does not match request")
 )
 
 type VectorConfig struct {
