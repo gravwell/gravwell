@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,6 +79,8 @@ func main() {
 		lg.FatalCode(0, "failed to init session store", log.KVErr(err))
 		return
 	}
+
+	lg.Info("registered protocols", log.KV("protocols", strings.Join(protocol.Names(), ", ")))
 
 	type listenerSrv struct {
 		name string

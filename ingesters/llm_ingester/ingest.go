@@ -11,7 +11,6 @@ package main
 import (
 	"context"
 	"net"
-	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -22,24 +21,23 @@ import (
 // emitCtx bundles the per-request metadata shared by every entry emitted from
 // that request.
 type emitCtx struct {
-	tag           entry.EntryTag
-	pproc         *processors.ProcessorSet
-	listenerName  string
-	protocolName  string
-	logMode       string
-	logToolCalls  bool
-	logUsage      bool
-	clientIP      net.IP
-	sessionID     string
-	newSession    bool
-	apiKeyHash    string
-	upstreamCode  int
-	stream        bool
-	requestID     string
-	model         string
-	startedAt     time.Time
-	durationMs    int64
-	lg            *log.Logger
+	tag          entry.EntryTag
+	pproc        *processors.ProcessorSet
+	listenerName string
+	protocolName string
+	logMode      string
+	logToolCalls bool
+	logUsage     bool
+	clientIP     net.IP
+	sessionID    string
+	newSession   bool
+	apiKeyHash   string
+	upstreamCode int
+	stream       bool
+	requestID    string
+	model        string
+	durationMs   int64
+	lg           *log.Logger
 }
 
 // emitRequestEvents writes the request-side events that the listener's
@@ -115,7 +113,7 @@ func emitResponseEvents(ec *emitCtx, evs []protocol.Event) {
 // emitError writes a synthetic error event for diagnosing the proxy.
 func emitError(ec *emitCtx, kind string, err error) {
 	ev := protocol.Event{
-		Type:    "proxy.error",
+		Type:    protocol.EventProxyError,
 		Content: []byte(err.Error()),
 	}
 	e := buildEntry(ec, ev)

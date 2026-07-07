@@ -80,7 +80,6 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logToolCalls: h.cfg.Log_Tool_Calls,
 		logUsage:     h.cfg.Log_Usage,
 		clientIP:     getRemoteIP(r),
-		startedAt:    started,
 		lg:           h.lg,
 	}
 
@@ -160,10 +159,10 @@ func (h *proxyHandler) forwardUpstream(r *http.Request, body []byte) (*http.Resp
 	if err != nil {
 		return nil, err
 	}
-	out.Header.Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
-	if auth := r.Header.Get("Authorization"); auth != "" {
-		out.Header.Set("authorization", auth)
-	}
+	// Forward all client headers (Content-Type, provider-specific headers,
+	// etc.) minus hop-by-hop headers, honoring the Redact-Authorization flag.
+	copyRequestHeaders(out, r, h.cfg.Redact_Authorization)
+	setForwardedFor(out, r)
 	return h.upstream.Do(out)
 }
 
@@ -311,6 +310,25 @@ func singleJoiningSlash(a, b string) string {
 		return a + "/" + b
 	}
 	return a + b
+}
+
+// setForwardedFor appends the immediate peer's IP to the X-Forwarded-For chain,
+// preserving any chain the client already sent (copyRequestHeaders carries it
+// over). This keeps the real client visible to the upstream instead of
+// clobbering the header with a possibly-empty inbound value.
+func setForwardedFor(out, r *http.Request) {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		peer = r.RemoteAddr
+	}
+	if peer == "" {
+		return
+	}
+	if prior := out.Header.Get("X-Forwarded-For"); prior != "" {
+		out.Header.Set("X-Forwarded-For", prior+", "+peer)
+	} else {
+		out.Header.Set("X-Forwarded-For", peer)
+	}
 }
 
 func getRemoteIP(r *http.Request) net.IP {

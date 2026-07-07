@@ -160,16 +160,6 @@ func (s *sessionStore) mintLocked(apiKeyHash string, hashes []string) string {
 	return id
 }
 
-// UpdateAfterResponse records the full message-hash sequence (request hashes
-// plus a synthetic assistant-turn hash, optional) so the next request from the
-// same conversation can match. The simplest correct implementation is to do
-// nothing here — Resolve already saved the incoming prefix, and the next
-// request will arrive carrying the assistant turn appended by the client,
-// which we'll match as a prefix of the next "everything but the latest".
-// We keep this method as a hook for protocols where the assistant's reply
-// hashes need to be reconstructed server-side.
-func (s *sessionStore) UpdateAfterResponse(_ string, _ []string) {}
-
 // evictLocked drops entries older than the TTL. Caller holds s.mu.
 func (s *sessionStore) evictLocked() {
 	if s.ttl <= 0 {

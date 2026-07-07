@@ -47,20 +47,20 @@ type cfgReadType struct {
 }
 
 type listener struct {
-	Bind                 string
-	Upstream_URL         string
-	Protocol             string
-	Tag_Name             string
-	Log_Mode             string
-	Log_Tool_Calls       bool
-	Log_Usage            bool
-	Redact_Authorization bool
-	Session_TTL          string
-	Max_Body             int
-	TLS_Certificate_File string
-	TLS_Key_File         string
+	Bind                              string
+	Upstream_URL                      string
+	Protocol                          string
+	Tag_Name                          string
+	Log_Mode                          string
+	Log_Tool_Calls                    bool
+	Log_Usage                         bool
+	Redact_Authorization              bool
+	Session_TTL                       string
+	Max_Body                          int
+	TLS_Certificate_File              string
+	TLS_Key_File                      string
 	Insecure_Skip_TLS_Verify_Upstream bool
-	Preprocessor         []string
+	Preprocessor                      []string
 
 	// derived during Verify
 	sessionTTL  time.Duration
@@ -108,7 +108,7 @@ func (c *cfgType) Verify() error {
 	}
 	binds := map[string]string{}
 	for name, l := range c.Listener {
-		if err := l.validate(name); err != nil {
+		if err := l.validate(); err != nil {
 			return fmt.Errorf("listener %q: %w", name, err)
 		}
 		if other, ok := binds[l.Bind]; ok {
@@ -122,7 +122,7 @@ func (c *cfgType) Verify() error {
 	return nil
 }
 
-func (l *listener) validate(name string) error {
+func (l *listener) validate() error {
 	if l.Bind == "" {
 		return errors.New("missing Bind")
 	}

@@ -23,6 +23,9 @@ const (
 	EventToolCall         = "response.tool_call"
 	EventToolResult       = "request.tool_result"
 	EventUsage            = "response.usage"
+	// EventProxyError is a synthetic event the proxy emits for its own
+	// diagnostics (upstream failures, unparseable bodies, etc.).
+	EventProxyError = "proxy.error"
 )
 
 // TokenUsage captures token accounting for a single response.
