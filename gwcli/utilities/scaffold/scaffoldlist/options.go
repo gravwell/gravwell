@@ -63,8 +63,8 @@ type Options struct {
 	// Uses DefaultEmptyMessage if unset.
 	EmptyMessage string
 
-	// Omit allows disabling flags for this action, causing their values to always default to false/nil and the flags themselves to not be shown in help text.
-	Omit scaffold.OmitFlags
+	// QueryOptionsFlags can take a QOBuilder to configure how this action should handle query options flags.
+	QueryOptionsFlags scaffold.QOBuilder
 }
 
 // buildFlagSet returns a flagset composed of the default list flags,
@@ -73,7 +73,7 @@ type Options struct {
 //
 // defaultColumnsAliased are the columns to display as defaults alongside --columns.
 // They are expected to have aliases applied and will not be coerced.
-func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit scaffold.OmitFlags) *pflag.FlagSet {
+func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, qob scaffold.QOBuilder) *pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	ft.CSV.Register(&fs)
 	ft.JSON.Register(&fs)
@@ -93,7 +93,9 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, omit scaff
 		"Displays data from all columns, ignoring the default column set.\n"+
 			"Mutually exclusive with --"+FlagNameSelectColumns)
 
-	scaffold.InstallQueryOptionsFlags(&fs, omit)
+	if qob != nil {
+		qob.Install(&fs)
+	}
 
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {

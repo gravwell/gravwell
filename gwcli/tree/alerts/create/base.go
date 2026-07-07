@@ -17,6 +17,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
+	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -30,7 +32,7 @@ func Action() action.Pair {
 	cmd := treeutils.GenerateAction("create", "create a new alert",
 		"Create a new alert by defining the dispatchers that trigger it and the consumers that act when the alert is fired",
 		nil,
-		func(c *cobra.Command, s []string) error {
+		func(c *cobra.Command, args []string) error {
 			availDispatchers, availConsumers, inv, err := prerequisites()
 			if err != nil {
 				return err
@@ -43,7 +45,10 @@ func Action() action.Pair {
 			}
 			inv, ad := validateFlagValues(availConsumers, availDispatchers, flagVals)
 			if inv != "" {
-				return errors.New(inv)
+				if !state.Interactive() {
+					return errors.New(inv)
+				}
+				return mother.Spawn(c.Root(), c, args)
 			}
 
 			res, err := connection.Client.CreateAlert(ad)

@@ -14,8 +14,6 @@ import (
 	"slices"
 	"time"
 
-	"strings"
-
 	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -45,36 +43,13 @@ func NewNav() *cobra.Command {
 	)
 	return treeutils.GenerateNav(use, short, long, []string{"alert"}, []*cobra.Command{},
 		[]action.Pair{
-			alertsList(),
+			listAction(),
 			toggle(),
 			delete(),
 			alertscreate.Action(),
 			dispatchers(),
 			save(),
 		})
-}
-
-//#region helpers
-
-func alertsToGeneric(a types.AlertListResponse) (g []multiselectlist.SelectableItem[string]) {
-	// sort on name
-	slices.SortStableFunc(a.Results,
-		func(a, b types.Alert) int {
-			return strings.Compare(a.Name, b.Name)
-		})
-	g = make([]multiselectlist.SelectableItem[string], len(a.Results))
-	for i, a := range a.Results {
-		g[i] = &listitem.Generic{
-			Selected_:  false,
-			ID_:        a.ID,
-			Name:       a.Name,
-			SecondLine: a.Description,
-
-			ShowDisabled: true,
-			Enabled:      !a.Disabled,
-		}
-	}
-	return g
 }
 
 //#region actions
@@ -85,13 +60,8 @@ var (
 	listDispatcherID string
 )
 
-func alertsList() action.Pair {
-	const (
-		short string = "list your alerts"
-		long  string = "lists alerts associated to your user. If admin mode is active, returns all alerts for all users."
-	)
-
-	return scaffoldlist.NewListAction(short, long, types.Alert{},
+func listAction() action.Pair {
+	return scaffoldlist.NewListAction("list your alerts", "Lists alerts associated to your user.", types.Alert{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
 
 			if listConsumerID != "" {
@@ -155,21 +125,22 @@ func alertsList() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("alert", "alerts",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("alert",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetAlert(id)
 				return err
 			}
 			return connection.Client.DeleteAlert(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			alerts, err := connection.Client.ListAlerts(nil)
+		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListAlerts(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			return alertsToGeneric(alerts), nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		},
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 var toggleEnable, toggleDisable bool
@@ -209,7 +180,7 @@ func toggle() action.Pair {
 					Enabled:      !alert.Disabled,
 				})
 			}
-			return items, nil
+			return slices.Clip(items), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -286,11 +257,11 @@ func dispatchers() action.Pair {
 			"Use --add to add dispatchers, --remove to remove them, or neither to replace the entire list.",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			return alertsToGeneric(a), nil
+			return listitem.WrapAssets(lr.Results), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
@@ -414,17 +385,17 @@ func save() action.Pair {
 			"If an alert would be enabled but have a save duration of 0, it will default to "+defaultDuration.String()+".",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			a, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
-			return alertsToGeneric(a), nil
+			return listitem.WrapAssets(lr.Results), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// checked by validate
 			enable, _ := fs.GetBool("enable")
-			duration, _ := fs.GetDuration("duration")
+			duration, _ := fs.GetDuration(ft.DurationName)
 			disable, _ := fs.GetBool("disable")
 
 			results = make([]scaffold.Result, len(IDs))
@@ -469,10 +440,10 @@ func save() action.Pair {
 				Use: "save",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					fs.Bool("enable", false, "enable search saving.\n"+
+					fs.Bool("enable", false, "Enable search saving.\n"+
 						"Mutually exclusive with --disable")
-					fs.Duration("duration", 0, "duration for which to save a triggering search")
-					fs.Bool("disable", false, "disable search saving.\n"+
+					fs.Duration(ft.DurationName, 0, "Duration for which to save a triggering search. Must be positive.")
+					fs.Bool("disable", false, "Disable search saving.\n"+
 						"Mutually exclusive with --enable")
 					return fs
 				},
@@ -484,6 +455,11 @@ func save() action.Pair {
 				clilog.GetFlag(err)
 				if enable && disable {
 					return ft.ErrMutuallyExclusive("enable", "disable").Error(), nil
+				}
+				duration, err := fs.GetDuration(ft.DurationName)
+				clilog.GetFlag(err)
+				if duration < 0 {
+					return "duration must be positive", nil
 				}
 				return "", nil
 			},

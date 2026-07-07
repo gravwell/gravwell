@@ -292,7 +292,7 @@ func Walk(pwd *cobra.Command, input string, builtinActions []string) (WalkResult
 		// we explicitly check for help prior to findEndCommand.
 		// if it was found again, then this must have been bad input
 		return wr, fmt.Errorf("help must be of the form %v. See %v for more help",
-			stylesheet.Cur.ExampleText.Render("help "+ft.MutuallyExclusive([]string{"command path"})),
+			stylesheet.Cur.ExampleText.Render("help "+ft.Mandatory("command path")),
 			stylesheet.Cur.ExampleText.Render("help help"))
 	}
 	// look ahead for -h/--help

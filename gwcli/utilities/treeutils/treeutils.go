@@ -11,6 +11,7 @@
 package treeutils
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -50,7 +51,7 @@ func GenerateNav(use, short, long string, aliases []string,
 					}
 					kids[i] = stylesheet.ColorCommandName(c)
 				}
-				fmt.Fprintf(c.OutOrStdout(), "%s %s", c.Name(), ft.MutuallyExclusive(kids))
+				fmt.Fprintf(c.OutOrStdout(), "%s %s", c.Name(), ft.MutuallyExclusive(kids...))
 			} else {
 				fmt.Fprintf(c.OutOrStdout(), "%s [subcommand]", c.Name())
 			}
@@ -138,6 +139,11 @@ var NavRun = func(cmd *cobra.Command, args []string) error {
 		cmd.Help()
 		return nil
 	}
+
+	if len(args) > 0 { // NavRun was called, but extra tokens were found, so something went wrong
+		return errors.New(args[0] + " is not a valid builtin or subcommand")
+	}
+
 	// invoke mother
 	return mother.Spawn(cmd.Root(), cmd, []string{})
 }

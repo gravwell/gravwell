@@ -140,9 +140,10 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 	resp, err = c.methodRequestURL(http.MethodPut, resourcesIdRawUrl(id), contentType, rdr)
 	if err != nil {
 		return types.Resource{}, err
-	} else if err := checkResponse(c, resp); err != nil {
+	} else if err := aliasResponseError(c, resp); err != nil {
 		return types.Resource{}, err
 	}
+	defer drainResponse(resp)
 
 	// decode the metadata response
 	confirmation := types.Resource{}
@@ -211,10 +212,10 @@ func (c *Client) GetResourceEx(name string, opts *types.QueryOptions, previewByt
 	resp, err := c.methodParamRequestURL(http.MethodGet, resourcesIdRawUrl(meta.ID), map[string]string{
 		"include_deleted": strconv.FormatBool(opts.IncludeDeleted),
 		"bytes":           strconv.FormatUint(previewBytes, 10),
-	}, nil)
+	})
 	if err != nil {
 		return nil, err
-	} else if err := checkResponse(c, resp); err != nil {
+	} else if err := aliasResponseError(c, resp); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()

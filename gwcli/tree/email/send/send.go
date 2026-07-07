@@ -32,7 +32,7 @@ func NewPair() action.Pair {
 			if cfg, err := connection.Client.MailConfig(); err != nil {
 				return err
 			} else if cfg.Server == "" || cfg.Port == 0 {
-				return errors.New("You must configure a mail server before you can send mail")
+				return errors.New("you must configure a mail server before you can send mail")
 			}
 
 			from, to, subject, body, err := getFlags(c.Flags())
@@ -279,17 +279,29 @@ func (m *model) prev() {
 func (m *model) View() string {
 	var sb strings.Builder
 
-	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(from)) + stylesheet.Cur.FieldText.Render("From:") + " ")
-	sb.WriteString(m.fromTI.View() + "\n")
+	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(from)))
+	sb.WriteString(stylesheet.Cur.FieldText.Render("From:"))
+	sb.WriteString(" ")
+	sb.WriteString(m.fromTI.View())
+	sb.WriteString("\n")
 
-	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(to)) + stylesheet.Cur.FieldText.Render("To:") + "\n")
-	sb.WriteString(m.toTA.View() + "\n")
+	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(to)))
+	sb.WriteString(stylesheet.Cur.FieldText.Render("To:"))
+	sb.WriteString("\n")
+	sb.WriteString(m.toTA.View())
+	sb.WriteString("\n")
 
-	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(subject)) + stylesheet.Cur.FieldText.Render("Subject:") + " ")
-	sb.WriteString(m.subjectTI.View() + "\n")
+	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(subject)))
+	sb.WriteString(stylesheet.Cur.FieldText.Render("Subject:"))
+	sb.WriteString(" ")
+	sb.WriteString(m.subjectTI.View())
+	sb.WriteString("\n")
 
-	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(body)) + stylesheet.Cur.FieldText.Render("Body:") + "\n")
-	sb.WriteString(m.bodyTA.View() + "\n")
+	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(body)))
+	sb.WriteString(stylesheet.Cur.FieldText.Render("Body:"))
+	sb.WriteString("\n")
+	sb.WriteString(m.bodyTA.View())
+	sb.WriteString("\n")
 
 	var errors []string
 	if m.fromTI.Err != nil {
@@ -305,7 +317,8 @@ func (m *model) View() string {
 		errors = append(errors, m.bodyTA.Err.Error())
 	}
 
-	sb.WriteString("\n" + stylesheet.ViewSubmitButton(m.selected == submit, m.bodyTA.Width(), errors...))
+	sb.WriteString("\n")
+	sb.WriteString(stylesheet.ViewSubmitButton(m.selected == submit, m.bodyTA.Width(), errors...))
 
 	return sb.String()
 }

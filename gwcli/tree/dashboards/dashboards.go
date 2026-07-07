@@ -40,12 +40,10 @@ func NewNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
-			deleteAction(),
-			cloneAction(),
+			delete(),
+			clone(),
 		})
 }
-
-//#region list
 
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list dashboards", "list dashboards available to you and the system",
@@ -61,40 +59,26 @@ func listAction() action.Pair {
 		}})
 }
 
-//#region delete
-
-func deleteAction() action.Pair {
-	return scaffolddelete.NewDeleteAction("dashboard", "dashboards",
-		del, fch, scaffolddelete.Options{})
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("dashboard",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
+			if dryrun {
+				_, err := connection.Client.GetDashboard(id)
+				return err
+			}
+			return connection.Client.DeleteDashboard(id)
+		},
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListDashboards(params.QueryOpts)
+			if err != nil {
+				return nil, err
+			}
+			return listitem.WrapAssets(lr.Results), nil
+		},
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
-func del(dryrun bool, id string) error {
-	if dryrun {
-		_, err := connection.Client.GetDashboard(id)
-		return err
-	}
-	return connection.Client.DeleteDashboard(id)
-}
-
-func fch() ([]multiselectlist.SelectableItem[string], error) {
-	lr, err := connection.Client.ListDashboards(&types.QueryOptions{Filters: []types.Filter{{Key: "OwnerID", Operation: "=", Values: []any{connection.CurrentUser().ID}}}})
-	if err != nil {
-		return nil, err
-	}
-	var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-	for i, d := range lr.Results {
-		items[i] = &listitem.Generic{
-			Selected_:  false,
-			ID_:        d.ID,
-			Name:       d.Name,
-			SecondLine: d.Description,
-		}
-	}
-
-	return items, nil
-}
-
-func cloneAction() action.Pair {
+func clone() action.Pair {
 	return scaffoldselect.NewSelectAction("clone dashboards", "create a copy of one or many dashboards.",
 		"dashboard",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
@@ -102,16 +86,7 @@ func cloneAction() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(dlr.Results))
-			for i, dash := range dlr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        dash.ID,
-					Name:       dash.Name,
-					SecondLine: dash.Description,
-				}
-			}
-			return items, nil
+			return listitem.WrapAssets(dlr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

@@ -11,14 +11,14 @@ package scaffoldcreate
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type Options struct {
 	scaffold.CommonOptions
-	// Override scaffoldcreate's default one-line action description.
-	Short string
-	// Override scaffoldcreate's default action description.
-	Long string
+	// Called as soon as the action is invoked, before the providers' SetArgs hooks and before fields are set from flags.
+	// You may assume that the flags have already been parsed, but that no additional actions have been taken on them.
+	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
 	// If set, the any "id" returned from CreateFunc will be printed bare, rather than being fed into phrases.SuccessfullyCreatedItem.
 	IDIsSuccessMessage bool
 }

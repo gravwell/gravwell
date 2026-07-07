@@ -133,31 +133,22 @@ func list() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("template", "templates",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("template",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetTemplate(id)
 				return err
 			}
 			return connection.Client.DeleteTemplate(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTemplates(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListTemplates(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, t := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        t.ID,
-					Name:       t.Name,
-					SecondLine: t.Description,
-				}
-			}
 
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {
@@ -223,19 +214,11 @@ type content struct {
 func show() action.Pair {
 	return scaffoldselect.NewSelectAction("display template contents", "Display the contents of a template", "template",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			templates, err := connection.Client.ListTemplates(nil) // TODO need to pass in params
+			lr, err := connection.Client.ListTemplates(nil) // TODO need to pass in params
 			if err != nil {
 				return nil, err
 			}
-			data := make([]multiselectlist.SelectableItem[string], len(templates.Results))
-			for i, template := range templates.Results {
-				data[i] = &listitem.Generic{
-					ID_:        template.ID,
-					Name:       template.Name,
-					SecondLine: template.Description,
-				}
-			}
-			return data, nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())
@@ -347,8 +330,11 @@ func create() action.Pair {
 
 		},
 		scaffoldcreate.Options{
-			Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
-				"Call " + stylesheet.Cur.Action.Render("templates json") + " to see the format of the JSON file.",
+			CommonOptions: scaffold.CommonOptions{
+				Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
+					"Call " + stylesheet.Path(true, "~", "templates", "json") + " to see the format of the JSON file.",
+			},
+
 			IDIsSuccessMessage: true,
 		})
 }

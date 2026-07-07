@@ -84,16 +84,16 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("group", "groups",
-		func(dryrun bool, id int32) error {
+	return scaffolddelete.NewDeleteAction("group",
+		func(dryrun bool, id int32, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetGroup(id)
 				return err
 			}
 			return connection.Client.DeleteGroup(id)
 		},
-		func() ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListGroups(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
+			lr, err := connection.Client.ListGroups(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {
@@ -168,7 +168,7 @@ func listUsers() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "users",
-				Usage: "users " + ft.MutuallyExclusive([]string{"--csv", "--json", "--table"}) +
+				Usage: "users " + ft.MutuallyExclusive("--csv", "--json", "--table") +
 					" " + ft.Optional("flags") + " " + ft.Mandatory("group ID"),
 				Example: "users 2",
 			},
@@ -192,7 +192,7 @@ func listUsers() action.Pair {
 				}
 				return "", nil
 			},
-			EmptyMessage: "this group has no users",
-			Omit:         scaffold.OmitFlags{Everything: true},
+			EmptyMessage:      "this group has no users",
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})
 }

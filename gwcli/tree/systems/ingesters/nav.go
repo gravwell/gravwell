@@ -36,11 +36,6 @@ func NewIngestersNav() *cobra.Command {
 
 // listAction generates an action for retrieving information about the ingesters.
 func listAction() action.Pair {
-	const (
-		short string = "review info about all ingesters"
-		long  string = "Review general statistics about all ingesters."
-	)
-
 	type wrappedIngesterStats struct {
 		Indexer       string
 		Hostname      string
@@ -54,7 +49,7 @@ func listAction() action.Pair {
 		UUID          string
 	}
 
-	return scaffoldlist.NewListAction(short, long, wrappedIngesterStats{},
+	return scaffoldlist.NewListAction("review info about all ingesters", "Review general statistics about all ingesters.", wrappedIngesterStats{},
 		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]wrappedIngesterStats, error) {
 			// GetIngesterStats returns data according to each indexer.
 			// We extract just the ingester stats sub items.
@@ -82,5 +77,5 @@ func listAction() action.Pair {
 				}
 			}
 			return wrap, nil
-		}, nil, scaffoldlist.Options{Omit: scaffold.OmitFlags{Everything: true}})
+		}, nil, scaffoldlist.Options{QueryOptionsFlags: scaffold.QOOmit{Everything: true}})
 }

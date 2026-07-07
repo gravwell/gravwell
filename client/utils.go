@@ -12,7 +12,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -78,9 +77,11 @@ func decodeJWTExpires(jwt string) (r time.Time) {
 	return
 }
 
-// checkResponse tests the given http response for common errors and aliases them as appropriate.
+// aliasResponseError returns the error that corresponds to resp.StatusCode.
 // If a non-200 status code is given, the response's body will be automatically drained.
-func checkResponse(c *Client, resp *http.Response) error {
+//
+// Returns nil iff status code == 200.
+func aliasResponseError(c *Client, resp *http.Response) error {
 	if resp.StatusCode == http.StatusOK {
 		return nil
 	}
@@ -92,10 +93,7 @@ func checkResponse(c *Client, resp *http.Response) error {
 		return ErrNotAuthed
 	case http.StatusNotFound:
 		return ErrNotFound
-	default: // unhandled code; check body for error
-		if s := getBodyErr(resp.Body); len(s) > 0 {
-			return errors.New(s)
-		}
-		return fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
+	default: // unhandled code
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
 }

@@ -29,13 +29,8 @@ import (
 )
 
 func NewNav() *cobra.Command {
-	const (
-		use   string = "files"
-		short string = "manage extra files you have uploaded"
-		long  string = "Files can be used to store small files for use in playbooks, cover images for kits, etc.\n" +
-			"See https://docs.gravwell.io/gui/files/files.html for more information."
-	)
-	return treeutils.GenerateNav(use, short, long, []string{"file"}, nil,
+	return treeutils.GenerateNav("files", "manage extra files you have uploaded", "Files can be used to store small files for use in playbooks, cover images for kits, etc.\n"+
+		"See https://docs.gravwell.io/gui/files/files.html for more information.", []string{"file"}, nil,
 		[]action.Pair{
 			list(),
 			download(),
@@ -44,17 +39,6 @@ func NewNav() *cobra.Command {
 			delete(),
 			replace(),
 		})
-}
-
-//#region helpers
-
-func fileToGeneric(f types.File, selected bool) *listitem.Generic {
-	return &listitem.Generic{
-		Selected_:  selected,
-		ID_:        f.ID,
-		Name:       f.Name,
-		SecondLine: fmt.Sprintf("(Size: %v) %s", f.Size, f.Description),
-	}
 }
 
 //#region actions
@@ -74,7 +58,6 @@ func list() action.Pair {
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
-				"CommonFields.Type",
 				"CommonFields.Labels",
 
 				"Size",
@@ -140,16 +123,6 @@ func create() action.Pair {
 			desc = cfg["desc"].Provider.Get()
 			filePath = cfg["path"].Provider.Get()
 
-			var f *os.File
-			if filePath != "" {
-				// get a reader on the file
-				f, err = os.Open(filePath)
-				if err != nil {
-					return 0, "", err
-				}
-				defer f.Close()
-			}
-
 			var inMeta = types.File{
 				CommonFields: types.CommonFields{
 					Name:        name,
@@ -163,10 +136,11 @@ func create() action.Pair {
 				return 0, "", fmt.Errorf("failed to create empty file: %w", err)
 			}
 			// populate the file
-			if _, err := connection.Client.PopulateFileFromPath(outMeta.ID, filePath); err != nil {
-				return 0, "", fmt.Errorf("failed to populate file: %w", err)
+			if filePath != "" {
+				if _, err := connection.Client.PopulateFileFromPath(outMeta.ID, filePath); err != nil {
+					return 0, "", fmt.Errorf("failed to populate file: %w", err)
+				}
 			}
-
 			return outMeta.ID, "", nil
 		}, scaffoldcreate.Options{})
 }
@@ -238,26 +212,22 @@ func edit() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("file", "files",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("file",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetFileMetadata(id)
 				return err
 			}
 			return connection.Client.DeleteFile(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListFiles(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, f := range lr.Results {
-				items[i] = fileToGeneric(f, false)
-			}
 
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func replace() action.Pair {
@@ -269,11 +239,8 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, f := range lr.Results {
-				items[i] = fileToGeneric(f, false)
-			}
-			return items, nil
+
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

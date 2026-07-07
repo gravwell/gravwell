@@ -145,16 +145,16 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("user", "users",
-		func(dryrun bool, id int32) error {
+	return scaffolddelete.NewDeleteAction("user",
+		func(dryrun bool, id int32, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetUser(id)
 				return err
 			}
 			return connection.Client.DeleteUser(id)
 		},
-		func() ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListUsers(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
+			lr, err := connection.Client.ListUsers(param.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -164,7 +164,8 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{})
+		},
+		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {
@@ -385,7 +386,7 @@ func sessionsAction() action.Pair {
 				}
 				return "", nil
 			},
-			Omit: scaffold.OmitFlags{Everything: true},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		},
 	)
 }

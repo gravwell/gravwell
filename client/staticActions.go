@@ -154,20 +154,11 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer drainResponse(resp)
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
-	} else if resp.StatusCode == http.StatusNotFound {
-		return ErrNotFound
-	}
-
-	statOk := respOk(resp.StatusCode, okResponses...)
-	//either its in the list, or the list is empty and StatusOK is implied
-	if !(statOk || (resp.StatusCode == http.StatusOK && len(okResponses) == 0)) {
+	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResponses...) {
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
-		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return aliasResponseError(c, resp)
 	}
+	defer drainResponse(resp)
 
 	if obj != nil {
 		if err := json.NewDecoder(resp.Body).Decode(&obj); err != nil {
@@ -232,15 +223,11 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer drainResponse(resp)
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
-	}
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
-		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return aliasResponseError(c, resp)
 	}
+	defer drainResponse(resp)
 
 	if recvObj != nil {
 		if err := json.NewDecoder(resp.Body).Decode(&recvObj); err != nil {
@@ -285,15 +272,11 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer drainResponse(resp)
-	if resp.StatusCode == http.StatusUnauthorized {
-		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
-	}
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
-		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return aliasResponseError(c, resp)
 	}
+	defer drainResponse(resp)
 
 	if recvObj != nil {
 		if err := json.NewDecoder(resp.Body).Decode(&recvObj); err != nil {
@@ -431,7 +414,9 @@ func (c *Client) methodRequestURL(method, url, contentType string, body io.Reade
 	return
 }
 
-func (c *Client) methodParamRequestURL(method, uri string, params map[string]string, body io.Writer) (resp *http.Response, err error) {
+// methodParamRequestURL builds and submits a request against the specified uri.
+// Returns an error iff the request failed. You must check the resp's status code yourself.
+func (c *Client) methodParamRequestURL(method, uri string, params map[string]string) (resp *http.Response, err error) {
 	var req *http.Request
 	if req, err = http.NewRequest(method, fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, uri), nil); err != nil {
 		return

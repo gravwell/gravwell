@@ -30,7 +30,7 @@ import (
 func updateValue() action.Pair {
 	cmd := treeutils.GenerateAction("update", "update a secret's value",
 		"Update the value stored in a secret. The secret is identified by its ID.\n"+
-			"Use "+ft.MutuallyExclusive([]string{"--value", "--file"})+" to provide the new value.", nil,
+			"Use "+ft.MutuallyExclusive("--value", "--file")+" to provide the new value.", nil,
 		func(c *cobra.Command, remaining []string) error {
 			if c.Flags().NArg() != 1 {
 				if !state.Interactive() {
@@ -63,7 +63,7 @@ func updateValue() action.Pair {
 			return nil
 		},
 		treeutils.GenerateActionOptions{
-			Usage:   ft.MutuallyExclusive([]string{"--value", "--file"}) + " " + ft.Mandatory("secret ID"),
+			Usage:   ft.MutuallyExclusive("--value", "--file") + " " + ft.Mandatory("secret ID"),
 			Example: "--value=mysupersecretvalue secret-one-two-three-four",
 		},
 	)
@@ -181,7 +181,7 @@ func (m *updateModel) SetArgs(_ *pflag.FlagSet, args []string, width, height int
 			return "", nil, err
 		}
 		if len(lr.Results) < 1 {
-			return "", nil, errors.New("You have no available secrets")
+			return "", nil, errors.New("you have no available secrets")
 		}
 		items := make([]list.Item, len(lr.Results))
 		for i, secret := range lr.Results {

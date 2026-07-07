@@ -26,7 +26,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
@@ -141,13 +140,13 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 	// if id was specified, we should have jumped directly to edit mode
 	if id == -1 {
 		// enter edit mode for whichever item was listed first, don't care
-		em.Update(SendHotkey(hotkeys.Invoke))
+		em.Update(testsupport.SendHotkey(hotkeys.Invoke))
 		time.Sleep(50 * time.Millisecond)
 	}
 
 	// check that we are actually in edit mode
 	if em.mode != editing {
-		t.Fatal("incorrect mode", ExpectedActual(editing, em.mode))
+		t.Fatal("incorrect mode", testsupport.ExpectedActual(editing, em.mode))
 	}
 	// sanity check edit mode
 	if em.editing.selected != 0 {
@@ -161,30 +160,30 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 	// check the value of the TI
 
 	// make sure we can nav up to cycle to the submit button
-	em.Update(SendHotkey(hotkeys.CursorUp))
+	em.Update(testsupport.SendHotkey(hotkeys.CursorUp))
 	time.Sleep(50 * time.Millisecond)
 
 	if !em.editing.submitSelected() {
 		t.Fatal("keyUp on first field did not hover submit.",
-			ExpectedActual(uint(em.editing.tiCount), em.editing.selected))
+			testsupport.ExpectedActual(uint(em.editing.tiCount), em.editing.selected))
 	}
 	// return to top
-	em.Update(SendHotkey(hotkeys.CursorDown))
+	em.Update(testsupport.SendHotkey(hotkeys.CursorDown))
 	time.Sleep(50 * time.Millisecond)
 
 	for i := 0; i < len(em.cfg); i++ { // we should one TI for each field
 		// nav through each to the submit
-		em.Update(SendHotkey(hotkeys.CursorDown))
+		em.Update(testsupport.SendHotkey(hotkeys.CursorDown))
 		time.Sleep(50 * time.Millisecond)
 	}
 
 	if !em.editing.submitSelected() {
 		t.Fatal("traversing down the list of TIs did not hover submit.",
-			ExpectedActual(uint(em.editing.tiCount), em.editing.selected))
+			testsupport.ExpectedActual(uint(em.editing.tiCount), em.editing.selected))
 	}
 
 	// test the update procedure
-	em.Update(SendHotkey(hotkeys.Invoke))
+	em.Update(testsupport.SendHotkey(hotkeys.Invoke))
 	time.Sleep(50 * time.Millisecond)
 
 	if !(*updateCalled) {

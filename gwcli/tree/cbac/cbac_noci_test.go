@@ -40,14 +40,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	li, err := cli.GetLicenseInfo()
-	if err != nil {
-		panic(err)
-	}
-	cbac := li.CBACEnabled()
-	// we don't actually have a way to check if cbac is enabled *in the system*, rather than just the license
 	cli.Close()
-
-	if cbac {
+	// we don't actually have a way to check if cbac is enabled *in the system*, rather than just the license
+	if err == nil && li.CBACEnabled() {
 		m.Run()
 	}
 }

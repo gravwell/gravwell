@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -211,50 +212,29 @@ func download() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("flow", "flows",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("flow",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetFlow(id)
 				return err
 			}
 			return connection.Client.DeleteFlow(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFlows(nil)
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListFlows(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, f := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        f.ID,
-					Name:       f.Name,
-					SecondLine: f.Description,
-				}
-			}
-
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func listFlowItems() ([]multiselectlist.SelectableItem[string], error) {
-	baseList, err := connection.Client.ListFlows(nil)
+	lr, err := connection.Client.ListFlows(nil)
 	if err != nil {
 		return nil, err
 	}
-
-	itms := make([]multiselectlist.SelectableItem[string], len(baseList.Results))
-	for i, f := range baseList.Results {
-		itms[i] = &listitem.Generic{
-			ID_:          f.ID,
-			Name:         f.Name,
-			SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
-			ShowDisabled: true,
-			Enabled:      !f.Disabled,
-		}
-	}
-	return itms, nil
+	return listitem.WrapAssets(lr.Results), nil
 }
 
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
@@ -315,22 +295,16 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]multiselectlist.SelectableItem[string], 0, len(baseList.Results))
+			itms := make([]types.Flow, 0, len(baseList.Results))
 			for _, f := range baseList.Results {
 				if enable && f.BackfillEnabled {
 					continue
 				} else if disable && !f.BackfillEnabled {
 					continue
 				}
-				itms = append(itms, &listitem.Generic{
-					ID_:          f.ID,
-					Name:         f.Name,
-					SecondLine:   fmt.Sprintf("[%s] %s", f.Schedule, f.Description),
-					ShowDisabled: true,
-					Enabled:      !f.Disabled,
-				})
+				itms = append(itms, f)
 			}
-			return itms, nil
+			return listitem.WrapAssets(slices.Clip(itms)), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			enable, disable, err := getBackfillFlags(fs)
@@ -431,7 +405,7 @@ func parse() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Usage: "parse " + ft.MutuallyExclusive([]string{"<flow string>", "--path=path/to/file"}),
+				Usage: "parse " + ft.MutuallyExclusive("<flow string>", "--path=path/to/file"),
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					ft.Path.Register(fs, "", "file containing the flow to parse.\n"+
@@ -495,13 +469,18 @@ func create() action.Pair {
 			"schedule": scaffoldcreate.FieldFrequency(),
 			"enabled": {
 				Title: "Enabled?", Required: false,
-				Flag:     scaffoldcreate.FlagConfig{},
+				Flag: scaffoldcreate.FlagConfig{
+					Usage: ft.EnableBoolUsage,
+				},
 				Order:    30,
 				Provider: &scaffoldcreate.BoolProvider{},
 			},
 			"backfill": {
 				Title: "Backfill?", Required: false,
-				Flag:     scaffoldcreate.FlagConfig{},
+				Flag: scaffoldcreate.FlagConfig{
+					Name:  ft.BackfillName,
+					Usage: ft.BackfillBoolUsage,
+				},
 				Order:    20,
 				Provider: &scaffoldcreate.BoolProvider{},
 			},

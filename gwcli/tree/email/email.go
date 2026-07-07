@@ -66,7 +66,7 @@ func show() action.Pair {
 				return fmt.Sprintf("Server: %s\nPort: %d\nUsername: %s\nUseTLS: %v\nInsecureSkipVerify: %v",
 					mc.Server, mc.Port, mc.Username, mc.UseTLS, mc.InsecureSkipVerify), nil
 			},
-			Omit: scaffold.OmitFlags{
+			QueryOptionsFlags: scaffold.QOOmit{
 				Everything: true,
 			},
 		})
@@ -237,10 +237,10 @@ func configure() action.Pair {
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "configure",
+				Short:   "configure email settings",
+				Long:    "Set the SMTP server settings used for sending email notifications.",
 				Aliases: []string{"add", "create", "update"},
 			},
-			Short: "configure email settings",
-			Long:  "Set the SMTP server settings used for sending email notifications.",
 		})
 }
 

@@ -188,31 +188,22 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("resource", "resources",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("resource",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetResourceMetadata(id)
 				return err
 			}
 			return connection.Client.DeleteResource(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListResources(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, r := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_:  false,
-					ID_:        r.ID,
-					Name:       r.Name,
-					SecondLine: r.Description,
-				}
-			}
 
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {
@@ -284,11 +275,7 @@ func replace() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, f := range lr.Results {
-				items[i] = resourceToGeneric(f, false)
-			}
-			return items, nil
+			return listitem.WrapAssets(lr.Results), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -307,7 +294,7 @@ func replace() action.Pair {
 				updated, err := connection.Client.PopulateResourceFromReader(ID, ext, contentF)
 				if err != nil {
 					results[i] = scaffold.Result{
-						Output:  fmt.Sprintf("failed to repopulate resource %s (ID: %s): %v", contentF.Name(), ID, err),
+						Output:  fmt.Sprintf("failed to repopulate resource %s (ID: %s) from %v: %v", updated.Name, ID, pth, err),
 						Success: false,
 					}
 					continue
@@ -341,15 +328,4 @@ func replace() action.Pair {
 			},
 			Exactly1: true,
 		})
-}
-
-//#region helpers
-
-func resourceToGeneric(f types.Resource, selected bool) *listitem.Generic {
-	return &listitem.Generic{
-		Selected_:  selected,
-		ID_:        f.ID,
-		Name:       f.Name,
-		SecondLine: fmt.Sprintf("(Size: %v) %s", f.Size, f.Description),
-	}
 }

@@ -49,7 +49,7 @@ func NewNav() *cobra.Command {
 		long  string = "Autoextractors describe how to extract fields from tagged, unstructured data."
 	)
 
-	var aliases = []string{"extractor", "ex", "ax", "autoextractor", "autoextractors"}
+	var aliases = []string{"extractor", "ex", "ax", "autoextractor", "autoextractors", "axs"}
 
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{},
@@ -61,40 +61,31 @@ func NewNav() *cobra.Command {
 			edit(),
 			importUpload(),
 			find(),
+			clear(),
 		})
 }
 
-// field map keys used by edit and create for consistent access.
+// ensure consistency between edit and create
 const (
-	fieldKeyName     = "name"
-	fieldKeyDesc     = "desc"
-	fieldKeyModule   = "module"
-	fieldKeyTags     = "tags"
-	fieldKeyParams   = "params"
-	fieldUsageParams = "regex to apply to extract.\n" +
-		"There are a few important notes about how an extraction parameter is defined:\n" +
-		"1) Each extraction parameter's value must be defined as a string and double or single quoted.\n" +
-		`2) Double quoted strings are subject to string escape rules (pay attention when using regex).` + "\n" +
-		`ex: “\b” would be the backspace command (character 0x08) not the literal “\b".` + "\n" +
-		`3) Single quoted strings are raw and not subjected to string escape rules.` + "\n" +
-		`ex: '\b' is literally the backslash character followed by the 'b' character, not a backspace.`
-	fieldKeyArgs   = "args"
-	fieldUsageArgs = "module-specific arguments used to change the behavior of the extraction module.\n" +
-		"NOTE: The regex processor does not support arguments"
-	fieldKeyLabels = "labels"
+	fieldUsageParams = "The extraction definition. It must be single (raw) or double quoted (subject to string escape rules).\n" +
+		"Usage and syntax is dependant on module.\n" +
+		"See https://docs.gravwell.io/configuration/autoextractors.html for more info"
+	fieldUsageArgs = "Module-specific arguments used to change the behavior of the extraction module"
+)
+
+var (
+	fieldUsageModule = "Extraction module to use. Call " + stylesheet.Path(true, "~", "extractors", "modules") + " to list available options."
+	fieldUsageTags   = "Tags this ax will extract from. Call " + stylesheet.Path(true, "~", "tags") + " to list available options. " +
+		"There can only be one extractor per tag."
 )
 
 // #region list
 
 func list() action.Pair {
-	const (
-		short string = "list extractors"
-		long  string = "list autoextractions available to you and the system"
-	)
 
 	return scaffoldlist.NewListAction(
-		short,
-		long,
+		"list extractors",
+		"List autoextractions available to you",
 		types.AX{},
 		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.AX, error) {
 			id, err := fs.GetString("id")
@@ -138,12 +129,12 @@ func create() action.Pair {
 
 	return scaffoldcreate.NewCreateAction("extractor",
 		map[string]scaffoldcreate.Field{
-			fieldKeyName: scaffoldcreate.FieldName("extractor"),
-			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
-			fieldKeyModule: scaffoldcreate.Field{
+			"name": scaffoldcreate.FieldName("extractor"),
+			"desc": scaffoldcreate.FieldDescription("extractor"),
+			"module": {
 				Required: true,
-				Title:    "module",
-				Flag:     scaffoldcreate.FlagConfig{Name: "module", Usage: "extraction module to use. Call `extractors modules` to list available options.", Shorthand: 'm'},
+				Title:    "Module",
+				Flag:     scaffoldcreate.FlagConfig{Name: "module", Usage: fieldUsageModule},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
@@ -163,10 +154,10 @@ func create() action.Pair {
 				DefaultValue: "",
 				Order:        80,
 			},
-			fieldKeyTags: scaffoldcreate.Field{
+			"tags": {
 				Required: true,
-				Title:    "tags",
-				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: "tags this ax will extract from. There can only be one extractor per tag.", Shorthand: 't'},
+				Title:    "Tags",
+				Flag:     scaffoldcreate.FlagConfig{Name: "tags", Usage: fieldUsageTags},
 				Provider: &scaffoldcreate.TextProvider{
 					CustomInit: func() textinput.Model {
 						ti := stylesheet.NewTI("", false)
@@ -186,22 +177,22 @@ func create() action.Pair {
 				},
 				Order: 70,
 			},
-			fieldKeyParams: scaffoldcreate.Field{
+			"params": {
 				Required: true,
-				Title:    "Params/regex",
-				Flag:     scaffoldcreate.FlagConfig{Name: "params", Usage: fieldUsageParams},
+				Title:    "Parameters",
+				Flag:     scaffoldcreate.FlagConfig{Name: "module-parameters", Usage: fieldUsageParams},
 				Provider: &scaffoldcreate.TextProvider{},
 				Order:    60,
 			},
-			fieldKeyArgs: scaffoldcreate.Field{
+			"args": {
 				Required:     false,
-				Title:        "arguments/options",
-				Flag:         scaffoldcreate.FlagConfig{Name: "args", Usage: fieldUsageArgs},
+				Title:        "Arguments",
+				Flag:         scaffoldcreate.FlagConfig{Name: "module-arguments", Usage: fieldUsageArgs},
 				Provider:     &scaffoldcreate.TextProvider{},
 				DefaultValue: "",
 				Order:        50,
 			},
-			fieldKeyLabels: fLabels,
+			"labels": fLabels,
 		},
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (any, string, error) {
 			// no need to nil check; Required boolean enforces that for us
@@ -209,14 +200,14 @@ func create() action.Pair {
 			// map fields back into the underlying type
 			axd := types.AX{
 				CommonFields: types.CommonFields{
-					Name:        cfg[fieldKeyName].Provider.Get(),
-					Description: cfg[fieldKeyDesc].Provider.Get(),
-					Labels:      strings.Split(strings.ReplaceAll(cfg[fieldKeyLabels].Provider.Get(), " ", ""), ","),
+					Name:        cfg["name"].Provider.Get(),
+					Description: cfg["desc"].Provider.Get(),
+					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 				},
-				Module: cfg[fieldKeyModule].Provider.Get(),
-				Tags:   strings.Split(strings.ReplaceAll(cfg[fieldKeyTags].Provider.Get(), " ", ""), ","),
-				Params: cfg[fieldKeyParams].Provider.Get(),
-				Args:   cfg[fieldKeyArgs].Provider.Get(),
+				Module: cfg["module"].Provider.Get(),
+				Tags:   strings.Split(strings.ReplaceAll(cfg["tags"].Provider.Get(), " ", ""), ","),
+				Params: cfg["params"].Provider.Get(),
+				Args:   cfg["args"].Provider.Get(),
 			}
 
 			// check for dryrun
@@ -251,6 +242,11 @@ func create() action.Pair {
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
+				Example: "create --" + ft.Name.Name() + "=testcsv " +
+					"--" + ft.Description.Name() + "=\"CSV auto-extraction for the super ugly CSV data\" " +
+					"--tags=csv" +
+					"--module csv " +
+					"--module-parameters " + "\"ts, name, id, guid, src, srcport, dst, dstport, data, country, city, hash\"",
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					ft.Dryrun.Register(fs)
@@ -261,8 +257,8 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("extractor", "extractors",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("extractor",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetExtraction(id)
 				return err
@@ -273,32 +269,22 @@ func delete() action.Pair {
 				var sb strings.Builder
 				sb.WriteString("failed to delete ax with warning(s):")
 				for _, wr := range wrs {
-					sb.WriteString("\n" + wr.Err.Error())
+					sb.WriteString("\n")
+					sb.WriteString(wr.Err.Error())
 				}
 				clilog.Writer.Warn(sb.String())
 				return errors.New(sb.String())
 			}
 			return nil
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(nil)
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListExtractions(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, ax := range lr.Results {
-				items[i] = &listitem.Generic{
-					Selected_: false,
-					ID_:       ax.ID,
-					Name:      ax.Name,
-					SecondLine: fmt.Sprintf("%s/%s|%s", stylesheet.Cur.SecondaryText.Render(ax.Module),
-						stylesheet.Cur.SecondaryText.Render("["+strings.Join(ax.Tags, " ")+"]"),
-						ax.Description),
-				}
-			}
 
-			return items, nil
-		}, scaffolddelete.Options{})
+			return listitem.WrapAssets(lr.Results), nil
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func modules() action.Pair {
@@ -326,44 +312,42 @@ func edit() action.Pair {
 	fLabels := scaffoldedit.FieldLabels()
 	fLabels.Order = 40
 	return scaffoldedit.NewEditAction("extractor", "extractors", scaffoldedit.Config{
-		fieldKeyName: scaffoldedit.FieldName("extractor"),
-		fieldKeyDesc: scaffoldedit.FieldDescription("extractor"),
-		fieldKeyModule: &scaffoldedit.Field{
-			Required:      true,
-			Title:         "module",
-			Usage:         "extraction module to use. Call `extractors modules` to list available options.",
-			FlagName:      "module",
-			FlagShorthand: 'm',
-			Order:         80,
+		"name": scaffoldedit.FieldName("extractor"),
+		"desc": scaffoldedit.FieldDescription("extractor"),
+		"module": &scaffoldedit.Field{
+			Required: true,
+			Title:    "Module",
+			Usage:    fieldUsageModule,
+			FlagName: "module",
+			Order:    80,
 		},
-		fieldKeyTags: &scaffoldedit.Field{
-			Required:      true,
-			Title:         "tags",
-			Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
-			FlagName:      "tags",
-			FlagShorthand: 't',
-			Order:         70,
+		"tags": &scaffoldedit.Field{
+			Required: true,
+			Title:    "Tags",
+			Usage:    fieldUsageTags,
+			FlagName: "tags",
+			Order:    70,
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
 				ti.Placeholder = "tag1,tag2,tag3"
 				return ti
 			},
 		},
-		fieldKeyParams: &scaffoldedit.Field{
+		"params": &scaffoldedit.Field{
 			Required: false,
-			Title:    "params/regex",
+			Title:    "Parameters",
+			FlagName: "module-parameters",
 			Usage:    fieldUsageParams,
-			FlagName: "params",
 			Order:    60,
 		},
-		fieldKeyArgs: &scaffoldedit.Field{
+		"args": &scaffoldedit.Field{
 			Required: false,
-			Title:    "arguments/options",
+			Title:    "Arguments",
+			FlagName: "module-arguments",
 			Usage:    fieldUsageArgs,
-			FlagName: "args",
 			Order:    50,
 		},
-		fieldKeyLabels: fLabels,
+		"labels": fLabels,
 	},
 		scaffoldedit.SubroutineSet[string, types.AX]{
 			SelectSub: func(id string) (item types.AX, err error) {
@@ -378,38 +362,38 @@ func edit() action.Pair {
 			},
 			GetFieldSub: func(item types.AX, fieldKey string) (value string, err error) {
 				switch fieldKey {
-				case fieldKeyName:
+				case "name":
 					return item.Name, nil
-				case fieldKeyDesc:
+				case "desc":
 					return item.Description, nil
-				case fieldKeyModule:
+				case "module":
 					return item.Module, nil
-				case fieldKeyTags:
+				case "tags":
 					return strings.Join(item.Tags, ","), nil
-				case fieldKeyParams:
+				case "params":
 					return item.Params, nil
-				case fieldKeyArgs:
+				case "args":
 					return item.Args, nil
-				case fieldKeyLabels:
+				case "labels":
 					return strings.Join(item.Labels, ","), nil
 				}
 				return "", fmt.Errorf("unknown field key: %v", fieldKey)
 			},
 			SetFieldSub: func(item *types.AX, fieldKey, val string) (invalid string, err error) {
 				switch fieldKey {
-				case fieldKeyName:
+				case "name":
 					item.Name = val
-				case fieldKeyDesc:
+				case "desc":
 					item.Description = val
-				case fieldKeyModule:
+				case "module":
 					item.Module = val
-				case fieldKeyTags:
+				case "tags":
 					item.Tags = strings.Split(val, ",")
-				case fieldKeyParams:
+				case "params":
 					item.Params = val
-				case fieldKeyArgs:
+				case "args":
 					item.Args = val
-				case fieldKeyLabels:
+				case "labels":
 					item.Labels = strings.Split(val, ",")
 				default:
 					return "", fmt.Errorf("unknown field key: %v", fieldKey)
@@ -469,7 +453,8 @@ func importUpload() action.Pair {
 						Name:  warn.Name,
 						Value: fmt.Sprint(warn.Err),
 					}
-					sb.WriteString(stylesheet.Cur.ErrorText.Render(fmt.Sprintf("Warning: %v: %v", warn.Name, warn.Err)) + "\n")
+					sb.WriteString(stylesheet.Cur.ErrorText.Render(fmt.Sprintf("Warning: %v: %v", warn.Name, warn.Err)))
+					sb.WriteString("\n")
 				}
 
 				clilog.Writer.Warn("extractor update caused warnings", params...)
@@ -498,7 +483,7 @@ func find() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			data := make([]multiselectlist.SelectableItem[string], 0, len(tags))
+			data := make([]types.AX, 0, len(tags))
 			for _, tag := range tags {
 				ax, err := connection.Client.FindExtraction(tag)
 				if phrases.IsNotFoundErr(err) { // no associated ax
@@ -506,13 +491,9 @@ func find() action.Pair {
 				} else if err != nil {
 					return nil, err
 				}
-				data = append(data, &listitem.Generic{
-					ID_:        tag,
-					Name:       tag,
-					SecondLine: fmt.Sprintf("%s(%s): %s", ax.Name, ax.Module, ax.Description),
-				})
+				data = append(data, ax)
 			}
-			return slices.Clip(data), nil
+			return listitem.WrapAssets(slices.Clip(data)), nil
 		},
 		func(tags []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(tags))
@@ -540,4 +521,59 @@ func find() action.Pair {
 				Use: "find",
 			},
 		})
+}
+
+func clear() action.Pair {
+	return scaffoldselect.NewSelectAction("clear a tag's extractor", "Unassign and delete whatever extractor is on the given tag(s).", "ax",
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			if err != nil {
+				return nil, err
+			}
+			// make a list of tags that have extractors
+			tags := map[string]types.AX{}
+			for _, ax := range lr.Results {
+				for _, t := range ax.Tags {
+					tags[t] = ax
+				}
+			}
+			data := make([]multiselectlist.SelectableItem[string], len(tags))
+			var i int
+			for tag, ax := range tags {
+				data[i] = &listitem.Generic{
+					ID_:        tag,
+					Name:       tag,
+					SecondLine: fmt.Sprintf("AX: %s (ID: %s)", ax.Name, ax.ID),
+				}
+				i += 1
+			}
+
+			return data, nil
+		},
+		func(tags []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(tags))
+
+			for i, tag := range tags {
+				ax, err := connection.Client.FindExtraction(tag)
+				if phrases.IsNotFoundErr(err) {
+					results[i] = scaffold.Result{Success: true, Output: "tag '" + tag + "' does not have an extractor"}
+					continue
+				}
+				if err != nil {
+					results[i] = scaffold.Result{Output: err.Error()}
+					continue
+				}
+
+				warns, err := connection.Client.DeleteExtraction(ax.ID)
+				if err != nil {
+					results[i] = scaffold.Result{Output: "failed to update ax: " + err.Error()}
+					continue
+				} else if len(warns) > 0 {
+					clilog.Writer.Warn("updating the AX triggered warnings", log.KV("warnings", warns))
+				}
+				results[i] = scaffold.Result{Success: true, Output: "removed ax '" + ax.Name + "' from tag '" + tag + "'"}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{Use: "clear"}})
 }

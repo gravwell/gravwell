@@ -176,7 +176,7 @@ func searchGroup() action.Pair {
 			fmt.Fprintln(c.OutOrStdout(), success)
 			return nil
 		}, treeutils.GenerateActionOptions{
-			Usage: ft.MutuallyExclusive([]string{ft.Optional("--set"), ft.Optional("--clear")}) +
+			Usage: ft.MutuallyExclusive(ft.Optional("--set"), ft.Optional("--clear")) +
 				" " + ft.VariadicArgs("GID", false)},
 	)
 	cmd.Flags().AddFlagSet(searchGroupsFlags())
@@ -424,13 +424,13 @@ func update() action.Pair {
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "update",
+				Use:   "update",
+				Short: "Update your user information.",
+				Long:  "Update the basic details of the current user. Empty values will remain unchanged.",
 				Usage: fmt.Sprint("update ",
 					ft.Optional("--new-username=<USERNAME>"), " ",
 					ft.Optional("--new-name=<NAME>"), " ",
 					ft.Optional("--new-email=<EMAIL>")),
 			},
-			Short: "Update your user information.",
-			Long:  "Update the basic details of the current user. Empty values will remain unchanged.",
 		})
 }

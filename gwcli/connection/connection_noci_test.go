@@ -463,7 +463,7 @@ func TestJWTRefreshing(t *testing.T) {
 		t.Error("token file was not updated while we were sleeping")
 	}
 	// validate that we can still make calls
-	_, err = connection.Client.ListKits()
+	_, err = connection.Client.ListKits(nil)
 	if err != nil {
 		t.Error("client failed to fetch kits:", err)
 	}
@@ -477,9 +477,11 @@ func TestJWTRefreshing(t *testing.T) {
 func generateAPIToken(t *testing.T, testclient *grav.Client) (tkn string) {
 	const tknfailVal string = "UNSET"
 	tf, err := testclient.CreateToken(
-		types.TokenCreate{
-			Name:         "LoginMFAToken",
-			Description:  "API token for the LoginMFA tests",
+		types.Token{
+			CommonFields: types.CommonFields{
+				Name:        "LoginMFAToken",
+				Description: "API token for the LoginMFA tests",
+			},
 			ExpiresAt:    time.Now().Add(apiTokenExpiryDur),
 			Capabilities: []string{"ListUsers", "ListGroups", "ListGroupMembers", "MacroRead", "PivotRead"}})
 	if err != nil {

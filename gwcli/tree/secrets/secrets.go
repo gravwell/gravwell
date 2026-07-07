@@ -108,16 +108,16 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("secret", "secrets",
-		func(dryrun bool, id string) error {
+	return scaffolddelete.NewDeleteAction("secret",
+		func(dryrun bool, id string, _ *pflag.FlagSet) error {
 			if dryrun {
 				_, err := connection.Client.GetSecret(id)
 				return err
 			}
 			return connection.Client.DeleteSecret(id)
 		},
-		func() ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListSecrets(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListSecrets(params.QueryOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +132,7 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{})
+		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {

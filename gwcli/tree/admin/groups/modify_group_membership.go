@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -79,7 +80,7 @@ func modGroupUsers(use, short, long string, aliases []string, add bool) action.P
 			}
 			if len(uids) < 1 || len(gids) < 1 {
 				if x { // if we are in no-interactive, this is fatal
-					return errors.New("You must specify at least one group (--gid) and at least one user (--uid)")
+					return errors.New("you must specify at least one group (--gid) and at least one user (--uid)")
 				}
 				return mother.Spawn(c.Root(), c, args)
 			}
@@ -168,7 +169,8 @@ func (m *membershipChanges) SetArgs(parentFS *pflag.FlagSet, tokens []string, wi
 	if err != nil {
 		return "", nil, err
 	} else if len(ulr.Results) < 1 {
-		return "", nil, errors.New("I don't know how you managed to get here with zero users, but you have no users to modify the group membership of.")
+		clilog.Writer.Warn("membershipChanges made it to SetArgs with zero users!", scaffold.IdentifyCaller())
+		return "", nil, errors.New("I don't know how you managed to get here with zero users, but you have no users to modify the group membership of")
 	}
 
 	// build the user list
@@ -265,14 +267,16 @@ func (m *membershipChanges) Update(msg tea.Msg) tea.Cmd {
 		m.selectedUIDs = make([]int32, len(selected))
 		for i, itm := range selected {
 			m.selectedUIDs[i] = itm.ID()
-			sbUIDs.WriteString(strconv.FormatInt(int64(itm.ID()), 10) + " ")
+			sbUIDs.WriteString(strconv.FormatInt(int64(itm.ID()), 10))
+			sbUIDs.WriteString(" ")
 		}
 		var sbGIDs strings.Builder
 		selected = m.groups.GetSelectedItems()
 		m.selectedGIDs = make([]int32, len(selected))
 		for i, itm := range selected {
 			m.selectedGIDs[i] = itm.ID()
-			sbGIDs.WriteString(strconv.FormatInt(int64(itm.ID()), 10) + " ")
+			sbGIDs.WriteString(strconv.FormatInt(int64(itm.ID()), 10))
+			sbGIDs.WriteString(" ")
 		}
 
 		if m.add {
