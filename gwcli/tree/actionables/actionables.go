@@ -169,8 +169,8 @@ func jsonAction() action.Pair {
     {
       "Name": "action1",
       "Description": "",
-      "Placeholder": "",
-      "NoValueURLEncode": true,
+      "TriggerPlaceholder": "",
+      "NoValueUrlEncode": true,
       "Start": {
         "Type": "timestamp or string",
         "Format": "Unix if (timestamp) || YYYY-MM-DDThh:mm if (type==string && empty)",
@@ -181,21 +181,19 @@ func jsonAction() action.Pair {
         "Format": "Unix if (timestamp) || YYYY-MM-DDThh:mm if (type==string && empty)",
         "Placeholder": "_END_ if empty"
       },
-      "Command": {
-        "Type": "query, template, dashboard, saved_query, url",
-        "Reference": "",
-        "Options": {
-          "Variable": "Template and dashboard commands use Variable.",
-          "ModalWidth": "URL commands use Modal, ModalWidth, and NoValueURLEncode.",
-          "NoValueURLEncode": true
-        }
+      "Type": "query, template, dashboard, saved_query, url",
+      "Reference": "",
+      "Options": {
+        "Variable": "Template and dashboard commands use Variable.",
+        "ModalWidth": "URL commands use Modal, ModalWidth, and NoValueUrlEncode.",
+        "NoValueUrlEncode": true
       }
     }
   ],
   "Triggers": [
     {
       "Pattern": "/javascript regex: see developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions/g",
-      "Hyperlink": false,
+      "ActivatesOn": "always or selection",
       "Disabled": false
     }
   ]
