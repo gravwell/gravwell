@@ -17,12 +17,21 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
-// sessionEntry is one tracked conversation, identified by the sequence of
-// message hashes the client most recently sent. We only store hashes (not
+// defaultMatchWindow is the number of most-recent messages compared when
+// deciding whether a request continues an existing session. It bounds both the
+// per-session memory footprint and the per-request comparison cost.
+const defaultMatchWindow = 10
+
+// sessionEntry is one tracked conversation. We identify a conversation by the
+// most recent request we saw on it: its total message count (Len) plus the
+// hashes of its trailing window of messages (Tail, at most matchWindow long).
+// A later request continues this session when it carries those same trailing
+// messages unchanged at the same positions. We store only hashes (never
 // content) to keep memory bounded and to avoid persisting prompt text to disk.
 type sessionEntry struct {
 	ID       string
-	Hashes   []string
+	Tail     []string // hashes of the last min(Len, window) messages of the most recent request
+	Len      int      // total message count of that most recent request
 	LastSeen time.Time
 }
 
@@ -35,14 +44,14 @@ type sessionStore struct {
 	ttl      time.Duration
 	persist  *utils.State
 
-	// MatchResult / cap configuration
+	// matching / cap configuration
 	maxPerClient int
+	matchWindow  int
 }
 
 // persistedSessions is the on-disk form. We can change the in-memory layout
 // later without breaking the on-disk schema by serialising this fixed shape.
 type persistedSessions struct {
-	Version int
 	Now     time.Time
 	Entries []persistedEntry
 }
@@ -50,17 +59,20 @@ type persistedSessions struct {
 type persistedEntry struct {
 	Client   string
 	ID       string
-	Hashes   []string
+	Tail     []string
+	Len      int
 	LastSeen time.Time
 }
 
-const sessionStoreVersion = 1
-
-func newSessionStore(ttl time.Duration, statePath string) (*sessionStore, error) {
+func newSessionStore(ttl time.Duration, matchWindow int, statePath string) (*sessionStore, error) {
+	if matchWindow <= 0 {
+		matchWindow = defaultMatchWindow
+	}
 	s := &sessionStore{
 		byClient:     map[string][]*sessionEntry{},
 		ttl:          ttl,
 		maxPerClient: 256,
+		matchWindow:  matchWindow,
 	}
 	if statePath != "" {
 		st, err := utils.NewState(statePath, 0600)
@@ -84,19 +96,45 @@ func (s *sessionStore) load(p *persistedSessions) {
 		if e.LastSeen.Before(cutoff) {
 			continue
 		}
+		// Resolve indexes hashes[c.Len-len(c.Tail):c.Len], which requires the
+		// invariant len(Tail) <= Len (and Len > 0) that minting enforces. A
+		// corrupted or tampered state file could violate it and panic Resolve,
+		// so drop any entry that doesn't hold up.
+		if e.Len <= 0 || len(e.Tail) > e.Len {
+			continue
+		}
 		entry := &sessionEntry{
 			ID:       e.ID,
-			Hashes:   slices.Clone(e.Hashes),
+			Tail:     slices.Clone(e.Tail),
+			Len:      e.Len,
 			LastSeen: e.LastSeen,
 		}
 		s.byClient[e.Client] = append(s.byClient[e.Client], entry)
 	}
+	// Enforce the same per-client cap used when minting so a large or tampered
+	// state file can't restore unbounded per-client buckets. Entries are
+	// persisted in append (roughly chronological) order, so keep the newest.
+	for k, bucket := range s.byClient {
+		if len(bucket) > s.maxPerClient {
+			trimmed := bucket[len(bucket)-s.maxPerClient:]
+			s.byClient[k] = slices.Clone(trimmed)
+		}
+	}
 }
 
 // Resolve looks up or mints a session ID for the incoming request.
-// hashes is the canonical per-message hash sequence (latest message last).
-// It returns the session ID and a boolean indicating whether this was a new
-// session (no matching prefix found).
+// hashes is the canonical per-message hash sequence (oldest message first,
+// latest message last). It returns the session ID and a boolean indicating
+// whether this was a new session (no matching conversation found).
+//
+// A request continues an existing session when it carries that session's most
+// recent request unchanged as a leading run: for a stored session that last
+// saw a request of length L, the incoming request must be at least L messages
+// long and its messages in [L-len(Tail), L) must equal the stored Tail. We make
+// no assumption about how many (or what kind of) messages the client appended
+// past that point — one new user turn, several stacked turns, tool results, or
+// nothing at all (a retry) all match. When several sessions qualify, the one
+// with the longest matched request wins as the most specific continuation.
 func (s *sessionStore) Resolve(client string, hashes []string) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,48 +143,50 @@ func (s *sessionStore) Resolve(client string, hashes []string) (string, bool) {
 		// nothing to match on; mint
 		return s.mintNolock(client, hashes), true
 	}
-	// We compare against hashes[:n-1] (everything except the just-added user
-	// turn). The previous request's stored sequence should be a prefix of that.
-	prefix := hashes[:len(hashes)-1]
 	candidates := s.byClient[client]
 	var best *sessionEntry
 	bestLen := -1
 	for _, c := range candidates {
-		n := matchLen(c.Hashes, prefix)
-		// require at least one matching message; otherwise this is a new
-		// conversation that happens to start the same way as this client's
-		// first ever turn — still mint a new session.
-		if n > 0 && n >= len(c.Hashes) && n > bestLen {
+		if c.Len == 0 || len(hashes) < c.Len {
+			continue
+		}
+		// The stored Tail covers absolute positions [c.Len-len(c.Tail), c.Len)
+		// of the prior request. Those positions must be identical in the
+		// incoming request for it to be a continuation.
+		start := c.Len - len(c.Tail)
+		if !slices.Equal(c.Tail, hashes[start:c.Len]) {
+			continue
+		}
+		if c.Len > bestLen {
 			best = c
-			bestLen = n
+			bestLen = c.Len
 		}
 	}
 	if best != nil {
-		best.Hashes = slices.Clone(hashes)
+		best.Tail = s.tailWindow(hashes)
+		best.Len = len(hashes)
 		best.LastSeen = time.Now()
 		return best.ID, false
 	}
 	return s.mintNolock(client, hashes), true
 }
 
-// matchLen returns the length of the common prefix between a (a stored session
-// hash list) and b (the incoming request prefix), but only counts as "matching"
-// if a is entirely consumed (i.e. a is a prefix of b).
-func matchLen(a, b []string) int {
-	if len(a) > len(b) {
-		return 0
+// tailWindow returns a clone of the trailing matchWindow hashes of the request
+// (or all of them when the request is shorter than the window).
+func (s *sessionStore) tailWindow(hashes []string) []string {
+	start := 0
+	if len(hashes) > s.matchWindow {
+		start = len(hashes) - s.matchWindow
 	}
-	if !slices.Equal(a, b[:len(a)]) {
-		return 0
-	}
-	return len(a)
+	return slices.Clone(hashes[start:])
 }
 
 func (s *sessionStore) mintNolock(client string, hashes []string) string {
 	id := uuid.New().String()
 	entry := &sessionEntry{
 		ID:       id,
-		Hashes:   slices.Clone(hashes),
+		Tail:     s.tailWindow(hashes),
+		Len:      len(hashes),
 		LastSeen: time.Now(),
 	}
 	bucket := s.byClient[client]
@@ -175,6 +215,9 @@ func (s *sessionStore) evictNolock() {
 		if len(filtered) == 0 {
 			delete(s.byClient, k)
 		} else {
+			// Clear the tail we sliced off so the evicted *sessionEntry
+			// pointers aren't retained via the backing array's capacity.
+			clear(bucket[len(filtered):])
 			s.byClient[k] = filtered
 		}
 	}
@@ -189,15 +232,15 @@ func (s *sessionStore) Flush() error {
 	defer s.mu.Unlock()
 	s.evictNolock()
 	p := persistedSessions{
-		Version: sessionStoreVersion,
-		Now:     time.Now(),
+		Now: time.Now(),
 	}
 	for k, bucket := range s.byClient {
 		for _, e := range bucket {
 			p.Entries = append(p.Entries, persistedEntry{
 				Client:   k,
 				ID:       e.ID,
-				Hashes:   e.Hashes,
+				Tail:     e.Tail,
+				Len:      e.Len,
 				LastSeen: e.LastSeen,
 			})
 		}

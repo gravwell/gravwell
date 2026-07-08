@@ -51,7 +51,7 @@ func newTestHandler(t *testing.T, upstreamURL string, mutate func(*listener)) (*
 	if err := l.validate(); err != nil {
 		t.Fatalf("listener validate: %v", err)
 	}
-	sessions, err := newSessionStore(time.Hour, "")
+	sessions, err := newSessionStore(time.Hour, 0, "")
 	if err != nil {
 		t.Fatalf("newSessionStore: %v", err)
 	}

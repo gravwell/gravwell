@@ -42,7 +42,9 @@ type partialTool struct {
 	args bytes.Buffer
 }
 
-// streamDelta covers the subset of an OpenAI streaming chunk we read.
+// streamDelta covers the subset of an OpenAI streaming chunk we read. The
+// chunk schema is defined in the OpenAI API reference (Chat Completions,
+// streaming): https://developers.openai.com/api/docs
 type streamDelta struct {
 	ID      string `json:"id"`
 	Model   string `json:"model"`

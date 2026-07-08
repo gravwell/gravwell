@@ -35,7 +35,17 @@ const (
 
 type gbl struct {
 	config.IngestConfig
+	// State_Store_Location is the (optional) path to the persistent state file
+	// for the auto-derived session tracker. It stores only message hashes
+	// (never prompt content) so sessions survive a restart. Empty disables
+	// persistence and keeps session state in memory only.
 	State_Store_Location string
+	// Session_Match_Window bounds how many of a request's most-recent messages
+	// the session tracker compares when deciding whether a request continues an
+	// existing conversation. Larger values are more precise but do more work per
+	// request; smaller values are cheaper. Unset or non-positive uses
+	// defaultMatchWindow.
+	Session_Match_Window int
 }
 
 type cfgReadType struct {
@@ -45,17 +55,45 @@ type cfgReadType struct {
 	Preprocessor processors.ProcessorConfig
 }
 
+// listener configures one proxy endpoint. See the annotated example config in
+// gravwell_llm_ingester.conf for the operator-facing description of each field.
 type listener struct {
-	Bind                              string
-	Upstream_URL                      string
-	Protocol                          string
-	Tag_Name                          string
-	Log_Mode                          string
-	Log_Tool_Calls                    bool
-	Log_Usage                         bool
-	Client_Authorization              string
-	Upstream_Authorization            string
-	Session_TTL                       string
+	// Bind is the address:port this proxy listens on (e.g. ":4180").
+	Bind string
+	// Upstream_URL is the base URL requests are forwarded to (e.g.
+	// "https://api.openai.com"). Must be http or https and include a host.
+	Upstream_URL string
+	// Protocol selects the protocol module used to parse traffic (e.g.
+	// "openai-chat"). Must be a name registered in the protocol package.
+	Protocol string
+	// Tag_Name is the Gravwell tag ingested events are written to. Defaults to
+	// the default tag when unset.
+	Tag_Name string
+	// Log_Mode controls how much of each request is ingested: "delta" (default,
+	// one entry per new logical event), "user" (latest user prompt only), or
+	// "full" (every message in the request body, every request).
+	Log_Mode string
+	// Log_Tool_Calls, when true, captures function-call / MCP tool invocations
+	// and their results.
+	Log_Tool_Calls bool
+	// Log_Usage, when true, ingests the token-accounting record returned with
+	// each response. Streaming requires the client to set
+	// stream_options.include_usage = true.
+	Log_Usage bool
+	// Client_Authorization, when set, is the bare token inbound clients must
+	// present as "Authorization: Bearer <token>"; mismatches get a 401. Empty
+	// requires no client authentication.
+	Client_Authorization string
+	// Upstream_Authorization, when set, is the bare token injected as the
+	// upstream Authorization header, replacing whatever the client sent. Empty
+	// passes the client's own Authorization header through unchanged.
+	Upstream_Authorization string
+	// Session_TTL is how long idle session prefix-match state is retained,
+	// expressed as a Go duration string (e.g. "30m"). Defaults to
+	// defaultSessionTTL when unset.
+	Session_TTL string
+	// Max_Body is the maximum inbound request body size in bytes. Defaults to
+	// defaultMaxBody when unset or non-positive.
 	Max_Body                          int
 	TLS_Certificate_File              string
 	TLS_Key_File                      string

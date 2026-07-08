@@ -8,6 +8,11 @@
 
 // Package openai implements the protocol contract for OpenAI's
 // /v1/chat/completions endpoint, including SSE streaming.
+//
+// The wire structs below (requests, responses, streaming chunks, and the
+// role/field constants) model the subset of the Chat Completions API we
+// consume. They are derived from the official OpenAI API reference:
+// https://developers.openai.com/api/docs (Chat Completions).
 package openai
 
 import (
@@ -38,6 +43,10 @@ func init() {
 
 func (chatProtocol) Name() string    { return protocolName }
 func (chatProtocol) Paths() []string { return []string{chatPath} }
+
+// The following types mirror the OpenAI Chat Completions request/response
+// schema; see https://developers.openai.com/api/docs for the authoritative
+// field definitions.
 
 // chatMessage covers the subset of the message shape we care about.
 // Content may be a string OR an array of content parts in the multimodal form.

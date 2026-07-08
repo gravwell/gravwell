@@ -162,11 +162,10 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isEventStream(resp.Header.Get("Content-Type")) {
-		h.handleStream(w, resp, ec)
+		h.handleStream(w, resp, ec, started)
 	} else {
-		h.handleBuffered(w, resp, ec)
+		h.handleBuffered(w, resp, ec, started)
 	}
-	ec.durationMs = time.Since(started).Milliseconds()
 }
 
 // forwardUpstream rewrites the request to target the configured upstream and
@@ -209,7 +208,7 @@ func (h *proxyHandler) forwardWithoutIngest(w http.ResponseWriter, r *http.Reque
 
 // handleBuffered reads the entire response body, parses it, then writes it to
 // the client in one shot.
-func (h *proxyHandler) handleBuffered(w http.ResponseWriter, resp *http.Response, ec *emitCtx) {
+func (h *proxyHandler) handleBuffered(w http.ResponseWriter, resp *http.Response, ec *emitCtx, started time.Time) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		if h.lg != nil {
@@ -231,13 +230,14 @@ func (h *proxyHandler) handleBuffered(w http.ResponseWriter, resp *http.Response
 	if parsed.Model != "" {
 		ec.model = parsed.Model
 	}
+	ec.durationMs = time.Since(started).Milliseconds()
 	emitResponseEvents(ec, parsed.Events)
 }
 
 // handleStream pipes the upstream SSE response to the client while feeding a
 // reassembler in parallel. After the upstream stream completes, the assembled
 // response is parsed and emitted.
-func (h *proxyHandler) handleStream(w http.ResponseWriter, resp *http.Response, ec *emitCtx) {
+func (h *proxyHandler) handleStream(w http.ResponseWriter, resp *http.Response, ec *emitCtx, started time.Time) {
 	flusher, _ := w.(http.Flusher)
 	reass := h.proto.NewStreamReassembler()
 	buf := make([]byte, 32*1024)
@@ -280,6 +280,7 @@ streamLoop:
 	if parsed.Model != "" {
 		ec.model = parsed.Model
 	}
+	ec.durationMs = time.Since(started).Milliseconds()
 	emitResponseEvents(ec, parsed.Events)
 }
 

@@ -74,7 +74,7 @@ func main() {
 	defer igst.Close()
 	ib.AnnounceStartup()
 
-	sessions, err := newSessionStore(longestTTL(cfg), cfg.State_Store_Location)
+	sessions, err := newSessionStore(longestTTL(cfg), cfg.Session_Match_Window, cfg.State_Store_Location)
 	if err != nil {
 		lg.FatalCode(0, "failed to init session store", log.KVErr(err))
 		return
