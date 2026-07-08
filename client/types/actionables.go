@@ -38,44 +38,53 @@ type ActionableContent struct {
 // ActionableTrigger defines a pattern that activates an actionable.
 type ActionableTrigger struct {
 	// Pattern is a JS regex to match against
-	Pattern   string
-	Hyperlink bool
-	Disabled  bool
+	Pattern string
+	// ActivatesOn is either "always" or "selection". A value of
+	// "selection" indicates the trigger will only appear when text has
+	// been selected in-browser.
+	ActivatesOn string
+	Disabled    bool
 }
 
-// ActionableAction defines an action that can be performed when an actionable is triggered.
+// ActionableAction defines an action that can be performed when an actionable
+// is triggered. It is a flattened representation of the API's discriminated
+// union of action types (QueryAction, TemplateAction, SavedQueryAction,
+// DashboardAction, URLAction); Type indicates which fields are relevant.
 type ActionableAction struct {
+	Type        ActionableCommandType
 	Name        string
 	Description string
-	Placeholder string
-	Start       *ActionableTimeVariable `json:",omitempty"`
-	End         *ActionableTimeVariable `json:",omitempty"`
-	Command     ActionableCommand
+
+	Query        string `json:",omitempty"` // query
+	TemplateID   string `json:",omitempty"` // template
+	SavedQueryID string `json:",omitempty"` // saved_query
+	DashboardID  string `json:",omitempty"` // dashboard
+
+	// Variable is the template variable that will be filled with the
+	// trigger text. Used by template and dashboard actions.
+	Variable string `json:",omitempty"`
+
+	// TriggerPlaceholder is the string within the query/URL to be
+	// replaced with the trigger text. Used by query and url actions.
+	TriggerPlaceholder string `json:",omitempty"`
+
+	// The following fields are only used by url actions.
+	TemplateURL       string                  `json:",omitempty"`
+	OpenInModal       bool                    `json:",omitempty"`
+	ModalWidthPercent float64                 `json:",omitempty"`
+	NoValueUrlEncode  bool                    `json:",omitempty"`
+	Start             *ActionableTimeVariable `json:",omitempty"`
+	End               *ActionableTimeVariable `json:",omitempty"`
 }
 
-// ActionableTimeVariable describes time-range options for an action's start or end.
-// Type is either "timestamp" or "string".
+// ActionableTimeVariable describes time-range options for a url
+// action's start or end. Type is either "unix" or "string"; Format
+// only applies when Type is "string". Placeholder is the string that
+// will be replaced with the timestamp, e.g. `_START_` or `_END_`.
 type ActionableTimeVariable struct {
 	Type        string
-	Format      string
+	Format      string `json:",omitempty"`
 	Placeholder string
-}
-
-// ActionableCommand defines the command performed when an action is activated.
-type ActionableCommand struct {
-	Type      ActionableCommandType
-	Reference string
-	Options   *ActionableCommandOptions `json:",omitempty"`
-}
-
-// ActionableCommandOptions holds type-specific options for a command.
-// Template and dashboard commands use Variable.
-// URL commands use Modal, ModalWidth, and NoValueURLEncode.
-type ActionableCommandOptions struct {
-	Variable         string `json:",omitempty"`
-	Modal            bool   `json:",omitempty"`
-	ModalWidth       string `json:",omitempty"`
-	NoValueURLEncode bool   `json:",omitempty"`
 }
 
 type ActionableListResponse struct {
