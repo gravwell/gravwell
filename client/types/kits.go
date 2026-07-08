@@ -400,7 +400,7 @@ func (kma KitMetadataAsset) String() (s string) {
 
 type RemoteKitListResponse struct {
 	BaseListResponse
-	Results []KitMetadata `json:"results"`
+	Results []KitMetadata
 }
 
 type InstallStatus struct {
