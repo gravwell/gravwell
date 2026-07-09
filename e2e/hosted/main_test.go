@@ -19,7 +19,7 @@ func TestMain(m *testing.M) {
 
 func buildHosted() {
 	var stdout, stderr bytes.Buffer
-	docker := exec.Command("docker", "buildx", "build", "-t", "gravwell/hosted:e2e", "-f", "./e2e/hosted/Dockerfile", "--platform", e2e.IngestPlatform(), ".")
+	docker := exec.Command("docker", "buildx", "build", "--load", "-t", "gravwell/hosted:e2e", "-f", "./e2e/hosted/Dockerfile", "--platform", e2e.IngestPlatform(), ".")
 	docker.Dir = e2e.RepoRoot()
 	docker.Stdout = &stdout
 	docker.Stderr = &stderr

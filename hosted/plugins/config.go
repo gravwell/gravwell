@@ -33,7 +33,6 @@ type Configs struct {
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
-	// verify Okta configs
 	for k, v := range c.Okta {
 		if v == nil {
 			err = fmt.Errorf("Okta config %q is nil", k)
@@ -57,6 +56,10 @@ func (c Configs) Verify() (err error) {
 	for k, v := range c.Tester {
 		if v == nil {
 			err = fmt.Errorf("Tester config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Tester config %q failed validation %w", k, err)
 			return
 		}
 	}
