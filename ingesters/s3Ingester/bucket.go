@@ -14,11 +14,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/sqs_common"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/sqs_common"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -28,11 +28,11 @@ const (
 )
 
 type AuthConfig struct {
-	Region              string
-	Bucket_ARN          string // Amazon ARN (should be JUST the bucket ARN)
-	Endpoint            string // arbitrary endpoint
-	Bucket_Name         string // defined bucket
-	Bucket_URL          string `json:"-"` // DEPRECATED DO NOT USE
+	Region                   string
+	Bucket_ARN               string // Amazon ARN (should be JUST the bucket ARN)
+	Endpoint                 string // arbitrary endpoint
+	Bucket_Name              string // defined bucket
+	Bucket_URL               string `json:"-"` // DEPRECATED DO NOT USE
 	MaxRetries               int
 	Disable_TLS              bool // DEPRECATED: has no effect. Use Insecure_Skip_TLS_Verify instead.
 	Insecure_Skip_TLS_Verify bool // skip TLS certificate verification for custom HTTPS endpoints (e.g. self-signed certs on internal S3-compatible services). Has no effect when connecting to real AWS endpoints.
