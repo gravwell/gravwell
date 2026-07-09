@@ -52,6 +52,7 @@ func TestConfig_Verify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.config.Verify()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Config.Verify() error = %v, wantErr %v", err, tt.wantErr)
@@ -61,9 +62,13 @@ func TestConfig_Verify(t *testing.T) {
 }
 
 func TestConfig_Verify_GeneratesUUID(t *testing.T) {
+	t.Parallel()
 	cfg := Config{}
 	if err := cfg.Verify(); err != nil {
 		t.Fatalf("Config.Verify() unexpected error: %v", err)
+	}
+	if cfg.Ingester_UUID != defaultIngesterUUIDStr {
+		t.Errorf("Ingester_UUID = %q, want %q", cfg.Ingester_UUID, defaultIngesterUUIDStr)
 	}
 	if cfg.Ingester_UUID == "" {
 		t.Error("Config.Verify() did not generate UUID when empty")
