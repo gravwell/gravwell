@@ -1,0 +1,44 @@
+services:
+  gravwell:
+    image: gravwell/beta:5.9.0-beta2
+    container_name: gravwell
+    ports:
+      - "8080:80"
+      - "4023:4023"
+
+  garage:
+    image: dxflrs/garage:v2.3.0
+    container_name: garage
+    command: /garage server --single-node --default-bucket
+    restart: unless-stopped
+    environment:
+      - GARAGE_DEFAULT_ACCESS_KEY=garage_access_key
+      - GARAGE_DEFAULT_SECRET_KEY=garage_secret_key
+      - GARAGE_DEFAULT_BUCKET=garage-bucket
+    ports:
+      - "3900:3900"
+      - "3901:3901"
+      - "3902:3902"
+      - "3903:3903"
+    volumes:
+      - ./garage.toml:/etc/garage.toml
+      - garage:/var/lib/garage
+
+  elasticmq:
+    image: softwaremill/elasticmq:1.7.1
+    container_name: elasticmq
+    restart: unless-stopped
+    ports:
+      - "9324:9324"
+    volumes:
+      - ./elasticmq.conf:/opt/elasticmq.conf
+
+  kinesis-local:
+    image: saidsef/aws-kinesis-local:v2026.04
+    container_name: kinesis-local
+    restart: unless-stopped
+    ports:
+      - "4567:4567"
+
+volumes:
+  garage:
