@@ -205,12 +205,14 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			if noInteractive {
 				return ErrNonInteractiveRequiresDifferentLogin
 			}
-			if mfa, err := promptForMissingCredentials(username); err != nil {
+			finalUsername, mfa, err := promptForMissingCredentials(username)
+			if err != nil {
 				return err
-			} else if mfa {
-				method = "prompt+mfa"
-			} else {
-				method = "prompt"
+			}
+			username = finalUsername
+			method = "prompt"
+			if mfa {
+				method += "+mfa"
 			}
 		} else {
 			method = "JWT"
