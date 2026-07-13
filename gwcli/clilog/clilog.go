@@ -48,6 +48,11 @@ const (
 	maxLogCount uint  = 8
 )
 
+const (
+	// if a user specifies a log path without an extension, this is automatically added as log rotation requires an extension
+	DefaultExtension string = ".log"
+)
+
 // Level recreates log.Level so other packages do not have to import the ingest logger
 type Level int
 
@@ -158,6 +163,9 @@ func Init(path string, lvlString string) error {
 
 	// spawn a log rotator on the given file
 	lr, err := rotate.OpenEx(path, 0660, maxLogSize, maxLogCount, true)
+	if err != nil && err.Error() == "file extension required on path" { // if we are missing an extension, just attach one and try again
+		lr, err = rotate.OpenEx(path+DefaultExtension, 0660, maxLogSize, maxLogCount, true)
+	}
 	if err != nil {
 		return err
 	}
