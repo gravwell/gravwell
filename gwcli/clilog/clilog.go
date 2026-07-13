@@ -22,6 +22,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
@@ -149,6 +150,9 @@ func Init(path string, lvlString string) error {
 	lvl, err := log.LevelFromString(lvlString)
 	if err != nil {
 		return err
+	}
+	if lvl == log.DEBUG {
+		state.SetDebugMode()
 	}
 
 	// spawn a log rotator on the given file
