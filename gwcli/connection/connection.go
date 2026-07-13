@@ -170,7 +170,9 @@ func Initialize(conn string, UseHTTPS, InsecureNoEnforceCerts bool, restLogPath 
 // Fails out instead of prompting in script mode.
 //
 // Logs the method the user logged in if successful, otherwise returns an error.
-func Login(username string, password, apiToken *string, noInteractive bool) error {
+//
+// in and out are set the IO for the credprompt, if required. Setting them to nil is acceptable and will simply pass no options into the cred prompt.
+func Login(username string, password, apiToken *string, noInteractive bool, in io.Reader, out io.Writer) error {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 	if Client == nil {
@@ -205,7 +207,7 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			if noInteractive {
 				return ErrNonInteractiveRequiresDifferentLogin
 			}
-			if mfa, err := promptForMissingCredentials(username); err != nil {
+			if mfa, err := promptForMissingCredentials(username, in, out); err != nil {
 				return err
 			} else if mfa {
 				method = "prompt+mfa"
@@ -322,9 +324,9 @@ func loginViaJWT(username string) (err error) {
 // Only prints to the log on critical failures
 //
 // ! Not to be called in script mode.
-func promptForMissingCredentials(prepopUsername string) (mfa bool, err error) {
+func promptForMissingCredentials(prepopUsername string, in io.Reader, out io.Writer) (mfa bool, err error) {
 	// prompt for user name and password
-	u, p, err := credprompt.Collect(prepopUsername)
+	u, p, err := credprompt.Collect(prepopUsername, in, out)
 	if err != nil {
 		return false, err
 	}

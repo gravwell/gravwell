@@ -176,7 +176,7 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	// pass all information to Login to decide how to proceed
-	if err := connection.Login(username, password, apiToken, !state.Interactive()); err != nil {
+	if err := connection.Login(username, password, apiToken, !state.Interactive(), cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
 		return err
 	}
 	return nil
