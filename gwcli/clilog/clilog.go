@@ -22,6 +22,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -264,4 +265,25 @@ func TypeAssert(baseItem any, targetType any) ErrInternal {
 	}
 
 	return ErrInternal{}
+}
+
+// ProgramOptions returns loggable entries of what the given input and output are.
+func ProgramOptions(in io.Reader, out io.Writer) rfc5424.SDParam {
+	opts := []string{}
+	var value = "input->"
+	if in == os.Stdin {
+		value += "stdin"
+	} else {
+		value += fmt.Sprintf("%p", in)
+	}
+	opts = append(opts, value)
+	value = "output->"
+	if out == os.Stdout {
+		value += "stdout"
+	} else {
+		value += fmt.Sprintf("%p", in)
+	}
+	opts = append(opts, value)
+
+	return log.KV("ProgramOptions", opts)
 }

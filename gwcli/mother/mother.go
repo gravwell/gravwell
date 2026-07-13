@@ -88,8 +88,16 @@ type Mother struct {
 // program, and returns on Mother's exit.
 // The caller is expected to exit on Spawn's return.
 func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
+	// pull IO from the command
+
+	clilog.Writer.Debug("spawning Mother",
+		log.KV("pwd", cur.Name()),
+		log.KV("trailing tokens", trailingTokens),
+		log.KV("caller", log.CallLoc(1)),
+		clilog.ProgramOptions(cur.InOrStdin(), cur.OutOrStdout()),
+	)
 	// spin up mother
-	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil))
+	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil), []tea.ProgramOption{tea.WithInput(cur.InOrStdin()), tea.WithOutput(cur.OutOrStdout())}...)
 	// reactive the admin command
 	if c, _, err := root.Find([]string{"user", "admin"}); err != nil {
 		clilog.Writer.Warnf("failed to reveal the admin command")
@@ -167,10 +175,6 @@ func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 		// have mother immediate act on the data we placed on her prompt
 		m.processOnStartup = true
 	}
-
-	clilog.Writer.Debugf("Spawning mother rooted @ %v, located @ %v, with trailing tokens %v",
-		m.root.Name(), m.pwd.Name(), trailingTokens)
-
 	return m
 }
 
