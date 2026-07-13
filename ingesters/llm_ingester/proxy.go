@@ -387,15 +387,24 @@ func setForwardedFor(out, r *http.Request) {
 }
 
 func getRemoteIP(r *http.Request) net.IP {
+	// Prefer the leading X-Forwarded-For entry (the original client), but only
+	// when it actually parses. A present-but-malformed value (spoofed or
+	// mangled) must not be trusted — falling back to it would collapse many
+	// distinct clients onto 127.0.0.1, breaking session isolation and SRC
+	// attribution. In that case, and when the header is absent, use the
+	// immediate peer from RemoteAddr instead.
 	host := r.Header.Get("X-Forwarded-For")
 	if i := strings.IndexByte(host, ','); i >= 0 {
 		host = host[:i]
 	}
-	host = strings.TrimSpace(host)
-	if host == "" {
-		host, _, _ = net.SplitHostPort(r.RemoteAddr)
+	if ip := net.ParseIP(strings.TrimSpace(host)); ip != nil {
+		return ip
 	}
-	if ip := net.ParseIP(host); ip != nil {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		peer = r.RemoteAddr
+	}
+	if ip := net.ParseIP(strings.TrimSpace(peer)); ip != nil {
 		return ip
 	}
 	return net.ParseIP("127.0.0.1")

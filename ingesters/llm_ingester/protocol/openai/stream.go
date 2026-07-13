@@ -25,10 +25,11 @@ type sseReassembler struct {
 	// buf holds bytes not yet broken into events.
 	buf bytes.Buffer
 	// state being assembled from delta frames.
-	id      string
-	model   string
-	content bytes.Buffer
-	usage   *protocol.TokenUsage
+	id        string
+	model     string
+	content   bytes.Buffer
+	reasoning bytes.Buffer
+	usage     *protocol.TokenUsage
 	// per-index assistant tool calls (OpenAI streams arguments in fragments).
 	tools    map[int]*partialTool
 	toolKeys []int // preserve first-seen order
@@ -51,9 +52,14 @@ type streamDelta struct {
 	Choices []struct {
 		Index int `json:"index"`
 		Delta struct {
-			Role      string `json:"role,omitempty"`
-			Content   string `json:"content,omitempty"`
-			ToolCalls []struct {
+			Role    string `json:"role,omitempty"`
+			Content string `json:"content,omitempty"`
+			// Providers stream chain-of-thought fragments under different field
+			// names (Ollama/OpenRouter "reasoning", DeepSeek/vLLM
+			// "reasoning_content"); accept both.
+			Reasoning        string `json:"reasoning,omitempty"`
+			ReasoningContent string `json:"reasoning_content,omitempty"`
+			ToolCalls        []struct {
 				Index    int    `json:"index"`
 				ID       string `json:"id,omitempty"`
 				Type     string `json:"type,omitempty"`
@@ -144,6 +150,12 @@ func (r *sseReassembler) applyDelta(d *streamDelta) {
 		if ch.Delta.Content != "" {
 			r.content.WriteString(ch.Delta.Content)
 		}
+		if ch.Delta.Reasoning != "" {
+			r.reasoning.WriteString(ch.Delta.Reasoning)
+		}
+		if ch.Delta.ReasoningContent != "" {
+			r.reasoning.WriteString(ch.Delta.ReasoningContent)
+		}
 		for _, tc := range ch.Delta.ToolCalls {
 			pt, ok := r.tools[tc.Index]
 			if !ok {
@@ -166,15 +178,23 @@ func (r *sseReassembler) applyDelta(d *streamDelta) {
 
 // Finalize returns the assembled response. Safe to call multiple times.
 func (r *sseReassembler) Finalize() (*protocol.ParsedResponse, error) {
-	if r.parseErr != nil && r.id == "" && r.content.Len() == 0 && len(r.tools) == 0 {
+	if r.parseErr != nil && r.id == "" && r.content.Len() == 0 && r.reasoning.Len() == 0 && len(r.tools) == 0 {
 		return nil, r.parseErr
 	}
-	if r.id == "" && r.content.Len() == 0 && len(r.tools) == 0 && r.usage == nil {
+	if r.id == "" && r.content.Len() == 0 && r.reasoning.Len() == 0 && len(r.tools) == 0 && r.usage == nil {
 		return nil, errors.New("empty stream")
 	}
 	out := &protocol.ParsedResponse{
 		RequestID: r.id,
 		Model:     r.model,
+	}
+	// Reasoning precedes the answer, so emit it first.
+	if r.reasoning.Len() > 0 {
+		out.Events = append(out.Events, protocol.Event{
+			Type:    protocol.EventReasoning,
+			Role:    roleAssistant,
+			Content: bytes.Clone(r.reasoning.Bytes()),
+		})
 	}
 	if r.content.Len() > 0 {
 		out.Events = append(out.Events, protocol.Event{

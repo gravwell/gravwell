@@ -20,6 +20,7 @@ const (
 	EventUserMessage      = "request.user_message"
 	EventSystemMessage    = "request.system_message"
 	EventAssistantMessage = "response.assistant_message"
+	EventReasoning        = "response.reasoning"
 	EventToolCall         = "response.tool_call"
 	EventToolResult       = "request.tool_result"
 	EventUsage            = "response.usage"

@@ -22,6 +22,39 @@ import (
 	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/openai"
 )
 
+func TestGetRemoteIP(t *testing.T) {
+	tests := []struct {
+		name       string
+		xff        string
+		remoteAddr string
+		want       string
+	}{
+		{"xff-single", "203.0.113.5", "10.0.0.1:1234", "203.0.113.5"},
+		{"xff-chain-takes-first", "203.0.113.5, 70.0.0.1", "10.0.0.1:1234", "203.0.113.5"},
+		{"xff-padded", "  203.0.113.5  ", "10.0.0.1:1234", "203.0.113.5"},
+		{"no-xff-uses-peer", "", "10.0.0.1:1234", "10.0.0.1"},
+		// A present-but-invalid XFF must fall back to the peer, not 127.0.0.1.
+		{"invalid-xff-falls-back-to-peer", "not-an-ip", "10.0.0.1:1234", "10.0.0.1"},
+		{"empty-xff-entry-falls-back-to-peer", ", 70.0.0.1", "10.0.0.1:1234", "10.0.0.1"},
+		// RemoteAddr without a port is still usable.
+		{"peer-without-port", "", "10.0.0.1", "10.0.0.1"},
+		// Nothing usable anywhere -> loopback default.
+		{"all-invalid-defaults-loopback", "bogus", "also-bogus", "127.0.0.1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			r.RemoteAddr = tt.remoteAddr
+			if tt.xff != "" {
+				r.Header.Set("X-Forwarded-For", tt.xff)
+			}
+			if got := getRemoteIP(r); got.String() != tt.want {
+				t.Errorf("getRemoteIP() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // upstreamCapture records what the mock upstream received.
 type upstreamCapture struct {
 	gotContentType string

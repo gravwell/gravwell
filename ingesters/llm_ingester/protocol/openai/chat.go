@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 )
@@ -51,11 +52,25 @@ func (chatProtocol) Paths() []string { return []string{chatPath} }
 // chatMessage covers the subset of the message shape we care about.
 // Content may be a string OR an array of content parts in the multimodal form.
 type chatMessage struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content,omitempty"`
-	Name       string          `json:"name,omitempty"`
-	ToolCalls  []toolCall      `json:"tool_calls,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content,omitempty"`
+	// Reasoning holds a model's chain-of-thought when the provider exposes
+	// it.  Different providers use different field names for the same
+	// thing, so we accept both.
+	Reasoning        json.RawMessage `json:"reasoning,omitempty"`
+	ReasoningContent json.RawMessage `json:"reasoning_content,omitempty"`
+	Name             string          `json:"name,omitempty"`
+	ToolCalls        []toolCall      `json:"tool_calls,omitempty"`
+	ToolCallID       string          `json:"tool_call_id,omitempty"`
+}
+
+// reasoningBytes returns the reasoning text from whichever field the provider
+// populated, or nil if none is present.
+func (m chatMessage) reasoningBytes() []byte {
+	if b := contentToBytes(m.Reasoning); len(b) > 0 {
+		return b
+	}
+	return contentToBytes(m.ReasoningContent)
 }
 
 type toolCall struct {
@@ -173,6 +188,14 @@ func buildParsedResponse(resp *chatResponse) *protocol.ParsedResponse {
 		Model:     resp.Model,
 	}
 	for _, ch := range resp.Choices {
+		// Reasoning precedes the answer, so emit it first.
+		if reasoning := ch.Message.reasoningBytes(); len(reasoning) > 0 {
+			out.Events = append(out.Events, protocol.Event{
+				Type:    protocol.EventReasoning,
+				Role:    roleAssistant,
+				Content: reasoning,
+			})
+		}
 		if text := contentToBytes(ch.Message.Content); len(text) > 0 {
 			out.Events = append(out.Events, protocol.Event{
 				Type:    protocol.EventAssistantMessage,
@@ -203,13 +226,24 @@ func buildParsedResponse(resp *chatResponse) *protocol.ParsedResponse {
 	return out
 }
 
+// contentPart is one element of the multimodal content-parts array. We only
+// model the text fields; image/audio/etc. parts are left as raw JSON.
+type contentPart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
 // contentToBytes flattens an OpenAI content field, which can be:
 //   - a JSON string ("hello")
-//   - an array of content parts ([{"type":"text","text":"hello"}, ...])
+//   - an array of content parts ([{"type":"text","text":"hello"}, ...]),
+//     as sent by clients like opencode (e.g. plan-mode reminders appended as
+//     a text part)
 //   - null / absent
 //
-// We return UTF-8 text for the string case and the JSON itself for the array
-// case so downstream still has structured access.
+// For the string form we return the string. For the array form we pull out the
+// text of the text parts (joined with newlines) so the logged message reads as
+// the user actually wrote it. When an array carries no text parts (e.g. an
+// image-only turn) we fall back to the raw JSON so nothing is silently dropped.
 func contentToBytes(raw json.RawMessage) []byte {
 	if len(raw) == 0 {
 		return nil
@@ -219,7 +253,26 @@ func contentToBytes(raw json.RawMessage) []byte {
 	if err := json.Unmarshal(raw, &s); err == nil {
 		return []byte(s)
 	}
-	// fall back to raw JSON (e.g. multimodal content parts)
+	// array-of-parts (multimodal) form: extract the text parts
+	var parts []contentPart
+	if err := json.Unmarshal(raw, &parts); err == nil {
+		var b strings.Builder
+		for _, p := range parts {
+			// "text" is the Chat Completions form; "input_text" is the
+			// Responses-style variant some clients reuse here.
+			if p.Text == "" || (p.Type != "text" && p.Type != "input_text") {
+				continue
+			}
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+			b.WriteString(p.Text)
+		}
+		if b.Len() > 0 {
+			return []byte(b.String())
+		}
+	}
+	// fall back to raw JSON (e.g. an image-only content array)
 	return []byte(raw)
 }
 

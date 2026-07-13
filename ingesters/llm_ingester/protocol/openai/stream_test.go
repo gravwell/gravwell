@@ -142,6 +142,57 @@ data: [DONE]
 	}
 }
 
+func TestSSEReassemblerReasoning(t *testing.T) {
+	// Interleaved reasoning + content fragments should accumulate into separate
+	// events, with reasoning ordered ahead of the assistant answer.
+	r := newSSEReassembler()
+	stream := `data: {"id":"z","model":"m","choices":[{"index":0,"delta":{"role":"assistant","reasoning":"think"}}]}
+
+data: {"id":"z","choices":[{"index":0,"delta":{"reasoning_content":"ing "}}]}
+
+data: {"id":"z","choices":[{"index":0,"delta":{"content":"ans"}}]}
+
+data: {"id":"z","choices":[{"index":0,"delta":{"content":"wer"}}]}
+
+data: [DONE]
+
+`
+	feedAll(t, r, stream)
+	p, err := r.Finalize()
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	re := findEvent(p, protocol.EventReasoning)
+	if re == nil || string(re.Content) != "thinking " {
+		t.Fatalf("reasoning event = %v", re)
+	}
+	asst := findEvent(p, protocol.EventAssistantMessage)
+	if asst == nil || string(asst.Content) != "answer" {
+		t.Fatalf("assistant event = %v", asst)
+	}
+	if p.Events[0].Type != protocol.EventReasoning {
+		t.Errorf("first event = %q, want reasoning first", p.Events[0].Type)
+	}
+}
+
+func TestSSEReassemblerReasoningOnly(t *testing.T) {
+	// A stream that carries only reasoning (no content/tools/usage) is still a
+	// non-empty response.
+	r := newSSEReassembler()
+	feedAll(t, r, `data: {"id":"ro","model":"m","choices":[{"index":0,"delta":{"reasoning":"hmm"}}]}
+
+data: [DONE]
+
+`)
+	p, err := r.Finalize()
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if re := findEvent(p, protocol.EventReasoning); re == nil || string(re.Content) != "hmm" {
+		t.Fatalf("reasoning event = %v", re)
+	}
+}
+
 func TestSSEReassemblerEmptyStream(t *testing.T) {
 	r := newSSEReassembler()
 	feedAll(t, r, "data: [DONE]\n\n")

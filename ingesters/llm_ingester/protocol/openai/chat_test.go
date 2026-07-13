@@ -77,6 +77,41 @@ func TestParseResponseInvalid(t *testing.T) {
 	}
 }
 
+func TestParseResponseReasoning(t *testing.T) {
+	// Reasoning arrives under different field names depending on the provider;
+	// both should surface as a reasoning event ordered ahead of the answer.
+	for _, field := range []string{"reasoning", "reasoning_content"} {
+		t.Run(field, func(t *testing.T) {
+			body := []byte(`{"id":"r","model":"m","choices":[{"index":0,"message":{"role":"assistant","` +
+				field + `":"let me think","content":"the answer"}}]}`)
+			p, err := chatProtocol{}.ParseResponse(body)
+			if err != nil {
+				t.Fatalf("ParseResponse: %v", err)
+			}
+			re := findEvent(p, protocol.EventReasoning)
+			if re == nil || string(re.Content) != "let me think" {
+				t.Fatalf("reasoning event = %v", re)
+			}
+			if re.Role != roleAssistant {
+				t.Errorf("reasoning role = %q, want %q", re.Role, roleAssistant)
+			}
+			// reasoning must be emitted before the assistant answer
+			var iReason, iAnswer = -1, -1
+			for i := range p.Events {
+				switch p.Events[i].Type {
+				case protocol.EventReasoning:
+					iReason = i
+				case protocol.EventAssistantMessage:
+					iAnswer = i
+				}
+			}
+			if iReason < 0 || iAnswer < 0 || iReason > iAnswer {
+				t.Errorf("reasoning (%d) should precede answer (%d)", iReason, iAnswer)
+			}
+		})
+	}
+}
+
 func TestParseRequestNoMessages(t *testing.T) {
 	if _, err := (chatProtocol{}).ParseRequest([]byte(`{"model":"m","messages":[]}`), ""); err == nil {
 		t.Error("expected error for request with no messages")
@@ -92,7 +127,13 @@ func TestContentToBytes(t *testing.T) {
 		{"string", `"hello"`, "hello"},
 		{"empty-string", `""`, ""},
 		{"null", `null`, ""},
-		{"multimodal-array", `[{"type":"text","text":"hi"}]`, `[{"type":"text","text":"hi"}]`},
+		{"text-part", `[{"type":"text","text":"hi"}]`, "hi"},
+		{"multiple-text-parts", `[{"type":"text","text":"a"},{"type":"text","text":"b"}]`, "a\nb"},
+		{"input-text-variant", `[{"type":"input_text","text":"hi"}]`, "hi"},
+		// text mixed with a non-text part: keep the text, drop the image.
+		{"mixed-parts", `[{"type":"text","text":"look"},{"type":"image_url","image_url":{"url":"x"}}]`, "look"},
+		// no text parts at all: fall back to the raw JSON so nothing is lost.
+		{"image-only", `[{"type":"image_url","image_url":{"url":"x"}}]`, `[{"type":"image_url","image_url":{"url":"x"}}]`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
