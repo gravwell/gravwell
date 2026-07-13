@@ -120,7 +120,17 @@ func InitializeFromArgs(args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to get log level flag to initialize clilog: ", err)
 	}
-	_ = Init(path, lvl)
+	if err = Init(path, lvl); err != nil {
+		// try again with the defaults
+		if secondErr := Init(cfgdir.DefaultStdLogPath, lvl); secondErr != nil {
+			// if this happens, something is VERY wrong. Install a nil logger to allow gwcli to continue to limp along
+			fmt.Fprintf(os.Stderr, "failed to generate a logger:\n1) %v\n2) %v\n", err, secondErr)
+			Writer = log.NewDiscardLogger()
+		}
+		// log the original error
+		Writer.Error("failed to initialize logger with given parameters", log.KVErr(err))
+	}
+
 }
 
 // Init initializes Writer, the logging singleton.
