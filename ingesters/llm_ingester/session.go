@@ -103,9 +103,13 @@ func (s *sessionStore) load(p *persistedSessions) {
 		if e.Len <= 0 || len(e.Tail) > e.Len {
 			continue
 		}
+		tail := e.Tail
+		if s.matchWindow > 0 && len(tail) > s.matchWindow {
+			tail = tail[len(tail)-s.matchWindow:]
+		}
 		entry := &sessionEntry{
 			ID:       e.ID,
-			Tail:     slices.Clone(e.Tail),
+			Tail:     slices.Clone(tail),
 			Len:      e.Len,
 			LastSeen: e.LastSeen,
 		}
