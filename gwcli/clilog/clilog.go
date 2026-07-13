@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/crewjam/rfc5424"
@@ -152,6 +153,8 @@ func Init(path string, lvlString string) error {
 	// validate parameters
 	if path = strings.TrimSpace(path); path == "" {
 		return ErrEmptyPath
+	} else if filepath.Ext(path) == "" {
+		path += DefaultExtension
 	}
 	lvl, err := log.LevelFromString(lvlString)
 	if err != nil {
@@ -163,9 +166,6 @@ func Init(path string, lvlString string) error {
 
 	// spawn a log rotator on the given file
 	lr, err := rotate.OpenEx(path, 0660, maxLogSize, maxLogCount, true)
-	if err != nil && err.Error() == "file extension required on path" { // if we are missing an extension, just attach one and try again
-		lr, err = rotate.OpenEx(path+DefaultExtension, 0660, maxLogSize, maxLogCount, true)
-	}
 	if err != nil {
 		return err
 	}
@@ -289,7 +289,7 @@ func ProgramOptions(in io.Reader, out io.Writer) rfc5424.SDParam {
 	if out == os.Stdout {
 		value += "stdout"
 	} else {
-		value += fmt.Sprintf("%p", in)
+		value += fmt.Sprintf("%p", out)
 	}
 	opts = append(opts, value)
 

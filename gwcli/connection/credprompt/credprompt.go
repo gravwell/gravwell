@@ -53,7 +53,8 @@ func Collect(initialUser string, in io.Reader, out io.Writer) (user, pass string
 
 // internal implementation of collect.
 // Allows custom programs (likely programs with mocked input) for testing purposes.
-// ! Outside of test packages, leave prog==nil.
+//
+// ! Prog must not be nil.
 func collect(prog *tea.Program) (user, pass string, err error) {
 	if prog == nil {
 		return "", "", errors.New("nil program passed into collect")

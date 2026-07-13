@@ -45,7 +45,7 @@ func Collect(in io.Reader, out io.Writer) (code string, at types.AuthType, err e
 	if out != nil {
 		progOpts = append(progOpts, tea.WithOutput(out))
 	}
-	clilog.Writer.Debug("spawning credprompt",
+	clilog.Writer.Debug("spawning mfaprompt",
 		log.KV("caller", log.CallLoc(1)),
 		clilog.ProgramOptions(in, out),
 	)
@@ -54,7 +54,8 @@ func Collect(in io.Reader, out io.Writer) (code string, at types.AuthType, err e
 
 // internal implementation of collect.
 // Allows custom programs (likely programs with mocked input) for testing purposes.
-// ! Outside of test packages, leave prog==nil.
+//
+// ! Prog must not be nil.
 func collect(prog *tea.Program) (code string, at types.AuthType, err error) {
 	if prog == nil {
 		return "", "", errors.New("nil program passed into collect")
