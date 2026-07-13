@@ -261,11 +261,22 @@ func ppost(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// ExecuteOptions is used for testing gwcli when leveraging tree.Execute (which most tests do).
+// It should not be populated during standard usage.
+type ExecuteOptions struct {
+	Stdout, Stderr io.Writer
+}
+
 // Execute adds all child commands to the root command, sets flags appropriately, and launches the
 // program according to the given parameters (via cobra.Command.Execute()).
 //
 // Arguments are intended exclusively for testing purposes and should be nil for production use.
-func Execute(args []string, stdout, stderr io.Writer) int {
+func Execute(args []string, opts ...ExecuteOptions) int {
+	var options ExecuteOptions
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+
 	// spool up the logger
 	if args == nil {
 		clilog.InitializeFromArgs(os.Args)
@@ -308,11 +319,11 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	rootCmd.Version = state.Version
 
 	// if we are testing, wire up outputs
-	if stdout != nil {
-		rootCmd.SetOut(stdout)
+	if options.Stdout != nil {
+		rootCmd.SetOut(options.Stdout)
 	}
-	if stderr != nil {
-		rootCmd.SetErr(stderr)
+	if options.Stderr != nil {
+		rootCmd.SetErr(options.Stderr)
 	}
 
 	// associate flags
