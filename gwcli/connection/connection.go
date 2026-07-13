@@ -190,7 +190,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 		}
 		method = "API_token"
 	} else if username != "" && (password != nil && *password != "") { // u/p
-		if err := loginWithCredentials(username, *password, noInteractive); err != nil {
+		if err := loginWithCredentials(username, *password, noInteractive, in, out); err != nil {
 			return err
 		}
 		method = "explicit_username_password"
@@ -250,7 +250,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 // Fails if noInteractive && mfa required
 //
 // If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
-func loginWithCredentials(username, password string, noInteractive bool) error {
+func loginWithCredentials(username, password string, noInteractive bool, in io.Reader, out io.Writer) error {
 	resp, err := Client.LoginEx(username, password)
 	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
 		return ufErr
@@ -261,7 +261,7 @@ func loginWithCredentials(username, password string, noInteractive bool) error {
 		}
 
 		// send the user into a prompt to enter their TOTP
-		code, authType, err := mfaprompt.Collect()
+		code, authType, err := mfaprompt.Collect(in, out)
 		if err != nil {
 			return err
 		}
@@ -337,7 +337,7 @@ func promptForMissingCredentials(prepopUsername string, in io.Reader, out io.Wri
 		return false, ufErr
 	} else if mfa {
 		// prompt for TOTP or recovery code
-		code, authType, err := mfaprompt.Collect()
+		code, authType, err := mfaprompt.Collect(in, out)
 		if err != nil {
 			return true, err
 		}
