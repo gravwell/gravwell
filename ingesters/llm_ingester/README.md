@@ -9,10 +9,10 @@ tracking, etc).
 
 ## Local testing
 
-\`\`\`markdown
+```markdown
 go build .
 ./llm_ingester -config-file gravwell_llm_ingester.conf
-\`\`\`
+```
 
 Point `Upstream-URL` in the config at your real provider (and set
 `Upstream-Authorization` if you want the proxy to inject the real key instead
@@ -23,7 +23,7 @@ of passing the client's through).
 Add a custom provider pointing at the listener (default `:4180`) to
 `opencode.json` / `opencode.jsonc`:
 
-`\`\`jsonc
+```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
@@ -38,13 +38,13 @@ Add a custom provider pointing at the listener (default `:4180`) to
     }
   }
 }
-\`\`\`
+```
 
 ### crush
 
 Add a custom provider to `.crush.json` / `crush.json`:
 
-\`\`\`json
+```json
 {
   "$schema": "https://charm.land/crush.json",
   "providers": {
@@ -59,7 +59,7 @@ Add a custom provider to `.crush.json` / `crush.json`:
     }
   }
 }
-\`\`\`
+```
 
 ### Codex / Claude Code
 
@@ -70,12 +70,12 @@ See their proxy config docs:
 
 ### curl
 
-\`\`\`shell
+```shell
 curl http://localhost:4180/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $YOUR_API_KEY" \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}]}'
-\`\`\`
+```
 
 Search the configured tag (`llm` by default) in Gravwell to see ingested
 events.
