@@ -18,9 +18,9 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/client/types/kits"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/client/types/kits"
 )
 
 // pullKit reaches out to the remote Gravwell instance and performs a kit build using the existing kit build request

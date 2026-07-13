@@ -3,7 +3,7 @@ package mimecast
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 func TestConfig_Verify(t *testing.T) {
