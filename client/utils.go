@@ -76,3 +76,24 @@ func decodeJWTExpires(jwt string) (r time.Time) {
 	}
 	return
 }
+
+// aliasResponseError returns the error that corresponds to resp.StatusCode.
+// If a non-200 status code is given, the response's body will be automatically drained.
+//
+// Returns nil iff status code == 200.
+func aliasResponseError(c *Client, resp *http.Response) error {
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	defer drainResponse(resp)
+
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		c.state = STATE_LOGGED_OFF
+		return ErrNotAuthed
+	case http.StatusNotFound:
+		return ErrNotFound
+	default: // unhandled code
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+	}
+}
