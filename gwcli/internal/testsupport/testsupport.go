@@ -20,6 +20,7 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -411,12 +412,20 @@ func WithServer(secure bool, override string) func(t *testing.T) []string {
 	}
 }
 
+// WithDebug sets the logger to DEBUG.
+// If logpath is set, it will be used instead of the default.
+func WithDebug(logpath string) func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		if logpath != "" {
+			return []string{"--loglevel", "DEBUG", "--log", logpath}
+		}
+		return []string{"--loglevel", "DEBUG"}
+	}
+}
+
 // WithDefaults sets WithUsernamePassword as the default admin credentials and WithServer as insecure relying on testsupport.Server()
 func WithDefaults() func(t *testing.T) []string {
 	return func(t *testing.T) []string {
-		return append(
-			WithUsernamePassword("admin", "changeme")(t),
-			WithServer(false, "")(t)...,
-		)
+		return slices.Concat(WithDebug("")(t), WithUsernamePassword("admin", "changeme")(t), WithServer(false, "")(t))
 	}
 }

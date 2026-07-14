@@ -68,7 +68,7 @@ func TestCreateEditDownload(t *testing.T) {
 			"-n", fileName,
 			"-d", fileDesc,
 			"-f", filePath,
-		}...), nil, &sbErr); ec != 0 {
+		}...), tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 	}
@@ -89,7 +89,7 @@ func TestCreateEditDownload(t *testing.T) {
 		var sbErr strings.Builder
 		if ec := tree.Execute(append(meta, []string{"files", "edit", "-i", fileID,
 			"--labels=" + strings.Join(fileLbls, ","), // just add some labels
-		}...), nil, &sbErr); ec != 0 {
+		}...), tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 		id, setDesc, setLbls := listForItem(t, fileName, fileSize)
@@ -149,7 +149,10 @@ func TestCreateEditDownload(t *testing.T) {
 	var sbOut, sbErr strings.Builder
 	require.Zero(t,
 		tree.Execute(append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "files", "replace", "--path", newFilePath, fileID),
-			&sbOut, &sbErr),
+			tree.ExecuteOptions{
+				Stdout: &sbOut,
+				Stderr: &sbErr,
+			}),
 		sbErr.String(),
 	)
 	{ // validate metadata and new contents
@@ -174,7 +177,7 @@ func listForItem(t *testing.T, name string, size int64) (id string, description 
 		"--csv",
 		"-o", resultPath,
 		"--columns", "ID,Name,Description,Size,Labels",
-	}...), nil, &sbErr); ec != 0 {
+	}...), tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 	// slurp the file we wrote to
@@ -226,7 +229,7 @@ func downloadFile(t *testing.T, fileID string) (content string) {
 	t.Logf("downloading file (ID: %v) to %s", fileID, resultPath)
 	// execute spins up singletons for us
 	var sbErr strings.Builder
-	if ec := tree.Execute(args, nil, &sbErr); ec != 0 {
+	if ec := tree.Execute(args, tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 	// check the file
