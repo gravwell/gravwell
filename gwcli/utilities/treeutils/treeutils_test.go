@@ -18,8 +18,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -72,11 +73,11 @@ func TestGenerateNav(t *testing.T) {
 	t.Run("annotations", func(t *testing.T) {
 		t.Run("no annotations set", func(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{})
-			assert.False(t, annotations.IsAdminOnly(nav))
+			assert.False(t, cmdutils.IsAdminOnly(nav))
 		})
 		t.Run("admin-only annotation set", func(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{AdminOnly: true})
-			assert.True(t, annotations.IsAdminOnly(nav))
+			assert.True(t, cmdutils.IsAdminOnly(nav))
 		})
 		t.Run("adminOnly is hereditary", func(t *testing.T) {
 			gn := func(idx int, childNavs []*cobra.Command, childActions []action.Pair) *cobra.Command {
@@ -87,18 +88,24 @@ func TestGenerateNav(t *testing.T) {
 			root := treeutils.GenerateNav("root", "root", "root", []*cobra.Command{
 				gn(11, nil, nil),
 				gn(12, nil, []action.Pair{
-					testsupport.DummyActionPair(treeutils.GenerateActionOptions{}),
+					dummyActionPair(treeutils.GenerateActionOptions{}),
 				})},
 				[]action.Pair{
-					testsupport.DummyActionPair(treeutils.GenerateActionOptions{}),
+					dummyActionPair(treeutils.GenerateActionOptions{}),
 				},
 				treeutils.NodeOptions{AdminOnly: true},
 			)
 			// root and everything under it should be marked as admin
-			assert.True(t, annotations.IsAdminOnly(root))
+			assert.True(t, cmdutils.IsAdminOnly(root))
 			for _, cmd := range root.Commands() {
-				assert.True(t, annotations.IsAdminOnly(cmd), cmd.Name())
+				assert.True(t, cmdutils.IsAdminOnly(cmd), cmd.Name())
 			}
 		})
 	})
+}
+
+// dummyActionPair returns an action.Pair that does nothing and has no model.
+func dummyActionPair(opts treeutils.GenerateActionOptions) action.Pair {
+	x := randomdata.City()
+	return action.NewPair(treeutils.GenerateAction(x, x, x, func(c *cobra.Command, s []string) error { return nil }, opts), nil)
 }

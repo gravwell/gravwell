@@ -20,7 +20,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/spf13/cobra"
@@ -169,7 +169,7 @@ word:
 		// check against each command's name
 		for _, cmd := range children {
 			if sgt, match := prefixMatch(all, cmd.Name(), suggest); match {
-				sgt.AdminOnly = annotations.IsAdminOnly(cmd)
+				sgt.AdminOnly = cmdutils.IsAdminOnly(cmd)
 
 				if cmd.GroupID == group.NavID {
 					navs = append(navs, sgt)

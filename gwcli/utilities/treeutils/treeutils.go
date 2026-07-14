@@ -18,7 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -43,7 +43,7 @@ func ApplyNodeOptions(cmd *cobra.Command, nopts NodeOptions) {
 		return
 	}
 	if nopts.AdminOnly {
-		annotations.AdminOnly(cmd)
+		cmdutils.AdminOnly(cmd)
 	}
 	cmd.Aliases = utils.Deduplicate(append(cmd.Aliases, nopts.CommandAliases...))
 
@@ -91,18 +91,18 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 	group.AddNavGroup(cmd)
 	group.AddActionGroup(cmd)
 
-	ao := annotations.IsAdminOnly(cmd)
+	ao := cmdutils.IsAdminOnly(cmd)
 
 	// associate subcommands; if this nav is admin only, everything beneath it should also be admin only
 	for _, sub := range navCmds {
 		if ao {
-			annotations.AdminOnly(sub)
+			cmdutils.AdminOnly(sub)
 		}
 		cmd.AddCommand(sub)
 	}
 	for _, sub := range actionCmds {
 		if ao {
-			annotations.AdminOnly(sub.Action)
+			cmdutils.AdminOnly(sub.Action)
 		}
 		cmd.AddCommand(sub.Action)
 		// now that the commands have a parent, add their models to map
