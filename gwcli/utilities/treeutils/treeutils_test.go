@@ -17,6 +17,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -69,13 +70,11 @@ func TestGenerateNav(t *testing.T) {
 	t.Run("annotations", func(t *testing.T) {
 		t.Run("no annotations set", func(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{})
-			_, found := nav.Annotations[treeutils.AnnotationAdmin]
-			assert.False(t, found)
+			assert.False(t, annotations.IsAdminOnly(nav))
 		})
 		t.Run("admin-only annotation set", func(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{AdminOnly: true})
-			_, found := nav.Annotations[treeutils.AnnotationAdmin]
-			assert.True(t, found)
+			assert.True(t, annotations.IsAdminOnly(nav))
 		})
 
 	})

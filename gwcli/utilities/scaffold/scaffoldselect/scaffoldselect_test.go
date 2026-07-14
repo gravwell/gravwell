@@ -16,12 +16,12 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +45,7 @@ func TestOptions(t *testing.T) {
 				},
 			})
 		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
-		assert.Equal(t, map[string]string{treeutils.AnnotationAdmin: "true"}, pair.Action.Annotations)
+		assert.True(t, annotations.IsAdminOnly(pair.Action))
 	})
 	t.Run("Options are ignored if not set", func(t *testing.T) {
 		pair := scaffoldselect.NewSelectAction("test", "test", "item",

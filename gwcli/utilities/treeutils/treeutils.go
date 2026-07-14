@@ -18,17 +18,13 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/utils"
 
 	"github.com/spf13/cobra"
-)
-
-// Annotation keys
-const (
-	AnnotationAdmin = "admin_only"
 )
 
 type NodeOptions struct {
@@ -46,8 +42,8 @@ func ApplyNodeOptions(cmd *cobra.Command, nopts NodeOptions) {
 		clilog.Writer.Warn("cannot apply annotations to a nil command")
 		return
 	}
-	if cmd.Annotations == nil && nopts.AdminOnly {
-		cmd.Annotations = map[string]string{AnnotationAdmin: "true"}
+	if nopts.AdminOnly {
+		annotations.AdminOnly(cmd)
 	}
 	cmd.Aliases = utils.Deduplicate(append(cmd.Aliases, nopts.CommandAliases...))
 
