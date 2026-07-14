@@ -95,8 +95,11 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 
 	// associate subcommands; if this nav is admin only, everything beneath it should also be admin only
 	for _, sub := range navCmds {
+		// Because the tree builds from the bottom up,
+		// if this child is not marked adminOnly but should be, we must also recursively mark its children
+		// (as this child did not when it was built as it didn't know it was under an AdminOnly parent).
 		if ao {
-			cmdutils.AdminOnly(sub)
+			recurAdminOnly(sub)
 		}
 		cmd.AddCommand(sub)
 	}
@@ -110,6 +113,13 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 	}
 
 	return cmd
+}
+
+func recurAdminOnly(start *cobra.Command) {
+	cmdutils.AdminOnly(start)
+	for _, child := range start.Commands() {
+		recurAdminOnly(child)
+	}
 }
 
 type GenerateActionOptions struct {
