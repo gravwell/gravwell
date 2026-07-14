@@ -71,6 +71,7 @@ func NewNav() *cobra.Command {
 		},
 		treeutils.NodeOptions{
 			CommandAliases: []string{"administrator"},
+			AdminOnly:      true,
 		},
 	)
 }

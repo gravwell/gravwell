@@ -14,9 +14,11 @@ package treeutils_test
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -76,6 +78,27 @@ func TestGenerateNav(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{AdminOnly: true})
 			assert.True(t, annotations.IsAdminOnly(nav))
 		})
-
+		t.Run("adminOnly is hereditary", func(t *testing.T) {
+			gn := func(idx int, childNavs []*cobra.Command, childActions []action.Pair) *cobra.Command {
+				sidx := strconv.FormatInt(int64(idx), 32)
+				return treeutils.GenerateNav(sidx, sidx, sidx, childNavs, childActions)
+			}
+			// generate some children, none marked as admin only
+			root := treeutils.GenerateNav("root", "root", "root", []*cobra.Command{
+				gn(11, nil, nil),
+				gn(12, nil, []action.Pair{
+					testsupport.DummyActionPair(treeutils.GenerateActionOptions{}),
+				})},
+				[]action.Pair{
+					testsupport.DummyActionPair(treeutils.GenerateActionOptions{}),
+				},
+				treeutils.NodeOptions{AdminOnly: true},
+			)
+			// root and everything under it should be marked as admin
+			assert.True(t, annotations.IsAdminOnly(root))
+			for _, cmd := range root.Commands() {
+				assert.True(t, annotations.IsAdminOnly(cmd), cmd.Name())
+			}
+		})
 	})
 }

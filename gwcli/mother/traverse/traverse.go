@@ -20,6 +20,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/spf13/cobra"
@@ -61,6 +62,7 @@ func IsUpTraversalToken(tkn string) bool {
 type Suggestion struct {
 	FullName          string
 	MatchedCharacters string // characters in CmdName that the input's suggestion chunk matched
+	AdminOnly         bool   // is the underlying command only available to admins?
 }
 
 // Equals compares against a given CmdSuggestion, checking that the name and matching characters are equal.
@@ -167,6 +169,8 @@ word:
 		// check against each command's name
 		for _, cmd := range children {
 			if sgt, match := prefixMatch(all, cmd.Name(), suggest); match {
+				sgt.AdminOnly = annotations.IsAdminOnly(cmd)
+
 				if cmd.GroupID == group.NavID {
 					navs = append(navs, sgt)
 				} else { // default to treating unknowns as actions

@@ -41,8 +41,9 @@ func init() {
 // A Sheet is a set of lipgloss.Style fields sufficient to colorize/theme gwcli.
 // A single sheet is selected at start up (in init()) to provide the styling for all aspects of gwcli.
 type Sheet struct {
-	Nav    lipgloss.Style // style of nav/directory items while traversing the tree
-	Action lipgloss.Style // style of actions/invokables while traversing the tree
+	Nav       lipgloss.Style // style of nav/directory items while traversing the tree
+	Action    lipgloss.Style // style of actions/invokables while traversing the tree
+	AdminOnly lipgloss.Style // style of navs/actions disabled when due to the current user not being an admin
 
 	FieldText lipgloss.Style // style applied to fields, some of which will be preceded by a Pip
 	Pip       func() string  // must return a single, stylized character that points to the currently selected field
@@ -140,11 +141,6 @@ func (s Sheet) Field(fieldTitle string, width int) string {
 	return Cur.FieldText.Render(fieldTitle + ": ")
 }
 
-// A Tetrad is a set of 4 colors that can be transmuted into a full sheet via GenerateSheet().
-/*type Tetrad struct {
-
-}*/
-
 // A Palette is a set of 5 colors that can be transmuted into a full sheet via GenerateSheet().
 // It allows for quicker color swaps without having to manually populate a whole style sheet.
 type Palette struct {
@@ -174,6 +170,7 @@ func (p Palette) GenerateSheet() Sheet {
 	s := NewSheet()
 	s.Nav = secondaryColorSty
 	s.Action = lipgloss.NewStyle().Foreground(p.AccentColor2)
+	s.AdminOnly = lipgloss.NewStyle().Foreground(p.TertiaryColor).Strikethrough(true)
 	s.FieldText = primaryColorSty
 	s.ComposableSty = struct {
 		FocusedBorder       lipgloss.Style

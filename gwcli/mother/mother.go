@@ -346,15 +346,23 @@ func (m Mother) View() string {
 		ns, as, bs string
 	)
 	for _, suggestion := range m.suggestions.nav {
-		sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
-		sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		if suggestion.AdminOnly && connection.CurrentUser().Admin {
+			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
+		} else {
+			sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
+			sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		}
 		sb.WriteString(" ")
 	}
 	ns = strings.TrimSpace(sb.String()) // chip last space
 	sb.Reset()
 	for _, suggestion := range m.suggestions.action {
-		sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))
-		sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		if suggestion.AdminOnly && connection.CurrentUser().Admin {
+			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
+		} else {
+			sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))
+			sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		}
 		sb.WriteString(" ")
 	}
 	as = strings.TrimSpace(sb.String()) // chip last space

@@ -28,7 +28,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -419,4 +422,10 @@ func WithDefaults() func(t *testing.T) []string {
 			WithServer(false, "")(t)...,
 		)
 	}
+}
+
+// DummyActionPair returns an action.Pair that does nothing and has no model.
+func DummyActionPair(opts treeutils.GenerateActionOptions) action.Pair {
+	x := randomdata.City()
+	return action.NewPair(treeutils.GenerateAction(x, x, x, func(c *cobra.Command, s []string) error { return nil }, opts), nil)
 }

@@ -49,8 +49,8 @@ func ApplyNodeOptions(cmd *cobra.Command, nopts NodeOptions) {
 
 }
 
-// GenerateNav creates and returns a Nav (tree node) that can now be assigned subcommands (child navs and actions).
-// It is responsible for adding each of its Actions to the action map.
+// GenerateNav creates and returns a Nav (tree node) with every sub-nav and sub-action installed (and the latter registered with the action map).
+// If this Nav is marked as AdminOnly, all descendents will be, too.
 func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds []action.Pair, opts ...NodeOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     strings.ToLower(use),
@@ -91,11 +91,19 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 	group.AddNavGroup(cmd)
 	group.AddActionGroup(cmd)
 
-	// associate subcommands
+	ao := annotations.IsAdminOnly(cmd)
+
+	// associate subcommands; if this nav is admin only, everything beneath it should also be admin only
 	for _, sub := range navCmds {
+		if ao {
+			annotations.AdminOnly(sub)
+		}
 		cmd.AddCommand(sub)
 	}
 	for _, sub := range actionCmds {
+		if ao {
+			annotations.AdminOnly(sub.Action)
+		}
 		cmd.AddCommand(sub.Action)
 		// now that the commands have a parent, add their models to map
 		action.AddModel(sub.Action, sub.Model)
