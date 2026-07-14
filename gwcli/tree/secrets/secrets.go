@@ -38,7 +38,7 @@ func NewNav() *cobra.Command {
 			" Once created, the user cannot read the contents of the secret again, although the value can be updated." +
 			" The user may then refer to the secret in certain node types when building a flow."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"secret"},
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
@@ -46,7 +46,9 @@ func NewNav() *cobra.Command {
 			delete(),
 			edit(),
 			updateValue(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"secret"}},
+	)
 }
 
 func listAction() action.Pair {

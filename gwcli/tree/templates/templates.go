@@ -47,7 +47,7 @@ func NewNav() *cobra.Command {
 Multiple templates using the same variable(s) can be included in a dashboard to create a powerful tool called an Investigative Dashboard.
 For instance, templates which expect an IP address as their variable can be used to create an IP address investigation dashboard.`
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"template"},
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
@@ -56,7 +56,9 @@ For instance, templates which expect an IP address as their variable can be used
 			show(),
 			create(),
 			jsonAction(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"template"}},
+	)
 }
 
 // wrap templates so we can better display variables

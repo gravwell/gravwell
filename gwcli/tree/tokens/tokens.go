@@ -46,7 +46,7 @@ func NewNav() *cobra.Command {
 		long  string = "Tokens are API keys that can be used to authenticate requests to Gravwell." +
 			" Each token can be scoped to specific capabilities and optionally given an expiration date."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"token"},
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
@@ -54,7 +54,9 @@ func NewNav() *cobra.Command {
 			create(),
 			delete(),
 			regenerate(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"token"}},
+	)
 }
 
 func list() action.Pair {

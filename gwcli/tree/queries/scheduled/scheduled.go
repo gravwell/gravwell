@@ -41,7 +41,7 @@ import (
 )
 
 func NewScheduledNav() *cobra.Command {
-	return treeutils.GenerateNav("scheduled", "Manage scheduled queries", "Alter and view previously scheduled queries", []string{},
+	return treeutils.GenerateNav("scheduled", "Manage scheduled queries", "Alter and view previously scheduled queries",
 		[]*cobra.Command{},
 		[]action.Pair{
 			create(),

@@ -39,7 +39,8 @@ func NewNav() *cobra.Command {
 		long  string = "Perform user actions that require elevated privileges."
 	)
 
-	return treeutils.GenerateNav(use, short, long, nil, []*cobra.Command{},
+	return treeutils.GenerateNav(use, short, long,
+		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			create(),

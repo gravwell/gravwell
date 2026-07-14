@@ -38,14 +38,14 @@ import (
 func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("playbooks", "manage playbooks",
 		"Playbooks are markdown documents that can be used to guide investigations.",
-		[]string{"playbook"}, nil,
+		nil,
 		[]action.Pair{
 			listAction(),
 			download(),
 			create(),
 			delete(),
 			edit(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: []string{"playbook"}})
 }
 
 func listAction() action.Pair {

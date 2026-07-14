@@ -26,7 +26,7 @@ func NewPair() action.Pair {
 	cmd := treeutils.GenerateAction("send", "send an email",
 		"send an email to the given recipient via the configured mail server ("+stylesheet.Cur.Action.Render("show")+").\n"+
 			"The email will be sent via the webserver, not this machine.\n"+
-			"Attachments are not currently supported.", nil,
+			"Attachments are not currently supported.",
 		func(c *cobra.Command, s []string) error {
 			// check that a mail configuration is set
 			if cfg, err := connection.Client.MailConfig(); err != nil {

@@ -292,7 +292,7 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 		"2. username/password (-u, -p or " + cfgdir.EnvKeyPassword + "),\n" +
 		"3. interactively if no credentials are provided and !--" + ft.NoInteractive.Name()
 
-	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
+	rootCmd := treeutils.GenerateNav(use, short, long,
 		nil, // navs are added later
 		[]action.Pair{
 			ingest.NewIngestAction(),

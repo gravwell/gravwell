@@ -38,7 +38,7 @@ func NewNav() *cobra.Command {
 		short string = "view and manage the Gravwell license"
 		long  string = "License provides actions for inspecting the current license and uploading a new one."
 	)
-	return treeutils.GenerateNav(use, short, long, nil,
+	return treeutils.GenerateNav(use, short, long,
 		nil,
 		[]action.Pair{
 			licenseInfo(),

@@ -31,7 +31,6 @@ import (
 func toggleAdmin() action.Pair {
 	cmd := treeutils.GenerateAction("toggle-admin", "toggle a user's admin status",
 		"Toggle admin status for a user. Optionally use --grant or --revoke to set explicitly.",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			uid, grant, revoke, err := toggleAdminGetFlags(c.Flags())
 			if err != nil {

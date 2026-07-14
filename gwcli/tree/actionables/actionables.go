@@ -43,7 +43,7 @@ func NewNav() *cobra.Command {
 		"Actionables are items that appear when hovering over data in the Gravwell web interface.\n"+
 			"They allow users to quickly pivot from a data value to a related search or action.\n"+
 			"Actionable contents are stored as a JSON blob describing the actionable behavior.",
-		[]string{"pivot", "pivots", "actionable"}, nil,
+		nil,
 		[]action.Pair{
 			listAction(),
 			get(),
@@ -52,7 +52,9 @@ func NewNav() *cobra.Command {
 			jsonAction(),
 			replace(),
 			edit(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"pivot", "pivots", "actionable"}},
+	)
 }
 
 func listAction() action.Pair {

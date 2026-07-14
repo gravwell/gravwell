@@ -45,13 +45,13 @@ const (
 // NewNav returns a nav with children relating to macro handling.
 func NewNav() *cobra.Command {
 	var aliases = []string{"macro", "m"}
-	return treeutils.GenerateNav("macros", "manage search macros", "Macros are search keywords that expand to set phrases on use within a query.", aliases, []*cobra.Command{},
+	return treeutils.GenerateNav("macros", "manage search macros", "Macros are search keywords that expand to set phrases on use within a query.", []*cobra.Command{},
 		[]action.Pair{
 			list(),
 			create(),
 			delete(),
 			edit(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 //#region list

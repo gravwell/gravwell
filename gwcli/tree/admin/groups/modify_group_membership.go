@@ -64,7 +64,7 @@ type membershipChanges struct {
 // It powers both associate and disassociate.
 func modGroupUsers(use, short, long string, aliases []string, add bool) action.Pair {
 	pair := action.NewPair(treeutils.GenerateAction(use, short, long,
-		aliases, func(c *cobra.Command, args []string) error {
+		func(c *cobra.Command, args []string) error {
 			x, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				clilog.GetFlag(err)
@@ -124,7 +124,8 @@ func modGroupUsers(use, short, long string, aliases []string, add bool) action.P
 				return errors.New("all requested group changes failed")
 			}
 			return nil
-		}), newMembershipChangesInteractive(add))
+		}, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{CommandAliases: aliases}}),
+		newMembershipChangesInteractive(add))
 
 	pair.Action.Flags().AddFlagSet(membershipFlagset(add))
 	return pair

@@ -39,7 +39,6 @@ func NewNav() *cobra.Command {
 		"manage no-code automations",
 		"Flows provide a no-code method for developing advanced automations in Gravwell."+
 			" Flows are automations, meaning they are normally executed on a user-specified schedule by the search agent.",
-		[]string{"flow"},
 		nil,
 		[]action.Pair{
 			listActions(),
@@ -52,6 +51,7 @@ func NewNav() *cobra.Command {
 			parse(),
 			create(),
 		},
+		treeutils.NodeOptions{CommandAliases: []string{"flow"}},
 	)
 }
 

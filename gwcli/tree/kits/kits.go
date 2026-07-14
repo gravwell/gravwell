@@ -48,7 +48,6 @@ func NewNav() *cobra.Command {
 	var aliases = []string{"kit"}
 	return treeutils.GenerateNav("kits", "view kits associated to this instance",
 		"Kits bundle up of related items (dashboards, queries, scheduled searches, autoextractors) for easy installation.",
-		aliases,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
@@ -60,7 +59,7 @@ func NewNav() *cobra.Command {
 			buildRequests(),
 			remote(),
 			download(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 func listAction() action.Pair {

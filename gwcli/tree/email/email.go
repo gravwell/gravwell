@@ -36,7 +36,7 @@ import (
 func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("email", "manage email configuration",
 		"Configure the SMTP settings used to send notifications.",
-		nil, nil,
+		nil,
 		[]action.Pair{
 			show(),
 			configure(),

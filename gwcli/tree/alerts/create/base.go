@@ -31,7 +31,6 @@ import (
 func Action() action.Pair {
 	cmd := treeutils.GenerateAction("create", "create a new alert",
 		"Create a new alert by defining the dispatchers that trigger it and the consumers that act when the alert is fired",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			availDispatchers, availConsumers, inv, err := prerequisites()
 			if err != nil {

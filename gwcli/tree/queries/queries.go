@@ -46,7 +46,6 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("searches", "manage existing and past searches",
 		"Manage active, past, saved, and scheduled queries.\n"+
 			"You can issue new searches using the top-level "+stylesheet.Cur.Action.Render("query")+" action.",
-		[]string{"queries"},
 		[]*cobra.Command{scheduled.NewScheduledNav(), saved.NewSavedNav()},
 		[]action.Pair{
 			past(),
@@ -59,7 +58,9 @@ func NewNav() *cobra.Command {
 			background(),
 			delete(),
 			setGroup(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"queries"}},
+	)
 }
 
 // #region past queries

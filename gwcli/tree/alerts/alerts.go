@@ -41,7 +41,7 @@ func NewNav() *cobra.Command {
 		long  string = "Alerts allow you to tie sources of intelligence (such as periodic scheduled searches) to actions (such as a flow that files a ticket)." +
 			" This can make it much simpler to take automatic action when something of interest occurs."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"alert"}, []*cobra.Command{},
+	return treeutils.GenerateNav(use, short, long, []*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			toggle(),
@@ -49,7 +49,9 @@ func NewNav() *cobra.Command {
 			alertscreate.Action(),
 			dispatchers(),
 			save(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"alert"}},
+	)
 }
 
 //#region actions

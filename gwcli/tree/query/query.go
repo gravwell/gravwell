@@ -94,7 +94,7 @@ var localFS pflag.FlagSet
 func NewQueryAction() action.Pair {
 	cmd := treeutils.GenerateAction("query", "submit a query",
 		helpDesc,
-		[]string{"q", "search"}, runE)
+		runE, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{CommandAliases: []string{"q", "search"}}})
 
 	localFS = initialLocalFlagSet()
 

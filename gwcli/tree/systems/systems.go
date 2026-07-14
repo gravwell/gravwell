@@ -33,7 +33,7 @@ func NewNav() *cobra.Command {
 		long  string = "Review the state and health of your system."
 	)
 	var aliases = []string{"health", "status", "system"}
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{
 			indexers.NewIndexersNav(),
 			ingesters.NewIngestersNav(),
@@ -42,7 +42,7 @@ func NewNav() *cobra.Command {
 			newStorageAction(),
 			newHardwareAction(),
 			state(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 //#region storage

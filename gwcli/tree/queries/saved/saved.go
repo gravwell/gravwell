@@ -32,14 +32,14 @@ import (
 
 func NewSavedNav() *cobra.Command {
 	var aliases = []string{"library", "searchlibrary"}
-	return treeutils.GenerateNav("saved", "manage saved queries", "Saved queries are stored queries that can be retrieved and reused.", aliases, []*cobra.Command{},
+	return treeutils.GenerateNav("saved", "manage saved queries", "Saved queries are stored queries that can be retrieved and reused.", []*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			create(),
 			delete(),
 			edit(),
 			show(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 func listAction() action.Pair {

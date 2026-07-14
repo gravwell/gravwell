@@ -34,7 +34,7 @@ import (
 )
 
 func NewNav() *cobra.Command {
-	return treeutils.GenerateNav("groups", "manage groups", "View and interact with groups and group membership.", []string{"group"},
+	return treeutils.GenerateNav("groups", "manage groups", "View and interact with groups and group membership.",
 		nil,
 		[]action.Pair{
 			listGroups(),
@@ -50,7 +50,9 @@ func NewNav() *cobra.Command {
 			modGroupUsers("disassociate", "remove users from groups",
 				"Disassociate any number of user from each specified group. Users already absent from a given groups will be ignored.",
 				[]string{"rm-user", "remove-user", "rm-users", "remove-users"}, false),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"group"}},
+	)
 }
 
 // lists all groups the current user is able to see

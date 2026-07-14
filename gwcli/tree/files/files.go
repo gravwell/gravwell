@@ -30,7 +30,7 @@ import (
 
 func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("files", "manage extra files you have uploaded", "Files can be used to store small files for use in playbooks, cover images for kits, etc.\n"+
-		"See https://docs.gravwell.io/gui/files/files.html for more information.", []string{"file"}, nil,
+		"See https://docs.gravwell.io/gui/files/files.html for more information.", nil,
 		[]action.Pair{
 			list(),
 			download(),
@@ -38,7 +38,7 @@ func NewNav() *cobra.Command {
 			edit(),
 			delete(),
 			replace(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: []string{"file"}})
 }
 
 //#region actions

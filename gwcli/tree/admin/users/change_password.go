@@ -41,7 +41,6 @@ func changePassword() action.Pair {
 		"Change a user's password without requiring their current password. "+
 			"Non-interactive mode can take the password in clear as --new-password. "+
 			"If you prefer to keep the password out of your history, consider using --new-passfile",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			uid, err := c.Flags().GetInt32(ft.UID.Name())
 			if err != nil {

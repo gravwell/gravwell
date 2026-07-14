@@ -26,7 +26,7 @@ func NewIngestersNav() *cobra.Command {
 		long  string = "Review information for all ingesters or get detailed information about a specific ingester."
 	)
 
-	return treeutils.GenerateNav(use, short, long, []string{},
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),

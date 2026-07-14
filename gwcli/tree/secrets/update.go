@@ -30,7 +30,7 @@ import (
 func updateValue() action.Pair {
 	cmd := treeutils.GenerateAction("update", "update a secret's value",
 		"Update the value stored in a secret. The secret is identified by its ID.\n"+
-			"Use "+ft.MutuallyExclusive("--value", "--file")+" to provide the new value.", nil,
+			"Use "+ft.MutuallyExclusive("--value", "--file")+" to provide the new value.",
 		func(c *cobra.Command, remaining []string) error {
 			if c.Flags().NArg() != 1 {
 				if !state.Interactive() {

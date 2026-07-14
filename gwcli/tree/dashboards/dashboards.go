@@ -36,13 +36,13 @@ func NewNav() *cobra.Command {
 	)
 
 	var aliases = []string{"dashboard", "dash"}
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			delete(),
 			clone(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 func listAction() action.Pair {

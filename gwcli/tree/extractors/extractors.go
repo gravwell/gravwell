@@ -51,7 +51,7 @@ func NewNav() *cobra.Command {
 
 	var aliases = []string{"extractor", "ex", "ax", "autoextractor", "autoextractors", "axs"}
 
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
@@ -62,7 +62,7 @@ func NewNav() *cobra.Command {
 			importUpload(),
 			find(),
 			clear(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 // ensure consistency between edit and create

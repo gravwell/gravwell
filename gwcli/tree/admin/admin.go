@@ -51,7 +51,7 @@ func NewNav() *cobra.Command {
 		long  string = "Admin contains actions that require elevated privileges." +
 			" These actions span a variety of categories and have some overlap with general-use actions."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"administrator"},
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{
 			groups.NewNav(),
 			admin_users.NewNav(),
@@ -68,6 +68,9 @@ func NewNav() *cobra.Command {
 			//validateBackup(),
 			massChown(),
 			chown(),
+		},
+		treeutils.NodeOptions{
+			CommandAliases: []string{"administrator"},
 		},
 	)
 }

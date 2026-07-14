@@ -33,14 +33,14 @@ func NewIndexersNav() *cobra.Command {
 
 	var aliases = []string{"index", "idx", "indexer"}
 
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			get(),
 			list(),
 			newCalendarAction(),
 			wells(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 // Wells just returns the list of all wells.

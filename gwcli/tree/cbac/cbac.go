@@ -38,7 +38,6 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(
 		"cbac", "manage capability-based access control",
 		"Inspect and manage CBAC rules that govern which operations users and groups may perform.",
-		[]string{"capabilities"},
 		[]*cobra.Command{},
 		[]action.Pair{
 			listCapabilities(),
@@ -47,7 +46,9 @@ func NewNav() *cobra.Command {
 			get(),
 			edit(),
 			set(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"capabilities"}},
+	)
 }
 
 func listCapabilities() action.Pair {
