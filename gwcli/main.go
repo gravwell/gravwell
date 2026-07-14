@@ -13,13 +13,14 @@
 package main
 
 import (
-	"github.com/gravwell/gravwell/v4/gwcli/tree"
 	"os"
+
+	"github.com/gravwell/gravwell/v4/gwcli/tree"
 )
 
 func init() {
 }
 
 func main() {
-	os.Exit(tree.Execute(nil))
+	os.Exit(tree.Execute(nil, nil, nil))
 }

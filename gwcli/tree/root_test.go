@@ -1,3 +1,5 @@
+//go:build ci
+
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -15,8 +17,14 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -98,18 +106,154 @@ func Test_checkNoColor(t *testing.T) {
 			fs := new(pflag.FlagSet)
 			ft.NoColor.Register(fs)
 			ft.NoInteractive.Register(fs)
-			fs.Parse(tt.args)
+			assert.Nil(t, fs.Parse(tt.args))
 
 			// prep environment variables
-
 			for key, value := range maps.All(tt.envs) {
 				if err := os.Setenv(key, value); err != nil {
 					t.Fatalf("failed to set env var: %v", err)
 				}
 			}
-
+			// check for no-interactive, and be sure to reset it
+			ni, err := fs.GetBool(ft.NoInteractive.Name())
+			assert.Nil(t, err)
+			state.SetInteractive(!ni)
+			defer state.SetInteractive(false)
 			if gotColorEnabled := isNoColor(fs); gotColorEnabled != tt.wantNoColor {
 				t.Errorf("checkNoColor() = %v, want %v", gotColorEnabled, tt.wantNoColor)
+			}
+		})
+	}
+}
+
+func TestGatherCredentials(t *testing.T) {
+	tDir := t.TempDir()
+	tests := []struct {
+		name            string // description of this test case
+		args            []string
+		setupFunc       func(t *testing.T)
+		wantUsername    string
+		wantPasswordNil bool
+		wantPassword    string
+		wantAPIKeyNil   bool
+		wantAPIKey      string
+		wantErr         bool
+	}{
+		{"zilch should return no data and no error",
+			nil, nil,
+			"",
+			true, "",
+			true, "",
+			false,
+		},
+		{"only username",
+			[]string{"--username=naru"}, nil,
+			"naru", true, "",
+			true, "",
+			false,
+		},
+		{"apikey",
+			[]string{"--api", "mykey", "--no-interactive"}, nil,
+			"",
+			true, "",
+			false, "mykey",
+			false,
+		},
+		{"username, passfile, eapikey",
+			[]string{"--eapi", "-p", path.Join(tDir, "pass.txt"), "-u=user"},
+			func(t *testing.T) {
+				// set apikey in environment
+				t.Setenv(cfgdir.EnvKeyAPI, "mykey2")
+				// create and fill password file
+				if f, err := os.Create(path.Join(tDir, "pass.txt")); err != nil {
+					t.Fatal(err)
+				} else if _, err := f.WriteString("mypass"); err != nil {
+					t.Fatal(err)
+				}
+			},
+			"user",
+			false, "mypass",
+			false, "mykey2",
+			false,
+		},
+		{"epass",
+			[]string{"-u=user"},
+			func(t *testing.T) {
+				// set apikey in environment
+				t.Setenv(cfgdir.EnvKeyPassword, "enviropass")
+			},
+			"user",
+			false, "enviropass",
+			true, "",
+			false,
+		},
+		{"epass but no username supplied", // shouldn't error, but also shouldn't pick up the password
+			[]string{""},
+			func(t *testing.T) {
+				// set apikey in environment
+				t.Setenv(cfgdir.EnvKeyPassword, "enviropass")
+			},
+			"",
+			true, "",
+			true, "",
+			false,
+		},
+		{"passfile but no username supplied",
+			[]string{"-p=" + path.Join(tDir, "pass.txt")}, // shouldn't matter if this file actually exists
+			nil,
+			"",
+			true, "",
+			true, "",
+			true,
+		},
+		{"passfile DNE",
+			[]string{"-p=" + path.Join(tDir, "dne.txt")}, // shouldn't matter if this file actually exists
+			nil,
+			"",
+			true, "",
+			true, "",
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// prepare the environment
+			if tt.setupFunc != nil {
+				tt.setupFunc(t)
+			}
+
+			cmd := &cobra.Command{}
+			uniques.AttachPersistentFlags(cmd)
+			if err := cmd.ParseFlags(tt.args); err != nil {
+				t.Fatal(err)
+			}
+			gotUsername, gotPassword, gotAPIKey, gotErr := GatherCredentials(cmd.Flags())
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("GatherCredentials() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("GatherCredentials() succeeded unexpectedly")
+			}
+
+			if gotUsername != tt.wantUsername {
+				t.Error("incorrect username", testsupport.ExpectedActual(tt.wantUsername, gotUsername))
+			}
+			if tt.wantPasswordNil && gotPassword != nil {
+				t.Error("expected nil password, got", gotPassword)
+			} else if !tt.wantPasswordNil && gotPassword == nil {
+				t.Error("did not expect nil password")
+			} else if !tt.wantPasswordNil && (tt.wantPassword != *gotPassword) {
+				t.Error("incorrect password", testsupport.ExpectedActual(tt.wantPassword, *gotPassword))
+			}
+			if tt.wantAPIKeyNil && gotAPIKey != nil {
+				t.Error("expected nil api key, got", gotAPIKey)
+			} else if !tt.wantAPIKeyNil && gotAPIKey == nil {
+				t.Error("did not expect nil api key")
+			} else if !tt.wantAPIKeyNil && (tt.wantAPIKey != *gotAPIKey) {
+				t.Error("incorrect api key", testsupport.ExpectedActual(tt.wantPassword, *gotAPIKey))
 			}
 		})
 	}

@@ -43,7 +43,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 )
 
 const (
@@ -142,14 +142,12 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		// clear any existing error
 		sv.errString = ""
 
-		switch msg.Type {
-		case tea.KeySpace, tea.KeyEnter: // attach to the current item
+		if hotkeys.Match(msg, hotkeys.Select, hotkeys.Invoke) { // attach to the current item
 			if err := sv.attachToQuery(); err != nil {
 				return nil, nil, err
 			}
 			return sv.spnr.Tick, nil, nil
 		}
-
 	}
 	// pass all other messages into the list
 	sv.list, cmd = sv.list.Update(msg)
@@ -172,8 +170,7 @@ func (sv *selectingView) view() string {
 	var details string
 	a, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
-		clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem())
-		sv.errString = uniques.ErrGeneric.Error()
+		sv.errString = clilog.TypeAssert(sv.list.SelectedItem(), attachable{}).Error()
 	} else {
 		details = composeDetails(a)
 	}
@@ -232,8 +229,7 @@ func (i attachable) FilterValue() string {
 func (sv *selectingView) attachToQuery() (fatalErr error) {
 	itm, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
-		clilog.Writer.Criticalf("failed to assert list item back to attachable. Raw item: %#v", sv.list.SelectedItem())
-		return uniques.ErrGeneric
+		return clilog.TypeAssert(sv.list.SelectedItem(), attachable{})
 	}
 
 	s, err := connection.Client.AttachSearch(itm.ID)
