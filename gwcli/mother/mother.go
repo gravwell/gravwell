@@ -346,7 +346,7 @@ func (m Mother) View() string {
 		ns, as, bs string
 	)
 	for _, suggestion := range m.suggestions.nav {
-		if suggestion.AdminOnly && connection.CurrentUser().Admin {
+		if suggestion.AdminOnly && !connection.CurrentUser().Admin {
 			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
 		} else {
 			sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
@@ -357,7 +357,7 @@ func (m Mother) View() string {
 	ns = strings.TrimSpace(sb.String()) // chip last space
 	sb.Reset()
 	for _, suggestion := range m.suggestions.action {
-		if suggestion.AdminOnly && connection.CurrentUser().Admin {
+		if suggestion.AdminOnly && !connection.CurrentUser().Admin {
 			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
 		} else {
 			sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))
@@ -437,7 +437,7 @@ func processInput(m *Mother) tea.Cmd {
 
 	// if we made it this far, err, builtin, and endcmd are all nil so we have nothing to act on.
 	// this probably means input was nil, so warn if it wasn't
-	if input == "" {
+	if input != "" {
 		clilog.Writer.Warn("taking no action on process input", rfc5424.SDParam{Name: "input", Value: input})
 	}
 
