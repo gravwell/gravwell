@@ -54,7 +54,7 @@ func TestCreateEditDownload(t *testing.T) {
 		"-d", secretDesc,
 		"-v", secretValue,
 		"--labels", strings.Join(secretLabels, ","),
-	}...), nil, &sbErr); ec != 0 {
+	}...), tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 
@@ -73,7 +73,7 @@ func TestCreateEditDownload(t *testing.T) {
 		newDesc := "altered"
 		if ec := tree.Execute(append(meta, []string{"secrets", "edit", "-i", secretID,
 			"--description=" + newDesc,
-		}...), nil, &sbErr); ec != 0 {
+		}...), tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 		id, desc, lbls := listForItem(t, secretName)
@@ -92,7 +92,7 @@ func TestCreateEditDownload(t *testing.T) {
 	{
 		t.Logf("deleting secret %v", secretID)
 		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, []string{"secrets", "delete", secretID}...), nil, &sbErr); ec != 0 {
+		if ec := tree.Execute(append(meta, []string{"secrets", "delete", secretID}...), tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 			t.Fatal("bad error code. STDERR: ", sbErr.String())
 		}
 	}
@@ -109,7 +109,7 @@ func listForItem(t *testing.T, name string) (id, description string, labels []st
 		"--csv",
 		"-o", resultPath,
 		"--columns", "CommonFields.ID,CommonFields.Name,CommonFields.Description,CommonFields.Labels",
-	}...), nil, &sbErr); ec != 0 {
+	}...), tree.ExecuteOptions{Stderr: &sbErr}); ec != 0 {
 		t.Fatal("bad error code. STDERR: ", sbErr.String())
 	}
 	// slurp the file we wrote to

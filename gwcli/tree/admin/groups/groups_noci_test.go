@@ -42,8 +42,11 @@ func TestComplete(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"admin", "groups", "create", "--name="+groupName, "--description="+groupDescription,
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 		n, err := fmt.Sscanf(stdout.String(), "successfully created group (ID: %d)", &groupID)
 		assert.Equal(t, 1, n)
@@ -61,8 +64,11 @@ func TestComplete(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"admin", "groups", "list", "--columns=ID,Name,Description", "--csv",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 		rdr := csv.NewReader(strings.NewReader(stdout.String()))
 		records, err := rdr.ReadAll()
@@ -92,8 +98,11 @@ func TestComplete(t *testing.T) {
 				"--gid="+strconv.FormatInt(int64(groupID), 10),
 				"--uid=1",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 	})
 	t.Run("check that associate worked via `users`", func(t *testing.T) {
@@ -104,8 +113,11 @@ func TestComplete(t *testing.T) {
 				"admin", "groups", "users", strconv.FormatInt(int64(groupID), 10),
 				"--json", "--columns=ID,Username",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 		var m = []struct {
 			ID       int    `json:"ID"`
@@ -125,8 +137,11 @@ func TestComplete(t *testing.T) {
 				"--gid="+strconv.FormatInt(int64(groupID), 10),
 				"--uid=1",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 	})
 	t.Run("check that associate worked via `users`", func(t *testing.T) {
@@ -137,8 +152,11 @@ func TestComplete(t *testing.T) {
 				"admin", "groups", "users", strconv.FormatInt(int64(groupID), 10),
 				"--json", "--columns=ID,Username",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 		var m = []struct {
 			ID       int    `json:"ID"`
@@ -155,8 +173,11 @@ func TestComplete(t *testing.T) {
 				"admin", "groups", "delete",
 				strconv.FormatInt(int64(groupID), 10),
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 	})
 	t.Run("ensure the group no longer exists", func(t *testing.T) {
@@ -166,8 +187,11 @@ func TestComplete(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"admin", "groups", "list", "--columns=ID,Name,Description", "--csv",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 		rdr := csv.NewReader(strings.NewReader(stdout.String()))
 		records, err := rdr.ReadAll()

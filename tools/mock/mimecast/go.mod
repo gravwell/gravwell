@@ -19,7 +19,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d // indirect
-	github.com/gravwell/gravwell/v3 v3.8.80-0.20260515215027-220e2449b547 // indirect
+	github.com/gravwell/gravwell/v3 v3.8.82 // indirect
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37 // indirect
 	github.com/gravwell/jsonparser v0.0.0-20241122184510-d9e3b05f5d3b // indirect
 	github.com/gravwell/syslogparser v0.0.0-20250904221952-6d38d4266dee // indirect

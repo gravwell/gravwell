@@ -31,8 +31,10 @@ func TestEmailConfigurationGetSet(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"email", "delete",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			}))
 		require.Empty(t, stderr.String())
 	})
 	if t.Failed() {
@@ -45,8 +47,10 @@ func TestEmailConfigurationGetSet(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"email", "show",
 			),
-			&stdout,
-			&stderr), stderr.String())
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			}), stderr.String())
 		require.Empty(t, stderr.String())
 		require.Equal(t, "you do not have a mail server configured", strings.TrimSpace(strings.ToLower(stdout.String())))
 	})
@@ -68,8 +72,7 @@ func TestEmailConfigurationGetSet(t *testing.T) {
 				"--email-username="+emlUsername,
 				"--tls",
 			),
-			nil,
-			&stderr))
+			tree.ExecuteOptions{Stderr: &stderr}))
 		require.Empty(t, stderr.String())
 	})
 	if t.Failed() {
@@ -82,8 +85,10 @@ func TestEmailConfigurationGetSet(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"email", "show", "--csv", "--columns=Server,Port,Username,UseTLS,InsecureSkipVerify",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			}))
 		require.Empty(t, stderr.String())
 		rdr := csv.NewReader(strings.NewReader(stdout.String()))
 		hdr, err := rdr.Read()

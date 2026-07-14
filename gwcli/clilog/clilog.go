@@ -20,8 +20,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
@@ -44,6 +47,11 @@ const (
 	mb                = 1024 * 1024
 	maxLogSize  int64 = 10 * mb
 	maxLogCount uint  = 8
+)
+
+const (
+	// if a user specifies a log path without an extension, this is automatically added as log rotation requires an extension
+	DefaultExtension string = ".log"
 )
 
 // Level recreates log.Level so other packages do not have to import the ingest logger
@@ -120,7 +128,17 @@ func InitializeFromArgs(args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to get log level flag to initialize clilog: ", err)
 	}
-	_ = Init(path, lvl)
+	if err = Init(path, lvl); err != nil {
+		// try again with the defaults
+		if secondErr := Init(cfgdir.DefaultStdLogPath, lvl); secondErr != nil {
+			// if this happens, something is VERY wrong. Install a nil logger to allow gwcli to continue to limp along
+			fmt.Fprintf(os.Stderr, "failed to generate a logger:\n1) %v\n2) %v\n", err, secondErr)
+			Writer = log.NewDiscardLogger()
+		}
+		// log the original error
+		Writer.Error("failed to initialize logger with given parameters", log.KVErr(err))
+	}
+
 }
 
 // Init initializes Writer, the logging singleton.
@@ -135,10 +153,15 @@ func Init(path string, lvlString string) error {
 	// validate parameters
 	if path = strings.TrimSpace(path); path == "" {
 		return ErrEmptyPath
+	} else if filepath.Ext(path) == "" {
+		path += DefaultExtension
 	}
 	lvl, err := log.LevelFromString(lvlString)
 	if err != nil {
 		return err
+	}
+	if lvl == log.DEBUG {
+		state.SetDebugMode()
 	}
 
 	// spawn a log rotator on the given file
@@ -250,4 +273,25 @@ func TypeAssert(baseItem any, targetType any) ErrInternal {
 	}
 
 	return ErrInternal{}
+}
+
+// ProgramOptions returns loggable entries of what the given input and output are.
+func ProgramOptions(in io.Reader, out io.Writer) rfc5424.SDParam {
+	opts := []string{}
+	var value = "input->"
+	if in == os.Stdin {
+		value += "stdin"
+	} else {
+		value += fmt.Sprintf("%p", in)
+	}
+	opts = append(opts, value)
+	value = "output->"
+	if out == os.Stdout {
+		value += "stdout"
+	} else {
+		value += fmt.Sprintf("%p", out)
+	}
+	opts = append(opts, value)
+
+	return log.KV("ProgramOptions", opts)
 }
