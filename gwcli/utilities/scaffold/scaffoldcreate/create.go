@@ -99,7 +99,6 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 		"create",                 // use
 		"create a "+singular,     // short
 		"Create a new "+singular, // long
-		[]string{},               // aliases
 		func(c *cobra.Command, s []string) error {
 			// immediately validate arguments
 			if opts.ValidateArgs != nil {
@@ -136,7 +135,9 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 				fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem(singular, id))
 			}
 			return nil
-		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
+		}, treeutils.GenerateActionOptions{
+			Usage: strings.Join(requiredFlags, " "),
+		})
 
 	opts.Apply(cmd)
 

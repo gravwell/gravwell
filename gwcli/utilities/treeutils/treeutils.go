@@ -16,10 +16,12 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -36,11 +38,19 @@ type NodeOptions struct {
 	AdminOnly bool
 }
 
-func (opts NodeOptions) Apply(cmd *cobra.Command) {
-	cmd.Aliases = opts.CommandAliases
-	if opts.AdminOnly {
+// ApplyNodeOptions installs a NodeOptions struct into a given command.
+//
+// ! It is called automatically by GenerateNav and GenerateAction
+func ApplyNodeOptions(cmd *cobra.Command, nopts NodeOptions) {
+	if cmd == nil {
+		clilog.Writer.Warn("cannot apply annotations to a nil command")
+		return
+	}
+	if cmd.Annotations == nil && nopts.AdminOnly {
 		cmd.Annotations = map[string]string{AnnotationAdmin: "true"}
 	}
+	cmd.Aliases = utils.Deduplicate(append(cmd.Aliases, nopts.CommandAliases...))
+
 }
 
 // GenerateNav creates and returns a Nav (tree node) that can now be assigned subcommands (child navs and actions).
@@ -55,7 +65,7 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 	}
 
 	if len(opts) > 0 {
-		opts[0].Apply(cmd)
+		ApplyNodeOptions(cmd, opts[0])
 	}
 
 	cmd.SetUsageFunc(
@@ -134,9 +144,7 @@ func GenerateAction(use, short, long string,
 
 	// apply options
 	if len(opts) > 0 {
-		opts[0].NodeOptions.Apply(cmd)
-	}
-	if len(opts) > 0 {
+		ApplyNodeOptions(cmd, opts[0].NodeOptions)
 		if usage := strings.TrimSpace(opts[0].Usage); usage != "" {
 			cmd.SetUsageFunc(func(c *cobra.Command) error {
 				fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), opts[0].Usage)

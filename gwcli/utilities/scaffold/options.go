@@ -16,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -52,6 +53,8 @@ type CommonOptions struct {
 	// A function to generate action-specific flags that should be bolted on.
 	// CommonOptions.Apply will attach these flags to the command, but remember to utilize them in interactive mode (likely during SetArgs).
 	AddtlFlags func() *pflag.FlagSet
+
+	AdminOnly bool // This action can only be invoked by admins
 }
 
 // Apply alters the given cmd such that all set CommonOptions are effectual.
@@ -67,6 +70,8 @@ func (co CommonOptions) Apply(cmd *cobra.Command) {
 		cmd.Long = co.Long
 	}
 
+	treeutils.ApplyNodeOptions(cmd, treeutils.NodeOptions{CommandAliases: co.Aliases, AdminOnly: co.AdminOnly})
+
 	if co.Usage != "" {
 		cmd.SetUsageFunc(func(c *cobra.Command) error {
 			_, err := fmt.Fprint(c.OutOrStdout(), co.Usage)
@@ -76,12 +81,10 @@ func (co CommonOptions) Apply(cmd *cobra.Command) {
 	if co.Example != "" {
 		cmd.Example = co.Example
 	}
-	if len(co.Aliases) > 0 {
-		cmd.Aliases = co.Aliases
-	}
 	if co.AddtlFlags != nil {
 		cmd.Flags().AddFlagSet(co.AddtlFlags())
 	}
+
 }
 
 //#region OmitFlags

@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -308,6 +309,32 @@ func TestOptions(t *testing.T) {
 				assert.Nil(t, pair.Model.Reset())
 			})
 		})
+	})
+
+	t.Run("All options are applied automatically", func(t *testing.T) {
+		pair := scaffoldcreate.NewCreateAction("test",
+			map[string]scaffoldcreate.Field{},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				return 0, "", nil
+			},
+			scaffoldcreate.Options{
+				CommonOptions: scaffold.CommonOptions{
+					Aliases:   []string{"a", "b", "a"},
+					AdminOnly: true,
+				},
+			})
+		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
+		assert.Equal(t, map[string]string{treeutils.AnnotationAdmin: "true"}, pair.Action.Annotations)
+	})
+	t.Run("Options are ignored if not set", func(t *testing.T) {
+		pair := scaffoldcreate.NewCreateAction("test",
+			map[string]scaffoldcreate.Field{},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				return 0, "", nil
+			},
+			scaffoldcreate.Options{})
+		assert.Equal(t, []string{}, pair.Action.Aliases)
+		assert.Len(t, pair.Action.Annotations, 0)
 	})
 }
 

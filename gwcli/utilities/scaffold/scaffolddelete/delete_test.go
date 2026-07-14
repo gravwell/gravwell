@@ -26,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -374,9 +375,18 @@ func TestModelLifecycle(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
-	pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+	pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems,
+		scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: afsCustom,
+				Aliases:    []string{"a", "b"},
+				AdminOnly:  true,
+			},
+		})
 
 	assert.Equal(t, "delete", pair.Action.Use)
 	assert.Contains(t, pair.Action.Short, "widgets")
 	assert.NotNil(t, pair.Action.Flags().Lookup("dryrun"))
+	assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
+	assert.Equal(t, map[string]string{treeutils.AnnotationAdmin: "true"}, pair.Action.Annotations)
 }

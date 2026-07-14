@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateNav(t *testing.T) {
@@ -28,7 +29,7 @@ func TestGenerateNav(t *testing.T) {
 	childNavs := make([]*cobra.Command, childNavCount)
 	for i := range childNavCount {
 		childNavs[i] = treeutils.GenerateNav(fmt.Sprintf("child_nav_%d", i), fmt.Sprintf("child_nav_%d short", i), fmt.Sprintf("child_nav_%d long", i),
-			nil, nil, nil)
+			nil, nil)
 	}
 	t.Run("usage", func(t *testing.T) {
 		tests := []struct {
@@ -48,9 +49,9 @@ func TestGenerateNav(t *testing.T) {
 				t.Skipf("too many navs request (request: %d | available: %d)", tt.navCount, childNavCount)
 			}
 			t.Run(tt.name, func(t *testing.T) {
-				nav := treeutils.GenerateNav("test", "short test", "long test", []string{"alias1", "alias2"},
+				nav := treeutils.GenerateNav("test", "short test", "long test",
 					childNavs[:tt.navCount],
-					nil)
+					nil, treeutils.NodeOptions{CommandAliases: []string{"alias1", "alias2"}})
 
 				var sbOut strings.Builder
 				nav.SetOut(&sbOut)
@@ -65,4 +66,17 @@ func TestGenerateNav(t *testing.T) {
 		}
 	})
 
+	t.Run("annotations", func(t *testing.T) {
+		t.Run("no annotations set", func(t *testing.T) {
+			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{})
+			_, found := nav.Annotations[treeutils.AnnotationAdmin]
+			assert.False(t, found)
+		})
+		t.Run("admin-only annotation set", func(t *testing.T) {
+			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{AdminOnly: true})
+			_, found := nav.Annotations[treeutils.AnnotationAdmin]
+			assert.True(t, found)
+		})
+
+	})
 }
