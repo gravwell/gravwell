@@ -24,17 +24,38 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Annotation keys
+const (
+	AnnotationAdmin = "admin_only"
+)
+
+type NodeOptions struct {
+	// other names this nav can be called under
+	CommandAliases []string
+	// this command can only be invoked by admins
+	AdminOnly bool
+}
+
+func (opts NodeOptions) Apply(cmd *cobra.Command) {
+	cmd.Aliases = opts.CommandAliases
+	if opts.AdminOnly {
+		cmd.Annotations = map[string]string{AnnotationAdmin: "true"}
+	}
+}
+
 // GenerateNav creates and returns a Nav (tree node) that can now be assigned subcommands (child navs and actions).
 // It is responsible for adding each of its Actions to the action map.
-func GenerateNav(use, short, long string, aliases []string,
-	navCmds []*cobra.Command, actionCmds []action.Pair) *cobra.Command {
+func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds []action.Pair, opts ...NodeOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     strings.ToLower(use),
 		Short:   strings.ToLower(short),
 		Long:    long,
-		Aliases: aliases,
 		GroupID: group.NavID,
 		RunE:    NavRun,
+	}
+
+	if len(opts) > 0 {
+		opts[0].Apply(cmd)
 	}
 
 	cmd.SetUsageFunc(
@@ -78,6 +99,7 @@ func GenerateNav(use, short, long string, aliases []string,
 }
 
 type GenerateActionOptions struct {
+	NodeOptions
 	// Sets the general form of this command (the usage).
 	// Use is already prefixed; no need to include it or a path in the example.
 	// Printed in the form: "Usage: <command.Name> <Usage>"
@@ -94,13 +116,12 @@ type GenerateActionOptions struct {
 // Accepts 0 or 1 GenerateActionOptions; any more are ignored.
 //
 // ! Does NOT add this action to the action map or add the Action to a parent.
-func GenerateAction(use, short, long string, aliases []string,
-	runEFunc func(*cobra.Command, []string) error, options ...GenerateActionOptions) *cobra.Command {
+func GenerateAction(use, short, long string,
+	runEFunc func(*cobra.Command, []string) error, opts ...GenerateActionOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     use,
 		Short:   short,
 		Long:    long,
-		Aliases: aliases,
 		GroupID: group.ActionID,
 		RunE:    runEFunc,
 	}
@@ -112,15 +133,18 @@ func GenerateAction(use, short, long string, aliases []string,
 	})
 
 	// apply options
-	if len(options) > 0 {
-		if usage := strings.TrimSpace(options[0].Usage); usage != "" {
+	if len(opts) > 0 {
+		opts[0].NodeOptions.Apply(cmd)
+	}
+	if len(opts) > 0 {
+		if usage := strings.TrimSpace(opts[0].Usage); usage != "" {
 			cmd.SetUsageFunc(func(c *cobra.Command) error {
-				fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), options[0].Usage)
+				fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), opts[0].Usage)
 				return nil
 			})
 		}
-		if ex := strings.TrimSpace(options[0].Example); ex != "" {
-			cmd.Example = cmd.Name() + " " + options[0].Example
+		if ex := strings.TrimSpace(opts[0].Example); ex != "" {
+			cmd.Example = cmd.Name() + " " + opts[0].Example
 		}
 	}
 
