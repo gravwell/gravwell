@@ -36,25 +36,27 @@ func IsAdminOnly(cmd *cobra.Command) bool {
 
 // DerivePath returns the path from root to the given command.
 //
-// includeSelf includes the given command in the path.
-// If the command is root, it will always be included.
-func DerivePath(cmd *cobra.Command, includeSelf bool) []string {
-	if cmd.Parent() == nil {
-		return []string{"~"}
+// !includeRoot omits "~" from the path
+func DerivePath(cmd *cobra.Command, includeRoot bool) []string {
+	if cmd == nil || cmd.Parent() == nil {
+		if includeRoot {
+			return []string{"~"}
+		}
+		return []string{}
 	}
-	pth := []string{}
+	pth := []string{cmd.Name()}
 
-	if includeSelf {
-		pth = append(pth, cmd.Name())
-	}
 	// start from the command and work our way to root
+	x := cmd
 	for {
-		parent := cmd.Parent()
-		if parent == nil {
-			pth = append(pth, "~")
+		x = x.Parent()
+		if x.Parent() == nil { // we are at root
+			if includeRoot {
+				pth = append(pth, "~")
+			}
 			break
 		}
-		pth = append(pth, parent.Name())
+		pth = append(pth, x.Name())
 
 	}
 

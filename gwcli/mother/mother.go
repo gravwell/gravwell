@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -421,6 +422,11 @@ func processInput(m *Mother) tea.Cmd {
 		)
 	} else if wr.EndCmd != nil {
 		if action.Is(wr.EndCmd) {
+			// check that we have permission to act on this command
+			if cmdutils.IsAdminOnly(wr.EndCmd) && !connection.CurrentUser().Admin {
+				return tea.Sequence(historyCmd, stylesheet.ErrPrintf("executing \"%s\" requires admin privileges", wr.EndCmd.Name()))
+			}
+
 			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
 			if m.dieOnChildDone { // don't bother with history
 				return cmd
@@ -430,6 +436,12 @@ func processInput(m *Mother) tea.Cmd {
 			}
 			return tea.Sequence(historyCmd, cmd)
 		}
+		// check that we have permission to act on this command
+		if cmdutils.IsAdminOnly(wr.EndCmd) && !connection.CurrentUser().Admin {
+			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("moving to \"%s\" requires admin privileges",
+				strings.Join(cmdutils.DerivePath(wr.EndCmd, false), " ")))
+		}
+
 		// move mother to target nav
 		m.pwd = wr.EndCmd
 		return historyCmd
