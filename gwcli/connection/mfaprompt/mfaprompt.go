@@ -17,6 +17,7 @@ package mfaprompt
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,20 +36,32 @@ import (
 // Collect runs a tiny tea.Model that returns a code OR recovery key.
 //
 // ! Not intended to be run while Mother is running.
-func Collect() (code string, at types.AuthType, err error) {
-	return collect(nil)
+func Collect(in io.Reader, out io.Writer) (code string, at types.AuthType, err error) {
+	// spawn our own program using the given I/O
+	var progOpts []tea.ProgramOption
+	if in != nil {
+		progOpts = append(progOpts, tea.WithInput(in))
+	}
+	if out != nil {
+		progOpts = append(progOpts, tea.WithOutput(out))
+	}
+	clilog.Writer.Debug("spawning mfaprompt",
+		log.KV("caller", log.CallLoc(1)),
+		clilog.ProgramOptions(in, out),
+	)
+	return collect(tea.NewProgram(New(), progOpts...))
 }
 
 // internal implementation of collect.
 // Allows custom programs (likely programs with mocked input) for testing purposes.
-// ! Outside of test packages, leave prog==nil.
+//
+// ! Prog must not be nil.
 func collect(prog *tea.Program) (code string, at types.AuthType, err error) {
-	p := prog
-	if p == nil {
-		p = tea.NewProgram(New())
+	if prog == nil {
+		return "", "", errors.New("nil program passed into collect")
 	}
 
-	m, err := p.Run()
+	m, err := prog.Run()
 	if err != nil {
 		return "", types.AUTH_TYPE_NONE, err
 	}

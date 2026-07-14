@@ -71,7 +71,10 @@ func TestCBACLifecycle(t *testing.T) {
 	t.Run("capabilities matches full list of caps and vice versa", func(t *testing.T) {
 		var stdout, stderr strings.Builder
 		capsPath := path.Join(t.TempDir(), "caps_list.csv")
-		require.Zero(t, tree.Execute(append(metaAdmin, "cbac", "capabilities", "--csv", "-o", capsPath, "--columns=Name"), &stdout, &stderr), stderr.String())
+		require.Zero(t, tree.Execute(append(metaAdmin, "cbac", "capabilities", "--csv", "-o", capsPath, "--columns=Name"), tree.ExecuteOptions{
+			Stdout: &stdout,
+			Stderr: &stderr,
+		}), stderr.String())
 		assert.Empty(t, stderr.String())
 		f, err := os.Open(capsPath)
 		require.Nil(t, err)
@@ -111,7 +114,10 @@ func TestCBACLifecycle(t *testing.T) {
 	t.Run("new user has no caps", func(t *testing.T) {
 		var stdout, stderr strings.Builder
 		require.Zero(t,
-			tree.Execute(append(metaSecond, "cbac", "my", "--columns=Name"), &stdout, &stderr),
+			tree.Execute(append(metaSecond, "cbac", "my", "--columns=Name"), tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			}),
 		)
 		rdr := csv.NewReader(strings.NewReader(stdout.String()))
 		header, err := rdr.Read()
@@ -128,7 +134,10 @@ func TestCBACLifecycle(t *testing.T) {
 		require.Zero(t,
 			tree.Execute(append(metaAdmin, "cbac", "get", "--csv", "--columns=ID,Grants",
 				"--uids="+strconv.FormatInt(int64(secondUser.ID), 10)),
-				&stdout, &stderr),
+				tree.ExecuteOptions{
+					Stdout: &stdout,
+					Stderr: &stderr,
+				}),
 			stderr.String())
 		assert.Empty(t, stderr.String())
 		rdr = csv.NewReader(strings.NewReader(stdout.String()))
@@ -149,7 +158,10 @@ func TestCBACLifecycle(t *testing.T) {
 		bareArgs := slices.Collect(maps.Keys(allCapsMap))
 		require.Zero(t,
 			tree.Execute(append(args, bareArgs...),
-				&stdout, &stderr),
+				tree.ExecuteOptions{
+					Stdout: &stdout,
+					Stderr: &stderr,
+				}),
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, []string{})
 	})
@@ -162,7 +174,10 @@ func TestCBACLifecycle(t *testing.T) {
 		bareArgs := slices.Collect(maps.Keys(allCapsMap))
 		require.Zero(t,
 			tree.Execute(append(args, bareArgs...),
-				&stdout, &stderr),
+				tree.ExecuteOptions{
+					Stdout: &stdout,
+					Stderr: &stderr,
+				}),
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, expectedCaps)
 	})
@@ -173,7 +188,10 @@ func TestCBACLifecycle(t *testing.T) {
 
 		args := append(metaAdmin, "cbac", "set", "--uids="+strconv.FormatInt(int64(secondUser.ID), 10), "--caps="+strings.Join(expectedCaps, ","))
 		require.Zero(t,
-			tree.Execute(args, &stdout, &stderr),
+			tree.Execute(args, tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			}),
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, expectedCaps)
 	})
@@ -185,7 +203,10 @@ func TestCBACLifecycle(t *testing.T) {
 		args := append(metaAdmin, "cbac", "edit", "--uid="+strconv.FormatInt(int64(secondUser.ID), 10))
 		require.Zero(t,
 			tree.Execute(append(args, expectedCaps...),
-				&stdout, &stderr),
+				tree.ExecuteOptions{
+					Stdout: &stdout,
+					Stderr: &stderr,
+				}),
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, expectedCaps)
 	})
@@ -204,7 +225,10 @@ func TestCBACLifecycle(t *testing.T) {
 		args := append(metaAdmin, "cbac", "edit", "--grant", "--uid="+strconv.FormatInt(int64(secondUser.ID), 10))
 		require.Zero(t,
 			tree.Execute(append(args, givenCaps...),
-				&stdout, &stderr),
+				tree.ExecuteOptions{
+					Stdout: &stdout,
+					Stderr: &stderr,
+				}),
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, expectedCaps)
 	})
@@ -213,7 +237,10 @@ func TestCBACLifecycle(t *testing.T) {
 
 		args := append(metaAdmin, "cbac", "set", "--uids="+strconv.FormatInt(int64(secondUser.ID), 10))
 		require.Zero(t,
-			tree.Execute(args, &stdout, &stderr),
+			tree.Execute(args, tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			}),
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, []string{})
 	})
