@@ -7,17 +7,17 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (
-	Tag     string = `test`
-	Name    string = `tester`
-	ID      string = `tester.ingesters.gravwell.io`
-	Version string = `1.0.0` // must be canonical version string with only major.minor.point
+	Tag                    string = `test`
+	Name                   string = `tester`
+	ID                     string = `tester.ingesters.gravwell.io`
+	Version                string = `1.0.0` // must be canonical version string with only major.minor.point
+	defaultIngesterUUIDStr string = "4f1c35f6-6af6-4103-8fdc-df2c63026f0d"
 )
 
 const (
@@ -33,14 +33,17 @@ type Config struct {
 }
 
 func (c *Config) Verify() (err error) {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Interval != `` {
 		if _, err := time.ParseDuration(c.Interval); err != nil {
 			return err
 		}
 	}
-	if c.Ingester_UUID == `` {
-		c.Ingester_UUID = uuid.New().String()
+	if err := c.BaseConfig.Verify(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
