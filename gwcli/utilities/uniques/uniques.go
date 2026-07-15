@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
@@ -66,7 +66,15 @@ func Help(c *cobra.Command, _ []string) {
 	var sb strings.Builder
 
 	// write the description block
-	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0) + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
+	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0))
+	sb.WriteString("\n")
+	sb.WriteString(strings.TrimSpace(c.Long))
+	if cmdutils.IsAdminOnly(c) {
+		sb.WriteString("\n\n")
+		sb.WriteString(stylesheet.Italicize("This command is admin-only."))
+
+	}
+	sb.WriteString("\n\n")
 
 	// write usage line, if available
 	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
