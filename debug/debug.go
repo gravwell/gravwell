@@ -10,7 +10,6 @@
 package debug
 
 import (
-	"bytes"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -86,11 +85,8 @@ func generateMemoryProfile(dir string) {
 	}
 	defer mem.Close()
 
-	membuf := &bytes.Buffer{}
 	runtime.GC()
-	if err := pprof.WriteHeapProfile(membuf); err == nil {
-		mem.Write(membuf.Bytes())
-	}
+	pprof.WriteHeapProfile(mem)
 }
 
 func generateCPUProfile(dir string) {
@@ -101,10 +97,8 @@ func generateCPUProfile(dir string) {
 	}
 	defer cpu.Close()
 
-	cpubuf := &bytes.Buffer{}
-	if err := pprof.StartCPUProfile(cpubuf); err == nil {
+	if err := pprof.StartCPUProfile(cpu); err == nil {
 		time.Sleep(CPU_SLEEP)
 		pprof.StopCPUProfile()
-		cpu.Write(cpubuf.Bytes())
 	}
 }
