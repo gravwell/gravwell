@@ -423,16 +423,10 @@ func (rs *RenderSettings) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type RenderBinning struct {
-	Count float64 `json:"count"`
-	Width float64 `json:"width"`
-}
-
 type RSChart struct {
 	// Value "chart"
 	Renderer string          `json:"renderer"`
 	Channels RSChartChannels `json:"channels"`
-	Binning  *RenderBinning  `json:"binning,omitempty"`
 }
 
 type RSChartChannels struct {

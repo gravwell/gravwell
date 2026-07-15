@@ -89,7 +89,7 @@ func TestRenderSettings(t *testing.T) {
 	}{
 		{
 			name: "chart",
-			json: `{"renderer":"chart","channels":{"category":"Category","nominal":"Value","temporal":"Timestamp"},"binning":{"count":5,"width":20}}`,
+			json: `{"renderer":"chart","channels":{"category":"Category","nominal":"Value","temporal":"Timestamp"}}`,
 			want: RenderSettings{
 				Chart: &RSChart{
 					Renderer: "chart",
@@ -97,10 +97,6 @@ func TestRenderSettings(t *testing.T) {
 						Category: "Category",
 						Nominal:  "Value",
 						Temporal: "Timestamp",
-					},
-					Binning: &RenderBinning{
-						Count: 5,
-						Width: 20,
 					},
 				},
 			},
