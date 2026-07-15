@@ -56,38 +56,15 @@ func TestHec(t *testing.T) {
 		// clients sometimes throw HTTP Basic authentication at HEC endpoints instead;
 		// the username is ignored and the password is checked against the token
 		data := `{"event": "hec basic auth"}`
-		req, err := http.NewRequest("POST", endpoint+"/services/collector/event", strings.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.SetBasicAuth("ignored-user", "token")
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer utils.DrainResponse(resp)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusOK)
-		}
+		SendHttpBasicAuth(t, endpoint+"/services/collector/event", "ignored-user:token", strings.NewReader(data), http.StatusOK)
 
 		c := e2e.GetClient(t)
 		assert(t, e2e.WaitForEntries(t, c, "tag=hec-testing words hec basic auth", time.Minute, 1, 30*time.Second), 1, "hec basic auth")
 	})
 
 	t.Run("unexpected basic auth fails with wrong password", func(t *testing.T) {
-		req, err := http.NewRequest("POST", endpoint+"/services/collector/event", strings.NewReader(`{"event": "hec basic auth failure"}`))
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.SetBasicAuth("ignored-user", "wrong-password")
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
-		}
+		data := `{"event": "hec basic auth failure"}`
+		SendHttpBasicAuth(t, endpoint+"/services/collector/event", "ignored-user:wrong-password", strings.NewReader(data), http.StatusUnauthorized)
 	})
 
 	t.Run("debug posts", func(t *testing.T) {
@@ -141,19 +118,8 @@ func TestHec(t *testing.T) {
 			// this encodes to "Basic <base64(user:pass)>" which is NOT the literal
 			// configured token, and since Token-Name is already "Basic" the
 			// hecAuthHandler must not fall back to decoding it as HTTP Basic auth
-			req, err := http.NewRequest("POST", endpoint+"/services/collector-basic-override/event", strings.NewReader(`{"event": "hec basic override rejected"}`))
-			if err != nil {
-				t.Fatal(err)
-			}
-			req.SetBasicAuth("ignored-user", "basic-override-token")
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusUnauthorized {
-				t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
-			}
+			data := `{"event": "hec basic override rejected"}`
+			SendHttpBasicAuth(t, endpoint+"/services/collector-basic-override/event", "ignored-user:basic-override-token", strings.NewReader(data), http.StatusUnauthorized)
 		})
 	})
 }
