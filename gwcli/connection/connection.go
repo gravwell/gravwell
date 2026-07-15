@@ -170,7 +170,9 @@ func Initialize(conn string, UseHTTPS, InsecureNoEnforceCerts bool, restLogPath 
 // Fails out instead of prompting in script mode.
 //
 // Logs the method the user logged in if successful, otherwise returns an error.
-func Login(username string, password, apiToken *string, noInteractive bool) error {
+//
+// in and out are set the IO for the credprompt, if required. Setting them to nil is acceptable and will simply pass no options into the cred prompt.
+func Login(username string, password, apiToken *string, noInteractive bool, in io.Reader, out io.Writer) error {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 	if Client == nil {
@@ -188,7 +190,7 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 		}
 		method = "API_token"
 	} else if username != "" && (password != nil && *password != "") { // u/p
-		if err := loginWithCredentials(username, *password, noInteractive); err != nil {
+		if err := loginWithCredentials(username, *password, noInteractive, in, out); err != nil {
 			return err
 		}
 		method = "explicit_username_password"
@@ -205,12 +207,15 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			if noInteractive {
 				return ErrNonInteractiveRequiresDifferentLogin
 			}
-			if mfa, err := promptForMissingCredentials(username); err != nil {
+
+			finalUsername, mfa, err := promptForMissingCredentials(username, in, out)
+			if err != nil {
 				return err
-			} else if mfa {
-				method = "prompt+mfa"
-			} else {
-				method = "prompt"
+			}
+			username = finalUsername
+			method = "prompt"
+			if mfa {
+				method += "+mfa"
 			}
 		} else {
 			method = "JWT"
@@ -248,7 +253,7 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 // Fails if noInteractive && mfa required
 //
 // If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
-func loginWithCredentials(username, password string, noInteractive bool) error {
+func loginWithCredentials(username, password string, noInteractive bool, in io.Reader, out io.Writer) error {
 	resp, err := Client.LoginEx(username, password)
 	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
 		return ufErr
@@ -259,7 +264,7 @@ func loginWithCredentials(username, password string, noInteractive bool) error {
 		}
 
 		// send the user into a prompt to enter their TOTP
-		code, authType, err := mfaprompt.Collect()
+		code, authType, err := mfaprompt.Collect(in, out)
 		if err != nil {
 			return err
 		}
@@ -318,38 +323,40 @@ func loginViaJWT(username string) (err error) {
 }
 
 // Spins up a bubble tea prompt to interactively collect u/p and another to collect MFA (if applicable).
-// Returns if the MFA prompt was displayed and filled out (if !mfa, the Client successfully auth'd without MFA)
-// Only prints to the log on critical failures
+// Returns the final username a user gave, if the MFA prompt was displayed and filled out (if !mfa, the Client successfully auth'd without MFA), and if an error occurred.
+//
+// Only prints to the log on critical failures.
 //
 // ! Not to be called in script mode.
-func promptForMissingCredentials(prepopUsername string) (mfa bool, err error) {
+func promptForMissingCredentials(prepopUsername string, in io.Reader, out io.Writer) (finalUsername string, mfa bool, err error) {
+
 	// prompt for user name and password
-	u, p, err := credprompt.Collect(prepopUsername)
+	u, p, err := credprompt.Collect(prepopUsername, in, out)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
 
 	// log in via u/p
 	resp, err := Client.LoginEx(u, p)
 	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
-		return false, ufErr
+		return "", false, ufErr
 	} else if mfa {
 		// prompt for TOTP or recovery code
-		code, authType, err := mfaprompt.Collect()
+		code, authType, err := mfaprompt.Collect(in, out)
 		if err != nil {
-			return true, err
+			return "", true, err
 		}
 		resp, err = Client.MFALogin(u, p, authType, code)
 		if err != nil {
-			return true, err
+			return "", true, err
 		} else if !resp.LoginStatus {
 			// we logged in via MFA, didn't get an error, but still failed to actually log in
 			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-			return false, clilog.ErrInternal{}
+			return "", false, clilog.ErrInternal{}
 		}
 	}
 
-	return mfa, nil
+	return u, mfa, nil
 
 }
 

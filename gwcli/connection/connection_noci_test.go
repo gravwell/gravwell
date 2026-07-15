@@ -48,7 +48,7 @@ func init() {
 }
 
 func TestLoginNotInitialized(t *testing.T) {
-	if err := connection.Login("", nil, nil, false); !errors.Is(err, connection.ErrNotInitialized) {
+	if err := connection.Login("", nil, nil, false, nil, nil); !errors.Is(err, connection.ErrNotInitialized) {
 		t.Fatal(testsupport.ExpectedActual(connection.ErrNotInitialized, err))
 	}
 }
@@ -118,7 +118,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			}
 
 			// attempt to authenticate
-			if err := connection.Login(tt.args.u, &tt.args.p, &tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
+			if err := connection.Login(tt.args.u, &tt.args.p, &tt.args.apiToken, tt.args.scriptMode, nil, nil); !errors.Is(err, tt.expectedErr) {
 				t.Fatalf("Login() error = '%v', want = '%v'", err, tt.expectedErr)
 			} else if err == nil {
 				// additional checks to perform if we were not expected and did not receive an error
@@ -335,7 +335,7 @@ func TestLoginMFA_script_mode(t *testing.T) {
 			}
 
 			// attempt to authenticate
-			if err := connection.Login(tt.args.u, &tt.args.p, &tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
+			if err := connection.Login(tt.args.u, &tt.args.p, &tt.args.apiToken, tt.args.scriptMode, nil, nil); !errors.Is(err, tt.expectedErr) {
 				t.Fatalf("Login() error = '%v', want = '%v'", err, tt.expectedErr)
 			} else if err == nil {
 				// additional checks to perform if we were not expecting and did not receive an error
@@ -378,7 +378,7 @@ func TestLogin_interactive_mode(t *testing.T) {
 		}
 		t.Cleanup(func() { connection.End() })
 
-		if err := connection.Login("", nil, &apiTkn, false); err != nil {
+		if err := connection.Login("", nil, &apiTkn, false, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		// check that we can query the backend and get the correct user
@@ -406,7 +406,7 @@ func TestLogin_interactive_mode(t *testing.T) {
 		}
 		t.Cleanup(func() { connection.End() })
 
-		if err := connection.Login(defaultUser, &defaultPass, nil, false); err != nil {
+		if err := connection.Login(defaultUser, &defaultPass, nil, false, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		if err := verifyLoggedInStatus(defaultUser); err != nil {
@@ -440,7 +440,7 @@ func TestJWTRefreshing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := connection.Login(defaultUser, &defaultPass, nil, true); err != nil {
+	if err := connection.Login(defaultUser, &defaultPass, nil, true, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -499,7 +499,7 @@ func initLogin(t *testing.T, u, p string) {
 		t.Fatal(err)
 	}
 
-	if err := connection.Login(u, &p, nil, true); err != nil {
+	if err := connection.Login(u, &p, nil, true, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }

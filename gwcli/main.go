@@ -22,5 +22,5 @@ func init() {
 }
 
 func main() {
-	os.Exit(tree.Execute(nil, nil, nil))
+	os.Exit(tree.Execute(nil))
 }

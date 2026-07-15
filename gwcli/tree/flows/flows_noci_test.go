@@ -32,9 +32,15 @@ func TestParseRejectsBadArguments(t *testing.T) {
 				sbErr.Reset()
 			})
 			if tt.expectZeroEC {
-				require.Zero(t, tree.Execute(append(baseArgs, tt.args...), &sbOut, &sbErr), "stdout: %v\n\nstderr%v", sbOut.String(), sbErr.String())
+				require.Zero(t, tree.Execute(append(baseArgs, tt.args...), tree.ExecuteOptions{
+					Stdout: &sbOut,
+					Stderr: &sbErr,
+				}), "stdout: %v\n\nstderr%v", sbOut.String(), sbErr.String())
 			} else {
-				require.NotZero(t, tree.Execute(append(baseArgs, tt.args...), &sbOut, &sbErr), "stdout: %v\n\nstderr%v", sbOut.String(), sbErr.String())
+				require.NotZero(t, tree.Execute(append(baseArgs, tt.args...), tree.ExecuteOptions{
+					Stdout: &sbOut,
+					Stderr: &sbErr,
+				}), "stdout: %v\n\nstderr%v", sbOut.String(), sbErr.String())
 			}
 		})
 	}
