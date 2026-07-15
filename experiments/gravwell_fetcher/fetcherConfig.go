@@ -3,14 +3,13 @@ package main
 import (
 	"context"
 	"errors"
-
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 )
 
 var (
@@ -39,7 +38,7 @@ Add the config to the general cfgType to register it
 
 type cfgType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Preprocessor processors.ProcessorConfig
 	DuoConf      map[string]*duoConf
 	ThinkstConf  map[string]*ThinkstConf
