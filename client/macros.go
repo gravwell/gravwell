@@ -8,7 +8,7 @@
 
 package client
 
-import "github.com/gravwell/gravwell/v3/client/types"
+import "github.com/gravwell/gravwell/v4/client/types"
 
 // GetUserGroupsMacros returns all macros accessible to the current user.
 func (c *Client) GetUserGroupsMacros() ([]types.SearchMacro, error) {

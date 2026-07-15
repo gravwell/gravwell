@@ -8,6 +8,8 @@
 
 package types
 
+import "encoding/json"
+
 const (
 	// request IDs
 	FDG_REQ_GET_ENTRIES uint32 = 0x02000002
@@ -44,4 +46,23 @@ type Edge struct {
 type FdgResponse struct {
 	BaseResponse
 	Entries FdgSet
+}
+
+func (x FdgResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries FdgSet
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }
