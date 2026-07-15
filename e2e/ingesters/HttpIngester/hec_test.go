@@ -134,7 +134,7 @@ func TestHec(t *testing.T) {
 			}
 
 			c := e2e.GetClient(t)
-			assert(t, e2e.WaitForEntries(t, c, "tag=hec-basic-override words hec basic override literal", time.Minute, 1, 30*time.Second), 1, data)
+			assert(t, e2e.WaitForEntries(t, c, "tag=hec-basic-override words hec basic override literal", time.Minute, 1, 30*time.Second), 1, "hec basic override literal")
 		})
 
 		t.Run("real HTTP basic auth is rejected", func(t *testing.T) {
