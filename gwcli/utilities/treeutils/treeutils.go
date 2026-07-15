@@ -27,11 +27,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NodeOptions provides ways to tweak or mark a node with optional parameters.
+//
+// AdminOnly and RequiresCBAC apply recursively.
+// Ex: marking a nav as adminOnly will also mark all of its children as adminOnly.
 type NodeOptions struct {
 	// other names this nav can be called under
 	CommandAliases []string
 	// this command can only be invoked by admins
 	AdminOnly bool
+	// this command can only be invoked if CBAC is enabled
+	RequiresCBAC bool
 }
 
 // ApplyNodeOptions installs a NodeOptions struct into a given command.
@@ -44,6 +50,9 @@ func ApplyNodeOptions(cmd *cobra.Command, nopts NodeOptions) {
 	}
 	if nopts.AdminOnly {
 		cmdutils.AdminOnly(cmd)
+	}
+	if nopts.RequiresCBAC {
+		cmdutils.CBAC(cmd)
 	}
 	cmd.Aliases = utils.Deduplicate(append(cmd.Aliases, nopts.CommandAliases...))
 
@@ -91,34 +100,37 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 	group.AddNavGroup(cmd)
 	group.AddActionGroup(cmd)
 
-	ao := cmdutils.IsAdminOnly(cmd)
-
 	// associate subcommands; if this nav is admin only, everything beneath it should also be admin only
 	for _, sub := range navCmds {
-		// Because the tree builds from the bottom up,
-		// if this child is not marked adminOnly but should be, we must also recursively mark its children
-		// (as this child did not when it was built as it didn't know it was under an AdminOnly parent).
-		if ao {
-			recurAdminOnly(sub)
-		}
 		cmd.AddCommand(sub)
 	}
 	for _, sub := range actionCmds {
-		if ao {
-			cmdutils.AdminOnly(sub.Action)
-		}
 		cmd.AddCommand(sub.Action)
 		// now that the commands have a parent, add their models to map
 		action.AddModel(sub.Action, sub.Model)
 	}
 
+	// Propagate annotations down the tree.
+	//
+	// Children cannot inherit annotations until they have an ancestry to inherit from.
+	// Because the tree builds from the bottom up, we cannot inherit annotations until we form the upper layers (the navs).
+	if ao, cbac := cmdutils.IsAdminOnly(cmd), cmdutils.IsCBAC(cmd); ao || cbac {
+		recurAnnotations(cmd, ao, cbac)
+	}
+
 	return cmd
 }
 
-func recurAdminOnly(start *cobra.Command) {
-	cmdutils.AdminOnly(start)
+func recurAnnotations(start *cobra.Command, adminOnly, cbac bool) {
+	if adminOnly {
+		cmdutils.AdminOnly(start)
+	}
+	if cbac {
+		cmdutils.CBAC(start)
+	}
+
 	for _, child := range start.Commands() {
-		recurAdminOnly(child)
+		recurAnnotations(child, adminOnly, cbac)
 	}
 }
 
