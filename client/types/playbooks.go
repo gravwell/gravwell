@@ -8,48 +8,21 @@
 
 package types
 
-import (
-	"encoding/json"
-	"time"
-
-	"github.com/google/uuid"
-)
-
 // Playbook configuration, including ownership, description, etc., as well as
 // the playbook content.
 type Playbook struct {
-	UUID        uuid.UUID
-	GUID        uuid.UUID // global identifier, used to uniquely identify a playbook rather than as a key in the webstore. Sorry.
-	UID         int32
-	GIDs        []int32
-	Global      bool
-	WriteAccess Access
-	Name        string
-	Desc        string
-	Body        []byte `json:",omitempty"`
-	Metadata    []byte `json:",omitempty"`
-	Labels      []string
-	LastUpdated time.Time
-	Author      AuthorInfo
-	Synced      bool
+	CommonFields
+	Body string
+	// Cover and Banner are IDs of files
+	Cover         string
+	Banner        string
+	AuthorName    string
+	AuthorEmail   string
+	AuthorCompany string
+	AuthorURL     string
 }
 
-type AuthorInfo struct {
-	Name    string
-	Email   string
-	Company string
-	URL     string
-}
-
-func (pb Playbook) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		UUID        string
-		Name        string
-		Description string
-	}{
-		UUID:        pb.GUID.String(),
-		Name:        pb.Name,
-		Description: pb.Desc,
-	})
-	return json.RawMessage(b), err
+type PlaybookListResponse struct {
+	BaseListResponse
+	Results []Playbook `json:"results"`
 }
