@@ -17,12 +17,14 @@ package credprompt
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,21 +35,32 @@ import (
 // Collect manages its own killkeys, as it is mother-independent.
 //
 // ! Not intended to be run while Mother is running.
-func Collect(initialUser string) (user, pass string, err error) {
-	return collect(initialUser, nil)
+func Collect(initialUser string, in io.Reader, out io.Writer) (user, pass string, err error) {
+	// spawn our own program using the given I/O
+	var progOpts []tea.ProgramOption
+	if in != nil {
+		progOpts = append(progOpts, tea.WithInput(in))
+	}
+	if out != nil {
+		progOpts = append(progOpts, tea.WithOutput(out))
+	}
+	clilog.Writer.Debug("spawning credprompt",
+		log.KV("caller", log.CallLoc(1)),
+		clilog.ProgramOptions(in, out),
+	)
+	return collect(tea.NewProgram(New(initialUser), progOpts...))
 }
 
 // internal implementation of collect.
 // Allows custom programs (likely programs with mocked input) for testing purposes.
-// ! Outside of test packages, leave prog==nil.
-func collect(initialUser string, prog *tea.Program) (user, pass string, err error) {
-	p := prog
-	if p == nil {
-		var c tea.Model = New(initialUser)
-		p = tea.NewProgram(c)
+//
+// ! Prog must not be nil.
+func collect(prog *tea.Program) (user, pass string, err error) {
+	if prog == nil {
+		return "", "", errors.New("nil program passed into collect")
 	}
 
-	m, err := p.Run()
+	m, err := prog.Run()
 	if err != nil {
 		return "", "", err
 	}

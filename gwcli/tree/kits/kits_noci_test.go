@@ -42,7 +42,7 @@ func TestBuildAndUpload(t *testing.T) {
 	}
 	// extractor
 	var sbErr strings.Builder
-	require.Zero(t, tree.Execute(append(meta, "axs", "clear", "csv"), nil, &sbErr), sbErr.String())
+	require.Zero(t, tree.Execute(append(meta, "axs", "clear", "csv"), tree.ExecuteOptions{Stderr: &sbErr}), sbErr.String())
 	extractorID = createAsset(t, meta, []string{"extractors", "create",
 		"--name", "csvAX",
 		"--module", "csv",
@@ -73,7 +73,7 @@ func TestBuildAndUpload(t *testing.T) {
 
 		t.Log("final arg string: ", args)
 		var sbErr strings.Builder
-		require.Zero(t, tree.Execute(args, nil, &sbErr), sbErr.String())
+		require.Zero(t, tree.Execute(args, tree.ExecuteOptions{Stderr: &sbErr}), sbErr.String())
 		// check that the kit now exists at our path
 		fi, err := os.Stat(kitPath)
 		require.Nil(t, err)
@@ -88,16 +88,28 @@ func TestBuildAndUpload(t *testing.T) {
 
 	{ // destroy the assets we created
 		var sbOut, sbErr strings.Builder
-		if !assert.Zero(t, tree.Execute(append(meta, "macros", "delete", macroID), &sbOut, &sbErr)) {
+		if !assert.Zero(t, tree.Execute(append(meta, "macros", "delete", macroID), tree.ExecuteOptions{
+			Stdout: &sbOut,
+			Stderr: &sbErr,
+		})) {
 			success = false
 		}
-		if !assert.Zero(t, tree.Execute(append(meta, "resource", "delete", resourceIDs[0]), &sbOut, &sbErr)) {
+		if !assert.Zero(t, tree.Execute(append(meta, "resource", "delete", resourceIDs[0]), tree.ExecuteOptions{
+			Stdout: &sbOut,
+			Stderr: &sbErr,
+		})) {
 			success = false
 		}
-		if !assert.Zero(t, tree.Execute(append(meta, "resource", "delete", resourceIDs[1]), &sbOut, &sbErr)) {
+		if !assert.Zero(t, tree.Execute(append(meta, "resource", "delete", resourceIDs[1]), tree.ExecuteOptions{
+			Stdout: &sbOut,
+			Stderr: &sbErr,
+		})) {
 			success = false
 		}
-		if !assert.Zero(t, tree.Execute(append(meta, "extractors", "delete", extractorID), &sbOut, &sbErr)) {
+		if !assert.Zero(t, tree.Execute(append(meta, "extractors", "delete", extractorID), tree.ExecuteOptions{
+			Stdout: &sbOut,
+			Stderr: &sbErr,
+		})) {
 			success = false
 		}
 		if !success {
@@ -109,7 +121,10 @@ func TestBuildAndUpload(t *testing.T) {
 		var sbOut, sbErr strings.Builder
 		require.Zero(t,
 			tree.Execute(append(meta, "kits", "build-requests", "--csv", "--columns=KitID,Name,Readme,KitVersion,Macros,Resources,Extractors"),
-				&sbOut, &sbErr), sbErr.String())
+				tree.ExecuteOptions{
+					Stdout: &sbOut,
+					Stderr: &sbErr,
+				}), sbErr.String())
 		require.Empty(t, sbErr.String())
 		rdr := csv.NewReader(strings.NewReader(sbOut.String()))
 		hdr, err := rdr.Read()
@@ -133,7 +148,10 @@ func TestBuildAndUpload(t *testing.T) {
 func createAsset(t *testing.T, meta, args []string) (ID string) {
 	t.Helper()
 	var sbOut, sbErr strings.Builder
-	require.Zero(t, tree.Execute(append(meta, args...), &sbOut, &sbErr), sbErr.String())
+	require.Zero(t, tree.Execute(append(meta, args...), tree.ExecuteOptions{
+		Stdout: &sbOut,
+		Stderr: &sbErr,
+	}), sbErr.String())
 	ID = testsupport.FindID(sbOut.String())
 	require.NotEmpty(t, ID, "could not find ID in output: %s", sbOut.String())
 	t.Log(args, ": ID: ", ID)
