@@ -1621,7 +1621,9 @@ inputLoop:
 							b[i] = nil //this is safe, we check for this everywhere
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
-								b[j].Tag = nc.tt.reverse(b[j].Tag)
+								if b[j] != nil {
+									b[j].Tag = nc.tt.reverse(b[j].Tag)
+								}
 							}
 							im.recycleEntryBatch(b) //recycle and save what we can
 						} else {
@@ -1637,7 +1639,9 @@ inputLoop:
 
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
-								b[j].Tag = nc.tt.reverse(b[j].Tag)
+								if b[j] != nil {
+									b[j].Tag = nc.tt.reverse(b[j].Tag)
+								}
 							}
 							im.recycleEntryBatch(b)
 						}
@@ -1657,7 +1661,9 @@ inputLoop:
 			var n int
 			if n, err = nc.ig.writeBatchEntry(b); err != nil {
 				for i := n; i < len(b); i++ {
-					b[i].Tag = nc.tt.reverse(b[i].Tag)
+					if b[i] != nil {
+						b[i].Tag = nc.tt.reverse(b[i].Tag)
+					}
 				}
 				im.recycleEntryBatch(b[n:])
 				im.syncAndCloseConnection(nc)
@@ -2263,7 +2269,9 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 						// could not translate, push it back on the queue and bail
 						// first we need to reverse the ones we have already translated, ugh
 						for j := 0; j < i; j++ {
-							blk[j].Tag = tt.reverse(blk[j].Tag)
+							if blk[j] != nil {
+								blk[j].Tag = tt.reverse(blk[j].Tag)
+							}
 						}
 						eq.push(e, blk)
 						return
