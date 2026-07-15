@@ -32,6 +32,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
@@ -424,7 +425,7 @@ func processInput(m *Mother) tea.Cmd {
 		if action.Is(wr.EndCmd) {
 			// check that we have permission to act on this command
 			if cmdutils.IsAdminOnly(wr.EndCmd) && !connection.CurrentUser().Admin {
-				return tea.Sequence(historyCmd, stylesheet.ErrPrintf("executing \"%s\" requires admin privileges", wr.EndCmd.Name()))
+				return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%s", phrases.AdminOnlyAction(wr.EndCmd.Name())))
 			}
 
 			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
@@ -438,8 +439,7 @@ func processInput(m *Mother) tea.Cmd {
 		}
 		// check that we have permission to act on this command
 		if cmdutils.IsAdminOnly(wr.EndCmd) && !connection.CurrentUser().Admin {
-			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("moving to \"%s\" requires admin privileges",
-				strings.Join(cmdutils.DerivePath(wr.EndCmd, false), " ")))
+			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%s", phrases.AdminOnlyNav(wr.EndCmd)))
 		}
 
 		// move mother to target nav
