@@ -14,6 +14,31 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
+// TestEmergencyQueueClearNilBatchEntry ensures that clear() does not panic when
+// a batch pulled from the emergency queue contains nil entries interspersed
+// with entries that fail tag translation. Previously the tag-reversal loop
+// that runs when a mid-batch translation fails did not skip nil entries,
+// causing a nil pointer dereference (see the AzureEventHubs ingester panic in
+// ingest.(*emergencyQueue).clear -> tt.reverse).
+func TestEmergencyQueueClearNilBatchEntry(t *testing.T) {
+	eq := newEmergencyQueue()
+
+	tt := &tagTrans{
+		active: []entry.EntryTag{5}, // only tag 0 is negotiated
+	}
+
+	blk := []*entry.Entry{
+		nil,
+		{Tag: 0}, // translates fine, gets reversed when the batch bails below
+		{Tag: 1}, // not negotiated, forces the reversal loop to run
+	}
+	eq.push(nil, blk)
+
+	if ok := eq.clear(nil, tt); ok {
+		t.Fatalf("expected clear to report failure for untranslatable tag")
+	}
+}
+
 func TestTagBitMask(t *testing.T) {
 	var tmt tagMaskTracker
 	//make sure its empty
