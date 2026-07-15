@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -96,4 +98,50 @@ func aliasResponseError(c *Client, resp *http.Response) error {
 	default: // unhandled code
 		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
+}
+
+// WebsocketConn implements a minimal websocket interface for sending objects as JSON encoded messages
+// each Write call flushes the socket
+type WebsocketConn interface {
+	ReadJSON(v interface{}) error
+	WriteJSON(v interface{}) error
+	SetReadDeadline(t time.Time) error
+	SetWriteDeadline(t time.Time) error
+	Close() error
+}
+
+// wsJSONConn wraps a golang.org/x/net/websocket.Conn so that it satisfies
+// the JSONConn interface using the package's JSON codec.
+type wsJSONConn struct {
+	conn *websocket.Conn
+}
+
+func (w *wsJSONConn) ReadJSON(v interface{}) error {
+	return websocket.JSON.Receive(w.conn, v)
+}
+
+func (w *wsJSONConn) WriteJSON(v interface{}) error {
+	return websocket.JSON.Send(w.conn, v)
+}
+
+func (w *wsJSONConn) SetReadDeadline(t time.Time) error {
+	return w.conn.SetReadDeadline(t)
+}
+
+func (w *wsJSONConn) SetWriteDeadline(t time.Time) error {
+	return w.conn.SetWriteDeadline(t)
+}
+
+func (w *wsJSONConn) Close() error {
+	if err := w.conn.Close(); err != nil {
+		// The underlying TLS connection may fail to send its closeNotify
+		// alert if the peer already tore down the connection after the
+		// websocket close handshake completed. The connection is closed
+		// either way, so this specific error is not actionable.
+		if strings.Contains(err.Error(), "failed to send closeNotify alert") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
