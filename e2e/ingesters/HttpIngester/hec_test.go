@@ -24,7 +24,7 @@ func TestHec(t *testing.T) {
 		SendHecEvent(t, endpoint, strings.NewReader(data))
 
 		c := e2e.GetClient(t)
-		assert(t, e2e.WaitForEntries(t, c, "tag=hec-testing words -e DATA hec blah", time.Minute, 1, 30*time.Second), 1, "hec blah")
+		assert(t, e2e.WaitForEntries(t, c, "tag=hec-testing words hec blah", time.Minute, 1, 30*time.Second), 1, "hec blah")
 	})
 
 	t.Run("raw ingest", func(t *testing.T) {
@@ -32,7 +32,7 @@ func TestHec(t *testing.T) {
 		SendHecRaw(t, endpoint, strings.NewReader(data))
 
 		c := e2e.GetClient(t)
-		assert(t, e2e.WaitForEntries(t, c, "tag=hec-testing words -e DATA raw hec", time.Minute, 1, 30*time.Second), 1, data)
+		assert(t, e2e.WaitForEntries(t, c, "tag=hec-testing words raw hec", time.Minute, 1, 30*time.Second), 1, data)
 	})
 
 	t.Run("auth fails with bad token", func(t *testing.T) {
@@ -41,6 +41,45 @@ func TestHec(t *testing.T) {
 			t.Fatal(err)
 		}
 		req.Header.Set("Authorization", "Splunk failure")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("unexpected basic auth is accepted", func(t *testing.T) {
+		// the "testing" listener is configured with a Splunk-style token name, but
+		// clients sometimes throw HTTP Basic authentication at HEC endpoints instead;
+		// the username is ignored and the password is checked against the token
+		data := `{"event": "hec basic auth"}`
+		req, err := http.NewRequest("POST", endpoint+"/services/collector/event", strings.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.SetBasicAuth("ignored-user", "token")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer utils.DrainResponse(resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusOK)
+		}
+
+		c := e2e.GetClient(t)
+		assert(t, e2e.WaitForEntries(t, c, "tag=hec-testing words hec basic auth", time.Minute, 1, 30*time.Second), 1, "hec basic auth")
+	})
+
+	t.Run("unexpected basic auth fails with wrong password", func(t *testing.T) {
+		req, err := http.NewRequest("POST", endpoint+"/services/collector/event", strings.NewReader(`{"event": "hec basic auth failure"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.SetBasicAuth("ignored-user", "wrong-password")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -71,6 +110,51 @@ func TestHec(t *testing.T) {
 		assert(t, ents, 1, "hec ev")
 		assertEV(t, ents[0], "source", "test-source")
 		assertEV(t, ents[0], "custom-field", "field-value")
+	})
+
+	t.Run("Token-Name override to Basic enforces literal token, no basic auth", func(t *testing.T) {
+		// the "basic-override" listener sets Token-Name="Basic", so the literal string
+		// after "Basic " in the Authorization header must equal the configured token,
+		// and real HTTP Basic authentication (base64 user:pass) must NOT be honored
+
+		t.Run("literal token value succeeds", func(t *testing.T) {
+			data := `{"event": "hec basic override literal"}`
+			req, err := http.NewRequest("POST", endpoint+"/services/collector-basic-override/event", strings.NewReader(data))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Authorization", "Basic basic-override-token")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer utils.DrainResponse(resp)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusOK)
+			}
+
+			c := e2e.GetClient(t)
+			assert(t, e2e.WaitForEntries(t, c, "tag=hec-basic-override words hec basic override literal", time.Minute, 1, 30*time.Second), 1, data)
+		})
+
+		t.Run("real HTTP basic auth is rejected", func(t *testing.T) {
+			// this encodes to "Basic <base64(user:pass)>" which is NOT the literal
+			// configured token, and since Token-Name is already "Basic" the
+			// hecAuthHandler must not fall back to decoding it as HTTP Basic auth
+			req, err := http.NewRequest("POST", endpoint+"/services/collector-basic-override/event", strings.NewReader(`{"event": "hec basic override rejected"}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.SetBasicAuth("ignored-user", "basic-override-token")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusUnauthorized {
+				t.Fatalf("got status %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+			}
+		})
 	})
 }
 
@@ -110,7 +194,7 @@ func TestHecNoDebug(t *testing.T) {
 		SendHecEvent(t, endpoint, strings.NewReader(data))
 
 		c := e2e.GetClient(t)
-		assert(t, e2e.WaitForEntries(t, c, "tag=hec-no-debug words -e DATA hec no debug", time.Minute, 1, 30*time.Second), 1, "hec no debug")
+		assert(t, e2e.WaitForEntries(t, c, "tag=hec-no-debug words hec no debug", time.Minute, 1, 30*time.Second), 1, "hec no debug")
 	})
 
 	t.Run("raw ingest", func(t *testing.T) {
@@ -118,7 +202,7 @@ func TestHecNoDebug(t *testing.T) {
 		SendHecRaw(t, endpoint, strings.NewReader(data))
 
 		c := e2e.GetClient(t)
-		assert(t, e2e.WaitForEntries(t, c, "tag=hec-no-debug words -e DATA raw hec no debug", time.Minute, 1, 30*time.Second), 1, data)
+		assert(t, e2e.WaitForEntries(t, c, "tag=hec-no-debug words raw hec no debug", time.Minute, 1, 30*time.Second), 1, data)
 	})
 }
 
