@@ -95,13 +95,18 @@ func Help(c *cobra.Command, _ []string) {
 
 	// write local flags
 	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf)
+		sb.WriteString(stylesheet.Cur.Field("Flags", 0))
+		sb.WriteString("\n")
+		sb.WriteString(lf)
 	}
 
 	// write global flags (except for the completion command)
 	if c.Name() != "completion" && (!c.HasParent() || (c.HasParent() && c.Parent().Name() != "completion")) {
 		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
-			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
+			sb.WriteString("\n")
+			sb.WriteString(stylesheet.Cur.Field("Global Flags", 0))
+			sb.WriteString("\n")
+			sb.WriteString(gf)
 		}
 	}
 
@@ -126,7 +131,8 @@ func Help(c *cobra.Command, _ []string) {
 	if len(navs) > 0 {
 		var s strings.Builder
 		for _, n := range navs {
-			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
+			s.WriteString("\n  ")
+			s.WriteString(stylesheet.Cur.Nav.Render(n.Name()))
 		}
 		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Submenus"), s.String())
 	}
@@ -138,7 +144,8 @@ func Help(c *cobra.Command, _ []string) {
 		}
 		var s strings.Builder
 		for _, a := range actions {
-			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
+			s.WriteString("\n  ")
+			s.WriteString(stylesheet.Cur.Action.Render(a.Name()))
 		}
 		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Actions"), s.String())
 	}
