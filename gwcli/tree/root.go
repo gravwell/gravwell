@@ -29,9 +29,11 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
@@ -109,7 +111,23 @@ func ppre(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return EnforceLogin(cmd, args)
+	if err := EnforceLogin(cmd, args); err != nil {
+		return err
+	}
+
+	// because actions each have their own RunE (whereas navs all use treeutils.NavRun),
+	// we must check for action permissions here.
+	// This shouldn't affect help, as that is checked above.
+	if cmdutils.IsAdminOnly(cmd) && !connection.CurrentUser().Admin {
+		var phrase string
+		if !action.Is(cmd) {
+			phrase = phrases.AdminOnlyNav(cmd)
+		} else {
+			phrase = phrases.AdminOnlyAction(cmd.Name())
+		}
+		return errors.New(stylesheet.Cur.ErrorText.Render(phrase))
+	}
+	return nil
 }
 
 // helper function for ppre.
