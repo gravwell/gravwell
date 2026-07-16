@@ -18,7 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -34,32 +34,25 @@ import (
 type NodeOptions struct {
 	// other names this nav can be called under
 	CommandAliases []string
-	// this command can only be invoked by admins
-	AdminOnly bool
-	// this command can only be invoked if CBAC is enabled
-	RequiresCBAC bool
+
+	Requirements annotations.Requirements
 }
 
-// ApplyNodeOptions installs a NodeOptions struct into a given command.
-//
-// ! It is called automatically by GenerateNav and GenerateAction
-func ApplyNodeOptions(cmd *cobra.Command, nopts NodeOptions) {
+// Apply modifies the given command according to the state of NodeOptions.
+// This is called automatically by GenerateNav and GenerateAction if NodeOptions are supplied.
+func (nopts NodeOptions) Apply(cmd *cobra.Command) {
 	if cmd == nil {
-		clilog.Writer.Warn("cannot apply annotations to a nil command")
+		clilog.Writer.Warn("cannot apply node options to a nil command")
 		return
 	}
-	if nopts.AdminOnly {
-		cmdutils.AdminOnly(cmd)
-	}
-	if nopts.RequiresCBAC {
-		cmdutils.CBAC(cmd)
-	}
+
 	cmd.Aliases = utils.Deduplicate(append(cmd.Aliases, nopts.CommandAliases...))
 
+	nopts.Requirements.Apply(cmd)
 }
 
 // GenerateNav creates and returns a Nav (tree node) with every sub-nav and sub-action installed (and the latter registered with the action map).
-// If this Nav is marked as AdminOnly, all descendents will be, too.
+// Calls opts[0].Apply if not nil.
 func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds []action.Pair, opts ...NodeOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     strings.ToLower(use),
@@ -70,7 +63,7 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 	}
 
 	if len(opts) > 0 {
-		ApplyNodeOptions(cmd, opts[0])
+		opts[0].Apply(cmd)
 	}
 
 	cmd.SetUsageFunc(
@@ -110,28 +103,7 @@ func GenerateNav(use, short, long string, navCmds []*cobra.Command, actionCmds [
 		action.AddModel(sub.Action, sub.Model)
 	}
 
-	// Propagate annotations down the tree.
-	//
-	// Children cannot inherit annotations until they have an ancestry to inherit from.
-	// Because the tree builds from the bottom up, we cannot inherit annotations until we form the upper layers (the navs).
-	if ao, cbac := cmdutils.IsAdminOnly(cmd), cmdutils.IsCBAC(cmd); ao || cbac {
-		recurAnnotations(cmd, ao, cbac)
-	}
-
 	return cmd
-}
-
-func recurAnnotations(start *cobra.Command, adminOnly, cbac bool) {
-	if adminOnly {
-		cmdutils.AdminOnly(start)
-	}
-	if cbac {
-		cmdutils.CBAC(start)
-	}
-
-	for _, child := range start.Commands() {
-		recurAnnotations(child, adminOnly, cbac)
-	}
 }
 
 type GenerateActionOptions struct {
@@ -148,8 +120,7 @@ type GenerateActionOptions struct {
 
 // GenerateAction returns a boilerplate action command with all required information for it to be fed into action.NewPair().
 // Basically just a form of cobra.Command constructor.
-//
-// Accepts 0 or 1 GenerateActionOptions; any more are ignored.
+// Calls opts[0].Apply if not nil.
 //
 // ! Does NOT add this action to the action map or add the Action to a parent.
 func GenerateAction(use, short, long string,
@@ -170,7 +141,7 @@ func GenerateAction(use, short, long string,
 
 	// apply options
 	if len(opts) > 0 {
-		ApplyNodeOptions(cmd, opts[0].NodeOptions)
+		opts[0].NodeOptions.Apply(cmd)
 		if usage := strings.TrimSpace(opts[0].Usage); usage != "" {
 			cmd.SetUsageFunc(func(c *cobra.Command) error {
 				fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), opts[0].Usage)
