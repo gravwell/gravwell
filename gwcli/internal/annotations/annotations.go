@@ -28,7 +28,7 @@ type Requirements struct {
 	UserIsAdmin bool
 	// Requires that the deployment has CBAC enabled, but not that the user has any specific permissions.
 	// This is likely to be only useful for the CBAC nav itself.
-	OnlyDeploymentHasCBAC bool
+	DeploymentHasCBAC bool
 	// CBAC permissions the user must have to execute this action.
 	// Being an admin overrules any permissions set here.
 	//
@@ -48,7 +48,7 @@ func (r Requirements) Apply(cmd *cobra.Command) {
 	if r.UserIsAdmin {
 		cmd.Annotations[keyUserIsAdmin] = requirementValue
 	}
-	if r.OnlyDeploymentHasCBAC {
+	if r.DeploymentHasCBAC {
 		cmd.Annotations[keyDeploymentHasCBAC] = requirementValue
 	}
 	requiredCaps := make([]string, len(r.Permissions))
