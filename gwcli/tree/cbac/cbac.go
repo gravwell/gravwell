@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -47,7 +48,10 @@ func NewNav() *cobra.Command {
 			edit(),
 			set(),
 		},
-		treeutils.NodeOptions{CommandAliases: []string{"capabilities"}},
+		treeutils.NodeOptions{
+			CommandAliases: []string{"capabilities"},
+			Requirements:   annotations.Requirements{DeploymentHasCBAC: true},
+		},
 	)
 }
 
@@ -209,6 +213,7 @@ func get() action.Pair {
 					fs.Int32Slice("gids", nil, "IDs of the groups to include")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (_ string, err error) {
 				uids, err = fs.GetInt32Slice("uids")
@@ -395,6 +400,7 @@ func edit() action.Pair {
 					fs.Bool("revoke", false, "Only revoke caps; no caps will be added through this call")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure all prior data is destroyed
@@ -632,7 +638,8 @@ func set() action.Pair {
 				Usage: "set " +
 					ft.MutuallyExclusive("--uids", "--gids") +
 					ft.Mandatory("--caps"),
-				Aliases: []string{"replace"},
+				Aliases:      []string{"replace"},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			IDIsSuccessMessage: true,
 		})
