@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
 type BuilderConfig interface {
@@ -105,6 +106,25 @@ func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (
 func NewMimecastBuilder(config *mimecast.Config, kind, id, version string) *MimecastBuilder {
 	return &MimecastBuilder{
 		Builder[*mimecast.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type WizBuilder struct {
+	Builder[*wiz.Config]
+}
+
+func (wb *WizBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(wiz.New(wb.config), syncFn), nil
+}
+
+func NewWizBuilder(config *wiz.Config, kind, id, version string) *WizBuilder {
+	return &WizBuilder{
+		Builder[*wiz.Config]{
 			config:  config,
 			kind:    kind,
 			id:      id,
