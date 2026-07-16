@@ -15,26 +15,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	annotationAdmin = "admin_only"
-	annotationCBAC  = "cbac"
-)
-
-// AdminOnly add the AdminOnly annotation to the given command.
-// If the cmd's annotation map is nil, it will be allocated.
-func AdminOnly(cmd *cobra.Command) {
-	if cmd.Annotations == nil {
-		cmd.Annotations = make(map[string]string)
-	}
-	cmd.Annotations[annotationAdmin] = "1"
-}
-
-// IsAdminOnly returns if the cmd is marked as only accessible to admins
-func IsAdminOnly(cmd *cobra.Command) bool {
-	_, ok := cmd.Annotations[annotationAdmin]
-	return ok
-}
-
 // DerivePath returns the path from root to the given command.
 //
 // !includeRoot omits "~" from the path
@@ -65,19 +45,4 @@ func DerivePath(cmd *cobra.Command, includeRoot bool) []string {
 	slices.Reverse(pth)
 
 	return pth
-}
-
-// CBAC applies an annotation that marks this command as requiring CBAC being enabled and accessible.
-// If the cmd's annotation map is nil, it will be allocated.
-func CBAC(cmd *cobra.Command) {
-	if cmd.Annotations == nil {
-		cmd.Annotations = make(map[string]string)
-	}
-	cmd.Annotations[annotationCBAC] = "1"
-}
-
-// IsCBAC returns if the cmd is marked as only accessible if CBAC is enabled and permissible.
-func IsCBAC(cmd *cobra.Command) bool {
-	_, ok := cmd.Annotations[annotationAdmin]
-	return ok
 }
