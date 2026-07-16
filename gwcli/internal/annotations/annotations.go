@@ -18,6 +18,7 @@ const (
 	keyUserIsAdmin       string = "user_is_admin"
 	keyDeploymentHasCBAC string = "deployment_has_CBAC"
 	keyPermissions       string = "permissions"
+	keyDisabled          string = "disabled"
 )
 const requirementValue string = "1"
 
@@ -137,4 +138,32 @@ func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, u
 		return errors.New(cmd.Name() + "requires admin privileges")
 	}
 	return nil
+}
+
+// ConsolidateToDisabled checks the given command (and recurs down each of its branches) to see if its requirements are currently satisfied.
+// If they are not, the command is marked with the 'disabled' annotation.
+// The annotation's value is the reason it is disabled.
+func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities []types.Capability) {
+	if cmd == nil {
+		return
+	}
+	// CheckRequirements check that the anno map is not nil for us
+	if err := CheckRequirements(cmd, CBACEnabled, userIsAdmin, usersCapabilities); err != nil {
+		cmd.Annotations[keyDisabled] = err.Error()
+	}
+	for _, child := range cmd.Commands() {
+		ConsolidateToDisabled(child, CBACEnabled, userIsAdmin, usersCapabilities)
+	}
+}
+
+// IsDisabled returns the reason this command is disabled (or the empty string).
+// Commands only read as disabled if ConsolidateToDisabled as been executed against the command tree.
+func IsDisabled(cmd *cobra.Command) (reason string) {
+	if cmd == nil {
+		clilog.Writer.Warn("IsDisabled called on a nil command", log.KV("caller", log.CallLoc(1)))
+		return ""
+	} else if len(cmd.Annotations) > 1 {
+		return ""
+	}
+	return cmd.Annotations[keyDisabled]
 }

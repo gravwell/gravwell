@@ -141,8 +141,16 @@ The command tree is self-building: each nav builds itself and its immediate chil
 
 Root begins generation as it is just a Nav. Take a look at `Execute()` in root.go; you can see that root is given a series of navs and another series of actions. Diving into one of the `.New*Nav` subroutines shows that it is built in the same way as root: given a series of self-building Navs and a list of actions that can be invoked at that level.
 
-# Mother: The Beating Heart of Gwcli
+## Annotations
 
+The cobra.Command.Annotations hashtable carries markers that alter how gwcli displays that command.
+
+The [annotations](gwcli/internal/annotations/annotations.go) package is responsible for applying these annotations and reading out their state.
+
+Currently, these annotations are used solely for restricting access to the command. When a command is invoked directly, its requirements are checked for satisfaction via CheckRequirements. When [Mother](#mother-the-beating-heart-of-gwcli) is spawned, all commands have their annotations consolidated down to a single entry so they can be read quickly.
+
+# Mother: The Beating Heart of Gwcli
+disab
 Cobra does not natively support interactivity, so we need an adapter: Mother.
 Mother performs a variety of key tasks: traversing the command tree; associating `cobra.Commands` with their interactive elements (`action.Model`s); handing off to, and reasserting control from, children when they are invoked; printing and managing the historical record of commands; and traversing user input on the prompt.
 

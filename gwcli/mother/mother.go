@@ -85,20 +85,26 @@ type Mother struct {
 	history *history
 }
 
-// Spawn spins up a new instance of Mother in a fresh tea program, runs the
-// program, and returns on Mother's exit.
+// Spawn spins up a new instance of Mother in a fresh tea program, runs the program, and returns on Mother's exit.
 // The caller is expected to exit on Spawn's return.
 func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
+	// TODO can we remove root?
 	// pull IO from the command
-
 	clilog.Writer.Debug("spawning Mother",
 		log.KV("pwd", cur.Name()),
 		log.KV("trailing tokens", trailingTokens),
 		log.KV("caller", log.CallLoc(1)),
-		clilog.ProgramOptions(cur.InOrStdin(), cur.OutOrStdout()),
-	)
+		clilog.ProgramOptions(cur.InOrStdin(), cur.OutOrStdout()))
+
 	// spin up mother
 	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil), []tea.ProgramOption{tea.WithInput(cur.InOrStdin()), tea.WithOutput(cur.OutOrStdout())}...)
+
+	// To reduce the cost of checking the requirements of each command every time the suggestion or traversal engines run,
+	// executes annotations.ConsolidateToDisabled before starting Mother.
+	// These annotations are static and must be re-consolidated if the deployment or user state changes.
+	for _, child := range root.Commands() {
+		go annotations.ConsolidateToDisabled(child, connection.CBACEnabled(), connection.CurrentUser().Admin, connection.CurrentUserCaps()) // parallelize at top level only
+	}
 
 	if _, err := interactive.Run(); err != nil {
 		return fmt.Errorf("failed to spawn Mother: %w", err)
@@ -345,7 +351,7 @@ func (m Mother) View() string {
 		ns, as, bs string
 	)
 	for _, suggestion := range m.suggestions.nav {
-		if suggestion.AdminOnly && !connection.CurrentUser().Admin {
+		if suggestion.Disabled && !connection.CurrentUser().Admin {
 			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
 		} else {
 			sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
@@ -356,7 +362,7 @@ func (m Mother) View() string {
 	ns = strings.TrimSpace(sb.String()) // chip last space
 	sb.Reset()
 	for _, suggestion := range m.suggestions.action {
-		if suggestion.AdminOnly && !connection.CurrentUser().Admin {
+		if suggestion.Disabled && !connection.CurrentUser().Admin {
 			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
 		} else {
 			sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))
@@ -419,14 +425,8 @@ func processInput(m *Mother) tea.Cmd {
 			builtins[wr.Builtin](m, wr.EndCmd, wr.RemainingTokens),
 		)
 	} else if wr.EndCmd != nil {
-		// check permissions
-		if err := annotations.CheckRequirements(
-			wr.EndCmd,
-			connection.CBACEnabled(),
-			connection.CurrentUser().Admin,
-			connection.CurrentUserCaps()); err != nil {
-
-			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%v", err))
+		if reason := annotations.IsDisabled(wr.EndCmd); reason != "" {
+			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%s", reason))
 		}
 
 		if action.Is(wr.EndCmd) {
