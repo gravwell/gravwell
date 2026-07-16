@@ -16,7 +16,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
@@ -69,11 +69,6 @@ func Help(c *cobra.Command, _ []string) {
 	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0))
 	sb.WriteString("\n")
 	sb.WriteString(strings.TrimSpace(c.Long))
-	if cmdutils.IsAdminOnly(c) {
-		sb.WriteString("\n\n")
-		sb.WriteString(stylesheet.Italicize("This command is admin-only."))
-
-	}
 	sb.WriteString("\n\n")
 
 	// write usage line, if available
@@ -91,6 +86,11 @@ func Help(c *cobra.Command, _ []string) {
 	// NOTE(rlandau): assumes example is in the form "<cmd.Name> <following example>"
 	if ex := strings.TrimSpace(c.Example); ex != "" {
 		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Example", 0), c.Example) // use the untrimmed version
+	}
+
+	// write requirements lines, if available
+	if rqs := annotations.RequirementsStrings(c); len(rqs) > 0 {
+		fmt.Fprint(&sb, strings.Join(rqs, "\n"), "\n")
 	}
 
 	// write local flags
