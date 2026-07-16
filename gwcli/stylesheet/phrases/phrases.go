@@ -18,10 +18,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/spf13/cobra"
 )
 
 // SuccessfullyWroteToFile returns a string to be printed to a user when data is successfully written to a file.
@@ -63,18 +61,6 @@ func InteractivityNYI() tea.Cmd {
 // Does NOT prefix "--".
 func ErrFlagNoInteractiveOnly(flagNameWithDashes string) error {
 	return errors.New(flagNameWithDashes + " requires --no-interactive (-x)")
-}
-
-// AdminOnlyAction states that cmdName requires admin privileges (implying, presumably, that the user does not have them).
-// "executing "<action>" requires admin privileges"
-func AdminOnlyAction(actionName string) string {
-	return fmt.Sprintf("executing \"%s\" requires admin privileges", actionName)
-}
-
-// AdminOnlyNav states that this nav requires admin privileges:
-// "moving to "<path>" requires admin privileges".
-func AdminOnlyNav(nav *cobra.Command) string {
-	return fmt.Sprintf("moving to \"%s\" requires admin privileges", strings.Join(cmdutils.DerivePath(nav, false), " "))
 }
 
 // SuccessfullyCreatedItem states that an item of type itemSingular was created and can be identified with ID.
