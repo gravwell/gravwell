@@ -28,11 +28,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
@@ -420,12 +419,17 @@ func processInput(m *Mother) tea.Cmd {
 			builtins[wr.Builtin](m, wr.EndCmd, wr.RemainingTokens),
 		)
 	} else if wr.EndCmd != nil {
-		if action.Is(wr.EndCmd) {
-			// check that we have permission to act on this command
-			if cmdutils.IsAdminOnly(wr.EndCmd) && !connection.CurrentUser().Admin {
-				return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%s", phrases.AdminOnlyAction(wr.EndCmd.Name())))
-			}
+		// check permissions
+		if err := annotations.CheckRequirements(
+			wr.EndCmd,
+			connection.CBACEnabled(),
+			connection.CurrentUser().Admin,
+			connection.CurrentUserCaps()); err != nil {
 
+			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%v", err))
+		}
+
+		if action.Is(wr.EndCmd) {
 			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
 			if m.dieOnChildDone { // don't bother with history
 				return cmd
@@ -434,10 +438,6 @@ func processInput(m *Mother) tea.Cmd {
 				return historyCmd
 			}
 			return tea.Sequence(historyCmd, cmd)
-		}
-		// check that we have permission to act on this command
-		if cmdutils.IsAdminOnly(wr.EndCmd) && !connection.CurrentUser().Admin {
-			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%s", phrases.AdminOnlyNav(wr.EndCmd)))
 		}
 
 		// move mother to target nav

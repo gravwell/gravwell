@@ -29,11 +29,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
@@ -43,8 +42,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/files"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/flows"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/groups"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/license"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/playbooks"
@@ -52,10 +53,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/secrets"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tokens"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -115,19 +116,8 @@ func ppre(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// because actions each have their own RunE (whereas navs all use treeutils.NavRun),
-	// we must check for action permissions here.
-	// This shouldn't affect help, as that is checked above.
-	if cmdutils.IsAdminOnly(cmd) && !connection.CurrentUser().Admin {
-		var phrase string
-		if !action.Is(cmd) {
-			phrase = phrases.AdminOnlyNav(cmd)
-		} else {
-			phrase = phrases.AdminOnlyAction(cmd.Name())
-		}
-		return errors.New(stylesheet.Cur.ErrorText.Render(phrase))
-	}
-	return nil
+	// check that the user is permitted to enact this command
+	return annotations.CheckRequirements(cmd, connection.CBACEnabled(), connection.CurrentUser().Admin, connection.CurrentUserCaps())
 }
 
 // helper function for ppre.
@@ -389,16 +379,18 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 		extractors.NewNav,
 		files.NewNav,
 		flows.NewNav,
+		groups.NewNav,
 		kits.NewNav,
+		license.NewNav,
 		macros.NewNav,
 		playbooks.NewNav,
 		queries.NewNav,
 		resources.NewNav,
 		secrets.NewNav,
-		self.NewNav,
 		systemshealth.NewNav,
 		templates.NewNav,
 		tokens.NewNav,
+		users.NewNav,
 	}
 
 	var (
