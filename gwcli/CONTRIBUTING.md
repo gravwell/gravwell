@@ -2,7 +2,7 @@
 
 In essence, gwcli is a [Cobra](http://cobra.dev) command tree that can be crawled around via our [Bubble Tea](https://github.com/charmbracelet/bubbletea) instance.
 
-gwcli is built to allow more functionality to be easily plugged in; it follows design principles closer to that of a toolbox/ framework. For instance, [list scaffolding](utilities/scaffold/scaffoldlist/list.go) provides complete functionality for listing any kind of data in a unified way while requiring minimal code. The goal is to genericize as much as possible, so future developers can simply call these genericized subroutines. See [Scaffolded](#scaffolded).
+gwcli is built to allow more functionality to be easily plugged in; it follows design principles closer to that of a toolbox/framework. For instance, [list scaffolding](utilities/scaffold/scaffoldlist/list.go) provides complete functionality for listing any kind of data in a unified way while requiring minimal code. The goal is to genericize as much as possible, so future developers can simply call these genericized subroutines. See [Scaffolded](#scaffolded).
 
 # Terminology
 
@@ -34,7 +34,7 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
     - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)).
 
-- Panics should be considered profane. Panicking during setup, however, may be acceptable if the alternative is an entirely broken product (setup errors are likely the dev's fault.)
+- Panics should be considered profane. Log errors as best you can and allow gwcli to continue to limp along.
 
 # Build System
 
@@ -209,6 +209,7 @@ This engine is powered by `traverse.DeriveSuggestions()` and triggered whenever 
 ### Why?
 
 Bubble Tea's TextInput bubbles are great and their native suggestions and tab completion are plenty for most projects. However, gwcli stretches BubbleTea quite far. To facilitate performant suggestions with type-specific colorings, context-sensitive completions, and the possibility of adding flag completions, it makes more sense to roll our own rather than trying to bend the native capabilities to our will.
+
 
 # Design & Philosophy
 
