@@ -107,14 +107,19 @@ const (
 var (
 	clientMu sync.Mutex // should be held when making changes to the local Client instance
 	Client   *grav.Client
-	// MyInfo holds cached data about the current user.
-	myInfo types.User
 
-	// Alters how node permissions are displayed and checked.
-	// If cbac is disabled, nodes are gated solely on a user's admin state.
-	// If cbac is enabled, nodes are gated by the capabilities they require.
-	// Cached at login-time.
-	cbacEnabled bool
+	cached struct {
+		mu sync.Mutex
+		// Alters how node permissions are displayed and checked.
+		// If cbac is disabled, nodes are gated solely on a user's admin state.
+		// If cbac is enabled, nodes are gated by the capabilities they require.
+		// Cached at login-time.
+		cbacEnabled bool
+		// caps the current user has
+		userCaps []types.Capability
+		// data about the current user.
+		user types.User
+	}
 )
 
 const refreshBuffer time.Duration = 5 * time.Minute // the refresher will next wake at (expiryTime - buffer)
@@ -230,19 +235,22 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	clilog.Writer.Info("login successful", rfc5424.SDParam{Name: "method", Value: method})
 	// if we made it this far, we have successfully logged in via one of the above branches
 
-	// on successful login, fetch and cache MyInfo
+	// on successful login, cache data about them
+	cached.mu.Lock()
+	defer cached.mu.Unlock()
+
 	var err error
-	if myInfo, err = Client.MyInfo(); err != nil {
+	if cached.user, err = Client.MyInfo(); err != nil {
 		return errors.New("failed to cache user info: " + err.Error())
 	}
 
 	// check that the info of the user we fetched actually matches the given username
-	if username != "" && myInfo.Username != username {
-		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", myInfo.Username, username)
+	if username != "" && cached.user.Username != username {
+		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", cached.user.Username, username)
 	}
 
 	// create/refresh the token
-	if err := writeOutJWT(myInfo.Username); err != nil {
+	if err := writeOutJWT(cached.user.Username); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
 	}
@@ -253,7 +261,15 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	if di, err := Client.DeploymentInfo(); err != nil {
 		clilog.Writer.Warn("failed to get deployment info. CBAC disabled", log.KVErr(err))
 	} else {
-		cbacEnabled = di.CBACEnabled
+		cached.cbacEnabled = di.CBACEnabled
+		if caps, err := Client.CurrentUserCapabilities(); err != nil {
+			clilog.Writer.Warn("failed to cache current user caps", log.KVErr(err))
+		} else {
+			cached.userCaps = make([]types.Capability, len(caps))
+			for i, perm := range caps {
+				cached.userCaps[i] = perm.Cap
+			}
+		}
 	}
 
 	// while most login methods call Sync for us, JWT does not.
@@ -459,10 +475,8 @@ func writeOutJWT(username string) error {
 // Intended to be called in a goroutine, keepJWTRefreshed parses the token for when it expires, sleeps until a short time before it expires, then refreshes it.
 func keepJWTRefreshed(kill chan bool) {
 	for {
-		clientMu.Lock()
 		var wakeAt = getJWTExpiry()
 		var sleepTime = time.Until(wakeAt)
-		clientMu.Unlock()
 
 		clilog.Writer.Debugf("waking at @ %v (sleeping for %v)", wakeAt, sleepTime)
 
@@ -489,13 +503,15 @@ func keepJWTRefreshed(kill chan bool) {
 				clilog.Writer.Error("failed to refresh login", rfc5424.SDParam{Name: "sublogger", Value: "refresher"}, rfc5424.SDParam{Name: "Error", Value: err.Error()})
 			}
 			// write the new token to our token file
+			cached.mu.Lock()
 			clilog.Writer.Info("rewriting token file ",
-				rfc5424.SDParam{Name: "username", Value: myInfo.Name},
+				rfc5424.SDParam{Name: "username", Value: cached.user.Name},
 				rfc5424.SDParam{Name: "path", Value: cfgdir.DefaultTokenPath},
 				rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
-			if err := writeOutJWT(myInfo.Username); err != nil {
+			if err := writeOutJWT(cached.user.Username); err != nil {
 				clilog.Writer.Warnf("%v", err)
 			}
+			cached.mu.Unlock()
 			clientMu.Unlock()
 		}
 	}
@@ -514,9 +530,9 @@ func getJWTExpiry() (wakeTime time.Time) {
 
 	// skim off username
 	exploded := strings.Split(string(tkn), "\n")
-	if myInfo.Username != exploded[0] {
+	if cached.user.Username != exploded[0] {
 		// either the token or the local cache has changed
-		clilog.Writer.Infof("connection username %v does not match token username %v", myInfo.Username, exploded[0])
+		clilog.Writer.Infof("connection username %v does not match token username %v", cached.user.Username, exploded[0])
 		return time.Now()
 	}
 
@@ -535,17 +551,26 @@ func getJWTExpiry() (wakeTime time.Time) {
 func CurrentUser() types.User {
 	clientMu.Lock()
 	defer clientMu.Unlock()
+	cached.mu.Lock()
+	defer cached.mu.Unlock()
 
 	if Client.State() != grav.STATE_AUTHED {
 		return types.User{}
 	}
 
-	return myInfo
+	return cached.user
+}
+
+// CurrentUserCaps returns the capabilities cached for the user.
+func CurrentUserCaps() []types.Capability {
+	cached.mu.Lock()
+	defer cached.mu.Unlock()
+	return cached.userCaps
 }
 
 // CBACEnabled returns as it says on the tin.
 func CBACEnabled() bool {
-	return cbacEnabled
+	return cached.cbacEnabled
 }
 
 // End closes the connection to the server and destroys the data in the connection singleton.
@@ -562,7 +587,14 @@ func End() error {
 
 // internal, lock-less implementation of End.
 func end() error {
-	myInfo = types.User{}
+	// kill anything cached
+	cached.mu.Lock()
+	defer cached.mu.Unlock()
+
+	cached.cbacEnabled = false
+	cached.userCaps = nil
+	cached.user = types.User{}
+
 	if Client == nil { // job's done
 		return nil
 	} else if Client.State() == grav.STATE_CLOSED || Client.State() == grav.STATE_LOGGED_OFF {
@@ -704,14 +736,14 @@ func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc
 
 // RefreshCurrentUser force-updates the local cache of user information.
 func RefreshCurrentUser() error {
-	clientMu.Lock()
-	defer clientMu.Unlock()
+	cached.mu.Lock()
+	defer cached.mu.Unlock()
 
-	mi, err := Client.MyInfo()
+	var err error
+	cached.user, err = Client.MyInfo()
 	if err != nil {
 		return err
 	}
-	myInfo = mi
 
 	return nil
 }
