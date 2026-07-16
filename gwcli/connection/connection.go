@@ -108,8 +108,13 @@ var (
 	clientMu sync.Mutex // should be held when making changes to the local Client instance
 	Client   *grav.Client
 	// MyInfo holds cached data about the current user.
-	myInfo      types.User
-	cbacEnabled bool // pull from an exploratory CBAC command on login
+	myInfo types.User
+
+	// Alters how node permissions are displayed and checked.
+	// If cbac is disabled, nodes are gated solely on a user's admin state.
+	// If cbac is enabled, nodes are gated by the capabilities they require.
+	// Cached at login-time.
+	cbacEnabled bool
 )
 
 const refreshBuffer time.Duration = 5 * time.Minute // the refresher will next wake at (expiryTime - buffer)
@@ -244,12 +249,11 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	refresherDone = make(chan bool)
 	go keepJWTRefreshed(refresherDone)
 
-	// issue a CBAC command to test if it is enabled
-	if _, err := Client.CapabilityList(); err != nil {
-		clilog.Writer.Warn("failed to get caps list. CBAC disabled", log.KVErr(err))
+	// cache CBAC state
+	if di, err := Client.DeploymentInfo(); err != nil {
+		clilog.Writer.Warn("failed to get deployment info. CBAC disabled", log.KVErr(err))
 	} else {
-		clilog.Writer.Info("CBAC enabled")
-		cbacEnabled = true
+		cbacEnabled = di.CBACEnabled
 	}
 
 	// while most login methods call Sync for us, JWT does not.
@@ -537,6 +541,11 @@ func CurrentUser() types.User {
 	}
 
 	return myInfo
+}
+
+// CBACEnabled returns as it says on the tin.
+func CBACEnabled() bool {
+	return cbacEnabled
 }
 
 // End closes the connection to the server and destroys the data in the connection singleton.
