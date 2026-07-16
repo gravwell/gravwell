@@ -20,7 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -378,9 +378,9 @@ func TestOptions(t *testing.T) {
 	pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems,
 		scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: afsCustom,
-				Aliases:    []string{"a", "b"},
-				AdminOnly:  true,
+				AddtlFlags:   afsCustom,
+				Aliases:      []string{"a", "b"},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 		})
 
@@ -388,5 +388,6 @@ func TestOptions(t *testing.T) {
 	assert.Contains(t, pair.Action.Short, "widgets")
 	assert.NotNil(t, pair.Action.Flags().Lookup("dryrun"))
 	assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
-	assert.True(t, cmdutils.IsAdminOnly(pair.Action))
+	assert.Nil(t, annotations.CheckRequirements(pair.Action, false, true, nil))
+	assert.NotNil(t, annotations.CheckRequirements(pair.Action, false, false, nil))
 }

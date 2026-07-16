@@ -125,8 +125,7 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 		usage.WriteString(ft.VariadicArgs(selectedItemSingular, true))
 	}
 
-	cmd := treeutils.GenerateAction("select", short, long, runE,
-		treeutils.GenerateActionOptions{Usage: usage.String()})
+	cmd := treeutils.GenerateAction("select", short, long, runE)
 	options.Apply(cmd)
 
 	model := &selectModel[ID_t]{

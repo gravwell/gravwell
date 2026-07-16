@@ -16,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -56,7 +57,12 @@ func listAction() action.Pair {
 		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.User, error) {
 			resp, err := connection.Client.ListUsers(param.QueryOpts)
 			return resp.Results, err
-		}, nil, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
+		}, nil,
+		scaffoldlist.Options{
+			CommonOptions:  scaffold.CommonOptions{Requirements: annotations.Requirements{Permissions: []types.Capability{types.ListUsers}}},
+			DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"},
+		},
+	)
 }
 
 func create() action.Pair {
@@ -139,7 +145,9 @@ func create() action.Pair {
 			}
 			return u.ID, "", nil
 		},
-		scaffoldcreate.Options{})
+		scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
+		})
 }
 
 func delete() action.Pair {
@@ -163,7 +171,9 @@ func delete() action.Pair {
 
 			return items, nil
 		},
-		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		scaffolddelete.Options{
+			CommonOptions:     scaffold.CommonOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func edit() action.Pair {
@@ -238,6 +248,7 @@ func edit() action.Pair {
 				return data.Name, connection.Client.UpdateUser(*data)
 			},
 		},
+		// TODO mark as admin only
 	)
 }
 
@@ -422,7 +433,8 @@ func lock() action.Pair {
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "lock",
+				Use:          "lock",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no unlocked accounts you can lock." },
 		})
@@ -458,7 +470,8 @@ func unlock() action.Pair {
 		},
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "unlock",
+				Use:          "unlock",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no locked accounts you can unlock." },
 		})

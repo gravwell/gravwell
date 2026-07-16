@@ -20,7 +20,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -319,13 +319,12 @@ func TestOptions(t *testing.T) {
 			},
 			scaffoldcreate.Options{
 				CommonOptions: scaffold.CommonOptions{
-					Aliases:   []string{"a", "b", "a"},
-					AdminOnly: true,
+					Aliases:      []string{"a", "b", "a"},
+					Requirements: annotations.Requirements{UserIsAdmin: true},
 				},
 			})
 		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
-		assert.True(t, cmdutils.IsAdminOnly(pair.Action))
-
+		assert.Nil(t, annotations.CheckRequirements(pair.Action, false, true, nil))
 	})
 	t.Run("Options are ignored if not set", func(t *testing.T) {
 		pair := scaffoldcreate.NewCreateAction("test",

@@ -26,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -64,7 +65,7 @@ func NewNav() *cobra.Command {
 		},
 		treeutils.NodeOptions{
 			CommandAliases: []string{"administrator"},
-			AdminOnly:      true,
+			Requirements:   annotations.Requirements{UserIsAdmin: true},
 		},
 	)
 }

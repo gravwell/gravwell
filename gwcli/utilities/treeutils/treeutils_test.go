@@ -14,13 +14,13 @@ package treeutils_test
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -72,34 +72,21 @@ func TestGenerateNav(t *testing.T) {
 
 	t.Run("annotations", func(t *testing.T) {
 		t.Run("no annotations set", func(t *testing.T) {
-			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{})
-			assert.False(t, cmdutils.IsAdminOnly(nav))
+			nav := treeutils.GenerateNav("test", "test", "test", nil, nil,
+				treeutils.NodeOptions{
+					Requirements: annotations.Requirements{},
+				})
+			assert.Nil(t, annotations.CheckRequirements(nav, false, false, nil))
+			assert.Error(t, annotations.CheckRequirements(nav, true, false, nil))
+			assert.Error(t, annotations.CheckRequirements(nav, false, true, nil))
+			assert.Error(t, annotations.CheckRequirements(nav, true, true, nil))
+			assert.Error(t, annotations.CheckRequirements(nav, true, true, []types.Capability{types.AlertRead}))
 		})
-		t.Run("admin-only annotation set", func(t *testing.T) {
-			nav := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{AdminOnly: true})
-			assert.True(t, cmdutils.IsAdminOnly(nav))
-		})
-		t.Run("adminOnly is hereditary", func(t *testing.T) {
-			gn := func(idx int, childNavs []*cobra.Command, childActions []action.Pair) *cobra.Command {
-				sidx := strconv.FormatInt(int64(idx), 32)
-				return treeutils.GenerateNav(sidx, sidx, sidx, childNavs, childActions)
-			}
-			// generate some children, none marked as admin only
-			root := treeutils.GenerateNav("root", "root", "root", []*cobra.Command{
-				gn(11, nil, nil),
-				gn(12, nil, []action.Pair{
-					dummyActionPair(treeutils.GenerateActionOptions{}),
-				})},
-				[]action.Pair{
-					dummyActionPair(treeutils.GenerateActionOptions{}),
-				},
-				treeutils.NodeOptions{AdminOnly: true},
-			)
-			// root and everything under it should be marked as admin
-			assert.True(t, cmdutils.IsAdminOnly(root))
-			for _, cmd := range root.Commands() {
-				assert.True(t, cmdutils.IsAdminOnly(cmd), cmd.Name())
-			}
+		t.Run("a few permissions required", func(t *testing.T) {
+			nav := treeutils.GenerateNav("test", "test", "test", nil, nil,
+				treeutils.NodeOptions{Requirements: annotations.Requirements{Permissions: []types.Capability{types.Download, types.BackgroundSearch}}})
+			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))    // cbac disabled; user being admin should permit it
+			assert.Error(t, annotations.CheckRequirements(nav, false, false, nil)) // cbac disabled; user not being admin should fail
 		})
 	})
 }

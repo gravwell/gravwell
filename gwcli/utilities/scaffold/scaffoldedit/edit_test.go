@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/stretchr/testify/assert"
@@ -54,12 +54,13 @@ func TestOptions(t *testing.T) {
 	t.Run("All options are applied automatically", func(t *testing.T) {
 		pair := newEditAction(scaffoldedit.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Aliases:   []string{"a", "b"},
-				AdminOnly: true,
+				Aliases:      []string{"a", "b"},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 		})
 		assert.Equal(t, []string{"e", "a", "b"}, pair.Action.Aliases)
-		assert.True(t, cmdutils.IsAdminOnly(pair.Action))
+		assert.Nil(t, annotations.CheckRequirements(pair.Action, false, true, nil))
+		assert.NotNil(t, annotations.CheckRequirements(pair.Action, false, false, nil))
 	})
 	t.Run("Options are ignored if not set", func(t *testing.T) {
 		pair := newEditAction(scaffoldedit.Options{})

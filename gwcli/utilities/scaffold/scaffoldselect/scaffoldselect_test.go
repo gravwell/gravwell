@@ -16,7 +16,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/cmdutils"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -40,12 +40,13 @@ func TestOptions(t *testing.T) {
 			func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) { return nil, nil },
 			scaffoldselect.Options{
 				CommonOptions: scaffold.CommonOptions{
-					Aliases:   []string{"a", "b", "a"},
-					AdminOnly: true,
+					Aliases:      []string{"a", "b", "a"},
+					Requirements: annotations.Requirements{DeploymentHasCBAC: true},
 				},
 			})
 		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
-		assert.True(t, cmdutils.IsAdminOnly(pair.Action))
+		assert.Nil(t, annotations.CheckRequirements(pair.Action, true, false, nil))
+		assert.Error(t, annotations.CheckRequirements(pair.Action, false, false, nil))
 	})
 	t.Run("Options are ignored if not set", func(t *testing.T) {
 		pair := scaffoldselect.NewSelectAction("test", "test", "item",
