@@ -9,6 +9,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 )
@@ -45,6 +46,23 @@ func (r Requirements) Apply(cmd *cobra.Command) {
 	if cmd.Annotations == nil {
 		cmd.Annotations = make(map[string]string)
 	}
+
+	if state.DebugMode() { // sanity checks
+		if r.DeploymentHasCBAC && (r.UserIsAdmin || len(r.Permissions) > 0) {
+			clilog.Writer.Warn("conflicting requirements: deploymentHasCBAC should not be paired with userIsAdmin or permissions",
+				log.KV("cmd", cmd.Name()),
+				log.KV("userIsAdmin", r.UserIsAdmin),
+				log.KV("permissions", r.Permissions),
+			)
+		}
+		if r.UserIsAdmin && len(r.Permissions) > 0 {
+			clilog.Writer.Warn("conflicting requirements: userIsAdmin obviates permissions",
+				log.KV("cmd", cmd.Name()),
+				log.KV("permissions", r.Permissions),
+			)
+		}
+	}
+
 	if r.UserIsAdmin {
 		cmd.Annotations[keyUserIsAdmin] = requirementValue
 	}
@@ -56,6 +74,25 @@ func (r Requirements) Apply(cmd *cobra.Command) {
 		requiredCaps[i] = p.Name()
 	}
 	cmd.Annotations[keyPermissions] = strings.Join(requiredCaps, ",")
+}
+
+// RequirementsStrings extracts the requirements inherent to the cmd and returns them as an array of ordered string.
+// Intended to help declare a command's requirements for a user.
+func RequirementsStrings(cmd *cobra.Command) []string {
+	if cmd.Annotations == nil {
+		return nil
+	}
+	rqs := make([]string, 0, len(cmd.Annotations))
+	if _, deploymentRequired := cmd.Annotations[keyDeploymentHasCBAC]; deploymentRequired {
+		rqs = append(rqs, "Requires CBAC to be enabled.")
+	}
+	if _, adminRequired := cmd.Annotations[keyUserIsAdmin]; adminRequired {
+		rqs = append(rqs, "Requires admin privileges.")
+	}
+	if capsStr, permissionsRequired := cmd.Annotations[keyPermissions]; permissionsRequired {
+		rqs = append(rqs, "Requires CBAC permissions: "+capsStr)
+	}
+	return slices.Clip(rqs)
 }
 
 // CheckRequirements tests if the user and deployment satisfies all requirements to execute this given command.
