@@ -44,7 +44,7 @@ func Test_identifyIndexer(t *testing.T) {
 	if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "rest.log")); err != nil {
 		panic(err)
 	}
-	connection.Login(defaultUser, &defaultPass, nil, true)
+	connection.Login(defaultUser, &defaultPass, nil, true, nil, nil)
 
 	// spawn a test client
 	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})

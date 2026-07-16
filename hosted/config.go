@@ -3,9 +3,14 @@ package hosted
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrInvalidConfigValue = errors.New("invalid config value")
 )
 
 // ParseUUID attempts to parse an ingester UUID string.
@@ -26,6 +31,20 @@ type BaseConfig struct {
 
 func (b *BaseConfig) UUID() uuid.UUID {
 	return ParseUUID(b.Ingester_UUID)
+}
+
+// ApplyDefaultIngesterUUID applies a default ingester UUID if none is provided.
+func (b *BaseConfig) ApplyDefaultIngesterUUID(defaultIngesterUUID string) {
+	b.Ingester_UUID = cmp.Or(b.Ingester_UUID, defaultIngesterUUID)
+}
+
+// Verify validates required fields.
+// Returns ErrInvalidConfigValue if something fails validation.
+func (b *BaseConfig) Verify() error {
+	if _, err := uuid.Parse(b.Ingester_UUID); err != nil {
+		return fmt.Errorf("%w: invalid Ingester-UUID %q %w", ErrInvalidConfigValue, b.Ingester_UUID, err)
+	}
+	return nil
 }
 
 // SingleTagConfig holds a single tag name.

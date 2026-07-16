@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTee(t *testing.T) {
@@ -141,6 +142,9 @@ func TestInitializeFromArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("both flags provided overwrites log path and level", func(t *testing.T) {
+		// ensure the singleton does not exist
+		clilog.Destroy()
+
 		// prep for outpath
 		pth := path.Join(t.TempDir(), "t.log")
 
@@ -165,6 +169,9 @@ func TestInitializeFromArgs(t *testing.T) {
 	})
 
 	t.Run("help flag should be ignored", func(t *testing.T) {
+		// ensure the singleton does not exist
+		clilog.Destroy()
+
 		pth := path.Join(t.TempDir(), "t.log")
 
 		args := []string{"-h", "--log=" + pth}
@@ -185,6 +192,9 @@ func TestInitializeFromArgs(t *testing.T) {
 	})
 
 	t.Run("help action should be ignored", func(t *testing.T) {
+		// ensure the singleton does not exist
+		clilog.Destroy()
+
 		pth := path.Join(t.TempDir(), "t.log")
 
 		args := []string{"help", "--log=" + pth}
@@ -202,6 +212,27 @@ func TestInitializeFromArgs(t *testing.T) {
 		} else if !strings.Contains(string(b), msg) {
 			t.Errorf("did not find message \"%v\" inside of file:\"%v\"", msg, string(b))
 		}
+	})
+
+	t.Run("giving no path automatically attaches one", func(t *testing.T) {
+		// ensure the singleton does not exist
+		clilog.Destroy()
+
+		pth := path.Join(t.TempDir(), "t")
+
+		args := []string{"--log=" + pth}
+		t.Log(args)
+		clilog.InitializeFromArgs(args)
+
+		want := "test message"
+		clilog.Writer.Info(want)
+		if err := clilog.Destroy(); err != nil {
+			t.Fatal(err)
+		}
+		// check that the file was properly written to
+		b, err := os.ReadFile(pth + clilog.DefaultExtension)
+		require.Nil(t, err)
+		require.Contains(t, string(b), want, "file does not contain expected content")
 	})
 }
 

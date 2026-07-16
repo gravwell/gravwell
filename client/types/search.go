@@ -154,7 +154,7 @@ type ParseSearchResponse struct {
 	SearchHints
 }
 
-// LaunchRequest is a new named type so that we can abstract away the websocket launch requests from the REST requests
+// LaunchRequest is a new named type so that we can abstract away the launch requests from the REST requests
 type LaunchRequest struct {
 	StartSearchRequest
 }

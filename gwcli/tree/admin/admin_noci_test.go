@@ -33,8 +33,11 @@ func TestLogLevelGetSet(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"admin", "log-level",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 		// parse out current log level
 		_, after, found := strings.Cut(stdout.String(), "current log level: ")
@@ -53,8 +56,7 @@ func TestLogLevelGetSet(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"admin", "log-level", "--set="+setLevel,
 			),
-			nil,
-			&stderr))
+			tree.ExecuteOptions{Stderr: &stderr}))
 		require.Empty(t, stderr.String())
 	})
 	t.Run("get updated log level", func(t *testing.T) {
@@ -64,8 +66,11 @@ func TestLogLevelGetSet(t *testing.T) {
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
 				"admin", "log-level",
 			),
-			&stdout,
-			&stderr))
+			tree.ExecuteOptions{
+				Stdout: &stdout,
+				Stderr: &stderr,
+			},
+		))
 		require.Empty(t, stderr.String())
 		// parse out current log level
 		_, after, found := strings.Cut(stdout.String(), "current log level: ")
@@ -89,7 +94,13 @@ func TestMassChown(t *testing.T) {
 		"--new-password="+u2Password,
 		"--new-name="+randomdata.FirstName(0),
 	)
-	require.Zero(t, tree.Execute(args, &sbOut, &sbErr), sbErr.String())
+	require.Zero(t, tree.Execute(
+		args,
+		tree.ExecuteOptions{
+			Stdout: &sbOut,
+			Stderr: &sbErr,
+		}),
+		sbErr.String())
 	sbOut.Reset()
 	sbErr.Reset()
 
@@ -102,12 +113,18 @@ func TestMassChown(t *testing.T) {
 		// kits
 		// kit chowning isn't supported
 		// extractors
-		require.Zero(t, tree.Execute(append(adminMeta, "extractors", "find", "default"), &sbOut, &sbErr), sbErr.String()) // make sure we don't have a pre-existing extractor
+		require.Zero(t, tree.Execute(append(adminMeta, "extractors", "find", "default"), tree.ExecuteOptions{
+			Stdout: &sbOut,
+			Stderr: &sbErr,
+		}), sbErr.String()) // make sure we don't have a pre-existing extractor
 		_, ID, found := strings.Cut(sbOut.String(), "ID: ")
 		if found {
 			ID, _, found = strings.Cut(ID, "\n")
 			if found {
-				require.Zero(t, tree.Execute(append(adminMeta, "extractors", "delete", ID), &sbOut, &sbErr), sbErr.String()) // kill the preexisting ax
+				require.Zero(t, tree.Execute(append(adminMeta, "extractors", "delete", ID), tree.ExecuteOptions{
+					Stdout: &sbOut,
+					Stderr: &sbErr,
+				}), sbErr.String()) // kill the preexisting ax
 			}
 		}
 		sbOut.Reset()
@@ -129,7 +146,10 @@ func TestMassChown(t *testing.T) {
 	var u2ID uint32
 	{ // find second user's ID
 		args := append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "admin", "users", "list", "--csv", "--columns=ID,Username")
-		require.Zero(t, tree.Execute(args, &sbOut, &sbErr), sbErr.String())
+		require.Zero(t, tree.Execute(args, tree.ExecuteOptions{
+			Stdout: &sbOut,
+			Stderr: &sbErr,
+		}), sbErr.String())
 		out := sbOut.String()
 		rdr := csv.NewReader(strings.NewReader(out))
 		hdr, err := rdr.Read()
@@ -152,7 +172,10 @@ func TestMassChown(t *testing.T) {
 	// take ownership of all of it
 	args = append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "admin", "mass-chown",
 		"--to=1", "--from="+strconv.FormatUint(uint64(u2ID), 10))
-	require.Zero(t, tree.Execute(args, &sbOut, &sbErr), sbErr.String())
+	require.Zero(t, tree.Execute(args, tree.ExecuteOptions{
+		Stdout: &sbOut,
+		Stderr: &sbErr,
+	}), sbErr.String())
 	t.Log(sbOut.String())
 	require.Empty(t, sbErr.String())
 	sbOut.Reset()
@@ -182,7 +205,10 @@ func TestMassChown(t *testing.T) {
 // Calls tree.Execute, dies if a non-zero EC is returned, and resets the string builders.
 func executeTree(t *testing.T, sbOut, sbErr *strings.Builder, meta []string, args ...string) {
 	t.Helper()
-	require.Zero(t, tree.Execute(append(meta, args...), sbOut, sbErr), sbErr.String())
+	require.Zero(t, tree.Execute(append(meta, args...), tree.ExecuteOptions{
+		Stdout: sbOut,
+		Stderr: sbErr,
+	}), sbErr.String())
 	require.Empty(t, sbErr.String())
 	sbOut.Reset()
 	sbErr.Reset()
@@ -196,7 +222,7 @@ func findName(t *testing.T, sbOut, sbErr *strings.Builder, expectedName string, 
 	// compose args
 	args := slices.Concat(meta, parentNavPath, []string{"list", "--csv", "--columns=" + strings.Join(columns, ",")})
 	t.Log("findName args: ", args)
-	require.Zero(t, tree.Execute(args, sbOut, sbErr), sbErr.String(), sbErr.String())
+	require.Zero(t, tree.Execute(args, tree.ExecuteOptions{Stdout: sbOut, Stderr: sbErr}), sbErr.String(), sbErr.String())
 	require.Empty(t, sbErr.String())
 	// check each column for the name
 	rdr := csv.NewReader(strings.NewReader(sbOut.String()))
