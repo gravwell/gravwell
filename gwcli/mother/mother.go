@@ -100,12 +100,6 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	)
 	// spin up mother
 	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil), []tea.ProgramOption{tea.WithInput(cur.InOrStdin()), tea.WithOutput(cur.OutOrStdout())}...)
-	// reactive the admin command
-	if c, _, err := root.Find([]string{"user", "admin"}); err != nil {
-		clilog.Writer.Warnf("failed to reveal the admin command")
-	} else if c != nil {
-		c.Hidden = false
-	}
 
 	if _, err := interactive.Run(); err != nil {
 		return fmt.Errorf("failed to spawn Mother: %w", err)
