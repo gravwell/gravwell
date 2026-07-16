@@ -31,9 +31,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/groups"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/license"
-	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
@@ -52,11 +49,7 @@ func NewNav() *cobra.Command {
 			" These actions span a variety of categories and have some overlap with general-use actions."
 	)
 	return treeutils.GenerateNav(use, short, long,
-		[]*cobra.Command{
-			groups.NewNav(),
-			admin_users.NewNav(),
-			license.NewNav(),
-		},
+		nil,
 		[]action.Pair{
 			cleanup(),
 			logLevel(),

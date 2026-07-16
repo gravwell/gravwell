@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -33,14 +34,10 @@ import (
 )
 
 func NewNav() *cobra.Command {
-	const (
-		use   string = "users"
-		short string = "manage users"
-		long  string = "Perform user actions that require elevated privileges."
-	)
-
-	return treeutils.GenerateNav(use, short, long,
-		[]*cobra.Command{},
+	return treeutils.GenerateNav("users", "manage users", "Manage users, including yourself.",
+		[]*cobra.Command{
+			self.NewNav(),
+		},
 		[]action.Pair{
 			listAction(),
 			create(),
