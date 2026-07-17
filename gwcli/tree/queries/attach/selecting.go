@@ -73,7 +73,7 @@ func (sv *selectingView) init() (noAttachables bool, err error) {
 	// build the list
 	ss, err := connection.Client.ListSearches(nil)
 	if err != nil {
-		clilog.Writer.Warnf("failed to get search status: %v", err)
+		clilog.Writer.Warnf("failed to list searches: %v", err)
 		return false, err
 	} else if len(ss.Results) == 0 {
 		return true, nil
@@ -195,7 +195,7 @@ func (sv *selectingView) view() string {
 
 var _ stylesheet.ListItem = attachable{}
 
-// An attachable is just a wrapper around the SearchCtrlStatus type to allow us to fit it to the Item interface.
+// An attachable is just a wrapper around the SearchInfo type to allow us to fit it to the Item interface.
 type attachable struct {
 	types.SearchInfo
 }
@@ -326,7 +326,7 @@ func spawnListAndMaintainer(ss []types.SearchInfo, done <-chan bool, updates cha
 				// get the list of persistent searches
 				ss, err := connection.Client.ListSearches(nil)
 				if err != nil {
-					clilog.Writer.Warnf("attach maintainer failed to get search statuses: %v", err)
+					clilog.Writer.Warnf("attach maintainer failed to list searches: %v", err)
 					continue
 				}
 
