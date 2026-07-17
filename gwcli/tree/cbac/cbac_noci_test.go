@@ -39,12 +39,16 @@ func TestMain(m *testing.M) {
 	if err := cli.Login("admin", "changeme"); err != nil {
 		panic(err)
 	}
-	li, err := cli.GetLicenseInfo()
-	cli.Close()
-	// we don't actually have a way to check if cbac is enabled *in the system*, rather than just the license
-	if err == nil && li.CBACEnabled() {
-		m.Run()
+	di, err := cli.DeploymentInfo()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to get deployment info: %v", err)
+		return
 	}
+	if !di.CBACEnabled {
+		fmt.Fprintf(os.Stderr, "CBAC is disabled. This test set will be skipped.")
+		return
+	}
+	os.Exit(m.Run())
 }
 
 func TestCBACLifecycle(t *testing.T) {
