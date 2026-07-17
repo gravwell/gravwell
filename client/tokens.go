@@ -59,7 +59,7 @@ func (c *Client) GetTokenEx(id string, opts *types.QueryOptions) (types.Token, e
 }
 
 // UpdateToken modifies an existing token.
-func (c *Client) UpdateToken(tr types.Token) (t types.Token, err error) {
+func (c *Client) UpdateToken(tr types.TokenUpdate) (t types.Token, err error) {
 	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(tr.ID), tr, &t, nil, nil)
 	return
 }
