@@ -289,7 +289,7 @@ type SearchInfo struct {
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
 	EVs                   []string   // EVs produced by the search
-	Import                ImportInfo //information attached if there this search is saved and from an external import
+	Import                ImportInfo //information attached if this search is saved and from an external import
 	// Preview indicates that this search is a preview search.
 	// This means that the query most likely did not cover the entire time range that was originally requested.
 	// A preview search is used when a user is trying to understand what they have or establish AX relationships.
