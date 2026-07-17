@@ -94,7 +94,6 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 			requiredFlags = append(requiredFlags, txt)
 		}
 	}
-
 	cmd := treeutils.GenerateAction(
 		"create",                 // use
 		"create a "+singular,     // short
@@ -135,7 +134,7 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 				fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem(singular, id))
 			}
 			return nil
-		})
+		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
 	opts.Apply(cmd)
 
 	cmd.Flags().AddFlagSet(&createFlags)
