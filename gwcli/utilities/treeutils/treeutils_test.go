@@ -17,9 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/client/types"
-	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -77,22 +75,18 @@ func TestGenerateNav(t *testing.T) {
 					Requirements: annotations.Requirements{},
 				})
 			assert.Nil(t, annotations.CheckRequirements(nav, false, false, nil))
-			assert.Error(t, annotations.CheckRequirements(nav, true, false, nil))
-			assert.Error(t, annotations.CheckRequirements(nav, false, true, nil))
-			assert.Error(t, annotations.CheckRequirements(nav, true, true, nil))
-			assert.Error(t, annotations.CheckRequirements(nav, true, true, []types.Capability{types.AlertRead}))
+			assert.Nil(t, annotations.CheckRequirements(nav, true, false, nil))
+			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))
+			assert.Nil(t, annotations.CheckRequirements(nav, true, true, nil))
+			assert.Nil(t, annotations.CheckRequirements(nav, true, true, []types.Capability{types.AlertRead}))
 		})
 		t.Run("a few permissions required", func(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil,
 				treeutils.NodeOptions{Requirements: annotations.Requirements{Permissions: []types.Capability{types.Download, types.BackgroundSearch}}})
-			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))    // cbac disabled; user being admin should permit it
-			assert.Error(t, annotations.CheckRequirements(nav, false, false, nil)) // cbac disabled; user not being admin should fail
+			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))                                                        // cbac disabled; user being admin should permit it
+			assert.Error(t, annotations.CheckRequirements(nav, false, false, nil))                                                     // cbac disabled; user not being admin should fail
+			assert.Error(t, annotations.CheckRequirements(nav, true, false, []types.Capability{types.Download}))                       // cbac enabled; user only has some of the permissions
+			assert.Nil(t, annotations.CheckRequirements(nav, true, false, []types.Capability{types.Download, types.BackgroundSearch})) // cbac enabled; user has all of the permissions
 		})
 	})
-}
-
-// dummyActionPair returns an action.Pair that does nothing and has no model.
-func dummyActionPair(opts treeutils.GenerateActionOptions) action.Pair {
-	x := randomdata.City()
-	return action.NewPair(treeutils.GenerateAction(x, x, x, func(c *cobra.Command, s []string) error { return nil }, opts), nil)
 }
