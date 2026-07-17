@@ -195,7 +195,7 @@ func runE(cmd *cobra.Command, args []string) error {
 		}
 
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
-			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", s.ID, s.UID, s.GID, s.EffectiveQuery))
+			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GIDs: %v|eQuery: %v\n", s.ID, s.OwnerID, s.AllGIDs(), s.EffectiveQuery))
 
 		// close our handle to the search
 		// it will survive, as it is backgrounded

@@ -572,11 +572,11 @@ func (c *Client) PurgeUser(id int32) error {
 	//enumerate and delete user assets
 
 	//persistent searches
-	if ss, err := nc.ListSearchStatuses(); err != nil {
+	if ss, err := nc.ListAllSearches(nil); err != nil {
 		return fmt.Errorf("failed to list search statuses %w", err)
-	} else if len(ss) > 0 {
-		for _, s := range ss {
-			if s.UID == id {
+	} else if len(ss.Results) > 0 {
+		for _, s := range ss.Results {
+			if s.OwnerID == id {
 				if err = nc.DeleteSearch(s.ID); err != nil {
 					return fmt.Errorf("failed to delete user search %v %w", s.ID, err)
 				}

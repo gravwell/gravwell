@@ -377,7 +377,7 @@ func (q *query) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 			}
 
 			cmds = append(cmds, tea.Println(querySubmissionSuccess(search.ID, true)))
-			clilog.Writer.Debugf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery)
+			clilog.Writer.Debugf("Backgrounded query: ID: %v|UID: %v|GIDs: %v|eQuery: %v\n", search.ID, search.OwnerID, search.AllGIDs(), search.EffectiveQuery)
 
 			// set the query action to immediately return when Mother boots the query interface
 			q.mode = quitting
