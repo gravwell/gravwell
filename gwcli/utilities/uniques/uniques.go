@@ -12,6 +12,7 @@ package uniques
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -151,4 +152,36 @@ func Help(c *cobra.Command, _ []string) {
 	}
 
 	fmt.Fprint(c.OutOrStdout(), sb.String())
+}
+
+// DerivePath returns the path from root to the given command.
+//
+// !includeRoot omits "~" from the path
+func DerivePath(cmd *cobra.Command, includeRoot bool) []string {
+	if cmd == nil || cmd.Parent() == nil {
+		if includeRoot {
+			return []string{"~"}
+		}
+		return []string{}
+	}
+	pth := []string{cmd.Name()}
+
+	// start from the command and work our way to root
+	x := cmd
+	for {
+		x = x.Parent()
+		if x.Parent() == nil { // we are at root
+			if includeRoot {
+				pth = append(pth, "~")
+			}
+			break
+		}
+		pth = append(pth, x.Name())
+
+	}
+
+	// reverse
+	slices.Reverse(pth)
+
+	return pth
 }
