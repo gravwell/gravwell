@@ -96,49 +96,26 @@ func past() action.Pair {
 //
 // TODO install omit
 func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[string], error) {
-	if details {
-		lsd, err := connection.Client.ListSearchDetails()
-		if err != nil {
-			return nil, err
-		}
-		items := make([]multiselectlist.SelectableItem[string], len(lsd))
-		for i, s := range lsd {
-			var secondLine strings.Builder
-			if s.Error != "" {
-				secondLine.WriteString("error: ")
-				secondLine.WriteString(stylesheet.Cur.ErrorText.Render(s.Error))
-			} else {
-				fmt.Fprintf(&secondLine, "duration: %s | item count: %v", s.Duration, s.ItemCount)
-			}
-			items[i] = &listitem.Generic{
-				ID_:        s.ID,
-				Name:       s.UserQuery,
-				SecondLine: secondLine.String(),
-			}
-		}
-		return items, nil
-	}
-	searches, err := connection.Client.ListSearchStatuses()
+	lsd, err := connection.Client.ListSearches(nil)
 	if err != nil {
 		return nil, err
 	}
-	data := make([]multiselectlist.SelectableItem[string], len(searches))
-	for i, s := range searches {
+	items := make([]multiselectlist.SelectableItem[string], len(lsd.Results))
+	for i, s := range lsd.Results {
 		var secondLine strings.Builder
-		secondLine.WriteString(s.State.String())
-		secondLine.WriteString(" ")
 		if s.Error != "" {
+			secondLine.WriteString("error: ")
 			secondLine.WriteString(stylesheet.Cur.ErrorText.Render(s.Error))
 		} else {
-			fmt.Fprintf(&secondLine, "(started: %v) progress: %v", s.LaunchInfo.Started, s.State.Progress)
+			fmt.Fprintf(&secondLine, "duration: %s | item count: %v", s.Duration, s.ItemCount)
 		}
-		data[i] = &listitem.Generic{
+		items[i] = &listitem.Generic{
 			ID_:        s.ID,
 			Name:       s.UserQuery,
 			SecondLine: secondLine.String(),
 		}
 	}
-	return data, nil
+	return items, nil
 }
 
 func info() action.Pair {
@@ -159,7 +136,7 @@ func info() action.Pair {
 				}
 				SIDs = []types.SearchInfo{}
 				for _, ID := range fs.Args() {
-					si, err := connection.Client.SearchInfo(ID)
+					si, err := connection.Client.GetSearch(ID)
 					if phrases.IsNotFoundErr(err) {
 						return phrases.ErrUnknownSID(ID).Error(), nil
 					} else if err != nil {
@@ -174,15 +151,25 @@ func info() action.Pair {
 
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list active queries", "List all current queries.",
-		types.SearchCtrlStatus{},
-		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchCtrlStatus, error) {
+		types.SearchInfo{},
+		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchInfo, error) {
 			if params.QueryOpts.AdminMode {
-				return connection.Client.ListAllSearchStatuses()
+				resp, err := connection.Client.ListAllSearches(nil)
+				return resp.Results, err
 			}
-			return connection.Client.ListSearchStatuses()
+			resp, err := connection.Client.ListSearches(nil)
+			return resp.Results, err
 		},
 		nil,
 		scaffoldlist.Options{
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Owner.Username",
+				"UserQuery",
+				"State.Status",
+				"Webserver",
+				"AttachedClients",
+			},
 			QueryOptionsFlags: scaffold.QOOmit{
 				AllData:        false,
 				IncludeDeleted: true,
@@ -319,7 +306,7 @@ func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("search ID",
 		func(dryrun bool, ID string, _ *pflag.FlagSet) error {
 			if dryrun {
-				_, err := connection.Client.SearchStatus(ID)
+				_, err := connection.Client.GetSearch(ID)
 				return err
 			}
 			return connection.Client.DeleteSearch(ID)

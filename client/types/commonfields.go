@@ -1,6 +1,7 @@
 package types
 
 import (
+	"slices"
 	"time"
 )
 
@@ -147,6 +148,19 @@ func (cf *CommonFields) GroupCanWrite(gid int32) bool {
 		}
 	}
 	return false
+}
+
+// AllGIDs returns the union of Readers.GIDs and Writers.GIDs, i.e. every
+// group that has any access (read and/or write) to this asset. Readers.GIDs
+// is assumed to already be deduplicated.
+func (cf *CommonFields) AllGIDs() []int32 {
+	gids := append([]int32(nil), cf.Readers.GIDs...)
+	for _, g := range cf.Writers.GIDs {
+		if !slices.Contains(gids, g) {
+			gids = append(gids, g)
+		}
+	}
+	return gids
 }
 
 type ListAllResponse struct {
