@@ -317,6 +317,7 @@ func FindID(stdout string) string {
 const (
 	SIGINT rune = '\003'
 	Enter  rune = '\r'
+	Delete rune = '\u007F'
 )
 
 // KTToSequence is a modification and inversion of the internal mapping used by BubbleTea to convert KeyTypes into actual, terminal-readable escape sequences.
@@ -327,8 +328,9 @@ var KTToSequence = map[struct {
 	Alt  bool
 }]string{
 	// Our control sequences
-	{Type: tea.KeyCtrlC}: string(SIGINT),
-	{Type: tea.KeyEnter}: string(Enter),
+	{Type: tea.KeyCtrlC}:  string(SIGINT),
+	{Type: tea.KeyEnter}:  string(Enter),
+	{Type: tea.KeyDelete}: string(Delete),
 
 	// Arrow keys
 	{Type: tea.KeyUp}:    "\x1b[A",
@@ -371,7 +373,6 @@ var KTToSequence = map[struct {
 	{Type: tea.KeyInsert}:            "\x1b[2~",
 	{Type: tea.KeyInsert, Alt: true}: "\x1b[3;2~",
 
-	{Type: tea.KeyDelete}:            "\x1b[3~",
 	{Type: tea.KeyDelete, Alt: true}: "\x1b[3;3~",
 
 	{Type: tea.KeyPgUp}:                "\x1b[5~",
