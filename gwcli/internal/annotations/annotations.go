@@ -70,11 +70,14 @@ func (r Requirements) Apply(cmd *cobra.Command) {
 	if r.DeploymentHasCBAC {
 		cmd.Annotations[keyDeploymentHasCBAC] = requirementValue
 	}
-	requiredCaps := make([]string, len(r.Permissions))
-	for i, p := range r.Permissions {
-		requiredCaps[i] = p.Name()
+	if len(r.Permissions) > 0 {
+		requiredCaps := make([]string, len(r.Permissions))
+		for i, p := range r.Permissions {
+			requiredCaps[i] = p.Name()
+		}
+		cmd.Annotations[keyPermissions] = strings.Join(requiredCaps, ",")
 	}
-	cmd.Annotations[keyPermissions] = strings.Join(requiredCaps, ",")
+
 }
 
 // RequirementsStrings extracts the requirements inherent to the cmd and returns them as an array of ordered string.
@@ -121,7 +124,9 @@ func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, u
 		}
 		var missingCaps []string
 		for requiredCap := range strings.SplitSeq(capsStr, ",") {
-			hasPerm := slices.ContainsFunc(usersCapabilities, func(permittedCap types.Capability) bool { return requiredCap == permittedCap.Name() })
+			hasPerm := slices.ContainsFunc(usersCapabilities, func(permittedCap types.Capability) bool {
+				return requiredCap == "" || requiredCap == permittedCap.Name()
+			})
 			if !hasPerm {
 				missingCaps = append(missingCaps, requiredCap)
 			}
@@ -134,7 +139,7 @@ func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, u
 	}
 
 	// CBAC is disabled. Actions that normally require any CBAC permissions instead require admin.
-	if _, anyPermissionsRequired := cmd.Annotations[keyUserIsAdmin]; anyPermissionsRequired && !userIsAdmin {
+	if permissions := cmd.Annotations[keyPermissions]; permissions != "" && !userIsAdmin {
 		return errors.New(cmd.Name() + "requires admin privileges")
 	}
 	return nil
@@ -162,7 +167,7 @@ func IsDisabled(cmd *cobra.Command) (reason string) {
 	if cmd == nil {
 		clilog.Writer.Warn("IsDisabled called on a nil command", log.KV("caller", log.CallLoc(1)))
 		return ""
-	} else if len(cmd.Annotations) > 1 {
+	} else if len(cmd.Annotations) < 1 {
 		return ""
 	}
 	return cmd.Annotations[keyDisabled]

@@ -29,7 +29,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -428,4 +431,26 @@ func WithDefaults() func(t *testing.T) []string {
 	return func(t *testing.T) []string {
 		return slices.Concat(WithDebug("")(t), WithUsernamePassword("admin", "changeme")(t), WithServer(false, "")(t))
 	}
+}
+
+// GenerateKDTree generates a command tree of k width and d depth.
+// Every node is a nav, every leaf is an action that does nothing.
+func GenerateKDTree(khildren uint, depth uint, genRequirements func() annotations.Requirements) *cobra.Command {
+	if depth > 0 {
+		n := fmt.Sprintf("d%d_%s", depth, randomdata.Alphanumeric(4))
+		self := treeutils.GenerateNav(n, n, n, nil, nil, treeutils.NodeOptions{Requirements: genRequirements()})
+
+		for range khildren {
+			self.AddCommand(GenerateKDTree(khildren, depth-1, genRequirements))
+		}
+
+		return self
+	}
+
+	// we are a leaf
+	return treeutils.GenerateAction(
+		randomdata.SillyName(), "short", "long",
+		func(c *cobra.Command, s []string) error { return nil },
+		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{Requirements: genRequirements()}},
+	)
 }
