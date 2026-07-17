@@ -232,11 +232,14 @@ func LinesTrimSpace(v string) string {
 	return sb.String()
 }
 
-func HotkeyToRune(t *testing.T, hotkey key.Binding) string {
+// HotkeyBytes attempts to transform a key.Binding into bytes suitable for passing into, say, a pipe mocking stdin.
+//
+// This is a best-effort function based on mappings we had to rip out of BubbleTea and some local constants.
+func HotkeyBytes(t *testing.T, hotkey key.Binding) []byte {
 	keys := hotkey.Keys()
 	if len(keys) == 0 {
 		t.Log("hotkey has no keys!")
-		return ""
+		return nil
 	}
 
 	st := struct {
@@ -251,19 +254,19 @@ func HotkeyToRune(t *testing.T, hotkey key.Binding) string {
 	}
 
 	var found bool
-	st.Type, found = keyByName[strings.ToLower(k)]
+	st.Type, found = StringToKT[strings.ToLower(k)]
 	if !found {
 		t.Logf("failed to map key string to key type. String: %s", k)
-		return ""
+		return nil
 	}
 
-	seq, found := keyToSequence[st]
+	seq, found := KTToSequence[st]
 	if !found {
 		t.Logf("failed to map key type to sequence. KeyType: %v", st)
-		return ""
+		return nil
 	}
 
-	return seq
+	return []byte(seq)
 
 }
 
@@ -286,13 +289,12 @@ func SendHotkey(b key.Binding) tea.KeyMsg {
 	}
 
 	// attempt a direct lookup
-	if t, found := keyByName[strings.ToLower(k)]; found {
+	if t, found := StringToKT[strings.ToLower(k)]; found {
 		msg.Type = t
 		return msg
 	}
 
 	// if we didn't find it via direct, just assume it is arbitrary runes
-
 	msg.Type = tea.KeyRunes
 	msg.Runes = []rune(k)
 
@@ -317,11 +319,17 @@ const (
 	Enter  rune = '\r'
 )
 
-// This mapping is an inversion of the sequences map private to BubbleTea/key.go.
-var keyToSequence = map[struct {
+// KTToSequence is a modification and inversion of the internal mapping used by BubbleTea to convert KeyTypes into actual, terminal-readable escape sequences.
+// Like StringToKT, we had to rip this one out of BubbleTea because they don't like ot export their mappings.
+// Base mapping credit: github.com/charmbracelet/bubbletea@v1.3.5/key.go
+var KTToSequence = map[struct {
 	Type tea.KeyType
 	Alt  bool
 }]string{
+	// Our control sequences
+	{Type: tea.KeyCtrlC}: string(SIGINT),
+	{Type: tea.KeyEnter}: string(Enter),
+
 	// Arrow keys
 	{Type: tea.KeyUp}:    "\x1b[A",
 	{Type: tea.KeyDown}:  "\x1b[B",
@@ -435,7 +443,9 @@ var keyToSequence = map[struct {
 	{Type: tea.KeyF16, Alt: true}: "\x1b[29;3~",
 }
 
-var keyByName = map[string]tea.KeyType{
+// StringToKT is the internal mapping used by BubbleTea to convert key.Bindings (by calling their .Keys() method) to KeyTypes.
+// Credit: github.com/charmbracelet/bubbletea@v1.3.5/key.go
+var StringToKT = map[string]tea.KeyType{
 	// Control keys.
 	"ctrl+@":    tea.KeyCtrlAt,
 	"ctrl+a":    tea.KeyCtrlA,
