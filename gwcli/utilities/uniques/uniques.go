@@ -37,7 +37,6 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringP("username", "u", "", "login credential. Requires either -p or \""+cfgdir.EnvKeyPassword+"\"."+
 		" If your account has MFA enabled, you must use an API token (--api or --eapi) or login interactively.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
-	cmd.MarkPersistentFlagFilename("passfile")
 	ft.API.Register(cmd.PersistentFlags())
 	ft.EAPI.Register(cmd.PersistentFlags())
 	cmd.MarkFlagsMutuallyExclusive("username", ft.API.Name(), ft.EAPI.Name())
@@ -47,6 +46,9 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
 	cmd.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
 	cmd.PersistentFlags().MarkHidden("profile")
+
+	cmd.PersistentFlags().Bool("no-local-permissions", false, "disables local permission checks, allowing all requests to hit the server. "+
+		"Permissions will still be enforced no the server-side.")
 
 	// NOTE: to enable clilog to come online immediately, these flags are never actually handled.
 	// Instead, clilog.InitializeFromArgs is used.
