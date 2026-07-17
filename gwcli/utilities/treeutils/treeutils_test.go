@@ -78,15 +78,19 @@ func TestGenerateNav(t *testing.T) {
 			assert.Nil(t, annotations.CheckRequirements(nav, true, false, nil))
 			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))
 			assert.Nil(t, annotations.CheckRequirements(nav, true, true, nil))
-			assert.Nil(t, annotations.CheckRequirements(nav, true, true, []types.Capability{types.AlertRead}))
+			assert.Nil(t, annotations.CheckRequirements(nav, true, true, map[types.Capability]bool{types.AlertRead: true}))
 		})
 		t.Run("a few permissions required", func(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil,
 				treeutils.NodeOptions{Requirements: annotations.Requirements{Permissions: []types.Capability{types.Download, types.BackgroundSearch}}})
-			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))                                                        // cbac disabled; user being admin should permit it
-			assert.Error(t, annotations.CheckRequirements(nav, false, false, nil))                                                     // cbac disabled; user not being admin should fail
-			assert.Error(t, annotations.CheckRequirements(nav, true, false, []types.Capability{types.Download}))                       // cbac enabled; user only has some of the permissions
-			assert.Nil(t, annotations.CheckRequirements(nav, true, false, []types.Capability{types.Download, types.BackgroundSearch})) // cbac enabled; user has all of the permissions
+			// cbac disabled; admin user should be permitted
+			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))
+			// cbac disabled; user should still be permitted
+			assert.Nil(t, annotations.CheckRequirements(nav, false, false, nil))
+			// cbac enabled; user only has some of the permissions
+			assert.Error(t, annotations.CheckRequirements(nav, true, false, map[types.Capability]bool{types.Download: true}))
+			// cbac enabled; user has all of the permissions
+			assert.Nil(t, annotations.CheckRequirements(nav, true, false, map[types.Capability]bool{types.Download: true, types.BackgroundSearch: true}))
 		})
 	})
 }

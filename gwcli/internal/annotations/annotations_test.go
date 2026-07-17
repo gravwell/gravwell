@@ -9,6 +9,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/utils"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -21,9 +22,9 @@ func TestRequirements(t *testing.T) {
 
 		requirements annotations.Requirements
 
-		CBACEnabled       bool
-		userIsAdmin       bool
-		usersCapabilities []types.Capability
+		CBACEnabled bool
+		userIsAdmin bool
+		usersCaps   []types.Capability
 
 		wantErrContains string // "" means error should be nil. Anything else will check that the error contains the given text
 	}{
@@ -69,12 +70,19 @@ func TestRequirements(t *testing.T) {
 			nil,
 			"",
 		},
-		{"requires several permissions; CBAC is disabled. User should be denied for not being an admin",
+		{"requires several permissions; CBAC is disabled. User has all permissions.",
 			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
 			false,
 			false,
-			nil,
-			"requires admin",
+			types.CapabilityList(), // should be irreleavnt, hence the next test
+			"",
+		},
+		{"requires several permissions; CBAC is disabled. User should be considered to have all permissions.",
+			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			false,
+			false,
+			nil, // should be irreleavnt, hence the prior test
+			"",
 		},
 		{"requires several permissions; CBAC is disabled. User should be allowed as they are an admin",
 			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
@@ -124,7 +132,7 @@ func TestRequirements(t *testing.T) {
 			// generate a dummy command
 			cmd := treeutils.GenerateNav("test", "test", "test", nil, nil, treeutils.NodeOptions{Requirements: tt.requirements})
 			// apply annotations
-			gotErr := annotations.CheckRequirements(cmd, tt.CBACEnabled, tt.userIsAdmin, tt.usersCapabilities)
+			gotErr := annotations.CheckRequirements(cmd, tt.CBACEnabled, tt.userIsAdmin, uniques.SliceToSet(tt.usersCaps))
 
 			if gotErr == nil && tt.wantErrContains == "" {
 				return
@@ -151,7 +159,16 @@ func TestConsolidateToDisabled(t *testing.T) {
 		}
 		if rand.N(10) < 3 {
 			for range rand.N(20) {
-				rqs.Permissions = append(rqs.Permissions, types.Capability(rand.N(types.LogbotAI)))
+				// some caps no longer exist so we need to skip
+				var cap types.Capability
+				for {
+					cap = types.Capability(rand.N(types.LogbotAI))
+					if cap.Valid() && cap.String() != "UNKNOWN" {
+						break
+					}
+				}
+
+				rqs.Permissions = append(rqs.Permissions, cap)
 			}
 			rqs.Permissions = utils.Deduplicate(rqs.Permissions)
 		}
@@ -174,7 +191,7 @@ func TestConsolidateToDisabled(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			annotations.ConsolidateToDisabled(root, tt.cbacEnabled, tt.userIsAdmin, tt.usersCaps)
+			annotations.ConsolidateToDisabled(root, tt.cbacEnabled, tt.userIsAdmin, uniques.SliceToSet(tt.usersCaps))
 			checkIsDisabledRecursive(t, root, tt.cbacEnabled, tt.userIsAdmin, tt.usersCaps)
 		})
 	}
@@ -184,7 +201,7 @@ func TestConsolidateToDisabled(t *testing.T) {
 // checks that the given command's CheckRequirement result match their IsDisabled state, then recurs to each child.
 func checkIsDisabledRecursive(t *testing.T, cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities []types.Capability) {
 	// check self
-	err := annotations.CheckRequirements(cmd, CBACEnabled, userIsAdmin, usersCapabilities)
+	err := annotations.CheckRequirements(cmd, CBACEnabled, userIsAdmin, uniques.SliceToSet(usersCapabilities))
 	// error state and IsDisabled state should match
 	reason := annotations.IsDisabled(cmd)
 	if err != nil {

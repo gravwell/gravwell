@@ -26,7 +26,7 @@ const requirementValue string = "1"
 //
 // Requirements have overlapping conditions; you probably only want to set one requirement property (ex: Permissions or UserIsAdmin, not both).
 type Requirements struct {
-	// Requires that the user is an admin, no matter the state of CBAC.
+	// Requires that the user is an admin.
 	UserIsAdmin bool
 	// Requires that the deployment has CBAC enabled, but not that the user has any specific permissions.
 	// This is likely to be only useful for the CBAC nav itself.
@@ -34,7 +34,7 @@ type Requirements struct {
 	// CBAC permissions the user must have to execute this action.
 	// Being an admin overrules any permissions set here.
 	//
-	// If the deployment does not have CBAC enabled, this array containing any items will instead mark it as requiring the user be an admin.
+	// If CBAC is disabled, the user is considered to have all permissions.
 	Permissions []types.Capability
 }
 
@@ -71,6 +71,7 @@ func (r Requirements) Apply(cmd *cobra.Command) {
 		cmd.Annotations[keyDeploymentHasCBAC] = requirementValue
 	}
 	if len(r.Permissions) > 0 {
+		// convert each cap to its string form
 		requiredCaps := make([]string, len(r.Permissions))
 		for i, p := range r.Permissions {
 			requiredCaps[i] = p.Name()
@@ -100,7 +101,10 @@ func RequirementsStrings(cmd *cobra.Command) []string {
 }
 
 // CheckRequirements tests if the user and deployment satisfies all requirements to execute this given command.
-func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities []types.Capability) error {
+//
+// All params other than cmd can and should be pulled from the connection singleton.
+// userCapabilities is a set (capability.String -> true).
+func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities map[types.Capability]bool) error {
 	if cmd.Annotations == nil { // can't have requirements if you don't have annotations
 		return nil
 	}
@@ -117,42 +121,45 @@ func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, u
 		return errors.New("'" + cmd.Name() + "' requires admin privileges")
 	}
 
-	if CBACEnabled { // CBAC is enabled, check that the user has all listed permissions
-		capsStr, found := cmd.Annotations[keyPermissions]
-		if !found { // command requires no caps
-			return nil
-		}
-		var missingCaps []string
-		for requiredCap := range strings.SplitSeq(capsStr, ",") {
-			hasPerm := slices.ContainsFunc(usersCapabilities, func(permittedCap types.Capability) bool {
-				return requiredCap == "" || requiredCap == permittedCap.Name()
-			})
-			if !hasPerm {
-				missingCaps = append(missingCaps, requiredCap)
-			}
-		}
-		if len(missingCaps) > 0 {
-			return fmt.Errorf("'%s' requires missing permissions: %v", cmd.Name(), missingCaps)
-		}
-		// user has all caps required by the command
+	// Users are considered to have all permissions when CBAC is disabled.
+	if !CBACEnabled {
 		return nil
 	}
 
-	// CBAC is disabled. Actions that normally require any CBAC permissions instead require admin.
-	if permissions := cmd.Annotations[keyPermissions]; permissions != "" && !userIsAdmin {
-		return errors.New(cmd.Name() + "requires admin privileges")
+	// CBAC is enabled. Check that the user has all required permissions.
+	capsStr, found := cmd.Annotations[keyPermissions]
+	if !found { // command requires no caps
+		return nil
 	}
+	var missingCaps []string
+	for requiredCap := range strings.SplitSeq(capsStr, ",") {
+		cap := types.Capability(0)
+		if err := cap.Parse(requiredCap); err != nil {
+			clilog.Writer.Error("required capability failed to parse",
+				log.KV("raw string", requiredCap),
+				log.KVErr(err),
+			)
+		}
+
+		if _, found := usersCapabilities[cap]; !found {
+			missingCaps = append(missingCaps, requiredCap)
+		}
+	}
+	if len(missingCaps) > 0 {
+		return fmt.Errorf("'%s' requires missing permissions: %v", cmd.Name(), missingCaps)
+	}
+	// user has all caps required by the command
 	return nil
 }
 
 // ConsolidateToDisabled checks the given command (and recurs down each of its branches) to see if its requirements are currently satisfied.
 // If they are not, the command is marked with the 'disabled' annotation.
 // The annotation's value is the reason it is disabled.
-func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities []types.Capability) {
+func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities map[types.Capability]bool) {
 	if cmd == nil {
 		return
 	}
-	// CheckRequirements check that the anno map is not nil for us
+	// CheckRequirements checks that the anno map is not nil for us
 	if err := CheckRequirements(cmd, CBACEnabled, userIsAdmin, usersCapabilities); err != nil {
 		cmd.Annotations[keyDisabled] = err.Error()
 	}

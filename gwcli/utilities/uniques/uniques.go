@@ -185,3 +185,17 @@ func DerivePath(cmd *cobra.Command, includeRoot bool) []string {
 
 	return pth
 }
+
+// SliceToSet transforms arr into a hashset of T -> true.
+//
+// O(arr)
+func SliceToSet[T comparable](arr []T) map[T]bool {
+	if arr == nil {
+		return nil
+	}
+	m := make(map[T]bool)
+	for _, t := range arr {
+		m[t] = true
+	}
+	return m
+}

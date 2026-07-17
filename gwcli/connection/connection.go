@@ -115,8 +115,8 @@ var (
 		// If cbac is enabled, nodes are gated by the capabilities they require.
 		// Cached at login-time.
 		cbacEnabled bool
-		// caps the current user has
-		userCaps []types.Capability
+		// caps the current user has. Transformed to a set for faster lookups
+		userCaps map[types.Capability]bool
 		// data about the current user.
 		user types.User
 	}
@@ -250,28 +250,42 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	}
 
 	// create/refresh the token
-	if err := writeOutJWT(cached.user.Username); err != nil {
-		clilog.Writer.Warnf("%v", err.Error())
-		// failing to create the token is not fatal
-	}
-	refresherDone = make(chan bool)
-	go keepJWTRefreshed(refresherDone)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		if err := writeOutJWT(cached.user.Username); err != nil {
+			clilog.Writer.Warnf("%v", err.Error())
+			// failing to create the token is not fatal
+		}
+		refresherDone = make(chan bool)
+		go keepJWTRefreshed(refresherDone)
+	})
 
 	// cache CBAC state
-	if di, err := Client.DeploymentInfo(); err != nil {
-		clilog.Writer.Warn("failed to get deployment info. CBAC disabled", log.KVErr(err))
-	} else {
-		cached.cbacEnabled = di.CBACEnabled
+	wg.Go(func() {
 		if caps, err := Client.CurrentUserCapabilities(); err != nil {
 			clilog.Writer.Warn("failed to cache current user caps", log.KVErr(err))
 		} else {
-			cached.userCaps = make([]types.Capability, len(caps))
-			for i, perm := range caps {
-				cached.userCaps[i] = perm.Cap
+			m := make(map[types.Capability]bool, len(caps))
+			for _, perm := range caps {
+				cached.userCaps[perm.Cap] = true
 			}
+			clilog.Writer.Debugf("users has %v permissions", len(m))
+			cached.mu.Lock()
+			cached.userCaps = m
+			cached.mu.Unlock()
 		}
-	}
+	})
+	wg.Go(func() {
+		if di, err := Client.DeploymentInfo(); err != nil {
+			clilog.Writer.Warn("failed to get deployment info. CBAC disabled", log.KVErr(err))
+		} else {
+			cached.mu.Lock()
+			cached.cbacEnabled = di.CBACEnabled
+			cached.mu.Unlock()
+		}
+	})
 
+	wg.Wait()
 	// while most login methods call Sync for us, JWT does not.
 	// To ensure the data exists no matter what changes occur or which method we use, Sync now.
 	return Client.Sync()
@@ -561,8 +575,9 @@ func CurrentUser() types.User {
 	return cached.user
 }
 
-// CurrentUserCaps returns the capabilities cached for the user.
-func CurrentUserCaps() []types.Capability {
+// CurrentUserCaps returns a set of capabilities cached for the user.
+// The values are irrelevant.
+func CurrentUserCaps() map[types.Capability]bool {
 	cached.mu.Lock()
 	defer cached.mu.Unlock()
 	return cached.userCaps
