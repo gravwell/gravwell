@@ -128,7 +128,7 @@ func Test_tryQuery(t *testing.T) {
 	if err := connection.Initialize(server, false, true, restLogFile); err != nil {
 		panic(err)
 	}
-	if err := connection.Login(user, &pass, nil, true); err != nil {
+	if err := connection.Login(user, &pass, nil, true, os.Stdin, os.Stdout); err != nil {
 		panic(err)
 	}
 
@@ -199,7 +199,7 @@ func Test_run(t *testing.T) {
 	if err := connection.Initialize(server, false, true, restLogFile); err != nil {
 		panic(err)
 	}
-	if err := connection.Login(user, &pass, nil, true); err != nil {
+	if err := connection.Login(user, &pass, nil, true, nil, nil); err != nil {
 		panic(err)
 	}
 

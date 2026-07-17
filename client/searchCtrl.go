@@ -1126,10 +1126,9 @@ type Search struct {
 	types.SearchInfo
 }
 
-// Ping sends a message via the search's websockets (if present)
-// to keep the sockets open. If you intend to run a search and then
-// wait a long time before interacting with it further, you
-// should periodically call Ping() to keep the connection alive.
+// Ping sends a message to a search handle to keep the search alive.
+// If you intend to run a search and then wait a long time before interacting with it further,
+// you should periodically call Ping() to keep the connection alive.
 func (s *Search) Ping() error {
 	return s.ping(0)
 }

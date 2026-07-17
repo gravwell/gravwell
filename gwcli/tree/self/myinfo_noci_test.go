@@ -48,7 +48,7 @@ func TestNewUserMyInfoAction(t *testing.T) {
 		t.Fatal(err)
 	} else if err := connection.Initialize(server, false, true, path.Join(dir, "dev.log")); err != nil {
 		t.Fatal(err)
-	} else if err := connection.Login(username, &password, nil, true); err != nil {
+	} else if err := connection.Login(username, &password, nil, true, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 

@@ -50,7 +50,7 @@ const (
 	USERS_LOCKED_URL                 = `/api/users/%d/locked`
 	USERS_PREFS_URL                  = `/api/users/%d/preferences`
 	USERS_ADMIN_URL                  = `/api/users/%d/admin`
-	USERS_ADMIN_SU_PATH              = `/api/users/su/%d`
+	USERS_ADMIN_SU_PATH              = `/api/users/%d/su`
 	USER_SESSIONS_URL                = `/api/users/%d/sessions`
 	CHANGE_PASS_URL                  = `/api/users/%d/pwd`
 	USERS_GROUP_URL                  = `/api/users/%d/group`
@@ -110,7 +110,7 @@ const (
 	RESOURCES_ID_URL                 = "/api/resources/%s"
 	RESOURCES_ID_RAW_URL             = "/api/resources/%s/raw"
 	RESOURCES_ID_CLONE_URL           = "/api/resources/%s/clone"
-	RESOURCES_LOOKUP_URL             = "/api/resources/lookup/%s"
+	RESOURCES_LOOKUP_URL             = "/api/lookup/resources/%s" // may be able to be removed using the new list/resource
 	SCHEDULED_SEARCH_URL             = "/api/scheduledsearches"
 	SCHEDULED_SEARCH_LIST_URL        = "/api/scheduledsearches/list"
 	SCHEDULED_SEARCH_ID_URL          = "/api/scheduledsearches/%s"
@@ -201,9 +201,6 @@ const (
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
 	INGESTERS_TRACKING_URL           = `/api/ingesters/%s/tracking`
-	CBAC_DEFAULT_URL                 = `/api/cbac/default`
-	CBAC_DEFAULT_CAPABILITIES_URL    = `/api/cbac/default/capabilities`
-	CBAC_DEFAULT_TAGS_URL            = `/api/cbac/default/tags`
 	ALERTS_URL                       = `/api/alerts`
 	ALERTS_LIST_URL                  = `/api/alerts/list`
 	ALERTS_ID_URL                    = `/api/alerts/%s`
