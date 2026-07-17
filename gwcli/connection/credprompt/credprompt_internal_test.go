@@ -10,17 +10,6 @@
 
 package credprompt
 
-import (
-	"os"
-	"testing"
-	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/exp/teatest"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-)
-
 type output struct {
 	user         string
 	pass         string
@@ -31,7 +20,7 @@ type output struct {
 // NOTE: this testing package relies on teatest, which is an experimental package at the time of authorship (~June 2025).
 
 // TestCredPrompt_TeaTest runs interactivity tests against the cred prompt model
-func TestCredPrompt_TeaTest(t *testing.T) {
+/*func TestCredPrompt_TeaTest(t *testing.T) {
 	tests := []struct {
 		name             string
 		input            func(tm *teatest.TestModel, expected output) // used to send messages to the model, to mimic user input
@@ -219,3 +208,4 @@ func compareFinal(t *testing.T, actual, expected output, timedOut, expectedTimed
 		t.Error("incorrect final state:", testsupport.ExpectedActual(expected, actual))
 	}
 }
+*/

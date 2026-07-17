@@ -8,39 +8,46 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package mfaprompt
+package mfaprompt_test
 
 import (
+	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection/mfaprompt"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/stretchr/testify/require"
 )
 
-func Test_collect(t *testing.T) {
+func Test_Collect(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "log.txt")
+	require.Nil(t, clilog.Init(logPath, "DEBUG"))
+
 	tests := []struct {
 		name             string
-		input            func(prog *tea.Program)
+		input            func(in io.Writer)
 		expectedCode     string // TOTP or recovery
 		expectedAuthType types.AuthType
 		expectedErr      bool
 	}{
-		{"TOTP", func(prog *tea.Program) {
-			prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
-			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
+		{"TOTP", func(in io.Writer) {
+			in.Write([]byte("u\r"))
 		}, "u", types.AUTH_TYPE_TOTP, false},
-		{"killed", func(prog *tea.Program) {
-			testsupport.TTSendSpecial(prog, tea.KeyCtrlC)
+		{"killed", func(in io.Writer) {
+			in.Write([]byte("\003"))
 		}, "", types.AUTH_TYPE_NONE, true},
 		/*{"code validator", func(prog *tea.Program) {
 			testsupport.Type(prog, "1a2b3c4d5e6f7g") // -> 123456
 			testsupport.TTSendSpecial(prog, tea.KeyEnter)
 		}, "123456", types.AUTH_TYPE_TOTP, nil},*/
-		{"recovery", func(prog *tea.Program) {
-			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.CursorDown).Type)
+		{"recovery", func(in io.Writer) {
+			in.
+				testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.CursorDown).Type)
 			testsupport.Type(prog, "some1 long2 recovery3 key!") // -> 123456
 			testsupport.TTSendSpecial(prog, testsupport.SendHotkey(hotkeys.Invoke).Type)
 		}, "some1 long2 recovery3 key!", types.AUTH_TYPE_RECOVERY, false},
@@ -55,17 +62,12 @@ func Test_collect(t *testing.T) {
 			})
 
 			// spawn a model
-			m := New()
-			read, _, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			// make the model read out of an open pipe
-			prog := tea.NewProgram(m, tea.WithInput(read))
+			read, write, err := os.Pipe()
+			require.Nil(t, err)
 
 			// spin off the actual TUI via Collect()
 			go func() {
-				c, at, err := collect(prog)
+				c, at, err := mfaprompt.Collect(read, nil)
 
 				result <- struct {
 					code string
@@ -75,7 +77,7 @@ func Test_collect(t *testing.T) {
 			}()
 
 			// send in mock-user input
-			tt.input(prog)
+			tt.input(write)
 
 			// await results
 			r := <-result
