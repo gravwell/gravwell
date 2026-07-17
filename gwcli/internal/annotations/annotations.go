@@ -105,7 +105,7 @@ func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, u
 		return nil
 	}
 	if _, deploymentRequired := cmd.Annotations[keyDeploymentHasCBAC]; deploymentRequired && !CBACEnabled {
-		return errors.New(cmd.Name() + " requires CBAC be enabled")
+		return errors.New("'" + cmd.Name() + "' requires CBAC to be enabled. See https://docs.gravwell.io/cbac/cbac.html for more information")
 	}
 
 	if userIsAdmin { // admin users can perform any action
@@ -114,7 +114,7 @@ func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, u
 
 	// UserIsAdmin requirement always applies
 	if _, adminRequired := cmd.Annotations[keyUserIsAdmin]; adminRequired {
-		return errors.New(cmd.Name() + "requires admin privileges")
+		return errors.New("'" + cmd.Name() + "' requires admin privileges")
 	}
 
 	if CBACEnabled { // CBAC is enabled, check that the user has all listed permissions
@@ -132,7 +132,7 @@ func CheckRequirements(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, u
 			}
 		}
 		if len(missingCaps) > 0 {
-			return fmt.Errorf("%s requires missing permissions: %v", cmd.Name(), missingCaps)
+			return fmt.Errorf("'%s' requires missing permissions: %v", cmd.Name(), missingCaps)
 		}
 		// user has all caps required by the command
 		return nil
