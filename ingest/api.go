@@ -31,7 +31,7 @@ const (
 	configurationBlockSize          uint32          = 1
 	maxStreamConfigurationBlockSize uint32          = 1024 * 1024      //just a sanity check
 	maxIngestStateSize              uint32          = 1024 * 1024      //size at which we start trimming the reporting-only config/metadata blocks
-	maxIngestStateStupidSize        uint32          = 16 * 1024 * 1024 //size at which a state block is so absurd we assume something is broken and cut the connection
+	maxIngestStateStupidSize        uint32          = 64 * 1024 * 1024 //size at which a state block is so absurd we assume something is broken and cut the connection
 	CompressNone                    CompressionType = 0
 	CompressSnappy                  CompressionType = 0x10
 )

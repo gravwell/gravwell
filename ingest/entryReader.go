@@ -467,7 +467,7 @@ headerLoop:
 			if length == 0 {
 				return ErrInvalidIngestStateHeader
 			} else if length > maxIngestStateStupidSize {
-				// a state block this large is absurd (>16MB), we can't trust
+				// a state block this large is absurd (>64MB), we can't trust
 				// the stream anymore so cut the connection and bail
 				return ErrOversizedIngestState
 			} else if length > maxIngestStateSize {
