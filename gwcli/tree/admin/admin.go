@@ -157,9 +157,10 @@ func cleanup() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"clean", "tidy", "purge", "burninate"},
-				Usage:   "cleanup " + ft.VariadicArgs("target", true),
-				Example: "cleanup macros secrets",
+				Aliases:      []string{"clean", "tidy", "purge", "burninate"},
+				Usage:        "cleanup " + ft.VariadicArgs("target", true),
+				Example:      "cleanup macros secrets",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
@@ -217,6 +218,7 @@ func logLevel() action.Pair {
 					fs.String("set", "", "log level to set")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 		})
 }
@@ -233,7 +235,10 @@ func addIndexer() action.Pair {
 			}
 			var sb strings.Builder
 			for k, v := range errors {
-				sb.WriteString(k + ": " + v + "\n")
+				sb.WriteString(k)
+				sb.WriteString(": ")
+				sb.WriteString(v)
+				sb.WriteString("\n")
 			}
 			out := strings.TrimRight(sb.String(), "\n")
 			if out == "" {
@@ -243,7 +248,8 @@ func addIndexer() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("add-indexer %s %s ", ft.Optional("Flags"), ft.Mandatory("host:port")),
+				Usage:        fmt.Sprintf("add-indexer %s %s ", ft.Optional("Flags"), ft.Mandatory("host:port")),
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -310,6 +316,7 @@ func backup() action.Pair {
 					fs.String("encrypt", "", "encrypt the backup with the given password. No encryption will be applied if unset.")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -337,7 +344,8 @@ func restore() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("restore %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
+				Usage:        fmt.Sprintf("restore %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -482,7 +490,8 @@ func listUserSearchStorage() action.Pair {
 		},
 		nil, scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "search-storage",
+				Use:          "search-storage",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			DefaultColumns: []string{"Username", "UID", "Stored"},
 			EmptyMessage:   "There are no active searches currently storing data."},
@@ -864,6 +873,7 @@ func massChown() action.Pair {
 					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				to, err := fs.GetInt32("to")
@@ -1137,6 +1147,7 @@ func chown() action.Pair {
 					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				to, err := fs.GetInt32("to")

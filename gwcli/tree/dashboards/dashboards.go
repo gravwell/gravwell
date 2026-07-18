@@ -16,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -52,11 +53,15 @@ func listAction() action.Pair {
 			return r.Results, err
 		},
 		nil,
-		scaffoldlist.Options{DefaultColumns: []string{
-			"CommonFields.ID",
-			"CommonFields.Name",
-			"CommonFields.Description",
-		}})
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{Permissions: []types.Capability{types.DashboardRead}},
+			},
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+			}})
 }
 
 func delete() action.Pair {

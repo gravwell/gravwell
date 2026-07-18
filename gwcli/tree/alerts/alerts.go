@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -65,7 +66,6 @@ var (
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list your alerts", "Lists alerts associated to your user.", types.Alert{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
-
 			if listConsumerID != "" {
 				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
 					Key:       "Consumers.ID",
@@ -97,6 +97,7 @@ func listAction() action.Pair {
 					fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search. Used to answer: which alerts will be invoked by this specific scheduled search")
 					return fs
 				},
+				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead}},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -142,7 +143,12 @@ func delete() action.Pair {
 			}
 			return listitem.WrapAssets(lr.Results), nil
 		},
-		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true}},
+	)
 }
 
 var toggleEnable, toggleDisable bool
@@ -226,6 +232,7 @@ func toggle() action.Pair {
 					fs.Bool("disable", false, "explicitly disable selected alerts. No-op on alerts already disabled. Mutually exclusive with --enable")
 					return fs
 				},
+				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string {
 				if toggleEnable {
@@ -345,6 +352,7 @@ func dispatchers() action.Pair {
 						" Mutually exclusive with --add")
 					return fs
 				},
+				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if dIDs, err := fs.GetStringSlice("dispatcher-ids"); err != nil { // this is a fatal error
@@ -449,6 +457,7 @@ func save() action.Pair {
 						"Mutually exclusive with --enable")
 					return fs
 				},
+				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				enable, err := fs.GetBool("enable")
