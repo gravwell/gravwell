@@ -43,3 +43,15 @@ func DebugMode() bool {
 func SetDebugMode() {
 	debug = true
 }
+
+var checkRequirements bool = true
+
+// CheckRequirements returns whether we should bother locally checking requirements.
+func CheckRequirements() bool {
+	return checkRequirements
+}
+
+// DisableCheckRequirements makes the TUI skip requirements checks when invoking commands.
+func DisableCheckRequirements() {
+	checkRequirements = false
+}

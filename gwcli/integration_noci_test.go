@@ -21,8 +21,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -128,6 +130,7 @@ func TestMain(m *testing.M) {
 	// compose meta args
 	argMetaBase = []string{"--server=" + serverString,
 		"--insecure",
+		"--loglevel=debug",
 		"-x",
 	}
 	argAPI = "--api=" + tkn.Value
@@ -297,6 +300,34 @@ func TestAdminGating(t *testing.T) {
 		assert.Contains(t, stderr, "requires admin")
 		assert.NotContains(t, stdout, "requires admin") // the requires admin error should be in stderr, but we check this just in case
 	})
+}
+
+func TestNoLocalPermissions(t *testing.T) {
+	restLogPath := filepath.Join(t.ArtifactDir(), "rest.log")
+	findEndpoint := func(method, endpoint string) error {
+		b, err := os.ReadFile(restLogPath)
+		if err != nil {
+			return err
+		}
+		found := strings.Contains(string(b), strings.ToUpper(method)+" "+endpoint)
+		if found {
+			return nil
+		}
+		return fmt.Errorf("rest log does not contain endpoint '%v'.", endpoint)
+	}
+
+	// this should fail like it does in TestAdminGating, but should issue a request to the backend.
+	stdout, stderr, _ := execute(t, second_u_p, "--restlog="+restLogPath, "--no-local-permissions", "admin", "cleanup", "macros")
+	// TODO basic actions need to be able to return errors.
+	// Until then, we check stdout
+	//assert.NotZero(t, exit)
+	assert.Contains(t, stdout, "403")
+	assert.NotContains(t, stdout, "requires admin")
+	t.Log("stdout: ", stdout)
+	t.Log("stderr: ", stderr)
+	assert.Nil(t, findEndpoint(http.MethodDelete, grav.MACROS_URL))
+	// this should react exactly like TestAdminGating does.
+	//stdout, stderr, exit = execute(t, second_u_p, "--restlog="+restLogPath, "admin", "users")
 }
 
 // Fatal if the run fails.

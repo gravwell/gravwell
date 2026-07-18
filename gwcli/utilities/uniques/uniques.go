@@ -49,6 +49,7 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 
 	cmd.PersistentFlags().Bool("no-local-permissions", false, "disables local permission checks, allowing all requests to hit the server. "+
 		"Permissions will still be enforced no the server-side.")
+	cmd.PersistentFlags().String("restlog", cfgdir.DefaultRestLogPath, "log location for raw REST calls made to the server")
 
 	// NOTE: to enable clilog to come online immediately, these flags are never actually handled.
 	// Instead, clilog.InitializeFromArgs is used.

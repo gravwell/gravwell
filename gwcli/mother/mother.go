@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -99,11 +100,13 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	// spin up mother
 	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil), []tea.ProgramOption{tea.WithInput(cur.InOrStdin()), tea.WithOutput(cur.OutOrStdout())}...)
 
-	// To reduce the cost of checking the requirements of each command every time the suggestion or traversal engines run,
-	// executes annotations.ConsolidateToDisabled before starting Mother.
-	// These annotations are static and must be re-consolidated if the deployment or user state changes.
-	for _, child := range root.Commands() {
-		go annotations.ConsolidateToDisabled(child, connection.CBACEnabled(), connection.CurrentUser().Admin, connection.CurrentUserCaps()) // parallelize at top level only
+	if state.CheckRequirements() {
+		// To reduce the cost of checking the requirements of each command every time the suggestion or traversal engines run,
+		// executes annotations.ConsolidateToDisabled before starting Mother.
+		// These annotations are static and must be re-consolidated if the deployment or user state changes.
+		for _, child := range root.Commands() {
+			go annotations.ConsolidateToDisabled(child, connection.CBACEnabled(), connection.CurrentUser().Admin, connection.CurrentUserCaps()) // parallelize at top level only
+		}
 	}
 
 	if _, err := interactive.Run(); err != nil {
