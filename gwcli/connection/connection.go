@@ -237,10 +237,11 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 
 	// on successful login, cache data about them
 	cached.mu.Lock()
-	defer cached.mu.Unlock()
 
 	var err error
-	if cached.user, err = Client.MyInfo(); err != nil {
+	cached.user, err = Client.MyInfo()
+	cached.mu.Unlock()
+	if err != nil {
 		return errors.New("failed to cache user info: " + err.Error())
 	}
 
@@ -250,7 +251,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	}
 
 	// create/refresh the token
-	var wg sync.WaitGroup
+	var wg = sync.WaitGroup{}
 	wg.Go(func() {
 		if err := writeOutJWT(cached.user.Username); err != nil {
 			clilog.Writer.Warnf("%v", err.Error())
@@ -267,7 +268,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 		} else {
 			m := make(map[types.Capability]bool, len(caps))
 			for _, perm := range caps {
-				cached.userCaps[perm.Cap] = true
+				m[perm.Cap] = true
 			}
 			clilog.Writer.Debugf("users has %v permissions", len(m))
 			cached.mu.Lock()
