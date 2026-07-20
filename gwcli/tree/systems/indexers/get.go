@@ -11,6 +11,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -51,6 +52,10 @@ func get() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "get",
 				Example: "get 127.0.0.1:9404",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SystemInfoRead},
+					XPermissions: []types.Capability{types.SystemInfoRead},
+				},
 			},
 			DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
 				regexp.MustCompile(`^Ingest\.Entries.*Tail`),

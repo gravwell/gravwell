@@ -4,8 +4,10 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
@@ -23,5 +25,14 @@ func showTags() action.Pair {
 				return err.Error(), nil
 			}
 			return strings.Join(tags, ", "), nil
-		}, scaffold.BasicOptions{})
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				// TODO(rory): no dedicated CBAC capability exists for tags; using SystemInfoRead as the
+				// closest analog since tags are system-wide ingest metadata. Confirm with CBAC owners.
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SystemInfoRead},
+					XPermissions: []types.Capability{types.SystemInfoRead},
+				},
+			},
+		})
 }

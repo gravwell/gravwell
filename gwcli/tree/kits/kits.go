@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -76,6 +77,10 @@ func listAction() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"get"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitRead},
+					XPermissions: []types.Capability{types.KitRead},
+				},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -126,6 +131,13 @@ func uninstall() action.Pair {
 					fs := &pflag.FlagSet{}
 					fs.Bool("force", false, "Delete the kit even if it has modified items.")
 					return fs
+				},
+				// KitWrite is admin-only at the backend (see adminOnlyCapList), so gating on it
+				// naturally restricts this action to admins without needing UserIsAdmin.
+				// TODO(rory): confirm I vs X permission split; interactive mode also lists kits (KitRead) before uninstalling.
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitWrite},
+					XPermissions: []types.Capability{types.KitWrite},
 				},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
@@ -199,6 +211,11 @@ func install() action.Pair {
 						"Each instance of --kit-label will create exactly one kit label; they will not be split on commas")
 					return fs
 				},
+				// TODO(rory): confirm I vs X permission split; interactive mode also lists kits (KitRead) before installing.
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitWrite},
+					XPermissions: []types.Capability{types.KitWrite},
+				},
 			},
 		},
 	)
@@ -221,6 +238,10 @@ func upload() action.Pair {
 				Use:   "upload",
 				Short: "upload a kit file",
 				Long:  "Upload a kit file and stage it for installation.",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitWrite},
+					XPermissions: []types.Capability{types.KitWrite},
+				},
 			},
 		},
 	)
@@ -262,7 +283,14 @@ func pull() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "pull"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "pull",
+				// TODO(rory): confirm I vs X permission split; interactive mode also lists remote kits before pulling.
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitWrite},
+					XPermissions: []types.Capability{types.KitWrite},
+				},
+			},
 		})
 }
 
@@ -797,6 +825,10 @@ func build() action.Pair {
 						"Mutually exclusive with "+buildFlagRebuild)
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitBuild},
+					XPermissions: []types.Capability{types.KitBuild},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure we clobber any prior rebuild/repack request
@@ -960,6 +992,10 @@ func buildRequests() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "build-requests",
 				Aliases: []string{"list-build-requests", "list-builds", "build-request"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitBuild},
+					XPermissions: []types.Capability{types.KitBuild},
+				},
 			},
 			DefaultColumns:    []string{"KitID", "KitVersion", "BuildDate"},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
@@ -978,6 +1014,10 @@ func remote() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "remotes",
 				Aliases: []string{"list-remotes", "remote", "list-remote"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitWrite},
+					XPermissions: []types.Capability{types.KitWrite},
+				},
 			},
 			DefaultColumns: []string{"ID", "KitID", "Name", "Description", "Version"},
 			QueryOptionsFlags: scaffold.QOOmit{
@@ -1051,8 +1091,13 @@ func download() action.Pair {
 					fs.String(ft.DirName, ".", ft.DirUsagePrefix+"place downloaded kits. Creates the directory if necessary.")
 					fs.Bool("no-clobber", false, "do not truncate files with matching names. Instead, return an error.")
 					return fs
-				}},
-		})
+				},
+				// TODO(rory): confirm I vs X permission split; interactive mode also lists local/remote kits (KitRead) before downloading.
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.KitDownload},
+					XPermissions: []types.Capability{types.KitDownload},
+				},
+			}})
 }
 
 // helper function for download()

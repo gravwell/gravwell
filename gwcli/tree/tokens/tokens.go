@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -74,6 +75,12 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TokenRead},
+					XPermissions: []types.Capability{types.TokenRead},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -96,6 +103,10 @@ func get() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "get",
 				Example: "get ID1 ID2",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TokenRead},
+					XPermissions: []types.Capability{types.TokenRead},
+				},
 			},
 			Pretty: func(addtlFlags *pflag.FlagSet, _ []string, _ map[string]string, params scaffoldlist.DataParameters) (string, error) {
 				tokens, err := getTokens(addtlFlags.Args(), params)
@@ -343,6 +354,10 @@ func create() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Long: "Create a new token. " +
 					"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless --path is specified.",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TokenWrite},
+					XPermissions: []types.Capability{types.TokenWrite},
+				},
 			},
 		})
 }
@@ -372,7 +387,15 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
+					XPermissions: []types.Capability{types.TokenWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 func regenerate() action.Pair {
@@ -442,6 +465,14 @@ func regenerate() action.Pair {
 					return "", err
 				}
 				return fmt.Sprintf("%s(full token:%s)", tf.ID, tf.Value), nil
+			},
+		},
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
+					XPermissions: []types.Capability{types.TokenWrite},
+				},
 			},
 		},
 	)

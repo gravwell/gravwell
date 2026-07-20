@@ -213,7 +213,16 @@ func jsonAction() action.Pair {
   ]
 }`, nil
 		},
-		scaffold.BasicOptions{},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				// this is a static schema reference and does not touch any actionable data,
+				// but tie it to ActionableRead for consistency with the rest of the nav
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ActionableRead},
+					XPermissions: []types.Capability{types.ActionableRead},
+				},
+			},
+		},
 	)
 
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -65,6 +66,12 @@ func updateValue() action.Pair {
 		treeutils.GenerateActionOptions{
 			Usage:   ft.MutuallyExclusive("--value", "--file") + " " + ft.Mandatory("secret ID"),
 			Example: "--value=mysupersecretvalue secret-one-two-three-four",
+			NodeOptions: treeutils.NodeOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
+					XPermissions: []types.Capability{types.SecretWrite},
+				},
+			},
 		},
 	)
 

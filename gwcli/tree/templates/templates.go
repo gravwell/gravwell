@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -122,7 +123,12 @@ func list() action.Pair {
 			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
 				addtlFlags := &pflag.FlagSet{}
 				return addtlFlags
-			}},
+			},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TemplateRead},
+					XPermissions: []types.Capability{types.TemplateRead},
+				},
+			},
 
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -150,7 +156,15 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
+					XPermissions: []types.Capability{types.TemplateWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 func edit() action.Pair {
@@ -204,7 +218,15 @@ func edit() action.Pair {
 			return data.Name, err
 		},
 	}
-	return scaffoldedit.NewEditAction("template", "templates", cfg, funcs)
+	return scaffoldedit.NewEditAction("template", "templates", cfg, funcs,
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
+					XPermissions: []types.Capability{types.TemplateWrite},
+				},
+			},
+		})
 }
 
 // for to/from JSON
@@ -287,6 +309,10 @@ func show() action.Pair {
 					ft.JSON.Register(fs)
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TemplateRead},
+					XPermissions: []types.Capability{types.TemplateRead},
+				},
 			},
 		})
 }
@@ -335,6 +361,10 @@ func create() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
 					"Call " + stylesheet.Path(true, "~", "templates", "json") + " to see the format of the JSON file.",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TemplateWrite},
+					XPermissions: []types.Capability{types.TemplateWrite},
+				},
 			},
 
 			IDIsSuccessMessage: true,
@@ -367,7 +397,14 @@ func jsonAction() action.Pair {
   ]
 }`, nil
 		},
-		scaffold.BasicOptions{},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.TemplateRead},
+					XPermissions: []types.Capability{types.TemplateRead},
+				},
+			},
+		},
 	)
 
 }

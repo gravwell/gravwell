@@ -79,6 +79,9 @@ func listCapabilities() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "capabilities",
 				Aliases: []string{"caps", "list-caps", "list-capabilities"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+				},
 			},
 			DefaultColumns: []string{"Category", "Name", "Desc"},
 		})
@@ -99,6 +102,9 @@ func listTemplates() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "templates",
 				Aliases: []string{"list-templates"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+				},
 			},
 			DefaultColumns: []string{"Name", "Desc", "Caps"},
 		})
@@ -159,6 +165,9 @@ func myCapabilities() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "my",
 				Aliases: []string{"self", "current", "my-capabilities", "my-caps"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+				},
 			},
 			DefaultColumns: []string{"Category", "Name", "UserGrant", "GroupGrants"},
 		})

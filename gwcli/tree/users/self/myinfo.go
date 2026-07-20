@@ -32,6 +32,8 @@ const (
 
 var sectionHeader = func(str string) string { return stylesheet.Cur.TertiaryText.Bold(true).Render(str) }
 
+// MyInfo displays account information for the current, logged-in user.
+// TODO(rory): confirm no capability required - self-service action; only reads connection.CurrentUser().
 func MyInfo() action.Pair {
 	const (
 		use   string = "myinfo"

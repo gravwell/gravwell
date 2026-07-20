@@ -361,6 +361,7 @@ func restore() action.Pair {
 
 // Status displays if your account is an administrator and if you are currently in admin mode.
 // NOTE: this action is provided to both the `admin` nav (as `status`) and the `self` nav. Hence the export.
+// TODO(rory): confirm no capability required - self-service action; only reads/toggles the caller's own admin status via connection.Client.IsAdmin().
 func Status(use string) action.Pair {
 	return scaffold.NewBasicAction(use, "display your admin status or toggle admin mode", "Displays whether or not you are an admin.\n"+
 		"In interactive mode, -t can be used to toggle "+stylesheet.Cur.ErrorText.Render("admin mode")+" which will attach admin=true to future request.\n"+

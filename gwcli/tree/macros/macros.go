@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -80,7 +81,13 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: flags,
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.MacroRead},
+					XPermissions: []types.Capability{types.MacroRead},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -148,7 +155,14 @@ func create() action.Pair {
 			macro, err := connection.Client.CreateMacro(sm)
 			return macro.ID, "", err
 
-		}, scaffoldcreate.Options{})
+		}, scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.MacroWrite},
+					XPermissions: []types.Capability{types.MacroWrite},
+				},
+			},
+		})
 }
 
 func edit() action.Pair {
@@ -215,7 +229,15 @@ func edit() action.Pair {
 		},
 	}
 
-	return scaffoldedit.NewEditAction(singular, "macros", cfg, funcs)
+	return scaffoldedit.NewEditAction(singular, "macros", cfg, funcs,
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
+					XPermissions: []types.Capability{types.MacroWrite},
+				},
+			},
+		})
 }
 
 func delete() action.Pair {
@@ -234,5 +256,13 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
+					XPermissions: []types.Capability{types.MacroWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }

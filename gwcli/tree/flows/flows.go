@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -64,6 +65,12 @@ func listActions() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead},
+					XPermissions: []types.Capability{types.ScheduleRead},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -163,7 +170,15 @@ func importCreate() action.Pair {
 			id = result.ID
 			return
 		},
-		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{Use: "import"}})
+		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+			Use: "import",
+			// NOTE(rory): CreateFlow is used for both import and create; treated as ScheduleWrite.
+			// TODO(rory): confirm if importing a flow definition should instead/also require SOARLibs.
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
+			},
+		}})
 }
 
 func download() action.Pair {
@@ -201,6 +216,10 @@ func download() action.Pair {
 					ft.Output.Register(fs)
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead},
+					XPermissions: []types.Capability{types.ScheduleRead},
+				},
 			},
 
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -226,7 +245,15 @@ func delete() action.Pair {
 				return nil, err
 			}
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
+			},
+		})
 }
 
 func listFlowItems() ([]multiselectlist.SelectableItem[string], error) {
@@ -275,7 +302,13 @@ func cancel() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "cancel"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "cancel",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
+			},
 		})
 }
 
@@ -347,6 +380,10 @@ func backfillToggle() action.Pair {
 					fs.Bool("disable", false, "disable backfill")
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				_, _, err = getBackfillFlags(fs)
@@ -374,7 +411,13 @@ func clear() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "clear"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "clear",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
+			},
 		})
 }
 
@@ -413,6 +456,12 @@ func parse() action.Pair {
 					fs.Bool("stdin", false, ft.NonInteractiveOnly()+" read the flow string from stdin.\n"+
 						"Mutually exclusive with --path")
 					return fs
+				},
+				// parsing does not read or modify any stored flow, but it is scoped under flows/schedules.
+				// TODO(rory): confirm I vs X permission split
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead},
+					XPermissions: []types.Capability{types.ScheduleRead},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -513,6 +562,11 @@ func create() action.Pair {
 			}
 			return newFlow.ID, "", nil
 		},
-		scaffoldcreate.Options{})
+		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
+			},
+		}})
 
 }

@@ -58,6 +58,7 @@ var since time.Time // set in Validate
 var defaultSinceDuration = 48 * time.Hour
 
 // sessions returns all of the current users current sessions
+// TODO(rory): confirm no capability required - self-service action; uses connection.Client.MySessions().
 func sessions() action.Pair {
 	return scaffoldlist.NewListAction("display your active sessions",
 		"Displays information about how and where you are currently logged in.\n"+
@@ -140,6 +141,7 @@ func sessions() action.Pair {
 		})
 }
 
+// TODO(rory): confirm no capability required - self-service action; uses connection.Client.Groups() (own groups only).
 func groups() action.Pair {
 	return scaffoldlist.NewListAction("display your group memberships", "Display groups you are a part of.", types.Group{},
 		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Group, error) {
@@ -165,6 +167,7 @@ func groups() action.Pair {
 		})
 }
 
+// TODO(rory): confirm no capability required - self-service action; terminates only the caller's own sessions.
 func logoutAll() action.Pair {
 	return scaffold.NewBasicAction("logout-all", "logout all sessions", "Terminate all active sessions for your user.",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
