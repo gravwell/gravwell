@@ -42,19 +42,10 @@ func (c *Client) DeleteSearch(sid string) error {
 	return c.deleteStaticURL(searchCtrlIdUrl(sid), nil)
 }
 
-// SearchStatus requests the status of a given search ID
-func (c *Client) SearchStatus(sid string) (types.SearchCtrlStatus, error) {
-	var si types.SearchCtrlStatus
-	if err := c.getStaticURL(searchCtrlIdUrl(sid), &si); err != nil {
-		return si, err
-	}
-	return si, nil
-}
-
-// SearchInfo requests the search info for a given search ID
-func (c *Client) SearchInfo(sid string) (types.SearchInfo, error) {
+// GetSearch requests the status of a given search ID
+func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
 	var si types.SearchInfo
-	if err := c.getStaticURL(searchCtrlDetailsUrl(sid), &si); err != nil {
+	if err := c.getStaticURL(searchCtrlIdUrl(sid), &si); err != nil {
 		return si, err
 	}
 	return si, nil
@@ -63,7 +54,7 @@ func (c *Client) SearchInfo(sid string) (types.SearchInfo, error) {
 // SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
 // to modify the expiration or search name and notes
 func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
-	var arg interface{}
+	var arg any
 	if len(ssp) == 1 {
 		arg = ssp[0]
 	}
@@ -73,14 +64,6 @@ func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
 // BackgroundSearch will request that a search is backgrounded by ID
 func (c *Client) BackgroundSearch(sid string) error {
 	return c.patchStaticURL(searchCtrlBackgroundUrl(sid), nil)
-}
-
-// SetGroup will set the GID of the group which can read the search.
-// Setting it to 0 will disable group access.
-// Deprecated: use SetGroups instead
-func (c *Client) SetGroup(sid string, gid int32) error {
-	request := struct{ GID int32 }{gid}
-	return c.putStaticURL(searchCtrlGroupUrl(sid), request)
 }
 
 // SetGroups sets the list of groups that can read the search
@@ -96,33 +79,31 @@ func (c *Client) SetGlobal(sid string, global bool) error {
 	return c.putStaticURL(searchCtrlGlobalUrl(sid), request)
 }
 
-// ListSearchStatuses returns a list of all searches the current user has access to
+// ListSearches returns a list of all searches the current user has access to
 // and their current status.
-func (c *Client) ListSearchStatuses() ([]types.SearchCtrlStatus, error) {
-	var scs []types.SearchCtrlStatus
-	if err := c.getStaticURL(SEARCH_CTRL_LIST_URL, &scs); err != nil {
-		return nil, err
+func (c *Client) ListSearches(opts *types.QueryOptions) (types.SearchInfoListResponse, error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	var scs types.SearchInfoListResponse
+	if err := c.postStaticURL(SEARCH_CTRL_LIST_URL, opts, &scs); err != nil {
+		return scs, err
 	}
 	return scs, nil
 }
 
-// ListAllSearchStatuses returns a list of all searches on the system. Only admin
+// ListAllSearches returns a list of all searches on the system. Only admin
 // users can use this function.
-func (c *Client) ListAllSearchStatuses() ([]types.SearchCtrlStatus, error) {
-	var scs []types.SearchCtrlStatus
-	if err := c.getStaticURL(SEARCH_CTRL_LIST_ALL_URL, &scs); err != nil {
-		return nil, err
+func (c *Client) ListAllSearches(opts *types.QueryOptions) (types.SearchInfoListResponse, error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	var scs types.SearchInfoListResponse
+	if err := c.postStaticURL(SEARCH_CTRL_LIST_URL, opts, &scs); err != nil {
+		return scs, err
 	}
 	return scs, nil
-}
-
-// ListSearchDetails returns details for all searches the current user has access to
-// and their current status. If the admin flag is set (by calling SetAdminMode())
-// this will return info for all searches on the system.
-func (c *Client) ListSearchDetails() ([]types.SearchInfo, error) {
-	var details []types.SearchInfo
-	err := c.getStaticURL(searchCtrlListDetailsUrl(), &details)
-	return details, err
 }
 
 // GetSearchHistoryEntry retrieves a single search history entry by ID.
