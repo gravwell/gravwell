@@ -220,12 +220,13 @@ func (s *IngesterState) trimChildConfigs() {
 	trimChildConfigs(s.Children, 8) //anything deeper than 8, just nuke em
 }
 
+// trimChildren caps the reported children at maxCount, discarding an arbitrary subset of the extras.
 func (s *IngesterState) trimChildren(maxCount int) {
 	if len(s.Children) > maxCount {
 		var x int
 		for k := range s.Children {
 			x++
-			if x >= maxCount {
+			if x > maxCount {
 				delete(s.Children, k)
 			}
 		}
@@ -282,7 +283,7 @@ func (s *IngesterState) Read(rdr io.Reader) (err error) {
 		// just read and discard the bytes without updating our internal config or metadata
 		// io.CopyN streams through a small fixed buffer so we never hold the whole block in memory
 		if _, err = io.CopyN(io.Discard, rdr, int64(bsz)); err != nil {
-			err = fmt.Errorf("failed to discard oversized ingest state %w", err)
+			err = fmt.Errorf("failed to discard oversized ingest state: %w", err)
 		}
 		return
 	}

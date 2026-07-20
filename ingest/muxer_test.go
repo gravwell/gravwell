@@ -137,7 +137,7 @@ func TestGetTrimmedStateStages(t *testing.T) {
 		assertFits(t, out)
 	})
 
-	// stage 3: trimChildren(64) - too many children, sized so 63 fit
+	// stage 3: trimChildren(64) - too many children, sized so 64 fit
 	t.Run("stage3-trim-children-64", func(t *testing.T) {
 		out, push, err := run(IngesterState{
 			Children: makeChildren(100, 12*1024, 0),
@@ -145,13 +145,13 @@ func TestGetTrimmedStateStages(t *testing.T) {
 		if err != nil || !push {
 			t.Fatalf("unexpected err=%v push=%v", err, push)
 		}
-		if len(out.Children) != 63 {
-			t.Fatalf("stage3: expected 63 children after trimChildren(64), got %d", len(out.Children))
+		if len(out.Children) != 64 {
+			t.Fatalf("stage3: expected 64 children after trimChildren(64), got %d", len(out.Children))
 		}
 		assertFits(t, out)
 	})
 
-	// stage 4: trimChildren(8) - 63 children still too big, 7 fit
+	// stage 4: trimChildren(8) - 64 children still too big, 8 fit
 	t.Run("stage4-trim-children-8", func(t *testing.T) {
 		out, push, err := run(IngesterState{
 			Children: makeChildren(100, 30*1024, 0),
@@ -159,8 +159,8 @@ func TestGetTrimmedStateStages(t *testing.T) {
 		if err != nil || !push {
 			t.Fatalf("unexpected err=%v push=%v", err, push)
 		}
-		if len(out.Children) != 7 {
-			t.Fatalf("stage4: expected 7 children after trimChildren(8), got %d", len(out.Children))
+		if len(out.Children) != 8 {
+			t.Fatalf("stage4: expected 8 children after trimChildren(8), got %d", len(out.Children))
 		}
 		assertFits(t, out)
 	})
