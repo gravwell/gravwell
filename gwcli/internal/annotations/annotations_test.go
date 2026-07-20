@@ -20,7 +20,7 @@ func TestRequirements(t *testing.T) {
 	tests := []struct {
 		name string
 
-		requirements annotations.Requirements
+		requirements annotations.Requirements // Only xpermissions should be respected.
 
 		CBACEnabled bool
 		userIsAdmin bool
@@ -30,6 +30,13 @@ func TestRequirements(t *testing.T) {
 	}{
 		{"no requirements; no state",
 			annotations.Requirements{},
+			false,
+			false,
+			nil,
+			"",
+		},
+		{"interactive permissions should be ignored",
+			annotations.Requirements{IPermissions: []types.Capability{types.ExtractorWrite, types.Download}},
 			false,
 			false,
 			nil,
@@ -71,49 +78,52 @@ func TestRequirements(t *testing.T) {
 			"",
 		},
 		{"requires several permissions; CBAC is disabled. User has all permissions.",
-			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			annotations.Requirements{XPermissions: []types.Capability{types.Ingest, types.LogbotAI}},
 			false,
 			false,
 			types.CapabilityList(), // should be irreleavnt, hence the next test
 			"",
 		},
 		{"requires several permissions; CBAC is disabled. User should be considered to have all permissions.",
-			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			annotations.Requirements{XPermissions: []types.Capability{types.Ingest, types.LogbotAI}},
 			false,
 			false,
 			nil, // should be irreleavnt, hence the prior test
 			"",
 		},
 		{"requires several permissions; CBAC is disabled. User should be allowed as they are an admin",
-			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			annotations.Requirements{XPermissions: []types.Capability{types.Ingest, types.LogbotAI}},
 			false,
 			true,
 			nil,
 			"",
 		},
 		{"requires several permissions; CBAC is enabled. User has none and is not an admin",
-			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			annotations.Requirements{XPermissions: []types.Capability{types.Ingest, types.LogbotAI}},
 			true,
 			false,
 			nil,
 			"requires missing permissions",
 		},
 		{"requires several permissions; CBAC is enabled. User has some permissions and is not an admin",
-			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			annotations.Requirements{XPermissions: []types.Capability{types.Ingest, types.LogbotAI}},
 			true,
 			false,
 			[]types.Capability{types.LogbotAI},
 			"requires missing permissions",
 		},
 		{"requires several permissions; CBAC is enabled. User has some permissions but is an admin",
-			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			annotations.Requirements{XPermissions: []types.Capability{types.Ingest, types.LogbotAI}},
 			true,
 			true,
 			[]types.Capability{types.LogbotAI},
 			"",
 		},
 		{"requires several permissions; CBAC is enabled. User has all permissions (out of order)",
-			annotations.Requirements{Permissions: []types.Capability{types.Ingest, types.LogbotAI}},
+			annotations.Requirements{
+				IPermissions: []types.Capability{types.Ingest, types.LogbotAI, types.Download, types.KitWrite}, // should be ignored
+				XPermissions: []types.Capability{types.Ingest, types.LogbotAI},
+			},
 			true,
 			false,
 			[]types.Capability{types.LogbotAI, types.Ingest},
@@ -168,9 +178,9 @@ func TestConsolidateToDisabled(t *testing.T) {
 					}
 				}
 
-				rqs.Permissions = append(rqs.Permissions, cap)
+				rqs.IPermissions = append(rqs.IPermissions, cap)
 			}
-			rqs.Permissions = utils.Deduplicate(rqs.Permissions)
+			rqs.IPermissions = utils.Deduplicate(rqs.IPermissions)
 		}
 		return rqs
 	})
@@ -185,9 +195,9 @@ func TestConsolidateToDisabled(t *testing.T) {
 		{"cbac enabled, user is admin, user has all caps",
 			true, true, types.CapabilityList()},
 		{"cbac disabled, user is admin, caps should be irrelevant",
-			true, true, nil},
+			false, true, nil},
 		{"cbac disabled, user is not an admin, caps should be irrelevant",
-			true, false, nil},
+			false, false, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
