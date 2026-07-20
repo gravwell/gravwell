@@ -29,8 +29,9 @@ const (
 
 const (
 	configurationBlockSize          uint32          = 1
-	maxStreamConfigurationBlockSize uint32          = 1024 * 1024 //just a sanity check
-	maxIngestStateSize              uint32          = 1024 * 1024
+	maxStreamConfigurationBlockSize uint32          = 1024 * 1024      //just a sanity check
+	maxIngestStateSize              uint32          = 1024 * 1024      //size at which we start trimming the reporting-only config/metadata blocks
+	maxIngestStateStupidSize        uint32          = 64 * 1024 * 1024 //size at which a state block is so absurd we assume something is broken and cut the connection
 	CompressNone                    CompressionType = 0
 	CompressSnappy                  CompressionType = 0x10
 )
@@ -39,6 +40,7 @@ var (
 	ErrInvalidBuffer            = errors.New("invalid buffer")
 	ErrInvalidIngestStateHeader = errors.New("Invalid ingest state header")
 	ErrOversizedConfigBlock     = errors.New("configuration block too large")
+	ErrOversizedIngestState     = errors.New("ingester state block absurdly large")
 	ErrEmptyConfigBlock         = errors.New("configuration block empty")
 )
 
@@ -218,12 +220,13 @@ func (s *IngesterState) trimChildConfigs() {
 	trimChildConfigs(s.Children, 8) //anything deeper than 8, just nuke em
 }
 
+// trimChildren caps the reported children at maxCount, discarding an arbitrary subset of the extras.
 func (s *IngesterState) trimChildren(maxCount int) {
 	if len(s.Children) > maxCount {
 		var x int
 		for k := range s.Children {
 			x++
-			if x >= maxCount {
+			if x > maxCount {
 				delete(s.Children, k)
 			}
 		}
@@ -263,26 +266,40 @@ func (s *IngesterState) Write(wtr io.Writer) (err error) {
 func (s *IngesterState) Read(rdr io.Reader) (err error) {
 	// First read out the size (32-bit integer)
 	var bsz uint32
-	var n int
 	if err = binary.Read(rdr, binary.LittleEndian, &bsz); err != nil {
 		return
 	}
-	if bsz > maxIngestStateSize || bsz == 0 {
+	if bsz == 0 {
 		err = ErrInvalidIngestStateHeader
 		return
+	} else if bsz > maxIngestStateStupidSize {
+		// a state block this large is absurd, refuse it outright and let the
+		// caller tear down the connection
+		err = ErrOversizedIngestState
+		return
+	} else if bsz > maxIngestStateSize {
+		// downstream reporter is trying to send us a config block that is too large.
+		// we don't want to kick the connection but we don't want this config report either
+		// just read and discard the bytes without updating our internal config or metadata
+		// io.CopyN streams through a small fixed buffer so we never hold the whole block in memory
+		if _, err = io.CopyN(io.Discard, rdr, int64(bsz)); err != nil {
+			err = fmt.Errorf("failed to discard oversized ingest state: %w", err)
+		}
+		return
 	}
 
+	// We are informed that the config block is within our tolerance to consume and report
 	// Now read that much data off the reader
 	buff := make([]byte, bsz)
-	if n, err = rdr.Read(buff); err != nil {
-		return
-	} else if n != len(buff) {
-		err = errors.New("Failed to read ingest state")
+	if _, err = io.ReadFull(rdr, buff); err != nil {
+		err = fmt.Errorf("failed to read ingest state: %w", err)
 		return
 	}
 
-	// Finally, decode the JSON
-	err = json.Unmarshal(buff, s)
+	// Decode the JSON
+	if err = json.Unmarshal(buff, s); err != nil {
+		return
+	}
 
 	return
 }
