@@ -74,6 +74,7 @@ type EntryReader struct {
 	bAckWriter *bufio.Writer
 	errCount   uint32
 	mtx        *sync.Mutex
+	wtrMtx     *sync.Mutex //guards bAckWriter, the ackRoutine writes to it without holding mtx
 	wg         *sync.WaitGroup
 	ackChan    chan ackCommand
 	errState   error
@@ -118,6 +119,7 @@ func NewEntryReaderEx(cfg EntryReaderWriterConfig) (*EntryReader, error) {
 		bIO:        bufio.NewReaderSize(cfg.Conn, cfg.BufferSize),
 		bAckWriter: bufio.NewWriterSize(cfg.Conn, ackEncodeSize*cfg.OutstandingEntryCount),
 		mtx:        &sync.Mutex{},
+		wtrMtx:     &sync.Mutex{},
 		wg:         &sync.WaitGroup{},
 		ackChan:    make(chan ackCommand, cfg.OutstandingEntryCount),
 		hot:        true,
@@ -223,9 +225,7 @@ func (er *EntryReader) ConfigureStream() (err error) {
 		return
 	} else if err = req.validate(); err != nil {
 		return
-	} else if err = req.Write(er.bAckWriter); err != nil {
-		return
-	} else if err = er.bAckWriter.Flush(); err != nil {
+	} else if err = er.writeStreamConfiguration(req); err != nil {
 		return
 	} else if err = er.resetTimeout(); err != nil {
 		return
@@ -238,6 +238,19 @@ func (er *EntryReader) ConfigureStream() (err error) {
 	return
 }
 
+// writeStreamConfiguration writes the stream configuration response to the
+// ack writer, the ackRoutine may be concurrently writing acks and keepalives
+// so we must hold the writer lock for the write and flush
+func (er *EntryReader) writeStreamConfiguration(req StreamConfiguration) (err error) {
+	er.wtrMtx.Lock()
+	defer er.wtrMtx.Unlock()
+	if err = req.Write(er.bAckWriter); err != nil {
+		return
+	}
+	err = er.bAckWriter.Flush()
+	return
+}
+
 // startCompression gets the entryReader/Writer ready to work with a compressed connection
 // caller MUST HOLD THE LOCK
 func (er *EntryReader) startCompression(ct CompressionType) (err error) {
@@ -247,7 +260,10 @@ func (er *EntryReader) startCompression(ct CompressionType) (err error) {
 		//get a writer rolling
 		wtr := snappy.NewBufferedWriter(er.conn)
 		er.flshr = wtr
+		//the ackRoutine may be writing, hold the writer lock while we swap the output
+		er.wtrMtx.Lock()
 		er.bAckWriter.Reset(newSnappyFlushWriter(wtr))
+		er.wtrMtx.Unlock()
 		//get a reader rolling
 		er.bIO.Reset(snappy.NewReader(er.conn))
 	default:
@@ -297,7 +313,10 @@ func (er *EntryReader) Close() error {
 		//the ack writer will flush on its way out
 		er.wg.Wait()
 	}
-	if err := er.bAckWriter.Flush(); err != nil {
+	er.wtrMtx.Lock()
+	err := er.bAckWriter.Flush()
+	er.wtrMtx.Unlock()
+	if err != nil {
 		return err
 	}
 	if er.flshr != nil {
@@ -768,11 +787,7 @@ func (er *EntryReader) ackRoutine() {
 				er.routineCleanFail(err)
 				return
 			}
-			if err = er.writeAll(keepalivebuff[:off]); err != nil {
-				er.routineCleanFail(err)
-				return
-			}
-			if err = er.bAckWriter.Flush(); err != nil {
+			if err = er.writeAllAndFlush(keepalivebuff[:off]); err != nil {
 				er.routineCleanFail(err)
 				return
 			}
@@ -790,10 +805,7 @@ func (er *EntryReader) fillAndSendAckBuffer(b []byte, v ackCommand, toch <-chan 
 	if off, flush, err = v.encode(b); err != nil {
 		return
 	} else if flush {
-		if err = er.writeAll(b[:off]); err != nil {
-			return
-		}
-		err = er.bAckWriter.Flush()
+		err = er.writeAllAndFlush(b[:off])
 		return
 	}
 
@@ -808,10 +820,7 @@ feedLoop:
 			//check that we have room
 			if (v.size() + off) >= len(b) {
 				//ok, flush and keep rolling
-				if err = er.writeAll(b[:off]); err != nil {
-					return
-				}
-				if err = er.bAckWriter.Flush(); err != nil {
+				if err = er.writeAllAndFlush(b[:off]); err != nil {
 					return
 				}
 				off = 0
@@ -836,10 +845,7 @@ feedLoop:
 		}
 	}
 	if off > 0 {
-		if err = er.writeAll(b[:off]); err != nil {
-			return
-		}
-		if err = er.bAckWriter.Flush(); err == nil {
+		if err = er.writeAllAndFlush(b[:off]); err == nil {
 			//clear the timeout if we got a good flush
 			to = false
 		}
@@ -872,6 +878,18 @@ func (er *EntryReader) forceAck() error {
 	}
 	er.ackChan <- ackCommand{cmd: FORCE_ACK_MAGIC}
 	return nil
+}
+
+// writeAllAndFlush writes the complete buffer to the ack writer and flushes it,
+// the writer lock is held for the duration so that writes cannot interleave with
+// the stream configuration exchange in ConfigureStream
+func (er *EntryReader) writeAllAndFlush(b []byte) (err error) {
+	er.wtrMtx.Lock()
+	if err = er.writeAll(b); err == nil {
+		err = er.bAckWriter.Flush()
+	}
+	er.wtrMtx.Unlock()
+	return
 }
 
 func (er *EntryReader) writeAll(b []byte) error {
