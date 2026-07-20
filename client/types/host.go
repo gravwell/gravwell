@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/shirou/gopsutil/load"
+	"github.com/shirou/gopsutil/v4/load"
 )
 
 var (
