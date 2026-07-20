@@ -94,7 +94,7 @@ func Help(c *cobra.Command, _ []string) {
 
 	// write requirements lines, if available
 	if rqs := annotations.RequirementsStrings(c); len(rqs) > 0 {
-		fmt.Fprint(&sb, strings.Join(rqs, "\n"), "\n")
+		fmt.Fprintf(&sb, "%s\n%s\n\n", stylesheet.Cur.Field("Requirements", 0), strings.Join(rqs, "\n"))
 	}
 
 	// write local flags
