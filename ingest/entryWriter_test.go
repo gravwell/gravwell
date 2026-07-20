@@ -344,6 +344,7 @@ func TestReaderOutstandingMismatch(t *testing.T) {
 func TestConfigureStreamRace(t *testing.T) {
 	cli, srv := net.Pipe()
 	defer cli.Close()
+	defer srv.Close() //EntryReader.Close does not close the underlying connection
 
 	cfg := EntryReaderWriterConfig{
 		Conn:                  srv,
@@ -384,13 +385,17 @@ func TestConfigureStreamRace(t *testing.T) {
 	}()
 
 	//client sends a stream configuration request
+	wErrCh := make(chan error, 1)
 	go func() {
 		sc := StreamConfiguration{Compression: CompressNone}
-		sc.Write(cli)
+		wErrCh <- sc.Write(cli)
 	}()
 
 	if err := er.ConfigureStream(); err != nil {
 		t.Fatal(err)
+	}
+	if err := <-wErrCh; err != nil {
+		t.Fatalf("client failed to write StreamConfiguration: %v", err)
 	}
 
 	close(done)
