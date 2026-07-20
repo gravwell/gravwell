@@ -291,7 +291,7 @@ func (s *IngesterState) Read(rdr io.Reader) (err error) {
 	// Now read that much data off the reader
 	buff := make([]byte, bsz)
 	if _, err = io.ReadFull(rdr, buff); err != nil {
-		err = errors.New("Failed to read ingest state")
+		err = fmt.Errorf("failed to read ingest state: %w", err)
 		return
 	}
 
