@@ -55,7 +55,10 @@ func listAction() action.Pair {
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{Permissions: []types.Capability{types.DashboardRead}},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.DashboardRead},
+					XPermissions: []types.Capability{types.DashboardRead},
+				},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -80,7 +83,15 @@ func delete() action.Pair {
 			}
 			return listitem.WrapAssets(lr.Results), nil
 		},
-		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.DashboardRead, types.DashboardWrite},
+					XPermissions: []types.Capability{types.DashboardWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true}},
+	)
 }
 
 func clone() action.Pair {
@@ -120,6 +131,12 @@ func clone() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "clone"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "clone",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.DashboardWrite, types.DashboardRead},
+					XPermissions: []types.Capability{types.DashboardWrite, types.DashboardRead},
+				},
+			},
 		})
 }

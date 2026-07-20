@@ -73,7 +73,7 @@ func listAction() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
-					Permissions: []types.Capability{types.ActionableRead},
+					IPermissions: []types.Capability{types.ActionableRead},
 				},
 			},
 			DefaultColumns: []string{
@@ -113,7 +113,7 @@ func get() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Usage: "get " + ft.VariadicArgs("actionable ID", true),
 				Requirements: annotations.Requirements{
-					Permissions: []types.Capability{types.ActionableRead},
+					IPermissions: []types.Capability{types.ActionableRead},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -166,7 +166,7 @@ func create() action.Pair {
 					"Call " + stylesheet.Path(true, "~", "actionables", "json") + " to view the required schema or " +
 					"call " + stylesheet.Path(true, "~", "actionables", "get", "<ID>") + " to view an existing actionable as JSON.",
 				Requirements: annotations.Requirements{
-					Permissions: []types.Capability{types.ActionableWrite},
+					IPermissions: []types.Capability{types.ActionableWrite},
 				},
 			},
 		})
@@ -275,7 +275,7 @@ func replace() action.Pair {
 					return fs
 				},
 				Requirements: annotations.Requirements{
-					Permissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
+					IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -348,7 +348,7 @@ func edit() action.Pair {
 	}
 	return scaffoldedit.NewEditAction("actionable", "actionables", cfg, funcs,
 		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
-			Requirements: annotations.Requirements{Permissions: []types.Capability{types.ActionableRead}}}})
+			Requirements: annotations.Requirements{IPermissions: []types.Capability{types.ActionableRead}}}})
 }
 
 func delete() action.Pair {
@@ -371,7 +371,7 @@ func delete() action.Pair {
 		scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
-					Permissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
+					IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
 				},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},

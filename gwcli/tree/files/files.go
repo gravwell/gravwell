@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -55,6 +56,12 @@ func list() action.Pair {
 		},
 		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.FileRead},
+					XPermissions: []types.Capability{types.FileRead},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -103,6 +110,10 @@ func download() action.Pair {
 					ft.Output.Register(fs)
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.FileRead},
+					XPermissions: []types.Capability{types.FileRead},
+				},
 			},
 		})
 }
@@ -142,7 +153,14 @@ func create() action.Pair {
 				}
 			}
 			return outMeta.ID, "", nil
-		}, scaffoldcreate.Options{})
+		}, scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.FileWrite},
+					XPermissions: []types.Capability{types.FileWrite},
+				},
+			},
+		})
 }
 
 func edit() action.Pair {
@@ -208,6 +226,14 @@ func edit() action.Pair {
 				return data.ID, err
 			},
 		},
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.FileRead, types.FileWrite},
+					XPermissions: []types.Capability{types.FileRead, types.FileWrite},
+				},
+			},
+		},
 	)
 }
 
@@ -227,7 +253,14 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.FileRead, types.FileWrite},
+					XPermissions: []types.Capability{types.FileWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
 func replace() action.Pair {
@@ -265,6 +298,10 @@ func replace() action.Pair {
 					fs := &pflag.FlagSet{}
 					ft.Path.Register(fs, "", "local file to replace the remote file")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.FileRead, types.FileWrite},
+					XPermissions: []types.Capability{types.FileWrite},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

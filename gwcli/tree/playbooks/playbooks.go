@@ -59,7 +59,7 @@ func listAction() action.Pair {
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{Permissions: []types.Capability{types.PlaybookRead}},
+				Requirements: annotations.Requirements{IPermissions: []types.Capability{types.PlaybookRead}},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",

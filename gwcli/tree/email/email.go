@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/email/send"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -54,7 +55,13 @@ func show() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "show"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "show",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SOAREmail},
+					XPermissions: []types.Capability{types.SOAREmail},
+				},
+			},
 			Pretty: func(_ *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				mc, err := connection.Client.MailConfig()
 				if err != nil {
@@ -240,6 +247,10 @@ func configure() action.Pair {
 				Short:   "configure email settings",
 				Long:    "Set the SMTP server settings used for sending email notifications.",
 				Aliases: []string{"add", "create", "update"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SOAREmail},
+					XPermissions: []types.Capability{types.SOAREmail},
+				},
 			},
 		})
 }
@@ -255,6 +266,10 @@ func deleteConfig() action.Pair {
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"uninstall", "remove"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SOAREmail},
+					XPermissions: []types.Capability{types.SOAREmail},
+				},
 			},
 		})
 }

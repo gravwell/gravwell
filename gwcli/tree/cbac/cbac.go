@@ -169,7 +169,6 @@ type getCaps struct { // TODO should we be using this for list as well?
 	Grants []string
 }
 
-// TODO this is admin only
 func get() action.Pair {
 	var uids, gids []int32
 	return scaffoldlist.NewListAction("get user/group capabilities",
@@ -202,7 +201,7 @@ func get() action.Pair {
 			}
 			return items, nil
 		},
-		nil, // TODO
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "get",
@@ -213,7 +212,10 @@ func get() action.Pair {
 					fs.Int32Slice("gids", nil, "IDs of the groups to include")
 					return fs
 				},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+					UserIsAdmin:       true,
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (_ string, err error) {
 				uids, err = fs.GetInt32Slice("uids")
@@ -400,7 +402,10 @@ func edit() action.Pair {
 					fs.Bool("revoke", false, "Only revoke caps; no caps will be added through this call")
 					return fs
 				},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+					UserIsAdmin:       true,
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure all prior data is destroyed
@@ -638,8 +643,11 @@ func set() action.Pair {
 				Usage: "set " +
 					ft.MutuallyExclusive("--uids", "--gids") +
 					ft.Mandatory("--caps"),
-				Aliases:      []string{"replace"},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+				Aliases: []string{"replace"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+					UserIsAdmin:       true,
+				},
 			},
 			IDIsSuccessMessage: true,
 		})

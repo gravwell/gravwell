@@ -97,7 +97,10 @@ func listAction() action.Pair {
 					fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search. Used to answer: which alerts will be invoked by this specific scheduled search")
 					return fs
 				},
-				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead}},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead},
+					XPermissions: []types.Capability{types.AlertRead},
+				},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -145,7 +148,10 @@ func delete() action.Pair {
 		},
 		scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertWrite},
+				},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true}},
 	)
@@ -232,7 +238,10 @@ func toggle() action.Pair {
 					fs.Bool("disable", false, "explicitly disable selected alerts. No-op on alerts already disabled. Mutually exclusive with --enable")
 					return fs
 				},
-				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string {
 				if toggleEnable {
@@ -352,7 +361,10 @@ func dispatchers() action.Pair {
 						" Mutually exclusive with --add")
 					return fs
 				},
-				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if dIDs, err := fs.GetStringSlice("dispatcher-ids"); err != nil { // this is a fatal error
@@ -457,7 +469,10 @@ func save() action.Pair {
 						"Mutually exclusive with --enable")
 					return fs
 				},
-				Requirements: annotations.Requirements{Permissions: []types.Capability{types.AlertRead, types.AlertWrite}},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				enable, err := fs.GetBool("enable")

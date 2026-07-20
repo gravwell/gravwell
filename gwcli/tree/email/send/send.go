@@ -9,9 +9,11 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -57,7 +59,14 @@ func NewPair() action.Pair {
 			fmt.Fprintf(c.OutOrStdout(), "Queued mail %s to %v\n", subject, to)
 			return nil
 		},
-		treeutils.GenerateActionOptions{})
+		treeutils.GenerateActionOptions{
+			NodeOptions: treeutils.NodeOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SOAREmail},
+					XPermissions: []types.Capability{types.SOAREmail},
+				},
+			},
+		})
 	cmd.Flags().AddFlagSet(flags())
 
 	return action.NewPair(cmd, newSendMailModel())
