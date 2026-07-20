@@ -1,6 +1,24 @@
 package types
 
-var AllowedOperations = []string{"=", "!=", "<>", ">", "<", ">=", "<=", "~"}
+// AllowedOperations is the set of filter operators the registry accepts.
+// Operators are also advertised per-field (and narrowed by type) via
+// AvailableFilter.Operations; this list is the full union across all types.
+var AllowedOperations = []string{"=", "!=", "<>", ">", "<", ">=", "<=", "LIKE", "NOT LIKE", "GLOB"}
+
+// FilterType describes the value type expected by a filterable field, so a
+// client can render an appropriate input control (text box, number box,
+// toggle, date picker, user/group picker, ...).
+type FilterType string
+
+const (
+	FilterTypeString FilterType = "string"
+	FilterTypeInt    FilterType = "int"
+	FilterTypeFloat  FilterType = "float"
+	FilterTypeBool   FilterType = "bool"
+	FilterTypeTime   FilterType = "time" // timestamp columns (CreatedAt, StartRange, ...)
+	FilterTypeUID    FilterType = "uid"  // a user ID (OwnerID, LastModifiedByID)
+	FilterTypeGID    FilterType = "gid"  // a group ID (Readers.GIDs, Writers.GIDs)
+)
 
 type QueryOptions struct {
 	Type string `json:"type"` // Specifies the type of asset to return, 'mixed' for everything. Ignored except on the /api/list (ListAll) endpoint
@@ -29,9 +47,18 @@ type Filter struct {
 	Values    []any  `json:"values"`
 }
 
-// AvailableFilter defines a filter which *could* be applied: a key, valid operations, and optionally a label.
+// AvailableFilter describes a filter which *could* be applied to a field when
+// listing assets. It carries everything a client needs to build a
+// user-friendly "add a filter" menu without hardcoding per-field knowledge:
+// the field key, a human label, the value type, the operators valid for that
+// type, and optional hints (description, whether the field is sortable or holds
+// multiple values).
 type AvailableFilter struct {
-	Key        string   `json:"key"`
-	Label      string   `json:"label"`
-	Operations []string `json:"operations"`
+	Key         string     `json:"key"`
+	Label       string     `json:"label"`
+	Description string     `json:"description,omitempty"`
+	Type        FilterType `json:"type"`
+	Operations  []string   `json:"operations"`
+	Sortable    bool       `json:"sortable"`
+	MultiValued bool       `json:"multi_valued,omitempty"`
 }
