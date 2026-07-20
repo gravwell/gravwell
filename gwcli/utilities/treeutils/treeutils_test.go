@@ -82,7 +82,7 @@ func TestGenerateNav(t *testing.T) {
 		})
 		t.Run("a few permissions required", func(t *testing.T) {
 			nav := treeutils.GenerateNav("test", "test", "test", nil, nil,
-				treeutils.NodeOptions{Requirements: annotations.Requirements{Permissions: []types.Capability{types.Download, types.BackgroundSearch}}})
+				treeutils.NodeOptions{Requirements: annotations.Requirements{IPermissions: []types.Capability{types.Download, types.BackgroundSearch}}})
 			// cbac disabled; admin user should be permitted
 			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))
 			// cbac disabled; user should still be permitted
