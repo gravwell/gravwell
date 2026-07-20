@@ -483,8 +483,22 @@ headerLoop:
 				return errFailedFullRead
 			}
 			length := binary.LittleEndian.Uint32(er.buff[0:4])
-			if length > maxIngestStateSize {
+			if length == 0 {
 				return ErrInvalidIngestStateHeader
+			} else if length > maxIngestStateStupidSize {
+				// a state block this large is absurd (>64MB), we can't trust
+				// the stream anymore so cut the connection and bail
+				return ErrOversizedIngestState
+			} else if length > maxIngestStateSize {
+				// the reporter is trying to send us a config block that is too large.
+				// we don't want to kick the connection but we don't want this config
+				// report either, so read and discard the bytes without holding the
+				// whole block in memory, then acknowledge and move on.
+				if _, err = io.CopyN(io.Discard, er.bIO, int64(length)); err != nil {
+					return err
+				}
+				er.ackChan <- ackCommand{cmd: CONFIRM_INGESTER_STATE_MAGIC}
+				continue
 			}
 			stateBuff := make([]byte, length)
 			n, err = io.ReadFull(er.bIO, stateBuff)
