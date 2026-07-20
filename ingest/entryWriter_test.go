@@ -19,6 +19,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -334,6 +335,74 @@ func TestReaderOutstandingMismatch(t *testing.T) {
 	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 64, t)
 	outstandingMismatchCycle(rdrCfg, wtrCfg, 32, 4, t)
 	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 32, t)
+}
+
+// TestConfigureStreamRace exercises the data race reported in issue #1502:
+// EntryReader.ConfigureStream writes the StreamConfiguration response to
+// er.bAckWriter while the ackRoutine (started via Start) may be concurrently
+// writing acks/keepalives to the same writer.
+func TestConfigureStreamRace(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer cli.Close()
+	defer srv.Close() //EntryReader.Close does not close the underlying connection
+
+	cfg := EntryReaderWriterConfig{
+		Conn:                  srv,
+		OutstandingEntryCount: 64,
+		BufferSize:            minBufferSize,
+		Timeout:               time.Second,
+	}
+	er, err := NewEntryReaderEx(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	er.igAPIVersion = MINIMUM_DYN_CONFIG_VERSION
+
+	//client side just discards everything the reader sends (acks, keepalives, config response)
+	go io.Copy(io.Discard, cli)
+
+	if err := er.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	//hammer the ack routine with throttle commands so it is actively writing
+	//to the ack writer while ConfigureStream performs its exchange
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				if err := er.SendThrottle(time.Millisecond); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	//client sends a stream configuration request
+	wErrCh := make(chan error, 1)
+	go func() {
+		sc := StreamConfiguration{Compression: CompressNone}
+		wErrCh <- sc.Write(cli)
+	}()
+
+	if err := er.ConfigureStream(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-wErrCh; err != nil {
+		t.Fatalf("client failed to write StreamConfiguration: %v", err)
+	}
+
+	close(done)
+	wg.Wait()
+	if err := er.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func outstandingMismatchCycle(rdrCfg, wtrCfg EntryReaderWriterConfig, count, segments int, t *testing.T) {
