@@ -23,6 +23,7 @@ var (
 	dataTypes = map[string]base.DataGen{
 		"binary":   genDataBinary,
 		"bind":     genDataBind,
+		"cef":      genDataCEF,
 		"csv":      genDataCSV,
 		"dnsmasq":  genDataDnsmasq,
 		"fields":   genDataFields,
@@ -38,6 +39,7 @@ var (
 		"evs":      finEnumeratedValue,
 		"binary":   fin("binary"),
 		"bind":     fin("bind"),
+		"cef":      fin("CEF"),
 		"csv":      fin("csv"),
 		"dnsmasq":  fin("dnsmasq"),
 		"fields":   fin("fields"),
