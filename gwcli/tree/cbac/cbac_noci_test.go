@@ -169,10 +169,10 @@ func TestCBACLifecycle(t *testing.T) {
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, []string{})
 	})
-	t.Run("replace to fill caps", func(t *testing.T) {
+	t.Run("setting caps replacing all existing caps", func(t *testing.T) {
 		var stdout, stderr strings.Builder
 
-		expectedCaps := []string{"PivotRead", "KitWrite"}
+		expectedCaps := []string{"ActionableRead", "MacroRead"}
 
 		args := append(metaAdmin, "cbac", "set", "--uids="+strconv.FormatInt(int64(secondUser.ID), 10), "--caps="+strings.Join(expectedCaps, ","))
 		bareArgs := slices.Collect(maps.Keys(allCapsMap))

@@ -545,7 +545,10 @@ func getJWTExpiry() (wakeTime time.Time) {
 
 	// skim off username
 	exploded := strings.Split(string(tkn), "\n")
-	if cached.user.Username != exploded[0] {
+	cached.mu.Lock()
+	user := cached.user.Username
+	cached.mu.Unlock()
+	if user != exploded[0] {
 		// either the token or the local cache has changed
 		clilog.Writer.Infof("connection username %v does not match token username %v", cached.user.Username, exploded[0])
 		return time.Now()

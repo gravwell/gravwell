@@ -59,7 +59,11 @@ func listAction() action.Pair {
 			return resp.Results, err
 		}, nil,
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{Requirements: annotations.Requirements{IPermissions: []types.Capability{types.ListUsers}}},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ListUsers},
+					XPermissions: []types.Capability{types.ListUsers},
+				}},
 			DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"},
 		},
 	)

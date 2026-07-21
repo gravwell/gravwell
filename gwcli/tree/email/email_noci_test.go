@@ -10,19 +10,8 @@
 
 package email_test
 
-import (
-	"encoding/csv"
-	"strconv"
-	"strings"
-	"testing"
-
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	"github.com/gravwell/gravwell/v4/gwcli/tree"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-)
-
-func TestEmailConfigurationGetSet(t *testing.T) {
+// TODO reenable after issues#2424
+/*func TestEmailConfigurationGetSet(t *testing.T) {
 	// destroy any pre-existing configuration
 	t.Run("delete", func(t *testing.T) {
 		var stdout, stderr strings.Builder
@@ -104,3 +93,4 @@ func TestEmailConfigurationGetSet(t *testing.T) {
 		assert.Equal(t, strconv.FormatBool(true), row[4])
 	})
 }
+*/

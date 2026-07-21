@@ -26,7 +26,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -183,15 +182,11 @@ func TestSelfSessionsMatchAdminSessions(t *testing.T) {
 		adminOut, adminErr string
 		adminExit          error
 	)
-	var wg sync.WaitGroup
 	columnsArg := "--columns=UID,SessionID" // declare consistent columns
-	wg.Go(func() {
-		selfOut, selfErr, selfExit = execute(t, admin_u_p, "self", "sessions", "--csv", columnsArg)
-	})
-	wg.Go(func() {
-		adminOut, adminErr, adminExit = execute(t, admin_u_p, "admin", "users", "sessions", "--csv", columnsArg, "1")
-	})
-	wg.Wait()
+
+	selfOut, selfErr, selfExit = execute(t, admin_u_p, "users", "self", "sessions", "--csv", columnsArg)
+
+	adminOut, adminErr, adminExit = execute(t, admin_u_p, "users", "sessions", "--csv", columnsArg, "1")
 
 	assert.Nil(t, selfExit)
 	assert.Empty(t, selfErr)
@@ -262,19 +257,19 @@ func TestHelp(t *testing.T) {
 
 func TestAdminGating(t *testing.T) {
 	t.Run("non-gated actions are accessible to admins", func(t *testing.T) {
-		stdout, stderr, exit := execute(t, admin_u_p, "query", "tag=gravwell | limit 1")
-		require.Nil(t, exit)
+		stdout, stderr, exit := execute(t, admin_u_p, "query", "\"tag=gravwell | limit 1\"")
+		require.Nil(t, exit, exit.Error())
 		assert.Empty(t, stderr)
 		assert.NotContains(t, stdout, "requires admin") // the requires admin error should be in stderr, but we check this just in case
 	})
 	t.Run("non-gated actions are accessible to non-admins", func(t *testing.T) {
 		stdout, stderr, exit := execute(t, second_u_p, "query", "tag=gravwell | limit 1")
-		require.Nil(t, exit)
+		require.Nil(t, exit, exit.Error())
 		assert.Empty(t, stderr)
 		assert.NotContains(t, stdout, "requires admin") // the requires admin error should be in stderr, but we check this just in case
 	})
 	t.Run("gated actions are accessible to admins", func(t *testing.T) {
-		stdout, stderr, exit := execute(t, admin_u_p, "admin", "users", "list", "--csv", "--columns=ID,Username")
+		stdout, stderr, exit := execute(t, admin_u_p, "users", "list", "--csv", "--columns=ID,Username")
 		require.Nil(t, exit)
 		assert.Empty(t, stderr)
 		assert.NotContains(t, stdout, "requires admin") // the requires admin error should be in stderr, but we check this just in case
@@ -295,7 +290,7 @@ func TestAdminGating(t *testing.T) {
 		require.True(t, found, "failed to locate admin user in list of users: %v", records)
 	})
 	t.Run("gated actions are inaccessible to non-admins", func(t *testing.T) {
-		stdout, stderr, exit := execute(t, second_u_p, "admin", "users", "list", "--csv", "--columns=ID,Username")
+		stdout, stderr, exit := execute(t, second_u_p, "users", "list", "--csv", "--columns=ID,Username")
 		assert.NotNil(t, exit)
 		assert.Contains(t, stderr, "requires admin")
 		assert.NotContains(t, stdout, "requires admin") // the requires admin error should be in stderr, but we check this just in case
@@ -332,6 +327,7 @@ func TestNoLocalPermissions(t *testing.T) {
 
 // Fatal if the run fails.
 func execute(t *testing.T, authMethod authMethod, args ...string) (stdout, stderr string, exitErr error) {
+	t.Helper()
 	var (
 		metaArgs = argMetaBase
 		env      = []string{cfgdir.EnvCfgDir + "=" + tCfgDir}
