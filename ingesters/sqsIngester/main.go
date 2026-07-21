@@ -44,9 +44,6 @@ var (
 	lg      *log.Logger
 )
 
-// sqsClient is the subset of *sqs_common.SQS that queueRunner needs. It exists
-// so tests can substitute a fake and drive error/shutdown paths without a real
-// SQS connection.
 type sqsClient interface {
 	GetMessages(ctx context.Context) ([]types.Message, error)
 	DeleteMessages(ctx context.Context, m []types.Message) error
