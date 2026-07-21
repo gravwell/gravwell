@@ -111,8 +111,16 @@ func RequirementsStrings(cmd *cobra.Command) []string {
 	if _, adminRequired := cmd.Annotations[keyUserIsAdmin]; adminRequired {
 		rqs = append(rqs, "Requires admin privileges.")
 	}
-	xp := strings.Split(cmd.Annotations[keyIPermissions], ",")
-	IExtra := slices.DeleteFunc(strings.Split(cmd.Annotations[keyXPermissions], ","), func(s string) bool {
+	var xp []string
+	if x := cmd.Annotations[keyIPermissions]; len(x) > 0 {
+		xp = strings.Split(x, ",")
+	}
+	var ip []string
+	if i := cmd.Annotations[keyXPermissions]; len(i) > 0 {
+		ip = strings.Split(i, ",")
+	}
+
+	IExtra := slices.DeleteFunc(ip, func(s string) bool {
 		return slices.Contains(xp, s)
 	})
 
