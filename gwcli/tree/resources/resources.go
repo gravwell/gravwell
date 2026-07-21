@@ -26,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -87,7 +88,12 @@ func list() action.Pair {
 				"Size",
 				"ContentType",
 			},
-			CommonOptions: scaffold.CommonOptions{},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ResourceRead},
+					XPermissions: []types.Capability{types.ResourceRead},
+				},
+			},
 		})
 }
 
@@ -134,6 +140,10 @@ func download() action.Pair {
 					fs := &pflag.FlagSet{}
 					ft.Output.Register(fs)
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ResourceRead},
+					XPermissions: []types.Capability{types.ResourceRead},
 				},
 			},
 
@@ -186,7 +196,14 @@ func create() action.Pair {
 			}
 
 			return resp.ID, "", err
-		}, scaffoldcreate.Options{})
+		}, scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ResourceWrite},
+					XPermissions: []types.Capability{types.ResourceWrite},
+				},
+			},
+		})
 }
 
 func delete() action.Pair {
@@ -205,7 +222,15 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
+					XPermissions: []types.Capability{types.ResourceWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 func edit() action.Pair {
@@ -265,7 +290,15 @@ func edit() action.Pair {
 			_, err = connection.Client.UpdateResourceMetadata(data.ID, *data)
 			return data.Name, err
 		},
-	})
+	},
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
+					XPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
+				},
+			},
+		})
 }
 
 func replace() action.Pair {
@@ -318,6 +351,10 @@ func replace() action.Pair {
 					fs := &pflag.FlagSet{}
 					ft.Path.Register(fs, "", "local file to replace the resource contents")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
+					XPermissions: []types.Capability{types.ResourceWrite},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

@@ -248,7 +248,12 @@ func edit() action.Pair {
 				return data.Name, connection.Client.UpdateUser(*data)
 			},
 		},
-		// TODO mark as admin only
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				// edits arbitrary users by ID; this is an admin-only operation
+				Requirements: annotations.Requirements{UserIsAdmin: true},
+			},
+		},
 	)
 }
 
@@ -342,6 +347,8 @@ func sessionsAction() action.Pair {
 							"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
 					return fs
 				},
+				// views sessions for arbitrary users by ID; this is an admin-only operation
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			DefaultColumns: []string{"SessionID", "Origin", "LastHit"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

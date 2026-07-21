@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -73,11 +74,17 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.String("id", "", "fetches the scheduled search associated to the given id.")
-				return &fs
-			}},
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := pflag.FlagSet{}
+					fs.String("id", "", "fetches the scheduled search associated to the given id.")
+					return &fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead},
+					XPermissions: []types.Capability{types.ScheduleRead},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -134,7 +141,12 @@ func create() action.Pair {
 
 			return connection.CreateScheduledSearch(name, desc, freq, qry, dur)
 		},
-		scaffoldcreate.Options{})
+		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
+			},
+		}})
 }
 
 func delete() action.Pair {
@@ -154,7 +166,15 @@ func delete() action.Pair {
 				return nil, err
 			}
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
+			},
+		})
 }
 
 func edit() action.Pair {
@@ -296,7 +316,13 @@ func edit() action.Pair {
 			UpdateSub: func(data *types.ScheduledSearch) (identifier string, err error) {
 				return data.Name, connection.Client.UpdateScheduledSearch(*data)
 			},
-		})
+		},
+		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+			},
+		}})
 }
 
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
@@ -339,7 +365,13 @@ func cancel() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "cancel"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "cancel",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
+			},
 		})
 }
 
@@ -412,6 +444,10 @@ func backfillToggle() action.Pair {
 					fs.Bool("disable", false, "disable backfill")
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				_, _, err = getBackfillFlags(fs)
@@ -443,7 +479,13 @@ func clear() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "clear"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "clear",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
+			},
 		})
 }
 
@@ -530,6 +572,10 @@ func createScript() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "script",
 				Aliases: []string{"from-script", "create-script"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
+				},
 			},
 		},
 	)

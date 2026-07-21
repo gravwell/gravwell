@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -65,6 +66,12 @@ func listGroups() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ListGroups},
+					XPermissions: []types.Capability{types.ListGroups},
+				},
+			},
 			DefaultColumns: []string{"ID", "Name", "Description"},
 		})
 }
@@ -82,7 +89,11 @@ func create() action.Pair {
 				Description: fields["desc"].Provider.Get(),
 			})
 			return result.ID, "", err
-		}, scaffoldcreate.Options{})
+		}, scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{UserIsAdmin: true},
+			},
+		})
 }
 
 func delete() action.Pair {
@@ -105,7 +116,10 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions:     scaffold.CommonOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 func edit() action.Pair {
@@ -154,7 +168,13 @@ func edit() action.Pair {
 			return data.Name, connection.Client.UpdateGroup(*data)
 		},
 	}
-	return scaffoldedit.NewEditAction("group", "groups", cfg, funcs)
+	return scaffoldedit.NewEditAction("group", "groups", cfg, funcs,
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				// group creation/management is currently restricted to admins, matching admin.go's pattern
+				Requirements: annotations.Requirements{UserIsAdmin: true},
+			},
+		})
 }
 
 var listUsersGID int32
@@ -173,6 +193,10 @@ func listUsers() action.Pair {
 				Usage: "users " + ft.MutuallyExclusive("--csv", "--json", "--table") +
 					" " + ft.Optional("flags") + " " + ft.Mandatory("group ID"),
 				Example: "users 2",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ListGroupMembers},
+					XPermissions: []types.Capability{types.ListGroupMembers},
+				},
 			},
 			DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

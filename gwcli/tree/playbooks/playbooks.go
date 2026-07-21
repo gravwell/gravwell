@@ -127,6 +127,10 @@ func download() action.Pair {
 					ft.Output.Register(fs)
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookRead},
+					XPermissions: []types.Capability{types.PlaybookRead},
+				},
 			},
 			Exactly1: true,
 		})
@@ -181,6 +185,10 @@ func create() action.Pair {
 					ft.Path.Register(fs, "", "markdown file. Overwrites --content.")
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookWrite},
+					XPermissions: []types.Capability{types.PlaybookWrite},
+				},
 			},
 		})
 }
@@ -201,7 +209,15 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+					XPermissions: []types.Capability{types.PlaybookWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 func edit() action.Pair {
@@ -255,5 +271,13 @@ func edit() action.Pair {
 			return data.Name, err
 		},
 	}
-	return scaffoldedit.NewEditAction("playbook", "playbooks", cfg, funcs)
+	return scaffoldedit.NewEditAction("playbook", "playbooks", cfg, funcs,
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+					XPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+				},
+			},
+		})
 }

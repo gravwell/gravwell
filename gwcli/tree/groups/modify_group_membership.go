@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -124,7 +125,11 @@ func modGroupUsers(use, short, long string, aliases []string, add bool) action.P
 				return errors.New("all requested group changes failed")
 			}
 			return nil
-		}, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{CommandAliases: aliases}}),
+		}, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+			CommandAliases: aliases,
+			// modifying group membership is currently restricted to admins, matching admin.go's pattern
+			Requirements: annotations.Requirements{UserIsAdmin: true},
+		}}),
 		newMembershipChangesInteractive(add))
 
 	pair.Action.Flags().AddFlagSet(membershipFlagset(add))

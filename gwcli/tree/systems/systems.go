@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/indexers"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/ingesters"
@@ -88,7 +89,13 @@ func newStorageAction() action.Pair {
 			"Stats.EntryCountCold":   "Cold.Count",
 		},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: use},
+			CommonOptions: scaffold.CommonOptions{
+				Use: use,
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SystemInfoRead},
+					XPermissions: []types.Capability{types.SystemInfoRead},
+				},
+			},
 		})
 }
 
@@ -125,7 +132,13 @@ func state() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "state"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "state",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Stats},
+					XPermissions: []types.Capability{types.Stats},
+				},
+			},
 			Pretty: func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				idxrs, err := connection.Client.GetSystemDescriptions()
 				if err != nil {
