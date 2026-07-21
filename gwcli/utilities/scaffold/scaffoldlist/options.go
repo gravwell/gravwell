@@ -9,46 +9,168 @@
 package scaffoldlist
 
 import (
-	"github.com/spf13/cobra"
+	"fmt"
+	"maps"
+	"os"
+	"regexp"
+	"slices"
+
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/pflag"
 )
 
 // The Options struct allows developers to tweak parameters of an action's specific implementation.
 type Options struct {
-	// Overrides the default "list" action name.
-	Use string
-	// Other names for this action.
-	Aliases []string
-	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly (albeit likely script-unfriendly) way.
+	scaffold.CommonOptions
+
+	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly
+	// (albeit likely script-unfriendly) way.
 	// If !nil, --pretty will also be defined and set as the default.
+	//
+	// Pretty functions may or may not respect columns.
 	Pretty PrettyPrinterFunc
-	// AddtlFlags defines a function that generates a fresh flagset to be bolted on to the default list flagset.
-	// NOTE(rlandau): It must be a function returning a fresh struct because FlagSets are shallow copies, even when passed by reference.
-	AddtlFlags AddtlFlagFunction
 	// Sets the default columns to display if --columns is not specified.
 	// Column names must be dot-qualified exact matches, not aliases.
-	// If set, only these columns will be displayed by default.
+	// Column names must include the "CommonFields." prefix, if applicable.
+	//
+	// Order is respected.
+	//
 	// Mutually exclusive with ExcludeColumnsFromDefault.
 	DefaultColumns []string
-	// Sets the list to display all columns EXCEPT for these by default.
-	// Column names must be dot-qualified exact matches, not aliases.
-	// Overridden by --columns.
-	// Mutually exclusive with DefaultColumns.
-	ExcludeColumnsFromDefault []string
-	// ! Currently only applies to tables.
+	// A list of regex patterns that OMIT matching dot-qualified columns from the set of defaults.
+	// Unlike DefaultColumns, DefaultColumnsFromExcludeRegex regex matches each value against each column;
+	// if a column matches any value, that column is omitted.
 	//
-	// ColumnAliases maps fully-dot-qualified field names -> display names in the table header.
-	// Keys must exactly match native column names (from weave.StructFields());
-	// unmatched aliases will be unused and native column names are case-sensitive.
-	// Operates in O(len(columns)) time, if not nil.
-	ColumnAliases map[string]string
-	// A free-form function allowing implementations to directly alter properties on the command scaffold list creates.
-	// Applied after all other options, so changes made here may override prior options (such as Use and Aliases).
+	// Ex:
+	// - ^CommonFields.* will omit ALL CommonFields from the set of default columns.
+	// - CommonFields.* will omit ALL CommonFields and ALL AutomationCommonFields from the set of default columns.
 	//
-	// ! Do not rely on cobra.Args, as they will not be respected in interactive mode.
-	// Use the ValidateArgs option instead.
-	CmdMods func(*cobra.Command)
-	// Free-form function called in SetArgs or at the start of run to validate the given flags.
+	// Because this option matches against DQs, it WILL omit columns irrelevant of their alias!
+	//
+	// Remaining columns will be sorted alphabetically.
+	DefaultColumnsFromExcludeRegex []*regexp.Regexp
+	// Free-form function when this action is called.
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
+	//
+	// Will not be called if --show-columns is specified.
 	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
+
+	// The message that will be printed if the listFunc returns no data (and no error).
+	// Uses DefaultEmptyMessage if unset.
+	EmptyMessage string
+
+	// QueryOptionsFlags can take a QOBuilder to configure how this action should handle query options flags.
+	QueryOptionsFlags scaffold.QOBuilder
+}
+
+// buildFlagSet returns a flagset composed of the default list flags,
+// additional flags defined for this action,
+// and --pretty if a prettyFunc was defined.
+//
+// defaultColumnsAliased are the columns to display as defaults alongside --columns.
+// They are expected to have aliases applied and will not be coerced.
+func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, qob scaffold.QOBuilder) *pflag.FlagSet {
+	fs := pflag.FlagSet{}
+	ft.CSV.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.Table.Register(&fs)
+
+	fs.StringSliceP(FlagNameSelectColumns, "", defaultColumnsAliased,
+		"Comma-separated list of columns to include in the results.\n"+
+			"Use --"+FlagNameShowColumns+" to see the full list of columns.\n"+
+			"Mutually exclusive with --"+FlagNameSelectAllColumns)
+
+	fs.Bool(FlagNameShowColumns, false, "Display available columns (for use with --columns) and exit.\n"+
+		"Causes all other flags to be ignored")
+
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	fs.Bool(FlagNameSelectAllColumns, false,
+		"Displays data from all columns, ignoring the default column set.\n"+
+			"Mutually exclusive with --"+FlagNameSelectColumns)
+
+	if qob != nil {
+		qob.Install(&fs)
+	}
+
+	// if prettyFunc was defined, bolt on pretty
+	if prettyDefined {
+		fs.Bool("pretty", false, "Display results as prettified text.\n"+
+			"Takes precedence over other format flags.\n"+
+			"May or may not respect columns, default or selected")
+	}
+
+	return &fs
+}
+
+// fetches values from the flagset that scaffoldlist uses directly (as opposed to getQueryOptions()).
+func getFlags(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, prettyDefined bool) (
+	showColumns bool, columns []string, outFile *os.File, format outputFormat, invalid string,
+) {
+	show, err := fs.GetBool(FlagNameShowColumns)
+	clilog.GetFlag(err)
+	if show { // job's done
+		return true, nil, nil, 0, ""
+	}
+	if outFile, err = initOutFile(fs); err != nil {
+		return true, nil, nil, 0, err.Error()
+	}
+	if columns, invalid = getColumns(fs, DQToAlias, AliasToDQ); invalid != "" {
+		return true, nil, nil, 0, invalid
+	}
+	format = determineFormat(fs, prettyDefined)
+	return
+}
+
+// getColumns figures out which columns this request should receive and returns the DQ version of each.
+//
+// In order of priority:
+//
+//  1. all columns (if --all), sorted alphabetically
+//
+//  2. selected columns (if --columns=<>), retaining given order
+//
+//  3. default columns, sorted alphabetically
+func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) (_ []string, invalid string) {
+	selectAll, err := fs.GetBool(FlagNameSelectAllColumns)
+	clilog.GetFlag(err)
+	selectColumns, err := fs.GetStringSlice(FlagNameSelectColumns) // this will return either the user-spec'd columns or the default columns
+	clilog.GetFlag(err)
+
+	// MX check
+	if selectAll && fs.Changed(FlagNameSelectColumns) {
+		return nil, ft.ErrMutuallyExclusive(FlagNameSelectAllColumns, FlagNameSelectColumns).Error()
+	}
+
+	// collect columns
+	if selectAll {
+		// normalize all column names
+		normal, unknown := normalizeToDQ(sortColumns(slices.Collect(maps.Keys(DQToAlias))), DQToAlias, AliasToDQ)
+		// we should never get unknown columns when giving the full set; this is a developer error
+		if len(unknown) > 0 {
+			clilog.Writer.Error("got unknown columns while normalizing the full column set.",
+				log.KV("unknown columns", unknown),
+				scaffold.IdentifyCaller())
+			return nil, clilog.ErrInternal{}.Error() // this isn't technically an invalid but its also super unlikely to ever happen so...
+		}
+		return normal, ""
+	}
+
+	normalized, unknown := normalizeToDQ(selectColumns, DQToAlias, AliasToDQ)
+	if len(unknown) > 0 {
+		return nil, fmt.Sprintf("unknown columns: %v", unknown)
+	}
+	return normalized, ""
+}
+
+// DataParameters is the set of information that a user may provide the action that is unhandled by scaffoldlist itself.
+//
+// For example, --show-columns will not be included as it is handled automatically,
+// but --all will be as it must be handled by the ListDataFunc itself.
+type DataParameters struct {
+	QueryOpts *types.QueryOptions
 }

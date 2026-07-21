@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/paginator"
@@ -102,7 +103,8 @@ func (s *DataScope) setResultsDisplayed() {
 	var bldr strings.Builder
 	var trueIndex = start // index of full results, between start and end
 	for _, d := range data {
-		bldr.WriteString(stylesheet.Index(trueIndex+1) + ":")
+		bldr.WriteString(stylesheet.Index(trueIndex + 1))
+		bldr.WriteString(":")
 		if trueIndex%2 == 0 {
 			bldr.WriteString(evenEntryStyle.Render(d))
 		} else {
@@ -117,7 +119,7 @@ func (s *DataScope) setResultsDisplayed() {
 var resultShortHelp = stylesheet.Cur.DisabledText.Render(
 	fmt.Sprintf("%v page • %v scroll • home: jump top • end: jump bottom\n"+
 		"tab: cycle • esc: quit",
-		stylesheet.LeftRightSigils, stylesheet.UpDownSigils),
+		sigils.LeftRight, sigils.UpDown),
 )
 
 // generates a renderFooter with the box+line and help keys

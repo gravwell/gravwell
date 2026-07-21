@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	SEARCH_HISTORY_USER = `user`
 	importFormGID       = `GID`
 	importFormFile      = `file`
 	importFormBatchName = `BatchName`
@@ -43,19 +42,10 @@ func (c *Client) DeleteSearch(sid string) error {
 	return c.deleteStaticURL(searchCtrlIdUrl(sid), nil)
 }
 
-// SearchStatus requests the status of a given search ID
-func (c *Client) SearchStatus(sid string) (types.SearchCtrlStatus, error) {
-	var si types.SearchCtrlStatus
-	if err := c.getStaticURL(searchCtrlIdUrl(sid), &si); err != nil {
-		return si, err
-	}
-	return si, nil
-}
-
-// SearchInfo requests the search info for a given search ID
-func (c *Client) SearchInfo(sid string) (types.SearchInfo, error) {
+// GetSearch requests the status of a given search ID
+func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
 	var si types.SearchInfo
-	if err := c.getStaticURL(searchCtrlDetailsUrl(sid), &si); err != nil {
+	if err := c.getStaticURL(searchCtrlIdUrl(sid), &si); err != nil {
 		return si, err
 	}
 	return si, nil
@@ -64,7 +54,7 @@ func (c *Client) SearchInfo(sid string) (types.SearchInfo, error) {
 // SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
 // to modify the expiration or search name and notes
 func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
-	var arg interface{}
+	var arg any
 	if len(ssp) == 1 {
 		arg = ssp[0]
 	}
@@ -74,14 +64,6 @@ func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
 // BackgroundSearch will request that a search is backgrounded by ID
 func (c *Client) BackgroundSearch(sid string) error {
 	return c.patchStaticURL(searchCtrlBackgroundUrl(sid), nil)
-}
-
-// SetGroup will set the GID of the group which can read the search.
-// Setting it to 0 will disable group access.
-// Deprecated: use SetGroups instead
-func (c *Client) SetGroup(sid string, gid int32) error {
-	request := struct{ GID int32 }{gid}
-	return c.putStaticURL(searchCtrlGroupUrl(sid), request)
 }
 
 // SetGroups sets the list of groups that can read the search
@@ -97,84 +79,73 @@ func (c *Client) SetGlobal(sid string, global bool) error {
 	return c.putStaticURL(searchCtrlGlobalUrl(sid), request)
 }
 
-// ListSearchStatuses returns a list of all searches the current user has access to
+// ListSearches returns a list of all searches the current user has access to
 // and their current status.
-func (c *Client) ListSearchStatuses() ([]types.SearchCtrlStatus, error) {
-	var scs []types.SearchCtrlStatus
-	if err := c.getStaticURL(SEARCH_CTRL_LIST_URL, &scs); err != nil {
-		return nil, err
+func (c *Client) ListSearches(opts *types.QueryOptions) (types.SearchInfoListResponse, error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	var scs types.SearchInfoListResponse
+	if err := c.postStaticURL(SEARCH_CTRL_LIST_URL, opts, &scs); err != nil {
+		return scs, err
 	}
 	return scs, nil
 }
 
-// ListAllSearchStatuses returns a list of all searches on the system. Only admin
+// ListAllSearches returns a list of all searches on the system. Only admin
 // users can use this function.
-func (c *Client) ListAllSearchStatuses() ([]types.SearchCtrlStatus, error) {
-	var scs []types.SearchCtrlStatus
-	if err := c.getStaticURL(SEARCH_CTRL_LIST_ALL_URL, &scs); err != nil {
-		return nil, err
+func (c *Client) ListAllSearches(opts *types.QueryOptions) (types.SearchInfoListResponse, error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	var scs types.SearchInfoListResponse
+	if err := c.postStaticURL(SEARCH_CTRL_LIST_URL, opts, &scs); err != nil {
+		return scs, err
 	}
 	return scs, nil
 }
 
-// ListSearchDetails returns details for all searches the current user has access to
-// and their current status. If the admin flag is set (by calling SetAdminMode())
-// this will return info for all searches on the system.
-func (c *Client) ListSearchDetails() ([]types.SearchInfo, error) {
-	var details []types.SearchInfo
-	err := c.getStaticURL(searchCtrlListDetailsUrl(), &details)
-	return details, err
+// GetSearchHistoryEntry retrieves a single search history entry by ID.
+// Use the includeDeleted parameter to include deleted entries.
+func (c *Client) GetSearchHistoryEntry(id string, includeDeleted bool) (types.SearchHistoryEntry, error) {
+	var entry types.SearchHistoryEntry
+	params := []urlParam{}
+	if includeDeleted {
+		params = append(params, urlParam{key: `include_deleted`, value: `true`})
+	}
+	if err := c.getStaticURL(searchHistoryIdUrl(id), &entry, params...); err != nil {
+		return entry, err
+	}
+	return entry, nil
 }
 
-// GetSearchHistory retrieves the current search history for the currently logged
-// in user.  It only pulls back searches invoked by the individual user.
-func (c *Client) GetSearchHistory() ([]types.SearchLog, error) {
-	var sl []types.SearchLog
-	if err := c.getStaticURL(searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID), &sl); err != nil {
-		return nil, err
+// ListSearchHistory retrieves the search history for the currently logged in user
+// with advanced query options for filtering, sorting, and pagination.
+func (c *Client) ListSearchHistory(opts *types.QueryOptions) (types.SearchHistoryListResponse, error) {
+	var resp types.SearchHistoryListResponse
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	return sl, nil
+	if err := c.postStaticURL(searchHistoryListUrl(), opts, &resp); err != nil {
+		return resp, err
+	}
+	return resp, nil
 }
 
-// GetRefinedSearchHistory retrieves the current search history for the
-// currently logged in user narrowed to searches containing the substring s. It
-// only pulls back searches invoked by the individual user.
-func (c *Client) GetRefinedSearchHistory(s string) ([]types.SearchLog, error) {
-	var sl []types.SearchLog
-	params := []urlParam{
-		urlParam{key: `refine`, value: s},
+// DeleteSearchHistoryEntry deletes or purges a search history entry by ID.
+// If purge is true, the entry is permanently removed; otherwise it is soft-deleted.
+func (c *Client) DeleteSearchHistoryEntry(id string, purge bool) error {
+	params := []urlParam{}
+	if purge {
+		params = append(params, urlParam{key: `purge`, value: `true`})
 	}
-	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID)
-	if err := c.methodStaticParamURL(http.MethodGet, pth, params, &sl); err != nil {
-		return nil, err
-	}
-	return sl, nil
+	return c.methodStaticParamURL(http.MethodDelete, searchHistoryIdUrl(id), params, nil)
 }
 
-// GetUserSearchHistory retrieves the current search history for the specified user.
-// Only admins may request search history for users besides themselves.
-func (c *Client) GetUserSearchHistory(uid int32) ([]types.SearchLog, error) {
-	var sl []types.SearchLog
-	if err := c.getStaticURL(searchHistoryUrl(SEARCH_HISTORY_USER, uid), &sl); err != nil {
-		return nil, err
-	}
-	return sl, nil
-}
-
-// GetSearchHistoryRange retrieves paginated search history for the currently logged
-// in user.  The start and end parameters are indexes into the search history, with
-// 0 representing the most recent search.
-func (c *Client) GetSearchHistoryRange(start, end int) ([]types.SearchLog, error) {
-	params := []urlParam{
-		urlParam{key: `start`, value: fmt.Sprintf("%d", start)},
-		urlParam{key: `end`, value: fmt.Sprintf("%d", end)},
-	}
-	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID)
-	var sl []types.SearchLog
-	if err := c.methodStaticParamURL(http.MethodGet, pth, params, &sl); err != nil {
-		return nil, err
-	}
-	return sl, nil
+// CleanupSearchHistory purges all soft-deleted search history entries for the current user.
+func (c *Client) CleanupSearchHistory() error {
+	return c.deleteStaticURL(SEARCH_HISTORY_URL, nil)
 }
 
 // ParseSearch validates a search query. Gravwell will return an error if the query
@@ -1093,7 +1064,7 @@ func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRa
 func (c *Client) ImportSearch(rdr io.Reader, gid int32) (err error) {
 	var flds map[string]string
 	if gid > 0 {
-		if !c.userDetails.InGroup(gid) {
+		if !c.userDetails.IsGroupMember(gid) {
 			err = fmt.Errorf("Logged in user not in group %d", gid)
 			return
 		}
@@ -1110,7 +1081,7 @@ func (c *Client) ImportSearch(rdr io.Reader, gid int32) (err error) {
 func (c *Client) ImportSearchBatchInfo(rdr io.Reader, gid int32, name, info string) (err error) {
 	flds := map[string]string{}
 	if gid > 0 {
-		if !c.userDetails.InGroup(gid) {
+		if !c.userDetails.IsGroupMember(gid) {
 			err = fmt.Errorf("Logged in user not in group %d", gid)
 			return
 		}
@@ -1155,10 +1126,9 @@ type Search struct {
 	types.SearchInfo
 }
 
-// Ping sends a message via the search's websockets (if present)
-// to keep the sockets open. If you intend to run a search and then
-// wait a long time before interacting with it further, you
-// should periodically call Ping() to keep the connection alive.
+// Ping sends a message to a search handle to keep the search alive.
+// If you intend to run a search and then wait a long time before interacting with it further,
+// you should periodically call Ping() to keep the connection alive.
 func (s *Search) Ping() error {
 	return s.ping(0)
 }

@@ -1,3 +1,5 @@
+//go:build ci
+
 package killer_test
 
 import (
