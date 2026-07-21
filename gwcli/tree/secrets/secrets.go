@@ -226,7 +226,7 @@ func edit() action.Pair {
 		CommonOptions: scaffold.CommonOptions{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
-				XPermissions: []types.Capability{types.SecretWrite},
+				XPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
 			},
 		},
 	})

@@ -135,8 +135,8 @@ func state() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use: "state",
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead},
-					XPermissions: []types.Capability{types.SystemInfoRead},
+					IPermissions: []types.Capability{types.Stats},
+					XPermissions: []types.Capability{types.Stats},
 				},
 			},
 			Pretty: func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ scaffoldlist.DataParameters) (string, error) {

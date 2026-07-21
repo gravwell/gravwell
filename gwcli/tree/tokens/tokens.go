@@ -471,7 +471,7 @@ func regenerate() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
 					IPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
-					XPermissions: []types.Capability{types.TokenWrite},
+					XPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
 				},
 			},
 		},

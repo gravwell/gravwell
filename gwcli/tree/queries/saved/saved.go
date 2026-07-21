@@ -152,7 +152,7 @@ func edit() action.Pair {
 		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
-				XPermissions: []types.Capability{types.LibraryWrite},
+				XPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
 			},
 		}})
 }

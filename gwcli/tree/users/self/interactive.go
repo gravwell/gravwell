@@ -9,12 +9,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -38,8 +36,6 @@ const (
 	selfCPStgDone
 )
 
-// TODO(rory): confirm no capability required - self-service action; a user changing their own
-// password (via connection.CurrentUser().ID) doesn't act on another user's account.
 func changePassword() action.Pair {
 	cmd := treeutils.GenerateAction("change-password", "change your password",
 		"Change the password for your account.",
@@ -180,12 +176,6 @@ func searchGroup() action.Pair {
 		}, treeutils.GenerateActionOptions{
 			Usage: ft.MutuallyExclusive(ft.Optional("--set"), ft.Optional("--clear")) +
 				" " + ft.VariadicArgs("GID", false),
-			NodeOptions: treeutils.NodeOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SetSearchGroup},
-					XPermissions: []types.Capability{types.SetSearchGroup},
-				},
-			},
 		},
 	)
 	cmd.Flags().AddFlagSet(searchGroupsFlags())
@@ -358,7 +348,6 @@ func (c *searchGroupModel) Reset() error {
 //#region update
 
 // update lets a user modify their own username/name/email.
-// TODO(rory): confirm no capability required - self-service action; operates only on connection.CurrentUser().
 func update() action.Pair {
 	return scaffoldcreate.NewCreateAction("user property updates",
 		// no fields are required as empty fields are replaced by current values

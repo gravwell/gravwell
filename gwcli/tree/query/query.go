@@ -100,8 +100,8 @@ func NewQueryAction() action.Pair {
 			CommandAliases: []string{"q", "search"},
 			// query bundles ad-hoc search, optional backgrounding, and optional scheduling into a single action.
 			Requirements: annotations.Requirements{
-				IPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite},
-				XPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite},
+				IPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite, types.Download},
+				XPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite, types.Download},
 			},
 		}})
 

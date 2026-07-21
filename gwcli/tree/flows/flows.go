@@ -145,7 +145,7 @@ func importCreate() action.Pair {
 
 			// coerce groups
 			var groups []int32
-			for _, s := range strings.Split(cfg["groups"].Provider.Get(), ",") {
+			for s := range strings.SplitSeq(cfg["groups"].Provider.Get(), ",") {
 				group, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
 					clilog.Writer.Warnf("failed to parse %v as int32 for groupID: %v", s, err)
@@ -172,8 +172,6 @@ func importCreate() action.Pair {
 		},
 		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
 			Use: "import",
-			// NOTE(rory): CreateFlow is used for both import and create; treated as ScheduleWrite.
-			// TODO(rory): confirm if importing a flow definition should instead/also require SOARLibs.
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.ScheduleWrite},
 				XPermissions: []types.Capability{types.ScheduleWrite},
@@ -382,7 +380,7 @@ func backfillToggle() action.Pair {
 				},
 				Requirements: annotations.Requirements{
 					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -457,11 +455,9 @@ func parse() action.Pair {
 						"Mutually exclusive with --path")
 					return fs
 				},
-				// parsing does not read or modify any stored flow, but it is scoped under flows/schedules.
-				// TODO(rory): confirm I vs X permission split
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead},
-					XPermissions: []types.Capability{types.ScheduleRead},
+					IPermissions: []types.Capability{types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleWrite},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

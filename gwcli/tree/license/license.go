@@ -48,6 +48,11 @@ func NewNav() *cobra.Command {
 			licenseSerial(),
 			licenseUpdate(),
 		},
+		treeutils.NodeOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LicenseRead},
+				XPermissions: []types.Capability{types.LicenseRead},
+			}},
 	)
 }
 
@@ -273,10 +278,8 @@ func licenseUpdate() action.Pair {
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "update",
-				Requirements: annotations.Requirements{
-					UserIsAdmin: true,
-				},
+				Use:          "update",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 		},
 	)

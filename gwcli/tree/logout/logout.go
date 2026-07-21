@@ -32,7 +32,5 @@ func NewAction() action.Pair {
 
 			return "Successfully logged out", tea.Quit
 		},
-		// TODO(rory): intentionally left without a Requirements block; logging out requires
-		// no CBAC capability and should be available to any authenticated user.
 		scaffold.BasicOptions{})
 }

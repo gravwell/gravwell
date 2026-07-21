@@ -498,11 +498,6 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 					fs.Duration("max-runtime", 10*time.Minute, "Maximum duration the scripts may execute for")
 					return fs
 				},
-				// TODO(rory): confirm I vs X permission split; script execution runs searches, so Search is the closest fit.
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search},
-					XPermissions: []types.Capability{types.Search},
-				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {

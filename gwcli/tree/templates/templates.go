@@ -223,7 +223,7 @@ func edit() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
 					IPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
-					XPermissions: []types.Capability{types.TemplateWrite},
+					XPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
 				},
 			},
 		})
@@ -397,14 +397,7 @@ func jsonAction() action.Pair {
   ]
 }`, nil
 		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TemplateRead},
-					XPermissions: []types.Capability{types.TemplateRead},
-				},
-			},
-		},
+		scaffold.BasicOptions{},
 	)
 
 }

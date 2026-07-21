@@ -83,8 +83,8 @@ func get() action.Pair {
 					return fs
 				},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead},
-					XPermissions: []types.Capability{types.SystemInfoRead},
+					IPermissions: []types.Capability{types.Stats},
+					XPermissions: []types.Capability{types.Stats},
 				},
 			},
 			DefaultColumns: []string{"Indexer", "RemoteAddress", "Size", "Uptime", "Tags", "Name", "Version", "UUID", "Label", "IP", "Hostname", "Entries", "StateSize", "CacheState", "CacheSize", "Children"},

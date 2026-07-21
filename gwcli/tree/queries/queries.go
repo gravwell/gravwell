@@ -102,6 +102,8 @@ func past() action.Pair {
 
 // if details, uses ListSearchDetails to return ALL data relevant to a search.
 //
+// Requires types.Search, types.AttachSearch (as ListSearches requires both).
+//
 // TODO install omit
 func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[string], error) {
 	lsd, err := connection.Client.ListSearches(nil)
@@ -137,8 +139,8 @@ func info() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use: "info",
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search},
-					XPermissions: []types.Capability{types.Search},
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
+					XPermissions: []types.Capability{types.Search, types.AttachSearch},
 				},
 			},
 			DefaultColumns: []string{"ID", "UID"},
@@ -175,12 +177,9 @@ func listAction() action.Pair {
 		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				// Non-admin scope lists the caller's own active searches (Search); --all/AdminMode
-				// escalates to listing every user's active searches, which mirrors SearchAllHistory.
-				// TODO(rory): confirm I vs X permission split; Requirements cannot currently branch on the --all flag.
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.SearchAllHistory},
-					XPermissions: []types.Capability{types.Search, types.SearchAllHistory},
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
+					XPermissions: []types.Capability{types.Search, types.AttachSearch},
 				},
 			},
 			DefaultColumns: []string{
@@ -225,8 +224,8 @@ func stop() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use: "stop",
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search},
-					XPermissions: []types.Capability{types.Search},
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
+					XPermissions: []types.Capability{types.Search, types.AttachSearch},
 				},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no running queries (that you can access)" }},
@@ -252,8 +251,8 @@ func importAction() action.Pair {
 		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
 			Use: "import",
 			Requirements: annotations.Requirements{
-				IPermissions: []types.Capability{types.SaveSearch},
-				XPermissions: []types.Capability{types.SaveSearch},
+				IPermissions: []types.Capability{types.SaveSearch, types.Search, types.SetSearchGroup},
+				XPermissions: []types.Capability{types.SaveSearch, types.Search, types.SetSearchGroup},
 			},
 		}})
 }
@@ -303,7 +302,7 @@ func save() action.Pair {
 					return fs
 				},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.SaveSearch},
+					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SaveSearch},
 					XPermissions: []types.Capability{types.SaveSearch},
 				},
 			},
@@ -337,7 +336,7 @@ func background() action.Pair {
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.BackgroundSearch},
+					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.BackgroundSearch},
 					XPermissions: []types.Capability{types.BackgroundSearch},
 				},
 			},
@@ -360,7 +359,7 @@ func delete() action.Pair {
 			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search},
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
 					XPermissions: []types.Capability{types.Search},
 				},
 			},
@@ -400,7 +399,7 @@ func setGroup() action.Pair {
 					return fs
 				},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.SetSearchGroup},
+					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SetSearchGroup},
 					XPermissions: []types.Capability{types.SetSearchGroup},
 				},
 			},

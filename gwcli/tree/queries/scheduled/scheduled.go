@@ -320,7 +320,7 @@ func edit() action.Pair {
 		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-				XPermissions: []types.Capability{types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
 			},
 		}})
 }
@@ -446,7 +446,7 @@ func backfillToggle() action.Pair {
 				},
 				Requirements: annotations.Requirements{
 					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
+					XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

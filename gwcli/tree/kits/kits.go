@@ -132,11 +132,8 @@ func uninstall() action.Pair {
 					fs.Bool("force", false, "Delete the kit even if it has modified items.")
 					return fs
 				},
-				// KitWrite is admin-only at the backend (see adminOnlyCapList), so gating on it
-				// naturally restricts this action to admins without needing UserIsAdmin.
-				// TODO(rory): confirm I vs X permission split; interactive mode also lists kits (KitRead) before uninstalling.
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitWrite},
+					IPermissions: []types.Capability{types.KitRead, types.KitWrite},
 					XPermissions: []types.Capability{types.KitWrite},
 				},
 			},
@@ -211,9 +208,8 @@ func install() action.Pair {
 						"Each instance of --kit-label will create exactly one kit label; they will not be split on commas")
 					return fs
 				},
-				// TODO(rory): confirm I vs X permission split; interactive mode also lists kits (KitRead) before installing.
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitWrite},
+					IPermissions: []types.Capability{types.KitRead, types.KitWrite},
 					XPermissions: []types.Capability{types.KitWrite},
 				},
 			},
@@ -285,9 +281,8 @@ func pull() action.Pair {
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "pull",
-				// TODO(rory): confirm I vs X permission split; interactive mode also lists remote kits before pulling.
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitWrite},
+					IPermissions: []types.Capability{types.KitRead, types.KitWrite},
 					XPermissions: []types.Capability{types.KitWrite},
 				},
 			},
@@ -826,7 +821,12 @@ func build() action.Pair {
 					return fs
 				},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitBuild},
+					// we need list permissions on basically everything when in interactive mode
+					IPermissions: []types.Capability{types.KitBuild,
+						types.DashboardRead, types.TemplateRead, types.ActionableRead,
+						types.ScheduleRead, types.ResourceRead, types.MacroRead,
+						types.ExtractorRead, types.FileRead, types.PlaybookRead,
+						types.LibraryRead, types.AlertRead},
 					XPermissions: []types.Capability{types.KitBuild},
 				},
 			},
@@ -1015,8 +1015,8 @@ func remote() action.Pair {
 				Use:     "remotes",
 				Aliases: []string{"list-remotes", "remote", "list-remote"},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitWrite},
-					XPermissions: []types.Capability{types.KitWrite},
+					IPermissions: []types.Capability{types.KitRead},
+					XPermissions: []types.Capability{types.KitRead},
 				},
 			},
 			DefaultColumns: []string{"ID", "KitID", "Name", "Description", "Version"},
@@ -1092,10 +1092,9 @@ func download() action.Pair {
 					fs.Bool("no-clobber", false, "do not truncate files with matching names. Instead, return an error.")
 					return fs
 				},
-				// TODO(rory): confirm I vs X permission split; interactive mode also lists local/remote kits (KitRead) before downloading.
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitDownload},
-					XPermissions: []types.Capability{types.KitDownload},
+					IPermissions: []types.Capability{types.KitRead},
+					XPermissions: []types.Capability{types.KitRead},
 				},
 			}})
 }

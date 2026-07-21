@@ -130,8 +130,8 @@ func newHardwareAction() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"hw"},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead},
-					XPermissions: []types.Capability{types.SystemInfoRead},
+					IPermissions: []types.Capability{types.Stats},
+					XPermissions: []types.Capability{types.Stats},
 				},
 			},
 		})

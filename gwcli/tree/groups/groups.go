@@ -91,7 +91,6 @@ func create() action.Pair {
 			return result.ID, "", err
 		}, scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
-				// group creation/management is currently restricted to admins, matching admin.go's pattern
 				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 		})

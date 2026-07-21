@@ -276,7 +276,7 @@ func edit() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
 					IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
-					XPermissions: []types.Capability{types.PlaybookWrite},
+					XPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
 				},
 			},
 		})

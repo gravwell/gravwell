@@ -53,8 +53,8 @@ func get() action.Pair {
 				Use:     "get",
 				Example: "get 127.0.0.1:9404",
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead},
-					XPermissions: []types.Capability{types.SystemInfoRead},
+					IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+					XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
 				},
 			},
 			DefaultColumnsFromExcludeRegex: []*regexp.Regexp{

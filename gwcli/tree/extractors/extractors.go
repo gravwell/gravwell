@@ -321,10 +321,6 @@ func modules() action.Pair {
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"engines"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ExtractorRead},
-					XPermissions: []types.Capability{types.ExtractorRead},
-				},
 			},
 		})
 

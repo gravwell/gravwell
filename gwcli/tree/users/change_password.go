@@ -71,10 +71,7 @@ func changePassword() action.Pair {
 			return errors.New("--new-password must be non-empty")
 		},
 		treeutils.GenerateActionOptions{
-			NodeOptions: treeutils.NodeOptions{
-				// changes an arbitrary user's password via AdminChangePass; admin-only operation
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			NodeOptions: treeutils.NodeOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
 		},
 	)
 

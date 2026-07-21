@@ -115,8 +115,8 @@ func newCalendarAction() action.Pair {
 				Aliases:    aliases,
 				AddtlFlags: calendarFlags,
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead},
-					XPermissions: []types.Capability{types.SystemInfoRead},
+					IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+					XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
 				},
 			},
 			// ValidateArgs does its namesake and sets/resets the package vars.
