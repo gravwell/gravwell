@@ -63,7 +63,6 @@ func SQSListener(c *Config) (*SQS, error) {
 	}
 
 	sqsSvc := sqs.NewFromConfig(cfg, clientOpts...)
-
 	return &SQS{
 		conf: c,
 		svc:  sqsSvc,
