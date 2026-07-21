@@ -22,8 +22,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-
-	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 type SQSHandler interface {
@@ -105,7 +103,7 @@ func (s *SQS) GetMessages(ctx context.Context) ([]types.Message, error) {
 	return out.Messages, nil
 }
 
-func (s *SQS) DeleteMessages(ctx context.Context, m []types.Message, lg *log.Logger) error {
+func (s *SQS) DeleteMessages(ctx context.Context, m []types.Message) error {
 	input := &sqs.DeleteMessageBatchInput{
 		QueueUrl: new(s.conf.Queue),
 	}
@@ -119,18 +117,13 @@ func (s *SQS) DeleteMessages(ctx context.Context, m []types.Message, lg *log.Log
 
 	_, err := s.svc.DeleteMessageBatch(ctx, input)
 	if err != nil {
-		_ = lg.Error("deleting messages failed, retrying", log.KVErr(err))
-		//try again, this is important
-		if _, err = s.svc.DeleteMessageBatch(ctx, input); err != nil {
-			_ = lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
-		}
+		// retry once — undeleted messages will be redelivered and duplicated downstream
+		_, err = s.svc.DeleteMessageBatch(ctx, input)
 	}
-
 	if err != nil {
-		err = fmt.Errorf("error deleting messages on queue %q: %w", s.Queue(), err)
+		return fmt.Errorf("error deleting messages on queue %q (retry failed, messages will likely be duplicated): %w", s.Queue(), err)
 	}
-
-	return err
+	return nil
 }
 
 func GetCredentials(t, akid, secret string) (aws.CredentialsProvider, error) {

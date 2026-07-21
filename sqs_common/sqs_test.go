@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -153,22 +152,33 @@ func TestSQS_GetMessages_Errors(t *testing.T) {
 func TestSQS_DeleteMessages(t *testing.T) {
 	t.Parallel()
 	queueName := "test-queue"
-	lg := log.NewDiscardLogger()
 
 	tests := []struct {
 		name      string
 		mockErr   error
+		failCount int // number of leading calls that fail with mockErr before succeeding
 		expectErr bool
+		wantCalls int
 	}{
 		{
 			name:      "success",
 			mockErr:   nil,
 			expectErr: false,
+			wantCalls: 1,
 		},
 		{
 			name:      "queue deleted during operation",
 			mockErr:   errors.New("The specified queue does not exist"),
+			failCount: 2, // fails on the initial attempt and the retry
 			expectErr: true,
+			wantCalls: 2,
+		},
+		{
+			name:      "recovers on retry",
+			mockErr:   errors.New("throttled"),
+			failCount: 1, // fails once, then the retry succeeds
+			expectErr: false,
+			wantCalls: 2,
 		},
 	}
 
@@ -181,7 +191,7 @@ func TestSQS_DeleteMessages(t *testing.T) {
 					callCount++
 					assert.Equal(t, queueName, *i.QueueUrl)
 
-					if tt.mockErr != nil {
+					if tt.mockErr != nil && callCount <= tt.failCount {
 						return nil, tt.mockErr
 					}
 
@@ -195,7 +205,7 @@ func TestSQS_DeleteMessages(t *testing.T) {
 			}
 
 			msgs := []types.Message{{MessageId: new("1"), ReceiptHandle: new("r1")}}
-			err := s.DeleteMessages(context.Background(), msgs, lg)
+			err := s.DeleteMessages(context.Background(), msgs)
 
 			if tt.expectErr {
 				require.Error(t, err)
@@ -204,11 +214,7 @@ func TestSQS_DeleteMessages(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			if tt.mockErr != nil {
-				assert.Equal(t, 2, callCount, "should have attempted retry")
-			} else {
-				assert.Equal(t, 1, callCount)
-			}
+			assert.Equal(t, tt.wantCalls, callCount)
 		})
 	}
 }
