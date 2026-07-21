@@ -71,15 +71,15 @@ func (sv *selectingView) init() (noAttachables bool, err error) {
 	sv.updatedItems = make(chan []list.Item)
 
 	// build the list
-	ss, err := connection.Client.ListSearchStatuses()
+	ss, err := connection.Client.ListSearches(nil)
 	if err != nil {
-		clilog.Writer.Warnf("failed to get search status: %v", err)
+		clilog.Writer.Warnf("failed to list searches: %v", err)
 		return false, err
-	} else if len(ss) == 0 {
+	} else if len(ss.Results) == 0 {
 		return true, nil
 	}
 
-	if sv.list, err = spawnListAndMaintainer(ss, sv.allDone, sv.updatedItems); err != nil {
+	if sv.list, err = spawnListAndMaintainer(ss.Results, sv.allDone, sv.updatedItems); err != nil {
 		return false, err
 	}
 
@@ -195,9 +195,9 @@ func (sv *selectingView) view() string {
 
 var _ stylesheet.ListItem = attachable{}
 
-// An attachable is just a wrapper around the SearchCtrlStatus type to allow us to fit it to the Item interface.
+// An attachable is just a wrapper around the SearchInfo type to allow us to fit it to the Item interface.
 type attachable struct {
-	types.SearchCtrlStatus
+	types.SearchInfo
 }
 
 // One-line display of the given item
@@ -210,7 +210,7 @@ func (i attachable) Title() string {
 }
 
 func (i attachable) Description() string {
-	return fmt.Sprintf("sID: %s | Global? %v", i.ID, i.Global)
+	return fmt.Sprintf("sID: %s | Global? %v", i.ID, i.Readers.Global)
 }
 
 // The string to substring against when a user filters the results.
@@ -300,7 +300,7 @@ func composeDetails(a attachable) string {
 // The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
 //
 // Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
-func spawnListAndMaintainer(ss []types.SearchCtrlStatus, done <-chan bool, updates chan<- []list.Item) (list.Model, error) {
+func spawnListAndMaintainer(ss []types.SearchInfo, done <-chan bool, updates chan<- []list.Item) (list.Model, error) {
 	// wrap each item and create a list from the set of them
 	itms := make([]list.Item, len(ss))
 	for i, s := range ss {
@@ -324,15 +324,15 @@ func spawnListAndMaintainer(ss []types.SearchCtrlStatus, done <-chan bool, updat
 				return
 			default:
 				// get the list of persistent searches
-				ss, err := connection.Client.ListSearchStatuses()
+				ss, err := connection.Client.ListSearches(nil)
 				if err != nil {
-					clilog.Writer.Warnf("attach maintainer failed to get search statuses: %v", err)
+					clilog.Writer.Warnf("attach maintainer failed to list searches: %v", err)
 					continue
 				}
 
 				// coerce the statuses into attachables
-				var attachables = make([]list.Item, len(ss))
-				for i, status := range ss {
+				var attachables = make([]list.Item, len(ss.Results))
+				for i, status := range ss.Results {
 					attachables[i] = attachable{status}
 				}
 

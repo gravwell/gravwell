@@ -435,16 +435,16 @@ func listUserSearchStorage() action.Pair {
 			"This does not factor in other items related to this user that are stored on the system.",
 		userSearchStorage{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]userSearchStorage, error) {
-			statuses, err := connection.Client.ListAllSearchStatuses()
+			statuses, err := connection.Client.ListAllSearches(nil)
 			if err != nil {
 				return nil, err
-			} else if len(statuses) < 1 {
+			} else if len(statuses.Results) < 1 {
 				return nil, nil
 			}
 			storageMap := map[int32]int64{}
-			for _, s := range statuses {
+			for _, s := range statuses.Results {
 				if s.StoredData > 0 {
-					storageMap[s.UID] += s.StoredData // starts as bytes
+					storageMap[s.OwnerID] += s.StoredData // starts as bytes
 				}
 			}
 			if len(storageMap) < 1 {
