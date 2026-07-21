@@ -80,13 +80,22 @@ type listener struct {
 	// each response. Streaming requires the client to set
 	// stream_options.include_usage = true.
 	Log_Usage bool
+	// Auth_Style selects the header the auth credentials use: "bearer" (default,
+	// "Authorization: Bearer <token>", used by OpenAI-compatible upstreams) or
+	// "x-api-key" (bare "x-api-key: <token>", used by the Anthropic Messages API).
+	Auth_Style string
+	// Anthropic_Version, when set, is injected as the upstream "anthropic-version"
+	// header if the client did not supply one. Only relevant with the
+	// "x-api-key" auth style when the proxy injects the upstream credential and
+	// the client therefore never sends the version header itself.
+	Anthropic_Version string
 	// Client_Authorization, when set, is the bare token inbound clients must
-	// present as "Authorization: Bearer <token>"; mismatches get a 401. Empty
+	// present in the auth header (see Auth_Style); mismatches get a 401. Empty
 	// requires no client authentication.
 	Client_Authorization string
 	// Upstream_Authorization, when set, is the bare token injected as the
-	// upstream Authorization header, replacing whatever the client sent. Empty
-	// passes the client's own Authorization header through unchanged.
+	// upstream auth header (see Auth_Style), replacing whatever the client sent.
+	// Empty passes the client's own auth header through unchanged.
 	Upstream_Authorization string
 	// Session_TTL is how long idle session prefix-match state is retained,
 	// expressed as a Go duration string (e.g. "30m"). Defaults to
@@ -103,9 +112,17 @@ type listener struct {
 	// derived during Verify
 	sessionTTL         time.Duration
 	upstreamURL        *url.URL
+	authHeaderName     string
 	clientAuthHeader   string
 	upstreamAuthHeader string
 }
+
+const (
+	authStyleBearer  = "bearer"
+	authStyleAPIKey  = "x-api-key"
+	bearerHeaderName = "Authorization"
+	apiKeyHeaderName = "x-api-key"
+)
 
 type cfgType struct {
 	gbl
@@ -220,25 +237,46 @@ func (l *listener) validate() error {
 			return fmt.Errorf("TLS keypair: %w", err)
 		}
 	}
-	// Auth tokens are configured bare; we speak Bearer to both the client and
-	// the upstream. Empty tokens leave the corresponding header handling off.
-	if l.Client_Authorization != "" {
-		l.clientAuthHeader = "Bearer " + l.Client_Authorization
-	}
-	if l.Upstream_Authorization != "" {
-		l.upstreamAuthHeader = "Bearer " + l.Upstream_Authorization
+	// Auth tokens are configured bare. Auth_Style selects the header and scheme:
+	// "bearer" (default) speaks "Authorization: Bearer <token>"; "x-api-key"
+	// speaks a bare "x-api-key: <token>" for the Anthropic Messages API. Empty
+	// tokens leave the corresponding header handling off.
+	switch l.Auth_Style {
+	case "", authStyleBearer:
+		l.Auth_Style = authStyleBearer
+		l.authHeaderName = bearerHeaderName
+		if l.Client_Authorization != "" {
+			l.clientAuthHeader = "Bearer " + l.Client_Authorization
+		}
+		if l.Upstream_Authorization != "" {
+			l.upstreamAuthHeader = "Bearer " + l.Upstream_Authorization
+		}
+	case authStyleAPIKey:
+		l.authHeaderName = apiKeyHeaderName
+		l.clientAuthHeader = l.Client_Authorization
+		l.upstreamAuthHeader = l.Upstream_Authorization
+	default:
+		return fmt.Errorf("invalid Auth-Style %q (want %q or %q)",
+			l.Auth_Style, authStyleBearer, authStyleAPIKey)
 	}
 	return nil
 }
 
-// ClientAuthHeader returns the full Authorization header value an inbound client
-// must present, or "" when no client authentication is required.
+// AuthHeaderName returns the header the auth credentials use ("Authorization"
+// for the bearer style, "x-api-key" for the Anthropic style).
+func (l *listener) AuthHeaderName() string {
+	return l.authHeaderName
+}
+
+// ClientAuthHeader returns the full auth header value an inbound client must
+// present (see AuthHeaderName), or "" when no client authentication is required.
 func (l *listener) ClientAuthHeader() string {
 	return l.clientAuthHeader
 }
 
-// UpstreamAuthHeader returns the Authorization header value to inject on the
-// upstream request, or "" to pass the client's Authorization through unchanged.
+// UpstreamAuthHeader returns the auth header value to inject on the upstream
+// request (see AuthHeaderName), or "" to pass the client's own value through
+// unchanged.
 func (l *listener) UpstreamAuthHeader() string {
 	return l.upstreamAuthHeader
 }

@@ -89,8 +89,9 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Gate inbound requests when a client credential is configured. Reject
-	// before reading the (potentially large) body.
-	if want := h.cfg.ClientAuthHeader(); want != "" && r.Header.Get("Authorization") != want {
+	// before reading the (potentially large) body. The header depends on the
+	// listener's auth style (Authorization for bearer, x-api-key for Anthropic).
+	if want := h.cfg.ClientAuthHeader(); want != "" && r.Header.Get(h.cfg.AuthHeaderName()) != want {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -180,10 +181,16 @@ func (h *proxyHandler) forwardUpstream(r *http.Request, body []byte) (*http.Resp
 	}
 	// Forward all client headers (Content-Type, provider-specific headers,
 	// etc.) minus hop-by-hop headers. When an upstream credential is
-	// configured it replaces the client's Authorization; otherwise the
-	// client's Authorization passes through unchanged.
-	copyRequestHeaders(out, r, h.cfg.UpstreamAuthHeader())
+	// configured it replaces the client's auth header; otherwise the client's
+	// auth header passes through unchanged.
+	copyRequestHeaders(out, r, h.cfg.AuthHeaderName(), h.cfg.UpstreamAuthHeader())
 	setForwardedFor(out, r)
+	// The Anthropic Messages API requires an anthropic-version header. When the
+	// proxy injects the upstream key the client never sends one, so supply a
+	// configured default if the request lacks it.
+	if v := h.cfg.Anthropic_Version; v != "" && out.Header.Get("anthropic-version") == "" {
+		out.Header.Set("anthropic-version", v)
+	}
 	return h.upstream.Do(out)
 }
 
@@ -327,9 +334,11 @@ func connectionHeaders(h http.Header) map[string]struct{} {
 }
 
 // copyRequestHeaders copies client headers to the upstream request, dropping
-// hop-by-hop headers. When upstreamAuth is non-empty the client's Authorization
-// is dropped and replaced with upstreamAuth; when empty it passes through.
-func copyRequestHeaders(dst, src *http.Request, upstreamAuth string) {
+// hop-by-hop headers. When upstreamAuth is non-empty the client's auth header
+// (named by authHeaderName, e.g. "Authorization" or "x-api-key") is dropped and
+// replaced with upstreamAuth; when empty it passes through.
+func copyRequestHeaders(dst, src *http.Request, authHeaderName, upstreamAuth string) {
+	authKey := http.CanonicalHeaderKey(authHeaderName)
 	connDrop := connectionHeaders(src.Header)
 	for k, vs := range src.Header {
 		ck := http.CanonicalHeaderKey(k)
@@ -339,7 +348,7 @@ func copyRequestHeaders(dst, src *http.Request, upstreamAuth string) {
 		if _, drop := connDrop[ck]; drop {
 			continue
 		}
-		if upstreamAuth != "" && ck == "Authorization" {
+		if upstreamAuth != "" && ck == authKey {
 			continue // replaced below with the configured upstream credential
 		}
 		for _, v := range vs {
@@ -347,7 +356,7 @@ func copyRequestHeaders(dst, src *http.Request, upstreamAuth string) {
 		}
 	}
 	if upstreamAuth != "" {
-		dst.Header.Set("Authorization", upstreamAuth)
+		dst.Header.Set(authHeaderName, upstreamAuth)
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
 	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/openai"
 )
 
@@ -362,6 +363,161 @@ func TestProxyUnparseableRequestForwarded(t *testing.T) {
 	// No request/response events for a body we couldn't parse.
 	if len(c.ents) != 0 {
 		t.Errorf("expected no ingested events for unparseable request, got %v", c.eventTypes(t))
+	}
+}
+
+// --- Anthropic Messages API (x-api-key auth) ---
+
+// newAnthropicTestHandler builds a proxyHandler for the anthropic-messages
+// protocol pointed at the given upstream URL.
+func newAnthropicTestHandler(t *testing.T, upstreamURL string, mutate func(*listener)) (*proxyHandler, *capture) {
+	t.Helper()
+	proto, err := protocol.Lookup("anthropic-messages")
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	l := &listener{
+		Bind:           ":0",
+		Upstream_URL:   upstreamURL,
+		Protocol:       "anthropic-messages",
+		Auth_Style:     "x-api-key",
+		Log_Tool_Calls: true,
+		Log_Usage:      true,
+	}
+	if mutate != nil {
+		mutate(l)
+	}
+	if err := l.validate(); err != nil {
+		t.Fatalf("listener validate: %v", err)
+	}
+	sessions, err := newSessionStore(time.Hour, 0, "")
+	if err != nil {
+		t.Fatalf("newSessionStore: %v", err)
+	}
+	c := &capture{}
+	ph := newProxyHandler("test", l, proto, entry.EntryTag(0),
+		processors.NewProcessorSet(c), sessions, nil)
+	return ph, c
+}
+
+const msgReqBody = `{"model":"claude-opus-4-8","max_tokens":64,"stream":false,` +
+	`"system":"be brief","messages":[{"role":"user","content":"hello"}]}`
+
+const msgRespBody = `{"id":"msg_1","model":"claude-opus-4-8","role":"assistant",` +
+	`"content":[{"type":"text","text":"hi"}],"stop_reason":"end_turn",` +
+	`"usage":{"input_tokens":5,"output_tokens":1}}`
+
+// doMessages issues a /v1/messages request with an optional x-api-key header.
+func doMessages(t *testing.T, ph *proxyHandler, body, apiKey string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("x-api-key", apiKey)
+	}
+	req.RemoteAddr = "203.0.113.7:5555"
+	w := httptest.NewRecorder()
+	ph.ServeHTTP(w, req)
+	return w
+}
+
+func TestProxyAnthropicInjectsAPIKeyAndVersion(t *testing.T) {
+	var gotAPIKey, gotVersion, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAPIKey = r.Header.Get("x-api-key")
+		gotVersion = r.Header.Get("anthropic-version")
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	// Gating mode: the client sends no key; the proxy injects the real key as
+	// x-api-key and supplies the required anthropic-version header.
+	ph, c := newAnthropicTestHandler(t, srv.URL, func(l *listener) {
+		l.Upstream_Authorization = "sk-ant-real"
+		l.Anthropic_Version = "2023-06-01"
+	})
+	w := doMessages(t, ph, msgReqBody, "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if gotAPIKey != "sk-ant-real" {
+		t.Errorf("upstream x-api-key = %q, want the injected key", gotAPIKey)
+	}
+	if gotVersion != "2023-06-01" {
+		t.Errorf("upstream anthropic-version = %q, want the injected default", gotVersion)
+	}
+	if gotAuth != "" {
+		t.Errorf("upstream should not receive an Authorization header, saw %q", gotAuth)
+	}
+	// Ingest side: system + user request events, assistant + usage response events.
+	types := c.eventTypes(t)
+	if countType(types, protocol.EventUserMessage) != 1 {
+		t.Errorf("expected 1 user message event, got %v", types)
+	}
+	if countType(types, protocol.EventAssistantMessage) != 1 {
+		t.Errorf("expected 1 assistant message event, got %v", types)
+	}
+	if countType(types, protocol.EventUsage) != 1 {
+		t.Errorf("expected 1 usage event, got %v", types)
+	}
+}
+
+func TestProxyAnthropicPassesClientKeyThrough(t *testing.T) {
+	var gotAPIKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAPIKey = r.Header.Get("x-api-key")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	// Pass-through mode: no upstream credential configured, so the client's own
+	// x-api-key reaches the upstream unchanged.
+	ph, _ := newAnthropicTestHandler(t, srv.URL, nil)
+	w := doMessages(t, ph, msgReqBody, "sk-ant-client")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if gotAPIKey != "sk-ant-client" {
+		t.Errorf("upstream x-api-key = %q, want the client's key passed through", gotAPIKey)
+	}
+}
+
+func TestProxyAnthropicClientGate(t *testing.T) {
+	var gotAPIKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAPIKey = r.Header.Get("x-api-key")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	ph, _ := newAnthropicTestHandler(t, srv.URL, func(l *listener) {
+		l.Client_Authorization = "gate-key"
+		l.Upstream_Authorization = "sk-ant-real"
+	})
+
+	// Correct client key: gated in; upstream sees the injected key, not the gate.
+	w := doMessages(t, ph, msgReqBody, "gate-key")
+	if w.Code != http.StatusOK {
+		t.Fatalf("authorized status = %d, want 200", w.Code)
+	}
+	if gotAPIKey != "sk-ant-real" {
+		t.Errorf("upstream x-api-key = %q, want the injected key", gotAPIKey)
+	}
+
+	// Wrong / missing key is rejected before the upstream is contacted.
+	gotAPIKey = "sentinel"
+	if w = doMessages(t, ph, msgReqBody, "wrong-key"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("bad-key status = %d, want 401", w.Code)
+	}
+	if w = doMessages(t, ph, msgReqBody, ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("missing-key status = %d, want 401", w.Code)
+	}
+	if gotAPIKey != "sentinel" {
+		t.Errorf("upstream was contacted on a rejected request (saw x-api-key %q)", gotAPIKey)
 	}
 }
 

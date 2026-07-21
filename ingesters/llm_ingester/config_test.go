@@ -57,6 +57,7 @@ func TestListenerValidateErrors(t *testing.T) {
 		{"negative-session-ttl", func(l *listener) { l.Session_TTL = "-5m" }},
 		{"tls-only-cert", func(l *listener) { l.TLS_Certificate_File = "cert.pem" }},
 		{"tls-only-key", func(l *listener) { l.TLS_Key_File = "key.pem" }},
+		{"invalid-auth-style", func(l *listener) { l.Auth_Style = "digest" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,6 +78,41 @@ func TestListenerValidateSessionTTLParsed(t *testing.T) {
 	}
 	if l.sessionTTL != 45*time.Minute {
 		t.Errorf("sessionTTL = %v, want 45m", l.sessionTTL)
+	}
+}
+
+func TestListenerAuthStyle(t *testing.T) {
+	// Default (bearer): Authorization header, "Bearer <token>" values.
+	l := validListener()
+	l.Client_Authorization = "ctok"
+	l.Upstream_Authorization = "utok"
+	if err := l.validate(); err != nil {
+		t.Fatalf("validate bearer: %v", err)
+	}
+	if l.Auth_Style != authStyleBearer {
+		t.Errorf("Auth_Style default = %q, want %q", l.Auth_Style, authStyleBearer)
+	}
+	if l.AuthHeaderName() != bearerHeaderName {
+		t.Errorf("AuthHeaderName = %q, want %q", l.AuthHeaderName(), bearerHeaderName)
+	}
+	if l.ClientAuthHeader() != "Bearer ctok" || l.UpstreamAuthHeader() != "Bearer utok" {
+		t.Errorf("bearer headers = %q / %q", l.ClientAuthHeader(), l.UpstreamAuthHeader())
+	}
+
+	// x-api-key: x-api-key header, bare token values.
+	l = validListener()
+	l.Protocol = "anthropic-messages"
+	l.Auth_Style = "x-api-key"
+	l.Client_Authorization = "ctok"
+	l.Upstream_Authorization = "utok"
+	if err := l.validate(); err != nil {
+		t.Fatalf("validate x-api-key: %v", err)
+	}
+	if l.AuthHeaderName() != apiKeyHeaderName {
+		t.Errorf("AuthHeaderName = %q, want %q", l.AuthHeaderName(), apiKeyHeaderName)
+	}
+	if l.ClientAuthHeader() != "ctok" || l.UpstreamAuthHeader() != "utok" {
+		t.Errorf("x-api-key headers = %q / %q (want bare tokens)", l.ClientAuthHeader(), l.UpstreamAuthHeader())
 	}
 }
 
