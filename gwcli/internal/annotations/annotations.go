@@ -221,18 +221,35 @@ func checkRequirements(cmd *cobra.Command, interactive bool, CBACEnabled bool, u
 // If they are not, the command is marked with the 'disabled' annotation.
 // The annotation's value is the reason it is disabled.
 //
+// Returns if cmd was disabled.
+//
 // Intended for use in interactive mode as it facilitates fast lookups.
-func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities map[types.Capability]bool) {
+func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities map[types.Capability]bool) (disabled bool) {
 	if cmd == nil {
 		return
 	}
+	n := cmd.Name()
+	clilog.Writer.Debug("cmd name: " + n)
 	// CheckRequirements checks that the anno map is not nil for us
 	if err := checkRequirements(cmd, true, CBACEnabled, userIsAdmin, usersCapabilities); err != nil {
 		cmd.Annotations[keyDisabled] = err.Error()
+		disabled = true
 	}
+	numChildren, numEnabledChildren := 0, 0
 	for _, child := range cmd.Commands() {
-		ConsolidateToDisabled(child, CBACEnabled, userIsAdmin, usersCapabilities)
+		numChildren += 1
+		if !ConsolidateToDisabled(child, CBACEnabled, userIsAdmin, usersCapabilities) {
+			numEnabledChildren += 1
+		}
 	}
+	// if we have no children enabled, but we are enabled, disable ourselves.
+	if numChildren > 0 && numEnabledChildren == 0 && !disabled {
+		if cmd.Annotations == nil {
+			cmd.Annotations = make(map[string]string)
+		}
+		cmd.Annotations[keyDisabled] = "all children disabled"
+	}
+	return
 }
 
 // IsDisabled returns the reason this command is disabled (or the empty string).
