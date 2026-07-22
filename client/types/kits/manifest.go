@@ -64,13 +64,11 @@ func (m *Manifest) Add(item types.KitItem) error {
 		return err
 	}
 
-	//ensure the item Filename and name/type don't already exist
+	//items are keyed by ID; ensure the ID isn't already present. Names are
+	//not required to be unique (two items of the same type may share a name).
 	for i := range m.Items {
-		if m.Items[i].Filename() == item.Filename() {
-			return fmt.Errorf("File name %s already exists", item.Filename())
-		}
-		if m.Items[i].Type == item.Type && m.Items[i].Name == item.Name {
-			return fmt.Errorf("The %s named %s already exists", item.Type, item.Name)
+		if m.Items[i].ID == item.ID {
+			return fmt.Errorf("item with ID %s already exists", item.ID)
 		}
 	}
 	m.Items = append(m.Items, item)
