@@ -30,7 +30,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/attach"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/saved"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/scheduled"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -47,7 +46,7 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("searches", "manage existing and past searches",
 		"Manage active, past, saved, and scheduled queries.\n"+
 			"You can issue new searches using the top-level "+stylesheet.Cur.Action.Render("query")+" action.",
-		[]*cobra.Command{scheduled.NewScheduledNav(), saved.NewSavedNav()},
+		[]*cobra.Command{saved.NewSavedNav()},
 		[]action.Pair{
 			past(),
 			attach.NewAttachAction(),

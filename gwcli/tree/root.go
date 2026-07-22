@@ -35,13 +35,12 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/automation"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/cbac"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/email"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/files"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/flows"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/groups"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
@@ -384,13 +383,12 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 	var cmdFn = []func() *cobra.Command{
 		actionables.NewNav,
 		admin.NewNav,
-		alerts.NewNav,
+		automation.NewNav,
 		cbac.NewNav,
 		dashboards.NewNav,
 		email.NewNav,
 		extractors.NewNav,
 		files.NewNav,
-		flows.NewNav,
 		groups.NewNav,
 		kits.NewNav,
 		license.NewNav,
