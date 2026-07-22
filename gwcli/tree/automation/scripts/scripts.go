@@ -83,6 +83,7 @@ func listAction() action.Pair {
 					fs.String("id", "", "fetches the script associated with the given id.")
 					return &fs
 				},
+				Aliases: []string{"get"},
 				Requirements: annotations.Requirements{
 					IPermissions: []types.Capability{types.ScheduleRead},
 					XPermissions: []types.Capability{types.ScheduleRead},
