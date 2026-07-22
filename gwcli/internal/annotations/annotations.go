@@ -23,6 +23,7 @@ const (
 	keyDisabled          string = "disabled"
 )
 const requirementValue string = "1"
+const ReasonAllChildrenDisabled string = "your user lacks permissions to uses the commands"
 
 // Requirements define the requirements that must be satisfied for a command to be invoked.
 //
@@ -245,7 +246,7 @@ func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin boo
 		if cmd.Annotations == nil {
 			cmd.Annotations = make(map[string]string)
 		}
-		cmd.Annotations[keyDisabled] = "your user lacks permissions to uses the commands" // all children disabled
+		cmd.Annotations[keyDisabled] = ReasonAllChildrenDisabled
 	}
 	return
 }
