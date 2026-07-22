@@ -23,7 +23,7 @@ const (
 	keyDisabled          string = "disabled"
 )
 const requirementValue string = "1"
-const ReasonAllChildrenDisabled string = "your user lacks permissions to uses the commands"
+const ReasonAllChildrenDisabled string = "your user lacks permissions to use the commands"
 
 // Requirements define the requirements that must be satisfied for a command to be invoked.
 //
