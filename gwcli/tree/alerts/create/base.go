@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -31,7 +32,6 @@ import (
 func Action() action.Pair {
 	cmd := treeutils.GenerateAction("create", "create a new alert",
 		"Create a new alert by defining the dispatchers that trigger it and the consumers that act when the alert is fired",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			availDispatchers, availConsumers, inv, err := prerequisites()
 			if err != nil {
@@ -59,6 +59,12 @@ func Action() action.Pair {
 			return nil
 		},
 		treeutils.GenerateActionOptions{
+			NodeOptions: treeutils.NodeOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertWrite},
+				},
+			},
 			Usage: ft.Mandatory("--name=NAME") + ft.Optional("flags"),
 			Example: "--name=myalert" +
 				" --tag=investigation" +

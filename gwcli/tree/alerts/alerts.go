@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -41,7 +42,7 @@ func NewNav() *cobra.Command {
 		long  string = "Alerts allow you to tie sources of intelligence (such as periodic scheduled searches) to actions (such as a flow that files a ticket)." +
 			" This can make it much simpler to take automatic action when something of interest occurs."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"alert"}, []*cobra.Command{},
+	return treeutils.GenerateNav(use, short, long, []*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			toggle(),
@@ -49,7 +50,9 @@ func NewNav() *cobra.Command {
 			alertscreate.Action(),
 			dispatchers(),
 			save(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"alert"}},
+	)
 }
 
 //#region actions
@@ -63,7 +66,6 @@ var (
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list your alerts", "Lists alerts associated to your user.", types.Alert{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
-
 			if listConsumerID != "" {
 				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
 					Key:       "Consumers.ID",
@@ -94,6 +96,10 @@ func listAction() action.Pair {
 					fs.String("consumer", "", "Filter to alerts that refer to this consumer. Should be the ID of the a flow. Used to answer: which alerts will launch this specific flow")
 					fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search. Used to answer: which alerts will be invoked by this specific scheduled search")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead},
+					XPermissions: []types.Capability{types.AlertRead},
 				},
 			},
 			DefaultColumns: []string{
@@ -140,7 +146,15 @@ func delete() action.Pair {
 			}
 			return listitem.WrapAssets(lr.Results), nil
 		},
-		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true}},
+	)
 }
 
 var toggleEnable, toggleDisable bool
@@ -223,6 +237,10 @@ func toggle() action.Pair {
 					fs.Bool("enable", false, "explicitly enable selected alerts. No-op on alerts already enabled. Mutually exclusive with --disable")
 					fs.Bool("disable", false, "explicitly disable selected alerts. No-op on alerts already disabled. Mutually exclusive with --enable")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
 				},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string {
@@ -343,6 +361,10 @@ func dispatchers() action.Pair {
 						" Mutually exclusive with --add")
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if dIDs, err := fs.GetStringSlice("dispatcher-ids"); err != nil { // this is a fatal error
@@ -446,6 +468,10 @@ func save() action.Pair {
 					fs.Bool("disable", false, "Disable search saving.\n"+
 						"Mutually exclusive with --enable")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

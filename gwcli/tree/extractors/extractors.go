@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -51,7 +52,7 @@ func NewNav() *cobra.Command {
 
 	var aliases = []string{"extractor", "ex", "ax", "autoextractor", "autoextractors", "axs"}
 
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
@@ -62,7 +63,7 @@ func NewNav() *cobra.Command {
 			importUpload(),
 			find(),
 			clear(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 // ensure consistency between edit and create
@@ -82,7 +83,6 @@ var (
 // #region list
 
 func list() action.Pair {
-
 	return scaffoldlist.NewListAction(
 		"list extractors",
 		"List autoextractions available to you",
@@ -102,7 +102,13 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: flags,
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ExtractorRead},
+					XPermissions: []types.Capability{types.ExtractorRead},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -252,6 +258,10 @@ func create() action.Pair {
 					ft.Dryrun.Register(fs)
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ExtractorWrite},
+					XPermissions: []types.Capability{types.ExtractorWrite},
+				},
 			},
 		})
 }
@@ -284,7 +294,16 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
+					XPermissions: []types.Capability{types.ExtractorWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		},
+	)
 }
 
 func modules() action.Pair {
@@ -429,6 +448,10 @@ func edit() action.Pair {
 				return data.Name, nil
 			},
 		},
+		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{Requirements: annotations.Requirements{
+			IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
+			XPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
+		}}},
 	)
 }
 
@@ -465,6 +488,10 @@ func importUpload() action.Pair {
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Usage: "import " + ft.Mandatory("path/to/file.toml"),
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ExtractorWrite},
+					XPermissions: []types.Capability{types.ExtractorWrite},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -519,6 +546,10 @@ func find() action.Pair {
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "find",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ExtractorRead},
+					XPermissions: []types.Capability{types.ExtractorRead},
+				},
 			},
 		})
 }
@@ -575,5 +606,13 @@ func clear() action.Pair {
 			}
 			return results, nil
 		},
-		scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{Use: "clear"}})
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use: "clear",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
+					XPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
+				},
+			},
+		})
 }

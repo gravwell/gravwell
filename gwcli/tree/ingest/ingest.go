@@ -16,9 +16,11 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -46,7 +48,14 @@ func NewIngestAction() action.Pair {
 	cmd := treeutils.GenerateAction(
 		"ingest",
 		"ingest data from a file or STDIN",
-		helpDesc, []string{"in", "sip", "read", "load", "slurp"}, runE)
+		helpDesc, runE,
+		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+			CommandAliases: []string{"in", "sip", "read", "load", "slurp"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Ingest},
+				XPermissions: []types.Capability{types.Ingest},
+			},
+		}})
 	cmd.Example = "./gwcli ingest picture/of/space.png,pulsar query_results.json cat/pics/,animals ..."
 
 	{ // install flags

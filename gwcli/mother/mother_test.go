@@ -56,11 +56,11 @@ func Test_SuggestionCompletion_TeaTest(t *testing.T) {
 	// build up some example commands
 	nav1Action1 := scaffold.NewBasicAction("actionone", "action1 short", "action1 long",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) { return "", nil }, scaffold.BasicOptions{})
-	nav1 := treeutils.GenerateNav("topNav1", "nav1 short", "nav1 long", nil, nil, []action.Pair{nav1Action1})
-	nav2 := treeutils.GenerateNav("topNav2", "nav2 short", "nav2 long", nil, nil, nil)
+	nav1 := treeutils.GenerateNav("topNav1", "nav1 short", "nav1 long", nil, []action.Pair{nav1Action1})
+	nav2 := treeutils.GenerateNav("topNav2", "nav2 short", "nav2 long", nil, nil)
 	action1 := scaffold.NewBasicAction("topAct", "action1 short", "action1 long",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) { return "", nil }, scaffold.BasicOptions{})
-	root := treeutils.GenerateNav("root", "root short", "root long", nil,
+	root := treeutils.GenerateNav("root", "root short", "root long",
 		[]*cobra.Command{nav1, nav2}, []action.Pair{action1})
 
 	mthr := mother.New(root, root, nil, nil)
@@ -109,12 +109,12 @@ func TestAllTokensPropagate(t *testing.T) {
 	// |- action1 (flags: f1=int f2=bool)
 	// - nav2
 
-	action1 := treeutils.GenerateAction("action1", "action one", "action yī", nil, func(c *cobra.Command, s []string) error { return nil })
+	action1 := treeutils.GenerateAction("action1", "action one", "action yī", func(c *cobra.Command, s []string) error { return nil })
 	action1.Flags().Int("f1", 0, "")
 	action1.Flags().Bool("f2", false, "")
-	nav1 := treeutils.GenerateNav("nav1", "nav one", "nav yī", nil, nil, []action.Pair{action.NewPair(action1, nil)})
-	nav2 := treeutils.GenerateNav("nav2", "nav two", "nav ѐr", nil, nil, nil)
-	root := treeutils.GenerateNav("root", "root", "root", nil, []*cobra.Command{nav1, nav2}, nil)
+	nav1 := treeutils.GenerateNav("nav1", "nav one", "nav yī", nil, []action.Pair{action.NewPair(action1, nil)})
+	nav2 := treeutils.GenerateNav("nav2", "nav two", "nav ѐr", nil, nil)
+	root := treeutils.GenerateNav("root", "root", "root", []*cobra.Command{nav1, nav2}, nil)
 	uniques.AttachPersistentFlags(root)
 
 	tests := []struct {

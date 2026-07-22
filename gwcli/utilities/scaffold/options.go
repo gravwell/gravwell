@@ -15,7 +15,9 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -46,15 +48,23 @@ type CommonOptions struct {
 	// Provide an example of calling this action/override the scaffold's default example.
 	// Example should start with Use.
 	Example string
-	// Other names for this action.
-	Aliases []string
 
 	// A function to generate action-specific flags that should be bolted on.
 	// CommonOptions.Apply will attach these flags to the command, but remember to utilize them in interactive mode (likely during SetArgs).
 	AddtlFlags func() *pflag.FlagSet
+
+	// Other names for this action.
+	// Corralled into NodeOptions in Apply.
+	Aliases []string
+
+	// State and permissions required to invoke this command.
+	// Corralled into NodeOptions in Apply.
+	Requirements annotations.Requirements
 }
 
 // Apply alters the given cmd such that all set CommonOptions are effectual.
+// No need to pass treeutils.NodeOptions into cmd;
+// CommonOptions.Apply will generate and apply NodeOptions from its own fields.
 func (co CommonOptions) Apply(cmd *cobra.Command) {
 	if co.Use = strings.TrimSpace(co.Use); co.Use != "" {
 		co.Use = strings.ReplaceAll(co.Use, " ", "_")
@@ -76,12 +86,14 @@ func (co CommonOptions) Apply(cmd *cobra.Command) {
 	if co.Example != "" {
 		cmd.Example = co.Example
 	}
-	if len(co.Aliases) > 0 {
-		cmd.Aliases = co.Aliases
-	}
 	if co.AddtlFlags != nil {
 		cmd.Flags().AddFlagSet(co.AddtlFlags())
 	}
+
+	treeutils.NodeOptions{
+		CommandAliases: co.Aliases,
+		Requirements:   co.Requirements,
+	}.Apply(cmd)
 }
 
 //#region OmitFlags

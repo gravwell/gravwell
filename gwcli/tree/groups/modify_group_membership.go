@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -64,7 +65,7 @@ type membershipChanges struct {
 // It powers both associate and disassociate.
 func modGroupUsers(use, short, long string, aliases []string, add bool) action.Pair {
 	pair := action.NewPair(treeutils.GenerateAction(use, short, long,
-		aliases, func(c *cobra.Command, args []string) error {
+		func(c *cobra.Command, args []string) error {
 			x, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				clilog.GetFlag(err)
@@ -124,7 +125,12 @@ func modGroupUsers(use, short, long string, aliases []string, add bool) action.P
 				return errors.New("all requested group changes failed")
 			}
 			return nil
-		}), newMembershipChangesInteractive(add))
+		}, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+			CommandAliases: aliases,
+			// modifying group membership is currently restricted to admins, matching admin.go's pattern
+			Requirements: annotations.Requirements{UserIsAdmin: true},
+		}}),
+		newMembershipChangesInteractive(add))
 
 	pair.Action.Flags().AddFlagSet(membershipFlagset(add))
 	return pair

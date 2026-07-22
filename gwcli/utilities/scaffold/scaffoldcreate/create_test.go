@@ -20,6 +20,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -308,6 +309,32 @@ func TestOptions(t *testing.T) {
 				assert.Nil(t, pair.Model.Reset())
 			})
 		})
+	})
+
+	t.Run("All options are applied automatically", func(t *testing.T) {
+		pair := scaffoldcreate.NewCreateAction("test",
+			map[string]scaffoldcreate.Field{},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				return 0, "", nil
+			},
+			scaffoldcreate.Options{
+				CommonOptions: scaffold.CommonOptions{
+					Aliases:      []string{"a", "b", "a"},
+					Requirements: annotations.Requirements{UserIsAdmin: true},
+				},
+			})
+		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
+		assert.Nil(t, annotations.CheckRequirements(pair.Action, false, true, nil))
+	})
+	t.Run("Options are ignored if not set", func(t *testing.T) {
+		pair := scaffoldcreate.NewCreateAction("test",
+			map[string]scaffoldcreate.Field{},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				return 0, "", nil
+			},
+			scaffoldcreate.Options{})
+		assert.Equal(t, []string{}, pair.Action.Aliases)
+		assert.Len(t, pair.Action.Annotations, 0)
 	})
 }
 

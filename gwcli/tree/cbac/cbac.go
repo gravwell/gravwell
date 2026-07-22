@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -38,7 +39,6 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(
 		"cbac", "manage capability-based access control",
 		"Inspect and manage CBAC rules that govern which operations users and groups may perform.",
-		[]string{"capabilities"},
 		[]*cobra.Command{},
 		[]action.Pair{
 			listCapabilities(),
@@ -47,7 +47,12 @@ func NewNav() *cobra.Command {
 			get(),
 			edit(),
 			set(),
-		})
+		},
+		treeutils.NodeOptions{
+			CommandAliases: []string{"capabilities"},
+			Requirements:   annotations.Requirements{DeploymentHasCBAC: true},
+		},
+	)
 }
 
 func listCapabilities() action.Pair {
@@ -74,6 +79,9 @@ func listCapabilities() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "capabilities",
 				Aliases: []string{"caps", "list-caps", "list-capabilities"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+				},
 			},
 			DefaultColumns: []string{"Category", "Name", "Desc"},
 		})
@@ -94,6 +102,9 @@ func listTemplates() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "templates",
 				Aliases: []string{"list-templates"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+				},
 			},
 			DefaultColumns: []string{"Name", "Desc", "Caps"},
 		})
@@ -154,6 +165,9 @@ func myCapabilities() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "my",
 				Aliases: []string{"self", "current", "my-capabilities", "my-caps"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+				},
 			},
 			DefaultColumns: []string{"Category", "Name", "UserGrant", "GroupGrants"},
 		})
@@ -164,7 +178,6 @@ type getCaps struct { // TODO should we be using this for list as well?
 	Grants []string
 }
 
-// TODO this is admin only
 func get() action.Pair {
 	var uids, gids []int32
 	return scaffoldlist.NewListAction("get user/group capabilities",
@@ -197,7 +210,7 @@ func get() action.Pair {
 			}
 			return items, nil
 		},
-		nil, // TODO
+		nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "get",
@@ -207,6 +220,10 @@ func get() action.Pair {
 					fs.Int32Slice("uids", nil, "IDs of the users to include")
 					fs.Int32Slice("gids", nil, "IDs of the groups to include")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+					UserIsAdmin:       true,
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (_ string, err error) {
@@ -393,6 +410,10 @@ func edit() action.Pair {
 					fs.Bool("grant", false, "Only grant caps; no caps will be removed through this call")
 					fs.Bool("revoke", false, "Only revoke caps; no caps will be added through this call")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+					UserIsAdmin:       true,
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -632,6 +653,10 @@ func set() action.Pair {
 					ft.MutuallyExclusive("--uids", "--gids") +
 					ft.Mandatory("--caps"),
 				Aliases: []string{"replace"},
+				Requirements: annotations.Requirements{
+					DeploymentHasCBAC: true,
+					UserIsAdmin:       true,
+				},
 			},
 			IDIsSuccessMessage: true,
 		})

@@ -220,7 +220,7 @@ func NewListAction[dataStruct_t any](short, long string,
 		)
 	}
 
-	cmd := treeutils.GenerateAction("list", short, long, nil, runE, actionOptions)
+	cmd := treeutils.GenerateAction("list", short, long, runE, actionOptions)
 	options.Apply(cmd)
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.Pretty != nil, aliasColumns(defaultColumnsDQ, DQToAlias), options.QueryOptionsFlags))

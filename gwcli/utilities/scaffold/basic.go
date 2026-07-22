@@ -78,7 +78,6 @@ func NewBasicAction(use, short, long string,
 		use,
 		short,
 		long,
-		options.Aliases,
 		func(c *cobra.Command, _ []string) error {
 			if options.ValidateArgs != nil {
 				if inv, err := options.ValidateArgs(c.Flags()); err != nil {
@@ -90,7 +89,9 @@ func NewBasicAction(use, short, long string,
 			s, _ := act(c.Flags())
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 			return nil
-		})
+		},
+		treeutils.GenerateActionOptions{}, // actions are applied below
+	)
 	ba := basicAction{options: options, fn: act}
 
 	options.Apply(cmd)

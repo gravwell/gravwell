@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -38,14 +39,14 @@ import (
 func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("playbooks", "manage playbooks",
 		"Playbooks are markdown documents that can be used to guide investigations.",
-		[]string{"playbook"}, nil,
+		nil,
 		[]action.Pair{
 			listAction(),
 			download(),
 			create(),
 			delete(),
 			edit(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: []string{"playbook"}})
 }
 
 func listAction() action.Pair {
@@ -57,6 +58,9 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{IPermissions: []types.Capability{types.PlaybookRead}},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -123,6 +127,10 @@ func download() action.Pair {
 					ft.Output.Register(fs)
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookRead},
+					XPermissions: []types.Capability{types.PlaybookRead},
+				},
 			},
 			Exactly1: true,
 		})
@@ -177,6 +185,10 @@ func create() action.Pair {
 					ft.Path.Register(fs, "", "markdown file. Overwrites --content.")
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookWrite},
+					XPermissions: []types.Capability{types.PlaybookWrite},
+				},
 			},
 		})
 }
@@ -197,7 +209,15 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+					XPermissions: []types.Capability{types.PlaybookWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 func edit() action.Pair {
@@ -251,5 +271,13 @@ func edit() action.Pair {
 			return data.Name, err
 		},
 	}
-	return scaffoldedit.NewEditAction("playbook", "playbooks", cfg, funcs)
+	return scaffoldedit.NewEditAction("playbook", "playbooks", cfg, funcs,
+		scaffoldedit.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+					XPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+				},
+			},
+		})
 }

@@ -10,8 +10,10 @@
 package ingesters
 
 import (
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -26,7 +28,7 @@ func NewIngestersNav() *cobra.Command {
 		long  string = "Review information for all ingesters or get detailed information about a specific ingester."
 	)
 
-	return treeutils.GenerateNav(use, short, long, []string{},
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
@@ -77,5 +79,13 @@ func listAction() action.Pair {
 				}
 			}
 			return wrap, nil
-		}, nil, scaffoldlist.Options{QueryOptionsFlags: scaffold.QOOmit{Everything: true}})
+		}, nil, scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Stats},
+					XPermissions: []types.Capability{types.Stats},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
+		})
 }

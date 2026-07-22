@@ -29,7 +29,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -229,6 +232,44 @@ func LinesTrimSpace(v string) string {
 	return sb.String()
 }
 
+// HotkeyBytes attempts to transform a key.Binding into bytes suitable for passing into, say, a pipe mocking stdin.
+//
+// This is a best-effort function based on mappings we had to rip out of BubbleTea and some local constants.
+func HotkeyBytes(t *testing.T, hotkey key.Binding) []byte {
+	keys := hotkey.Keys()
+	if len(keys) == 0 {
+		t.Log("hotkey has no keys!")
+		return nil
+	}
+
+	st := struct {
+		Type tea.KeyType
+		Alt  bool
+	}{}
+
+	// check for and trim off alt prefix
+	k, altFound := strings.CutPrefix(keys[0], "alt+")
+	if altFound {
+		st.Alt = true
+	}
+
+	var found bool
+	st.Type, found = StringToKT[strings.ToLower(k)]
+	if !found {
+		t.Logf("failed to map key string to key type. String: %s", k)
+		return nil
+	}
+
+	seq, found := KTToSequence[st]
+	if !found {
+		t.Logf("failed to map key type to sequence. KeyType: %v", st)
+		return nil
+	}
+
+	return []byte(seq)
+
+}
+
 // SendHotkey converts a key.Binding into a tea.KeyMsg.
 //
 // Sends the first key in a binding, ignoring any others.
@@ -248,13 +289,12 @@ func SendHotkey(b key.Binding) tea.KeyMsg {
 	}
 
 	// attempt a direct lookup
-	if t, found := keyByName[strings.ToLower(k)]; found {
+	if t, found := StringToKT[strings.ToLower(k)]; found {
 		msg.Type = t
 		return msg
 	}
 
 	// if we didn't find it via direct, just assume it is arbitrary runes
-
 	msg.Type = tea.KeyRunes
 	msg.Runes = []rune(k)
 
@@ -273,7 +313,140 @@ func FindID(stdout string) string {
 	return ""
 }
 
-var keyByName = map[string]tea.KeyType{
+// common control runes for sending into a Model during a test
+const (
+	SIGINT rune = '\003'
+	Enter  rune = '\r'
+	Delete rune = '\u007F'
+)
+
+// KTToSequence is a modification and inversion of the internal mapping used by BubbleTea to convert KeyTypes into actual, terminal-readable escape sequences.
+// Like StringToKT, we had to rip this one out of BubbleTea because they don't like ot export their mappings.
+// Base mapping credit: github.com/charmbracelet/bubbletea@v1.3.5/key.go
+var KTToSequence = map[struct {
+	Type tea.KeyType
+	Alt  bool
+}]string{
+	// Our control sequences
+	{Type: tea.KeyCtrlC}:  string(SIGINT),
+	{Type: tea.KeyEnter}:  string(Enter),
+	{Type: tea.KeyDelete}: string(Delete),
+
+	// Arrow keys
+	{Type: tea.KeyUp}:    "\x1b[A",
+	{Type: tea.KeyDown}:  "\x1b[B",
+	{Type: tea.KeyRight}: "\x1b[C",
+	{Type: tea.KeyLeft}:  "\x1b[D",
+
+	{Type: tea.KeyShiftUp}:    "\x1b[1;2A",
+	{Type: tea.KeyShiftDown}:  "\x1b[1;2B",
+	{Type: tea.KeyShiftRight}: "\x1b[1;2C",
+	{Type: tea.KeyShiftLeft}:  "\x1b[1;2D",
+
+	{Type: tea.KeyUp, Alt: true}:    "\x1b[1;3A",
+	{Type: tea.KeyDown, Alt: true}:  "\x1b[1;3B",
+	{Type: tea.KeyRight, Alt: true}: "\x1b[1;3C",
+	{Type: tea.KeyLeft, Alt: true}:  "\x1b[1;3D",
+
+	{Type: tea.KeyShiftUp, Alt: true}:    "\x1b[1;4A",
+	{Type: tea.KeyShiftDown, Alt: true}:  "\x1b[1;4B",
+	{Type: tea.KeyShiftRight, Alt: true}: "\x1b[1;4C",
+	{Type: tea.KeyShiftLeft, Alt: true}:  "\x1b[1;4D",
+
+	{Type: tea.KeyCtrlUp}:    "\x1b[1;5A",
+	{Type: tea.KeyCtrlDown}:  "\x1b[1;5B",
+	{Type: tea.KeyCtrlRight}: "\x1b[1;5C",
+	{Type: tea.KeyCtrlLeft}:  "\x1b[1;5D",
+
+	{Type: tea.KeyCtrlUp, Alt: true}:    "\x1b[Oa",
+	{Type: tea.KeyCtrlDown, Alt: true}:  "\x1b[Ob",
+	{Type: tea.KeyCtrlRight, Alt: true}: "\x1b[Oc",
+	{Type: tea.KeyCtrlLeft, Alt: true}:  "\x1b[Od",
+
+	{Type: tea.KeyCtrlShiftUp}:    "\x1b[1;6A",
+	{Type: tea.KeyCtrlShiftDown}:  "\x1b[1;6B",
+	{Type: tea.KeyCtrlShiftRight}: "\x1b[1;6C",
+	{Type: tea.KeyCtrlShiftLeft}:  "\x1b[1;6D",
+
+	{Type: tea.KeyShiftTab}: "\x1b[Z",
+
+	{Type: tea.KeyInsert}:            "\x1b[2~",
+	{Type: tea.KeyInsert, Alt: true}: "\x1b[3;2~",
+
+	{Type: tea.KeyDelete, Alt: true}: "\x1b[3;3~",
+
+	{Type: tea.KeyPgUp}:                "\x1b[5~",
+	{Type: tea.KeyPgUp, Alt: true}:     "\x1b[5;3~",
+	{Type: tea.KeyCtrlPgUp}:            "\x1b[5;5~",
+	{Type: tea.KeyCtrlPgUp, Alt: true}: "\x1b[5;7~",
+
+	{Type: tea.KeyPgDown}:                "\x1b[6~",
+	{Type: tea.KeyPgDown, Alt: true}:     "\x1b[6;3~",
+	{Type: tea.KeyCtrlPgDown}:            "\x1b[6;5~",
+	{Type: tea.KeyCtrlPgDown, Alt: true}: "\x1b[6;7~",
+
+	{Type: tea.KeyHome}:                     "\x1b[1~",
+	{Type: tea.KeyHome, Alt: true}:          "\x1b[1;3H",
+	{Type: tea.KeyCtrlHome}:                 "\x1b[1;5H",
+	{Type: tea.KeyCtrlHome, Alt: true}:      "\x1b[1;7H",
+	{Type: tea.KeyShiftHome}:                "\x1b[1;2H",
+	{Type: tea.KeyShiftHome, Alt: true}:     "\x1b[1;4H",
+	{Type: tea.KeyCtrlShiftHome}:            "\x1b[1;6H",
+	{Type: tea.KeyCtrlShiftHome, Alt: true}: "\x1b[1;8H",
+
+	{Type: tea.KeyEnd}:                     "\x1b[4~",
+	{Type: tea.KeyEnd, Alt: true}:          "\x1b[1;3F",
+	{Type: tea.KeyCtrlEnd}:                 "\x1b[1;5F",
+	{Type: tea.KeyCtrlEnd, Alt: true}:      "\x1b[1;7F",
+	{Type: tea.KeyShiftEnd}:                "\x1b[1;2F",
+	{Type: tea.KeyShiftEnd, Alt: true}:     "\x1b[1;4F",
+	{Type: tea.KeyCtrlShiftEnd}:            "\x1b[1;6F",
+	{Type: tea.KeyCtrlShiftEnd, Alt: true}: "\x1b[1;8F",
+
+	{Type: tea.KeyF1}:  "\x1bOP",
+	{Type: tea.KeyF2}:  "\x1bOQ",
+	{Type: tea.KeyF3}:  "\x1bOR",
+	{Type: tea.KeyF4}:  "\x1bOS",
+	{Type: tea.KeyF5}:  "\x1b[15~",
+	{Type: tea.KeyF6}:  "\x1b[17~",
+	{Type: tea.KeyF7}:  "\x1b[18~",
+	{Type: tea.KeyF8}:  "\x1b[19~",
+	{Type: tea.KeyF9}:  "\x1b[20~",
+	{Type: tea.KeyF10}: "\x1b[21~",
+	{Type: tea.KeyF11}: "\x1b[23~",
+	{Type: tea.KeyF12}: "\x1b[24~",
+
+	{Type: tea.KeyF1, Alt: true}:  "\x1b[1;3P",
+	{Type: tea.KeyF2, Alt: true}:  "\x1b[1;3Q",
+	{Type: tea.KeyF3, Alt: true}:  "\x1b[1;3R",
+	{Type: tea.KeyF4, Alt: true}:  "\x1b[1;3S",
+	{Type: tea.KeyF5, Alt: true}:  "\x1b[15;3~",
+	{Type: tea.KeyF6, Alt: true}:  "\x1b[17;3~",
+	{Type: tea.KeyF7, Alt: true}:  "\x1b[18;3~",
+	{Type: tea.KeyF8, Alt: true}:  "\x1b[19;3~",
+	{Type: tea.KeyF9, Alt: true}:  "\x1b[20;3~",
+	{Type: tea.KeyF10, Alt: true}: "\x1b[21;3~",
+	{Type: tea.KeyF11, Alt: true}: "\x1b[23;3~",
+	{Type: tea.KeyF12, Alt: true}: "\x1b[24;3~",
+
+	{Type: tea.KeyF13}: "\x1b[1;2P",
+	{Type: tea.KeyF14}: "\x1b[1;2Q",
+	{Type: tea.KeyF15}: "\x1b[1;2R",
+	{Type: tea.KeyF16}: "\x1b[1;2S",
+	{Type: tea.KeyF17}: "\x1b[15;2~",
+	{Type: tea.KeyF18}: "\x1b[17;2~",
+	{Type: tea.KeyF19}: "\x1b[18;2~",
+	{Type: tea.KeyF20}: "\x1b[19;2~",
+
+	{Type: tea.KeyF13, Alt: true}: "\x1b[25;3~",
+	{Type: tea.KeyF14, Alt: true}: "\x1b[26;3~",
+	{Type: tea.KeyF15, Alt: true}: "\x1b[28;3~",
+	{Type: tea.KeyF16, Alt: true}: "\x1b[29;3~",
+}
+
+// StringToKT is the internal mapping used by BubbleTea to convert key.Bindings (by calling their .Keys() method) to KeyTypes.
+// Credit: github.com/charmbracelet/bubbletea@v1.3.5/key.go
+var StringToKT = map[string]tea.KeyType{
 	// Control keys.
 	"ctrl+@":    tea.KeyCtrlAt,
 	"ctrl+a":    tea.KeyCtrlA,
@@ -428,4 +601,26 @@ func WithDefaults() func(t *testing.T) []string {
 	return func(t *testing.T) []string {
 		return slices.Concat(WithDebug("")(t), WithUsernamePassword("admin", "changeme")(t), WithServer(false, "")(t))
 	}
+}
+
+// GenerateKDTree generates a command tree of k width and d depth.
+// Every node is a nav, every leaf is an action that does nothing.
+func GenerateKDTree(khildren uint, depth uint, genRequirements func() annotations.Requirements) *cobra.Command {
+	if depth > 0 {
+		n := fmt.Sprintf("d%d_%s", depth, randomdata.Alphanumeric(4))
+		self := treeutils.GenerateNav(n, n, n, nil, nil, treeutils.NodeOptions{Requirements: genRequirements()})
+
+		for range khildren {
+			self.AddCommand(GenerateKDTree(khildren, depth-1, genRequirements))
+		}
+
+		return self
+	}
+
+	// we are a leaf
+	return treeutils.GenerateAction(
+		randomdata.SillyName(), "short", "long",
+		func(c *cobra.Command, s []string) error { return nil },
+		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{Requirements: genRequirements()}},
+	)
 }
