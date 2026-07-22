@@ -30,7 +30,7 @@ const (
 var aliases []string = []string{"me"}
 
 func NewNav() *cobra.Command {
-	return treeutils.GenerateNav(use, short, long, aliases, nil,
+	return treeutils.GenerateNav(use, short, long, nil,
 		[]action.Pair{
 			MyInfo(),
 			sessions(),
@@ -40,7 +40,7 @@ func NewNav() *cobra.Command {
 			update(),
 			logoutAll(),
 			admin.Status("admin"),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 // wrapper for types.Session to limit the information sessions returns.

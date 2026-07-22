@@ -39,12 +39,16 @@ func TestMain(m *testing.M) {
 	if err := cli.Login("admin", "changeme"); err != nil {
 		panic(err)
 	}
-	li, err := cli.GetLicenseInfo()
-	cli.Close()
-	// we don't actually have a way to check if cbac is enabled *in the system*, rather than just the license
-	if err == nil && li.CBACEnabled() {
-		m.Run()
+	di, err := cli.DeploymentInfo()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to get deployment info: %v", err)
+		return
 	}
+	if !di.CBACEnabled {
+		fmt.Fprintf(os.Stderr, "CBAC is disabled. This test set will be skipped.")
+		return
+	}
+	os.Exit(m.Run())
 }
 
 func TestCBACLifecycle(t *testing.T) {
@@ -165,10 +169,10 @@ func TestCBACLifecycle(t *testing.T) {
 			stderr.String())
 		userHasCaps(t, cli, secondUser.ID, []string{})
 	})
-	t.Run("replace to fill caps", func(t *testing.T) {
+	t.Run("setting caps replacing all existing caps", func(t *testing.T) {
 		var stdout, stderr strings.Builder
 
-		expectedCaps := []string{"PivotRead", "KitWrite"}
+		expectedCaps := []string{"ActionableRead", "MacroRead"}
 
 		args := append(metaAdmin, "cbac", "set", "--uids="+strconv.FormatInt(int64(secondUser.ID), 10), "--caps="+strings.Join(expectedCaps, ","))
 		bareArgs := slices.Collect(maps.Keys(allCapsMap))

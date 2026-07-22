@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -38,7 +39,7 @@ func NewNav() *cobra.Command {
 			" Once created, the user cannot read the contents of the secret again, although the value can be updated." +
 			" The user may then refer to the secret in certain node types when building a flow."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"secret"},
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
@@ -46,7 +47,9 @@ func NewNav() *cobra.Command {
 			delete(),
 			edit(),
 			updateValue(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"secret"}},
+	)
 }
 
 func listAction() action.Pair {
@@ -69,7 +72,12 @@ func listAction() action.Pair {
 				"CommonFields.Name",
 				"CommonFields.Description",
 			},
-			CommonOptions: scaffold.CommonOptions{},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SecretRead},
+					XPermissions: []types.Capability{types.SecretRead},
+				},
+			},
 		})
 }
 
@@ -104,7 +112,14 @@ func create() action.Pair {
 			}
 
 			return resp.ID, "", err
-		}, scaffoldcreate.Options{})
+		}, scaffoldcreate.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SecretWrite},
+					XPermissions: []types.Capability{types.SecretWrite},
+				},
+			},
+		})
 }
 
 func delete() action.Pair {
@@ -132,7 +147,15 @@ func delete() action.Pair {
 			}
 
 			return items, nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
+					XPermissions: []types.Capability{types.SecretWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }
 
 func edit() action.Pair {
@@ -198,6 +221,13 @@ func edit() action.Pair {
 
 			s, err := connection.Client.UpdateSecret(data.ID, sc)
 			return s.Name, err
+		},
+	}, scaffoldedit.Options{
+		CommonOptions: scaffold.CommonOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
+				XPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
+			},
 		},
 	})
 }

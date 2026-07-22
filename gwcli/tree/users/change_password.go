@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -41,7 +42,6 @@ func changePassword() action.Pair {
 		"Change a user's password without requiring their current password. "+
 			"Non-interactive mode can take the password in clear as --new-password. "+
 			"If you prefer to keep the password out of your history, consider using --new-passfile",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			uid, err := c.Flags().GetInt32(ft.UID.Name())
 			if err != nil {
@@ -69,6 +69,9 @@ func changePassword() action.Pair {
 				return errors.New("--" + ft.UID.Name() + " must be set and nonzero")
 			}
 			return errors.New("--new-password must be non-empty")
+		},
+		treeutils.GenerateActionOptions{
+			NodeOptions: treeutils.NodeOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
 		},
 	)
 

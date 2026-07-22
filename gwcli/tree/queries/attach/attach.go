@@ -19,8 +19,10 @@ import (
 	"strings"
 
 	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -49,8 +51,14 @@ func NewAttachAction() action.Pair {
 		"attach",
 		"re-attach to a backgrounded query",
 		helpDesc,
-		[]string{"reattach"},
-		runE)
+		runE,
+		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+			CommandAliases: []string{"reattach"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AttachSearch},
+				XPermissions: []types.Capability{types.AttachSearch},
+			},
+		}})
 
 	localFS := initialLocalFlagSet()
 	cmd.Flags().AddFlagSet(&localFS)

@@ -40,7 +40,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "create", "--name="+groupName, "--description="+groupDescription,
+				"groups", "create", "--name="+groupName, "--description="+groupDescription,
 			),
 			tree.ExecuteOptions{
 				Stdout: &stdout,
@@ -62,7 +62,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "list", "--columns=ID,Name,Description", "--csv",
+				"groups", "list", "--columns=ID,Name,Description", "--csv",
 			),
 			tree.ExecuteOptions{
 				Stdout: &stdout,
@@ -94,7 +94,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "associate",
+				"groups", "associate",
 				"--gid="+strconv.FormatInt(int64(groupID), 10),
 				"--uid=1",
 			),
@@ -110,7 +110,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "users", strconv.FormatInt(int64(groupID), 10),
+				"groups", "users", strconv.FormatInt(int64(groupID), 10),
 				"--json", "--columns=ID,Username",
 			),
 			tree.ExecuteOptions{
@@ -133,7 +133,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "disassociate",
+				"groups", "disassociate",
 				"--gid="+strconv.FormatInt(int64(groupID), 10),
 				"--uid=1",
 			),
@@ -149,7 +149,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "users", strconv.FormatInt(int64(groupID), 10),
+				"groups", "users", strconv.FormatInt(int64(groupID), 10),
 				"--json", "--columns=ID,Username",
 			),
 			tree.ExecuteOptions{
@@ -170,7 +170,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "delete",
+				"groups", "delete",
 				strconv.FormatInt(int64(groupID), 10),
 			),
 			tree.ExecuteOptions{
@@ -185,7 +185,7 @@ func TestComplete(t *testing.T) {
 		assert.Zero(t, tree.Execute(
 			append(
 				testsupport.MetaArgs(t, false, testsupport.WithDefaults()),
-				"admin", "groups", "list", "--columns=ID,Name,Description", "--csv",
+				"groups", "list", "--columns=ID,Name,Description", "--csv",
 			),
 			tree.ExecuteOptions{
 				Stdout: &stdout,

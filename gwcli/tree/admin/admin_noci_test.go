@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 	"github.com/stretchr/testify/assert"
@@ -88,7 +90,7 @@ func TestMassChown(t *testing.T) {
 		u2Password = randomdata.Month()
 	)
 	adminMeta := testsupport.MetaArgs(t, false, testsupport.WithDefaults())
-	args := append(adminMeta, "admin", "users", "create",
+	args := append(adminMeta, "users", "create",
 		"--new-email="+randomdata.Email(),
 		"--new-username="+u2Username,
 		"--new-password="+u2Password,
@@ -103,6 +105,18 @@ func TestMassChown(t *testing.T) {
 		sbErr.String())
 	sbOut.Reset()
 	sbErr.Reset()
+
+	// assign permissions to the second user
+	cli, err := client.New(testsupport.Server(), false, false)
+	require.Nil(t, err)
+	assert.Nil(t, cli.Login("admin", "changeme"))
+	if di, err := cli.DeploymentInfo(); err != nil {
+		t.Fatal(err)
+	} else if di.CBACEnabled {
+		u2, err := cli.LookupUser(u2Username)
+		require.Nil(t, err)
+		require.Nil(t, cli.SetUserCapabilities(u2.ID, types.AllCapabilityAccess()))
+	}
 
 	{ // create a bunch of data under a second user
 		u2Meta := testsupport.MetaArgs(t, false, testsupport.WithServer(false, ""), testsupport.WithUsernamePassword(u2Username, u2Password))
@@ -145,7 +159,7 @@ func TestMassChown(t *testing.T) {
 
 	var u2ID uint32
 	{ // find second user's ID
-		args := append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "admin", "users", "list", "--csv", "--columns=ID,Username")
+		args := append(testsupport.MetaArgs(t, false, testsupport.WithDefaults()), "users", "list", "--csv", "--columns=ID,Username")
 		require.Zero(t, tree.Execute(args, tree.ExecuteOptions{
 			Stdout: &sbOut,
 			Stderr: &sbErr,

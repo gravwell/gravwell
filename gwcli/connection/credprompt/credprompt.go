@@ -48,18 +48,7 @@ func Collect(initialUser string, in io.Reader, out io.Writer) (user, pass string
 		log.KV("caller", log.CallLoc(1)),
 		clilog.ProgramOptions(in, out),
 	)
-	return collect(tea.NewProgram(New(initialUser), progOpts...))
-}
-
-// internal implementation of collect.
-// Allows custom programs (likely programs with mocked input) for testing purposes.
-//
-// ! Prog must not be nil.
-func collect(prog *tea.Program) (user, pass string, err error) {
-	if prog == nil {
-		return "", "", errors.New("nil program passed into collect")
-	}
-
+	prog := tea.NewProgram(new(initialUser), progOpts...)
 	m, err := prog.Run()
 	if err != nil {
 		return "", "", err
@@ -85,9 +74,9 @@ type credModel struct {
 	hotkeys hotkeys.Model
 }
 
-// New creates a new credprompt, which satisfies the tea.Model interface.
+// new creates a new credprompt, which satisfies the tea.Model interface.
 // You probably want Collect(), instead; this is mostly used internally and for testing.
-func New(initialUser string) credModel {
+func new(initialUser string) credModel {
 	c := credModel{userStartingValue: initialUser, userSelected: true, hotkeys: hotkeys.NewModel()}
 	c.UserTI = textinput.New()
 	c.UserTI.Prompt = ""

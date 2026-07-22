@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -38,7 +39,7 @@ func NewNav() *cobra.Command {
 		short string = "view and manage the Gravwell license"
 		long  string = "License provides actions for inspecting the current license and uploading a new one."
 	)
-	return treeutils.GenerateNav(use, short, long, nil,
+	return treeutils.GenerateNav(use, short, long,
 		nil,
 		[]action.Pair{
 			licenseInfo(),
@@ -47,6 +48,11 @@ func NewNav() *cobra.Command {
 			licenseSerial(),
 			licenseUpdate(),
 		},
+		treeutils.NodeOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LicenseRead},
+				XPermissions: []types.Capability{types.LicenseRead},
+			}},
 	)
 }
 
@@ -96,7 +102,13 @@ func licenseInfo() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "info"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "info",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.LicenseRead},
+					XPermissions: []types.Capability{types.LicenseRead},
+				},
+			},
 			DefaultColumns: []string{
 				"Type",
 				"Version",
@@ -179,7 +191,14 @@ func licenseFeatures() action.Pair {
 			}
 			return strings.Join(enabled, ", "), nil
 		},
-		scaffold.BasicOptions{},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.LicenseRead},
+					XPermissions: []types.Capability{types.LicenseRead},
+				},
+			},
+		},
 	)
 }
 
@@ -197,7 +216,14 @@ func licenseSKU() action.Pair {
 			}
 			return sku, nil
 		},
-		scaffold.BasicOptions{},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.LicenseRead},
+					XPermissions: []types.Capability{types.LicenseRead},
+				},
+			},
+		},
 	)
 }
 
@@ -215,7 +241,14 @@ func licenseSerial() action.Pair {
 			}
 			return serial, nil
 		},
-		scaffold.BasicOptions{},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.LicenseRead},
+					XPermissions: []types.Capability{types.LicenseRead},
+				},
+			},
+		},
 	)
 }
 
@@ -245,7 +278,8 @@ func licenseUpdate() action.Pair {
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "update",
+				Use:          "update",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 		},
 	)

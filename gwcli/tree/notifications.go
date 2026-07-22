@@ -8,6 +8,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/pflag"
@@ -39,6 +40,10 @@ func notifications() action.Pair {
 					fs := &pflag.FlagSet{}
 					fs.Bool("seen", false, "include notifications you've already seen")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.NotificationRead},
+					XPermissions: []types.Capability{types.NotificationRead},
 				},
 			},
 			DefaultColumns: []string{

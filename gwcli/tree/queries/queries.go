@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -46,7 +47,6 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("searches", "manage existing and past searches",
 		"Manage active, past, saved, and scheduled queries.\n"+
 			"You can issue new searches using the top-level "+stylesheet.Cur.Action.Render("query")+" action.",
-		[]string{"queries"},
 		[]*cobra.Command{scheduled.NewScheduledNav(), saved.NewSavedNav()},
 		[]action.Pair{
 			past(),
@@ -59,7 +59,9 @@ func NewNav() *cobra.Command {
 			background(),
 			delete(),
 			setGroup(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"queries"}},
+	)
 }
 
 // #region past queries
@@ -82,7 +84,13 @@ func past() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "past"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "past",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SearchHistory},
+					XPermissions: []types.Capability{types.SearchHistory},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"EffectiveQuery",
@@ -93,6 +101,8 @@ func past() action.Pair {
 }
 
 // if details, uses ListSearchDetails to return ALL data relevant to a search.
+//
+// Requires types.Search, types.AttachSearch (as ListSearches requires both).
 //
 // TODO install omit
 func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[string], error) {
@@ -128,6 +138,10 @@ func info() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "info",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
+					XPermissions: []types.Capability{types.Search, types.AttachSearch},
+				},
 			},
 			DefaultColumns: []string{"ID", "UID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -162,6 +176,12 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
+					XPermissions: []types.Capability{types.Search, types.AttachSearch},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Owner.Username",
@@ -203,6 +223,10 @@ func stop() action.Pair {
 		scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use: "stop",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
+					XPermissions: []types.Capability{types.Search, types.AttachSearch},
+				},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no running queries (that you can access)" }},
 	)
@@ -224,7 +248,13 @@ func importAction() action.Pair {
 			return 0, "", connection.Client.ImportSearch(f, 0)
 
 		},
-		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{Use: "import"}})
+		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+			Use: "import",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SaveSearch, types.Search, types.SetSearchGroup},
+				XPermissions: []types.Capability{types.SaveSearch, types.Search, types.SetSearchGroup},
+			},
+		}})
 }
 
 func save() action.Pair {
@@ -271,6 +301,10 @@ func save() action.Pair {
 					fs.Time("expire", time.Time{}, []string{uniques.SearchTimeFormat}, "override the expiration time of the this search")
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SaveSearch},
+					XPermissions: []types.Capability{types.SaveSearch},
+				},
 			},
 		},
 	)
@@ -299,7 +333,14 @@ func background() action.Pair {
 			}
 			return results, nil
 		},
-		scaffoldselect.Options{})
+		scaffoldselect.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.BackgroundSearch},
+					XPermissions: []types.Capability{types.BackgroundSearch},
+				},
+			},
+		})
 }
 
 func delete() action.Pair {
@@ -314,7 +355,15 @@ func delete() action.Pair {
 		func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		},
-		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOOmit{Everything: true}})
+		scaffolddelete.Options{
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Search, types.AttachSearch},
+					XPermissions: []types.Capability{types.Search},
+				},
+			},
+		})
 }
 
 // TODO this should be converted to a scaffoldcreate with two MSL fields after the scaffoldcreate/edit merge.
@@ -348,6 +397,10 @@ func setGroup() action.Pair {
 					fs.Int32Slice("groups", nil, "Groups to grant read access to the search. You must have access to the group."+
 						"If you omit this flag, all groups will be removed from the selected searches.")
 					return fs
+				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SetSearchGroup},
+					XPermissions: []types.Capability{types.SetSearchGroup},
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

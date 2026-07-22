@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -31,7 +32,6 @@ import (
 func toggleAdmin() action.Pair {
 	cmd := treeutils.GenerateAction("toggle-admin", "toggle a user's admin status",
 		"Toggle admin status for a user. Optionally use --grant or --revoke to set explicitly.",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			uid, grant, revoke, err := toggleAdminGetFlags(c.Flags())
 			if err != nil {
@@ -60,6 +60,12 @@ func toggleAdmin() action.Pair {
 			}
 			fmt.Fprintln(c.OutOrStdout(), success)
 			return nil
+		},
+		treeutils.GenerateActionOptions{
+			NodeOptions: treeutils.NodeOptions{
+				// promoting/demoting another user's admin status is inherently admin-only
+				Requirements: annotations.Requirements{UserIsAdmin: true},
+			},
 		},
 	)
 	fs := toggleAdminFlagSet()

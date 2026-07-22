@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/pflag"
@@ -151,6 +152,12 @@ func list() action.Pair {
 			"Storage.EntryCountCold":   "Cold.Count",
 		},
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+					XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+				},
+			},
 			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})
 }

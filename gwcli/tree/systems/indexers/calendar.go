@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -113,6 +114,10 @@ func newCalendarAction() action.Pair {
 				Example:    "calendar 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default",
 				Aliases:    aliases,
 				AddtlFlags: calendarFlags,
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+					XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+				},
 			},
 			// ValidateArgs does its namesake and sets/resets the package vars.
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

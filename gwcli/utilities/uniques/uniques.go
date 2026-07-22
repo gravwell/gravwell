@@ -12,11 +12,12 @@ package uniques
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
@@ -36,7 +37,6 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringP("username", "u", "", "login credential. Requires either -p or \""+cfgdir.EnvKeyPassword+"\"."+
 		" If your account has MFA enabled, you must use an API token (--api or --eapi) or login interactively.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
-	cmd.MarkPersistentFlagFilename("passfile")
 	ft.API.Register(cmd.PersistentFlags())
 	ft.EAPI.Register(cmd.PersistentFlags())
 	cmd.MarkFlagsMutuallyExclusive("username", ft.API.Name(), ft.EAPI.Name())
@@ -46,6 +46,10 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
 	cmd.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
 	cmd.PersistentFlags().MarkHidden("profile")
+
+	cmd.PersistentFlags().Bool("no-local-permissions", false, "disables local permission checks, allowing all requests to hit the server. "+
+		"Permissions will still be enforced on the server-side.")
+	cmd.PersistentFlags().String("restlog", cfgdir.DefaultRestLogPath, "log location for raw REST calls made to the server")
 
 	// NOTE: to enable clilog to come online immediately, these flags are never actually handled.
 	// Instead, clilog.InitializeFromArgs is used.
@@ -66,7 +70,10 @@ func Help(c *cobra.Command, _ []string) {
 	var sb strings.Builder
 
 	// write the description block
-	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0) + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
+	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0))
+	sb.WriteString("\n")
+	sb.WriteString(strings.TrimSpace(c.Long))
+	sb.WriteString("\n\n")
 
 	// write usage line, if available
 	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
@@ -85,15 +92,25 @@ func Help(c *cobra.Command, _ []string) {
 		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Example", 0), c.Example) // use the untrimmed version
 	}
 
+	// write requirements lines, if available
+	if rqs := annotations.RequirementsStrings(c); len(rqs) > 0 {
+		fmt.Fprintf(&sb, "%s\n%s\n\n", stylesheet.Cur.Field("Requirements", 0), strings.Join(rqs, "\n"))
+	}
+
 	// write local flags
 	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf)
+		sb.WriteString(stylesheet.Cur.Field("Flags", 0))
+		sb.WriteString("\n")
+		sb.WriteString(lf)
 	}
 
 	// write global flags (except for the completion command)
 	if c.Name() != "completion" && (!c.HasParent() || (c.HasParent() && c.Parent().Name() != "completion")) {
 		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
-			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
+			sb.WriteString("\n")
+			sb.WriteString(stylesheet.Cur.Field("Global Flags", 0))
+			sb.WriteString("\n")
+			sb.WriteString(gf)
 		}
 	}
 
@@ -118,7 +135,8 @@ func Help(c *cobra.Command, _ []string) {
 	if len(navs) > 0 {
 		var s strings.Builder
 		for _, n := range navs {
-			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
+			s.WriteString("\n  ")
+			s.WriteString(stylesheet.Cur.Nav.Render(n.Name()))
 		}
 		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Submenus"), s.String())
 	}
@@ -130,10 +148,57 @@ func Help(c *cobra.Command, _ []string) {
 		}
 		var s strings.Builder
 		for _, a := range actions {
-			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
+			s.WriteString("\n  ")
+			s.WriteString(stylesheet.Cur.Action.Render(a.Name()))
 		}
 		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Actions"), s.String())
 	}
 
 	fmt.Fprint(c.OutOrStdout(), sb.String())
+}
+
+// DerivePath returns the path from root to the given command.
+//
+// !includeRoot omits "~" from the path
+func DerivePath(cmd *cobra.Command, includeRoot bool) []string {
+	if cmd == nil || cmd.Parent() == nil {
+		if includeRoot {
+			return []string{"~"}
+		}
+		return []string{}
+	}
+	pth := []string{cmd.Name()}
+
+	// start from the command and work our way to root
+	x := cmd
+	for {
+		x = x.Parent()
+		if x.Parent() == nil { // we are at root
+			if includeRoot {
+				pth = append(pth, "~")
+			}
+			break
+		}
+		pth = append(pth, x.Name())
+
+	}
+
+	// reverse
+	slices.Reverse(pth)
+
+	return pth
+}
+
+// SliceToSet transforms arr into a hashset of T -> true.
+//
+// O(arr)
+func SliceToSet[T comparable](arr []T) map[T]bool {
+	if arr == nil {
+		return nil
+	}
+	m := make(map[T]bool)
+	for _, t := range arr {
+		m[t] = true
+	}
+	return m
 }

@@ -177,7 +177,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
 		} else if info.Username != defaultUser || connection.CurrentUser().Username != defaultUser {
 			t.Fatalf("incorrect user. %v!=%v!=%v", info.Username, defaultUser, connection.CurrentUser().Username)
-		} else if _, err := connection.Client.ListMacros(nil); err != nil {
+		} else if _, err := connection.Client.MySessions(); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
 		}
 
@@ -197,7 +197,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			t.Fatal("failed to make call after logging in via token: ", err)
 		} else if info.Username != defaultUser || connection.CurrentUser().Username != defaultUser {
 			t.Fatalf("incorrect user. %v!=%v!=%v", info.Username, defaultUser, connection.CurrentUser().Username)
-		} else if _, err := connection.Client.ListMacros(nil); err != nil {
+		} else if _, err := connection.Client.MySessions(); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
 		}
 
@@ -217,7 +217,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		} else if info.Username != altUser || connection.CurrentUser().Username != altUser {
 			t.Fatalf("incorrect user. %v!=%v!=%v", info.Username, altUser, connection.CurrentUser().Username)
-		} else if _, err := connection.Client.ListMacros(nil); err != nil {
+		} else if _, err := connection.Client.MySessions(); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		}
 
@@ -580,15 +580,12 @@ func verifyLoggedInStatus(expectedUsername string) error {
 		return fmt.Errorf("incorrect user. %v!=%v!=%v", info.Username, expectedUsername, connection.CurrentUser().Username)
 	}
 
-	// make a few different calls for better scope
-	if _, err := connection.Client.ListMacros(nil); err != nil {
-		return fmt.Errorf("failed to fetch macros: %v", err)
-	}
-	if _, err := connection.Client.ListActionables(nil); err != nil {
-		return fmt.Errorf("failed to list pivots: %v", err)
+	// make a couple different calls for better scope
+	if _, err := connection.Client.MyInfo(); err != nil {
+		return fmt.Errorf("failed to fetch my info: %v", err)
 	}
 	if _, err := connection.Client.TokenCapabilities(); err != nil {
-		return fmt.Errorf("failed to list pivots: %v", err)
+		return fmt.Errorf("failed to list token caps: %v", err)
 	}
 
 	return nil
