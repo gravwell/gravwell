@@ -80,7 +80,6 @@ func NewDeleteAction[I scaffold.Id_t](singular string, del DeleteFunc[I], fch Fe
 		"delete",
 		"delete one or more "+plural,
 		"delete one or more "+plural+" by id or selection",
-		[]string{},
 		func(c *cobra.Command, s []string) error {
 			// fetch values from flags
 			IDs, dryrun, err := getFlags[I](c.Flags())

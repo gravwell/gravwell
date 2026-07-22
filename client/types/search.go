@@ -154,7 +154,7 @@ type ParseSearchResponse struct {
 	SearchHints
 }
 
-// LaunchRequest is a new named type so that we can abstract away the websocket launch requests from the REST requests
+// LaunchRequest is a new named type so that we can abstract away the launch requests from the REST requests
 type LaunchRequest struct {
 	StartSearchRequest
 }
@@ -261,43 +261,54 @@ type AttachSearchResponse struct {
 // SearchInfo contains information about a search, including the search
 // parameters, status, and metadata.
 type SearchInfo struct {
-	ID                    string //ID of the search
-	UID                   int32  //UID of the user that actually kicked off the search
-	GID                   int32  `json:",omitempty"` //Group ID the search was assigned to, deprecated, use GIDs instead
-	GIDs                  []int32
-	Global                bool
-	UserQuery             string          //query provided by the user on search
-	EffectiveQuery        string          //the effective query that was actually used
-	StartRange            time.Time       //start time range
-	EndRange              time.Time       //end time range
-	Descending            bool            //the direction the search is progressing (Descending is the standard)
-	Started               time.Time       //time when the search was kicked off
-	LastUpdate            time.Time       //last timestamp we saw (tells us where indexers are working)
-	Duration              time.Duration   //Amount of time required to complete the search
-	StoreSize             int64           //size of the main storage file
-	IndexSize             int64           //size of an extra index file
-	ItemCount             int64           //How many items have been stored
-	TimeZoomDisabled      bool            //Renderer does not support zooming around data based on time
-	QueryTimeSpecified    bool            // True if the query contains start/end constraints
-	RenderDownloadFormats []string        `json:",omitempty"`
-	Metadata              json.RawMessage `json:",omitempty"` //additional metadata associated with a search
-	Name                  string          `json:",omitempty"`
+	CommonFields
+
+	UserQuery      string          //query provided by the user on search
+	EffectiveQuery string          //the effective query that was actually used
+	StartRange     time.Time       //start time range
+	EndRange       time.Time       //end time range
+	Started        time.Time       //time when the search was kicked off
+	LastUpdate     time.Time       //last timestamp we saw (tells us where indexers are working)
+	Duration       time.Duration   //Amount of time required to complete the search
+	StoreSize      int64           //size of the main storage file
+	IndexSize      int64           //size of an extra index file
+	ItemCount      int64           //How many items have been stored
+	Metadata       json.RawMessage `json:",omitempty"` //additional metadata associated with a search
+	NoHistory      bool            // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
+	Background     bool            // set to true if this search has been marked as backgrounded.
+
+	LaunchInfo SearchLaunchInfo // information about how a search was launched
+
+	// The remaining fields are low-churn/rarely-filtered-on
+	// details about the search.
+	Descending            bool     //the direction the search is progressing (Descending is the standard)
+	TimeZoomDisabled      bool     //Renderer does not support zooming around data based on time
+	QueryTimeSpecified    bool     // True if the query contains start/end constraints
+	RenderDownloadFormats []string `json:",omitempty"`
 	CollapsingIndex       int
-	NoHistory             bool // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
-	Background            bool // set to true if this search has been marked as backgrounded.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
 	EVs                   []string   // EVs produced by the search
-	Import                ImportInfo //information attached if there this search is saved and from an external import
-	// Preview indicates that this search is a preview search
-	// this means that the query most likely did not cover the entire time range that was originally requested
-	// A preview search is used when a user is trying to understand what they have or establish AX relationships
+	Import                ImportInfo //information attached if this search is saved and from an external import
+	// Preview indicates that this search is a preview search.
+	// This means that the query most likely did not cover the entire time range that was originally requested.
+	// A preview search is used when a user is trying to understand what they have or establish AX relationships.
 	Preview bool
 	// Error is set if the search ended in the ERROR state.
 	Error string `json:",omitempty"`
+	Stats StatsInfo
 
-	LaunchInfo SearchLaunchInfo // information about how a search was launched
-	Stats      StatsInfo
+	// The webserver which owns the search
+	Webserver string
+
+	State           SearchState // live in-memory lifecycle state of the search (active/attached/dormant/saving/pending)
+	AttachedClients int         // number of clients currently attached to this search
+	StoredData      int64       // StoreSize + IndexSize, combined for convenience
+}
+
+type SearchInfoListResponse struct {
+	BaseListResponse
+	Results []SearchInfo
 }
 
 type SearchLaunchInfo struct {
@@ -328,26 +339,6 @@ type ImportInfo struct {
 type StatsUpdate struct {
 	Stats    *SearchModuleStatsUpdate
 	ClientID string
-}
-
-type SearchCtrlStatus struct {
-	ID              string
-	UID             int32
-	GID             int32 // deprecated, use GIDs instead
-	GIDs            []int32
-	Global          bool
-	State           SearchState
-	AttachedClients int
-	StoredData      int64
-	UserQuery       string
-	EffectiveQuery  string
-	StartRange      time.Time
-	EndRange        time.Time
-	NoHistory       bool
-	Import          ImportInfo
-	LaunchInfo      SearchLaunchInfo
-	Error           string          `json:",omitempty"`
-	Metadata        json.RawMessage `json:",omitempty"` //additional metadata associated with a search
 }
 
 type SearchDownloadRequest struct {
@@ -502,38 +493,6 @@ func (l LaunchResponse) MarshalJSON() ([]byte, error) {
 		alias:    alias(l),
 		Messages: emptyMessages(l.Messages),
 	})
-}
-
-func (si SearchInfo) MarshalJSON() ([]byte, error) {
-	type alias SearchInfo
-	return json.Marshal(struct {
-		alias
-		Duration string `json:",omitempty"`
-	}{
-		alias:    alias(si),
-		Duration: si.Duration.String(),
-	})
-}
-
-func (si *SearchInfo) UnmarshalJSON(data []byte) error {
-	type aalias SearchInfo
-	type alias struct {
-		aalias
-		Duration string `json:",omitempty"`
-	}
-	var v alias
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	if len(v.Duration) > 0 {
-		dur, err := time.ParseDuration(v.Duration)
-		if err != nil {
-			return err
-		}
-		si.Duration = dur
-	}
-	*si = SearchInfo(v.aalias)
-	return nil
 }
 
 type emptyStatSet []StatSet

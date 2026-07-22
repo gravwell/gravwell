@@ -1019,6 +1019,12 @@ type Token struct {
 	Capabilities []string
 }
 
+// TokenUpdate is used to update a token as Token.ExpiresAt is only editable via TokenRegeneration
+type TokenUpdate struct {
+	CommonFields
+	Capabilities []string
+}
+
 // TokenListResponse is the type returned when querying a list of tokens.
 type TokenListResponse struct {
 	BaseListResponse
@@ -1057,6 +1063,13 @@ func (t Token) ExpiresString() string {
 // CapabilitiesString returns a human friendly space delimited list of capabilities
 func (t Token) CapabilitiesString() string {
 	return strings.Join(t.Capabilities, " ")
+}
+
+func (t Token) ForUpdate() TokenUpdate {
+	return TokenUpdate{
+		CommonFields: t.CommonFields,
+		Capabilities: t.Capabilities,
+	}
 }
 
 // EncodeCapabilities encodes a list of capabilities into a buffer

@@ -65,16 +65,11 @@ const (
 	GROUP_MEMBERS_URL                = `/api/groups/%d/members`
 	GROUP_URL                        = `/api/groups`
 	GROUP_LIST_URL                   = `/api/groups/list`
-	SEARCH_PARS_URL                  = `/api/parse`
-	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
-	SEARCH_CTRL_LIST_DETAILS_URL     = `/api/searchctrl/details`
-	SEARCH_CTRL_LIST_ALL_URL         = `/api/searchctrl/all`
 	SEARCH_PARSE_URL                 = `/api/parse`
+	SEARCH_CTRL_LIST_URL             = `/api/searchctrl/list`
 	SEARCH_CTRL_URL                  = `/api/searchctrl/%s`
 	SEARCH_CTRL_ATTACH_URL           = `/api/searchctrl/%s/attach`
-	SEARCH_CTRL_DETAILS              = `/api/searchctrl/%s/details`
 	SEARCH_CTRL_BACKGROUND_URL       = `/api/searchctrl/%s/background`
-	SEARCH_CTRL_GROUP_URL            = `/api/searchctrl/%s/group`
 	SEARCH_CTRL_GROUPS_URL           = `/api/searchctrl/%s/groups`
 	SEARCH_CTRL_GLOBAL_URL           = `/api/searchctrl/%s/global`
 	SEARCH_CTRL_SAVE_URL             = `/api/searchctrl/%s/save`
@@ -204,9 +199,6 @@ const (
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
 	INGESTERS_TRACKING_URL           = `/api/ingesters/%s/tracking`
-	CBAC_DEFAULT_URL                 = `/api/cbac/default`
-	CBAC_DEFAULT_CAPABILITIES_URL    = `/api/cbac/default/capabilities`
-	CBAC_DEFAULT_TAGS_URL            = `/api/cbac/default/tags`
 	ALERTS_URL                       = `/api/alerts`
 	ALERTS_LIST_URL                  = `/api/alerts/list`
 	ALERTS_ID_URL                    = `/api/alerts/%s`
@@ -286,10 +278,6 @@ func searchCtrlBackgroundUrl(id string) string {
 	return fmt.Sprintf(SEARCH_CTRL_BACKGROUND_URL, id)
 }
 
-func searchCtrlGroupUrl(id string) string {
-	return fmt.Sprintf(SEARCH_CTRL_GROUP_URL, id)
-}
-
 func searchCtrlGroupsUrl(id string) string {
 	return fmt.Sprintf(SEARCH_CTRL_GROUPS_URL, id)
 }
@@ -314,16 +302,8 @@ func searchCtrlImportUrl() string {
 	return SEARCH_CTRL_IMPORT_URL
 }
 
-func searchCtrlListDetailsUrl() string {
-	return SEARCH_CTRL_LIST_DETAILS_URL
-}
-
 func searchCtrlIdUrl(id string) string {
 	return fmt.Sprintf(SEARCH_CTRL_URL, id)
-}
-
-func searchCtrlDetailsUrl(id string) string {
-	return fmt.Sprintf(SEARCH_CTRL_DETAILS, id)
 }
 
 func sessionsUrl(id int32) string {

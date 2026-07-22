@@ -699,31 +699,57 @@ func (im *IngestMuxer) stateReportRoutine() {
 
 func (im *IngestMuxer) getTrimmedState(lastPush time.Time, lastEntryCount uint64) (s IngesterState, shouldPush bool, err error) {
 	//check if we should push an ingester state out either due to max time duration or because it was updated
-	if s, shouldPush = im.getIngesterState(lastPush, lastEntryCount); shouldPush {
-		//SendIngesterState throws a full sync and then pushes a potentially very large
-		//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
-		//or you will most likely starve the ingest muxer.
-		var sz uint32
-		if sz, err = s.EncodedSize(); err != nil {
-			return
-		} else if sz > maxIngestStateSize {
-			ogSize := sz
-			s.trimChildConfigs()
-			if sz, err = s.EncodedSize(); err != nil {
-				return
-			} else if sz > maxIngestStateSize {
-				s.trimChildren(64)
-				if sz, err = s.EncodedSize(); err != nil {
-					return
-				} else if sz > maxIngestStateSize {
-					//log an error stating that we could not make it work
-					im.Error("Failed to send ingester state, too large",
-						log.KV("original-size", ogSize), log.KV("post-trim-size", sz))
-					err = fmt.Errorf("failed to send ingester state, too large: post trim %d > %d", sz, maxIngestStateSize)
-				}
-			}
-		}
+	if s, shouldPush = im.getIngesterState(lastPush, lastEntryCount); !shouldPush {
+		return
 	}
+	//SendIngesterState throws a full sync and then pushes a potentially very large
+	//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
+	//or you will most likely starve the ingest muxer.
+	var sz uint32
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return //either an error, or it already fits, either way we are done
+	}
+	ogSize := sz
+
+	// The state is too large to ship.  The configuration and metadata blocks are
+	// only used for reporting, so progressively discard the least useful data
+	// until the state fits or we run out of things to trim.
+
+	// drop the configuration/metadata blocks carried by our children
+	s.trimChildConfigs()
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// drop our own configuration and metadata blocks
+	s.Configuration = nil
+	s.Metadata = nil
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// trim the number of children we report
+	s.trimChildren(64)
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// trim them again
+	s.trimChildren(8)
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// give up on reporting children entirely
+	s.Children = nil
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	//log an error stating that we could not make it work, this really shouldn't be possible but handle the error anyway
+	im.Error("Failed to send ingester state, too large",
+		log.KV("original-size", ogSize), log.KV("post-trim-size", sz))
+	err = fmt.Errorf("failed to send ingester state, too large: post trim %d > %d", sz, maxIngestStateSize)
 	return
 }
 
@@ -1623,7 +1649,9 @@ inputLoop:
 							b[i] = nil //this is safe, we check for this everywhere
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
-								b[j].Tag = nc.tt.reverse(b[j].Tag)
+								if b[j] != nil {
+									b[j].Tag = nc.tt.reverse(b[j].Tag)
+								}
 							}
 							im.recycleEntryBatch(b) //recycle and save what we can
 						} else {
@@ -1639,7 +1667,9 @@ inputLoop:
 
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
-								b[j].Tag = nc.tt.reverse(b[j].Tag)
+								if b[j] != nil {
+									b[j].Tag = nc.tt.reverse(b[j].Tag)
+								}
 							}
 							im.recycleEntryBatch(b)
 						}
@@ -1659,7 +1689,9 @@ inputLoop:
 			var n int
 			if n, err = nc.ig.writeBatchEntry(b); err != nil {
 				for i := n; i < len(b); i++ {
-					b[i].Tag = nc.tt.reverse(b[i].Tag)
+					if b[i] != nil {
+						b[i].Tag = nc.tt.reverse(b[i].Tag)
+					}
 				}
 				im.recycleEntryBatch(b[n:])
 				im.syncAndCloseConnection(nc)
@@ -2265,7 +2297,9 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 						// could not translate, push it back on the queue and bail
 						// first we need to reverse the ones we have already translated, ugh
 						for j := 0; j < i; j++ {
-							blk[j].Tag = tt.reverse(blk[j].Tag)
+							if blk[j] != nil {
+								blk[j].Tag = tt.reverse(blk[j].Tag)
+							}
 						}
 						eq.push(e, blk)
 						return

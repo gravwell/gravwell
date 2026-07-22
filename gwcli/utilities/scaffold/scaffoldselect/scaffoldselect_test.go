@@ -16,6 +16,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -30,6 +31,31 @@ import (
 func TestMain(m *testing.M) {
 	clilog.InitializeFromArgs(nil)
 	m.Run()
+}
+
+func TestOptions(t *testing.T) {
+	t.Run("All options are applied automatically", func(t *testing.T) {
+		pair := scaffoldselect.NewSelectAction("test", "test", "item",
+			func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) { return nil, nil },
+			func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) { return nil, nil },
+			scaffoldselect.Options{
+				CommonOptions: scaffold.CommonOptions{
+					Aliases:      []string{"a", "b", "a"},
+					Requirements: annotations.Requirements{DeploymentHasCBAC: true},
+				},
+			})
+		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
+		assert.Nil(t, annotations.CheckRequirements(pair.Action, true, false, nil))
+		assert.Error(t, annotations.CheckRequirements(pair.Action, false, false, nil))
+	})
+	t.Run("Options are ignored if not set", func(t *testing.T) {
+		pair := scaffoldselect.NewSelectAction("test", "test", "item",
+			func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) { return nil, nil },
+			func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) { return nil, nil },
+			scaffoldselect.Options{})
+		assert.Equal(t, []string{}, pair.Action.Aliases)
+		assert.Len(t, pair.Action.Annotations, 0)
+	})
 }
 
 var errTestFatal = errors.New("fatal triggered")

@@ -17,9 +17,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateNav(t *testing.T) {
@@ -28,7 +31,7 @@ func TestGenerateNav(t *testing.T) {
 	childNavs := make([]*cobra.Command, childNavCount)
 	for i := range childNavCount {
 		childNavs[i] = treeutils.GenerateNav(fmt.Sprintf("child_nav_%d", i), fmt.Sprintf("child_nav_%d short", i), fmt.Sprintf("child_nav_%d long", i),
-			nil, nil, nil)
+			nil, nil)
 	}
 	t.Run("usage", func(t *testing.T) {
 		tests := []struct {
@@ -48,9 +51,9 @@ func TestGenerateNav(t *testing.T) {
 				t.Skipf("too many navs request (request: %d | available: %d)", tt.navCount, childNavCount)
 			}
 			t.Run(tt.name, func(t *testing.T) {
-				nav := treeutils.GenerateNav("test", "short test", "long test", []string{"alias1", "alias2"},
+				nav := treeutils.GenerateNav("test", "short test", "long test",
 					childNavs[:tt.navCount],
-					nil)
+					nil, treeutils.NodeOptions{CommandAliases: []string{"alias1", "alias2"}})
 
 				var sbOut strings.Builder
 				nav.SetOut(&sbOut)
@@ -65,4 +68,31 @@ func TestGenerateNav(t *testing.T) {
 		}
 	})
 
+	t.Run("annotations", func(t *testing.T) {
+		t.Run("no annotations set", func(t *testing.T) {
+			nav := treeutils.GenerateNav("test", "test", "test", nil, nil,
+				treeutils.NodeOptions{
+					Requirements: annotations.Requirements{},
+				})
+			assert.Nil(t, annotations.CheckRequirements(nav, false, false, nil))
+			assert.Nil(t, annotations.CheckRequirements(nav, true, false, nil))
+			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))
+			assert.Nil(t, annotations.CheckRequirements(nav, true, true, nil))
+			assert.Nil(t, annotations.CheckRequirements(nav, true, true, map[types.Capability]bool{types.AlertRead: true}))
+		})
+		t.Run("a few permissions required", func(t *testing.T) {
+			nav := treeutils.GenerateNav("test", "test", "test", nil, nil,
+				treeutils.NodeOptions{Requirements: annotations.Requirements{
+					XPermissions: []types.Capability{types.Download, types.BackgroundSearch},
+				}})
+			// cbac disabled; admin user should be permitted
+			assert.Nil(t, annotations.CheckRequirements(nav, false, true, nil))
+			// cbac disabled; user should still be permitted
+			assert.Nil(t, annotations.CheckRequirements(nav, false, false, nil))
+			// cbac enabled; user only has some of the permissions
+			assert.Error(t, annotations.CheckRequirements(nav, true, false, map[types.Capability]bool{types.Download: true}))
+			// cbac enabled; user has all of the permissions
+			assert.Nil(t, annotations.CheckRequirements(nav, true, false, map[types.Capability]bool{types.Download: true, types.BackgroundSearch: true}))
+		})
+	})
 }

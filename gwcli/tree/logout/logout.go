@@ -31,5 +31,6 @@ func NewAction() action.Pair {
 			connection.End()
 
 			return "Successfully logged out", tea.Quit
-		}, scaffold.BasicOptions{})
+		},
+		scaffold.BasicOptions{})
 }

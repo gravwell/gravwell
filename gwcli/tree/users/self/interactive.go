@@ -39,7 +39,6 @@ const (
 func changePassword() action.Pair {
 	cmd := treeutils.GenerateAction("change-password", "change your password",
 		"Change the password for your account.",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			currentPass, err := c.Flags().GetString("current-password")
 			if err != nil {
@@ -156,7 +155,6 @@ func (m *selfChangePassModel) Reset() error {
 func searchGroup() action.Pair {
 	cmd := treeutils.GenerateAction("search-groups", "get or set default search groups",
 		"Display or update the default search groups for your account.\n",
-		nil,
 		func(c *cobra.Command, args []string) error {
 			set, clear, err := getSearchGroupsFlags(c.Flags())
 			if err != nil {
@@ -177,7 +175,8 @@ func searchGroup() action.Pair {
 			return nil
 		}, treeutils.GenerateActionOptions{
 			Usage: ft.MutuallyExclusive(ft.Optional("--set"), ft.Optional("--clear")) +
-				" " + ft.VariadicArgs("GID", false)},
+				" " + ft.VariadicArgs("GID", false),
+		},
 	)
 	cmd.Flags().AddFlagSet(searchGroupsFlags())
 	cmd.Aliases = []string{"search-group", "sg"}
@@ -348,6 +347,7 @@ func (c *searchGroupModel) Reset() error {
 
 //#region update
 
+// update lets a user modify their own username/name/email.
 func update() action.Pair {
 	return scaffoldcreate.NewCreateAction("user property updates",
 		// no fields are required as empty fields are replaced by current values

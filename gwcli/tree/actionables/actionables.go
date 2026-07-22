@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -43,7 +44,7 @@ func NewNav() *cobra.Command {
 		"Actionables are items that appear when hovering over data in the Gravwell web interface.\n"+
 			"They allow users to quickly pivot from a data value to a related search or action.\n"+
 			"Actionable contents are stored as a JSON blob describing the actionable behavior.",
-		[]string{"pivot", "pivots", "actionable"}, nil,
+		nil,
 		[]action.Pair{
 			listAction(),
 			get(),
@@ -52,7 +53,9 @@ func NewNav() *cobra.Command {
 			jsonAction(),
 			replace(),
 			edit(),
-		})
+		},
+		treeutils.NodeOptions{CommandAliases: []string{"pivot", "pivots", "actionable"}},
+	)
 }
 
 func listAction() action.Pair {
@@ -68,6 +71,11 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ActionableRead},
+				},
+			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -104,6 +112,9 @@ func get() action.Pair {
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Usage: "get " + ft.VariadicArgs("actionable ID", true),
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ActionableRead},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
@@ -154,6 +165,9 @@ func create() action.Pair {
 				Long: "Create a new actionable empty or from JSON. " +
 					"Call " + stylesheet.Path(true, "~", "actionables", "json") + " to view the required schema or " +
 					"call " + stylesheet.Path(true, "~", "actionables", "get", "<ID>") + " to view an existing actionable as JSON.",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ActionableWrite},
+				},
 			},
 		})
 }
@@ -260,6 +274,9 @@ func replace() action.Pair {
 					ft.Path.Register(fs, "", "local file to replace the remote file")
 					return fs
 				},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				pth, err := fs.GetString(ft.Path.Name())
@@ -329,7 +346,9 @@ func edit() action.Pair {
 			return result.Name, err
 		},
 	}
-	return scaffoldedit.NewEditAction("actionable", "actionables", cfg, funcs)
+	return scaffoldedit.NewEditAction("actionable", "actionables", cfg, funcs,
+		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
+			Requirements: annotations.Requirements{IPermissions: []types.Capability{types.ActionableRead}}}})
 }
 
 func delete() action.Pair {
@@ -349,5 +368,12 @@ func delete() action.Pair {
 
 			return listitem.WrapAssets(lr.Results), nil
 		},
-		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+		})
 }

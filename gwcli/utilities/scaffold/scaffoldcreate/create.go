@@ -94,12 +94,10 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 			requiredFlags = append(requiredFlags, txt)
 		}
 	}
-
 	cmd := treeutils.GenerateAction(
 		"create",                 // use
 		"create a "+singular,     // short
 		"Create a new "+singular, // long
-		[]string{},               // aliases
 		func(c *cobra.Command, s []string) error {
 			// immediately validate arguments
 			if opts.ValidateArgs != nil {
@@ -137,7 +135,6 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 			}
 			return nil
 		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
-
 	opts.Apply(cmd)
 
 	cmd.Flags().AddFlagSet(&createFlags)

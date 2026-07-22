@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -32,14 +33,14 @@ import (
 
 func NewSavedNav() *cobra.Command {
 	var aliases = []string{"library", "searchlibrary"}
-	return treeutils.GenerateNav("saved", "manage saved queries", "Saved queries are stored queries that can be retrieved and reused.", aliases, []*cobra.Command{},
+	return treeutils.GenerateNav("saved", "manage saved queries", "Saved queries are stored queries that can be retrieved and reused.", []*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			create(),
 			delete(),
 			edit(),
 			show(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 func listAction() action.Pair {
@@ -50,7 +51,12 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.LibraryRead},
+					XPermissions: []types.Capability{types.LibraryRead},
+				},
+			},
 			DefaultColumns: []string{"CommonFields.ID", "CommonFields.Name", "CommonFields.Description", "Query"},
 		})
 }
@@ -77,7 +83,12 @@ func create() action.Pair {
 
 			result, err := connection.Client.CreateSavedQuery(sq)
 			return result.ID, "", err
-		}, scaffoldcreate.Options{})
+		}, scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LibraryWrite},
+				XPermissions: []types.Capability{types.LibraryWrite},
+			},
+		}})
 }
 
 func edit() action.Pair {
@@ -137,7 +148,13 @@ func edit() action.Pair {
 		},
 	}
 
-	return scaffoldedit.NewEditAction("saved query", "saved queries", cfg, funcs)
+	return scaffoldedit.NewEditAction("saved query", "saved queries", cfg, funcs,
+		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
+				XPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
+			},
+		}})
 }
 
 func delete() action.Pair {
@@ -156,7 +173,15 @@ func delete() action.Pair {
 			}
 
 			return listitem.WrapAssets(lr.Results), nil
-		}, scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		}, scaffolddelete.Options{
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
+					XPermissions: []types.Capability{types.LibraryWrite},
+				},
+			},
+		})
 }
 
 func show() action.Pair {
@@ -174,6 +199,10 @@ func show() action.Pair {
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"print", "get"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.LibraryRead},
+					XPermissions: []types.Capability{types.LibraryRead},
+				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {

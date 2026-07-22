@@ -85,7 +85,11 @@ const (
 // The parameters, specifically funcs, do most of the heavy lifting; this just bolts on necessities to make the new action work in Mother and via a script.
 // This is the function that implementations/implementors should call as their action implementation.
 // This function panics if any parameters are missing.
-func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, funcs SubroutineSet[I, S]) action.Pair {
+func NewEditAction[I scaffold.Id_t, S any](
+	singular, plural string,
+	cfg Config, funcs SubroutineSet[I, S],
+	opts ...Options,
+) action.Pair {
 	funcs.guarantee() // check that all functions are given
 	if len(cfg) < 1 { // check that config has fields in it
 		panic("cannot edit with no fields defined")
@@ -102,7 +106,6 @@ func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, 
 		"edit",                             // use
 		"edit a "+singular,                 // short
 		"edit/alter an existing "+singular, // long
-		[]string{"e"},                      // aliases
 		func(cmd *cobra.Command, args []string) error {
 			var err error
 			// hard branch on noInteractive mode
@@ -115,10 +118,13 @@ func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, 
 			}
 			return runInteractive(cmd, args)
 
-		})
+		}, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{CommandAliases: []string{"e"}}})
 
 	// attach flags to cmd
 	cmd.Flags().AddFlagSet(&fs)
+	if len(opts) > 0 {
+		opts[0].Apply(cmd)
+	}
 
 	return action.NewPair(cmd,
 		newEditModel(cfg, singular, plural, funcs, fs),

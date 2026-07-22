@@ -26,14 +26,12 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/groups"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/license"
-	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
@@ -51,12 +49,8 @@ func NewNav() *cobra.Command {
 		long  string = "Admin contains actions that require elevated privileges." +
 			" These actions span a variety of categories and have some overlap with general-use actions."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"administrator"},
-		[]*cobra.Command{
-			groups.NewNav(),
-			admin_users.NewNav(),
-			license.NewNav(),
-		},
+	return treeutils.GenerateNav(use, short, long,
+		nil,
 		[]action.Pair{
 			cleanup(),
 			logLevel(),
@@ -68,6 +62,10 @@ func NewNav() *cobra.Command {
 			//validateBackup(),
 			massChown(),
 			chown(),
+		},
+		treeutils.NodeOptions{
+			CommandAliases: []string{"administrator"},
+			Requirements:   annotations.Requirements{UserIsAdmin: true},
 		},
 	)
 }
@@ -159,9 +157,10 @@ func cleanup() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"clean", "tidy", "purge", "burninate"},
-				Usage:   "cleanup " + ft.VariadicArgs("target", true),
-				Example: "cleanup macros secrets",
+				Aliases:      []string{"clean", "tidy", "purge", "burninate"},
+				Usage:        "cleanup " + ft.VariadicArgs("target", true),
+				Example:      "cleanup macros secrets",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
@@ -219,6 +218,7 @@ func logLevel() action.Pair {
 					fs.String("set", "", "log level to set")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 		})
 }
@@ -235,7 +235,10 @@ func addIndexer() action.Pair {
 			}
 			var sb strings.Builder
 			for k, v := range errors {
-				sb.WriteString(k + ": " + v + "\n")
+				sb.WriteString(k)
+				sb.WriteString(": ")
+				sb.WriteString(v)
+				sb.WriteString("\n")
 			}
 			out := strings.TrimRight(sb.String(), "\n")
 			if out == "" {
@@ -245,7 +248,8 @@ func addIndexer() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("add-indexer %s %s ", ft.Optional("Flags"), ft.Mandatory("host:port")),
+				Usage:        fmt.Sprintf("add-indexer %s %s ", ft.Optional("Flags"), ft.Mandatory("host:port")),
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -312,6 +316,7 @@ func backup() action.Pair {
 					fs.String("encrypt", "", "encrypt the backup with the given password. No encryption will be applied if unset.")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -339,7 +344,8 @@ func restore() action.Pair {
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("restore %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
+				Usage:        fmt.Sprintf("restore %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -435,16 +441,16 @@ func listUserSearchStorage() action.Pair {
 			"This does not factor in other items related to this user that are stored on the system.",
 		userSearchStorage{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]userSearchStorage, error) {
-			statuses, err := connection.Client.ListAllSearchStatuses()
+			statuses, err := connection.Client.ListAllSearches(nil)
 			if err != nil {
 				return nil, err
-			} else if len(statuses) < 1 {
+			} else if len(statuses.Results) < 1 {
 				return nil, nil
 			}
 			storageMap := map[int32]int64{}
-			for _, s := range statuses {
+			for _, s := range statuses.Results {
 				if s.StoredData > 0 {
-					storageMap[s.UID] += s.StoredData // starts as bytes
+					storageMap[s.OwnerID] += s.StoredData // starts as bytes
 				}
 			}
 			if len(storageMap) < 1 {
@@ -484,7 +490,8 @@ func listUserSearchStorage() action.Pair {
 		},
 		nil, scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "search-storage",
+				Use:          "search-storage",
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			DefaultColumns: []string{"Username", "UID", "Stored"},
 			EmptyMessage:   "There are no active searches currently storing data."},
@@ -866,6 +873,7 @@ func massChown() action.Pair {
 					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				to, err := fs.GetInt32("to")
@@ -1139,6 +1147,7 @@ func chown() action.Pair {
 					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
 					return fs
 				},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				to, err := fs.GetInt32("to")

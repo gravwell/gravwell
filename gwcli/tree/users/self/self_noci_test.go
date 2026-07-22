@@ -19,7 +19,7 @@ func TestSearchGroup(t *testing.T) {
 	var sbOut, sbErr strings.Builder
 	meta := testsupport.MetaArgs(t, false, testsupport.WithDefaults())
 	// ensure that --set and --clear are MX
-	require.NotZero(t, tree.Execute(append(meta, "self", "search-group", "--clear", "--set"), tree.ExecuteOptions{
+	require.NotZero(t, tree.Execute(append(meta, "users", "self", "search-group", "--clear", "--set"), tree.ExecuteOptions{
 		Stdout: &sbOut,
 		Stderr: &sbErr,
 	}))
@@ -28,7 +28,7 @@ func TestSearchGroup(t *testing.T) {
 	sbErr.Reset()
 	groupName := "grp_" + t.Name() + randomdata.Digits(8)
 	// create a group to add ourselves to
-	require.Zero(t, tree.Execute(append(meta, "admin", "groups", "create", "-n="+groupName), tree.ExecuteOptions{
+	require.Zero(t, tree.Execute(append(meta, "groups", "create", "-n="+groupName), tree.ExecuteOptions{
 		Stdout: &sbOut,
 		Stderr: &sbErr,
 	}))
@@ -40,7 +40,7 @@ func TestSearchGroup(t *testing.T) {
 	// associate ourselves to the new group
 	sbOut.Reset()
 	sbErr.Reset()
-	require.Zero(t, tree.Execute(append(meta, "admin", "groups", "associate",
+	require.Zero(t, tree.Execute(append(meta, "groups", "associate",
 		"--gid="+strconv.FormatInt(int64(GID), 10),
 		"--uid=1"), tree.ExecuteOptions{
 		Stdout: &sbOut,
@@ -50,7 +50,7 @@ func TestSearchGroup(t *testing.T) {
 	// kill any existing search groups
 	sbOut.Reset()
 	sbErr.Reset()
-	require.Zero(t, tree.Execute(append(meta, "self", "search-group", "--clear"), tree.ExecuteOptions{
+	require.Zero(t, tree.Execute(append(meta, "users", "self", "search-group", "--clear"), tree.ExecuteOptions{
 		Stdout: &sbOut,
 		Stderr: &sbErr,
 	}))
@@ -59,7 +59,7 @@ func TestSearchGroup(t *testing.T) {
 	// set our default search group to the newly created group
 	sbOut.Reset()
 	sbErr.Reset()
-	require.Zero(t, tree.Execute(append(meta, "self", "search-group", "--set", strconv.FormatInt(int64(GID), 10)), tree.ExecuteOptions{
+	require.Zero(t, tree.Execute(append(meta, "users", "self", "search-group", "--set", strconv.FormatInt(int64(GID), 10)), tree.ExecuteOptions{
 		Stdout: &sbOut,
 		Stderr: &sbErr,
 	}))
@@ -68,7 +68,7 @@ func TestSearchGroup(t *testing.T) {
 	// kill the search group to verify --clear
 	sbOut.Reset()
 	sbErr.Reset()
-	require.Zero(t, tree.Execute(append(meta, "self", "search-group", "--clear"), tree.ExecuteOptions{
+	require.Zero(t, tree.Execute(append(meta, "users", "self", "search-group", "--clear"), tree.ExecuteOptions{
 		Stdout: &sbOut,
 		Stderr: &sbErr,
 	}))
@@ -79,7 +79,7 @@ func checkDefaultSearchGroups(t *testing.T, expectedGIDs []int) {
 	t.Helper()
 	meta := testsupport.MetaArgs(t, false, testsupport.WithDefaults())
 	var sbOut, sbErr strings.Builder
-	require.Zero(t, tree.Execute(append(meta, "self", "search-group"), tree.ExecuteOptions{
+	require.Zero(t, tree.Execute(append(meta, "users", "self", "search-group"), tree.ExecuteOptions{
 		Stdout: &sbOut,
 		Stderr: &sbErr,
 	}))

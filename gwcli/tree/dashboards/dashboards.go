@@ -16,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -36,13 +37,13 @@ func NewNav() *cobra.Command {
 	)
 
 	var aliases = []string{"dashboard", "dash"}
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			listAction(),
 			delete(),
 			clone(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 func listAction() action.Pair {
@@ -52,11 +53,18 @@ func listAction() action.Pair {
 			return r.Results, err
 		},
 		nil,
-		scaffoldlist.Options{DefaultColumns: []string{
-			"CommonFields.ID",
-			"CommonFields.Name",
-			"CommonFields.Description",
-		}})
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.DashboardRead},
+					XPermissions: []types.Capability{types.DashboardRead},
+				},
+			},
+			DefaultColumns: []string{
+				"CommonFields.ID",
+				"CommonFields.Name",
+				"CommonFields.Description",
+			}})
 }
 
 func delete() action.Pair {
@@ -75,7 +83,15 @@ func delete() action.Pair {
 			}
 			return listitem.WrapAssets(lr.Results), nil
 		},
-		scaffolddelete.Options{QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
+		scaffolddelete.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.DashboardRead, types.DashboardWrite},
+					XPermissions: []types.Capability{types.DashboardWrite},
+				},
+			},
+			QueryOptionsFlags: scaffold.QOInclude{Everything: true}},
+	)
 }
 
 func clone() action.Pair {
@@ -115,6 +131,12 @@ func clone() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "clone"},
+			CommonOptions: scaffold.CommonOptions{
+				Use: "clone",
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.DashboardWrite, types.DashboardRead},
+					XPermissions: []types.Capability{types.DashboardWrite, types.DashboardRead},
+				},
+			},
 		})
 }

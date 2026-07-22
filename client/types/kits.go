@@ -85,9 +85,11 @@ func (ki KitItem) String() (r string) {
 	return
 }
 
-// Filename returns a suitable filename for the item.
+// Filename returns a suitable filename for the item. Items are keyed by ID
+// (which is unique), not by their user-friendly name, so that a kit may
+// contain multiple items of the same type sharing a name.
 func (ki KitItem) Filename() string {
-	return ki.Name + `.` + string(ki.Type)
+	return ki.ID + `.` + string(ki.Type)
 }
 
 // ModifiedKitItem is wraps a KitItem with additional information regarding the

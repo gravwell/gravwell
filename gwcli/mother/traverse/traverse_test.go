@@ -39,23 +39,24 @@ func TestDeriveSuggestions(t *testing.T) {
 		        ├── action_ba_1
 		        └── action_ba_2 (aliases: "aBA2")
 	*/
-	nav_a := treeutils.GenerateNav("nav_a", "nav_a short", "nav_a long", []string{"nav_a_alias", "AAlias"},
+	nav_a := treeutils.GenerateNav("nav_a", "nav_a short", "nav_a long",
 		nil, // subnavs
 		[]action.Pair{scaffold.NewBasicAction("action_a_1", "action_a_1 short", "action_a_1 long", dummyActionFunc, scaffold.BasicOptions{})}, // sub-actions
+		treeutils.NodeOptions{CommandAliases: []string{"nav_a_alias", "AAlias"}},
 	)
 	action1 := scaffold.NewBasicAction("action1", "action1 short", "action1 long", dummyActionFunc, scaffold.BasicOptions{})
-	nav_ba := treeutils.GenerateNav("nav_ba", "nav_ba short", "nav_ba long", nil,
+	nav_ba := treeutils.GenerateNav("nav_ba", "nav_ba short", "nav_ba long",
 		nil, // subnavs
 		[]action.Pair{
 			scaffold.NewBasicAction("action_ba_1", "action_ba_1 short", "action_ba_1 long", dummyActionFunc, scaffold.BasicOptions{}),
 			scaffold.NewBasicAction("action_ba_2", "action_ba_2 short", "action_ba_2 long", dummyActionFunc, scaffold.BasicOptions{CommonOptions: scaffold.CommonOptions{Aliases: []string{"aBA2"}}}),
 		}, // sub-actions
 	)
-	nav_b := treeutils.GenerateNav("nav_b", "nav_b short", "nav_b long", nil,
+	nav_b := treeutils.GenerateNav("nav_b", "nav_b short", "nav_b long",
 		[]*cobra.Command{nav_ba}, // subnavs
 		nil,                      // sub-actions
 	)
-	root := treeutils.GenerateNav("root", "root short", "root long", nil,
+	root := treeutils.GenerateNav("root", "root short", "root long",
 		[]*cobra.Command{nav_a, nav_b},
 		[]action.Pair{action1})
 

@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -33,14 +34,14 @@ func NewIndexersNav() *cobra.Command {
 
 	var aliases = []string{"index", "idx", "indexer"}
 
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			get(),
 			list(),
 			newCalendarAction(),
 			wells(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 // Wells just returns the list of all wells.
@@ -91,7 +92,14 @@ func wells() action.Pair {
 			}
 			return toRet, nil
 		}, nil, scaffoldlist.Options{
-			CommonOptions:     scaffold.CommonOptions{Use: "wells", Aliases: []string{"well"}},
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "wells",
+				Aliases: []string{"well"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SystemInfoRead},
+					XPermissions: []types.Capability{types.SystemInfoRead},
+				},
+			},
 			DefaultColumns:    []string{"Indexer.UUID", "Indexer.Name", "ID", "Name", "Tags", "Accelerator", "Engine", "Path", "ColdPath"},
 			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})

@@ -28,6 +28,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -84,25 +86,27 @@ type Mother struct {
 	history *history
 }
 
-// Spawn spins up a new instance of Mother in a fresh tea program, runs the
-// program, and returns on Mother's exit.
+// Spawn spins up a new instance of Mother in a fresh tea program, runs the program, and returns on Mother's exit.
 // The caller is expected to exit on Spawn's return.
 func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
+	// TODO can we remove root?
 	// pull IO from the command
-
 	clilog.Writer.Debug("spawning Mother",
 		log.KV("pwd", cur.Name()),
 		log.KV("trailing tokens", trailingTokens),
 		log.KV("caller", log.CallLoc(1)),
-		clilog.ProgramOptions(cur.InOrStdin(), cur.OutOrStdout()),
-	)
+		clilog.ProgramOptions(cur.InOrStdin(), cur.OutOrStdout()))
+
 	// spin up mother
 	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil), []tea.ProgramOption{tea.WithInput(cur.InOrStdin()), tea.WithOutput(cur.OutOrStdout())}...)
-	// reactive the admin command
-	if c, _, err := root.Find([]string{"user", "admin"}); err != nil {
-		clilog.Writer.Warnf("failed to reveal the admin command")
-	} else if c != nil {
-		c.Hidden = false
+
+	if state.CheckRequirements() {
+		// To reduce the cost of checking the requirements of each command every time the suggestion or traversal engines run,
+		// executes annotations.ConsolidateToDisabled before starting Mother.
+		// These annotations are static and must be re-consolidated if the deployment or user state changes.
+		for _, child := range root.Commands() {
+			go annotations.ConsolidateToDisabled(child, connection.CBACEnabled(), connection.CurrentUser().Admin, connection.CurrentUserCaps()) // parallelize at top level only
+		}
 	}
 
 	if _, err := interactive.Run(); err != nil {
@@ -350,15 +354,23 @@ func (m Mother) View() string {
 		ns, as, bs string
 	)
 	for _, suggestion := range m.suggestions.nav {
-		sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
-		sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		if suggestion.Disabled {
+			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
+		} else {
+			sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
+			sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		}
 		sb.WriteString(" ")
 	}
 	ns = strings.TrimSpace(sb.String()) // chip last space
 	sb.Reset()
 	for _, suggestion := range m.suggestions.action {
-		sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))
-		sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		if suggestion.Disabled {
+			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
+		} else {
+			sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))
+			sb.WriteString(suggestion.FullName[len(suggestion.MatchedCharacters):])
+		}
 		sb.WriteString(" ")
 	}
 	as = strings.TrimSpace(sb.String()) // chip last space
@@ -416,6 +428,10 @@ func processInput(m *Mother) tea.Cmd {
 			builtins[wr.Builtin](m, wr.EndCmd, wr.RemainingTokens),
 		)
 	} else if wr.EndCmd != nil {
+		if reason := annotations.IsDisabled(wr.EndCmd); reason != "" {
+			return tea.Sequence(historyCmd, stylesheet.ErrPrintf("%s", reason))
+		}
+
 		if action.Is(wr.EndCmd) {
 			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
 			if m.dieOnChildDone { // don't bother with history
@@ -426,6 +442,7 @@ func processInput(m *Mother) tea.Cmd {
 			}
 			return tea.Sequence(historyCmd, cmd)
 		}
+
 		// move mother to target nav
 		m.pwd = wr.EndCmd
 		return historyCmd
@@ -433,7 +450,7 @@ func processInput(m *Mother) tea.Cmd {
 
 	// if we made it this far, err, builtin, and endcmd are all nil so we have nothing to act on.
 	// this probably means input was nil, so warn if it wasn't
-	if input == "" {
+	if input != "" {
 		clilog.Writer.Warn("taking no action on process input", rfc5424.SDParam{Name: "input", Value: input})
 	}
 

@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -41,8 +42,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/files"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/flows"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/groups"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/license"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/playbooks"
@@ -50,13 +53,14 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/secrets"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tokens"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -109,7 +113,21 @@ func ppre(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return EnforceLogin(cmd, args)
+	if err := EnforceLogin(cmd, args); err != nil {
+		return err
+	}
+
+	noLocalPermissions, err := cmd.Flags().GetBool("no-local-permissions")
+	clilog.GetFlag(err)
+	if noLocalPermissions {
+		state.DisableCheckRequirements()
+	}
+	// check that the user is permitted to enact this command
+	if state.CheckRequirements() {
+		clilog.Writer.Debug("checking permissions", log.KV("command", cmd.Name()))
+		return annotations.CheckRequirements(cmd, connection.CBACEnabled(), connection.CurrentUser().Admin, connection.CurrentUserCaps())
+	}
+	return nil
 }
 
 // helper function for ppre.
@@ -160,7 +178,9 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		if err = connection.Initialize(server, !insecure, insecure, ""); err != nil {
+		restlog, err := cmd.Flags().GetString("restlog")
+		clilog.GetFlag(err)
+		if err = connection.Initialize(server, !insecure, insecure, restlog); err != nil {
 			return err
 		}
 		if err := connection.Client.Test(); err != nil { // make the errors user-friendly
@@ -303,7 +323,7 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 		"2. username/password (-u, -p or " + cfgdir.EnvKeyPassword + "),\n" +
 		"3. interactively if no credentials are provided and !--" + ft.NoInteractive.Name()
 
-	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
+	rootCmd := treeutils.GenerateNav(use, short, long,
 		nil, // navs are added later
 		[]action.Pair{
 			ingest.NewIngestAction(),
@@ -371,16 +391,18 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 		extractors.NewNav,
 		files.NewNav,
 		flows.NewNav,
+		groups.NewNav,
 		kits.NewNav,
+		license.NewNav,
 		macros.NewNav,
 		playbooks.NewNav,
 		queries.NewNav,
 		resources.NewNav,
 		secrets.NewNav,
-		self.NewNav,
 		systemshealth.NewNav,
 		templates.NewNav,
 		tokens.NewNav,
+		users.NewNav,
 	}
 
 	var (
