@@ -23,7 +23,11 @@ import (
 )
 
 type sqsClient interface {
-	GetMessages(ctx context.Context) ([]types.Message, error)
+	// GetMessagesOnce must perform a single receive attempt and return promptly
+	// even if empty; Handle must not block indefinitely on an idle queue (see
+	// hosted/README.md). Use sqs_common.(*SQS).GetMessagesOnce, not GetMessages,
+	// which retries internally until messages show up.
+	GetMessagesOnce(ctx context.Context) ([]types.Message, error)
 	DeleteMessages(ctx context.Context, m []types.Message) error
 }
 
@@ -55,13 +59,20 @@ func (q *Queue) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continua
 		return nil, fmt.Errorf("negotiate tag: %w", err)
 	}
 
-	msgs, err := q.client.GetMessages(ctx)
+	msgs, err := q.client.GetMessagesOnce(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var toDelete []types.Message
 	for _, m := range msgs {
+		if m.Body == nil {
+			// A malformed/faked response could hand us a message with no body.
+			// Skip it rather than dereferencing a nil pointer; leaving it out of
+			// toDelete means SQS will redeliver it, same as a failed rt.Write below.
+			rt.Error("sqs message has nil body, skipping", log.KV("message_id", messageID(m)))
+			continue
+		}
 		ts := ExtractTimestamp(m, q.conf.Ignore_Timestamps)
 		e := entry.Entry{
 			TS:   entry.FromStandard(ts),
