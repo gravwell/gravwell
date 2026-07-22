@@ -217,7 +217,8 @@ func GetGroup(l *list.Model) (types.Group, error) {
 type wrappableAsset interface {
 	[]types.Dashboard | []types.Template |
 		[]types.Actionable | []types.Flow |
-		[]types.ScheduledSearch | []types.Resource |
+		[]types.ScheduledSearch | []types.ScheduledScript |
+		[]types.Resource |
 		[]types.Macro | []types.SavedQuery |
 		[]types.AX | []types.File |
 		[]types.Playbook | []types.Alert
@@ -285,6 +286,23 @@ func WrapAssets[asset_t wrappableAsset](x asset_t, preselected ...map[string]boo
 	case []types.ScheduledSearch:
 		for i, itm := range t {
 			line := fmt.Sprintf("[%s] %s", itm.Schedule, itm.SearchString)
+			if itm.Description != "" {
+				line += " - " + itm.Description
+			}
+
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:          itm.ID,
+				Name:         itm.Name,
+				SecondLine:   line,
+				ShowDisabled: true,
+				Enabled:      !itm.Disabled,
+			}
+		}
+	case []types.ScheduledScript:
+		for i, itm := range t {
+			line := fmt.Sprintf("[%s] %s script", itm.Schedule, itm.ScriptLanguage)
 			if itm.Description != "" {
 				line += " - " + itm.Description
 			}
