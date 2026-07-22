@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package sqs provides a shared SQS API client and a hosted
+// ingester plugin for the Gravwell hosted ingester runtime.
 package sqs
 
 import (
