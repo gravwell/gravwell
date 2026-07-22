@@ -41,7 +41,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewScheduledNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	return treeutils.GenerateNav("scheduled", "Manage scheduled queries", "Alter and view previously scheduled queries",
 		[]*cobra.Command{},
 		[]action.Pair{
@@ -53,7 +53,11 @@ func NewScheduledNav() *cobra.Command {
 			backfillToggle(),
 			clear(),
 			createScript(),
-		})
+		},
+		treeutils.NodeOptions{
+			CommandAliases: []string{"scheduled_searches", "scheduled_search", "scheduled_queries", "scheduled_query"},
+		},
+	)
 }
 
 // also serves as GET
