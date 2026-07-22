@@ -24,7 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
-	alertscreate "github.com/gravwell/gravwell/v4/gwcli/tree/alerts/create"
+	alertscreate "github.com/gravwell/gravwell/v4/gwcli/tree/automation/alerts/create"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
