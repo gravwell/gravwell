@@ -550,7 +550,7 @@ func getJWTExpiry() (wakeTime time.Time) {
 	cached.mu.Unlock()
 	if user != exploded[0] {
 		// either the token or the local cache has changed
-		clilog.Writer.Infof("connection username %v does not match token username %v", cached.user.Username, exploded[0])
+		clilog.Writer.Infof("connection username %v does not match token username %v", user, exploded[0])
 		return time.Now()
 	}
 
@@ -589,6 +589,8 @@ func CurrentUserCaps() map[types.Capability]bool {
 
 // CBACEnabled returns as it says on the tin.
 func CBACEnabled() bool {
+	cached.mu.Lock()
+	defer cached.mu.Unlock()
 	return cached.cbacEnabled
 }
 

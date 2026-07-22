@@ -150,7 +150,7 @@ The [annotations](gwcli/internal/annotations/annotations.go) package is responsi
 Currently, these annotations are used solely for restricting access to the command. When a command is invoked directly, its requirements are checked for satisfaction via CheckRequirements. When [Mother](#mother-the-beating-heart-of-gwcli) is spawned, all commands have their annotations consolidated down to a single entry so they can be read quickly.
 
 # Mother: The Beating Heart of Gwcli
-disab
+
 Cobra does not natively support interactivity, so we need an adapter: Mother.
 Mother performs a variety of key tasks: traversing the command tree; associating `cobra.Commands` with their interactive elements (`action.Model`s); handing off to, and reasserting control from, children when they are invoked; printing and managing the historical record of commands; and traversing user input on the prompt.
 

@@ -354,7 +354,7 @@ func (m Mother) View() string {
 		ns, as, bs string
 	)
 	for _, suggestion := range m.suggestions.nav {
-		if suggestion.Disabled && !connection.CurrentUser().Admin {
+		if suggestion.Disabled {
 			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
 		} else {
 			sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters))
@@ -365,7 +365,7 @@ func (m Mother) View() string {
 	ns = strings.TrimSpace(sb.String()) // chip last space
 	sb.Reset()
 	for _, suggestion := range m.suggestions.action {
-		if suggestion.Disabled && !connection.CurrentUser().Admin {
+		if suggestion.Disabled {
 			sb.WriteString(stylesheet.Cur.DisabledText.Render(suggestion.FullName))
 		} else {
 			sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters))

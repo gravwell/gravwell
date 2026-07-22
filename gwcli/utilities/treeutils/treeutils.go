@@ -28,9 +28,6 @@ import (
 )
 
 // NodeOptions provides ways to tweak or mark a node with optional parameters.
-//
-// AdminOnly and RequiresCBAC apply recursively.
-// Ex: marking a nav as adminOnly will also mark all of its children as adminOnly.
 type NodeOptions struct {
 	// other names this nav can be called under
 	CommandAliases []string
