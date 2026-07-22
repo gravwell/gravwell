@@ -228,8 +228,6 @@ func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin boo
 	if cmd == nil {
 		return
 	}
-	n := cmd.Name()
-	clilog.Writer.Debug("cmd name: " + n)
 	// CheckRequirements checks that the anno map is not nil for us
 	if err := checkRequirements(cmd, true, CBACEnabled, userIsAdmin, usersCapabilities); err != nil {
 		cmd.Annotations[keyDisabled] = err.Error()
@@ -247,7 +245,7 @@ func ConsolidateToDisabled(cmd *cobra.Command, CBACEnabled bool, userIsAdmin boo
 		if cmd.Annotations == nil {
 			cmd.Annotations = make(map[string]string)
 		}
-		cmd.Annotations[keyDisabled] = "all children disabled"
+		cmd.Annotations[keyDisabled] = "your user lacks permissions to uses the commands" // all children disabled
 	}
 	return
 }
