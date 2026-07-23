@@ -208,13 +208,27 @@ func TestConsolidateToDisabled(t *testing.T) {
 
 }
 
-// checks that the given command's CheckRequirement result match their IsDisabled state, then recurs to each child.
+// checks that the given command's CheckRequirement result match their IsDisabled state (unless their IsDisabled state is because every child is disabled),
+// then recurs to each child.
 func checkIsDisabledRecursive(t *testing.T, cmd *cobra.Command, CBACEnabled bool, userIsAdmin bool, usersCapabilities []types.Capability) {
+	t.Helper()
 	// check self
 	err := annotations.CheckRequirements(cmd, CBACEnabled, userIsAdmin, uniques.SliceToSet(usersCapabilities))
 	// error state and IsDisabled state should match
 	reason := annotations.IsDisabled(cmd)
-	if err != nil {
+	// we need to check specifically for if a command was disabled due to all children being disabled, as CheckRequirements won't do that.
+	if reason == annotations.ReasonAllChildrenDisabled {
+		// this is the lowest priority disable; CheckRequirements shouldn't have found anything.
+		assert.Nil(t, err, "CheckRequirement returned an error, but cmd is disabled due to children")
+		// check every child (and that we actually have children. If we don't, a more specific error should have been used.)
+		assert.NotZero(t, len(cmd.Commands()), "'all children disabled' is only reasonable if this command has children")
+		for i, child := range cmd.Commands() {
+			if reason := annotations.IsDisabled(child); reason == "" {
+				t.Fatalf("parent is disabled due to children, but child %d is not disabled.\nChild's annotations: %v\nParent's annotations%v",
+					i, child.Annotations, cmd.Annotations)
+			}
+		}
+	} else if err != nil {
 		assert.Equal(t, err.Error(), reason, "child annotations: %v", cmd.Annotations)
 	} else {
 		assert.Empty(t, reason, "child annotations: %v", cmd.Annotations)
