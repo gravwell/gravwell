@@ -84,6 +84,9 @@ func (c Configs) Verify() (err error) {
 		}
 		if err = v.Verify(); err != nil {
 			err = fmt.Errorf("Jamf config %q failed validation %w", k, err)
+			return
+		}
+	}
 	for k, v := range c.Wiz {
 		if v == nil {
 			err = fmt.Errorf("Wiz config %q is nil", k)
@@ -112,8 +115,8 @@ func (c Configs) Tags() (tags []string, err error) {
 		tags = append(tags, v.Tags()...)
 	}
 	for _, v := range c.Wiz {
-    tags = append(tags, v.Tags()...)
-  }
+    	tags = append(tags, v.Tags()...)
+  	}
 	for _, v := range c.MSGraph {
 		tags = append(tags, v.Tags()...)
 	}
@@ -162,9 +165,9 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.Wiz {
 			if !yield(name, NewWizBuilder(config, wiz.Name, wiz.ID, wiz.Version)) {
-        return
-      }
-    }
+        		return
+      		}
+    	}
 		for name, config := range c.MSGraph {
 			if !yield(name, NewMSGraphBuilder(config, msgraph.Name, msgraph.ID, msgraph.Version)) {
 				return
