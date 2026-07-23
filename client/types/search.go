@@ -454,7 +454,7 @@ type RSNumber struct {
 }
 
 type RSNumberChannels struct {
-	Label string `json:"label`
+	Label string `json:"label"`
 	Value string `json:"value"`
 	Min   string `json:"min,omitempty"`
 	Max   string `json:"max,omitempty"`
