@@ -85,12 +85,12 @@ func TestRenderSettings(t *testing.T) {
 	tests := []struct {
 		name string
 		json string
-		want RenderSettings
+		want RendererSettings
 	}{
 		{
 			name: "chart",
 			json: `{"renderer":"chart","channels":{"category":"Category","nominal":"Value","temporal":"Timestamp"}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				Chart: &RSChart{
 					Renderer: "chart",
 					Channels: RSChartChannels{
@@ -104,7 +104,7 @@ func TestRenderSettings(t *testing.T) {
 		{
 			name: "point2point",
 			json: `{"renderer":"point2point","channels":{"from":"Src","to":"Dst","magnitude":"Mag"}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				P2P: &RSP2P{
 					Renderer: "point2point",
 					Channels: RSP2PChannels{
@@ -117,20 +117,21 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name: "numbercard",
-			json: `{"renderer":"numbercard","channels":{"value":"a"}}`,
-			want: RenderSettings{
+			json: `{"renderer":"numbercard","channels":{"value":"Magnitude","label":"Name"}}`,
+			want: RendererSettings{
 				Number: &RSNumber{
 					Renderer: "numbercard",
 					Channels: RSNumberChannels{
-						Value: "a",
+						Value: "Magnitude",
+						Label: "Name",
 					},
 				},
 			},
 		},
 		{
 			name: "gauge",
-			json: `{"renderer":"gauge","channels":{"value":"a","min":"b","max":"c"}}`,
-			want: RenderSettings{
+			json: `{"renderer":"gauge","channels":{"value":"Magnitude","min":"Min","max":"Max","label":"Name"}}`,
+			want: RendererSettings{
 				Number: &RSNumber{
 					Renderer: "gauge",
 					Channels: RSNumberChannels{
@@ -144,7 +145,7 @@ func TestRenderSettings(t *testing.T) {
 		{
 			name: "heatmap",
 			json: `{"renderer":"heatmap","channels":{"location":"Location","tooltip":"Tooltip"}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				Heatmap: &RSHeatmap{
 					Renderer: "heatmap",
 					Channels: RSHeatmapChannels{
@@ -157,7 +158,7 @@ func TestRenderSettings(t *testing.T) {
 		{
 			name: "pointmap",
 			json: `{"renderer":"pointmap","channels":{"location":"Location","magnitude":"Bytes"}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				Pointmap: &RSPointmap{
 					Renderer: "pointmap",
 					Channels: RSPointmapChannels{
@@ -170,7 +171,7 @@ func TestRenderSettings(t *testing.T) {
 		{
 			name: "stackgraph",
 			json: `{"renderer":"stackgraph","channels":{"category":"proto","nominal":"count","color":"service"}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				StackGraph: &RSStackGraph{
 					Renderer: "stackgraph",
 					Channels: RSStackGraphChannels{
@@ -184,7 +185,7 @@ func TestRenderSettings(t *testing.T) {
 		{
 			name: "wordcloud",
 			json: `{"renderer":"wordcloud","channels":{"name":"Name","magnitude":"Magnitude"}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				WordCloud: &RSWordCloud{
 					Renderer: "wordcloud",
 					Channels: RSWordCloudChannels{
@@ -197,7 +198,7 @@ func TestRenderSettings(t *testing.T) {
 		{
 			name: "table",
 			json: `{"renderer":"table","channels":{"columns":["Appname","MsgID"]}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				Tabular: &RSTabular{
 					Renderer: "table",
 					Channels: RSTabularChannels{
@@ -209,7 +210,7 @@ func TestRenderSettings(t *testing.T) {
 		{
 			name: "fdg",
 			json: `{"renderer":"fdg","channels":{"from":"Src","to":"Dst","magnitude":"Mag"}}`,
-			want: RenderSettings{
+			want: RendererSettings{
 				Fdg: &RSFdg{
 					Renderer: "fdg",
 					Channels: RSFdgChannels{
@@ -225,7 +226,7 @@ func TestRenderSettings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test Unmarshal
-			var got RenderSettings
+			var got RendererSettings
 			if err := json.Unmarshal([]byte(tt.json), &got); err != nil {
 				t.Fatalf("Unmarshal failed: %v", err)
 			}
@@ -247,7 +248,7 @@ func TestRenderSettings(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Marshal want failed: %v", err)
 			}
-			var got2 RenderSettings
+			var got2 RendererSettings
 			if err := json.Unmarshal(b3, &got2); err != nil {
 				t.Fatalf("Unmarshal from Marshal failed: %v", err)
 			}
@@ -264,7 +265,7 @@ func TestRenderSettings(t *testing.T) {
 
 func TestRenderSettingsErrors(t *testing.T) {
 	// 1. Multiple fields set
-	rsMultiple := RenderSettings{
+	rsMultiple := RendererSettings{
 		Chart: &RSChart{Renderer: "chart"},
 		Fdg:   &RSFdg{Renderer: "fdg"},
 	}
@@ -274,7 +275,7 @@ func TestRenderSettingsErrors(t *testing.T) {
 	}
 
 	// 2. Zero fields set (empty / nil)
-	rsEmpty := RenderSettings{}
+	rsEmpty := RendererSettings{}
 	_, err = json.Marshal(rsEmpty)
 	if err == nil {
 		t.Fatal("expected error when no render settings are specified")
@@ -301,7 +302,7 @@ func TestSearchInfoMarshal(t *testing.T) {
 	// Test with RenderSettings
 	siWithRenderSettings := SearchInfo{
 		ID: "test-id-with-rs",
-		RenderSettings: &RenderSettings{
+		RendererSettings: &RendererSettings{
 			Chart: &RSChart{
 				Renderer: "chart",
 			},
@@ -315,7 +316,7 @@ func TestSearchInfoMarshal(t *testing.T) {
 	if err := json.Unmarshal(b2, &outWithRS); err != nil {
 		t.Fatalf("failed to unmarshal SearchInfo with RenderSettings: %v", err)
 	}
-	if outWithRS.RenderSettings == nil || outWithRS.RenderSettings.Chart == nil || outWithRS.RenderSettings.Chart.Renderer != "chart" {
-		t.Fatalf("expected chart renderer, got %+v", outWithRS.RenderSettings)
+	if outWithRS.RendererSettings == nil || outWithRS.RendererSettings.Chart == nil || outWithRS.RendererSettings.Chart.Renderer != "chart" {
+		t.Fatalf("expected chart renderer, got %+v", outWithRS.RendererSettings)
 	}
 }

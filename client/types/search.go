@@ -267,23 +267,23 @@ type SearchInfo struct {
 	GID                   int32  `json:",omitempty"` //Group ID the search was assigned to, deprecated, use GIDs instead
 	GIDs                  []int32
 	Global                bool
-	UserQuery             string          //query provided by the user on search
-	EffectiveQuery        string          //the effective query that was actually used
-	StartRange            time.Time       //start time range
-	EndRange              time.Time       //end time range
-	Descending            bool            //the direction the search is progressing (Descending is the standard)
-	Started               time.Time       //time when the search was kicked off
-	LastUpdate            time.Time       //last timestamp we saw (tells us where indexers are working)
-	Duration              time.Duration   //Amount of time required to complete the search
-	StoreSize             int64           //size of the main storage file
-	IndexSize             int64           //size of an extra index file
-	ItemCount             int64           //How many items have been stored
-	TimeZoomDisabled      bool            //Renderer does not support zooming around data based on time
-	QueryTimeSpecified    bool            // True if the query contains start/end constraints
-	RenderDownloadFormats []string        `json:",omitempty"`
-	RenderSettings        *RenderSettings `json:",omitempty"`
-	Metadata              json.RawMessage `json:",omitempty"` //additional metadata associated with a search
-	Name                  string          `json:",omitempty"`
+	UserQuery             string            //query provided by the user on search
+	EffectiveQuery        string            //the effective query that was actually used
+	StartRange            time.Time         //start time range
+	EndRange              time.Time         //end time range
+	Descending            bool              //the direction the search is progressing (Descending is the standard)
+	Started               time.Time         //time when the search was kicked off
+	LastUpdate            time.Time         //last timestamp we saw (tells us where indexers are working)
+	Duration              time.Duration     //Amount of time required to complete the search
+	StoreSize             int64             //size of the main storage file
+	IndexSize             int64             //size of an extra index file
+	ItemCount             int64             //How many items have been stored
+	TimeZoomDisabled      bool              //Renderer does not support zooming around data based on time
+	QueryTimeSpecified    bool              // True if the query contains start/end constraints
+	RenderDownloadFormats []string          `json:",omitempty"`
+	RendererSettings      *RendererSettings `json:",omitempty"`
+	Metadata              json.RawMessage   `json:",omitempty"` //additional metadata associated with a search
+	Name                  string            `json:",omitempty"`
 	CollapsingIndex       int
 	NoHistory             bool // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
 	Background            bool // set to true if this search has been marked as backgrounded.
@@ -319,9 +319,9 @@ type SearchLaunchInfo struct {
 	Expires time.Time `json:"expires,omitempty"`
 }
 
-// A RenderSettings has the information necessary for client to render searches using legacy renderer modules.
-// All variants of RenderSettings use the "Renderer" property as a discriminator.
-type RenderSettings struct {
+// A RendererSettings has the information necessary for client to render searches using legacy renderer modules.
+// All variants of RendererSettings use the "Renderer" property as a discriminator.
+type RendererSettings struct {
 	Chart      *RSChart
 	P2P        *RSP2P
 	Number     *RSNumber
@@ -333,7 +333,7 @@ type RenderSettings struct {
 	Fdg        *RSFdg
 }
 
-func (rs RenderSettings) MarshalJSON() ([]byte, error) {
+func (rs RendererSettings) MarshalJSON() ([]byte, error) {
 	val := reflect.ValueOf(rs)
 	var active any
 
@@ -354,7 +354,7 @@ func (rs RenderSettings) MarshalJSON() ([]byte, error) {
 	return json.Marshal(active)
 }
 
-func (rs *RenderSettings) UnmarshalJSON(data []byte) error {
+func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
 	var temp struct {
 		Renderer string `json:"renderer"`
 	}
@@ -454,6 +454,7 @@ type RSNumber struct {
 }
 
 type RSNumberChannels struct {
+	Label string `json:"label`
 	Value string `json:"value"`
 	Min   string `json:"min,omitempty"`
 	Max   string `json:"max,omitempty"`
