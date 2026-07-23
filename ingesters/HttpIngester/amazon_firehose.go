@@ -166,7 +166,7 @@ func sendAFHOk(w http.ResponseWriter, id string) {
 }
 
 func includeAFHListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
-	for _, v := range cfg.AFHListener {
+	for k, v := range cfg.AFHListener {
 		hcfg := routeHandler{
 			handler:    handleAFH,
 			debugPosts: v.Debug_Posts,
@@ -187,6 +187,10 @@ func includeAFHListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		}
 		if hcfg.auth, err = newPresharedHeaderTokenHandler(afhAuthTokenHeader, v.TokenValue, lgr); err != nil {
 			return fmt.Errorf("failed to generate Amazon Firehose auth %w", err)
+		}
+		if *debugListener == k {
+			hcfg.handler = newDebugLoggingHandler(hcfg.handler, DefaultDebugLogger).Handle
+			hcfg.auth = newDebugLoggingAuther(hcfg.auth, DefaultDebugLogger)
 		}
 		if hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
 			return fmt.Errorf("failed to add handler for %q %w", v.URL, err)

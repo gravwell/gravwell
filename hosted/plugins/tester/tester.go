@@ -7,17 +7,17 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (
-	Tag     string = `test`
-	Name    string = `tester`
-	ID      string = `tester.ingesters.gravwell.io`
-	Version string = `1.0.0` // must be canonical version string with only major.minor.point
+	Tag                    string = `test`
+	Name                   string = `tester`
+	ID                     string = `tester.ingesters.gravwell.io`
+	Version                string = `1.0.0` // must be canonical version string with only major.minor.point
+	defaultIngesterUUIDStr string = "4f1c35f6-6af6-4103-8fdc-df2c63026f0d"
 )
 
 const (
@@ -26,18 +26,24 @@ const (
 
 type Config struct {
 	hosted.BaseConfig
-	Interval string // how often to send an entry; must be parsable by time.ParseDuration
+	hosted.SingleTagConfig
+	Interval    string // how often to send an entry; must be parsable by time.ParseDuration
+	Silent      bool
+	Test_Errors bool
 }
 
 func (c *Config) Verify() (err error) {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Interval != `` {
 		if _, err := time.ParseDuration(c.Interval); err != nil {
 			return err
 		}
 	}
-	if c.Ingester_UUID == `` {
-		c.Ingester_UUID = uuid.New().String()
+	if err := c.BaseConfig.Verify(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -61,13 +67,17 @@ func NewTesterIngester(cfg Config, tn hosted.TagNegotiator) (tt *TesterIngester,
 	tt = &TesterIngester{
 		Config: cfg,
 	}
-	if tt.tag, err = tn.NegotiateTag(Tag); err != nil {
+	if tt.tag, err = tn.NegotiateTag(cfg.ResolveTag(Tag)); err != nil {
 		return
 	}
 	return
 }
 
 func (tt *TesterIngester) Handle(_ context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
+	if tt.Silent {
+		return hosted.ContinueAfter(tt.interval()), nil
+	}
+
 	if err := rt.Write(entry.Entry{
 		TS:   entry.Now(),
 		Tag:  tt.tag,
@@ -75,6 +85,8 @@ func (tt *TesterIngester) Handle(_ context.Context, rt hosted.Runtime) (*hosted.
 	}); err != nil {
 		rt.Error("failed to write entry", log.KVErr(err))
 	}
-	rt.Error("testing errors", log.KVErr(errors.New("test err")))
+	if tt.Test_Errors {
+		rt.Error("testing errors", log.KVErr(errors.New("test err")))
+	}
 	return hosted.ContinueAfter(tt.interval()), nil
 }

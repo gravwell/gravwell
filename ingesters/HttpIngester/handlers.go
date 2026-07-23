@@ -194,8 +194,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if h.igst.WillBlock() {
 			w.WriteHeader(http.StatusInsufficientStorage)
 		}
-		//just return, this is an implied 200 or we already wrote the insufficient storage response
-		r.Body.Close() // close, we aren't reading this
+		drainAndClose(r.Body) // close, we aren't reading this
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -402,6 +402,7 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 		h.lgr.Warn("failed to handle multiline upload", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
@@ -441,4 +442,5 @@ func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.R
 		return
 	}
 	entries++
+	w.WriteHeader(http.StatusOK)
 }
