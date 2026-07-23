@@ -19,6 +19,7 @@ import (
 
 	// include all the native hosted ingesters
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
@@ -27,13 +28,13 @@ import (
 type Configs struct {
 	Okta     map[string]*okta.Config
 	Mimecast map[string]*mimecast.Config
+	MSGraph  map[string]*msgraph.Config
 	Tester   map[string]*tester.Config
 	Wiz      map[string]*wiz.Config
 }
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
-	// verify Okta configs
 	for k, v := range c.Okta {
 		if v == nil {
 			err = fmt.Errorf("Okta config %q is nil", k)
@@ -44,9 +45,23 @@ func (c Configs) Verify() (err error) {
 			return
 		}
 	}
+	for k, v := range c.MSGraph {
+		if v == nil {
+			err = fmt.Errorf("ms graph config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("config %q failed validation: %w", k, err)
+			return
+		}
+	}
 	for k, v := range c.Tester {
 		if v == nil {
 			err = fmt.Errorf("Tester config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Tester config %q failed validation %w", k, err)
 			return
 		}
 	}
@@ -85,6 +100,9 @@ func (c Configs) Tags() (tags []string, err error) {
 		tags = append(tags, v.Tags()...)
 	}
 	for _, v := range c.Wiz {
+    tags = append(tags, v.Tags()...)
+  }
+	for _, v := range c.MSGraph {
 		tags = append(tags, v.Tags()...)
 	}
 	return
@@ -92,7 +110,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Wiz)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Wiz) + len(c.MSGraph)
 	return
 }
 
@@ -127,6 +145,11 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.Wiz {
 			if !yield(name, NewWizBuilder(config, wiz.Name, wiz.ID, wiz.Version)) {
+        return
+      }
+    }
+		for name, config := range c.MSGraph {
+			if !yield(name, NewMSGraphBuilder(config, msgraph.Name, msgraph.ID, msgraph.Version)) {
 				return
 			}
 		}
