@@ -21,17 +21,18 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 )
 
 type Configs struct {
 	Okta     map[string]*okta.Config
 	Mimecast map[string]*mimecast.Config
 	Tester   map[string]*tester.Config
+	Jamf     map[string]*jamf.Config
 }
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
-	// verify Okta configs
 	for k, v := range c.Okta {
 		if v == nil {
 			err = fmt.Errorf("Okta config %q is nil", k)
@@ -47,6 +48,10 @@ func (c Configs) Verify() (err error) {
 			err = fmt.Errorf("Tester config %q is nil", k)
 			return
 		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Tester config %q failed validation %w", k, err)
+			return
+		}
 	}
 	for k, v := range c.Mimecast {
 		if v == nil {
@@ -55,6 +60,16 @@ func (c Configs) Verify() (err error) {
 		}
 		if err = v.Verify(); err != nil {
 			err = fmt.Errorf("Mimecast config %q failed validation %w", k, err)
+			return
+		}
+	}
+	for k, v := range c.Jamf {
+		if v == nil {
+			err = fmt.Errorf("Jamf config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Jamf config %q failed validation %w", k, err)
 			return
 		}
 	}
@@ -72,12 +87,15 @@ func (c Configs) Tags() (tags []string, err error) {
 	for _, v := range c.Mimecast {
 		tags = append(tags, v.Tags()...)
 	}
+	for _, v := range c.Jamf {
+		tags = append(tags, v.Tags()...)
+	}
 	return
 }
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf)
 	return
 }
 
@@ -107,6 +125,11 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.Mimecast {
 			if !yield(name, NewMimecastBuilder(config, mimecast.Name, mimecast.ID, mimecast.Version)) {
+				return
+			}
+		}
+		for name, config := range c.Jamf {
+			if !yield(name, NewJamfBuilder(config, jamf.Name, jamf.ID, jamf.Version)) {
 				return
 			}
 		}

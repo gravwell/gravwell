@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 )
 
 type BuilderConfig interface {
@@ -105,6 +106,25 @@ func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (
 func NewMimecastBuilder(config *mimecast.Config, kind, id, version string) *MimecastBuilder {
 	return &MimecastBuilder{
 		Builder[*mimecast.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type JamfBuilder struct {
+	Builder[*jamf.Config]
+}
+
+func (jb *JamfBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(jamf.New(jb.config), syncFn), nil
+}
+
+func NewJamfBuilder(config *jamf.Config, kind, id, version string) *JamfBuilder {
+	return &JamfBuilder{
+		Builder[*jamf.Config]{
 			config:  config,
 			kind:    kind,
 			id:      id,
