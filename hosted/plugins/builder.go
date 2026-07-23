@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
@@ -126,6 +127,25 @@ func NewJamfBuilder(config *jamf.Config, kind, id, version string) *JamfBuilder 
 	return &JamfBuilder{
 		Builder[*jamf.Config]{
 			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type MSGraphBuilder struct {
+	Builder[*msgraph.Config]
+}
+
+func (msgb *MSGraphBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
+	return msgraph.NewIngester(msgb.config), nil
+}
+
+func NewMSGraphBuilder(cfg *msgraph.Config, kind, id, version string) *MSGraphBuilder {
+	return &MSGraphBuilder{
+		Builder[*msgraph.Config]{
+			config:  cfg,
 			kind:    kind,
 			id:      id,
 			version: version,

@@ -2,16 +2,18 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -23,7 +25,6 @@ const (
 	maxMaxRetries      = 10
 	defaultMaxRetries  = 3
 	defaultMaxLineSize = 4 * 1024 * 1024
-	defaultRegion      = `us-east-1`
 )
 
 type AuthConfig struct {
@@ -32,9 +33,53 @@ type AuthConfig struct {
 	Endpoint            string // arbitrary endpoint
 	Bucket_Name         string // defined bucket
 	Bucket_URL          string `json:"-"` // DEPRECATED DO NOT USE
-	MaxRetries          int
-	Disable_TLS         bool // allows disable SSL on the upstream
-	S3_Force_Path_Style bool //for endpoints where bucket name is on the PATH of a url
+	MaxRetries               int
+	Disable_TLS              bool // DEPRECATED: has no effect. Use Insecure_Skip_TLS_Verify instead.
+	Insecure_Skip_TLS_Verify bool // skip TLS certificate verification for custom HTTPS endpoints (e.g. self-signed certs on internal S3-compatible services). Has no effect when connecting to real AWS endpoints.
+	S3_Force_Path_Style      bool //for endpoints where bucket name is on the PATH of a url
+}
+
+// loadConfig builds an aws.Config from the AuthConfig, applying any credentials,
+// retry limits, as well as TLS settings. S3-specific options like path style, ARN region,
+// and endpoint are handled separately via s3ClientOpts so this config can be reused for any
+// AWS-based service client.
+func (ac *AuthConfig) loadConfig(ctx context.Context, c aws.CredentialsProvider) (aws.Config, error) {
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(ac.Region),
+		config.WithRetryMaxAttempts(ac.MaxRetries),
+	}
+	if c != nil {
+		opts = append(opts, config.WithCredentialsProvider(c))
+	}
+	if ac.Insecure_Skip_TLS_Verify {
+		opts = append(opts, config.WithHTTPClient(&http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}))
+	}
+	return config.LoadDefaultConfig(ctx, opts...)
+}
+
+// s3ClientOpts returns S3-specific client options from the AuthConfig.
+// These are passed to s3.NewFromConfig and cannot be expressed as global
+// aws.Config options.
+func (ac *AuthConfig) s3ClientOpts() []func(*s3.Options) {
+	var opts []func(*s3.Options)
+	if ac.Endpoint != "" {
+		opts = append(opts, func(o *s3.Options) {
+			o.BaseEndpoint = new(ac.Endpoint)
+			o.UsePathStyle = ac.S3_Force_Path_Style
+		})
+	} else if ac.Region == "" {
+		// UseARNRegion lets the s3 client use the region embedded in a bucket
+		// ARN rather than the config region.
+		// This isn't likely to be hit, but just playing defensively here.
+		opts = append(opts, func(o *s3.Options) {
+			o.UseARNRegion = true
+		})
+	}
+	return opts
 }
 
 type BucketConfig struct {
@@ -60,17 +105,14 @@ type BucketConfig struct {
 type BucketReader struct {
 	BucketConfig
 	prefixFilter string
-	session      *session.Session
-	svc          *s3.S3
+	svc          s3Handler
 	filter       *matcher
-	tg           timegrinder.TimeGrinder
 	src          net.IP
 	rdr          reader
 }
 
-func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
+func NewBucketReader(ctx context.Context, cfg BucketConfig) (br *BucketReader, err error) {
 	var rdr reader
-	var sess *session.Session
 	if err = cfg.validate(); err != nil {
 		return
 	}
@@ -85,15 +127,15 @@ func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if sess, err = cfg.AuthConfig.getSession(cfg, c); err != nil {
-		err = fmt.Errorf("Failed to create S3 session %w", err)
-		return
+
+	awsCfg, err := cfg.loadConfig(ctx, c)
+	if err != nil {
+		return nil, fmt.Errorf("load auth config: %w", err)
 	}
 
 	br = &BucketReader{
 		BucketConfig: cfg,
-		session:      sess,
-		svc:          s3.New(sess),
+		svc:          s3.NewFromConfig(awsCfg, cfg.s3ClientOpts()...),
 		filter:       filter,
 		src:          cfg.srcOverride(),
 		rdr:          rdr,
@@ -137,14 +179,12 @@ func (bc *BucketConfig) srcOverride() net.IP {
 }
 
 func (br *BucketReader) Test(ctx context.Context) error {
-	//list the objects in the bucket
-	req := s3.ListObjectsV2Input{
-		Bucket:  aws.String(br.Bucket_Name),
-		MaxKeys: aws.Int64(1), //just need one to check
-	}
-	return br.svc.ListObjectsV2Pages(&req, func(resp *s3.ListObjectsV2Output, lastPage bool) bool {
-		return false //do not continue the scan
+	paginator := s3.NewListObjectsV2Paginator(br.svc, &s3.ListObjectsV2Input{
+		Bucket:  new(br.Bucket_Name),
+		MaxKeys: new(int32(1)),
 	})
+	_, err := paginator.NextPage(ctx)
+	return err
 }
 
 // ShouldTrack just checks if we should process this file
@@ -155,58 +195,73 @@ func (br *BucketReader) ShouldTrack(obj string) (ok bool) {
 }
 
 // Process reads the object in and processes its contents
-func (br *BucketReader) Process(obj *s3.Object, ctx context.Context) (sz int64, s3rtt, rtt time.Duration, err error) {
-	return ProcessContext(obj, ctx, br.svc, br.Bucket_Name, br.rdr, br.TG, br.src, br.Tag, br.Proc, br.MaxLineSize, br.AttachMetadata)
+func (br *BucketReader) Process(obj types.Object, ctx context.Context) (sz int64, s3rtt, rtt time.Duration, err error) {
+	return ProcessContext(
+		obj,
+		ctx,
+		br.svc,
+		br.Bucket_Name,
+		br.rdr,
+		br.TG,
+		br.src,
+		br.Tag,
+		br.Proc,
+		br.MaxLineSize,
+		br.AttachMetadata,
+	)
 }
 
-func (br *BucketReader) ManualScan(lg *log.Logger, ctx context.Context, ot *objectTracker, queue chan<- *s3.Object) (err error) {
-	lg.Info("manual scan started", log.KV("bucket", br.Name))
+func (br *BucketReader) ManualScan(
+	lg *log.Logger,
+	ctx context.Context,
+	ot *objectTracker,
+	queue chan<- types.Object,
+) (err error) {
+	_ = lg.Info("manual scan started", log.KV("bucket", br.Name))
 
 	//list the objects in the bucket
 	req := s3.ListObjectsV2Input{
-		Bucket: aws.String(br.Bucket_Name),
+		Bucket: new(br.Bucket_Name),
 	}
 	if br.prefixFilter != `` {
-		req.Prefix = aws.String(br.prefixFilter)
+		req.Prefix = new(br.prefixFilter)
 	}
 
 	var count uint64
 
-	var lerr error
-	objListHandler := func(resp *s3.ListObjectsV2Output, lastPage bool) bool {
-		for _, item := range resp.Contents {
+	paginator := s3.NewListObjectsV2Paginator(br.svc, &req)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("handle page: %w", err)
+		}
+		for _, item := range page.Contents {
 			select {
 			case queue <- item:
 				count++
 			case <-ctx.Done():
-				return false
-			}
-			if ctx.Err() != nil {
-				return false
+				return ctx.Err()
 			}
 		}
-		return true
-	}
-
-	if err = br.svc.ListObjectsV2Pages(&req, objListHandler); err == nil {
-		err = lerr
 	}
 
 	lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("object_count", count))
 	return
 }
 
-func (br *BucketReader) worker(lg *log.Logger, ctx context.Context, ot *objectTracker, queue <-chan *s3.Object, wg *sync.WaitGroup) {
-	lg.Info("manual scan worker started", log.KV("bucket", br.Name))
+func (br *BucketReader) worker(
+	lg *log.Logger,
+	ctx context.Context,
+	ot *objectTracker,
+	queue <-chan types.Object,
+	wg *sync.WaitGroup,
+) {
+	_ = lg.Info("manual scan worker started", log.KV("bucket", br.Name))
 	defer wg.Done()
 
 	var processed, alreadyProcessed, skipped, errored uint64
 
 	for item := range queue {
-		if item == nil {
-			return
-		}
-
 		//do a quick check for stupidity
 		if item.Size == nil || item.LastModified == nil || item.Key == nil {
 			skipped++
@@ -282,11 +337,11 @@ func (ac *AuthConfig) validate() (err error) {
 	if ac.Endpoint != `` {
 		//user is explicitely setting a URL, so make sure they didn't set a region or ARN
 		if ac.Bucket_ARN != `` {
-			err = errors.New("Endpoint and Bucket-ARN are mutually exclusive")
+			err = errors.New("endpoint and bucket arn are mutually exclusive")
 			return
 		}
 		if ac.Bucket_Name == `` {
-			err = errors.New("Bucket-Name is required when using custom Endpoint")
+			err = errors.New("bucket name is required when using custom endpoint")
 			return
 		}
 	} else {
@@ -312,36 +367,9 @@ func (ac *AuthConfig) validate() (err error) {
 	return
 }
 
-func (bc BucketConfig) Log(vals ...interface{}) {
+func (bc BucketConfig) Log(vals ...any) {
 	if bc.Logger == nil || len(vals) == 0 {
 		return
 	}
-	bc.Logger.Info(fmt.Sprint(vals...))
-}
-
-func (ac *AuthConfig) getSession(lgr aws.Logger, c *credentials.Credentials) (sess *session.Session, err error) {
-	//prevalidate first
-	if err = ac.validate(); err != nil {
-		return
-	}
-
-	cfg := aws.Config{
-		MaxRetries:  aws.Int(ac.MaxRetries),
-		Credentials: c,
-		DisableSSL:  aws.Bool(ac.Disable_TLS),
-		Region:      aws.String(ac.Region),
-		Logger:      lgr,
-	}
-	if ac.Endpoint != `` {
-		//using a custom endpoint, wire that up
-		cfg.Endpoint = aws.String(ac.Endpoint)
-		cfg.S3ForcePathStyle = aws.Bool(ac.S3_Force_Path_Style)
-	} else {
-		//use ARN and potentially a Region
-		if ac.Region == `` {
-			cfg.S3UseARNRegion = aws.Bool(true)
-		}
-	}
-	sess, err = session.NewSession(&cfg)
-	return
+	_ = bc.Logger.Info(fmt.Sprint(vals...))
 }
