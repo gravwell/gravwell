@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	defaultIngesterUUIDStr string = "e83e63d2-382e-4b42-b2da-77e2708143f1"
 	// defaultAuthURL is the Wiz OAuth token endpoint used to exchange a client
 	// id/secret for a bearer token. Override for gov/fedramp tenants.
 	defaultAuthURL = "https://auth.app.wiz.io/oauth/token"
@@ -57,6 +58,8 @@ type Config struct {
 }
 
 func (c *Config) Verify() error {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Client_Id == "" {
 		return errors.New("Client-Id not specified")
 	}
