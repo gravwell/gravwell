@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
 type Configs struct {
@@ -31,6 +32,7 @@ type Configs struct {
 	MSGraph  map[string]*msgraph.Config
 	Tester   map[string]*tester.Config
 	Jamf     map[string]*jamf.Config
+	Wiz      map[string]*wiz.Config
 }
 
 // Verify ensures that the plugin configs are valid
@@ -82,6 +84,13 @@ func (c Configs) Verify() (err error) {
 		}
 		if err = v.Verify(); err != nil {
 			err = fmt.Errorf("Jamf config %q failed validation %w", k, err)
+	for k, v := range c.Wiz {
+		if v == nil {
+			err = fmt.Errorf("Wiz config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Wiz config %q failed validation %w", k, err)
 			return
 		}
 	}
@@ -102,6 +111,9 @@ func (c Configs) Tags() (tags []string, err error) {
 	for _, v := range c.Jamf {
 		tags = append(tags, v.Tags()...)
 	}
+	for _, v := range c.Wiz {
+    tags = append(tags, v.Tags()...)
+  }
 	for _, v := range c.MSGraph {
 		tags = append(tags, v.Tags()...)
 	}
@@ -110,7 +122,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.MSGraph) + len(c.Jamf)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph)
 	return
 }
 
@@ -148,6 +160,11 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 				return
 			}
 		}
+		for name, config := range c.Wiz {
+			if !yield(name, NewWizBuilder(config, wiz.Name, wiz.ID, wiz.Version)) {
+        return
+      }
+    }
 		for name, config := range c.MSGraph {
 			if !yield(name, NewMSGraphBuilder(config, msgraph.Name, msgraph.ID, msgraph.Version)) {
 				return
