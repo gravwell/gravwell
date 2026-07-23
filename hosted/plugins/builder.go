@@ -129,6 +129,12 @@ func NewJamfBuilder(config *jamf.Config, kind, id, version string) *JamfBuilder 
 		Builder[*jamf.Config]{
 			config:  config,
 			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
 type WizBuilder struct {
 	Builder[*wiz.Config]
 }
@@ -141,7 +147,7 @@ func NewWizBuilder(config *wiz.Config, kind, id, version string) *WizBuilder {
 	return &WizBuilder{
 		Builder[*wiz.Config]{
 			config:  config,
-      kind:    kind,
+      		kind:    kind,
 			id:      id,
 			version: version,
 		},
