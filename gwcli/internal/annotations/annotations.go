@@ -127,7 +127,9 @@ func RequirementsStrings(cmd *cobra.Command) []string {
 
 	var sb strings.Builder
 	if len(xp) > 0 {
-		sb.WriteString("Requires CBAC permissions ")
+		sb.WriteString("Requires CBAC ")
+		sb.WriteString(english.PluralWord(len(xp), "permission", "permissions"))
+		sb.WriteString(" ")
 		sb.WriteString(english.WordSeries(xp, "and"))
 		if len(IExtra) > 0 {
 			sb.WriteString(" (plus ")
