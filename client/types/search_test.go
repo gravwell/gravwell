@@ -135,9 +135,10 @@ func TestRenderSettings(t *testing.T) {
 				Number: &RSNumber{
 					Renderer: "gauge",
 					Channels: RSNumberChannels{
-						Value: "a",
-						Min:   "b",
-						Max:   "c",
+						Value: "Magnitude",
+						Label: "Name",
+						Min:   "Min",
+						Max:   "Max",
 					},
 				},
 			},
