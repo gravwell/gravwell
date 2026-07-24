@@ -20,6 +20,8 @@ import (
 )
 
 const (
+	defaultIngesterUUIDStr string = "7e468cc4-ab10-4b33-b066-90eb4905980b"
+
 	defaultTag               = `jamf`
 	defaultPageSize          = 100
 	defaultLookback          = 1   // hours
@@ -52,6 +54,8 @@ type Config struct {
 }
 
 func (c *Config) Verify() error {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Host == "" {
 		return errors.New("Host not specified")
 	}
