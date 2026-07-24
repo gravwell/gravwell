@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
@@ -115,6 +116,25 @@ func NewMimecastBuilder(config *mimecast.Config, kind, id, version string) *Mime
 	}
 }
 
+type JamfBuilder struct {
+	Builder[*jamf.Config]
+}
+
+func (jb *JamfBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(jamf.New(jb.config), syncFn), nil
+}
+
+func NewJamfBuilder(config *jamf.Config, kind, id, version string) *JamfBuilder {
+	return &JamfBuilder{
+		Builder[*jamf.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
 type WizBuilder struct {
 	Builder[*wiz.Config]
 }
@@ -127,7 +147,7 @@ func NewWizBuilder(config *wiz.Config, kind, id, version string) *WizBuilder {
 	return &WizBuilder{
 		Builder[*wiz.Config]{
 			config:  config,
-      kind:    kind,
+      		kind:    kind,
 			id:      id,
 			version: version,
 		},
