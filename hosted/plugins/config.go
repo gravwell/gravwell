@@ -15,15 +15,15 @@ import (
 	"iter"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 
 	// include all the native hosted ingesters
-	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/jamf"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/msgraph"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/wiz"
 )
 
 type Configs struct {
@@ -115,8 +115,8 @@ func (c Configs) Tags() (tags []string, err error) {
 		tags = append(tags, v.Tags()...)
 	}
 	for _, v := range c.Wiz {
-    	tags = append(tags, v.Tags()...)
-  	}
+		tags = append(tags, v.Tags()...)
+	}
 	for _, v := range c.MSGraph {
 		tags = append(tags, v.Tags()...)
 	}
@@ -165,9 +165,9 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.Wiz {
 			if !yield(name, NewWizBuilder(config, wiz.Name, wiz.ID, wiz.Version)) {
-        		return
-      		}
-    	}
+				return
+			}
+		}
 		for name, config := range c.MSGraph {
 			if !yield(name, NewMSGraphBuilder(config, msgraph.Name, msgraph.ID, msgraph.Version)) {
 				return
