@@ -1,3 +1,5 @@
+//go:build ci
+
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -12,13 +14,13 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user/myinfo"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self"
 )
 
 func TestIs(t *testing.T) {
 
 	// create a known action pair
-	treePair := myinfo.NewUserMyInfoAction()
+	treePair := self.MyInfo()
 	action.AddModel(treePair.Action, treePair.Model)
 
 	if !action.Is(treePair.Action) {
@@ -31,7 +33,7 @@ func TestIs(t *testing.T) {
 
 	// create a known nav
 	// NOTE(rlandau): this also adds actions underneath this nav to the action map
-	statusNav := systemshealth.NewSystemsNav()
+	statusNav := systemshealth.NewNav()
 	if action.Is(statusNav) {
 		t.Fatal("known Nav classified as Action")
 	}

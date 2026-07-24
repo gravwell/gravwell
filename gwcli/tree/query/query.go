@@ -48,28 +48,28 @@ package query
  */
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 const (
 	defaultDuration = 1 * time.Hour
-
-	pageSize = 500 // fetch results page by page
 )
 
 var helpDesc = "Generate and send a query to the remote server either by arguments or " +
@@ -96,7 +96,14 @@ var localFS pflag.FlagSet
 func NewQueryAction() action.Pair {
 	cmd := treeutils.GenerateAction("query", "submit a query",
 		helpDesc,
-		[]string{"q", "search"}, run)
+		runE, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+			CommandAliases: []string{"q", "search"},
+			// query bundles ad-hoc search, optional backgrounding, and optional scheduling into a single action.
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite, types.Download},
+				XPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite, types.Download},
+			},
+		}})
 
 	localFS = initialLocalFlagSet()
 
@@ -136,7 +143,7 @@ func initialLocalFlagSet() pflag.FlagSet {
 // Walks through the given flags and checks them in order: scheduled query, background query, normal query.
 // Invokes Mother iff query is called bare.
 // Invokes a Motherless datascope if a valid query is given and --script is not given.
-func run(cmd *cobra.Command, args []string) {
+func runE(cmd *cobra.Command, args []string) error {
 	var err error
 
 	// fetch flags
@@ -155,17 +162,13 @@ func run(cmd *cobra.Command, args []string) {
 			} else if qry == "" {
 				errMsg = "query cannot be empty"
 			}
-			clilog.Tee(clilog.INFO, cmd.OutOrStdout(), "invalid query: "+errMsg+"\n")
-			return
+			return fmt.Errorf("invalid query: %s", errMsg)
 		}
 
 		// spawn mother on the query prompt
-		// NOTE(rlandau): we hit the backend to validate the query twice (once now, once by Mother). This is unavoidable without complicating Mother further.
-		if err := mother.Spawn(cmd.Root(), cmd, args); err != nil {
-			clilog.Tee(clilog.CRITICAL, cmd.ErrOrStderr(),
-				"failed to spawn a mother instance: "+err.Error()+"\n")
-		}
-		return
+		// NOTE(rlandau): we hit the backend to validate the query twice (once now, once by Mother).
+		// This is unavoidable without complicating Mother further.
+		return mother.Spawn(cmd.Root(), cmd, args)
 	}
 
 	// check if this is a scheduled query
@@ -175,21 +178,19 @@ func run(cmd *cobra.Command, args []string) {
 			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
 		}
 		if invalid != "" {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), invalid+"\n")
+			return errors.New(invalid)
 		} else if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		} else {
-			clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-				fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.Schedule.Name, ssid))
+			return err
 		}
-		return
+		clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
+			fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.Schedule.Name, ssid))
+		return nil
 	}
 
 	// submit the query
 	var s grav.Search
 	if s, err = connection.StartQuery(qry, -flags.Duration, flags.Background); err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
+		return err
 	}
 
 	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
@@ -203,45 +204,13 @@ func run(cmd *cobra.Command, args []string) {
 		}
 
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
-			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", s.ID, s.UID, s.GID, s.EffectiveQuery))
+			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GIDs: %v|eQuery: %v\n", s.ID, s.OwnerID, s.AllGIDs(), s.EffectiveQuery))
 
 		// close our handle to the search
 		// it will survive, as it is backgrounded
-		s.Close()
-		return
+		return s.Close()
 	}
 
 	querysupport.HandleFGCobraSearch(&s, flags, cmd.OutOrStdout(), cmd.ErrOrStderr())
-	if err := s.Close(); err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
-	}
-}
-
-//#endregion
-
-// Opens and returns a file handle, configured by the state of append.
-//
-// Errors are logged to clilogger internally
-func openFile(path string, append bool) (*os.File, error) {
-	var flags = os.O_WRONLY | os.O_CREATE
-	if append { // check append
-		flags |= os.O_APPEND
-	} else {
-		flags |= os.O_TRUNC
-	}
-
-	f, err := os.OpenFile(path, flags, 0644)
-	if err != nil {
-		clilog.Writer.Errorf("Failed to open file %s (flags %d, mode %d): %v", path, flags, 0644, err)
-		return nil, err
-	}
-
-	if s, err := f.Stat(); err != nil {
-		clilog.Writer.Warnf("Failed to stat file %s: %v", f.Name(), err)
-	} else {
-		clilog.Writer.Debugf("Opened file %s of size %v", f.Name(), s.Size())
-	}
-
-	return f, nil
+	return s.Close()
 }
