@@ -145,26 +145,27 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name: "heatmap",
-			json: `{"renderer":"heatmap","channels":{"location":"Location","tooltip":"Tooltip"}}`,
+			json: `{"renderer":"heatmap","channels":{"latitude":"Lat","longitude":"Long","magnitude":"Magnitude"}}`,
 			want: RendererSettings{
 				Heatmap: &RSHeatmap{
 					Renderer: "heatmap",
 					Channels: RSHeatmapChannels{
-						Location: "Location",
-						Tooltip:  "Tooltip",
+						Longitude: "Long",
+						Latitude:  "Lat",
+						Magnitude: "Magnitude",
 					},
 				},
 			},
 		},
 		{
 			name: "pointmap",
-			json: `{"renderer":"pointmap","channels":{"location":"Location","magnitude":"Bytes"}}`,
+			json: `{"renderer":"pointmap","channels":{"location":"Location","tooltip":["Bytes"]}}`,
 			want: RendererSettings{
 				Pointmap: &RSPointmap{
 					Renderer: "pointmap",
 					Channels: RSPointmapChannels{
-						Location:  "Location",
-						Magnitude: "Bytes",
+						Location: "Location",
+						Tooltip:  []string{"Bytes"},
 					},
 				},
 			},
