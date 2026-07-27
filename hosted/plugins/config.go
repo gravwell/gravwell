@@ -21,12 +21,14 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
 type Configs struct {
 	Okta     map[string]*okta.Config
 	Mimecast map[string]*mimecast.Config
 	Tester   map[string]*tester.Config
+	Wiz      map[string]*wiz.Config
 }
 
 // Verify ensures that the plugin configs are valid
@@ -58,6 +60,16 @@ func (c Configs) Verify() (err error) {
 			return
 		}
 	}
+	for k, v := range c.Wiz {
+		if v == nil {
+			err = fmt.Errorf("Wiz config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Wiz config %q failed validation %w", k, err)
+			return
+		}
+	}
 	return
 }
 
@@ -72,12 +84,15 @@ func (c Configs) Tags() (tags []string, err error) {
 	for _, v := range c.Mimecast {
 		tags = append(tags, v.Tags()...)
 	}
+	for _, v := range c.Wiz {
+		tags = append(tags, v.Tags()...)
+	}
 	return
 }
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Wiz)
 	return
 }
 
@@ -107,6 +122,11 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.Mimecast {
 			if !yield(name, NewMimecastBuilder(config, mimecast.Name, mimecast.ID, mimecast.Version)) {
+				return
+			}
+		}
+		for name, config := range c.Wiz {
+			if !yield(name, NewWizBuilder(config, wiz.Name, wiz.ID, wiz.Version)) {
 				return
 			}
 		}
