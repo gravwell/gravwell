@@ -467,8 +467,9 @@ type RSHeatmap struct {
 }
 
 type RSHeatmapChannels struct {
-	Location string `json:"location"`
-	Tooltip  string `json:"tooltip,omitempty"`
+	Latitude  string `json:"latitude"`
+	Longitude string `json:"longitude"`
+	Magnitude string `json:"magnitude"`
 }
 
 type RSPointmap struct {
@@ -478,8 +479,8 @@ type RSPointmap struct {
 }
 
 type RSPointmapChannels struct {
-	Location  string `json:"location"`
-	Magnitude string `json:"magnitude,omitempty"`
+	Location string   `json:"location"`
+	Tooltip  []string `json:"tooltip"`
 }
 
 type RSStackGraph struct {
