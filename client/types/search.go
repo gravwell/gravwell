@@ -467,8 +467,7 @@ type RSHeatmap struct {
 }
 
 type RSHeatmapChannels struct {
-	Latitude  string `json:"latitude"`
-	Longitude string `json:"longitude"`
+	Location  string `json:"location"`
 	Magnitude string `json:"magnitude"`
 }
 

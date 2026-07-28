@@ -145,13 +145,12 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name: "heatmap",
-			json: `{"renderer":"heatmap","channels":{"latitude":"Lat","longitude":"Long","magnitude":"Magnitude"}}`,
+			json: `{"renderer":"heatmap","channels":{"location":"Location","magnitude":"Magnitude"}}`,
 			want: RendererSettings{
 				Heatmap: &RSHeatmap{
 					Renderer: "heatmap",
 					Channels: RSHeatmapChannels{
-						Longitude: "Long",
-						Latitude:  "Lat",
+						Location:  "Location",
 						Magnitude: "Magnitude",
 					},
 				},
