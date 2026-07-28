@@ -444,7 +444,7 @@ type RSP2P struct {
 type RSP2PChannels struct {
 	From      string `json:"from"`
 	To        string `json:"to"`
-	Magnitude string `json:"magnitude,omitempty"`
+	Magnitude string `json:"magnitude"`
 }
 
 type RSNumber struct {
