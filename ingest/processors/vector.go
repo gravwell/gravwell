@@ -122,46 +122,52 @@ func (vp *VectorProc) Process(ents []*entry.Entry) (rset []*entry.Entry, err err
 		return
 	}
 
-	// Collect the non-nil entries and their payloads so the whole batch can be
-	// embedded in a single request.
+	// Collect the entries that actually carry a payload so the whole batch can
+	// be embedded in a single request. Entries with no data (LLM usage and other
+	// metadata events keep everything in EVs) are passed through untouched — an
+	// embedding of an empty payload is storage bloat with no semantic content,
+	// and some endpoints reject the empty input outright.
 	idx := make([]int, 0, len(ents))
 	inputs := make([]string, 0, len(ents))
 	for i, ent := range ents {
-		if ent == nil {
+		if ent == nil || len(bytes.TrimSpace(ent.Data)) == 0 {
 			continue
 		}
 		idx = append(idx, i)
 		inputs = append(inputs, string(ent.Data))
 	}
-	// Reuse the slice backing store — zero-copy reset to length 0, capacity preserved.
-	rset = ents[:0]
-	if len(inputs) == 0 {
-		return
-	}
 
-	embeddings, eerr := vp.getEmbeddings(inputs)
-	if eerr != nil {
-		// In passthrough mode we keep going quietly and emit the originals
-		// untouched. Otherwise surface the error so the ingester logs it; the
-		// batch is dropped.
-		if vp.Passthrough_On_Error {
-			return ents, nil
-		}
-		return nil, eerr
-	}
-
-	for n, i := range idx {
-		ent := ents[i]
-		// Attach the embedding as a string-encoded intrinsic EV named "embeddings"
-		ev, merr := json.Marshal(embeddings[n])
-		if merr == nil {
-			merr = ent.AddEnumeratedValueEx("embeddings", string(ev))
-		}
-		if merr != nil {
+	var embeddings [][]float64
+	if len(inputs) > 0 {
+		if embeddings, err = vp.getEmbeddings(inputs); err != nil {
+			// In passthrough mode we keep going quietly and emit the originals
+			// untouched. Otherwise surface the error so the ingester logs it; the
+			// batch is dropped.
 			if vp.Passthrough_On_Error {
-				rset = append(rset, ent)
+				return ents, nil
 			}
+			return nil, err
+		}
+	}
+
+	// Reuse the slice backing store — zero-copy reset to length 0, capacity
+	// preserved. Writes always trail reads, so attaching in place is safe.
+	rset = ents[:0]
+	var n int
+	for i, ent := range ents {
+		if ent == nil {
 			continue
+		}
+		if n < len(idx) && idx[n] == i {
+			// Attach the embedding as a string-encoded EV named "embeddings"
+			ev, merr := json.Marshal(embeddings[n])
+			if merr == nil {
+				merr = ent.AddEnumeratedValueEx("embeddings", string(ev))
+			}
+			n++
+			if merr != nil && !vp.Passthrough_On_Error {
+				continue // could not attach, drop the entry
+			}
 		}
 		rset = append(rset, ent)
 	}

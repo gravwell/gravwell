@@ -301,6 +301,127 @@ func TestVectorProcessorEmptyBatch(t *testing.T) {
 	}
 }
 
+// Entries with no payload have nothing worth embedding — they must pass through
+// untouched and must not cost an API call.
+func TestVectorProcessorEmptyData(t *testing.T) {
+	var requests int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		http.Error(w, "should not have been called", http.StatusBadRequest)
+	}))
+	defer ts.Close()
+
+	cfg := VectorConfig{
+		Model:    "test-model",
+		Endpoint: "http://" + ts.Listener.Addr().String() + "/v1/embeddings",
+		Token:    "test-token",
+	}
+	p, err := NewVectorProcessor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ents := []*entry.Entry{
+		{TS: entry.Now(), Tag: 42}, // nil Data
+		makeVectorEntry(" \n\t", 42),
+	}
+	rset, err := p.Process(ents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rset) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(rset))
+	}
+	for i, ent := range rset {
+		if _, ok := ent.GetEnumeratedValue("embeddings"); ok {
+			t.Errorf("entry %d has an embeddings EV but carries no data", i)
+		}
+	}
+	if n := atomic.LoadInt32(&requests); n != 0 {
+		t.Errorf("expected no embedding requests for an all-empty batch, got %d", n)
+	}
+}
+
+// A batch mixing empty and non-empty payloads must embed only the non-empty ones
+// while keeping every entry, in order.
+func TestVectorProcessorMixedEmptyData(t *testing.T) {
+	var gotInputs []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req embeddingRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		gotInputs = req.Input
+		var resp embeddingResponse
+		for i := range req.Input {
+			// Distinct per-input vectors so the index mapping can be checked.
+			resp.Data = append(resp.Data, struct {
+				Index     int       `json:"index"`
+				Embedding []float64 `json:"embedding"`
+			}{
+				Index:     i,
+				Embedding: []float64{float64(i + 1)},
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer ts.Close()
+
+	cfg := VectorConfig{
+		Model:    "test-model",
+		Endpoint: "http://" + ts.Listener.Addr().String() + "/v1/embeddings",
+		Token:    "test-token",
+	}
+	p, err := NewVectorProcessor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ents := []*entry.Entry{
+		makeVectorEntry("hello", 42),
+		makeVectorEntry("", 42),
+		makeVectorEntry("world", 42),
+	}
+	rset, err := p.Process(ents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rset) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(rset))
+	}
+	if len(gotInputs) != 2 || gotInputs[0] != "hello" || gotInputs[1] != "world" {
+		t.Fatalf("expected only the non-empty payloads to be embedded, got %q", gotInputs)
+	}
+
+	// Entries stay in their original order and each embedded entry gets its own
+	// vector; the empty one gets nothing.
+	want := []string{"hello", "", "world"}
+	wantEmb := []string{`[1]`, ``, `[2]`}
+	for i, ent := range rset {
+		if string(ent.Data) != want[i] {
+			t.Errorf("entry %d: data got %q, want %q", i, string(ent.Data), want[i])
+		}
+		v, ok := ent.GetEnumeratedValue("embeddings")
+		if wantEmb[i] == `` {
+			if ok {
+				t.Errorf("entry %d has an embeddings EV but carries no data", i)
+			}
+			continue
+		}
+		if !ok {
+			t.Fatalf("entry %d: expected an \"embeddings\" enumerated value", i)
+		}
+		if embStr, ok := v.(string); !ok {
+			t.Fatalf("entry %d: expected embeddings EV to be a string, got %T", i, v)
+		} else if embStr != wantEmb[i] {
+			t.Errorf("entry %d: embeddings got %s, want %s", i, embStr, wantEmb[i])
+		}
+	}
+}
+
 func TestVectorProcessorBatch(t *testing.T) {
 	var gotInputs int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
