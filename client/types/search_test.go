@@ -210,14 +210,12 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name: "fdg",
-			json: `{"renderer":"fdg","channels":{"from":"Src","to":"Dst","magnitude":"Mag"}}`,
+			json: `{"renderer":"fdg","channels":{"weight":"weight"}}`,
 			want: RendererSettings{
 				Fdg: &RSFdg{
 					Renderer: "fdg",
 					Channels: RSFdgChannels{
-						From:      "Src",
-						To:        "Dst",
-						Magnitude: "Mag",
+						Weight: "weight",
 					},
 				},
 			},

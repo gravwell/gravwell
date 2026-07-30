@@ -442,9 +442,10 @@ type RSP2P struct {
 }
 
 type RSP2PChannels struct {
-	From      string `json:"from"`
-	To        string `json:"to"`
-	Magnitude string `json:"magnitude"`
+	From      string   `json:"from"`
+	To        string   `json:"to"`
+	Magnitude string   `json:"magnitude"`
+	Tooltip   []string `json:"tooltip"`
 }
 
 type RSNumber struct {
@@ -522,9 +523,7 @@ type RSFdg struct {
 }
 
 type RSFdgChannels struct {
-	From      string `json:"from"`
-	To        string `json:"to"`
-	Magnitude string `json:"magnitude,omitempty"`
+	Weight string `json:"weight,omitempty"`
 }
 
 type ImportInfo struct {
