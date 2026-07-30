@@ -523,7 +523,7 @@ type RSFdg struct {
 }
 
 type RSFdgChannels struct {
-	Weight string `json:"weight,omitempty"`
+	Weight string `json:"weight"`
 }
 
 type ImportInfo struct {
