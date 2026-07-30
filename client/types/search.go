@@ -630,7 +630,7 @@ type Timeframe struct {
 
 func (tf *Timeframe) IsEmpty() bool {
 	if tf == nil {
-		return false
+		return true;
 	}
 
 	return tf.Start.IsZero() && tf.End.IsZero()
