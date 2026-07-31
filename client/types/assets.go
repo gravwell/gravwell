@@ -56,9 +56,9 @@ type Filter struct {
 type AvailableFilter struct {
 	Key         string
 	Label       string
-	Description string
+	Description string `json:",omitempty"`
 	Type        FilterType
 	Operations  []string
 	Sortable    bool
-	MultiValued bool
+	MultiValued bool `json:",omitempty"`
 }

@@ -50,7 +50,7 @@ var empty es
 // info structure that has more info about the error
 type ErrorObject struct {
 	Err  string
-	Info string
+	Info string `json:",omitempty"`
 }
 
 // BaseListResponse contains the common set of fields returned when

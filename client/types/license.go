@@ -121,24 +121,24 @@ type Features struct {
 type LicenseIndexerStatus struct {
 	Indexer  string
 	Serviced bool
-	Error    string
+	Error    string `json:",omitempty"`
 }
 
 type LicenseDistributionStatus struct {
 	Status string
-	States []LicenseIndexerStatus
+	States []LicenseIndexerStatus `json:",omitempty"`
 
 	// information about whether the system is allowed to run in unlicensed/free mode
 	UnlicensedAllowed bool
 
 	// if system cannot run in unlicensed mode, a list of reasons will be provided
 	// they may be things like "system is configured as a cluster" or "CBAC is enabled"
-	DisallowUnlicensedReasons []string
+	DisallowUnlicensedReasons []string `json:",omitempty"`
 }
 
 type LicenseIndexerInfo struct {
 	Indexer string
-	Error   error
+	Error   error `json:",omitempty"`
 	Info    LicenseInfo
 }
 
