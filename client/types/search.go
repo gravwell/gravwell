@@ -339,53 +339,26 @@ func (rs RendererSettings) MarshalJSON() ([]byte, error) {
 
 	// Using reflection to accommodate future renderers and have a catch all for more than one setting defined
 	for _, field := range val.Fields() {
-		if field.Kind() == reflect.Pointer {
-			if !field.IsNil() {
-				if active != nil {
-					return nil, fmt.Errorf("multiple render settings options specified in RenderSettings, only one can be active at a time")
-				}
-				active = field.Interface()
+		if !field.IsNil() {
+			if active != nil {
+				return nil, fmt.Errorf("multiple render settings options specified in RendererSettings, only one can be active at a time")
 			}
+			active = field.Interface()
 		}
 	}
 	if active == nil {
-		return nil, fmt.Errorf("no render settings option specified in RenderSettings")
+		// Empty RendererSettings
+		return []byte(`null`), nil
 	}
 	return json.Marshal(active)
 }
 
-// For the next following channels, tooltip must always be defined
-
-func (r RSP2PChannels) MarshalJSON() ([]byte, error) {
-	type alias RSP2PChannels
-	a := alias(r)
-	if a.Tooltip == nil {
-		a.Tooltip = []string{}
-	}
-	return json.Marshal(a)
-}
-
-func (r RSPointmapChannels) MarshalJSON() ([]byte, error) {
-	type alias RSPointmapChannels
-	a := alias(r)
-	if a.Tooltip == nil {
-		a.Tooltip = []string{}
-	}
-	return json.Marshal(a)
-}
-
-// For table, Columns must always be defined as well
-
-func (r RSTabularChannels) MarshalJSON() ([]byte, error) {
-	type alias RSTabularChannels
-	a := alias(r)
-	if a.Columns == nil {
-		a.Columns = []string{}
-	}
-	return json.Marshal(a)
-}
-
 func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
+	if string(data) == `null` {
+		return nil
+	}
+	*rs = RendererSettings{}
+
 	var temp struct {
 		Renderer string `json:"renderer"`
 	}
@@ -394,55 +367,55 @@ func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
 	}
 
 	switch temp.Renderer {
-	case "chart":
+	case RenderNameChart:
 		var chart RSChart
 		if err := json.Unmarshal(data, &chart); err != nil {
 			return err
 		}
 		rs.Chart = &chart
-	case "point2point":
+	case RenderNameP2P:
 		var p2p RSP2P
 		if err := json.Unmarshal(data, &p2p); err != nil {
 			return err
 		}
 		rs.P2P = &p2p
-	case "numbercard", "gauge":
+	case RenderNameNumbercard, RenderNameGauge:
 		var number RSNumber
 		if err := json.Unmarshal(data, &number); err != nil {
 			return err
 		}
 		rs.Number = &number
-	case "heatmap":
+	case RenderNameHeatmap:
 		var heatmap RSHeatmap
 		if err := json.Unmarshal(data, &heatmap); err != nil {
 			return err
 		}
 		rs.Heatmap = &heatmap
-	case "pointmap":
+	case RenderNamePointmap:
 		var pointmap RSPointmap
 		if err := json.Unmarshal(data, &pointmap); err != nil {
 			return err
 		}
 		rs.Pointmap = &pointmap
-	case "stackgraph":
+	case RenderNameStackGraph:
 		var stackgraph RSStackGraph
 		if err := json.Unmarshal(data, &stackgraph); err != nil {
 			return err
 		}
 		rs.StackGraph = &stackgraph
-	case "wordcloud":
+	case RenderNameWordcloud:
 		var wordcloud RSWordCloud
 		if err := json.Unmarshal(data, &wordcloud); err != nil {
 			return err
 		}
 		rs.WordCloud = &wordcloud
-	case "table", "hex", "pcap", "raw", "text":
+	case RenderNameTable, RenderNameHex, RenderNamePcap, RenderNameRaw, RenderNameText:
 		var tabular RSTabular
 		if err := json.Unmarshal(data, &tabular); err != nil {
 			return err
 		}
 		rs.Tabular = &tabular
-	case "fdg":
+	case RenderNameFdg:
 		var fdg RSFdg
 		if err := json.Unmarshal(data, &fdg); err != nil {
 			return err
@@ -473,10 +446,10 @@ type RSP2P struct {
 }
 
 type RSP2PChannels struct {
-	From      string   `json:"from"`
-	To        string   `json:"to"`
-	Magnitude string   `json:"magnitude"`
-	Tooltip   []string `json:"tooltip"`
+	From      string       `json:"from"`
+	To        string       `json:"to"`
+	Magnitude string       `json:"magnitude"`
+	Tooltip   emptyStrings `json:"tooltip"`
 }
 
 type RSNumber struct {
@@ -510,8 +483,8 @@ type RSPointmap struct {
 }
 
 type RSPointmapChannels struct {
-	Location string   `json:"location"`
-	Tooltip  []string `json:"tooltip"`
+	Location string       `json:"location"`
+	Tooltip  emptyStrings `json:"tooltip"`
 }
 
 type RSStackGraph struct {
@@ -544,7 +517,7 @@ type RSTabular struct {
 }
 
 type RSTabularChannels struct {
-	Columns []string `json:"columns"`
+	Columns emptyStrings `json:"columns"`
 }
 
 type RSFdg struct {
@@ -770,6 +743,7 @@ func (si *SearchInfo) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
+	*si = SearchInfo(v.aalias)
 	if len(v.Duration) > 0 {
 		dur, err := time.ParseDuration(v.Duration)
 		if err != nil {
@@ -777,7 +751,6 @@ func (si *SearchInfo) UnmarshalJSON(data []byte) error {
 		}
 		si.Duration = dur
 	}
-	*si = SearchInfo(v.aalias)
 	return nil
 }
 
