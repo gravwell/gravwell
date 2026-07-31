@@ -354,6 +354,37 @@ func (rs RendererSettings) MarshalJSON() ([]byte, error) {
 	return json.Marshal(active)
 }
 
+// For the next following channels, tooltip must always be defined
+
+func (r RSP2PChannels) MarshalJSON() ([]byte, error) {
+	type alias RSP2PChannels
+	a := alias(r)
+	if a.Tooltip == nil {
+		a.Tooltip = []string{}
+	}
+	return json.Marshal(a)
+}
+
+func (r RSPointmapChannels) MarshalJSON() ([]byte, error) {
+	type alias RSPointmapChannels
+	a := alias(r)
+	if a.Tooltip == nil {
+		a.Tooltip = []string{}
+	}
+	return json.Marshal(a)
+}
+
+// For table, Columns must always be defined as well
+
+func (r RSTabularChannels) MarshalJSON() ([]byte, error) {
+	type alias RSTabularChannels
+	a := alias(r)
+	if a.Columns == nil {
+		a.Columns = []string{}
+	}
+	return json.Marshal(a)
+}
+
 func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
 	var temp struct {
 		Renderer string `json:"renderer"`
@@ -630,7 +661,7 @@ type Timeframe struct {
 
 func (tf *Timeframe) IsEmpty() bool {
 	if tf == nil {
-		return true;
+		return true
 	}
 
 	return tf.Start.IsZero() && tf.End.IsZero()
