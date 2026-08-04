@@ -96,8 +96,8 @@ func TestRenderSettings(t *testing.T) {
 	}{
 		{
 			name:     "chart",
-			wantJSON: `{"renderer":"chart","channels":{"category":"Category","nominal":"Value","temporal":"Timestamp"}}`,
-			json:     `{"renderer":"chart","channels":{"category":"Category","nominal":"Value","temporal":"Timestamp"}}`,
+			wantJSON: `{"Renderer":"chart","Channels":{"Category":"Category","Nominal":"Value","Temporal":"Timestamp"}}`,
+			json:     `{"Renderer":"chart","Channels":{"Category":"Category","Nominal":"Value","Temporal":"Timestamp"}}`,
 			want: RendererSettings{
 				Chart: &RSChart{
 					Renderer: "chart",
@@ -111,8 +111,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "point2point",
-			wantJSON: `{"renderer":"point2point","channels":{"from":"Src","to":"Dst","magnitude":"Mag","tooltip":[]}}`,
-			json:     `{"renderer":"point2point","channels":{"from":"Src","to":"Dst","magnitude":"Mag"}}`,
+			wantJSON: `{"Renderer":"point2point","Channels":{"From":"Src","To":"Dst","Magnitude":"Mag","Tooltip":[]}}`,
+			json:     `{"Renderer":"point2point","Channels":{"From":"Src","To":"Dst","Magnitude":"Mag"}}`,
 			want: RendererSettings{
 				P2P: &RSP2P{
 					Renderer: "point2point",
@@ -126,8 +126,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "numbercard",
-			wantJSON: `{"renderer":"numbercard","channels":{"label":"Name","value":"Magnitude"}}`,
-			json:     `{"renderer":"numbercard","channels":{"value":"Magnitude","label":"Name"}}`,
+			wantJSON: `{"Renderer":"numbercard","Channels":{"Label":"Name","Value":"Magnitude"}}`,
+			json:     `{"Renderer":"numbercard","Channels":{"Value":"Magnitude","Label":"Name"}}`,
 			want: RendererSettings{
 				Number: &RSNumber{
 					Renderer: "numbercard",
@@ -140,8 +140,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "gauge",
-			wantJSON: `{"renderer":"gauge","channels":{"label":"Name","value":"Magnitude","min":"Min","max":"Max"}}`,
-			json:     `{"renderer":"gauge","channels":{"value":"Magnitude","min":"Min","max":"Max","label":"Name"}}`,
+			wantJSON: `{"Renderer":"gauge","Channels":{"Label":"Name","Value":"Magnitude","Min":"Min","Max":"Max"}}`,
+			json:     `{"Renderer":"gauge","Channels":{"Value":"Magnitude","Min":"Min","Max":"Max","Label":"Name"}}`,
 			want: RendererSettings{
 				Number: &RSNumber{
 					Renderer: "gauge",
@@ -156,8 +156,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "heatmap",
-			wantJSON: `{"renderer":"heatmap","channels":{"location":"Location","magnitude":"Magnitude"}}`,
-			json:     `{"renderer":"heatmap","channels":{"location":"Location","magnitude":"Magnitude"}}`,
+			wantJSON: `{"Renderer":"heatmap","Channels":{"Location":"Location","Magnitude":"Magnitude"}}`,
+			json:     `{"Renderer":"heatmap","Channels":{"Location":"Location","Magnitude":"Magnitude"}}`,
 			want: RendererSettings{
 				Heatmap: &RSHeatmap{
 					Renderer: "heatmap",
@@ -170,8 +170,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "pointmap",
-			wantJSON: `{"renderer":"pointmap","channels":{"location":"Location","tooltip":["Bytes"]}}`,
-			json:     `{"renderer":"pointmap","channels":{"location":"Location","tooltip":["Bytes"]}}`,
+			wantJSON: `{"Renderer":"pointmap","Channels":{"Location":"Location","Tooltip":["Bytes"]}}`,
+			json:     `{"Renderer":"pointmap","Channels":{"Location":"Location","Tooltip":["Bytes"]}}`,
 			want: RendererSettings{
 				Pointmap: &RSPointmap{
 					Renderer: "pointmap",
@@ -184,8 +184,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "stackgraph",
-			wantJSON: `{"renderer":"stackgraph","channels":{"category":"proto","nominal":"count","color":"service"}}`,
-			json:     `{"renderer":"stackgraph","channels":{"category":"proto","nominal":"count","color":"service"}}`,
+			wantJSON: `{"Renderer":"stackgraph","Channels":{"Category":"proto","Nominal":"count","Color":"service"}}`,
+			json:     `{"Renderer":"stackgraph","Channels":{"Category":"proto","Nominal":"count","Color":"service"}}`,
 			want: RendererSettings{
 				StackGraph: &RSStackGraph{
 					Renderer: "stackgraph",
@@ -199,8 +199,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "wordcloud",
-			wantJSON: `{"renderer":"wordcloud","channels":{"name":"Name","magnitude":"Magnitude"}}`,
-			json:     `{"renderer":"wordcloud","channels":{"name":"Name","magnitude":"Magnitude"}}`,
+			wantJSON: `{"Renderer":"wordcloud","Channels":{"Name":"Name","Magnitude":"Magnitude"}}`,
+			json:     `{"Renderer":"wordcloud","Channels":{"Name":"Name","Magnitude":"Magnitude"}}`,
 			want: RendererSettings{
 				WordCloud: &RSWordCloud{
 					Renderer: "wordcloud",
@@ -213,8 +213,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "table",
-			wantJSON: `{"renderer":"table","channels":{"columns":["Appname","MsgID"]}}`,
-			json:     `{"renderer":"table","channels":{"columns":["Appname","MsgID"]}}`,
+			wantJSON: `{"Renderer":"table","Channels":{"Columns":["Appname","MsgID"]}}`,
+			json:     `{"Renderer":"table","Channels":{"Columns":["Appname","MsgID"]}}`,
 			want: RendererSettings{
 				Tabular: &RSTabular{
 					Renderer: "table",
@@ -228,8 +228,8 @@ func TestRenderSettings(t *testing.T) {
 		// distinguishes them, so each string needs its own case.
 		{
 			name:     "hex",
-			wantJSON: `{"renderer":"hex","channels":{"columns":["DATA"]}}`,
-			json:     `{"renderer":"hex","channels":{"columns":["DATA"]}}`,
+			wantJSON: `{"Renderer":"hex","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"hex","Channels":{"Columns":["DATA"]}}`,
 			want: RendererSettings{
 				Tabular: &RSTabular{
 					Renderer: "hex",
@@ -239,8 +239,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "pcap",
-			wantJSON: `{"renderer":"pcap","channels":{"columns":["DATA"]}}`,
-			json:     `{"renderer":"pcap","channels":{"columns":["DATA"]}}`,
+			wantJSON: `{"Renderer":"pcap","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"pcap","Channels":{"Columns":["DATA"]}}`,
 			want: RendererSettings{
 				Tabular: &RSTabular{
 					Renderer: "pcap",
@@ -250,8 +250,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "raw",
-			wantJSON: `{"renderer":"raw","channels":{"columns":["DATA"]}}`,
-			json:     `{"renderer":"raw","channels":{"columns":["DATA"]}}`,
+			wantJSON: `{"Renderer":"raw","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"raw","Channels":{"Columns":["DATA"]}}`,
 			want: RendererSettings{
 				Tabular: &RSTabular{
 					Renderer: "raw",
@@ -261,8 +261,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "text",
-			wantJSON: `{"renderer":"text","channels":{"columns":["DATA"]}}`,
-			json:     `{"renderer":"text","channels":{"columns":["DATA"]}}`,
+			wantJSON: `{"Renderer":"text","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"text","Channels":{"Columns":["DATA"]}}`,
 			want: RendererSettings{
 				Tabular: &RSTabular{
 					Renderer: "text",
@@ -272,8 +272,8 @@ func TestRenderSettings(t *testing.T) {
 		},
 		{
 			name:     "fdg",
-			wantJSON: `{"renderer":"fdg","channels":{"weight":"weight"}}`,
-			json:     `{"renderer":"fdg","channels":{"weight":"weight"}}`,
+			wantJSON: `{"Renderer":"fdg","Channels":{"Weight":"weight"}}`,
+			json:     `{"Renderer":"fdg","Channels":{"Weight":"weight"}}`,
 			want: RendererSettings{
 				Fdg: &RSFdg{
 					Renderer: "fdg",
@@ -378,17 +378,17 @@ func TestRendererSettingsRequiredArraysNeverNull(t *testing.T) {
 		{
 			name: "p2p nil tooltip",
 			in:   RendererSettings{P2P: &RSP2P{Renderer: "point2point", Channels: RSP2PChannels{From: "Src", To: "Dst", Magnitude: "Magnitude"}}},
-			want: `{"renderer":"point2point","channels":{"from":"Src","to":"Dst","magnitude":"Magnitude","tooltip":[]}}`,
+			want: `{"Renderer":"point2point","Channels":{"From":"Src","To":"Dst","Magnitude":"Magnitude","Tooltip":[]}}`,
 		},
 		{
 			name: "pointmap nil tooltip",
 			in:   RendererSettings{Pointmap: &RSPointmap{Renderer: "pointmap", Channels: RSPointmapChannels{Location: "Location"}}},
-			want: `{"renderer":"pointmap","channels":{"location":"Location","tooltip":[]}}`,
+			want: `{"Renderer":"pointmap","Channels":{"Location":"Location","Tooltip":[]}}`,
 		},
 		{
 			name: "tabular nil columns",
 			in:   RendererSettings{Tabular: &RSTabular{Renderer: "table", Channels: RSTabularChannels{}}},
-			want: `{"renderer":"table","channels":{"columns":[]}}`,
+			want: `{"Renderer":"table","Channels":{"Columns":[]}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -421,10 +421,10 @@ func TestRendererSettingsDecodeGuards(t *testing.T) {
 
 	t.Run("receiver is reset between decodes", func(t *testing.T) {
 		var rs RendererSettings
-		if err := json.Unmarshal([]byte(`{"renderer":"chart","channels":{"category":"c","nominal":"n"}}`), &rs); err != nil {
+		if err := json.Unmarshal([]byte(`{"Renderer":"chart","Channels":{"Category":"c","Nominal":"n"}}`), &rs); err != nil {
 			t.Fatalf("first decode: %v", err)
 		}
-		if err := json.Unmarshal([]byte(`{"renderer":"fdg","channels":{"weight":"weight"}}`), &rs); err != nil {
+		if err := json.Unmarshal([]byte(`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`), &rs); err != nil {
 			t.Fatalf("second decode: %v", err)
 		}
 		if rs.Chart != nil {
@@ -440,8 +440,8 @@ func TestRendererSettingsDecodeGuards(t *testing.T) {
 	})
 
 	t.Run("streaming decoder reuses the value", func(t *testing.T) {
-		stream := `{"renderer":"chart","channels":{"category":"c","nominal":"n"}}` +
-			`{"renderer":"fdg","channels":{"weight":"weight"}}`
+		stream := `{"Renderer":"chart","Channels":{"Category":"c","Nominal":"n"}}` +
+			`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`
 		dec := json.NewDecoder(strings.NewReader(stream))
 		var rs RendererSettings
 		for i := 0; i < 2; i++ {
@@ -524,7 +524,7 @@ func TestDownloadSearchOmitsZeroTimeframe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if strings.Contains(string(omitted), "timeframe") {
+	if strings.Contains(string(omitted), "Timeframe") {
 		t.Errorf("a nil Timeframe must be omitted, got %s", omitted)
 	}
 
@@ -535,7 +535,7 @@ func TestDownloadSearchOmitsZeroTimeframe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if !strings.Contains(string(set), "timeframe") {
+	if !strings.Contains(string(set), "Timeframe") {
 		t.Errorf("a set Timeframe must be present, got %s", set)
 	}
 }

@@ -360,7 +360,7 @@ func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
 	*rs = RendererSettings{}
 
 	var temp struct {
-		Renderer string `json:"renderer"`
+		Renderer string
 	}
 	if err := json.Unmarshal(data, &temp); err != nil {
 		return err
@@ -429,105 +429,105 @@ func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
 
 type RSChart struct {
 	// Value "chart"
-	Renderer string          `json:"renderer"`
-	Channels RSChartChannels `json:"channels"`
+	Renderer string
+	Channels RSChartChannels
 }
 
 type RSChartChannels struct {
-	Category string `json:"category"`
-	Nominal  string `json:"nominal"`
-	Temporal string `json:"temporal,omitempty"`
+	Category string
+	Nominal  string
+	Temporal string `json:",omitempty"`
 }
 
 type RSP2P struct {
 	// Value "point2point"
-	Renderer string        `json:"renderer"`
-	Channels RSP2PChannels `json:"channels"`
+	Renderer string
+	Channels RSP2PChannels
 }
 
 type RSP2PChannels struct {
-	From      string       `json:"from"`
-	To        string       `json:"to"`
-	Magnitude string       `json:"magnitude"`
-	Tooltip   emptyStrings `json:"tooltip"`
+	From      string
+	To        string
+	Magnitude string
+	Tooltip   emptyStrings
 }
 
 type RSNumber struct {
 	// Value "numbercard" or "gauge"
-	Renderer string           `json:"renderer"`
-	Channels RSNumberChannels `json:"channels"`
+	Renderer string
+	Channels RSNumberChannels
 }
 
 type RSNumberChannels struct {
-	Label string `json:"label"`
-	Value string `json:"value"`
-	Min   string `json:"min,omitempty"`
-	Max   string `json:"max,omitempty"`
+	Label string
+	Value string
+	Min   string `json:",omitempty"`
+	Max   string `json:",omitempty"`
 }
 
 type RSHeatmap struct {
 	// Value "heatmap"
-	Renderer string            `json:"renderer"`
-	Channels RSHeatmapChannels `json:"channels"`
+	Renderer string
+	Channels RSHeatmapChannels
 }
 
 type RSHeatmapChannels struct {
-	Location  string `json:"location"`
-	Magnitude string `json:"magnitude"`
+	Location  string
+	Magnitude string
 }
 
 type RSPointmap struct {
 	// Value "pointmap"
-	Renderer string             `json:"renderer"`
-	Channels RSPointmapChannels `json:"channels"`
+	Renderer string
+	Channels RSPointmapChannels
 }
 
 type RSPointmapChannels struct {
-	Location string       `json:"location"`
-	Tooltip  emptyStrings `json:"tooltip"`
+	Location string
+	Tooltip  emptyStrings
 }
 
 type RSStackGraph struct {
 	// Value "stackgraph"
-	Renderer string               `json:"renderer"`
-	Channels RSStackGraphChannels `json:"channels"`
+	Renderer string
+	Channels RSStackGraphChannels
 }
 
 type RSStackGraphChannels struct {
-	Category string `json:"category"`
-	Nominal  string `json:"nominal"`
-	Color    string `json:"color,omitempty"`
+	Category string
+	Nominal  string
+	Color    string `json:",omitempty"`
 }
 
 type RSWordCloud struct {
 	// Value "wordcloud"
-	Renderer string              `json:"renderer"`
-	Channels RSWordCloudChannels `json:"channels"`
+	Renderer string
+	Channels RSWordCloudChannels
 }
 
 type RSWordCloudChannels struct {
-	Name      string `json:"name"`
-	Magnitude string `json:"magnitude"`
+	Name      string
+	Magnitude string
 }
 
 type RSTabular struct {
 	// Value "table", "hex", "pcap", "raw", "text"
-	Renderer string            `json:"renderer"`
-	Channels RSTabularChannels `json:"channels"`
+	Renderer string
+	Channels RSTabularChannels
 }
 
 type RSTabularChannels struct {
-	Columns emptyStrings `json:"columns"`
+	Columns emptyStrings
 }
 
 type RSFdg struct {
 	// Value "fdg"
-	Renderer string        `json:"renderer"`
-	Channels RSFdgChannels `json:"channels"`
+	Renderer string
+	Channels RSFdgChannels
 }
 
 type RSFdgChannels struct {
-	Weight string `json:"weight"`
+	Weight string
 }
 
 type ImportInfo struct {
@@ -563,9 +563,9 @@ type SearchCtrlStatus struct {
 }
 
 type SearchDownloadRequest struct {
-	Format    string         `json:"format"`
-	Rows      []RowSelection `json:"rows,omitempty"`
-	Timeframe *Timeframe     `json:"timeframe,omitempty"`
+	Format    string
+	Rows      []RowSelection `json:",omitempty"`
+	Timeframe *Timeframe     `json:",omitempty"`
 }
 
 type RowSelection struct {
