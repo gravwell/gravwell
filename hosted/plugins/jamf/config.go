@@ -14,6 +14,7 @@ package jamf
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v3/hosted"
@@ -35,9 +36,11 @@ const (
 	pollBufferSeconds = 60
 )
 
+const sectionGeneral string = "GENERAL"
+
 // Sections lists the computers-inventory sections we'll request if the
 // config doesn't specify any explicitly.
-var defaultSections = []string{"GENERAL", "DISK_ENCRYPTION", "STORAGE"}
+var defaultSections = []string{sectionGeneral}
 
 type Config struct {
 	hosted.BaseConfig
@@ -74,8 +77,11 @@ func (c *Config) Verify() error {
 		return fmt.Errorf("Page-Size %d is too large, must be <= 1000", c.Page_Size)
 	}
 
+	// GENERAL should _always_ be in c.Sections.
 	if len(c.Sections) == 0 {
 		c.Sections = defaultSections
+	} else if !slices.Contains(c.Sections, sectionGeneral) {
+		c.Sections = append(c.Sections, sectionGeneral)
 	}
 
 	c.PollingConfig.ApplyDefaults(defaultLookback, defaultRequestsPerMinute, defaultInterval)
