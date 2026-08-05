@@ -40,7 +40,7 @@ const sectionGeneral string = "GENERAL"
 
 // Sections lists the computers-inventory sections we'll request if the
 // config doesn't specify any explicitly.
-var defaultSections = []string{sectionGeneral, "DISK_ENCRYPTION", "STORAGE"}
+var defaultSections = []string{sectionGeneral}
 
 type Config struct {
 	hosted.BaseConfig
