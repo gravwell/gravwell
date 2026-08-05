@@ -13,8 +13,9 @@
 package main
 
 import (
-	"github.com/gravwell/gravwell/v4/gwcli/tree"
 	"os"
+
+	"github.com/gravwell/gravwell/v4/gwcli/tree"
 )
 
 func init() {
