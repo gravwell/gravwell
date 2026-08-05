@@ -89,12 +89,12 @@ func TestConfig_Verify_Sections(t *testing.T) {
 		{
 			name:         "nil sections get GENERAL defaults",
 			sections:     nil,
-			wantSections: []string{sectionGeneral, "DISK_ENCRYPTION", "STORAGE"},
+			wantSections: defaultSections,
 		},
 		{
 			name:         "empty sections get GENERAL defaults",
 			sections:     []string{},
-			wantSections: []string{sectionGeneral, "DISK_ENCRYPTION", "STORAGE"},
+			wantSections: defaultSections,
 		},
 		{
 			name:         "user sections without GENERAL get it appended",
