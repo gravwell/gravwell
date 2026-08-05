@@ -1063,13 +1063,14 @@ func (c *Client) DetachSearch(s Search) {
 // ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive")
 func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRange, format string) (r io.ReadCloser, err error) {
 	var sdr types.SearchDownloadResponse
-	sdr, err = c.SearchDownloadRequestWithContext(ctx, sid, types.SearchDownloadRequest{
-		Format: format,
-		Timeframe: types.Timeframe{
+	req := types.SearchDownloadRequest{Format: format}
+	if !tr.IsEmpty() {
+		req.Timeframe = &types.Timeframe{
 			Start: tr.StartTS.StandardTime(),
 			End:   tr.EndTS.StandardTime(),
-		},
-	})
+		}
+	}
+	sdr, err = c.SearchDownloadRequestWithContext(ctx, sid, req)
 	if err != nil {
 		return
 	}
