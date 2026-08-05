@@ -13,7 +13,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/netflow"
+	"github.com/gravwell/gravwell/v4/netflow"
 )
 
 // Generates native NetFlow v5 flow sets, each entry is the data portion of
