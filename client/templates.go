@@ -9,65 +9,72 @@
 package client
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/gravwell/gravwell/v4/client/types"
-
-	"github.com/google/uuid"
 )
 
-// ListTemplates returns a list of templates accessible to the current user.
-func (c *Client) ListTemplates() (templates []types.WireUserTemplate, err error) {
-	err = c.getStaticURL(templatesUrl(), &templates)
-	return
-}
-
-// ListAllTemplates returns the list of all templates in the system.
-// Non-administrators will receive the same list as returned by ListTemplates.
-func (c *Client) ListAllTemplates() (templates []types.WireUserTemplate, err error) {
-	c.SetAdminMode()
-	if err = c.getStaticURL(templatesUrl(), &templates); err != nil {
-		templates = nil
+// ListTemplates returns all templates accessible to the current user.
+func (c *Client) ListTemplates(opts *types.QueryOptions) (ret types.TemplateListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	c.ClearAdminMode()
-
+	err = c.postStaticURL(TEMPLATES_LIST_URL, opts, &ret)
 	return
 }
 
-// NewTemplate creates a new template with the given GUID, name, description, contents.
-// If guid is set to uuid.Nil, a random GUID will be chosen automatically.
-func (c *Client) NewTemplate(guid uuid.UUID, name, description string, contents types.RawObject) (details types.WireUserTemplate, err error) {
-	// Mash the content blob into an appropriate type
-	var ct types.TemplateContents
-	if err = json.Unmarshal(contents, &ct); err != nil {
-		return
+// ListAllTemplates (admin-only) returns all templates on the system.
+func (c *Client) ListAllTemplates(opts *types.QueryOptions) (ret types.TemplateListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	template := types.UserTemplate{GUID: guid, Contents: ct, Name: name, Description: description}
-	err = c.methodStaticPushURL(http.MethodPost, templatesUrl(), template, &details, nil, nil)
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	err = c.postStaticURL(TEMPLATES_LIST_URL, opts, &ret)
 	return
 }
 
-// GetTemplate returns a types.WireUserTemplate with the requested GUID.
-// Because unique GUIDs are not enforced, the following precedence
-// is used when selecting a template to return:
-// 1. Templates owned by the user always have highest priority
-// 2. Templates shared with a group to which the user belongs are next
-// 3. Global templates are the lowest priority
-func (c *Client) GetTemplate(guid uuid.UUID) (template types.WireUserTemplate, err error) {
-	err = c.getStaticURL(templatesGuidUrl(guid), &template)
+// GetTemplate returns a particular template.
+func (c *Client) GetTemplate(id string) (types.Template, error) {
+	var template types.Template
+	err := c.getStaticURL(templateUrl(id), &template)
+	return template, err
+}
+
+// GetTemplateEx returns a particular template. If the QueryOptions arg is
+// not nil, applicable parameters (currently only IncludeDeleted) will
+// be applied to the query.
+func (c *Client) GetTemplateEx(id string, opts *types.QueryOptions) (types.Template, error) {
+	var template types.Template
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err := c.getStaticURL(templateUrl(id), &template, ezParam("include_deleted", opts.IncludeDeleted))
+	return template, err
+}
+
+// DeleteTemplate deletes a template by marking it deleted in the database.
+func (c *Client) DeleteTemplate(id string) error {
+	return c.deleteStaticURL(templateUrl(id), nil)
+}
+
+// PurgeTemplate deletes a template entirely, removing it from the database.
+func (c *Client) PurgeTemplate(id string) error {
+	return c.deleteStaticURL(templateUrl(id), nil, ezParam("purge", "true"))
+}
+
+// CreateTemplate creates a new template, returning the newly-created template.
+func (c *Client) CreateTemplate(t types.Template) (result types.Template, err error) {
+	err = c.postStaticURL(TEMPLATES_URL, t, &result)
 	return
 }
 
-// SetTemplate allows the owner of a template (or an admin) to update
-// the contents of the template.
-func (c *Client) SetTemplate(guid uuid.UUID, template types.WireUserTemplate) (details types.WireUserTemplate, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, templatesGuidUrl(guid), template, &details, nil, nil)
+// UpdateTemplate modifies an existing template.
+func (c *Client) UpdateTemplate(t types.Template) (result types.Template, err error) {
+	err = c.methodStaticPushURL(http.MethodPut, templateUrl(t.ID), t, &result, nil, nil)
 	return
 }
 
-// DeleteTemplate deletes the template with the specified GUID
-func (c *Client) DeleteTemplate(guid uuid.UUID) (err error) {
-	err = c.deleteStaticURL(templatesGuidUrl(guid), nil)
-	return
+// CleanupTemplates (admin-only) purges all deleted templates for all users.
+func (c *Client) CleanupTemplates() error {
+	return c.deleteStaticURL(TEMPLATES_URL, nil)
 }

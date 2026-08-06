@@ -10,7 +10,6 @@ package systemshealth
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -20,9 +19,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -44,7 +43,7 @@ func newHardwareAction() action.Pair {
 			"This action is intended for human consumption; most of this information is available in JSON/CSV via the indexer and ingester actions if you need better script support."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			var sb strings.Builder
 
 			var (
@@ -127,7 +126,15 @@ func newHardwareAction() action.Pair {
 
 			sb.WriteString(constructOverview(o, llw))
 			return sb.String(), nil
-		}, scaffold.BasicOptions{Aliases: []string{"hw"}})
+		}, scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"hw"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.Stats},
+					XPermissions: []types.Capability{types.Stats},
+				},
+			},
+		})
 }
 
 // constructOverview generates a segmented border containing the overview information.
@@ -351,18 +358,4 @@ type ovrvw struct {
 	}
 	AvgUp   float64
 	AvgDown float64
-}
-
-// helper for the description action.
-// Prints the given string (and a newline suffix) if the value is non-empty.
-func printIfSet(indent bool, field string, value any, suffix string) string {
-	const fieldWidth = 12
-	if !reflect.ValueOf(value).IsZero() {
-		var s = fmt.Sprintf(stylesheet.Cur.TertiaryText.Width(fieldWidth).Render(field)+": %v%s\n", value, suffix)
-		if indent {
-			s = stylesheet.Indent + s
-		}
-		return s
-	}
-	return ""
 }
