@@ -75,9 +75,23 @@ type HostSysStats struct {
 	VirtSystem            string    `json:",omitempty"` // e.g. "kvm" or "xen"
 	VirtRole              string    `json:",omitempty"` // "host" or "guest"
 	BuildInfo             BuildInfo // e.g. 3.3.1
-	LoadAverage           load.AvgStat
+	LoadAverage           AvgStat
 	Iowait                float64
 	PSI                   PSIStats // Pressure Stall Information, for CPU, memory, and IO
+}
+
+// AvgStat mirrors gopsutil's load.AvgStat so we can drop the native JSON tags.
+type AvgStat struct {
+	Load1  float64
+	Load5  float64
+	Load15 float64
+}
+
+// FromGoPSUtils copies the data in psutils into the local AvgStat.
+func (a *AvgStat) FromGoPSUtils(psutils load.AvgStat) {
+	a.Load1 = psutils.Load1
+	a.Load5 = psutils.Load5
+	a.Load15 = psutils.Load15
 }
 
 type DeploymentInfo struct {
