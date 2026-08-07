@@ -11,8 +11,6 @@ package types
 import (
 	"encoding/json"
 	"errors"
-
-	"github.com/shirou/gopsutil/load"
 )
 
 var (
@@ -85,13 +83,6 @@ type AvgStat struct {
 	Load1  float64
 	Load5  float64
 	Load15 float64
-}
-
-// FromGoPSUtils copies the data in psutils into the local AvgStat.
-func (a *AvgStat) FromGoPSUtils(psutils load.AvgStat) {
-	a.Load1 = psutils.Load1
-	a.Load5 = psutils.Load5
-	a.Load15 = psutils.Load15
 }
 
 type DeploymentInfo struct {
