@@ -1,0 +1,20 @@
+services:
+  gravwell:
+    image: gravwell/gravwell:latest
+    container_name: gravwell
+    ports:
+      - "8080:80"
+      - "4023:4023"
+
+  kumo:
+    image: ghcr.io/sivchari/kumo@sha256:e63054fbe10eb17b0c9142e937e11b3f4ee2709ac1c80035f3220542f3e5b045 # v0.26.0
+    container_name: kumo
+    ports:
+      - "4566:4566"
+    environment:
+      - "KUMO_DATA_DIR=/data"
+    volumes:
+      - kumo_data:/data
+
+volumes:
+  kumo_data:

@@ -14,11 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 const (
+	defaultIngesterUUIDStr string = "55af6d4e-3d04-431b-b860-b15b921a46c5"
+
 	oktaTag              string        = `okta`              // this is backed by the kit, do not change
 	oktaUserTag          string        = `okta-users`        // this is expected by the kit, do not change
 	defaultEmptyLookback time.Duration = -7 * 24 * time.Hour // if we have no previous state we will go back 7 days
@@ -44,6 +45,8 @@ type Config struct {
 }
 
 func (c *Config) Verify() (err error) {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Request_Batch_Size <= 0 {
 		c.Request_Batch_Size = defaultPageSize
 	} else if c.Request_Batch_Size > 3000 {
@@ -69,10 +72,9 @@ func (c *Config) Verify() (err error) {
 		return
 	}
 
-	if c.Ingester_UUID == `` {
-		return errors.New("missing Ingester-UUID")
-	} else if _, err = uuid.Parse(c.Ingester_UUID); err != nil {
-		return fmt.Errorf("invalid Ingester-UUID %q %w", c.Ingester_UUID, err)
+	if err := c.BaseConfig.Verify(); err != nil {
+		return err
 	}
+
 	return
 }
