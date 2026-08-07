@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -22,7 +23,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 type SQSHandler interface {
@@ -64,16 +64,14 @@ func SQSListener(c *Config) (*SQS, error) {
 	}
 
 	sqsSvc := sqs.NewFromConfig(cfg, clientOpts...)
-
 	return &SQS{
 		conf: c,
 		svc:  sqsSvc,
 	}, nil
 }
 
-// GetMessages returns one or more messages from the queue on this SQS object.
-func (s *SQS) GetMessages(ctx context.Context) ([]types.Message, error) {
-	input := &sqs.ReceiveMessageInput{
+func (s *SQS) receiveMessageInput() *sqs.ReceiveMessageInput {
+	return &sqs.ReceiveMessageInput{
 		QueueUrl: new(s.conf.Queue),
 		MessageSystemAttributeNames: []types.MessageSystemAttributeName{
 			types.MessageSystemAttributeNameSentTimestamp,
@@ -81,6 +79,15 @@ func (s *SQS) GetMessages(ctx context.Context) ([]types.Message, error) {
 		MaxNumberOfMessages: 10,
 		WaitTimeSeconds:     20, // Setting this will hold the connection until messages are available or if 20s elapses. Makes the loop/sleep logic below less chatty.
 	}
+}
+
+// GetMessages returns one or more messages from the queue on this SQS object.
+// It blocks, internally retrying the long-poll ReceiveMessage call, until
+// either messages are available or ctx is canceled. Callers that must return
+// promptly on every call (e.g. a scheduler that re-evaluates state between
+// calls) should use GetMessagesOnce instead.
+func (s *SQS) GetMessages(ctx context.Context) ([]types.Message, error) {
+	input := s.receiveMessageInput()
 
 	var (
 		out *sqs.ReceiveMessageOutput
@@ -104,7 +111,25 @@ func (s *SQS) GetMessages(ctx context.Context) ([]types.Message, error) {
 	return out.Messages, nil
 }
 
-func (s *SQS) DeleteMessages(ctx context.Context, m []types.Message, lg *log.Logger) error {
+// GetMessagesOnce performs a single ReceiveMessage long-poll call and returns
+// immediately with whatever it got, including zero messages. Unlike
+// GetMessages, it never retries internally, so a call to it is bounded by a
+// single WaitTimeSeconds window rather than blocking indefinitely on an idle
+// queue.
+func (s *SQS) GetMessagesOnce(ctx context.Context) ([]types.Message, error) {
+	out, err := s.svc.ReceiveMessage(ctx, s.receiveMessageInput())
+	if err != nil {
+		return nil, fmt.Errorf("error getting messages on queue %q: %w", s.Queue(), err)
+	}
+	return out.Messages, nil
+}
+
+// DeleteMessages removes the given messages from the queue. A call can come
+// back with err == nil but still report individual entries as rejected via
+// DeleteMessageBatchOutput.Failed (e.g. AWS SQS itself hiccupping on specific
+// entries); those are treated the same as a hard error since the messages
+// they refer to will otherwise be silently redelivered/duplicated.
+func (s *SQS) DeleteMessages(ctx context.Context, m []types.Message) error {
 	input := &sqs.DeleteMessageBatchInput{
 		QueueUrl: new(s.conf.Queue),
 	}
@@ -116,20 +141,62 @@ func (s *SQS) DeleteMessages(ctx context.Context, m []types.Message, lg *log.Log
 		})
 	}
 
-	_, err := s.svc.DeleteMessageBatch(ctx, input)
-	if err != nil {
-		_ = lg.Error("deleting messages failed, retrying", log.KVErr(err))
-		//try again, this is important
-		if _, err = s.svc.DeleteMessageBatch(ctx, input); err != nil {
-			_ = lg.Error("deleting messages retry failed, objects will likely be duplicated", log.KVErr(err))
+	failed, err := s.deleteMessageBatch(ctx, input)
+	if err == nil && len(failed) == 0 {
+		return nil
+	}
+
+	// Retry once — undeleted messages will be redelivered and duplicated downstream.
+	// If the call errored outright, retry the whole batch since we don't know
+	// which entries, if any, were actually processed. If it succeeded but
+	// reported specific entries as failed, only retry those.
+	retryInput := input
+	if err == nil {
+		retryInput = &sqs.DeleteMessageBatchInput{
+			QueueUrl: new(s.conf.Queue),
+			Entries:  entriesByID(input.Entries, failed),
 		}
 	}
-
+	failed, err = s.deleteMessageBatch(ctx, retryInput)
 	if err != nil {
-		err = fmt.Errorf("error deleting messages on queue %q: %w", s.Queue(), err)
+		return fmt.Errorf("error deleting messages on queue %q (retry failed, messages will likely be duplicated): %w", s.Queue(), err)
 	}
+	if len(failed) > 0 {
+		return fmt.Errorf("error deleting %d message(s) on queue %q after retry (ids: %s), messages will likely be duplicated",
+			len(failed), s.Queue(), strings.Join(failed, ", "))
+	}
+	return nil
+}
 
-	return err
+// deleteMessageBatch issues a single DeleteMessageBatch call and returns the
+// IDs of any entries reported as failed in the response.
+func (s *SQS) deleteMessageBatch(ctx context.Context, input *sqs.DeleteMessageBatchInput) ([]string, error) {
+	out, err := s.svc.DeleteMessageBatch(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	var failed []string
+	for _, f := range out.Failed {
+		if f.Id != nil {
+			failed = append(failed, *f.Id)
+		}
+	}
+	return failed, nil
+}
+
+// entriesByID returns the subset of entries whose Id is in ids.
+func entriesByID(entries []types.DeleteMessageBatchRequestEntry, ids []string) []types.DeleteMessageBatchRequestEntry {
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	var out []types.DeleteMessageBatchRequestEntry
+	for _, e := range entries {
+		if e.Id != nil && want[*e.Id] {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 func GetCredentials(t, akid, secret string) (aws.CredentialsProvider, error) {
