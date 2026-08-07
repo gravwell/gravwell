@@ -170,7 +170,7 @@ func (s *SQSS3Listener) worker(
 
 		// delete messages we successfully processed
 		if len(deleteQueue) != 0 {
-			err := s.sqs.DeleteMessages(ctx, deleteQueue, lg)
+			err := s.sqs.DeleteMessages(ctx, deleteQueue)
 			if err != nil {
 				lg.Error("deleting messages", log.KVErr(err))
 			}

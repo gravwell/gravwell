@@ -81,18 +81,36 @@ func (m ResourceMetadata) String() string {
 	return fmt.Sprintf("%s:%d", m.GUID, m.Domain)
 }
 
+// maxResourcePresize bounds how much we will speculatively allocate off of the size
+// declared in resource metadata.  A bogus size should not drive a huge allocation,
+// anything beyond this cap just grows the buffer the normal way.
+const maxResourcePresize = 1024 * 1024 * 1024 // 1GB
+
 // Bytes returns a byte slice no matter what the underlying storage is
 // if the ResourceUpdate is using a readCloser then it performs a complete read and
 // returns a byte slice.  If the reader points to a large resource this may require significant resources
-func (ru *ResourceUpdate) Bytes() (b []byte) {
+func (ru *ResourceUpdate) Bytes() (b []byte, err error) {
 	if ru.Data != nil {
 		b = ru.Data
-	} else {
-		bb := bytes.NewBuffer(nil)
-		io.Copy(bb, ru.rdr)
+	} else if ru.rdr != nil {
+		// pre-size the buffer using the size declared in the metadata, an unsized buffer
+		// walks a doubling ladder and burns about 2x the final size in allocations.
+		// the extra bytes.MinRead of headroom keeps ReadFrom from doubling one last
+		// time when it asks for room for the read that returns EOF.
+		bb := bytes.NewBuffer(make([]byte, 0, presizeHint(ru.Metadata.Size)+bytes.MinRead))
+		if _, err = io.Copy(bb, ru.rdr); err != nil {
+			return
+		}
 		b = bb.Bytes()
 	}
 	return
+}
+
+func presizeHint(sz uint64) int {
+	if sz > maxResourcePresize {
+		return maxResourcePresize
+	}
+	return int(sz)
 }
 
 // Stream generates a io.Reader from either the underlying reader or the Data byte slice
