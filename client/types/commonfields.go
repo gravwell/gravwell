@@ -165,5 +165,5 @@ func (cf *CommonFields) AllGIDs() []int32 {
 
 type ListAllResponse struct {
 	BaseListResponse
-	Results []CommonFields `json:"results"`
+	Results []CommonFields
 }

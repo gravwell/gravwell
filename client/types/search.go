@@ -171,10 +171,10 @@ type LaunchResponse struct {
 	RefreshInterval uint //refresh interval in seconds
 
 	// unified info that is always needed
-	SearchID     string     `json:",omitempty"`
-	RenderModule string     `json:",omitempty"`
-	RenderCmd    string     `json:",omitempty"`
-	Info         SearchInfo `json:",omitempty"`
+	SearchID     string `json:",omitempty"`
+	RenderModule string `json:",omitempty"`
+	RenderCmd    string `json:",omitempty"`
+	Info         SearchInfo
 
 	// Errors, warnings, etc.
 	Messages []Message
@@ -214,13 +214,13 @@ type StartSearchResponse struct {
 	// what the user typed
 	RawQuery string `json:",omitempty"`
 	//what the actual search being processed is after attaching render module
-	SearchString         string           `json:",omitempty"`
-	RenderModule         string           `json:",omitempty"`
-	RenderCmd            string           `json:",omitempty"`
-	OutputSearchSubproto string           `json:",omitempty"`
-	SearchID             string           `json:",omitempty"`
-	SearchStartRange     time.Time        `json:",omitempty"`
-	SearchEndRange       time.Time        `json:",omitempty"`
+	SearchString         string `json:",omitempty"`
+	RenderModule         string `json:",omitempty"`
+	RenderCmd            string `json:",omitempty"`
+	OutputSearchSubproto string `json:",omitempty"`
+	SearchID             string `json:",omitempty"`
+	SearchStartRange     time.Time
+	SearchEndRange       time.Time
 	Background           bool             `json:",omitempty"`
 	NonTemporal          bool             `json:",omitempty"`
 	CollapsingIndex      int              // index of the first collapsed module
@@ -315,19 +315,19 @@ type SearchInfoListResponse struct {
 
 type SearchLaunchInfo struct {
 	//what launched the search, manual, directquery, scheduledsearch, etc...
-	Method string `json:"method,omitempty"`
+	Method string `json:",omitempty"`
 
 	// Reference is the UUID, ID, etc. of the thing that launched the search
 	// this is blank for manual queries
-	Reference string `json:"reference,omitempty"`
+	Reference string `json:",omitempty"`
 
 	// Started is the timestamp of when the search was started.  This is used to inform
 	// the GUI and/or clients on when the query was actually started.
-	Started time.Time `json:"started,omitempty"`
+	Started time.Time
 
 	// Expires marks when when the search should expire/be deleted,
 	// it may be the zero value which means never
-	Expires time.Time `json:"expires,omitempty"`
+	Expires time.Time
 }
 
 // A RendererSettings has the information necessary for client to render searches using legacy renderer modules.
@@ -560,12 +560,12 @@ type SearchDownloadRequest struct {
 }
 
 type RowSelection struct {
-	Kind string `json:"kind"`
+	Kind string
 	// Start and End must be populated if it is a range, but not Index
-	Start uint64 `json:"start,omitempty"`
-	End   uint64 `json:"end,omitempty"`
+	Start uint64 `json:",omitempty"`
+	End   uint64 `json:",omitempty"`
 	// Index must be selected if it is only a single row, but not Start or End
-	Index uint64 `json:"index,omitempty"`
+	Index uint64 `json:",omitempty"`
 }
 
 // The aliasRowSelection is a type alias to [RowSelection] just to break the MarshalJSON / UnmarshalJSON
@@ -608,19 +608,19 @@ func (rs RowSelection) validate() (err error) {
 }
 
 type RowRange struct {
-	Kind  string `json:"kind"`
-	Start uint64 `json:"start"`
-	End   uint64 `json:"end"`
+	Kind  string
+	Start uint64
+	End   uint64
 }
 
 type RowSingle struct {
-	Kind  string `json:"kind"`
-	Index uint64 `json:"index"`
+	Kind  string
+	Index uint64
 }
 
 type Timeframe struct {
-	End   time.Time `json:"end"`
-	Start time.Time `json:"start"`
+	End   time.Time
+	Start time.Time
 }
 
 func (tf *Timeframe) IsEmpty() bool {
@@ -632,19 +632,19 @@ func (tf *Timeframe) IsEmpty() bool {
 }
 
 type SearchDownloadResponse struct {
-	DownloadResourceURL string `json:"downloadResourceURL"`
-	EntryCount          uint64 `json:"entryCount"`
-	Expiration          string `json:"expiration"`
-	SearchID            string `json:"searchId"`
+	DownloadResourceURL string
+	EntryCount          uint64
+	Expiration          string
+	SearchID            string
 }
 
 type SearchState struct {
-	Attached     bool         `json:"attached"`
-	Backgrounded bool         `json:"backgrounded"`
-	Saved        bool         `json:"saved"`
-	Streaming    bool         `json:"streaming"`
-	Status       SearchStatus `json:"status"`
-	Progress     float64      `json:"progress"`
+	Attached     bool
+	Backgrounded bool
+	Saved        bool
+	Streaming    bool
+	Status       SearchStatus
+	Progress     float64
 }
 
 func (ss SearchState) String() (r string) {
@@ -688,7 +688,7 @@ type Macro struct {
 // macros.
 type MacroListResponse struct {
 	BaseListResponse
-	Results []Macro `json:"results"`
+	Results []Macro
 }
 
 func CheckMacroName(name string) error {
@@ -772,8 +772,8 @@ func (ssr SearchStatsResponse) MarshalJSON() ([]byte, error) {
 type SaveSearchPatch struct {
 	SearchLaunchInfo
 	// these are the supported fields in the free form search metadata; these are used by the GUI
-	Name  string `json:"name,omitempty"`
-	Notes string `json:"notes,omitempty"`
+	Name  string `json:",omitempty"`
+	Notes string `json:",omitempty"`
 }
 
 func (p SaveSearchPatch) GetMetadata() json.RawMessage {
@@ -781,8 +781,8 @@ func (p SaveSearchPatch) GetMetadata() json.RawMessage {
 		return nil
 	}
 	md := struct {
-		Name  string `json:"name,omitempty"`
-		Notes string `json:"notes,omitempty"`
+		Name  string `json:",omitempty"`
+		Notes string `json:",omitempty"`
 	}{
 		Name:  p.Name,
 		Notes: p.Notes,

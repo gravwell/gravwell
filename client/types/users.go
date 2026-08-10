@@ -80,8 +80,8 @@ type UserDetails struct {
 	Email      string
 	Admin      bool
 	Locked     bool
-	TS         time.Time `json:",omitempty"`
-	DefaultGID int32     `json:",omitempty"`
+	TS         time.Time
+	DefaultGID int32 `json:",omitempty"`
 	Groups     []GroupDetails
 	MFA        MFAUserConfig
 	Hash       []byte `json:"-"` //do not include in API responses
@@ -535,15 +535,15 @@ type UserPreference struct {
 
 type UserPreferenceResponse struct {
 	BaseListResponse
-	Results []UserPreference `json:"results"`
+	Results []UserPreference
 }
 
 type UserListResponse struct {
 	BaseListResponse
-	Results []User `json:"results"`
+	Results []User
 }
 
 type GroupListResponse struct {
 	BaseListResponse
-	Results []Group `json:"results"`
+	Results []Group
 }

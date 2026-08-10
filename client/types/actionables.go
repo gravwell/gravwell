@@ -89,5 +89,5 @@ type ActionableTimeVariable struct {
 
 type ActionableListResponse struct {
 	BaseListResponse
-	Results []Actionable `json:"results"`
+	Results []Actionable
 }

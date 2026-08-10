@@ -75,5 +75,5 @@ type Resource struct {
 
 type ResourceListResponse struct {
 	BaseListResponse
-	Results []Resource `json:"results"`
+	Results []Resource
 }

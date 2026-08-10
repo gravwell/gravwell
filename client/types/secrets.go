@@ -31,5 +31,5 @@ type SecretFull struct {
 // SecretListResponse is returned when listing secrets.
 type SecretListResponse struct {
 	BaseListResponse
-	Results []Secret `json:"results"`
+	Results []Secret
 }

@@ -30,7 +30,7 @@ const (
 // The Type field should always be EVENTTYPE_EVENT, to indicate that this is a regular event.
 type Event struct {
 	Type     EventType
-	Metadata EventMetadata          `json:",omitempty"`
+	Metadata EventMetadata
 	Contents map[string]interface{} `json:",omitempty"`
 }
 
@@ -42,7 +42,7 @@ type EventLog struct {
 	Level   string
 	Message string            `json:",omitempty"`
 	KV      map[string]string `json:",omitempty"`
-	Trigger Event             `json:",omitempty"`
+	Trigger Event
 }
 
 // EventMetadata tells us about the owner of this event definition and who created the event.

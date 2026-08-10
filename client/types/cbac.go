@@ -1015,7 +1015,7 @@ func (ud *UserDetails) CapabilityList() []CapabilityDesc {
 // Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token but does NOT contain the actual secret string. It is also the type used to create a new token.
 type Token struct {
 	CommonFields
-	ExpiresAt    time.Time `json:",omitempty"`
+	ExpiresAt    time.Time
 	Capabilities []string
 }
 
@@ -1028,12 +1028,12 @@ type TokenUpdate struct {
 // TokenListResponse is the type returned when querying a list of tokens.
 type TokenListResponse struct {
 	BaseListResponse
-	Results []Token `json:"results"`
+	Results []Token
 }
 
 // TokenRegeneration is the structure used to request regeneration of an existing token
 type TokenRegeneration struct {
-	ExpiresAt time.Time `json:",omitempty"`
+	ExpiresAt time.Time
 }
 
 // TokenFull represents the response value for a token create request.
