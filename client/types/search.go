@@ -282,11 +282,11 @@ type SearchInfo struct {
 
 	// The remaining fields are low-churn/rarely-filtered-on
 	// details about the search.
-	Descending            bool     //the direction the search is progressing (Descending is the standard)
-	TimeZoomDisabled      bool     //Renderer does not support zooming around data based on time
-	QueryTimeSpecified    bool     // True if the query contains start/end constraints
-	RenderDownloadFormats []string `json:",omitempty"`
-  RendererSettings      *RendererSettings `json:",omitempty"`
+	Descending            bool              //the direction the search is progressing (Descending is the standard)
+	TimeZoomDisabled      bool              //Renderer does not support zooming around data based on time
+	QueryTimeSpecified    bool              // True if the query contains start/end constraints
+	RenderDownloadFormats []string          `json:",omitempty"`
+	RendererSettings      *RendererSettings `json:",omitempty"`
 	CollapsingIndex       int
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
