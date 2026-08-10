@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -7,179 +7,143 @@
  **************************************************************************/
 
 /*
-Package scaffolddelete provides a template for building actions that delete data.
+Package scaffolddelete provides a template for building actions that delete/destroy data.
 
-A delete action consumes a list of delete-able items, allowing the user to select them
-interactively or by passing a (numeric or UUID) ID.
+A delete action consumes a list of delete-able items, allowing the user to select one or more
+interactively (via a multiselectlist) or by passing one or more IDs as bare arguments.
 
-Delete actions have the --dryrun and --id default flags.
-
-Implementations will probably look a lot like:
-
-	var aliases []string = []string{}
-
-	func New[pkg]DeleteAction() action.Pair {
-		return scaffolddelete.NewDeleteAction(aliases, [singular], [plural], del,
-			func() ([]scaffold.Item[[integer]], error) {
-				couldDelete, err := connection.Client.GetAll[X]()
-				if err != nil {
-					return nil, err
-				}
-				slices.SortFunc(couldDelete, func(m1, m2 types.[Y]) int {
-					return strings.Compare(m1.Name, m2.Name)
-				})
-				var items = make([]scaffold.Item[[integer]], len(couldDelete))
-				for i := range couldDelete {
-					items[i] = scaffolddelete.New(couldDelete[i].Name,
-						couldDelete[i].Description,
-						couldDelete[i].ID)
-				}
-				return items, nil
-			})
-	}
-
-	func del(dryrun bool, id uint64) error {
-		if dryrun {
-			_, err := connection.Client.Get[X](id)
-			return err
-		}
-		return connection.Client.Delete[X](id)
-	}
+Delete actions have the --dryrun default flag.
 */
 package scaffolddelete
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/gravwell/gravwell/v4/client"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// A function that performs the (faux-, on dryrun) deletion once an item is picked
-// only returns a value if the delete (or select, on dry run) failed
-type deleteFunc[I scaffold.Id_t] func(dryrun bool, id I) error
+// DeleteFunc is the driver function for this action; it performs the (faux-, on dryrun) deletion once an item is picked.
+type DeleteFunc[I scaffold.Id_t] func(dryrun bool, ID I, fs *pflag.FlagSet) error
 
-// A function that fetches and formats the list of delete-able items.
-// It must return an array of a struct that implements the Item interface.
-type fetchFunc[I scaffold.Id_t] func() ([]Item[I], error)
-
-// text to display when deletion is skipped due to error
-const (
-	errorNoDeleteText = "An error occurred: %v.\nAbstained from deletion."
-	dryrunSuccessText = "DRYRUN: %v (ID %v) would have been deleted"
-	deleteSuccessText = "%v (ID %v) deleted"
-)
+// FetchFunc is the precursor function; it fetches and formats the list of delete-able items.
+// It is called iff we enter interactive mode.
+// If the action is non-interactive or direct-invoked and IDs are given, we skip directly to the DeleteFunc.
+type FetchFunc[I scaffold.Id_t] func(param DataParameters) ([]multiselectlist.SelectableItem[I], error)
 
 const (
-	confirmPhrase = "yes"
+	DryrunSuccessTextF = "DRYRUN: %v (ID: %v) would have been deleted"
+	DeleteSuccessTextF = "%v (ID: %v) deleted"
 )
+
+const heightBuffer = 4
 
 // NewDeleteAction creates and returns a cobra.Command suitable for use as a delete action.
+//
 // Base flags:
 //
-//	--dryrun (SELECT, as a mock deletion),
-//
-//	--id (immediately attempt deletion on the given id)
+//	--dryrun (SELECT, as a mock deletion)
 //
 // You must provide two functions to instantiate a generic delete:
 //
-// Del is a function that performs the actual (mock) deletion.
-// It is given the dryrun boolean and an ID value and returns an error only if the delete or select
-// failed.
+// DeleteFunc is a function that performs the actual (mock) deletion.
+// It is given the dryrun boolean (so it can select instead) and the IDs of the item to trash.
 //
-// Fch is a function that fetches all, delete-able records for the user to pick from.
-// It returns a user-defined struct fitting the Item interface.
-//
-// dopts allows you to modify how each item is displayed in the list of delete-able items.
-// While you could provide your own renderer via WithRender(), this is discouraged in order to
-// maintain style uniformity.
-func NewDeleteAction[I scaffold.Id_t](
-	singular, plural string,
-	del deleteFunc[I],
-	fch fetchFunc[I]) action.Pair {
+// FetchFunc is a function that fetches all delete-able records for the user to pick from.
+// It is primarily used in interactive mode, as this is bypassed if a user states IDs as args.
+func NewDeleteAction[I scaffold.Id_t](singular string, del DeleteFunc[I], fch FetchFunc[I], opts Options) action.Pair {
+	plural := english.PluralWord(2, singular, "")
+	var usage string
+	if opts.AddtlFlags != nil {
+		usage = ft.Optional("FLAGS")
+	} else {
+		usage = ft.Optional("--dryrun")
+	}
+	usage += " " + ft.VariadicArgs(singular, true)
+
 	cmd := treeutils.GenerateAction(
 		"delete",
-		"delete a "+singular,
-		"delete a "+singular+" by id or selection",
-		[]string{},
-		func(c *cobra.Command, s []string) {
+		"delete one or more "+plural,
+		"delete one or more "+plural+" by id or selection",
+		func(c *cobra.Command, s []string) error {
 			// fetch values from flags
-			id, dryrun, err := fetchFlagValues[I](c.Flags())
+			IDs, dryrun, err := getFlags[I](c.Flags())
 			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
+				return err
 			}
 
-			var zero I
-			if id == zero {
-				if noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
-					clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-					return
-				} else if noInteractive {
-					fmt.Fprintln(c.ErrOrStderr(), "--id is required in no-interactive mode")
-					return
+			if len(IDs) == 0 {
+				if state.Interactive() {
+					return mother.Spawn(c.Root(), c, s)
 				}
-				// spin up mother
-				if err := mother.Spawn(c.Root(), c, s); err != nil {
-					clilog.Tee(clilog.CRITICAL, c.ErrOrStderr(),
-						"failed to spawn a mother instance: "+err.Error())
+				return errors.New(phrases.AtLeast1ArgRequired(plural))
+			}
+
+			// non-interactive: delete each given id
+			var atLeastOneSuccess bool
+			results := attemptDeletions(singular, IDs, dryrun, del, c.Flags())
+			for _, res := range results {
+				if res.err != nil {
+					fmt.Fprintln(c.ErrOrStderr(), res.err.Error())
+				} else {
+					fmt.Fprintln(c.OutOrStdout(), res.success)
+					atLeastOneSuccess = true
 				}
-				return
-
 			}
-
-			if err := del(dryrun, id); err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
-				return
-			} else if dryrun {
-				fmt.Fprintf(c.OutOrStdout(), dryrunSuccessText+"\n", singular, id)
-			} else {
-				fmt.Fprintf(c.OutOrStdout(), deleteSuccessText+"\n",
-					singular, id)
+			if !atLeastOneSuccess {
+				return errors.New("all operations failed")
 			}
-		}, treeutils.GenerateActionOptions{Usage: "--id=" + ft.Mandatory(singular+" id")})
+			return nil
+		}, treeutils.GenerateActionOptions{Usage: usage})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
-	d := newDeleteModel(del, fch)
-	d.itemSingular = singular
-	d.itemPlural = plural
+	if opts.QueryOptionsFlags != nil {
+		opts.QueryOptionsFlags.Install(cmd.Flags())
+
+	}
+	opts.Apply(cmd)
+	d := &deleteModel[I]{
+		itemSingular: singular,
+		itemPlural:   plural,
+		mode:         modeSelecting,
+		del:          del,
+		fch:          fch,
+		options:      opts,
+	}
 	return action.NewPair(cmd, d)
 }
 
-// base flagset
 func flags() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	ft.Dryrun.Register(&fs)
-	fs.String("id", "", "ID of the item to be deleted")
 	return fs
 }
 
-// helper function for getting and casting flag values
-func fetchFlagValues[I scaffold.Id_t](fs *pflag.FlagSet) (id I, dryrun bool, _ error) {
-	if strid, err := fs.GetString("id"); err != nil {
-		return id, false, err
-	} else if strid != "" {
-		id, err = scaffold.FromString[I](strid)
+func getFlags[I scaffold.Id_t](fs *pflag.FlagSet) (ids []I, dryrun bool, _ error) {
+	for _, s := range fs.Args() {
+		id, err := scaffold.FromString[I](s)
 		if err != nil {
-			return id, dryrun, err
+			return nil, false, err
 		}
+		ids = append(ids, id)
 	}
 	if dr, err := fs.GetBool(ft.Dryrun.Name()); err != nil {
-		return id, dryrun, err
+		return nil, false, err
 	} else {
 		dryrun = dr
 	}
@@ -187,47 +151,145 @@ func fetchFlagValues[I scaffold.Id_t](fs *pflag.FlagSet) (id I, dryrun bool, _ e
 	return
 }
 
+// attemptDeletion is the actual deletion actor, used to keep the behavior of each entry point uniform.
+func attemptDeletions[I scaffold.Id_t](singular string, IDs []I, dryrun bool, del DeleteFunc[I], fs *pflag.FlagSet) (results []struct {
+	success string
+	err     error
+}) {
+	results = make([]struct {
+		success string
+		err     error
+	}, len(IDs))
+	for i, ID := range IDs {
+		if err := del(dryrun, ID, fs); err != nil {
+			if phrases.IsNotFoundErr(err) {
+				results[i] = struct {
+					success string
+					err     error
+				}{"", phrases.ErrUnknownIdentifier(ID, singular)}
+			} else {
+				results[i] = struct {
+					success string
+					err     error
+				}{
+					"", fmt.Errorf("failed to delete %v (ID %v): %v", singular, ID, err),
+				}
+			}
+			continue
+		}
+		// success
+		if dryrun {
+			results[i] = struct {
+				success string
+				err     error
+			}{
+				fmt.Sprintf(DryrunSuccessTextF, singular, ID), nil,
+			}
+		} else {
+			results[i] = struct {
+				success string
+				err     error
+			}{
+				fmt.Sprintf(DeleteSuccessTextF, singular, ID), nil,
+			}
+		}
+	}
+	return results
+}
+
 //#region interactive mode (model) implementation
 
 type mode uint
 
 const (
-	selecting mode = iota
-	quitting
-	confirming
+	modeSelecting mode = iota
+	modeConfirming
+	modeDone
 )
 
 type deleteModel[I scaffold.Id_t] struct {
-	width, height int
-
-	itemSingular string        // "macro", "kit", "query"
-	itemPlural   string        // "macros", "kits", "queries"
-	mode         mode          // current mode
-	flagset      pflag.FlagSet // parsed flag values (set in SetArgs)
+	itemSingular string // "macro", "kit", "query"
+	itemPlural   string // "macros", "kits", "queries"
+	mode         mode   // current mode
 	dryrun       bool
-	df           deleteFunc[I] // function to delete an item
-	ff           fetchFunc[I]  // function to get all delete-able items
+	del          DeleteFunc[I] // function to delete an item
+	fch          FetchFunc[I]  // function to get all delete-able items
+	options      Options
 
 	// selecting mode
-	list list.Model
+	msl multiselectlist.Model[I]
 
 	// confirming mode
-	selectedItem Item[I]
-	confTI       textinput.Model
+	confirm confirmation.Model
+
+	flagset pflag.FlagSet
 }
 
-func newDeleteModel[I scaffold.Id_t](del deleteFunc[I], fch fetchFunc[I]) *deleteModel[I] {
-	d := &deleteModel[I]{
-		mode:   selecting,
-		confTI: stylesheet.NewTI("", false),
-	}
-	d.confTI.Focus()
+func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
+	// parse flags
 	d.flagset = flags()
+	if d.options.AddtlFlags != nil {
+		d.flagset.AddFlagSet(d.options.AddtlFlags())
+	}
+	if d.options.QueryOptionsFlags != nil {
+		d.options.QueryOptionsFlags.Install(&d.flagset)
+	}
+	if err := d.flagset.Parse(tokens); err != nil {
+		return err.Error(), nil, nil
+	}
+	IDs, dryrun, err := getFlags[I](&d.flagset)
+	if err != nil {
+		return "", nil, err
+	}
+	d.dryrun = dryrun
 
-	d.df = del
-	d.ff = fch
+	if len(IDs) > 0 {
+		// Pre-select items by flag and skip directly to result
+		d.mode = modeDone
+		var atLeastOneSuccess bool
+		results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del, &d.flagset)
+		cmds := make([]tea.Cmd, len(results))
+		for i, res := range results {
+			if res.err != nil {
+				cmds[i] = tea.Println(res.err.Error())
+			} else {
+				cmds[i] = tea.Println(res.success)
+				atLeastOneSuccess = true
+			}
+		}
+		if !atLeastOneSuccess {
+			cmds = append(cmds, tea.Println("all operations failed"))
+		}
+		return "", tea.Sequence(cmds...), nil
+	}
 
-	return d
+	// fetch deleteable items
+	params := DataParameters{}
+	if d.options.QueryOptionsFlags != nil {
+		params.QueryOpts = d.options.QueryOptionsFlags.QueryOptions(&d.flagset)
+	}
+	itms, err := d.fch(params)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// if there are no items to delete, die
+	if len(itms) < 1 {
+		d.mode = modeDone
+		return "", tea.Printf("You have no %v that can be deleted", d.itemPlural), nil
+	}
+
+	adjustedHeight := max(0, height-heightBuffer)
+	d.msl = multiselectlist.New(itms, width, adjustedHeight, multiselectlist.Options{})
+	d.msl.SetShowStatusBar(true)
+	d.msl.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+	d.msl.Title = "Delete " + d.itemPlural
+
+	// initialize confirmation with a single choice: "item selection"
+	d.confirm.Init([]string{"item selection"}, uint(width), uint(height))
+
+	return "", nil, nil
 }
 
 func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
@@ -235,172 +297,108 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	// always handle window size messages, lest they be lost due to being in the wrong mode
-	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		d.width, d.height = wsMsg.Width, wsMsg.Height
-		d.list.SetSize(d.width, d.height)
-		return nil
+	// always handle window size messages
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		wsm.Height = max(0, wsm.Height-heightBuffer)
+		var cmds = make([]tea.Cmd, 2)
+		d.msl, cmds[0] = d.msl.Update(wsm)
+		d.confirm, cmds[1], _, _, _ = d.confirm.Update(wsm)
+		return tea.Batch(cmds...)
 	}
-	keyMsg, isKeyMsg := msg.(tea.KeyMsg)
+
 	var cmd tea.Cmd
-	// branch on current mode
 	switch d.mode {
-	case selecting:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter { // special handling for Enter key
-			baseitm := d.list.Items()[d.list.Index()]
-			if itm, ok := baseitm.(Item[I]); !ok {
-				clilog.Writer.Warnf("failed to type assert %#v as an item", baseitm)
-				return tea.Printf(errorNoDeleteText+"\n", "failed type assertion")
-			} else {
-				d.selectedItem = itm
+	case modeSelecting:
+		d.msl, cmd = d.msl.Update(msg)
+		if d.msl.Done() {
+			d.msl.Undone() // in case we come back
+
+			if len(d.msl.GetSelectedItems()) < 1 {
+				return d.msl.NewStatusMessage("you must select at least 1 " + d.itemSingular)
 			}
 
-			// attempt to delete the item
-			if d.dryrun {
-				d.mode = quitting
-				return tea.Printf(dryrunSuccessText, d.itemSingular, d.selectedItem.id)
-			}
-
-			// shift into confirmation mode
-			d.mode = confirming
-			return textinput.Blink
+			// transition to confirmation
+			d.mode = modeConfirming
+			d.buildConfirmHeader()
 		}
-
-		d.list, cmd = d.list.Update(msg)
-	case confirming:
-		if isKeyMsg && keyMsg.Type == tea.KeyEnter {
-			// check for confirmation (after cleaning up the input)
-			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
-				d.mode = quitting
-				if err := d.df(d.dryrun, d.selectedItem.id); err != nil {
-					return tea.Printf(errorNoDeleteText+"\n", err)
+	case modeConfirming:
+		var (
+			done   bool
+			submit bool
+			choice uint
+		)
+		d.confirm, cmd, done, submit, choice = d.confirm.Update(msg)
+		if !done {
+			return cmd
+		}
+		if submit {
+			// perform the actual deletions
+			d.mode = modeDone
+			selected := d.msl.GetSelectedItems()
+			IDs := make([]I, len(selected))
+			for i, sel := range selected {
+				IDs[i] = sel.ID()
+			}
+			var atLeastOneSuccess bool
+			results := attemptDeletions(d.itemSingular, IDs, d.dryrun, d.del, &d.flagset)
+			cmds := make([]tea.Cmd, len(results))
+			for i, res := range results {
+				if res.err != nil {
+					cmds[i] = tea.Println(res.err.Error())
+				} else {
+					cmds[i] = tea.Println(res.success)
+					atLeastOneSuccess = true
 				}
-				return tea.Printf(deleteSuccessText,
-					d.itemSingular, d.selectedItem.id)
 			}
-			// any other input, go back to selecting
-			d.mode = selecting
-			d.confTI.Reset()
-			return nil
+			if !atLeastOneSuccess {
+				cmds = append(cmds, tea.Println("all operations failed"))
+			}
+			return tea.Sequence(cmds...)
 		}
-
-		d.confTI, cmd = d.confTI.Update(msg)
+		// choice 0 == return to list
+		_ = choice
+		d.mode = modeSelecting
 	}
 
 	return cmd
+}
 
+// buildConfirmHeader populates the confirmation bubble's header with a summary of pending deletions.
+func (d *deleteModel[I]) buildConfirmHeader() {
+	selected := d.msl.GetSelectedItems()
+	var lines []string
+	if d.dryrun {
+		lines = append(lines, fmt.Sprintf("Faux-deleting %v:", english.Plural(len(selected), d.itemSingular, "")))
+	} else {
+		lines = append(lines, fmt.Sprintf("Deleting %v:", english.Plural(len(selected), d.itemSingular, "")))
+	}
+	for _, itm := range selected {
+		lines = append(lines, fmt.Sprintf("  • %v", itm.Title()))
+	}
+	d.confirm.HeaderLines = lines
 }
 
 func (d *deleteModel[I]) View() string {
 	switch d.mode {
-	case quitting:
-		// This is unlikely to ever be shown before Mother reasserts control and wipes it
-		itm := d.list.SelectedItem()
-		if itm == nil {
-			return "Not deleting any " + d.itemPlural + "..."
-		}
-		if searchitm, ok := itm.(Item[I]); !ok {
-			clilog.Writer.Warnf("Failed to type assert selected %v", itm)
-			return "An error has occurred. Exitting..."
-		} else {
-			return fmt.Sprintf("Deleting %v...\n", searchitm.Description())
-		}
-	case selecting:
-		return "\n" + d.list.View()
-	case confirming:
-		var sb strings.Builder
-
-		// display the full item that will be deleted
-		sb.WriteString(fmt.Sprintf("Deleting %s (ID: %v):\n"+
-			"%v\n"+
-			"%v\n",
-			d.itemSingular, d.selectedItem.id,
-			d.selectedItem.title,
-			d.selectedItem.description))
-		// request confirmation
-		confirmTitle := "Type '" + confirmPhrase + "' to confirm deletion: "
-		sb.WriteString(confirmTitle)
-		tiView := d.confTI.View()
-
-		// if the line would be too long, bump the ti to a newline
-		if lipgloss.Width(confirmTitle)+lipgloss.Width(tiView) > d.width+1 { // 1 cell pad
-			sb.WriteString("\n")
-		}
-		sb.WriteString(tiView)
-		return sb.String()
+	case modeDone:
+		return "Deletion complete."
+	case modeSelecting:
+		return d.msl.View()
+	case modeConfirming:
+		return d.confirm.View()
 	default:
 		clilog.Writer.Warnf("Unknown mode %v", d.mode)
-		return "An error has occurred. Exitting..."
+		return "An error has occurred. Exiting..."
 	}
 }
 
 func (d *deleteModel[I]) Done() bool {
-	return d.mode == quitting
+	return d.mode == modeDone
 }
 
 func (d *deleteModel[I]) Reset() error {
-	d.mode = selecting
-	d.flagset = flags()
-	// the current state of the list is retained
+	d.mode = modeSelecting
+	d.msl = multiselectlist.Model[I]{}
+	d.confirm = confirmation.Model{}
 	return nil
-}
-
-func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
-	invalid string, onStart tea.Cmd, err error) {
-	var zero I
-	// initialize the list
-	itms, err := d.ff()
-	if err != nil {
-		return "", nil, err
-	}
-
-	// if there are no items to delete, die
-	if len(itms) < 1 {
-		d.mode = quitting
-		return "", tea.Printf("You have no %v that can be deleted", d.itemPlural), nil
-	}
-
-	// while Item[I] satisfies the list.Item interface, Go will not implicitly
-	// convert []Item[I] -> []list.Item
-	// remember to assert these items as Item[I] on use
-	// TODO do we hide this in here, at the cost of an extra n? Or move it out to ff?
-	simpleitems := make([]list.Item, len(itms))
-	for i := range itms {
-		simpleitems[i] = itms[i]
-	}
-
-	// create list from the generated delegate
-	d.list = stylesheet.NewList(simpleitems, width, height, d.itemSingular, d.itemPlural)
-
-	// flags and flagset
-	if err := d.flagset.Parse(tokens); err != nil {
-		return err.Error(), nil, nil
-	}
-	id, dryrun, err := fetchFlagValues[I](&d.flagset)
-	if err != nil {
-		return "", nil, err
-	} else if id != zero { // if id was set, attempt to skip directly to deletion
-		d.mode = quitting
-		if err := d.df(dryrun, id); err != nil {
-			// check for sentinel errors
-			// NOTE: this relies on the client log consistently returning 404s as ClientErrors,
-			// which I cannot guarantee
-			if err, ok := err.(*client.ClientError); ok && err.StatusCode == 404 {
-				return "", tea.Printf("Did not find a valid %v with ID %v", d.itemSingular, id), nil
-			}
-			return "", nil, err
-		} else if dryrun {
-			return "",
-				tea.Printf(dryrunSuccessText, d.itemSingular, id),
-				nil
-		}
-		return "",
-			tea.Printf(deleteSuccessText, d.itemSingular, id),
-			nil
-
-	}
-	d.dryrun = dryrun
-	d.width = width
-	d.height = height
-	return "", nil, nil
 }
