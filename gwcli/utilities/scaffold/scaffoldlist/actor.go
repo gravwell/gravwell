@@ -19,49 +19,81 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/spf13/cobra"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/spf13/pflag"
 )
 
 type ListAction[dataStruct any] struct {
 	// data cleared by .Reset()
 	done        bool
-	columns     []string
+	columns     []string       // the set of columns request by the user on *this* invocation
 	showColumns bool           // print columns and exit
 	fs          *pflag.FlagSet // current flagset, parsed or unparsed
 	outFile     *os.File       // file to output results to (or nil)
+	format      outputFormat
 
-	// individualized for each use of scaffoldlist
-	defaultColumns []string                     // columns to output if --all and --columns=<> are unspecified
-	defaultFormat  outputFormat                 // output format to use if not specified by the user
-	options        Options                      // modifiers for the list action
-	availDSColumns []string                     // set of all columns, fully-dot-qualified, in the data struct
-	dataFunc       ListDataFunction[dataStruct] // function for fetching data for table/json/csv}
+	// individualized for each use of scaffoldlist (shielded from .Reset())
+	defaultColumnsDQ []string                 // columns to output if --all and --columns=<> are unspecified
+	dqToAlias        map[string]string        // DQ column names -> alias (alias will be "" if a column does not have an alias)
+	aliasToDQ        map[string]string        // inverse of dqToAlias
+	options          Options                  // modifiers for the list action
+	dataFunc         ListDataFunc[dataStruct] // function for fetching data for table/json/csv}
 }
 
 // Constructs a ListAction suitable for interactive use.
 // Assumes that Options.DefaultColumns is set; no other assumptions are made about the state of the options struct.
-func newListAction[dataStruct_t any](_ *cobra.Command, DSColumns []string, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
+func newListAction[dataStruct_t any](
+	defaultColumnsDQ []string,
+	DQToAlias, AliasToDQ map[string]string,
+	dataFunc ListDataFunc[dataStruct_t],
+	options Options) ListAction[dataStruct_t] {
 	la := ListAction[dataStruct_t]{
-		done:    false,
-		columns: options.DefaultColumns,
-		fs:      nil, // set in SetArgs
+		done: false,
+		fs:   nil, // set in SetArgs
 
-		defaultFormat:  tbl,
-		defaultColumns: options.DefaultColumns,
+		defaultColumnsDQ: defaultColumnsDQ,
+		dqToAlias:        DQToAlias,
+		aliasToDQ:        AliasToDQ,
 
-		options:        options,
-		availDSColumns: DSColumns,
-		dataFunc:       dFn,
+		options: options,
+
+		dataFunc: dataFunc,
 	}
 
 	return la
 }
 
-// Update takes in a msg (some event that occurred, like a window redraw or a key press) and acts on it.
-// List only ever needs to update once; it figures out what data is to be displayed, fetches it, and spits it out above the prompt.
+func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
+	la.fs = buildFlagSet(la.options.Pretty != nil, aliasColumns(la.defaultColumnsDQ, la.dqToAlias), la.options.QueryOptionsFlags)
+	if la.options.AddtlFlags != nil {
+		la.fs.AddFlagSet(la.options.AddtlFlags())
+	}
+	err = la.fs.Parse(tokens)
+	if err != nil {
+		return err.Error(), nil, nil
+	}
+
+	la.showColumns, la.columns, la.outFile, la.format, invalid = getFlags(la.fs, la.dqToAlias, la.aliasToDQ, la.options.Pretty != nil)
+	if invalid != "" {
+		return invalid, nil, nil
+	} else if la.showColumns {
+		return "", nil, nil
+	}
+	// run custom validation
+	if la.options.ValidateArgs != nil {
+		if invalid, err := la.options.ValidateArgs(la.fs); err != nil {
+			return "", nil, err
+		} else if invalid != "" {
+			return invalid, nil, nil
+		}
+	}
+
+	return invalid, nil, nil
+}
+
+// Update drives interactivity.
+// List only ever needs to update once; it figures out what data to display, fetches it, and spits it out above the prompt.
 func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	if la.done {
 		return nil
@@ -72,7 +104,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 
 	// check for --show-columns
 	if la.showColumns {
-		return tea.Println(showColumnsString(la.availDSColumns, la.options.ColumnAliases))
+		return tea.Println(ShowColumns(la.dqToAlias))
 	}
 
 	// fetch the list data
@@ -82,11 +114,11 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 		la.columns,
 		la.dataFunc,
 		la.options.Pretty,
-		la.options.ColumnAliases)
+		la.dqToAlias, la.options.QueryOptionsFlags)
 	if err != nil {
 		// log and print the error
 		clilog.Writer.Error(err.Error())
-		return tea.Println(uniques.ErrGeneric.Error())
+		return tea.Println(err)
 	}
 
 	// if we received no data, note that (unless we are printing to a file, then do nothing)
@@ -94,13 +126,18 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 		if la.outFile != nil {
 			return textinput.Blink
 		}
-		return tea.Println("no data found")
+		return tea.Println(la.options.EmptyMessage)
 	}
 
 	// output the results to a file, if given
 	if la.outFile != nil {
-		fmt.Fprint(la.outFile, s)
-		return tea.Println("Successfully output results to " + la.outFile.Name())
+		n, err := fmt.Fprint(la.outFile, s)
+		if err != nil {
+			str := fmt.Sprint("failed to write results to file: ", err)
+			clilog.Writer.Warn(str)
+			return tea.Println(str)
+		}
+		return tea.Println(phrases.SuccessfullyWroteToFile(n, la.outFile.Name()))
 	}
 
 	return tea.Println(s)
@@ -120,65 +157,16 @@ func (la *ListAction[T]) Done() bool {
 // Reset is called when the action is unseated by Mother on exiting handoff mode
 func (la *ListAction[T]) Reset() error {
 	la.done = false
-	la.columns = la.defaultColumns
+	la.columns = la.defaultColumnsDQ
 	la.showColumns = false
-	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
+	la.fs = &pflag.FlagSet{}
 	if la.outFile != nil {
 		la.outFile.Close()
 	}
 	la.outFile = nil
+	la.format = 0
 
 	return nil
 }
 
 var _ action.Model = &ListAction[any]{}
-
-// SetArgs is called when the action is invoked by the user and Mother *enters* handoff mode.
-// Mother parses flags and provides us a handle to check against.
-func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
-	invalid string, onStart tea.Cmd, err error) {
-	// attach flags
-	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
-
-	err = la.fs.Parse(tokens)
-	if err != nil {
-		return err.Error(), nil, nil
-	}
-
-	// run custom validation
-	if la.options.ValidateArgs != nil {
-		if invalid, err := la.options.ValidateArgs(la.fs); err != nil {
-			return "", nil, err
-		} else if invalid != "" {
-			return invalid, nil, nil
-		}
-	}
-
-	// default to... well... the default columns
-	la.columns = la.defaultColumns
-
-	// parse column handling
-	// only need to parse columns if user did not pass in --show-columns
-	if la.showColumns, err = la.fs.GetBool(ft.ShowColumns.Name()); err != nil {
-		return "", nil, err
-	} else if !la.showColumns {
-		// fetch columns if it exists
-		la.columns, err = getColumns(la.fs, la.defaultColumns, la.availDSColumns)
-		if err != nil {
-			return err.Error(), nil, nil
-		}
-	}
-	if all, err := la.fs.GetBool(ft.AllColumns.Name()); err != nil {
-		return "", nil, err
-	} else if all {
-		la.columns = la.availDSColumns
-	}
-
-	if f, err := initOutFile(la.fs); err != nil {
-		return "", nil, err
-	} else {
-		la.outFile = f
-	}
-
-	return "", nil, nil
-}

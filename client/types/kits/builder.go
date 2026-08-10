@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 
+	"encoding/hex"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -42,7 +43,7 @@ type Builder struct {
 
 // BuilderConfig sets basic options for a kit.
 type BuilderConfig struct {
-	Version      uint
+	Version      int
 	Name         string
 	Description  string // A short description of the kit
 	Readme       string // A more detailed description of the kit
@@ -170,25 +171,18 @@ func (pb *Builder) WriteManifest(sig []byte) (err error) {
 	return
 }
 
-// Add includes an item in the kit. The parameters are name (the name for the
-// item), tp (the type of item), and v (the JSON-encoded item itself).
-func (pb *Builder) Add(name string, tp ItemType, v []byte) error {
-	if !tp.Valid() {
-		return ErrInvalidType
-	} else if name == `` {
-		return ErrEmptyName
+// Add includes an item in the kit.
+func (pb *Builder) Add(item types.KitItem, v []byte) error {
+	if err := item.Validate(); err != nil {
+		return err
 	} else if len(v) == 0 {
 		return ErrEmptyContent
 	}
-	item := Item{
-		Name: name,
-		Type: tp,
-		Hash: GetHash(v),
-	}
+	item.Hash = GetHash(v)
 
-	// Make sure this is not duplicated
+	// Make sure this is not duplicated -- it's the ID we're concerned about
 	for i := range pb.manifest.Items {
-		if pb.manifest.Items[i].Equal(item) {
+		if pb.manifest.Items[i].ID == item.ID {
 			// silently return if so
 			return nil
 		}
@@ -214,20 +208,20 @@ func (pb *Builder) Add(name string, tp ItemType, v []byte) error {
 
 // AddFile includes an item in the kit, reading from an open file descriptor
 // rather than from a slice of bytes.
-func (pb *Builder) AddFile(name string, tp ItemType, f *os.File) error {
+func (pb *Builder) AddFile(item types.KitItem, f *os.File) error {
 	var sz int64
 	var n int64
-	if !tp.Valid() {
-		return ErrInvalidType
-	} else if name == `` {
-		return ErrEmptyName
+	var err error
+	if err = item.Validate(); err != nil {
+		return err
 	}
+
 	if fi, err := f.Stat(); err != nil {
 		return err
 	} else if sz = fi.Size(); sz == 0 {
 		return ErrEmptyContent
 	}
-	hsh, err := getReaderHash(f)
+	item.Hash, err = getReaderHash(f)
 	if err != nil {
 		return err
 	}
@@ -238,12 +232,6 @@ func (pb *Builder) AddFile(name string, tp ItemType, f *os.File) error {
 	//seek to start
 	if _, err = f.Seek(0, 0); err != nil {
 		return err
-	}
-
-	item := Item{
-		Name: name,
-		Type: tp,
-		Hash: hsh,
 	}
 
 	hdr := tar.Header{
@@ -270,14 +258,14 @@ func (pb *Builder) AddFile(name string, tp ItemType, f *os.File) error {
 
 // AddReader includes an item in the kit, reading from an io.Reader instead
 // of a slice of bytes.
-func (pb *Builder) AddReader(name string, tp ItemType, r io.Reader) error {
+func (pb *Builder) AddReader(item types.KitItem, r io.Reader) error {
 	bb := bytes.NewBuffer(nil)
 	if n, err := io.Copy(bb, r); err != nil {
 		return err
 	} else if n == 0 {
 		return ErrEmptyContent
 	}
-	return pb.Add(name, tp, bb.Bytes())
+	return pb.Add(item, bb.Bytes())
 }
 
 // SetIcon sets the icon image for the kit. The parameter must be the name
@@ -312,11 +300,12 @@ func getTempFile() (f *os.File, err error) {
 	return
 }
 
-func GetHash(v []byte) [sha256.Size]byte {
-	return sha256.Sum256(v)
+func GetHash(v []byte) string {
+	hsh := sha256.Sum256(v)
+	return hex.EncodeToString(hsh[0:sha256.Size])
 }
 
-func getReaderHash(rdr io.ReadSeeker) (hsh [sha256.Size]byte, err error) {
+func getReaderHash(rdr io.ReadSeeker) (hsh string, err error) {
 	var n int64
 	//grab current position
 	if n, err = rdr.Seek(0, 1); err != nil {
@@ -338,7 +327,7 @@ func getReaderHash(rdr io.ReadSeeker) (hsh [sha256.Size]byte, err error) {
 	if bts := h.Sum(nil); len(bts) != sha256.Size {
 		err = ErrInvalidHash
 	} else {
-		copy(hsh[0:sha256.Size], bts)
+		hsh = hex.EncodeToString(bts[0:sha256.Size])
 	}
 	return
 }

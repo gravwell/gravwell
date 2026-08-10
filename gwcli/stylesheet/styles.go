@@ -140,11 +140,6 @@ func (s Sheet) Field(fieldTitle string, width int) string {
 	return Cur.FieldText.Render(fieldTitle + ": ")
 }
 
-// A Tetrad is a set of 4 colors that can be transmuted into a full sheet via GenerateSheet().
-/*type Tetrad struct {
-
-}*/
-
 // A Palette is a set of 5 colors that can be transmuted into a full sheet via GenerateSheet().
 // It allows for quicker color swaps without having to manually populate a whole style sheet.
 type Palette struct {
