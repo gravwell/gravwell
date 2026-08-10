@@ -61,14 +61,9 @@ type Element struct {
 	Filters     []string
 }
 
-// A GenerateAXRequest contains a tag name and a set of entries.
-// It is used by clients to request all possible extractions from the given entries.
-// All entries should have the same tag.
-type GenerateAXRequest struct {
-	Tag     string
-	Entries []SearchEntry
-}
-
+// TODO  Defer the move of GenerateAXResponse to the backend in another ticket? This is no longer part of our
+// API surface but it is used all over the place. Maybe it can be done in this ticket...
+// Right now, I side more towards doing it in this ticket, but let's see how the implementation goes
 // A GenerateAXResponse contains an autoextractor definition
 // and corresponding Element extractions as gathered from a single extraction module
 type GenerateAXResponse struct {
