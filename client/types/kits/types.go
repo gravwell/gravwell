@@ -103,7 +103,11 @@ type PackedResource struct {
 
 // PackResourceUpdate takes a ResourceUpdate (which contains a complete description of a
 // resource, including its contents) and converts it into a PackedResource.
-func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
+func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource, err error) {
+	var data []byte
+	if data, err = ru.Bytes(); err != nil {
+		return
+	}
 	p = PackedResource{
 		ID:            ru.Metadata.ID,
 		Name:          ru.Metadata.Name,
@@ -111,7 +115,7 @@ func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
 		Labels:        ru.Metadata.Labels,
 		Size:          ru.Metadata.Size,
 		Hash:          ru.Metadata.Hash,
-		Data:          ru.Bytes(),
+		Data:          data,
 		ContentType:   ru.Metadata.ContentType,
 		FileExtension: ru.Metadata.FileExtension,
 	}
