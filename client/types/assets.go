@@ -21,30 +21,30 @@ const (
 )
 
 type QueryOptions struct {
-	Type string `json:"type"` // Specifies the type of asset to return, 'mixed' for everything. Ignored except on the /api/list (ListAll) endpoint
+	Type string // Specifies the type of asset to return, 'mixed' for everything. Ignored except on the /api/list (ListAll) endpoint
 
-	IncludeDeleted bool `json:"include_deleted"`
-	Version        int  `json:"version"` // fetch a particular version, when appropriate. 0 means latest, -1 means all versions (list only)
+	IncludeDeleted bool
+	Version        int // fetch a particular version, when appropriate. 0 means latest, -1 means all versions (list only)
 
 	// If true and requesting user is an admin, a list request will return items for all users
-	AdminMode bool `json:"admin_mode"`
+	AdminMode bool
 
 	// Listing options
-	OrderBy        string `json:"order_by"` // Sort by this field (defaults to ID)
-	OrderDirection string `json:"order_direction"`
-	CursorID       string `json:"cursor"`    // Return assets whose ID is greater than the given ID.
-	Limit          int    `json:"page_size"` // Max number of assets to return
+	OrderBy        string // Sort by this field (defaults to ID)
+	OrderDirection string
+	CursorID       string // Return assets whose ID is greater than the given ID.
+	Limit          int    // Max number of assets to return
 
 	// Filtering on fields of assets
-	Filters []Filter `json:"filters"`
+	Filters []Filter
 }
 
 // Filter based on the values given, e.g. Key = "Name", Operation = "=", Values = ["foo", "bar"].
 // Specifying multiple values is an implicit OR.
 type Filter struct {
-	Key       string `json:"key"`
-	Operation string `json:"operation"`
-	Values    []any  `json:"values"`
+	Key       string
+	Operation string
+	Values    []any
 }
 
 // AvailableFilter describes a filter which *could* be applied to a field when
@@ -54,11 +54,11 @@ type Filter struct {
 // type, and optional hints (description, whether the field is sortable or holds
 // multiple values).
 type AvailableFilter struct {
-	Key         string     `json:"key"`
-	Label       string     `json:"label"`
-	Description string     `json:"description,omitempty"`
-	Type        FilterType `json:"type"`
-	Operations  []string   `json:"operations"`
-	Sortable    bool       `json:"sortable"`
-	MultiValued bool       `json:"multi_valued,omitempty"`
+	Key         string
+	Label       string
+	Description string `json:",omitempty"`
+	Type        FilterType
+	Operations  []string
+	Sortable    bool
+	MultiValued bool `json:",omitempty"`
 }

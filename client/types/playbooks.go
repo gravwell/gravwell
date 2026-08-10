@@ -24,5 +24,5 @@ type Playbook struct {
 
 type PlaybookListResponse struct {
 	BaseListResponse
-	Results []Playbook `json:"results"`
+	Results []Playbook
 }

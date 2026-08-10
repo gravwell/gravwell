@@ -25,22 +25,22 @@ type FdgRequest struct {
 }
 
 type FdgSet struct {
-	Nodes  []Node   `json:"nodes"`
-	Edges  []Edge   `json:"links"`
-	Groups []string `json:"groups"`
+	Nodes  []Node
+	Edges  []Edge
+	Groups []string
 }
 
 type Node struct {
-	Name  string `json:"name"`
-	Group int    `json:"group"`
+	Name  string
+	Group int
 }
 
 type Edge struct {
-	Value int64 `json:"value"`
+	Value int64
 	// Source and Destination nodes for an edge are represented by an index
 	// into the parent node set
-	Src int `json:"source"` // index into the source node list
-	Dst int `json:"target"` // index into the destination node list
+	Src int // index into the source node list
+	Dst int // index into the destination node list
 }
 
 type FdgResponse struct {
