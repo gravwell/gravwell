@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 )
 
@@ -79,7 +81,7 @@ func putResultsToWriter(results io.Reader, wr io.Writer, filePath string, append
 		return toFile(results, filePath, append)
 	}
 	if format == types.DownloadArchive {
-		return ErrBinaryBlobCoward(format)
+		return phrases.ErrBinaryBlobCoward(format)
 	}
 	// print the results to alt writer
 	written, err := io.Copy(wr, results)
@@ -164,6 +166,7 @@ func fetchTableResults(s *grav.Search) (columns []string, rows []types.TableRow,
 		low = high
 		high = high + pageSize
 	}
+	rows = slices.Clip(rows)
 
 	// save off columns
 	columns = r.Entries.Columns

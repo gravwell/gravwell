@@ -14,7 +14,9 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -32,14 +34,14 @@ func NewIndexersNav() *cobra.Command {
 
 	var aliases = []string{"index", "idx", "indexer"}
 
-	return treeutils.GenerateNav(use, short, long, aliases,
+	return treeutils.GenerateNav(use, short, long,
 		[]*cobra.Command{},
 		[]action.Pair{
 			get(),
 			list(),
 			newCalendarAction(),
 			wells(),
-		})
+		}, treeutils.NodeOptions{CommandAliases: aliases})
 }
 
 // Wells just returns the list of all wells.
@@ -59,38 +61,46 @@ func wells() action.Pair {
 		ColdPath    string `json:",omitempty"` //cold storage location
 	}
 
-	return scaffoldlist.NewListAction("get a list of all wells", "returns the indexer each well is associated to and the well's full id", wd{}, func(fs *pflag.FlagSet) ([]wd, error) {
-		wells, err := connection.Client.WellData()
-		if err != nil {
-			return nil, err
-		}
-		toRet := make([]wd, 0)
-		for idxrName, iwd := range wells {
-			for _, well := range iwd.Wells {
-				toRet = append(toRet, wd{
-					Indexer: struct {
-						UUID uuid.UUID
-						Name string
-					}{
-						iwd.UUID,
-						idxrName,
-					},
-					ID:          well.ID,
-					Name:        well.Name,
-					Tags:        well.Tags,
-					Shards:      well.Shards,
-					Accelerator: well.Accelerator,
-					Engine:      well.Engine,
-					Path:        well.Path,
-					ColdPath:    well.ColdPath,
-				})
+	return scaffoldlist.NewListAction("get a list of all wells", "returns the indexer each well is associated to and the well's full id",
+		wd{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]wd, error) {
+			wells, err := connection.Client.WellData()
+			if err != nil {
+				return nil, err
 			}
+			toRet := make([]wd, 0)
+			for idxrName, iwd := range wells {
+				for _, well := range iwd.Wells {
+					toRet = append(toRet, wd{
+						Indexer: struct {
+							UUID uuid.UUID
+							Name string
+						}{
+							iwd.UUID,
+							idxrName,
+						},
+						ID:          well.ID,
+						Name:        well.Name,
+						Tags:        well.Tags,
+						Shards:      well.Shards,
+						Accelerator: well.Accelerator,
+						Engine:      well.Engine,
+						Path:        well.Path,
+						ColdPath:    well.ColdPath,
+					})
+				}
 
-		}
-		return toRet, nil
-	}, scaffoldlist.Options{
-		Use:            "wells",
-		Aliases:        []string{"well"},
-		DefaultColumns: []string{"Indexer.UUID", "Indexer.Name", "ID", "Name", "Tags", "Accelerator", "Engine", "Path", "ColdPath"},
-	})
+			}
+			return toRet, nil
+		}, nil, scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "wells",
+				Aliases: []string{"well"},
+				Requirements: annotations.Requirements{
+					IPermissions: []types.Capability{types.SystemInfoRead},
+					XPermissions: []types.Capability{types.SystemInfoRead},
+				},
+			},
+			DefaultColumns:    []string{"Indexer.UUID", "Indexer.Name", "ID", "Name", "Tags", "Accelerator", "Engine", "Path", "ColdPath"},
+			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
+		})
 }

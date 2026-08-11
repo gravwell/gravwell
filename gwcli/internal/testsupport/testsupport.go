@@ -16,12 +16,24 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
+	"path"
 	"reflect"
+	"regexp"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -57,25 +69,62 @@ func Type(prog *tea.Program, text string) {
 	}
 }
 
-// TTMatchGolden compares the output (final View) of tm against the test's associated output file.
+// TypeUpdate sends each character of text into the given update function, one by one.
+func TypeUpdate(update func(msg tea.Msg) tea.Cmd, text string) {
+	for _, r := range text {
+		update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+}
+
+// TTMatchGolden is a convenience function to check FinalOutput or Output of tm against its golden.
 //
-// ! This blocks until tm returns.
-func TTMatchGolden(t *testing.T, tm *teatest.TestModel) {
+// ! If final, this blocks until tm returns.
+func TTMatchGolden(t *testing.T, tm *teatest.TestModel, final bool, finalWait time.Duration) []byte {
 	t.Helper()
-	out, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(3*time.Second)))
+	var o io.Reader
+	if !final {
+		o = tm.Output()
+	} else {
+		o = tm.FinalOutput(t, teatest.WithFinalTimeout(finalWait))
+	}
+	out, err := io.ReadAll(o)
 	if err != nil {
 		t.Error(err)
 	}
 	// matches on the golden file with the test function's name
 	teatest.RequireEqualOutput(t, out)
+	return out
 }
 
 //#endregion TeaTest
+
+const ENV_SERVER string = "GWCLI_TEST_SERVER"
+
+// Server attempts to pull the server string from the environment.
+// Returns localhost:80 if the env var is unset or empty
+func Server() string {
+	if s, found := os.LookupEnv(ENV_SERVER); found {
+		return s
+	}
+	return "localhost:80"
+}
 
 // ExpectedActual returns a string declaring what was expected and what we got instead.
 // ! Prefixes the string with a newline.
 func ExpectedActual(expected, actual any) string {
 	return fmt.Sprintf("\n\tExpected:'%+v'\n\tGot:'%+v'", expected, actual)
+}
+
+// Uncloak replaces whitespace characters with visible representations.
+//
+// \t 		-> ↹ (U+21B9)
+// \n 		-> ↵ (U+21B5) (newline will be retained, not replaced)
+// (space) 	-> · (U+B7)
+func Uncloak(s string) string {
+	s = strings.ReplaceAll(s, " ", "·")
+	s = strings.ReplaceAll(s, "\n", "↵\n")
+	s = strings.ReplaceAll(s, "\t", "↹")
+	return s
 }
 
 // NonZeroExit calls Fatal if code is <> 0.
@@ -113,7 +162,7 @@ func SlicesUnorderedEqual(a []string, b []string) bool {
 func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequenceIndex uint) string {
 	t.Helper()
 	voMsg := reflect.ValueOf(cmd())
-	t.Logf("Update msg kind: %v", voMsg.Kind())
+	//t.Logf("Update msg kind: %v", voMsg.Kind())
 	// this will be a slice if it is a sequence or a struct if a single msg
 	var voPLM reflect.Value
 	if voMsg.Kind() == reflect.Slice {
@@ -134,7 +183,7 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 		if voInnerMsg := voInnerCmd.Call(nil); len(voInnerMsg) != 1 {
 			t.Fatal("bad output count", ExpectedActual(1, len(voInnerMsg)))
 		} else {
-			voPLM = voInnerMsg[sequenceIndex]
+			voPLM = voInnerMsg[0]
 		}
 	} else { // not a sequence, just a raw printLineMessage (or an interface of a Msg)
 		voPLM = voMsg
@@ -153,4 +202,425 @@ func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequ
 		t.Fatal(ExpectedActual(reflect.String, voMessageBody.Kind()))
 	}
 	return voMessageBody.String()
+}
+
+// CheckSetArgs calls SetArgs on the given Model and tests that its return values are as expected.
+//
+// Calls fatal on failure.
+func CheckSetArgs(t *testing.T,
+	setArgsFunc func(parentFS *pflag.FlagSet, tokens []string, width int, height int) (invalid string, onStart tea.Cmd, err error),
+	flagset *pflag.FlagSet, tokens []string, width, height int,
+	wantInvalid bool, wantOnStart tea.Cmd, wantErr bool) {
+	t.Helper()
+	invalid, onStart, err := setArgsFunc(flagset, tokens, width, height)
+
+	if (invalid != "") != wantInvalid || !reflect.DeepEqual(onStart, wantOnStart) || (err != nil) != wantErr {
+		t.Fatal("bad SetArgs results."+
+			"\nWantInvalid? ", wantInvalid, " | Invalid: ", invalid,
+			"\nonStart:", ExpectedActual(wantOnStart, onStart),
+			"\nWantErr?", wantErr, " | err:", err)
+	}
+}
+
+// LinesTrimSpace calls strings.TrimSpace on each line of the given string, allowing multiline strings to be compared white-space-agnostic.
+func LinesTrimSpace(v string) string {
+	var sb strings.Builder
+	for line := range strings.SplitSeq(v, "\n") {
+		sb.WriteString(strings.TrimSpace(line) + "\n")
+	}
+
+	return sb.String()
+}
+
+// HotkeyBytes attempts to transform a key.Binding into bytes suitable for passing into, say, a pipe mocking stdin.
+//
+// This is a best-effort function based on mappings we had to rip out of BubbleTea and some local constants.
+func HotkeyBytes(t *testing.T, hotkey key.Binding) []byte {
+	keys := hotkey.Keys()
+	if len(keys) == 0 {
+		t.Log("hotkey has no keys!")
+		return nil
+	}
+
+	st := struct {
+		Type tea.KeyType
+		Alt  bool
+	}{}
+
+	// check for and trim off alt prefix
+	k, altFound := strings.CutPrefix(keys[0], "alt+")
+	if altFound {
+		st.Alt = true
+	}
+
+	var found bool
+	st.Type, found = StringToKT[strings.ToLower(k)]
+	if !found {
+		t.Logf("failed to map key string to key type. String: %s", k)
+		return nil
+	}
+
+	seq, found := KTToSequence[st]
+	if !found {
+		t.Logf("failed to map key type to sequence. KeyType: %v", st)
+		return nil
+	}
+
+	return []byte(seq)
+
+}
+
+// SendHotkey converts a key.Binding into a tea.KeyMsg.
+//
+// Sends the first key in a binding, ignoring any others.
+//
+// ! Aimed at sending the bindings defined in hotkeys; this is a best-effort helper function.
+func SendHotkey(b key.Binding) tea.KeyMsg {
+	keys := b.Keys()
+	if len(keys) == 0 {
+		return tea.KeyMsg{}
+	}
+	msg := tea.KeyMsg{}
+
+	// check for and trim off alt prefix
+	k, altFound := strings.CutPrefix(keys[0], "alt+")
+	if altFound {
+		msg.Alt = true
+	}
+
+	// attempt a direct lookup
+	if t, found := StringToKT[strings.ToLower(k)]; found {
+		msg.Type = t
+		return msg
+	}
+
+	// if we didn't find it via direct, just assume it is arbitrary runes
+	msg.Type = tea.KeyRunes
+	msg.Runes = []rune(k)
+
+	return msg
+}
+
+var rgxID = regexp.MustCompile(`\(ID:(.*)\)`)
+
+// FindID attempts to fish out the ID of a newly created asset by hunting for the "(ID: <asset ID>)" substring.
+// Returns the first match ("<asset ID>") or the empty string.
+func FindID(stdout string) string {
+	matches := rgxID.FindStringSubmatch(stdout)
+	if len(matches) > 1 { // 0: the full regex match, 1: the capture group
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
+}
+
+// common control runes for sending into a Model during a test
+const (
+	SIGINT rune = '\003'
+	Enter  rune = '\r'
+	Delete rune = '\u007F'
+)
+
+// KTToSequence is a modification and inversion of the internal mapping used by BubbleTea to convert KeyTypes into actual, terminal-readable escape sequences.
+// Like StringToKT, we had to rip this one out of BubbleTea because they don't like ot export their mappings.
+// Base mapping credit: github.com/charmbracelet/bubbletea@v1.3.5/key.go
+var KTToSequence = map[struct {
+	Type tea.KeyType
+	Alt  bool
+}]string{
+	// Our control sequences
+	{Type: tea.KeyCtrlC}:  string(SIGINT),
+	{Type: tea.KeyEnter}:  string(Enter),
+	{Type: tea.KeyDelete}: string(Delete),
+
+	// Arrow keys
+	{Type: tea.KeyUp}:    "\x1b[A",
+	{Type: tea.KeyDown}:  "\x1b[B",
+	{Type: tea.KeyRight}: "\x1b[C",
+	{Type: tea.KeyLeft}:  "\x1b[D",
+
+	{Type: tea.KeyShiftUp}:    "\x1b[1;2A",
+	{Type: tea.KeyShiftDown}:  "\x1b[1;2B",
+	{Type: tea.KeyShiftRight}: "\x1b[1;2C",
+	{Type: tea.KeyShiftLeft}:  "\x1b[1;2D",
+
+	{Type: tea.KeyUp, Alt: true}:    "\x1b[1;3A",
+	{Type: tea.KeyDown, Alt: true}:  "\x1b[1;3B",
+	{Type: tea.KeyRight, Alt: true}: "\x1b[1;3C",
+	{Type: tea.KeyLeft, Alt: true}:  "\x1b[1;3D",
+
+	{Type: tea.KeyShiftUp, Alt: true}:    "\x1b[1;4A",
+	{Type: tea.KeyShiftDown, Alt: true}:  "\x1b[1;4B",
+	{Type: tea.KeyShiftRight, Alt: true}: "\x1b[1;4C",
+	{Type: tea.KeyShiftLeft, Alt: true}:  "\x1b[1;4D",
+
+	{Type: tea.KeyCtrlUp}:    "\x1b[1;5A",
+	{Type: tea.KeyCtrlDown}:  "\x1b[1;5B",
+	{Type: tea.KeyCtrlRight}: "\x1b[1;5C",
+	{Type: tea.KeyCtrlLeft}:  "\x1b[1;5D",
+
+	{Type: tea.KeyCtrlUp, Alt: true}:    "\x1b[Oa",
+	{Type: tea.KeyCtrlDown, Alt: true}:  "\x1b[Ob",
+	{Type: tea.KeyCtrlRight, Alt: true}: "\x1b[Oc",
+	{Type: tea.KeyCtrlLeft, Alt: true}:  "\x1b[Od",
+
+	{Type: tea.KeyCtrlShiftUp}:    "\x1b[1;6A",
+	{Type: tea.KeyCtrlShiftDown}:  "\x1b[1;6B",
+	{Type: tea.KeyCtrlShiftRight}: "\x1b[1;6C",
+	{Type: tea.KeyCtrlShiftLeft}:  "\x1b[1;6D",
+
+	{Type: tea.KeyShiftTab}: "\x1b[Z",
+
+	{Type: tea.KeyInsert}:            "\x1b[2~",
+	{Type: tea.KeyInsert, Alt: true}: "\x1b[3;2~",
+
+	{Type: tea.KeyDelete, Alt: true}: "\x1b[3;3~",
+
+	{Type: tea.KeyPgUp}:                "\x1b[5~",
+	{Type: tea.KeyPgUp, Alt: true}:     "\x1b[5;3~",
+	{Type: tea.KeyCtrlPgUp}:            "\x1b[5;5~",
+	{Type: tea.KeyCtrlPgUp, Alt: true}: "\x1b[5;7~",
+
+	{Type: tea.KeyPgDown}:                "\x1b[6~",
+	{Type: tea.KeyPgDown, Alt: true}:     "\x1b[6;3~",
+	{Type: tea.KeyCtrlPgDown}:            "\x1b[6;5~",
+	{Type: tea.KeyCtrlPgDown, Alt: true}: "\x1b[6;7~",
+
+	{Type: tea.KeyHome}:                     "\x1b[1~",
+	{Type: tea.KeyHome, Alt: true}:          "\x1b[1;3H",
+	{Type: tea.KeyCtrlHome}:                 "\x1b[1;5H",
+	{Type: tea.KeyCtrlHome, Alt: true}:      "\x1b[1;7H",
+	{Type: tea.KeyShiftHome}:                "\x1b[1;2H",
+	{Type: tea.KeyShiftHome, Alt: true}:     "\x1b[1;4H",
+	{Type: tea.KeyCtrlShiftHome}:            "\x1b[1;6H",
+	{Type: tea.KeyCtrlShiftHome, Alt: true}: "\x1b[1;8H",
+
+	{Type: tea.KeyEnd}:                     "\x1b[4~",
+	{Type: tea.KeyEnd, Alt: true}:          "\x1b[1;3F",
+	{Type: tea.KeyCtrlEnd}:                 "\x1b[1;5F",
+	{Type: tea.KeyCtrlEnd, Alt: true}:      "\x1b[1;7F",
+	{Type: tea.KeyShiftEnd}:                "\x1b[1;2F",
+	{Type: tea.KeyShiftEnd, Alt: true}:     "\x1b[1;4F",
+	{Type: tea.KeyCtrlShiftEnd}:            "\x1b[1;6F",
+	{Type: tea.KeyCtrlShiftEnd, Alt: true}: "\x1b[1;8F",
+
+	{Type: tea.KeyF1}:  "\x1bOP",
+	{Type: tea.KeyF2}:  "\x1bOQ",
+	{Type: tea.KeyF3}:  "\x1bOR",
+	{Type: tea.KeyF4}:  "\x1bOS",
+	{Type: tea.KeyF5}:  "\x1b[15~",
+	{Type: tea.KeyF6}:  "\x1b[17~",
+	{Type: tea.KeyF7}:  "\x1b[18~",
+	{Type: tea.KeyF8}:  "\x1b[19~",
+	{Type: tea.KeyF9}:  "\x1b[20~",
+	{Type: tea.KeyF10}: "\x1b[21~",
+	{Type: tea.KeyF11}: "\x1b[23~",
+	{Type: tea.KeyF12}: "\x1b[24~",
+
+	{Type: tea.KeyF1, Alt: true}:  "\x1b[1;3P",
+	{Type: tea.KeyF2, Alt: true}:  "\x1b[1;3Q",
+	{Type: tea.KeyF3, Alt: true}:  "\x1b[1;3R",
+	{Type: tea.KeyF4, Alt: true}:  "\x1b[1;3S",
+	{Type: tea.KeyF5, Alt: true}:  "\x1b[15;3~",
+	{Type: tea.KeyF6, Alt: true}:  "\x1b[17;3~",
+	{Type: tea.KeyF7, Alt: true}:  "\x1b[18;3~",
+	{Type: tea.KeyF8, Alt: true}:  "\x1b[19;3~",
+	{Type: tea.KeyF9, Alt: true}:  "\x1b[20;3~",
+	{Type: tea.KeyF10, Alt: true}: "\x1b[21;3~",
+	{Type: tea.KeyF11, Alt: true}: "\x1b[23;3~",
+	{Type: tea.KeyF12, Alt: true}: "\x1b[24;3~",
+
+	{Type: tea.KeyF13}: "\x1b[1;2P",
+	{Type: tea.KeyF14}: "\x1b[1;2Q",
+	{Type: tea.KeyF15}: "\x1b[1;2R",
+	{Type: tea.KeyF16}: "\x1b[1;2S",
+	{Type: tea.KeyF17}: "\x1b[15;2~",
+	{Type: tea.KeyF18}: "\x1b[17;2~",
+	{Type: tea.KeyF19}: "\x1b[18;2~",
+	{Type: tea.KeyF20}: "\x1b[19;2~",
+
+	{Type: tea.KeyF13, Alt: true}: "\x1b[25;3~",
+	{Type: tea.KeyF14, Alt: true}: "\x1b[26;3~",
+	{Type: tea.KeyF15, Alt: true}: "\x1b[28;3~",
+	{Type: tea.KeyF16, Alt: true}: "\x1b[29;3~",
+}
+
+// StringToKT is the internal mapping used by BubbleTea to convert key.Bindings (by calling their .Keys() method) to KeyTypes.
+// Credit: github.com/charmbracelet/bubbletea@v1.3.5/key.go
+var StringToKT = map[string]tea.KeyType{
+	// Control keys.
+	"ctrl+@":    tea.KeyCtrlAt,
+	"ctrl+a":    tea.KeyCtrlA,
+	"ctrl+b":    tea.KeyCtrlB,
+	"ctrl+c":    tea.KeyCtrlC,
+	"ctrl+d":    tea.KeyCtrlD,
+	"ctrl+e":    tea.KeyCtrlE,
+	"ctrl+f":    tea.KeyCtrlF,
+	"ctrl+g":    tea.KeyCtrlG,
+	"ctrl+h":    tea.KeyCtrlH,
+	"tab":       tea.KeyTab,
+	"ctrl+j":    tea.KeyCtrlJ,
+	"ctrl+k":    tea.KeyCtrlK,
+	"ctrl+l":    tea.KeyCtrlL,
+	"enter":     tea.KeyEnter,
+	"ctrl+n":    tea.KeyCtrlN,
+	"ctrl+o":    tea.KeyCtrlO,
+	"ctrl+p":    tea.KeyCtrlP,
+	"ctrl+q":    tea.KeyCtrlQ,
+	"ctrl+r":    tea.KeyCtrlR,
+	"ctrl+s":    tea.KeyCtrlS,
+	"ctrl+t":    tea.KeyCtrlT,
+	"ctrl+u":    tea.KeyCtrlU,
+	"ctrl+v":    tea.KeyCtrlV,
+	"ctrl+w":    tea.KeyCtrlW,
+	"ctrl+x":    tea.KeyCtrlX,
+	"ctrl+y":    tea.KeyCtrlY,
+	"ctrl+z":    tea.KeyCtrlZ,
+	"esc":       tea.KeyEsc,
+	"ctrl+\\":   tea.KeyCtrlBackslash,
+	"ctrl+]":    tea.KeyCtrlCloseBracket,
+	"ctrl+^":    tea.KeyCtrlCaret,
+	"ctrl+_":    tea.KeyCtrlUnderscore,
+	"backspace": tea.KeyBackspace,
+
+	// Other keys.
+	"runes":            tea.KeyRunes,
+	"up":               tea.KeyUp,
+	"down":             tea.KeyDown,
+	"right":            tea.KeyRight,
+	" ":                tea.KeySpace,
+	"left":             tea.KeyLeft,
+	"shift+tab":        tea.KeyShiftTab,
+	"home":             tea.KeyHome,
+	"end":              tea.KeyEnd,
+	"ctrl+home":        tea.KeyCtrlHome,
+	"ctrl+end":         tea.KeyCtrlEnd,
+	"shift+home":       tea.KeyShiftHome,
+	"shift+end":        tea.KeyShiftEnd,
+	"ctrl+shift+home":  tea.KeyCtrlShiftHome,
+	"ctrl+shift+end":   tea.KeyCtrlShiftEnd,
+	"pgup":             tea.KeyPgUp,
+	"pgdown":           tea.KeyPgDown,
+	"ctrl+pgup":        tea.KeyCtrlPgUp,
+	"ctrl+pgdown":      tea.KeyCtrlPgDown,
+	"delete":           tea.KeyDelete,
+	"insert":           tea.KeyInsert,
+	"ctrl+up":          tea.KeyCtrlUp,
+	"ctrl+down":        tea.KeyCtrlDown,
+	"ctrl+right":       tea.KeyCtrlRight,
+	"ctrl+left":        tea.KeyCtrlLeft,
+	"shift+up":         tea.KeyShiftUp,
+	"shift+down":       tea.KeyShiftDown,
+	"shift+right":      tea.KeyShiftRight,
+	"shift+left":       tea.KeyShiftLeft,
+	"ctrl+shift+up":    tea.KeyCtrlShiftUp,
+	"ctrl+shift+down":  tea.KeyCtrlShiftDown,
+	"ctrl+shift+left":  tea.KeyCtrlShiftLeft,
+	"ctrl+shift+right": tea.KeyCtrlShiftRight,
+	"f1":               tea.KeyF1,
+	"f2":               tea.KeyF2,
+	"f3":               tea.KeyF3,
+	"f4":               tea.KeyF4,
+	"f5":               tea.KeyF5,
+	"f6":               tea.KeyF6,
+	"f7":               tea.KeyF7,
+	"f8":               tea.KeyF8,
+	"f9":               tea.KeyF9,
+	"f10":              tea.KeyF10,
+	"f11":              tea.KeyF11,
+	"f12":              tea.KeyF12,
+	"f13":              tea.KeyF13,
+	"f14":              tea.KeyF14,
+	"f15":              tea.KeyF15,
+	"f16":              tea.KeyF16,
+	"f17":              tea.KeyF17,
+	"f18":              tea.KeyF18,
+	"f19":              tea.KeyF19,
+	"f20":              tea.KeyF20,
+}
+
+// MetaArgs assists tests in calling tree.Execute by generating the meta arguments common to most test Execute calls.
+func MetaArgs(t *testing.T, allowInteractive bool, opts ...func(t *testing.T) []string) (metaArgs []string) {
+	meta := []string{}
+	if !allowInteractive {
+		meta = append(meta, "--"+ft.NoInteractive.Name())
+	}
+	for _, opt := range opts {
+		meta = append(meta, opt(t)...)
+	}
+	t.Log("meta args: ", meta)
+	return meta
+}
+
+// WithUsernamePassword includes -u and the password via a passfile.
+func WithUsernamePassword(u, p string) func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		pth := path.Join(t.TempDir(), "pass-"+randomdata.Alphanumeric(10)+".txt")
+		if err := os.WriteFile(pth, []byte(p), 0755); err != nil {
+			t.Fatalf("failed to create passfile for login: %v", err)
+		}
+		return []string{"-u", u, "--passfile=" + pth}
+	}
+}
+
+// WithServer includes --server=host:port in the meta args.
+//
+// If secure, --insecure will not be appended.
+//
+// If override is empty, testsupport.Server will be used.
+func WithServer(secure bool, override string) func(t *testing.T) []string {
+	server := override
+	if server == "" {
+		server = Server()
+	}
+	var sec string
+	if !secure {
+		sec = "--insecure"
+	}
+	return func(t *testing.T) []string {
+		a := []string{"--server=" + server}
+		if sec != "" {
+			a = append(a, sec)
+		}
+		return a
+	}
+}
+
+// WithDebug sets the logger to DEBUG.
+// If logpath is set, it will be used instead of the default.
+func WithDebug(logpath string) func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		if logpath != "" {
+			return []string{"--loglevel", "DEBUG", "--log", logpath}
+		}
+		return []string{"--loglevel", "DEBUG"}
+	}
+}
+
+// WithDefaults sets WithUsernamePassword as the default admin credentials and WithServer as insecure relying on testsupport.Server()
+func WithDefaults() func(t *testing.T) []string {
+	return func(t *testing.T) []string {
+		return slices.Concat(WithDebug("")(t), WithUsernamePassword("admin", "changeme")(t), WithServer(false, "")(t))
+	}
+}
+
+// GenerateKDTree generates a command tree of k width and d depth.
+// Every node is a nav, every leaf is an action that does nothing.
+func GenerateKDTree(khildren uint, depth uint, genRequirements func() annotations.Requirements) *cobra.Command {
+	if depth > 0 {
+		n := fmt.Sprintf("d%d_%s", depth, randomdata.Alphanumeric(4))
+		self := treeutils.GenerateNav(n, n, n, nil, nil, treeutils.NodeOptions{Requirements: genRequirements()})
+
+		for range khildren {
+			self.AddCommand(GenerateKDTree(khildren, depth-1, genRequirements))
+		}
+
+		return self
+	}
+
+	// we are a leaf
+	return treeutils.GenerateAction(
+		randomdata.SillyName(), "short", "long",
+		func(c *cobra.Command, s []string) error { return nil },
+		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{Requirements: genRequirements()}},
+	)
 }
