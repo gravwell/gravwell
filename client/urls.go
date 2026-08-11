@@ -160,7 +160,7 @@ const (
 	EXTRACTORS_ID_URL                = `/api/autoextractors/%s`
 	EXTRACTORS_SYNC_URL              = `/api/autoextractors/sync`
 	EXTRACTORS_ENGINES_URL           = `/api/autoextractors/engines`
-	EXPLORE_GENERATE_URL             = `/api/explore/generate`
+	EXPLORE_GENERATE_URL             = `/api/autoextractors/generate`
 	TEMPLATES_URL                    = "/api/templates"
 	TEMPLATES_ID_URL                 = "/api/templates/%s"
 	TEMPLATES_ID_DETAILS_URL         = "/api/templates/%s/details"

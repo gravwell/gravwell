@@ -10,16 +10,12 @@ package client
 
 import "github.com/gravwell/gravwell/v4/client/types"
 
-// ExploreGenerate takes a tag name and an array of one or more SearchEntry objects as arguments.
-// It has the webserver attempt various data exploration extractions and returns a map of the results.
-// The map keys are extraction modules, e.g. "json" or "winlog". The map values are arrays of
-// GenerateAXResponse structures, each representing one possible extraction of the data, including
-// an AX definition which can be installed if the user deems the extraction appropriate.
-func (c *Client) ExploreGenerate(tag string, ents []types.SearchEntry) (mp map[string][]types.GenerateAXResponse, err error) {
-	req := types.GenerateAXRequest{
-		Tag:     tag,
-		Entries: ents,
-	}
-	err = c.postStaticURL(exploreGenerateUrl(), req, &mp)
+// ExploreGenerate asks the webserver which autoextractors it could install for a tag.
+// The webserver samples the tag itself and tries every extraction module against what it
+// finds, so the caller supplies nothing but the tag name. Each result carries a candidate
+// AX definition, a confidence score, and the sample rendered through that definition.
+// Results come back sorted by confidence, highest first.
+func (c *Client) ExploreGenerate(tag string) (pa []types.PotentialAutoExtractor, err error) {
+	err = c.getStaticURL(exploreGenerateUrl(), &pa, ezParam("tag", tag))
 	return
 }
