@@ -21,14 +21,14 @@ type SavedQuery struct {
 }
 
 type SavedQueryTimeframe struct {
-	Duration  string    `json:"durationString"`
-	End       time.Time `json:"end"`
-	Start     time.Time `json:"start"`
-	Timeframe string    `json:"timeframe"`
-	Timezone  string    `json:"timezone"`
+	Duration  string
+	End       time.Time
+	Start     time.Time
+	Timeframe string
+	Timezone  string
 }
 
 type SavedQueryListResponse struct {
 	BaseListResponse
-	Results []SavedQuery `json:"results"`
+	Results []SavedQuery
 }

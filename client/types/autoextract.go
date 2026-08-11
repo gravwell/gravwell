@@ -183,7 +183,7 @@ func (dc AX) Equal(v AX) bool {
 // autoextractors.
 type AXListResponse struct {
 	BaseListResponse
-	Results []AX `json:"results"`
+	Results []AX
 }
 
 func GenLine(wtr io.Writer, name, line string) (err error) {
