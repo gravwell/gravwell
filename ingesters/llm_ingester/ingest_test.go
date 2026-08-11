@@ -116,6 +116,44 @@ func TestEmitRequestEventsUserOnly(t *testing.T) {
 	}
 }
 
+func TestEmitRequestEventsUserOnlyToolResults(t *testing.T) {
+	// An agentic turn: a tool result from a prior turn, an assistant turn, then
+	// the current turn's tool result.
+	evs := []protocol.Event{
+		{Type: protocol.EventUserMessage, Role: "user", Content: []byte("u1")},
+		{Type: protocol.EventToolResult, Role: "tool", Content: []byte("old"), ToolCallID: "c0"},
+		{Type: protocol.EventAssistantMessage, Role: "assistant", Content: []byte("a1")},
+		{Type: protocol.EventToolResult, Role: "tool", Content: []byte("new"), ToolCallID: "c1"},
+	}
+
+	// tool logging on: latest user message + only the current turn's tool result
+	ec, c := newCapturingCtx(logModeUserOnly, true, true)
+	emitRequestEvents(ec, evs)
+	types := c.eventTypes(t)
+	if countType(types, protocol.EventUserMessage) != 1 {
+		t.Errorf("user-only should emit the latest user message, got %v", types)
+	}
+	if got := countType(types, protocol.EventToolResult); got != 1 {
+		t.Errorf("expected 1 tool_result from the current turn, got %d (%v)", got, types)
+	}
+	if countType(types, protocol.EventAssistantMessage) != 0 {
+		t.Errorf("user-only must not emit assistant turns, got %v", types)
+	}
+	for _, e := range c.ents {
+		if string(e.Data) == "old" {
+			t.Errorf("user-only emitted a tool_result from a prior turn")
+		}
+	}
+
+	// tool logging off: just the user message
+	ec2, c2 := newCapturingCtx(logModeUserOnly, false, true)
+	emitRequestEvents(ec2, evs)
+	types2 := c2.eventTypes(t)
+	if len(types2) != 1 || types2[0] != protocol.EventUserMessage {
+		t.Errorf("user-only with tool logging off should emit just the user message, got %v", types2)
+	}
+}
+
 func TestEmitRequestEventsFullConversation(t *testing.T) {
 	ec, c := newCapturingCtx(logModeFullConversation, true, true)
 	emitRequestEvents(ec, sampleConversation())
@@ -208,6 +246,37 @@ func TestEmitResponseEventsToggles(t *testing.T) {
 	}
 	if countType(types2, protocol.EventAssistantMessage) != 1 {
 		t.Errorf("assistant message should still be emitted, got %v", types2)
+	}
+}
+
+// gravwell/issues#2679: Log-Mode=user was still ingesting assistant replies
+// because emitResponseEvents ignored the log mode entirely.
+func TestEmitResponseEventsUserMode(t *testing.T) {
+	resp := []protocol.Event{
+		{Type: protocol.EventAssistantMessage, Role: "assistant", Content: []byte("reply")},
+		{Type: protocol.EventToolCall, Role: "assistant", ToolName: "f", ToolCallID: "c1"},
+		{Type: protocol.EventUsage, Usage: &protocol.TokenUsage{TotalTokens: 5}},
+	}
+
+	// tool calls and usage still honor their own toggles
+	ec, c := newCapturingCtx(logModeUserOnly, true, true)
+	emitResponseEvents(ec, resp)
+	types := c.eventTypes(t)
+	if countType(types, protocol.EventAssistantMessage) != 0 {
+		t.Errorf("user mode must not emit assistant messages, got %v", types)
+	}
+	if countType(types, protocol.EventToolCall) != 1 {
+		t.Errorf("user mode should still emit tool calls when enabled, got %v", types)
+	}
+	if countType(types, protocol.EventUsage) != 1 {
+		t.Errorf("user mode should still emit usage when enabled, got %v", types)
+	}
+
+	// with both toggles off, user mode emits nothing from the response
+	ec2, c2 := newCapturingCtx(logModeUserOnly, false, false)
+	emitResponseEvents(ec2, resp)
+	if types2 := c2.eventTypes(t); len(types2) != 0 {
+		t.Errorf("user mode with all toggles off should emit nothing, got %v", types2)
 	}
 }
 
