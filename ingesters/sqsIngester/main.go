@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v3/debug"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -28,7 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/sqs_common"
 
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
 const (
@@ -44,8 +44,15 @@ var (
 	lg      *log.Logger
 )
 
+type sqsClient interface {
+	GetMessages(ctx context.Context) ([]types.Message, error)
+	DeleteMessages(ctx context.Context, m []types.Message) error
+}
+
 type handlerConfig struct {
-	SQS              *sqs_common.SQS
+	SQS  sqsClient
+	Name string
+
 	tag              entry.EntryTag
 	ignoreTimestamps bool
 	setLocalTime     bool
@@ -84,7 +91,11 @@ func main() {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
 		return
 	}
-	defer igst.Close()
+	defer func() {
+		if err := igst.Close(); err != nil {
+			_ = ib.Logger.Error("failed to close muxer", log.KVErr(err))
+		}
+	}()
 	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
@@ -118,6 +129,7 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
+			Name:             k,
 			tag:              tag,
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
@@ -152,7 +164,7 @@ func main() {
 		}
 
 		wg.Add(1)
-		go queueRunner(hcfg)
+		go queueRunner(ctx, hcfg)
 	}
 
 	debugout("Running\n")
@@ -179,23 +191,26 @@ func main() {
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }
 
-func queueRunner(hcfg *handlerConfig) {
+func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 	defer hcfg.wg.Done()
 
-	c := make(chan []*sqs.Message)
+	// buffered by 1 so the goroutine below can always deliver its single result and exit,
+	// even if this loop has already returned via the done case below.
+	c := make(chan []types.Message, 1)
 	for {
-		var out []*sqs.Message
+		var out []types.Message
 		go func() {
-			o, err := hcfg.SQS.GetMessages()
+			o, err := hcfg.SQS.GetMessages(ctx)
 			if err != nil {
-				lg.Error("sqs receive message error", log.KVErr(err))
+				lg.Error("sqs receive message error", log.KV("listener", hcfg.Name), log.KVErr(err))
 				c <- nil
+				return
 			}
 			c <- o
 		}()
@@ -203,7 +218,7 @@ func queueRunner(hcfg *handlerConfig) {
 		select {
 		case out = <-c:
 			if out == nil {
-				lg.Error("received empty SQS response")
+				lg.Error("received empty SQS response", log.KV("listener", hcfg.Name))
 				sleepContext(hcfg.ctx, ERROR_BACKOFF)
 				continue
 			}
@@ -215,23 +230,7 @@ func queueRunner(hcfg *handlerConfig) {
 		for _, v := range out {
 			msg := []byte(*v.Body)
 
-			var ts entry.Timestamp
-			if !hcfg.ignoreTimestamps {
-				// grab the timestamp from SQS
-				t, mok := v.Attributes["SentTimestamp"]
-				if !mok {
-					lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
-				} else {
-					ut, err := strconv.ParseInt(*t, 10, 64)
-					if err != nil {
-						lg.Error("failed parseint on unix time", log.KV("value", *t), log.KVErr(err))
-					} else {
-						ts = entry.UnixTime(ut/1000, 0)
-					}
-				}
-			} else {
-				ts = entry.Now()
-			}
+			ts := entry.FromStandard(sqs.ExtractTimestamp(v, hcfg.ignoreTimestamps))
 
 			ent := &entry.Entry{
 				SRC:  hcfg.src,
@@ -244,7 +243,7 @@ func queueRunner(hcfg *handlerConfig) {
 			if err != nil {
 				lg.Error("failed to ingest entry", log.KVErr(err))
 			} else {
-				err = hcfg.SQS.DeleteMessages([]*sqs.Message{v}, lg)
+				err = hcfg.SQS.DeleteMessages(ctx, []types.Message{v})
 				if err != nil {
 					lg.Error("failed to delete message", log.KVErr(err))
 				}

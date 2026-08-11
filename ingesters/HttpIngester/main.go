@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	dlog "log"
@@ -48,6 +49,7 @@ var (
 	maxBody int
 
 	exitCtx, exitFn = context.WithCancel(context.Background())
+	debugListener   = flag.String("debug", "", "listener to debug")
 )
 
 func main() {
@@ -69,6 +71,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
+
+	if !flag.Parsed() { // config should have handled this, but be sure
+		flag.Parse()
+	}
+
 	debugOn = ib.Verbose
 	lg = ib.Logger
 
@@ -111,15 +118,25 @@ func main() {
 		lg.Fatal("failed to load configuration", log.KVErr(err))
 	}
 	var httpLogger *dlog.Logger
-	if debugOn || cfg.LogLevel() == `INFO` {
+	if debugOn || cfg.LogLevel() == `INFO` || cfg.LogLevel() == `DEBUG` {
 		httpLogger = lg.StandardLogger()
 	} else {
 		httpLogger = dlog.New(io.Discard, ``, 0)
 	}
 
+	var chain http.Handler = hnd
+	if debugOn {
+		chain = newDebugLoggingMiddleware(hnd, DefaultDebugLogger, true)
+	}
+	// little wacky to check debugOn again, but we only want to add the
+	// tracking once, and it needs to be first.
+	if debugOn || cfg.HasDebugListener() || *debugListener != "" {
+		chain = newTrackingMiddleware(chain)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.Bind,
-		Handler:           hnd,
+		Handler:           chain,
 		ReadHeaderTimeout: httpServerReadHeaderTimeout,
 		IdleTimeout:       httpServerIdleConnTimeout,
 		ErrorLog:          httpLogger,
@@ -296,15 +313,19 @@ func (is *instrumentListener) Accept() (net.Conn, error) {
 }
 
 func includeStdListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (err error) {
-	for _, v := range cfg.Listener {
+	for k, v := range cfg.Listener {
+		var h handleFunc = handleSingle
+		if v.Multiline {
+			h = handleMulti
+		}
+		if *debugListener == k {
+			h = newDebugLoggingHandler(h, DefaultDebugLogger).Handle
+		}
 		hcfg := routeHandler{
-			handler:       handleSingle,
+			handler:       h,
 			paramAttacher: getAttacher(v.Attach_URL_Parameter),
 			debugPosts:    v.Debug_Posts,
 			bufferSize:    v.Buffer_Size,
-		}
-		if v.Multiline {
-			hcfg.handler = handleMulti
 		}
 		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
 			return fmt.Errorf("failed to negotiate tag %s %w", v.Tag_Name, err)
@@ -352,6 +373,9 @@ func includeStdListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 		if pth, ah, err := v.NewAuthHandler(lg); err != nil {
 			return fmt.Errorf("failed to get a new authentication handler %w", err)
 		} else if hnd != nil {
+			if *debugListener == k {
+				ah = newDebugLoggingAuther(ah, DefaultDebugLogger)
+			}
 			if pth != `` {
 				if err = hnd.addAuthHandler(http.MethodPost, pth, ah); err != nil {
 					return fmt.Errorf("failed to add auth handler url %q %w", pth, err)

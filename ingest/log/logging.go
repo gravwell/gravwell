@@ -169,15 +169,14 @@ func NewDiscardLogger() *Logger {
 }
 
 // Clone creates a new logger based on an existing one, but allows
-// overriding the hostname and appname values
-// embedded WriteClosers are NOT cloned as this will just create a huge race
-// condition were we mux writes in really dumb ways.  This should really only be used in ingesters
-// that are writing up to the host logger.
+// overriding the hostname and appname values. This should really only be used
+// in ingesters that are writing up to the host logger.
 func (l *Logger) Clone(hostname, appname string) (r *Logger, err error) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 	r = &Logger{
 		metadata: l.metadata,
+		wtrs:     make([]io.WriteCloser, len(l.wtrs)),
 		rls:      make([]Relay, len(l.rls)),
 		lrls:     make([]LevelRelay, len(l.lrls)),
 		mtx:      sync.Mutex{},
@@ -185,6 +184,7 @@ func (l *Logger) Clone(hostname, appname string) (r *Logger, err error) {
 		hot:      l.hot,
 		raw:      l.raw,
 	}
+	copy(r.wtrs, l.wtrs)
 	copy(r.rls, l.rls)
 	copy(r.lrls, l.lrls)
 	if hostname != `` {
@@ -537,9 +537,7 @@ func (l *Logger) writeOutput(lvl Level, ts time.Time, ln, msg string) (err error
 	l.mtx.Lock()
 	if err = l.ready(); err == nil {
 		for _, w := range l.wtrs {
-			if _, lerr := io.WriteString(w, ln); lerr != nil {
-				err = lerr
-			} else if _, lerr = io.WriteString(w, "\n"); lerr != nil {
+			if _, lerr := io.WriteString(w, ln+"\n"); lerr != nil {
 				err = lerr
 			}
 		}

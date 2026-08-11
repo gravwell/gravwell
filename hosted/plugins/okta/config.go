@@ -14,10 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 const (
+	defaultIngesterUUIDStr string = "55af6d4e-3d04-431b-b860-b15b921a46c5"
+
 	oktaTag              string        = `okta`              // this is backed by the kit, do not change
 	oktaUserTag          string        = `okta-users`        // this is expected by the kit, do not change
 	defaultEmptyLookback time.Duration = -7 * 24 * time.Hour // if we have no previous state we will go back 7 days
@@ -34,15 +36,17 @@ var (
 )
 
 type Config struct {
-	Ingester_UUID      string // set the UUID for the ingester
-	Request_Batch_Size int    // how many entries do we request per HTTP request
-	Request_Per_Minute int    // what is our basic request rate
-	Request_Burst      int    // leaky bucket burstability
-	Domain             string // account domain
+	hosted.BaseConfig
+	Request_Batch_Size int // how many entries do we request per HTTP request
+	Request_Per_Minute int // what is our basic request rate
+	Request_Burst      int // leaky bucket burstability
+	Domain             string
 	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
 }
 
 func (c *Config) Verify() (err error) {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Request_Batch_Size <= 0 {
 		c.Request_Batch_Size = defaultPageSize
 	} else if c.Request_Batch_Size > 3000 {
@@ -68,20 +72,9 @@ func (c *Config) Verify() (err error) {
 		return
 	}
 
-	// check the UUID
-	if c.Ingester_UUID == `` {
-		return errors.New("missing Ingester-UUID")
-	} else if _, err = uuid.Parse(c.Ingester_UUID); err != nil {
-		return fmt.Errorf("invalid Ingester-UUID %q %w", c.Ingester_UUID, err)
+	if err := c.BaseConfig.Verify(); err != nil {
+		return err
 	}
-	return // all good
-}
 
-func (c *Config) UUID() uuid.UUID {
-	if c.Ingester_UUID != `` {
-		if r, err := uuid.Parse(c.Ingester_UUID); err == nil {
-			return r
-		}
-	}
-	return uuid.Nil
+	return
 }

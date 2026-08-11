@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -28,8 +29,8 @@ func TestConfig_Verify(t *testing.T) {
 		{
 			name: "valid UUID and interval",
 			config: Config{
-				Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000",
-				Interval:      "100ms",
+				BaseConfig: hosted.BaseConfig{Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000"},
+				Interval:   "100ms",
 			},
 			wantErr: false,
 		},
@@ -51,6 +52,7 @@ func TestConfig_Verify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.config.Verify()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Config.Verify() error = %v, wantErr %v", err, tt.wantErr)
@@ -60,9 +62,13 @@ func TestConfig_Verify(t *testing.T) {
 }
 
 func TestConfig_Verify_GeneratesUUID(t *testing.T) {
+	t.Parallel()
 	cfg := Config{}
 	if err := cfg.Verify(); err != nil {
 		t.Fatalf("Config.Verify() unexpected error: %v", err)
+	}
+	if cfg.Ingester_UUID != defaultIngesterUUIDStr {
+		t.Errorf("Ingester_UUID = %q, want %q", cfg.Ingester_UUID, defaultIngesterUUIDStr)
 	}
 	if cfg.Ingester_UUID == "" {
 		t.Error("Config.Verify() did not generate UUID when empty")
@@ -75,7 +81,7 @@ func TestConfig_Verify_GeneratesUUID(t *testing.T) {
 func TestConfig_Verify_PreservesExistingUUID(t *testing.T) {
 	originalUUID := "550e8400-e29b-41d4-a716-446655440000"
 	cfg := Config{
-		Ingester_UUID: originalUUID,
+		BaseConfig: hosted.BaseConfig{Ingester_UUID: originalUUID},
 	}
 	if err := cfg.Verify(); err != nil {
 		t.Fatalf("Config.Verify() unexpected error: %v", err)
@@ -143,9 +149,9 @@ func TestConfig_interval(t *testing.T) {
 
 func TestConfig_UUID(t *testing.T) {
 	tests := []struct {
-		name          string
-		ingesterUUID  string
-		want          uuid.UUID
+		name         string
+		ingesterUUID string
+		want         uuid.UUID
 	}{
 		{
 			name:         "empty UUID",
@@ -172,7 +178,7 @@ func TestConfig_UUID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				Ingester_UUID: tt.ingesterUUID,
+				BaseConfig: hosted.BaseConfig{Ingester_UUID: tt.ingesterUUID},
 			}
 			got := cfg.UUID()
 			if got != tt.want {
@@ -180,4 +186,26 @@ func TestConfig_UUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTesterIngester_Handle(t *testing.T) {
+	t.Run("is silent", func(t *testing.T) {
+		tester := &TesterIngester{
+			Config: Config{
+				Silent: true,
+			},
+		}
+		rt := &hosted.NativeRuntime{} // wacky, but nothing should be called...
+
+		res, err := tester.Handle(t.Context(), rt)
+		if err != nil {
+			t.Fatalf("TesterIngester.Handle() unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatalf("TesterIngester.Handle() returned nil response")
+		}
+		if res.Delay != defaultInterval {
+			t.Fatalf("TesterIngester.Handle() returned wrong delay")
+		}
+	})
 }
