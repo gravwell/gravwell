@@ -61,21 +61,6 @@ type Element struct {
 	Filters     []string
 }
 
-// TODO  Move this type to backend
-// A GenerateAXResponse contains an autoextractor definition
-// and corresponding Element extractions as gathered from a single extraction module
-type GenerateAXResponse struct {
-	Extractor AXDefinition
-	// Confidence is a range from 0 to 10, with 10 meaning "we are very confident"
-	// and 0 meaning "we didn't extract anything of worth".
-	// Some modules, like xml, will return values lower than 10 even if they extracted
-	// lots of data, because other modules like winlog should take precedence if they
-	// succeed.
-	Confidence float64
-	Entries    []SearchEntry
-	Explore    []ExploreResult
-}
-
 // ExploreRequest is used to request that the webserver perform a complete cracking of
 // all entries in the given range, the webserver will return an array of ExploreResult
 type ExploreRequest struct {
