@@ -167,7 +167,7 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 	// get a local logger up that will always add some more info
 	ll := log.NewLoggerWithKV(h.lgr,
 		log.KV("HEC-Listener", hh.name),
-		log.KV("remoteaddress", ip.String()),
+		log.KV("src", ip.String()),
 		log.KV("url", r.URL.RequestURI()),
 	)
 
@@ -341,7 +341,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	// get a local logger up that will always add some more info
 	ll := log.NewLoggerWithKV(h.lgr,
 		log.KV("HEC-Listener", hh.name),
-		log.KV("remoteaddress", ip.String()),
+		log.KV("src", ip.String()),
 		log.KV("url", r.URL.RequestURI()),
 	)
 
@@ -377,7 +377,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		}
 		if err != nil {
 			if err != io.EOF {
-				ll.Error("failed to read complete post", log.KV("address", ip), log.KVErr(err))
+				ll.Error("failed to read complete post", log.KVErr(err))
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -388,7 +388,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 			continue //skip empty newlines
 		}
 		if err = h.handleEntry(cfg, ln, ip, defaultTag); err != nil {
-			ll.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+			ll.Error("failed to handle entry", log.KVErr(err))
 			hh.respInvalidDataFormat(w, count)
 			return
 		}

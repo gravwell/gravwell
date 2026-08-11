@@ -419,7 +419,7 @@ func (ms *messageSequence) finalize() (msr messageSequenceResult) {
 
 var (
 	//setup remote header extraction RX (see https://www.cisco.com/c/en/us/td/docs/security/ise/syslog/Cisco_ISE_Syslogs/m_IntrotoSyslogs.pdf page 4)
-	remoteHeaderRx          = regexp.MustCompile(`^(?P<ts>\S+\s\d+\s\d+\:\d+\:\d+)(\s[-+]?\d+:\d+)?\s(?P<host>\S+)\s(?P<cat>\S+)\s(?P<msgid>\d+)\s(?P<total>\d+)\s(?P<seq>\d+)\s(?P<body>.+)$`)
+	remoteHeaderRx          = regexp.MustCompile(`^(?P<ts>\S+\s{1,2}\d+\s\d+\:\d+\:\d+)(\s[-+]?\d+:\d+)?\s(?P<host>\S+)\s(?P<cat>\S+)\s(?P<msgid>\d+)\s(?P<total>\d+)\s(?P<seq>\d+)\s(?P<body>.+)$`)
 	remoteHeaderRxParts int = 9
 )
 

@@ -323,6 +323,63 @@ func TestProxyStreaming(t *testing.T) {
 	}
 }
 
+// gravwell/issues#2679: with Log-Mode=user the reporter still saw
+// response.assistant_message entries under tag=llm. Exercise the full proxy
+// path — buffered and streaming — the way the repro does.
+func TestProxyUserModeSuppressesAssistant(t *testing.T) {
+	userMode := func(l *listener) { l.Log_Mode = logModeUserOnly }
+
+	t.Run("buffered", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, chatRespBody)
+		}))
+		defer srv.Close()
+
+		ph, c := newTestHandler(t, srv.URL, userMode)
+		if w := doChat(t, ph, chatReqBody, "Bearer sk-test"); w.Code != http.StatusOK {
+			t.Fatalf("status = %d", w.Code)
+		}
+		types := c.eventTypes(t)
+		if countType(types, protocol.EventAssistantMessage) != 0 {
+			t.Errorf("Log-Mode=user ingested an assistant message, got %v", types)
+		}
+		if countType(types, protocol.EventUserMessage) != 1 {
+			t.Errorf("expected the user prompt to be ingested, got %v", types)
+		}
+		if countType(types, protocol.EventUsage) != 1 {
+			t.Errorf("expected the usage record (Log-Usage=true), got %v", types)
+		}
+	})
+
+	t.Run("streaming", func(t *testing.T) {
+		sse := "data: {\"id\":\"s1\",\"model\":\"gpt-4o\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}\n\n" +
+			"data: [DONE]\n\n"
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, sse)
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		}))
+		defer srv.Close()
+
+		ph, c := newTestHandler(t, srv.URL, userMode)
+		w := doChat(t, ph, chatReqBody, "Bearer sk-test")
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d", w.Code)
+		}
+		// The client still gets the full stream; only ingest is filtered.
+		if w.Body.String() != sse {
+			t.Errorf("client stream body = %q, want raw SSE", w.Body.String())
+		}
+		if types := c.eventTypes(t); countType(types, protocol.EventAssistantMessage) != 0 {
+			t.Errorf("Log-Mode=user ingested a reassembled assistant message, got %v", types)
+		}
+	})
+}
+
 func TestProxyUpstreamError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
