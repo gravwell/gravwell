@@ -44,12 +44,31 @@ type emitCtx struct {
 func emitRequestEvents(ec *emitCtx, evs []protocol.Event) {
 	switch ec.logMode {
 	case logModeUserOnly:
-		// Only the most recent user message.
+		// The most recent user message, plus any tool results from the current
+		// turn when tool logging is on (so the response.tool_call entries have
+		// matching results). Assistant turns are never logged in this mode.
+		latest := -1
 		for i := len(evs) - 1; i >= 0; i-- {
 			if evs[i].Type == protocol.EventUserMessage {
-				writeEvent(ec, evs[i])
-				return
+				latest = i
+				break
 			}
+		}
+		tail := tailStart(evs)
+		for i, e := range evs {
+			switch e.Type {
+			case protocol.EventUserMessage:
+				if i != latest {
+					continue
+				}
+			case protocol.EventToolResult:
+				if !ec.logToolCalls || i < tail {
+					continue
+				}
+			default:
+				continue
+			}
+			writeEvent(ec, e)
 		}
 	case logModeFullConversation:
 		// Every message in the request body.
@@ -72,17 +91,10 @@ func emitRequestEvents(ec *emitCtx, evs []protocol.Event) {
 				}
 			}
 		}
-		// Walk from the end, collect user/tool_result turns until we hit an
-		// assistant turn (everything before that was already logged in a
-		// previous request).
-		var tail []protocol.Event
-		for i := len(evs) - 1; i >= 0; i-- {
-			if evs[i].Type == protocol.EventAssistantMessage {
-				break
-			}
-			tail = append([]protocol.Event{evs[i]}, tail...)
-		}
-		for _, e := range tail {
+		// Everything after the last assistant turn is new (the latest user
+		// message plus any tool_result tail); everything before it was already
+		// logged in a previous request.
+		for _, e := range evs[tailStart(evs):] {
 			if e.Type == protocol.EventToolResult && !ec.logToolCalls {
 				continue
 			}
@@ -91,11 +103,27 @@ func emitRequestEvents(ec *emitCtx, evs []protocol.Event) {
 	}
 }
 
+// tailStart returns the index of the first event after the last assistant
+// message — the events that arrived with this request and were not already
+// logged as part of a previous one.
+func tailStart(evs []protocol.Event) int {
+	for i := len(evs) - 1; i >= 0; i-- {
+		if evs[i].Type == protocol.EventAssistantMessage {
+			return i + 1
+		}
+	}
+	return 0
+}
+
 // emitResponseEvents writes the response-side events (assistant message,
 // tool calls, usage) honoring listener flags.
 func emitResponseEvents(ec *emitCtx, evs []protocol.Event) {
 	for _, e := range evs {
 		switch e.Type {
+		case protocol.EventAssistantMessage:
+			if ec.logMode == logModeUserOnly {
+				continue // user mode logs prompts, not replies
+			}
 		case protocol.EventToolCall:
 			if !ec.logToolCalls {
 				continue
