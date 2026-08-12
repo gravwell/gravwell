@@ -170,7 +170,7 @@ func (c *Client) CleanupResources() error {
 }
 
 // UpdateResourceMetadata sets the specified resource's metadata.
-func (c *Client) UpdateResourceMetadata(id string, metadata types.Resource) (updated types.File, err error) {
+func (c *Client) UpdateResourceMetadata(id string, metadata types.Resource) (updated types.Resource, err error) {
 	err = c.methodStaticPushURL(http.MethodPut, resourcesIdUrl(id), metadata, &updated, nil, nil)
 	return updated, err
 }
