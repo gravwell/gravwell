@@ -12,8 +12,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
 type BuilderConfig interface {
@@ -106,6 +109,63 @@ func NewMimecastBuilder(config *mimecast.Config, kind, id, version string) *Mime
 	return &MimecastBuilder{
 		Builder[*mimecast.Config]{
 			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type JamfBuilder struct {
+	Builder[*jamf.Config]
+}
+
+func (jb *JamfBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(jamf.New(jb.config), syncFn), nil
+}
+
+func NewJamfBuilder(config *jamf.Config, kind, id, version string) *JamfBuilder {
+	return &JamfBuilder{
+		Builder[*jamf.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type WizBuilder struct {
+	Builder[*wiz.Config]
+}
+
+func (wb *WizBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(wiz.New(wb.config), syncFn), nil
+}
+
+func NewWizBuilder(config *wiz.Config, kind, id, version string) *WizBuilder {
+	return &WizBuilder{
+		Builder[*wiz.Config]{
+			config:  config,
+      		kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type MSGraphBuilder struct {
+	Builder[*msgraph.Config]
+}
+
+func (msgb *MSGraphBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
+	return msgraph.NewIngester(msgb.config), nil
+}
+
+func NewMSGraphBuilder(cfg *msgraph.Config, kind, id, version string) *MSGraphBuilder {
+	return &MSGraphBuilder{
+		Builder[*msgraph.Config]{
+			config:  cfg,
 			kind:    kind,
 			id:      id,
 			version: version,
