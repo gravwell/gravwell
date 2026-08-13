@@ -26,7 +26,7 @@ require (
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
-	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/miekg/dns v1.1.56 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
@@ -34,11 +34,11 @@ require (
 	github.com/shirou/gopsutil v2.20.9+incompatible // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
-	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/mod v0.39.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
