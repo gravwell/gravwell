@@ -346,9 +346,9 @@ func TestRenderSettings(t *testing.T) {
 // escape to the top of the enclosing document and blank every SearchInfo in it.
 func TestSearchInfoWithEmptyRendererSettings(t *testing.T) {
 	si := []SearchInfo{
-		{ID: "a"},
-		{ID: "b", RendererSettings: &RendererSettings{}},
-		{ID: "c"},
+		{CommonFields: CommonFields{ID: "a"}},
+		{CommonFields: CommonFields{ID: "b"}, RendererSettings: &RendererSettings{}},
+		{CommonFields: CommonFields{ID: "c"}},
 	}
 	sb, err := json.Marshal(si)
 	if err != nil {
@@ -482,7 +482,7 @@ func TestRenderSettingsErrors(t *testing.T) {
 // carried on the wire as a string and parsed back in UnmarshalJSON, so it is
 // the one field that can be silently dropped by the order of assignments there.
 func TestSearchInfoDurationRoundTrip(t *testing.T) {
-	in := SearchInfo{ID: "dur", ItemCount: 42, Duration: 90 * time.Second}
+	in := SearchInfo{CommonFields: CommonFields{ID: "dur"}, ItemCount: 42, Duration: 90 * time.Second}
 	b, err := json.Marshal(in)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -543,7 +543,7 @@ func TestDownloadSearchOmitsZeroTimeframe(t *testing.T) {
 func TestSearchInfoMarshal(t *testing.T) {
 	// Test without RenderSettings
 	siEmpty := SearchInfo{
-		ID: "test-id",
+		CommonFields: CommonFields{ID: "test-id"},
 	}
 	b, err := json.Marshal(siEmpty)
 	if err != nil {
@@ -559,7 +559,7 @@ func TestSearchInfoMarshal(t *testing.T) {
 
 	// Test with RenderSettings
 	siWithRenderSettings := SearchInfo{
-		ID: "test-id-with-rs",
+		CommonFields: CommonFields{ID: "test-id-with-rs"},
 		RendererSettings: &RendererSettings{
 			Chart: &RSChart{
 				Renderer: "chart",
