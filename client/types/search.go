@@ -12,11 +12,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -174,6 +175,9 @@ type LaunchResponse struct {
 	RenderModule string     `json:",omitempty"`
 	RenderCmd    string     `json:",omitempty"`
 	Info         SearchInfo `json:",omitempty"`
+
+	// Errors, warnings, etc.
+	Messages []Message
 }
 
 // StartSearchRequest represents a search that is sent to the search controller
@@ -263,27 +267,29 @@ type SearchInfo struct {
 	GID                   int32  `json:",omitempty"` //Group ID the search was assigned to, deprecated, use GIDs instead
 	GIDs                  []int32
 	Global                bool
-	UserQuery             string          //query provided by the user on search
-	EffectiveQuery        string          //the effective query that was actually used
-	StartRange            time.Time       //start time range
-	EndRange              time.Time       //end time range
-	Descending            bool            //the direction the search is progressing (Descending is the standard)
-	Started               time.Time       //time when the search was kicked off
-	LastUpdate            time.Time       //last timestamp we saw (tells us where indexers are working)
-	Duration              time.Duration   //Amount of time required to complete the search
-	StoreSize             int64           //size of the main storage file
-	IndexSize             int64           //size of an extra index file
-	ItemCount             int64           //How many items have been stored
-	TimeZoomDisabled      bool            //Renderer does not support zooming around data based on time
-	QueryTimeSpecified    bool            // True if the query contains start/end constraints
-	RenderDownloadFormats []string        `json:",omitempty"`
-	Metadata              json.RawMessage `json:",omitempty"` //additional metadata associated with a search
-	Name                  string          `json:",omitempty"`
+	UserQuery             string            //query provided by the user on search
+	EffectiveQuery        string            //the effective query that was actually used
+	StartRange            time.Time         //start time range
+	EndRange              time.Time         //end time range
+	Descending            bool              //the direction the search is progressing (Descending is the standard)
+	Started               time.Time         //time when the search was kicked off
+	LastUpdate            time.Time         //last timestamp we saw (tells us where indexers are working)
+	Duration              time.Duration     //Amount of time required to complete the search
+	StoreSize             int64             //size of the main storage file
+	IndexSize             int64             //size of an extra index file
+	ItemCount             int64             //How many items have been stored
+	TimeZoomDisabled      bool              //Renderer does not support zooming around data based on time
+	QueryTimeSpecified    bool              // True if the query contains start/end constraints
+	RenderDownloadFormats []string          `json:",omitempty"`
+	RendererSettings      *RendererSettings `json:",omitempty"`
+	Metadata              json.RawMessage   `json:",omitempty"` //additional metadata associated with a search
+	Name                  string            `json:",omitempty"`
 	CollapsingIndex       int
 	NoHistory             bool // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
 	Background            bool // set to true if this search has been marked as backgrounded.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
+	EVs                   []string   // EVs produced by the search
 	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
 	// Preview indicates that this search is a preview search
 	// this means that the query most likely did not cover the entire time range that was originally requested
@@ -293,6 +299,7 @@ type SearchInfo struct {
 	Error string `json:",omitempty"`
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
+	Stats      StatsInfo        `json:",omitempty"`
 }
 
 type SearchLaunchInfo struct {
@@ -312,12 +319,222 @@ type SearchLaunchInfo struct {
 	Expires time.Time `json:"expires,omitempty"`
 }
 
+// A RendererSettings has the information necessary for client to render searches using legacy renderer modules.
+// All variants of RendererSettings use the "Renderer" property as a discriminator.
+type RendererSettings struct {
+	Chart      *RSChart
+	P2P        *RSP2P
+	Number     *RSNumber
+	Heatmap    *RSHeatmap
+	Pointmap   *RSPointmap
+	StackGraph *RSStackGraph
+	WordCloud  *RSWordCloud
+	Tabular    *RSTabular
+	Fdg        *RSFdg
+}
+
+func (rs RendererSettings) MarshalJSON() ([]byte, error) {
+	val := reflect.ValueOf(rs)
+	var active any
+
+	// Using reflection to accommodate future renderers and have a catch all for more than one setting defined
+	for _, field := range val.Fields() {
+		if !field.IsNil() {
+			if active != nil {
+				return nil, fmt.Errorf("multiple render settings options specified in RendererSettings, only one can be active at a time")
+			}
+			active = field.Interface()
+		}
+	}
+	if active == nil {
+		// Empty RendererSettings
+		return []byte(`null`), nil
+	}
+	return json.Marshal(active)
+}
+
+func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
+	if string(data) == `null` {
+		return nil
+	}
+	*rs = RendererSettings{}
+
+	var temp struct {
+		Renderer string
+	}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	switch temp.Renderer {
+	case RenderNameChart:
+		var chart RSChart
+		if err := json.Unmarshal(data, &chart); err != nil {
+			return err
+		}
+		rs.Chart = &chart
+	case RenderNameP2P:
+		var p2p RSP2P
+		if err := json.Unmarshal(data, &p2p); err != nil {
+			return err
+		}
+		rs.P2P = &p2p
+	case RenderNameNumbercard, RenderNameGauge:
+		var number RSNumber
+		if err := json.Unmarshal(data, &number); err != nil {
+			return err
+		}
+		rs.Number = &number
+	case RenderNameHeatmap:
+		var heatmap RSHeatmap
+		if err := json.Unmarshal(data, &heatmap); err != nil {
+			return err
+		}
+		rs.Heatmap = &heatmap
+	case RenderNamePointmap:
+		var pointmap RSPointmap
+		if err := json.Unmarshal(data, &pointmap); err != nil {
+			return err
+		}
+		rs.Pointmap = &pointmap
+	case RenderNameStackGraph:
+		var stackgraph RSStackGraph
+		if err := json.Unmarshal(data, &stackgraph); err != nil {
+			return err
+		}
+		rs.StackGraph = &stackgraph
+	case RenderNameWordcloud:
+		var wordcloud RSWordCloud
+		if err := json.Unmarshal(data, &wordcloud); err != nil {
+			return err
+		}
+		rs.WordCloud = &wordcloud
+	case RenderNameTable, RenderNameHex, RenderNamePcap, RenderNameRaw, RenderNameText:
+		var tabular RSTabular
+		if err := json.Unmarshal(data, &tabular); err != nil {
+			return err
+		}
+		rs.Tabular = &tabular
+	case RenderNameFdg:
+		var fdg RSFdg
+		if err := json.Unmarshal(data, &fdg); err != nil {
+			return err
+		}
+		rs.Fdg = &fdg
+	default:
+		return fmt.Errorf("unknown renderer %s", temp.Renderer)
+	}
+	return nil
+}
+
+type RSChart struct {
+	// Value "chart"
+	Renderer string
+	Channels RSChartChannels
+}
+
+type RSChartChannels struct {
+	Category string
+	Nominal  string
+	Temporal string `json:",omitempty"`
+}
+
+type RSP2P struct {
+	// Value "point2point"
+	Renderer string
+	Channels RSP2PChannels
+}
+
+type RSP2PChannels struct {
+	From      string
+	To        string
+	Magnitude string
+	Tooltip   emptyStrings
+}
+
+type RSNumber struct {
+	// Value "numbercard" or "gauge"
+	Renderer string
+	Channels RSNumberChannels
+}
+
+type RSNumberChannels struct {
+	Label string
+	Value string
+	Min   string `json:",omitempty"`
+	Max   string `json:",omitempty"`
+}
+
+type RSHeatmap struct {
+	// Value "heatmap"
+	Renderer string
+	Channels RSHeatmapChannels
+}
+
+type RSHeatmapChannels struct {
+	Location  string
+	Magnitude string
+}
+
+type RSPointmap struct {
+	// Value "pointmap"
+	Renderer string
+	Channels RSPointmapChannels
+}
+
+type RSPointmapChannels struct {
+	Location string
+	Tooltip  emptyStrings
+}
+
+type RSStackGraph struct {
+	// Value "stackgraph"
+	Renderer string
+	Channels RSStackGraphChannels
+}
+
+type RSStackGraphChannels struct {
+	Category string
+	Nominal  string
+	Color    string `json:",omitempty"`
+}
+
+type RSWordCloud struct {
+	// Value "wordcloud"
+	Renderer string
+	Channels RSWordCloudChannels
+}
+
+type RSWordCloudChannels struct {
+	Name      string
+	Magnitude string
+}
+
+type RSTabular struct {
+	// Value "table", "hex", "pcap", "raw", "text"
+	Renderer string
+	Channels RSTabularChannels
+}
+
+type RSTabularChannels struct {
+	Columns emptyStrings
+}
+
+type RSFdg struct {
+	// Value "fdg"
+	Renderer string
+	Channels RSFdgChannels
+}
+
+type RSFdgChannels struct {
+	Weight string
+}
+
 type ImportInfo struct {
 	Imported  bool
 	Time      time.Time //timestamp of when the results were imported
 	BatchName string    //potential import batch name
 	BatchInfo string    //potential import batch notes
-
 }
 
 type StatsUpdate struct {
@@ -331,7 +548,7 @@ type SearchCtrlStatus struct {
 	GID             int32 // deprecated, use GIDs instead
 	GIDs            []int32
 	Global          bool
-	State           string
+	State           SearchState
 	AttachedClients int
 	StoredData      int64
 	UserQuery       string
@@ -341,8 +558,129 @@ type SearchCtrlStatus struct {
 	NoHistory       bool
 	Import          ImportInfo
 	LaunchInfo      SearchLaunchInfo
-	Error           string `json:",omitempty"`
+	Error           string          `json:",omitempty"`
+	Metadata        json.RawMessage `json:",omitempty"` //additional metadata associated with a search
 }
+
+type SearchDownloadRequest struct {
+	Format    string
+	Rows      []RowSelection `json:",omitempty"`
+	Timeframe *Timeframe     `json:",omitempty"`
+}
+
+type RowSelection struct {
+	Kind string `json:"kind"`
+	// Start and End must be populated if it is a range, but not Index
+	Start uint64 `json:"start,omitempty"`
+	End   uint64 `json:"end,omitempty"`
+	// Index must be selected if it is only a single row, but not Start or End
+	Index uint64 `json:"index,omitempty"`
+}
+
+// The aliasRowSelection is a type alias to [RowSelection] just to break the MarshalJSON / UnmarshalJSON
+// recursion doom loop.
+type aliasRowSelection RowSelection
+
+func (rs RowSelection) MarshalJSON() ([]byte, error) {
+	if err := rs.validate(); err != nil {
+		return nil, err
+	}
+	return json.Marshal(aliasRowSelection(rs))
+}
+
+func (rs *RowSelection) UnmarshalJSON(data []byte) error {
+	var v aliasRowSelection
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	if err := RowSelection(v).validate(); err != nil {
+		return err
+	}
+	*rs = RowSelection(v)
+	return nil
+}
+
+func (rs RowSelection) validate() (err error) {
+	switch rs.Kind {
+	case "range":
+		if rs.Index != 0 {
+			err = fmt.Errorf("row selection kind %q must not have index set", rs.Kind)
+		}
+	case "single":
+		if rs.Start != 0 || rs.End != 0 {
+			err = fmt.Errorf("row selection kind %q must not have start or end set", rs.Kind)
+		}
+	default:
+		err = fmt.Errorf("unknown row selection kind: %q", rs.Kind)
+	}
+	return
+}
+
+type RowRange struct {
+	Kind  string `json:"kind"`
+	Start uint64 `json:"start"`
+	End   uint64 `json:"end"`
+}
+
+type RowSingle struct {
+	Kind  string `json:"kind"`
+	Index uint64 `json:"index"`
+}
+
+type Timeframe struct {
+	End   time.Time `json:"end"`
+	Start time.Time `json:"start"`
+}
+
+func (tf *Timeframe) IsEmpty() bool {
+	if tf == nil {
+		return true
+	}
+
+	return tf.Start.IsZero() && tf.End.IsZero()
+}
+
+type SearchDownloadResponse struct {
+	DownloadResourceURL string `json:"downloadResourceURL"`
+	EntryCount          uint64 `json:"entryCount"`
+	Expiration          string `json:"expiration"`
+	SearchID            string `json:"searchId"`
+}
+
+type SearchState struct {
+	Attached     bool         `json:"attached"`
+	Backgrounded bool         `json:"backgrounded"`
+	Saved        bool         `json:"saved"`
+	Streaming    bool         `json:"streaming"`
+	Status       SearchStatus `json:"status"`
+	Progress     float64      `json:"progress"`
+}
+
+func (ss SearchState) String() (r string) {
+	r = string(ss.Status)
+	if ss.Streaming {
+		r = r + "/streaming"
+	}
+	if ss.Saved {
+		r = r + "/saved"
+	}
+	if ss.Backgrounded {
+		r = r + "/backgrounded"
+	}
+	if ss.Attached {
+		r = r + "/attached"
+	}
+	return
+}
+
+type SearchStatus string
+
+const (
+	SearchStatusError     SearchStatus = `error`
+	SearchStatusCompleted SearchStatus = `completed`
+	SearchStatusRunning   SearchStatus = `running`
+	SearchStatusPending   SearchStatus = `pending`
+)
 
 func (si SearchInfo) StorageSize() int64 {
 	return si.StoreSize + si.IndexSize
@@ -373,6 +711,17 @@ func CheckMacroName(name string) error {
 	return nil
 }
 
+func (l LaunchResponse) MarshalJSON() ([]byte, error) {
+	type alias LaunchResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(l),
+		Messages: emptyMessages(l.Messages),
+	})
+}
+
 func (si SearchInfo) MarshalJSON() ([]byte, error) {
 	type alias SearchInfo
 	return json.Marshal(struct {
@@ -394,6 +743,7 @@ func (si *SearchInfo) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
+	*si = SearchInfo(v.aalias)
 	if len(v.Duration) > 0 {
 		dur, err := time.ParseDuration(v.Duration)
 		if err != nil {
@@ -401,7 +751,6 @@ func (si *SearchInfo) UnmarshalJSON(data []byte) error {
 		}
 		si.Duration = dur
 	}
-	*si = SearchInfo(v.aalias)
 	return nil
 }
 

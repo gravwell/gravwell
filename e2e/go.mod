@@ -16,7 +16,8 @@ require (
 	google.golang.org/protobuf v1.36.12
 )
 
-replace github.com/gravwell/gravwell/v3 => ..
+// todo(2278) update to v4 post next-major beta
+// replace github.com/gravwell/gravwell/v4 => ..
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
