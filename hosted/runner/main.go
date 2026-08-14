@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/hosted/storage"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
@@ -34,6 +35,7 @@ const (
 )
 
 func main() {
+	go debug.HandleDebugSignals(ingesterName)
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 ingesterName,
