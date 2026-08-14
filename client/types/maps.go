@@ -38,7 +38,7 @@ type PointmapValue struct {
 
 type PointmapRequest struct {
 	BaseRequest
-	Fence Geofence `json:",omitempty"`
+	Fence Geofence
 }
 
 type PointmapResponse struct {
@@ -48,7 +48,7 @@ type PointmapResponse struct {
 
 type HeatmapRequest struct {
 	BaseRequest
-	Fence Geofence `json:",omitempty"`
+	Fence Geofence
 }
 
 type HeatmapResponse struct {
@@ -70,7 +70,7 @@ type P2PValue struct {
 
 type P2PRequest struct {
 	BaseRequest
-	Fence Geofence `json:",omitempty"`
+	Fence Geofence
 }
 
 type P2PResponse struct {
@@ -80,8 +80,8 @@ type P2PResponse struct {
 }
 
 type Geofence struct {
-	SouthWest Location `json:",omitempty"`
-	NorthEast Location `json:",omitempty"`
+	SouthWest Location
+	NorthEast Location
 	enabled   bool
 }
 

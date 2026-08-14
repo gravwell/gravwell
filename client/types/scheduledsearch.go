@@ -391,37 +391,37 @@ type AutomationDebugRequest struct {
 // ScheduledSearchListResponse is the response type for listing scheduled searches.
 type ScheduledSearchListResponse struct {
 	BaseListResponse
-	Results []ScheduledSearch `json:"results"`
+	Results []ScheduledSearch
 }
 
 // ScheduledSearchResultsListResponse is the response type for listing scheduled search results.
 type ScheduledSearchResultsListResponse struct {
 	BaseListResponse
-	Results []ScheduledSearchResults `json:"results"`
+	Results []ScheduledSearchResults
 }
 
 // ScheduledScriptListResponse is the response type for listing scheduled searches.
 type ScheduledScriptListResponse struct {
 	BaseListResponse
-	Results []ScheduledScript `json:"results"`
+	Results []ScheduledScript
 }
 
 // ScheduledScriptResultsListResponse is the response type for listing scheduled search results.
 type ScheduledScriptResultsListResponse struct {
 	BaseListResponse
-	Results []ScheduledScriptResults `json:"results"`
+	Results []ScheduledScriptResults
 }
 
 // FlowListResponse is the response type for listing scheduled searches.
 type FlowListResponse struct {
 	BaseListResponse
-	Results []Flow `json:"results"`
+	Results []Flow
 }
 
 // FlowResultsListResponse is the response type for listing scheduled search results.
 type FlowResultsListResponse struct {
 	BaseListResponse
-	Results []FlowResults `json:"results"`
+	Results []FlowResults
 }
 
 // SearchAgentCheckin is the type sent by the searchagent to the

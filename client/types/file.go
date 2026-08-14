@@ -20,5 +20,5 @@ type File struct {
 
 type FileListResponse struct {
 	BaseListResponse
-	Results []File `json:"results"`
+	Results []File
 }

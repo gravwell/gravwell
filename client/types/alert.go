@@ -28,49 +28,49 @@ const (
 type Alert struct {
 	CommonFields
 
-	Disabled bool `json:"Disabled"`
+	Disabled bool
 
 	// A list of flows which will be run when alerts are generated.
-	Consumers []AlertConsumer `json:"Consumers"`
+	Consumers []AlertConsumer
 
 	// A list of things which create alerts (currently only scheduled searches).
-	Dispatchers []AlertDispatcher `json:"Dispatchers"`
+	Dispatchers []AlertDispatcher
 
-	IngestBlocked bool `json:"IngestBlocked"`
+	IngestBlocked bool
 
 	// Maximum number of events allowed per firing of the alert. This is
 	// intended as a safety valve to avoid thousands of emails. If zero,
 	// a (low) default value will be used.
-	MaxEvents int `json:"MaxEvents"`
+	MaxEvents int
 
 	// How long, in seconds, we should save searches which trigger this alert.
-	SaveSearchDuration int32 `json:"SaveSearchDuration"`
+	SaveSearchDuration int32
 
 	// Whether or not searches which trigger the alert should be saved
-	SaveSearchEnabled bool `json:"SaveSearchEnabled"`
+	SaveSearchEnabled bool
 
 	// A JSON schema describing the expected fields in the alerts.
-	Schemas AlertSchemas `json:"Schemas"`
+	Schemas AlertSchemas
 
 	// The tag into which alerts will be ingested
-	TargetTag string `json:"TargetTag"`
+	TargetTag string
 
 	// Arbitrary user-defined metadata which will be injected into the events
-	UserMetadata map[string]interface{} `json:"UserMetadata"`
+	UserMetadata map[string]interface{}
 }
 
 // AlertConsumer - Something which consumes alerts.
 type AlertConsumer struct {
-	ID string `json:"ID"`
+	ID string
 
-	Type AlertConsumerType `json:"Type"`
+	Type AlertConsumerType
 }
 
 // AlertDispatcher - Something which creates alerts.
 type AlertDispatcher struct {
-	ID string `json:"ID"`
+	ID string
 
-	Type AlertDispatcherType `json:"Type"`
+	Type AlertDispatcherType
 }
 
 // AlertSchemas contains schema definitions for an alert and selects which one is to be used.
@@ -151,7 +151,7 @@ type AlertConsumerValidateResponse struct {
 
 type AlertListResponse struct {
 	BaseListResponse
-	Results []Alert `json:"results"`
+	Results []Alert
 }
 
 // FindMostRelevantAutomation resolves the appropriate automation

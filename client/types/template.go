@@ -27,5 +27,5 @@ type TemplateVariable struct {
 
 type TemplateListResponse struct {
 	BaseListResponse
-	Results []Template `json:"results"`
+	Results []Template
 }

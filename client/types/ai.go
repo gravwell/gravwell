@@ -13,21 +13,21 @@ import "time"
 // AIHealthcheck - Describes the status of AI features for the current user
 type AIHealthcheck struct {
 	// Bool indicating if this license/endpoint has unlimited access to remote AI workers
-	UnlimitedActions bool `json:"unlimited"`
+	UnlimitedActions bool
 
 	// The total number of actions allowed for the account in the given time frame
-	InitialActions int `json:"initial_actions"`
+	InitialActions int
 
 	// Count of AI actions remaining for the current user
-	RemainingActions int `json:"remaining_actions"`
+	RemainingActions int
 
 	// Describes the next moment when the current user is allowed to perform more AI actions
-	NextActionRegenDatetime time.Time `json:"next_action_regen_datetime"`
+	NextActionRegenDatetime time.Time
 
 	// A soft limit of the number of tokens that can be provided in a chat completion.
 	// This value is used to show warnings in the Gravwell UI when a request's prompt token count reaches this number.
-	WarnTokens int `json:"warn_tokens"`
+	WarnTokens int
 
 	// A hard limit of the number of tokens that can be provided in a chat completion
-	MaxTokens int `json:"max_tokens"`
+	MaxTokens int
 }
