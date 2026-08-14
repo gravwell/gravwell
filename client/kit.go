@@ -202,7 +202,19 @@ func (c *Client) DeleteKitEx(id string) ([]types.ModifiedKitItem, error) {
 	return []types.ModifiedKitItem{}, nil
 }
 
-// ForceDeleteKit uninstalls a kit (specified by ID) regardless of any
+// AdminDeleteKit is an admin-only function which can delete a kit owned by
+// any user.
+func (c *Client) AdminDeleteKit(id string) (err error) {
+	if !c.AdminMode() {
+		c.SetAdminMode()
+		defer c.ClearAdminMode()
+	}
+	err = c.deleteStaticURL(kitIdUrl(id), nil)
+
+	return
+}
+
+// ForceDeleteKit uninstalls a kit (specified by UUID) regardless of any
 // changes made since installation.
 func (c *Client) ForceDeleteKit(id string) (err error) {
 	params := []urlParam{
