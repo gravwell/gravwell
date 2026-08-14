@@ -10,8 +10,8 @@ package types
 
 import "time"
 
-// AIHealthcheck - Describes the status of AI features for the current user
-type AIHealthcheck struct {
+// AIHealthcheckV2 - Describes the status of AI features for the current user
+type AIHealthcheckV2 struct {
 	// Bool indicating if this license/endpoint has unlimited access to remote AI workers
 	UnlimitedActions bool
 
