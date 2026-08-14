@@ -141,7 +141,7 @@ type KitState struct {
 
 type KitStateListResponse struct {
 	BaseListResponse
-	Results []KitState `json:"results"`
+	Results []KitState
 }
 
 type KitEmbeddedItem struct {
@@ -182,7 +182,7 @@ type KitBuildRequest struct {
 
 type KitBuildRequestListResponse struct {
 	BaseListResponse
-	Results []KitBuildRequest `json:"results"`
+	Results []KitBuildRequest
 }
 
 type KitBuildResponse struct {
@@ -402,7 +402,7 @@ func (kma KitMetadataAsset) String() (s string) {
 
 type RemoteKitListResponse struct {
 	BaseListResponse
-	Results []KitMetadata `json:"results"`
+	Results []KitMetadata
 }
 
 type InstallStatus struct {

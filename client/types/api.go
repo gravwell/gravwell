@@ -49,19 +49,19 @@ var empty es
 // ErrorObject is a basic error object with the error value and an optional
 // info structure that has more info about the error
 type ErrorObject struct {
-	Err  string `json:"error"`
-	Info string `json:"info,omitempty"`
+	Err  string
+	Info string `json:",omitempty"`
 }
 
 // BaseListResponse contains the common set of fields returned when
 // querying lists of assets.
 type BaseListResponse struct {
-	CursorNext       string            `json:"cursor_next"`
-	CursorPrev       string            `json:"cursor_prev"`
-	Offset           int               `json:"offset"`
-	TotalCount       int               `json:"total_count"`
-	Type             string            `json:"type"`
-	AvailableFilters []AvailableFilter `json:"available_filters"`
+	CursorNext       string
+	CursorPrev       string
+	Offset           int
+	TotalCount       int
+	Type             string
+	AvailableFilters []AvailableFilter
 }
 
 type VersionInfo struct {
@@ -76,9 +76,9 @@ type ApiInfo struct {
 
 type BuildInfo struct {
 	CanonicalVersion
-	BuildDate  time.Time `json:",omitempty"`
-	BuildID    string    `json:",omitempty"`
-	GUIBuildID string    `json:",omitempty"`
+	BuildDate  time.Time
+	BuildID    string `json:",omitempty"`
+	GUIBuildID string `json:",omitempty"`
 }
 
 type CanonicalVersion struct {
@@ -263,7 +263,7 @@ type MFATOTPInstallResponse struct {
 }
 
 type SSOStatus struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool
 }
 
 type WarnResp struct {
