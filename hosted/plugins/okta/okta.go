@@ -123,17 +123,13 @@ func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 	o.c = utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
 
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		o.userLogRoutine(ctx, rt)
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		o.systemLogRoutine(ctx, rt)
-	}()
+	})
 
 	wg.Wait()
 	return

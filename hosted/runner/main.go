@@ -107,6 +107,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	sig := utils.GetQuitChannel()
+	hup := utils.GetSighupChannel()
 	tckr := time.NewTicker(time.Minute)
 	defer tckr.Stop()
 
@@ -116,6 +117,15 @@ exitLoop:
 		case <-sig:
 			lg.Info("ingester shutting down")
 			break exitLoop
+		case <-hup:
+			var newCfg *cfgType
+			if err = ib.ReloadConfig(&newCfg); err != nil {
+				lg.Error("failed to reload config", log.KVErr(err))
+			} else {
+				//hand the config into the run manager and tell it to reload
+				rm.reloadIngesters(newCfg)
+			}
+			// try to reload the config
 		case <-tckr.C:
 			// go check on all ingesters and see if we should try to restart one that has died
 			rm.startIngesters()
