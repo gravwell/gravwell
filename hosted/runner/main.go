@@ -118,14 +118,17 @@ exitLoop:
 			lg.Info("ingester shutting down")
 			break exitLoop
 		case <-hup:
+			// try to reload the config
+			lg.Info("reloading configuration")
 			var newCfg *cfgType
 			if err = ib.ReloadConfig(&newCfg); err != nil {
 				lg.Error("failed to reload config", log.KVErr(err))
-			} else {
+			} else if err = rm.reloadIngesters(newCfg); err != nil {
 				//hand the config into the run manager and tell it to reload
-				rm.reloadIngesters(newCfg)
+				lg.Error("failed to reload ingesters", log.KVErr(err))
+			} else {
+				lg.Info("configuration reload complete")
 			}
-			// try to reload the config
 		case <-tckr.C:
 			// go check on all ingesters and see if we should try to restart one that has died
 			rm.startIngesters()

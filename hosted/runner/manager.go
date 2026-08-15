@@ -188,7 +188,6 @@ func (rm *runtimeManager) reloadIngesters(nc *cfgType) (err error) {
 					log.KV("kind", builder.Kind()),
 					log.KV("name", name),
 					log.KV("uuid", guid),
-					log.KVErr(err),
 				)
 			}
 		} else if existing.configChanged(name, builder) {
@@ -201,13 +200,6 @@ func (rm *runtimeManager) reloadIngesters(nc *cfgType) (err error) {
 				)
 				// does not restart, we don't want to corrupt the state
 				continue
-			} else {
-				rm.lgr.Info("restarted ingester on reload",
-					log.KV("kind", builder.Kind()),
-					log.KV("name", name),
-					log.KV("uuid", guid),
-					log.KVErr(err),
-				)
 			}
 			// ok fire the new one up
 			delete(rm.mp, guid)
@@ -218,7 +210,13 @@ func (rm *runtimeManager) reloadIngesters(nc *cfgType) (err error) {
 					log.KV("uuid", guid),
 					log.KVErr(lerr),
 				)
+				continue
 			}
+			rm.lgr.Info("restarted ingester on reload",
+				log.KV("kind", builder.Kind()),
+				log.KV("name", name),
+				log.KV("uuid", guid),
+			)
 		}
 	}
 
@@ -236,6 +234,12 @@ func (rm *runtimeManager) reloadIngesters(nc *cfgType) (err error) {
 					log.KVErr(lerr),
 				)
 				// not much to do here other than complain about it... :/
+			} else {
+				rm.lgr.Info("shutdown ingester on reload",
+					log.KV("id", id),
+					log.KV("name", name),
+					log.KV("uuid", guid),
+				)
 			}
 			delete(rm.mp, guid)
 		}

@@ -156,7 +156,7 @@ func (o *OktaIngester) userLogRoutine(ctx context.Context, rt hosted.Runtime) {
 			}
 			//just look for changes over the last boundary
 			rt.Debug("requesting users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
-			if err := o.getUserLogs(start, end, rt); err != nil {
+			if err := o.getUserLogs(ctx, start, end, rt); err != nil {
 				rt.Error("failed to get users", log.KV("error", err))
 			} else {
 				//success, update last ts run
@@ -171,7 +171,7 @@ func (o *OktaIngester) systemLogRoutine(ctx context.Context, rt hosted.Runtime) 
 		log.KV("start-ts", o.latestTS.Format(time.RFC3339)),
 		log.KV("next-url", o.systemLogsNext != nil))
 	for {
-		if err := o.getSystemLogs(rt); err != nil {
+		if err := o.getSystemLogs(ctx, rt); err != nil {
 			rt.Error("system log error", log.KV("error", err))
 		}
 		if rt.Sleep(time.Minute) { // this sleep will quit if the context cancels
@@ -180,10 +180,10 @@ func (o *OktaIngester) systemLogRoutine(ctx context.Context, rt hosted.Runtime) 
 	}
 }
 
-func (o *OktaIngester) getSystemLogs(rt hosted.Runtime) error {
+func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) error {
 	var req *http.Request
 
-	req, err := http.NewRequestWithContext(rt.Context(), http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
 	if err != nil {
 		return fmt.Errorf("failed to build request %w", err)
 	}
@@ -204,7 +204,7 @@ func (o *OktaIngester) getSystemLogs(rt hosted.Runtime) error {
 	req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
 
 	var quit bool
-	for !quit && rt.Context().Err() == nil {
+	for !quit && ctx.Err() == nil {
 		if !rt.Alive() {
 			// okta can back off and wait if the runtime isn't healthy, just loop and wait again
 			quit = rt.Sleep(emptySleepDur)
@@ -355,8 +355,8 @@ func lastUpdatedFilter(start, end time.Time) (r string) {
 	return
 }
 
-func (o *OktaIngester) getUserLogs(start, end time.Time, rt hosted.Runtime) error {
-	req, err := http.NewRequestWithContext(rt.Context(), http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+func (o *OktaIngester) getUserLogs(ctx context.Context, start, end time.Time, rt hosted.Runtime) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
 	if err != nil {
 		return err
 	}

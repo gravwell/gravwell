@@ -90,10 +90,34 @@ func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, cfg any, i
 		version:      ver,
 		Ingester:     ig,
 		ingesterUUID: ingesterUUID,
-		rt:           rt,
 		cfg:          cfg,
 	}
 	r.ctx, r.cf = context.WithCancel(rt.Context())
+	r.rt = &scopedRuntime{Runtime: rt, ctx: r.ctx}
+	return
+}
+
+// scopedRuntime narrows a Runtime down to a single runner's lifetime.
+// The runtime handed to NewNativeRunner is shared by every ingester in the process, so its
+// context only ends when the whole process is going down. An ingester that waits on that
+// context can never be stopped on its own, which means Close blocks forever and a config
+// reload can't cycle just one ingester. Scoping Context and Sleep to the runner's own
+// context is what makes an individual stop actually work.
+type scopedRuntime struct {
+	Runtime
+	ctx context.Context
+}
+
+func (sr *scopedRuntime) Context() context.Context { return sr.ctx }
+
+func (sr *scopedRuntime) Sleep(d time.Duration) (r bool) {
+	tmr := time.NewTimer(d)
+	defer tmr.Stop()
+	select {
+	case <-tmr.C:
+	case <-sr.ctx.Done():
+		r = true
+	}
 	return
 }
 
