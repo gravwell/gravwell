@@ -550,7 +550,7 @@ func (im *IngestMuxer) Start() error {
 	im.igst = make([]*IngestConnection, len(im.dests))
 	im.tagTranslators = make([]*tagTrans, len(im.dests))
 	im.wg.Add(len(im.dests))
-	im.connDead = int32(len(im.dests))
+	atomic.StoreInt32(&im.connDead, int32(len(im.dests)))
 	for i := 0; i < len(im.dests); i++ {
 		go im.connRoutine(i)
 	}
@@ -912,8 +912,9 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 		return ErrAllConnsDown
 	}
 	ts := time.Now()
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	// DO NOT hold im.mtx while waiting for the pipelines to drain.  The write relay
+	// routines are what drain those channels and they need this lock on their state
+	// push timer, holding it here deadlocks them and guarantees we burn the timeout.
 	// always sleep for 10ms so that we give the chancacher a chance to pull from one and put it on the other
 	// a SyncContext is ALWAYS going to sleep for at least 10ms, this is NOT a free operation
 	// this sleep is crucial because we need the runtime to basically break out and schedule the chancacher
@@ -928,7 +929,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 			// all pipelines are empty
 			break
 		}
-		if im.connHot == 0 {
+		if atomic.LoadInt32(&im.connHot) == 0 {
 			return ErrAllConnsDown
 		}
 		//only check for a timeout if to is greater than zero.  A zero value or negative value means no timeout
@@ -944,10 +945,26 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 		}
 	}
 
+	// Snapshot the connection set under the lock and then release it.  A
+	// syncTimeout blocks until the indexer acks everything outstanding, which
+	// callers routinely allow to run for minutes.  The write relay routines and
+	// the connection routines both need this lock to do their jobs, so holding
+	// it across the ack wait starves the pipeline and blocks a connection that
+	// dies mid sync from ever being reaped.
+	// The igst slice itself is allocated once in Start and never resized, only
+	// its elements are swapped, and always under this lock.  Copying it here is
+	// therefore enough to get a consistent view.  A connection that gets closed
+	// out from under us afterwards is handled by IngestConnection, syncTimeout
+	// checks the running flag and hands back ErrNotRunning.
+	im.mtx.Lock()
+	igst := make([]*IngestConnection, len(im.igst))
+	copy(igst, im.igst)
+	im.mtx.Unlock()
+
 	//check for the simple case of a single indexer
-	if len(im.igst) == 1 {
+	if len(igst) == 1 {
 		var err error
-		if ig := im.igst[0]; ig != nil {
+		if ig := igst[0]; ig != nil {
 			err = ig.syncTimeout(timeLeft)
 		} else {
 			err = ErrAllConnsDown
@@ -956,7 +973,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	}
 
 	//DO NOT CLOSE the channel unless we get all of them back
-	total := len(im.igst)
+	total := len(igst)
 	ch := make(chan error, total)
 	var tch <-chan time.Time
 	if timeLeft > 0 {
@@ -968,7 +985,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 
 	// do a parallel sync
 	var count int
-	for _, v := range im.igst {
+	for _, v := range igst {
 		go func(ig *IngestConnection, ech chan error) {
 			if ig == nil {
 				ech <- nil
@@ -1137,7 +1154,7 @@ func (im *IngestMuxer) Dead() (int, error) {
 	if im.state != running {
 		return -1, ErrNotRunning
 	}
-	return int(im.connDead), nil
+	return int(atomic.LoadInt32(&im.connDead)), nil
 }
 
 // Size returns the total number of specified connections, hot or dead
@@ -2153,7 +2170,7 @@ func (im *IngestMuxer) SourceIP() (net.IP, error) {
 	var ip net.IP
 	im.mtx.RLock()
 	defer im.mtx.RUnlock()
-	if im.connHot == 0 || len(im.igst) == 0 {
+	if atomic.LoadInt32(&im.connHot) == 0 || len(im.igst) == 0 {
 		return ip, errors.New("No active connections")
 	}
 	var set bool
