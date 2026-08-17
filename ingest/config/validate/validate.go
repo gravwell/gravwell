@@ -109,6 +109,11 @@ func validateConfig(fnc any, pth, confdPath string, assertIngester bool) {
 	os.Exit(0) //all good
 }
 
+// validator is implemented by config types passed to ValidateConfig/ValidateIngesterConfig.
+// Verify() must apply the same validation rules the config is subject to under its actual
+// runtime load path/flags/mode.
+// Implementations must not hardcode or assume a specific load mode that differs from how
+// the config was actually obtained.
 type validator interface {
 	Verify() error
 }
