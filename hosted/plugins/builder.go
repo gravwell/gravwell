@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
@@ -166,6 +167,29 @@ func NewMSGraphBuilder(cfg *msgraph.Config, kind, id, version string) *MSGraphBu
 	return &MSGraphBuilder{
 		Builder[*msgraph.Config]{
 			config:  cfg,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type SQSBuilder struct {
+	Builder[*sqs.Config]
+}
+
+func (sb *SQSBuilder) Build(_ hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
+	q, err := sqs.New(sb.config)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJob(q), nil
+}
+
+func NewSQSBuilder(config *sqs.Config, kind, id, version string) *SQSBuilder {
+	return &SQSBuilder{
+		Builder[*sqs.Config]{
+			config:  config,
 			kind:    kind,
 			id:      id,
 			version: version,
