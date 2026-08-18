@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
 func TestAFH(t *testing.T) {
