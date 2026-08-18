@@ -17,7 +17,7 @@ import (
 	"mime/multipart"
 	"net/http"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // GetResourceList returns information about all resources the user can access.
