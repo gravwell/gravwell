@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/containerd/errdefs"
-	"github.com/gravwell/gravwell/v3/client"
+	"github.com/gravwell/gravwell/v4/client"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"

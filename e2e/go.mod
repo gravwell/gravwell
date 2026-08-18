@@ -10,7 +10,7 @@ require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/gosimple/slug v1.15.0
-	github.com/gravwell/gravwell/v3 v3.8.83
+	github.com/gravwell/gravwell/v4 v4.0.0-20260814150807-03e3a1fc48be
 	github.com/testcontainers/testcontainers-go v0.41.0
 	go.opentelemetry.io/proto/otlp v1.10.0
 	google.golang.org/protobuf v1.36.12

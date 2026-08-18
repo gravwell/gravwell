@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	clogsv1 "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	cv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	lpb "go.opentelemetry.io/proto/otlp/logs/v1"

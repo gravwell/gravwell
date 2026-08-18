@@ -10,8 +10,8 @@ import (
 
 	"gravwell/e2e"
 
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
