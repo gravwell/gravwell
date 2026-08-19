@@ -54,7 +54,7 @@ func main() {
 	}
 
 	lg := ib.Logger
-	_, ok := cfg.Global.IngesterUUID()
+	_, ok := cfg.IngesterUUID()
 	if !ok {
 		ib.Logger.FatalCode(0, "could not read ingester UUID")
 	}
