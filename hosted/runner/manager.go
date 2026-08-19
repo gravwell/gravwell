@@ -78,7 +78,7 @@ func (rm *runtimeManager) createRunners(c *cfgType, ib base.IngesterBase) (err e
 	}
 	for name, builder := range c.Builders() {
 		if err = rm.createRunner(name, builder); err != nil {
-			if err == errExists {
+			if errors.Is(err, errExists) {
 				continue // just skip it
 			}
 			return // this is an actual error
@@ -158,7 +158,11 @@ func (rm *runtimeManager) startIngesters() (err error) {
 	return
 }
 
-// TODO FIXME
+// reloadIngesters will walk the incoming config and compare it against the running config to determine an action
+// to take on each plugin/ingester.  Actions can be:
+//  1. start a whole new ingester
+//  2. stop/remove an ingester that is no longer configured
+//  3. detect a config change on an existing ingester and restart it
 func (rm *runtimeManager) reloadIngesters(nc *cfgType) (err error) {
 	if nc == nil {
 		return errors.New("new config is empty")
@@ -183,13 +187,12 @@ func (rm *runtimeManager) reloadIngesters(nc *cfgType) (err error) {
 				)
 				// just continue
 				continue
-			} else {
-				rm.lgr.Info("created new ingester on reload",
-					log.KV("kind", builder.Kind()),
-					log.KV("name", name),
-					log.KV("uuid", guid),
-				)
 			}
+			rm.lgr.Info("created new ingester on reload",
+				log.KV("kind", builder.Kind()),
+				log.KV("name", name),
+				log.KV("uuid", guid),
+			)
 		} else if existing.configChanged(name, builder) {
 			if lerr := existing.Close(); lerr != nil {
 				rm.lgr.Error("failed to stop ingester on reload",
@@ -234,18 +237,18 @@ func (rm *runtimeManager) reloadIngesters(nc *cfgType) (err error) {
 					log.KVErr(lerr),
 				)
 				// not much to do here other than complain about it... :/
-			} else {
-				rm.lgr.Info("shutdown ingester on reload",
-					log.KV("id", id),
-					log.KV("name", name),
-					log.KV("uuid", guid),
-				)
+				continue
 			}
-			delete(rm.mp, guid)
+			delete(rm.mp, guid) // ingester is closed
+			rm.lgr.Info("shutdown ingester on reload",
+				log.KV("id", id),
+				log.KV("name", name),
+				log.KV("uuid", guid),
+			)
 		}
 	}
 
-	// last step is to fire up all the ingesters
+	// last step is to fire up all the ingesters that might be down
 	return rm.startIngesters()
 }
 
