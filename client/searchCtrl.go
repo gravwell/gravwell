@@ -69,11 +69,7 @@ func (c *Client) BackgroundSearch(sid string) error {
 // SetAccess sets the Readers/Writers ACLs and optionally reassigns ownership (for admins only)
 // for an existing search. Pass a nil ownerID to leave ownership unchanged.
 func (c *Client) SetAccess(sid string, ownerID *int32, readers, writers types.ACL) error {
-	request := struct {
-		OwnerID *int32
-		Readers types.ACL
-		Writers types.ACL
-	}{
+	request := types.SearchCtrlSetAccessRequest{
 		OwnerID: ownerID,
 		Readers: readers,
 		Writers: writers,

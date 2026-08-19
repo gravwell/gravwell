@@ -820,3 +820,9 @@ func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 	}
 	return
 }
+
+type SearchCtrlSetAccessRequest struct {
+	OwnerID *int32
+	Readers ACL
+	Writers ACL
+}
