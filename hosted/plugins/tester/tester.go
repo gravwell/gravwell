@@ -32,6 +32,8 @@ type Config struct {
 	Test_Errors bool
 }
 
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
 func (c *Config) Verify() (err error) {
 	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
 
@@ -53,6 +55,17 @@ func (c *Config) interval() time.Duration {
 		return defaultInterval
 	}
 	return dur
+}
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig && c.SingleTagConfig == nc.SingleTagConfig &&
+		c.Interval == nc.Interval && c.Silent == nc.Silent && c.Test_Errors == nc.Test_Errors
 }
 
 type TesterIngester struct {

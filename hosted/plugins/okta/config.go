@@ -44,6 +44,23 @@ type Config struct {
 	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
 }
 
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.Request_Batch_Size == nc.Request_Batch_Size &&
+		c.Request_Per_Minute == nc.Request_Per_Minute &&
+		c.Request_Burst == nc.Request_Burst &&
+		c.Domain == nc.Domain &&
+		c.Token == nc.Token
+}
+
 func (c *Config) Verify() (err error) {
 	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
 

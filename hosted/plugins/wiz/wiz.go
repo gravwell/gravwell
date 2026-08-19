@@ -132,7 +132,7 @@ func (w *Wiz) tag(rt hosted.Runtime, sourceName string) (entry.EntryTag, error) 
 }
 
 func (w *Wiz) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
-	w.initClient(rt.Context())
+	w.initClient(ctx)
 
 	pending := false
 	for _, s := range w.sources {

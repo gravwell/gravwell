@@ -31,7 +31,9 @@ type Runner interface {
 	Running() bool
 	ID() string
 	Name() string
+	Version() string // keeping this as a string because some engines may not have good canonical versions
 	UUID() uuid.UUID
+	Config() any
 }
 
 // Runtime is the interface provided to a hosted ingester which enables it to
@@ -79,4 +81,27 @@ type Logger interface {
 	Warn(msg string, sds ...rfc5424.SDParam)
 	Error(msg string, sds ...rfc5424.SDParam)
 	Critical(msg string, sds ...rfc5424.SDParam)
+}
+
+// Config is the interface that ingester configuration types must implement so we can detect config changes
+type Config interface {
+	Equal(any) bool
+}
+
+// EqualTarget normalizes the value handed to a Config.Equal implementation down to a *T.
+// Equal takes an any so that configs of differing types can be compared, which means every
+// implementation has to deal with being handed a value, a pointer, a nil, or something else
+// entirely. Callers get back a usable pointer and true only when the value really is a T,
+// everything else is not equal by definition.
+func EqualTarget[T any](v any) (*T, bool) {
+	if p, ok := v.(*T); ok {
+		if p == nil {
+			return nil, false
+		}
+		return p, true
+	}
+	if val, ok := v.(T); ok {
+		return &val, true
+	}
+	return nil, false
 }
