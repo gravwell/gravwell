@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/gravwell/gravwell/v4/hosted"
 )
@@ -51,6 +52,29 @@ type Config struct {
 	Request_Interval    int // In seconds between poll cycles.
 	Graph_Host          string
 	Auth_Host           string
+}
+
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.Tenant_ID == nc.Tenant_ID &&
+		c.Client_ID == nc.Client_ID &&
+		c.Client_Secret == nc.Client_Secret &&
+		c.Tag_Name == nc.Tag_Name &&
+		c.Tag_Prefix == nc.Tag_Prefix &&
+		c.Lookback == nc.Lookback &&
+		c.Requests_Per_Minute == nc.Requests_Per_Minute &&
+		c.Request_Interval == nc.Request_Interval &&
+		c.Graph_Host == nc.Graph_Host &&
+		c.Auth_Host == nc.Auth_Host &&
+		slices.Equal(c.Content_Type, nc.Content_Type)
 }
 
 // Verify validates the configuration has correct values set. It also sets defaults for values that can be defaulted.

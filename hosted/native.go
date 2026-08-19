@@ -51,6 +51,7 @@ type NativeRunner struct {
 	version      version.Canonical
 	ingesterUUID uuid.UUID
 	rt           Runtime
+	cfg          any // the native config for the ingester
 	ctx          context.Context
 	cf           context.CancelFunc
 	running      bool  // is the ingester currently running
@@ -58,7 +59,7 @@ type NativeRunner struct {
 }
 
 // NewNativeRunner creates a new NativeRunner that has validated some basic parameters and is ready to Run
-func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, ig Ingester, rt Runtime) (r *NativeRunner, err error) {
+func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, cfg any, ig Ingester, rt Runtime) (r *NativeRunner, err error) {
 	var ver version.Canonical
 	if id == `` {
 		err = errors.New("missing ingester ID")
@@ -74,6 +75,9 @@ func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, ig Ingeste
 		return
 	} else if ver, err = version.Parse(verstr); err != nil {
 		return
+	} else if cfg == nil {
+		err = errors.New("nil config")
+		return
 	}
 	if ingesterUUID == uuid.Nil {
 		ingesterUUID = uuid.New()
@@ -86,9 +90,34 @@ func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, ig Ingeste
 		version:      ver,
 		Ingester:     ig,
 		ingesterUUID: ingesterUUID,
-		rt:           rt,
+		cfg:          cfg,
 	}
 	r.ctx, r.cf = context.WithCancel(rt.Context())
+	r.rt = &scopedRuntime{Runtime: rt, ctx: r.ctx}
+	return
+}
+
+// scopedRuntime narrows a Runtime down to a single runner's lifetime.
+// The runtime handed to NewNativeRunner is shared by every ingester in the process, so its
+// context only ends when the whole process is going down. An ingester that waits on that
+// context can never be stopped on its own, which means Close blocks forever and a config
+// reload can't cycle just one ingester. Scoping Context and Sleep to the runner's own
+// context is what makes an individual stop actually work.
+type scopedRuntime struct {
+	Runtime
+	ctx context.Context
+}
+
+func (sr *scopedRuntime) Context() context.Context { return sr.ctx }
+
+func (sr *scopedRuntime) Sleep(d time.Duration) (r bool) {
+	tmr := time.NewTimer(d)
+	defer tmr.Stop()
+	select {
+	case <-tmr.C:
+	case <-sr.ctx.Done():
+		r = true
+	}
 	return
 }
 
@@ -147,6 +176,20 @@ func (nr *NativeRunner) Name() (name string) {
 func (nr *NativeRunner) UUID() (r uuid.UUID) {
 	if nr != nil {
 		r = nr.ingesterUUID
+	}
+	return
+}
+
+func (nr *NativeRunner) Version() (r string) {
+	if nr != nil {
+		r = nr.version.String()
+	}
+	return
+}
+
+func (nr *NativeRunner) Config() (r any) {
+	if nr != nil {
+		r = nr.cfg
 	}
 	return
 }
