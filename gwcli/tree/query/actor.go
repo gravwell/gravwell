@@ -16,7 +16,6 @@ When a search has been submitted, this model is still invoked by Mother, but it 
 */
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -240,12 +239,12 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	// pass message to the active view
-	var cmds []tea.Cmd
+	var cmd tea.Cmd
 	if q.focusedEditor { // editor view active
-		cmds = []tea.Cmd{q.editor.update(msg)}
+		cmd = q.editor.update(msg)
 	} else { // modifiers view active
 		var submit bool
-		cmds, submit = q.modifiers.update(msg)
+		cmd, submit = q.modifiers.update(msg)
 		if submit {
 			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
 				return q.submitQuery(qry)
@@ -254,7 +253,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 		}
 	}
 
-	return tea.Batch(cmds...)
+	return cmd
 }
 
 func (q *query) View() string {
@@ -333,11 +332,6 @@ func (q *query) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 
 	flags := querysupport.TransmogrifyFlags(&localFS)
 
-	// check for script mode (invalid, as Mother is already running)
-	if flags.NoInteractive { // TODO this check should be performed by Mother
-		return "", nil, errors.New("cannot invoke no-interactive mode while in interactive mode")
-	}
-
 	qry := strings.TrimSpace(strings.Join(localFS.Args(), " "))
 	valid, err := testQryValidity(qry)
 	if err != nil {
@@ -383,7 +377,7 @@ func (q *query) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 			}
 
 			cmds = append(cmds, tea.Println(querySubmissionSuccess(search.ID, true)))
-			clilog.Writer.Debugf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery)
+			clilog.Writer.Debugf("Backgrounded query: ID: %v|UID: %v|GIDs: %v|eQuery: %v\n", search.ID, search.OwnerID, search.AllGIDs(), search.EffectiveQuery)
 
 			// set the query action to immediately return when Mother boots the query interface
 			q.mode = quitting

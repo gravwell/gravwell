@@ -49,8 +49,19 @@ var empty es
 // ErrorObject is a basic error object with the error value and an optional
 // info structure that has more info about the error
 type ErrorObject struct {
-	Err  string `json:"error"`
-	Info string `json:"info,omitempty"`
+	Err  string
+	Info string `json:",omitempty"`
+}
+
+// BaseListResponse contains the common set of fields returned when
+// querying lists of assets.
+type BaseListResponse struct {
+	CursorNext       string
+	CursorPrev       string
+	Offset           int
+	TotalCount       int
+	Type             string
+	AvailableFilters []AvailableFilter
 }
 
 type VersionInfo struct {
@@ -65,9 +76,9 @@ type ApiInfo struct {
 
 type BuildInfo struct {
 	CanonicalVersion
-	BuildDate  time.Time `json:",omitempty"`
-	BuildID    string    `json:",omitempty"`
-	GUIBuildID string    `json:",omitempty"`
+	BuildDate  time.Time
+	BuildID    string `json:",omitempty"`
+	GUIBuildID string `json:",omitempty"`
 }
 
 type CanonicalVersion struct {
@@ -159,7 +170,7 @@ func ParseCanonicalVersion(s string) (r CanonicalVersion, err error) {
 	return
 }
 
-// NewerVersion returns true if the incoming version is newer than coming
+// NewerVersion returns true if the argument is newer than the receiver.
 func (cv CanonicalVersion) NewerVersion(ncv CanonicalVersion) bool {
 	return cv.Compare(ncv) > 0
 }
@@ -252,7 +263,7 @@ type MFATOTPInstallResponse struct {
 }
 
 type SSOStatus struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool
 }
 
 type WarnResp struct {
@@ -333,13 +344,13 @@ type SearchAgentConfig struct {
 	Disable_Network_Script_Functions bool // disables "risky" scripting functions (network stuff)
 	Disable_Self_Ingest              bool // disables ingesting search agent logs to indexers
 	HTTP_Proxy                       string
-}
 
-type SearchAgentCheckin struct {
-	LastCheckin     string
-	Warning         bool
-	SearchAgentUUID string
-	SearchAgentIP   string
+	Search_Rate  int64 // searches launched per second
+	Search_Burst int64 // allows some burst
+	Script_Rate  int64
+	Script_Burst int64
+	Flow_Rate    int64
+	Flow_Burst   int64
 }
 
 type emptyInts []int32

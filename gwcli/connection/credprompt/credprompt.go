@@ -15,12 +15,16 @@ package credprompt
 // If MFA is required, this model will likely be followed up by the MFA prompt
 
 import (
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,31 +35,30 @@ import (
 // Collect manages its own killkeys, as it is mother-independent.
 //
 // ! Not intended to be run while Mother is running.
-func Collect(initialUser string) (user, pass string, err error) {
-	return collect(initialUser, nil)
-}
-
-// internal implementation of collect.
-// Allows custom programs (likely programs with mocked input) for testing purposes.
-// ! Outside of test packages, leave prog==nil.
-func collect(initialUser string, prog *tea.Program) (user, pass string, err error) {
-	p := prog
-	if p == nil {
-		var c tea.Model = New(initialUser)
-		p = tea.NewProgram(c)
+func Collect(initialUser string, in io.Reader, out io.Writer) (user, pass string, err error) {
+	// spawn our own program using the given I/O
+	var progOpts []tea.ProgramOption
+	if in != nil {
+		progOpts = append(progOpts, tea.WithInput(in))
 	}
-
-	m, err := p.Run()
+	if out != nil {
+		progOpts = append(progOpts, tea.WithOutput(out))
+	}
+	clilog.Writer.Debug("spawning credprompt",
+		log.KV("caller", log.CallLoc(1)),
+		clilog.ProgramOptions(in, out),
+	)
+	prog := tea.NewProgram(new(initialUser), progOpts...)
+	m, err := prog.Run()
 	if err != nil {
 		return "", "", err
 	}
 	// pull input results
 	finalCredM, ok := m.(credModel)
 	if !ok {
-		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", "", uniques.ErrGeneric
+		return "", "", clilog.TypeAssert(m, credModel{})
 	} else if finalCredM.killed {
-		return "", "", uniques.ErrMustAuth
+		return "", "", errors.New("you must authenticate to use gwcli")
 	}
 	return finalCredM.UserTI.Value(), finalCredM.PassTI.Value(), nil
 }
@@ -67,12 +70,14 @@ type credModel struct {
 	userSelected      bool
 	killed            bool
 	done              bool
+
+	hotkeys hotkeys.Model
 }
 
-// New creates a new credprompt, which satisfies the tea.Model interface.
+// new creates a new credprompt, which satisfies the tea.Model interface.
 // You probably want Collect(), instead; this is mostly used internally and for testing.
-func New(initialUser string) credModel {
-	c := credModel{userStartingValue: initialUser, userSelected: true}
+func new(initialUser string) credModel {
+	c := credModel{userStartingValue: initialUser, userSelected: true, hotkeys: hotkeys.NewModel()}
 	c.UserTI = textinput.New()
 	c.UserTI.Prompt = ""
 	c.UserTI.SetValue(c.userStartingValue)
@@ -81,6 +86,10 @@ func New(initialUser string) credModel {
 	c.PassTI.Prompt = ""
 	c.PassTI.EchoMode = textinput.EchoNone
 	c.PassTI.Blur()
+
+	c.hotkeys.Invoke.SetHelp(sigils.Enter, "submit")
+	c.hotkeys.Select.Unbind()
+	c.hotkeys.Complete.Unbind()
 	return c
 }
 
@@ -100,18 +109,15 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, tea.Quit
 	}
 
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		switch msg.Type {
-		case tea.KeyTab, tea.KeyShiftTab, tea.KeyUp, tea.KeyDown: // swap
+	switch {
+	case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
+		return c.swap(), textinput.Blink
+	case hotkeys.Match(msg, hotkeys.Invoke): // submit or swap
+		if c.userSelected {
 			return c.swap(), textinput.Blink
-		case tea.KeyEnter: // submit or swap
-			if c.userSelected {
-				return c.swap(), textinput.Blink
-			}
-			c.done = true
-			return c, tea.Quit
 		}
-
+		c.done = true
+		return c, tea.Quit
 	}
 	var (
 		usercmd tea.Cmd
@@ -124,9 +130,11 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c credModel) View() string {
-	return fmt.Sprintf("%v%v\n%v%v\n\n",
+	return fmt.Sprintf("%v%v\n%v%v\n\n%v",
 		stylesheet.Cur.Prompt("username", false), c.UserTI.View(),
-		stylesheet.Cur.Prompt("password", false), c.PassTI.View())
+		stylesheet.Cur.Prompt("password", false), c.PassTI.View(),
+		c.hotkeys.View(),
+	)
 }
 
 // select the next TI
