@@ -93,12 +93,13 @@ func (c cfgType) Tags() (tags []string, err error) {
 	}
 	tagMp := make(map[string]bool, len(ptags))
 	for _, tag := range ptags {
+		if tagMp[tag] {
+			continue
+		}
 		if err = ingest.CheckTag(tag); err != nil {
 			err = fmt.Errorf("invalid tag %q: %w", tag, err)
 			return
-		} else if tagMp[tag] {
-			continue
-		}
+             }
 		tagMp[tag] = true
 		tags = append(tags, tag)
 	}
