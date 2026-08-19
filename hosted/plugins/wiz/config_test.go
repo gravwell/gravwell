@@ -12,6 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/configtest"
 )
 
 func baseConfig() *Config {
@@ -145,4 +148,56 @@ func TestConfigQueryOverride(t *testing.T) {
 			t.Fatal("expected error for missing file")
 		}
 	})
+}
+
+func equalConfig() Config {
+	return Config{
+		BaseConfig: hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		PollingConfig: hosted.PollingConfig{
+			Lookback:            defaultLookback,
+			Requests_Per_Minute: defaultRequestsPerMinute,
+			Request_Interval:    defaultInterval,
+		},
+		Client_Id:          "id",
+		Client_Secret:      "secret",
+		Endpoint:           "https://api.us1.app.wiz.io/graphql",
+		Auth_URL:           defaultAuthURL,
+		Audience:           defaultAudience,
+		Page_Size:          defaultPageSize,
+		Max_Pages_Per_Type: defaultMaxPagesPerType,
+		Tag_Name:           "wiz",
+		Tag_Override:       []string{sourceAudit + ":wiz-audit"},
+		tags:               map[string]string{sourceAudit: "wiz-audit"},
+		queries:            map[string]string{sourceAudit: "query{}"},
+	}
+}
+
+func TestConfigEqual(t *testing.T) {
+	configtest.CheckEqual(t, equalConfig())
+}
+
+// the parsed override maps are unexported so configtest can't reach them, cover them by hand.
+// The query documents matter because an edited override file changes the query without
+// changing a single byte of the config file.
+func TestConfigEqualParsedOverrides(t *testing.T) {
+	base := equalConfig()
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{`tags added`, func(c *Config) { c.tags[sourceIssue] = "wiz-issue" }},
+		{`tags changed`, func(c *Config) { c.tags[sourceAudit] = "wiz-other" }},
+		{`tags dropped`, func(c *Config) { c.tags = nil }},
+		{`queries changed`, func(c *Config) { c.queries[sourceAudit] = "query{different}" }},
+		{`queries dropped`, func(c *Config) { c.queries = nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nc := equalConfig()
+			tt.mutate(&nc)
+			if base.Equal(&nc) {
+				t.Errorf("Equal ignored %s", tt.name)
+			}
+		})
+	}
 }
