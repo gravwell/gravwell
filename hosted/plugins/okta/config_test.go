@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -172,4 +173,15 @@ func TestConfig_Verify_DomainContainsOkta(t *testing.T) {
 	if !strings.HasSuffix(cfg.Domain, "okta.com") {
 		t.Error("domain should end with okta.com")
 	}
+}
+
+func TestConfigEqual(t *testing.T) {
+	configtest.CheckEqual(t, Config{
+		BaseConfig:         hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		Request_Batch_Size: defaultPageSize,
+		Request_Per_Minute: defaultRequestPerMinute,
+		Request_Burst:      defaultRequestBurst,
+		Domain:             "example.okta.com",
+		Token:              "token",
+	})
 }

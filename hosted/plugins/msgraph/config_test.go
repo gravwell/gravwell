@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func TestConfig_Verify_IngesterUUID(t *testing.T) {
@@ -72,4 +73,20 @@ func TestConfig_Verify_AggregatesErrors(t *testing.T) {
 	if cfg.Ingester_UUID != "not-a-uuid" {
 		t.Error("Ingester-UUID should not change on error")
 	}
+}
+
+func TestConfigEqual(t *testing.T) {
+	configtest.CheckEqual(t, Config{
+		BaseConfig:          hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		Tenant_ID:           "tenant",
+		Client_ID:           "id",
+		Client_Secret:       "secret",
+		Content_Type:        []ContentType{ContentAlerts},
+		Tag_Prefix:          "msgraph",
+		Lookback:            defaultLookbackHours,
+		Requests_Per_Minute: defaultRequestsPerMin,
+		Request_Interval:    defaultRequestIntervalSeconds,
+		Graph_Host:          defaultGraphHost,
+		Auth_Host:           defaultAuthHost,
+	})
 }
