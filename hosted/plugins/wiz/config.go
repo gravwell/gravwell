@@ -11,8 +11,10 @@ package wiz
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/hosted"
@@ -55,6 +57,33 @@ type Config struct {
 
 	tags    map[string]string // parsed Tag_Override
 	queries map[string]string // parsed Query_Override, source -> query document
+}
+
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+// The parsed tags and queries are compared as well, that catches an edited query
+// override file, whose contents change without the config file itself changing.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.PollingConfig == nc.PollingConfig &&
+		c.Client_Id == nc.Client_Id &&
+		c.Client_Secret == nc.Client_Secret &&
+		c.Endpoint == nc.Endpoint &&
+		c.Auth_URL == nc.Auth_URL &&
+		c.Audience == nc.Audience &&
+		c.Page_Size == nc.Page_Size &&
+		c.Max_Pages_Per_Type == nc.Max_Pages_Per_Type &&
+		c.Tag_Name == nc.Tag_Name &&
+		slices.Equal(c.Tag_Override, nc.Tag_Override) &&
+		slices.Equal(c.Query_Override, nc.Query_Override) &&
+		maps.Equal(c.tags, nc.tags) &&
+		maps.Equal(c.queries, nc.queries)
 }
 
 func (c *Config) Verify() error {
