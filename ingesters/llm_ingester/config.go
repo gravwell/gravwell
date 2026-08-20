@@ -12,8 +12,10 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -99,6 +101,17 @@ type listener struct {
 	// upstream auth header (see Auth_Style), replacing whatever the client sent.
 	// Empty passes the client's own auth header through unchanged.
 	Upstream_Authorization string
+	// Session_ID_Header names a request header carrying the client's own
+	// conversation identifier (e.g. "x-claude-code-session-id"). When set and
+	// present on a request, that value identifies the session instead of the
+	// derived prefix match. Unset uses prefix matching alone.
+	Session_ID_Header string
+	// Reject_Unknown_Paths, when true, answers 404 for any path the protocol
+	// module does not parse. The default (false) proxies those requests to the
+	// upstream without ingesting them, which keeps sibling endpoints the
+	// client needs working — the Messages API's /v1/messages/count_tokens, for
+	// one, which Claude Code calls alongside /v1/messages.
+	Reject_Unknown_Paths bool
 	// Session_TTL is how long idle session prefix-match state is retained,
 	// expressed as a Go duration string (e.g. "30m"). Defaults to
 	// defaultSessionTTL when unset.
@@ -220,6 +233,12 @@ func (l *listener) validate() error {
 	if l.Max_Body <= 0 {
 		l.Max_Body = defaultMaxBody
 	}
+	if l.Session_ID_Header != "" {
+		if !validHeaderName(l.Session_ID_Header) {
+			return fmt.Errorf("invalid Session-ID-Header %q", l.Session_ID_Header)
+		}
+		l.Session_ID_Header = http.CanonicalHeaderKey(l.Session_ID_Header)
+	}
 	if l.Session_TTL == "" {
 		l.sessionTTL = defaultSessionTTL
 	} else {
@@ -293,6 +312,22 @@ func (l *listener) UpstreamURL() *url.URL {
 
 func (l *listener) SessionTTL() time.Duration {
 	return l.sessionTTL
+}
+
+// validHeaderName reports whether s is a legal HTTP field name (RFC 7230
+// token). Header lookups are canonicalized, so case does not matter, but a
+// value with illegal characters would silently never match.
+func validHeaderName(s string) bool {
+	const tokenExtra = `!#$%&'*+-.^_` + "`" + `|~`
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case strings.ContainsRune(tokenExtra, r):
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
 
 // Tags returns the list of tags used across all listeners.

@@ -15,7 +15,9 @@
 //
 // The Messages API differs from OpenAI Chat Completions in ways this plugin
 // normalizes into the shared protocol.Event model:
-//   - the system prompt is a top-level field, not a role:"system" message;
+//   - the system prompt is a top-level field rather than a leading
+//     role:"system" message (though newer models also accept role:"system"
+//     entries mid-array as operator instructions);
 //   - message content is a string OR an array of typed content blocks;
 //   - tool *calls* are assistant-turn "tool_use" blocks and tool *results* are
 //     user-turn "tool_result" blocks — there is no separate "tool" role;
@@ -202,6 +204,20 @@ func (messagesProtocol) NewStreamReassembler() protocol.StreamReassembler {
 func messageToEvents(role string, raw json.RawMessage) []protocol.Event {
 	str, blocks, isArray := decodeContent(raw)
 	switch role {
+	case roleSystem:
+		// Newer models accept operator instructions mid-conversation as
+		// role:"system" entries inside the messages array rather than in the
+		// top-level system field. Claude Code uses these to inject tool and
+		// subagent context, so dropping them would lose a large slice of what
+		// the model was actually told.
+		if c := flattenText(raw); len(c) > 0 {
+			return []protocol.Event{{
+				Type:    protocol.EventSystemMessage,
+				Role:    roleSystem,
+				Content: c,
+			}}
+		}
+		return nil
 	case roleAssistant:
 		var content []byte
 		if isArray {

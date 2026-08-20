@@ -211,3 +211,61 @@ func TestHashMessageStable(t *testing.T) {
 		t.Fatal("message hash for identical first message diverged")
 	}
 }
+
+// Newer models take operator instructions as role:"system" entries inside the
+// messages array; Claude Code injects tool and subagent context that way, so
+// those turns have to be logged like the top-level system prompt.
+func TestParseRequestMidConversationSystem(t *testing.T) {
+	body := []byte(`{
+		"model":"claude-opus-5",
+		"system":[{"type":"text","text":"top-level prompt"}],
+		"messages":[
+			{"role":"user","content":"hi"},
+			{"role":"system","content":"available tools: Bash, Read"},
+			{"role":"assistant","content":"ok"},
+			{"role":"system","content":[{"type":"text","text":"policy update"}]},
+			{"role":"user","content":"go"}
+		]
+	}`)
+	pr, err := messagesProtocol{}.ParseRequest(body, "")
+	if err != nil {
+		t.Fatalf("ParseRequest: %v", err)
+	}
+	if len(pr.MessageHashes) != 5 {
+		t.Fatalf("MessageHashes len = %d, want 5", len(pr.MessageHashes))
+	}
+	var sys []string
+	for _, e := range pr.Events {
+		if e.Type == protocol.EventSystemMessage {
+			if e.Role != roleSystem {
+				t.Errorf("system event role = %q, want %q", e.Role, roleSystem)
+			}
+			sys = append(sys, string(e.Content))
+		}
+	}
+	want := []string{"top-level prompt", "available tools: Bash, Read", "policy update"}
+	if len(sys) != len(want) {
+		t.Fatalf("system events = %v, want %v", sys, want)
+	}
+	for i := range want {
+		if sys[i] != want[i] {
+			t.Errorf("system event %d = %q, want %q", i, sys[i], want[i])
+		}
+	}
+}
+
+// An empty system turn carries nothing to log but must still be hashed so
+// session prefix matching lines up with the request the client sent.
+func TestParseRequestEmptySystemTurn(t *testing.T) {
+	body := []byte(`{"model":"m","messages":[{"role":"system","content":""},{"role":"user","content":"hi"}]}`)
+	pr, err := messagesProtocol{}.ParseRequest(body, "")
+	if err != nil {
+		t.Fatalf("ParseRequest: %v", err)
+	}
+	if len(pr.MessageHashes) != 2 {
+		t.Errorf("MessageHashes len = %d, want 2", len(pr.MessageHashes))
+	}
+	if e := findReqEvent(pr.Events, protocol.EventSystemMessage); e != nil {
+		t.Errorf("empty system turn produced an event: %q", e.Content)
+	}
+}

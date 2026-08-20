@@ -9,6 +9,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -578,15 +580,232 @@ func TestProxyAnthropicClientGate(t *testing.T) {
 	}
 }
 
-func TestProxyUnknownPath404(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+// A path the protocol module does not parse is proxied by default (the client
+// may need a sibling endpoint we have nothing to say about) and 404s only when
+// the listener is explicitly narrowed to the parsed paths.
+func TestProxyUnknownPath(t *testing.T) {
+	var gotPath, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"input_tokens":7}`)
+	}))
 	defer srv.Close()
-	ph, _ := newTestHandler(t, srv.URL, nil)
-	req := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader("{}"))
+
+	t.Run("passthrough", func(t *testing.T) {
+		ph, cap := newTestHandler(t, srv.URL, nil)
+		req := httptest.NewRequest(http.MethodPost, "/v1/embeddings",
+			strings.NewReader(`{"input":"hi"}`))
+		req.RemoteAddr = "203.0.113.7:5555"
+		w := httptest.NewRecorder()
+		ph.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("unknown path status = %d, want 200", w.Code)
+		}
+		if w.Body.String() != `{"input_tokens":7}` {
+			t.Errorf("client body = %q", w.Body.String())
+		}
+		if gotPath != "/v1/embeddings" || gotBody != `{"input":"hi"}` {
+			t.Errorf("upstream saw path %q body %q", gotPath, gotBody)
+		}
+		if got := cap.eventTypes(t); len(got) != 0 {
+			t.Errorf("ingested %v from an unparsed path, want nothing", got)
+		}
+	})
+
+	t.Run("rejected", func(t *testing.T) {
+		ph, _ := newTestHandler(t, srv.URL, func(l *listener) {
+			l.Reject_Unknown_Paths = true
+		})
+		req := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader("{}"))
+		req.RemoteAddr = "203.0.113.7:5555"
+		w := httptest.NewRecorder()
+		ph.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("unknown path status = %d, want 404", w.Code)
+		}
+	})
+
+	t.Run("client-auth-still-enforced", func(t *testing.T) {
+		ph, _ := newTestHandler(t, srv.URL, func(l *listener) {
+			l.Client_Authorization = "gate"
+		})
+		req := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader("{}"))
+		req.RemoteAddr = "203.0.113.7:5555"
+		w := httptest.NewRecorder()
+		ph.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("unauthenticated unknown path status = %d, want 401", w.Code)
+		}
+	})
+}
+
+// The upstream hop must be uncompressed: we can only ingest bytes we can read,
+// and the client's own encoding negotiation (br, zstd) is not something the
+// reassembler can decode.
+func TestProxyDropsClientAcceptEncoding(t *testing.T) {
+	var gotEncoding string
+	var sawHeader bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotEncoding, sawHeader = r.Header.Get("Accept-Encoding"), len(r.Header.Values("Accept-Encoding")) > 0
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	ph, c := newAnthropicTestHandler(t, srv.URL, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(msgReqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
 	req.RemoteAddr = "203.0.113.7:5555"
 	w := httptest.NewRecorder()
 	ph.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("unknown path status = %d, want 404", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if sawHeader {
+		t.Errorf("upstream Accept-Encoding = %q, want the header dropped", gotEncoding)
+	}
+	if countType(c.eventTypes(t), protocol.EventAssistantMessage) != 1 {
+		t.Errorf("expected the response to be parsed, got %v", c.eventTypes(t))
+	}
+}
+
+// An upstream that compresses anyway still gets relayed byte-for-byte; we skip
+// ingest rather than hand the parser bytes it cannot read.
+func TestProxyEncodedResponseRelayedWithoutIngest(t *testing.T) {
+	var payload bytes.Buffer
+	zw := gzip.NewWriter(&payload)
+	io.WriteString(zw, msgRespBody)
+	zw.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Write(payload.Bytes())
+	}))
+	defer srv.Close()
+
+	ph, c := newAnthropicTestHandler(t, srv.URL, nil)
+	w := doMessages(t, ph, msgReqBody, "sk-ant-client")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if w.Header().Get("Content-Encoding") != "gzip" {
+		t.Errorf("client Content-Encoding = %q, want it preserved", w.Header().Get("Content-Encoding"))
+	}
+	if !bytes.Equal(w.Body.Bytes(), payload.Bytes()) {
+		t.Error("client body was not the upstream bytes")
+	}
+	// The request side is still logged; only the unreadable response is skipped.
+	types := c.eventTypes(t)
+	if countType(types, protocol.EventAssistantMessage) != 0 || countType(types, protocol.EventUsage) != 0 {
+		t.Errorf("response events logged from an encoded body: %v", types)
+	}
+	if countType(types, protocol.EventUserMessage) != 1 {
+		t.Errorf("expected the request to still be logged, got %v", types)
+	}
+}
+
+// Claude Code stamps every request with its own conversation ID; when the
+// listener names that header we adopt it as the session identity instead of
+// deriving one from the message prefix.
+func TestProxySessionIDHeader(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	ph, c := newAnthropicTestHandler(t, srv.URL, func(l *listener) {
+		l.Session_ID_Header = "x-claude-code-session-id"
+	})
+	do := func(sid, body string) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if sid != "" {
+			req.Header.Set("x-claude-code-session-id", sid)
+		}
+		req.RemoteAddr = "203.0.113.7:5555"
+		w := httptest.NewRecorder()
+		ph.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+	}
+	// Two requests on the same client session ID, with histories that share no
+	// prefix at all: prefix matching would call the second one a new session.
+	do("11111111-2222-3333-4444-555555555555", msgReqBody)
+	do("11111111-2222-3333-4444-555555555555",
+		`{"model":"claude-opus-4-8","max_tokens":64,"messages":[{"role":"user","content":"totally unrelated"}]}`)
+	// A different session ID from the same client is a different conversation.
+	do("99999999-2222-3333-4444-555555555555", msgReqBody)
+	// A missing header falls back to prefix matching, which mints its own ID.
+	do("", msgReqBody)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	sessions := map[string]bool{}
+	newFlags := map[string]int{}
+	for _, e := range c.ents {
+		v, ok := e.GetEnumeratedValue("session_id")
+		if !ok {
+			t.Fatal("entry missing session_id EV")
+		}
+		id, _ := v.(string)
+		sessions[id] = true
+		if _, isNew := e.GetEnumeratedValue("new_session"); isNew {
+			newFlags[id]++
+		}
+	}
+	if !sessions["11111111-2222-3333-4444-555555555555"] {
+		t.Errorf("client session ID was not adopted, saw %v", sessions)
+	}
+	if !sessions["99999999-2222-3333-4444-555555555555"] {
+		t.Errorf("second client session ID was not adopted, saw %v", sessions)
+	}
+	if len(sessions) != 3 {
+		t.Errorf("session count = %d, want 3 (two named, one derived): %v", len(sessions), sessions)
+	}
+	// The named session is new exactly once, on its first request.
+	if n := newFlags["11111111-2222-3333-4444-555555555555"]; n == 0 {
+		t.Error("first request on a named session was not flagged new")
+	}
+}
+
+// An unusable value in the session header (oversized, empty, non-printable) is
+// ignored in favor of prefix matching rather than trusted onto every entry.
+func TestProxySessionIDHeaderRejectsJunk(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	ph, c := newAnthropicTestHandler(t, srv.URL, func(l *listener) {
+		l.Session_ID_Header = "x-claude-code-session-id"
+	})
+	junk := strings.Repeat("a", maxSessionIDLen+1)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(msgReqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-claude-code-session-id", junk)
+	req.RemoteAddr = "203.0.113.7:5555"
+	w := httptest.NewRecorder()
+	ph.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.ents) == 0 {
+		t.Fatal("nothing ingested")
+	}
+	for _, e := range c.ents {
+		v, _ := e.GetEnumeratedValue("session_id")
+		if id, _ := v.(string); id == junk {
+			t.Fatal("oversized session header value was used as the session ID")
+		}
 	}
 }

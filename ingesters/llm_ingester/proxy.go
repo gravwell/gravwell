@@ -49,8 +49,12 @@ func newProxyHandler(name string, cfg *listener, proto protocol.Protocol, tag en
 	if cfg.Insecure_Skip_TLS_Verify_Upstream {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	// Streaming requires that we observe bytes as they arrive.
-	tr.DisableCompression = false
+	// The tap has to read the upstream body, so the upstream hop is
+	// uncompressed: the transport asks for no encoding of its own and
+	// forwardUpstream drops whatever the client negotiated (br and zstd we
+	// could not decode at all, and gzip would only add latency to a stream we
+	// are relaying frame by frame).
+	tr.DisableCompression = true
 	tr.ResponseHeaderTimeout = 0
 	tr.ExpectContinueTimeout = 0
 	ph := &proxyHandler{
@@ -71,8 +75,16 @@ func newProxyHandler(name string, cfg *listener, proto protocol.Protocol, tag en
 }
 
 func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Gate inbound requests when a client credential is configured, before any
+	// other handling and before reading the (potentially large) body. The
+	// header depends on the listener's auth style (Authorization for bearer,
+	// x-api-key for Anthropic).
+	if want := h.cfg.ClientAuthHeader(); want != "" && r.Header.Get(h.cfg.AuthHeaderName()) != want {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if !h.pathSet[r.URL.Path] {
-		http.NotFound(w, r)
+		h.serveUnparsedPath(w, r)
 		return
 	}
 	started := time.Now()
@@ -88,29 +100,8 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		lg:           h.lg,
 	}
 
-	// Gate inbound requests when a client credential is configured. Reject
-	// before reading the (potentially large) body. The header depends on the
-	// listener's auth style (Authorization for bearer, x-api-key for Anthropic).
-	if want := h.cfg.ClientAuthHeader(); want != "" && r.Header.Get(h.cfg.AuthHeaderName()) != want {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	body, err := io.ReadAll(io.LimitReader(r.Body, int64(h.cfg.Max_Body)+1))
-	r.Body.Close()
-	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
-		if h.lg != nil {
-			h.lg.Warn("failed to read request body", log.KV("listener", h.name), log.KVErr(err))
-		}
-		return
-	}
-	if len(body) > h.cfg.Max_Body {
-		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-		if h.lg != nil {
-			h.lg.Warn("request body too large",
-				log.KV("listener", h.name), log.KV("max_body", h.cfg.Max_Body))
-		}
+	body, ok := h.readBody(w, r)
+	if !ok {
 		return
 	}
 
@@ -129,7 +120,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ec.stream = parsedReq.Stream
 
 	// Sessions are partitioned by client IP
-	sessionID, newSession := h.sessions.Resolve(ec.clientIP.String(), parsedReq.MessageHashes)
+	sessionID, newSession := h.resolveSession(r, ec.clientIP.String(), parsedReq.MessageHashes)
 	ec.sessionID = sessionID
 	ec.newSession = newSession
 
@@ -162,11 +153,78 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// forwardUpstream asks for an identity encoding; an upstream that
+	// compresses anyway hands us bytes the protocol parser cannot read. Relay
+	// them untouched instead of feeding it garbage.
+	if enc := resp.Header.Get("Content-Encoding"); enc != "" && !strings.EqualFold(enc, "identity") {
+		if h.lg != nil {
+			h.lg.Warn("upstream response is encoded, forwarding without ingest",
+				log.KV("listener", h.name), log.KV("content-encoding", enc))
+		}
+		if _, err := io.Copy(w, resp.Body); err != nil && h.lg != nil {
+			h.lg.Warn("copy encoded upstream body", log.KVErr(err))
+		}
+		return
+	}
+
 	if isEventStream(resp.Header.Get("Content-Type")) {
 		h.handleStream(w, resp, ec, started)
 	} else {
 		h.handleBuffered(w, resp, ec, started)
 	}
+}
+
+// serveUnparsedPath handles a request on a path the protocol module does not
+// parse. A provider's API is wider than the one endpoint we understand — the
+// Messages API has /v1/messages/count_tokens next to /v1/messages, and Claude
+// Code calls it — so by default those requests are proxied untouched and simply
+// not ingested. Reject_Unknown_Paths narrows the listener to the parsed paths.
+func (h *proxyHandler) serveUnparsedPath(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.Reject_Unknown_Paths {
+		http.NotFound(w, r)
+		return
+	}
+	body, ok := h.readBody(w, r)
+	if !ok {
+		return
+	}
+	h.forwardWithoutIngest(w, r, body)
+}
+
+// readBody reads the request body subject to the configured limit, answering
+// the client and returning false when it cannot be used.
+func (h *proxyHandler) readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, int64(h.cfg.Max_Body)+1))
+	r.Body.Close()
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		if h.lg != nil {
+			h.lg.Warn("failed to read request body", log.KV("listener", h.name), log.KVErr(err))
+		}
+		return nil, false
+	}
+	if len(body) > h.cfg.Max_Body {
+		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		if h.lg != nil {
+			h.lg.Warn("request body too large",
+				log.KV("listener", h.name), log.KV("max_body", h.cfg.Max_Body))
+		}
+		return nil, false
+	}
+	return body, true
+}
+
+// resolveSession decides which session a request belongs to. When the listener
+// names a session header and the request carries a usable value, the client is
+// telling us which conversation this is and we take its word for it; otherwise
+// we derive the session by matching the message prefix.
+func (h *proxyHandler) resolveSession(r *http.Request, client string, hashes []string) (string, bool) {
+	if hdr := h.cfg.Session_ID_Header; hdr != "" {
+		if id := sanitizeSessionID(r.Header.Get(hdr)); id != "" {
+			return h.sessions.ResolveExplicit(client, id)
+		}
+	}
+	return h.sessions.Resolve(client, hashes)
 }
 
 // forwardUpstream rewrites the request to target the configured upstream and
@@ -184,6 +242,10 @@ func (h *proxyHandler) forwardUpstream(r *http.Request, body []byte) (*http.Resp
 	// configured it replaces the client's auth header; otherwise the client's
 	// auth header passes through unchanged.
 	copyRequestHeaders(out, r, h.cfg.AuthHeaderName(), h.cfg.UpstreamAuthHeader())
+	// We have to read the upstream body to ingest it, so the client's encoding
+	// negotiation does not carry upstream (see the transport setup in
+	// newProxyHandler). The response we relay is simply uncompressed.
+	out.Header.Del("Accept-Encoding")
 	setForwardedFor(out, r)
 	// The Anthropic Messages API requires an anthropic-version header. When the
 	// proxy injects the upstream key the client never sends one, so supply a
