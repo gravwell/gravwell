@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -205,4 +206,21 @@ func TestConfig_Verify_PrefersExistingValues(t *testing.T) {
 	if cfg.Host != "https://custom.com" {
 		t.Errorf("Host = %q, want https://custom.com", cfg.Host)
 	}
+}
+
+func TestConfigEqual(t *testing.T) {
+	configtest.CheckEqual(t, Config{
+		BaseConfig:     hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		MultiTagConfig: hosted.MultiTagConfig{Tag_Prefix: "mimecast"},
+		PollingConfig: hosted.PollingConfig{
+			Lookback:            defaultLookback,
+			Requests_Per_Minute: defaultRequestsPerMinute,
+			Request_Interval:    defaultInterval,
+		},
+		Client_Id:     "id",
+		Client_Secret: "secret",
+		Api:           []Api{AuditApi},
+		Host:          defaultHost,
+		Preprocessor:  []string{"pp"},
+	})
 }

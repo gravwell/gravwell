@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -207,5 +208,15 @@ func TestTesterIngester_Handle(t *testing.T) {
 		if res.Delay != defaultInterval {
 			t.Fatalf("TesterIngester.Handle() returned wrong delay")
 		}
+	})
+}
+
+func TestConfigEqual(t *testing.T) {
+	configtest.CheckEqual(t, Config{
+		BaseConfig:      hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		SingleTagConfig: hosted.SingleTagConfig{Tag_Name: Tag},
+		Interval:        "10s",
+		Silent:          true,
+		Test_Errors:     true,
 	})
 }

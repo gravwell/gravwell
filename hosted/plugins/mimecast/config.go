@@ -11,6 +11,7 @@ package mimecast
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/gravwell/gravwell/v3/hosted"
 )
@@ -32,6 +33,25 @@ type Config struct {
 	Api           []Api
 	Host          string
 	Preprocessor  []string
+}
+
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.MultiTagConfig == nc.MultiTagConfig &&
+		c.PollingConfig == nc.PollingConfig &&
+		c.Client_Id == nc.Client_Id &&
+		c.Client_Secret == nc.Client_Secret &&
+		c.Host == nc.Host &&
+		slices.Equal(c.Api, nc.Api) &&
+		slices.Equal(c.Preprocessor, nc.Preprocessor)
 }
 
 func (c *Config) Verify() error {

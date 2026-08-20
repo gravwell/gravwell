@@ -70,7 +70,9 @@ type listener struct {
 	// the default tag when unset.
 	Tag_Name string
 	// Log_Mode controls how much of each request is ingested: "delta" (default,
-	// one entry per new logical event), "user" (latest user prompt only), or
+	// one entry per new logical event), "user" (user prompts only — never the
+	// model's replies; tool calls and results are still captured when
+	// Log_Tool_Calls is true, and the usage record when Log_Usage is true), or
 	// "full" (every message in the request body, every request).
 	Log_Mode string
 	// Log_Tool_Calls, when true, captures function-call / MCP tool invocations
