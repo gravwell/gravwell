@@ -10,8 +10,10 @@ package client_test
 
 import (
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/client"
@@ -32,14 +34,11 @@ func TestSetAccess(t *testing.T) {
 	}
 	t.Cleanup(func() { l.Close() })
 
-	type accessBody struct {
-		OwnerID *int32
-		Readers types.ACL
-		Writers types.ACL
-	}
+	type accessBody types.SearchCtrlSetAccessRequest
 
 	var gotMethod, gotPath string
 	var gotBody accessBody
+	var gotRawBody []byte
 	var failReq bool
 
 	mux := http.NewServeMux()
@@ -47,7 +46,10 @@ func TestSetAccess(t *testing.T) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
 		gotBody = accessBody{}
-		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+		var err error
+		if gotRawBody, err = io.ReadAll(r.Body); err != nil {
+			t.Errorf("failed to read request body: %v", err)
+		} else if err := json.Unmarshal(gotRawBody, &gotBody); err != nil {
 			t.Errorf("failed to decode request body: %v", err)
 		}
 		if failReq {
@@ -68,7 +70,7 @@ func TestSetAccess(t *testing.T) {
 		readers := types.ACL{GIDs: []int32{1, 2}}
 		writers := types.ACL{Global: true}
 
-		if err := c.SetAccess("search-123", &nid, readers, writers); err != nil {
+		if err := c.SetAccess("search-123", nid, readers, writers); err != nil {
 			t.Fatalf("SetAccess: %v", err)
 		}
 
@@ -78,7 +80,7 @@ func TestSetAccess(t *testing.T) {
 		if want := "/api/searchctrl/search-123/access"; gotPath != want {
 			t.Errorf("path = %q, want %q", gotPath, want)
 		}
-		if gotBody.OwnerID == nil || *gotBody.OwnerID != nid {
+		if gotBody.OwnerID != nid {
 			t.Errorf("OwnerID = %v, want %d", gotBody.OwnerID, nid)
 		}
 		if !equalACL(gotBody.Readers, readers) {
@@ -89,19 +91,31 @@ func TestSetAccess(t *testing.T) {
 		}
 	})
 
-	t.Run("nil ownerID round-trips as JSON null, not a zero uid", func(t *testing.T) {
-		if err := c.SetAccess("search-456", nil, types.ACL{}, types.ACL{}); err != nil {
-			t.Fatalf("SetAccess with nil ownerID: %v", err)
+	t.Run("ownerID of 0 rides the wire as a literal 0, not omitted or null", func(t *testing.T) {
+		// SetAccess/SearchCtrlSetAccessRequest have no "leave unchanged"
+		// sentinel for OwnerID anymore (it's a plain, always-present int32,
+		// not the old *int32) -- validating that 0 is invalid is the
+		// webserver's job (see TestSetSearchAccess/TestSearchCtrlSetAccessHandler
+		// in the backend repo), not this SDK's. This only proves the client
+		// doesn't do anything surprising with a zero value on the way out --
+		// e.g. dropping the field via an accidental `omitempty` tag on
+		// SearchCtrlSetAccessRequest.OwnerID, which would let a real bug there
+		// slip past unnoticed.
+		if err := c.SetAccess("search-789", 0, types.ACL{}, types.ACL{}); err != nil {
+			t.Fatalf("SetAccess with ownerID=0: %v", err)
 		}
-		if gotBody.OwnerID != nil {
-			t.Errorf("OwnerID = %v, want nil", *gotBody.OwnerID)
+		if gotBody.OwnerID != 0 {
+			t.Errorf("OwnerID = %d, want 0", gotBody.OwnerID)
+		}
+		if !strings.Contains(string(gotRawBody), `"OwnerID":0`) {
+			t.Errorf("expected the actual wire body to contain a literal OwnerID:0, got %s", gotRawBody)
 		}
 	})
 
 	t.Run("non-200 response surfaces as an error", func(t *testing.T) {
 		failReq = true
 		t.Cleanup(func() { failReq = false })
-		if err := c.SetAccess("search-123", nil, types.ACL{}, types.ACL{}); err == nil {
+		if err := c.SetAccess("search-123", 1, types.ACL{}, types.ACL{}); err == nil {
 			t.Fatal("expected error on 500 response, got nil")
 		}
 	})

@@ -66,9 +66,14 @@ func (c *Client) BackgroundSearch(sid string) error {
 	return c.patchStaticURL(searchCtrlBackgroundUrl(sid), nil)
 }
 
-// SetAccess sets the Readers/Writers ACLs and optionally reassigns ownership (for admins only)
-// for an existing search. Pass a nil ownerID to leave ownership unchanged.
-func (c *Client) SetAccess(sid string, ownerID *int32, readers, writers types.ACL) error {
+// SetAccess sets the Readers/Writers ACLs and, for admins, reassigns ownership
+// for an existing search, in a single clobbering update. ownerID must always
+// be non-zero: non-admins must echo back the search's current owner (fetch
+// it first if you don't already have it) or the request is rejected, and
+// admins may pass a different owner to reassign it. There is no "leave
+// ownership unchanged" sentinel. As with Readers and Writers, the caller
+// is always responsible for resending the value they want to keep.
+func (c *Client) SetAccess(sid string, ownerID int32, readers, writers types.ACL) error {
 	request := types.SearchCtrlSetAccessRequest{
 		OwnerID: ownerID,
 		Readers: readers,
