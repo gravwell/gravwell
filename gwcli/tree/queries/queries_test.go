@@ -25,12 +25,14 @@ import (
 
 // TestSetGroupPreservesWriters is a regression test for gravwell/issues#2708:
 // setGroup() migrated from the Readers-only SetGroups endpoint to the
-// combined SetAccess endpoint, which replaces Writers wholesale on every
-// call. Without fetching the search's current Writers first, running
-// set-groups would silently wipe any existing write access on the search.
-// This drives the actual cobra command non-interactively against a mock
-// server and asserts the wire request it sends preserves Writers while only
-// updating Readers.
+// combined SetAccess endpoint, which replaces Writers and OwnerID wholesale
+// on every call (OwnerID has no "leave unchanged" sentinel -- it's a plain,
+// always-required int32, same as Writers). Without fetching the search's
+// current Writers and OwnerID first, running set-groups would silently wipe
+// any existing write access, or get rejected outright for sending an
+// unowned/zero OwnerID. This drives the actual cobra command
+// non-interactively against a mock server and asserts the wire request it
+// sends preserves Writers and OwnerID while only updating Readers.
 func TestSetGroupPreservesWriters(t *testing.T) {
 	l, err := net.Listen("tcp", "[::1]:0")
 	if err != nil {
@@ -39,9 +41,10 @@ func TestSetGroupPreservesWriters(t *testing.T) {
 	t.Cleanup(func() { l.Close() })
 
 	existingWriters := types.ACL{GIDs: []int32{99}}
+	const existingOwnerID = int32(42)
 
 	type accessBody struct {
-		OwnerID *int32
+		OwnerID int32
 		Readers types.ACL
 		Writers types.ACL
 	}
@@ -53,6 +56,7 @@ func TestSetGroupPreservesWriters(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet:
 			si := types.SearchInfo{}
+			si.OwnerID = existingOwnerID
 			si.Writers = existingWriters
 			if err := json.NewEncoder(w).Encode(si); err != nil {
 				t.Errorf("failed to encode mock GetSearch response: %v", err)
@@ -94,6 +98,9 @@ func TestSetGroupPreservesWriters(t *testing.T) {
 
 	if !sawAccessCall {
 		t.Fatal("expected a PUT .../access request, got none")
+	}
+	if gotAccess.OwnerID != existingOwnerID {
+		t.Errorf("OwnerID = %d, want unchanged %d", gotAccess.OwnerID, existingOwnerID)
 	}
 	if !slices.Equal(gotAccess.Writers.GIDs, existingWriters.GIDs) {
 		t.Errorf("Writers.GIDs = %v, want unchanged %v", gotAccess.Writers.GIDs, existingWriters.GIDs)

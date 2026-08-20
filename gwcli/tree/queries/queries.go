@@ -382,7 +382,7 @@ func setGroup() action.Pair {
 					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to fetch search: %s: %v", ID, err)}
 					continue
 				}
-				if err := connection.Client.SetAccess(ID, nil, types.ACL{GIDs: GIDs}, si.Writers); err != nil {
+				if err := connection.Client.SetAccess(ID, si.OwnerID, types.ACL{GIDs: GIDs}, si.Writers); err != nil {
 					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to set groups for search %s: %v", ID, err)}
 				} else if len(GIDs) < 1 {
 					results[i] = scaffold.Result{Success: true, Output: "cleared read groups from search " + ID}
