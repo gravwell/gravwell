@@ -66,17 +66,15 @@ func (c *Client) BackgroundSearch(sid string) error {
 	return c.patchStaticURL(searchCtrlBackgroundUrl(sid), nil)
 }
 
-// SetGroups sets the list of groups that can read the search
-func (c *Client) SetGroups(sid string, gids []int32) error {
-	request := struct{ GIDs []int32 }{gids}
-	return c.putStaticURL(searchCtrlGroupsUrl(sid), request)
-}
-
-// SetGlobal is an admin-only function to toggle sharing of results
-// with the entire system.
-func (c *Client) SetGlobal(sid string, global bool) error {
-	request := struct{ Global bool }{global}
-	return c.putStaticURL(searchCtrlGlobalUrl(sid), request)
+// SetAccess sets the Readers/Writers ACLs and optionally reassigns ownership (for admins only)
+// for an existing search. Pass a nil ownerID to leave ownership unchanged.
+func (c *Client) SetAccess(sid string, ownerID *int32, readers, writers types.ACL) error {
+	request := types.SearchCtrlSetAccessRequest{
+		OwnerID: ownerID,
+		Readers: readers,
+		Writers: writers,
+	}
+	return c.putStaticURL(searchCtrlAccessUrl(sid), request)
 }
 
 // ListSearches returns a list of all searches the current user has access to

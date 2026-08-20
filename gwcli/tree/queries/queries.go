@@ -377,7 +377,12 @@ func setGroup() action.Pair {
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
 			for i, ID := range IDs {
-				if err := connection.Client.SetGroups(ID, GIDs); err != nil {
+				si, err := connection.Client.GetSearch(ID)
+				if err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to fetch search: %s: %v", ID, err)}
+					continue
+				}
+				if err := connection.Client.SetAccess(ID, nil, types.ACL{GIDs: GIDs}, si.Writers); err != nil {
 					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to set groups for search %s: %v", ID, err)}
 				} else if len(GIDs) < 1 {
 					results[i] = scaffold.Result{Success: true, Output: "cleared read groups from search " + ID}
