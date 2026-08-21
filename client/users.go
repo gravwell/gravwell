@@ -75,7 +75,7 @@ func (c *Client) CreateUser(m types.AddUser) (result types.User, err error) {
 
 // UpdateUser (admin-only) modifies an existing user.
 func (c *Client) UpdateUser(m types.User) error {
-	return c.putStaticURL(usersInfoUrl(m.ID), m)
+	return c.putStaticURL(usersInfoUrl(m.ID), m.ForUpdate())
 }
 
 // UpdateUserInfo changes basic information about the specified user.
