@@ -485,10 +485,10 @@ type StatSet struct {
 }
 
 // MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
-func (s StatSet) MarshalJSON() ([]byte, error) {
+func (ss StatSet) MarshalJSON() ([]byte, error) {
 	type dummyStatSet StatSet
-	s.Stats = nonNilSlice(s.Stats)
-	return json.Marshal(dummyStatSet(s))
+	ss.Stats = nonNilSlice(ss.Stats)
+	return json.Marshal(dummyStatSet(ss))
 }
 
 type OverviewStatSet struct {

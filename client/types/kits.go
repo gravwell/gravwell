@@ -244,39 +244,39 @@ type KitBuildResponse struct {
 	OwnerID int32
 }
 
-func (ps *KitState) UpdateItem(name string, tp KitAssetType, id string) error {
-	for i := range ps.Items {
-		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
-			ps.Items[i].ID = id
+func (ks *KitState) UpdateItem(name string, tp KitAssetType, id string) error {
+	for i := range ks.Items {
+		if ks.Items[i].Name == name && ks.Items[i].Type == tp {
+			ks.Items[i].ID = id
 			return nil
 		}
 	}
 	return errors.New("not found")
 }
 
-func (ps *KitState) AddItem(itm KitItem) error {
-	for i := range ps.Items {
-		if ps.Items[i].Name == itm.Name && ps.Items[i].Type == itm.Type {
+func (ks *KitState) AddItem(itm KitItem) error {
+	for i := range ks.Items {
+		if ks.Items[i].Name == itm.Name && ks.Items[i].Type == itm.Type {
 			return errors.New("already exists")
 		}
 	}
-	ps.Items = append(ps.Items, itm)
+	ks.Items = append(ks.Items, itm)
 	return nil
 }
 
-func (ps *KitState) GetItem(name string, tp KitAssetType) (KitItem, error) {
-	for i := range ps.Items {
-		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
-			return ps.Items[i], nil
+func (ks *KitState) GetItem(name string, tp KitAssetType) (KitItem, error) {
+	for i := range ks.Items {
+		if ks.Items[i].Name == name && ks.Items[i].Type == tp {
+			return ks.Items[i], nil
 		}
 	}
 	return KitItem{}, errors.New("not found")
 }
 
-func (ps *KitState) RemoveItem(name string, tp KitAssetType) error {
-	for i := range ps.Items {
-		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
-			ps.Items = append(ps.Items[:i], ps.Items[i+1:]...)
+func (ks *KitState) RemoveItem(name string, tp KitAssetType) error {
+	for i := range ks.Items {
+		if ks.Items[i].Name == name && ks.Items[i].Type == tp {
+			ks.Items = append(ks.Items[:i], ks.Items[i+1:]...)
 			return nil
 		}
 	}
