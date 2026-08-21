@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	maxJsonTimestamp = time.Date(9999, time.December, 12, 23, 59, 59, 99, time.UTC)
+	MaxJSONTimestamp = time.Date(9999, time.December, 12, 23, 59, 59, 99, time.UTC)
 )
 
 type IndexerRequest struct {
@@ -67,11 +67,11 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 		Cold:          si.Cold,
 		Fragmentation: si.Fragmentation,
 	}
-	if si.Start.After(maxJsonTimestamp) {
-		x.Start = maxJsonTimestamp
+	if si.Start.After(MaxJSONTimestamp) {
+		x.Start = MaxJSONTimestamp
 	}
-	if si.End.After(maxJsonTimestamp) {
-		x.End = maxJsonTimestamp
+	if si.End.After(MaxJSONTimestamp) {
+		x.End = MaxJSONTimestamp
 	}
 	if !si.RemoteState.isEmpty() {
 		x.RemoteState = &si.RemoteState
