@@ -448,6 +448,21 @@ func (u UserWithCBAC) MarshalJSON() ([]byte, error) {
 		dummyUser: dummyUser(u.User),
 		CBAC:      u.CBAC,
 	})
+}  
+
+func (u *User) ForUpdate() UpdateUser {
+	sg := make([]int32, len(u.DefaultSearchGroups))
+	for i := range u.DefaultSearchGroups {
+		sg[i] = u.DefaultSearchGroups[i].ID
+	}
+	return UpdateUser{
+		Username:            u.Username,
+		Name:                u.Name,
+		Email:               u.Email,
+		Admin:               u.Admin,
+		Locked:              u.Locked,
+		DefaultSearchGroups: sg,
+	}
 }
 
 // IsGroupMember returns true if the user is a member of group with
