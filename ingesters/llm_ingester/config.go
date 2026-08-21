@@ -12,10 +12,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -84,34 +82,14 @@ type listener struct {
 	// each response. Streaming requires the client to set
 	// stream_options.include_usage = true.
 	Log_Usage bool
-	// Auth_Style selects the header the auth credentials use: "bearer" (default,
-	// "Authorization: Bearer <token>", used by OpenAI-compatible upstreams) or
-	// "x-api-key" (bare "x-api-key: <token>", used by the Anthropic Messages API).
-	Auth_Style string
-	// Anthropic_Version, when set, is injected as the upstream "anthropic-version"
-	// header if the client did not supply one. Only relevant with the
-	// "x-api-key" auth style when the proxy injects the upstream credential and
-	// the client therefore never sends the version header itself.
-	Anthropic_Version string
 	// Client_Authorization, when set, is the bare token inbound clients must
-	// present in the auth header (see Auth_Style); mismatches get a 401. Empty
+	// present as "Authorization: Bearer <token>"; mismatches get a 401. Empty
 	// requires no client authentication.
 	Client_Authorization string
 	// Upstream_Authorization, when set, is the bare token injected as the
-	// upstream auth header (see Auth_Style), replacing whatever the client sent.
-	// Empty passes the client's own auth header through unchanged.
+	// upstream Authorization header, replacing whatever the client sent. Empty
+	// passes the client's own Authorization header through unchanged.
 	Upstream_Authorization string
-	// Session_ID_Header names a request header carrying the client's own
-	// conversation identifier (e.g. "x-claude-code-session-id"). When set and
-	// present on a request, that value identifies the session instead of the
-	// derived prefix match. Unset uses prefix matching alone.
-	Session_ID_Header string
-	// Reject_Unknown_Paths, when true, answers 404 for any path the protocol
-	// module does not parse. The default (false) proxies those requests to the
-	// upstream without ingesting them, which keeps sibling endpoints the
-	// client needs working — the Messages API's /v1/messages/count_tokens, for
-	// one, which Claude Code calls alongside /v1/messages.
-	Reject_Unknown_Paths bool
 	// Session_TTL is how long idle session prefix-match state is retained,
 	// expressed as a Go duration string (e.g. "30m"). Defaults to
 	// defaultSessionTTL when unset.
@@ -127,17 +105,9 @@ type listener struct {
 	// derived during Verify
 	sessionTTL         time.Duration
 	upstreamURL        *url.URL
-	authHeaderName     string
 	clientAuthHeader   string
 	upstreamAuthHeader string
 }
-
-const (
-	authStyleBearer  = "bearer"
-	authStyleAPIKey  = "x-api-key"
-	bearerHeaderName = "Authorization"
-	apiKeyHeaderName = "x-api-key"
-)
 
 type cfgType struct {
 	gbl
@@ -233,12 +203,6 @@ func (l *listener) validate() error {
 	if l.Max_Body <= 0 {
 		l.Max_Body = defaultMaxBody
 	}
-	if l.Session_ID_Header != "" {
-		if !validHeaderName(l.Session_ID_Header) {
-			return fmt.Errorf("invalid Session-ID-Header %q", l.Session_ID_Header)
-		}
-		l.Session_ID_Header = http.CanonicalHeaderKey(l.Session_ID_Header)
-	}
 	if l.Session_TTL == "" {
 		l.sessionTTL = defaultSessionTTL
 	} else {
@@ -258,46 +222,25 @@ func (l *listener) validate() error {
 			return fmt.Errorf("TLS keypair: %w", err)
 		}
 	}
-	// Auth tokens are configured bare. Auth_Style selects the header and scheme:
-	// "bearer" (default) speaks "Authorization: Bearer <token>"; "x-api-key"
-	// speaks a bare "x-api-key: <token>" for the Anthropic Messages API. Empty
-	// tokens leave the corresponding header handling off.
-	switch l.Auth_Style {
-	case "", authStyleBearer:
-		l.Auth_Style = authStyleBearer
-		l.authHeaderName = bearerHeaderName
-		if l.Client_Authorization != "" {
-			l.clientAuthHeader = "Bearer " + l.Client_Authorization
-		}
-		if l.Upstream_Authorization != "" {
-			l.upstreamAuthHeader = "Bearer " + l.Upstream_Authorization
-		}
-	case authStyleAPIKey:
-		l.authHeaderName = apiKeyHeaderName
-		l.clientAuthHeader = l.Client_Authorization
-		l.upstreamAuthHeader = l.Upstream_Authorization
-	default:
-		return fmt.Errorf("invalid Auth-Style %q (want %q or %q)",
-			l.Auth_Style, authStyleBearer, authStyleAPIKey)
+	// Auth tokens are configured bare; we speak Bearer to both the client and
+	// the upstream. Empty tokens leave the corresponding header handling off.
+	if l.Client_Authorization != "" {
+		l.clientAuthHeader = "Bearer " + l.Client_Authorization
+	}
+	if l.Upstream_Authorization != "" {
+		l.upstreamAuthHeader = "Bearer " + l.Upstream_Authorization
 	}
 	return nil
 }
 
-// AuthHeaderName returns the header the auth credentials use ("Authorization"
-// for the bearer style, "x-api-key" for the Anthropic style).
-func (l *listener) AuthHeaderName() string {
-	return l.authHeaderName
-}
-
-// ClientAuthHeader returns the full auth header value an inbound client must
-// present (see AuthHeaderName), or "" when no client authentication is required.
+// ClientAuthHeader returns the full Authorization header value an inbound client
+// must present, or "" when no client authentication is required.
 func (l *listener) ClientAuthHeader() string {
 	return l.clientAuthHeader
 }
 
-// UpstreamAuthHeader returns the auth header value to inject on the upstream
-// request (see AuthHeaderName), or "" to pass the client's own value through
-// unchanged.
+// UpstreamAuthHeader returns the Authorization header value to inject on the
+// upstream request, or "" to pass the client's Authorization through unchanged.
 func (l *listener) UpstreamAuthHeader() string {
 	return l.upstreamAuthHeader
 }
@@ -312,22 +255,6 @@ func (l *listener) UpstreamURL() *url.URL {
 
 func (l *listener) SessionTTL() time.Duration {
 	return l.sessionTTL
-}
-
-// validHeaderName reports whether s is a legal HTTP field name (RFC 7230
-// token). Header lookups are canonicalized, so case does not matter, but a
-// value with illegal characters would silently never match.
-func validHeaderName(s string) bool {
-	const tokenExtra = `!#$%&'*+-.^_` + "`" + `|~`
-	for _, r := range s {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-		case strings.ContainsRune(tokenExtra, r):
-		default:
-			return false
-		}
-	}
-	return s != ""
 }
 
 // Tags returns the list of tags used across all listeners.

@@ -10,7 +10,6 @@ package main
 
 import (
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -42,11 +41,6 @@ type sessionEntry struct {
 type sessionStore struct {
 	mu       sync.Mutex
 	byClient map[string][]*sessionEntry
-	// explicit tracks sessions named by the client itself (see
-	// ResolveExplicit), keyed by client then by the client's identifier. These
-	// need no hash matching, only a last-seen stamp so the TTL and the
-	// new-session flag still work.
-	explicit map[string]map[string]time.Time
 	ttl      time.Duration
 	persist  *utils.State
 
@@ -58,9 +52,8 @@ type sessionStore struct {
 // persistedSessions is the on-disk form. We can change the in-memory layout
 // later without breaking the on-disk schema by serialising this fixed shape.
 type persistedSessions struct {
-	Now      time.Time
-	Entries  []persistedEntry
-	Explicit []persistedExplicit
+	Now     time.Time
+	Entries []persistedEntry
 }
 
 type persistedEntry struct {
@@ -71,20 +64,12 @@ type persistedEntry struct {
 	LastSeen time.Time
 }
 
-// persistedExplicit is the on-disk form of a client-named session.
-type persistedExplicit struct {
-	Client   string
-	ID       string
-	LastSeen time.Time
-}
-
 func newSessionStore(ttl time.Duration, matchWindow int, statePath string) (*sessionStore, error) {
 	if matchWindow <= 0 {
 		matchWindow = defaultMatchWindow
 	}
 	s := &sessionStore{
 		byClient:     map[string][]*sessionEntry{},
-		explicit:     map[string]map[string]time.Time{},
 		ttl:          ttl,
 		maxPerClient: 256,
 		matchWindow:  matchWindow,
@@ -139,57 +124,6 @@ func (s *sessionStore) load(p *persistedSessions) {
 			s.byClient[k] = slices.Clone(trimmed)
 		}
 	}
-	for _, e := range p.Explicit {
-		if e.LastSeen.Before(cutoff) || e.ID == "" {
-			continue
-		}
-		bucket := s.explicit[e.Client]
-		if bucket == nil {
-			bucket = map[string]time.Time{}
-			s.explicit[e.Client] = bucket
-		} else if len(bucket) >= s.maxPerClient {
-			continue
-		}
-		bucket[e.ID] = e.LastSeen
-	}
-}
-
-// ResolveExplicit records a session the client named for itself and reports
-// whether this is the first time we have seen it. The returned session ID is
-// the client's own identifier, which makes proxy-side entries directly
-// correlatable with the client's own logs.
-//
-// A client that tracks its own conversations is more reliable than the prefix
-// matching in Resolve, which cannot follow a rewritten history (a compaction, a
-// retry with edited context) and cannot tell two conversations apart once they
-// share a prefix. Callers fall back to Resolve when a request carries no
-// identifier.
-func (s *sessionStore) ResolveExplicit(client, id string) (string, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.evictNolock()
-	bucket := s.explicit[client]
-	if bucket == nil {
-		bucket = map[string]time.Time{}
-		s.explicit[client] = bucket
-	}
-	_, seen := bucket[id]
-	if !seen && len(bucket) >= s.maxPerClient {
-		// Cap the per-client set the same way minting does. Dropping the
-		// stalest entry keeps a client that churns through identifiers from
-		// growing the map without bound; the worst case is that a long-idle
-		// conversation is reported as new again.
-		var oldest string
-		var oldestSeen time.Time
-		for k, v := range bucket {
-			if oldest == "" || v.Before(oldestSeen) {
-				oldest, oldestSeen = k, v
-			}
-		}
-		delete(bucket, oldest)
-	}
-	bucket[id] = time.Now()
-	return id, !seen
 }
 
 // Resolve looks up or mints a session ID for the incoming request.
@@ -275,16 +209,6 @@ func (s *sessionStore) evictNolock() {
 		return
 	}
 	cutoff := time.Now().Add(-s.ttl)
-	for k, bucket := range s.explicit {
-		for id, seen := range bucket {
-			if seen.Before(cutoff) {
-				delete(bucket, id)
-			}
-		}
-		if len(bucket) == 0 {
-			delete(s.explicit, k)
-		}
-	}
 	for k, bucket := range s.byClient {
 		filtered := bucket[:0]
 		for _, e := range bucket {
@@ -325,35 +249,5 @@ func (s *sessionStore) Flush() error {
 			})
 		}
 	}
-	for k, bucket := range s.explicit {
-		for id, seen := range bucket {
-			p.Explicit = append(p.Explicit, persistedExplicit{
-				Client:   k,
-				ID:       id,
-				LastSeen: seen,
-			})
-		}
-	}
 	return s.persist.Write(&p)
-}
-
-// maxSessionIDLen bounds how much of a client-supplied session identifier we
-// are willing to keep around (and stamp onto every entry).
-const maxSessionIDLen = 128
-
-// sanitizeSessionID vets a session identifier taken from a request header.
-// The value is client-controlled and lands in an enumerated value on every
-// entry, so anything oversized, empty, or non-printable is rejected (the caller
-// then falls back to prefix matching) rather than trusted.
-func sanitizeSessionID(v string) string {
-	v = strings.TrimSpace(v)
-	if v == "" || len(v) > maxSessionIDLen {
-		return ""
-	}
-	for i := 0; i < len(v); i++ {
-		if v[i] < 0x21 || v[i] > 0x7e {
-			return ""
-		}
-	}
-	return v
 }
