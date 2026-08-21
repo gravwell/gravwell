@@ -61,12 +61,26 @@ type Element struct {
 	Filters     []string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (e Element) MarshalJSON() ([]byte, error) {
+	type dummyElement Element
+	e.Filters = nonNilSlice(e.Filters)
+	return json.Marshal(dummyElement(e))
+}
+
 // A GenerateAXRequest contains a tag name and a set of entries.
 // It is used by clients to request all possible extractions from the given entries.
 // All entries should have the same tag.
 type GenerateAXRequest struct {
 	Tag     string
 	Entries []SearchEntry
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r GenerateAXRequest) MarshalJSON() ([]byte, error) {
+	type dummyGenerateAXRequest GenerateAXRequest
+	r.Entries = nonNilSlice(r.Entries)
+	return json.Marshal(dummyGenerateAXRequest(r))
 }
 
 // A GenerateAXResponse contains an autoextractor definition
@@ -81,6 +95,14 @@ type GenerateAXResponse struct {
 	Confidence float64
 	Entries    []SearchEntry
 	Explore    []ExploreResult
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r GenerateAXResponse) MarshalJSON() ([]byte, error) {
+	type dummyGenerateAXResponse GenerateAXResponse
+	r.Entries = nonNilSlice(r.Entries)
+	r.Explore = nonNilSlice(r.Explore)
+	return json.Marshal(dummyGenerateAXResponse(r))
 }
 
 // ExploreRequest is used to request that the webserver perform a complete cracking of
@@ -121,7 +143,21 @@ type ModuleHint struct {
 	Condensing      bool
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (m ModuleHint) MarshalJSON() ([]byte, error) {
+	type dummyModuleHint ModuleHint
+	m.ProducedEVs = nonNilSlice(m.ProducedEVs)
+	m.ConsumedEVs = nonNilSlice(m.ConsumedEVs)
+	m.ResourcesNeeded = nonNilSlice(m.ResourcesNeeded)
+	return json.Marshal(dummyModuleHint(m))
+}
+
 type SearchHints struct {
+	// NOTE: SearchHints intentionally has no MarshalJSON of its own.
+	// It is only ever embedded anonymously (in ParseSearchResponse and StartSearchResponse),
+	// and giving it its own MarshalJSON could cause it to silently hijacking their Marshaler and
+	// drop every other field.
+	// Each embedding type must nil-check the promoted Tags/ModuleHints fields itself.
 	CollapsingIndex  int      // index of the first collapsed module
 	RenderModule     string   `json:",omitempty"`
 	TimeZoomDisabled bool     //Renderer does not support zooming around data based on time
@@ -145,6 +181,13 @@ type ParseSearchRequest struct {
 	Filters      []FilterRequest
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ParseSearchRequest) MarshalJSON() ([]byte, error) {
+	type dummyParseSearchRequest ParseSearchRequest
+	r.Filters = nonNilSlice(r.Filters)
+	return json.Marshal(dummyParseSearchRequest(r))
+}
+
 type ParseSearchResponse struct {
 	Sequence    uint64
 	GoodQuery   bool
@@ -153,6 +196,14 @@ type ParseSearchResponse struct {
 	RawQuery    string `json:",omitempty"`
 	ModuleIndex int
 	SearchHints
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ParseSearchResponse) MarshalJSON() ([]byte, error) {
+	type dummyParseSearchResponse ParseSearchResponse
+	r.Tags = nonNilSlice(r.Tags)
+	r.ModuleHints = nonNilSlice(r.ModuleHints)
+	return json.Marshal(dummyParseSearchResponse(r))
 }
 
 // LaunchRequest is a new named type so that we can abstract away the launch requests from the REST requests
@@ -206,6 +257,14 @@ type StartSearchRequest struct {
 	Global bool
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r StartSearchRequest) MarshalJSON() ([]byte, error) {
+	type dummyStartSearchRequest StartSearchRequest
+	r.Filters = nonNilSlice(r.Filters)
+	r.GIDs = nonNilSlice(r.GIDs)
+	return json.Marshal(dummyStartSearchRequest(r))
+}
+
 // StartSearchResponse is the type the webserver responds to a start search request
 // it contains a yay/nay plus new subprotocols if the search is valid.
 // SearchStartRange and SearchEndRange should be strings in RFC3339Nano format
@@ -232,6 +291,15 @@ type StartSearchResponse struct {
 	// Sharing parameters
 	GIDs   []int32
 	Global bool
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r StartSearchResponse) MarshalJSON() ([]byte, error) {
+	type dummyStartSearchResponse StartSearchResponse
+	r.Tags = nonNilSlice(r.Tags)
+	r.ModuleHints = nonNilSlice(r.ModuleHints)
+	r.GIDs = nonNilSlice(r.GIDs)
+	return json.Marshal(dummyStartSearchResponse(r))
 }
 
 type SearchSessionIntervalUpdate struct {
@@ -311,6 +379,14 @@ type SearchInfo struct {
 type SearchInfoListResponse struct {
 	BaseListResponse
 	Results []SearchInfo
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r SearchInfoListResponse) MarshalJSON() ([]byte, error) {
+	type dummySearchInfoListResponse SearchInfoListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices() // promoted from BaseListResponse
+	return json.Marshal(dummySearchInfoListResponse(r))
 }
 
 type SearchLaunchInfo struct {
@@ -684,11 +760,26 @@ type Macro struct {
 	Expansion string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (m Macro) MarshalJSON() ([]byte, error) {
+	type dummyMacro Macro
+	m.CommonFields = m.CommonFields.MakeNilSlices()
+	return json.Marshal(dummyMacro(m))
+}
+
 // MacroListResponse is what gets returned when you query a list of
 // macros.
 type MacroListResponse struct {
 	BaseListResponse
 	Results []Macro
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r MacroListResponse) MarshalJSON() ([]byte, error) {
+	type dummyMacroListResponse MacroListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyMacroListResponse(r))
 }
 
 func CheckMacroName(name string) error {
@@ -711,8 +802,12 @@ func (l LaunchResponse) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (si SearchInfo) MarshalJSON() ([]byte, error) {
 	type alias SearchInfo
+	si.CommonFields = si.CommonFields.MakeNilSlices() // promoted from CommonFields
+	si.Tags = nonNilSlice(si.Tags)
+	si.EVs = nonNilSlice(si.EVs)
 	return json.Marshal(struct {
 		alias
 		Duration string `json:",omitempty"`

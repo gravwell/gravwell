@@ -30,6 +30,13 @@ type Chartable struct {
 	TS   entry.Timestamp
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (c Chartable) MarshalJSON() ([]byte, error) {
+	type dummyChartable Chartable
+	c.Data = nonNilSlice(c.Data)
+	return json.Marshal(dummyChartable(c))
+}
+
 type ChartableSet []Chartable
 
 func (cs ChartableSet) Len() int { return len(cs) }
@@ -54,6 +61,13 @@ func (cs *ChartableSet) Reset() {
 
 type KeyComponents struct {
 	Keys []string
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (kc KeyComponents) MarshalJSON() ([]byte, error) {
+	type dummyKeyComponents KeyComponents
+	kc.Keys = nonNilSlice(kc.Keys)
+	return json.Marshal(dummyKeyComponents(kc))
 }
 
 // ChartableValueSet is what is returned when we have a request for data
@@ -214,45 +228,12 @@ func (cdp ChartableDataPoint) IsNaN() bool {
 	return math.IsNaN(float64(cdp))
 }
 
-type chartableDataPoints []ChartableDataPoint
-
-func (cd chartableDataPoints) MarshalJSON() ([]byte, error) {
-	if len(cd) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]ChartableDataPoint(cd))
-}
-
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (cvs ChartableValueSet) MarshalJSON() ([]byte, error) {
-	type alias ChartableValueSet
-	return json.Marshal(&struct {
-		Names  emptyStrings
-		Values chtbls
-	}{
-		Names:  emptyStrings(cvs.Names),
-		Values: chtbls(cvs.Values),
-	})
-}
-
-type chtbls []Chartable
-
-func (cs chtbls) MarshalJSON() ([]byte, error) {
-	if len(cs) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]Chartable(cs))
-}
-
-type chtbl Chartable
-
-func (cs chtbl) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		TS   entry.Timestamp
-		Data chartableDataPoints
-	}{
-		TS:   cs.TS,
-		Data: chartableDataPoints(cs.Data),
-	})
+	type dummyChartableValueSet ChartableValueSet
+	cvs.Names = nonNilSlice(cvs.Names)
+	cvs.Values = nonNilSlice(cvs.Values)
+	return json.Marshal(dummyChartableValueSet(cvs))
 }
 
 func (x ChartResponse) MarshalJSON() ([]byte, error) {

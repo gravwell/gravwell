@@ -38,6 +38,13 @@ type TokenSigningKey struct {
 	Expiration time.Time
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (k TokenSigningKey) MarshalJSON() ([]byte, error) {
+	type dummyTokenSigningKey TokenSigningKey
+	k.Key = nonNilSlice(k.Key)
+	return json.Marshal(dummyTokenSigningKey(k))
+}
+
 // Session contains all the information needed to authenticate.
 type Session struct {
 	ID          uint64 `json:",omitempty"`
@@ -186,6 +193,13 @@ type UpdateUser struct {
 	Locked bool
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (u UpdateUser) MarshalJSON() ([]byte, error) {
+	type dummyUpdateUser UpdateUser
+	u.DefaultSearchGroups = nonNilSlice(u.DefaultSearchGroups)
+	return json.Marshal(dummyUpdateUser(u))
+}
+
 type UserAddGroups struct {
 	GIDs []int32
 }
@@ -212,6 +226,13 @@ type SearchModuleInfo struct {
 	Collapsing   func(string) bool `json:"-"`
 	FrontendOnly bool              // true if this module MUST run on frontend (anko)
 	Sorting      bool
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (smi SearchModuleInfo) MarshalJSON() ([]byte, error) {
+	type dummySearchModuleInfo SearchModuleInfo
+	smi.Examples = nonNilSlice(smi.Examples)
+	return json.Marshal(dummySearchModuleInfo(smi))
 }
 
 type ChangePassword struct {
@@ -261,6 +282,11 @@ type LicenseUpdateError struct {
 }
 
 type NotificationSet map[uint64]Notification
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (ns NotificationSet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(nonNilMap(map[uint64]Notification(ns)))
+}
 
 // CanRead returns true if the user is allowed to read something
 // with the specified UID and GID ownerships, taking into account
@@ -339,57 +365,25 @@ func (ud *UserDetails) ClearSecrets() {
 	ud.MFA.ClearSecrets()
 }
 
-// MarshalJSON marshaller hacks to get it to return [] on empty lists
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (ud UserDetails) MarshalJSON() ([]byte, error) {
-	type alias UserDetails
-	return json.Marshal(&struct {
-		alias
-		Groups groupsAlias
-	}{
-		alias:  alias(ud),
-		Groups: groupsAlias(ud.Groups),
-	})
+	type dummyUserDetails UserDetails
+	ud.Groups = nonNilSlice(ud.Groups)
+	return json.Marshal(dummyUserDetails(ud))
 }
 
-type groupsAlias []GroupDetails
-
-func (ga groupsAlias) MarshalJSON() ([]byte, error) {
-	if len(ga) == 0 {
-		return emptyList, nil
-	}
-	//this will cause an infinite recursion if we don't change the type
-	return json.Marshal([]GroupDetails(ga))
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s UserSessions) MarshalJSON() ([]byte, error) {
+	type dummyUserSessions UserSessions
+	s.Sessions = nonNilSlice(s.Sessions)
+	return json.Marshal(dummyUserSessions(s))
 }
 
-func (s *UserSessions) MarshalJSON() ([]byte, error) {
-	type alias UserSessions
-	return json.Marshal(&struct {
-		alias
-		Sessions sessions
-	}{
-		alias:    alias(*s),
-		Sessions: sessions(s.Sessions),
-	})
-}
-
-type sessions []Session
-
-func (s sessions) MarshalJSON() ([]byte, error) {
-	if len(s) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]Session(s))
-}
-
-func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
-	type alias UserAddGroups
-	return json.Marshal(&struct {
-		alias
-		GIDs emptyInts
-	}{
-		alias: alias(*uag),
-		GIDs:  emptyInts(uag.GIDs),
-	})
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (uag UserAddGroups) MarshalJSON() ([]byte, error) {
+	type dummyUserAddGroups UserAddGroups
+	uag.GIDs = nonNilSlice(uag.GIDs)
+	return json.Marshal(dummyUserAddGroups(uag))
 }
 
 /************************************************************
@@ -401,6 +395,13 @@ func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
 type ACL struct {
 	GIDs   []int32
 	Global bool
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (a ACL) MarshalJSON() ([]byte, error) {
+	type dummyACL ACL
+	a.GIDs = nonNilSlice(a.GIDs)
+	return json.Marshal(dummyACL(a))
 }
 
 type User struct {
@@ -421,10 +422,32 @@ type User struct {
 	SearchPriority      int
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (u User) MarshalJSON() ([]byte, error) {
+	type dummyUser User
+	u.Groups = nonNilSlice(u.Groups)
+	u.DefaultSearchGroups = nonNilSlice(u.DefaultSearchGroups)
+	return json.Marshal(dummyUser(u))
+}
+
 // UserWithCBAC is just the User struct plus CBAC information. Only available via admin APIs.
 type UserWithCBAC struct {
 	User
 	CBAC CBACExpandedRules
+}
+
+// MarshalJSON has to use an anonymous struct here as User has its own MarshalJSON.
+func (u UserWithCBAC) MarshalJSON() ([]byte, error) {
+	type dummyUser User
+	u.Groups = nonNilSlice(u.Groups)
+	u.DefaultSearchGroups = nonNilSlice(u.DefaultSearchGroups)
+	return json.Marshal(struct {
+		dummyUser
+		CBAC CBACExpandedRules
+	}{
+		dummyUser: dummyUser(u.User),
+		CBAC:      u.CBAC,
+	})
 }
 
 // IsGroupMember returns true if the user is a member of group with
@@ -533,9 +556,24 @@ type UserPreference struct {
 	Data RawObject
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (up UserPreference) MarshalJSON() ([]byte, error) {
+	type dummyUserPreference UserPreference
+	up.CommonFields = up.CommonFields.MakeNilSlices()
+	return json.Marshal(dummyUserPreference(up))
+}
+
 type UserPreferenceResponse struct {
 	BaseListResponse
 	Results []UserPreference
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r UserPreferenceResponse) MarshalJSON() ([]byte, error) {
+	type dummyUserPreferenceResponse UserPreferenceResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyUserPreferenceResponse(r))
 }
 
 type UserListResponse struct {
@@ -543,7 +581,23 @@ type UserListResponse struct {
 	Results []User
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r UserListResponse) MarshalJSON() ([]byte, error) {
+	type dummyUserListResponse UserListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyUserListResponse(r))
+}
+
 type GroupListResponse struct {
 	BaseListResponse
 	Results []Group
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r GroupListResponse) MarshalJSON() ([]byte, error) {
+	type dummyGroupListResponse GroupListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyGroupListResponse(r))
 }

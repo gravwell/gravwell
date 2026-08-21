@@ -87,25 +87,19 @@ func (t *TableValueSet) Compare(u *TableValueSet) (cols bool, rows bool, idx int
 	return true, true, 0
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (t TableValueSet) MarshalJSON() ([]byte, error) {
-	type alias TableValueSet
-	return json.Marshal(&struct {
-		alias
-		Columns emptyStrings
-	}{
-		alias:   alias(t),
-		Columns: emptyStrings(t.Columns),
-	})
+	type dummyTableValueSet TableValueSet
+	t.Columns = nonNilSlice(t.Columns)
+	t.Rows = nonNilSlice(t.Rows)
+	return json.Marshal(dummyTableValueSet(t))
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (r TableRow) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		TS  entry.Timestamp
-		Row emptyStrings
-	}{
-		TS:  r.TS,
-		Row: emptyStrings(r.Row),
-	})
+	type dummyTableRow TableRow
+	r.Row = nonNilSlice(r.Row)
+	return json.Marshal(dummyTableRow(r))
 }
 
 func (x TableResponse) MarshalJSON() ([]byte, error) {
@@ -137,7 +131,7 @@ func (x GaugeResponse) MarshalJSON() ([]byte, error) {
 	e, err := json.Marshal(&struct {
 		Entries []GaugeValue
 	}{
-		Entries: x.Entries,
+		Entries: nonNilSlice(x.Entries),
 	})
 	if err != nil {
 		return nil, err
@@ -156,7 +150,7 @@ func (x WordcloudResponse) MarshalJSON() ([]byte, error) {
 	e, err := json.Marshal(&struct {
 		Entries []WordcloudValue
 	}{
-		Entries: x.Entries,
+		Entries: nonNilSlice(x.Entries),
 	})
 	if err != nil {
 		return nil, err

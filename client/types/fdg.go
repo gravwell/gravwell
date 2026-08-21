@@ -30,6 +30,15 @@ type FdgSet struct {
 	Groups []string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (fs FdgSet) MarshalJSON() ([]byte, error) {
+	type dummyFdgSet FdgSet
+	fs.Nodes = nonNilSlice(fs.Nodes)
+	fs.Edges = nonNilSlice(fs.Edges)
+	fs.Groups = nonNilSlice(fs.Groups)
+	return json.Marshal(dummyFdgSet(fs))
+}
+
 type Node struct {
 	Name  string
 	Group int

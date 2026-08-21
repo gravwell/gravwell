@@ -8,6 +8,8 @@
 
 package types
 
+import "encoding/json"
+
 const (
 	ACTIONABLE_COMMAND_QUERY       ActionableCommandType = "query"
 	ACTIONABLE_COMMAND_TEMPLATE    ActionableCommandType = "template"
@@ -25,6 +27,13 @@ type Actionable struct {
 
 	Contents ActionableContent
 	Disabled bool
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (a Actionable) MarshalJSON() ([]byte, error) {
+	type dummyActionable Actionable
+	a.CommonFields = a.CommonFields.MakeNilSlices()
+	return json.Marshal(dummyActionable(a))
 }
 
 // ActionableContent defines the content of an actionable (pivot),
@@ -90,4 +99,12 @@ type ActionableTimeVariable struct {
 type ActionableListResponse struct {
 	BaseListResponse
 	Results []Actionable
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (a ActionableListResponse) MarshalJSON() ([]byte, error) {
+	type dummyActionableListResponse ActionableListResponse
+	a.Results = nonNilSlice(a.Results)
+	a.BaseListResponse = a.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyActionableListResponse(a))
 }

@@ -127,6 +127,13 @@ type CapabilitySet struct {
 	Grants []byte
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (cs CapabilitySet) MarshalJSON() ([]byte, error) {
+	type dummyCapabilitySet CapabilitySet
+	cs.Grants = nonNilSlice(cs.Grants)
+	return json.Marshal(dummyCapabilitySet(cs))
+}
+
 // CBACExpandedRules contain the more human/UI-friendly CapabilityState and TagAccess structs.
 type CBACExpandedRules struct {
 	Capabilities CapabilityState
@@ -139,12 +146,11 @@ type CapabilityState struct {
 	Grants []string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (st CapabilityState) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		st.Grants,
-	})
+	type dummyCapabilityState CapabilityState
+	st.Grants = nonNilSlice(st.Grants)
+	return json.Marshal(dummyCapabilityState(st))
 }
 
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
@@ -166,12 +172,26 @@ type CapabilityExplanation struct {
 	GroupGrants []Group // An array of groups to which the user belongs that grant the capability.
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (ce CapabilityExplanation) MarshalJSON() ([]byte, error) {
+	type dummyCapabilityExplanation CapabilityExplanation
+	ce.GroupGrants = nonNilSlice(ce.GroupGrants)
+	return json.Marshal(dummyCapabilityExplanation(ce))
+}
+
 // CapabilityTemplate is group of capabilities with a name and description, this is used to build up a simplified set of
 // macro capabilities like "can run all searches" or "can read results but not write them"
 type CapabilityTemplate struct {
 	Name string
 	Desc string
 	Caps []Capability
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (ct CapabilityTemplate) MarshalJSON() ([]byte, error) {
+	type dummyCapabilityTemplate CapabilityTemplate
+	ct.Caps = nonNilSlice(ct.Caps)
+	return json.Marshal(dummyCapabilityTemplate(ct))
 }
 
 // check returns two values:
@@ -845,12 +865,11 @@ type TagAccess struct {
 	Grants []string //Grants specify tag names and/or globbing patterns which represent allowed tags
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (ta TagAccess) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		ta.Grants,
-	})
+	type dummyTagAccess TagAccess
+	ta.Grants = nonNilSlice(ta.Grants)
+	return json.Marshal(dummyTagAccess(ta))
 }
 
 const globChars = `*?[]{}!`
@@ -1019,16 +1038,40 @@ type Token struct {
 	Capabilities []string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (t Token) MarshalJSON() ([]byte, error) {
+	type dummyToken Token
+	t.CommonFields = t.CommonFields.MakeNilSlices()
+	t.Capabilities = nonNilSlice(t.Capabilities)
+	return json.Marshal(dummyToken(t))
+}
+
 // TokenUpdate is used to update a token as Token.ExpiresAt is only editable via TokenRegeneration
 type TokenUpdate struct {
 	CommonFields
 	Capabilities []string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (t TokenUpdate) MarshalJSON() ([]byte, error) {
+	type dummyTokenUpdate TokenUpdate
+	t.CommonFields = t.CommonFields.MakeNilSlices()
+	t.Capabilities = nonNilSlice(t.Capabilities)
+	return json.Marshal(dummyTokenUpdate(t))
+}
+
 // TokenListResponse is the type returned when querying a list of tokens.
 type TokenListResponse struct {
 	BaseListResponse
 	Results []Token
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (t TokenListResponse) MarshalJSON() ([]byte, error) {
+	type dummyTokenListResponse TokenListResponse
+	t.Results = nonNilSlice(t.Results)
+	t.BaseListResponse = t.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyTokenListResponse(t))
 }
 
 // TokenRegeneration is the structure used to request regeneration of an existing token
@@ -1042,6 +1085,22 @@ type TokenRegeneration struct {
 type TokenFull struct {
 	Token
 	Value string
+}
+
+// MarshalJSON here marshals into an anon struct instead of the usual dummyTokenFull type.
+// Long story short, a naive dummy alias would silently call Token's MarshalJSON and drop the Value field entirely.
+// Take my word for it.
+func (t TokenFull) MarshalJSON() ([]byte, error) {
+	type dummyToken Token
+	t.CommonFields = t.CommonFields.MakeNilSlices()
+	t.Capabilities = nonNilSlice(t.Capabilities)
+	return json.Marshal(struct {
+		dummyToken
+		Value string
+	}{
+		dummyToken: dummyToken(t.Token),
+		Value:      t.Value,
+	})
 }
 
 // Expired returns whether a token is expired or not, if no expiration is set then the token is not expired

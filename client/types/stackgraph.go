@@ -20,6 +20,13 @@ type StackGraphSet struct {
 	Values []StackGraphValue
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (sgs StackGraphSet) MarshalJSON() ([]byte, error) {
+	type dummyStackGraphSet StackGraphSet
+	sgs.Values = nonNilSlice(sgs.Values)
+	return json.Marshal(dummyStackGraphSet(sgs))
+}
+
 type StackGraphRequest struct {
 	BaseRequest
 }
@@ -49,7 +56,7 @@ func (x StackGraphResponse) MarshalJSON() ([]byte, error) {
 	e, err := json.Marshal(&struct {
 		Entries []StackGraphSet
 	}{
-		Entries: x.Entries,
+		Entries: nonNilSlice(x.Entries),
 	})
 	if err != nil {
 		return nil, err

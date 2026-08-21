@@ -10,6 +10,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 )
 
@@ -91,7 +92,22 @@ type Resource struct {
 	FileExtension string // The extension of the uploaded file, with the dot (ex: ".csv").
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r Resource) MarshalJSON() ([]byte, error) {
+	type dummyResource Resource
+	r.CommonFields = r.CommonFields.MakeNilSlices()
+	return json.Marshal(dummyResource(r))
+}
+
 type ResourceListResponse struct {
 	BaseListResponse
 	Results []Resource
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ResourceListResponse) MarshalJSON() ([]byte, error) {
+	type dummyResourceListResponse ResourceListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyResourceListResponse(r))
 }

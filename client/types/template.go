@@ -8,12 +8,22 @@
 
 package types
 
+import "encoding/json"
+
 // Template is a stored Gravwell query template with variables.
 type Template struct {
 	CommonFields
 
 	Query     string
 	Variables []TemplateVariable
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (t Template) MarshalJSON() ([]byte, error) {
+	type dummyTemplate Template
+	t.CommonFields = t.CommonFields.MakeNilSlices()
+	t.Variables = nonNilSlice(t.Variables)
+	return json.Marshal(dummyTemplate(t))
 }
 
 type TemplateVariable struct {
@@ -28,4 +38,12 @@ type TemplateVariable struct {
 type TemplateListResponse struct {
 	BaseListResponse
 	Results []Template
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (t TemplateListResponse) MarshalJSON() ([]byte, error) {
+	type dummyTemplateListResponse TemplateListResponse
+	t.Results = nonNilSlice(t.Results)
+	t.BaseListResponse = t.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyTemplateListResponse(t))
 }

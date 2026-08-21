@@ -169,59 +169,34 @@ func (iwd *IndexerWellData) Sort() {
 	}
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (iwd IndexerWellData) MarshalJSON() ([]byte, error) {
-	x := struct {
-		UUID       uuid.UUID
-		Wells      emptyWellList
-		Replicated erp
-	}{
-		UUID:       iwd.UUID,
-		Wells:      emptyWellList(iwd.Wells),
-		Replicated: erp(iwd.Replicated),
-	}
-
-	return json.Marshal(x)
+	type dummyIndexerWellData IndexerWellData
+	iwd.Wells = nonNilSlice(iwd.Wells)
+	iwd.Replicated = nonNilMap(iwd.Replicated)
+	return json.Marshal(dummyIndexerWellData(iwd))
 }
 
-type erp map[uuid.UUID][]WellInfo
-
-func (v erp) MarshalJSON() ([]byte, error) {
-	if len(v) == 0 {
-		return emptyObj, nil
-	}
-	return json.Marshal(map[uuid.UUID][]WellInfo(v))
-}
-
-type eshardList []ShardInfo
-
-func (el eshardList) MarshalJSON() ([]byte, error) {
-	if len(el) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]ShardInfo(el))
-}
-
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (wi WellInfo) MarshalJSON() ([]byte, error) {
-	type alias WellInfo
-	ts := struct {
-		alias
-		Tags   emptyStrings
-		Shards eshardList
-	}{
-		alias:  alias(wi),
-		Tags:   emptyStrings(wi.Tags),
-		Shards: eshardList(wi.Shards),
-	}
-	return json.Marshal(ts)
+	type dummyWellInfo WellInfo
+	wi.Tags = nonNilSlice(wi.Tags)
+	wi.Shards = nonNilSlice(wi.Shards)
+	return json.Marshal(dummyWellInfo(wi))
 }
 
-type emptyWellList []WellInfo
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (p PerWellStorageStats) MarshalJSON() ([]byte, error) {
+	type dummyPerWellStorageStats PerWellStorageStats
+	p.Tags = nonNilSlice(p.Tags)
+	return json.Marshal(dummyPerWellStorageStats(p))
+}
 
-func (e emptyWellList) MarshalJSON() ([]byte, error) {
-	if len(e) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]WellInfo(e))
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (c CalendarRequest) MarshalJSON() ([]byte, error) {
+	type dummyCalendarRequest CalendarRequest
+	c.Wells = nonNilSlice(c.Wells)
+	return json.Marshal(dummyCalendarRequest(c))
 }
 
 func (rs ReplicationState) isEmpty() bool {

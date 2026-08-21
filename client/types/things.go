@@ -11,6 +11,7 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,13 @@ const (
 type Access struct {
 	Global bool
 	GIDs   []int32
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (a Access) MarshalJSON() ([]byte, error) {
+	type dummyAccess Access
+	a.GIDs = nonNilSlice(a.GIDs)
+	return json.Marshal(dummyAccess(a))
 }
 
 type Actions struct {
@@ -61,6 +69,14 @@ type Thing struct {
 
 	Updated time.Time
 	Synced  bool
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (t Thing) MarshalJSON() ([]byte, error) {
+	type dummyThing Thing
+	t.GIDs = nonNilSlice(t.GIDs)
+	t.Contents = nonNilSlice(t.Contents)
+	return json.Marshal(dummyThing(t))
 }
 
 type ThingHeader struct {

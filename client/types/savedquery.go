@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -18,6 +19,13 @@ type SavedQuery struct {
 
 	Query              string
 	SuggestedTimeframe SavedQueryTimeframe
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s SavedQuery) MarshalJSON() ([]byte, error) {
+	type dummySavedQuery SavedQuery
+	s.CommonFields = s.CommonFields.MakeNilSlices()
+	return json.Marshal(dummySavedQuery(s))
 }
 
 type SavedQueryTimeframe struct {
@@ -31,4 +39,12 @@ type SavedQueryTimeframe struct {
 type SavedQueryListResponse struct {
 	BaseListResponse
 	Results []SavedQuery
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s SavedQueryListResponse) MarshalJSON() ([]byte, error) {
+	type dummySavedQueryListResponse SavedQueryListResponse
+	s.Results = nonNilSlice(s.Results)
+	s.BaseListResponse = s.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummySavedQueryListResponse(s))
 }

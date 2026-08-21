@@ -78,6 +78,14 @@ type HostSysStats struct {
 	PSI                   PSIStats // Pressure Stall Information, for CPU, memory, and IO
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (h HostSysStats) MarshalJSON() ([]byte, error) {
+	type dummyHostSysStats HostSysStats
+	h.Disks = nonNilSlice(h.Disks)
+	h.IO = nonNilSlice(h.IO)
+	return json.Marshal(dummyHostSysStats(h))
+}
+
 // AvgStat mirrors gopsutil's load.AvgStat so we can drop the native JSON tags.
 type AvgStat struct {
 	Load1  float64

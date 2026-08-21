@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -55,6 +56,13 @@ type FlowNodeResult struct {
 	Sequence int
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r FlowNodeResult) MarshalJSON() ([]byte, error) {
+	type dummyFlowNodeResult FlowNodeResult
+	r.Payload = nonNilMap(r.Payload)
+	return json.Marshal(dummyFlowNodeResult(r))
+}
+
 type ScheduledScriptParseRequest struct {
 	ScriptLanguage ScriptLang
 	Script         string
@@ -89,9 +97,25 @@ type FlowParseResponse struct {
 	Failures map[int]NodeParseFailure
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r FlowParseResponse) MarshalJSON() ([]byte, error) {
+	type dummyFlowParseResponse FlowParseResponse
+	r.OutputPayloads = nonNilMap(r.OutputPayloads)
+	r.InitialPayload = nonNilMap(r.InitialPayload)
+	r.Failures = nonNilMap(r.Failures)
+	return json.Marshal(dummyFlowParseResponse(r))
+}
+
 // NodeParseFailure represents all problems encountered during a node's Parse phase
 type NodeParseFailure struct {
 	Errors []NodeParseError
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (f NodeParseFailure) MarshalJSON() ([]byte, error) {
+	type dummyNodeParseFailure NodeParseFailure
+	f.Errors = nonNilSlice(f.Errors)
+	return json.Marshal(dummyNodeParseFailure(f))
 }
 
 // Error returns an error string for the NodeParseFailure. It just returns the first error
@@ -166,6 +190,16 @@ type UserMail struct {
 	Attachments []UserMailAttachment
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (um UserMail) MarshalJSON() ([]byte, error) {
+	type dummyUserMail UserMail
+	um.To = nonNilSlice(um.To)
+	um.Cc = nonNilSlice(um.Cc)
+	um.Bcc = nonNilSlice(um.Bcc)
+	um.Attachments = nonNilSlice(um.Attachments)
+	return json.Marshal(dummyUserMail(um))
+}
+
 func (um UserMail) Validate() error {
 	if um.From == `` {
 		return errors.New("Missing from")
@@ -189,6 +223,13 @@ func (um UserMail) Validate() error {
 type UserMailAttachment struct {
 	Name    string
 	Content []byte
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (uma UserMailAttachment) MarshalJSON() ([]byte, error) {
+	type dummyUserMailAttachment UserMailAttachment
+	uma.Content = nonNilSlice(uma.Content)
+	return json.Marshal(dummyUserMailAttachment(uma))
 }
 
 func (uma UserMailAttachment) Validate() error {
@@ -270,6 +311,13 @@ type ScheduledSearch struct {
 	LatestResults      *ScheduledSearchResults
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s ScheduledSearch) MarshalJSON() ([]byte, error) {
+	type dummyScheduledSearch ScheduledSearch
+	s.CommonFields = s.CommonFields.MakeNilSlices()
+	return json.Marshal(dummyScheduledSearch(s))
+}
+
 func (s *ScheduledSearch) GetLastRunTime() (lastRun time.Time) {
 	if s.LatestResults == nil {
 		return time.Time{}
@@ -294,6 +342,14 @@ type ScheduledSearchResults struct {
 	ScheduledSearchID string // references the ScheduledSearch this result belongs to
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ScheduledSearchResults) MarshalJSON() ([]byte, error) {
+	type dummyScheduledSearchResults ScheduledSearchResults
+	r.CommonFields = r.CommonFields.MakeNilSlices()
+	r.AutomationResultsCommonFields = r.AutomationResultsCommonFields.MakeNilSlices()
+	return json.Marshal(dummyScheduledSearchResults(r))
+}
+
 // ScheduledScript represents an Anko or Go script to run on a schedule.
 type ScheduledScript struct {
 	CommonFields
@@ -303,6 +359,13 @@ type ScheduledScript struct {
 	Script         string     // If set, execute the contents rather than running SearchString
 	ScriptLanguage ScriptLang // what script type is this: anko, go
 	LatestResults  *ScheduledScriptResults
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s ScheduledScript) MarshalJSON() ([]byte, error) {
+	type dummyScheduledScript ScheduledScript
+	s.CommonFields = s.CommonFields.MakeNilSlices()
+	return json.Marshal(dummyScheduledScript(s))
 }
 
 func (s *ScheduledScript) GetLastRunTime() (lastRun time.Time) {
@@ -338,6 +401,16 @@ type ScheduledScriptResults struct {
 	PersistentMaps    map[string]map[string]any // a place to stash variables between runs
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ScheduledScriptResults) MarshalJSON() ([]byte, error) {
+	type dummyScheduledScriptResults ScheduledScriptResults
+	r.CommonFields = r.CommonFields.MakeNilSlices()
+	r.AutomationResultsCommonFields = r.AutomationResultsCommonFields.MakeNilSlices()
+	r.DebugOutput = nonNilSlice(r.DebugOutput)
+	r.PersistentMaps = nonNilMap(r.PersistentMaps)
+	return json.Marshal(dummyScheduledScriptResults(r))
+}
+
 // Flow represents a flow-type automation to run on a schedule.
 type Flow struct {
 	CommonFields
@@ -346,6 +419,13 @@ type Flow struct {
 
 	Flow          string // The flow specification itself
 	LatestResults *FlowResults
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (f Flow) MarshalJSON() ([]byte, error) {
+	type dummyFlow Flow
+	f.CommonFields = f.CommonFields.MakeNilSlices()
+	return json.Marshal(dummyFlow(f))
 }
 
 func (f *Flow) GetLastRunTime() (lastRun time.Time) {
@@ -382,6 +462,17 @@ type FlowResults struct {
 	PersistentMaps  map[string]map[string]any // a place to stash variables between runs
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r FlowResults) MarshalJSON() ([]byte, error) {
+	type dummyFlowResults FlowResults
+	r.CommonFields = r.CommonFields.MakeNilSlices()
+	r.AutomationResultsCommonFields = r.AutomationResultsCommonFields.MakeNilSlices()
+	r.FlowNodeResults = nonNilMap(r.FlowNodeResults)
+	r.DebugOutput = nonNilSlice(r.DebugOutput)
+	r.PersistentMaps = nonNilMap(r.PersistentMaps)
+	return json.Marshal(dummyFlowResults(r))
+}
+
 // AutomationDebugRequest is what gets submitted to the webserver when we're requesting a debug run of an automation.
 type AutomationDebugRequest struct {
 	DebugMode  bool   // set this to true to enable debug mode
@@ -394,10 +485,26 @@ type ScheduledSearchListResponse struct {
 	Results []ScheduledSearch
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ScheduledSearchListResponse) MarshalJSON() ([]byte, error) {
+	type dummyScheduledSearchListResponse ScheduledSearchListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyScheduledSearchListResponse(r))
+}
+
 // ScheduledSearchResultsListResponse is the response type for listing scheduled search results.
 type ScheduledSearchResultsListResponse struct {
 	BaseListResponse
 	Results []ScheduledSearchResults
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ScheduledSearchResultsListResponse) MarshalJSON() ([]byte, error) {
+	type dummyScheduledSearchResultsListResponse ScheduledSearchResultsListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyScheduledSearchResultsListResponse(r))
 }
 
 // ScheduledScriptListResponse is the response type for listing scheduled searches.
@@ -406,10 +513,26 @@ type ScheduledScriptListResponse struct {
 	Results []ScheduledScript
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ScheduledScriptListResponse) MarshalJSON() ([]byte, error) {
+	type dummyScheduledScriptListResponse ScheduledScriptListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyScheduledScriptListResponse(r))
+}
+
 // ScheduledScriptResultsListResponse is the response type for listing scheduled search results.
 type ScheduledScriptResultsListResponse struct {
 	BaseListResponse
 	Results []ScheduledScriptResults
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ScheduledScriptResultsListResponse) MarshalJSON() ([]byte, error) {
+	type dummyScheduledScriptResultsListResponse ScheduledScriptResultsListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyScheduledScriptResultsListResponse(r))
 }
 
 // FlowListResponse is the response type for listing scheduled searches.
@@ -418,10 +541,26 @@ type FlowListResponse struct {
 	Results []Flow
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r FlowListResponse) MarshalJSON() ([]byte, error) {
+	type dummyFlowListResponse FlowListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyFlowListResponse(r))
+}
+
 // FlowResultsListResponse is the response type for listing scheduled search results.
 type FlowResultsListResponse struct {
 	BaseListResponse
 	Results []FlowResults
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r FlowResultsListResponse) MarshalJSON() ([]byte, error) {
+	type dummyFlowResultsListResponse FlowResultsListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyFlowResultsListResponse(r))
 }
 
 // SearchAgentCheckin is the type sent by the searchagent to the
@@ -437,6 +576,17 @@ type SearchAgentCheckin struct {
 	FlowResults   []FlowResults
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (c SearchAgentCheckin) MarshalJSON() ([]byte, error) {
+	type dummySearchAgentCheckin SearchAgentCheckin
+	c.Active = nonNilSlice(c.Active)
+	c.Cancelled = nonNilSlice(c.Cancelled)
+	c.SearchResults = nonNilSlice(c.SearchResults)
+	c.ScriptResults = nonNilSlice(c.ScriptResults)
+	c.FlowResults = nonNilSlice(c.FlowResults)
+	return json.Marshal(dummySearchAgentCheckin(c))
+}
+
 type SearchAgentCheckinResponse struct {
 	Cancel     []string // List of automations to cancel
 	SearchJobs []SearchJob
@@ -444,11 +594,28 @@ type SearchAgentCheckinResponse struct {
 	FlowJobs   []FlowJob
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r SearchAgentCheckinResponse) MarshalJSON() ([]byte, error) {
+	type dummySearchAgentCheckinResponse SearchAgentCheckinResponse
+	r.Cancel = nonNilSlice(r.Cancel)
+	r.SearchJobs = nonNilSlice(r.SearchJobs)
+	r.ScriptJobs = nonNilSlice(r.ScriptJobs)
+	r.FlowJobs = nonNilSlice(r.FlowJobs)
+	return json.Marshal(dummySearchAgentCheckinResponse(r))
+}
+
 // SearchAgentInfo contains information about an individual search agent.
 type SearchAgentInfo struct {
 	Cfg         SearchAgentConfig
 	LastCheckin time.Time
 	ActiveJobs  []string // IDs of automations currently running on this search agent
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (i SearchAgentInfo) MarshalJSON() ([]byte, error) {
+	type dummySearchAgentInfo SearchAgentInfo
+	i.ActiveJobs = nonNilSlice(i.ActiveJobs)
+	return json.Marshal(dummySearchAgentInfo(i))
 }
 
 // SearchAgentStatus returns what the webserver knows about searchagents.
@@ -462,6 +629,13 @@ type SearchAgentStatus struct {
 // such as which search agents it has seen.
 type SchedulerStatus struct {
 	SearchAgents []SearchAgentInfo
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s SchedulerStatus) MarshalJSON() ([]byte, error) {
+	type dummySchedulerStatus SchedulerStatus
+	s.SearchAgents = nonNilSlice(s.SearchAgents)
+	return json.Marshal(dummySchedulerStatus(s))
 }
 
 // DoAgentsAllowNetworkFunctions returns true if all known/active

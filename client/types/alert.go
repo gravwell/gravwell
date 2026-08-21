@@ -8,6 +8,8 @@
 
 package types
 
+import "encoding/json"
+
 // AlertConsumerType : Possible types for an Alert Consumer
 type AlertConsumerType string
 
@@ -59,6 +61,16 @@ type Alert struct {
 	UserMetadata map[string]interface{}
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (a Alert) MarshalJSON() ([]byte, error) {
+	type dummyAlert Alert
+	a.CommonFields = a.CommonFields.MakeNilSlices()
+	a.Consumers = nonNilSlice(a.Consumers)
+	a.Dispatchers = nonNilSlice(a.Dispatchers)
+	a.UserMetadata = nonNilMap(a.UserMetadata)
+	return json.Marshal(dummyAlert(a))
+}
+
 // AlertConsumer - Something which consumes alerts.
 type AlertConsumer struct {
 	ID string
@@ -88,6 +100,14 @@ type AlertSchemas struct {
 	ActiveSchema string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s AlertSchemas) MarshalJSON() ([]byte, error) {
+	type dummyAlertSchemas AlertSchemas
+	s.Simple = nonNilSlice(s.Simple)
+	s.JSON = nonNilMap(s.JSON)
+	return json.Marshal(dummyAlertSchemas(s))
+}
+
 // AlertSchemasSimpleItem defines a single item in a Simple schema
 type AlertSchemasSimpleItem struct {
 	Name string
@@ -102,6 +122,14 @@ type AlertSchemasOcsf struct {
 	Extensions []string
 
 	Profiles []string
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (o AlertSchemasOcsf) MarshalJSON() ([]byte, error) {
+	type dummyAlertSchemasOcsf AlertSchemasOcsf
+	o.Extensions = nonNilSlice(o.Extensions)
+	o.Profiles = nonNilSlice(o.Profiles)
+	return json.Marshal(dummyAlertSchemasOcsf(o))
 }
 
 // AlertDispatcherValidateRequest - Request to validate the given dispatcher against a schema. Populate the Dispatcher field to refer to an existing scheduled search, or set QueryString to test a query string
@@ -135,6 +163,13 @@ type AlertDispatcherValidateResponse struct {
 	ValidationErrors []AlertDispatcherValidateError
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r AlertDispatcherValidateResponse) MarshalJSON() ([]byte, error) {
+	type dummyAlertDispatcherValidateResponse AlertDispatcherValidateResponse
+	r.ValidationErrors = nonNilSlice(r.ValidationErrors)
+	return json.Marshal(dummyAlertDispatcherValidateResponse(r))
+}
+
 // AlertConsumerValidateRequest - Request to validate the given consumer for use with an alert
 type AlertConsumerValidateRequest struct {
 	Consumer AlertConsumer
@@ -152,6 +187,14 @@ type AlertConsumerValidateResponse struct {
 type AlertListResponse struct {
 	BaseListResponse
 	Results []Alert
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r AlertListResponse) MarshalJSON() ([]byte, error) {
+	type dummyAlertListResponse AlertListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyAlertListResponse(r))
 }
 
 // FindMostRelevantAutomation resolves the appropriate automation

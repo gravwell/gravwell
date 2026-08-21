@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -49,6 +50,14 @@ type KitConfig struct {
 	KitLabels             []string `json:",omitempty"` // labels applied to the *kit* itself
 	ConfigMacros          []KitConfigMacro
 	AutomationDeployRules map[string]AutomationDeployConfig // overrides for defaults
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (kc KitConfig) MarshalJSON() ([]byte, error) {
+	type dummyKitConfig KitConfig
+	kc.ConfigMacros = nonNilSlice(kc.ConfigMacros)
+	kc.AutomationDeployRules = nonNilMap(kc.AutomationDeployRules)
+	return json.Marshal(dummyKitConfig(kc))
 }
 
 // KitItem implements the generic container for each item in a kit (dashboard, query, etc)
@@ -102,6 +111,13 @@ type ModifiedKitItem struct {
 	Diff       map[string]KitModifiedContents
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (mki ModifiedKitItem) MarshalJSON() ([]byte, error) {
+	type dummyModifiedKitItem ModifiedKitItem
+	mki.Diff = nonNilMap(mki.Diff)
+	return json.Marshal(dummyModifiedKitItem(mki))
+}
+
 // KitModifiedContents shows the original (kit-installed) and current
 // (presumably user-modified) values of a single field in a kit asset
 // which has been detected as modified.
@@ -139,9 +155,29 @@ type KitState struct {
 	ConflictingItems []KitItem         // items which will overwrite a user-created object
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (ks KitState) MarshalJSON() ([]byte, error) {
+	type dummyKitState KitState
+	ks.CommonFields = ks.CommonFields.MakeNilSlices() // promoted from CommonFields
+	ks.Items = nonNilSlice(ks.Items)
+	ks.RequiredDependencies = nonNilSlice(ks.RequiredDependencies)
+	ks.ConfigMacros = nonNilSlice(ks.ConfigMacros)
+	ks.ModifiedItems = nonNilSlice(ks.ModifiedItems)
+	ks.ConflictingItems = nonNilSlice(ks.ConflictingItems)
+	return json.Marshal(dummyKitState(ks))
+}
+
 type KitStateListResponse struct {
 	BaseListResponse
 	Results []KitState
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r KitStateListResponse) MarshalJSON() ([]byte, error) {
+	type dummyKitStateListResponse KitStateListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices() // promoted from BaseListResponse
+	return json.Marshal(dummyKitStateListResponse(r))
 }
 
 type KitEmbeddedItem struct {
@@ -180,9 +216,26 @@ type KitBuildRequest struct {
 	BuildDate             time.Time
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (pbr KitBuildRequest) MarshalJSON() ([]byte, error) {
+	type dummyKitBuildRequest KitBuildRequest
+	pbr.CommonFields = pbr.CommonFields.MakeNilSlices() // promoted from CommonFields
+	pbr.ConfigMacros = nonNilSlice(pbr.ConfigMacros)
+	pbr.AutomationDeployRules = nonNilMap(pbr.AutomationDeployRules)
+	return json.Marshal(dummyKitBuildRequest(pbr))
+}
+
 type KitBuildRequestListResponse struct {
 	BaseListResponse
 	Results []KitBuildRequest
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r KitBuildRequestListResponse) MarshalJSON() ([]byte, error) {
+	type dummyKitBuildRequestListResponse KitBuildRequestListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices() // promoted from BaseListResponse
+	return json.Marshal(dummyKitBuildRequestListResponse(r))
 }
 
 type KitBuildResponse struct {
@@ -382,6 +435,18 @@ type KitMetadata struct {
 	ConfigMacros []KitConfigMacro
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (km KitMetadata) MarshalJSON() ([]byte, error) {
+	type dummyKitMetadata KitMetadata
+	km.Ingesters = nonNilSlice(km.Ingesters)
+	km.Tags = nonNilSlice(km.Tags)
+	km.Assets = nonNilSlice(km.Assets)
+	km.Dependencies = nonNilSlice(km.Dependencies)
+	km.Items = nonNilSlice(km.Items)
+	km.ConfigMacros = nonNilSlice(km.ConfigMacros)
+	return json.Marshal(dummyKitMetadata(km))
+}
+
 // KitMetadataAsset stores items that might be associated with kits when hosting them
 // we use these to enable pinning additional stuff to a kit.
 type KitMetadataAsset struct {
@@ -403,6 +468,14 @@ func (kma KitMetadataAsset) String() (s string) {
 type RemoteKitListResponse struct {
 	BaseListResponse
 	Results []KitMetadata
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r RemoteKitListResponse) MarshalJSON() ([]byte, error) {
+	type dummyRemoteKitListResponse RemoteKitListResponse
+	r.Results = nonNilSlice(r.Results)
+	r.BaseListResponse = r.BaseListResponse.MakeNilSlices() // promoted from BaseListResponse
+	return json.Marshal(dummyRemoteKitListResponse(r))
 }
 
 type InstallStatus struct {
@@ -456,4 +529,11 @@ type KitItemStatus struct {
 type KitModifyReport struct {
 	Statuses []KitItemStatus
 	WasError bool
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (kmr KitModifyReport) MarshalJSON() ([]byte, error) {
+	type dummyKitModifyReport KitModifyReport
+	kmr.Statuses = nonNilSlice(kmr.Statuses)
+	return json.Marshal(dummyKitModifyReport(kmr))
 }

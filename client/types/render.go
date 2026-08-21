@@ -193,6 +193,14 @@ type ResultsTable struct {
 	TotalResultCount int64
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ResultsTable) MarshalJSON() ([]byte, error) {
+	type dummyResultsTable ResultsTable
+	r.Columns = nonNilSlice(r.Columns)
+	r.Rows = nonNilSlice(r.Rows)
+	return json.Marshal(dummyResultsTable(r))
+}
+
 type ResultsTableCell struct {
 	Elements    []Element `json:",omitempty"`
 	Value       string
@@ -207,15 +215,39 @@ type ResultsGraph struct {
 	Nodes                    []ResultsGraphNode
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ResultsGraph) MarshalJSON() ([]byte, error) {
+	type dummyResultsGraph ResultsGraph
+	r.Links = nonNilSlice(r.Links)
+	r.NodeEnumeratedValueNames = nonNilSlice(r.NodeEnumeratedValueNames)
+	r.LinkEnumeratedValueNames = nonNilSlice(r.LinkEnumeratedValueNames)
+	r.Nodes = nonNilSlice(r.Nodes)
+	return json.Marshal(dummyResultsGraph(r))
+}
+
 type ResultsGraphLink struct {
 	Source           string
 	Target           string
 	EnumeratedValues map[string]string
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ResultsGraphLink) MarshalJSON() ([]byte, error) {
+	type dummyResultsGraphLink ResultsGraphLink
+	r.EnumeratedValues = nonNilMap(r.EnumeratedValues)
+	return json.Marshal(dummyResultsGraphLink(r))
+}
+
 type ResultsGraphNode struct {
 	EnumeratedValues map[string]string
 	ID               string
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (r ResultsGraphNode) MarshalJSON() ([]byte, error) {
+	type dummyResultsGraphNode ResultsGraphNode
+	r.EnumeratedValues = nonNilMap(r.EnumeratedValues)
+	return json.Marshal(dummyResultsGraphNode(r))
 }
 
 type TimeRange struct {
@@ -340,6 +372,13 @@ type IndexManagerStats struct {
 	Stats []IndexerStats
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (i IndexManagerStats) MarshalJSON() ([]byte, error) {
+	type dummyIndexManagerStats IndexManagerStats
+	i.Stats = nonNilSlice(i.Stats)
+	return json.Marshal(dummyIndexManagerStats(i))
+}
+
 type IdxStats struct {
 	UUID       uuid.UUID
 	Error      string              `json:",omitempty"`
@@ -381,6 +420,13 @@ type IngestTailStatsResponse struct {
 
 	// indexer stats
 	Indexers map[string]IngestTailStats
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (i IngestTailStatsResponse) MarshalJSON() ([]byte, error) {
+	type dummyIngestTailStatsResponse IngestTailStatsResponse
+	i.Indexers = nonNilMap(i.Indexers)
+	return json.Marshal(dummyIngestTailStatsResponse(i))
 }
 
 // IngestTailStats is a trimmed down IngestStats for a specific indexer.
@@ -438,6 +484,13 @@ type StatSet struct {
 	populated bool
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s StatSet) MarshalJSON() ([]byte, error) {
+	type dummyStatSet StatSet
+	s.Stats = nonNilSlice(s.Stats)
+	return json.Marshal(dummyStatSet(s))
+}
+
 type OverviewStatSet struct {
 	Count uint64
 	Bytes uint64
@@ -478,6 +531,13 @@ type SearchMetadataNumber struct {
 type SearchMetadataRaw struct {
 	Map   map[string]uint
 	Other uint
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s SearchMetadataRaw) MarshalJSON() ([]byte, error) {
+	type dummySearchMetadataRaw SearchMetadataRaw
+	s.Map = nonNilMap(s.Map)
+	return json.Marshal(dummySearchMetadataRaw(s))
 }
 
 type SearchMetadataEntry struct {
@@ -576,15 +636,11 @@ func (is IngesterStats) Hash() uint64 {
 	return n.Sum64()
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (is IngesterStats) MarshalJSON() ([]byte, error) {
-	type alias IngesterStats
-	return json.Marshal(&struct {
-		alias
-		Tags emptyStrings
-	}{
-		alias: alias(is),
-		Tags:  emptyStrings(is.Tags),
-	})
+	type dummyIngesterStats IngesterStats
+	is.Tags = nonNilSlice(is.Tags)
+	return json.Marshal(dummyIngesterStats(is))
 }
 
 func UniqueIngesters(sts []IngestStats) (r uint64) {
@@ -601,15 +657,11 @@ func UniqueIngesters(sts []IngestStats) (r uint64) {
 	return
 }
 
-func (m *RenderModuleInfo) MarshalJSON() ([]byte, error) {
-	type alias RenderModuleInfo
-	return json.Marshal(&struct {
-		alias
-		Examples emptyStrings
-	}{
-		alias:    alias(*m),
-		Examples: emptyStrings(m.Examples),
-	})
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (m RenderModuleInfo) MarshalJSON() ([]byte, error) {
+	type dummyRenderModuleInfo RenderModuleInfo
+	m.Examples = nonNilSlice(m.Examples)
+	return json.Marshal(dummyRenderModuleInfo(m))
 }
 
 type emptyEntries []SearchEntry
@@ -653,82 +705,41 @@ func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]ingest.IngesterState(eis))
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (is IngestStats) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		QuotaUsed         uint64
-		QuotaMax          uint64
-		EntriesPerSecond  float64
-		BytesPerSecond    float64
-		TotalCount        uint64
-		TotalSize         uint64
-		LastDayCount      uint64 //total entries in last 24 hours
-		LastDaySize       uint64 //total ingested in last 24 hours
-		EntriesHourTail   [24]uint64
-		EntriesMinuteTail [60]uint64
-		BytesHourTail     [24]uint64
-		BytesMinuteTail   [60]uint64
-		Ingesters         emptyIngesterStats
-		Missing           emptyIngesterStates
-	}{
-		QuotaUsed:         is.QuotaUsed,
-		QuotaMax:          is.QuotaMax,
-		EntriesPerSecond:  is.EntriesPerSecond,
-		BytesPerSecond:    is.BytesPerSecond,
-		TotalCount:        is.TotalCount,
-		TotalSize:         is.TotalSize,
-		LastDayCount:      is.LastDayCount,
-		LastDaySize:       is.LastDaySize,
-		EntriesHourTail:   is.EntriesHourTail,
-		EntriesMinuteTail: is.EntriesMinuteTail,
-		BytesHourTail:     is.BytesHourTail,
-		BytesMinuteTail:   is.BytesMinuteTail,
-		Ingesters:         emptyIngesterStats(is.Ingesters),
-		Missing:           emptyIngesterStates(is.Missing),
-	})
+	type dummyIngestStats IngestStats
+	is.Ingesters = nonNilSlice(is.Ingesters)
+	is.Missing = nonNilSlice(is.Missing)
+	return json.Marshal(dummyIngestStats(is))
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (s StatSetResponse) MarshalJSON() ([]byte, error) {
-	type alias StatSetResponse
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(s),
-		Messages: emptyMessages(s.Messages),
-	})
+	type dummyStatSetResponse StatSetResponse
+	s.Stats = nonNilSlice(s.Stats)
+	s.Messages = nonNilSlice(s.Messages)
+	return json.Marshal(dummyStatSetResponse(s))
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (s SearchMetadata) MarshalJSON() ([]byte, error) {
-	type alias SearchMetadata
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(s),
-		Messages: emptyMessages(s.Messages),
-	})
+	type dummySearchMetadata SearchMetadata
+	s.Messages = nonNilSlice(s.Messages)
+	return json.Marshal(dummySearchMetadata(s))
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (o OverviewStats) MarshalJSON() ([]byte, error) {
-	type alias OverviewStats
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(o),
-		Messages: emptyMessages(o.Messages),
-	})
+	type dummyOverviewStats OverviewStats
+	o.Messages = nonNilSlice(o.Messages)
+	return json.Marshal(dummyOverviewStats(o))
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (b BaseResponse) MarshalJSON() ([]byte, error) {
-	type alias BaseResponse
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(b),
-		Messages: emptyMessages(b.Messages),
-	})
+	type dummyBaseResponse BaseResponse
+	b.Messages = nonNilSlice(b.Messages)
+	return json.Marshal(dummyBaseResponse(b))
 }
 
 type emptyMessages []Message

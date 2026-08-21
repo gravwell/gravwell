@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // AllowedOperations is the set of filter operators the registry accepts.
 // Operators are also advertised per-field (and narrowed by type) via
 // AvailableFilter.Operations; this list is the full union across all types.
@@ -39,12 +41,26 @@ type QueryOptions struct {
 	Filters []Filter
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (q QueryOptions) MarshalJSON() ([]byte, error) {
+	type dummyQueryOptions QueryOptions
+	q.Filters = nonNilSlice(q.Filters)
+	return json.Marshal(dummyQueryOptions(q))
+}
+
 // Filter based on the values given, e.g. Key = "Name", Operation = "=", Values = ["foo", "bar"].
 // Specifying multiple values is an implicit OR.
 type Filter struct {
 	Key       string
 	Operation string
 	Values    []any
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (f Filter) MarshalJSON() ([]byte, error) {
+	type dummyFilter Filter
+	f.Values = nonNilSlice(f.Values)
+	return json.Marshal(dummyFilter(f))
 }
 
 // AvailableFilter describes a filter which *could* be applied to a field when
@@ -61,4 +77,11 @@ type AvailableFilter struct {
 	Operations  []string
 	Sortable    bool
 	MultiValued bool `json:",omitempty"`
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (a AvailableFilter) MarshalJSON() ([]byte, error) {
+	type dummyAvailableFilter AvailableFilter
+	a.Operations = nonNilSlice(a.Operations)
+	return json.Marshal(dummyAvailableFilter(a))
 }

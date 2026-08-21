@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -22,7 +23,22 @@ type SearchHistoryEntry struct {
 	Launched       time.Time
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s SearchHistoryEntry) MarshalJSON() ([]byte, error) {
+	type dummySearchHistoryEntry SearchHistoryEntry
+	s.CommonFields = s.CommonFields.MakeNilSlices()
+	return json.Marshal(dummySearchHistoryEntry(s))
+}
+
 type SearchHistoryListResponse struct {
 	BaseListResponse
 	Results []SearchHistoryEntry
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (s SearchHistoryListResponse) MarshalJSON() ([]byte, error) {
+	type dummySearchHistoryListResponse SearchHistoryListResponse
+	s.Results = nonNilSlice(s.Results)
+	s.BaseListResponse = s.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummySearchHistoryListResponse(s))
 }

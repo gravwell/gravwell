@@ -27,6 +27,14 @@ type StringTagEntry struct {
 	Enumerated []EnumeratedPair
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (se StringTagEntry) MarshalJSON() ([]byte, error) {
+	type dummyStringTagEntry StringTagEntry
+	se.Data = nonNilSlice(se.Data)
+	se.Enumerated = nonNilSlice(se.Enumerated)
+	return json.Marshal(dummyStringTagEntry(se))
+}
+
 type PrintableSearchEntry SearchEntry
 
 // SearchEntry is the entry that makes it out of the search pipeline.
@@ -36,6 +44,14 @@ type SearchEntry struct {
 	Tag        entry.EntryTag
 	Data       []byte
 	Enumerated []EnumeratedPair
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (se SearchEntry) MarshalJSON() ([]byte, error) {
+	type dummySearchEntry SearchEntry
+	se.Data = nonNilSlice(se.Data)
+	se.Enumerated = nonNilSlice(se.Enumerated)
+	return json.Marshal(dummySearchEntry(se))
 }
 
 // EnumeratedPair is the string representation of enumerated values.
@@ -50,6 +66,13 @@ type RawEnumeratedValue struct {
 	Data []byte
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (rev RawEnumeratedValue) MarshalJSON() ([]byte, error) {
+	type dummyRawEnumeratedValue RawEnumeratedValue
+	rev.Data = nonNilSlice(rev.Data)
+	return json.Marshal(dummyRawEnumeratedValue(rev))
+}
+
 func (p PrintableSearchEntry) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		TS         entry.Timestamp
@@ -62,7 +85,7 @@ func (p PrintableSearchEntry) MarshalJSON() ([]byte, error) {
 		SRC:        p.SRC,
 		Tag:        p.Tag,
 		Data:       string(p.Data),
-		Enumerated: p.Enumerated,
+		Enumerated: nonNilSlice(p.Enumerated),
 	})
 }
 

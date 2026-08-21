@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +35,14 @@ type AX struct {
 	Params string   `toml:"params" json:",omitempty"`
 	Args   string   `toml:"args,omitempty" json:",omitempty"`
 	Tags   []string `toml:"tags"`
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (dc AX) MarshalJSON() ([]byte, error) {
+	type dummyAX AX
+	dc.CommonFields = dc.CommonFields.MakeNilSlices()
+	dc.Tags = nonNilSlice(dc.Tags)
+	return json.Marshal(dummyAX(dc))
 }
 
 // Validate verifies all required fields in an AXDefinition object are valid.
@@ -184,6 +193,14 @@ func (dc AX) Equal(v AX) bool {
 type AXListResponse struct {
 	BaseListResponse
 	Results []AX
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (a AXListResponse) MarshalJSON() ([]byte, error) {
+	type dummyAXListResponse AXListResponse
+	a.Results = nonNilSlice(a.Results)
+	a.BaseListResponse = a.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyAXListResponse(a))
 }
 
 func GenLine(wtr io.Writer, name, line string) (err error) {

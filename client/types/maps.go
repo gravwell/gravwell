@@ -214,9 +214,9 @@ func (x PointmapResponse) MarshalJSON() ([]byte, error) {
 	base[len(base)-1] = ','
 
 	e, err := json.Marshal(&struct {
-		Entries []PointmapValue `json:",omitempty"`
+		Entries []PointmapValue
 	}{
-		Entries: x.Entries,
+		Entries: nonNilSlice(x.Entries),
 	})
 	if err != nil {
 		return nil, err
@@ -233,9 +233,9 @@ func (x HeatmapResponse) MarshalJSON() ([]byte, error) {
 	base[len(base)-1] = ','
 
 	e, err := json.Marshal(&struct {
-		Entries []HeatmapValue `json:",omitempty"`
+		Entries []HeatmapValue
 	}{
-		Entries: x.Entries,
+		Entries: nonNilSlice(x.Entries),
 	})
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (x P2PResponse) MarshalJSON() ([]byte, error) {
 		ValueNames []string
 		Entries    []P2PValue `json:",omitempty"`
 	}{
-		ValueNames: x.ValueNames,
+		ValueNames: nonNilSlice(x.ValueNames),
 		Entries:    x.Entries,
 	})
 	if err != nil {

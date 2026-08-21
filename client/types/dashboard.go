@@ -21,14 +21,12 @@ type Dashboard struct {
 	Timeframe   DashboardTimeframe
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
 func (d Dashboard) MarshalJSON() ([]byte, error) {
 	type dummyDashboard Dashboard // we have to glamour our type lest we infinitely recur
-	if d.Searches == nil {
-		d.Searches = make(map[string]DashboardSearchable)
-	}
-	if d.Tiles == nil {
-		d.Tiles = make(map[string]DashboardTile)
-	}
+	d.CommonFields = d.CommonFields.MakeNilSlices()
+	d.Searches = nonNilMap(d.Searches)
+	d.Tiles = nonNilMap(d.Tiles)
 	return json.Marshal(dummyDashboard(d))
 }
 
@@ -94,4 +92,12 @@ type DashboardTileConfig struct {
 type DashboardListResponse struct {
 	BaseListResponse
 	Results []Dashboard
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (d DashboardListResponse) MarshalJSON() ([]byte, error) {
+	type dummyDashboardListResponse DashboardListResponse
+	d.Results = nonNilSlice(d.Results)
+	d.BaseListResponse = d.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyDashboardListResponse(d))
 }

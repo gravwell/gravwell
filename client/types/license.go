@@ -11,6 +11,7 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -102,6 +103,14 @@ type LicenseInfo struct {
 	Metadata  []byte
 	NFR       bool //non-commercial license override
 	Hash      []byte
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (li LicenseInfo) MarshalJSON() ([]byte, error) {
+	type dummyLicenseInfo LicenseInfo
+	li.Metadata = nonNilSlice(li.Metadata)
+	li.Hash = nonNilSlice(li.Hash)
+	return json.Marshal(dummyLicenseInfo(li))
 }
 
 // Features is a list of features present on this license. It's used in the
