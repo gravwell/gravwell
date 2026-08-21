@@ -55,6 +55,9 @@ type ErrorObject struct {
 
 // BaseListResponse contains the common set of fields returned when
 // querying lists of assets.
+//
+// NOTE: BaseListResponse intentionally has no MarshalJSON of its own, for
+// the same reason CommonFields doesn't (see CommonFields.MakeNilSlices()).
 type BaseListResponse struct {
 	CursorNext       string
 	CursorPrev       string
@@ -62,6 +65,13 @@ type BaseListResponse struct {
 	TotalCount       int
 	Type             string
 	AvailableFilters []AvailableFilter
+}
+
+// MakeNilSlices returns a copy of b with nil slice field (currently just Labels)
+// replaced by an empty, non-nil slice s.t. it marshals as "[]".
+func (b BaseListResponse) MakeNilSlices() BaseListResponse {
+	b.AvailableFilters = nonNilSlice(b.AvailableFilters)
+	return b
 }
 
 type VersionInfo struct {
@@ -255,11 +265,25 @@ type MFATOTPSetupResponse struct {
 	URL    string // OTP URL
 }
 
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (m MFATOTPSetupResponse) MarshalJSON() ([]byte, error) {
+	type dummyMFATOTPSetupResponse MFATOTPSetupResponse
+	m.QRCode = nonNilSlice(m.QRCode)
+	return json.Marshal(dummyMFATOTPSetupResponse(m))
+}
+
 // MFATOTPInstallResponse is returned when the user has
 // successfully configured TOTP on the webserver.
 type MFATOTPInstallResponse struct {
 	LoginResponse
 	RecoveryCodes []string
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (m MFATOTPInstallResponse) MarshalJSON() ([]byte, error) {
+	type dummyMFATOTPInstallResponse MFATOTPInstallResponse
+	m.RecoveryCodes = nonNilSlice(m.RecoveryCodes)
+	return json.Marshal(dummyMFATOTPInstallResponse(m))
 }
 
 type SSOStatus struct {
@@ -275,6 +299,13 @@ type IngestResponse struct {
 	Count int64
 	Size  int64
 	Tags  []string
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (i IngestResponse) MarshalJSON() ([]byte, error) {
+	type dummyIngestResponse IngestResponse
+	i.Tags = nonNilSlice(i.Tags)
+	return json.Marshal(dummyIngestResponse(i))
 }
 
 func (wr WarnResp) MarshalJSON() ([]byte, error) {
@@ -353,13 +384,11 @@ type SearchAgentConfig struct {
 	Flow_Burst   int64
 }
 
-type emptyInts []int32
-
-func (ei emptyInts) MarshalJSON() ([]byte, error) {
-	if len(ei) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]int32(ei))
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (sac SearchAgentConfig) MarshalJSON() ([]byte, error) {
+	type dummySearchAgentConfig SearchAgentConfig
+	sac.Webserver_Address = nonNilSlice(sac.Webserver_Address)
+	return json.Marshal(dummySearchAgentConfig(sac))
 }
 
 type emptyStrings []string
@@ -369,33 +398,6 @@ func (es emptyStrings) MarshalJSON() ([]byte, error) {
 		return emptyList, nil
 	}
 	return json.Marshal([]string(es))
-}
-
-type emptyByteArrays [][]byte
-
-func (eba emptyByteArrays) MarshalJSON() ([]byte, error) {
-	if len(eba) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([][]byte(eba))
-}
-
-type emptyInt64s []int64
-
-func (ei emptyInt64s) MarshalJSON() ([]byte, error) {
-	if len(ei) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]int64(ei))
-}
-
-type emptyFloat64s []float64
-
-func (ei emptyFloat64s) MarshalJSON() ([]byte, error) {
-	if len(ei) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]float64(ei))
 }
 
 func (o RawObject) MarshalJSON() ([]byte, error) {
@@ -428,13 +430,9 @@ type LogLevel struct {
 	Level string
 }
 
-func (m *LoggingLevels) MarshalJSON() ([]byte, error) {
-	type alias LoggingLevels
-	return json.Marshal(&struct {
-		alias
-		Levels emptyStrings
-	}{
-		alias:  alias(*m),
-		Levels: emptyStrings(m.Levels),
-	})
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (m LoggingLevels) MarshalJSON() ([]byte, error) {
+	type dummyLoggingLevels LoggingLevels
+	m.Levels = nonNilSlice(m.Levels)
+	return json.Marshal(dummyLoggingLevels(m))
 }

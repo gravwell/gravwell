@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"slices"
 	"time"
 )
@@ -93,6 +94,19 @@ type CommonFields struct {
 	Can Actions
 }
 
+// MakeNilSlices returns a copy of cf with nil slice field (currently just Labels)
+// replaced by an empty, non-nil slice s.t. it marshals as "[]".
+func (cf CommonFields) MakeNilSlices() CommonFields {
+	// NOTE: CommonFields intentionally has no MarshalJSON of its own, even though it needs null-safety.
+	// Giving CommonFields a MarshalJSON of its own would silently hijack parent types' encodings,
+	// even using the dummy wrappers.
+	// Instead, we use MakeNilSlices to centralize the updates CF requires
+	// (should it at any point require more than just .Labels).
+
+	cf.Labels = nonNilSlice(cf.Labels)
+	return cf
+}
+
 func (cf *CommonFields) CanRead(u *User) bool {
 	// Owner and admins can always read
 	if u.ID == cf.OwnerID || u.Admin {
@@ -166,4 +180,15 @@ func (cf *CommonFields) AllGIDs() []int32 {
 type ListAllResponse struct {
 	BaseListResponse
 	Results []CommonFields
+}
+
+// MarshalJSON ensures slices and maps marshal as "[]"/"{}" instead of "null".
+func (l ListAllResponse) MarshalJSON() ([]byte, error) {
+	type dummyListAllResponse ListAllResponse
+	l.Results = nonNilSlice(l.Results)
+	for i := range l.Results {
+		l.Results[i] = l.Results[i].MakeNilSlices()
+	}
+	l.BaseListResponse = l.BaseListResponse.MakeNilSlices()
+	return json.Marshal(dummyListAllResponse(l))
 }

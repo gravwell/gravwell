@@ -289,12 +289,22 @@ type AutomationCommonFields struct {
 }
 
 // AutomationResultsCommonFields specifies fields which exist in all types of automation *results*, mainly errors and the time of last execution.
+//
+// NOTE: AutomationResultsCommonFields intentionally has no MarshalJSON of its own, for
+// the same reason CommonFields doesn't (see CommonFields.MakeNilSlices()).
 type AutomationResultsCommonFields struct {
 	// These fields will be updated by the search agent after the search runs.
 	LastRun         time.Time
 	LastRunDuration time.Duration // how many nanoseconds did it take
 	LastSearchIDs   []string      // the IDs of the most recently performed searches
 	LastError       string        // any error from the last run of the scheduled search
+}
+
+// MakeNilSlices returns a copy of b with nil slice field (currently just Labels)
+// replaced by an empty, non-nil slice s.t. it marshals as "[]".
+func (a AutomationResultsCommonFields) MakeNilSlices() AutomationResultsCommonFields {
+	a.LastSearchIDs = nonNilSlice(a.LastSearchIDs)
+	return a
 }
 
 // ScheduledSearch represents a Gravwell query to be run on a schedule.
