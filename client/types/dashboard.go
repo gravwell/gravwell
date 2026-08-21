@@ -8,6 +8,8 @@
 
 package types
 
+import "encoding/json"
+
 // Dashboard defines tiles and searches to show a dashboard in the UI.
 type Dashboard struct {
 	CommonFields
@@ -17,6 +19,17 @@ type Dashboard struct {
 	Searches    map[string]DashboardSearchable
 	Tiles       map[string]DashboardTile
 	Timeframe   DashboardTimeframe
+}
+
+func (d Dashboard) MarshalJSON() ([]byte, error) {
+	type dummyDashboard Dashboard // we have to glamour our type lest we infinitely recur
+	if d.Searches == nil {
+		d.Searches = make(map[string]DashboardSearchable)
+	}
+	if d.Tiles == nil {
+		d.Tiles = make(map[string]DashboardTile)
+	}
+	return json.Marshal(dummyDashboard(d))
 }
 
 // DashboardLiveUpdateSettings describes Live Update behavior for a Dashboard.
