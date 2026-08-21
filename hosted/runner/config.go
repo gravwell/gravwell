@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gravwell/gravwell/v3/hosted/plugins"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v4/hosted/plugins"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
 )
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -99,7 +99,7 @@ func (c cfgType) Tags() (tags []string, err error) {
 		if err = ingest.CheckTag(tag); err != nil {
 			err = fmt.Errorf("invalid tag %q: %w", tag, err)
 			return
-             }
+		}
 		tagMp[tag] = true
 		tags = append(tags, tag)
 	}
