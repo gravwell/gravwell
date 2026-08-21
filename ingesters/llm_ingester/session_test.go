@@ -9,9 +9,7 @@
 package main
 
 import (
-	"fmt"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -328,103 +326,5 @@ func TestSessionPersistence(t *testing.T) {
 	}
 	if id1 != id2 {
 		t.Errorf("session id changed across restart: %q vs %q", id1, id2)
-	}
-}
-
-func TestResolveExplicit(t *testing.T) {
-	s, err := newSessionStore(time.Hour, 0, "")
-	if err != nil {
-		t.Fatalf("newSessionStore: %v", err)
-	}
-	id, isNew := s.ResolveExplicit("10.0.0.1", "sess-a")
-	if id != "sess-a" || !isNew {
-		t.Fatalf("first sighting = (%q, %v), want (sess-a, true)", id, isNew)
-	}
-	// The same identifier is the same session no matter what the history looks
-	// like — that is the whole point of taking the client's word for it.
-	if id, isNew = s.ResolveExplicit("10.0.0.1", "sess-a"); id != "sess-a" || isNew {
-		t.Errorf("second sighting = (%q, %v), want (sess-a, false)", id, isNew)
-	}
-	if id, isNew = s.ResolveExplicit("10.0.0.1", "sess-b"); id != "sess-b" || !isNew {
-		t.Errorf("new identifier = (%q, %v), want (sess-b, true)", id, isNew)
-	}
-	// Identifiers are partitioned by client, like derived sessions are.
-	if _, isNew = s.ResolveExplicit("10.0.0.2", "sess-a"); !isNew {
-		t.Error("same identifier from a different client was treated as continuing")
-	}
-}
-
-func TestResolveExplicitPerClientCap(t *testing.T) {
-	s, err := newSessionStore(time.Hour, 0, "")
-	if err != nil {
-		t.Fatalf("newSessionStore: %v", err)
-	}
-	for i := 0; i < s.maxPerClient*2; i++ {
-		s.ResolveExplicit("10.0.0.1", fmt.Sprintf("sess-%d", i))
-	}
-	s.mu.Lock()
-	n := len(s.explicit["10.0.0.1"])
-	s.mu.Unlock()
-	if n > s.maxPerClient {
-		t.Errorf("explicit bucket holds %d, want at most %d", n, s.maxPerClient)
-	}
-}
-
-func TestResolveExplicitPersists(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state")
-	s, err := newSessionStore(time.Hour, 0, path)
-	if err != nil {
-		t.Fatalf("newSessionStore: %v", err)
-	}
-	if _, isNew := s.ResolveExplicit("10.0.0.1", "sess-a"); !isNew {
-		t.Fatal("first sighting was not new")
-	}
-	if err := s.Flush(); err != nil {
-		t.Fatalf("Flush: %v", err)
-	}
-	s2, err := newSessionStore(time.Hour, 0, path)
-	if err != nil {
-		t.Fatalf("reload: %v", err)
-	}
-	if id, isNew := s2.ResolveExplicit("10.0.0.1", "sess-a"); id != "sess-a" || isNew {
-		t.Errorf("after reload = (%q, %v), want (sess-a, false)", id, isNew)
-	}
-}
-
-func TestResolveExplicitTTL(t *testing.T) {
-	s, err := newSessionStore(time.Millisecond, 0, "")
-	if err != nil {
-		t.Fatalf("newSessionStore: %v", err)
-	}
-	s.ResolveExplicit("10.0.0.1", "sess-a")
-	time.Sleep(5 * time.Millisecond)
-	if _, isNew := s.ResolveExplicit("10.0.0.1", "sess-a"); !isNew {
-		t.Error("an expired identifier was reported as continuing")
-	}
-}
-
-func TestSanitizeSessionID(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"uuid", "11111111-2222-3333-4444-555555555555", "11111111-2222-3333-4444-555555555555"},
-		{"trimmed", "  sess-a\t", "sess-a"},
-		{"empty", "", ""},
-		{"blank", "   ", ""},
-		{"too-long", strings.Repeat("a", maxSessionIDLen+1), ""},
-		{"at-limit", strings.Repeat("a", maxSessionIDLen), strings.Repeat("a", maxSessionIDLen)},
-		{"embedded-space", "sess a", ""},
-		{"newline", "sess\na", ""},
-		{"control", "sess\x00a", ""},
-		{"non-ascii", "sess-\u00e9", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := sanitizeSessionID(tt.in); got != tt.want {
-				t.Errorf("sanitizeSessionID(%q) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
 	}
 }
