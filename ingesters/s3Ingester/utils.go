@@ -449,7 +449,7 @@ func logSnsKeyDecode(lg *log.Logger, keytype string, buckets, keys []string) {
 	if len(buckets) != len(keys) {
 		lg.Info("successfully decoded messages", log.KV("type", keytype), log.KV("buckets", buckets), log.KV("keys", keys))
 	} else {
-		for i := 0; i < len(buckets); i++ {
+		for i := range buckets {
 			lg.Info("successfully decoded message", log.KV("type", keytype), log.KV("bucket", buckets[i]), log.KV("key", keys[i]))
 		}
 	}
