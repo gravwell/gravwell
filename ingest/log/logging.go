@@ -583,17 +583,22 @@ func renderMsgRaw(msg string, sds ...rfc5424.SDParam) string {
 	return sb.String()
 }
 
+// syslogReplacer scrubs characters RFC 5424 forbids in an SD-NAME ('=', SP,
+// ']', '"') plus '/'; it must only be applied to PARAM-NAMEs, never to
+// PARAM-VALUEs, which may legally contain all of these characters.
 var syslogReplacer = strings.NewReplacer(" ", "_", "=", "_", "/", "_", "]", "_", `"`, "_")
 
 // genRFCOutput returns the given data formatted raw and as syslog.
-// Invalid runes in SDParam Names and Values are destructively replaced with "_".
+// Invalid runes in SDParam Names are destructively replaced with "_".
 func (l *Logger) genRfcOutput(ts time.Time, pfx string, lvl Level, msg string, sds ...rfc5424.SDParam) (ln, rawmsg string) {
 	rawmsg = renderMsgRaw(msg, sds...)
 
 	// to prevent swallowing logs on errors, replace illegal characters in SDParam
+	// names and strip invalid UTF-8 from values; values are otherwise left intact
+	// because marshaling escapes '"', '\', and ']' per RFC 5424 6.3.3
 	for i := range sds {
 		sds[i].Name = syslogReplacer.Replace(sds[i].Name)
-		sds[i].Value = syslogReplacer.Replace(sds[i].Value)
+		sds[i].Value = strings.ToValidUTF8(sds[i].Value, "_")
 	}
 	if b, err := GenRFCMessage(ts, lvl.priority(), l.hostname, l.appname, pfx, msg, sds...); err == nil && len(b) > 0 {
 		ln = string(bytes.Trim(b, "\n\r\t"))
