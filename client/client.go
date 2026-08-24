@@ -24,13 +24,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/objlog"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/objlog"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"bytes"
 
-	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -72,7 +72,7 @@ type Client struct {
 	lastNotifId  uint64
 	enforceCert  bool
 	sessionData  ActiveSession
-	userDetails  types.UserDetails
+	userDetails  types.User
 	objLog       objlog.ObjLog
 	wsScheme     string
 	httpScheme   string
@@ -109,22 +109,6 @@ func New(server string, enforceCertificate, useHttps bool) (*Client, error) {
 		UseHttps:               useHttps,
 	}
 	opts.ObjLogger, _ = objlog.NewNilLogger()
-	return NewOpts(opts)
-}
-
-// NewClient connects to the specified server and returns a new Client object.
-// The useHttps parameter enables or disables SSL.
-// Setting enforceCertificate to false will disable SSL certificate validation,
-// allowing self-signed certs.
-//
-// Deprecated: Use New() or NewOpts() instead
-func NewClient(server string, enforceCertificate, useHttps bool, objLogger objlog.ObjLog) (*Client, error) {
-	opts := Opts{
-		Server:                 server,
-		InsecureNoEnforceCerts: !enforceCertificate,
-		UseHttps:               useHttps,
-		ObjLogger:              objLogger,
-	}
 	return NewOpts(opts)
 }
 
@@ -262,12 +246,8 @@ func (c *Client) TestLogin() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	// before doing anything else, check version.
-	// CheckApiVersion actually sends back version mismatches as a string, so we must test both.
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
-	} else if mismatch != "" {
-		return errors.New(mismatch)
 	}
 
 	return c.getStaticURL(TEST_AUTH_URL, nil)
@@ -293,10 +273,8 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 		return loginResp, errors.New("Invalid username")
 	}
 
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
-	} else if mismatch != "" {
-		return loginResp, errors.New(mismatch)
 	}
 
 	//build up URL we are going to throw at
@@ -357,11 +335,8 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 	if user == "" {
 		return loginResp, errors.New("Invalid username")
 	}
-
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
-	} else if mismatch != "" {
-		return loginResp, errors.New(mismatch)
 	}
 
 	//build up URL we are going to throw at
@@ -418,10 +393,8 @@ func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
-	} else if mismatch != "" {
-		return errors.New(mismatch)
 	}
 
 	c.token = token
@@ -702,33 +675,37 @@ func (c *Client) displayNotifications() error {
 }
 
 // DialWebsocket uses the client's auth tokens to connect to a websocket on the server,
-// returning the websocket connection.
-func (c *Client) DialWebsocket(pth string) (conn *websocket.Conn, resp *http.Response, err error) {
+// returning a JSONConn that provides JSON read/write operations and deadline management.
+func (c *Client) DialWebsocket(pth string) (WebsocketConn, error) {
 	//connect get a websocket fired up against the search agent url
 	u := url.URL{
 		Scheme: c.wsScheme,
 		Host:   c.serverURL.Host,
 		Path:   pth,
 	}
-	dlr := &websocket.Dialer{
-		Proxy:            http.ProxyFromEnvironment,
-		HandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:  c.tlsConfig,
-		Jar:              c.clnt.Jar,
+	cfg, err := websocket.NewConfig(u.String(), u.String())
+	if err != nil {
+		return nil, fmt.Errorf("Websocket config error: %v", err)
 	}
-	hdr := make(http.Header)
-	c.hm.populateRequest(hdr)
-	if conn, resp, err = dlr.Dial(u.String(), hdr); err != nil {
-		if resp != nil {
-			resp.Body.Close()
-		}
-		if conn != nil {
-			conn.Close()
-		}
-		conn = nil
-		err = fmt.Errorf("Dial returned %v", err)
+	cfg.TlsConfig = c.tlsConfig
+	cfg.Dialer = &net.Dialer{
+		Timeout: 10 * time.Second,
 	}
-	return
+	cfg.Header = make(http.Header)
+	c.hm.populateRequest(cfg.Header)
+	if c.clnt.Jar != nil {
+		for _, cookie := range c.clnt.Jar.Cookies(&u) {
+			cfg.Header.Add("Cookie", cookie.String())
+		}
+	}
+	ws, err := websocket.DialConfig(cfg)
+	if err != nil {
+		if ws != nil {
+			ws.Close()
+		}
+		return nil, fmt.Errorf("Dial returned %v", err)
+	}
+	return &wsJSONConn{conn: ws}, nil
 }
 
 // SetUserAgent changes the User-Agent field the client sends with requests (default: “GravwellCLI”).
