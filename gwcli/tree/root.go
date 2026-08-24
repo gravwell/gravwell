@@ -1,0 +1,507 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+/*
+Package tree supplies the root node of the command tree and the true "main" function.
+Initializes itself and `Executes()`, triggering Cobra to assemble itself.
+All invocations of the program operate via root, whether or not it hands off control to Mother.
+All singletons are instantiated here or via the cobra pre-run.
+*/
+package tree
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"runtime/pprof"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/automation"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/cbac"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/email"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/files"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/groups"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/license"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/playbooks"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/secrets"
+	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/tokens"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+)
+
+var profilerFile *os.File
+
+// global PersistentPreRunE.
+//
+// Before any command is executed, ppre checks for NOCOLOR,
+// ensures the logger is set up,
+// and attempts to log the user into the gravwell instance.
+func ppre(cmd *cobra.Command, args []string) error {
+	// set global interactivity state
+	if ni, err := cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
+		return clilog.GetFlag(err) // if this fails, we have royally screwed up
+	} else {
+		state.SetInteractive(!ni)
+	}
+
+	if isNoColor(cmd.Flags()) {
+		stylesheet.Cur = stylesheet.Plain()
+		stylesheet.NoColor = true
+	}
+
+	// if this is the 'completion' command or any of its children, do not enforce login
+	if cmd.Name() == "completion" || (cmd.HasParent() && cmd.Parent().Name() == "completion") {
+		return nil
+	}
+
+	// if this is a 'help' action, do not enforce login
+	if cmd.Name() == "help" {
+		return nil
+	}
+
+	// if a profiler was specified, spin one up targeting the given path
+	if fn, err := cmd.Flags().GetString("profile"); err != nil {
+		panic(err)
+	} else if fn = strings.TrimSpace(fn); fn != "" {
+		profilerFile, err = os.Create(fn)
+		if err != nil {
+			clilog.Writer.Warnf("Failed to create file for profiler: %v", err)
+			profilerFile = nil
+		} else {
+			if err := pprof.StartCPUProfile(profilerFile); err != nil {
+				clilog.Writer.Infof("failed to enable cpu profiler: %v", err)
+			} else {
+				clilog.Writer.Infof("started cpu profiler on %v", profilerFile.Name())
+			}
+		}
+	}
+
+	if err := EnforceLogin(cmd, args); err != nil {
+		return err
+	}
+
+	noLocalPermissions, err := cmd.Flags().GetBool("no-local-permissions")
+	clilog.GetFlag(err)
+	if noLocalPermissions {
+		state.DisableCheckRequirements()
+	}
+	// check that the user is permitted to enact this command
+	if state.CheckRequirements() {
+		clilog.Writer.Debug("checking permissions", log.KV("command", cmd.Name()))
+		return annotations.CheckRequirements(cmd, connection.CBACEnabled(), connection.CurrentUser().Admin, connection.CurrentUserCaps())
+	}
+	return nil
+}
+
+// helper function for ppre.
+//
+// Checks for --no-color, $env.NO_COLOR, and --no-interactive in that order.
+func isNoColor(fs *pflag.FlagSet) bool {
+	// check --no-color
+	if nc, err := fs.GetBool(ft.NoColor.Name()); err != nil {
+		panic(err)
+	} else if nc {
+		clilog.Writer.Debug("disabled_color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "--" + ft.NoColor.Name(),
+			})
+		return true
+	}
+	// check NO_COLOR env var
+	if _, found := os.LookupEnv("NO_COLOR"); found { // https://no-color.org/
+		clilog.Writer.Debug("disabled_color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "NO_COLOR",
+			})
+		return true
+	}
+	if !state.Interactive() {
+		clilog.Writer.Debug("disabled_color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "--" + ft.NoInteractive.Name(),
+			})
+		return true
+	}
+	return false
+
+}
+
+// EnforceLogin initializes the connection singleton, which logs the client into the Gravwell instance dictated by the --server flag.
+// Safe (ineffectual) to call if already logged in.
+func EnforceLogin(cmd *cobra.Command, args []string) error {
+	if connection.Client == nil || connection.Client.State() == client.STATE_CLOSED { // if we just started, initialize connection
+		server, err := cmd.Flags().GetString("server")
+		if err != nil {
+			return err
+		}
+		insecure, err := cmd.Flags().GetBool("insecure")
+		if err != nil {
+			return err
+		}
+		restlog, err := cmd.Flags().GetString("restlog")
+		clilog.GetFlag(err)
+		if err = connection.Initialize(server, !insecure, insecure, restlog); err != nil {
+			return err
+		}
+		if err := connection.Client.Test(); err != nil { // make the errors user-friendly
+			// ECONNREFUSED relies on the syscalls packages which I really don't want to import so let's just make a string check
+			if strings.Contains(err.Error(), "connection refused") {
+				return fmt.Errorf("%s: connection refused", server)
+			}
+			return fmt.Errorf("failed to connect to server %s: %w", server, err)
+		}
+	}
+	username, password, apiToken, err := GatherCredentials(cmd.Flags())
+	if err != nil {
+		return err
+	}
+	// pass all information to Login to decide how to proceed
+	if err := connection.Login(username, password, apiToken, !state.Interactive(), cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
+		return err
+	}
+	return nil
+
+}
+
+// GatherCredentials reads username, password, and api token from flags and the environment, returning all set values.
+func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToken *string, _ error) {
+	// gather credentials to pass to the login process
+	// cobra will guarantee !(username && (api||eapi))
+	{ // fetch api token
+		var tkn string
+		var err error
+		if tkn, err = flags.GetString("api"); err != nil {
+			clilog.GetFlag(err)
+		} else if tkn != "" {
+			apiToken = &tkn
+		} else { // check env var
+			var found bool
+			if tkn, found = os.LookupEnv(cfgdir.EnvKeyAPI); found {
+				apiToken = &tkn
+			}
+		}
+	}
+	{ // fetch username and password
+		// sanity check: if passfile was set but username was not, that's an error
+		if flags.Changed("passfile") && !flags.Changed("username") {
+			return "", nil, nil, errors.New("--passfile requires --username")
+
+		}
+		var err error
+		if username, err = flags.GetString("username"); err != nil {
+			clilog.GetFlag(err)
+		} else if strings.TrimSpace(username) != "" {
+			// also try to get the password from a file or env var
+
+			if passfilePath, err := flags.GetString("passfile"); err != nil {
+				clilog.GetFlag(err)
+			} else if strings.TrimSpace(passfilePath) != "" {
+				if p, err := skimPassFile(passfilePath); err != nil {
+					return "", nil, nil, err
+				} else if p != "" {
+					password = &p
+				}
+			} else if p, set := os.LookupEnv(cfgdir.EnvKeyPassword); set {
+				password = &p
+			}
+		}
+	}
+	return
+}
+
+// skimPassFile slurps the file at the given path if path != "".
+// Returns the password found, an error opening/slurping the file, or "" (if path is empty).
+func skimPassFile(path string) (password string, err error) {
+	if path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read password from %v: %v", path, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	return "", nil
+
+}
+
+// global PersistentPostRunE.
+// Ensure the client connection to the Gravwell backend is dead.
+func ppost(cmd *cobra.Command, args []string) error {
+
+	if err := connection.End(); err != nil {
+		clilog.Writer.Debugf("failed to destroy connection singleton: %v", err)
+	}
+
+	pprof.StopCPUProfile() // idempotent if no profiler is running
+	// if a profiler was enabled, make sure we flush it
+	if profilerFile != nil {
+		profilerFile.Sync()
+		profilerFile.Close()
+	}
+
+	return nil
+}
+
+// ExecuteOptions is used for testing gwcli when leveraging tree.Execute (which most tests do).
+// It should not be populated during standard usage.
+type ExecuteOptions struct {
+	Stdout, Stderr io.Writer
+}
+
+// Execute adds all child commands to the root command, sets flags appropriately, and launches the
+// program according to the given parameters (via cobra.Command.Execute()).
+//
+// Arguments are intended exclusively for testing purposes and should be nil for production use.
+func Execute(args []string, opts ...ExecuteOptions) int {
+	var options ExecuteOptions
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+
+	// spool up the logger
+	if args == nil {
+		clilog.InitializeFromArgs(os.Args)
+	} else {
+		clilog.InitializeFromArgs(args)
+	}
+
+	const (
+		// usage
+		use   string = "gwcli"
+		short string = "Gravwell CLI Client"
+	)
+
+	// must be variable to allow lipgloss formatting
+	var long = "gwcli is a CLI client for interacting with your Gravwell instance directly from your terminal.\n" +
+		"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
+		"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
+		"You can view help for any submenu or action by providing help a path.\n" +
+		"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
+		" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h") + "\n" +
+		"\n" +
+		"Logins can be done via:\n" +
+		"1. api key (--" + ft.API.Name() + " or --" + ft.EAPI.Name() + "),\n" +
+		"2. username/password (-u, -p or " + cfgdir.EnvKeyPassword + "),\n" +
+		"3. interactively if no credentials are provided and !--" + ft.NoInteractive.Name()
+
+	rootCmd := treeutils.GenerateNav(use, short, long,
+		nil, // navs are added later
+		[]action.Pair{
+			ingest.NewIngestAction(),
+			logout.NewAction(),
+			query.NewQueryAction(),
+			showTags(),
+			notifications(),
+			//executeScript(),
+		})
+	rootCmd.SilenceUsage = true
+	rootCmd.PersistentPreRunE = ppre
+	rootCmd.PersistentPostRunE = ppost
+	rootCmd.Version = state.Version
+
+	// if we are testing, wire up outputs
+	if options.Stdout != nil {
+		rootCmd.SetOut(options.Stdout)
+	}
+	if options.Stderr != nil {
+		rootCmd.SetErr(options.Stderr)
+	}
+
+	// associate flags
+	uniques.AttachPersistentFlags(rootCmd)
+
+	if !rootCmd.AllChildCommandsHaveGroup() {
+		panic("some children missing a group")
+	}
+
+	// configure the completion command as an action
+	rootCmd.SetCompletionCommandGroupID(group.ActionID)
+
+	// configure Windows mouse trap
+	cobra.MousetrapHelpText = "This is a command line tool.\n" +
+		"You need to open gwcli.exe and run it from there.\n" +
+		"Press Return to close.\n"
+	cobra.MousetrapDisplayDuration = 0
+
+	// if args were given (ex: we are in testing mode)
+	// use those instead of os.Args
+	if args != nil {
+		rootCmd.SetArgs(args)
+	}
+
+	{ // build a set of examples
+		fields := "  " + stylesheet.Cur.ExampleText.Render("Invoke an action directly:") +
+			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke the interactive prompt:") +
+			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke in a script:")
+		examples := " " + cfgdir.EnvKeyPassword + "=" + ft.Mandatory("mypassword") + " gwcli -u " + ft.Mandatory("myusername") + " system indexers list --json" +
+			"\n gwcli --server=gravwell.io:4090" +
+			"\n" + ` gwcli --no-interactive --api ` + ft.Mandatory("myapikey") + ` query "tag=gravwell stats count | chart count"`
+		rootCmd.Example = "\n" + lipgloss.JoinHorizontal(lipgloss.Left, fields, examples)
+
+	}
+
+	// attach children
+	// spawn the cobra commands in parallel
+	var cmdFn = []func() *cobra.Command{
+		actionables.NewNav,
+		admin.NewNav,
+		automation.NewNav,
+		cbac.NewNav,
+		dashboards.NewNav,
+		email.NewNav,
+		extractors.NewNav,
+		files.NewNav,
+		groups.NewNav,
+		kits.NewNav,
+		license.NewNav,
+		macros.NewNav,
+		playbooks.NewNav,
+		queries.NewNav,
+		resources.NewNav,
+		secrets.NewNav,
+		systemshealth.NewNav,
+		templates.NewNav,
+		tokens.NewNav,
+		users.NewNav,
+	}
+
+	var (
+		//cmds  []*cobra.Command
+		resCh = make(chan *cobra.Command)
+	)
+	for _, fn := range cmdFn {
+		go func(f func() *cobra.Command) {
+			// execute the builder and send the command pointer to the dispatcher
+			resCh <- f()
+		}(fn)
+	}
+	for range cmdFn { // wait for an equal number of results
+		rootCmd.AddCommand(<-resCh)
+	}
+
+	// override the help command to just call usage
+	rootCmd.SetHelpFunc(uniques.Help)
+	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
+		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
+		return nil
+	})
+	rootCmd.SilenceErrors = true // we will print errors ourself
+
+	err := rootCmd.Execute()
+	if err != nil {
+		fmt.Fprintln(rootCmd.ErrOrStderr(), err)
+		return 1
+	}
+
+	return 0
+}
+
+// TODO This relies on backend libraries that the TUI doesn't have access to as it is in Mono.
+// We will need a decision on how to proceed.
+/*func executeScript() action.Pair {
+	return scaffold.NewBasicAction("script", "execute an anko script", "Run an anko script in a VM on the connected Gravwell system",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			network, err := fs.GetBool("network")
+			clilog.GetFlag(err)
+			duration, err := fs.GetDuration("duration")
+			clilog.GetFlag(err)
+			duration = time.Duration(math.Abs(float64(duration)))
+			maxRuntime, err := fs.GetDuration("max-runtime")
+			clilog.GetFlag(err)
+			maxRuntime = time.Duration(math.Abs(float64(maxRuntime)))
+
+			var sb strings.Builder
+			for _, pth := range fs.Args() {
+				body, err := os.ReadFile(pth)
+				if err != nil {
+					fmt.Fprintf(&sb, "failed to read script %v: %v\n", pth, err)
+					continue
+				}
+
+				if line, column, err := connection.Client.ParseScheduledScript(string(body), types.ScriptAnko); err != nil {
+					fmt.Fprintf(&sb, "%v is invalid: L%d:%d %v\n", pth, line, column, err)
+					continue
+				}
+				cfg := scripting.ScriptConfig{
+					SR:             scripting.NewLocalScriptRunner(connection.Client),
+					Language:       types.ScriptAnko,
+					Content:        string(body),
+					DisableNetwork: !network,
+					Debug:          true,
+					Start:          time.Now(),
+					Duration:       duration,
+					MaxRunTime:     maxRuntime,
+				}
+				svm, err := scripting.NewScriptVM(cfg)
+				if err != nil {
+					fmt.Fprintf(&sb, "failed to containerize script %v: %v\n", pth, err)
+					continue
+				}
+				out, err := svm.Run()
+				if err != nil {
+					fmt.Fprintf(&sb, "failed to run script %v: %v\n", pth, err)
+					continue
+				}
+				fmt.Fprintf(&sb, "Script %v executed successfully\n", pth)
+				if len(out) > 0 {
+					fmt.Fprintf(&sb, "_____DEBUG OUTPUT_____\n%s\n______________________\n", string(out))
+				}
+			}
+			return sb.String(), nil
+		},
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("network", false, "Enable networking when running the scripts")
+					fs.Duration("duration", time.Minute, "Duration the scripts should execute over from the moment it begins")
+					fs.Duration("max-runtime", 10*time.Minute, "Maximum duration the scripts may execute for")
+					return fs
+				},
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() < 1 {
+					return phrases.AtLeast1ArgRequired("paths/to/anko scripts"), nil
+				}
+				return "", nil
+			},
+		})
+}*/
