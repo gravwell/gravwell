@@ -118,7 +118,7 @@ func (s *SQSS3Config) srcOverride() net.IP {
 	return net.ParseIP(s.SourceOverride)
 }
 
-func (s SQSS3Config) Log(vals ...interface{}) {
+func (s SQSS3Config) Log(vals ...any) {
 	if s.Logger == nil || len(vals) == 0 {
 		return
 	}
