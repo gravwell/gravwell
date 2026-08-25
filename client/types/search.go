@@ -711,38 +711,6 @@ func (l LaunchResponse) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (si SearchInfo) MarshalJSON() ([]byte, error) {
-	type alias SearchInfo
-	return json.Marshal(struct {
-		alias
-		Duration string `json:",omitempty"`
-	}{
-		alias:    alias(si),
-		Duration: si.Duration.String(),
-	})
-}
-
-func (si *SearchInfo) UnmarshalJSON(data []byte) error {
-	type aalias SearchInfo
-	type alias struct {
-		aalias
-		Duration string `json:",omitempty"`
-	}
-	var v alias
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	*si = SearchInfo(v.aalias)
-	if len(v.Duration) > 0 {
-		dur, err := time.ParseDuration(v.Duration)
-		if err != nil {
-			return err
-		}
-		si.Duration = dur
-	}
-	return nil
-}
-
 type emptyStatSet []StatSet
 
 func (ess emptyStatSet) MarshalJSON() ([]byte, error) {
