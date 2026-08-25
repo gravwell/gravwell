@@ -391,39 +391,53 @@ func TestUdpLogger(t *testing.T) {
 
 }
 
-// TestGenRFCMessage checks that illegal characters do not return errors, given
+// Test_genRfcOutput checks that SDParams that would fail RFC 5424 marshaling
+// do not swallow the log line, that illegal characters in PARAM-NAMEs are
+// replaced, and that PARAM-VALUEs are preserved verbatim (spaces included)
+// with '"', '\', and ']' escaped per RFC 5424 6.3.3.
 func Test_genRfcOutput(t *testing.T) {
 	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for target function.
-		ts       time.Time
-		prio     rfc5424.Priority
-		hostname string
-		appname  string
-		msgid    string
-		msg      string
-		sds      []rfc5424.SDParam
+		name   string // description of this test case
+		ts     time.Time
+		msg    string
+		sds    []rfc5424.SDParam
+		wantSD string // the expected structured data element
 	}{
 		{"single valid SDParam",
-			time.Now(),
-			rfc5424.Debug, "host", "app", "id", "base message",
+			time.Now(), "base message",
 			[]rfc5424.SDParam{{Name: "1Name", Value: "1Value"}},
+			`[gw@1 1Name="1Value"]`,
 		},
-		{"two SDParams with spaces",
-			time.Now(),
-			rfc5424.Debug, "host", "app", "id", "base message",
+		{"space in name replaced, space in value preserved",
+			time.Now(), "base message",
 			[]rfc5424.SDParam{
 				{Name: "1 Name", Value: "1Value"},
 				{Name: "2Name", Value: "2 Value"},
 			},
+			`[gw@1 1_Name="1Value" 2Name="2 Value"]`,
 		},
-		{"two SDParams with illegal characters",
-			time.Now(),
-			rfc5424.Debug, "host", "app", "id", "base message",
+		{"quoted string value with spaces preserved",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{{Name: "msg", Value: "i am a teapot"}},
+			`[gw@1 msg="i am a teapot"]`,
+		},
+		{"illegal characters in names replaced, escapable characters in values escaped",
+			time.Now(), "base message",
 			[]rfc5424.SDParam{
 				{Name: "1=Name", Value: "1Value"},
 				{Name: `2Na'me"`, Value: "2/Value']"},
 			},
+			`[gw@1 1_Name="1Value" 2Na'me_="2/Value'\]"]`,
+		},
+		{"value with quotes and backslashes escaped",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{{Name: "err", Value: `open "C:\tmp"`}},
+			`[gw@1 err="open \"C:\\tmp\""]`,
+		},
+		{"invalid UTF-8 in value replaced",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{{Name: "bin", Value: "bad\xffbyte"}},
+			`[gw@1 bin="bad_byte"]`,
 		},
 	}
 	const prefix string = "pfx"
@@ -431,17 +445,17 @@ func Test_genRfcOutput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := NewDiscardLogger()
 
-			// generate expected raw and sbRFC
-			var sbRFC, sbRaw strings.Builder
-			fmt.Fprintf(&sbRFC, "<14>1 %v %s %s - %s [gw@1 ",
-				tt.ts.Format("2006-01-02T15:04:05.999999Z07:00"), l.hostname, l.appname, prefix)
+			// generate expected raw and RFC outputs; the raw form is untouched
+			// by any sanitization
+			var sbRaw strings.Builder
 			fmt.Fprint(&sbRaw, tt.msg)
 			for _, sd := range tt.sds {
-				fmt.Fprintf(&sbRFC, "%s=\"%s\" ", syslogReplacer.Replace(sd.Name), syslogReplacer.Replace(sd.Value))
-				fmt.Fprintf(&sbRaw, " %s=\"%s\"", sd.Name, sd.Value)
+				fmt.Fprintf(&sbRaw, " %s=%q", sd.Name, sd.Value)
 			}
-			wantRFC := sbRFC.String()[:sbRFC.Len()-1] + "] " + tt.msg
 			wantRaw := sbRaw.String()
+			wantRFC := fmt.Sprintf("<14>1 %v %s %s - %s %s %s",
+				tt.ts.Format("2006-01-02T15:04:05.999999Z07:00"), l.hostname, l.appname,
+				prefix, tt.wantSD, tt.msg)
 
 			gotRFC, gotRaw := l.genRfcOutput(tt.ts, prefix, INFO, tt.msg, tt.sds...)
 			if string(gotRFC) != wantRFC {

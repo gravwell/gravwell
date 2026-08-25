@@ -17,6 +17,9 @@ import (
 	"os"
 	"testing"
 
+	"encoding/hex"
+	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
 
@@ -82,7 +85,7 @@ func TestBuilderAdd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pb.Add(`test1`, Resource, b); err != nil {
+	if err = pb.Add(types.KitItem{Name: `test1`, ID: uuid.New().String(), Type: types.KitAssetResource}, b); err != nil {
 		pb.Abort()
 		t.Fatal(err)
 	}
@@ -90,7 +93,7 @@ func TestBuilderAdd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pb.AddFile(`test2`, Resource, f); err != nil {
+	if err = pb.AddFile(types.KitItem{Name: `test2`, ID: uuid.New().String(), Type: types.KitAssetResource}, f); err != nil {
 		pb.Abort()
 		f.Close()
 		t.Fatal(err)
@@ -152,7 +155,7 @@ func TestBuilderAddSigned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pb.Add(`test1`, Resource, b); err != nil {
+	if err = pb.Add(types.KitItem{Name: `test1`, ID: uuid.New().String(), Type: types.KitAssetResource}, b); err != nil {
 		pb.Abort()
 		t.Fatal(err)
 	}
@@ -160,7 +163,7 @@ func TestBuilderAddSigned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pb.AddFile(`test2`, Resource, f); err != nil {
+	if err = pb.AddFile(types.KitItem{Name: `test2`, ID: uuid.New().String(), Type: types.KitAssetResource}, f); err != nil {
 		pb.Abort()
 		f.Close()
 		t.Fatal(err)
@@ -206,8 +209,8 @@ func TestBuilderAddSigned(t *testing.T) {
 }
 
 type tstruct struct {
-	tp  ItemType
-	hsh [sha256.Size]byte
+	tp  types.KitAssetType
+	hsh string
 }
 
 func TestProcess(t *testing.T) {
@@ -228,7 +231,7 @@ func TestProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pb.Add(`test1`, Resource, b); err != nil {
+	if err = pb.Add(types.KitItem{Name: `test1`, ID: uuid.New().String(), Type: types.KitAssetResource}, b); err != nil {
 		pb.Abort()
 		t.Fatal(err)
 	}
@@ -236,7 +239,7 @@ func TestProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pb.AddFile(`test2`, Resource, f); err != nil {
+	if err = pb.AddFile(types.KitItem{Name: `test2`, ID: uuid.New().String(), Type: types.KitAssetResource}, f); err != nil {
 		pb.Abort()
 		f.Close()
 		t.Fatal(err)
@@ -245,7 +248,7 @@ func TestProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = pb.AddFile(`testlic`, License, f2); err != nil {
+	if err = pb.AddFile(types.KitItem{Name: `testlic`, ID: uuid.New().String(), Type: types.KitAssetLicense}, f2); err != nil {
 		pb.Abort()
 		f2.Close()
 		t.Fatal(err)
@@ -272,29 +275,29 @@ func TestProcess(t *testing.T) {
 	}
 	mp := map[string]tstruct{}
 	mp[`test1`] = tstruct{
-		tp:  Resource,
+		tp:  types.KitAssetResource,
 		hsh: GetHash(b),
 	}
 	hsh, _ := getReaderHash(f)
 	mp[`test2`] = tstruct{
-		tp:  Resource,
+		tp:  types.KitAssetResource,
 		hsh: hsh,
 	}
 	hsh, _ = getReaderHash(f2)
 	mp[`testlic`] = tstruct{
-		tp:  License,
+		tp:  types.KitAssetLicense,
 		hsh: hsh,
 	}
 
-	if err = pr.Process(func(n string, tp ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
-		if v, ok := mp[n]; !ok {
-			return fmt.Errorf("Unknown resource: %v", n)
-		} else if v.tp != tp {
-			return fmt.Errorf("type mismatch: %v != %v", tp, v.tp)
+	if err = pr.Process(func(itm types.KitItem, rdr io.Reader) error {
+		if v, ok := mp[itm.Name]; !ok {
+			return fmt.Errorf("Unknown resource: %v", itm.Name)
+		} else if v.tp != itm.Type {
+			return fmt.Errorf("type mismatch: %v != %v", itm.Type, v.tp)
 		} else if v.hsh != getReaderTestHash(rdr) {
 			return fmt.Errorf("hash missmatch: %v", v.hsh)
 		}
-		delete(mp, n)
+		delete(mp, itm.Name)
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -332,16 +335,16 @@ func genRandomBuff() (b []byte, err error) {
 	return
 }
 
-func getReaderTestHash(rdr io.Reader) (hsh [sha256.Size]byte) {
+func getReaderTestHash(rdr io.Reader) string {
 	//generate hash
 	h := sha256.New()
 	if _, err := io.Copy(h, rdr); err != nil {
-		return
+		return ""
 	}
 	if bts := h.Sum(nil); len(bts) == sha256.Size {
-		copy(hsh[0:sha256.Size], bts)
+		return hex.EncodeToString(bts[:])
 	}
-	return
+	return "" // shouldn't happen
 }
 
 func gzipCompressFile(p string) (err error) {

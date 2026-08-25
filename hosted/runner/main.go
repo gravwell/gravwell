@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/hosted/storage"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
@@ -34,6 +35,7 @@ const (
 )
 
 func main() {
+	go debug.HandleDebugSignals(ingesterName)
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 ingesterName,
@@ -52,7 +54,7 @@ func main() {
 	}
 
 	lg := ib.Logger
-	_, ok := cfg.Global.IngesterUUID()
+	_, ok := cfg.IngesterUUID()
 	if !ok {
 		ib.Logger.FatalCode(0, "could not read ingester UUID")
 	}
@@ -105,6 +107,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	sig := utils.GetQuitChannel()
+	hup := utils.GetSighupChannel()
 	tckr := time.NewTicker(time.Minute)
 	defer tckr.Stop()
 
@@ -114,6 +117,18 @@ exitLoop:
 		case <-sig:
 			lg.Info("ingester shutting down")
 			break exitLoop
+		case <-hup:
+			// try to reload the config
+			lg.Info("reloading configuration")
+			var newCfg *cfgType
+			if err = ib.ReloadConfig(&newCfg); err != nil {
+				lg.Error("failed to reload config", log.KVErr(err))
+			} else if err = rm.reloadIngesters(newCfg); err != nil {
+				//hand the config into the run manager and tell it to reload
+				lg.Error("failed to reload ingesters", log.KVErr(err))
+			} else {
+				lg.Info("configuration reload complete")
+			}
 		case <-tckr.C:
 			// go check on all ingesters and see if we should try to restart one that has died
 			rm.startIngesters()

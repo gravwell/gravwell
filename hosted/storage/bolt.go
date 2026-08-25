@@ -268,7 +268,7 @@ func (bw *BucketWriter) GetInt64(key string) (value int64, err error) {
 
 // PutInt64 puts a native int64 into the storage
 func (bw *BucketWriter) PutInt64(key string, value int64) (err error) {
-	err = bw.Put(key, []byte(fmt.Sprintf("%d", value)))
+	err = bw.Put(key, fmt.Appendf(nil, "%d", value))
 	return
 }
 

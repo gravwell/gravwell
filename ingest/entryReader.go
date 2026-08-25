@@ -85,12 +85,18 @@ type EntryReader struct {
 	lastCount  uint64
 	timeout    time.Duration
 	tagMan     TagManager
-	// the reader stores some info about the other side
+	// the reader stores some info about the other side.  igMtx guards every one of
+	// the ig* members below as well as stateCallbacks.  They are written by
+	// SetupConnection and by the read loop, but callers poll them from other
+	// goroutines to build stats, so every access has to be guarded.  An unguarded
+	// read of igName/igVersion/igUUID can tear the string header and hand back a
+	// nil data pointer with a non-zero length, which does not blow up here, it blows
+	// up later in whatever encodes the value.
+	igMtx             *sync.Mutex
 	igName            string
 	igVersion         string
 	igUUID            string
 	igAPIVersion      uint16
-	igStateMtx        *sync.Mutex
 	igState           IngesterState           // the most recent state message received
 	stateCallbacks    []IngesterStateCallback // functions to be called when an IngesterState message is received
 	pendingDittoBlock []*entry.Entry
@@ -126,7 +132,7 @@ func NewEntryReaderEx(cfg EntryReaderWriterConfig) (*EntryReader, error) {
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 		timeout:    cfg.Timeout,
 		tagMan:     cfg.TagMan,
-		igStateMtx: &sync.Mutex{},
+		igMtx:      &sync.Mutex{},
 	}, nil
 }
 
@@ -136,20 +142,43 @@ func (er *EntryReader) SetTagManager(tm TagManager) {
 	er.tagMan = tm
 }
 
-func (er *EntryReader) GetIngesterInfo() (string, string, string) {
-	return er.igName, er.igVersion, er.igUUID
+// GetIngesterInfo returns the name, version, and UUID that the remote ingester
+// identified itself with during SetupConnection.
+func (er *EntryReader) GetIngesterInfo() (name, version, uuid string) {
+	er.igMtx.Lock()
+	name, version, uuid = er.igName, er.igVersion, er.igUUID
+	er.igMtx.Unlock()
+	return
 }
 
-func (er *EntryReader) GetIngesterAPIVersion() uint16 {
-	return er.igAPIVersion
+// GetIngesterAPIVersion returns the API version negotiated with the remote ingester.
+func (er *EntryReader) GetIngesterAPIVersion() (v uint16) {
+	er.igMtx.Lock()
+	v = er.igAPIVersion
+	er.igMtx.Unlock()
+	return
+}
+
+// setIngesterInfo records the identity the remote ingester handed us.
+func (er *EntryReader) setIngesterInfo(name, version, uuid string) {
+	er.igMtx.Lock()
+	er.igName, er.igVersion, er.igUUID = name, version, uuid
+	er.igMtx.Unlock()
+}
+
+// setIngesterAPIVersion records the API version the remote ingester handed us.
+func (er *EntryReader) setIngesterAPIVersion(v uint16) {
+	er.igMtx.Lock()
+	er.igAPIVersion = v
+	er.igMtx.Unlock()
 }
 
 // GetIngesterState returns the most recent state object received from the ingester.
 func (er *EntryReader) GetIngesterState() (is IngesterState) {
 	if er != nil {
-		er.igStateMtx.Lock()
+		er.igMtx.Lock()
 		is = er.igState.Copy() // we must copy out the ingest state because it holds a map
-		er.igStateMtx.Unlock()
+		er.igMtx.Unlock()
 	}
 	return
 }
@@ -162,7 +191,9 @@ type IngesterStateCallback func(IngesterState)
 // list.
 // Warning: If a callback hangs, the entire entry reader will hang.
 func (er *EntryReader) AddIngesterStateCallback(f IngesterStateCallback) {
+	er.igMtx.Lock()
 	er.stateCallbacks = append(er.stateCallbacks, f)
+	er.igMtx.Unlock()
 }
 
 // GetPendingDittoBlock returns a block of entries received through
@@ -216,7 +247,7 @@ func (er *EntryReader) ConfigureStream() (err error) {
 	er.mtx.Lock()
 	defer er.mtx.Unlock()
 
-	if er.igAPIVersion < MINIMUM_DYN_CONFIG_VERSION {
+	if er.GetIngesterAPIVersion() < MINIMUM_DYN_CONFIG_VERSION {
 		//just return quietly, its ok
 		return
 	}
@@ -519,15 +550,20 @@ headerLoop:
 				continue
 			}
 
-			// store it for later retrieval
-			er.igStateMtx.Lock()
+			// store it for later retrieval, grabbing a snapshot of the callback
+			// set while we are in here.  We do not want to hold igMtx while
+			// running callbacks, a callback that reaches back into the reader
+			// for state would wedge us.
+			er.igMtx.Lock()
 			state.LastSeen = time.Now()
 			er.igState = state
-			er.igStateMtx.Unlock()
+			cbs := make([]IngesterStateCallback, len(er.stateCallbacks))
+			copy(cbs, er.stateCallbacks)
+			er.igMtx.Unlock()
 
 			// run callbacks
-			for i := range er.stateCallbacks {
-				er.stateCallbacks[i](state)
+			for i := range cbs {
+				cbs[i](state)
 			}
 
 			continue
@@ -625,7 +661,7 @@ func (er *EntryReader) IngestOK(ok bool) (err error) {
 // It should properly handle old ingesters, too
 func (er *EntryReader) SetupConnection() (err error) {
 	var n int
-	er.igAPIVersion = MINIMUM_INGEST_OK_VERSION - 1 // default to assuming it's pretty old
+	er.setIngesterAPIVersion(MINIMUM_INGEST_OK_VERSION - 1) // default to assuming it's pretty old
 	for {
 		var cmd []byte
 		cmd, err = er.bIO.Peek(4)
@@ -717,9 +753,7 @@ func (er *EntryReader) SetupConnection() (err error) {
 			er.ackChan <- ackCommand{cmd: CONFIRM_ID_MAGIC, val: uint64(0)}
 
 			// set id values
-			er.igName = string(name)
-			er.igVersion = string(version)
-			er.igUUID = string(id)
+			er.setIngesterInfo(string(name), string(version), string(id))
 		case API_VER_MAGIC:
 			// discard the command since we already read it
 			n, err = er.bIO.Discard(4)
@@ -738,7 +772,7 @@ func (er *EntryReader) SetupConnection() (err error) {
 			if n < 2 {
 				return errFailedFullRead
 			}
-			er.igAPIVersion = binary.LittleEndian.Uint16(er.buff[0:2])
+			er.setIngesterAPIVersion(binary.LittleEndian.Uint16(er.buff[0:2]))
 			er.ackChan <- ackCommand{cmd: CONFIRM_API_VER_MAGIC, val: uint64(0)}
 		default:
 			// any other command means the ingester is no longer interested in identifying itself, so we're done

@@ -29,8 +29,8 @@ import (
 
 	"bytes"
 
-	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -72,7 +72,7 @@ type Client struct {
 	lastNotifId  uint64
 	enforceCert  bool
 	sessionData  ActiveSession
-	userDetails  types.UserDetails
+	userDetails  types.User
 	objLog       objlog.ObjLog
 	wsScheme     string
 	httpScheme   string
@@ -675,33 +675,37 @@ func (c *Client) displayNotifications() error {
 }
 
 // DialWebsocket uses the client's auth tokens to connect to a websocket on the server,
-// returning the websocket connection.
-func (c *Client) DialWebsocket(pth string) (conn *websocket.Conn, resp *http.Response, err error) {
+// returning a JSONConn that provides JSON read/write operations and deadline management.
+func (c *Client) DialWebsocket(pth string) (WebsocketConn, error) {
 	//connect get a websocket fired up against the search agent url
 	u := url.URL{
 		Scheme: c.wsScheme,
 		Host:   c.serverURL.Host,
 		Path:   pth,
 	}
-	dlr := &websocket.Dialer{
-		Proxy:            http.ProxyFromEnvironment,
-		HandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:  c.tlsConfig,
-		Jar:              c.clnt.Jar,
+	cfg, err := websocket.NewConfig(u.String(), u.String())
+	if err != nil {
+		return nil, fmt.Errorf("Websocket config error: %v", err)
 	}
-	hdr := make(http.Header)
-	c.hm.populateRequest(hdr)
-	if conn, resp, err = dlr.Dial(u.String(), hdr); err != nil {
-		if resp != nil {
-			resp.Body.Close()
-		}
-		if conn != nil {
-			conn.Close()
-		}
-		conn = nil
-		err = fmt.Errorf("Dial returned %v", err)
+	cfg.TlsConfig = c.tlsConfig
+	cfg.Dialer = &net.Dialer{
+		Timeout: 10 * time.Second,
 	}
-	return
+	cfg.Header = make(http.Header)
+	c.hm.populateRequest(cfg.Header)
+	if c.clnt.Jar != nil {
+		for _, cookie := range c.clnt.Jar.Cookies(&u) {
+			cfg.Header.Add("Cookie", cookie.String())
+		}
+	}
+	ws, err := websocket.DialConfig(cfg)
+	if err != nil {
+		if ws != nil {
+			ws.Close()
+		}
+		return nil, fmt.Errorf("Dial returned %v", err)
+	}
+	return &wsJSONConn{conn: ws}, nil
 }
 
 // SetUserAgent changes the User-Agent field the client sends with requests (default: “GravwellCLI”).

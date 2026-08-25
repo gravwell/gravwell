@@ -288,12 +288,31 @@ func (s *IngesterState) Read(rdr io.Reader) (err error) {
 // Copy creates a deep copy of the ingester state, this is important when handing the data type off to a gob encoder
 // if the server updates the ingester state when it is attempting to encode a state blob we could get a race
 // where the internal map is updated while we are attempting to encode it, this would cause fault
+// Copy returns a copy of the state that is safe to hand to another goroutine.
+//
+// Children, Tags, and IP are duplicated.  Configuration and Metadata deliberately
+// keep sharing their backing arrays with the original.  Those are opaque blobs the
+// remote ingester controls, bounded only by maxIngestStateSize, and duplicating
+// them here would put an unbounded per ingester cost on the indexer's stats poll,
+// which copies this state on every tick.  That sharing is only sound so long as
+// they are replaced whole rather than written in place, so never index assign into
+// a stored state's Configuration or Metadata, build a new slice and assign it.
 func (s IngesterState) Copy() (r IngesterState) {
 	r = s
 	//copy the map
 	r.Children = make(map[string]IngesterState, len(s.Children))
 	for k, v := range s.Children {
 		r.Children[k] = v.Copy()
+	}
+	//copy the slice headers a caller could reasonably sort or rewrite in place.
+	//string contents are immutable so this stays cheap, it is headers only.
+	if s.Tags != nil {
+		r.Tags = make([]string, len(s.Tags))
+		copy(r.Tags, s.Tags)
+	}
+	if s.IP != nil {
+		r.IP = make(net.IP, len(s.IP))
+		copy(r.IP, s.IP)
 	}
 	return
 }

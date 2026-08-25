@@ -176,7 +176,7 @@ func (c *Client) Query(ctx context.Context, query string, vars map[string]any, o
 
 	// attempt 0 uses the cached token; attempt 1 forces a refresh after an
 	// unauthenticated response.
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := range 2 {
 		if err = c.authenticate(ctx, attempt == 1); err != nil {
 			return err
 		}

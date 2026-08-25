@@ -56,6 +56,26 @@ type Config struct {
 	Insecure_Skip_TLS_Verify bool
 }
 
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.SingleTagConfig == nc.SingleTagConfig &&
+		c.PollingConfig == nc.PollingConfig &&
+		c.Host == nc.Host &&
+		c.Client_Id == nc.Client_Id &&
+		c.Client_Secret == nc.Client_Secret &&
+		c.Page_Size == nc.Page_Size &&
+		c.Insecure_Skip_TLS_Verify == nc.Insecure_Skip_TLS_Verify &&
+		slices.Equal(c.Sections, nc.Sections)
+}
+
 func (c *Config) Verify() error {
 	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
 

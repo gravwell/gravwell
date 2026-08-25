@@ -108,7 +108,7 @@ func (m *Mimecast) get(rt hosted.Runtime, api Api, defaultTs time.Time) (cursor 
 
 func (m *Mimecast) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation,
 	error) {
-	m.initClient(rt.Context())
+	m.initClient(ctx)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
