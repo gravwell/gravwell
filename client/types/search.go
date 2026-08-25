@@ -56,7 +56,7 @@ type Element struct {
 	Args        string `json:",omitempty"`
 	Name        string
 	Path        string
-	Value       interface{}
+	Value       any
 	SubElements []Element `json:",omitempty"`
 	Filters     []string
 }
@@ -753,7 +753,6 @@ func (ess emptyStatSet) MarshalJSON() ([]byte, error) {
 }
 
 func (ssr SearchStatsResponse) MarshalJSON() ([]byte, error) {
-	type alias SearchStatsResponse
 	return json.Marshal(&struct {
 		Size       int
 		Set        emptyStatSet
@@ -811,7 +810,7 @@ func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 	// this marks the search as saved and sets an expiration.  A user gets the alert, clicks the search,
 	// sees that the results should be kept and clicks save; this action means the user wants to kill
 	// the timer, so we wipe the expiration.
-	changed = !li.Expires.Equal(p.Expires)
+	changed = changed || !li.Expires.Equal(p.Expires)
 	li.Expires = p.Expires
 
 	//Started is best effort, take whatever isn't zero if there is one
