@@ -10,184 +10,56 @@ Install both of these before starting:
 
 ## Docker services
 
-Each AWS service is emulated by a lightweight open-source alternative:
-- [garage](https://garagehq.deuxfleurs.fr/) for S3
-- [elasticmq](https://github.com/softwaremill/elasticmq) for SQS
-- [kinesis-local](https://github.com/saidsef/aws-kinesis-local) for Kinesis
+All three AWS services (S3, SQS, Kinesis) are emulated by a single lightweight Docker container
+- [kumo](https://github.com/sivchari/kumo)
 
-The compose file spins up a Gravwell instance alongside the three emulators. Gravwell exposes the web UI on `8080` and the ingester cleartext port on `4023`.
+The compose file spins up a Gravwell instance alongside the AWS emulator. Gravwell exposes the web UI on `8080` and the ingester cleartext port on `4023`. Kumo will be exposed on port `4566`.
 
 `docker-compose.yaml`:
 ```yaml
 services:
   gravwell:
-    image: ghcr.io/gravwell/alpha-next-minor:5.9.0-alpha20260512114933
+    image: gravwell/gravwell:latest
     container_name: gravwell
     ports:
       - "8080:80"
       - "4023:4023"
 
-  garage:
-    image: dxflrs/garage:v2.3.0
-    container_name: garage
-    command: /garage server --single-node --default-bucket
-    restart: unless-stopped
+  kumo:
+    image: ghcr.io/sivchari/kumo@sha256:e63054fbe10eb17b0c9142e937e11b3f4ee2709ac1c80035f3220542f3e5b045 # v0.26.0
+    container_name: kumo
+    ports:
+      - "4566:4566"
     environment:
-      - GARAGE_DEFAULT_ACCESS_KEY=garage_access_key
-      - GARAGE_DEFAULT_SECRET_KEY=garage_secret_key
-      - GARAGE_DEFAULT_BUCKET=garage-bucket
-    ports:
-      - "3900:3900"
-      - "3901:3901"
-      - "3902:3902"
-      - "3903:3903"
+      - "KUMO_DATA_DIR=/data"
     volumes:
-      - ./garage.toml:/etc/garage.toml
-      - ./data:/var/lib/garage/data
-      - ./meta:/var/lib/garage/meta
+      - kumo_data:/data
 
-  elasticmq:
-    image: softwaremill/elasticmq:1.7.1
-    container_name: elasticmq
-    restart: unless-stopped
-    ports:
-      - "9324:9324"
-    volumes:
-      - ./elasticmq.conf:/opt/elasticmq.conf
-
-  kinesis-local:
-    image: saidsef/aws-kinesis-local:v2026.04
-    container_name: kinesis-local
-    restart: unless-stopped
-    ports:
-      - "4567:4567"
+volumes:
+  kumo_data:
 ```
 
-### Service configs
+### AWS CLI profile
 
-ElasticMQ needs a config file to define queues. The `test` queue is the one we'll use; the others are examples of dead-letter and FIFO setups.
-
-`elasticmq.conf`:
-
-```conf
-include classpath("application.conf")
-
-node-address {
-  port = 9324
-}
-
-rest-sqs {
-  bind-port = 9324
-}
-
-messages-storage {
-  enabled = false
-}
-
-auto-create-queues {
-  enabled = true
-  template {
-    defaultVisibilityTimeout = 30 seconds
-    tags {
-        type = "dynamic"
-    }
-  }
-}
-
-queues {
-  test { }
-
-  01-simple-queue { }
-
-  02-queue-with-dead-letter {
-    defaultVisibilityTimeout = 10 seconds
-    delay = 5 seconds
-    receiveMessageWait = 0 seconds
-    deadLettersQueue {
-      name = "03-dead-letter-queue"
-      maxReceiveCount = 3
-    }
-  }
-
-  03-dead-letter-queue { }
-
-  04-fifo-queue {
-    fifo = true
-    contentBasedDeduplication = true
-  }
-}
-```
-
-Garage requires a TOML config for its S3-compatible API, RPC, web, and admin endpoints. The `rpc_secret` is just a local dev value — not sensitive.
-
-`garage.toml`:
-
-```toml
-metadata_dir = "/tmp/meta"
-data_dir = "/tmp/data"
-db_engine = "sqlite"
-
-replication_factor = 1
-
-rpc_bind_addr = "[::]:3901"
-rpc_public_addr = "127.0.0.1:3901"
-rpc_secret = "test-rpc-secret-not-for-production-use"
-
-[s3_api]
-s3_region = "garage"
-api_bind_addr = "[::]:3900"
-root_domain = ".s3.garage.localhost"
-
-[s3_web]
-bind_addr = "[::]:3902"
-root_domain = ".web.garage.localhost"
-index = "index.html"
-
-[admin]
-api_bind_addr = "[::]:3903"
-admin_token = "test-admin-token-not-for-production-use"
-metrics_token = "test-metrics-token-not-for-production-use"
-```
-
-### AWS CLI profiles
-
-Set up named profiles so the AWS CLI knows how to reach each local service. Each profile points at the corresponding container's endpoint.
+Set up a named profile so the AWS CLI knows how to reach Kumo.
 
 `~/.aws/config`:
 
 ```ini
-[profile garage]
-endpoint_url = http://localhost:3900
-region = garage
-output = json
-
-[profile elasticmq]
-endpoint_url = http://localhost:9324
-region = us-east-1
-output = json
-
-[profile kinesis-local]
-endpoint_url = http://localhost:4567
+[profile kumo]
+endpoint_url = http://localhost:4566
 region = us-east-1
 output = json
 ```
 
-Credentials are hardcoded dev values matching what the containers expect.
+Credentials are hardcoded dev values — Kumo doesn't validate them, but the AWS CLI still requires something be set.
 
 `~/.aws/credentials`:
 
 ```ini
-[garage]
-aws_access_key_id = garage_access_key 
-aws_secret_access_key = garage_secret_key
-
-[elasticmq]
-aws_access_key_id = elasticmq
-aws_secret_access_key = elasticmq
-
-[kinesis-local]
-aws_access_key_id = kinesis_local
-aws_secret_access_key = kinesis_local
+[kumo]
+aws_access_key_id = kumo_access_key
+aws_secret_access_key = kumo_secret_key
 ```
 
 ## Bring it up
@@ -198,59 +70,56 @@ Start everything:
 $ docker compose up --build -d
 ```
 
-### Verify connectivity
+### Create test resources
 
-Run a quick list command against each service to confirm the CLI can talk to the containers:
+Kumo starts empty, so the S3 bucket, SQS queue, and Kinesis stream all need to be created manually:
 
 ```bash
-$ aws --profile garage s3api list-buckets
+$ aws --profile kumo s3 mb s3://test
+
+$ aws --profile kumo sqs create-queue --queue-name test
+{
+    "QueueUrl": "http://localhost:4566/000000000000/test"
+}
+
+$ aws --profile kumo kinesis create-stream --stream-name test --shard-count 1
+```
+
+### Verify connectivity
+
+Run a quick list command against each service to confirm the CLI can talk to the container:
+
+```bash
+$ aws --profile kumo s3api list-buckets
 
 {
     "Buckets": [
         {
-            "Name": "garage-bucket",
+            "Name": "test",
             "CreationDate": "2026-05-12T17:03:44.218000+00:00"
         }
     ],
     "Owner": {
         "DisplayName": "default access key",
-        "ID": "garage_access_key"
+        "ID": "kumo_access_key"
     },
     "Prefix": null
 }
 ```
 
 ```bash
-$ aws --profile elasticmq sqs list-queues
-
-{ 
-    "QueueUrls": [] 
-}
-```
-
-```bash
-$ aws --profile kinesis-local kinesis list-streams
+$ aws --profile kumo sqs list-queues
 
 {
-    "StreamNames": []
-}
-```
-
-### Create test resources
-
-Garage already provisions a default S3 bucket via its environment variables. SQS and Kinesis need their resources created manually:
-
-```bash
-$ aws --profile elasticmq sqs create-queue --queue-name test --region us-east-1
-{
-    "QueueUrl": "http://localhost:9324/000000000000/test"
+    "QueueUrls": [
+        "http://localhost:4566/000000000000/test"
+    ]
 }
 ```
 
 ```bash
-$ aws --profile kinesis-local kinesis create-stream --stream-name test --region us-east-1 --shard-count 1
+$ aws --profile kumo kinesis list-streams
 
-$ aws --profile kinesis-local kinesis list-streams
 {
     "StreamNames": [
         "test"
@@ -260,7 +129,7 @@ $ aws --profile kinesis-local kinesis list-streams
 
 ## Ingester configs
 
-Each ingester runs outside Docker and connects to Gravwell on `localhost:4023`. The key settings are the local endpoints, static credentials, and `S3-Force-Path-Style=true` for Garage (it doesn't support virtual-hosted-style buckets).
+Each ingester runs outside Docker and connects to Gravwell on `localhost:4023`. All three point at the same Kumo endpoint (`localhost:4566`) and use the same static credentials. `S3-Force-Path-Style=true` is set for the S3 ingester since Kumo doesn't support virtual-hosted-style buckets.
 
 `s3.conf`:
 
@@ -275,11 +144,11 @@ Worker-Pool-Size=10
 Connection-Timeout=10s
 
 [Bucket "test"]
-  Endpoint=http://localhost:3900
-	Region=garage
-	ID=garage_access_key
-	Secret=garage_secret_key
-	Bucket-Name=garage-bucket
+    Endpoint=http://localhost:4566
+	Region=us-east-1
+	ID=kumo_access_key
+	Secret=kumo_secret_key
+	Bucket-Name=test
 	Tag-Name=s3
 	Credentials-Type=static
 	S3-Force-Path-Style=true
@@ -298,11 +167,11 @@ Log-File=/tmp/sqs.log
 
 [Queue "test"]
 	Region=us-east-1
-	Endpoint=http://localhost:9324
-	Queue-URL=http://localhost:9324/000000000000/test
+	Endpoint=http://localhost:4566
+	Queue-URL=http://localhost:4566/000000000000/test
 	Tag-Name=sqs
-	AKID=elasticmq
-	Secret=elasticmq
+	AKID=kumo_access_key
+	Secret=kumo_secret_key
 	Credentials-Type=static
 ```
 
@@ -321,11 +190,11 @@ Log-Level=INFO
 Log-File=/tmp/kinesis.log
 State-Store-Location=/tmp/kinesis_ingest.state
 
-AWS-Access-Key-ID=kinesis_local
-AWS-Secret-Access-Key=kinesis_local
+AWS-Access-Key-ID=kumo_access_key
+AWS-Secret-Access-Key=kumo_secret_key
 
 [KinesisStream "testStream"]
-  Endpoint=http://localhost:4567
+    Endpoint=http://localhost:4566
 	Region=us-east-1
 	Tag-Name=kinesis
 	Stream-Name=test
@@ -339,10 +208,10 @@ The `genawsdata` tool pushes synthetic events into all three services at once. A
 
 ```bash
 $ go run ./cmd/genawsdata/ -v \
-	-s3-profile garage -s3-endpoint http://localhost:3900 \
-	-s3-buckets garage-bucket -sqs-endpoint http://localhost:9324 \
-	-sqs-queues http://localhost:9324/000000000000/test -sqs-profile elasticmq \
-	-kinesis-profile kinesis-local -kinesis-endpoint http://localhost:4567 \
+	-s3-profile kumo -s3-endpoint http://localhost:4566 \
+	-s3-buckets test -sqs-endpoint http://localhost:4566 \
+	-sqs-queues http://localhost:4566/000000000000/test -sqs-profile kumo \
+	-kinesis-profile kumo -kinesis-endpoint http://localhost:4566 \
 	-kinesis-streams test \
 	-num-events 100
 ```
