@@ -11,6 +11,7 @@
 package ingest
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -356,7 +357,7 @@ func TestConfigureStreamRace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	er.igAPIVersion = MINIMUM_DYN_CONFIG_VERSION
+	er.setIngesterAPIVersion(MINIMUM_DYN_CONFIG_VERSION)
 
 	//client side just discards everything the reader sends (acks, keepalives, config response)
 	go io.Copy(io.Discard, cli)
@@ -403,6 +404,115 @@ func TestConfigureStreamRace(t *testing.T) {
 	if err := er.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// identRounds is how many identification blocks the fake ingester throws at
+// SetupConnection, we want enough to keep the setup loop busy while the pollers spin
+const identRounds = 512
+
+// TestIngesterInfoRace exercises the data race reported in issue #2731:
+// EntryReader.SetupConnection populates igName/igVersion/igUUID while an outside
+// goroutine polls GetIngesterInfo to build ingest stats.  An unguarded read can tear
+// a string header and hand back a nil data pointer with a non-zero length, which does
+// not fault here, it faults later in whatever encodes the value.
+func TestIngesterInfoRace(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer cli.Close()
+	defer srv.Close() //EntryReader.Close does not close the underlying connection
+
+	er, err := NewEntryReaderEx(EntryReaderWriterConfig{
+		Conn:                  srv,
+		OutstandingEntryCount: 64,
+		BufferSize:            minBufferSize,
+		Timeout:               time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//client side just discards everything the reader sends back
+	go io.Copy(io.Discard, cli)
+
+	if err = er.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	//feed identification blocks with names of differing length, a torn read then
+	//picks up a pointer and a length that do not belong to each other
+	go func() {
+		for i := 0; i < identRounds; i++ {
+			nm := strings.Repeat(`ingester`, 1+(i%16))
+			if err := writeIdentBlock(cli, nm, nm+`-version`, nm+`-uuid`); err != nil {
+				return
+			}
+			if err := writeAPIVersionBlock(cli, VERSION); err != nil {
+				return
+			}
+		}
+		//anything the setup loop does not recognize terminates it cleanly
+		cli.Write(NEW_ENTRY_MAGIC.Buff())
+	}()
+
+	//hammer the accessors while SetupConnection is writing them
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				//concatenating forces the string bytes to actually be read, a torn
+				//header faults on the copy rather than silently sliding past
+				name, version, id := er.GetIngesterInfo()
+				_ = name + version + id
+				_ = er.GetIngesterAPIVersion()
+				_ = er.GetIngesterState()
+			}
+		}()
+	}
+
+	err = er.SetupConnection()
+	close(done)
+	wg.Wait()
+	if err != nil && err != io.EOF {
+		t.Fatalf("SetupConnection failed: %v", err)
+	}
+
+	//make sure we actually exercised the thing rather than bailing on the first read
+	name, version, id := er.GetIngesterInfo()
+	if name == `` || version == `` || id == `` {
+		t.Fatalf("ingester info was never populated: %q %q %q", name, version, id)
+	}
+	if v := er.GetIngesterAPIVersion(); v != VERSION {
+		t.Fatalf("ingester API version is %d, want %d", v, VERSION)
+	}
+}
+
+// writeIdentBlock plays the ingester side of the ID_MAGIC exchange, see
+// EntryWriter.IdentifyIngester for the authoritative encoding.
+func writeIdentBlock(w io.Writer, name, version, id string) error {
+	buff := ID_MAGIC.Buff()
+	for _, v := range []string{name, version, id} {
+		b := make([]byte, 4+len(v))
+		binary.LittleEndian.PutUint32(b, uint32(len(v)))
+		copy(b[4:], v)
+		buff = append(buff, b...)
+	}
+	_, err := w.Write(buff)
+	return err
+}
+
+// writeAPIVersionBlock plays the ingester side of the API_VER_MAGIC exchange.
+func writeAPIVersionBlock(w io.Writer, v uint16) error {
+	buff := append(API_VER_MAGIC.Buff(), 0, 0)
+	binary.LittleEndian.PutUint16(buff[4:], v)
+	_, err := w.Write(buff)
+	return err
 }
 
 func outstandingMismatchCycle(rdrCfg, wtrCfg EntryReaderWriterConfig, count, segments int, t *testing.T) {
