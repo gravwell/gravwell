@@ -23,8 +23,10 @@ const (
 )
 
 var (
-	errEmptyBucket = errors.New("empty bucket name")
-	errEmptyKey    = errors.New("empty key name")
+	errEmptyBucket  = errors.New("empty bucket name")
+	errEmptyKey     = errors.New("empty key name")
+	errEmptyRecords = errors.New("empty records")
+	errEmptyMessage = errors.New("empty message")
 )
 
 func start(wg *sync.WaitGroup, ctx context.Context, buckets []*BucketReader, sqsS3 []*SQSS3Listener, ot *objectTracker, lg *log.Logger, numWorkers int) (err error) {
@@ -45,7 +47,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 	// create workers
 	var workerWg sync.WaitGroup
 	queue := make(chan []sqstypes.Message, QUEUE_DEPTH)
-	for i := 0; i < numWorkers; i++ {
+	for i := range numWorkers {
 		workerWg.Add(1)
 		go s.worker(ctx, lg, &workerWg, queue, i)
 	}
@@ -56,7 +58,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 			if ctx.Err() != nil {
 				break
 			}
-			lg.Error("sqs receive message error", log.KVErr(err))
+			lg.Warn("sqs receive message error", log.KVErr(err))
 			sleepContext(ctx, ERROR_BACKOFF)
 			continue
 		}
@@ -151,7 +153,7 @@ func (s *SQSS3Listener) worker(
 				sz, s3rtt, rtt, err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize, s.AttachMetadata)
 				if err != nil {
 					shouldDelete = false
-					lg.Error("error processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
+					lg.Warn("error processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
 				} else {
 					lg.Info("successfully processed message",
 						log.KV("worker", workerID),
@@ -172,7 +174,7 @@ func (s *SQSS3Listener) worker(
 		if len(deleteQueue) != 0 {
 			err := s.sqs.DeleteMessages(ctx, deleteQueue)
 			if err != nil {
-				lg.Error("deleting messages", log.KVErr(err))
+				lg.Warn("deleting messages", log.KVErr(err))
 			}
 		}
 
@@ -191,7 +193,7 @@ func snsDecode(input []byte) ([]string, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	} else if d.Message == "" {
-		return nil, nil, fmt.Errorf("empty message")
+		return nil, nil, errEmptyMessage
 	}
 
 	var buckets []string
@@ -210,7 +212,7 @@ func snsDecode(input []byte) ([]string, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		} else if len(records.Records) == 0 {
-			return nil, nil, fmt.Errorf("empty records")
+			return nil, nil, errEmptyRecords
 		}
 
 		for _, v := range records.Records {
@@ -245,7 +247,7 @@ func s3Decode(input []byte) ([]string, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	} else if len(d.Records) == 0 {
-		return nil, nil, fmt.Errorf("empty records")
+		return nil, nil, errEmptyRecords
 	}
 
 	var buckets []string
@@ -334,7 +336,7 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 	for _, b := range buckets {
 		// start workers
 		queue := make(chan s3types.Object, QUEUE_DEPTH)
-		for i := 0; i < numWorkers; i++ {
+		for range numWorkers {
 			wg.Add(1)
 			go b.worker(lg, ctx, ot, queue, &wg)
 
