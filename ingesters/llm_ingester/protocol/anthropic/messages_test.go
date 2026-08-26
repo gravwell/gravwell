@@ -10,6 +10,7 @@ package anthropic
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
@@ -267,5 +268,56 @@ func TestParseRequestEmptySystemTurn(t *testing.T) {
 	}
 	if e := findReqEvent(pr.Events, protocol.EventSystemMessage); e != nil {
 		t.Errorf("empty system turn produced an event: %q", e.Content)
+	}
+}
+
+// Content-block types this module does not model (images, documents, whatever
+// the API adds next) must not vanish from the logged prompt. The OpenAI module
+// falls back to the raw JSON for parts it cannot flatten; this does the same.
+func TestParseRequestUnknownBlockNotDropped(t *testing.T) {
+	body := []byte(`{
+		"model":"claude-opus-4-8",
+		"messages":[
+			{"role":"user","content":[
+				{"type":"text","text":"what is in this picture?"},
+				{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo="}}
+			]}
+		]}`)
+	req, err := messagesProtocol{}.ParseRequest(body, "")
+	if err != nil {
+		t.Fatalf("ParseRequest: %v", err)
+	}
+	ev := findReqEvent(req.Events, protocol.EventUserMessage)
+	if ev == nil {
+		t.Fatal("no user message event")
+	}
+	got := string(ev.Content)
+	if !strings.Contains(got, "what is in this picture?") {
+		t.Errorf("user text missing from %q", got)
+	}
+	if !strings.Contains(got, "iVBORw0KGgo=") {
+		t.Errorf("image block was silently dropped, content = %q", got)
+	}
+}
+
+// An unmodelled block carries no fields this module reads, so before the
+// default branch in hashMessage two different images produced the same hash and
+// the prefix matcher saw two distinct conversations as one.
+func TestHashMessageDistinguishesUnknownBlocks(t *testing.T) {
+	mk := func(data string) json.RawMessage {
+		return json.RawMessage(`[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"` + data + `"}}]`)
+	}
+	a := hashMessage("user", mk("AAAA"))
+	b := hashMessage("user", mk("BBBB"))
+	if a == b {
+		t.Errorf("two different image blocks hash alike (%s)", a)
+	}
+	// Still stable for the same input.
+	if a != hashMessage("user", mk("AAAA")) {
+		t.Error("hash is not stable for identical unknown blocks")
+	}
+	// And an unknown block still differs from a text block.
+	if a == hashMessage("user", json.RawMessage(`[{"type":"text","text":"AAAA"}]`)) {
+		t.Error("unknown block collides with a text block")
 	}
 }

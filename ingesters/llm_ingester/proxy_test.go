@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
@@ -92,8 +93,11 @@ func newTestHandler(t *testing.T, upstreamURL string, mutate func(*listener)) (*
 		t.Fatalf("newSessionStore: %v", err)
 	}
 	c := &capture{}
-	ph := newProxyHandler("test", l, proto, entry.EntryTag(0),
-		processors.NewProcessorSet(c), sessions, nil)
+	ph, err := newProxyHandler("test", l, proto, entry.EntryTag(0),
+		processors.NewProcessorSet(c), sessions, log.NewDiscardLogger())
+	if err != nil {
+		t.Fatalf("newProxyHandler: %v", err)
+	}
 	return ph, c
 }
 
@@ -454,8 +458,11 @@ func newAnthropicTestHandler(t *testing.T, upstreamURL string, mutate func(*list
 		t.Fatalf("newSessionStore: %v", err)
 	}
 	c := &capture{}
-	ph := newProxyHandler("test", l, proto, entry.EntryTag(0),
-		processors.NewProcessorSet(c), sessions, nil)
+	ph, err := newProxyHandler("test", l, proto, entry.EntryTag(0),
+		processors.NewProcessorSet(c), sessions, log.NewDiscardLogger())
+	if err != nil {
+		t.Fatalf("newProxyHandler: %v", err)
+	}
 	return ph, c
 }
 
@@ -580,9 +587,10 @@ func TestProxyAnthropicClientGate(t *testing.T) {
 	}
 }
 
-// A path the protocol module does not parse is proxied by default (the client
-// may need a sibling endpoint we have nothing to say about) and 404s only when
-// the listener is explicitly narrowed to the parsed paths.
+// A path the protocol module neither parses nor declares as a passthrough is
+// refused by default — forwarding it would attach the upstream credential to a
+// request we know nothing about. The provider's own sibling endpoints still go
+// through, and Allow_Unknown_Paths opens the listener back up.
 func TestProxyUnknownPath(t *testing.T) {
 	var gotPath, gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -594,8 +602,51 @@ func TestProxyUnknownPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	t.Run("passthrough", func(t *testing.T) {
-		ph, cap := newTestHandler(t, srv.URL, nil)
+	// The Messages API's count_tokens sits next to /v1/messages and Claude Code
+	// calls it, so the protocol module declares it and it must work with no
+	// configuration at all.
+	t.Run("declared-passthrough", func(t *testing.T) {
+		ph, cap := newAnthropicTestHandler(t, srv.URL, nil)
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens",
+			strings.NewReader(`{"input":"hi"}`))
+		req.RemoteAddr = "203.0.113.7:5555"
+		w := httptest.NewRecorder()
+		ph.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("count_tokens status = %d, want 200", w.Code)
+		}
+		if w.Body.String() != `{"input_tokens":7}` {
+			t.Errorf("client body = %q", w.Body.String())
+		}
+		if gotPath != "/v1/messages/count_tokens" || gotBody != `{"input":"hi"}` {
+			t.Errorf("upstream saw path %q body %q", gotPath, gotBody)
+		}
+		if got := cap.eventTypes(t); len(got) != 0 {
+			t.Errorf("ingested %v from an unparsed path, want nothing", got)
+		}
+	})
+
+	// Anything the module does not vouch for is refused, and the upstream is
+	// never contacted with our credential attached.
+	t.Run("rejected-by-default", func(t *testing.T) {
+		gotPath = ""
+		ph, _ := newTestHandler(t, srv.URL, nil)
+		req := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader("{}"))
+		req.RemoteAddr = "203.0.113.7:5555"
+		w := httptest.NewRecorder()
+		ph.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("unknown path status = %d, want 404", w.Code)
+		}
+		if gotPath != "" {
+			t.Errorf("upstream was contacted on a rejected path (saw %q)", gotPath)
+		}
+	})
+
+	t.Run("allowed-when-opted-in", func(t *testing.T) {
+		ph, cap := newTestHandler(t, srv.URL, func(l *listener) {
+			l.Allow_Unknown_Paths = true
+		})
 		req := httptest.NewRequest(http.MethodPost, "/v1/embeddings",
 			strings.NewReader(`{"input":"hi"}`))
 		req.RemoteAddr = "203.0.113.7:5555"
@@ -604,27 +655,11 @@ func TestProxyUnknownPath(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("unknown path status = %d, want 200", w.Code)
 		}
-		if w.Body.String() != `{"input_tokens":7}` {
-			t.Errorf("client body = %q", w.Body.String())
-		}
 		if gotPath != "/v1/embeddings" || gotBody != `{"input":"hi"}` {
 			t.Errorf("upstream saw path %q body %q", gotPath, gotBody)
 		}
 		if got := cap.eventTypes(t); len(got) != 0 {
 			t.Errorf("ingested %v from an unparsed path, want nothing", got)
-		}
-	})
-
-	t.Run("rejected", func(t *testing.T) {
-		ph, _ := newTestHandler(t, srv.URL, func(l *listener) {
-			l.Reject_Unknown_Paths = true
-		})
-		req := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader("{}"))
-		req.RemoteAddr = "203.0.113.7:5555"
-		w := httptest.NewRecorder()
-		ph.ServeHTTP(w, req)
-		if w.Code != http.StatusNotFound {
-			t.Errorf("unknown path status = %d, want 404", w.Code)
 		}
 	})
 
@@ -807,5 +842,126 @@ func TestProxySessionIDHeaderRejectsJunk(t *testing.T) {
 		if id, _ := v.(string); id == junk {
 			t.Fatal("oversized session header value was used as the session ID")
 		}
+	}
+}
+
+// A client must not be able to slip its own credential past the proxy's key
+// injection. Anthropic honours both x-api-key and Authorization: Bearer, so
+// replacing only the header this listener's Auth-Style names would forward the
+// other one untouched and let the client pick the account that gets billed.
+func TestProxyStripsAllClientCredentials(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		authStyle string
+		// wantHeader is the header the proxy is configured to inject.
+		wantHeader string
+		wantValue  string
+	}{
+		{"x-api-key-listener", "x-api-key", "x-api-key", "sk-ant-upstream"},
+		{"bearer-listener", "bearer", "Authorization", "Bearer sk-upstream"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotAPIKey, gotAuth string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotAPIKey = r.Header.Get("x-api-key")
+				gotAuth = r.Header.Get("Authorization")
+				w.Header().Set("Content-Type", "application/json")
+				io.WriteString(w, msgRespBody)
+			}))
+			defer srv.Close()
+
+			ph, _ := newAnthropicTestHandler(t, srv.URL, func(l *listener) {
+				l.Auth_Style = tt.authStyle
+				switch tt.authStyle {
+				case "x-api-key":
+					l.Upstream_Authorization = "sk-ant-upstream"
+				default:
+					l.Upstream_Authorization = "sk-upstream"
+				}
+			})
+
+			// The client sets both credential headers.
+			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(msgReqBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("x-api-key", "sk-ant-CLIENT-SNEAKY")
+			req.Header.Set("Authorization", "Bearer sk-CLIENT-SNEAKY")
+			req.RemoteAddr = "203.0.113.7:5555"
+			w := httptest.NewRecorder()
+			ph.ServeHTTP(w, req)
+
+			if strings.Contains(gotAPIKey, "CLIENT-SNEAKY") {
+				t.Errorf("client x-api-key reached the upstream: %q", gotAPIKey)
+			}
+			if strings.Contains(gotAuth, "CLIENT-SNEAKY") {
+				t.Errorf("client Authorization reached the upstream: %q", gotAuth)
+			}
+			// Only the configured header carries a credential; the other is gone.
+			switch tt.wantHeader {
+			case "x-api-key":
+				if gotAPIKey != tt.wantValue {
+					t.Errorf("upstream x-api-key = %q, want %q", gotAPIKey, tt.wantValue)
+				}
+				if gotAuth != "" {
+					t.Errorf("upstream Authorization = %q, want it dropped", gotAuth)
+				}
+			default:
+				if gotAuth != tt.wantValue {
+					t.Errorf("upstream Authorization = %q, want %q", gotAuth, tt.wantValue)
+				}
+				if gotAPIKey != "" {
+					t.Errorf("upstream x-api-key = %q, want it dropped", gotAPIKey)
+				}
+			}
+		})
+	}
+}
+
+// With no upstream credential configured the proxy is a pass-through and must
+// not eat the client's own headers.
+func TestProxyPassesClientCredentialsWhenNotInjecting(t *testing.T) {
+	var gotAPIKey, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAPIKey = r.Header.Get("x-api-key")
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	ph, _ := newAnthropicTestHandler(t, srv.URL, nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(msgReqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", "sk-ant-client")
+	req.Header.Set("Authorization", "Bearer sk-client")
+	req.RemoteAddr = "203.0.113.7:5555"
+	ph.ServeHTTP(httptest.NewRecorder(), req)
+
+	if gotAPIKey != "sk-ant-client" {
+		t.Errorf("upstream x-api-key = %q, want the client's own value", gotAPIKey)
+	}
+	if gotAuth != "Bearer sk-client" {
+		t.Errorf("upstream Authorization = %q, want the client's own value", gotAuth)
+	}
+}
+
+// Anthropic-Version is injected only on the protocol it belongs to. The
+// forwarding path is shared with OpenAI, so the guard is in forwardUpstream and
+// not left to config validation alone.
+func TestProxyAnthropicVersionNotInjectedOnOpenAI(t *testing.T) {
+	var gotVersion string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotVersion = r.Header.Get("anthropic-version")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, chatRespBody)
+	}))
+	defer srv.Close()
+
+	// Set the field directly: validate() rejects this combination, so the only
+	// way to reach the shared forwarding path with it set is to bypass config.
+	ph, _ := newTestHandler(t, srv.URL, nil)
+	ph.cfg.Anthropic_Version = "2023-06-01"
+	doChat(t, ph, chatReqBody, "")
+	if gotVersion != "" {
+		t.Errorf("anthropic-version = %q on an openai-chat listener, want it absent", gotVersion)
 	}
 }

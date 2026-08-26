@@ -10,8 +10,18 @@ events. Two protocols are built in:
 | `openai-chat` | `/v1/chat/completions` | OpenAI-compatible (Codex, opencode, crush, …) |
 | `anthropic-messages` | `/v1/messages` | Claude Code, the Anthropic SDKs |
 
-Requests on other paths are proxied through without being ingested.  Set
-`Reject-Unknown-Paths` to lock a listener down to the one endpoint it parses.
+A listener answers `404` on any path it neither parses nor recognizes as a
+sibling of the API it speaks. The siblings a real client needs are built in and
+proxied through without being ingested — the `anthropic-messages` listener
+passes `/v1/messages/count_tokens` because Claude Code calls it — so this needs
+no configuration for normal use.
+
+> **`Allow-Unknown-Paths` is insecure.** Setting it forwards *every* path to the
+> upstream. The proxy attaches your `Upstream-Authorization` to whatever it
+> forwards, so an open path list lets a client aim the listener at a request the
+> proxy never inspects and read your upstream credential back out of the result.
+> Enable it only for a specific client that needs an endpoint we do not know
+> about, and prefer giving that client its own listener.
 
 See [`gravwell_llm_ingester.conf`](gravwell_llm_ingester.conf) and
 [`config.go`](config.go) for all config options (log mode, auth, session
@@ -50,8 +60,9 @@ here, and Claude Code's base URL on the client.
 	# Injected only when a request arrives without one.
 	Anthropic-Version = "2023-06-01"
 
-	# Claude Code stamps every request with its own conversation ID; adopt it
-	# as the ingested session_id.
+	# Adopt the client's own conversation ID as the ingested session_id. Works
+	# on any listener with any client that sends one; Claude Code's header is
+	# named here because that is the client this block configures.
 	Session-ID-Header = "x-claude-code-session-id"
 
 	Log-Mode = "delta"
@@ -152,6 +163,14 @@ Notes on the client side:
 - These clients send no conversation ID header, so sessions are derived by
   matching message prefixes. If your client does stamp one, name it with
   `Session-ID-Header` and it is adopted as the session ID instead.
+  `Session-ID-Header` is not tied to a provider: it works on any listener, with
+  any header name, including one your own application sets. Prefer it where a
+  client offers one — an identifier the client owns survives the history
+  rewrites (compaction, retries, edited context) that prefix matching cannot
+  follow, and it lines the ingested session up with the client's own transcript.
+  The listener logs a warning when the header is configured but a request
+  arrives without a usable value, so a wrong header name does not just quietly
+  degrade to prefix matching.
 - Over plain HTTP, both the prompts and the key cross the wire in the clear.
   Set `TLS-Certificate-File` / `TLS-Key-File` on the listener and use an
   `https://` base URL for anything but a local proxy.
@@ -206,11 +225,13 @@ See the [Codex proxy config docs](https://developers.openai.com/codex/config-adv
 ### curl
 
 ```shell
+# OpenAI
 curl http://localhost:4180/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $YOUR_API_KEY" \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}]}'
 
+# Anthropic
 curl http://localhost:4181/v1/messages \
   -H "Content-Type: application/json" \
   -H "anthropic-version: 2023-06-01" \

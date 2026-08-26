@@ -108,9 +108,17 @@ func main() {
 				log.KV("listener", name), log.KVErr(err))
 			return
 		}
-		ph := newProxyHandler(name, lcfg, proto, tag, pproc, sessions, lg)
+		ph, err := newProxyHandler(name, lcfg, proto, tag, pproc, sessions, lg)
+		if err != nil {
+			lg.FatalCode(0, "failed to build proxy handler",
+				log.KV("listener", name), log.KVErr(err))
+			return
+		}
 		mux := http.NewServeMux()
 		for _, p := range proto.Paths() {
+			mux.Handle(p, ph)
+		}
+		for _, p := range proto.PassthroughPaths() {
 			mux.Handle(p, ph)
 		}
 		srv := &http.Server{

@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
 )
 
 const (
@@ -89,8 +90,9 @@ type listener struct {
 	// "x-api-key" (bare "x-api-key: <token>", used by the Anthropic Messages API).
 	Auth_Style string
 	// Anthropic_Version, when set, is injected as the upstream "anthropic-version"
-	// header if the client did not supply one. Only relevant with the
-	// "x-api-key" auth style when the proxy injects the upstream credential and
+	// header if the client did not supply one. This is specific to the
+	// "anthropic-messages" protocol — validate() rejects it on any other
+	// listener — and matters when the proxy injects the upstream credential and
 	// the client therefore never sends the version header itself.
 	Anthropic_Version string
 	// Client_Authorization, when set, is the bare token inbound clients must
@@ -102,16 +104,28 @@ type listener struct {
 	// Empty passes the client's own auth header through unchanged.
 	Upstream_Authorization string
 	// Session_ID_Header names a request header carrying the client's own
-	// conversation identifier (e.g. "x-claude-code-session-id"). When set and
-	// present on a request, that value identifies the session instead of the
-	// derived prefix match. Unset uses prefix matching alone.
+	// conversation identifier. When set and present on a request, that value
+	// identifies the session instead of the derived prefix match; unset uses
+	// prefix matching alone.
+	//
+	// This is provider-independent: any client that stamps a stable
+	// conversation identifier on its requests can be tracked this way, whatever
+	// protocol the listener speaks. Claude Code's "x-claude-code-session-id" is
+	// the worked example because it is the one we ship a config for, not
+	// because the mechanism is Anthropic-specific.
 	Session_ID_Header string
-	// Reject_Unknown_Paths, when true, answers 404 for any path the protocol
-	// module does not parse. The default (false) proxies those requests to the
-	// upstream without ingesting them, which keeps sibling endpoints the
-	// client needs working — the Messages API's /v1/messages/count_tokens, for
-	// one, which Claude Code calls alongside /v1/messages.
-	Reject_Unknown_Paths bool
+	// Allow_Unknown_Paths, when true, proxies any path to the upstream instead
+	// of answering 404 for the ones neither parsed nor declared as a
+	// passthrough by the protocol module.
+	//
+	// This is insecure and off by default. The proxy attaches the configured
+	// Upstream_Authorization to whatever it forwards, so an open path list lets
+	// a client point the listener at a request we never inspect and read the
+	// upstream credential back out of it. The sibling endpoints a real client
+	// needs are declared by the protocol module itself (see
+	// protocol.Protocol.PassthroughPaths), so this should stay off unless a
+	// specific client demands otherwise.
+	Allow_Unknown_Paths bool
 	// Session_TTL is how long idle session prefix-match state is retained,
 	// expressed as a Go duration string (e.g. "30m"). Defaults to
 	// defaultSessionTTL when unset.
@@ -232,6 +246,13 @@ func (l *listener) validate() error {
 	}
 	if l.Max_Body <= 0 {
 		l.Max_Body = defaultMaxBody
+	}
+	// Options that only mean something to one provider are rejected elsewhere
+	// rather than silently ignored: a config that sets them on the wrong
+	// listener is a mistake the operator wants to hear about at startup.
+	if l.Anthropic_Version != "" && l.Protocol != anthropic.ProtocolName {
+		return fmt.Errorf("Anthropic-Version is only valid with Protocol %q, got %q",
+			anthropic.ProtocolName, l.Protocol)
 	}
 	if l.Session_ID_Header != "" {
 		if !validHeaderName(l.Session_ID_Header) {

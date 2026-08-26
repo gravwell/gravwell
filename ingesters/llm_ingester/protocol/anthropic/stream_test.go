@@ -185,3 +185,67 @@ func TestSSEReassemblerEmptyStream(t *testing.T) {
 		t.Error("expected error for empty stream, got nil")
 	}
 }
+
+// The Messages API reports output_tokens as 1 on message_start regardless of
+// what the response actually costs. That placeholder must not survive into the
+// usage record: a stream that ends without a message_delta should report 0
+// completion tokens rather than the API's made-up 1.
+func TestSSEReassemblerMessageStartOutputTokensIgnored(t *testing.T) {
+	const stream = `event: message_start
+data: {"type":"message_start","message":{"id":"msg_y","model":"claude-opus-4-8","usage":{"input_tokens":50,"output_tokens":1}}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_stop
+data: {"type":"message_stop"}
+
+`
+	r := newSSEReassembler()
+	if err := r.Feed([]byte(stream)); err != nil {
+		t.Fatalf("Feed: %v", err)
+	}
+	p, err := r.Finalize()
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	ev := findStreamEvent(p, protocol.EventUsage)
+	if ev == nil || ev.Usage == nil {
+		t.Fatal("no usage event")
+	}
+	if ev.Usage.CompletionTokens != 0 {
+		t.Errorf("CompletionTokens = %d, want 0 (message_start's placeholder 1 must be ignored)",
+			ev.Usage.CompletionTokens)
+	}
+	if ev.Usage.PromptTokens != 50 {
+		t.Errorf("PromptTokens = %d, want 50", ev.Usage.PromptTokens)
+	}
+	if ev.Usage.TotalTokens != 50 {
+		t.Errorf("TotalTokens = %d, want 50", ev.Usage.TotalTokens)
+	}
+}
+
+// A real count from message_delta still wins.
+func TestSSEReassemblerMessageDeltaOutputTokensUsed(t *testing.T) {
+	r := newSSEReassembler()
+	if err := r.Feed([]byte(sampleStream)); err != nil {
+		t.Fatalf("Feed: %v", err)
+	}
+	p, err := r.Finalize()
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	ev := findStreamEvent(p, protocol.EventUsage)
+	if ev == nil || ev.Usage == nil {
+		t.Fatal("no usage event")
+	}
+	if ev.Usage.CompletionTokens != 18 {
+		t.Errorf("CompletionTokens = %d, want 18", ev.Usage.CompletionTokens)
+	}
+}

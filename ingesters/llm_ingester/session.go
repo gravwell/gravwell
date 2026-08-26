@@ -45,7 +45,9 @@ type sessionStore struct {
 	// explicit tracks sessions named by the client itself (see
 	// ResolveExplicit), keyed by client then by the client's identifier. These
 	// need no hash matching, only a last-seen stamp so the TTL and the
-	// new-session flag still work.
+	// new-session flag still work. Nothing here is provider-specific: the
+	// identifier comes from whatever header the listener's Session_ID_Header
+	// names, so any client that stamps one can be tracked this way.
 	explicit map[string]map[string]time.Time
 	ttl      time.Duration
 	persist  *utils.State
@@ -338,13 +340,29 @@ func (s *sessionStore) Flush() error {
 }
 
 // maxSessionIDLen bounds how much of a client-supplied session identifier we
-// are willing to keep around (and stamp onto every entry).
+// are willing to keep around (and stamp onto every entry). 128 bytes is well
+// clear of the identifier formats clients actually use — a UUID is 36 — while
+// keeping a hostile client from parking kilobytes per session in the store and
+// on every entry it produces.
 const maxSessionIDLen = 128
 
-// sanitizeSessionID vets a session identifier taken from a request header.
-// The value is client-controlled and lands in an enumerated value on every
-// entry, so anything oversized, empty, or non-printable is rejected (the caller
-// then falls back to prefix matching) rather than trusted.
+// sanitizeSessionID vets a session identifier taken from a request header and
+// returns it unchanged when it is fit to use, or "" when it is not. The empty
+// return is the rejection signal: the caller falls back to deriving the session
+// by prefix matching, so a bad value costs accuracy rather than breaking the
+// request.
+//
+// The value is client-controlled and gets stamped onto every entry as an
+// enumerated value and used as a map key in the session store, so it is held to
+// what a session identifier plausibly is:
+//
+//   - empty after trimming — nothing to key on
+//   - longer than maxSessionIDLen — see above
+//   - any byte outside 0x21..0x7e — printable ASCII with no spaces. That range
+//     excludes control characters (which would land in log output and search
+//     results verbatim), the space at 0x20, and DEL at 0x7f, and it rejects any
+//     byte with the high bit set, so a multi-byte UTF-8 sequence never survives
+//     to be re-encoded or truncated downstream.
 func sanitizeSessionID(v string) string {
 	v = strings.TrimSpace(v)
 	if v == "" || len(v) > maxSessionIDLen {

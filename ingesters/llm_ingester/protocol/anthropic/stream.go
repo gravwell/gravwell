@@ -153,7 +153,11 @@ func (r *sseReassembler) applyEvent(e *streamEvent) {
 				r.inputTokens = u.InputTokens
 				r.cacheRead = u.CacheReadInput
 				r.cacheCreation = u.CacheCreationInput
-				if u.OutputTokens > 0 {
+				// message_start reports output_tokens as 1 rather than 0, so a
+				// "> 0" guard here would always fire and seed the count with a
+				// number the API made up. The real figure arrives on
+				// message_delta; anything at or below 1 is that placeholder.
+				if u.OutputTokens > 1 {
 					r.outputTokens = u.OutputTokens
 				}
 				r.haveUsage = true

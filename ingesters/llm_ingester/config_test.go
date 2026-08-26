@@ -62,6 +62,12 @@ func TestListenerValidateErrors(t *testing.T) {
 		{"tls-only-cert", func(l *listener) { l.TLS_Certificate_File = "cert.pem" }},
 		{"tls-only-key", func(l *listener) { l.TLS_Key_File = "key.pem" }},
 		{"invalid-auth-style", func(l *listener) { l.Auth_Style = "digest" }},
+		// Anthropic-Version means nothing to an OpenAI listener; a config that
+		// sets it there is a mistake, not something to quietly ignore.
+		{"anthropic-version-on-openai", func(l *listener) {
+			l.Protocol = "openai-chat"
+			l.Anthropic_Version = "2023-06-01"
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -231,5 +237,25 @@ func TestShippedExampleConfig(t *testing.T) {
 		if !protos[want] {
 			t.Errorf("example config has no %q listener (found %v)", want, protos)
 		}
+	}
+}
+
+// Anthropic-Version is accepted on the listener it belongs to, and only there.
+func TestListenerAnthropicVersionProtocolGated(t *testing.T) {
+	l := validListener()
+	l.Protocol = "anthropic-messages"
+	l.Auth_Style = "x-api-key"
+	l.Anthropic_Version = "2023-06-01"
+	if err := l.validate(); err != nil {
+		t.Fatalf("Anthropic-Version on an anthropic listener: %v", err)
+	}
+
+	// Session-ID-Header, by contrast, is provider-independent and is valid on
+	// any listener.
+	l = validListener()
+	l.Protocol = "openai-chat"
+	l.Session_ID_Header = "x-my-app-conversation"
+	if err := l.validate(); err != nil {
+		t.Fatalf("Session-ID-Header on an openai listener: %v", err)
 	}
 }

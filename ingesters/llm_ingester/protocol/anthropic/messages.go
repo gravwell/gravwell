@@ -25,6 +25,7 @@
 package anthropic
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -35,9 +36,16 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 )
 
+// ProtocolName is the registry key for this module. The proxy core gates
+// Anthropic-only listener options on it.
+const ProtocolName = "anthropic-messages"
+
 const (
-	protocolName = "anthropic-messages"
 	messagesPath = "/v1/messages"
+	// countTokensPath is a sibling of the Messages API that Claude Code calls
+	// alongside /v1/messages. We do not parse it, but a listener that answered
+	// 404 here would break the client, so it is declared as a passthrough.
+	countTokensPath = "/v1/messages/count_tokens"
 
 	roleSystem    = "system"
 	roleUser      = "user"
@@ -57,8 +65,12 @@ func init() {
 	protocol.Register(messagesProtocol{})
 }
 
-func (messagesProtocol) Name() string    { return protocolName }
+func (messagesProtocol) Name() string    { return ProtocolName }
 func (messagesProtocol) Paths() []string { return []string{messagesPath} }
+
+// PassthroughPaths declares the endpoints a Messages API client legitimately
+// needs that this module does not parse.
+func (messagesProtocol) PassthroughPaths() []string { return []string{countTokensPath} }
 
 // The following types mirror the Anthropic Messages request/response schema; see
 // https://docs.claude.com/en/api/messages for the authoritative definitions.
@@ -93,6 +105,25 @@ type contentBlock struct {
 	// tool_result (user turns). Content is a string OR an array of blocks.
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	Content   json.RawMessage `json:"content,omitempty"`
+
+	// raw is the block exactly as it arrived. Block types this module does not
+	// model (image, document, and whatever the API adds next) are logged and
+	// hashed from this rather than dropped.
+	raw json.RawMessage
+}
+
+// UnmarshalJSON decodes a content block and keeps a copy of the original bytes
+// in raw. The alias type carries the same fields without this method, so the
+// nested decode does not recurse.
+func (b *contentBlock) UnmarshalJSON(data []byte) error {
+	type alias contentBlock
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*b = contentBlock(a)
+	b.raw = bytes.Clone(data)
+	return nil
 }
 
 // respUsage is the token-accounting object returned on responses (and on the
@@ -257,6 +288,20 @@ func messageToEvents(role string, raw json.RawMessage) []protocol.Event {
 					text.WriteByte('\n')
 				}
 				text.WriteString(b.Text)
+			default:
+				// Images, documents, and whatever the API adds next. Fold the
+				// block in raw rather than drop it, the same rule the OpenAI
+				// module follows for content parts it cannot flatten. This can
+				// be bulky (an inline image is base64 in the body), but the
+				// listener's Max_Body already bounds it and a silent hole in
+				// the logged prompt is the worse outcome.
+				if len(b.raw) == 0 {
+					continue
+				}
+				if text.Len() > 0 {
+					text.WriteByte('\n')
+				}
+				text.Write(b.raw)
 			}
 		}
 		if text.Len() > 0 {
@@ -356,6 +401,13 @@ func hashMessage(role string, raw json.RawMessage) string {
 			h.Write([]byte(b.ToolUseID))
 			h.Write([]byte{0})
 			h.Write(flattenText(b.Content))
+		default:
+			// Only the type has been written so far, so without this every
+			// unmodelled block of a given type would hash alike and two
+			// different images would look like the same turn to the prefix
+			// matcher.
+			h.Write([]byte{0})
+			h.Write(b.raw)
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
