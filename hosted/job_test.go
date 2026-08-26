@@ -502,7 +502,7 @@ func TestWrapJob_HandleErrorSetsStatus(t *testing.T) {
 		onCall: func(n int, rt Runtime) {
 			if n == 1 {
 				// the second call happens after the failure, the error must still be set here
-				duringFirstRetry, _ = rt.(*testRuntime).Status()
+				_, duringFirstRetry = rt.(*testRuntime).Status()
 			}
 		},
 	}
@@ -512,7 +512,7 @@ func TestWrapJob_HandleErrorSetsStatus(t *testing.T) {
 	if !errors.Is(duringFirstRetry, badSecret) {
 		t.Fatalf("error state was not set after a failed handle, got %v", duringFirstRetry)
 	}
-	err, warn := rt.Status()
+	warn, err := rt.Status()
 	if err != nil {
 		t.Errorf("a successful handle did not clear the error state, got %v", err)
 	}
@@ -538,7 +538,7 @@ func TestWrapJob_UnhealthyLinkSetsWarning(t *testing.T) {
 			return false
 		}
 		if checks == 2 {
-			_, warnWhileDown = rt.Status()
+			warnWhileDown, _ = rt.Status()
 		}
 		return true
 	}
@@ -548,7 +548,7 @@ func TestWrapJob_UnhealthyLinkSetsWarning(t *testing.T) {
 	if warnWhileDown != jobAliveWarning {
 		t.Fatalf("warning was not set while the ingest link was down, got %q", warnWhileDown)
 	}
-	if _, warn := rt.Status(); warn != `` {
+	if warn, _ := rt.Status(); warn != `` {
 		t.Errorf("warning was not cleared after the link recovered, got %q", warn)
 	}
 }

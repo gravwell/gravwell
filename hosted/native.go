@@ -59,7 +59,6 @@ type NativeRunner struct {
 	cf           context.CancelFunc
 	running      bool      // is the ingester currently running
 	started      time.Time // when the ingester was first started, used to report child uptime
-	err          error     // error from go routine runner
 }
 
 // NewNativeRunner creates a new NativeRunner that has validated some basic parameters and is ready to Run
@@ -472,7 +471,7 @@ func (nr *NativeRuntime) State() (s State) {
 	s.Entries = nr.entries.Load()
 	s.Size = nr.size.Load()
 	s.Tags = nr.tagNames()
-	s.Error, s.Warn = nr.Status()
+	s.Warn, s.Error = nr.Status()
 	return
 }
 

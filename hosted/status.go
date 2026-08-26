@@ -47,9 +47,9 @@ func (st *StatusTracker) ClearWarn() {
 }
 
 // Status hands back the current error and warning conditions.
-func (st *StatusTracker) Status() (err error, warn string) {
+func (st *StatusTracker) Status() (warn string, err error) {
 	st.mtx.RLock()
-	err, warn = st.err, st.warn
+	warn, err = st.warn, st.err
 	st.mtx.RUnlock()
 	return
 }
