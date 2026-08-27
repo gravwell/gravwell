@@ -8,50 +8,140 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOptionalPatch(t *testing.T) {
-	t.Run("Optional is included if set", func(t *testing.T) {
-		st := struct {
-			S types.Optional[string]
-		}{S: types.NewOptional("foo")}
-		b, err := json.Marshal(&st)
-		require.Nil(t, err)
-		require.Equal(t, `{"S":"foo"}`, string(b))
-	})
-	t.Run("Optional is skipped if omitzero tag is included in field", func(t *testing.T) {
-		st := struct {
-			S types.Optional[string] `json:",omitzero"`
-		}{}
-		b, err := json.Marshal(&st)
-		require.Nil(t, err)
-		require.Equal(t, "{}", string(b))
-	})
-	t.Run("Optional is skipped if omitzero option is included in encoder", func(t *testing.T) {
-		st := struct {
-			S types.Optional[string]
-		}{}
-		b, err := json.Marshal(&st, json.OmitZeroStructFields(true))
-		require.Nil(t, err)
-		require.Equal(t, "{}", string(b))
-	})
-
-	t.Run("empty patch produces no values", func(t *testing.T) {
-		m := types.MacroPatch{}
-		//m.Expansion.Set("xp")
-		b, err := json.Marshal(&m, json.OmitZeroStructFields(true))
-		require.Nil(t, err)
-		require.Equal(t, "{}", string(b))
-	})
-	/*t.Run("an set field is included", func(t *testing.T) {
-		m := types.MacroPatch{Expansion: types.NewOptional("Venkmann")}
-		m.Expansion.Unset()
-		b, err := json.Marshal(&m)
-		require.Nil(t, err)
-		require.Empty(t, string(b))
-		t.Run("an unset field is absent", func(t *testing.T) {
-			m.Expansion.Unset()
-			b, err := json.Marshal(&m)
-			require.Nil(t, err)
-			require.Empty(t, string(b))
+func TestTDD(t *testing.T) {
+	tests := []struct {
+		name                  string
+		data                  any
+		includeOmitZeroOption bool // include the json.OmitZeroStructFields option when marshaling
+		expected              string
+	}{
+		{"Optional field is included if set",
+			struct{ S types.Optional[string] }{S: types.NewOptional("foo")},
+			false,
+			`{"S":"foo"}`,
+		},
+		{"Optional field with zero value is included",
+			struct{ S types.Optional[int32] }{S: types.NewOptional[int32](5)},
+			true,
+			`{"S":5}`,
+		},
+		{"Optional field is omitted if omitzero tag is present",
+			struct {
+				S types.Optional[string] `json:",omitzero"`
+			}{},
+			false,
+			`{}`,
+		},
+		{"Optional field is omitted if OmitZeroStructFields option is included",
+			struct{ S types.Optional[int32] }{S: types.NewOptional[int32](5)},
+			true,
+			`{}`,
+		},
+		{"Zero Patch results in emptyJSON",
+			types.CommonFieldsPatch{},
+			true,
+			`{}`,
+		},
+		{"Partially populated Patch type results in only populated fields",
+			types.CommonFieldsPatch{}, // TODO
+			true,
+			`{}`, // TODO
+		},
+		{"Fully populated Patch type results in full JSO",
+			types.CommonFieldsPatch{}, // TODO
+			true,
+			`{}`, // TODO
+		},
+		// TODO
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []json.Options
+			if tt.includeOmitZeroOption {
+				opts = append(opts, json.OmitZeroStructFields(true))
+			}
+			b, err := json.Marshal(&tt.data, opts...)
+			require.Nil(t, err, "failed to marshal %v", &tt.data)
+			t.Logf("Marshaled %+v to %s", tt.data, b)
+			require.Equal(t, tt.expected, string(b))
 		})
-	})*/
+	}
+
+	t.Run("Complex Optional scenarios", func(t *testing.T) {
+		t.Run("Nested T", func(t *testing.T) {
+			// very messy, but a good way to ensure we capture all fields
+			v := types.NewOptional([]struct {
+				A int32
+				B struct{ Yī, èr string }
+			}{struct {
+				A int32
+				B struct {
+					Yī string
+					èr string
+				}
+			}{A: 5, B: struct {
+				Yī string
+				èr string
+			}{"one", "two"}}})
+			b, err := json.Marshal(&v, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &v)
+			t.Logf("Marshaled %+v to %s", v, b)
+			require.Equal(t, `[{"A":5,"B":{"Yī":"one"}}]`, string(b))
+
+			v.Unset()
+			b, err = json.Marshal(&v, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &v)
+			t.Logf("Marshaled %+v to %s", v, b)
+			// we unset the whole thing; there is nothing left to marshal so null is the only available option
+			// NOTE(rlandau): I don't expect this to come up at all, but it could technically require nil instead of the desired '[]',
+			// so we may need to come back later.
+			require.Equal(t, `null`, string(b))
+		})
+		t.Run("Set -> Set -> Unset -> Set", func(t *testing.T) {
+			v := struct {
+				A types.Optional[int32]
+				B struct{ One, two types.Optional[string] }
+				C types.Optional[struct {
+					three bool
+					Four  float32
+				}]
+			}{
+				A: types.NewOptional[int32](0),
+				B: struct {
+					One types.Optional[string]
+					two types.Optional[string]
+				}{types.NewOptional("Yī"), types.NewOptional("èr")},
+				C: types.NewOptional(struct {
+					three bool
+					Four  float32
+				}{true, 4.4}),
+			}
+			// everything should be included
+			b, err := json.Marshal(&v, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &v)
+			t.Logf("Marshaled %+v to %s", v, b)
+			require.Equal(t, `{"A":0,"B":{"One":"Yī"},"C":{"Four":4.4}}`, string(b))
+
+			// set a couple new values
+			v.B.One.Set("ein")
+			v.B.two.Set("swei")
+			// everything should be included
+			b, err = json.Marshal(&v, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &v)
+			t.Logf("Marshaled %+v to %s", v, b)
+			require.Equal(t, `{"A":0,"B":{"One":"ein"},"C":{"Four":4.4}}`, string(b))
+
+			// unset everything
+			v.A.Unset()
+			v.B.One.Unset()
+			v.C.Unset()
+			b, err = json.Marshal(&v, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &v)
+			t.Logf("Marshaled %+v to %s", v, b)
+			// B is a concrete struct, so it will always be included.
+			// This is intentional.
+			require.Equal(t, `{"B":{}}`, string(b))
+		})
+
+	})
 }
