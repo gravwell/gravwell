@@ -11,7 +11,7 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
+	"encoding/json/v2"
 	"net"
 	"time"
 
