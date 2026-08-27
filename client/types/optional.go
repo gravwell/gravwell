@@ -47,11 +47,16 @@ func (o *Optional[T]) Unset() {
 	o.set = false
 }
 
+// IsZero returns true iff !o.Set.
+//
+// This allows marshalers to omit unset values while still including zero values
+// (assuming json.OmitZeroStructFields(true) or `json:",omitzero"` is set).
 func (o Optional[T]) IsZero() bool {
 	return !o.IsSet()
 }
 
-// MarshalJSON causes optional to print the set value or the zero value.
+// MarshalJSON causes optional to always marshal to a safe value.
+// If !o.IsSet(), T zero will be used.
 //
 // NOTE(rlandau): as of go1.27.0, a field cannot skip itself with MarshalJSON.
 // Instead, we use IsZero and the OmitZeroStructFields option.
