@@ -81,6 +81,13 @@ func (c *Config) SanitizedConfig() (x any) {
 	return
 }
 
+func (c *Config) Tags() []string {
+	if c != nil && c.Tag_Name != `` {
+		return []string{c.Tag_Name}
+	}
+	return []string{Tag} // use the default if none provided
+}
+
 type TesterIngester struct {
 	Config
 	tag entry.EntryTag

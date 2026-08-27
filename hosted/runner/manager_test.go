@@ -87,19 +87,19 @@ func TestStopUnregistersChildren(t *testing.T) {
 	if len(reg.children) != 0 {
 		t.Fatalf("children left registered after stop: %v", reg.keys())
 	}
-	if len(rm.kids) != 0 {
-		t.Fatalf("manager still tracking children after stop: %v", rm.kids)
+	if len(rm.children) != 0 {
+		t.Fatalf("manager still tracking children after stop: %v", rm.children)
 	}
 }
 
 func newTestManager(reg childRegistry, runners ...testRunner) *runtimeManager {
 	ctx, cf := context.WithCancel(context.Background())
 	rm := &runtimeManager{
-		ctx:  ctx,
-		cf:   cf,
-		reg:  reg,
-		mp:   make(map[uuid.UUID]wrappedRunner),
-		kids: make(map[string]struct{}),
+		ctx:      ctx,
+		cf:       cf,
+		reg:      reg,
+		mp:       make(map[uuid.UUID]wrappedRunner),
+		children: make(map[string]struct{}),
 	}
 	for _, r := range runners {
 		guid := uuid.New()

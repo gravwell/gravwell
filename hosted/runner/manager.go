@@ -53,14 +53,14 @@ type childRegistry interface {
 }
 
 type runtimeManager struct {
-	ctx  context.Context
-	cf   context.CancelFunc
-	igst *ingest.IngestMuxer
-	reg  childRegistry
-	sh   *storage.BoltHandler
-	lgr  *log.Logger
-	mp   map[uuid.UUID]wrappedRunner
-	kids map[string]struct{} // child keys currently registered on the ingest muxer
+	ctx      context.Context
+	cf       context.CancelFunc
+	igst     *ingest.IngestMuxer
+	reg      childRegistry
+	sh       *storage.BoltHandler
+	lgr      *log.Logger
+	mp       map[uuid.UUID]wrappedRunner
+	children map[string]struct{} // child keys currently registered on the ingest muxer
 }
 
 func newRuntimeManager(igst *ingest.IngestMuxer, sh *storage.BoltHandler, lg *log.Logger) (r *runtimeManager, err error) {
@@ -73,29 +73,31 @@ func newRuntimeManager(igst *ingest.IngestMuxer, sh *storage.BoltHandler, lg *lo
 	}
 	ctx, cf := context.WithCancel(context.Background())
 	r = &runtimeManager{
-		ctx:  ctx,
-		cf:   cf,
-		igst: igst,
-		reg:  igst,
-		lgr:  lg,
-		sh:   sh,
-		mp:   make(map[uuid.UUID]wrappedRunner),
-		kids: make(map[string]struct{}),
+		ctx:      ctx,
+		cf:       cf,
+		igst:     igst,
+		reg:      igst,
+		lgr:      lg,
+		sh:       sh,
+		mp:       make(map[uuid.UUID]wrappedRunner),
+		children: make(map[string]struct{}),
 	}
 	return
 }
 
 func (rm *runtimeManager) stop() (err error) {
 	rm.cf()
-	for k := range rm.kids {
-		rm.reg.UnregisterChild(k)
-		delete(rm.kids, k)
-	}
 	for _, v := range rm.mp {
 		if lerr := v.Close(); lerr != nil {
 			err = stackCloseErrors(err, lerr, v.Name(), v.UUID())
 		}
 	}
+	// unregister all children, this won't happen in prod in a way that matters, but could be used in some tests
+	for k := range rm.children {
+		rm.reg.UnregisterChild(k)
+		delete(rm.children, k)
+	}
+
 	return
 }
 
@@ -163,12 +165,12 @@ func (rm *runtimeManager) syncChildren() {
 		rm.reg.RegisterChild(wr.childKey, wr.childState())
 	}
 	// anything we had registered that is no longer configured goes away
-	for k := range rm.kids {
+	for k := range rm.children {
 		if _, ok := active[k]; !ok {
 			rm.reg.UnregisterChild(k)
 		}
 	}
-	rm.kids = active
+	rm.children = active
 }
 
 // createNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context
@@ -211,8 +213,6 @@ func (rm *runtimeManager) startIngesters() (err error) {
 			}
 		}
 	}
-	// startIngesters is the common tail of startup, reload, and the periodic check, so this is
-	// the one place we need to keep the muxer's view of our children in sync.
 	rm.syncChildren()
 	return
 }

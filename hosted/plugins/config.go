@@ -106,9 +106,7 @@ func (c Configs) Tags() (tags []string, err error) {
 		tags = append(tags, okta.Tags...)
 	}
 	for _, v := range c.Tester {
-		// each tester can override its tag, so gather them per instance rather than
-		// declaring the default once and leaving an override out of the tag set
-		tags = append(tags, v.ResolveTag(tester.Tag))
+		tags = append(tags, v.Tags()...)
 	}
 	for _, v := range c.Mimecast {
 		tags = append(tags, v.Tags()...)
