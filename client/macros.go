@@ -94,7 +94,7 @@ func (c *Client) PATCH[T types.PatchType, K any](url string, data T) (patched K,
 	body, err := json.Marshal(data, json.OmitZeroStructFields(true))
 	if err != nil {
 		return patched, err
-	} else if string(body) == "{}" { // if this marshaled to no data, throw away the request
+	} else if body == nil || string(body) == "{}" { // if this marshaled to no data, throw away the request
 		return patched, ErrEmptyPatch
 	}
 
