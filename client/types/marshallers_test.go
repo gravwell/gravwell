@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package types
+package types_test
 
 import (
 	"bytes"
@@ -15,12 +15,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func TestTimeRangeEncodeDecode(t *testing.T) {
 	ts := entry.Now()
-	tr := TimeRange{
+	tr := types.TimeRange{
 		StartTS: ts,
 		EndTS:   ts.Add(time.Hour),
 	}
@@ -28,7 +29,7 @@ func TestTimeRangeEncodeDecode(t *testing.T) {
 	if err := json.NewEncoder(bb).Encode(tr); err != nil {
 		t.Fatal(err)
 	}
-	var ttr TimeRange
+	var ttr types.TimeRange
 	if err := json.NewDecoder(bb).Decode(&ttr); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestTimeRangeEncodeDecode(t *testing.T) {
 
 func TestEmptyTimeRangeEncodeDecode(t *testing.T) {
 	bb := bytes.NewBuffer(nil)
-	var ttr TimeRange
+	var ttr types.TimeRange
 	if err := ttr.DecodeJSON(bb); err != nil {
 		t.Fatal(err)
 	}
@@ -55,13 +56,13 @@ func TestEmptyTimeRangeEncodeDecode(t *testing.T) {
 func TestSearchEntryEncodeDecode(t *testing.T) {
 	bb := bytes.NewBuffer(nil)
 	//test without any enumerated values
-	s := SearchEntry{
+	s := types.SearchEntry{
 		TS:   entry.FromStandard(time.Now()),
 		Tag:  0x1337,
 		SRC:  net.ParseIP(`DEAD::BEEF`),
 		Data: []byte("this is my data, there are many like it, but this is mine"),
 	}
-	var d SearchEntry
+	var d types.SearchEntry
 	if err := json.NewEncoder(bb).Encode(s); err != nil {
 		t.Fatal(err)
 	} else if err = json.NewDecoder(bb).Decode(&d); err != nil {
@@ -74,17 +75,17 @@ func TestSearchEntryEncodeDecode(t *testing.T) {
 func TestSearchEntryEncodeDecodeEnum(t *testing.T) {
 	bb := bytes.NewBuffer(nil)
 	//test without any enumerated values
-	s := SearchEntry{
+	s := types.SearchEntry{
 		TS:   entry.FromStandard(time.Now()),
 		Tag:  0x1337,
 		SRC:  net.ParseIP(`DEAD::BEEF`),
 		Data: []byte("this is my data, there are many like it, but this is mine"),
-		Enumerated: []EnumeratedPair{
-			EnumeratedPair{Name: `foo`, Value: `bar`, RawValue: RawEnumeratedValue{Type: 1, Data: []byte("stuff")}},
-			EnumeratedPair{Name: `bar`, Value: `baz`},
+		Enumerated: []types.EnumeratedPair{
+			{Name: `foo`, Value: `bar`, RawValue: types.RawEnumeratedValue{Type: 1, Data: []byte("stuff")}},
+			{Name: `bar`, Value: `baz`},
 		},
 	}
-	var d SearchEntry
+	var d types.SearchEntry
 	if err := json.NewEncoder(bb).Encode(s); err != nil {
 		t.Fatal(err)
 	} else if err = json.NewDecoder(bb).Decode(&d); err != nil {
@@ -101,7 +102,7 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 		t.Fatal(err)
 	}
 	//test without any enumerated values
-	s := SearchEntry{
+	s := types.SearchEntry{
 		TS:   entry.FromStandard(ts),
 		Tag:  0x1337,
 		SRC:  net.ParseIP(`DEAD::BEEF`),
@@ -109,7 +110,7 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 	}
 	raw := `{"TS": "2020-12-23T16:04:17.417437Z", "Tag": 4919, "SRC": "DEAD::BEEF", "Data": "dGVzdGRhdGE="}`
 	bb.WriteString(raw)
-	var d SearchEntry
+	var d types.SearchEntry
 	if err = json.NewDecoder(bb).Decode(&d); err != nil {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
@@ -118,8 +119,8 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 }
 
 func TestBaseResponseEncode(t *testing.T) {
-	br := BaseResponse{
-		Messages: []Message{
+	br := types.BaseResponse{
+		Messages: []types.Message{
 			{
 				ID: 1,
 			},
@@ -130,7 +131,7 @@ func TestBaseResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x BaseResponse
+	var x types.BaseResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -142,15 +143,13 @@ func TestBaseResponseEncode(t *testing.T) {
 }
 
 func TestChartResponseEncode(t *testing.T) {
-	br := ChartResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
-				{
-					ID: 1,
-				},
+	br := types.ChartResponse{
+		Messages: []types.Message{
+			{
+				ID: 1,
 			},
 		},
-		Entries: ChartableValueSet{
+		Entries: types.ChartableValueSet{
 			Names: []string{"test"},
 		},
 	}
@@ -159,7 +158,7 @@ func TestChartResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x ChartResponse
+	var x types.ChartResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -174,15 +173,13 @@ func TestChartResponseEncode(t *testing.T) {
 }
 
 func TestFDGResponseEncode(t *testing.T) {
-	br := FdgResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
-				{
-					ID: 1,
-				},
+	br := types.FdgResponse{
+		Messages: []types.Message{
+			{
+				ID: 1,
 			},
 		},
-		Entries: FdgSet{
+		Entries: types.FdgSet{
 			Groups: []string{"test"},
 		},
 	}
@@ -191,7 +188,7 @@ func TestFDGResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x FdgResponse
+	var x types.FdgResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -206,17 +203,17 @@ func TestFDGResponseEncode(t *testing.T) {
 }
 
 func TestPointmapResponseEncode(t *testing.T) {
-	br := PointmapResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.PointmapResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []PointmapValue{
+		Entries: []types.PointmapValue{
 			{
-				Loc: Location{
+				Loc: types.Location{
 					Lat:  1,
 					Long: 1,
 				},
@@ -228,7 +225,7 @@ func TestPointmapResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x PointmapResponse
+	var x types.PointmapResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -243,15 +240,15 @@ func TestPointmapResponseEncode(t *testing.T) {
 }
 
 func TestHeatmapResponseEncode(t *testing.T) {
-	br := HeatmapResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.HeatmapResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []HeatmapValue{
+		Entries: []types.HeatmapValue{
 			{
 				Magnitude: 1,
 			},
@@ -262,7 +259,7 @@ func TestHeatmapResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x HeatmapResponse
+	var x types.HeatmapResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -277,15 +274,15 @@ func TestHeatmapResponseEncode(t *testing.T) {
 }
 
 func TestP2PResponseEncode(t *testing.T) {
-	br := P2PResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.P2PResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []P2PValue{
+		Entries: []types.P2PValue{
 			{
 				Magnitude: 1,
 			},
@@ -296,7 +293,7 @@ func TestP2PResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x P2PResponse
+	var x types.P2PResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -311,15 +308,15 @@ func TestP2PResponseEncode(t *testing.T) {
 }
 
 func TestStackgraphResponseEncode(t *testing.T) {
-	br := StackGraphResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.StackGraphResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []StackGraphSet{
+		Entries: []types.StackGraphSet{
 			{
 				Key: "test",
 			},
@@ -330,7 +327,7 @@ func TestStackgraphResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x StackGraphResponse
+	var x types.StackGraphResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -345,15 +342,15 @@ func TestStackgraphResponseEncode(t *testing.T) {
 }
 
 func TestTableResponseEncode(t *testing.T) {
-	br := TableResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.TableResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: TableValueSet{
+		Entries: types.TableValueSet{
 			Columns: []string{"test"},
 		},
 	}
@@ -362,7 +359,7 @@ func TestTableResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x TableResponse
+	var x types.TableResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -377,15 +374,15 @@ func TestTableResponseEncode(t *testing.T) {
 }
 
 func TestGaugeResponseEncode(t *testing.T) {
-	br := GaugeResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.GaugeResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []GaugeValue{
+		Entries: []types.GaugeValue{
 			{
 				Name: "test",
 			},
@@ -396,7 +393,7 @@ func TestGaugeResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x GaugeResponse
+	var x types.GaugeResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -411,15 +408,15 @@ func TestGaugeResponseEncode(t *testing.T) {
 }
 
 func TestWordcloudResponseEncode(t *testing.T) {
-	br := WordcloudResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.WordcloudResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []WordcloudValue{
+		Entries: []types.WordcloudValue{
 			{
 				Name: "test",
 			},
@@ -430,7 +427,7 @@ func TestWordcloudResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x WordcloudResponse
+	var x types.WordcloudResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -445,15 +442,15 @@ func TestWordcloudResponseEncode(t *testing.T) {
 }
 
 func TestTextResponseEncode(t *testing.T) {
-	br := TextResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.TextResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []SearchEntry{
+		Entries: []types.SearchEntry{
 			{
 				Data: []byte("foo"),
 			},
@@ -464,7 +461,7 @@ func TestTextResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x TextResponse
+	var x types.TextResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
@@ -479,15 +476,15 @@ func TestTextResponseEncode(t *testing.T) {
 }
 
 func TestRawResponseEncode(t *testing.T) {
-	br := RawResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
+	br := types.RawResponse{
+		BaseResponse: types.BaseResponse{
+			Messages: []types.Message{
 				{
 					ID: 1,
 				},
 			},
 		},
-		Entries: []SearchEntry{
+		Entries: []types.SearchEntry{
 			{
 				Data: []byte("foo"),
 			},
@@ -498,7 +495,7 @@ func TestRawResponseEncode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var x RawResponse
+	var x types.RawResponse
 
 	if err := json.NewDecoder(bb).Decode(&x); err != nil {
 		t.Fatal(err)
