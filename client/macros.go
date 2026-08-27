@@ -8,7 +8,15 @@
 
 package client
 
-import "github.com/gravwell/gravwell/v4/client/types"
+import (
+	"bytes"
+	"encoding/json/v2"
+	"errors"
+	"fmt"
+	"net/http"
+
+	"github.com/gravwell/gravwell/v4/client/types"
+)
 
 // ListMacros returns all macros accessible to the current user.
 func (c *Client) ListMacros(opts *types.QueryOptions) (ret types.MacroListResponse, err error) {
@@ -64,9 +72,67 @@ func (c *Client) CreateMacro(m types.Macro) (result types.Macro, err error) {
 	return
 }
 
-// UpdateMacro modifies an existing macro.
-func (c *Client) UpdateMacro(m types.Macro) error {
-	return c.putStaticURL(macroUrl(m.ID), m)
+var (
+	ErrEmptyPatch  = errors.New("empty PATCHs are ineffectual")
+	ErrNilResponse = errors.New("nil response")
+	ErrNilID       = errors.New("ID must not be nil")
+)
+
+// UpdateMacro modifies an existing macro and returns complete, updated struct.
+func (c *Client) UpdateMacro(ID string, p types.MacroPatch) (updated types.Macro, _ error) {
+	if ID == "" {
+		return types.Macro{}, ErrNilID
+	}
+	return c.PATCH[types.MacroPatch, types.Macro](macroUrl(ID), p)
+}
+
+// PATCH marshals data to JSON and submits a PATCH request against the target URL.
+//
+// TODO we can probably consolidate a lot of the methodStaticPushURLs by taking a method param in
+// wrapper calls and converting this to a driver func
+func (c *Client) PATCH[T types.PatchType, K any](url string, data T) (patched K, _ error) {
+	body, err := json.Marshal(data, json.OmitZeroStructFields(true))
+	if err != nil {
+		return patched, err
+	} else if string(body) == "{}" { // if this marshaled to no data, throw away the request
+		return patched, ErrEmptyPatch
+	}
+
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
+	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(body))
+	if err != nil {
+		return patched, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	c.hm.populateRequest(req.Header) // add in the headers
+
+	// add in any queries like ?admin=true
+	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
+		return patched, err
+	}
+
+	c.objLog.Log("WEB REQ "+http.MethodPatch, url, data)
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		c.objLog.Log("WEB "+http.MethodPatch+" Error "+err.Error(), url, nil)
+		return patched, err
+	}
+	if resp == nil {
+		return patched, ErrNilResponse
+	}
+	if resp.StatusCode != http.StatusOK {
+		c.objLog.Log("WEB "+http.MethodPatch, url+" "+resp.Status, nil)
+		return patched, aliasResponseError(c, resp)
+	}
+	defer drainResponse(resp)
+
+	if err := json.UnmarshalRead(resp.Body, &patched); err != nil {
+		return patched, err
+	}
+
+	c.objLog.Log("WEB RECV", url, patched)
+	return patched, nil
 }
 
 // CleanupMacros (admin-only) purges all deleted macros for all users.
