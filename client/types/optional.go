@@ -1,6 +1,12 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
+
+type PatchType interface {
+	MacroPatch
+}
 
 // An Optional type represents a field which may be unset during an update, preserving its prior value.
 // If !Optional.IsSet(), this field will be omitted from a JSON marshal of the type.
@@ -15,7 +21,7 @@ func NewOptional[T any](v T) Optional[T] {
 }
 
 // Set installs the given value and marks it as valid to include when marshaling.
-func (o Optional[T]) Set(v T) {
+func (o *Optional[T]) Set(v T) {
 	o.value = v
 	o.set = true
 }
@@ -37,13 +43,22 @@ func (o Optional[T]) IsSet() bool {
 }
 
 // Unset marks this field s.t. it will be skipped when marshaling.
-func (o Optional[T]) Unset() {
+func (o *Optional[T]) Unset() {
 	o.set = false
 }
 
+func (o Optional[T]) IsZero() bool {
+	return !o.IsSet()
+}
+
+// MarshalJSON causes optional to print the set value or the zero value.
+//
+// NOTE(rlandau): as of go1.27.0, a field cannot skip itself with MarshalJSON.
+// Instead, we use IsZero and the OmitZeroStructFields option.
 func (o Optional[T]) MarshalJSON() ([]byte, error) {
 	if !o.IsSet() {
-		return nil, nil
+		var zero T
+		return json.Marshal(zero)
 	}
 	return json.Marshal(o.value)
 }
