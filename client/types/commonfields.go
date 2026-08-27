@@ -163,6 +163,17 @@ func (cf *CommonFields) AllGIDs() []int32 {
 	return gids
 }
 
+// CommonFieldsPatch is the base type used to request updates to existing assets.
+// It contains only fields that can be updated.
+type CommonFieldsPatch struct {
+	Description Optional[string]
+	Labels      Optional[[]string]
+	Name        Optional[string]
+	OwnerID     Optional[int32]
+	Readers     Optional[ACL]
+	Writers     Optional[ACL]
+}
+
 type ListAllResponse struct {
 	BaseListResponse
 	Results []CommonFields
