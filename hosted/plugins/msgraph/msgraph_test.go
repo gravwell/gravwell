@@ -11,18 +11,20 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 type mockRuntime struct {
-	mu      sync.Mutex
-	entries []entry.Entry
-	store   map[string][]byte
-	tags    map[string]entry.EntryTag
-	nextTag entry.EntryTag
-	ctx     context.Context
-	cancel  context.CancelFunc
+	hosted.StatusTracker // SetError/SetWarn and friends
+	mu                   sync.Mutex
+	entries              []entry.Entry
+	store                map[string][]byte
+	tags                 map[string]entry.EntryTag
+	nextTag              entry.EntryTag
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 func newMockRuntime(ctx context.Context) *mockRuntime {

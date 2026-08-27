@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
@@ -18,13 +19,14 @@ import (
 // mockRuntime is a minimal in-memory implementation of hosted.Runtime,
 // mirroring the pattern used in hosted/plugins/msgraph/msgraph_test.go.
 type mockRuntime struct {
-	mu      sync.Mutex
-	entries []entry.Entry
-	store   map[string][]byte
-	tags    map[string]entry.EntryTag
-	nextTag entry.EntryTag
-	ctx     context.Context
-	cancel  context.CancelFunc
+	hosted.StatusTracker // SetError/SetWarn and friends
+	mu                   sync.Mutex
+	entries              []entry.Entry
+	store                map[string][]byte
+	tags                 map[string]entry.EntryTag
+	nextTag              entry.EntryTag
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // newMockRuntime constructs a ready-to-use mockRuntime backed by an empty

@@ -99,7 +99,7 @@ func (c cfgType) Tags() (tags []string, err error) {
 		if err = ingest.CheckTag(tag); err != nil {
 			err = fmt.Errorf("invalid tag %q: %w", tag, err)
 			return
-             }
+		}
 		tagMp[tag] = true
 		tags = append(tags, tag)
 	}
