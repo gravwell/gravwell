@@ -8,7 +8,7 @@ go mod tidy
 go mod download
 go mod verify
 go install golang.org/x/vuln/cmd/govulncheck@latest
-go install honnef.co/go/tools/cmd/staticcheck@ff63afafc529279f454e02f1d060210bd4263951
+go install honnef.co/go/tools/cmd/staticcheck@2026.2.1
 
 echo "Running go vet"
 	go vet ./generators/ipgen
