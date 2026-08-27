@@ -965,3 +965,57 @@ func TestProxyAnthropicVersionNotInjectedOnOpenAI(t *testing.T) {
 		t.Errorf("anthropic-version = %q on an openai-chat listener, want it absent", gotVersion)
 	}
 }
+
+// End-to-end version of TestEmitRequestEventsDeltasNewSessionNoAssistantTurn:
+// drive a real /v1/messages request through the proxy in delta mode and count
+// the system_message entries that reach the ingester. The first request of any
+// conversation carries no assistant turn, so tailStart returns 0 and the tail
+// loop sees the system event that the new-session branch already emitted —
+// before the guard in emitRequestEvents that wrote the whole prompt twice, tens
+// of kilobytes for a Claude Code session, on every new conversation.
+func TestProxyAnthropicDeltaSystemPromptOnce(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			// The shape that duplicated: no assistant turn anywhere in the
+			// request, so the system event sits inside the tail.
+			name: "no assistant turn in the request",
+			body: `{"model":"claude-opus-4-8","max_tokens":9,"system":"SYSPROMPT",` +
+				`"messages":[{"role":"user","content":"hello"}]}`,
+		},
+		{
+			// Control: an assistant turn moves tailStart past the system event.
+			name: "assistant turn present",
+			body: `{"model":"claude-opus-4-8","max_tokens":9,"system":"SYSPROMPT",` +
+				`"messages":[{"role":"user","content":"hello"},` +
+				`{"role":"assistant","content":"hi"},` +
+				`{"role":"user","content":"again"}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ph, c := newAnthropicTestHandler(t, srv.URL, func(l *listener) {
+				l.Log_Mode = logModeDeltas
+			})
+			if w := doMessages(t, ph, tt.body, "k"); w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", w.Code)
+			}
+			types := c.eventTypes(t)
+			if got := countType(types, protocol.EventSystemMessage); got != 1 {
+				t.Errorf("system prompt emitted %d times, want 1: %v", got, types)
+			}
+			if got := countType(types, protocol.EventUserMessage); got != 1 {
+				t.Errorf("user message emitted %d times, want 1: %v", got, types)
+			}
+		})
+	}
+}
