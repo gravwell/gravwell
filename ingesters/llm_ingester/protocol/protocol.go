@@ -77,6 +77,12 @@ type Protocol interface {
 	Name() string
 	// Paths returns the URL paths this protocol expects to be exposed on.
 	Paths() []string
+	// PassthroughPaths returns sibling endpoints of the same provider API that
+	// this module does not parse but that a client of it legitimately needs
+	// (the Messages API's /v1/messages/count_tokens, for one). The proxy
+	// forwards these without ingesting them even when unknown paths are
+	// otherwise rejected. Returning nil is fine.
+	PassthroughPaths() []string
 	// ParseRequest parses an inbound (non-empty) request body.
 	ParseRequest(body []byte, authHeader string) (*ParsedRequest, error)
 	// ParseResponse parses a non-streaming response body.
