@@ -26,13 +26,14 @@ import (
 var _ Runtime = (*Mock)(nil)
 
 type Mock struct {
-	mu      sync.Mutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-	entries []entry.Entry
-	store   map[string][]byte
-	tags    map[string]entry.EntryTag
-	nextTag entry.EntryTag
+	StatusTracker // SetError/SetWarn and friends
+	mu            sync.Mutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	entries       []entry.Entry
+	store         map[string][]byte
+	tags          map[string]entry.EntryTag
+	nextTag       entry.EntryTag
 
 	// WriteErrs is the number of subsequent Write calls that should fail.
 	WriteErrs int

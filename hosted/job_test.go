@@ -482,3 +482,73 @@ func TestWrapJob_GracefulShutdownWhileNotAlive(t *testing.T) {
 		t.Error("Handle should not be called during alive backoff")
 	}
 }
+
+// TestWrapJob_HandleErrorSetsStatus covers the transient error path.  A job that fails is not
+// dead, the adapter is going to poll it again, so the failure has to show up on the ingester
+// status and then go away once a poll succeeds.
+func TestWrapJob_HandleErrorSetsStatus(t *testing.T) {
+	ctx := t.Context()
+	rt := newTestRuntime(ctx, func() {})
+	rt.sleepFunc = func(_ time.Duration) bool { return false }
+
+	badSecret := errors.New("authentication rejected")
+	var duringFirstRetry error
+	job := &testJob{
+		results: []handleResult{
+			{cont: ContinueNow(), err: badSecret}, // fails
+			{cont: ContinueNow()},                 // recovers
+			{cont: Stop()},
+		},
+		onCall: func(n int, rt Runtime) {
+			if n == 1 {
+				// the second call happens after the failure, the error must still be set here
+				_, duringFirstRetry = rt.(*testRuntime).Status()
+			}
+		},
+	}
+
+	WrapJob(job).Run(ctx, rt) //nolint:errcheck
+
+	if !errors.Is(duringFirstRetry, badSecret) {
+		t.Fatalf("error state was not set after a failed handle, got %v", duringFirstRetry)
+	}
+	warn, err := rt.Status()
+	if err != nil {
+		t.Errorf("a successful handle did not clear the error state, got %v", err)
+	}
+	if warn != `` {
+		t.Errorf("unexpected warning %q", warn)
+	}
+}
+
+// TestWrapJob_UnhealthyLinkSetsWarning covers the degraded but not failing path, backing off
+// because the ingest link is unhealthy is a warning that clears when the link recovers.
+func TestWrapJob_UnhealthyLinkSetsWarning(t *testing.T) {
+	ctx := t.Context()
+	rt := newTestRuntime(ctx, func() {})
+	rt.sleepFunc = func(_ time.Duration) bool { return false }
+
+	var warnWhileDown string
+	job := &testJob{results: []handleResult{{cont: Stop()}}}
+	// the link comes back on the second Alive check, which is the one inside the backoff loop
+	var checks int
+	rt.aliveFunc = func() bool {
+		checks++
+		if checks == 1 {
+			return false
+		}
+		if checks == 2 {
+			warnWhileDown, _ = rt.Status()
+		}
+		return true
+	}
+
+	WrapJob(job).Run(ctx, rt) //nolint:errcheck
+
+	if warnWhileDown != jobAliveWarning {
+		t.Fatalf("warning was not set while the ingest link was down, got %q", warnWhileDown)
+	}
+	if warn, _ := rt.Status(); warn != `` {
+		t.Errorf("warning was not cleared after the link recovered, got %q", warn)
+	}
+}
