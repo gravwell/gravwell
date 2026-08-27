@@ -32,10 +32,10 @@ func TestTDD(t *testing.T) {
 			false,
 			`{}`,
 		},
-		{"Optional field is omitted if OmitZeroStructFields option is included",
+		{"Optional field is omitted if OmitZeroStructFields option is present",
 			struct{ S types.Optional[int32] }{S: types.NewOptional[int32](5)},
 			true,
-			`{}`,
+			`{"S":5}`,
 		},
 		{"Zero Patch results in emptyJSON",
 			types.CommonFieldsPatch{},
@@ -43,16 +43,25 @@ func TestTDD(t *testing.T) {
 			`{}`,
 		},
 		{"Partially populated Patch type results in only populated fields",
-			types.CommonFieldsPatch{}, // TODO
+			types.CommonFieldsPatch{
+				Description: types.NewOptional(""),
+				Writers:     types.NewOptional(types.ACL{GIDs: []int32{1, 2, 12}}),
+			},
 			true,
-			`{}`, // TODO
+			`{"Description":"","Writers":{"GIDs":[1,2,12],"Global":false}}`,
 		},
 		{"Fully populated Patch type results in full JSO",
-			types.CommonFieldsPatch{}, // TODO
+			types.CommonFieldsPatch{
+				Description: types.NewOptional("desc"),
+				Labels:      types.NewOptional([]string{"shí"}),
+				Name:        types.NewOptional("fully popped"),
+				OwnerID:     types.NewOptional[int32](1),
+				Readers:     types.NewOptional(types.ACL{GIDs: []int32{0, 5, 8, 0}}),
+				Writers:     types.NewOptional(types.ACL{}),
+			},
 			true,
-			`{}`, // TODO
+			`{"Description":"desc","Labels":["shí"],"Name":"fully popped","OwnerID":1,"Readers":{"GIDs":[0,5,8,0],"Global":false},"Writers":{"GIDs":[],"Global":false}}`,
 		},
-		// TODO
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,10 +101,9 @@ func TestTDD(t *testing.T) {
 			b, err = json.Marshal(&v, json.OmitZeroStructFields(true))
 			require.Nil(t, err, "failed to marshal %v", &v)
 			t.Logf("Marshaled %+v to %s", v, b)
-			// we unset the whole thing; there is nothing left to marshal so null is the only available option
-			// NOTE(rlandau): I don't expect this to come up at all, but it could technically require nil instead of the desired '[]',
-			// so we may need to come back later.
-			require.Equal(t, `null`, string(b))
+			// we unset the whole thing, so the zero value ([]struct{...}(nil)) is marshaled;
+			// JSON/v2 defaults nil slices to '[]' rather than null.
+			require.Equal(t, `[]`, string(b))
 		})
 		t.Run("Set -> Set -> Unset -> Set", func(t *testing.T) {
 			v := struct {
