@@ -1019,3 +1019,62 @@ func TestProxyAnthropicDeltaSystemPromptOnce(t *testing.T) {
 		})
 	}
 }
+
+// The inbound gate and the outbound credential strip are independent. A client
+// that passes Client-Authorization is still just a client: presenting the
+// correct gate token in the header this listener's Auth-Style names must not
+// buy it the right to also hand the upstream an Authorization of its own. This
+// covers the axis TestProxyStripsAllClientCredentials does not — that one
+// varies Auth-Style with no gate configured, this one varies the gate.
+func TestProxyStripsClientCredentialRegardlessOfGate(t *testing.T) {
+	const operatorKey = "sk-ant-OPERATOR"
+	const clientToken = "Bearer sk-ant-CLIENTS-OWN-TOKEN"
+
+	var gotKey, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotKey, gotAuth = r.Header.Get("x-api-key"), r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, msgRespBody)
+	}))
+	defer srv.Close()
+
+	for _, tt := range []struct {
+		name       string
+		clientAuth string // Client-Authorization on the listener
+		presentKey string // what the client puts in x-api-key
+	}{
+		// The gate is on and the client clears it with the right token.
+		{"client auth required", "gate", "gate"},
+		// No gate at all: anything in x-api-key gets through.
+		{"client auth not required", "", "any-placeholder"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			gotKey, gotAuth = "", ""
+			ph, _ := newAnthropicTestHandler(t, srv.URL, func(l *listener) {
+				l.Client_Authorization = tt.clientAuth
+				l.Upstream_Authorization = operatorKey
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/v1/messages",
+				strings.NewReader(msgReqBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("x-api-key", tt.presentKey)
+			req.Header.Set("Authorization", clientToken) // the smuggled credential
+			req.RemoteAddr = "203.0.113.7:5555"
+			w := httptest.NewRecorder()
+			ph.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", w.Code)
+			}
+			if gotKey != operatorKey {
+				t.Errorf("upstream x-api-key = %q, want the injected key %q", gotKey, operatorKey)
+			}
+			// With an upstream credential configured, no client-supplied
+			// credential should reach the upstream in any header.
+			if gotAuth != "" {
+				t.Errorf("upstream Authorization = %q, want it dropped", gotAuth)
+			}
+		})
+	}
+}
