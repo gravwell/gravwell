@@ -679,6 +679,13 @@ func (si SearchInfo) StorageSize() int64 {
 
 const AllowedMacroChars = "ABCDCEFGHIJKLMNOPQRSTUVWXYZ1234567890_-"
 
+// MacroPatch is the type used to request an update to an existing Macro.
+type MacroPatch struct {
+	CommonFieldsPatch
+	Expansion Optional[string]
+}
+
+// Macro is the type used to Get and Create Macros.
 type Macro struct {
 	CommonFields
 	Expansion string
