@@ -308,6 +308,24 @@ type SearchInfo struct {
 	StoredData      int64       // StoreSize + IndexSize, combined for convenience
 }
 
+// MarshalJSON ensures EVs and Tags serialize as `[]` rather than `null` when
+// nil/empty. matching the OpenAPI spec , since both are declared as required,
+// non-nullable arrays. Type is intentionally left to whatever the caller set
+// on CommonFields (see AssetSearchInfo).
+func (si SearchInfo) MarshalJSON() ([]byte, error) {
+	type alias SearchInfo
+	ts := struct {
+		alias
+		EVs  emptyStrings
+		Tags emptyStrings
+	}{
+		alias: alias(si),
+		EVs:   emptyStrings(si.EVs),
+		Tags:  emptyStrings(si.Tags),
+	}
+	return json.Marshal(ts)
+}
+
 type SearchInfoListResponse struct {
 	BaseListResponse
 	Results []SearchInfo

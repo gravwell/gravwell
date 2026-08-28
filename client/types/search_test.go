@@ -573,3 +573,92 @@ func TestSearchInfoMarshal(t *testing.T) {
 		t.Fatalf("expected chart renderer, got %+v", outWithRS.RendererSettings)
 	}
 }
+
+// TestSearchInfoRequiredArraysNeverNull pins the wire contract for EVs and
+// Tags: the OpenAPI spec marks both required, non-nullable arrays on
+// SearchInfo, so a nil slice (the Go zero value, and what a search with no
+// EVs/Tags naturally produces) must still encode as [] rather than null.
+func TestSearchInfoRequiredArraysNeverNull(t *testing.T) {
+	tests := []struct {
+		name string
+		in   SearchInfo
+		want string
+	}{
+		{
+			name: "nil EVs and nil Tags",
+			in:   SearchInfo{CommonFields: CommonFields{ID: "a"}},
+			want: `"EVs":[]`,
+		},
+		{
+			name: "nil Tags only",
+			in:   SearchInfo{CommonFields: CommonFields{ID: "b"}, EVs: []string{"ev1"}},
+			want: `"Tags":[]`,
+		},
+		{
+			name: "populated EVs and Tags pass through unchanged",
+			in:   SearchInfo{CommonFields: CommonFields{ID: "c"}, EVs: []string{"ev1", "ev2"}, Tags: []string{"tag1"}},
+			want: `"EVs":["ev1","ev2"],"Tags":["tag1"]`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := json.Marshal(tt.in)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			if !strings.Contains(string(b), tt.want) {
+				t.Errorf("required array encoded as null:\nGot:  %s\nWant substring: %s", b, tt.want)
+			}
+			if strings.Contains(string(b), `"EVs":null`) || strings.Contains(string(b), `"Tags":null`) {
+				t.Errorf("EVs/Tags must never be null: %s", b)
+			}
+		})
+	}
+}
+
+// TestSearchInfoMarshalRoundTripsOtherFields guards against the shadow-struct
+// MarshalJSON idiom silently dropping a field: everything outside EVs/Tags
+// must decode back unchanged.
+func TestSearchInfoMarshalRoundTripsOtherFields(t *testing.T) {
+	in := SearchInfo{
+		CommonFields: CommonFields{ID: "roundtrip", Type: AssetSearchInfo},
+		UserQuery:    "tag=foo",
+		ItemCount:    7,
+		EVs:          []string{"ev1"},
+		Tags:         nil,
+	}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var out SearchInfo
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.ID != in.ID || out.Type != in.Type || out.UserQuery != in.UserQuery || out.ItemCount != in.ItemCount {
+		t.Errorf("round-trip lost fields: got %+v, want %+v", out, in)
+	}
+	if len(out.EVs) != 1 || out.EVs[0] != "ev1" {
+		t.Errorf("EVs lost on round-trip: got %v", out.EVs)
+	}
+	if len(out.Tags) != 0 {
+		t.Errorf("Tags should decode back to empty, got %v", out.Tags)
+	}
+}
+
+// TestSearchInfoSliceMarshal guards the same failure mode as
+// TestSearchInfoWithEmptyRendererSettings above: MarshalJSON must not error
+// out (and blank the whole enclosing document) for a slice of SearchInfo.
+func TestSearchInfoSliceMarshal(t *testing.T) {
+	si := []SearchInfo{
+		{CommonFields: CommonFields{ID: "a"}},
+		{CommonFields: CommonFields{ID: "b"}, EVs: []string{"x"}},
+	}
+	b, err := json.Marshal(si)
+	if err != nil {
+		t.Fatalf("SearchInfo slice must marshal: %v", err)
+	}
+	if strings.Count(string(b), `"EVs":[]`) != 1 || strings.Count(string(b), `"EVs":["x"]`) != 1 {
+		t.Errorf("unexpected EVs encoding in slice: %s", b)
+	}
+}
