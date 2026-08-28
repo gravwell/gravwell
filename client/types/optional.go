@@ -67,3 +67,12 @@ func (o Optional[T]) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(o.value)
 }
+
+// UnmarshalJSON decodes the given data into o's value and marks it as set.
+func (o *Optional[T]) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &o.value); err != nil {
+		return err
+	}
+	o.set = true
+	return nil
+}
