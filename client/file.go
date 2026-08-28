@@ -32,7 +32,7 @@ var ErrOversizedFile error = fmt.Errorf("Files must be %v or smaller", ingest.Hu
 
 // CleanupFiles (admin-only) purges all deleted files for all users.
 func (c *Client) CleanupFiles() error {
-	return c.CleanupRequest(filesUrl())
+	return c.cleanup(filesUrl())
 }
 
 // CreateFile makes a new file.
@@ -76,7 +76,7 @@ func (c *Client) UpdateFileMetadata(ID string, p types.FilePatch) (updated types
 	if ID == "" {
 		return types.File{}, ErrNilID
 	}
-	return c.PATCHRequest[types.FilePatch, types.File](filesIdUrl(ID), p)
+	return c.patch[types.FilePatch, types.File](filesIdUrl(ID), p)
 }
 
 // GetFileMetadata gets the specified file sans contents.

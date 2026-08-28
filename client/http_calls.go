@@ -9,8 +9,8 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// PATCHRequest submits a PATCH request against the given url.
-func (c *Client) PATCHRequest[PatchT types.PatchType, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
+// patch submits a PATCH request against the given url.
+func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
 	body, err := json.Marshal(data, json.OmitZeroStructFields(true))
 	if err != nil {
 		return patched, err
@@ -32,8 +32,9 @@ func (c *Client) PATCHRequest[PatchT types.PatchType, ResponseT any](url string,
 	return patched, nil
 }
 
-// TODO annotate
-func (c *Client) CleanupRequest(url string) error {
+// cleanup submits an empty DELETE request against the given URL.
+// The URL should be bare (ex: /api/macros); a url with an ID will try to delete that specific item.
+func (c *Client) cleanup(url string) error {
 	resp, err := c.reqDriver(http.MethodDelete, url, nil)
 	defer drainResponse(resp)
 	return err
