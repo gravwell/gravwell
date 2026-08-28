@@ -78,6 +78,30 @@ type DashboardTileConfig struct {
 	Y      float64 `json:",omitempty"`
 }
 
+// DashboardPatch is the type used to request an update to an existing Dashboard.
+type DashboardPatch struct {
+	CommonFieldsPatch
+	Grid        Optional[DashboardGrid]                  `json:",omitzero"`
+	LinkZooming Optional[bool]                           `json:",omitzero"`
+	LiveUpdate  Optional[DashboardLiveUpdateSettings]    `json:",omitzero"`
+	Searches    Optional[map[string]DashboardSearchable] `json:",omitzero"`
+	Tiles       Optional[map[string]DashboardTile]       `json:",omitzero"`
+	Timeframe   Optional[DashboardTimeframe]             `json:",omitzero"`
+}
+
+// ToPatch converts d into a DashboardPatch with every field set.
+func (d Dashboard) ToPatch() DashboardPatch {
+	return DashboardPatch{
+		CommonFieldsPatch: d.CommonFields.ToPatch(),
+		Grid:              NewOptional(d.Grid),
+		LinkZooming:       NewOptional(d.LinkZooming),
+		LiveUpdate:        NewOptional(d.LiveUpdate),
+		Searches:          NewOptional(d.Searches),
+		Tiles:             NewOptional(d.Tiles),
+		Timeframe:         NewOptional(d.Timeframe),
+	}
+}
+
 type DashboardListResponse struct {
 	BaseListResponse
 	Results []Dashboard

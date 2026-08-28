@@ -27,3 +27,10 @@ type FileListResponse struct {
 type FilePatch struct {
 	CommonFieldsPatch
 }
+
+// ToPatch converts f into a FilePatch with every field set.
+func (f File) ToPatch() FilePatch {
+	return FilePatch{
+		CommonFieldsPatch: f.CommonFields.ToPatch(),
+	}
+}

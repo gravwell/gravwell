@@ -174,6 +174,18 @@ type CommonFieldsPatch struct {
 	Writers     Optional[ACL]      `json:",omitzero"`
 }
 
+// ToPatch converts cf into a CommonFieldsPatch with every field set.
+func (cf CommonFields) ToPatch() CommonFieldsPatch {
+	return CommonFieldsPatch{
+		Description: NewOptional(cf.Description),
+		Labels:      NewOptional(cf.Labels),
+		Name:        NewOptional(cf.Name),
+		OwnerID:     NewOptional(cf.OwnerID),
+		Readers:     NewOptional(cf.Readers),
+		Writers:     NewOptional(cf.Writers),
+	}
+}
+
 type ListAllResponse struct {
 	BaseListResponse
 	Results []CommonFields
