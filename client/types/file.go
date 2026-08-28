@@ -22,3 +22,8 @@ type FileListResponse struct {
 	BaseListResponse
 	Results []File
 }
+
+// FilePatch is the type used to request an update to the metadata of an existing File.
+type FilePatch struct {
+	CommonFieldsPatch
+}
