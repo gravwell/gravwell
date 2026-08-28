@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTDD(t *testing.T) {
+func TestOptional(t *testing.T) {
 	tests := []struct {
 		name                  string
 		data                  any
@@ -151,5 +151,37 @@ func TestTDD(t *testing.T) {
 			require.Equal(t, `{"B":{}}`, string(b))
 		})
 
+	})
+
+	t.Run("marshal and unmarshal", func(t *testing.T) {
+		t.Run("empty patch", func(t *testing.T) {
+			mp := types.MacroPatch{}
+			b, err := json.Marshal(&mp, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &mp)
+
+			out := types.MacroPatch{}
+			require.Nil(t, json.Unmarshal(b, &out))
+		})
+		t.Run("partial patch", func(t *testing.T) {
+			mp := types.MacroPatch{Expansion: types.NewOptional("exp")}
+			b, err := json.Marshal(&mp, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &mp)
+
+			out := types.MacroPatch{}
+			require.Nil(t, json.Unmarshal(b, &out))
+			require.Equal(t, mp.Expansion.Value(), out.Expansion.Value())
+		})
+		t.Run("partial patch 2", func(t *testing.T) {
+			mp := types.MacroPatch{
+				Labels:    types.NewOptional([]string{"kuài"}),
+				OwnerID:   types.NewOptional[int32](0),
+				Expansion: types.NewOptional("exp")}
+			b, err := json.Marshal(&mp, json.OmitZeroStructFields(true))
+			require.Nil(t, err, "failed to marshal %v", &mp)
+
+			out := types.MacroPatch{}
+			require.Nil(t, json.Unmarshal(b, &out))
+			require.Equal(t, mp.Expansion.Value(), out.Expansion.Value())
+		})
 	})
 }
