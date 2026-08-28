@@ -70,9 +70,12 @@ func (c *Client) CreateScheduledSearch(spec types.ScheduledSearch) (result types
 	return
 }
 
-// UpdateScheduledSearch is used to modify an existing scheduled search.
-func (c *Client) UpdateScheduledSearch(ss types.ScheduledSearch) error {
-	return c.putStaticURL(scheduledSearchIdUrl(ss.ID), ss)
+// UpdateScheduledSearch modifies an existing scheduled search and returns the complete, updated struct.
+func (c *Client) UpdateScheduledSearch(ID string, p types.ScheduledSearchPatch) (updated types.ScheduledSearch, err error) {
+	if ID == "" {
+		return types.ScheduledSearch{}, ErrNilID
+	}
+	return c.patch[types.ScheduledSearchPatch, types.ScheduledSearch](scheduledSearchIdUrl(ID), p)
 }
 
 // UpdateScheduledSearchResults is used to update the scheduled search after it has been

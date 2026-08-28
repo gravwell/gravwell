@@ -61,10 +61,12 @@ func (c *Client) PurgeSavedQuery(id string) (err error) {
 	return
 }
 
-// UpdateSavedQuery updates a specific search library entry.
-func (c *Client) UpdateSavedQuery(sl types.SavedQuery) (nsl types.SavedQuery, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, searchLibIdUrl(sl.ID), sl, &nsl, nil, nil)
-	return
+// UpdateSavedQuery modifies an existing saved query and returns the complete, updated struct.
+func (c *Client) UpdateSavedQuery(ID string, p types.SavedQueryPatch) (updated types.SavedQuery, err error) {
+	if ID == "" {
+		return types.SavedQuery{}, ErrNilID
+	}
+	return c.patch[types.SavedQueryPatch, types.SavedQuery](searchLibIdUrl(ID), p)
 }
 
 // CleanupSavedQueries (admin-only) purges all deleted saved queries for all users.

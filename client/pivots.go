@@ -9,8 +9,6 @@
 package client
 
 import (
-	"net/http"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -68,10 +66,12 @@ func (c *Client) CreateActionable(a types.Actionable) (result types.Actionable, 
 	return
 }
 
-// UpdateActionable modifies an existing actionable.
-func (c *Client) UpdateActionable(a types.Actionable) (result types.Actionable, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, actionableIdUrl(a.ID), a, &result, nil, nil)
-	return
+// UpdateActionable modifies an existing actionable and returns the complete, updated struct.
+func (c *Client) UpdateActionable(ID string, p types.ActionablePatch) (updated types.Actionable, err error) {
+	if ID == "" {
+		return types.Actionable{}, ErrNilID
+	}
+	return c.patch[types.ActionablePatch, types.Actionable](actionableIdUrl(ID), p)
 }
 
 // CleanupActionables (admin-only) purges all deleted actionables for all users.

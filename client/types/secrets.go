@@ -33,6 +33,11 @@ type SecretPatch struct {
 	CommonFieldsPatch
 }
 
+// SecretValuePatch is the type used to update the value held by a secret.
+type SecretValuePatch struct {
+	Value string
+}
+
 // ToPatch converts s into a SecretPatch with every metadata field set
 func (s Secret) ToPatch() SecretPatch {
 	return SecretPatch{

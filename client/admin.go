@@ -414,13 +414,12 @@ func (c *Client) AddExtraction(d types.AX) (result types.AX, wrs []types.WarnRes
 	return
 }
 
-// UpdateExtraction modifies an existing autoextractor. The UUID field of the definition
-// passed in must match the UUID of an existing definition owned by the user.
-func (c *Client) UpdateExtraction(d types.AX) (wrs []types.WarnResp, err error) {
-	if err = c.methodStaticPushURL(http.MethodPut, extractionIdUrl(d.ID), d, nil, nil, nil); err == io.EOF {
-		err = nil
+// UpdateExtraction modifies an existing autoextractor and returns the complete, updated struct.
+func (c *Client) UpdateExtraction(ID string, p types.AXPatch) (updated types.AX, err error) {
+	if ID == "" {
+		return types.AX{}, ErrNilID
 	}
-	return
+	return c.patch[types.AXPatch, types.AX](extractionIdUrl(ID), p)
 }
 
 // UploadExtraction uploads a TOML-formatted byteslice containing one or more autoextractor

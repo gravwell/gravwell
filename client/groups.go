@@ -70,9 +70,12 @@ func (c *Client) CreateGroup(m types.Group) (result types.Group, err error) {
 	return
 }
 
-// UpdateGroup modifies an existing group.
-func (c *Client) UpdateGroup(gdet types.Group) error {
-	return c.putStaticURL(groupIdUrl(gdet.ID), gdet)
+// UpdateGroup modifies an existing group and returns the complete, updated struct.
+func (c *Client) UpdateGroup(ID int32, p types.GroupPatch) (updated types.Group, err error) {
+	if ID == 0 {
+		return types.Group{}, ErrNilID
+	}
+	return c.patch[types.GroupPatch, types.Group](groupIdUrl(ID), p)
 }
 
 // CleanupGroups (admin-only) purges all deleted groups.

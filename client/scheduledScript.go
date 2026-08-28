@@ -73,9 +73,12 @@ func (c *Client) CreateScheduledScript(spec types.ScheduledScript) (result types
 	return
 }
 
-// UpdateScheduledScript is used to modify an existing scheduled script.
-func (c *Client) UpdateScheduledScript(ss types.ScheduledScript) error {
-	return c.putStaticURL(scheduledScriptIdUrl(ss.ID), ss)
+// UpdateScheduledScript modifies an existing scheduled script and returns the complete, updated struct.
+func (c *Client) UpdateScheduledScript(ID string, p types.ScheduledScriptPatch) (updated types.ScheduledScript, err error) {
+	if ID == "" {
+		return types.ScheduledScript{}, ErrNilID
+	}
+	return c.patch[types.ScheduledScriptPatch, types.ScheduledScript](scheduledScriptIdUrl(ID), p)
 }
 
 // UpdateScheduledScriptResults is used to update the scheduled script after it has been

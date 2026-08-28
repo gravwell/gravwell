@@ -72,9 +72,12 @@ func (c *Client) CreateFlow(spec types.Flow) (result types.Flow, err error) {
 	return
 }
 
-// UpdateFlow is used to modify an existing flow.
-func (c *Client) UpdateFlow(ss types.Flow) error {
-	return c.putStaticURL(flowIdUrl(ss.ID), ss)
+// UpdateFlow modifies an existing flow and returns the complete, updated struct.
+func (c *Client) UpdateFlow(ID string, p types.FlowPatch) (updated types.Flow, err error) {
+	if ID == "" {
+		return types.Flow{}, ErrNilID
+	}
+	return c.patch[types.FlowPatch, types.Flow](flowIdUrl(ID), p)
 }
 
 // ParseFlow asks the API to check a flow.  It will only return an

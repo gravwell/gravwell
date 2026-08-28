@@ -58,10 +58,12 @@ func (c *Client) GetTokenEx(id string, opts *types.QueryOptions) (types.Token, e
 	return token, err
 }
 
-// UpdateToken modifies an existing token.
-func (c *Client) UpdateToken(tr types.TokenUpdate) (t types.Token, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(tr.ID), tr, &t, nil, nil)
-	return
+// UpdateToken modifies an existing token and returns the complete, updated struct.
+func (c *Client) UpdateToken(ID string, p types.TokenPatch) (updated types.Token, err error) {
+	if ID == "" {
+		return types.Token{}, ErrNilID
+	}
+	return c.patch[types.TokenPatch, types.Token](tokenIdUrl(ID), p)
 }
 
 // RegenToken requests that the secret token string be regenerated without modifying the token contents or permissions
