@@ -11,7 +11,7 @@ import (
 
 // patch submits a PATCH request against the given url.
 func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
-	body, err := json.Marshal(data, json.OmitZeroStructFields(true))
+	body, err := json.Marshal(data)
 	if err != nil {
 		return patched, err
 	} else if body == nil || string(body) == "{}" { // if this marshaled to no data, throw away the request

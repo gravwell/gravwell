@@ -682,7 +682,7 @@ const AllowedMacroChars = "ABCDCEFGHIJKLMNOPQRSTUVWXYZ1234567890_-"
 // MacroPatch is the type used to request an update to an existing Macro.
 type MacroPatch struct {
 	CommonFieldsPatch
-	Expansion Optional[string]
+	Expansion Optional[string] `json:",omitzero"`
 }
 
 // Macro is the type used to Get and Create Macros.
