@@ -247,6 +247,25 @@ type AutomationCommonFields struct {
 	BackfillEnabled bool
 }
 
+// AutomationCommonFieldsPatch is the base type used to request updates to the scheduling-related
+// fields shared by all automation types.
+type AutomationCommonFieldsPatch struct {
+	BackfillEnabled Optional[bool]   `json:",omitzero"`
+	Disabled        Optional[bool]   `json:",omitzero"`
+	Schedule        Optional[string] `json:",omitzero"`
+	Timezone        Optional[string] `json:",omitzero"`
+}
+
+// ToPatch converts a AutomationCommonFields into an AutomationCommonFieldsPatch with every field set.
+func (a AutomationCommonFields) ToPatch() AutomationCommonFieldsPatch {
+	return AutomationCommonFieldsPatch{
+		BackfillEnabled: NewOptional(a.BackfillEnabled),
+		Disabled:        NewOptional(a.Disabled),
+		Schedule:        NewOptional(a.Schedule),
+		Timezone:        NewOptional(a.Timezone),
+	}
+}
+
 // AutomationResultsCommonFields specifies fields which exist in all types of automation *results*, mainly errors and the time of last execution.
 type AutomationResultsCommonFields struct {
 	// These fields will be updated by the search agent after the search runs.
@@ -270,6 +289,19 @@ type ScheduledSearch struct {
 	LatestResults      *ScheduledSearchResults
 }
 
+// ToPatch converts s into a ScheduledSearchPatch with every field set.
+func (s ScheduledSearch) ToPatch() ScheduledSearchPatch {
+	return ScheduledSearchPatch{
+		CommonFieldsPatch:           s.CommonFields.ToPatch(),
+		AutomationCommonFieldsPatch: s.AutomationCommonFields.ToPatch(),
+		SearchReference:             NewOptional(s.SearchReference),
+		SearchString:                NewOptional(s.SearchString),
+		Duration:                    NewOptional(s.Duration),
+		SearchSinceLastRun:          NewOptional(s.SearchSinceLastRun),
+		TimeframeOffset:             NewOptional(s.TimeframeOffset),
+	}
+}
+
 func (s *ScheduledSearch) GetLastRunTime() (lastRun time.Time) {
 	if s.LatestResults == nil {
 		return time.Time{}
@@ -283,6 +315,18 @@ func (s *ScheduledSearch) GetLastSearchIDs() []string {
 		return []string{}
 	}
 	return s.LatestResults.LastSearchIDs
+}
+
+// ScheduledSearchPatch is the type used to request an update to an existing ScheduledSearch.
+type ScheduledSearchPatch struct {
+	CommonFieldsPatch
+	AutomationCommonFieldsPatch
+
+	Duration           Optional[int64]  `json:",omitzero"`
+	SearchReference    Optional[string] `json:",omitzero"`
+	SearchString       Optional[string] `json:",omitzero"`
+	SearchSinceLastRun Optional[bool]   `json:",omitzero"`
+	TimeframeOffset    Optional[int64]  `json:",omitzero"`
 }
 
 // ScheduledSearchResults represents the results of a ScheduledSearch execution.
@@ -303,6 +347,16 @@ type ScheduledScript struct {
 	Script         string     // If set, execute the contents rather than running SearchString
 	ScriptLanguage ScriptLang // what script type is this: anko, go
 	LatestResults  *ScheduledScriptResults
+}
+
+// ToPatch converts s into a ScheduledScriptPatch with every field set
+func (s ScheduledScript) ToPatch() ScheduledScriptPatch {
+	return ScheduledScriptPatch{
+		CommonFieldsPatch:           s.CommonFields.ToPatch(),
+		AutomationCommonFieldsPatch: s.AutomationCommonFields.ToPatch(),
+		Script:                      NewOptional(s.Script),
+		ScriptLanguage:              NewOptional(s.ScriptLanguage),
+	}
 }
 
 func (s *ScheduledScript) GetLastRunTime() (lastRun time.Time) {
@@ -327,6 +381,15 @@ func (s *ScheduledScript) GetLastPersistentMaps() map[string]map[string]any {
 	return s.LatestResults.PersistentMaps
 }
 
+// ScheduledScriptPatch is the type used to request an update to an existing ScheduledScript.
+type ScheduledScriptPatch struct {
+	CommonFieldsPatch
+	AutomationCommonFieldsPatch
+
+	Script         Optional[string]     `json:",omitzero"`
+	ScriptLanguage Optional[ScriptLang] `json:",omitzero"`
+}
+
 // ScheduledScriptResults represents the results of a ScheduledScript execution.
 type ScheduledScriptResults struct {
 	CommonFields
@@ -346,6 +409,15 @@ type Flow struct {
 
 	Flow          string // The flow specification itself
 	LatestResults *FlowResults
+}
+
+// ToPatch converts f into a FlowPatch with every field set
+func (f Flow) ToPatch() FlowPatch {
+	return FlowPatch{
+		CommonFieldsPatch:           f.CommonFields.ToPatch(),
+		AutomationCommonFieldsPatch: f.AutomationCommonFields.ToPatch(),
+		Flow:                        NewOptional(f.Flow),
+	}
 }
 
 func (f *Flow) GetLastRunTime() (lastRun time.Time) {
@@ -368,6 +440,14 @@ func (f *Flow) GetLastPersistentMaps() map[string]map[string]any {
 		return map[string]map[string]any{}
 	}
 	return f.LatestResults.PersistentMaps
+}
+
+// FlowPatch is the type used to request an update to an existing Flow.
+type FlowPatch struct {
+	CommonFieldsPatch
+	AutomationCommonFieldsPatch
+
+	Flow Optional[string] `json:",omitzero"`
 }
 
 // FlowResults represents the results of a Flow execution.
