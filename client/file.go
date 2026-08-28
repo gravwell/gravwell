@@ -32,7 +32,7 @@ var ErrOversizedFile error = fmt.Errorf("Files must be %v or smaller", ingest.Hu
 
 // CleanupFiles (admin-only) purges all deleted files for all users.
 func (c *Client) CleanupFiles() error {
-	return c.deleteStaticURL(filesUrl(), nil)
+	return c.CleanupRequest(filesUrl())
 }
 
 // CreateFile makes a new file.
@@ -71,12 +71,12 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions, previewBytes uin
 	return io.ReadAll(resp.Body)
 }
 
-// UpdateFileMetadata clobber's the specified file's existing metadata in favour of the given struct.
-//
-// Changes to ID, size, and/or hash will be ignored.
-func (c *Client) UpdateFileMetadata(id string, metadata types.File) (updated types.File, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, filesIdUrl(id), metadata, &updated, nil, nil)
-	return updated, err
+// UpdateFileMetadata modifies an existing file's metadata and returns the complete, updated struct.
+func (c *Client) UpdateFileMetadata(ID string, p types.FilePatch) (updated types.File, err error) {
+	if ID == "" {
+		return types.File{}, ErrNilID
+	}
+	return c.PATCHRequest[types.FilePatch, types.File](filesIdUrl(ID), p)
 }
 
 // GetFileMetadata gets the specified file sans contents.
