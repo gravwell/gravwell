@@ -36,7 +36,7 @@ func (c *Client) ListAllMacros(opts *types.QueryOptions) (ret types.MacroListRes
 // GetMacro returns a particular macro.
 func (c *Client) GetMacro(id string) (types.Macro, error) {
 	var macro types.Macro
-	err := c.getStaticURL(macroUrl(id), &macro)
+	err := c.getStaticURL(macroIDUrl(id), &macro)
 	return macro, err
 }
 
@@ -48,18 +48,18 @@ func (c *Client) GetMacroEx(id string, opts *types.QueryOptions) (types.Macro, e
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err := c.getStaticURL(macroUrl(id), &macro, ezParam("include_deleted", opts.IncludeDeleted))
+	err := c.getStaticURL(macroIDUrl(id), &macro, ezParam("include_deleted", opts.IncludeDeleted))
 	return macro, err
 }
 
 // DeleteMacro deletes a macro by marking it deleted in the database.
 func (c *Client) DeleteMacro(id string) error {
-	return c.deleteStaticURL(macroUrl(id), nil)
+	return c.deleteStaticURL(macroIDUrl(id), nil)
 }
 
 // PurgeMacro deletes a macro entirely, removing it from the database.
 func (c *Client) PurgeMacro(id string) error {
-	return c.deleteStaticURL(macroUrl(id), nil, ezParam("purge", "true"))
+	return c.deleteStaticURL(macroIDUrl(id), nil, ezParam("purge", "true"))
 }
 
 // CreateMacro creates a new macro, returning the newly-created macro.
@@ -79,10 +79,10 @@ func (c *Client) UpdateMacro(ID string, p types.MacroPatch) (updated types.Macro
 	if ID == "" {
 		return types.Macro{}, ErrNilID
 	}
-	return c.PATCHRequest[types.MacroPatch, types.Macro](macroUrl(ID), p)
+	return c.patch[types.MacroPatch, types.Macro](macroIDUrl(ID), p)
 }
 
 // CleanupMacros (admin-only) purges all deleted macros for all users.
 func (c *Client) CleanupMacros() error {
-	return c.deleteStaticURL(MACROS_URL, nil)
+	return c.cleanup(MACROS_URL)
 }

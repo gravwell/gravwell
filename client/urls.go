@@ -460,7 +460,7 @@ func searchQueueUrl() string {
 	return QUEUE_URL
 }
 
-func macroUrl(id string) string {
+func macroIDUrl(id string) string {
 	return fmt.Sprintf(MACROS_ID_URL, id)
 }
 
