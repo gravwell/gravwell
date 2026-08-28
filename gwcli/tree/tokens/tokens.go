@@ -177,7 +177,7 @@ func prettyToken(t types.Token, longestIDLen int) string {
 	identitySb.WriteString(t.CreatedAt.Format("2006-01-02 15:04:05 UTC"))
 	identitySb.WriteString("\n")
 	identitySb.WriteString(stylesheet.Cur.Field("Updated", fieldWidth))
-	identitySb.WriteString(t.UpdatedAt.Format("2006-01-02 15:04:05 UTC"))
+	identitySb.WriteString(t.UpdatedAt.Time().Format("2006-01-02 15:04:05 UTC"))
 
 	var expirySb strings.Builder
 	expirySb.WriteString(stylesheet.Cur.Field("Expires", fieldWidth))

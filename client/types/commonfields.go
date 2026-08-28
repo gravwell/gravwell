@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"slices"
 	"time"
 )
@@ -65,8 +66,8 @@ func ValidateAssetType(s string) bool {
 type CommonFields struct {
 	Type      AssetType
 	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt time.Time
+	UpdatedAt NullableTime
+	DeletedAt NullableTime
 	ID        string
 	ParentID  string // the parent object this was cloned from
 
@@ -91,6 +92,58 @@ type CommonFields struct {
 
 	// Auto-generated for the requesting user based on permissions of this object.
 	Can Actions
+}
+
+// NullableTime wraps time.Time so a zero value serializes as JSON null,
+// matching the API spec's nullable AssetCommonFields.UpdatedAt/DeletedAt
+// schema.
+//
+// This is a distinct field type rather than a MarshalJSON/UnmarshalJSON pair
+// on CommonFields itself deliberately: CommonFields is embedded anonymously
+// in every asset type (SearchInfo, Dashboard, Token, ...) for field
+// promotion, and Go promotes an embedded field's methods to the enclosing
+// type. Giving CommonFields its own Marshaler/Unmarshaler would make every
+// asset type satisfy those interfaces too, so encoding/json would call the
+// promoted method and serialize *only* the CommonFields portion, silently
+// dropping every other field the asset type has. Putting the logic on the
+// leaf field type instead means only UpdatedAt/DeletedAt get the special
+// handling, and normal struct-field promotion still flattens them into the
+// enclosing type's JSON object as usual.
+type NullableTime time.Time
+
+// Time returns t as a plain time.Time.
+func (t NullableTime) Time() time.Time {
+	return time.Time(t)
+}
+
+// IsZero reports whether t is the zero value.
+func (t NullableTime) IsZero() bool {
+	return time.Time(t).IsZero()
+}
+
+// Equal reports whether t and u represent the same time instant.
+func (t NullableTime) Equal(u NullableTime) bool {
+	return time.Time(t).Equal(time.Time(u))
+}
+
+func (t NullableTime) MarshalJSON() ([]byte, error) {
+	if time.Time(t).IsZero() {
+		return []byte("null"), nil
+	}
+	return json.Marshal(time.Time(t))
+}
+
+func (t *NullableTime) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*t = NullableTime(time.Time{})
+		return nil
+	}
+	var tt time.Time
+	if err := json.Unmarshal(data, &tt); err != nil {
+		return err
+	}
+	*t = NullableTime(tt)
+	return nil
 }
 
 func (cf *CommonFields) CanRead(u *User) bool {
