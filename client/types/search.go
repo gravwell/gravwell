@@ -691,6 +691,14 @@ type Macro struct {
 	Expansion string
 }
 
+// ToPatch converts m into a MacroPatch with every field set
+func (m Macro) ToPatch() MacroPatch {
+	return MacroPatch{
+		CommonFieldsPatch: m.CommonFields.ToPatch(),
+		Expansion:         NewOptional(m.Expansion),
+	}
+}
+
 // MacroListResponse is what gets returned when you query a list of
 // macros.
 type MacroListResponse struct {

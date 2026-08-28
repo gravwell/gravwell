@@ -186,6 +186,16 @@ type UpdateUser struct {
 	Locked bool
 }
 
+// UserPatch is the type used to request an update to an existing User.
+type UserPatch struct {
+	Admin               Optional[bool]    `json:",omitzero"`
+	DefaultSearchGroups Optional[[]int32] `json:",omitzero"`
+	Email               Optional[string]  `json:",omitzero"`
+	Locked              Optional[bool]    `json:",omitzero"` // ignored if you are not an admin
+	Name                Optional[string]  `json:",omitzero"`
+	Username            Optional[string]  `json:",omitzero"`
+}
+
 type UserAddGroups struct {
 	GIDs []int32
 }
@@ -442,6 +452,18 @@ func (u *User) ForUpdate() UpdateUser {
 	}
 }
 
+// ToPatch converts u into a UserPatch with every editable field set
+func (u *User) ToPatch() UserPatch {
+	return UserPatch{
+		Username:            NewOptional(u.Username),
+		Name:                NewOptional(u.Name),
+		Email:               NewOptional(u.Email),
+		DefaultSearchGroups: NewOptional(u.DefaultSearchGIDs()),
+		Admin:               NewOptional(u.Admin),
+		Locked:              NewOptional(u.Locked),
+	}
+}
+
 // IsGroupMember returns true if the user is a member of group with
 // the specified ID.
 func (u *User) IsGroupMember(gid int32) bool {
@@ -534,6 +556,22 @@ type GroupWithCBAC struct {
 	CBAC CBACExpandedRules
 }
 
+// GroupPatch is the type used to request an update to an existing Group.
+type GroupPatch struct {
+	Description Optional[string] `json:",omitzero"`
+	ID          Optional[int32]  `json:",omitzero"`
+	Name        Optional[string] `json:",omitzero"`
+}
+
+// ToPatch converts g into a GroupPatch with every editable field set.
+func (g *Group) ToPatch() GroupPatch {
+	return GroupPatch{
+		Description: NewOptional(g.Description),
+		ID:          NewOptional(g.ID),
+		Name:        NewOptional(g.Name),
+	}
+}
+
 func (g *Group) GetOld() GroupDetails {
 	return GroupDetails{
 		GID:  g.ID,
@@ -546,6 +584,20 @@ type UserPreference struct {
 	CommonFields
 
 	Data RawObject
+}
+
+// UserPreferencePatch is the type used to request an update to an existing UserPreference.
+type UserPreferencePatch struct {
+	CommonFieldsPatch
+	Data Optional[RawObject] `json:",omitzero"`
+}
+
+// ToPatch converts p into a UserPreferencePatch with every field set.
+func (p UserPreference) ToPatch() UserPreferencePatch {
+	return UserPreferencePatch{
+		CommonFieldsPatch: p.CommonFields.ToPatch(),
+		Data:              NewOptional(p.Data),
+	}
 }
 
 type UserPreferenceResponse struct {

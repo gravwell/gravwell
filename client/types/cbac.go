@@ -1025,6 +1025,20 @@ type TokenUpdate struct {
 	Capabilities []string
 }
 
+// TokenPatch is the type used to request an update to an existing Token and the capabilities it provides.
+type TokenPatch struct {
+	CommonFieldsPatch
+	Capabilities []string `json:",omitzero"`
+}
+
+// ToPatch converts t into a TokenPatch with every field set.
+func (t Token) ToPatch() TokenPatch {
+	return TokenPatch{
+		CommonFieldsPatch: t.CommonFields.ToPatch(),
+		Capabilities:      t.Capabilities,
+	}
+}
+
 // TokenListResponse is the type returned when querying a list of tokens.
 type TokenListResponse struct {
 	BaseListResponse

@@ -25,6 +25,22 @@ type TemplateVariable struct {
 	PreviewValue string
 }
 
+// TemplatePatch is the type used to request an update to an existing Template.
+type TemplatePatch struct {
+	CommonFieldsPatch
+	Query     Optional[string]             `json:",omitzero"`
+	Variables Optional[[]TemplateVariable] `json:",omitzero"`
+}
+
+// ToPatch converts t into a TemplatePatch with every field set.
+func (t Template) ToPatch() TemplatePatch {
+	return TemplatePatch{
+		CommonFieldsPatch: t.CommonFields.ToPatch(),
+		Query:             NewOptional(t.Query),
+		Variables:         NewOptional(t.Variables),
+	}
+}
+
 type TemplateListResponse struct {
 	BaseListResponse
 	Results []Template
