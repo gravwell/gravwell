@@ -73,9 +73,9 @@ func (c *Client) CreateUser(m types.AddUser) (result types.User, err error) {
 	return
 }
 
-// UpdateUser (admin-only) modifies an existing user.
-func (c *Client) UpdateUser(m types.User) error {
-	return c.putStaticURL(usersInfoUrl(m.ID), m.ForUpdate())
+// UpdateUser (admin-only) modifies an existing user and returns the complete, updated struct.
+func (c *Client) UpdateUser(ID int32, p types.UserPatch) (updated types.User, err error) {
+	return c.patch[types.UserPatch, types.User](usersInfoUrl(ID), p)
 }
 
 // UpdateUserInfo changes basic information about the specified user.
