@@ -9,6 +9,8 @@
 package client
 
 import (
+	"net/http"
+
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -65,7 +67,9 @@ func (c *Client) UpdateSecretValue(id string, value string) (s types.Secret, err
 	if id == "" {
 		return types.Secret{}, ErrNilID
 	}
-	return c.patch[types.SecretValuePatch, types.Secret](secretIdValueUrl(id), types.SecretValuePatch{Value: value})
+
+	err = c.methodStaticPushURL(http.MethodPut, secretIdValueUrl(id), types.SecretValuePatch{Value: value}, &s, nil, nil)
+	return s, err
 }
 
 // UpdateSecret changes the details (not the value) of a particular secret and returns the complete, updated struct.
