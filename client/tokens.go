@@ -68,7 +68,7 @@ func (c *Client) UpdateToken(ID string, p types.TokenPatch) (updated types.Token
 
 // RegenToken requests that the secret token string be regenerated without modifying the token contents or permissions
 func (c *Client) RegenToken(id string, tr types.TokenRegeneration) (t types.TokenFull, err error) {
-	err = c.methodStaticPushURL(http.MethodPatch, tokenIdUrl(id), tr, &t, nil, nil)
+	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(id), tr, &t, nil, nil)
 	return
 }
 

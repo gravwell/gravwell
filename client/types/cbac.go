@@ -1028,7 +1028,7 @@ type TokenUpdate struct {
 // TokenPatch is the type used to request an update to an existing Token and the capabilities it provides.
 type TokenPatch struct {
 	CommonFieldsPatch
-	Capabilities []string `json:",omitzero"`
+	Capabilities []string
 }
 
 // ToPatch converts t into a TokenPatch with every field set.
