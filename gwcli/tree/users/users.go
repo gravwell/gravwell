@@ -249,7 +249,8 @@ func edit() action.Pair {
 				return descriptionLine(item.Admin, item.Email)
 			},
 			UpdateSub: func(data *types.User) (identifier string, err error) {
-				return data.Name, connection.Client.UpdateUser(*data)
+				_, err = connection.Client.UpdateUser(data.ID, data.ToPatch())
+				return data.Name, err
 			},
 		},
 		scaffoldedit.Options{

@@ -258,7 +258,7 @@ func replace() action.Pair {
 			if err := dcdr.Decode(&a.Contents); err != nil {
 				return nil, err
 			}
-			a, err = connection.Client.UpdateActionable(a)
+			a, err = connection.Client.UpdateActionable(a.ID, a.ToPatch())
 			if err != nil {
 				return nil, err
 			}
@@ -342,7 +342,7 @@ func edit() action.Pair {
 		GetTitleSub:       func(item types.Actionable) string { return item.Name },
 		GetDescriptionSub: func(item types.Actionable) string { return item.Description },
 		UpdateSub: func(data *types.Actionable) (string, error) {
-			result, err := connection.Client.UpdateActionable(*data)
+			result, err := connection.Client.UpdateActionable(data.ID, data.ToPatch())
 			return result.Name, err
 		},
 	}

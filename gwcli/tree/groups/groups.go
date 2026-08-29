@@ -165,7 +165,8 @@ func edit() action.Pair {
 		GetTitleSub:       func(item types.Group) string { return item.Name },
 		GetDescriptionSub: func(item types.Group) string { return item.Description },
 		UpdateSub: func(data *types.Group) (string, error) {
-			return data.Name, connection.Client.UpdateGroup(*data)
+			_, err := connection.Client.UpdateGroup(data.ID, data.ToPatch())
+			return data.Name, err
 		},
 	}
 	return scaffoldedit.NewEditAction("group", "groups", cfg, funcs,
