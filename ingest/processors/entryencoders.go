@@ -10,13 +10,14 @@ package processors
 
 import (
 	"bufio"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -59,7 +60,6 @@ func (tt *tagTrans) TagName(tag entry.EntryTag) (s string) {
 }
 
 type jsonEncoder struct {
-	*json.Encoder
 	wtr  io.Writer
 	bwtr *bufio.Writer
 	tt   *tagTrans
@@ -71,10 +71,9 @@ func newJSONEncoder(wtr io.Writer, tgr Tagger) (*jsonEncoder, error) {
 	}
 	bwtr := bufio.NewWriter(wtr)
 	return &jsonEncoder{
-		Encoder: json.NewEncoder(bwtr),
-		wtr:     wtr,
-		bwtr:    bwtr,
-		tt:      newTagTrans(tgr),
+		wtr:  wtr,
+		bwtr: bwtr,
+		tt:   newTagTrans(tgr),
 	}, nil
 }
 
@@ -94,7 +93,7 @@ func (je *jsonEncoder) Encode(ent *entry.Entry) (err error) {
 			Entry: ent,
 			Tag:   je.tt.TagName(ent.Tag),
 		}
-		if err = je.Encoder.Encode(tse); err != nil {
+		if err = json.MarshalWrite(je.bwtr, tse, jsoncompat.Options); err != nil {
 			return
 		}
 	}
@@ -105,7 +104,6 @@ func (je *jsonEncoder) Encode(ent *entry.Entry) (err error) {
 func (je *jsonEncoder) Reset(wtr io.Writer) {
 	je.wtr = wtr
 	je.bwtr.Reset(wtr)
-	je.Encoder = json.NewEncoder(je.bwtr)
 }
 
 type rawEncoder struct {

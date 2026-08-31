@@ -653,7 +653,7 @@ func TestQueries(t *testing.T) {
 					continue
 				}
 				count += 1
-				if !json.Valid(record) && string(record) != "[]" { // Go does not consider '[]' valid JSON, but we do
+				if !jsontext.Value(record).IsValid(jsonv2opts.Wire) && string(record) != "[]" { // Go does not consider '[]' valid JSON, but we do
 					t.Errorf("'%v' is not valid JSON", record)
 				}
 			}

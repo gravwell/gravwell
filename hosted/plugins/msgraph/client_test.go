@@ -1,11 +1,14 @@
 package msgraph
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -21,7 +24,7 @@ func TestAuthenticate(t *testing.T) {
 			if r.Form.Get("scope") != graphScope {
 				t.Errorf("bad scope: %s", r.Form.Get("scope"))
 			}
-			json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		}))
 		defer server.Close()
 
@@ -34,7 +37,7 @@ func TestAuthenticate(t *testing.T) {
 	t.Run("failure", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(AuthErrorResponse{Error: "invalid_client", ErrorDescription: "bad secret"})
+			json.MarshalWrite(w, AuthErrorResponse{Error: "invalid_client", ErrorDescription: "bad secret"}, jsoncompat.Options)
 		}))
 		defer server.Close()
 
@@ -49,7 +52,7 @@ func TestAuthenticate(t *testing.T) {
 		count := 0
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			count++
-			json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		}))
 		defer server.Close()
 
@@ -66,15 +69,15 @@ func TestList(t *testing.T) {
 	t.Run("returns values", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/tenant/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		})
 		mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Authorization") != "Bearer tok" {
 				t.Errorf("bad auth: %s", r.Header.Get("Authorization"))
 			}
-			json.NewEncoder(w).Encode(ODataResponse{
-				Value: []json.RawMessage{json.RawMessage(`{"id":"a1"}`)},
-			})
+			json.MarshalWrite(w, ODataResponse{
+				Value: []jsontext.Value{jsontext.Value(`{"id":"a1"}`)},
+			}, jsoncompat.Options)
 		})
 		server := httptest.NewServer(mux)
 		defer server.Close()
@@ -92,13 +95,13 @@ func TestList(t *testing.T) {
 	t.Run("uses nextLink", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/tenant/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		})
 		mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Query().Get("$skiptoken") != "page2" {
 				t.Errorf("expected skiptoken=page2, got %s", r.URL.RawQuery)
 			}
-			json.NewEncoder(w).Encode(ODataResponse{Value: []json.RawMessage{json.RawMessage(`{"id":"a2"}`)}})
+			json.MarshalWrite(w, ODataResponse{Value: []jsontext.Value{jsontext.Value(`{"id":"a2"}`)}}, jsoncompat.Options)
 		})
 		server := httptest.NewServer(mux)
 		defer server.Close()
@@ -116,14 +119,14 @@ func TestList(t *testing.T) {
 	t.Run("error response", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/tenant/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		})
 		mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(GraphErrorResponse{Error: struct {
+			json.MarshalWrite(w, GraphErrorResponse{Error: struct {
 				Code    string `json:"code"`
 				Message string `json:"message"`
-			}{Code: "Forbidden", Message: "no access"}})
+			}{Code: "Forbidden", Message: "no access"}}, jsoncompat.Options)
 		})
 		server := httptest.NewServer(mux)
 		defer server.Close()
@@ -139,18 +142,18 @@ func TestList(t *testing.T) {
 func TestListAll(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tenant/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpiresIn: 3600})
+		json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	pages := 0
 	mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
 		pages++
 		if pages == 1 {
-			json.NewEncoder(w).Encode(ODataResponse{
-				Value:    []json.RawMessage{json.RawMessage(`{"id":"a1"}`)},
+			json.MarshalWrite(w, ODataResponse{
+				Value:    []jsontext.Value{jsontext.Value(`{"id":"a1"}`)},
 				NextLink: "http://" + r.Host + "/v1.0/security/alerts_v2?$skiptoken=p2",
-			})
+			}, jsoncompat.Options)
 		} else {
-			json.NewEncoder(w).Encode(ODataResponse{Value: []json.RawMessage{json.RawMessage(`{"id":"a2"}`)}})
+			json.MarshalWrite(w, ODataResponse{Value: []jsontext.Value{jsontext.Value(`{"id":"a2"}`)}}, jsoncompat.Options)
 		}
 	})
 	server := httptest.NewServer(mux)

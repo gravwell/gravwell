@@ -10,7 +10,7 @@ package processors
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -158,7 +159,7 @@ func (c *Corelight) processLine(s []byte) (tag string, ts time.Time, line []byte
 	} else {
 		line = line[idx:]
 	}
-	if err := json.Unmarshal(line, &mp); err != nil {
+	if err := json.Unmarshal(line, &mp, jsoncompat.Options); err != nil {
 		tag = defaultTag
 		return
 	}

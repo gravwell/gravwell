@@ -9,7 +9,7 @@
 package processors
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func makeVectorEntry(data string, tag entry.EntryTag) *entry.Entry {
@@ -45,7 +46,7 @@ func vectorEmbeddingEndpoint(t *testing.T) *httptest.Server {
 		}
 
 		var req embeddingRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.UnmarshalRead(r.Body, &req, jsoncompat.Options); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
@@ -65,7 +66,7 @@ func vectorEmbeddingEndpoint(t *testing.T) *httptest.Server {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+		json.MarshalWrite(w, resp, jsoncompat.Options)
 	}))
 }
 
@@ -203,7 +204,7 @@ func TestVectorProcessor(t *testing.T) {
 		t.Fatalf("expected embeddings EV to be a string, got %T", v)
 	}
 	var embedding []float64
-	if err := json.Unmarshal([]byte(embStr), &embedding); err != nil {
+	if err := json.Unmarshal([]byte(embStr), &embedding, jsoncompat.Options); err != nil {
 		t.Fatalf("embeddings EV is not a valid float slice: %v", err)
 	}
 	if len(embedding) == 0 {
@@ -348,7 +349,7 @@ func TestVectorProcessorMixedEmptyData(t *testing.T) {
 	var gotInputs []string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req embeddingRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.UnmarshalRead(r.Body, &req, jsoncompat.Options); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
@@ -366,7 +367,7 @@ func TestVectorProcessorMixedEmptyData(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+		json.MarshalWrite(w, resp, jsoncompat.Options)
 	}))
 	defer ts.Close()
 
@@ -426,7 +427,7 @@ func TestVectorProcessorBatch(t *testing.T) {
 	var gotInputs int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req embeddingRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.UnmarshalRead(r.Body, &req, jsoncompat.Options); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
@@ -439,7 +440,7 @@ func TestVectorProcessorBatch(t *testing.T) {
 				Embedding []float64 `json:"embedding"`
 			}{Index: i, Embedding: []float64{float64(i)}})
 		}
-		json.NewEncoder(w).Encode(resp)
+		json.MarshalWrite(w, resp, jsoncompat.Options)
 	}))
 	defer ts.Close()
 
@@ -470,7 +471,7 @@ func TestVectorProcessorBatch(t *testing.T) {
 			t.Fatalf("result %d: missing embeddings EV", i)
 		}
 		var embedding []float64
-		if err := json.Unmarshal([]byte(v.(string)), &embedding); err != nil {
+		if err := json.Unmarshal([]byte(v.(string)), &embedding, jsoncompat.Options); err != nil {
 			t.Fatalf("result %d: %v", i, err)
 		}
 		// Embedding for input i was tagged with index i -> value float64(i).
@@ -515,7 +516,7 @@ func TestVectorProcessorRetry(t *testing.T) {
 			return
 		}
 		var req embeddingRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		json.UnmarshalRead(r.Body, &req, jsoncompat.Options)
 		var resp embeddingResponse
 		for i := range req.Input {
 			resp.Data = append(resp.Data, struct {
@@ -523,7 +524,7 @@ func TestVectorProcessorRetry(t *testing.T) {
 				Embedding []float64 `json:"embedding"`
 			}{Index: i, Embedding: []float64{0.5}})
 		}
-		json.NewEncoder(w).Encode(resp)
+		json.MarshalWrite(w, resp, jsoncompat.Options)
 	}))
 	defer ts.Close()
 
@@ -549,7 +550,7 @@ func TestVectorEmptyEmbedding(t *testing.T) {
 	// Each data entry has the correct count but zero-length embeddings.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req embeddingRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		json.UnmarshalRead(r.Body, &req, jsoncompat.Options)
 
 		resp := struct {
 			Data []struct {
@@ -565,7 +566,7 @@ func TestVectorEmptyEmbedding(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+		json.MarshalWrite(w, resp, jsoncompat.Options)
 	}))
 	defer ts.Close()
 
@@ -591,7 +592,7 @@ func TestVectorWrongEmbeddingCount(t *testing.T) {
 	// Provider returns fewer embeddings than requested — must return ErrEmbeddingCount.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req embeddingRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		json.UnmarshalRead(r.Body, &req, jsoncompat.Options)
 
 		resp := struct {
 			Data []struct {
@@ -607,7 +608,7 @@ func TestVectorWrongEmbeddingCount(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+		json.MarshalWrite(w, resp, jsoncompat.Options)
 	}))
 	defer ts.Close()
 
@@ -634,7 +635,7 @@ func TestVectorTooManyEmbeddings(t *testing.T) {
 	// Provider returns more embeddings than requested — must return ErrEmbeddingCount.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req embeddingRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		json.UnmarshalRead(r.Body, &req, jsoncompat.Options)
 
 		resp := struct {
 			Data []struct {
@@ -652,7 +653,7 @@ func TestVectorTooManyEmbeddings(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+		json.MarshalWrite(w, resp, jsoncompat.Options)
 	}))
 	defer ts.Close()
 

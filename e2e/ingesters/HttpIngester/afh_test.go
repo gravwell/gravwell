@@ -2,7 +2,7 @@ package HttpIngester
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"gravwell/e2e"
 	"math/rand"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestAFH(t *testing.T) {
@@ -85,7 +86,7 @@ func SendAFHRecords(t *testing.T, endpoint string, ts time.Time, records []strin
 	for _, r := range records {
 		data.Records = append(data.Records, record{Data: []byte(r)})
 	}
-	body, err := json.Marshal(&data)
+	body, err := json.Marshal(&data, jsoncompat.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +102,7 @@ func SendAFHRecords(t *testing.T, endpoint string, ts time.Time, records []strin
 	}
 	defer utils.DrainResponse(resp)
 	result := &response{}
-	if err = json.NewDecoder(resp.Body).Decode(result); err != nil {
+	if err = json.UnmarshalRead(resp.Body, result, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != http.StatusOK {

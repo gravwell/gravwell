@@ -10,16 +10,17 @@ package processors
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/config"
-	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -164,5 +165,5 @@ func (gfc GravwellForwarderConfig) MarshalJSON() ([]byte, error) {
 	}{
 		IngestConfig: gfc.IngestConfig,
 	}
-	return json.Marshal(x)
+	return json.Marshal(x, jsoncompat.Options)
 }

@@ -9,11 +9,14 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestRowSelectionMarshal(t *testing.T) {
@@ -32,7 +35,7 @@ func TestRowSelectionMarshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := json.Marshal(tt.input)
+			b, err := json.Marshal(tt.input, jsoncompat.Options)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")
@@ -43,7 +46,7 @@ func TestRowSelectionMarshal(t *testing.T) {
 				t.Fatal(err)
 			}
 			var out RowSelection
-			if err := json.Unmarshal(b, &out); err != nil {
+			if err := json.Unmarshal(b, &out, jsoncompat.Options); err != nil {
 				t.Fatal(err)
 			}
 			if out != tt.input {
@@ -70,7 +73,7 @@ func TestRowSelectionUnmarshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out RowSelection
-			err := json.Unmarshal([]byte(tt.input), &out)
+			err := json.Unmarshal([]byte(tt.input), &out, jsoncompat.Options)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")
@@ -288,7 +291,7 @@ func TestRenderSettings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got RendererSettings
-			if err := json.Unmarshal([]byte(tt.json), &got); err != nil {
+			if err := json.Unmarshal([]byte(tt.json), &got, jsoncompat.Options); err != nil {
 				t.Fatalf("Unmarshal failed: %v", err)
 			}
 
@@ -304,7 +307,7 @@ func TestRenderSettings(t *testing.T) {
 			// to marshal(want) is blind to anything MarshalJSON normalizes,
 			// because both sides pass through the same normalization — that is
 			// how the nil-slice -> [] fix went untested.
-			b1, err := json.Marshal(got)
+			b1, err := json.Marshal(got, jsoncompat.Options)
 			if err != nil {
 				t.Fatalf("Marshal got failed: %v", err)
 			}
@@ -316,15 +319,15 @@ func TestRenderSettings(t *testing.T) {
 			// normalization is intentionally not idempotent in memory (a nil
 			// slice marshals to [] and decodes back as an empty non-nil slice).
 			// What must hold is that re-encoding is stable.
-			b2, err := json.Marshal(tt.want)
+			b2, err := json.Marshal(tt.want, jsoncompat.Options)
 			if err != nil {
 				t.Fatalf("Marshal want failed: %v", err)
 			}
 			var got2 RendererSettings
-			if err := json.Unmarshal(b2, &got2); err != nil {
+			if err := json.Unmarshal(b2, &got2, jsoncompat.Options); err != nil {
 				t.Fatalf("Unmarshal from Marshal failed: %v", err)
 			}
-			b3, err := json.Marshal(got2)
+			b3, err := json.Marshal(got2, jsoncompat.Options)
 			if err != nil {
 				t.Fatalf("Marshal roundtripped value failed: %v", err)
 			}
@@ -350,7 +353,7 @@ func TestSearchInfoWithEmptyRendererSettings(t *testing.T) {
 		{CommonFields: CommonFields{ID: "b"}, RendererSettings: &RendererSettings{}},
 		{CommonFields: CommonFields{ID: "c"}},
 	}
-	sb, err := json.Marshal(si)
+	sb, err := json.Marshal(si, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("SearchInfo slice with an empty RendererSettings must marshal: %v", err)
 	}
@@ -393,7 +396,7 @@ func TestRendererSettingsRequiredArraysNeverNull(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := json.Marshal(tt.in)
+			b, err := json.Marshal(tt.in, jsoncompat.Options)
 			if err != nil {
 				t.Fatalf("marshal: %v", err)
 			}
@@ -411,7 +414,7 @@ func TestRendererSettingsRequiredArraysNeverNull(t *testing.T) {
 func TestRendererSettingsDecodeGuards(t *testing.T) {
 	t.Run("null is a no-op", func(t *testing.T) {
 		var rs RendererSettings
-		if err := json.Unmarshal([]byte(`null`), &rs); err != nil {
+		if err := json.Unmarshal([]byte(`null`), &rs, jsoncompat.Options); err != nil {
 			t.Fatalf("decoding null must not error: %v", err)
 		}
 		if !reflect.DeepEqual(rs, RendererSettings{}) {
@@ -421,10 +424,10 @@ func TestRendererSettingsDecodeGuards(t *testing.T) {
 
 	t.Run("receiver is reset between decodes", func(t *testing.T) {
 		var rs RendererSettings
-		if err := json.Unmarshal([]byte(`{"Renderer":"chart","Channels":{"Category":"c","Nominal":"n"}}`), &rs); err != nil {
+		if err := json.Unmarshal([]byte(`{"Renderer":"chart","Channels":{"Category":"c","Nominal":"n"}}`), &rs, jsoncompat.Options); err != nil {
 			t.Fatalf("first decode: %v", err)
 		}
-		if err := json.Unmarshal([]byte(`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`), &rs); err != nil {
+		if err := json.Unmarshal([]byte(`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`), &rs, jsoncompat.Options); err != nil {
 			t.Fatalf("second decode: %v", err)
 		}
 		if rs.Chart != nil {
@@ -434,7 +437,7 @@ func TestRendererSettingsDecodeGuards(t *testing.T) {
 			t.Fatal("Fdg not set by second decode")
 		}
 		// A value carrying two variants is permanently unencodable.
-		if _, err := json.Marshal(rs); err != nil {
+		if _, err := json.Marshal(rs, jsoncompat.Options); err != nil {
 			t.Errorf("value is unencodable after two decodes: %v", err)
 		}
 	})
@@ -442,13 +445,13 @@ func TestRendererSettingsDecodeGuards(t *testing.T) {
 	t.Run("streaming decoder reuses the value", func(t *testing.T) {
 		stream := `{"Renderer":"chart","Channels":{"Category":"c","Nominal":"n"}}` +
 			`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`
-		dec := json.NewDecoder(strings.NewReader(stream))
+		dec := jsontext.NewDecoder(strings.NewReader(stream))
 		var rs RendererSettings
 		for i := 0; i < 2; i++ {
-			if err := dec.Decode(&rs); err != nil {
+			if err := json.UnmarshalDecode(dec, &rs, jsoncompat.Options); err != nil {
 				t.Fatalf("decode %d: %v", i, err)
 			}
-			if _, err := json.Marshal(rs); err != nil {
+			if _, err := json.Marshal(rs, jsoncompat.Options); err != nil {
 				t.Fatalf("frame %d is unencodable: %v", i, err)
 			}
 		}
@@ -461,14 +464,14 @@ func TestRenderSettingsErrors(t *testing.T) {
 		Chart: &RSChart{Renderer: "chart"},
 		Fdg:   &RSFdg{Renderer: "fdg"},
 	}
-	_, err := json.Marshal(rsMultiple)
+	_, err := json.Marshal(rsMultiple, jsoncompat.Options)
 	if err == nil {
 		t.Fatal("expected error when multiple render settings are specified")
 	}
 
 	// 2. Zero fields set (empty / nil)
 	rsEmpty := RendererSettings{}
-	k, err := json.Marshal(rsEmpty)
+	k, err := json.Marshal(rsEmpty, jsoncompat.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +486,7 @@ func TestRenderSettingsErrors(t *testing.T) {
 // Per the registry API spec.
 func TestSearchInfoDurationRoundTrip(t *testing.T) {
 	in := SearchInfo{CommonFields: CommonFields{ID: "dur"}, ItemCount: 42, Duration: 90 * time.Second}
-	b, err := json.Marshal(in)
+	b, err := json.Marshal(in, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -491,7 +494,7 @@ func TestSearchInfoDurationRoundTrip(t *testing.T) {
 		t.Fatalf("Duration missing from the wire format: %s", b)
 	}
 	var out SearchInfo
-	if err := json.Unmarshal(b, &out); err != nil {
+	if err := json.Unmarshal(b, &out, jsoncompat.Options); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if out.Duration != in.Duration {
@@ -515,7 +518,7 @@ func TestDownloadSearchOmitsZeroTimeframe(t *testing.T) {
 		t.Error("nil Timeframe must report empty")
 	}
 
-	omitted, err := json.Marshal(SearchDownloadRequest{Format: "json"})
+	omitted, err := json.Marshal(SearchDownloadRequest{Format: "json"}, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -526,7 +529,7 @@ func TestDownloadSearchOmitsZeroTimeframe(t *testing.T) {
 	set, err := json.Marshal(SearchDownloadRequest{
 		Format:    "json",
 		Timeframe: &Timeframe{Start: time.Unix(1, 0).UTC(), End: time.Unix(2, 0).UTC()},
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -540,12 +543,12 @@ func TestSearchInfoMarshal(t *testing.T) {
 	siEmpty := SearchInfo{
 		CommonFields: CommonFields{ID: "test-id"},
 	}
-	b, err := json.Marshal(siEmpty)
+	b, err := json.Marshal(siEmpty, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("failed to marshal SearchInfo without RenderSettings: %v", err)
 	}
 	var outEmpty SearchInfo
-	if err := json.Unmarshal(b, &outEmpty); err != nil {
+	if err := json.Unmarshal(b, &outEmpty, jsoncompat.Options); err != nil {
 		t.Fatalf("failed to unmarshal SearchInfo without RenderSettings: %v", err)
 	}
 	if outEmpty.ID != "test-id" {
@@ -561,12 +564,12 @@ func TestSearchInfoMarshal(t *testing.T) {
 			},
 		},
 	}
-	b2, err := json.Marshal(siWithRenderSettings)
+	b2, err := json.Marshal(siWithRenderSettings, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("failed to marshal SearchInfo with RenderSettings: %v", err)
 	}
 	var outWithRS SearchInfo
-	if err := json.Unmarshal(b2, &outWithRS); err != nil {
+	if err := json.Unmarshal(b2, &outWithRS, jsoncompat.Options); err != nil {
 		t.Fatalf("failed to unmarshal SearchInfo with RenderSettings: %v", err)
 	}
 	if outWithRS.RendererSettings == nil || outWithRS.RendererSettings.Chart == nil || outWithRS.RendererSettings.Chart.Renderer != "chart" {

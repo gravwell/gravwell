@@ -9,13 +9,16 @@
 package wiz
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // fakeWiz is an httptest server that speaks just enough of the Wiz OAuth and
@@ -51,21 +54,21 @@ func newFakeWiz(t *testing.T) *fakeWiz {
 			token = token + "-refreshed"
 		}
 		f.current.Store(token)
-		_ = json.NewEncoder(w).Encode(AuthToken{AccessToken: token, ExpireIn: 3600})
+		_ = json.MarshalWrite(w, AuthToken{AccessToken: token, ExpireIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		f.graphqlCalls.Add(1)
 		want := f.current.Load().(string)
 		got := r.Header.Get("Authorization")
 		if got != "Bearer "+want {
-			_ = json.NewEncoder(w).Encode(graphQLResponse{
+			_ = json.MarshalWrite(w, graphQLResponse{
 				Errors: []GraphQLError{{Message: "nope", Extensions: struct {
 					Code string `json:"code"`
 				}{Code: "UNAUTHENTICATED"}}},
-			})
+			}, jsoncompat.Options)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(graphQLResponse{Data: json.RawMessage(`{"ok":true}`)})
+		_ = json.MarshalWrite(w, graphQLResponse{Data: jsontext.Value(`{"ok":true}`)}, jsoncompat.Options)
 	})
 	f.server = httptest.NewServer(mux)
 	t.Cleanup(f.server.Close)
@@ -163,10 +166,10 @@ func TestQueryErrorClassification(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if strings.HasSuffix(r.URL.Path, "/token") {
-					_ = json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpireIn: 3600})
+					_ = json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpireIn: 3600}, jsoncompat.Options)
 					return
 				}
-				_ = json.NewEncoder(w).Encode(graphQLResponse{Errors: test.errs})
+				_ = json.MarshalWrite(w, graphQLResponse{Errors: test.errs}, jsoncompat.Options)
 			}))
 			defer server.Close()
 

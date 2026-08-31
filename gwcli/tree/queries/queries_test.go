@@ -10,7 +10,7 @@ package queries
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"net"
 	"net/http"
@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // TestSetGroupPreservesWriters is a regression test for gravwell/issues#2708:
@@ -58,12 +59,12 @@ func TestSetGroupPreservesWriters(t *testing.T) {
 			si := types.SearchInfo{}
 			si.OwnerID = existingOwnerID
 			si.Writers = existingWriters
-			if err := json.NewEncoder(w).Encode(si); err != nil {
+			if err := json.MarshalWrite(w, si, jsoncompat.Options); err != nil {
 				t.Errorf("failed to encode mock GetSearch response: %v", err)
 			}
 		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/access"):
 			sawAccessCall = true
-			if err := json.NewDecoder(r.Body).Decode(&gotAccess); err != nil {
+			if err := json.UnmarshalRead(r.Body, &gotAccess, jsoncompat.Options); err != nil {
 				t.Errorf("failed to decode access request body: %v", err)
 			}
 		default:

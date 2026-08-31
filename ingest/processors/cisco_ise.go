@@ -10,7 +10,7 @@ package processors
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"regexp"
@@ -21,6 +21,7 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -680,7 +681,7 @@ func iseJSONFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool) 
 	if err := msg.Parse(string(ent.Data), filters, stripHeaders); err != nil {
 		return false
 	}
-	if v, err := json.Marshal(msg); err == nil {
+	if v, err := json.Marshal(msg, jsoncompat.Options); err == nil {
 		ent.Data = v
 		ent.TS = entry.FromStandard(msg.ts)
 		return true
@@ -705,7 +706,7 @@ func (m iseMessage) MarshalJSON() ([]byte, error) {
 		Class:      m.class,
 		Text:       m.text,
 		Attributes: kvAttrs(m.attrs),
-	})
+	}, jsoncompat.Options)
 }
 
 type kvAttrs []iseKV
@@ -716,7 +717,7 @@ func (kv kvAttrs) MarshalJSON() ([]byte, error) {
 	for _, v := range kv {
 		mp[r.Replace(v.key)] = r.Replace(v.value)
 	}
-	return json.Marshal(mp)
+	return json.Marshal(mp, jsoncompat.Options)
 }
 
 func filtered(v string, filters []glob.Glob) bool {

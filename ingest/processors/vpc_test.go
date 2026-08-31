@@ -10,12 +10,13 @@ package processors
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -118,12 +119,12 @@ func makeCloudWatchLog(cnt int, zipped bool) []byte {
 		})
 	}
 	if !zipped {
-		v, _ := json.Marshal(ld)
+		v, _ := json.Marshal(ld, jsoncompat.Options)
 		return v
 	}
 
 	gzw := gzip.NewWriter(&bb)
-	if json.NewEncoder(gzw).Encode(ld) != nil {
+	if json.MarshalWrite(gzw, ld, jsoncompat.Options) != nil {
 		return nil
 	} else if gzw.Flush() != nil {
 		return nil

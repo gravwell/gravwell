@@ -9,13 +9,16 @@
 package wiz
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // wizServer is an httptest server that speaks OAuth and answers the three
@@ -38,11 +41,11 @@ func newWizServer(t *testing.T) *wizServer {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/oauth/token", func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewEncoder(w).Encode(AuthToken{AccessToken: "tok", ExpireIn: 3600})
+		_ = json.MarshalWrite(w, AuthToken{AccessToken: "tok", ExpireIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		var req graphQLRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.UnmarshalRead(r.Body, &req, jsoncompat.Options); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -58,12 +61,12 @@ func newWizServer(t *testing.T) *wizServer {
 		s.mu.Unlock()
 
 		if len(errs) > 0 {
-			_ = json.NewEncoder(w).Encode(graphQLResponse{Errors: errs})
+			_ = json.MarshalWrite(w, graphQLResponse{Errors: errs}, jsoncompat.Options)
 			return
 		}
-		_ = json.NewEncoder(w).Encode(graphQLResponse{Data: mustJSON(t, map[string]connOut{
-			field: {Nodes: []json.RawMessage{s.nodeFor(t, field)}, PageInfo: pageInfoOut{HasNextPage: false}},
-		})})
+		_ = json.MarshalWrite(w, graphQLResponse{Data: mustJSON(t, map[string]connOut{
+			field: {Nodes: []jsontext.Value{s.nodeFor(t, field)}, PageInfo: pageInfoOut{HasNextPage: false}},
+		})}, jsoncompat.Options)
 	})
 	s.server = httptest.NewServer(mux)
 	t.Cleanup(s.server.Close)
@@ -84,7 +87,7 @@ func (s *wizServer) setError(field string, errs []GraphQLError) {
 
 // nodeFor returns a record for the given root field with the timestamp field
 // that field's built-in query selects.
-func (s *wizServer) nodeFor(t *testing.T, field string) json.RawMessage {
+func (s *wizServer) nodeFor(t *testing.T, field string) jsontext.Value {
 	ts := s.nodeTS.Format(time.RFC3339Nano)
 	// each record carries the timestamp field that source uses as its cursor.
 	switch field {
@@ -121,8 +124,8 @@ func detectField(query string) string {
 }
 
 type connOut struct {
-	Nodes    []json.RawMessage `json:"nodes"`
-	PageInfo pageInfoOut       `json:"pageInfo"`
+	Nodes    []jsontext.Value `json:"nodes"`
+	PageInfo pageInfoOut      `json:"pageInfo"`
 }
 
 type pageInfoOut struct {
@@ -130,9 +133,9 @@ type pageInfoOut struct {
 	EndCursor   string `json:"endCursor"`
 }
 
-func mustJSON(t *testing.T, v any) json.RawMessage {
+func mustJSON(t *testing.T, v any) jsontext.Value {
 	t.Helper()
-	b, err := json.Marshal(v)
+	b, err := json.Marshal(v, jsoncompat.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +315,7 @@ func TestHandleQueryErrorQuarantined(t *testing.T) {
 }
 
 func TestCleanNodeStripsNulls(t *testing.T) {
-	node := json.RawMessage(`{
+	node := jsontext.Value(`{
 		"id": "abc",
 		"tags": null,
 		"name": "prod",

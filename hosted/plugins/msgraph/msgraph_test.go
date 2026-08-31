@@ -1,7 +1,8 @@
 package msgraph
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,18 +11,19 @@ import (
 
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestPollOnce_IngestsAlerts(t *testing.T) {
 	ts := time.Now().Add(-1 * time.Hour).Truncate(time.Second).UTC()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tid/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(AuthToken{AccessToken: "t", ExpiresIn: 3600})
+		json.MarshalWrite(w, AuthToken{AccessToken: "t", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(ODataResponse{
-			Value: []json.RawMessage{json.RawMessage(`{"id":"a1","createdDateTime":"` + ts.Format(time.RFC3339) + `"}`)},
-		})
+		json.MarshalWrite(w, ODataResponse{
+			Value: []jsontext.Value{jsontext.Value(`{"id":"a1","createdDateTime":"` + ts.Format(time.RFC3339) + `"}`)},
+		}, jsoncompat.Options)
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -52,13 +54,13 @@ func TestPollOnce_IngestsAlerts(t *testing.T) {
 func TestPollOnce_PersistsNextLink(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tid/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(AuthToken{AccessToken: "t", ExpiresIn: 3600})
+		json.MarshalWrite(w, AuthToken{AccessToken: "t", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(ODataResponse{
-			Value:    []json.RawMessage{json.RawMessage(`{"id":"a","createdDateTime":"2026-05-14T10:00:00Z"}`)},
+		json.MarshalWrite(w, ODataResponse{
+			Value:    []jsontext.Value{jsontext.Value(`{"id":"a","createdDateTime":"2026-05-14T10:00:00Z"}`)},
 			NextLink: "http://example.com/next",
-		})
+		}, jsoncompat.Options)
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -94,7 +96,7 @@ func TestPollOnce_DeduplicatesSubSecondTimestamps(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tid/oauth2/v2.0/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(AuthToken{AccessToken: "t", ExpiresIn: 3600})
+		json.MarshalWrite(w, AuthToken{AccessToken: "t", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/v1.0/security/alerts_v2", func(w http.ResponseWriter, r *http.Request) {
 		filterStr := r.URL.Query().Get("$filter")
@@ -111,9 +113,9 @@ func TestPollOnce_DeduplicatesSubSecondTimestamps(t *testing.T) {
 		}
 		// Return the alert only if it satisfies createdDateTime gt filterTS.
 		if filterTS.IsZero() || alertTS.After(filterTS) {
-			json.NewEncoder(w).Encode(ODataResponse{Value: []json.RawMessage{json.RawMessage(alertJSON)}})
+			json.MarshalWrite(w, ODataResponse{Value: []jsontext.Value{jsontext.Value(alertJSON)}}, jsoncompat.Options)
 		} else {
-			json.NewEncoder(w).Encode(ODataResponse{})
+			json.MarshalWrite(w, ODataResponse{}, jsoncompat.Options)
 		}
 	})
 	srv := httptest.NewServer(mux)

@@ -10,13 +10,14 @@ package processors
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/gravwell/jsonparser"
 )
 
@@ -118,7 +119,7 @@ func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err 
 
 func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	// if we have drop misses or strict extraction, validate the JSON first
-	if (je.Drop_Misses || je.Strict_Extraction) && !json.Valid(ent.Data) {
+	if (je.Drop_Misses || je.Strict_Extraction) && !jsontext.Value(ent.Data).IsValid(jsoncompat.Options) {
 		return nil
 	}
 	if err := je.bldr.extract(ent.Data); err != nil {

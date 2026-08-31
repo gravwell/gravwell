@@ -11,7 +11,7 @@ package processors
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -160,7 +161,7 @@ func (vp *VectorProc) Process(ents []*entry.Entry) (rset []*entry.Entry, err err
 		}
 		if n < len(idx) && idx[n] == i {
 			// Attach the embedding as a string-encoded EV named "embeddings"
-			ev, merr := json.Marshal(embeddings[n])
+			ev, merr := json.Marshal(embeddings[n], jsoncompat.Options)
 			if merr == nil {
 				merr = ent.AddEnumeratedValueEx("embeddings", string(ev))
 			}
@@ -193,7 +194,7 @@ func (vp *VectorProc) getEmbeddings(inputs []string) ([][]float64, error) {
 	reqBody, err := json.Marshal(embeddingRequest{
 		Input: inputs,
 		Model: vp.Model,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +256,7 @@ func (vp *VectorProc) doEmbeddingRequest(reqBody []byte, want int) ([][]float64,
 	}
 
 	var embResp embeddingResponse
-	if err = json.Unmarshal(body, &embResp); err != nil {
+	if err = json.Unmarshal(body, &embResp, jsoncompat.Options); err != nil {
 		return nil, false, err
 	}
 	if len(embResp.Data) != want {

@@ -11,12 +11,15 @@ package ingest
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"net"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestStreamConfigurationEncodeDecode(t *testing.T) {
@@ -110,7 +113,7 @@ func TestIngestState(t *testing.T) {
 // handling of oversized blocks.
 func writeRawIngesterState(t *testing.T, s IngesterState) *bytes.Buffer {
 	t.Helper()
-	data, err := json.Marshal(s)
+	data, err := json.Marshal(s, jsoncompat.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,15 +131,15 @@ func writeRawIngesterState(t *testing.T, s IngesterState) *bytes.Buffer {
 // off the wire and discarded (not reported), leaving the stream synchronized so
 // the connection survives.
 func TestOversizedIngestStateDiscarded(t *testing.T) {
-	bigCfg, err := json.Marshal(strings.Repeat("A", int(maxIngestStateSize)+1024))
+	bigCfg, err := json.Marshal(strings.Repeat("A", int(maxIngestStateSize)+1024), jsoncompat.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	x := IngesterState{
 		Name:          "foobar",
 		Tags:          []string{"tag1", "tag2"},
-		Configuration: json.RawMessage(bigCfg),
-		Metadata:      json.RawMessage(bigCfg),
+		Configuration: jsontext.Value(bigCfg),
+		Metadata:      jsontext.Value(bigCfg),
 		Children:      map[string]IngesterState{},
 	}
 	bb := writeRawIngesterState(t, x)

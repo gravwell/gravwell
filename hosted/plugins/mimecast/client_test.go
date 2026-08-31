@@ -9,11 +9,13 @@
 package mimecast
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -67,7 +69,7 @@ func TestAuthenticate(t *testing.T) {
 			body, _ := json.Marshal(AuthToken{
 				AccessToken: "token",
 				ExpireIn:    30 * 60,
-			})
+			}, jsoncompat.Options)
 			w.Write(body)
 		})
 
@@ -109,7 +111,7 @@ func authHandler(id, secret string, status int, token AuthToken) http.Handler {
 			return
 		}
 		w.WriteHeader(status)
-		body, _ := json.Marshal(token)
+		body, _ := json.Marshal(token, jsoncompat.Options)
 		_, _ = w.Write(body)
 	})
 }

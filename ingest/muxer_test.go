@@ -9,7 +9,7 @@
 package ingest
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"strings"
 	"sync"
@@ -19,8 +19,8 @@ import (
 
 // rawStr builds a valid JSON string value of n filler bytes for use as a
 // Configuration/Metadata block.
-func rawStr(n int) json.RawMessage {
-	return json.RawMessage(`"` + strings.Repeat("C", n) + `"`)
+func rawStr(n int) jsontext.Value {
+	return jsontext.Value(`"` + strings.Repeat("C", n) + `"`)
 }
 
 // makeChildren builds n child states, each carrying a Name of nameBytes and,
@@ -28,7 +28,7 @@ func rawStr(n int) json.RawMessage {
 func makeChildren(n, nameBytes, cfgBytes int) map[string]IngesterState {
 	m := make(map[string]IngesterState, n)
 	name := strings.Repeat("A", nameBytes)
-	var cfg json.RawMessage
+	var cfg jsontext.Value
 	if cfgBytes > 0 {
 		cfg = rawStr(cfgBytes)
 	}

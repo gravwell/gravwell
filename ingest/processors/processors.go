@@ -14,7 +14,7 @@ package processors
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/processors/plugin"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -189,7 +190,7 @@ func (pc ProcessorConfig) MarshalJSON() ([]byte, error) {
 		}
 		mp[k] = cfg
 	}
-	return json.Marshal(mp)
+	return json.Marshal(mp, jsoncompat.Options)
 }
 
 func (pc ProcessorConfig) getProcessor(name string, tgr Tagger) (p Processor, err error) {
