@@ -51,7 +51,7 @@ func (j *Jamf) initClient(ctx context.Context) {
 // whose general.reportDate falls in (lastEnd, now-buffer], paginating until
 // the API reports no more results, then schedules the next run.
 func (j *Jamf) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
-	j.initClient(rt.Context())
+	j.initClient(ctx)
 
 	tag, err := rt.NegotiateTag(j.conf.Tags()[0])
 	if err != nil {

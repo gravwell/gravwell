@@ -11,6 +11,9 @@ package jamf
 import (
 	"slices"
 	"testing"
+
+	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -140,4 +143,22 @@ func TestConfig_Verify_Sections(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigEqual(t *testing.T) {
+	configtest.CheckEqual(t, Config{
+		BaseConfig:      hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		SingleTagConfig: hosted.SingleTagConfig{Tag_Name: defaultTag},
+		PollingConfig: hosted.PollingConfig{
+			Lookback:            defaultLookback,
+			Requests_Per_Minute: defaultRequestsPerMinute,
+			Request_Interval:    defaultInterval,
+		},
+		Host:                     "https://example.jamfcloud.com",
+		Client_Id:                "id",
+		Client_Secret:            "secret",
+		Page_Size:                defaultPageSize,
+		Sections:                 defaultSections,
+		Insecure_Skip_TLS_Verify: true,
+	})
 }
