@@ -10,13 +10,16 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"time"
 
 	"errors"
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type objectTracker struct {
@@ -30,7 +33,7 @@ type trackedObjects map[string]trackedObjectState
 type trackedObjectState struct {
 	Updated    time.Time
 	LatestTime time.Time
-	Key        json.RawMessage
+	Key        jsontext.Value
 }
 
 func NewObjectTracker(pth string) (ot *objectTracker, err error) {
@@ -46,7 +49,7 @@ func NewObjectTracker(pth string) (ot *objectTracker, err error) {
 		}
 		//all good, just empty
 		err = nil
-	} else if err = json.NewDecoder(fin).Decode(&states); err != nil {
+	} else if err = json.UnmarshalRead(fin, &states, jsoncompat.Options); err != nil {
 		fin.Close()
 		err = fmt.Errorf("state file is corrupt %w", err)
 		return
@@ -69,7 +72,7 @@ func (ot *objectTracker) Flush() (err error) {
 		return
 	}
 	bb := bytes.NewBuffer(nil)
-	if err = json.NewEncoder(bb).Encode(ot.states); err == nil {
+	if err = json.MarshalWrite(bb, ot.states, jsoncompat.Options); err == nil {
 		tpath := ot.statePath + `.temp`
 		if err = os.WriteFile(tpath, bb.Bytes(), 0660); err == nil {
 			if err = os.Rename(tpath, ot.statePath); err != nil {

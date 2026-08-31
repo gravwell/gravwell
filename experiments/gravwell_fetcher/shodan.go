@@ -10,7 +10,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -119,8 +121,8 @@ type shodanHostResponse struct {
 }
 
 type shodanSearchResponse struct {
-	Matches []json.RawMessage `json:"matches"`
-	Total   int               `json:"total"`
+	Matches []jsontext.Value `json:"matches"`
+	Total   int              `json:"total"`
 }
 
 type shodanCountResponse struct {
@@ -147,7 +149,7 @@ func buildShodanHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *l
 			query := shodanQueryResponse{
 				Query: v.Query,
 			}
-			keyBytes, err := json.Marshal(query)
+			keyBytes, err := json.Marshal(query, jsoncompat.Options)
 			if err != nil {
 				lg.Error("Failed to marshal last entry key", log.KVErr(err))
 			}
@@ -223,7 +225,7 @@ func (h *shodanHandlerConfig) run() {
 			}
 
 			var lastKey shodanQueryResponse
-			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+			if err = json.Unmarshal(latestTS.Key, &lastKey, jsoncompat.Options); err != nil {
 				lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
 				// If we can't unmarshal, start with empty key
 				lastKey.Query = ""
@@ -239,7 +241,7 @@ func (h *shodanHandlerConfig) run() {
 			}
 
 			var lastKey shodanQueryResponse
-			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+			if err = json.Unmarshal(latestTS.Key, &lastKey, jsoncompat.Options); err != nil {
 				lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
 				// If we can't unmarshal, start with empty key
 				lastKey.Query = ""
@@ -254,7 +256,7 @@ func (h *shodanHandlerConfig) run() {
 			}
 
 			var lastKey shodanQueryResponse
-			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+			if err = json.Unmarshal(latestTS.Key, &lastKey, jsoncompat.Options); err != nil {
 				lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
 				// If we can't unmarshal, start with empty key
 				lastKey.Query = ""
@@ -314,12 +316,12 @@ func getShodanHostData(h *shodanHandlerConfig, latestTS string, src net.IP, rl *
 	}
 
 	var hostResp shodanHostResponse
-	if err = json.NewDecoder(resp.Body).Decode(&hostResp); err != nil {
+	if err = json.UnmarshalRead(resp.Body, &hostResp, jsoncompat.Options); err != nil {
 		return err
 	}
 
 	// Convert the response to JSON for ingestion
-	jsonData, err := json.Marshal(hostResp)
+	jsonData, err := json.Marshal(hostResp, jsoncompat.Options)
 	if err != nil {
 		return err
 	}
@@ -341,7 +343,7 @@ func getShodanHostData(h *shodanHandlerConfig, latestTS string, src net.IP, rl *
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        json.RawMessage(`{"key": "none"}`),
+		Key:        jsontext.Value(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {
@@ -383,7 +385,7 @@ func getShodanSearchData(h *shodanHandlerConfig, latestTS string, src net.IP, rl
 	}
 
 	var searchResp shodanSearchResponse
-	if err = json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
+	if err = json.UnmarshalRead(resp.Body, &searchResp, jsoncompat.Options); err != nil {
 		return err
 	}
 
@@ -411,7 +413,7 @@ func getShodanSearchData(h *shodanHandlerConfig, latestTS string, src net.IP, rl
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        json.RawMessage(`{"key": "none"}`),
+		Key:        jsontext.Value(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {
@@ -453,7 +455,7 @@ func getShodanCountData(h *shodanHandlerConfig, latestTS string, src net.IP, rl 
 	}
 
 	var countResp shodanCountResponse
-	if err = json.NewDecoder(resp.Body).Decode(&countResp); err != nil {
+	if err = json.UnmarshalRead(resp.Body, &countResp, jsoncompat.Options); err != nil {
 		return err
 	}
 
@@ -464,7 +466,7 @@ func getShodanCountData(h *shodanHandlerConfig, latestTS string, src net.IP, rl 
 		"total": countResp.Total,
 	}
 
-	jsonData, err := json.Marshal(countData)
+	jsonData, err := json.Marshal(countData, jsoncompat.Options)
 	if err != nil {
 		return err
 	}
@@ -486,7 +488,7 @@ func getShodanCountData(h *shodanHandlerConfig, latestTS string, src net.IP, rl 
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        json.RawMessage(`{"key": "none"}`),
+		Key:        jsontext.Value(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {

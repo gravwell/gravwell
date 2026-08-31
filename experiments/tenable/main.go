@@ -10,7 +10,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	glog "github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -214,7 +215,7 @@ type scanResult struct {
 func checkResults(data []byte, cli *http.Client, access, secret string, tag entry.EntryTag, src net.IP, igst *ingest.IngestMuxer, ctx context.Context) error {
 	// attempt to decode the portion of the scan results that we need
 	var r scanResults
-	err := json.Unmarshal(data, &r)
+	err := json.Unmarshal(data, &r, jsoncompat.Options)
 	if err != nil {
 		return err
 	}
@@ -291,7 +292,7 @@ func getScanDetails(uuid string, cli *http.Client, access, secret string, tag en
 
 	// attempt to grab the timestamp
 	var d scanDetails
-	err = json.Unmarshal(data, &d)
+	err = json.Unmarshal(data, &d, jsoncompat.Options)
 	var ts entry.Timestamp
 	if err != nil {
 		// just use now?

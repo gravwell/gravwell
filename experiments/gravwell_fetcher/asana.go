@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
@@ -16,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -37,8 +39,8 @@ type asanaHandlerConfig struct {
 }
 
 type asanaData struct {
-	Data     []json.RawMessage `json:"data"`
-	NextPage *next_page        `json:"next_page"`
+	Data     []jsontext.Value `json:"data"`
+	NextPage *next_page       `json:"next_page"`
 }
 
 type asanaDataItem struct {
@@ -68,7 +70,7 @@ func buildAsanaHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *lo
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        json.RawMessage(`{"key": "none"}`),
+				Key:        jsontext.Value(`{"key": "none"}`),
 			}
 			err := ot.Set("asana", v.Workspace, state, false)
 			if err != nil {
@@ -186,7 +188,7 @@ func getAsanaLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *rate.Lim
 		lg.Info(fmt.Sprintf("got page with length %v", len(data)))
 
 		var d asanaData
-		if err = json.Unmarshal(data, &d); err != nil {
+		if err = json.Unmarshal(data, &d, jsoncompat.Options); err != nil {
 			return err
 		}
 
@@ -197,7 +199,7 @@ func getAsanaLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *rate.Lim
 		for _, v := range d.Data {
 			// attempt to get the timestamp
 			var t asanaDataItem
-			if err = json.Unmarshal(v, &t); err != nil {
+			if err = json.Unmarshal(v, &t, jsoncompat.Options); err != nil {
 				t.Timestamp = time.Now() // could not find ts
 				lg.Info("could not find ts")
 			} else if t.Timestamp.After(latestTS) {

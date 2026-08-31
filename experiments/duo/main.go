@@ -10,7 +10,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	glog "github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -115,13 +117,13 @@ func main() {
 }
 
 type accountResponse struct {
-	Stat     string          `json:"stat"`
-	Response json.RawMessage `json:"response"`
+	Stat     string         `json:"stat"`
+	Response jsontext.Value `json:"response"`
 }
 
 type adminResponse struct {
-	Stat     string            `json:"stat"`
-	Response []json.RawMessage `json:"response"`
+	Stat     string           `json:"stat"`
+	Response []jsontext.Value `json:"response"`
 }
 
 type adminItem struct {
@@ -134,8 +136,8 @@ type activityResponse struct {
 }
 
 type activityInternalResponse struct {
-	Items    []json.RawMessage `json:"items"`
-	Metadata activityMetaData  `json:"metadata"`
+	Items    []jsontext.Value `json:"items"`
+	Metadata activityMetaData `json:"metadata"`
 }
 
 type activityMetaData struct {
@@ -153,8 +155,8 @@ type authResponse struct {
 }
 
 type authInternalResponse struct {
-	Items    []json.RawMessage `json:"authlogs"`
-	Metadata authMetaData      `json:"metadata"`
+	Items    []jsontext.Value `json:"authlogs"`
+	Metadata authMetaData     `json:"metadata"`
 }
 
 type authMetaData struct {
@@ -167,8 +169,8 @@ type authItem struct {
 }
 
 type endpointResponse struct {
-	Stat     string            `json:"stat"`
-	Response []json.RawMessage `json:"response"`
+	Stat     string           `json:"stat"`
+	Response []jsontext.Value `json:"response"`
 }
 
 type endpointItem struct {
@@ -181,8 +183,8 @@ type trustResponse struct {
 }
 
 type trustInternalResponse struct {
-	Events   []json.RawMessage `json:"events"`
-	Metadata trustMetaData     `json:"metadata"`
+	Events   []jsontext.Value `json:"events"`
+	Metadata trustMetaData    `json:"metadata"`
 }
 
 type trustMetaData struct {
@@ -292,7 +294,7 @@ func getAccountLog(api *duoapi.DuoApi, tag entry.EntryTag, src net.IP, igst *ing
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(data, &accountR)
+	err = json.Unmarshal(data, &accountR, jsoncompat.Options)
 	if err != nil {
 		return err
 	}
@@ -319,7 +321,7 @@ func getAdminLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &adminR)
+	err = json.Unmarshal(data, &adminR, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -328,7 +330,7 @@ func getAdminLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src
 	var ents []*entry.Entry
 	for _, v := range adminR.Response {
 		var tsItem adminItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -371,7 +373,7 @@ func getActivityLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -380,7 +382,7 @@ func getActivityLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Items {
 		var tsItem activityItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -424,7 +426,7 @@ func getTelephonyLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time,
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -433,7 +435,7 @@ func getTelephonyLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time,
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Items {
 		var tsItem activityItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -476,7 +478,7 @@ func getAuthLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src 
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -485,7 +487,7 @@ func getAuthLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src 
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Items {
 		var tsItem authItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -525,7 +527,7 @@ func getEndpointLog(api *duoapi.DuoApi, tag entry.EntryTag, src net.IP, igst *in
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return err
 	}
@@ -534,7 +536,7 @@ func getEndpointLog(api *duoapi.DuoApi, tag entry.EntryTag, src net.IP, igst *in
 	var ents []*entry.Entry
 	for _, v := range resp.Response {
 		var tsItem endpointItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return err
 		}
@@ -574,7 +576,7 @@ func getTrustLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -583,7 +585,7 @@ func getTrustLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Events {
 		var tsItem trustItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}

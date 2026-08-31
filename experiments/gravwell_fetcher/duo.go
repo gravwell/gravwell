@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 
 	"golang.org/x/time/rate"
 )
@@ -58,13 +60,13 @@ type duoHandlerConfig struct {
 Bring in any new types needed to pull out the data
 */
 type accountResponse struct {
-	Stat     string          `json:"stat"`
-	Response json.RawMessage `json:"response"`
+	Stat     string         `json:"stat"`
+	Response jsontext.Value `json:"response"`
 }
 
 type adminResponse struct {
-	Stat     string            `json:"stat"`
-	Response []json.RawMessage `json:"response"`
+	Stat     string           `json:"stat"`
+	Response []jsontext.Value `json:"response"`
 }
 
 type adminItem struct {
@@ -77,8 +79,8 @@ type activityResponse struct {
 }
 
 type activityInternalResponse struct {
-	Items    []json.RawMessage `json:"items"`
-	Metadata activityMetaData  `json:"metadata"`
+	Items    []jsontext.Value `json:"items"`
+	Metadata activityMetaData `json:"metadata"`
 }
 
 type activityMetaData struct {
@@ -96,8 +98,8 @@ type authResponse struct {
 }
 
 type authInternalResponse struct {
-	Items    []json.RawMessage `json:"authlogs"`
-	Metadata authMetaData      `json:"metadata"`
+	Items    []jsontext.Value `json:"authlogs"`
+	Metadata authMetaData     `json:"metadata"`
 }
 
 type authMetaData struct {
@@ -110,8 +112,8 @@ type authItem struct {
 }
 
 type endpointResponse struct {
-	Stat     string            `json:"stat"`
-	Response []json.RawMessage `json:"response"`
+	Stat     string           `json:"stat"`
+	Response []jsontext.Value `json:"response"`
 }
 
 type endpointItem struct {
@@ -124,8 +126,8 @@ type trustResponse struct {
 }
 
 type trustInternalResponse struct {
-	Events   []json.RawMessage `json:"events"`
-	Metadata trustMetaData     `json:"metadata"`
+	Events   []jsontext.Value `json:"events"`
+	Metadata trustMetaData    `json:"metadata"`
 }
 
 type trustMetaData struct {
@@ -148,7 +150,7 @@ func buildDuoHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        json.RawMessage(`{"key": "none"}`),
+				Key:        jsontext.Value(`{"key": "none"}`),
 			}
 			err := ot.Set("duo", k, state, false)
 			if err != nil {
@@ -314,7 +316,7 @@ func getDuoAccountLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time
 		lg.Error(fmt.Sprintf("Failed SignedCall for Duo %s", h.name), log.KVErr(err))
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &accountR)
+	err = json.Unmarshal(data, &accountR, jsoncompat.Options)
 	if err != nil {
 		lg.Error(fmt.Sprintf("Failed JSON unmarshall for Duo %s", h.name), log.KVErr(err))
 		return latestTS, err
@@ -344,7 +346,7 @@ func getDuoAdminLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &adminR)
+	err = json.Unmarshal(data, &adminR, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -353,7 +355,7 @@ func getDuoAdminLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 	var ents []*entry.Entry
 	for _, v := range adminR.Response {
 		var tsItem adminItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -394,7 +396,7 @@ func getDuoActivityLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Tim
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -403,7 +405,7 @@ func getDuoActivityLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Tim
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Items {
 		var tsItem activityItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -445,7 +447,7 @@ func getDuoTelephonyLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Ti
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -454,7 +456,7 @@ func getDuoTelephonyLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Ti
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Items {
 		var tsItem activityItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -495,7 +497,7 @@ func getDuoAuthLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, s
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -504,7 +506,7 @@ func getDuoAuthLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, s
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Items {
 		var tsItem authItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -542,7 +544,7 @@ func getDuoEndpointLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Tim
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -551,7 +553,7 @@ func getDuoEndpointLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Tim
 	var ents []*entry.Entry
 	for _, v := range resp.Response {
 		var tsItem endpointItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
@@ -593,7 +595,7 @@ func getDuoTrustLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 	if err != nil {
 		return latestTS, err
 	}
-	err = json.Unmarshal(data, &resp)
+	err = json.Unmarshal(data, &resp, jsoncompat.Options)
 	if err != nil {
 		return latestTS, err
 	}
@@ -602,12 +604,12 @@ func getDuoTrustLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 	var ents []*entry.Entry
 	for _, v := range resp.Response.Events {
 		var tsItem trustItem
-		err = json.Unmarshal(v, &tsItem)
+		err = json.Unmarshal(v, &tsItem, jsoncompat.Options)
 		if err != nil {
 			return latestTS, err
 		}
 
-		data, err := json.Marshal(v)
+		data, err := json.Marshal(v, jsoncompat.Options)
 		if err != nil {
 			lg.Warn("failed to re-pack entry", log.KV("thinkst", h.name), log.KVErr(err))
 			continue

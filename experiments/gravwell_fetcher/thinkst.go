@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
@@ -17,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -92,13 +94,13 @@ type thinkstIncidentsResponse struct {
 		Prev     any `json:"prev"`
 		PrevLink any `json:"prev_link"`
 	} `json:"cursor"`
-	Feed             string            `json:"feed"`
-	Incidents        []json.RawMessage `json:"incidents"`
-	MaxUpdatedID     int               `json:"max_updated_id"`
-	Result           string            `json:"result"`
-	Updated          string            `json:"updated"`
-	UpdatedStd       string            `json:"updated_std"`
-	UpdatedTimestamp int               `json:"updated_timestamp"`
+	Feed             string           `json:"feed"`
+	Incidents        []jsontext.Value `json:"incidents"`
+	MaxUpdatedID     int              `json:"max_updated_id"`
+	Result           string           `json:"result"`
+	Updated          string           `json:"updated"`
+	UpdatedStd       string           `json:"updated_std"`
+	UpdatedTimestamp int              `json:"updated_timestamp"`
 }
 
 type thinkstAuditTrail struct {
@@ -116,7 +118,7 @@ type thinkstAuditTrail struct {
 	UserIP                string `json:"user_ip"`
 }
 type thinkstAuditTrailsResponse struct {
-	AuditTrail []json.RawMessage `json:"audit_trail"`
+	AuditTrail []jsontext.Value `json:"audit_trail"`
 	Cursor     struct {
 		Next any `json:"next"`
 		Prev any `json:"prev"`
@@ -150,7 +152,7 @@ func buildThinkstHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: sTime,
-				Key:        json.RawMessage(`{"key": "none"}`),
+				Key:        jsontext.Value(`{"key": "none"}`),
 			}
 			err := ot.Set("thinkst", k, state, false)
 			if err != nil {
@@ -216,7 +218,7 @@ func (h *thinkstHandlerConfig) run() {
 				lg.Fatal("failed to get state tracker", log.KV("listener", h.name), log.KV("tag", h.tag))
 			}
 			var lastKey thinkstLastEntryKey
-			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+			if err = json.Unmarshal(latestTS.Key, &lastKey, jsoncompat.Options); err != nil {
 				if latestTS.Key != nil {
 					lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
 				}
@@ -304,7 +306,7 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 		lg.Info(fmt.Sprintf("got page with length %v", len(data)))
 
 		var d thinkstIncidentsResponse
-		if err = json.Unmarshal(data, &d); err != nil {
+		if err = json.Unmarshal(data, &d, jsoncompat.Options); err != nil {
 			return err
 		}
 
@@ -316,7 +318,7 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 			// attempt to get the timestamp
 			var t thinkstIncident
 			var entryTime time.Time
-			if err = json.Unmarshal(v, &t); err == nil {
+			if err = json.Unmarshal(v, &t, jsoncompat.Options); err == nil {
 				r, err := time.Parse("2006-01-02 15:04:05 MST-0700", t.UpdatedStd)
 				if err != nil {
 					entryTime = time.Now()
@@ -334,7 +336,7 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 				}
 			}
 
-			data, err := json.Marshal(v)
+			data, err := json.Marshal(v, jsoncompat.Options)
 			if err != nil {
 				lg.Warn("failed to re-pack entry", log.KV("thinkst", h.name), log.KVErr(err))
 				continue
@@ -361,7 +363,7 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 			newKey := thinkstLastEntryKey{
 				LastEntryKey: lastEntryKey,
 			}
-			keyBytes, err := json.Marshal(newKey)
+			keyBytes, err := json.Marshal(newKey, jsoncompat.Options)
 			if err != nil {
 				lg.Error("Failed to marshal last entry key", log.KVErr(err))
 				newKey.LastEntryKey = latestTS
@@ -436,7 +438,7 @@ func getThinkstAuditLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *r
 		lg.Info(fmt.Sprintf("got page with length %v", len(data)))
 
 		var d thinkstAuditTrailsResponse
-		if err = json.Unmarshal(data, &d); err != nil {
+		if err = json.Unmarshal(data, &d, jsoncompat.Options); err != nil {
 			return err
 		}
 
@@ -449,7 +451,7 @@ func getThinkstAuditLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *r
 			var at thinkstAuditTrail
 			var entryTime time.Time
 			//Attempt to unmarshall the object
-			if err = json.Unmarshal(v, &at); err == nil {
+			if err = json.Unmarshal(v, &at, jsoncompat.Options); err == nil {
 				i, err := time.Parse("2006-01-02 15:04:05 MST-0700", at.Timestamp)
 				if err != nil {
 					entryTime = time.Now()
@@ -465,7 +467,7 @@ func getThinkstAuditLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *r
 			}
 
 			if entryTime.After(latestTS) {
-				data, err := json.Marshal(v)
+				data, err := json.Marshal(v, jsoncompat.Options)
 				if err != nil {
 					lg.Warn("failed to re-pack entry", log.KV("thinkst", h.name), log.KVErr(err))
 					continue
@@ -498,7 +500,7 @@ func getThinkstAuditLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *r
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: lastTimeEntry,
-				Key:        json.RawMessage(`{"key": "none"}`),
+				Key:        jsontext.Value(`{"key": "none"}`),
 			}
 			err := ot.Set("thinkst", h.name, state, false)
 			if err != nil {
