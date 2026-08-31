@@ -9,7 +9,7 @@
 package client
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // TestIngest returns whether or not this client is allowed to ingest data
@@ -34,7 +35,7 @@ func (c *Client) IngestEntries(entries []types.StringTagEntry) error {
 	// and doesn't have memory restrictions
 	cb := func(wtr io.Writer) error {
 		for _, e := range entries {
-			if b, err := json.Marshal(e); err != nil {
+			if b, err := json.Marshal(e, jsoncompat.Options); err != nil {
 				return err
 			} else {
 				wtr.Write(b)

@@ -10,12 +10,13 @@ package types
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // StringTagEntry is used for scripting and ingesting entries via the webserver.
@@ -63,7 +64,7 @@ func (p PrintableSearchEntry) MarshalJSON() ([]byte, error) {
 		Tag:        p.Tag,
 		Data:       string(p.Data),
 		Enumerated: p.Enumerated,
-	})
+	}, jsoncompat.Options)
 }
 
 // GetEnumerated returns the string representation of an enumerated value in a SearchEntry.

@@ -9,7 +9,7 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"slices"
 	"strings"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/gobwas/glob"
 	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type Capability uint16
@@ -144,7 +145,7 @@ func (st CapabilityState) MarshalJSON() ([]byte, error) {
 		Grants emptyStrings
 	}{
 		st.Grants,
-	})
+	}, jsoncompat.Options)
 }
 
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
@@ -850,7 +851,7 @@ func (ta TagAccess) MarshalJSON() ([]byte, error) {
 		Grants emptyStrings
 	}{
 		ta.Grants,
-	})
+	}, jsoncompat.Options)
 }
 
 const globChars = `*?[]{}!`

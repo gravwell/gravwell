@@ -9,9 +9,10 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type TableRow struct {
@@ -95,7 +96,7 @@ func (t TableValueSet) MarshalJSON() ([]byte, error) {
 	}{
 		alias:   alias(t),
 		Columns: emptyStrings(t.Columns),
-	})
+	}, jsoncompat.Options)
 }
 
 func (r TableRow) MarshalJSON() ([]byte, error) {
@@ -105,11 +106,11 @@ func (r TableRow) MarshalJSON() ([]byte, error) {
 	}{
 		TS:  r.TS,
 		Row: emptyStrings(r.Row),
-	})
+	}, jsoncompat.Options)
 }
 
 func (x TableResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (x TableResponse) MarshalJSON() ([]byte, error) {
 		Entries TableValueSet
 	}{
 		Entries: x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +129,7 @@ func (x TableResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (x GaugeResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func (x GaugeResponse) MarshalJSON() ([]byte, error) {
 		Entries []GaugeValue
 	}{
 		Entries: x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func (x GaugeResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (x WordcloudResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +158,7 @@ func (x WordcloudResponse) MarshalJSON() ([]byte, error) {
 		Entries []WordcloudValue
 	}{
 		Entries: x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}

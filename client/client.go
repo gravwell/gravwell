@@ -11,7 +11,7 @@ package client
 
 import (
 	"crypto/tls"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log"
@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/objlog"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 
 	"bytes"
 
@@ -314,7 +315,7 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 		return loginResp, fmt.Errorf("Invalid response: %d", resp.StatusCode)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &loginResp, jsoncompat.Options); err != nil {
 		return loginResp, err
 	}
 	if err := c.processLoginResponse(loginResp); err != nil {
@@ -349,7 +350,7 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	b, err := json.Marshal(loginCreds)
+	b, err := json.Marshal(loginCreds, jsoncompat.Options)
 	if err != nil {
 		return loginResp, err
 	}
@@ -380,7 +381,7 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 		return loginResp, fmt.Errorf("Invalid response: %d", resp.StatusCode)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &loginResp, jsoncompat.Options); err != nil {
 		return loginResp, err
 	}
 	if err := c.processLoginResponse(loginResp); err != nil {
@@ -444,7 +445,7 @@ func (c *Client) RefreshLoginToken() (err error) {
 	}
 
 	var loginResp types.LoginResponse
-	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &loginResp, jsoncompat.Options); err != nil {
 		return err
 	}
 	return c.processLoginResponse(loginResp)

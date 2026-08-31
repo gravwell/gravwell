@@ -9,11 +9,12 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type SearchModuleStatsUpdate struct {
@@ -45,7 +46,7 @@ func (sms *SearchModuleStats) Size() int64 {
 }
 
 func (sms SearchModuleStats) JSON() ([]byte, error) {
-	b, err := json.Marshal(sms)
+	b, err := json.Marshal(sms, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +195,7 @@ func (s *SearchModuleStatsUpdate) MarshalJSON() ([]byte, error) {
 	}{
 		alias: alias(*s),
 		Stats: sms(s.Stats),
-	})
+	}, jsoncompat.Options)
 }
 
 func (ss *StatSet) MarshalJSON() ([]byte, error) {
@@ -205,7 +206,7 @@ func (ss *StatSet) MarshalJSON() ([]byte, error) {
 	}{
 		alias: alias(*ss),
 		Stats: sms(ss.Stats),
-	})
+	}, jsoncompat.Options)
 }
 
 func (m *IndexManagerStats) MarshalJSON() ([]byte, error) {
@@ -216,7 +217,7 @@ func (m *IndexManagerStats) MarshalJSON() ([]byte, error) {
 	}{
 		alias: alias(*m),
 		Stats: ls(m.Stats),
-	})
+	}, jsoncompat.Options)
 }
 
 func (m *IdxStats) MarshalJSON() ([]byte, error) {
@@ -227,7 +228,7 @@ func (m *IdxStats) MarshalJSON() ([]byte, error) {
 	}{
 		alias:      alias(*m),
 		IndexStats: is(m.IndexStats),
-	})
+	}, jsoncompat.Options)
 }
 
 type is []IndexManagerStats
@@ -236,7 +237,7 @@ func (i is) MarshalJSON() ([]byte, error) {
 	if len(i) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]IndexManagerStats(i))
+	return json.Marshal([]IndexManagerStats(i), jsoncompat.Options)
 }
 
 type ls []IndexerStats
@@ -245,7 +246,7 @@ func (m ls) MarshalJSON() ([]byte, error) {
 	if len(m) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]IndexerStats(m))
+	return json.Marshal([]IndexerStats(m), jsoncompat.Options)
 }
 
 type sms []SearchModuleStats
@@ -254,5 +255,5 @@ func (m sms) MarshalJSON() ([]byte, error) {
 	if len(m) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]SearchModuleStats(m))
+	return json.Marshal([]SearchModuleStats(m), jsoncompat.Options)
 }

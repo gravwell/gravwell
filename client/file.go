@@ -10,7 +10,7 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -170,7 +171,7 @@ func (c *Client) PopulateFileFromReader(id string, extension string, data io.Rea
 
 	// decode the metadata response
 	confirmation := types.File{}
-	if err := json.NewDecoder(resp.Body).Decode(&confirmation); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &confirmation, jsoncompat.Options); err != nil {
 		return types.File{}, err
 	}
 

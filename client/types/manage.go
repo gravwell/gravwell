@@ -9,11 +9,12 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"sort"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -76,7 +77,7 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 	if !si.RemoteState.isEmpty() {
 		x.RemoteState = &si.RemoteState
 	}
-	return json.Marshal(x)
+	return json.Marshal(x, jsoncompat.Options)
 }
 
 type WellInfo struct {
@@ -180,7 +181,7 @@ func (iwd IndexerWellData) MarshalJSON() ([]byte, error) {
 		Replicated: erp(iwd.Replicated),
 	}
 
-	return json.Marshal(x)
+	return json.Marshal(x, jsoncompat.Options)
 }
 
 type erp map[uuid.UUID][]WellInfo
@@ -189,7 +190,7 @@ func (v erp) MarshalJSON() ([]byte, error) {
 	if len(v) == 0 {
 		return emptyObj, nil
 	}
-	return json.Marshal(map[uuid.UUID][]WellInfo(v))
+	return json.Marshal(map[uuid.UUID][]WellInfo(v), jsoncompat.Options)
 }
 
 type eshardList []ShardInfo
@@ -198,7 +199,7 @@ func (el eshardList) MarshalJSON() ([]byte, error) {
 	if len(el) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]ShardInfo(el))
+	return json.Marshal([]ShardInfo(el), jsoncompat.Options)
 }
 
 func (wi WellInfo) MarshalJSON() ([]byte, error) {
@@ -212,7 +213,7 @@ func (wi WellInfo) MarshalJSON() ([]byte, error) {
 		Tags:   emptyStrings(wi.Tags),
 		Shards: eshardList(wi.Shards),
 	}
-	return json.Marshal(ts)
+	return json.Marshal(ts, jsoncompat.Options)
 }
 
 type emptyWellList []WellInfo
@@ -221,7 +222,7 @@ func (e emptyWellList) MarshalJSON() ([]byte, error) {
 	if len(e) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]WellInfo(e))
+	return json.Marshal([]WellInfo(e), jsoncompat.Options)
 }
 
 func (rs ReplicationState) isEmpty() bool {

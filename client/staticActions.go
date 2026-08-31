@@ -11,7 +11,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -161,7 +162,7 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	defer drainResponse(resp)
 
 	if obj != nil {
-		if err := json.NewDecoder(resp.Body).Decode(&obj); err != nil {
+		if err := json.UnmarshalRead(resp.Body, &obj, jsoncompat.Options); err != nil {
 			return err
 		}
 	}
@@ -230,7 +231,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	defer drainResponse(resp)
 
 	if recvObj != nil {
-		if err := json.NewDecoder(resp.Body).Decode(&recvObj); err != nil {
+		if err := json.UnmarshalRead(resp.Body, &recvObj, jsoncompat.Options); err != nil {
 			return err
 		}
 	}
@@ -243,7 +244,7 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	var err error
 
 	if sendObj != nil {
-		jsonBytes, err = json.Marshal(sendObj)
+		jsonBytes, err = json.Marshal(sendObj, jsoncompat.Options)
 		if err != nil {
 			return err
 		}
@@ -279,7 +280,7 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	defer drainResponse(resp)
 
 	if recvObj != nil {
-		if err := json.NewDecoder(resp.Body).Decode(&recvObj); err != nil {
+		if err := json.UnmarshalRead(resp.Body, &recvObj, jsoncompat.Options); err != nil {
 			return err
 		}
 	}
@@ -324,7 +325,7 @@ func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadReques
 func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (res types.SearchDownloadResponse, err error) {
 	var data []byte
 	var req *http.Request
-	if data, err = json.Marshal(sdr); err != nil {
+	if data, err = json.Marshal(sdr, jsoncompat.Options); err != nil {
 		return
 	}
 
@@ -356,7 +357,7 @@ func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID 
 		return
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&res)
+	err = json.UnmarshalRead(resp.Body, &res, jsoncompat.Options)
 
 	return
 }
@@ -646,11 +647,18 @@ func decodeBodyError(rdr io.Reader) error {
 	if rdr == nil {
 		return nil
 	}
-	err := json.NewDecoder(rdr).Decode(&be)
-	if err == nil {
-		return errors.New(be.Error)
-	} else if err == io.EOF {
+	// Read fully and check for emptiness explicitly: encoding/json/v2's
+	// UnmarshalRead reports a totally empty reader as "unexpected EOF" rather
+	// than the bare io.EOF that encoding/json's Decoder.Decode used.
+	data, err := io.ReadAll(rdr)
+	if err != nil {
+		return err
+	}
+	if len(data) == 0 {
 		return nil
 	}
-	return err
+	if err := json.Unmarshal(data, &be, jsoncompat.Options); err != nil {
+		return err
+	}
+	return errors.New(be.Error)
 }

@@ -9,7 +9,8 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"reflect"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -195,10 +197,10 @@ type StartSearchRequest struct {
 	Preview bool `json:",omitempty"`
 	//NonTemporal is used to hint that we do not want this query to be temporal IF POSSIBLE
 	//some queries cannot respect this, but things like table and some charts can
-	NonTemporal bool            `json:",omitempty"`
-	Metadata    json.RawMessage `json:",omitempty"`
-	Addendum    json.RawMessage `json:",omitempty"`
-	Name        string          `json:",omitempty"`
+	NonTemporal bool           `json:",omitempty"`
+	Metadata    jsontext.Value `json:",omitempty"`
+	Addendum    jsontext.Value `json:",omitempty"`
+	Name        string         `json:",omitempty"`
 	Filters     []FilterRequest
 	LaunchInfo  SearchLaunchInfo // information about how a search was launched
 	// Sharing parameters
@@ -224,8 +226,8 @@ type StartSearchResponse struct {
 	Background           bool             `json:",omitempty"`
 	NonTemporal          bool             `json:",omitempty"`
 	CollapsingIndex      int              // index of the first collapsed module
-	Metadata             json.RawMessage  `json:",omitempty"`
-	Addendum             json.RawMessage  `json:",omitempty"`
+	Metadata             jsontext.Value   `json:",omitempty"`
+	Addendum             jsontext.Value   `json:",omitempty"`
 	LaunchInfo           SearchLaunchInfo // information about how a search was launched
 	QueryTimeSpecified   bool             `json:",omitempty"` // True if the query itself specifies the time spec
 	SearchHints
@@ -264,19 +266,19 @@ type AttachSearchResponse struct {
 type SearchInfo struct {
 	CommonFields
 
-	UserQuery      string          //query provided by the user on search
-	EffectiveQuery string          //the effective query that was actually used
-	StartRange     time.Time       //start time range
-	EndRange       time.Time       //end time range
-	Started        time.Time       //time when the search was kicked off
-	LastUpdate     time.Time       //last timestamp we saw (tells us where indexers are working)
-	Duration       time.Duration   //Amount of time required to complete the search
-	StoreSize      int64           //size of the main storage file
-	IndexSize      int64           //size of an extra index file
-	ItemCount      int64           //How many items have been stored
-	Metadata       json.RawMessage `json:",omitempty"` //additional metadata associated with a search
-	NoHistory      bool            // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
-	Background     bool            // set to true if this search has been marked as backgrounded.
+	UserQuery      string         //query provided by the user on search
+	EffectiveQuery string         //the effective query that was actually used
+	StartRange     time.Time      //start time range
+	EndRange       time.Time      //end time range
+	Started        time.Time      //time when the search was kicked off
+	LastUpdate     time.Time      //last timestamp we saw (tells us where indexers are working)
+	Duration       time.Duration  //Amount of time required to complete the search
+	StoreSize      int64          //size of the main storage file
+	IndexSize      int64          //size of an extra index file
+	ItemCount      int64          //How many items have been stored
+	Metadata       jsontext.Value `json:",omitempty"` //additional metadata associated with a search
+	NoHistory      bool           // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
+	Background     bool           // set to true if this search has been marked as backgrounded.
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
 
@@ -361,7 +363,7 @@ func (rs RendererSettings) MarshalJSON() ([]byte, error) {
 		// Empty RendererSettings
 		return []byte(`null`), nil
 	}
-	return json.Marshal(active)
+	return json.Marshal(active, jsoncompat.Options)
 }
 
 func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
@@ -373,62 +375,62 @@ func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
 	var temp struct {
 		Renderer string
 	}
-	if err := json.Unmarshal(data, &temp); err != nil {
+	if err := json.Unmarshal(data, &temp, jsoncompat.Options); err != nil {
 		return err
 	}
 
 	switch temp.Renderer {
 	case RenderNameChart:
 		var chart RSChart
-		if err := json.Unmarshal(data, &chart); err != nil {
+		if err := json.Unmarshal(data, &chart, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.Chart = &chart
 	case RenderNameP2P:
 		var p2p RSP2P
-		if err := json.Unmarshal(data, &p2p); err != nil {
+		if err := json.Unmarshal(data, &p2p, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.P2P = &p2p
 	case RenderNameNumbercard, RenderNameGauge:
 		var number RSNumber
-		if err := json.Unmarshal(data, &number); err != nil {
+		if err := json.Unmarshal(data, &number, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.Number = &number
 	case RenderNameHeatmap:
 		var heatmap RSHeatmap
-		if err := json.Unmarshal(data, &heatmap); err != nil {
+		if err := json.Unmarshal(data, &heatmap, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.Heatmap = &heatmap
 	case RenderNamePointmap:
 		var pointmap RSPointmap
-		if err := json.Unmarshal(data, &pointmap); err != nil {
+		if err := json.Unmarshal(data, &pointmap, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.Pointmap = &pointmap
 	case RenderNameStackGraph:
 		var stackgraph RSStackGraph
-		if err := json.Unmarshal(data, &stackgraph); err != nil {
+		if err := json.Unmarshal(data, &stackgraph, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.StackGraph = &stackgraph
 	case RenderNameWordcloud:
 		var wordcloud RSWordCloud
-		if err := json.Unmarshal(data, &wordcloud); err != nil {
+		if err := json.Unmarshal(data, &wordcloud, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.WordCloud = &wordcloud
 	case RenderNameTable, RenderNameHex, RenderNamePcap, RenderNameRaw, RenderNameText:
 		var tabular RSTabular
-		if err := json.Unmarshal(data, &tabular); err != nil {
+		if err := json.Unmarshal(data, &tabular, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.Tabular = &tabular
 	case RenderNameFdg:
 		var fdg RSFdg
-		if err := json.Unmarshal(data, &fdg); err != nil {
+		if err := json.Unmarshal(data, &fdg, jsoncompat.Options); err != nil {
 			return err
 		}
 		rs.Fdg = &fdg
@@ -560,12 +562,12 @@ type SearchDownloadRequest struct {
 }
 
 type RowSelection struct {
-	Kind string
+	Kind string `json:"kind"`
 	// Start and End must be populated if it is a range, but not Index
-	Start uint64 `json:",omitempty"`
-	End   uint64 `json:",omitempty"`
+	Start uint64 `json:"start,omitempty"`
+	End   uint64 `json:"end,omitempty"`
 	// Index must be selected if it is only a single row, but not Start or End
-	Index uint64 `json:",omitempty"`
+	Index uint64 `json:"index,omitempty"`
 }
 
 // The aliasRowSelection is a type alias to [RowSelection] just to break the MarshalJSON / UnmarshalJSON
@@ -576,12 +578,12 @@ func (rs RowSelection) MarshalJSON() ([]byte, error) {
 	if err := rs.validate(); err != nil {
 		return nil, err
 	}
-	return json.Marshal(aliasRowSelection(rs))
+	return json.Marshal(aliasRowSelection(rs), jsoncompat.Options)
 }
 
 func (rs *RowSelection) UnmarshalJSON(data []byte) error {
 	var v aliasRowSelection
-	if err := json.Unmarshal(data, &v); err != nil {
+	if err := json.Unmarshal(data, &v, jsoncompat.Options); err != nil {
 		return err
 	}
 	if err := RowSelection(v).validate(); err != nil {
@@ -708,7 +710,7 @@ func (l LaunchResponse) MarshalJSON() ([]byte, error) {
 	}{
 		alias:    alias(l),
 		Messages: emptyMessages(l.Messages),
-	})
+	}, jsoncompat.Options)
 }
 
 type emptyStatSet []StatSet
@@ -717,7 +719,7 @@ func (ess emptyStatSet) MarshalJSON() ([]byte, error) {
 	if len(ess) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]StatSet(ess))
+	return json.Marshal([]StatSet(ess), jsoncompat.Options)
 }
 
 func (ssr SearchStatsResponse) MarshalJSON() ([]byte, error) {
@@ -733,7 +735,7 @@ func (ssr SearchStatsResponse) MarshalJSON() ([]byte, error) {
 		RangeStart: tsPointer(ssr.RangeStart),
 		RangeEnd:   tsPointer(ssr.RangeEnd),
 		Current:    tsPointer(ssr.Current),
-	})
+	}, jsoncompat.Options)
 }
 
 type SaveSearchPatch struct {
@@ -743,7 +745,7 @@ type SaveSearchPatch struct {
 	Notes string `json:",omitempty"`
 }
 
-func (p SaveSearchPatch) GetMetadata() json.RawMessage {
+func (p SaveSearchPatch) GetMetadata() jsontext.Value {
 	if p.Name == `` && p.Notes == `` {
 		return nil
 	}
@@ -754,8 +756,8 @@ func (p SaveSearchPatch) GetMetadata() json.RawMessage {
 		Name:  p.Name,
 		Notes: p.Notes,
 	}
-	if v, err := json.Marshal(md); err == nil && len(v) > 0 {
-		return json.RawMessage(v)
+	if v, err := json.Marshal(md, jsoncompat.Options); err == nil && len(v) > 0 {
+		return jsontext.Value(v)
 	}
 	return nil
 }

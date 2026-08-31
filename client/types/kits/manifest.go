@@ -11,12 +11,14 @@
 package kits
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -143,17 +145,17 @@ func (m *Manifest) CompatibleVersion(v types.CanonicalVersion) (err error) {
 
 // Marshal returns a slice of bytes containing indented JSON representing the manifest.
 func (m *Manifest) Marshal() ([]byte, error) {
-	return json.MarshalIndent(m, ``, "\t")
+	return json.Marshal(m, jsoncompat.Options, jsontext.WithIndentPrefix(``), jsontext.WithIndent("\t"))
 }
 
 // Unmarshal unpacks JSON into the manifest.
 func (m *Manifest) Unmarshal(v []byte) error {
-	return json.Unmarshal(v, m)
+	return json.Unmarshal(v, m, jsoncompat.Options)
 }
 
 // Load reads a JSON-encoded manifest from an io.Reader and unpacks it into the current manifest.
 func (m *Manifest) Load(rdr io.Reader) error {
-	return json.NewDecoder(rdr).Decode(m)
+	return json.UnmarshalRead(rdr, m, jsoncompat.Options)
 }
 
 func writeAll(wtr io.Writer, b []byte) (err error) {

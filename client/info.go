@@ -10,7 +10,7 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -146,7 +147,7 @@ func (c *Client) checkApiVersionNoLock() error {
 	}
 
 	var version types.VersionInfo
-	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &version, jsoncompat.Options); err != nil {
 		return err
 	}
 
@@ -247,7 +248,7 @@ func (c *Client) GetLicenseDistributionState() (ds types.LicenseDistributionStat
 		err = fmt.Errorf("Invalid response %s", resp.Status)
 		return
 	}
-	if err = json.NewDecoder(resp.Body).Decode(&ds); err != nil {
+	if err = json.UnmarshalRead(resp.Body, &ds, jsoncompat.Options); err != nil {
 		return
 	}
 	return

@@ -11,7 +11,7 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
+	"encoding/json/v2"
 	"net"
 	"time"
 
@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -348,7 +349,7 @@ func (ud UserDetails) MarshalJSON() ([]byte, error) {
 	}{
 		alias:  alias(ud),
 		Groups: groupsAlias(ud.Groups),
-	})
+	}, jsoncompat.Options)
 }
 
 type groupsAlias []GroupDetails
@@ -358,7 +359,7 @@ func (ga groupsAlias) MarshalJSON() ([]byte, error) {
 		return emptyList, nil
 	}
 	//this will cause an infinite recursion if we don't change the type
-	return json.Marshal([]GroupDetails(ga))
+	return json.Marshal([]GroupDetails(ga), jsoncompat.Options)
 }
 
 func (s *UserSessions) MarshalJSON() ([]byte, error) {
@@ -369,7 +370,7 @@ func (s *UserSessions) MarshalJSON() ([]byte, error) {
 	}{
 		alias:    alias(*s),
 		Sessions: sessions(s.Sessions),
-	})
+	}, jsoncompat.Options)
 }
 
 type sessions []Session
@@ -378,7 +379,7 @@ func (s sessions) MarshalJSON() ([]byte, error) {
 	if len(s) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]Session(s))
+	return json.Marshal([]Session(s), jsoncompat.Options)
 }
 
 func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
@@ -389,7 +390,7 @@ func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
 	}{
 		alias: alias(*uag),
 		GIDs:  emptyInts(uag.GIDs),
-	})
+	}, jsoncompat.Options)
 }
 
 /************************************************************

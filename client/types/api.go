@@ -10,12 +10,15 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -40,7 +43,7 @@ var (
 
 type AuthType string
 
-type RawObject json.RawMessage
+type RawObject jsontext.Value
 
 type es struct{}
 
@@ -288,7 +291,7 @@ func (wr WarnResp) MarshalJSON() ([]byte, error) {
 	}{
 		Name: wr.Name,
 		Err:  s,
-	})
+	}, jsoncompat.Options)
 }
 
 func (wr *WarnResp) UnmarshalJSON(buff []byte) error {
@@ -297,7 +300,7 @@ func (wr *WarnResp) UnmarshalJSON(buff []byte) error {
 		Err  string `json:",omitempty"`
 	}
 	var a alias
-	if err := json.Unmarshal(buff, &a); err != nil {
+	if err := json.Unmarshal(buff, &a, jsoncompat.Options); err != nil {
 		return err
 	}
 	wr.Name = a.Name
@@ -359,7 +362,7 @@ func (ei emptyInts) MarshalJSON() ([]byte, error) {
 	if len(ei) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]int32(ei))
+	return json.Marshal([]int32(ei), jsoncompat.Options)
 }
 
 type emptyStrings []string
@@ -368,7 +371,7 @@ func (es emptyStrings) MarshalJSON() ([]byte, error) {
 	if len(es) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]string(es))
+	return json.Marshal([]string(es), jsoncompat.Options)
 }
 
 type emptyByteArrays [][]byte
@@ -377,7 +380,7 @@ func (eba emptyByteArrays) MarshalJSON() ([]byte, error) {
 	if len(eba) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([][]byte(eba))
+	return json.Marshal([][]byte(eba), jsoncompat.Options)
 }
 
 type emptyInt64s []int64
@@ -386,7 +389,7 @@ func (ei emptyInt64s) MarshalJSON() ([]byte, error) {
 	if len(ei) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]int64(ei))
+	return json.Marshal([]int64(ei), jsoncompat.Options)
 }
 
 type emptyFloat64s []float64
@@ -395,20 +398,20 @@ func (ei emptyFloat64s) MarshalJSON() ([]byte, error) {
 	if len(ei) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]float64(ei))
+	return json.Marshal([]float64(ei), jsoncompat.Options)
 }
 
 func (o RawObject) MarshalJSON() ([]byte, error) {
 	if len(o) == 0 || o == nil {
 		return emptyObj, nil
 	}
-	b := json.RawMessage(o)
-	return json.Marshal(&b)
+	b := jsontext.Value(o)
+	return json.Marshal(&b, jsoncompat.Options)
 }
 
 func (o *RawObject) UnmarshalJSON(buff []byte) error {
-	var b json.RawMessage
-	if err := json.Unmarshal(buff, &b); err != nil {
+	var b jsontext.Value
+	if err := json.Unmarshal(buff, &b, jsoncompat.Options); err != nil {
 		return err
 	}
 	*o = RawObject(b)
@@ -436,5 +439,5 @@ func (m *LoggingLevels) MarshalJSON() ([]byte, error) {
 	}{
 		alias:  alias(*m),
 		Levels: emptyStrings(m.Levels),
-	})
+	}, jsoncompat.Options)
 }

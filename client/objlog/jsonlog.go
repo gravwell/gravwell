@@ -9,10 +9,13 @@
 package objlog
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -42,7 +45,7 @@ func (jol *JSONObjLogger) Log(id, method string, obj interface{}) error {
 	if jol.fout == nil {
 		return errNilFout
 	}
-	b, err := json.MarshalIndent(obj, "", "\t")
+	b, err := json.Marshal(obj, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("\t"))
 	if err != nil {
 		return err
 	}

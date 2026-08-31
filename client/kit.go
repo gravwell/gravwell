@@ -10,7 +10,7 @@ package client
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -192,7 +193,7 @@ func (c *Client) DeleteKitEx(id string) ([]types.ModifiedKitItem, error) {
 			ModifiedItems []types.ModifiedKitItem
 			Error         string
 		}
-		if err := json.Unmarshal(body, &ks); err != nil {
+		if err := json.Unmarshal(body, &ks, jsoncompat.Options); err != nil {
 			// This was a type 2 error: "something else"
 			return []types.ModifiedKitItem{}, fmt.Errorf("Bad status %v: %v", resp.Status, string(body))
 		}

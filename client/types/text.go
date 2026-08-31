@@ -9,7 +9,9 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type TextRequest struct {
@@ -39,7 +41,7 @@ type RawRequest struct {
 }
 
 func (tr TextResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(tr.BaseResponse)
+	base, err := json.Marshal(tr.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +53,7 @@ func (tr TextResponse) MarshalJSON() ([]byte, error) {
 	}{
 		Entries: emptyEntries(tr.Entries),
 		Explore: tr.Explore,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}

@@ -9,8 +9,10 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -130,5 +132,5 @@ func (si SysInfo) MarshalJSON() ([]byte, error) {
 		alias
 	}{
 		alias: alias(si),
-	})
+	}, jsoncompat.Options)
 }

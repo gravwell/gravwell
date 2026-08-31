@@ -10,13 +10,14 @@ package client
 
 import (
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/net/websocket"
 )
 
@@ -30,7 +31,7 @@ var (
 
 var (
 	adminParams = []urlParam{
-		urlParam{key: `admin`, value: `true`},
+		{key: `admin`, value: `true`},
 	}
 )
 
@@ -71,7 +72,7 @@ func decodeJWTExpires(jwt string) (r time.Time) {
 	var st jwtState
 	if bits := strings.Split(jwt, "."); len(bits) == 3 {
 		if stateBts, err := hex.DecodeString(bits[1]); err == nil {
-			if err = json.Unmarshal(stateBts, &st); err == nil {
+			if err = json.Unmarshal(stateBts, &st, jsoncompat.Options); err == nil {
 				r = st.Expires
 			}
 		}

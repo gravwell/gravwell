@@ -11,7 +11,7 @@ package client
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -20,6 +20,7 @@ import (
 	"strconv"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // CreateResource makes a new resource. The resource name and description are specified at
@@ -147,7 +148,7 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 
 	// decode the metadata response
 	confirmation := types.Resource{}
-	if err := json.NewDecoder(resp.Body).Decode(&confirmation); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &confirmation, jsoncompat.Options); err != nil {
 		return types.Resource{}, err
 	}
 

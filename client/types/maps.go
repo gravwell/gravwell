@@ -10,11 +10,13 @@ package types
 
 import (
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
 	"strconv"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -192,7 +194,7 @@ func (hv HeatmapValue) MarshalJSON() ([]byte, error) {
 
 func (hv *HeatmapValue) UnmarshalJSON(data []byte) error {
 	var a []float64
-	if err := json.Unmarshal(data, &a); err != nil {
+	if err := json.Unmarshal(data, &a, jsoncompat.Options); err != nil {
 		return err
 	}
 	if len(a) != 3 && len(a) != 2 {
@@ -207,7 +209,7 @@ func (hv *HeatmapValue) UnmarshalJSON(data []byte) error {
 }
 
 func (x PointmapResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +219,7 @@ func (x PointmapResponse) MarshalJSON() ([]byte, error) {
 		Entries []PointmapValue `json:",omitempty"`
 	}{
 		Entries: x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +228,7 @@ func (x PointmapResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (x HeatmapResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +238,7 @@ func (x HeatmapResponse) MarshalJSON() ([]byte, error) {
 		Entries []HeatmapValue `json:",omitempty"`
 	}{
 		Entries: x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +247,7 @@ func (x HeatmapResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (x P2PResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +259,7 @@ func (x P2PResponse) MarshalJSON() ([]byte, error) {
 	}{
 		ValueNames: x.ValueNames,
 		Entries:    x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}

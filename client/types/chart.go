@@ -9,13 +9,14 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
 	"sort"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -207,7 +208,7 @@ func (cdp ChartableDataPoint) MarshalJSON() ([]byte, error) {
 	if math.IsNaN(float64(cdp)) {
 		return jsonNull, nil
 	}
-	return json.Marshal(float64(cdp))
+	return json.Marshal(float64(cdp), jsoncompat.Options)
 }
 
 func (cdp ChartableDataPoint) IsNaN() bool {
@@ -220,7 +221,7 @@ func (cd chartableDataPoints) MarshalJSON() ([]byte, error) {
 	if len(cd) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]ChartableDataPoint(cd))
+	return json.Marshal([]ChartableDataPoint(cd), jsoncompat.Options)
 }
 
 func (cvs ChartableValueSet) MarshalJSON() ([]byte, error) {
@@ -231,7 +232,7 @@ func (cvs ChartableValueSet) MarshalJSON() ([]byte, error) {
 	}{
 		Names:  emptyStrings(cvs.Names),
 		Values: chtbls(cvs.Values),
-	})
+	}, jsoncompat.Options)
 }
 
 type chtbls []Chartable
@@ -240,7 +241,7 @@ func (cs chtbls) MarshalJSON() ([]byte, error) {
 	if len(cs) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]Chartable(cs))
+	return json.Marshal([]Chartable(cs), jsoncompat.Options)
 }
 
 type chtbl Chartable
@@ -252,11 +253,11 @@ func (cs chtbl) MarshalJSON() ([]byte, error) {
 	}{
 		TS:   cs.TS,
 		Data: chartableDataPoints(cs.Data),
-	})
+	}, jsoncompat.Options)
 }
 
 func (x ChartResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +267,7 @@ func (x ChartResponse) MarshalJSON() ([]byte, error) {
 		Entries ChartableValueSet
 	}{
 		Entries: x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}

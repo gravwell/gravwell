@@ -8,7 +8,11 @@
 
 package types
 
-import "encoding/json"
+import (
+	"encoding/json/v2"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
+)
 
 const (
 	// request IDs
@@ -49,7 +53,7 @@ type FdgResponse struct {
 }
 
 func (x FdgResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(x.BaseResponse)
+	base, err := json.Marshal(x.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +63,7 @@ func (x FdgResponse) MarshalJSON() ([]byte, error) {
 		Entries FdgSet
 	}{
 		Entries: x.Entries,
-	})
+	}, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
