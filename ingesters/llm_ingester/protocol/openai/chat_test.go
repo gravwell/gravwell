@@ -9,7 +9,7 @@
 package openai
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
@@ -137,11 +137,11 @@ func TestContentToBytes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var raw json.RawMessage
+			var raw jsontext.Value
 			if tt.raw != "null" {
-				raw = json.RawMessage(tt.raw)
+				raw = jsontext.Value(tt.raw)
 			} else {
-				raw = json.RawMessage("null")
+				raw = jsontext.Value("null")
 			}
 			got := contentToBytes(raw)
 			if string(got) != tt.want {
@@ -168,14 +168,14 @@ func TestMessageToEventRoles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.role, func(t *testing.T) {
-			ev := messageToEvent(chatMessage{Role: tt.role, Content: json.RawMessage(`"x"`)})
+			ev := messageToEvent(chatMessage{Role: tt.role, Content: jsontext.Value(`"x"`)})
 			if ev.Type != tt.wantType {
 				t.Errorf("role %q -> type %q, want %q", tt.role, ev.Type, tt.wantType)
 			}
 		})
 	}
 	// tool role carries tool_call_id through
-	ev := messageToEvent(chatMessage{Role: roleTool, ToolCallID: "call_9", Content: json.RawMessage(`"res"`)})
+	ev := messageToEvent(chatMessage{Role: roleTool, ToolCallID: "call_9", Content: jsontext.Value(`"res"`)})
 	if ev.ToolCallID != "call_9" {
 		t.Errorf("tool_call_id = %q, want call_9", ev.ToolCallID)
 	}

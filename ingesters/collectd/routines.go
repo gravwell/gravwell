@@ -10,7 +10,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 
 	"collectd.org/api"
 	"collectd.org/network"
@@ -232,7 +233,7 @@ func marshalJSON(vl *api.ValueList) (dts [][]byte, err error) {
 		var dt []byte
 		v.Value = checkEncodableValue(vl.Values[i])
 		v.DS = vl.DSName(i)
-		if dt, err = json.Marshal(v); err != nil {
+		if dt, err = json.Marshal(v, jsoncompat.Options); err != nil {
 			//just continue on a failure to encode, nothing to do here
 			continue
 		}

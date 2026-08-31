@@ -10,7 +10,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"os"
@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -167,7 +168,7 @@ func main() {
 				r.Variables = append(r.Variables, v)
 			}
 			var err error
-			if ent.Data, err = json.Marshal(r); err != nil {
+			if ent.Data, err = json.Marshal(r, jsoncompat.Options); err != nil {
 				// Skip it, I guess
 				return
 			}

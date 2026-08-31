@@ -18,12 +18,14 @@ package openai
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -52,16 +54,16 @@ func (chatProtocol) Paths() []string { return []string{chatPath} }
 // chatMessage covers the subset of the message shape we care about.
 // Content may be a string OR an array of content parts in the multimodal form.
 type chatMessage struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content,omitempty"`
+	Role    string         `json:"role"`
+	Content jsontext.Value `json:"content,omitempty"`
 	// Reasoning holds a model's chain-of-thought when the provider exposes
 	// it.  Different providers use different field names for the same
 	// thing, so we accept both.
-	Reasoning        json.RawMessage `json:"reasoning,omitempty"`
-	ReasoningContent json.RawMessage `json:"reasoning_content,omitempty"`
-	Name             string          `json:"name,omitempty"`
-	ToolCalls        []toolCall      `json:"tool_calls,omitempty"`
-	ToolCallID       string          `json:"tool_call_id,omitempty"`
+	Reasoning        jsontext.Value `json:"reasoning,omitempty"`
+	ReasoningContent jsontext.Value `json:"reasoning_content,omitempty"`
+	Name             string         `json:"name,omitempty"`
+	ToolCalls        []toolCall     `json:"tool_calls,omitempty"`
+	ToolCallID       string         `json:"tool_call_id,omitempty"`
 }
 
 // reasoningBytes returns the reasoning text from whichever field the provider
@@ -110,7 +112,7 @@ type chatResponse struct {
 // ParseRequest extracts events and a session fingerprint from a chat-completions request body.
 func (chatProtocol) ParseRequest(body []byte, authHeader string) (*protocol.ParsedRequest, error) {
 	var req chatRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := json.Unmarshal(body, &req, jsoncompat.Options); err != nil {
 		return nil, fmt.Errorf("invalid chat request body: %w", err)
 	}
 	if len(req.Messages) == 0 {
@@ -134,7 +136,7 @@ func (chatProtocol) ParseRequest(body []byte, authHeader string) (*protocol.Pars
 // ParseResponse builds events from a non-streaming chat-completions response.
 func (chatProtocol) ParseResponse(body []byte) (*protocol.ParsedResponse, error) {
 	var resp chatResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
+	if err := json.Unmarshal(body, &resp, jsoncompat.Options); err != nil {
 		return nil, fmt.Errorf("invalid chat response body: %w", err)
 	}
 	return buildParsedResponse(&resp), nil
@@ -244,18 +246,18 @@ type contentPart struct {
 // text of the text parts (joined with newlines) so the logged message reads as
 // the user actually wrote it. When an array carries no text parts (e.g. an
 // image-only turn) we fall back to the raw JSON so nothing is silently dropped.
-func contentToBytes(raw json.RawMessage) []byte {
+func contentToBytes(raw jsontext.Value) []byte {
 	if len(raw) == 0 {
 		return nil
 	}
 	// try string first
 	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
+	if err := json.Unmarshal(raw, &s, jsoncompat.Options); err == nil {
 		return []byte(s)
 	}
 	// array-of-parts (multimodal) form: extract the text parts
 	var parts []contentPart
-	if err := json.Unmarshal(raw, &parts); err == nil {
+	if err := json.Unmarshal(raw, &parts, jsoncompat.Options); err == nil {
 		var b strings.Builder
 		for _, p := range parts {
 			// "text" is the Chat Completions form; "input_text" is the

@@ -9,7 +9,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // pullKit reaches out to the remote Gravwell instance and performs a kit build using the existing kit build request
@@ -396,7 +397,7 @@ func pushKit(cli *client.Client, force bool) (err error) {
 		return
 	}
 	defer fin.Close()
-	if err = json.NewDecoder(fin).Decode(&mf); err != nil {
+	if err = json.UnmarshalRead(fin, &mf, jsoncompat.Options); err != nil {
 		err = fmt.Errorf("failed to decode manifest file: %w", err)
 		return
 	}

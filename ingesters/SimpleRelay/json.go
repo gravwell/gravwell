@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 
 	"github.com/gravwell/jsonparser"
 )
@@ -343,7 +344,7 @@ func handleJSONStream(rdr io.Reader, cfg jsonHandlerConfig, rip net.IP, tg *time
 	}
 consumerLoop:
 	for {
-		var obj json.RawMessage
+		var obj jsontext.Value
 		if err := dec.Decode(&obj); err != nil {
 			// check if limited reader is exhausted so that we can throw a better error
 			if errors.Is(err, utils.ErrOversizedObject) {
@@ -360,7 +361,7 @@ consumerLoop:
 		//we have a message, compact it
 		if cfg.disableCompact {
 			// just trip obvious garbage
-			obj = json.RawMessage(bytes.Trim([]byte(obj), "\n\r\t "))
+			obj = jsontext.Value(bytes.Trim([]byte(obj), "\n\r\t "))
 		} else {
 			obj = compactObject(obj)
 		}
@@ -402,10 +403,10 @@ consumerLoop:
 	return nil
 }
 
-func compactObject(obj json.RawMessage) (r json.RawMessage) {
-	bb := bytes.NewBuffer(nil)
-	if err := json.Compact(bb, obj); err == nil {
-		r = bb.Bytes()
+func compactObject(obj jsontext.Value) (r jsontext.Value) {
+	v := jsontext.Value(obj).Clone()
+	if err := v.Compact(jsoncompat.Options); err == nil {
+		r = jsontext.Value(v)
 	} else {
 		r = obj
 	}

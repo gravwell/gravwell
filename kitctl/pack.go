@@ -10,14 +10,17 @@ package main
 
 import (
 	"crypto/md5"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"encoding/hex"
+
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 /**************************************************************************
@@ -39,7 +42,7 @@ func writeResource(dir string, pr kits.PackedResource) error {
 		return err
 	}
 	pr.Data = []byte{}
-	mb, err := json.MarshalIndent(pr, "", "	")
+	mb, err := json.Marshal(pr, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -57,7 +60,7 @@ func readResource(dir string, name string) (pr kits.PackedResource, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &pr); err != nil {
+	if err = json.Unmarshal(bts, &pr, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read the contents into the resource
@@ -88,7 +91,7 @@ func writeMacro(dir string, pm kits.PackedMacro) error {
 		return err
 	}
 	pm.Expansion = ``
-	mb, err := json.MarshalIndent(pm, "", "	")
+	mb, err := json.Marshal(pm, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -106,7 +109,7 @@ func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &pm); err != nil {
+	if err = json.Unmarshal(bts, &pm, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read the expansion and insert it
@@ -137,7 +140,7 @@ func writeFile(dir string, x kits.PackedFile) error {
 		return err
 	}
 	x.Data = []byte{}
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -156,7 +159,7 @@ func readFile(dir, id string) (pf kits.PackedFile, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &pf); err != nil {
+	if err = json.Unmarshal(bts, &pf, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read the contents into the file
@@ -186,7 +189,7 @@ func writeSearchLibrary(dir string, id string, x kits.PackedSavedQuery) error {
 		return err
 	}
 	x.Query = ``
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -204,7 +207,7 @@ func readSearchLibrary(dir, id string) (x kits.PackedSavedQuery, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read the contents and insert it
@@ -240,7 +243,7 @@ func writeExtractor(dir string, id string, x kits.PackedAX) error {
 	}
 	x.Params = ``
 	x.Args = ``
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -259,7 +262,7 @@ func readExtractor(dir, id string) (x kits.PackedAX, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read the params and insert it
@@ -296,7 +299,7 @@ func writeTemplate(dir string, id string, x kits.PackedUserTemplate) error {
 		return err
 	}
 	x.Query = ``
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -314,7 +317,7 @@ func readTemplate(dir, id string) (x kits.PackedUserTemplate, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read the contents and insert it
@@ -346,7 +349,7 @@ func writePlaybook(dir string, id string, x kits.PackedPlaybook) error {
 	}
 	// Now write out the rest to the meta file
 	x.Body = ``
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -364,7 +367,7 @@ func readPlaybook(dir, id string) (x kits.PackedPlaybook, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read the body and insert it
@@ -398,7 +401,7 @@ func writeScheduledSearch(dir string, id string, x kits.PackedScheduledSearch) e
 		return err
 	}
 	x.SearchString = ``
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -415,7 +418,7 @@ func readScheduledSearch(dir, id string) (x kits.PackedScheduledSearch, err erro
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	bts, err = os.ReadFile(searchPath)
@@ -444,7 +447,7 @@ func writeScheduledScript(dir string, id string, x kits.PackedScheduledScript) e
 		return err
 	}
 	x.Script = ``
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -461,7 +464,7 @@ func readScheduledScript(dir, id string) (x kits.PackedScheduledScript, err erro
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	// Now read script file
@@ -491,7 +494,7 @@ func writeFlow(dir string, id string, x kits.PackedFlow) error {
 		return err
 	}
 	x.Flow = ``
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -508,7 +511,7 @@ func readFlow(dir, id string) (x kits.PackedFlow, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	bts, err = os.ReadFile(flowPath)
@@ -532,7 +535,7 @@ func writeDashboard(dir string, id string, x kits.PackedDashboard) error {
 
 	// Just one file for now
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -548,7 +551,7 @@ func readDashboard(dir, id string) (x kits.PackedDashboard, err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, &x); err != nil {
+	if err = json.Unmarshal(bts, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	return
@@ -590,7 +593,7 @@ func genericWrite(dir string, itm types.KitItem, x interface{}) error {
 
 	// Just drop it all in a single file
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", itm.ID))
-	mb, err := json.MarshalIndent(x, "", "	")
+	mb, err := json.Marshal(x, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return err
 	}
@@ -606,7 +609,7 @@ func genericRead(dir string, itm types.KitItem, obj interface{}) (err error) {
 	if err != nil {
 		return
 	}
-	if err = json.Unmarshal(bts, obj); err != nil {
+	if err = json.Unmarshal(bts, obj, jsoncompat.Options); err != nil {
 		return
 	}
 	return

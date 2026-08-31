@@ -14,7 +14,8 @@ import (
 	"container/list"
 	"context"
 	"encoding/gob"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -779,11 +781,11 @@ func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
 		return
 	}
 	var msg []byte
-	if msg, err = json.Marshal(obj); err != nil {
+	if msg, err = json.Marshal(obj, jsoncompat.Options); err != nil {
 		return
 	}
 	im.mtx.Lock()
-	im.ingesterState.Configuration = json.RawMessage(msg)
+	im.ingesterState.Configuration = jsontext.Value(msg)
 	im.ingesterStateUpdated = true
 	im.mtx.Unlock()
 	return
@@ -794,11 +796,11 @@ func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
 		return
 	}
 	var msg []byte
-	if msg, err = json.Marshal(obj); err != nil {
+	if msg, err = json.Marshal(obj, jsoncompat.Options); err != nil {
 		return
 	}
 	im.mtx.Lock()
-	im.ingesterState.Metadata = json.RawMessage(msg)
+	im.ingesterState.Metadata = jsontext.Value(msg)
 	im.ingesterStateUpdated = true
 	im.mtx.Unlock()
 	return

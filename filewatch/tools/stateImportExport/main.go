@@ -9,7 +9,8 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +19,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v4/filewatch"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func main() {
@@ -53,10 +55,10 @@ func importSet(input, output string) (err error) {
 		err = fmt.Errorf("failed to open %q %w", input, err)
 		return
 	}
-	dec := json.NewDecoder(fin)
+	dec := jsontext.NewDecoder(fin)
 	for {
 		var fs filewatch.FileState
-		if err = dec.Decode(&fs); err != nil {
+		if err = json.UnmarshalDecode(dec, &fs, jsoncompat.Options); err != nil {
 			if err == io.EOF {
 				err = nil
 				break
@@ -95,7 +97,7 @@ func exportSet(input, output string) (err error) {
 
 func writeObject(wtr io.Writer, obj interface{}) (err error) {
 	var bts []byte
-	if bts, err = json.Marshal(obj); err != nil {
+	if bts, err = json.Marshal(obj, jsoncompat.Options); err != nil {
 		err = fmt.Errorf("failed to marshal object %w", err)
 	} else if _, err = wtr.Write(bts); err != nil {
 		err = fmt.Errorf("failed to write object %w", err)

@@ -11,7 +11,8 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -341,7 +343,7 @@ func initKit(args []string) {
 	}
 
 	// Write manifest to disk
-	mb, err := json.MarshalIndent(mf, "", "	")
+	mb, err := json.Marshal(mf, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		log.Fatalf("Failed to re-marshal MANIFEST: %v", err)
 	}
@@ -387,7 +389,7 @@ func packKit(args []string) {
 	}
 
 	marshallAdd := func(itm types.KitItem, obj interface{}) error {
-		bts, err := json.Marshal(obj)
+		bts, err := json.Marshal(obj, jsoncompat.Options)
 		if err != nil {
 			return fmt.Errorf("Could not marshal %v %v: %v", itm.Type, itm.Name, err)
 		}
@@ -693,7 +695,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 		// These types have special "packed" versions
 		case types.KitAssetResource:
 			var pr kits.PackedResource
-			if err = json.NewDecoder(rdr).Decode(&pr); err != nil {
+			if err = json.UnmarshalRead(rdr, &pr, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode resource %v: %v", itm.Name, err)
 			}
 			if err = pr.Validate(); err != nil {
@@ -705,7 +707,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetMacro:
 			var pm kits.PackedMacro
-			if err = json.NewDecoder(rdr).Decode(&pm); err != nil {
+			if err = json.UnmarshalRead(rdr, &pm, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode macro %v: %v", itm.Name, err)
 			}
 			if err = pm.Validate(); err != nil {
@@ -716,7 +718,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetScheduledSearch:
 			var p kits.PackedScheduledSearch
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode scheduled search %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
@@ -727,7 +729,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetScheduledScript:
 			var p kits.PackedScheduledScript
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode scheduled script %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
@@ -738,7 +740,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetFlow:
 			var p kits.PackedFlow
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode flow %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
@@ -749,7 +751,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetDashboard:
 			var p kits.PackedDashboard
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode dashboard %v: %v", itm.ID, err)
 			}
 			if err = p.Validate(); err != nil {
@@ -760,7 +762,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetTemplate:
 			var p kits.PackedUserTemplate
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := writeTemplate(wd, itm.ID, p); err != nil {
@@ -768,7 +770,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetActionable:
 			var p kits.PackedActionable
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := genericWrite(wd, itm, p); err != nil {
@@ -777,7 +779,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 		// Other types just ship as-is
 		case types.KitAssetAX:
 			var p kits.PackedAX
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode extractor %v: %v", itm.ID, err)
 			}
 			if err := writeExtractor(wd, itm.ID, p); err != nil {
@@ -785,7 +787,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetFile:
 			var pf kits.PackedFile
-			if err = json.NewDecoder(rdr).Decode(&pf); err != nil {
+			if err = json.UnmarshalRead(rdr, &pf, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode file %v: %v", itm.ID, err)
 			}
 			if err = pf.Validate(); err != nil {
@@ -796,7 +798,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetSavedQuery:
 			var p kits.PackedSavedQuery
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := writeSearchLibrary(wd, itm.ID, p); err != nil {
@@ -804,7 +806,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetPlaybook:
 			var p kits.PackedPlaybook
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := writePlaybook(wd, itm.ID, p); err != nil {
@@ -812,7 +814,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case types.KitAssetAlert:
 			var p kits.PackedAlert
-			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+			if err = json.UnmarshalRead(rdr, &p, jsoncompat.Options); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := genericWrite(wd, itm, p); err != nil {

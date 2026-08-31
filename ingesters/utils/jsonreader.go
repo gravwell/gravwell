@@ -9,10 +9,13 @@
 package utils
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -22,14 +25,14 @@ var (
 )
 
 type JsonLimitedDecoder struct {
-	*json.Decoder
+	*jsontext.Decoder
 	total   int64
 	lr      *io.LimitedReader
 	maxSize int64
 }
 
 // NewJsonLimitedDecoder will return a new JsonLimitedDecoder ready for use.
-// The json.Decoder object is directly exposed so that buffer methods can be used.
+// The jsontext.Decoder object is directly exposed so that buffer methods can be used.
 // This is a drop in replacement for the json.Decoder but we can return additional errors about oversized objects.
 func NewJsonLimitedDecoder(rdr io.Reader, max int64) (jld *JsonLimitedDecoder, err error) {
 	if max <= 0 {
@@ -45,7 +48,7 @@ func NewJsonLimitedDecoder(rdr io.Reader, max int64) (jld *JsonLimitedDecoder, e
 	}
 	jld = &JsonLimitedDecoder{
 		lr:      lr,
-		Decoder: json.NewDecoder(lr),
+		Decoder: jsontext.NewDecoder(lr),
 		maxSize: max,
 	}
 	return
@@ -54,7 +57,7 @@ func NewJsonLimitedDecoder(rdr io.Reader, max int64) (jld *JsonLimitedDecoder, e
 // Decode an object using a JSON decoder
 func (j *JsonLimitedDecoder) Decode(v interface{}) (err error) {
 	j.lr.N = j.maxSize
-	err = j.Decoder.Decode(v)
+	err = json.UnmarshalDecode(j.Decoder, v, jsoncompat.Options)
 	j.total += j.maxSize - j.lr.N //keep a tally
 	if err == nil {
 		return // all good

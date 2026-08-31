@@ -11,7 +11,7 @@ package ingest
 import (
 	"bufio"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/klauspost/compress/snappy"
 )
 
@@ -545,7 +546,7 @@ headerLoop:
 
 			// Decode
 			var state IngesterState
-			if err = json.Unmarshal(stateBuff, &state); err != nil {
+			if err = json.Unmarshal(stateBuff, &state, jsoncompat.Options); err != nil {
 				// ignore it, it's just a state message
 				continue
 			}

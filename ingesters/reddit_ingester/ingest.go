@@ -9,7 +9,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"log"
@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -177,7 +178,7 @@ func (iw *ingestWriter) Flush() error {
 
 func (iw *ingestWriter) pushComments(cms []Comment) error {
 	for i := range cms {
-		v, err := json.Marshal(cms[i])
+		v, err := json.Marshal(cms[i], jsoncompat.Options)
 		if err != nil {
 			return err
 		}

@@ -9,7 +9,7 @@
 package weave
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"go/format"
@@ -21,6 +21,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type fauxInt int
@@ -860,7 +861,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -892,7 +893,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -938,7 +939,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -969,7 +970,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -1042,7 +1043,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -1096,7 +1097,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -1164,7 +1165,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -1207,7 +1208,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}
@@ -1245,7 +1246,7 @@ func TestToJSON(t *testing.T) {
 
 		var want = "["
 		for _, d := range data {
-			w, err := json.Marshal(d)
+			w, err := json.Marshal(d, jsoncompat.Options)
 			if err != nil {
 				panic(err)
 			}

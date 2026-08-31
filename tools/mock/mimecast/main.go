@@ -13,7 +13,8 @@ import (
 	"compress/gzip"
 	crand "crypto/rand"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -159,7 +161,7 @@ func auth(w http.ResponseWriter, r *http.Request) {
 		AccessToken: bearerToken,
 		ExpireIn:    30 * 60,
 	}
-	body, err := json.Marshal(token)
+	body, err := json.Marshal(token, jsoncompat.Options)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -179,20 +181,20 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to read request body"})
+		json.MarshalWrite(w, map[string]string{"error": "failed to read request body"}, jsoncompat.Options)
 		return
 	}
 
 	var req ConfigRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := json.Unmarshal(body, &req, jsoncompat.Options); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid JSON: " + err.Error()})
+		json.MarshalWrite(w, map[string]string{"error": "invalid JSON: " + err.Error()}, jsoncompat.Options)
 		return
 	}
 
 	if req.ClientID == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "client_id is required"})
+		json.MarshalWrite(w, map[string]string{"error": "client_id is required"}, jsoncompat.Options)
 		return
 	}
 
@@ -209,7 +211,7 @@ func configHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "success", "client_id": req.ClientID})
+	json.MarshalWrite(w, map[string]string{"status": "success", "client_id": req.ClientID}, jsoncompat.Options)
 }
 
 // siemBatch responds with a mimecast.SIEMBatchEventResponse.
@@ -277,7 +279,7 @@ func siemBatch(w http.ResponseWriter, r *http.Request) {
 		NextPage: c.value,
 	}
 
-	body, err := json.Marshal(response)
+	body, err := json.Marshal(response, jsoncompat.Options)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -292,7 +294,7 @@ func siemError(w http.ResponseWriter, status int, err mimecast.Error) {
 	response := mimecast.SIEMErrorResponse{
 		Error: err,
 	}
-	body, _ := json.Marshal(response)
+	body, _ := json.Marshal(response, jsoncompat.Options)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
@@ -325,7 +327,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req mimecast.Request
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := json.Unmarshal(body, &req, jsoncompat.Options); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Printf("ERROR: failed to unmarshal request: %s\n", err)
 		return
@@ -398,7 +400,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate audit events
-	events := make([]json.RawMessage, 0, eventsPerPage)
+	events := make([]jsontext.Value, 0, eventsPerPage)
 	duration := end.Sub(start)
 
 	categories := []string{"account_protection", "email_security", "policy_compliance", "user_login", "admin_action"}
@@ -424,7 +426,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 			"eventId":   fmt.Sprintf("audit-event-%d", i+1),
 		}
 
-		dataBytes, err := json.Marshal(event)
+		dataBytes, err := json.Marshal(event, jsoncompat.Options)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -457,7 +459,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		response.Meta.Pagination.Next = cursor
 	}
 
-	responseBody, err := json.Marshal(response)
+	responseBody, err := json.Marshal(response, jsoncompat.Options)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -571,7 +573,7 @@ func validateSiem(w http.ResponseWriter, r *http.Request, format string) (start 
 	return
 }
 
-func genSiemEvents(amount int, start, end time.Time) ([]json.RawMessage, error) {
+func genSiemEvents(amount int, start, end time.Time) ([]jsontext.Value, error) {
 	// Generate multiple MTA events with jittered timestamps within the time range
 	events := make([]map[string]interface{}, 0, amount)
 	duration := end.Sub(start)
@@ -608,9 +610,9 @@ func genSiemEvents(amount int, start, end time.Time) ([]json.RawMessage, error) 
 		events = append(events, event)
 	}
 
-	var list []json.RawMessage
+	var list []jsontext.Value
 	for _, event := range events {
-		eventBytes, err := json.Marshal(event)
+		eventBytes, err := json.Marshal(event, jsoncompat.Options)
 		if err != nil {
 			return nil, err
 		}
@@ -649,7 +651,7 @@ func authError(w http.ResponseWriter, message string) {
 			},
 		},
 	}
-	body, _ := json.Marshal(response)
+	body, _ := json.Marshal(response, jsoncompat.Options)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
 	_, _ = w.Write(body)

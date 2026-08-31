@@ -9,22 +9,24 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"os"
 	"sync"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type StateEntry struct {
 	Type string
-	Obj  json.RawMessage
+	Obj  jsontext.Value
 }
 
 type StateTracker struct {
 	sync.Mutex
 	fout    *os.File
-	enc     *json.Encoder
 	entries []StateEntry
 }
 
@@ -42,7 +44,6 @@ func NewStateTracker(pth string) (st *StateTracker, err error) {
 	}
 	st = &StateTracker{
 		fout:    fout,
-		enc:     json.NewEncoder(fout),
 		entries: entries,
 	}
 	return
@@ -57,10 +58,10 @@ func loadExistingState(pth string) (ents []StateEntry, err error) {
 		}
 		return
 	}
-	dec := json.NewDecoder(fin)
+	dec := jsontext.NewDecoder(fin)
 	for {
 		var ent StateEntry
-		if err = dec.Decode(&ent); err != nil {
+		if err = json.UnmarshalDecode(dec, &ent, jsoncompat.Options); err != nil {
 			if err == io.EOF {
 				//reached end of state file
 				err = nil
@@ -84,25 +85,25 @@ func (st *StateTracker) Close() (err error) {
 }
 
 func (st *StateTracker) Add(tp string, value interface{}) (err error) {
-	var rob json.RawMessage
+	var rob jsontext.Value
 	if tp == `` || value == nil {
 		return errors.New("invalid parameters")
 	}
-	if rob, err = json.Marshal(value); err != nil {
+	if rob, err = json.Marshal(value, jsoncompat.Options); err != nil {
 		return
 	}
 	st.Lock()
 	defer st.Unlock()
 	ent := StateEntry{
 		Type: tp,
-		Obj:  json.RawMessage(rob),
+		Obj:  jsontext.Value(rob),
 	}
 	err = st.writeEntry(ent)
 	return
 }
 
 func (st *StateTracker) writeEntry(ent StateEntry) (err error) {
-	if err = st.enc.Encode(ent); err == nil {
+	if err = json.MarshalWrite(st.fout, ent, jsoncompat.Options); err == nil {
 		st.entries = append(st.entries, ent)
 	}
 	return
@@ -121,7 +122,7 @@ func (st *StateTracker) GetStates(tp string, value interface{}, cb stcallback) (
 		if s.Type != tp {
 			continue
 		}
-		if err = json.Unmarshal(s.Obj, value); err != nil {
+		if err = json.Unmarshal(s.Obj, value, jsoncompat.Options); err != nil {
 			return
 		} else if err = cb(value); err != nil {
 			return

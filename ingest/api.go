@@ -10,13 +10,16 @@ package ingest
 
 import (
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -160,8 +163,8 @@ type IngesterState struct {
 	CacheSize     uint64
 	LastSeen      time.Time
 	Children      map[string]IngesterState
-	Configuration json.RawMessage `json:",omitempty"`
-	Metadata      json.RawMessage `json:",omitempty"`
+	Configuration jsontext.Value `json:",omitempty"`
+	Metadata      jsontext.Value `json:",omitempty"`
 }
 
 type writeCounter struct {
@@ -176,7 +179,7 @@ func (wc *writeCounter) Write(b []byte) (n int, err error) {
 
 func (s *IngesterState) EncodedSize() (uint32, error) {
 	var wc writeCounter
-	if err := json.NewEncoder(&wc).Encode(s); err != nil {
+	if err := json.MarshalWrite(&wc, s, jsoncompat.Options); err != nil {
 		return 0, err
 	}
 	return uint32(wc.bts), nil
@@ -217,7 +220,7 @@ func (s *IngesterState) trimChildren(maxCount int) {
 func (s *IngesterState) Write(wtr io.Writer) (err error) {
 	// First, encode to JSON
 	var data []byte
-	if data, err = json.Marshal(s); err != nil {
+	if data, err = json.Marshal(s, jsoncompat.Options); err != nil {
 		return err
 	} else if len(data) > int(maxIngestStateSize) || len(data) == 0 {
 		return ErrInvalidIngestStateHeader
@@ -278,7 +281,7 @@ func (s *IngesterState) Read(rdr io.Reader) (err error) {
 	}
 
 	// Decode the JSON
-	if err = json.Unmarshal(buff, s); err != nil {
+	if err = json.Unmarshal(buff, s, jsoncompat.Options); err != nil {
 		return
 	}
 
@@ -323,7 +326,7 @@ func (e es) MarshalJSON() ([]byte, error) {
 	if len(e) == 0 {
 		return []byte("[]"), nil
 	}
-	return json.Marshal([]string(e))
+	return json.Marshal([]string(e), jsoncompat.Options)
 }
 
 type mis struct {
@@ -334,7 +337,7 @@ func (m mis) MarshalJSON() ([]byte, error) {
 	if len(m.mp) == 0 {
 		return []byte("{}"), nil
 	}
-	return json.Marshal(m.mp)
+	return json.Marshal(m.mp, jsoncompat.Options)
 }
 
 func (s IngesterState) MarshalJSON() ([]byte, error) {
@@ -353,8 +356,8 @@ func (s IngesterState) MarshalJSON() ([]byte, error) {
 		CacheSize     uint64
 		LastSeen      time.Time
 		Children      mis
-		Configuration json.RawMessage `json:",omitempty"`
-		Metadata      json.RawMessage `json:",omitempty"`
+		Configuration jsontext.Value `json:",omitempty"`
+		Metadata      jsontext.Value `json:",omitempty"`
 	}{
 		UUID:          s.UUID,
 		Name:          s.Name,
@@ -373,5 +376,5 @@ func (s IngesterState) MarshalJSON() ([]byte, error) {
 		Configuration: s.Configuration,
 		Metadata:      s.Metadata,
 	}
-	return json.Marshal(x)
+	return json.Marshal(x, jsoncompat.Options)
 }

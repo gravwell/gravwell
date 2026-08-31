@@ -4,7 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/gravwell/jsonparser"
 )
 
@@ -107,7 +109,7 @@ func NewObjectTracker(pth string) (ot *objectTracker, err error) {
 		}
 		//all good, just empty
 		err = nil
-	} else if err = json.NewDecoder(fin).Decode(&states); err != nil {
+	} else if err = json.UnmarshalRead(fin, &states, jsoncompat.Options); err != nil {
 		fin.Close()
 		err = fmt.Errorf("state file is corrupt %w", err)
 		return
@@ -130,7 +132,7 @@ func (ot *objectTracker) Flush() (err error) {
 		return
 	}
 	bb := bytes.NewBuffer(nil)
-	if err = json.NewEncoder(bb).Encode(ot.states); err == nil {
+	if err = json.MarshalWrite(bb, ot.states, jsoncompat.Options); err == nil {
 		tpath := ot.statePath + `.temp`
 		if err = os.WriteFile(tpath, bb.Bytes(), 0660); err == nil {
 			if err = os.Rename(tpath, ot.statePath); err != nil {
@@ -371,8 +373,8 @@ func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg
 }
 
 func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, block *entry.EVBlock, proc *processors.ProcessorSet) (err error) {
-	var obj json.RawMessage
-	dec := json.NewDecoder(rdr)
+	var obj jsontext.Value
+	dec := jsontext.NewDecoder(rdr)
 
 	var cberr error
 	cb := func(val []byte, vt jsonparser.ValueType, off int, lerr error) {
@@ -413,7 +415,7 @@ func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinde
 	for {
 		var recordarray []byte
 		var dt jsonparser.ValueType
-		if err = dec.Decode(&obj); err != nil {
+		if err = json.UnmarshalDecode(dec, &obj, jsoncompat.Options); err != nil {
 			if err == io.EOF {
 				err = nil
 			}
@@ -462,7 +464,7 @@ var cloudTrailDigestFileKeys = []string{
 	`digestS3Object`,
 }
 
-func isCloudTrailDigestObject(obj json.RawMessage) (ok bool) {
+func isCloudTrailDigestObject(obj jsontext.Value) (ok bool) {
 	//check if this is a digest file, we do this a few ways
 	//first check the top level looking for a few keys that are part of the digest file specification
 	// see here for more info:

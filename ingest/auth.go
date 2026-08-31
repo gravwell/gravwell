@@ -14,13 +14,14 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"math/rand"
 	"sync"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -387,7 +388,7 @@ func (sr *StateResponse) Read(r io.Reader) error {
 	if _, err := io.ReadFull(r, bb); err != nil {
 		return err
 	}
-	if err := json.Unmarshal(bb, sr); err != nil {
+	if err := json.Unmarshal(bb, sr, jsoncompat.Options); err != nil {
 		return err
 	}
 	return nil
@@ -395,7 +396,7 @@ func (sr *StateResponse) Read(r io.Reader) error {
 
 // Write the StateResponse
 func (sr *StateResponse) Write(w io.Writer) error {
-	bb, err := json.Marshal(sr)
+	bb, err := json.Marshal(sr, jsoncompat.Options)
 	if err != nil {
 		return err
 	}
@@ -429,7 +430,7 @@ func (tr *TagRequest) Read(r io.Reader) error {
 	if _, err := io.ReadFull(r, bb); err != nil {
 		return err
 	}
-	if err := json.Unmarshal(bb, tr); err != nil {
+	if err := json.Unmarshal(bb, tr, jsoncompat.Options); err != nil {
 		return err
 	}
 	return nil
@@ -437,7 +438,7 @@ func (tr *TagRequest) Read(r io.Reader) error {
 
 // Write a TagRequest
 func (tr *TagRequest) Write(w io.Writer) error {
-	bs, err := json.Marshal(tr)
+	bs, err := json.Marshal(tr, jsoncompat.Options)
 	if err != nil {
 		return err
 	}
@@ -466,7 +467,7 @@ func (tr *TagResponse) Read(r io.Reader) error {
 	if _, err := io.ReadFull(r, bb); err != nil {
 		return err
 	}
-	if err := json.Unmarshal(bb, tr); err != nil {
+	if err := json.Unmarshal(bb, tr, jsoncompat.Options); err != nil {
 		return err
 	}
 	return nil
@@ -474,7 +475,7 @@ func (tr *TagResponse) Read(r io.Reader) error {
 
 // Write a TagResponse
 func (tr *TagResponse) Write(w io.Writer) error {
-	bs, err := json.Marshal(tr)
+	bs, err := json.Marshal(tr, jsoncompat.Options)
 	if err != nil {
 		return err
 	}

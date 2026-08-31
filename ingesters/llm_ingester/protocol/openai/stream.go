@@ -10,11 +10,12 @@ package openai
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // sseReassembler accumulates OpenAI Server-Sent-Events chunks into a
@@ -124,7 +125,7 @@ func (r *sseReassembler) processEvent(event []byte) error {
 			return nil
 		}
 		var d streamDelta
-		if err := json.Unmarshal(payload, &d); err != nil {
+		if err := json.Unmarshal(payload, &d, jsoncompat.Options); err != nil {
 			return fmt.Errorf("invalid SSE chunk: %w", err)
 		}
 		r.applyDelta(&d)

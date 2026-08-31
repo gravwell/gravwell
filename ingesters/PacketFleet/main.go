@@ -13,7 +13,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net"
@@ -33,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/utils/caps"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 
 	pcap "github.com/google/gopacket/pcapgo"
 )
@@ -288,7 +289,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var b bytes.Buffer
 	io.Copy(&b, r.Body)
 	var p poster
-	json.Unmarshal(b.Bytes(), &p)
+	json.Unmarshal(b.Bytes(), &p, jsoncompat.Options)
 
 	debugout("query received: %v\n", p.Q)
 
@@ -409,7 +410,7 @@ func status() []byte {
 	jobLock.Lock()
 	defer jobLock.Unlock()
 
-	ret, err := json.Marshal(jobs)
+	ret, err := json.Marshal(jobs, jsoncompat.Options)
 	if err != nil {
 		lg.Error("failed to marshal JSON", log.KVErr(err))
 		return nil
@@ -422,7 +423,7 @@ func conns() []byte {
 	for k := range stenos {
 		sc = append(sc, k)
 	}
-	ret, err := json.Marshal(sc)
+	ret, err := json.Marshal(sc, jsoncompat.Options)
 	if err != nil {
 		lg.Error("failed to marshal JSON", log.KVErr(err))
 		return nil

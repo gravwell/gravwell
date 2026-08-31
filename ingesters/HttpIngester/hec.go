@@ -11,7 +11,7 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -310,25 +311,25 @@ func (hh *hecHandler) setAck(channel string, resp ack) {
 
 func (hh *hecHandler) writeResponse(w http.ResponseWriter, resp ack) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.MarshalWrite(w, resp, jsoncompat.Options)
 }
 
 func (hh *hecHandler) respNoData(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(ack{Code: 5, Text: "No data"})
+	json.MarshalWrite(w, ack{Code: 5, Text: "No data"}, jsoncompat.Options)
 }
 
 func (hh *hecHandler) respInternalServerError(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
-	json.NewEncoder(w).Encode(ack{Code: 8, Text: "Internal server error"})
+	json.MarshalWrite(w, ack{Code: 8, Text: "Internal server error"}, jsoncompat.Options)
 }
 
 func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(ack{Code: 6, Text: "Invalid data format", InvalidEventNumber: index})
+	json.MarshalWrite(w, ack{Code: 6, Text: "Invalid data format", InvalidEventNumber: index}, jsoncompat.Options)
 }
 
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
@@ -407,7 +408,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 
 func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var arq ackReq
-	if err := json.NewDecoder(r.Body).Decode(&arq); err != nil {
+	if err := json.UnmarshalRead(r.Body, &arq, jsoncompat.Options); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -422,7 +423,7 @@ func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, id := range arq.IDs {
 		resp.IDs[strconv.FormatUint(id, 10)] = id <= curr
 	}
-	json.NewEncoder(w).Encode(resp)
+	json.MarshalWrite(w, resp, jsoncompat.Options)
 }
 
 type hecHealth struct {
@@ -509,7 +510,7 @@ func (p *piaObj) UnmarshalJSON(b []byte) (err error) {
 	if len(b) >= 2 {
 		if b[0] == '"' && b[len(b)-1] == '"' {
 			var str string
-			if err = json.Unmarshal(b, &str); err != nil {
+			if err = json.Unmarshal(b, &str, jsoncompat.Options); err != nil {
 				return
 			}
 			p.payload = []byte(str)

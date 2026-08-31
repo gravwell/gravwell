@@ -12,7 +12,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"os"
@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/gravwell/ipmigo"
 )
 
@@ -217,7 +218,7 @@ func (h *handlerConfig) run() {
 			} else {
 				// throw them as individual entries
 				for _, v := range sel {
-					b, err := json.Marshal(v)
+					b, err := json.Marshal(v, jsoncompat.Options)
 					if err != nil {
 						lg.Error("encoding SEL record error", log.KVErr(err))
 						continue
@@ -348,7 +349,7 @@ func (h *handlerConfig) getSDR() ([]byte, error) {
 		}
 	}
 
-	return json.Marshal(data)
+	return json.Marshal(data, jsoncompat.Options)
 }
 
 type tSEL struct {

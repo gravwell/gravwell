@@ -10,7 +10,7 @@ package utils
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"io"
 	"strings"
@@ -18,7 +18,7 @@ import (
 )
 
 func TestNewJsonLimitedDecoder(t *testing.T) {
-	var obj json.RawMessage
+	var obj jsontext.Value
 	//check that parameters are tested right
 	if lr, err := NewJsonLimitedDecoder(nil, 100); err == nil || lr != nil {
 		t.Fatalf("did not catch bad reader: %v %v", err, lr == nil)

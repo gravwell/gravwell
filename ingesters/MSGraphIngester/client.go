@@ -11,7 +11,7 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"net/url"
 	"strings"
@@ -20,9 +20,9 @@ import (
 )
 
 type msGraphFetcher interface {
-	ListAlerts(ctx context.Context, filter string) ([]json.RawMessage, error)
-	ListSecureScores(ctx context.Context) ([]json.RawMessage, error)
-	ListSecureScoreControlProfiles(ctx context.Context) ([]json.RawMessage, error)
+	ListAlerts(ctx context.Context, filter string) ([]jsontext.Value, error)
+	ListSecureScores(ctx context.Context) ([]jsontext.Value, error)
+	ListSecureScoreControlProfiles(ctx context.Context) ([]jsontext.Value, error)
 }
 
 type msGraphConfig struct {
@@ -56,7 +56,7 @@ func newGraphClient(cfg msGraphConfig, httpClient msgraph.Doer) (*msGraphClientW
 
 var _ msGraphFetcher = (*msGraphClientWrapper)(nil)
 
-func (api *msGraphClientWrapper) ListAlerts(ctx context.Context, filter string) ([]json.RawMessage, error) {
+func (api *msGraphClientWrapper) ListAlerts(ctx context.Context, filter string) ([]jsontext.Value, error) {
 	var params url.Values
 	if filter != "" {
 		params = url.Values{}
@@ -66,10 +66,10 @@ func (api *msGraphClientWrapper) ListAlerts(ctx context.Context, filter string) 
 	return api.client.ListAll(ctx, msgraph.AlertsEndpoint, params)
 }
 
-func (api *msGraphClientWrapper) ListSecureScores(ctx context.Context) ([]json.RawMessage, error) {
+func (api *msGraphClientWrapper) ListSecureScores(ctx context.Context) ([]jsontext.Value, error) {
 	return api.client.ListAll(ctx, msgraph.SecureScoresEndpoint, nil)
 }
 
-func (api *msGraphClientWrapper) ListSecureScoreControlProfiles(ctx context.Context) ([]json.RawMessage, error) {
+func (api *msGraphClientWrapper) ListSecureScoreControlProfiles(ctx context.Context) ([]jsontext.Value, error) {
 	return api.client.ListAll(ctx, msgraph.ControlProfilesEndpoint, nil)
 }

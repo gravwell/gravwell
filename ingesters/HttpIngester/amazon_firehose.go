@@ -9,7 +9,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -96,7 +97,7 @@ func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 	}
 
 	var kr AFHRequest
-	if err := json.NewDecoder(&lr).Decode(&kr); err != nil {
+	if err := json.UnmarshalRead(&lr, &kr, jsoncompat.Options); err != nil {
 		//check if the request was just too large
 		if lr.N == 0 {
 			h.lgr.Info("bad request", log.KV("src", ip), log.KV("max-body", maxBody), log.KVErr(errors.New("request body too large")))
@@ -143,7 +144,7 @@ type afhresp struct {
 func (k afhresp) send(w http.ResponseWriter, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(k)
+	json.MarshalWrite(w, k, jsoncompat.Options)
 }
 
 func sendAFHError(w http.ResponseWriter, code int, id string, err error) {

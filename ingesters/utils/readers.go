@@ -14,7 +14,8 @@ import (
 	"compress/bzip2"
 	"compress/gzip"
 	"encoding/csv"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -191,7 +193,7 @@ func (c *CSVReader) DisableEVs() {} //does nothing, CSV doesn't support EVs
 
 type JSONReader struct {
 	TagHandler
-	rdr        *json.Decoder
+	rdr        *jsontext.Decoder
 	cnt        int
 	disableEVs bool
 }
@@ -202,7 +204,7 @@ func NewJSONReader(rdr io.Reader, th TagHandler) (*JSONReader, error) {
 	}
 	return &JSONReader{
 		TagHandler: th,
-		rdr:        json.NewDecoder(rdr),
+		rdr:        jsontext.NewDecoder(rdr),
 	}, nil
 }
 
@@ -243,7 +245,7 @@ func (j *JSONReader) ReadEntry() (ent *entry.Entry, err error) {
 	var jent jsonEntry
 	var tag entry.EntryTag
 	j.cnt++
-	if err = j.rdr.Decode(&jent); err != nil {
+	if err = json.UnmarshalDecode(j.rdr, &jent, jsoncompat.Options); err != nil {
 		if err == io.EOF {
 			return
 		}

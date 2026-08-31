@@ -10,7 +10,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/gravwell/o365"
 )
 
@@ -184,7 +186,7 @@ func main() {
 				var uri, contentId string
 				var ok bool
 				var ent *entry.Entry
-				var events []json.RawMessage
+				var events []jsontext.Value
 				var eventUnpacked event
 				for _, item := range content {
 					contentId, ok = item["contentId"]
@@ -208,12 +210,12 @@ func main() {
 					}
 
 					// Dumb fact: each item may have multiple events
-					err = json.Unmarshal(result, &events)
+					err = json.Unmarshal(result, &events, jsoncompat.Options)
 					if err != nil {
 						continue
 					}
 					for _, evt := range events {
-						err = json.Unmarshal(evt, &eventUnpacked)
+						err = json.Unmarshal(evt, &eventUnpacked, jsoncompat.Options)
 						if err != nil {
 							continue
 						}

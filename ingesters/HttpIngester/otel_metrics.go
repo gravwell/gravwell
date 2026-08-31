@@ -10,7 +10,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -437,7 +438,7 @@ func (oh *otelHandler) convertMetricToJSON(metric *mpb.Metric, resource *rpb.Res
 		metricData["data_points"] = oh.convertSummaryDataPoints(data.Summary.DataPoints)
 	}
 
-	return json.Marshal(metricData)
+	return json.Marshal(metricData, jsoncompat.Options)
 }
 
 func (oh *otelHandler) convertNumberDataPoints(dps []*mpb.NumberDataPoint) []map[string]interface{} {
@@ -674,11 +675,11 @@ func formatMetricAsString(me *metricsEntry) ([]byte, error) {
 		buf.WriteString(fmt.Sprintf(" start_time=%s", me.StartTime.Format(time.RFC3339Nano)))
 	}
 	if len(me.Attributes) > 0 {
-		attrJSON, _ := json.Marshal(me.Attributes)
+		attrJSON, _ := json.Marshal(me.Attributes, jsoncompat.Options)
 		buf.WriteString(fmt.Sprintf(" attributes=%s", attrJSON))
 	}
 	if len(me.Resource) > 0 {
-		resJSON, _ := json.Marshal(me.Resource)
+		resJSON, _ := json.Marshal(me.Resource, jsoncompat.Options)
 		buf.WriteString(fmt.Sprintf(" resource=%s", resJSON))
 	}
 	return buf.Bytes(), nil

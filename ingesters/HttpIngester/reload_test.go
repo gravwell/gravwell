@@ -9,7 +9,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"reflect"
 	"slices"
@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/stretchr/testify/require"
 )
 
@@ -841,7 +842,7 @@ func getMuxerCfgType(t *testing.T, muxer *ingest.IngestMuxer) cfgType {
 	t.Helper()
 
 	var cfg cfgType
-	err := json.Unmarshal(getMuxerConfig(t, muxer), &cfg)
+	err := json.Unmarshal(getMuxerConfig(t, muxer), &cfg, jsoncompat.Options)
 	require.NoError(t, err)
 
 	return cfg

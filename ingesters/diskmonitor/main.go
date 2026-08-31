@@ -10,7 +10,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +31,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -170,7 +171,7 @@ func main() {
 	}
 
 	for smp := range samples {
-		bts, err := json.Marshal(Reading{Host: hostname, Disk: *disk, Data: smp.st})
+		bts, err := json.Marshal(Reading{Host: hostname, Disk: *disk, Data: smp.st}, jsoncompat.Options)
 		if err != nil {
 			log.Println("Failed to marshal", err)
 			qch <- true

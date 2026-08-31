@@ -9,11 +9,13 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 
 	"github.com/gravwell/gravwell/v4/client/types/kits"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func readManifest() (kits.Manifest, error) {
@@ -23,7 +25,7 @@ func readManifest() (kits.Manifest, error) {
 	if err != nil {
 		return mf, fmt.Errorf("Couldn't read MANIFEST: %v", err)
 	}
-	if err := json.Unmarshal(mb, &mf); err != nil {
+	if err := json.Unmarshal(mb, &mf, jsoncompat.Options); err != nil {
 		return mf, fmt.Errorf("Couldn't parse MANIFEST: %v", err)
 	}
 	return mf, nil
@@ -31,7 +33,7 @@ func readManifest() (kits.Manifest, error) {
 
 func writeManifest(mf kits.Manifest) error {
 	// And write the MANIFEST back out onto disk
-	mb, err := json.MarshalIndent(mf, "", "	")
+	mb, err := json.Marshal(mf, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("	"))
 	if err != nil {
 		return fmt.Errorf("Failed to re-marshal MANIFEST: %v", err)
 	}

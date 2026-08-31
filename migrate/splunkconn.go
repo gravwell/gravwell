@@ -11,7 +11,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/csv"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 type splunkEntry struct {
@@ -105,7 +106,7 @@ func (c *splunkConn) GetEventIndexes() (indexes []splunkEntry, err error) {
 	}
 
 	var x splunkResponse
-	if err = json.Unmarshal(b, &x); err != nil {
+	if err = json.Unmarshal(b, &x, jsoncompat.Options); err != nil {
 		return
 	}
 
@@ -141,7 +142,7 @@ func (c *splunkConn) GetSourceTypes() (sourcetypes []string, err error) {
 		return
 	}
 	var x splunkResponse
-	if err = json.Unmarshal(b, &x); err != nil {
+	if err = json.Unmarshal(b, &x, jsoncompat.Options); err != nil {
 		return
 	}
 
@@ -156,9 +157,9 @@ type sourcetypes []string
 func (s *sourcetypes) UnmarshalJSON(v []byte) (err error) {
 	var x []string
 	var str string
-	if err = json.Unmarshal(v, &x); err == nil {
+	if err = json.Unmarshal(v, &x, jsoncompat.Options); err == nil {
 		*s = sourcetypes(x)
-	} else if err = json.Unmarshal(v, &str); err == nil {
+	} else if err = json.Unmarshal(v, &str, jsoncompat.Options); err == nil {
 		*s = sourcetypes([]string{str})
 	} else {
 		return errors.New("Cannot unmarshal sourcetype")
@@ -204,7 +205,7 @@ func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, e
 	}
 
 	var sr splunkSearchLaunchResponse
-	if err = json.Unmarshal(b, &sr); err != nil {
+	if err = json.Unmarshal(b, &sr, jsoncompat.Options); err != nil {
 		return
 	}
 	if err = sr.WasError(); err != nil {
@@ -230,7 +231,7 @@ func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, e
 		baseResponse
 		Results []sourcetypeIndex `json:"results"`
 	}
-	if err = json.Unmarshal(b, &x); err != nil {
+	if err = json.Unmarshal(b, &x, jsoncompat.Options); err != nil {
 		return
 	}
 	if err = x.WasError(); err != nil {

@@ -9,7 +9,7 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -263,7 +264,7 @@ func (oh *otelLogsHandler) extractLogBody(logRecord *lpb.LogRecord) []byte {
 	case []byte:
 		return v
 	default:
-		b, _ := json.Marshal(val)
+		b, _ := json.Marshal(val, jsoncompat.Options)
 		return b
 	}
 }

@@ -10,7 +10,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net"
@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/sqs_common"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
@@ -175,7 +176,7 @@ func main() {
 						}
 						report.AverageLag = report.AverageLag / int64(len(metricsTrackers))
 						if stream.JSON_Metrics {
-							jr, err := json.Marshal(report)
+							jr, err := json.Marshal(report, jsoncompat.Options)
 							if err == nil {
 								lg.Infof("%v", string(jr))
 							}

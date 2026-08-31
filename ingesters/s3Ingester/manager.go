@@ -3,7 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -187,9 +189,9 @@ func (s *SQSS3Listener) worker(
 
 func snsDecode(input []byte) ([]string, []string, error) {
 	b := bytes.NewBuffer(input)
-	jdec := json.NewDecoder(b)
+	jdec := jsontext.NewDecoder(b)
 	var d s3Data
-	err := jdec.Decode(&d)
+	err := json.UnmarshalDecode(jdec, &d, jsoncompat.Options)
 	if err != nil {
 		return nil, nil, err
 	} else if d.Message == "" {
@@ -200,15 +202,15 @@ func snsDecode(input []byte) ([]string, []string, error) {
 	var keys []string
 
 	sb := strings.NewReader(d.Message)
-	jdec = json.NewDecoder(sb)
+	jdec = jsontext.NewDecoder(sb)
 
 	var subMessage s3SubMessage
-	err = jdec.Decode(&subMessage)
+	err = json.UnmarshalDecode(jdec, &subMessage, jsoncompat.Options)
 	if err != nil || subMessage.S3Bucket == "" || len(subMessage.S3ObjectKey) == 0 {
 		// try again with the records format instead
 		var records s3Records
 		sb.Reset(d.Message)
-		err = jdec.Decode(&records)
+		err = json.UnmarshalDecode(jdec, &records, jsoncompat.Options)
 		if err != nil {
 			return nil, nil, err
 		} else if len(records.Records) == 0 {
@@ -240,10 +242,8 @@ func snsDecode(input []byte) ([]string, []string, error) {
 }
 
 func s3Decode(input []byte) ([]string, []string, error) {
-	b := bytes.NewBuffer(input)
-	jdec := json.NewDecoder(b)
 	var d s3Records
-	err := jdec.Decode(&d)
+	err := json.Unmarshal(input, &d, jsoncompat.Options)
 	if err != nil {
 		return nil, nil, err
 	} else if len(d.Records) == 0 {
