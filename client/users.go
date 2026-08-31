@@ -10,7 +10,6 @@ package client
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 )
@@ -85,30 +84,17 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 	if err != nil {
 		return err
 	}
-	udet := me
-	if id != me.ID {
-		if !me.Admin {
-			return errors.New("Only admins can change another user's info")
-		} else {
-			if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
-				return err
-			}
-		}
+	if id != me.ID && !me.Admin {
+		return errors.New("Only admins can change another user's info")
 	}
 
-	var gids []int32
-	for _, g := range udet.DefaultSearchGroups {
-		gids = append(gids, g.ID)
+	p := types.UserPatch{
+		Username: types.NewOptional(user),
+		Name:     types.NewOptional(name),
+		Email:    types.NewOptional(email),
 	}
-	req := types.UpdateUser{
-		Username:            user,
-		Name:                name,
-		Email:               email,
-		Admin:               udet.Admin,
-		Locked:              udet.Locked,
-		DefaultSearchGroups: gids,
-	}
-	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil, nil, nil)
+	_, err = c.UpdateUser(id, p)
+	return err
 }
 
 // CleanupUsers (admin-only) purges all deleted users for all users.
