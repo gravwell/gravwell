@@ -9,14 +9,16 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestActionableTriggerUnmarshalObject(t *testing.T) {
 	data := []byte(`{"Pattern":"test.*","ActivatesOn":"selection","Disabled":true}`)
 	var trigger ActionableTrigger
-	if err := json.Unmarshal(data, &trigger); err != nil {
+	if err := json.Unmarshal(data, &trigger, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 	if trigger.Pattern != "test.*" {
@@ -32,7 +34,7 @@ func TestActionableTriggerUnmarshalObject(t *testing.T) {
 
 func TestActionableTriggerMarshal(t *testing.T) {
 	trigger := ActionableTrigger{Pattern: "foo", ActivatesOn: "always", Disabled: false}
-	data, err := json.Marshal(trigger)
+	data, err := json.Marshal(trigger, jsoncompat.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,18 +84,18 @@ func TestActionableContentRoundTrip(t *testing.T) {
 		},
 	}
 
-	data, err := json.Marshal(input)
+	data, err := json.Marshal(input, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
 
 	var output ActionableContent
-	if err := json.Unmarshal(data, &output); err != nil {
+	if err := json.Unmarshal(data, &output, jsoncompat.Options); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
 	// Re-marshal and compare.
-	data2, err := json.Marshal(output)
+	data2, err := json.Marshal(output, jsoncompat.Options)
 	if err != nil {
 		t.Fatalf("re-marshal: %v", err)
 	}

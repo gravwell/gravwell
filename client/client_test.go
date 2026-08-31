@@ -9,7 +9,7 @@
 package client_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net"
 	"net/http"
@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestServerIP(t *testing.T) {
@@ -128,7 +129,7 @@ func TestAPIVersionCheck(t *testing.T) {
 			API: types.ApiInfo{Major: mockMajor.Load(), Minor: mockMinor.Load()},
 		}
 
-		if err := json.NewEncoder(w).Encode(vi); err != nil {
+		if err := json.MarshalWrite(w, vi, jsoncompat.Options); err != nil {
 			w.WriteHeader(500)
 		}
 	})

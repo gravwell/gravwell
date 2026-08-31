@@ -9,7 +9,7 @@
 package client_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"net"
 	"net/http"
@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // TestSetAccess covers gravwell/issues#2708: Client.SetAccess replaces the
@@ -49,7 +50,7 @@ func TestSetAccess(t *testing.T) {
 		var err error
 		if gotRawBody, err = io.ReadAll(r.Body); err != nil {
 			t.Errorf("failed to read request body: %v", err)
-		} else if err := json.Unmarshal(gotRawBody, &gotBody); err != nil {
+		} else if err := json.Unmarshal(gotRawBody, &gotBody, jsoncompat.Options); err != nil {
 			t.Errorf("failed to decode request body: %v", err)
 		}
 		if failReq {
