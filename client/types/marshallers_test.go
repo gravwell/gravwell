@@ -10,12 +10,13 @@ package types
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestTimeRangeEncodeDecode(t *testing.T) {
@@ -25,11 +26,11 @@ func TestTimeRangeEncodeDecode(t *testing.T) {
 		EndTS:   ts.Add(time.Hour),
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(tr); err != nil {
+	if err := json.MarshalWrite(bb, tr, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 	var ttr TimeRange
-	if err := json.NewDecoder(bb).Decode(&ttr); err != nil {
+	if err := json.UnmarshalRead(bb, &ttr, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,9 +63,9 @@ func TestSearchEntryEncodeDecode(t *testing.T) {
 		Data: []byte("this is my data, there are many like it, but this is mine"),
 	}
 	var d SearchEntry
-	if err := json.NewEncoder(bb).Encode(s); err != nil {
+	if err := json.MarshalWrite(bb, s, jsoncompat.Options); err != nil {
 		t.Fatal(err)
-	} else if err = json.NewDecoder(bb).Decode(&d); err != nil {
+	} else if err = json.UnmarshalRead(bb, &d, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
@@ -85,9 +86,9 @@ func TestSearchEntryEncodeDecodeEnum(t *testing.T) {
 		},
 	}
 	var d SearchEntry
-	if err := json.NewEncoder(bb).Encode(s); err != nil {
+	if err := json.MarshalWrite(bb, s, jsoncompat.Options); err != nil {
 		t.Fatal(err)
-	} else if err = json.NewDecoder(bb).Decode(&d); err != nil {
+	} else if err = json.UnmarshalRead(bb, &d, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
@@ -110,7 +111,7 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 	raw := `{"TS": "2020-12-23T16:04:17.417437Z", "Tag": 4919, "SRC": "DEAD::BEEF", "Data": "dGVzdGRhdGE="}`
 	bb.WriteString(raw)
 	var d SearchEntry
-	if err = json.NewDecoder(bb).Decode(&d); err != nil {
+	if err = json.UnmarshalRead(bb, &d, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
@@ -126,13 +127,13 @@ func TestBaseResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x BaseResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -143,11 +144,9 @@ func TestBaseResponseEncode(t *testing.T) {
 
 func TestChartResponseEncode(t *testing.T) {
 	br := ChartResponse{
-		BaseResponse: BaseResponse{
-			Messages: []Message{
-				{
-					ID: 1,
-				},
+		Messages: []Message{
+			{
+				ID: 1,
 			},
 		},
 		Entries: ChartableValueSet{
@@ -155,13 +154,13 @@ func TestChartResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x ChartResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -187,13 +186,13 @@ func TestFDGResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x FdgResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,13 +223,13 @@ func TestPointmapResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x PointmapResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -258,13 +257,13 @@ func TestHeatmapResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x HeatmapResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -292,13 +291,13 @@ func TestP2PResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x P2PResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -326,13 +325,13 @@ func TestStackgraphResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x StackGraphResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -358,13 +357,13 @@ func TestTableResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x TableResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -392,13 +391,13 @@ func TestGaugeResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x GaugeResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -426,13 +425,13 @@ func TestWordcloudResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x WordcloudResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -460,13 +459,13 @@ func TestTextResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x TextResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -494,13 +493,13 @@ func TestRawResponseEncode(t *testing.T) {
 		},
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.NewEncoder(bb).Encode(br); err != nil {
+	if err := json.MarshalWrite(bb, br, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
 	var x RawResponse
 
-	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+	if err := json.UnmarshalRead(bb, &x, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 

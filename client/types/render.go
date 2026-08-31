@@ -9,7 +9,8 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"hash/fnv"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -236,14 +238,14 @@ type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
 	EntryRange *EntryRange         `json:",omitempty"`
-	Addendum   json.RawMessage     `json:",omitempty"`
+	Addendum   jsontext.Value      `json:",omitempty"`
 }
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
 	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
-	Addendum   json.RawMessage           `json:",omitempty"`
+	Addendum   jsontext.Value            `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
 	EntryRange *EntryRange               `json:",omitempty"`
 	Metadata   *SearchMetadata           `json:",omitempty"`
@@ -414,11 +416,11 @@ type SearchStatsRequest struct {
 	SetCount int64 `json:",omitempty"`
 	SetStart entry.Timestamp
 	SetEnd   entry.Timestamp
-	Addendum json.RawMessage `json:",omitempty"`
+	Addendum jsontext.Value `json:",omitempty"`
 }
 
 type SearchStatsResponse struct {
-	Addendum    json.RawMessage `json:",omitempty"`
+	Addendum    jsontext.Value `json:",omitempty"`
 	RangeStart  entry.Timestamp
 	RangeEnd    entry.Timestamp
 	Current     entry.Timestamp
@@ -553,15 +555,20 @@ func (tr *TimeRange) Swap() {
 }
 
 func (tr *TimeRange) DecodeJSON(r io.Reader) error {
-	if err := json.NewDecoder(r).Decode(tr); err != nil {
-		if err == io.EOF {
-			tr.StartTS = entry.Timestamp{}
-			tr.EndTS = entry.Timestamp{}
-			return nil
-		}
+	// Read fully and check for emptiness explicitly: encoding/json/v2's
+	// UnmarshalRead reports a totally empty reader as "unexpected EOF" rather
+	// than the bare io.EOF that encoding/json's Decoder.Decode used, and that
+	// error is not reliably distinguishable from a truncated (non-empty) input.
+	data, err := io.ReadAll(r)
+	if err != nil {
 		return err
 	}
-	return nil
+	if len(data) == 0 {
+		tr.StartTS = entry.Timestamp{}
+		tr.EndTS = entry.Timestamp{}
+		return nil
+	}
+	return json.Unmarshal(data, tr, jsoncompat.Options)
 }
 
 func (is IngesterStats) Hash() uint64 {
@@ -584,7 +591,7 @@ func (is IngesterStats) MarshalJSON() ([]byte, error) {
 	}{
 		alias: alias(is),
 		Tags:  emptyStrings(is.Tags),
-	})
+	}, jsoncompat.Options)
 }
 
 func UniqueIngesters(sts []IngestStats) (r uint64) {
@@ -609,7 +616,7 @@ func (m *RenderModuleInfo) MarshalJSON() ([]byte, error) {
 	}{
 		alias:    alias(*m),
 		Examples: emptyStrings(m.Examples),
-	})
+	}, jsoncompat.Options)
 }
 
 type emptyEntries []SearchEntry
@@ -618,7 +625,7 @@ func (ee emptyEntries) MarshalJSON() ([]byte, error) {
 	if len(ee) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal(([]SearchEntry)(ee))
+	return json.Marshal(([]SearchEntry)(ee), jsoncompat.Options)
 }
 
 type emptyPrintableEntries []SearchEntry
@@ -632,7 +639,7 @@ func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
 	for _, v := range ([]SearchEntry)(ee) {
 		pse = append(pse, PrintableSearchEntry(v))
 	}
-	return json.Marshal(pse)
+	return json.Marshal(pse, jsoncompat.Options)
 }
 
 type emptyIngesterStats []IngesterStats
@@ -641,7 +648,7 @@ func (eis emptyIngesterStats) MarshalJSON() ([]byte, error) {
 	if len(eis) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]IngesterStats(eis))
+	return json.Marshal([]IngesterStats(eis), jsoncompat.Options)
 }
 
 type emptyIngesterStates []ingest.IngesterState
@@ -650,7 +657,7 @@ func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
 	if len(eis) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal([]ingest.IngesterState(eis))
+	return json.Marshal([]ingest.IngesterState(eis), jsoncompat.Options)
 }
 
 func (is IngestStats) MarshalJSON() ([]byte, error) {
@@ -684,7 +691,7 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 		BytesMinuteTail:   is.BytesMinuteTail,
 		Ingesters:         emptyIngesterStats(is.Ingesters),
 		Missing:           emptyIngesterStates(is.Missing),
-	})
+	}, jsoncompat.Options)
 }
 
 func (s StatSetResponse) MarshalJSON() ([]byte, error) {
@@ -695,7 +702,7 @@ func (s StatSetResponse) MarshalJSON() ([]byte, error) {
 	}{
 		alias:    alias(s),
 		Messages: emptyMessages(s.Messages),
-	})
+	}, jsoncompat.Options)
 }
 
 func (s SearchMetadata) MarshalJSON() ([]byte, error) {
@@ -706,7 +713,7 @@ func (s SearchMetadata) MarshalJSON() ([]byte, error) {
 	}{
 		alias:    alias(s),
 		Messages: emptyMessages(s.Messages),
-	})
+	}, jsoncompat.Options)
 }
 
 func (o OverviewStats) MarshalJSON() ([]byte, error) {
@@ -717,18 +724,7 @@ func (o OverviewStats) MarshalJSON() ([]byte, error) {
 	}{
 		alias:    alias(o),
 		Messages: emptyMessages(o.Messages),
-	})
-}
-
-func (b BaseResponse) MarshalJSON() ([]byte, error) {
-	type alias BaseResponse
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(b),
-		Messages: emptyMessages(b.Messages),
-	})
+	}, jsoncompat.Options)
 }
 
 type emptyMessages []Message
@@ -737,11 +733,11 @@ func (em emptyMessages) MarshalJSON() ([]byte, error) {
 	if len(em) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal(([]Message)(em))
+	return json.Marshal(([]Message)(em), jsoncompat.Options)
 }
 
 func (r RawResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(r.BaseResponse)
+	base, err := json.Marshal(r.BaseResponse, jsoncompat.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -758,7 +754,7 @@ func (r RawResponse) MarshalJSON() ([]byte, error) {
 			ContainsBinaryEntries: r.ContainsBinaryEntries,
 			Entries:               emptyPrintableEntries(r.Entries),
 			Explore:               r.Explore,
-		})
+		}, jsoncompat.Options)
 	} else {
 		e, err = json.Marshal(&struct {
 			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
@@ -768,7 +764,7 @@ func (r RawResponse) MarshalJSON() ([]byte, error) {
 			ContainsBinaryEntries: r.ContainsBinaryEntries,
 			Entries:               emptyEntries(r.Entries),
 			Explore:               r.Explore,
-		})
+		}, jsoncompat.Options)
 	}
 	if err != nil {
 		return nil, err
@@ -783,7 +779,7 @@ func (tr *TimeRange) UnmarshalJSON(d []byte) error {
 	}
 	type alias TimeRange
 	var a alias
-	if err := json.Unmarshal(d, &a); err != nil {
+	if err := json.Unmarshal(d, &a, jsoncompat.Options); err != nil {
 		return err
 	}
 	tr.StartTS = a.StartTS
@@ -797,11 +793,11 @@ func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
 	}
 
 	if rr.OverCount != nil {
-		return json.Marshal(rr.OverCount)
+		return json.Marshal(rr.OverCount, jsoncompat.Options)
 	}
 
 	if rr.OverWidth != nil {
-		return json.Marshal(rr.OverWidth)
+		return json.Marshal(rr.OverWidth, jsoncompat.Options)
 	}
 
 	return []byte(`{}`), nil
@@ -813,7 +809,7 @@ func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
 	}
 
 	var raw map[string]int
-	if err := json.Unmarshal(d, &raw); err != nil {
+	if err := json.Unmarshal(d, &raw, jsoncompat.Options); err != nil {
 		return err
 	}
 
@@ -845,7 +841,7 @@ func (ssr SearchStatsRequest) MarshalJSON() ([]byte, error) {
 		alias:    alias(ssr),
 		SetStart: tsPointer(ssr.SetStart),
 		SetEnd:   tsPointer(ssr.SetEnd),
-	})
+	}, jsoncompat.Options)
 }
 
 func tsPointer(t entry.Timestamp) *entry.Timestamp {
@@ -857,11 +853,11 @@ func tsPointer(t entry.Timestamp) *entry.Timestamp {
 
 func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
 	if rr.Table != nil {
-		return json.Marshal(rr.Table)
+		return json.Marshal(rr.Table, jsoncompat.Options)
 	}
 
 	if rr.Graph != nil {
-		return json.Marshal(rr.Graph)
+		return json.Marshal(rr.Graph, jsoncompat.Options)
 	}
 
 	return nil, ErrResultsResponseInvalid
