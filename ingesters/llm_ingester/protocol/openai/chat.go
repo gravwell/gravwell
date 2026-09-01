@@ -45,6 +45,10 @@ func init() {
 func (chatProtocol) Name() string    { return protocolName }
 func (chatProtocol) Paths() []string { return []string{chatPath} }
 
+// PassthroughPaths declares no unparsed siblings: a Chat Completions client
+// needs only the one endpoint.
+func (chatProtocol) PassthroughPaths() []string { return nil }
+
 // The following types mirror the OpenAI Chat Completions request/response
 // schema; see https://developers.openai.com/api/docs for the authoritative
 // field definitions.

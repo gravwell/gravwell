@@ -15,6 +15,7 @@ import (
 // sleep behaviour without real wall-clock delays. aliveFunc can be overridden
 // to control Alive() independently of context cancellation.
 type testRuntime struct {
+	StatusTracker  // SetError/SetWarn and friends
 	mu             sync.Mutex
 	ctx            context.Context
 	cancel         context.CancelFunc

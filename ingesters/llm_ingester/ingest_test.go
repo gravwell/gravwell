@@ -329,3 +329,45 @@ func TestBuildEntryEnumeratedValues(t *testing.T) {
 		}
 	}
 }
+
+// A brand-new session whose first request carries no assistant turn yet must
+// log the system prompt exactly once. tailStart has no assistant message to
+// anchor on and returns 0, so the tail loop sees the system message too; before
+// the guard in emitRequestEvents that duplicated the entire prompt, which for a
+// Claude Code session is tens of kilobytes on every new conversation.
+func TestEmitRequestEventsDeltasNewSessionNoAssistantTurn(t *testing.T) {
+	ec, c := newCapturingCtx(logModeDeltas, true, true)
+	ec.newSession = true
+	emitRequestEvents(ec, []protocol.Event{
+		{Type: protocol.EventSystemMessage, Role: "system", Content: []byte("big system prompt")},
+		{Type: protocol.EventUserMessage, Role: "user", Content: []byte("hello")},
+	})
+	types := c.eventTypes(t)
+	if got := countType(types, protocol.EventSystemMessage); got != 1 {
+		t.Errorf("system prompt emitted %d times, want 1: %v", got, types)
+	}
+	if got := countType(types, protocol.EventUserMessage); got != 1 {
+		t.Errorf("user message emitted %d times, want 1: %v", got, types)
+	}
+	if len(types) != 2 {
+		t.Errorf("emitted %v, want exactly one system and one user event", types)
+	}
+}
+
+// The same first-request shape on a continuation (no assistant turn, not a new
+// session) must not smuggle the system prompt in through the tail either.
+func TestEmitRequestEventsDeltasSystemNeverInTail(t *testing.T) {
+	ec, c := newCapturingCtx(logModeDeltas, true, true)
+	ec.newSession = false
+	emitRequestEvents(ec, []protocol.Event{
+		{Type: protocol.EventSystemMessage, Role: "system", Content: []byte("big system prompt")},
+		{Type: protocol.EventUserMessage, Role: "user", Content: []byte("hello")},
+	})
+	types := c.eventTypes(t)
+	if countType(types, protocol.EventSystemMessage) != 0 {
+		t.Errorf("continuation re-emitted the system prompt: %v", types)
+	}
+	if len(types) != 1 || types[0] != protocol.EventUserMessage {
+		t.Errorf("emitted %v, want just the user message", types)
+	}
+}
