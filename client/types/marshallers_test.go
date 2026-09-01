@@ -373,6 +373,8 @@ func TestDeadCustomMarshalers(t *testing.T) {
 		{"RawObject populated object passes through", types.RawObject(`{"a":1}`), `{"a":1}`},
 		{"RawObject populated array passes through", types.RawObject(`[1,2,3]`), `[1,2,3]`},
 
+		{"RawResponse", types.RawResponse{}, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[]}`},
+
 		{"LoggingLevels populated passes through", &types.LoggingLevels{
 			Levels: []string{"INFO", "WARN"}, Current: "INFO",
 		}, `{"Levels":["INFO","WARN"],"Current":"INFO"}`},
@@ -450,6 +452,23 @@ func TestDeadCustomMarshalers(t *testing.T) {
 			require.Equal(t, tt.expected, string(b))
 		})
 	}
+
+	t.Run("RawResponse with printable data (zero)", func(t *testing.T) {
+		rr := types.RawResponse{}
+		rr.SetPrintableData(true)
+
+		b, err := json.Marshal(rr, json.Deterministic(true)) // we want deterministic so we can properly test expected values
+		require.NoError(t, err)
+		require.Equal(t, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[]}`, string(b))
+	})
+	t.Run("RawResponse with printable data", func(t *testing.T) {
+		rr := types.RawResponse{Entries: []types.SearchEntry{{TS: entry.Timestamp{Sec: 55555555}, Data: []byte("Hello World")}}}
+		rr.SetPrintableData(true)
+
+		b, err := json.Marshal(rr, json.Deterministic(true)) // we want deterministic so we can properly test expected values
+		require.NoError(t, err)
+		require.Equal(t, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[{"TS":"0002-10-05T16:12:57-07:52","SRC":"","Tag":0,"Data":"Hello World","Enumerated":null}]}`, string(b))
+	})
 }
 
 func TestMarshalUnmarshal(t *testing.T) {

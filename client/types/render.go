@@ -9,7 +9,8 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"hash/fnv"
 	"io"
@@ -236,14 +237,14 @@ type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
 	EntryRange *EntryRange         `json:",omitempty"`
-	Addendum   json.RawMessage     `json:",omitempty"`
+	Addendum   jsontext.Value      `json:",omitempty"`
 }
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
 	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
-	Addendum   json.RawMessage           `json:",omitempty"`
+	Addendum   jsontext.Value            `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
 	EntryRange *EntryRange               `json:",omitempty"`
 	Metadata   *SearchMetadata           `json:",omitempty"`
@@ -414,11 +415,11 @@ type SearchStatsRequest struct {
 	SetCount int64 `json:",omitempty"`
 	SetStart entry.Timestamp
 	SetEnd   entry.Timestamp
-	Addendum json.RawMessage `json:",omitempty"`
+	Addendum jsontext.Value `json:",omitempty"`
 }
 
 type SearchStatsResponse struct {
-	Addendum    json.RawMessage `json:",omitempty"`
+	Addendum    jsontext.Value `json:",omitempty"`
 	RangeStart  entry.Timestamp
 	RangeEnd    entry.Timestamp
 	Current     entry.Timestamp
@@ -553,7 +554,7 @@ func (tr *TimeRange) Swap() {
 }
 
 func (tr *TimeRange) DecodeJSON(r io.Reader) error {
-	if err := json.NewDecoder(r).Decode(tr); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(r), &tr); err != nil {
 		if err == io.EOF {
 			tr.StartTS = entry.Timestamp{}
 			tr.EndTS = entry.Timestamp{}
@@ -588,15 +589,6 @@ func UniqueIngesters(sts []IngestStats) (r uint64) {
 		}
 	}
 	return
-}
-
-type emptyEntries []SearchEntry
-
-func (ee emptyEntries) MarshalJSON() ([]byte, error) {
-	if len(ee) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal(([]SearchEntry)(ee))
 }
 
 type emptyPrintableEntries []SearchEntry
@@ -635,11 +627,11 @@ func (r RawResponse) MarshalJSON() ([]byte, error) {
 	} else {
 		e, err = json.Marshal(&struct {
 			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
-			Entries               emptyEntries
+			Entries               []SearchEntry
 			Explore               []ExploreResult `json:",omitempty"`
 		}{
 			ContainsBinaryEntries: r.ContainsBinaryEntries,
-			Entries:               emptyEntries(r.Entries),
+			Entries:               r.Entries,
 			Explore:               r.Explore,
 		})
 	}
