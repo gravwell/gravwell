@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -8,10 +8,14 @@
 
 package types_test
 
+// This file tests that marshalers generate the JSON we expect.
+// It mostly centers around omitting fields and defaulting empty/nil to [] or {} instead of null.
+
 import (
 	"bytes"
 	"encoding/json/v2"
 	"net"
+	"reflect"
 	"testing"
 	"time"
 
@@ -120,394 +124,76 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 	}
 }
 
-func TestBaseResponseEncode(t *testing.T) {
-	br := types.BaseResponse{
-		Messages: []types.Message{
-			{
-				ID: 1,
-			},
-		},
+// thats that every BaseResponse-embedding response type marshals and unmarshals cleanly.
+func TestResponseRoundTrip(t *testing.T) {
+	tests := []struct {
+		name       string
+		src        any
+		entriesLen func(decoded any) int
+	}{
+		{"BaseResponse", types.BaseResponse{Messages: []types.Message{{ID: 1}}}, nil},
+		{"ChartResponse", types.ChartResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  types.ChartableValueSet{Names: []string{"test"}},
+		}, func(d any) int { return len(d.(*types.ChartResponse).Entries.Names) }},
+		{"FdgResponse", types.FdgResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  types.FdgSet{Groups: []string{"test"}},
+		}, func(d any) int { return len(d.(*types.FdgResponse).Entries.Groups) }},
+		{"PointmapResponse", types.PointmapResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.PointmapValue{{Loc: types.Location{Lat: 1, Long: 1}}},
+		}, func(d any) int { return len(d.(*types.PointmapResponse).Entries) }},
+		{"HeatmapResponse", types.HeatmapResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.HeatmapValue{{Magnitude: 1}},
+		}, func(d any) int { return len(d.(*types.HeatmapResponse).Entries) }},
+		{"P2PResponse", types.P2PResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.P2PValue{{Magnitude: 1}},
+		}, func(d any) int { return len(d.(*types.P2PResponse).Entries) }},
+		{"StackgraphResponse", types.StackGraphResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.StackGraphSet{{Key: "test"}},
+		}, func(d any) int { return len(d.(*types.StackGraphResponse).Entries) }},
+		{"TableResponse", types.TableResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  types.TableValueSet{Columns: []string{"test"}},
+		}, func(d any) int { return len(d.(*types.TableResponse).Entries.Columns) }},
+		{"GaugeResponse", types.GaugeResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.GaugeValue{{Name: "test"}},
+		}, func(d any) int { return len(d.(*types.GaugeResponse).Entries) }},
+		{"WordcloudResponse", types.WordcloudResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.WordcloudValue{{Name: "test"}},
+		}, func(d any) int { return len(d.(*types.WordcloudResponse).Entries) }},
+		{"RawResponse", types.RawResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.SearchEntry{{Data: []byte("foo")}},
+		}, func(d any) int { return len(d.(*types.RawResponse).Entries) }},
+		{"TextResponse", types.TextResponse{
+			Messages: []types.Message{{ID: 1}},
+			Entries:  []types.SearchEntry{{Data: []byte("foo")}},
+		}, func(d any) int { return len(d.(*types.TextResponse).Entries) }},
 	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bb := bytes.NewBuffer(nil)
+			require.NoError(t, json.MarshalWrite(bb, tt.src))
 
-	var x types.BaseResponse
+			decoded := reflect.New(reflect.TypeOf(tt.src)).Interface()
+			require.NoError(t, json.UnmarshalRead(bb, decoded))
 
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
+			// all parent types have a messages field;
+			// we have to access it via reflection as there is no interface we can assert.
+			messages := reflect.ValueOf(decoded).Elem().FieldByName("Messages")
+			require.Equal(t, 1, messages.Len(), "invalid decode")
 
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestChartResponseEncode(t *testing.T) {
-	br := types.ChartResponse{
-		Messages: []types.Message{
-			{
-				ID: 1,
-			},
-		},
-		Entries: types.ChartableValueSet{
-			Names: []string{"test"},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.ChartResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries.Names) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestFDGResponseEncode(t *testing.T) {
-	br := types.FdgResponse{
-		Messages: []types.Message{
-			{
-				ID: 1,
-			},
-		},
-		Entries: types.FdgSet{
-			Groups: []string{"test"},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.FdgResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries.Groups) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestPointmapResponseEncode(t *testing.T) {
-	br := types.PointmapResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.PointmapValue{
-			{
-				Loc: types.Location{
-					Lat:  1,
-					Long: 1,
-				},
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.PointmapResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestHeatmapResponseEncode(t *testing.T) {
-	br := types.HeatmapResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.HeatmapValue{
-			{
-				Magnitude: 1,
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.HeatmapResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestP2PResponseEncode(t *testing.T) {
-	br := types.P2PResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.P2PValue{
-			{
-				Magnitude: 1,
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.P2PResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestStackgraphResponseEncode(t *testing.T) {
-	br := types.StackGraphResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.StackGraphSet{
-			{
-				Key: "test",
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.StackGraphResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestTableResponseEncode(t *testing.T) {
-	br := types.TableResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: types.TableValueSet{
-			Columns: []string{"test"},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.TableResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries.Columns) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestGaugeResponseEncode(t *testing.T) {
-	br := types.GaugeResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.GaugeValue{
-			{
-				Name: "test",
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.GaugeResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestWordcloudResponseEncode(t *testing.T) {
-	br := types.WordcloudResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.WordcloudValue{
-			{
-				Name: "test",
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.WordcloudResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestTextResponseEncode(t *testing.T) {
-	br := types.TextResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.SearchEntry{
-			{
-				Data: []byte("foo"),
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.TextResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
-	}
-}
-
-func TestRawResponseEncode(t *testing.T) {
-	br := types.RawResponse{
-		BaseResponse: types.BaseResponse{
-			Messages: []types.Message{
-				{
-					ID: 1,
-				},
-			},
-		},
-		Entries: []types.SearchEntry{
-			{
-				Data: []byte("foo"),
-			},
-		},
-	}
-	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, br); err != nil {
-		t.Fatal(err)
-	}
-
-	var x types.RawResponse
-
-	if err := json.UnmarshalRead(bb, &x); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(x.Messages) != 1 {
-		t.Fatal("invalid decode")
-	}
-	if len(x.Entries) != 1 {
-		t.Fatal("invalid decode")
+			if tt.entriesLen != nil {
+				require.Equal(t, 1, tt.entriesLen(decoded), "invalid decode")
+			}
+		})
 	}
 }
 
@@ -672,7 +358,7 @@ func TestOptionalNoTags(t *testing.T) {
 // tests that types that had their custom marshalers killed in favour of leveraging JSONv2 still send values as expected.
 // Specifically, guarantees that empty/nil maps/slice marshal to {}/[].
 // Deterministic(true) is passed so output can be checked consistently.
-func TestEmptyCollectionMarshalJSON(t *testing.T) {
+func TestDeadCustomMarshalers(t *testing.T) {
 	u := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	farFuture := time.Date(10001, time.January, 1, 0, 0, 0, 0, time.UTC)
 
@@ -753,6 +439,9 @@ func TestEmptyCollectionMarshalJSON(t *testing.T) {
 		{"RSP2PChannels populated", types.RSP2PChannels{
 			From: "f", To: "t", Magnitude: "m", Tooltip: []string{"tip1"},
 		}, `{"From":"f","To":"t","Magnitude":"m","Tooltip":["tip1"]}`},
+
+		{"IngestStats zero value", types.IngestStats{},
+			`{"QuotaUsed":0,"QuotaMax":0,"EntriesPerSecond":0,"BytesPerSecond":0,"TotalCount":0,"TotalSize":0,"LastDayCount":0,"LastDaySize":0,"EntriesHourTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"EntriesMinuteTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"BytesHourTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"BytesMinuteTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"Ingesters":[],"Missing":[]}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
