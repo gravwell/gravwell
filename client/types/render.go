@@ -601,17 +601,6 @@ func UniqueIngesters(sts []IngestStats) (r uint64) {
 	return
 }
 
-func (m *RenderModuleInfo) MarshalJSON() ([]byte, error) {
-	type alias RenderModuleInfo
-	return json.Marshal(&struct {
-		alias
-		Examples []string
-	}{
-		alias:    alias(*m),
-		Examples: m.Examples,
-	})
-}
-
 type emptyEntries []SearchEntry
 
 func (ee emptyEntries) MarshalJSON() ([]byte, error) {

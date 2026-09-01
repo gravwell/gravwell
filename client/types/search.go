@@ -10,6 +10,7 @@ package types
 
 import (
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"reflect"
@@ -361,7 +362,10 @@ func (rs RendererSettings) MarshalJSON() ([]byte, error) {
 		// Empty RendererSettings
 		return []byte(`null`), nil
 	}
-	return json.Marshal(active)
+	// v2 is used here (rather than the v1 import used elsewhere in this file) so that the
+	// required-but-possibly-nil array fields on the channel types (e.g. RSP2PChannels.Tooltip)
+	// encode as [] instead of null, regardless of which json package the caller marshals with.
+	return jsonv2.Marshal(active)
 }
 
 func (rs *RendererSettings) UnmarshalJSON(data []byte) error {

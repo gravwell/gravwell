@@ -9,7 +9,7 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
@@ -212,47 +212,6 @@ func (cdp ChartableDataPoint) MarshalJSON() ([]byte, error) {
 
 func (cdp ChartableDataPoint) IsNaN() bool {
 	return math.IsNaN(float64(cdp))
-}
-
-type chartableDataPoints []ChartableDataPoint
-
-func (cd chartableDataPoints) MarshalJSON() ([]byte, error) {
-	if len(cd) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]ChartableDataPoint(cd))
-}
-
-func (cvs ChartableValueSet) MarshalJSON() ([]byte, error) {
-	type alias ChartableValueSet
-	return json.Marshal(&struct {
-		Names  []string
-		Values chtbls
-	}{
-		Names:  cvs.Names,
-		Values: chtbls(cvs.Values),
-	})
-}
-
-type chtbls []Chartable
-
-func (cs chtbls) MarshalJSON() ([]byte, error) {
-	if len(cs) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]Chartable(cs))
-}
-
-type chtbl Chartable
-
-func (cs chtbl) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		TS   entry.Timestamp
-		Data chartableDataPoints
-	}{
-		TS:   cs.TS,
-		Data: chartableDataPoints(cs.Data),
-	})
 }
 
 func (x ChartResponse) MarshalJSON() ([]byte, error) {
