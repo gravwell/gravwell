@@ -460,7 +460,7 @@ type RSP2PChannels struct {
 	From      string
 	To        string
 	Magnitude string
-	Tooltip   emptyStrings
+	Tooltip   []string
 }
 
 type RSNumber struct {
@@ -495,7 +495,7 @@ type RSPointmap struct {
 
 type RSPointmapChannels struct {
 	Location string
-	Tooltip  emptyStrings
+	Tooltip  []string
 }
 
 type RSStackGraph struct {
@@ -528,7 +528,7 @@ type RSTabular struct {
 }
 
 type RSTabularChannels struct {
-	Columns emptyStrings
+	Columns []string
 }
 
 type RSFdg struct {

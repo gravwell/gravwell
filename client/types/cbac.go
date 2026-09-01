@@ -9,7 +9,6 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -137,14 +136,6 @@ type CBACExpandedRules struct {
 // The grants specified using the full name of a capability to make the API more explicit
 type CapabilityState struct {
 	Grants []string
-}
-
-func (st CapabilityState) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		st.Grants,
-	})
 }
 
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
@@ -843,14 +834,6 @@ type CapError struct {
 // a Grant can be a specific tag name or a globbing patttern
 type TagAccess struct {
 	Grants []string //Grants specify tag names and/or globbing patterns which represent allowed tags
-}
-
-func (ta TagAccess) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		ta.Grants,
-	})
 }
 
 const globChars = `*?[]{}!`

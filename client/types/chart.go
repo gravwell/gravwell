@@ -226,10 +226,10 @@ func (cd chartableDataPoints) MarshalJSON() ([]byte, error) {
 func (cvs ChartableValueSet) MarshalJSON() ([]byte, error) {
 	type alias ChartableValueSet
 	return json.Marshal(&struct {
-		Names  emptyStrings
+		Names  []string
 		Values chtbls
 	}{
-		Names:  emptyStrings(cvs.Names),
+		Names:  cvs.Names,
 		Values: chtbls(cvs.Values),
 	})
 }

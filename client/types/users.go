@@ -349,28 +349,6 @@ func (ud *UserDetails) ClearSecrets() {
 	ud.MFA.ClearSecrets()
 }
 
-// MarshalJSON marshaller hacks to get it to return [] on empty lists
-func (ud UserDetails) MarshalJSON() ([]byte, error) {
-	type alias UserDetails
-	return json.Marshal(&struct {
-		alias
-		Groups groupsAlias
-	}{
-		alias:  alias(ud),
-		Groups: groupsAlias(ud.Groups),
-	})
-}
-
-type groupsAlias []GroupDetails
-
-func (ga groupsAlias) MarshalJSON() ([]byte, error) {
-	if len(ga) == 0 {
-		return emptyList, nil
-	}
-	//this will cause an infinite recursion if we don't change the type
-	return json.Marshal([]GroupDetails(ga))
-}
-
 func (s *UserSessions) MarshalJSON() ([]byte, error) {
 	type alias UserSessions
 	return json.Marshal(&struct {
@@ -389,17 +367,6 @@ func (s sessions) MarshalJSON() ([]byte, error) {
 		return emptyList, nil
 	}
 	return json.Marshal([]Session(s))
-}
-
-func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
-	type alias UserAddGroups
-	return json.Marshal(&struct {
-		alias
-		GIDs emptyInts
-	}{
-		alias: alias(*uag),
-		GIDs:  emptyInts(uag.GIDs),
-	})
 }
 
 /************************************************************

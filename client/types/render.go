@@ -580,10 +580,10 @@ func (is IngesterStats) MarshalJSON() ([]byte, error) {
 	type alias IngesterStats
 	return json.Marshal(&struct {
 		alias
-		Tags emptyStrings
+		Tags []string
 	}{
 		alias: alias(is),
-		Tags:  emptyStrings(is.Tags),
+		Tags:  is.Tags,
 	})
 }
 
@@ -605,10 +605,10 @@ func (m *RenderModuleInfo) MarshalJSON() ([]byte, error) {
 	type alias RenderModuleInfo
 	return json.Marshal(&struct {
 		alias
-		Examples emptyStrings
+		Examples []string
 	}{
 		alias:    alias(*m),
-		Examples: emptyStrings(m.Examples),
+		Examples: m.Examples,
 	})
 }
 

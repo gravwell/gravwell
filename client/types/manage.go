@@ -9,7 +9,7 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"sort"
 	"time"
 
@@ -190,29 +190,6 @@ func (v erp) MarshalJSON() ([]byte, error) {
 		return emptyObj, nil
 	}
 	return json.Marshal(map[uuid.UUID][]WellInfo(v))
-}
-
-type eshardList []ShardInfo
-
-func (el eshardList) MarshalJSON() ([]byte, error) {
-	if len(el) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]ShardInfo(el))
-}
-
-func (wi WellInfo) MarshalJSON() ([]byte, error) {
-	type alias WellInfo
-	ts := struct {
-		alias
-		Tags   emptyStrings
-		Shards eshardList
-	}{
-		alias:  alias(wi),
-		Tags:   emptyStrings(wi.Tags),
-		Shards: eshardList(wi.Shards),
-	}
-	return json.Marshal(ts)
 }
 
 type emptyWellList []WellInfo

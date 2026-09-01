@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/stretchr/testify/require"
@@ -666,6 +667,118 @@ func TestOptionalNoTags(t *testing.T) {
 			require.Equal(t, `{"B":{}}`, string(b))
 		})
 	})
+}
+
+// TestEmptyCollectionMarshalJSON pins down the current output of the custom MarshalJSON
+// implementations spread across api.go, manage.go, chart.go, cbac.go, table.go, users.go,
+// render.go, and search.go that exist solely to force empty/nil slices and maps to marshal
+// as `[]`/`{}` instead of `null`. It uses the stdlib "encoding/json" package (aliased to
+// stdjson), matching what all of those files themselves import, since that's what actually
+// drives these marshalers on the wire today. One representative type per distinct
+// implementation style is covered rather than every consumer of that style.
+func TestEmptyCollectionMarshalJSON(t *testing.T) {
+	u := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	farFuture := time.Date(10001, time.January, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		data     any
+		expected string
+	}{
+		// api.go: RawObject marshals nil/empty as {}, and otherwise passes the raw bytes through.
+		{"RawObject nil marshals to empty object", types.RawObject(nil), `{}`},
+		{"RawObject explicit empty slice marshals to empty object", types.RawObject([]byte{}), `{}`},
+		{"RawObject populated object passes through", types.RawObject(`{"a":1}`), `{"a":1}`},
+		{"RawObject populated array passes through", types.RawObject(`[1,2,3]`), `[1,2,3]`},
+
+		{"LoggingLevels populated passes through", &types.LoggingLevels{
+			Levels: []string{"INFO", "WARN"}, Current: "INFO",
+		}, `{"Levels":["INFO","WARN"],"Current":"INFO"}`},
+		{"LoggingLevels empty displays expected defaults", &types.LoggingLevels{},
+			`{"Levels":[],"Current":""}`},
+
+		// manage.go: WellInfo wraps Tags/Shards, and its own ShardInfo has a second, unrelated
+		// concern (RemoteState omit-when-empty, and clamping timestamps past year 9999).
+		{"WellInfo zero value forces Tags and Shards to empty lists", types.WellInfo{},
+			`{"ID":"","Name":"","Tags":[],"Shards":[],"Fragmentation":0}`},
+		{"WellInfo populated fields all round trip, omitempty strings included when set", types.WellInfo{
+			ID: "id1", Name: "well1", Tags: []string{"tag1", "tag2"},
+			Shards:      []types.ShardInfo{{Name: "shard1"}},
+			Accelerator: "acc", Engine: "eng", Path: "/hot", ColdPath: "/cold", Fragmentation: 5,
+		}, `{"ID":"id1","Name":"well1","Accelerator":"acc","Engine":"eng","Path":"/hot","ColdPath":"/cold","Fragmentation":5,"Tags":["tag1","tag2"],"Shards":[{"Name":"shard1","Start":"0001-01-01T00:00:00Z","End":"0001-01-01T00:00:00Z","Entries":0,"Size":0,"Stored":0,"Cold":false,"Fragmentation":0}]}`},
+		{"IndexerWellData zero value forces Wells to empty list and Replicated to empty object", types.IndexerWellData{},
+			`{"UUID":"00000000-0000-0000-0000-000000000000","Wells":[],"Replicated":{}}`},
+		{"IndexerWellData populated Wells and Replicated round trip", types.IndexerWellData{
+			UUID: u, Wells: []types.WellInfo{{Name: "w1"}},
+			Replicated: map[uuid.UUID][]types.WellInfo{u: {{Name: "w2"}}},
+		}, `{"UUID":"11111111-1111-1111-1111-111111111111","Wells":[{"ID":"","Name":"w1","Fragmentation":0,"Tags":[],"Shards":[]}],"Replicated":{"11111111-1111-1111-1111-111111111111":[{"ID":"","Name":"w2","Fragmentation":0,"Tags":[],"Shards":[]}]}}`},
+		{"ShardInfo zero value RemoteState is omitted entirely, not marshaled as {}", types.ShardInfo{},
+			`{"Name":"","Start":"0001-01-01T00:00:00Z","End":"0001-01-01T00:00:00Z","Entries":0,"Size":0,"Stored":0,"Cold":false,"Fragmentation":0}`},
+		{"ShardInfo fully populated RemoteState is included", types.ShardInfo{
+			Name: "s1", RemoteState: types.ReplicationState{UUID: u, Entries: 10, Size: 100},
+		}, `{"Name":"s1","Start":"0001-01-01T00:00:00Z","End":"0001-01-01T00:00:00Z","Entries":0,"Size":0,"Stored":0,"Cold":false,"RemoteState":{"UUID":"11111111-1111-1111-1111-111111111111","Entries":10,"Size":100},"Fragmentation":0}`},
+		// isEmpty() only treats RemoteState as empty when UUID, Entries, and Size are ALL zero,
+		// so a UUID-only RemoteState (Entries/Size still 0) still counts as non-empty.
+		{"ShardInfo RemoteState with only a UUID set still counts as non-empty", types.ShardInfo{
+			Name: "s2", RemoteState: types.ReplicationState{UUID: u},
+		}, `{"Name":"s2","Start":"0001-01-01T00:00:00Z","End":"0001-01-01T00:00:00Z","Entries":0,"Size":0,"Stored":0,"Cold":false,"RemoteState":{"UUID":"11111111-1111-1111-1111-111111111111","Entries":0,"Size":0},"Fragmentation":0}`},
+		{"ShardInfo timestamps beyond year 9999 are clamped to maxJsonTimestamp", types.ShardInfo{
+			Name: "s3", Start: farFuture, End: farFuture.Add(24 * time.Hour),
+		}, `{"Name":"s3","Start":"9999-12-12T23:59:59.000000099Z","End":"9999-12-12T23:59:59.000000099Z","Entries":0,"Size":0,"Stored":0,"Cold":false,"Fragmentation":0}`},
+
+		// chart.go: ChartableValueSet's wrapper struct forgot to embed its `alias`, so KeyComps
+		// and Categories are silently dropped from the output even when populated -- a real bug
+		// that removing this marshaler (falling back to default struct marshaling) would fix.
+		{"ChartableValueSet zero value", types.ChartableValueSet{}, `{"Names":[],"Values":[]}`},
+		{"ChartableValueSet populated KeyComps/Categories are silently dropped (existing bug)", types.ChartableValueSet{
+			Names: []string{"n1"}, KeyComps: []types.KeyComponents{{}}, Categories: []string{"cat1"},
+		}, `{"Names":["n1"],"Values":[]}`},
+
+		// cbac.go: CapabilityState and TagAccess are both single-field structs wrapping Grants.
+		{"CapabilityState zero value", types.CapabilityState{}, `{"Grants":[]}`},
+		{"CapabilityState populated", types.CapabilityState{Grants: []string{"read", "write"}}, `{"Grants":["read","write"]}`},
+		{"TagAccess zero value", types.TagAccess{}, `{"Grants":[]}`},
+		{"TagAccess populated", types.TagAccess{Grants: []string{"tag1", "tag2"}}, `{"Grants":["tag1","tag2"]}`},
+
+		// table.go: TableValueSet wraps Columns via an alias struct; TableRow wraps Row directly.
+		{"TableValueSet zero value", types.TableValueSet{}, `{"Rows":null,"Columns":[]}`},
+		{"TableValueSet populated", types.TableValueSet{
+			Columns: []string{"c1", "c2"}, Rows: types.TableRowSet{{Row: []string{"r1"}}},
+		}, `{"Rows":[{"TS":"0001-01-01T00:00:00Z","Row":["r1"]}],"Columns":["c1","c2"]}`},
+		{"TableRow zero value", types.TableRow{}, `{"TS":"0001-01-01T00:00:00Z","Row":[]}`},
+		{"TableRow populated", types.TableRow{Row: []string{"a", "b"}}, `{"TS":"0001-01-01T00:00:00Z","Row":["a","b"]}`},
+
+		// users.go: UserDetails wraps Groups via an alias struct (value receiver); UserAddGroups
+		// wraps GIDs directly, but -- like LoggingLevels above -- via a *pointer* receiver.
+		{"UserDetails zero value", types.UserDetails{},
+			`{"UID":0,"User":"","Name":"","Email":"","Admin":false,"Locked":false,"TS":"0001-01-01T00:00:00Z","DefaultGID":0,"MFA":{"TOTP":{"Enabled":false},"RecoveryCodes":{"Enabled":false,"Remaining":0,"Generated":"0001-01-01T00:00:00Z"}},"Synced":false,"SSOUser":false,"Groups":[]}`},
+		{"UserDetails populated Groups round trip", types.UserDetails{
+			UID: 1, User: "bob", Groups: []types.GroupDetails{{GID: 2, Name: "g1"}},
+		}, `{"UID":1,"User":"bob","Name":"","Email":"","Admin":false,"Locked":false,"TS":"0001-01-01T00:00:00Z","DefaultGID":0,"MFA":{"TOTP":{"Enabled":false},"RecoveryCodes":{"Enabled":false,"Remaining":0,"Generated":"0001-01-01T00:00:00Z"}},"Synced":false,"SSOUser":false,"Groups":[{"GID":2,"Name":"g1","Desc":"","Synced":false}]}`},
+		{"UserAddGroups zero value pointer forces GIDs to an empty list", &types.UserAddGroups{}, `{"GIDs":[]}`},
+		{"UserAddGroups populated pointer", &types.UserAddGroups{GIDs: []int32{1, 2}}, `{"GIDs":[1,2]}`},
+
+		// render.go: RenderModuleInfo wraps Examples directly via a *pointer* receiver, same
+		// gotcha as LoggingLevels and UserAddGroups above.
+		{"RenderModuleInfo zero value pointer", &types.RenderModuleInfo{}, `{"Name":"","Description":"","Examples":[]}`},
+		{"RenderModuleInfo populated pointer", &types.RenderModuleInfo{
+			Name: "mod1", Examples: []string{"ex1"},
+		}, `{"Name":"mod1","Description":"","Examples":["ex1"]}`},
+
+		// search.go: some renderer-settings channel types skip a MarshalJSON method entirely and
+		// instead type the field itself as emptyStrings, relying on assignability from []string.
+		{"RSP2PChannels zero value", types.RSP2PChannels{}, `{"From":"","To":"","Magnitude":"","Tooltip":[]}`},
+		{"RSP2PChannels populated", types.RSP2PChannels{
+			From: "f", To: "t", Magnitude: "m", Tooltip: []string{"tip1"},
+		}, `{"From":"f","To":"t","Magnitude":"m","Tooltip":["tip1"]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := json.Marshal(tt.data, json.Deterministic(true)) // we want deterministic so we can properly test expected values
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, string(b))
+		})
+	}
 }
 
 func TestMarshalUnmarshal(t *testing.T) {
