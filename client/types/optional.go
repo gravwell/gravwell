@@ -59,9 +59,6 @@ func (o Optional[T]) IsZero() bool {
 
 // MarshalJSON causes optional to always marshal to a safe value.
 // If !o.IsSet(), T zero will be used.
-//
-// NOTE(rlandau): as of go1.27.0, a field cannot skip itself with MarshalJSON.
-// Instead, we use IsZero and the OmitZeroStructFields option.
 func (o Optional[T]) MarshalJSON() ([]byte, error) {
 	if !o.IsSet() {
 		var zero T
