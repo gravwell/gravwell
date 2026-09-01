@@ -719,17 +719,6 @@ func CheckMacroName(name string) error {
 	return nil
 }
 
-func (l LaunchResponse) MarshalJSON() ([]byte, error) {
-	type alias LaunchResponse
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(l),
-		Messages: emptyMessages(l.Messages),
-	})
-}
-
 type emptyStatSet []StatSet
 
 func (ess emptyStatSet) MarshalJSON() ([]byte, error) {
