@@ -576,17 +576,6 @@ func (is IngesterStats) Hash() uint64 {
 	return n.Sum64()
 }
 
-func (is IngesterStats) MarshalJSON() ([]byte, error) {
-	type alias IngesterStats
-	return json.Marshal(&struct {
-		alias
-		Tags []string
-	}{
-		alias: alias(is),
-		Tags:  is.Tags,
-	})
-}
-
 func UniqueIngesters(sts []IngestStats) (r uint64) {
 	mp := map[uint64]bool{}
 	for _, st := range sts {
@@ -622,58 +611,6 @@ func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
 		pse = append(pse, PrintableSearchEntry(v))
 	}
 	return json.Marshal(pse)
-}
-
-type emptyIngesterStats []IngesterStats
-
-func (eis emptyIngesterStats) MarshalJSON() ([]byte, error) {
-	if len(eis) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]IngesterStats(eis))
-}
-
-type emptyIngesterStates []ingest.IngesterState
-
-func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
-	if len(eis) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]ingest.IngesterState(eis))
-}
-
-func (is IngestStats) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		QuotaUsed         uint64
-		QuotaMax          uint64
-		EntriesPerSecond  float64
-		BytesPerSecond    float64
-		TotalCount        uint64
-		TotalSize         uint64
-		LastDayCount      uint64 //total entries in last 24 hours
-		LastDaySize       uint64 //total ingested in last 24 hours
-		EntriesHourTail   [24]uint64
-		EntriesMinuteTail [60]uint64
-		BytesHourTail     [24]uint64
-		BytesMinuteTail   [60]uint64
-		Ingesters         emptyIngesterStats
-		Missing           emptyIngesterStates
-	}{
-		QuotaUsed:         is.QuotaUsed,
-		QuotaMax:          is.QuotaMax,
-		EntriesPerSecond:  is.EntriesPerSecond,
-		BytesPerSecond:    is.BytesPerSecond,
-		TotalCount:        is.TotalCount,
-		TotalSize:         is.TotalSize,
-		LastDayCount:      is.LastDayCount,
-		LastDaySize:       is.LastDaySize,
-		EntriesHourTail:   is.EntriesHourTail,
-		EntriesMinuteTail: is.EntriesMinuteTail,
-		BytesHourTail:     is.BytesHourTail,
-		BytesMinuteTail:   is.BytesMinuteTail,
-		Ingesters:         emptyIngesterStats(is.Ingesters),
-		Missing:           emptyIngesterStates(is.Missing),
-	})
 }
 
 func (r RawResponse) MarshalJSON() ([]byte, error) {
