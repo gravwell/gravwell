@@ -1,6 +1,6 @@
 module github.com/gravwell/gravwell/v3
 
-go 1.26.6
+go 1.26.7
 
 tool github.com/gravwell/gravwell/v3/tools/repo
 
