@@ -16,7 +16,9 @@ package wiz
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"sync"
@@ -26,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -162,9 +165,9 @@ func (w *Wiz) initKey(s string) string    { return s + "-initialized" }
 
 // connection is the generic shape of a Relay style connection response.
 type connection struct {
-	Nodes []json.RawMessage `json:"nodes"`
+	Nodes []jsontext.Value `json:"nodes"`
 	Edges []struct {
-		Node json.RawMessage `json:"node"`
+		Node jsontext.Value `json:"node"`
 	} `json:"edges"`
 	PageInfo struct {
 		HasNextPage bool   `json:"hasNextPage"`
@@ -172,11 +175,11 @@ type connection struct {
 	} `json:"pageInfo"`
 }
 
-func (c connection) nodes() []json.RawMessage {
+func (c connection) nodes() []jsontext.Value {
 	if len(c.Nodes) > 0 {
 		return c.Nodes
 	}
-	out := make([]json.RawMessage, 0, len(c.Edges))
+	out := make([]jsontext.Value, 0, len(c.Edges))
 	for _, e := range c.Edges {
 		if len(e.Node) > 0 {
 			out = append(out, e.Node)
@@ -325,10 +328,12 @@ func (w *Wiz) scanSource(ctx context.Context, rt hosted.Runtime, s source) (more
 // afterward, and re-encodes it. It returns the cleaned JSON along with the
 // top-level object for timestamp and query-field probing. When the node is not
 // decodable it is returned unchanged with a nil object.
-func cleanNode(node json.RawMessage) (json.RawMessage, map[string]any) {
+func cleanNode(node jsontext.Value) (jsontext.Value, map[string]any) {
 	// UseNumber preserves numeric literals exactly so large integer ids are not
 	// mangled by a round-trip through float64.
-	dec := json.NewDecoder(bytes.NewReader(node))
+	// The equivalent v2 option, jsonflags.UnmarshalAnyWithRawNumber, is locked behind `internal`.
+	// Therefore, we have to continue to use v1 directly here.
+	dec := jsonv1.NewDecoder(bytes.NewReader(node))
 	dec.UseNumber()
 	var v any
 	if err := dec.Decode(&v); err != nil {
@@ -336,7 +341,7 @@ func cleanNode(node json.RawMessage) (json.RawMessage, map[string]any) {
 	}
 
 	cleaned, _ := stripNulls(v)
-	b, err := json.Marshal(cleaned)
+	b, err := json.Marshal(cleaned, jsoncompat.Options)
 	if err != nil {
 		return node, nil
 	}
@@ -408,7 +413,7 @@ func parseObjTime(obj map[string]any, key string) (time.Time, bool) {
 
 // extractTimestamp probes a node's JSON for a recognizable timestamp field.
 // Returns the zero time when none is found.
-func extractTimestamp(node json.RawMessage) time.Time {
+func extractTimestamp(node jsontext.Value) time.Time {
 	_, obj := cleanNode(node)
 	return timestampFromObj(obj, "")
 }

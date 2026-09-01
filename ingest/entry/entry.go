@@ -48,7 +48,7 @@ type Entry struct {
 	SRC  net.IP
 	Tag  EntryTag
 	Data []byte
-	EVB  EVBlock `json:",omitempty"`
+	EVB  EVBlock
 }
 
 func init() {

@@ -10,7 +10,8 @@ package jamf
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -30,8 +32,8 @@ const tokenExpiryBuffer = 30 * time.Second
 
 // Response mirrors the envelope returned by the computers-inventory endpoint.
 type Response struct {
-	TotalCount int               `json:"totalCount"`
-	Results    []json.RawMessage `json:"results"`
+	TotalCount int              `json:"totalCount"`
+	Results    []jsontext.Value `json:"results"`
 }
 
 type tokenResponse struct {
@@ -99,7 +101,7 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	}
 
 	var tr tokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &tr, jsoncompat.Options); err != nil {
 		return "", fmt.Errorf("decoding token response: %w", err)
 	}
 	if tr.AccessToken == "" {
@@ -148,7 +150,7 @@ func (c *Client) FetchInventoryPage(ctx context.Context, filter string, sections
 	}
 
 	var r Response
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &r, jsoncompat.Options); err != nil {
 		return nil, fmt.Errorf("decoding inventory response: %w", err)
 	}
 	return &r, nil

@@ -41,12 +41,12 @@ type TokenSigningKey struct {
 
 // Session contains all the information needed to authenticate.
 type Session struct {
-	ID          uint64 `json:",omitempty"`
+	ID          uint64 `json:",omitzero"`
 	JWT         string `json:",omitempty"`
-	UID         int32  `json:",omitempty"`
+	UID         int32  `json:",omitzero"`
 	Origin      net.IP
 	LastHit     time.Time
-	UDets       *User `json:",omitempty"`
+	UDets       *User `json:",omitzero"`
 	TempSession bool
 	Synced      bool
 }
@@ -82,7 +82,7 @@ type UserDetails struct {
 	Admin      bool
 	Locked     bool
 	TS         time.Time
-	DefaultGID int32 `json:",omitempty"`
+	DefaultGID int32 `json:",omitzero"`
 	Groups     []GroupDetails
 	MFA        MFAUserConfig
 	Hash       []byte `json:"-"` //do not include in API responses
@@ -192,8 +192,8 @@ type UserAddGroups struct {
 }
 
 type AdminActionResp struct {
-	UID   int32 `json:",omitempty"`
-	Admin bool  `json:",omitempty"`
+	UID   int32 `json:",omitzero"`
+	Admin bool  `json:",omitzero"`
 }
 
 type RenderModuleInfo struct {

@@ -9,9 +9,12 @@
 package msgraph
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"net/url"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const ODataTimeFormat = "2006-01-02T15:04:05.0000000Z"
@@ -44,16 +47,16 @@ func BuildParams(ct ContentType, since time.Time) url.Values {
 
 // ExtractTimestamp pulls createdDateTime from a raw Graph API JSON response item.
 // Falls back to time.Now() for content types without timestamp or when unmarshalling fails.
-func ExtractTimestamp(ct ContentType, raw json.RawMessage) time.Time {
+func ExtractTimestamp(ct ContentType, raw jsontext.Value) time.Time {
 	switch ct {
 	case ContentAlerts:
 		var ts AlertTimestamp
-		if err := json.Unmarshal(raw, &ts); err == nil && !ts.CreatedDateTime.IsZero() {
+		if err := json.Unmarshal(raw, &ts, jsoncompat.Options); err == nil && !ts.CreatedDateTime.IsZero() {
 			return ts.CreatedDateTime
 		}
 	case ContentSecureScores:
 		var ts SecureScoreTimestamp
-		if err := json.Unmarshal(raw, &ts); err == nil && !ts.CreatedDateTime.IsZero() {
+		if err := json.Unmarshal(raw, &ts, jsoncompat.Options); err == nil && !ts.CreatedDateTime.IsZero() {
 			return ts.CreatedDateTime
 		}
 	}
@@ -62,9 +65,9 @@ func ExtractTimestamp(ct ContentType, raw json.RawMessage) time.Time {
 
 // ExtractID pulls the id field from a raw Graph API JSON response item.
 // Falls back to empty string if unmarshalling fails.
-func ExtractID(raw json.RawMessage) string {
+func ExtractID(raw jsontext.Value) string {
 	var rID ResourceID
-	if err := json.Unmarshal(raw, &rID); err == nil {
+	if err := json.Unmarshal(raw, &rID, jsoncompat.Options); err == nil {
 		return rID.ID
 	}
 	return ""

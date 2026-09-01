@@ -126,8 +126,8 @@ type TransformOperator string
 type ResultsRequest struct {
 	Fence  Geofence
 	End    time.Time
-	Limit  uint64        `json:",omitempty"`
-	Offset uint64        `json:",omitempty"`
+	Limit  uint64        `json:",omitzero"`
+	Offset uint64        `json:",omitzero"`
 	Sort   []ResultsSort `json:",omitempty"`
 	Start  time.Time
 	SID    string
@@ -236,19 +236,19 @@ type EntryRange struct {
 // DEPRECATED - use REST API
 type BaseRequest struct {
 	ID         uint32
-	Stats      *SearchStatsRequest `json:",omitempty"`
-	EntryRange *EntryRange         `json:",omitempty"`
+	Stats      *SearchStatsRequest `json:",omitzero"`
+	EntryRange *EntryRange         `json:",omitzero"`
 	Addendum   jsontext.Value      `json:",omitempty"`
 }
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
 	ID         uint32                    // DEPRECATED - REST API no longer returns this value
-	Stats      *SearchStatsResponse      `json:",omitempty"`
+	Stats      *SearchStatsResponse      `json:",omitzero"`
 	Addendum   jsontext.Value            `json:",omitempty"`
-	SearchInfo *SearchInfo               `json:",omitempty"`
-	EntryRange *EntryRange               `json:",omitempty"`
-	Metadata   *SearchMetadata           `json:",omitempty"`
+	SearchInfo *SearchInfo               `json:",omitzero"`
+	EntryRange *EntryRange               `json:",omitzero"`
+	Metadata   *SearchMetadata           `json:",omitzero"`
 	Tags       map[string]entry.EntryTag `json:",omitempty"`
 	Error      string                    `json:",omitempty"`
 
@@ -319,7 +319,7 @@ type SysDescResp struct {
 
 type SysStats struct {
 	Error string        `json:",omitempty"`
-	Stats *HostSysStats `json:",omitempty"`
+	Stats *HostSysStats `json:",omitzero"`
 }
 
 type SysStatResponse struct {
@@ -413,7 +413,7 @@ type IngesterStatsResponse struct {
 }
 
 type SearchStatsRequest struct {
-	SetCount int64 `json:",omitempty"`
+	SetCount int64 `json:",omitzero"`
 	SetStart entry.Timestamp
 	SetEnd   entry.Timestamp
 	Addendum jsontext.Value `json:",omitempty"`
@@ -426,7 +426,7 @@ type SearchStatsResponse struct {
 	Current     entry.Timestamp
 	Set         []StatSet         `json:",omitempty"`
 	OverviewSet []OverviewStatSet `json:",omitempty"`
-	Size        int               `json:",omitempty"`
+	Size        int               `json:",omitzero"`
 }
 
 type StatSetResponse struct {
@@ -835,8 +835,8 @@ func (ssr SearchStatsRequest) MarshalJSON() ([]byte, error) {
 	type alias SearchStatsRequest
 	return json.Marshal(&struct {
 		alias
-		SetStart *entry.Timestamp `json:",omitempty"`
-		SetEnd   *entry.Timestamp `json:",omitempty"`
+		SetStart *entry.Timestamp `json:",omitzero"`
+		SetEnd   *entry.Timestamp `json:",omitzero"`
 	}{
 		alias:    alias(ssr),
 		SetStart: tsPointer(ssr.SetStart),

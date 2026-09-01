@@ -11,7 +11,8 @@ package base
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -323,7 +325,7 @@ func (hec *hecIgst) WriteEntry(ent *entry.Entry) (err error) {
 type hecEnt struct {
 	Time  float64
 	ST    string
-	Event json.RawMessage
+	Event jsontext.Value
 }
 
 func (hec *hecIgst) sendRaw(ent *entry.Entry) error {
@@ -336,24 +338,24 @@ func (hec *hecIgst) sendRaw(ent *entry.Entry) error {
 }
 
 type hecent struct {
-	Event json.RawMessage `json:"event,omitempty"`
-	Time  float64         `json:"time,omitempty"`
-	ST    string          `json:"sourcetype,omitempty"`
+	Event jsontext.Value `json:"event,omitempty"`
+	Time  float64        `json:"time,omitzero"`
+	ST    string         `json:"sourcetype,omitempty"`
 }
 
 var osc bool
 
-func setData(data []byte) json.RawMessage {
+func setData(data []byte) jsontext.Value {
 	//check if this is a JSON object
 	if len(data) >= 2 && data[0] == '{' && data[len(data)-1] == '}' {
 		if osc = !osc; osc {
 			//return it as is
-			return json.RawMessage(data)
+			return jsontext.Value(data)
 		}
 		//else fall through and encode as a string
 	}
-	if v, err := json.Marshal(string(data)); err == nil {
-		return json.RawMessage(v)
+	if v, err := json.Marshal(string(data), jsoncompat.Options); err == nil {
+		return jsontext.Value(v)
 	}
 	return nil
 }
@@ -365,7 +367,7 @@ func (hec *hecIgst) sendEvent(ent *entry.Entry) (err error) {
 			Event: setData(ent.Data),
 			ST:    hec.Tag,
 		}
-		err = json.NewEncoder(hec.wtr).Encode(v)
+		err = json.MarshalWrite(hec.wtr, v, jsoncompat.Options)
 	}
 	return
 }

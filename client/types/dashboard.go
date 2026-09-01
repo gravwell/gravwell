@@ -36,10 +36,10 @@ type DashboardTimeframe struct {
 
 // DashboardGrid describes top-level grid layout options for a Dashboard.
 type DashboardGrid struct {
-	Gutter       float64 `json:",omitempty"`
-	Margin       float64 `json:",omitempty"`
-	BorderWidth  float64 `json:",omitempty"`
-	BorderRadius float64 `json:",omitempty"`
+	Gutter       float64 `json:",omitzero"`
+	Margin       float64 `json:",omitzero"`
+	BorderWidth  float64 `json:",omitzero"`
+	BorderRadius float64 `json:",omitzero"`
 }
 
 // DashboardSearchable describes a searchable thing associated with a Dashboard,
@@ -48,7 +48,7 @@ type DashboardSearchable struct {
 	Color             string `json:",omitempty"`
 	Name              string `json:",omitempty"`
 	Reference         Searchable
-	TimeframeOverride *DashboardTimeframe `json:",omitempty"`
+	TimeframeOverride *DashboardTimeframe `json:",omitzero"`
 }
 
 // Searchable represents a searchable thing that can launch or attach to a search.
@@ -74,8 +74,8 @@ type DashboardTile struct {
 type DashboardTileConfig struct {
 	Height float64
 	Width  float64
-	X      float64 `json:",omitempty"`
-	Y      float64 `json:",omitempty"`
+	X      float64 `json:",omitzero"`
+	Y      float64 `json:",omitzero"`
 }
 
 type DashboardListResponse struct {

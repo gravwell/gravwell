@@ -10,7 +10,8 @@ package msgraph
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -93,14 +95,14 @@ func (c *Client) authenticate(ctx context.Context) error {
 
 	if resp.StatusCode != http.StatusOK {
 		var authErr AuthErrorResponse
-		if err := json.NewDecoder(resp.Body).Decode(&authErr); err != nil {
+		if err := json.UnmarshalRead(resp.Body, &authErr, jsoncompat.Options); err != nil {
 			return fmt.Errorf("%w: status %d, decode error response body: %w", ErrAuthentication, resp.StatusCode, err)
 		}
 		return fmt.Errorf("%w: status %d, [%s] %s", ErrAuthentication, resp.StatusCode, authErr.Error, authErr.ErrorDescription)
 	}
 
 	var token AuthToken
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &token, jsoncompat.Options); err != nil {
 		return fmt.Errorf("%w: failed to decode token response: %w", ErrAuthentication, err)
 	}
 
@@ -153,22 +155,22 @@ func (c *Client) List(ctx context.Context, endpoint string, params url.Values, n
 
 	if resp.StatusCode != http.StatusOK {
 		var graphErr GraphErrorResponse
-		if err := json.NewDecoder(resp.Body).Decode(&graphErr); err != nil {
+		if err := json.UnmarshalRead(resp.Body, &graphErr, jsoncompat.Options); err != nil {
 			return nil, fmt.Errorf("status %d, decode error response body: %w", resp.StatusCode, err)
 		}
 		return nil, fmt.Errorf("status %d, [%s] %s", resp.StatusCode, graphErr.Error.Code, graphErr.Error.Message)
 	}
 
 	var result ODataResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &result, jsoncompat.Options); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 	return &result, nil
 }
 
 // ListAll consumes all pages for a given endpoint and returns every item.
-func (c *Client) ListAll(ctx context.Context, endpoint string, params url.Values) ([]json.RawMessage, error) {
-	var all []json.RawMessage
+func (c *Client) ListAll(ctx context.Context, endpoint string, params url.Values) ([]jsontext.Value, error) {
+	var all []jsontext.Value
 	var nextLink string
 	for {
 		resp, err := c.List(ctx, endpoint, params, nextLink)

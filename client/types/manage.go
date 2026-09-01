@@ -56,7 +56,7 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 		Size          uint64
 		Stored        uint64
 		Cold          bool              //true if the shard is in the code storage
-		RemoteState   *ReplicationState `json:",omitempty"`
+		RemoteState   *ReplicationState `json:",omitzero"`
 		Fragmentation uint
 	}{
 		Name:          si.Name,

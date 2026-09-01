@@ -10,7 +10,7 @@
 package actionables
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
@@ -35,6 +35,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -100,7 +101,7 @@ func get() action.Pair {
 					}
 					return err.Error(), nil
 				}
-				b, err := json.Marshal(a.Contents)
+				b, err := json.Marshal(a.Contents, jsoncompat.Options)
 				if err != nil {
 					return err.Error(), nil
 				}
@@ -152,7 +153,7 @@ func create() action.Pair {
 				if err != nil {
 					return 0, err.Error(), nil
 				}
-				if err := json.Unmarshal(b, &spec.Contents); err != nil {
+				if err := json.Unmarshal(b, &spec.Contents, jsoncompat.Options); err != nil {
 					return 0, err.Error(), nil
 				}
 			}
@@ -161,13 +162,11 @@ func create() action.Pair {
 			return new.ID, "", err
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Long: "Create a new actionable empty or from JSON. " +
-					"Call " + stylesheet.Path(true, "~", "actionables", "json") + " to view the required schema or " +
-					"call " + stylesheet.Path(true, "~", "actionables", "get", "<ID>") + " to view an existing actionable as JSON.",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ActionableWrite},
-				},
+			Long: "Create a new actionable empty or from JSON. " +
+				"Call " + stylesheet.Path(true, "~", "actionables", "json") + " to view the required schema or " +
+				"call " + stylesheet.Path(true, "~", "actionables", "get", "<ID>") + " to view an existing actionable as JSON.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ActionableWrite},
 			},
 		})
 }
@@ -254,8 +253,7 @@ func replace() action.Pair {
 				return nil, err
 			}
 			defer f.Close()
-			dcdr := json.NewDecoder(f)
-			if err := dcdr.Decode(&a.Contents); err != nil {
+			if err := json.UnmarshalRead(f, &a.Contents, jsoncompat.Options); err != nil {
 				return nil, err
 			}
 			a, err = connection.Client.UpdateActionable(a)

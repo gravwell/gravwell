@@ -138,7 +138,7 @@ type LicenseDistributionStatus struct {
 
 type LicenseIndexerInfo struct {
 	Indexer string
-	Error   error `json:",omitempty"`
+	Error   error `json:",omitzero"`
 	Info    LicenseInfo
 }
 
@@ -161,7 +161,7 @@ type LicenseUsage struct {
 	Used      uint64               // license ingest usage
 	Entries   uint64               // total count of entries (does not impact license)
 	History   []LicenseUsageBucket `json:",omitempty"`
-	Error     error                `json:",omitempty"`
+	Error     error                `json:",omitzero"`
 }
 
 // LicenseUsageReport is the meta structure that contains all the license tracking data for potentially many indexers

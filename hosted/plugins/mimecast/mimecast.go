@@ -15,7 +15,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"iter"
@@ -244,7 +244,7 @@ func (m *Mimecast) mtaEventOnce(ctx context.Context, rt hosted.Runtime, api Api)
 	return
 }
 
-func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []json.RawMessage, api Api) (time.Time, error) {
+func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []jsontext.Value, api Api) (time.Time, error) {
 	var first time.Time
 	var last time.Time
 	if len(page) == 0 {

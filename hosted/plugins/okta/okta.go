@@ -11,7 +11,8 @@ package okta
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"golang.org/x/time/rate"
 )
 
@@ -278,9 +280,9 @@ type systemtsdecode struct {
 	Published time.Time `json:"published"`
 }
 
-func getSystemTS(msg json.RawMessage) (ts time.Time) {
+func getSystemTS(msg jsontext.Value) (ts time.Time) {
 	var tsd systemtsdecode
-	if lerr := json.Unmarshal(msg, &tsd); lerr == nil {
+	if lerr := json.Unmarshal(msg, &tsd, jsoncompat.Options); lerr == nil {
 		if ts = tsd.Published; ts.IsZero() {
 			ts = time.Now()
 		}
@@ -294,9 +296,9 @@ type usertsdecode struct {
 	Updated time.Time `json:"lastUpdated"`
 }
 
-func getUserTS(msg json.RawMessage) (ts time.Time) {
+func getUserTS(msg jsontext.Value) (ts time.Time) {
 	var tsd usertsdecode
-	if lerr := json.Unmarshal(msg, &tsd); lerr == nil {
+	if lerr := json.Unmarshal(msg, &tsd, jsoncompat.Options); lerr == nil {
 		if ts = tsd.Updated; ts.IsZero() {
 			ts = time.Now()
 		}
@@ -307,8 +309,8 @@ func getUserTS(msg json.RawMessage) (ts time.Time) {
 }
 
 func (o *OktaIngester) handleSystemLogs(rdr io.Reader, rt hosted.Runtime) (cnt int, latest time.Time, err error) {
-	var lgs []json.RawMessage
-	if err = json.NewDecoder(rdr).Decode(&lgs); err != nil {
+	var lgs []jsontext.Value
+	if err = json.UnmarshalRead(rdr, &lgs, jsoncompat.Options); err != nil {
 		return
 	}
 	cnt = len(lgs)
@@ -410,8 +412,8 @@ func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime
 }
 
 func (o *OktaIngester) handleUserLogs(rdr io.Reader, rt hosted.Runtime) (err error) {
-	var lgs []json.RawMessage
-	if err = json.NewDecoder(rdr).Decode(&lgs); err != nil {
+	var lgs []jsontext.Value
+	if err = json.UnmarshalRead(rdr, &lgs, jsoncompat.Options); err != nil {
 		return
 	}
 	for _, lg := range lgs {

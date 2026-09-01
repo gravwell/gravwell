@@ -2,7 +2,8 @@ package jamf
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/hosted/storage"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // mockRuntime is a minimal in-memory implementation of hosted.Runtime,
@@ -133,19 +135,19 @@ func TestHandle_IngestsRecords(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+		json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	calls := 0
 	mux.HandleFunc("/api/v1/computers-inventory", func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if calls == 1 {
-			json.NewEncoder(w).Encode(Response{
+			json.MarshalWrite(w, Response{
 				TotalCount: 1,
-				Results:    []json.RawMessage{json.RawMessage(record)},
-			})
+				Results:    []jsontext.Value{jsontext.Value(record)},
+			}, jsoncompat.Options)
 			return
 		}
-		json.NewEncoder(w).Encode(Response{TotalCount: 0})
+		json.MarshalWrite(w, Response{TotalCount: 0}, jsoncompat.Options)
 	})
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -188,7 +190,7 @@ func TestHandle_IngestsRecords(t *testing.T) {
 func TestHandle_PaginatesUntilExhausted(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+		json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 
 	var pagesRequested []string
@@ -199,21 +201,21 @@ func TestHandle_PaginatesUntilExhausted(t *testing.T) {
 		ts := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
 		switch page {
 		case "0":
-			json.NewEncoder(w).Encode(Response{
+			json.MarshalWrite(w, Response{
 				TotalCount: 2,
-				Results: []json.RawMessage{
-					json.RawMessage(`{"id":1,"general":{"reportDate":"` + ts + `"}}`),
+				Results: []jsontext.Value{
+					jsontext.Value(`{"id":1,"general":{"reportDate":"` + ts + `"}}`),
 				},
-			})
+			}, jsoncompat.Options)
 		case "1":
-			json.NewEncoder(w).Encode(Response{
+			json.MarshalWrite(w, Response{
 				TotalCount: 2,
-				Results: []json.RawMessage{
-					json.RawMessage(`{"id":2,"general":{"reportDate":"` + ts + `"}}`),
+				Results: []jsontext.Value{
+					jsontext.Value(`{"id":2,"general":{"reportDate":"` + ts + `"}}`),
 				},
-			})
+			}, jsoncompat.Options)
 		default:
-			json.NewEncoder(w).Encode(Response{TotalCount: 0})
+			json.MarshalWrite(w, Response{TotalCount: 0}, jsoncompat.Options)
 		}
 	})
 	server := httptest.NewServer(mux)
@@ -242,10 +244,10 @@ func TestHandle_PaginatesUntilExhausted(t *testing.T) {
 func TestHandle_PersistsWindowEnd(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+		json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/api/v1/computers-inventory", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(Response{TotalCount: 0})
+		json.MarshalWrite(w, Response{TotalCount: 0}, jsoncompat.Options)
 	})
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -279,11 +281,11 @@ func TestHandle_NoOpWhenWindowNotYetOpen(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
 		requests++
-		json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+		json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/api/v1/computers-inventory", func(w http.ResponseWriter, r *http.Request) {
 		requests++
-		json.NewEncoder(w).Encode(Response{TotalCount: 0})
+		json.MarshalWrite(w, Response{TotalCount: 0}, jsoncompat.Options)
 	})
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -320,23 +322,23 @@ func TestHandle_SkipsMalformedRecordsButContinues(t *testing.T) {
 	goodTS := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+		json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 	})
 	mux.HandleFunc("/api/v1/computers-inventory", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "0" {
 			// Only the first page has results; subsequent pages signal
 			// the drain loop to stop, matching real API pagination.
-			json.NewEncoder(w).Encode(Response{TotalCount: 0})
+			json.MarshalWrite(w, Response{TotalCount: 0}, jsoncompat.Options)
 			return
 		}
-		json.NewEncoder(w).Encode(Response{
+		json.MarshalWrite(w, Response{
 			TotalCount: 3,
-			Results: []json.RawMessage{
-				json.RawMessage(`{"id":1,"general":{"reportDate":"` + goodTS + `"}}`), // good
-				json.RawMessage(`{"id":2,"general":{}}`),                              // missing reportDate
-				json.RawMessage(`{"id":3,"general":{"reportDate":"not-a-time"}}`),     // bad format
+			Results: []jsontext.Value{
+				jsontext.Value(`{"id":1,"general":{"reportDate":"` + goodTS + `"}}`), // good
+				jsontext.Value(`{"id":2,"general":{}}`),                              // missing reportDate
+				jsontext.Value(`{"id":3,"general":{"reportDate":"not-a-time"}}`),     // bad format
 			},
-		})
+		}, jsoncompat.Options)
 	})
 	server := httptest.NewServer(mux)
 	defer server.Close()

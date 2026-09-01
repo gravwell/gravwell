@@ -9,7 +9,7 @@
 package ingest
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"net"
 	"os"
@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/spf13/pflag"
 )
 
@@ -311,10 +312,9 @@ func determineTag(pth, tag, defaultTag string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			dcdr := json.NewDecoder(f)
 			var ste types.StringTagEntry
 			// try to decode a single entry (\n delimited)
-			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
+			if err := json.UnmarshalRead(f, &ste, jsoncompat.Options); err == nil && ste.Tag != "" {
 				// successfully decoded file and read tag; we can leave our tag empty
 				return "", nil
 			}

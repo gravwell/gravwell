@@ -60,5 +60,5 @@ type AvailableFilter struct {
 	Type        FilterType
 	Operations  []string
 	Sortable    bool
-	MultiValued bool `json:",omitempty"`
+	MultiValued bool `json:",omitzero"`
 }

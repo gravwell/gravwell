@@ -11,7 +11,8 @@ package wiz
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +21,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 var (
@@ -161,15 +164,15 @@ type graphQLRequest struct {
 }
 
 type graphQLResponse struct {
-	Data   json.RawMessage `json:"data"`
-	Errors []GraphQLError  `json:"errors,omitempty"`
+	Data   jsontext.Value `json:"data"`
+	Errors []GraphQLError `json:"errors,omitempty"`
 }
 
 // Query executes a GraphQL query and unmarshals the returned data into out. If
 // the request comes back unauthenticated the OAuth token is refreshed and the
 // request is retried exactly once.
 func (c *Client) Query(ctx context.Context, query string, vars map[string]any, out any) error {
-	body, err := json.Marshal(graphQLRequest{Query: query, Variables: vars})
+	body, err := json.Marshal(graphQLRequest{Query: query, Variables: vars}, jsoncompat.Options)
 	if err != nil {
 		return fmt.Errorf("failed to marshal graphql request: %w", err)
 	}
@@ -222,7 +225,7 @@ func (c *Client) Query(ctx context.Context, query string, vars map[string]any, o
 		}
 
 		if out != nil {
-			if err = json.Unmarshal(payload.Data, out); err != nil {
+			if err = json.Unmarshal(payload.Data, out, jsoncompat.Options); err != nil {
 				return fmt.Errorf("failed to unmarshal graphql data: %w", err)
 			}
 		}
@@ -279,7 +282,7 @@ func parse[T any](rc io.Reader) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(body, t); err != nil {
+	if err := json.Unmarshal(body, t, jsoncompat.Options); err != nil {
 		return nil, err
 	}
 	return t, nil

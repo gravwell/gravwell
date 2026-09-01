@@ -10,13 +10,15 @@ package entry
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"net"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestEnumeratedBasics(t *testing.T) {
@@ -263,11 +265,11 @@ func TestEnumeratedJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bts, err = json.Marshal(ev); err != nil {
+	if bts, err = json.Marshal(ev, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 	var nev EnumeratedValue
-	if err = json.Unmarshal(bts, &nev); err != nil {
+	if err = json.Unmarshal(bts, &nev, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -297,12 +299,12 @@ func TestEntryJSON(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	bts, err := json.Marshal(ent)
+	bts, err := json.Marshal(ent, jsoncompat.Options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var nent Entry
-	if err = json.Unmarshal(bts, &nent); err != nil {
+	if err = json.Unmarshal(bts, &nent, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 
@@ -331,10 +333,10 @@ func TestEntryJSON(t *testing.T) {
 
 	// do it again with empty EVs
 	ent.EVB = EVBlock{}
-	if bts, err = json.Marshal(ent); err != nil {
+	if bts, err = json.Marshal(ent, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
-	if err = json.Unmarshal(bts, &nent); err != nil {
+	if err = json.Unmarshal(bts, &nent, jsoncompat.Options); err != nil {
 		t.Fatal(err)
 	}
 	if ent.EVB.Count() != 0 || nent.EVB.Count() != 0 {

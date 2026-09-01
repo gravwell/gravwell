@@ -273,8 +273,8 @@ func descriptionLine(admin bool, email string) string {
 
 // wrapper for types.Session to limit the information sessions returns.
 type session struct {
-	SessionID   uint64 `json:",omitempty"`
-	UID         int32  `json:",omitempty"`
+	SessionID   uint64
+	UID         int32
 	Origin      net.IP
 	LastHit     string // timestamp
 	TempSession bool

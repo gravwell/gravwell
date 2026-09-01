@@ -10,7 +10,7 @@ package entry
 
 import (
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"time"
 	"unicode/utf8"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -552,12 +554,12 @@ func (ev EnumeratedData) Valid() bool {
 }
 
 func (ev EnumeratedData) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ev.Interface())
+	return json.Marshal(ev.Interface(), jsoncompat.Options)
 }
 
 func (ev *EnumeratedData) UnmarshalJSON(v []byte) error {
 	var x interface{}
-	if err := json.Unmarshal(v, &x); err != nil {
+	if err := json.Unmarshal(v, &x, jsoncompat.Options); err != nil {
 		return err
 	}
 	nev, err := InferEnumeratedData(x)

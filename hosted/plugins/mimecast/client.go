@@ -11,7 +11,7 @@ package mimecast
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -20,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -226,7 +228,7 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, tr *TimeRange, cursor st
 		payload.Meta.Pagination.PageToken = cursor
 	}
 
-	pBody, err := json.Marshal(payload)
+	pBody, err := json.Marshal(payload, jsoncompat.Options)
 	if err != nil {
 		return nil, fmt.Errorf("error making audit api payload: %w", err)
 	}
@@ -314,7 +316,7 @@ func parse[T any](rc io.Reader) (*T, error) {
 		return nil, err
 	}
 
-	if err := json.Unmarshal(body, t); err != nil {
+	if err := json.Unmarshal(body, t, jsoncompat.Options); err != nil {
 		return nil, err
 	}
 

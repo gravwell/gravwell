@@ -104,7 +104,7 @@ type IngestConfig struct {
 	Ingest_Secret_File         string   `json:"-"` // DO NOT send this when marshalling
 	Connection_Timeout         string   `json:",omitempty"`
 	Verify_Remote_Certificates bool     `json:"-"` //legacy, will be removed
-	Insecure_Skip_TLS_Verify   bool     `json:",omitempty"`
+	Insecure_Skip_TLS_Verify   bool     `json:",omitzero"`
 	Cleartext_Backend_Target   []string `json:",omitempty"`
 	Encrypted_Backend_Target   []string `json:",omitempty"`
 	Pipe_Backend_Target        []string `json:",omitempty"`
@@ -115,21 +115,21 @@ type IngestConfig struct {
 	Source_Override            string   `json:",omitempty"` // override normal source if desired
 	Rate_Limit                 string   `json:",omitempty"`
 	Ingester_UUID              string   `json:",omitempty"`
-	Cache_Depth                int      `json:",omitempty"`
+	Cache_Depth                int      `json:",omitzero"`
 	Cache_Mode                 string   `json:",omitempty"`
 	Ingest_Cache_Path          string   `json:",omitempty"`
-	Max_Ingest_Cache           int      `json:",omitempty"`
+	Max_Ingest_Cache           int      `json:",omitzero"`
 	Log_Source_Override        string   `json:",omitempty"` // override log messages only
 	Label                      string   `json:",omitempty"` //arbitrary label that can be attached to an ingester
 	Disable_Multithreading     bool     //basically set GOMAXPROCS(1)
 	Stats_Sample_Interval      string   `json:",omitempty"` // if set to > 0 duration then we periodically throw stats
 	Timestamp_Max_Past_Delta   string   // if set to > 0 (e.g. "1h"), set TS of entries further than this in the past to now
 	Timestamp_Max_Future_Delta string   // if set to > 0, set TS of entries further that this in the future to now.
-	Max_Entry_Size             int      `json:",omitempty"`
+	Max_Entry_Size             int      `json:",omitzero"`
 }
 
 type IngestStreamConfig struct {
-	Enable_Compression bool `json:",omitempty"`
+	Enable_Compression bool `json:",omitzero"`
 }
 
 type TimeFormat struct {

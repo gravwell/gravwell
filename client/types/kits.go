@@ -41,8 +41,8 @@ type KitConfigMacro struct {
 // KitConfig represents rules, labels, and other configuration options used
 // during kit installation.
 type KitConfig struct {
-	OverwriteExisting     bool `json:",omitempty"`
-	AllowUnsigned         bool `json:",omitempty"`
+	OverwriteExisting     bool `json:",omitzero"`
+	AllowUnsigned         bool `json:",omitzero"`
 	InstallationReaders   ACL
 	InstallationWriters   ACL
 	Labels                []string `json:",omitempty"` // labels applied to each *item*

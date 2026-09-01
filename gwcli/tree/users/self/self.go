@@ -45,8 +45,8 @@ func NewNav() *cobra.Command {
 
 // wrapper for types.Session to limit the information sessions returns.
 type session struct {
-	ID          uint64 `json:",omitempty"`
-	UID         int32  `json:",omitempty"`
+	ID          uint64
+	UID         int32
 	Origin      net.IP
 	LastHit     string // timestamp
 	TempSession bool
@@ -100,17 +100,15 @@ func sessions() action.Pair {
 		},
 		map[string]string{"ID": "SessionID"},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "sessions",
-				Aliases: []string{"session"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String("since",
-						"",
-						"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
-							"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
-					return fs
-				},
+			Use:     "sessions",
+			Aliases: []string{"session"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String("since",
+					"",
+					"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
+						"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
+				return fs
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

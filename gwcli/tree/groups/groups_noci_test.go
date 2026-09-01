@@ -12,7 +12,7 @@ package groups_test
 
 import (
 	"encoding/csv"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strconv"
 	"strings"
@@ -21,6 +21,7 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
+	"github.com/gravwell/gravwell/v4/utils/jsonv2opts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -123,7 +124,7 @@ func TestComplete(t *testing.T) {
 			ID       int    `json:"ID"`
 			Username string `json:"Username"`
 		}{}
-		assert.Nil(t, json.Unmarshal([]byte(stdout.String()), &m), "stdout: %v", stdout.String())
+		assert.Nil(t, json.Unmarshal([]byte(stdout.String()), &m, jsonv2opts.Wire), "stdout: %v", stdout.String())
 		require.Len(t, m, 1) // we should have exactly one group member
 		assert.Equal(t, 1, m[0].ID)
 		assert.Equal(t, "admin", m[0].Username)
@@ -162,7 +163,7 @@ func TestComplete(t *testing.T) {
 			ID       int    `json:"ID"`
 			Username string `json:"Username"`
 		}{}
-		assert.Nil(t, json.Unmarshal([]byte(stdout.String()), &m), "stdout: %v", stdout.String())
+		assert.Nil(t, json.Unmarshal([]byte(stdout.String()), &m, jsonv2opts.Wire), "stdout: %v", stdout.String())
 		require.Len(t, m, 0) // we should not have any group members remaining
 	})
 	t.Run("delete the new group", func(t *testing.T) {

@@ -12,7 +12,7 @@ Package templates defines the templates nav, which holds data related to... er, 
 package templates
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"os"
 	"strings"
@@ -36,6 +36,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -266,7 +267,7 @@ func show() action.Pair {
 				// compose output
 				if asJSON {
 					content := content{Query: template.Query, Variables: template.Variables}
-					b, err := json.Marshal(content)
+					b, err := json.Marshal(content, jsoncompat.Options)
 					if err != nil {
 						clilog.Writer.Error("failed to marshal content", log.KV("content", content), log.KVErr(err))
 						results[i] = scaffold.Result{Output: "failed to marshal content: " + err.Error()}
@@ -335,7 +336,7 @@ func create() action.Pair {
 				if err != nil {
 					return 0, "", err
 				}
-				if err := json.Unmarshal(b, &content); err != nil {
+				if err := json.Unmarshal(b, &content, jsoncompat.Options); err != nil {
 					return 0, "", err
 				}
 			} else {

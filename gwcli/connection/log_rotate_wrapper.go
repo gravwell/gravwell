@@ -1,12 +1,14 @@
 package connection
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/client/objlog"
 	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -42,7 +44,7 @@ func (olw restRotator) Log(id, method string, obj any) error {
 	if olw.FileRotator == nil {
 		return errors.New("FileRotator not initialized")
 	}
-	b, err := json.MarshalIndent(obj, "", "\t")
+	b, err := json.Marshal(obj, jsoncompat.Options, jsontext.WithIndentPrefix(""), jsontext.WithIndent("\t"))
 	if err != nil {
 		return err
 	}

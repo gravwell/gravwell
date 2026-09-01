@@ -1,10 +1,13 @@
 package jamf
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // TestGetToken exercises the OAuth client-credentials token exchange against
@@ -32,7 +35,7 @@ func TestGetToken(t *testing.T) {
 			if r.Form.Get("client_secret") != "secret" {
 				t.Errorf("bad client_secret: %s", r.Form.Get("client_secret"))
 			}
-			json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		}))
 		defer server.Close()
 
@@ -61,7 +64,7 @@ func TestGetToken(t *testing.T) {
 
 	t.Run("missing access token in response", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(tokenResponse{ExpiresIn: 3600})
+			json.MarshalWrite(w, tokenResponse{ExpiresIn: 3600}, jsoncompat.Options)
 		}))
 		defer server.Close()
 
@@ -75,7 +78,7 @@ func TestGetToken(t *testing.T) {
 		count := 0
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			count++
-			json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		}))
 		defer server.Close()
 
@@ -97,7 +100,7 @@ func TestGetToken(t *testing.T) {
 			count++
 			// expires_in shorter than tokenExpiryBuffer means the cached
 			// token is treated as already expired on the very next call.
-			json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 1})
+			json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 1}, jsoncompat.Options)
 		}))
 		defer server.Close()
 
@@ -122,7 +125,7 @@ func TestFetchInventoryPage(t *testing.T) {
 	t.Run("returns values and sets request parameters", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		})
 		mux.HandleFunc("/api/v1/computers-inventory", func(w http.ResponseWriter, r *http.Request) {
 			if got := r.Header.Get("Authorization"); got != "Bearer tok" {
@@ -141,10 +144,10 @@ func TestFetchInventoryPage(t *testing.T) {
 			if len(sections) != 2 || sections[0] != "GENERAL" || sections[1] != "STORAGE" {
 				t.Errorf("bad sections: %v", sections)
 			}
-			json.NewEncoder(w).Encode(Response{
+			json.MarshalWrite(w, Response{
 				TotalCount: 1,
-				Results:    []json.RawMessage{json.RawMessage(`{"id":1}`)},
-			})
+				Results:    []jsontext.Value{jsontext.Value(`{"id":1}`)},
+			}, jsoncompat.Options)
 		})
 		server := httptest.NewServer(mux)
 		defer server.Close()
@@ -179,7 +182,7 @@ func TestFetchInventoryPage(t *testing.T) {
 	t.Run("error response from inventory endpoint", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+			json.MarshalWrite(w, tokenResponse{AccessToken: "tok", ExpiresIn: 3600}, jsoncompat.Options)
 		})
 		mux.HandleFunc("/api/v1/computers-inventory", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusForbidden)

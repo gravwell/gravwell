@@ -655,7 +655,7 @@ type metricsEntry struct {
 	Attributes   map[string]interface{} `json:"attributes,omitempty"`
 	Resource     map[string]interface{} `json:"resource,omitempty"`
 	Timestamp    time.Time              `json:"timestamp"`
-	StartTime    time.Time              `json:"start_time,omitempty"`
+	StartTime    time.Time              `json:"start_time"`
 	ScopeName    string                 `json:"scope_name,omitempty"`
 	ScopeVersion string                 `json:"scope_version,omitempty"`
 }

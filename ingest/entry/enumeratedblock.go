@@ -10,10 +10,12 @@ package entry
 
 import (
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -481,7 +483,7 @@ func (eb EVBlock) MarshalJSON() ([]byte, error) {
 	if len(eb.evs) == 0 {
 		return []byte("[]"), nil
 	}
-	return json.Marshal(eb.evs)
+	return json.Marshal(eb.evs, jsoncompat.Options)
 }
 
 func (eb *EVBlock) UnmarshalJSON(bts []byte) error {
@@ -490,5 +492,5 @@ func (eb *EVBlock) UnmarshalJSON(bts []byte) error {
 		eb.evs = nil
 		return nil
 	}
-	return json.Unmarshal(bts, &eb.evs)
+	return json.Unmarshal(bts, &eb.evs, jsoncompat.Options)
 }

@@ -60,13 +60,13 @@ type HeatmapResponse struct {
 
 type HeatmapValue struct {
 	Location
-	Magnitude float64 `json:",omitempty"`
+	Magnitude float64 `json:",omitzero"`
 }
 
 type P2PValue struct {
 	Src       Location
 	Dst       Location
-	Magnitude float64  `json:",omitempty"`
+	Magnitude float64  `json:",omitzero"`
 	Values    []string `json:",omitempty"`
 }
 

@@ -67,12 +67,12 @@ type streamDelta struct {
 				Function struct {
 					Name      string `json:"name,omitempty"`
 					Arguments string `json:"arguments,omitempty"`
-				} `json:"function,omitempty"`
+				} `json:"function"`
 			} `json:"tool_calls,omitempty"`
 		} `json:"delta"`
 		FinishReason string `json:"finish_reason,omitempty"`
 	} `json:"choices"`
-	Usage *chatUsage `json:"usage,omitempty"`
+	Usage *chatUsage `json:"usage,omitzero"`
 }
 
 func newSSEReassembler() *sseReassembler {

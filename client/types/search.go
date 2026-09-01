@@ -109,7 +109,7 @@ type ExploreResult struct {
 type WordOffset [2]int
 
 type PingReq struct {
-	X error `json:",omitempty"`
+	X error `json:",omitzero"`
 }
 
 // ModuleHint contain "hints" about modules, populated during the init and
@@ -189,15 +189,15 @@ type StartSearchRequest struct {
 	SearchStart  string
 	SearchEnd    string
 	Background   bool
-	NoHistory    bool `json:",omitempty"`
+	NoHistory    bool `json:",omitzero"`
 	//Preview indicates that the renderer should only capture enough to show some usage of data
 	//A raw, text, hex renderer will grab a few hundred or thousand entries
 	//charts will grab enough to draw something useful
 	//everything else will get "enough"
-	Preview bool `json:",omitempty"`
+	Preview bool `json:",omitzero"`
 	//NonTemporal is used to hint that we do not want this query to be temporal IF POSSIBLE
 	//some queries cannot respect this, but things like table and some charts can
-	NonTemporal bool           `json:",omitempty"`
+	NonTemporal bool           `json:",omitzero"`
 	Metadata    jsontext.Value `json:",omitempty"`
 	Addendum    jsontext.Value `json:",omitempty"`
 	Name        string         `json:",omitempty"`
@@ -223,13 +223,13 @@ type StartSearchResponse struct {
 	SearchID             string `json:",omitempty"`
 	SearchStartRange     time.Time
 	SearchEndRange       time.Time
-	Background           bool             `json:",omitempty"`
-	NonTemporal          bool             `json:",omitempty"`
+	Background           bool             `json:",omitzero"`
+	NonTemporal          bool             `json:",omitzero"`
 	CollapsingIndex      int              // index of the first collapsed module
 	Metadata             jsontext.Value   `json:",omitempty"`
 	Addendum             jsontext.Value   `json:",omitempty"`
 	LaunchInfo           SearchLaunchInfo // information about how a search was launched
-	QueryTimeSpecified   bool             `json:",omitempty"` // True if the query itself specifies the time spec
+	QueryTimeSpecified   bool             `json:",omitzero"` // True if the query itself specifies the time spec
 	SearchHints
 	// Sharing parameters
 	GIDs   []int32
@@ -258,7 +258,7 @@ type AttachSearchResponse struct {
 	Subproto    string      `json:",omitempty"` //the new subprotocol
 	RendererMod string      `json:",omitempty"` //the renderer in use
 	RendererCmd string      `json:",omitempty"` //the renderer commands
-	Info        *SearchInfo `json:",omitempty"` //info if available
+	Info        *SearchInfo `json:",omitzero"`  //info if available
 }
 
 // SearchInfo contains information about a search, including the search
@@ -288,7 +288,7 @@ type SearchInfo struct {
 	TimeZoomDisabled      bool              //Renderer does not support zooming around data based on time
 	QueryTimeSpecified    bool              // True if the query contains start/end constraints
 	RenderDownloadFormats []string          `json:",omitempty"`
-	RendererSettings      *RendererSettings `json:",omitempty"`
+	RendererSettings      *RendererSettings `json:",omitzero"`
 	CollapsingIndex       int
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
@@ -558,16 +558,16 @@ type StatsUpdate struct {
 type SearchDownloadRequest struct {
 	Format    string
 	Rows      []RowSelection `json:",omitempty"`
-	Timeframe *Timeframe     `json:",omitempty"`
+	Timeframe *Timeframe     `json:",omitzero"`
 }
 
 type RowSelection struct {
 	Kind string `json:"kind"`
 	// Start and End must be populated if it is a range, but not Index
-	Start uint64 `json:"start,omitempty"`
-	End   uint64 `json:"end,omitempty"`
+	Start uint64 `json:"start,omitzero"`
+	End   uint64 `json:"end,omitzero"`
 	// Index must be selected if it is only a single row, but not Start or End
-	Index uint64 `json:"index,omitempty"`
+	Index uint64 `json:"index,omitzero"`
 }
 
 // The aliasRowSelection is a type alias to [RowSelection] just to break the MarshalJSON / UnmarshalJSON
@@ -726,9 +726,9 @@ func (ssr SearchStatsResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Size       int
 		Set        emptyStatSet
-		RangeStart *entry.Timestamp `json:",omitempty"`
-		RangeEnd   *entry.Timestamp `json:",omitempty"`
-		Current    *entry.Timestamp `json:",omitempty"`
+		RangeStart *entry.Timestamp `json:",omitzero"`
+		RangeEnd   *entry.Timestamp `json:",omitzero"`
+		Current    *entry.Timestamp `json:",omitzero"`
 	}{
 		Size:       ssr.Size,
 		Set:        emptyStatSet(ssr.Set),

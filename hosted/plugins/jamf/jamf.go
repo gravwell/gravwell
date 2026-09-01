@@ -9,9 +9,9 @@
 package jamf
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"time"
@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -128,9 +129,9 @@ type generalSection struct {
 // original record with a top-level "timestamp" field inserted, preserving
 // compatibility with dashboards/searches built against the original flow's
 // output shape.
-func stampTimestamp(raw json.RawMessage) (time.Time, []byte, error) {
+func stampTimestamp(raw jsontext.Value) (time.Time, []byte, error) {
 	var g generalSection
-	if err := json.Unmarshal(raw, &g); err != nil {
+	if err := json.Unmarshal(raw, &g, jsoncompat.Options); err != nil {
 		return time.Time{}, nil, fmt.Errorf("unmarshal record: %w", err)
 	}
 	if g.General.ReportDate == "" {
@@ -142,11 +143,11 @@ func stampTimestamp(raw json.RawMessage) (time.Time, []byte, error) {
 		return time.Time{}, nil, fmt.Errorf("parsing reportDate %q: %w", g.General.ReportDate, err)
 	}
 
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, raw); err != nil {
+	compactVal := jsontext.Value(raw).Clone()
+	if err := compactVal.Compact(jsoncompat.Options); err != nil {
 		return time.Time{}, nil, fmt.Errorf("compacting record: %w", err)
 	}
-	compact := buf.Bytes()
+	compact := []byte(compactVal)
 	if len(compact) == 0 || compact[0] != '{' {
 		return time.Time{}, nil, errors.New("record is not a JSON object")
 	}

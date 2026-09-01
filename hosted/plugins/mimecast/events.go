@@ -9,7 +9,7 @@
 package mimecast
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"time"
 )
 
@@ -91,9 +91,9 @@ type Error struct {
 type SIEMEventResponse struct {
 	// Value in reality is a slice of MtaEventData, but we don't parse it out to simplify ingestion.
 	// When processing each message should be parsed as MtaEventData to get the timestamp; then the entire message should be ingested raw.
-	Value      []json.RawMessage `json:"value"`
-	NextPage   string            `json:"@nextPage"`
-	IsCaughtUp bool              `json:"isCaughtUp"`
+	Value      []jsontext.Value `json:"value"`
+	NextPage   string           `json:"@nextPage"`
+	IsCaughtUp bool             `json:"isCaughtUp"`
 }
 
 // MtaEventData is the minimum representation of all events returned.
@@ -118,7 +118,7 @@ type RequestData struct {
 
 type RequestMeta struct {
 	Pagination struct {
-		PageSize  int    `json:"pageSize,omitempty"`
+		PageSize  int    `json:"pageSize,omitzero"`
 		PageToken string `json:"pageToken,omitempty"`
 	} `json:"pagination,omitzero"`
 }
@@ -131,7 +131,7 @@ type Request struct {
 type ResponseError struct {
 	Code      string `json:"code,omitempty"`
 	Message   string `json:"message,omitempty"`
-	Retryable bool   `json:"retryable,omitempty"`
+	Retryable bool   `json:"retryable,omitzero"`
 }
 
 type ResponseFailure struct {
@@ -140,13 +140,13 @@ type ResponseFailure struct {
 
 type ResponseMeta struct {
 	Pagination struct {
-		PageSize int    `json:"pageSize,omitempty"`
+		PageSize int    `json:"pageSize,omitzero"`
 		Next     string `json:"next,omitempty"`
 	} `json:"pagination,omitzero"`
 }
 
 type Response struct {
 	Meta ResponseMeta      `json:"meta,omitzero"`
-	Data []json.RawMessage `json:"data,omitempty"`
+	Data []jsontext.Value  `json:"data,omitempty"`
 	Fail []ResponseFailure `json:"fail,omitempty"`
 }

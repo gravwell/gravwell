@@ -76,7 +76,7 @@ package connection
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -92,6 +92,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/objlog"
@@ -795,7 +796,7 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 	if err != nil {
 		return JWTHeader{}, JWTPayload{}, nil, err
 	}
-	if err := json.Unmarshal(decodedURL, &header); err != nil {
+	if err := json.Unmarshal(decodedURL, &header, jsoncompat.Options); err != nil {
 		return JWTHeader{}, JWTPayload{}, nil, err
 	}
 
@@ -804,7 +805,7 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 	if err != nil {
 		return header, JWTPayload{}, nil, err
 	}
-	if err := json.Unmarshal(decodedURL, &payload); err != nil {
+	if err := json.Unmarshal(decodedURL, &payload, jsoncompat.Options); err != nil {
 		return header, JWTPayload{}, nil, err
 	}
 

@@ -70,11 +70,11 @@ type ActionableAction struct {
 
 	// The following fields are only used by url actions.
 	TemplateURL       string                  `json:",omitempty"`
-	OpenInModal       bool                    `json:",omitempty"`
-	ModalWidthPercent float64                 `json:",omitempty"`
-	NoValueUrlEncode  bool                    `json:",omitempty"`
-	Start             *ActionableTimeVariable `json:",omitempty"`
-	End               *ActionableTimeVariable `json:",omitempty"`
+	OpenInModal       bool                    `json:",omitzero"`
+	ModalWidthPercent float64                 `json:",omitzero"`
+	NoValueUrlEncode  bool                    `json:",omitzero"`
+	Start             *ActionableTimeVariable `json:",omitzero"`
+	End               *ActionableTimeVariable `json:",omitzero"`
 }
 
 // ActionableTimeVariable describes time-range options for a url

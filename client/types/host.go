@@ -24,11 +24,11 @@ var (
 type SysInfo struct {
 	VirtSystem    string `json:",omitempty"` // e.g. "kvm" or "xen"
 	VirtRole      string `json:",omitempty"` // "host" or "guest"
-	CPUCount      int    `json:",omitempty"`
+	CPUCount      int    `json:",omitzero"`
 	CPUModel      string `json:",omitempty"`
 	CPUMhz        string `json:",omitempty"`
 	CPUCache      string `json:",omitempty"`
-	TotalMemoryMB uint64 `json:",omitempty"`
+	TotalMemoryMB uint64 `json:",omitzero"`
 	SystemVersion string `json:",omitempty"`
 	Error         string `json:",omitempty"`
 }
@@ -61,14 +61,14 @@ type NetworkUsage struct {
 
 // HostSysStats statistics, used by the System Stats view in Gravwell.
 type HostSysStats struct {
-	Uptime                uint64  `json:",omitempty"`
-	TotalMemory           uint64  `json:",omitempty"`
-	ProcessHeapAllocation uint64  `json:",omitempty"` // bytes allocated by this process's heap
-	ProcessSysReserved    uint64  `json:",omitempty"` // total bytes obtained from the OS
-	MemoryUsedPercent     float64 `json:",omitempty"`
+	Uptime                uint64  `json:",omitzero"`
+	TotalMemory           uint64  `json:",omitzero"`
+	ProcessHeapAllocation uint64  `json:",omitzero"` // bytes allocated by this process's heap
+	ProcessSysReserved    uint64  `json:",omitzero"` // total bytes obtained from the OS
+	MemoryUsedPercent     float64 `json:",omitzero"`
 	Disks                 []DiskStats
 	CPUUsage              float64
-	CPUCount              int `json:",omitempty"`
+	CPUCount              int `json:",omitzero"`
 	HostHash              string
 	Net                   NetworkUsage
 	IO                    []DiskIO

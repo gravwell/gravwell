@@ -9,7 +9,7 @@
 package msgraph
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
 	"time"
 )
 
@@ -49,8 +49,8 @@ type ResourceID struct {
 
 // ODataResponse is the generic paginated response from MS Graph.
 type ODataResponse struct {
-	Value    []json.RawMessage `json:"value"`
-	NextLink string            `json:"@odata.nextLink"`
+	Value    []jsontext.Value `json:"value"`
+	NextLink string           `json:"@odata.nextLink"`
 }
 
 // AuthToken represents the OAuth2 token response.

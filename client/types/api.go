@@ -237,7 +237,7 @@ type LoginResponse struct {
 	LoginStatus       bool
 	Reason            string     `json:",omitempty"`
 	AcceptedAuthTypes []AuthType `json:",omitempty"`
-	Admin             bool       `json:",omitempty"`
+	Admin             bool       `json:",omitzero"`
 	JWT               string     `json:",omitempty"`
 	MFARequired       bool
 	MFASetupRequired  bool
@@ -271,7 +271,7 @@ type SSOStatus struct {
 
 type WarnResp struct {
 	Name string
-	Err  error `json:",omitempty"`
+	Err  error `json:",omitzero"`
 }
 
 type IngestResponse struct {

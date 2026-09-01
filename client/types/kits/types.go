@@ -21,7 +21,7 @@ type PackedFile struct {
 	Name        string
 	Description string
 	Labels      []string
-	Size        uint64 `json:",omitempty"`
+	Size        uint64 `json:",omitzero"`
 	Hash        string `json:",omitempty"`
 	Data        []byte `json:",omitempty"`
 }
@@ -144,7 +144,7 @@ type PackedScheduledSearch struct {
 	Schedule    string // when to run: a cron spec
 
 	SearchString    string `json:",omitempty"` // The actual search to run
-	Duration        int64  `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
+	Duration        int64  `json:",omitzero"`  // How many seconds back to search, MUST BE NEGATIVE
 	ID              string // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
 	SearchReference string // Used if we're referencing a search query asset by ID instead of including the search directly.
 }
