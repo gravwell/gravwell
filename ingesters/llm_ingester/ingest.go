@@ -12,6 +12,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
@@ -36,7 +37,7 @@ type emitCtx struct {
 	requestID    string
 	model        string
 	durationMs   int64
-	lg           *log.Logger
+	lg           ingest.Logger
 }
 
 // emitRequestEvents writes the request-side events that the listener's
@@ -96,6 +97,14 @@ func emitRequestEvents(ec *emitCtx, evs []protocol.Event) {
 		// logged in a previous request.
 		for _, e := range evs[tailStart(evs):] {
 			if e.Type == protocol.EventToolResult && !ec.logToolCalls {
+				continue
+			}
+			// The system prompt is emitted above for a new session and is
+			// never new on a later request. On the first request of a session
+			// there is no assistant turn yet, so tailStart returns 0 and the
+			// tail still contains it — writing it here would duplicate the
+			// whole prompt, which for a Claude Code session is tens of KB.
+			if e.Type == protocol.EventSystemMessage {
 				continue
 			}
 			writeEvent(ec, e)
@@ -189,7 +198,7 @@ func buildEntry(ec *emitCtx, ev protocol.Event) *entry.Entry {
 }
 
 func addEV(ec *emitCtx, e *entry.Entry, name string, val interface{}) {
-	if err := e.AddEnumeratedValueEx(name, val); err != nil && ec.lg != nil {
+	if err := e.AddEnumeratedValueEx(name, val); err != nil {
 		ec.lg.Warn("failed to add EV",
 			log.KV("name", name),
 			log.KVErr(err))
@@ -200,7 +209,7 @@ func send(ec *emitCtx, e *entry.Entry) {
 	if ec.pproc == nil {
 		return
 	}
-	if err := ec.pproc.ProcessContext(e, context.Background()); err != nil && ec.lg != nil {
+	if err := ec.pproc.ProcessContext(e, context.Background()); err != nil {
 		ec.lg.Warn("failed to ingest entry", log.KVErr(err))
 	}
 }

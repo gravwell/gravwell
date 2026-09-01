@@ -31,15 +31,36 @@ const (
 type wrappedRunner struct {
 	hosted.Runner
 	lastStart time.Time // when was the last time a start was attempted
+	kind      string    // plugin kind (okta, wiz, ...), the runner only knows its own ID
+	childKey  string    // key this ingester is registered under on the ingest muxer
+}
+
+// childState grabs the current state of the ingester and stamps on the identifiers that only
+// the manager knows about.  Name is the plugin kind and Label is the configured instance name,
+// which is how a child shows up alongside every other ingester attached to the indexer.
+func (wr wrappedRunner) childState() (s ingest.IngesterState) {
+	s = wr.ChildState()
+	s.Name = wr.kind
+	s.Label = wr.Name()
+	return
+}
+
+// childRegistry is the part of the ingest muxer used to report hosted ingesters as children.
+// It is an interface so the registration bookkeeping can be exercised without standing up a muxer.
+type childRegistry interface {
+	RegisterChild(string, ingest.IngesterState)
+	UnregisterChild(string)
 }
 
 type runtimeManager struct {
-	ctx  context.Context
-	cf   context.CancelFunc
-	igst *ingest.IngestMuxer
-	sh   *storage.BoltHandler
-	lgr  *log.Logger
-	mp   map[uuid.UUID]wrappedRunner
+	ctx      context.Context
+	cf       context.CancelFunc
+	igst     *ingest.IngestMuxer
+	reg      childRegistry
+	sh       *storage.BoltHandler
+	lgr      *log.Logger
+	mp       map[uuid.UUID]wrappedRunner
+	children map[string]struct{} // child keys currently registered on the ingest muxer
 }
 
 func newRuntimeManager(igst *ingest.IngestMuxer, sh *storage.BoltHandler, lg *log.Logger) (r *runtimeManager, err error) {
@@ -52,12 +73,14 @@ func newRuntimeManager(igst *ingest.IngestMuxer, sh *storage.BoltHandler, lg *lo
 	}
 	ctx, cf := context.WithCancel(context.Background())
 	r = &runtimeManager{
-		ctx:  ctx,
-		cf:   cf,
-		igst: igst,
-		lgr:  lg,
-		sh:   sh,
-		mp:   make(map[uuid.UUID]wrappedRunner),
+		ctx:      ctx,
+		cf:       cf,
+		igst:     igst,
+		reg:      igst,
+		lgr:      lg,
+		sh:       sh,
+		mp:       make(map[uuid.UUID]wrappedRunner),
+		children: make(map[string]struct{}),
 	}
 	return
 }
@@ -69,6 +92,12 @@ func (rm *runtimeManager) stop() (err error) {
 			err = stackCloseErrors(err, lerr, v.Name(), v.UUID())
 		}
 	}
+	// unregister all children, this won't happen in prod in a way that matters, but could be used in some tests
+	for k := range rm.children {
+		rm.reg.UnregisterChild(k)
+		delete(rm.children, k)
+	}
+
 	return
 }
 
@@ -111,8 +140,37 @@ func (rm *runtimeManager) createRunner(name string, builder plugins.IngesterBuil
 		)
 		return errExists
 	}
-	rm.mp[builder.UUID()] = wrappedRunner{Runner: runner}
+	rm.mp[builder.UUID()] = wrappedRunner{
+		Runner:   runner,
+		kind:     builder.Kind(),
+		childKey: childKey(builder.Kind(), name),
+	}
 	return nil
+}
+
+// childKey builds the key a hosted ingester is registered under on the ingest muxer.
+// Plugin configs are maps keyed by name within a kind, so kind and name together are unique.
+func childKey(kind, name string) string {
+	return fmt.Sprintf("%s/%s", kind, name)
+}
+
+// syncChildren resets the child registrations on the ingest muxer so that it reports exactly
+// the set of hosted ingesters we are currently running.  Registration is a straight overwrite,
+// so this doubles as the refresh that keeps each child's entry counts and uptime current.
+// It runs on startup, after every config reload, and on the periodic check.
+func (rm *runtimeManager) syncChildren() {
+	active := make(map[string]struct{}, len(rm.mp))
+	for _, wr := range rm.mp {
+		active[wr.childKey] = struct{}{}
+		rm.reg.RegisterChild(wr.childKey, wr.childState())
+	}
+	// anything we had registered that is no longer configured goes away
+	for k := range rm.children {
+		if _, ok := active[k]; !ok {
+			rm.reg.UnregisterChild(k)
+		}
+	}
+	rm.children = active
 }
 
 // createNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context
@@ -155,6 +213,7 @@ func (rm *runtimeManager) startIngesters() (err error) {
 			}
 		}
 	}
+	rm.syncChildren()
 	return
 }
 
