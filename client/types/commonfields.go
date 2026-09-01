@@ -29,6 +29,7 @@ const (
 	AssetDashboard              AssetType = "dashboard"
 	AssetActionable             AssetType = "actionable"
 	AssetKitBuildRequest        AssetType = "kit_build_request"
+	AssetSearchInfo             AssetType = "search_info"
 )
 
 // AssetTypeMap maps the string value of each AssetType constant to its AssetType value.
@@ -54,6 +55,7 @@ var AssetTypeMap = map[string]AssetType{
 	string(AssetDashboard):              AssetDashboard,
 	string(AssetActionable):             AssetActionable,
 	string(AssetKitBuildRequest):        AssetKitBuildRequest,
+	string(AssetSearchInfo):             AssetSearchInfo,
 }
 
 // ValidateAssetType returns true if s corresponds to a known AssetType.
