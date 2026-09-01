@@ -983,6 +983,15 @@ func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchE
 	return resp.Entries, resp.Explore, nil
 }
 
+// GetExtractorSuggestions asks the webserver which autoextractors it could install for a search session.
+// The webserver samples the entries from the relevant search. Each result carries a candidate
+// AX definition, a confidence score, and the sample rendered through that definition.
+// Results come back sorted by confidence, highest first.
+func (c *Client) GetExtractorSuggestions(searchID, sessionID string) (pa []types.PotentialAutoExtractor, err error) {
+	err = c.getStaticURL(exploreGenerateUrl(searchID), &pa, ezParam("SessionID", sessionID))
+	return
+}
+
 // GetSearchMetadata request the enumerated value metadata stats from a search.
 // The metadata stats contain some basic survey info about enumerated values in the pipeline.
 // The survey info may contain numerical info such as min and max for numbers and a sample
