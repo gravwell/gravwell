@@ -15,6 +15,7 @@ import (
 
 	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
@@ -34,6 +35,51 @@ type Runner interface {
 	Version() string // keeping this as a string because some engines may not have good canonical versions
 	UUID() uuid.UUID
 	Config() any
+
+	// ChildState reports the current state of this single hosted ingester so that it can be
+	// registered as a child on the shared ingest muxer.  Callers that know the plugin kind
+	// are expected to overwrite Name and Label, a runner only knows its own ID and instance name.
+	ChildState() ingest.IngesterState
+}
+
+// State are the per ingester ingest counters (and optional error) that a Runtime tracks on behalf of a single
+// hosted ingester.  A hosted ingester shares an ingest muxer with every other plugin in the
+// process, so the only place these counters can be gathered is the runtime handed to it.
+// Error and Warn are transient conditions set by the plugin itself, an ingester that is in an
+// error state is still alive and still being scheduled, it just is not doing useful work.
+type State struct {
+	Entries uint64
+	Size    uint64
+	Tags    []string
+	Error   error
+	Warn    string
+}
+
+// StatusReporter lets a hosted ingester flag that it is degraded but still alive.  A plugin that
+// cannot authenticate, or whose remote API is failing, sets an error and clears it once it
+// recovers so that the condition rides along with the ingester state instead of only landing in
+// the logs.  StatusTracker is a ready to use implementation.
+type StatusReporter interface {
+	SetError(error) // flag an error condition, a nil error clears it
+	ClearError()    // clear any error condition
+	SetWarn(string) // flag a warning condition, an empty string clears it
+	ClearWarn()     // clear any warning condition
+}
+
+// StateProvider is implemented by Runtimes that track ingest counters for a single hosted
+// ingester.  Runtimes are not required to implement it, a runner that is handed one that
+// does not simply reports empty counters.
+type StateProvider interface {
+	State() State
+}
+
+// StateUnwrapper is implemented by Runtime wrappers that can hand back the StateProvider of the
+// Runtime they wrap.  A wrapper embeds the Runtime interface, so only Runtime's method set is
+// promoted and a type assertion for StateProvider against the wrapper can never succeed no matter
+// what is underneath it.  Wrappers expose the provider instead.  A wrapper around a Runtime that
+// tracks nothing hands back a stub rather than nothing, callers never have to check.
+type StateUnwrapper interface {
+	StateProvider() StateProvider
 }
 
 // Runtime is the interface provided to a hosted ingester which enables it to
@@ -47,6 +93,7 @@ type Runtime interface {
 	Storage                   // Storage interface
 	Logger                    // Logger interface which is a trimmed down surface of github.com/gravwell/gravwell/ingest/log
 	Writer
+	StatusReporter // lets an ingester flag a transient error or warning condition
 }
 
 type Writer interface {
@@ -86,6 +133,17 @@ type Logger interface {
 // Config is the interface that ingester configuration types must implement so we can detect config changes
 type Config interface {
 	Equal(any) bool
+}
+
+// ConfigSanitizer is an OPTIONAL interface for plugin configurations that are able to hand back
+// a version of themselves that is safe to report upstream.  Plugin configs hold API keys, client
+// secrets, and tokens, so a config is never reported on the strength of a plugin author having
+// remembered to scrub it.  A config that does not implement this interface simply has nothing
+// reported, which is the safe default.  Implementations should build an explicit struct holding
+// only the fields that are safe rather than returning the config itself, so that a field added
+// later cannot quietly leak.
+type ConfigSanitizer interface {
+	SanitizedConfig() any
 }
 
 // EqualTarget normalizes the value handed to a Config.Equal implementation down to a *T.

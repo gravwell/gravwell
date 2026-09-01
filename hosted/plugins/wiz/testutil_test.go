@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/hosted/storage"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
@@ -22,7 +23,8 @@ import (
 // testRuntime is a minimal in-memory implementation of hosted.Runtime for the
 // wiz plugin tests.
 type testRuntime struct {
-	ctx context.Context
+	hosted.StatusTracker // SetError/SetWarn and friends
+	ctx                  context.Context
 
 	mu      sync.Mutex
 	store   map[string][]byte
