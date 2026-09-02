@@ -983,12 +983,12 @@ func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchE
 	return resp.Entries, resp.Explore, nil
 }
 
-// GetExtractorSuggestions asks the webserver which autoextractors it could install for a search session.
+// GetExtractorSuggestions asks the webserver which autoextractors it could install for a search.
 // The webserver samples the entries from the relevant search. Each result carries a candidate
 // AX definition, a confidence score, and the sample rendered through that definition.
 // Results come back sorted by confidence, highest first.
-func (c *Client) GetExtractorSuggestions(searchID, sessionID string) (pa []types.PotentialAutoExtractor, err error) {
-	err = c.getStaticURL(exploreGenerateUrl(searchID), &pa, ezParam("SessionID", sessionID))
+func (c *Client) GetExtractorSuggestions(search Search) (pa []types.PotentialAutoExtractor, err error) {
+	err = c.getStaticURL(exploreGenerateUrl(search.ID), &pa, ezParam("SessionID", search.session.ID()))
 	return
 }
 

@@ -271,7 +271,7 @@ type SearchInfo struct {
 	EVs                   []string   // EVs produced by the search
 	Import                ImportInfo //information attached if this search is saved and from an external import
 	MultiTag              bool       // MultiTag is true when the search covers more than one tag.
-	ModifiesData          bool       // ModifiesData is true when a module in the pipeline rewrote the entry DATA field.
+	ModifiesData          bool       // ModifiesData is true when a search module in the pipeline rewrote the entry DATA field.
 	AXEligible            bool       // AXEligible is true when the search can serve as a base for AX generation: the renderer is raw, and both MultiTag and ModifiesData are false.
 
 	// Preview indicates that this search is a preview search.
