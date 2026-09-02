@@ -1205,7 +1205,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 		return ErrNotRunning
 	}
 	im.ingesterState.Entries++
-	im.ingesterState.Size += uint64(len(e.Data))
+	im.ingesterState.Size += e.Size()
 	return nil
 }
 
@@ -1230,7 +1230,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	select {
 	case im.eChan <- e:
 		im.ingesterState.Entries++
-		im.ingesterState.Size += uint64(len(e.Data))
+		im.ingesterState.Size += e.Size()
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-im.writeBarrier:
@@ -1261,7 +1261,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	select {
 	case im.eChan <- e:
 		im.ingesterState.Entries++
-		im.ingesterState.Size += uint64(len(e.Data))
+		im.ingesterState.Size += e.Size()
 	case <-tmr.C:
 		err = ErrWriteTimeout
 	case <-im.writeBarrier:
@@ -1305,7 +1305,7 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	}
 	im.ingesterState.Entries += uint64(len(b))
 	for i := range b {
-		im.ingesterState.Size += uint64(len(b[i].Data))
+		im.ingesterState.Size += b[i].Size()
 	}
 	return nil
 }
@@ -1345,7 +1345,7 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	case im.bChan <- b:
 		im.ingesterState.Entries += uint64(len(b))
 		for i := range b {
-			im.ingesterState.Size += uint64(len(b[i].Data))
+			im.ingesterState.Size += b[i].Size()
 		}
 	case <-ctx.Done():
 		return ctx.Err()
@@ -1420,7 +1420,7 @@ func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) e
 		// Success, update stats
 		im.ingesterState.Entries += uint64(len(b))
 		for i := range b {
-			im.ingesterState.Size += uint64(len(b[i].Data))
+			im.ingesterState.Size += b[i].Size()
 		}
 
 	case <-ctx.Done():

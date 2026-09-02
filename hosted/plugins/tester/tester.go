@@ -32,7 +32,10 @@ type Config struct {
 	Test_Errors bool
 }
 
-var _ hosted.Config = (*Config)(nil) // compile time interface check
+var (
+	_ hosted.Config          = (*Config)(nil) // compile time interface check
+	_ hosted.ConfigSanitizer = (*Config)(nil) // this config is safe to report
+)
 
 func (c *Config) Verify() (err error) {
 	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
@@ -66,6 +69,23 @@ func (c *Config) Equal(ncp any) bool {
 	}
 	return c.BaseConfig == nc.BaseConfig && c.SingleTagConfig == nc.SingleTagConfig &&
 		c.Interval == nc.Interval && c.Silent == nc.Silent && c.Test_Errors == nc.Test_Errors
+}
+
+// SanitizedConfig implements the optional hosted.ConfigSanitizer interface so that this
+// ingester's configuration is reported with its child state.  This ingester does not contain any secrets
+// so we can just hand back the actual config
+func (c *Config) SanitizedConfig() (x any) {
+	if c != nil {
+		x = *c
+	}
+	return
+}
+
+func (c *Config) Tags() []string {
+	if c != nil && c.Tag_Name != `` {
+		return []string{c.Tag_Name}
+	}
+	return []string{Tag} // use the default if none provided
 }
 
 type TesterIngester struct {
