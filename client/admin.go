@@ -127,15 +127,10 @@ func (c *Client) SetDefaultSearchGroups(uid int32, gids []int32) error {
 		}
 	}
 
-	req := types.UpdateUser{
-		Username:            udet.Username,
-		Name:                udet.Name,
-		Email:               udet.Email,
-		Admin:               udet.Admin,
-		Locked:              udet.Locked,
-		DefaultSearchGroups: gids,
-	}
-	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(uid), req, nil, nil, nil)
+	return c.methodStaticPushURL(http.MethodPut,
+		usersInfoUrl(uid),
+		types.UserPatch{DefaultSearchGroups: types.NewOptional(gids)},
+		nil, nil, nil)
 }
 
 // GetDefaultSearchGroups returns the specified users default search groups.
