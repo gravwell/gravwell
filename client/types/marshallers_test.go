@@ -467,7 +467,7 @@ func TestDeadCustomMarshalers(t *testing.T) {
 
 		b, err := json.Marshal(rr, json.Deterministic(true)) // we want deterministic so we can properly test expected values
 		require.NoError(t, err)
-		require.Equal(t, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[{"TS":"0002-10-05T16:12:57-07:52","SRC":"","Tag":0,"Data":"Hello World","Enumerated":null}]}`, string(b))
+		require.Equal(t, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[{"TS":"0002-10-06T00:05:55Z","SRC":"","Tag":0,"Data":"Hello World","Enumerated":null}]}`, string(b))
 	})
 }
 
