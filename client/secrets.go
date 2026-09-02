@@ -65,7 +65,7 @@ func (c *Client) GetSecretEx(id string, opts *types.QueryOptions) (s types.Secre
 // The actual secret string will not be returned.
 func (c *Client) UpdateSecretValue(id string, value string) (s types.Secret, err error) {
 	if id == "" {
-		return types.Secret{}, ErrNilID
+		return types.Secret{}, ErrEmptyID
 	}
 
 	err = c.methodStaticPushURL(http.MethodPut, secretIdValueUrl(id), types.SecretValuePatch{Value: value}, &s, nil, nil)
@@ -75,7 +75,7 @@ func (c *Client) UpdateSecretValue(id string, value string) (s types.Secret, err
 // UpdateSecret changes the details (not the value) of a particular secret and returns the complete, updated struct.
 func (c *Client) UpdateSecret(id string, p types.SecretPatch) (updated types.Secret, err error) {
 	if id == "" {
-		return types.Secret{}, ErrNilID
+		return types.Secret{}, ErrEmptyID
 	}
 	return c.patch[types.SecretPatch, types.Secret](secretIdUrl(id), p)
 }

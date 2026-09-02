@@ -61,7 +61,7 @@ func (c *Client) GetTokenEx(id string, opts *types.QueryOptions) (types.Token, e
 // UpdateToken modifies an existing token and returns the complete, updated struct.
 func (c *Client) UpdateToken(ID string, p types.TokenPatch) (updated types.Token, err error) {
 	if ID == "" {
-		return types.Token{}, ErrNilID
+		return types.Token{}, ErrEmptyID
 	}
 	return c.patch[types.TokenPatch, types.Token](tokenIdUrl(ID), p)
 }

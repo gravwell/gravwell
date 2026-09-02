@@ -76,7 +76,7 @@ func (c *Client) CreateScheduledScript(spec types.ScheduledScript) (result types
 // UpdateScheduledScript modifies an existing scheduled script and returns the complete, updated struct.
 func (c *Client) UpdateScheduledScript(ID string, p types.ScheduledScriptPatch) (updated types.ScheduledScript, err error) {
 	if ID == "" {
-		return types.ScheduledScript{}, ErrNilID
+		return types.ScheduledScript{}, ErrEmptyID
 	}
 	return c.patch[types.ScheduledScriptPatch, types.ScheduledScript](scheduledScriptIdUrl(ID), p)
 }

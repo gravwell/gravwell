@@ -59,7 +59,7 @@ func (c *Client) GetAlertEx(id string, opts *types.QueryOptions) (result types.A
 // UpdateAlert modifies an existing alert and returns the complete, updated struct.
 func (c *Client) UpdateAlert(ID string, p types.AlertPatch) (updated types.Alert, err error) {
 	if ID == "" {
-		return types.Alert{}, ErrNilID
+		return types.Alert{}, ErrEmptyID
 	}
 	return c.patch[types.AlertPatch, types.Alert](alertsIdUrl(ID), p)
 }

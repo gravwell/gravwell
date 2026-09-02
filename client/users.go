@@ -74,6 +74,9 @@ func (c *Client) CreateUser(m types.AddUser) (result types.User, err error) {
 
 // UpdateUser (admin-only) modifies an existing user and returns the complete, updated struct.
 func (c *Client) UpdateUser(ID int32, p types.UserPatch) (updated types.User, err error) {
+	if ID == 0 {
+		return updated, ErrEmptyID
+	}
 	return c.patch[types.UserPatch, types.User](usersInfoUrl(ID), p)
 }
 

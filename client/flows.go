@@ -75,7 +75,7 @@ func (c *Client) CreateFlow(spec types.Flow) (result types.Flow, err error) {
 // UpdateFlow modifies an existing flow and returns the complete, updated struct.
 func (c *Client) UpdateFlow(ID string, p types.FlowPatch) (updated types.Flow, err error) {
 	if ID == "" {
-		return types.Flow{}, ErrNilID
+		return types.Flow{}, ErrEmptyID
 	}
 	return c.patch[types.FlowPatch, types.Flow](flowIdUrl(ID), p)
 }

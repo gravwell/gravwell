@@ -9,8 +9,6 @@
 package client
 
 import (
-	"errors"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -68,16 +66,10 @@ func (c *Client) CreateMacro(m types.Macro) (result types.Macro, err error) {
 	return
 }
 
-var (
-	ErrEmptyPatch  = errors.New("empty PATCHs are ineffectual")
-	ErrNilResponse = errors.New("nil response")
-	ErrNilID       = errors.New("ID must not be nil")
-)
-
 // UpdateMacro modifies an existing macro and returns the complete, updated struct.
 func (c *Client) UpdateMacro(ID string, p types.MacroPatch) (updated types.Macro, _ error) {
 	if ID == "" {
-		return types.Macro{}, ErrNilID
+		return types.Macro{}, ErrEmptyID
 	}
 	return c.patch[types.MacroPatch, types.Macro](macroIDUrl(ID), p)
 }

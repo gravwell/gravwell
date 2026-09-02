@@ -172,7 +172,7 @@ func (c *Client) CleanupResources() error {
 // UpdateResourceMetadata modifies an existing resource's metadata and returns the complete, updated struct.
 func (c *Client) UpdateResourceMetadata(id string, p types.ResourcePatch) (updated types.Resource, err error) {
 	if id == "" {
-		return types.Resource{}, ErrNilID
+		return types.Resource{}, ErrEmptyID
 	}
 	return c.patch[types.ResourcePatch, types.Resource](resourcesIdUrl(id), p)
 }

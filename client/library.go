@@ -64,7 +64,7 @@ func (c *Client) PurgeSavedQuery(id string) (err error) {
 // UpdateSavedQuery modifies an existing saved query and returns the complete, updated struct.
 func (c *Client) UpdateSavedQuery(ID string, p types.SavedQueryPatch) (updated types.SavedQuery, err error) {
 	if ID == "" {
-		return types.SavedQuery{}, ErrNilID
+		return types.SavedQuery{}, ErrEmptyID
 	}
 	return c.patch[types.SavedQueryPatch, types.SavedQuery](searchLibIdUrl(ID), p)
 }

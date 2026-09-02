@@ -69,7 +69,7 @@ func (c *Client) CreatePlaybook(pb types.Playbook) (result types.Playbook, err e
 // UpdatePlaybook modifies an existing playbook and returns the complete, updated struct.
 func (c *Client) UpdatePlaybook(ID string, p types.PlaybookPatch) (updated types.Playbook, err error) {
 	if ID == "" {
-		return types.Playbook{}, ErrNilID
+		return types.Playbook{}, ErrEmptyID
 	}
 	return c.patch[types.PlaybookPatch, types.Playbook](playbookUrl(ID), p)
 }

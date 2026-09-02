@@ -69,7 +69,7 @@ func (c *Client) CreateActionable(a types.Actionable) (result types.Actionable, 
 // UpdateActionable modifies an existing actionable and returns the complete, updated struct.
 func (c *Client) UpdateActionable(ID string, p types.ActionablePatch) (updated types.Actionable, err error) {
 	if ID == "" {
-		return types.Actionable{}, ErrNilID
+		return types.Actionable{}, ErrEmptyID
 	}
 	return c.patch[types.ActionablePatch, types.Actionable](actionableIdUrl(ID), p)
 }

@@ -69,7 +69,7 @@ func (c *Client) CreateDashboard(d types.Dashboard) (result types.Dashboard, err
 // UpdateDashboard modifies an existing dashboard and returns the complete, updated struct.
 func (c *Client) UpdateDashboard(ID string, p types.DashboardPatch) (updated types.Dashboard, err error) {
 	if ID == "" {
-		return types.Dashboard{}, ErrNilID
+		return types.Dashboard{}, ErrEmptyID
 	}
 	return c.patch[types.DashboardPatch, types.Dashboard](dashboardIdUrl(ID), p)
 }

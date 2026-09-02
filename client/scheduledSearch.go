@@ -73,7 +73,7 @@ func (c *Client) CreateScheduledSearch(spec types.ScheduledSearch) (result types
 // UpdateScheduledSearch modifies an existing scheduled search and returns the complete, updated struct.
 func (c *Client) UpdateScheduledSearch(ID string, p types.ScheduledSearchPatch) (updated types.ScheduledSearch, err error) {
 	if ID == "" {
-		return types.ScheduledSearch{}, ErrNilID
+		return types.ScheduledSearch{}, ErrEmptyID
 	}
 	return c.patch[types.ScheduledSearchPatch, types.ScheduledSearch](scheduledSearchIdUrl(ID), p)
 }

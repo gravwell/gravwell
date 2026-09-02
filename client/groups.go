@@ -73,7 +73,7 @@ func (c *Client) CreateGroup(m types.Group) (result types.Group, err error) {
 // UpdateGroup modifies an existing group and returns the complete, updated struct.
 func (c *Client) UpdateGroup(ID int32, p types.GroupPatch) (updated types.Group, err error) {
 	if ID == 0 {
-		return types.Group{}, ErrNilID
+		return types.Group{}, ErrEmptyID
 	}
 	return c.patch[types.GroupPatch, types.Group](groupIdUrl(ID), p)
 }

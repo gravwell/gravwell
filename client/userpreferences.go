@@ -91,7 +91,7 @@ func (c *Client) CreateUserPreference(p types.UserPreference) (result types.User
 // UpdateUserPreference modifies an existing user preference and returns the complete, updated struct.
 func (c *Client) UpdateUserPreference(ID string, p types.UserPreferencePatch) (updated types.UserPreference, err error) {
 	if ID == "" {
-		return types.UserPreference{}, ErrNilID
+		return types.UserPreference{}, ErrEmptyID
 	}
 	return c.patch[types.UserPreferencePatch, types.UserPreference](userPreferenceUrl(ID), p)
 }

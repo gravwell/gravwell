@@ -69,7 +69,7 @@ func (c *Client) CreateTemplate(t types.Template) (result types.Template, err er
 // UpdateTemplate modifies an existing template and returns the complete, updated struct.
 func (c *Client) UpdateTemplate(ID string, p types.TemplatePatch) (updated types.Template, err error) {
 	if ID == "" {
-		return types.Template{}, ErrNilID
+		return types.Template{}, ErrEmptyID
 	}
 	return c.patch[types.TemplatePatch, types.Template](templateUrl(ID), p)
 }

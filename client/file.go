@@ -74,7 +74,7 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions, previewBytes uin
 // UpdateFileMetadata modifies an existing file's metadata and returns the complete, updated struct.
 func (c *Client) UpdateFileMetadata(ID string, p types.FilePatch) (updated types.File, err error) {
 	if ID == "" {
-		return types.File{}, ErrNilID
+		return types.File{}, ErrEmptyID
 	}
 	return c.patch[types.FilePatch, types.File](filesIdUrl(ID), p)
 }

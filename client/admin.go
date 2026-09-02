@@ -412,7 +412,7 @@ func (c *Client) AddExtraction(d types.AX) (result types.AX, wrs []types.WarnRes
 // UpdateExtraction modifies an existing autoextractor and returns the complete, updated struct.
 func (c *Client) UpdateExtraction(ID string, p types.AXPatch) (updated types.AX, err error) {
 	if ID == "" {
-		return types.AX{}, ErrNilID
+		return types.AX{}, ErrEmptyID
 	}
 	return c.patch[types.AXPatch, types.AX](extractionIdUrl(ID), p)
 }
