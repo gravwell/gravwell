@@ -19,7 +19,9 @@ func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data P
 	}
 
 	resp, err := c.reqDriver(http.MethodPatch, url, body)
-	defer drainResponse(resp)
+	if resp != nil {
+		defer drainResponse(resp)
+	}
 	if err != nil {
 		return patched, err
 	}
