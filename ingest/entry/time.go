@@ -122,13 +122,13 @@ func (t Timestamp) MarshalBinary() ([]byte, error) {
 // MarshalJSON marshals the timestamp into the golang time.Time JSON format
 // this is a total hack, and we will write our own marshallers soon
 func (t Timestamp) MarshalJSON() ([]byte, error) {
-	return t.StandardTime().MarshalJSON()
+	return t.StandardTime().UTC().MarshalJSON()
 }
 
 // MarshalText marshals the timestamp into the golang time.Time text format
 // this is a total hack, and we will write our own marshallers soon
 func (t Timestamp) MarshalText() ([]byte, error) {
-	return t.StandardTime().MarshalJSON()
+	return t.StandardTime().UTC().MarshalJSON()
 }
 
 // UnmarshalBinary unmarshals a 12 byte encoding of a Timestamp
