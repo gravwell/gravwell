@@ -22,6 +22,16 @@ func NewOptional[T any](v T) Optional[T] {
 	return Optional[T]{value: v, set: true}
 }
 
+// Apply installs o's value into t iff o.IsSet().
+func (o Optional[T]) Apply(t *T) {
+	if o.IsSet() {
+		*t = o.value
+	} else {
+		var zero T
+		*t = zero
+	}
+}
+
 // Set installs the given value and marks it as valid to include when marshaling.
 func (o *Optional[T]) Set(v T) {
 	o.value = v
