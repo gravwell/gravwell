@@ -62,12 +62,18 @@ type Searchable struct {
 
 // DashboardTile describes a tile that is part of a Dashboard.
 type DashboardTile struct {
-	Name            string
-	Renderer        string
-	RendererOptions map[string]interface{} `json:",omitempty"`
-	SearchKey       string
-	ShowZoom        bool
-	TileConfig      DashboardTileConfig
+	Name              string
+	SearchKey         string
+	ShowZoom          bool
+	TileConfig        DashboardTileConfig
+	VisualizerOptions DashboardTileVisualizerOptions
+}
+
+// DashboardTileVisualizerOptions describes the options used to configure the tile's visualizer.
+type DashboardTileVisualizerOptions struct {
+	Visualizer string
+	Channels   map[string]any
+	Options    map[string]any
 }
 
 // DashboardTileConfig describes the position and size of a tile within the grid.
