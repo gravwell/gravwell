@@ -12,15 +12,22 @@ func TestOptional(t *testing.T) {
 	require.True(t, bio.IsSet())
 	require.Equal(t, "biologist", bio.Value())
 	require.False(t, bio.IsZero())
-	var s string
-	bio.Apply(&s)
-	require.Equal(t, bio.Value(), s)
+	t.Run("Apply operates when IsSet", func(t *testing.T) {
+		var s string
+		bio.Apply(&s)
+		require.Equal(t, bio.Value(), s)
+	})
+
 	bio.Unset()
 	require.False(t, bio.IsSet())
 	require.Equal(t, "", bio.Value())
 	require.True(t, bio.IsZero())
-	bio.Apply(&s)
-	require.Equal(t, bio.Value(), s)
+	t.Run("Apply is a no-op when !IsSet", func(t *testing.T) {
+		var s = "psychologist"
+		bio.Apply(&s)
+		require.Equal(t, "psychologist", s)
+	})
+
 }
 
 // NOTE: the marshaler tests for Optional are in client/types/marshallers_test.go

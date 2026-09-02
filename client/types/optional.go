@@ -26,9 +26,6 @@ func NewOptional[T any](v T) Optional[T] {
 func (o Optional[T]) Apply(t *T) {
 	if o.IsSet() {
 		*t = o.value
-	} else {
-		var zero T
-		*t = zero
 	}
 }
 
