@@ -176,24 +176,14 @@ type AddGroup struct {
 	Description string
 }
 
-type UpdateUser struct {
-	Username            string
-	Name                string
-	Email               string
-	DefaultSearchGroups []int32
-	// The following are ignored if sent by a non-admin
-	Admin  bool
-	Locked bool
-}
-
 // UserPatch is the type used to request an update to an existing User.
 type UserPatch struct {
-	Admin               Optional[bool]    `json:",omitzero"`
+	Admin               Optional[bool]    `json:",omitzero"` // ignored if you are not an admin
 	DefaultSearchGroups Optional[[]int32] `json:",omitzero"`
-	Email               Optional[string]  `json:",omitzero"`
+	Email               Optional[string]  `json:",omitzero"` // Email cannot be updated to ""
 	Locked              Optional[bool]    `json:",omitzero"` // ignored if you are not an admin
-	Name                Optional[string]  `json:",omitzero"`
-	Username            Optional[string]  `json:",omitzero"`
+	Name                Optional[string]  `json:",omitzero"` // Name cannot be updated to ""
+	Username            Optional[string]  `json:",omitzero"` // ignored if you are not an admin
 }
 
 type UserAddGroups struct {
@@ -404,22 +394,7 @@ type UserWithCBAC struct {
 	CBAC CBACExpandedRules
 }
 
-func (u *User) ForUpdate() UpdateUser {
-	sg := make([]int32, len(u.DefaultSearchGroups))
-	for i := range u.DefaultSearchGroups {
-		sg[i] = u.DefaultSearchGroups[i].ID
-	}
-	return UpdateUser{
-		Username:            u.Username,
-		Name:                u.Name,
-		Email:               u.Email,
-		Admin:               u.Admin,
-		Locked:              u.Locked,
-		DefaultSearchGroups: sg,
-	}
-}
-
-// ToPatch converts u into a UserPatch with every editable field set
+// ToPatch converts u into a UserPatch with every field set
 func (u *User) ToPatch() UserPatch {
 	return UserPatch{
 		Username:            NewOptional(u.Username),
@@ -526,7 +501,7 @@ type GroupWithCBAC struct {
 // GroupPatch is the type used to request an update to an existing Group.
 type GroupPatch struct {
 	Description Optional[string] `json:",omitzero"`
-	// Group names cannot be updated to ""
+	// Name cannot be updated to ""
 	Name Optional[string] `json:",omitzero"`
 }
 
