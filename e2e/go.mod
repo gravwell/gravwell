@@ -1,6 +1,6 @@
 module gravwell/e2e
 
-go 1.26.6
+go 1.26.8
 
 require (
 	github.com/containerd/errdefs v1.0.0
