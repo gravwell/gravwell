@@ -69,7 +69,7 @@ type DashboardTile struct {
 	VisualizerOptions DashboardTileVisualizerOptions
 }
 
-// DashboardTileVisualizerOptions describs the options used to configure the tile's visualizer.
+// DashboardTileVisualizerOptions describes the options used to configure the tile's visualizer.
 type DashboardTileVisualizerOptions struct {
 	Visualizer string
 	Channels   map[string]any
