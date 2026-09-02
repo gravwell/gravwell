@@ -526,15 +526,14 @@ type GroupWithCBAC struct {
 // GroupPatch is the type used to request an update to an existing Group.
 type GroupPatch struct {
 	Description Optional[string] `json:",omitzero"`
-	ID          Optional[int32]  `json:",omitzero"`
-	Name        Optional[string] `json:",omitzero"`
+	// Group names cannot be updated to ""
+	Name Optional[string] `json:",omitzero"`
 }
 
 // ToPatch converts g into a GroupPatch with every editable field set.
 func (g *Group) ToPatch() GroupPatch {
 	return GroupPatch{
 		Description: NewOptional(g.Description),
-		ID:          NewOptional(g.ID),
 		Name:        NewOptional(g.Name),
 	}
 }
