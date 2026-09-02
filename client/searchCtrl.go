@@ -988,7 +988,7 @@ func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchE
 // AX definition, a confidence score, and the sample rendered through that definition.
 // Results come back sorted by confidence, highest first.
 func (c *Client) GetExtractorSuggestions(search Search) (pa []types.PotentialAutoExtractor, err error) {
-	err = c.getStaticURL(exploreGenerateUrl(search.ID), &pa, ezParam("SessionID", search.session.ID()))
+	err = c.getStaticURL(exploreGenerateUrl(search.ID), &pa, ezParam("SessionID", search.session.String()))
 	return
 }
 
