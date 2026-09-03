@@ -70,7 +70,9 @@ type CommonFields struct {
 	UpdatedAt time.Time
 	DeletedAt time.Time
 	ID        string
-	ParentID  string // the parent object this was cloned from
+	// the parent object this was cloned from.
+	// Not user settable.
+	ParentID string
 
 	OwnerID int32
 	Owner   User
