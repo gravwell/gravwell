@@ -73,9 +73,8 @@ func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error)
 func (c *CiscoISEConfig) validate() (err error) {
 	if c.Max_Multipart_Latency != `` {
 		if c.maxLatency, err = time.ParseDuration(c.Max_Multipart_Latency); err != nil {
-			if err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err); err != nil {
-				return
-			}
+			err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err)
+			return
 		}
 	}
 

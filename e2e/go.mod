@@ -1,6 +1,6 @@
 module gravwell/e2e
 
-go 1.26.5
+go 1.26.8
 
 require (
 	github.com/containerd/errdefs v1.0.0
@@ -43,7 +43,7 @@ require (
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/renameio v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d // indirect

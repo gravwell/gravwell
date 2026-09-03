@@ -6,10 +6,11 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// LLM proxy ingester. Acts as an OpenAI-compatible (for now) HTTP proxy that
-// forwards chat-completion traffic to the upstream provider while ingesting
-// structured events (user prompts, assistant replies, tool calls, token usage)
-// into Gravwell.
+// LLM proxy ingester. Acts as an HTTP proxy that forwards LLM traffic to the
+// upstream provider while ingesting structured events (user prompts, assistant
+// replies, tool calls, token usage) into Gravwell. Provider support is
+// pluggable via the protocol package; the built-in protocols are "openai-chat"
+// (OpenAI /v1/chat/completions) and "anthropic-messages" (Anthropic /v1/messages).
 package main
 
 import (
@@ -27,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
 	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/openai"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
@@ -106,9 +108,17 @@ func main() {
 				log.KV("listener", name), log.KVErr(err))
 			return
 		}
-		ph := newProxyHandler(name, lcfg, proto, tag, pproc, sessions, lg)
+		ph, err := newProxyHandler(name, lcfg, proto, tag, pproc, sessions, lg)
+		if err != nil {
+			lg.FatalCode(0, "failed to build proxy handler",
+				log.KV("listener", name), log.KVErr(err))
+			return
+		}
 		mux := http.NewServeMux()
 		for _, p := range proto.Paths() {
+			mux.Handle(p, ph)
+		}
+		for _, p := range proto.PassthroughPaths() {
 			mux.Handle(p, ph)
 		}
 		srv := &http.Server{
