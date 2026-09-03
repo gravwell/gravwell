@@ -1002,12 +1002,6 @@ type Token struct {
 	Capabilities []string
 }
 
-// TokenUpdate is used to update a token as Token.ExpiresAt is only editable via TokenRegeneration
-type TokenUpdate struct {
-	CommonFields
-	Capabilities []string
-}
-
 // TokenPatch is the type used to request an update to an existing Token and the capabilities it provides.
 type TokenPatch struct {
 	CommonFieldsPatch
@@ -1061,13 +1055,6 @@ func (t Token) ExpiresString() string {
 // CapabilitiesString returns a human friendly space delimited list of capabilities
 func (t Token) CapabilitiesString() string {
 	return strings.Join(t.Capabilities, " ")
-}
-
-func (t Token) ForUpdate() TokenUpdate {
-	return TokenUpdate{
-		CommonFields: t.CommonFields,
-		Capabilities: t.Capabilities,
-	}
 }
 
 // EncodeCapabilities encodes a list of capabilities into a buffer
