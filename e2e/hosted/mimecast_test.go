@@ -28,7 +28,7 @@ var (
 
 func TestMimecast(t *testing.T) {
 	// test containers doesn't pull well with buildkit
-	if err := exec.Command("docker", "pull", "golang:1.26.6").Run(); err != nil {
+	if err := exec.Command("docker", "pull", "golang:1.26.8").Run(); err != nil {
 		t.Fatal(err)
 	}
 	if err := exec.Command("docker", "pull", "busybox:latest").Run(); err != nil {
