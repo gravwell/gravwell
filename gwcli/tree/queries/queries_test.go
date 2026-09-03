@@ -199,30 +199,31 @@ func TestSetAccessFlagsIndependently(t *testing.T) {
 	}
 }
 
-// TestSetAccessNoFlagsIsANoop confirms that calling set-access with no
-// access flags at all round-trips the search's existing state unchanged
-// (rather than, say, defaulting any field to its zero value).
-func TestSetAccessNoFlagsIsANoop(t *testing.T) {
+// TestSetAccessNoFlagsErrors is a regression test for a PR review comment on
+// gravwell/issues#2680: running set-access with zero access flags used to
+// silently perform a no-op PUT .../access and report "updated access for
+// search xxx" even though nothing changed -- and in interactive mode, it
+// would walk the user through picking searches first, only to no-op. It must
+// now fail validation before ever touching the network (or, interactively,
+// before ever showing the search picker).
+func TestSetAccessNoFlagsErrors(t *testing.T) {
 	existing := types.SearchInfo{}
 	existing.OwnerID = 7
 	existing.Readers = types.ACL{GIDs: []int32{1, 2}, Global: true}
 	existing.Writers = types.ACL{GIDs: []int32{3}, Global: false}
 
-	got, sawAccessCall := newAccessMockServer(t, existing)
+	_, sawAccessCall := newAccessMockServer(t, existing)
 
-	execute(t, setAccess().Action, []string{"search-123"})
-
-	if !*sawAccessCall {
-		t.Fatal("expected a PUT .../access request, got none")
+	var stderr bytes.Buffer
+	pair := setAccess()
+	pair.Action.SetOut(io.Discard)
+	pair.Action.SetErr(&stderr)
+	pair.Action.SetArgs([]string{"search-123"})
+	if err := pair.Action.Execute(); err == nil {
+		t.Fatal("expected an error when no access flags are given, got nil")
 	}
-	if got.OwnerID != existing.OwnerID {
-		t.Errorf("OwnerID = %d, want unchanged %d", got.OwnerID, existing.OwnerID)
-	}
-	if !slices.Equal(got.Readers.GIDs, existing.Readers.GIDs) || got.Readers.Global != existing.Readers.Global {
-		t.Errorf("Readers = %+v, want unchanged %+v", got.Readers, existing.Readers)
-	}
-	if !slices.Equal(got.Writers.GIDs, existing.Writers.GIDs) || got.Writers.Global != existing.Writers.Global {
-		t.Errorf("Writers = %+v, want unchanged %+v", got.Writers, existing.Writers)
+	if *sawAccessCall {
+		t.Error("expected no PUT .../access request, but one was sent")
 	}
 }
 

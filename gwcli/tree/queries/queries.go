@@ -375,7 +375,7 @@ func setAccess() action.Pair {
 	)
 
 	return scaffoldselect.NewSelectAction("set the read/write access of a search",
-		`Modify which groups can read or write a set of searches, and/or whether they are globally readable/writable by any user. Only flags you explicitly pass are changed. Anything you omit is left as-is. Only admins may set --reader-global or --writer-global to true, the server will reject this action otherwise`, "search ID", func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+		`Modify which groups can read or write a set of searches, and/or whether they are globally readable/writable by any user. Only flags you explicitly pass are changed. Anything you omit is left as-is. Only admins may set --reader-global or --writer-global to true, the server will reject this action otherwise. At least one of --reader-groups, --writer-groups, --reader-global, or --writer-global must be given`, "search ID", func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
 		}, func(ids []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(ids))
@@ -442,6 +442,10 @@ func setAccess() action.Pair {
 				if writerGlobalSet = fs.Changed("writer-global"); writerGlobalSet {
 					writerGlobal, err = fs.GetBool("writer-global")
 					clilog.GetFlag(err)
+				}
+
+				if !readerGroupsSet && !writerGroupsSet && !readerGlobalSet && !writerGlobalSet {
+					return "you must specify at least one of --reader-groups, --writer-groups, --reader-global, or --writer-global", nil
 				}
 
 				return "", nil
