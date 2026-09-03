@@ -57,7 +57,7 @@ func NewNav() *cobra.Command {
 			save(),
 			background(),
 			delete(),
-			setGroup(),
+			setAccess(),
 		},
 		treeutils.NodeOptions{CommandAliases: []string{"queries"}},
 	)
@@ -365,41 +365,60 @@ func delete() action.Pair {
 		})
 }
 
-// TODO this should be converted to a scaffoldcreate with two MSL fields after the scaffoldcreate/edit merge.
-func setGroup() action.Pair {
-	var GIDs []int32 // managed in validate args
-	return scaffoldselect.NewSelectAction("set or wipe the group read permissions of a search",
-		"Modify with groups can read a set of searches. Omitting --groups removes all groups from the selected searches.",
-		"group ID",
-		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+// TODO: this should be converted to a scaffoldcreate with MSL fields after the scaffoldcreate/edit merge.
+func setAccess() action.Pair {
+	var (
+		readerGroups, writerGroups       []int32
+		readerGroupsSet, writerGroupsSet bool
+		readerGlobal, writerGlobal       bool
+		readerGlobalSet, writerGlobalSet bool
+	)
+
+	return scaffoldselect.NewSelectAction("set the read/write access of a search",
+		`Modify which groups can read or write a set of searches, and/or whether they are globally readable/writable by any user. Only flags you explicitly pass are changed. Anything you omit is left as-is. Only admins may set --reader-global or --writer-global to true, the server will reject this action otherwise. At least one of --reader-groups, --writer-groups, --reader-global, or --writer-global must be given`, "search ID", func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			return fetchActiveSearchesForMSL(false)
-		},
-		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
-			results = make([]scaffold.Result, len(IDs))
-			for i, ID := range IDs {
-				si, err := connection.Client.GetSearch(ID)
+		}, func(ids []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			results = make([]scaffold.Result, len(ids))
+			for i, id := range ids {
+				si, err := connection.Client.GetSearch(id)
 				if err != nil {
-					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to fetch search: %s: %v", ID, err)}
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to fetch search: %s: %v", id, err)}
 					continue
 				}
-				if err := connection.Client.SetAccess(ID, si.OwnerID, types.ACL{GIDs: GIDs}, si.Writers); err != nil {
-					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to set groups for search %s: %v", ID, err)}
-				} else if len(GIDs) < 1 {
-					results[i] = scaffold.Result{Success: true, Output: "cleared read groups from search " + ID}
-				} else {
-					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("assigned read access for GIDs %v to search %s", GIDs, ID)}
+
+				readers, writers := si.Readers, si.Writers
+				if readerGroupsSet {
+					readers.GIDs = readerGroups
 				}
+				if readerGlobalSet {
+					readers.Global = readerGlobal
+				}
+				if writerGroupsSet {
+					writers.GIDs = writerGroups
+				}
+				if writerGlobalSet {
+					writers.Global = writerGlobal
+				}
+
+				if err := connection.Client.SetAccess(id, si.OwnerID, readers, writers); err != nil {
+					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to set access for search %s: %v", id, err)}
+					continue
+				}
+
+				results[i] = scaffold.Result{Success: true, Output: "updated access for search " + id}
 			}
+
 			return results, nil
-		},
-		scaffoldselect.Options{
+		}, scaffoldselect.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use:     "set-groups",
-				Aliases: []string{"set-group"},
+				Use:     "set-access",
+				Aliases: []string{"set-groups", "set-group"},
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
-					fs.Int32Slice("groups", nil, "Groups to grant read access to the search. You must have access to the group."+
-						"If you omit this flag, all groups will be removed from the selected searches.")
+					fs.Int32Slice("reader-groups", nil, "Groups allowed to read the search. Omit to leave unchanged; pass an empty list to clear.")
+					fs.Int32Slice("writer-groups", nil, "Groups allowed to write the search. Omit to leave unchanged; pass an empty list to clear.")
+					fs.Bool("reader-global", false, "Whether the search is globally readable by any user. Omit to leave unchanged. Requires admin to set true.")
+					fs.Bool("writer-global", false, "Whether the search is globally writable by any user. Omit to leave unchanged. Requires admin to set true.")
 					return fs
 				},
 				Requirements: annotations.Requirements{
@@ -408,12 +427,28 @@ func setGroup() action.Pair {
 				},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				// check they we have at least one search and at least one group
-				GIDs, err = fs.GetInt32Slice("groups")
-				clilog.GetFlag(err)
+				if readerGroupsSet = fs.Changed("reader-groups"); readerGroupsSet {
+					readerGroups, err = fs.GetInt32Slice("reader-groups")
+					clilog.GetFlag(err)
+				}
+				if writerGroupsSet = fs.Changed("writer-groups"); writerGroupsSet {
+					writerGroups, err = fs.GetInt32Slice("writer-groups")
+					clilog.GetFlag(err)
+				}
+				if readerGlobalSet = fs.Changed("reader-global"); readerGlobalSet {
+					readerGlobal, err = fs.GetBool("reader-global")
+					clilog.GetFlag(err)
+				}
+				if writerGlobalSet = fs.Changed("writer-global"); writerGlobalSet {
+					writerGlobal, err = fs.GetBool("writer-global")
+					clilog.GetFlag(err)
+				}
+
+				if !readerGroupsSet && !writerGroupsSet && !readerGlobalSet && !writerGlobalSet {
+					return "you must specify at least one of --reader-groups, --writer-groups, --reader-global, or --writer-global", nil
+				}
 
 				return "", nil
 			},
-		},
-	)
+		})
 }
