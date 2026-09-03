@@ -1006,7 +1006,7 @@ type Token struct {
 type TokenPatch struct {
 	CommonFieldsPatch
 	// If capabilities is set, it must contain at least 1 capability.
-	Capabilities Optional[[]string]
+	Capabilities Optional[[]string] `json:",omitzero"`
 }
 
 // ToPatch converts t into a TokenPatch with every field set.
