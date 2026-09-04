@@ -68,8 +68,7 @@ func (c *Client) PurgeFlow(id string) error {
 
 // CreateFlow makes a new flow.
 func (c *Client) CreateFlow(spec types.Flow) (result types.Flow, err error) {
-	err = c.postStaticURL(flowUrl(), spec, &result)
-	return
+	return c.post[types.Flow, types.Flow](flowUrl(), &spec)
 }
 
 // UpdateFlow modifies an existing flow and returns the complete, updated struct.

@@ -16,8 +16,7 @@ import (
 
 // CreateAlert creates a new alert.
 func (c *Client) CreateAlert(def types.Alert) (result types.Alert, err error) {
-	err = c.methodStaticPushURL(http.MethodPost, alertsUrl(), def, &result, nil, nil)
-	return
+	return c.post[types.Alert, types.Alert](alertsUrl(), &def)
 }
 
 // ListAlerts returns a list of alerts the user has access to.

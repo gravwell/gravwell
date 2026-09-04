@@ -62,8 +62,7 @@ func (c *Client) PurgeMacro(id string) error {
 
 // CreateMacro creates a new macro, returning the newly-created macro.
 func (c *Client) CreateMacro(m types.Macro) (result types.Macro, err error) {
-	err = c.postStaticURL(MACROS_URL, m, &result)
-	return
+	return c.post[types.Macro, types.Macro](MACROS_URL, &m)
 }
 
 // UpdateMacro modifies an existing macro and returns the complete, updated struct.

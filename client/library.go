@@ -9,15 +9,12 @@
 package client
 
 import (
-	"net/http"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // CreateSavedQuery creates a new saved query for the current user.
 func (c *Client) CreateSavedQuery(sl types.SavedQuery) (wsl types.SavedQuery, err error) {
-	err = c.methodStaticPushURL(http.MethodPost, searchLibUrl(), sl, &wsl, nil, nil)
-	return
+	return c.post[types.SavedQuery, types.SavedQuery](searchLibUrl(), &sl)
 }
 
 // ListSavedQueries returns the list of queries in the search library available to the user.

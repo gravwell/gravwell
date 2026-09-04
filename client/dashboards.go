@@ -62,8 +62,7 @@ func (c *Client) PurgeDashboard(id string) error {
 
 // CreateDashboard creates a new dashboard, returning the newly-created dashboard.
 func (c *Client) CreateDashboard(d types.Dashboard) (result types.Dashboard, err error) {
-	err = c.postStaticURL(DASHBOARDS_URL, d, &result)
-	return
+	return c.post[types.Dashboard, types.Dashboard](DASHBOARDS_URL, &d)
 }
 
 // UpdateDashboard modifies an existing dashboard and returns the complete, updated struct.

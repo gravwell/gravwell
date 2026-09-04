@@ -25,8 +25,7 @@ func (c *Client) TokenCapabilities() (cl []string, err error) {
 // the only cases in which a TokenFull object (containing the Value field)
 // is returned.
 func (c *Client) CreateToken(tc types.Token) (tf types.TokenFull, err error) {
-	err = c.postStaticURL(tokensUrl(), tc, &tf)
-	return
+	return c.post[types.Token, types.TokenFull](tokensUrl(), &tc)
 }
 
 // ListTokens gets a list of tokens accessible to the user. If

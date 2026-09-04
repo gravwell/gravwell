@@ -66,8 +66,7 @@ func (c *Client) PurgeScheduledSearch(id string) error {
 
 // CreateScheduledSearch makes a new scheduled search.
 func (c *Client) CreateScheduledSearch(spec types.ScheduledSearch) (result types.ScheduledSearch, err error) {
-	err = c.postStaticURL(scheduledSearchUrl(), spec, &result)
-	return
+	return c.post[types.ScheduledSearch, types.ScheduledSearch](scheduledSearchUrl(), &spec)
 }
 
 // UpdateScheduledSearch modifies an existing scheduled search and returns the complete, updated struct.

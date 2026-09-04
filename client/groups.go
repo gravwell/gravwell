@@ -66,8 +66,7 @@ func (c *Client) DeleteGroup(gid int32) error {
 
 // CreateGroup creates a new group, returning the newly-created group.
 func (c *Client) CreateGroup(m types.Group) (result types.Group, err error) {
-	err = c.postStaticURL(GROUP_URL, m, &result)
-	return
+	return c.post[types.Group, types.Group](GROUP_URL, &m)
 }
 
 // UpdateGroup modifies an existing group and returns the complete, updated struct.

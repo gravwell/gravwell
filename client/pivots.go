@@ -62,8 +62,7 @@ func (c *Client) PurgeActionable(id string) error {
 
 // CreateActionable creates a new actionable, returning the newly-created actionable.
 func (c *Client) CreateActionable(a types.Actionable) (result types.Actionable, err error) {
-	err = c.postStaticURL(ACTIONABLES_URL, a, &result)
-	return
+	return c.post[types.Actionable, types.Actionable](ACTIONABLES_URL, &a)
 }
 
 // UpdateActionable modifies an existing actionable and returns the complete, updated struct.

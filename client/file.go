@@ -41,8 +41,7 @@ func (c *Client) CleanupFiles() error {
 //
 // The return value contains information about the newly-created file.
 func (c *Client) CreateFile(f types.File) (result types.File, err error) {
-	err = c.postStaticURL(filesUrl(), f, &result)
-	return result, err
+	return c.post[types.File, types.File](filesUrl(), &f)
 }
 
 // GetFile returns the specified file's contents.

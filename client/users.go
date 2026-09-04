@@ -68,8 +68,7 @@ func (c *Client) DeleteUser(id int32) error {
 // user. Note that unlike most Create* types, this takes a special
 // type which includes the password and leaves out other fields.
 func (c *Client) CreateUser(m types.AddUser) (result types.User, err error) {
-	err = c.postStaticURL(USERS_URL, m, &result)
-	return
+	return c.post[types.AddUser, types.User](USERS_URL, &m)
 }
 
 // UpdateUser (admin-only) modifies an existing user and returns the complete, updated struct.

@@ -62,8 +62,7 @@ func (c *Client) PurgeTemplate(id string) error {
 
 // CreateTemplate creates a new template, returning the newly-created template.
 func (c *Client) CreateTemplate(t types.Template) (result types.Template, err error) {
-	err = c.postStaticURL(TEMPLATES_URL, t, &result)
-	return
+	return c.post[types.Template, types.Template](TEMPLATES_URL, &t)
 }
 
 // UpdateTemplate modifies an existing template and returns the complete, updated struct.

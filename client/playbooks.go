@@ -62,8 +62,7 @@ func (c *Client) PurgePlaybook(id string) error {
 
 // CreatePlaybook creates a new playbook, returning the newly-created playbook.
 func (c *Client) CreatePlaybook(pb types.Playbook) (result types.Playbook, err error) {
-	err = c.postStaticURL(PLAYBOOKS_URL, pb, &result)
-	return
+	return c.post[types.Playbook, types.Playbook](PLAYBOOKS_URL, &pb)
 }
 
 // UpdatePlaybook modifies an existing playbook and returns the complete, updated struct.

@@ -84,8 +84,7 @@ func (c *Client) PurgeUserPreference(id string) error {
 
 // CreateUserPreference creates a new user preference, returning the newly-created user preference.
 func (c *Client) CreateUserPreference(p types.UserPreference) (result types.UserPreference, err error) {
-	err = c.postStaticURL(USER_PREFERENCES_URL, p, &result)
-	return
+	return c.post[types.UserPreference, types.UserPreference](USER_PREFERENCES_URL, &p)
 }
 
 // UpdateUserPreference modifies an existing user preference and returns the complete, updated struct.

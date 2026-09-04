@@ -69,8 +69,7 @@ func (c *Client) PurgeScheduledScript(id string) error {
 
 // CreateScheduledScript makes a new scheduled script.
 func (c *Client) CreateScheduledScript(spec types.ScheduledScript) (result types.ScheduledScript, err error) {
-	err = c.postStaticURL(scheduledScriptUrl(), spec, &result)
-	return
+	return c.post[types.ScheduledScript, types.ScheduledScript](scheduledScriptUrl(), &spec)
 }
 
 // UpdateScheduledScript modifies an existing scheduled script and returns the complete, updated struct.

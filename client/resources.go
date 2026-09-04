@@ -26,11 +26,7 @@ import (
 // creation time, as are the Global flag and an optional list of groups with which to
 // share it. The return value contains information about the newly-created resource.
 func (c *Client) CreateResource(r types.Resource) (types.Resource, error) {
-	var resp types.Resource
-	if err := c.postStaticURL(resourcesUrl(), r, &resp); err != nil {
-		return resp, err
-	}
-	return resp, nil
+	return c.post[types.Resource, types.Resource](resourcesUrl(), &r)
 }
 
 // ListResources returns information about all resources the user can access.

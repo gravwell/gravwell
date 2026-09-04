@@ -38,8 +38,7 @@ func (c *Client) ListAllSecrets(opts *types.QueryOptions) (ret types.SecretListR
 // CreateSecret instantiates and returns a new Secret.
 // The actual secret string will not be returned.
 func (c *Client) CreateSecret(sc types.SecretCreate) (sf types.Secret, err error) {
-	err = c.postStaticURL(secretsUrl(), sc, &sf)
-	return
+	return c.post[types.SecretCreate, types.Secret](secretsUrl(), &sc)
 }
 
 // GetSecret fetches information about a particular Secret.
