@@ -75,5 +75,5 @@ func (c *Client) UpdateMacro(ID string, p types.MacroPatch) (updated types.Macro
 
 // CleanupMacros (admin-only) purges all deleted macros for all users.
 func (c *Client) CleanupMacros() error {
-	return c.cleanup(MACROS_URL)
+	return c.delete(MACROS_URL)
 }

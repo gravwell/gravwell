@@ -59,9 +59,8 @@ func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data P
 	return patched, nil
 }
 
-// cleanup submits an empty DELETE request against the given URL.
-// The URL should be bare (ex: /api/macros); a url with an ID will try to delete that specific item.
-func (c *Client) cleanup(url string) error {
+// delete submits an empty DELETE request against the given URL.
+func (c *Client) delete(url string) error {
 	resp, err := c.reqDriver(http.MethodDelete, url, nil)
 	defer drainResponse(resp)
 	return err

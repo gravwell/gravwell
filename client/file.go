@@ -32,7 +32,7 @@ var ErrOversizedFile error = fmt.Errorf("Files must be %v or smaller", ingest.Hu
 
 // CleanupFiles (admin-only) purges all deleted files for all users.
 func (c *Client) CleanupFiles() error {
-	return c.cleanup(filesUrl())
+	return c.delete(filesUrl())
 }
 
 // CreateFile makes a new file.

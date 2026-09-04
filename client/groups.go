@@ -79,7 +79,7 @@ func (c *Client) UpdateGroup(ID int32, p types.GroupPatch) (updated types.Group,
 
 // CleanupGroups (admin-only) purges all deleted groups.
 func (c *Client) CleanupGroups() error {
-	return c.deleteStaticURL(GROUP_URL, nil)
+	return c.delete(groupUrl())
 }
 
 // LookupGroup looks up a Group object given a group name.  If the
