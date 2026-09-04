@@ -273,13 +273,17 @@ func main() {
 					output, err := svc.GetShardIterator(ctx, gsii)
 					if err != nil {
 						_ = lg.Error("error on shard", log.KV("number", shardid), log.KV("stream", stream.Stream_Name), log.KV("shard", *shard.ShardId), log.KVErr(err))
-						utils.QuitableSleep(ctx, 5*time.Second)
+						if utils.QuitableSleep(ctx, 5*time.Second) {
+							break reconnectLoop
+						}
 						continue
 					}
 					if output.ShardIterator == nil {
 						// this is weird, we are going to bail out
 						_ = lg.Error("got nil initial shard iterator, sleeping and retrying")
-						utils.QuitableSleep(ctx, 5*time.Second)
+						if utils.QuitableSleep(ctx, 5*time.Second) {
+							break reconnectLoop
+						}
 						continue
 					}
 					iter := *output.ShardIterator
@@ -300,27 +304,45 @@ func main() {
 								}
 							}
 							if err != nil {
+								if ctx.Err() != nil {
+									// Shut down, stop retrying and let the goroutine exit.
+									break reconnectLoop
+								}
+
 								var throughputErr *types.ProvisionedThroughputExceededException
 								var iteratorErr *types.ExpiredIteratorException
+
 								switch {
 								case errors.As(err, &throughputErr):
 									_ = lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									utils.QuitableSleep(ctx, 500*time.Millisecond)
+
+									if utils.QuitableSleep(ctx, 500*time.Millisecond) {
+										break reconnectLoop
+									}
 								case errors.As(err, &iteratorErr):
 									_ = lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									utils.QuitableSleep(ctx, 100*time.Millisecond)
+
+									if utils.QuitableSleep(ctx, 100*time.Millisecond) {
+										break reconnectLoop
+									}
+
 									continue reconnectLoop
 								default:
 									_ = lg.Error("answer error", log.KVErr(err), log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									utils.QuitableSleep(ctx, 500*time.Millisecond)
+
+									if utils.QuitableSleep(ctx, 500*time.Millisecond) {
+										break reconnectLoop
+									}
 								}
 							} else {
 								// if we got no records, chill for a sec before we hit it again
 								if len(res.Records) == 0 {
-									utils.QuitableSleep(ctx, 100*time.Millisecond)
+									if utils.QuitableSleep(ctx, 100*time.Millisecond) {
+										break reconnectLoop
+									}
 								}
 								break
 							}
