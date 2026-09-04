@@ -12,7 +12,6 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
@@ -37,7 +36,7 @@ type emitCtx struct {
 	requestID    string
 	model        string
 	durationMs   int64
-	lg           ingest.Logger
+	lg           log.IngestLogger
 }
 
 // emitRequestEvents writes the request-side events that the listener's

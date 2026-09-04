@@ -99,6 +99,7 @@ jobs:
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./ingesters/llm_ingester
         govulncheck -test ./gwcli/...
         govulncheck -test ./hosted/...
         GOOS=windows govulncheck -test ./ingesters/winevents
@@ -124,6 +125,7 @@ jobs:
         go vet ./ingesters/utils
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
+        go vet ./ingesters/llm_ingester
         go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
@@ -146,6 +148,7 @@ jobs:
         go test -v ./ingesters/utils
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
+        go test -v ./ingesters/llm_ingester
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...
@@ -195,6 +198,7 @@ jobs:
         staticcheck ./ingesters/IPMIIngester/...
         staticcheck ./ingesters/kafka_consumer/...
         staticcheck ./ingesters/KinesisIngester/...
+        staticcheck ./ingesters/llm_ingester/...
         staticcheck ./ingesters/massFile/...
         staticcheck ./ingesters/MSGraphIngester/...
         staticcheck ./ingesters/multiFile/...
@@ -243,6 +247,7 @@ jobs:
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/llm_ingester
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
