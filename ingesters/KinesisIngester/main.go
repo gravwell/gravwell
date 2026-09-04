@@ -422,17 +422,7 @@ func main() {
 		cancel()
 	}()
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		wg.Wait()
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(utils.ExitSyncTimeout):
-		lg.Error("timed out waiting for shard goroutines to exit, forcing shutdown")
-	}
+	wg.Wait()
 }
 
 func debugout(format string, args ...any) {
