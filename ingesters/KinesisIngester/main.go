@@ -262,6 +262,11 @@ func main() {
 				if err != nil {
 					lg.Fatal("preprocessor construction error", log.KVErr(err))
 				}
+				defer func() {
+					if cerr := procset.Close(); cerr != nil {
+						lg.Error("Failed to close processor set", log.KVErr(cerr))
+					}
+				}()
 
 				// make the shardMetrics and add it to the array
 				tracker := shardMetrics{}
@@ -400,9 +405,7 @@ func main() {
 							stateMan.UpdateSequenceNum(stream.Stream_Name, *shard.ShardId, lastSeqNum)
 						}
 					}
-					if err = procset.Close(); err != nil {
-						lg.Error("Failed to close processor set", log.KVErr(err))
-					}
+
 					// if we get to this point, exit the for loop
 					break
 				}
