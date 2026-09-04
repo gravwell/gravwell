@@ -157,7 +157,12 @@ func main() {
 		debugout("Read %d shards from stream %s\n", len(shards), stream.Stream_Name)
 
 		// Now start up the metrics reporter
+		// metricsTracker is written concurrently by every per-shard goroutine via append
+		// and read concurrently by the reporter goroutine below, so it MUST be guarded
+		// by a mutex to avoid race conditions.
 		var metricsTrackers []*shardMetrics
+		var metricsTrackersMu sync.Mutex
+
 		if stream.Metrics_Interval > 0 {
 			go func(stream streamDef) {
 				for {
@@ -165,15 +170,27 @@ func main() {
 					case <-dieChan:
 						return
 					case <-time.After(time.Duration(stream.Metrics_Interval) * time.Second):
+						metricsTrackersMu.Lock()
+						trackers := make([]*shardMetrics, len(metricsTrackers))
+						copy(trackers, metricsTrackers)
+						metricsTrackersMu.Unlock()
+
 						report := metricsReport{StreamName: stream.Stream_Name, ShardCount: len(shards)}
-						for i := range metricsTrackers {
-							l, b, e, r := metricsTrackers[i].ReadAndReset()
+						for i := range trackers {
+							l, b, e, r := trackers[i].ReadAndReset()
 							report.AverageLag += l
 							report.CompressedDataSize += b
 							report.EntryDataSize += e
 							report.KinesisRequests += r
 						}
-						report.AverageLag = report.AverageLag / int64(len(metricsTrackers))
+
+						// Avoid a divide-by-zero panic if the ticker fires
+						// before any shard goroutine has registered a tracker
+						// or if the stream currently has zero open shards.
+						if len(trackers) > 0 {
+							report.AverageLag = report.AverageLag / int64(len(trackers))
+						}
+
 						if stream.JSON_Metrics {
 							jr, err := json.Marshal(report)
 							if err == nil {
@@ -248,7 +265,11 @@ func main() {
 
 				// make the shardMetrics and add it to the array
 				tracker := shardMetrics{}
+
+				metricsTrackersMu.Lock()
 				metricsTrackers = append(metricsTrackers, &tracker)
+				metricsTrackersMu.Unlock()
+
 				if stream.Metrics_Interval == 0 {
 					// disable it
 					tracker.Disabled = true
