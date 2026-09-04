@@ -10,6 +10,7 @@ package types
 
 import (
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"reflect"
@@ -361,7 +362,10 @@ func (rs RendererSettings) MarshalJSON() ([]byte, error) {
 		// Empty RendererSettings
 		return []byte(`null`), nil
 	}
-	return json.Marshal(active)
+	// v2 is used here (rather than the v1 import used elsewhere in this file) so that the
+	// required-but-possibly-nil array fields on the channel types (e.g. RSP2PChannels.Tooltip)
+	// encode as [] instead of null, regardless of which json package the caller marshals with.
+	return jsonv2.Marshal(active)
 }
 
 func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
@@ -460,7 +464,7 @@ type RSP2PChannels struct {
 	From      string
 	To        string
 	Magnitude string
-	Tooltip   emptyStrings
+	Tooltip   []string
 }
 
 type RSNumber struct {
@@ -495,7 +499,7 @@ type RSPointmap struct {
 
 type RSPointmapChannels struct {
 	Location string
-	Tooltip  emptyStrings
+	Tooltip  []string
 }
 
 type RSStackGraph struct {
@@ -528,7 +532,7 @@ type RSTabular struct {
 }
 
 type RSTabularChannels struct {
-	Columns emptyStrings
+	Columns []string
 }
 
 type RSFdg struct {
@@ -679,9 +683,24 @@ func (si SearchInfo) StorageSize() int64 {
 
 const AllowedMacroChars = "ABCDCEFGHIJKLMNOPQRSTUVWXYZ1234567890_-"
 
+// MacroPatch is the type used to request an update to an existing Macro.
+type MacroPatch struct {
+	CommonFieldsPatch
+	Expansion Optional[string] `json:",omitzero"`
+}
+
+// Macro is the type used to Get and Create Macros.
 type Macro struct {
 	CommonFields
 	Expansion string
+}
+
+// ToPatch converts m into a MacroPatch with every field set
+func (m Macro) ToPatch() MacroPatch {
+	return MacroPatch{
+		CommonFieldsPatch: m.CommonFields.ToPatch(),
+		Expansion:         NewOptional(m.Expansion),
+	}
 }
 
 // MacroListResponse is what gets returned when you query a list of
@@ -698,17 +717,6 @@ func CheckMacroName(name string) error {
 		}
 	}
 	return nil
-}
-
-func (l LaunchResponse) MarshalJSON() ([]byte, error) {
-	type alias LaunchResponse
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(l),
-		Messages: emptyMessages(l.Messages),
-	})
 }
 
 type emptyStatSet []StatSet

@@ -64,16 +64,20 @@ func (c *Client) GetSecretEx(id string, opts *types.QueryOptions) (s types.Secre
 // UpdateSecretValue changes the value of a particular secret.
 // The actual secret string will not be returned.
 func (c *Client) UpdateSecretValue(id string, value string) (s types.Secret, err error) {
-	sc := types.SecretCreate{Value: value}
-	err = c.methodStaticPushURL(http.MethodPut, secretIdValueUrl(id), sc, &s, nil, nil)
-	return
+	if id == "" {
+		return types.Secret{}, ErrEmptyID
+	}
+
+	err = c.methodStaticPushURL(http.MethodPut, secretIdValueUrl(id), types.SecretValuePatch{Value: value}, &s, nil, nil)
+	return s, err
 }
 
-// UpdateSecret changes the details (not the value) of a particular secret.
-// The actual secret string will not be returned.
-func (c *Client) UpdateSecret(id string, sc types.SecretCreate) (s types.Secret, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, secretIdUrl(id), sc, &s, nil, nil)
-	return
+// UpdateSecret changes the details (not the value) of a particular secret and returns the complete, updated struct.
+func (c *Client) UpdateSecret(id string, p types.SecretPatch) (updated types.Secret, err error) {
+	if id == "" {
+		return types.Secret{}, ErrEmptyID
+	}
+	return c.patch[types.SecretPatch, types.Secret](secretIdUrl(id), p)
 }
 
 // DeleteSecret deletes a Secret.

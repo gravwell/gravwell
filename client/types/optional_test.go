@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package client_test
+package types_test
 
 import (
 	"testing"
@@ -37,3 +37,5 @@ func TestOptional(t *testing.T) {
 	})
 
 }
+
+// NOTE: the marshaler tests for Optional are in client/types/marshallers_test.go

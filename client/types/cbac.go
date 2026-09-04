@@ -9,7 +9,6 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -137,14 +136,6 @@ type CBACExpandedRules struct {
 // The grants specified using the full name of a capability to make the API more explicit
 type CapabilityState struct {
 	Grants []string
-}
-
-func (st CapabilityState) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		st.Grants,
-	})
 }
 
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
@@ -845,14 +836,6 @@ type TagAccess struct {
 	Grants []string //Grants specify tag names and/or globbing patterns which represent allowed tags
 }
 
-func (ta TagAccess) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		ta.Grants,
-	})
-}
-
 const globChars = `*?[]{}!`
 
 func isGlob(pattern string) bool {
@@ -1019,10 +1002,19 @@ type Token struct {
 	Capabilities []string
 }
 
-// TokenUpdate is used to update a token as Token.ExpiresAt is only editable via TokenRegeneration
-type TokenUpdate struct {
-	CommonFields
-	Capabilities []string
+// TokenPatch is the type used to request an update to an existing Token and the capabilities it provides.
+type TokenPatch struct {
+	CommonFieldsPatch
+	// If capabilities is set, it must contain at least 1 capability.
+	Capabilities Optional[[]string] `json:",omitzero"`
+}
+
+// ToPatch converts t into a TokenPatch with every field set.
+func (t Token) ToPatch() TokenPatch {
+	return TokenPatch{
+		CommonFieldsPatch: t.CommonFields.ToPatch(),
+		Capabilities:      NewOptional(t.Capabilities),
+	}
 }
 
 // TokenListResponse is the type returned when querying a list of tokens.
@@ -1063,13 +1055,6 @@ func (t Token) ExpiresString() string {
 // CapabilitiesString returns a human friendly space delimited list of capabilities
 func (t Token) CapabilitiesString() string {
 	return strings.Join(t.Capabilities, " ")
-}
-
-func (t Token) ForUpdate() TokenUpdate {
-	return TokenUpdate{
-		CommonFields: t.CommonFields,
-		Capabilities: t.Capabilities,
-	}
 }
 
 // EncodeCapabilities encodes a list of capabilities into a buffer

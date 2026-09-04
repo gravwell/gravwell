@@ -287,7 +287,7 @@ func edit() action.Pair {
 			return item.Description
 		},
 		UpdateSub: func(data *types.Resource) (identifier string, err error) {
-			_, err = connection.Client.UpdateResourceMetadata(data.ID, *data)
+			_, err = connection.Client.UpdateResourceMetadata(data.ID, data.ToPatch())
 			return data.Name, err
 		},
 	},

@@ -9,8 +9,6 @@
 package client
 
 import (
-	"net/http"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -68,10 +66,12 @@ func (c *Client) CreatePlaybook(pb types.Playbook) (result types.Playbook, err e
 	return
 }
 
-// UpdatePlaybook modifies an existing playbook.
-func (c *Client) UpdatePlaybook(pb types.Playbook) (result types.Playbook, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, playbookUrl(pb.ID), pb, &result, nil, nil)
-	return
+// UpdatePlaybook modifies an existing playbook and returns the complete, updated struct.
+func (c *Client) UpdatePlaybook(ID string, p types.PlaybookPatch) (updated types.Playbook, err error) {
+	if ID == "" {
+		return types.Playbook{}, ErrEmptyID
+	}
+	return c.patch[types.PlaybookPatch, types.Playbook](playbookUrl(ID), p)
 }
 
 // CleanupPlaybooks (admin-only) purges all deleted playbooks for all users.

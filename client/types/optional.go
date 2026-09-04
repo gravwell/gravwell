@@ -12,6 +12,12 @@ import (
 	"encoding/json/v2"
 )
 
+type PatchType interface {
+	MacroPatch | FilePatch | TokenPatch | AXPatch | SavedQueryPatch | ResourcePatch | TemplatePatch |
+		UserPreferencePatch | SecretPatch | SecretValuePatch | ScheduledSearchPatch | ScheduledScriptPatch |
+		FlowPatch | AlertPatch | PlaybookPatch | DashboardPatch | ActionablePatch | UserPatch | GroupPatch
+}
+
 // An Optional type represents a field which may be unset during an update, preserving its prior value.
 // If !Optional.IsSet(), this field will be omitted from a JSON marshal of the type.
 type Optional[T any] struct {

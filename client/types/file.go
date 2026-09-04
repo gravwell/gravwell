@@ -22,3 +22,15 @@ type FileListResponse struct {
 	BaseListResponse
 	Results []File
 }
+
+// FilePatch is the type used to request an update to the metadata of an existing File.
+type FilePatch struct {
+	CommonFieldsPatch
+}
+
+// ToPatch converts f into a FilePatch with every field set.
+func (f File) ToPatch() FilePatch {
+	return FilePatch{
+		CommonFieldsPatch: f.CommonFields.ToPatch(),
+	}
+}

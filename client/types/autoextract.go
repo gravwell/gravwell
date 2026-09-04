@@ -36,6 +36,26 @@ type AX struct {
 	Tags   []string `toml:"tags"`
 }
 
+// AXPatch is the type used to request an update to an existing AX.
+type AXPatch struct {
+	CommonFieldsPatch
+	Args   Optional[string]   `json:",omitzero"`
+	Module Optional[string]   `json:",omitzero"`
+	Params Optional[string]   `json:",omitzero"`
+	Tags   Optional[[]string] `json:",omitzero"`
+}
+
+// ToPatch converts dc into an AXPatch with every field set.
+func (dc AX) ToPatch() AXPatch {
+	return AXPatch{
+		CommonFieldsPatch: dc.CommonFields.ToPatch(),
+		Args:              NewOptional(dc.Args),
+		Module:            NewOptional(dc.Module),
+		Params:            NewOptional(dc.Params),
+		Tags:              NewOptional(dc.Tags),
+	}
+}
+
 // Validate verifies all required fields in an AXDefinition object are valid.
 func (dc *AX) Validate() error {
 	if dc.Name == `` {

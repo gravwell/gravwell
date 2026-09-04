@@ -87,27 +87,6 @@ func (t *TableValueSet) Compare(u *TableValueSet) (cols bool, rows bool, idx int
 	return true, true, 0
 }
 
-func (t TableValueSet) MarshalJSON() ([]byte, error) {
-	type alias TableValueSet
-	return json.Marshal(&struct {
-		alias
-		Columns emptyStrings
-	}{
-		alias:   alias(t),
-		Columns: emptyStrings(t.Columns),
-	})
-}
-
-func (r TableRow) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		TS  entry.Timestamp
-		Row emptyStrings
-	}{
-		TS:  r.TS,
-		Row: emptyStrings(r.Row),
-	})
-}
-
 func (x TableResponse) MarshalJSON() ([]byte, error) {
 	base, err := json.Marshal(x.BaseResponse)
 	if err != nil {

@@ -89,7 +89,7 @@ func setAdmin(u types.User, grant, revoke bool) (success string, _ error) {
 	} else if revoke {
 		u.Admin = false
 	}
-	if err := connection.Client.UpdateUser(u); err != nil {
+	if _, err := connection.Client.UpdateUser(u.ID, u.ToPatch()); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("user '%s' admin status set to %v\n", u.Username, u.Admin), nil

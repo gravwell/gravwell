@@ -70,7 +70,9 @@ type CommonFields struct {
 	UpdatedAt time.Time
 	DeletedAt time.Time
 	ID        string
-	ParentID  string // the parent object this was cloned from
+	// the parent object this was cloned from.
+	// Not user settable.
+	ParentID string
 
 	OwnerID int32
 	Owner   User
@@ -163,6 +165,29 @@ func (cf *CommonFields) AllGIDs() []int32 {
 		}
 	}
 	return gids
+}
+
+// CommonFieldsPatch is the base type used to request updates to existing assets.
+// It contains only fields that can be updated.
+type CommonFieldsPatch struct {
+	Description Optional[string]   `json:",omitzero"`
+	Labels      Optional[[]string] `json:",omitzero"`
+	Name        Optional[string]   `json:",omitzero"`
+	OwnerID     Optional[int32]    `json:",omitzero"`
+	Readers     Optional[ACL]      `json:",omitzero"`
+	Writers     Optional[ACL]      `json:",omitzero"`
+}
+
+// ToPatch converts cf into a CommonFieldsPatch with every field set.
+func (cf CommonFields) ToPatch() CommonFieldsPatch {
+	return CommonFieldsPatch{
+		Description: NewOptional(cf.Description),
+		Labels:      NewOptional(cf.Labels),
+		Name:        NewOptional(cf.Name),
+		OwnerID:     NewOptional(cf.OwnerID),
+		Readers:     NewOptional(cf.Readers),
+		Writers:     NewOptional(cf.Writers),
+	}
 }
 
 type ListAllResponse struct {

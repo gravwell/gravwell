@@ -365,7 +365,7 @@ func backfillToggle() action.Pair {
 					flow.BackfillEnabled = false
 				}
 
-				if err := connection.Client.UpdateFlow(flow); err != nil {
+				if _, err := connection.Client.UpdateFlow(flow.ID, flow.ToPatch()); err != nil {
 					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to update backfill for flow %s: %v", ID, err)}
 					continue
 				}
