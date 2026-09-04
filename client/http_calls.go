@@ -7,11 +7,12 @@ import (
 	"net/http"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // patch submits a PATCH request against the given url.
 func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
-	body, err := json.Marshal(data)
+	body, err := json.Marshal(data, jsoncompat.Opts)
 	if err != nil {
 		return patched, err
 	} else if body == nil || string(body) == "{}" { // if this marshaled to no data, throw away the request
@@ -24,7 +25,7 @@ func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data P
 		return patched, err
 	}
 
-	if err := json.UnmarshalRead(resp.Body, &patched); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &patched, jsoncompat.Opts); err != nil {
 		return patched, err
 	}
 
