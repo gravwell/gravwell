@@ -50,7 +50,6 @@ func main() {
 
 	var wg sync.WaitGroup
 	var cfg *cfgType
-	running := true
 
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 appName,
@@ -315,7 +314,7 @@ func main() {
 					iter := *output.ShardIterator
 
 					var lastSeqNum string
-					for running {
+					for ctx.Err() == nil {
 						gri := &kinesis.GetRecordsInput{
 							Limit:         new(int32(5000)),
 							ShardIterator: new(iter),
@@ -416,7 +415,6 @@ func main() {
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
 
-	running = false
 	close(dieChan)
 
 	go func() {
@@ -424,7 +422,17 @@ func main() {
 		cancel()
 	}()
 
-	wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wg.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(utils.ExitSyncTimeout):
+		lg.Error("timed out waiting for shard goroutines to exit, forcing shutdown")
+	}
 }
 
 func debugout(format string, args ...any) {
