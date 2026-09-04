@@ -25,6 +25,7 @@ echo "Running go vet"
         go vet ./ingesters/utils
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
+        go vet ./ingesters/llm_ingester
         GOOS=linux go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
@@ -46,6 +47,7 @@ echo "Running go test -v"
         go test -v ./ingesters/utils
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
+        go test -v ./ingesters/llm_ingester
         if [[ "$(go env GOOS)" == "linux" ]]; then go test -v ./ipexist; fi
         go test -v ./netflow
         go test -v ./client/...
@@ -93,6 +95,7 @@ echo "running staticcheck"
 	staticcheck ./ingesters/IPMIIngester/...
 	staticcheck ./ingesters/kafka_consumer/...
 	staticcheck ./ingesters/KinesisIngester/...
+	staticcheck ./ingesters/llm_ingester/...
 	staticcheck ./ingesters/massFile/...
 	staticcheck ./ingesters/MSGraphIngester/...
 	staticcheck ./ingesters/multiFile/...
@@ -168,6 +171,7 @@ echo "running govulncheck on everything"
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./ingesters/llm_ingester
         govulncheck -test ./hosted/...
         #govulncheck -test ./gwcli
         GOOS=windows GOARCH=amd64 govulncheck -test ./ingesters/winevents
@@ -199,6 +203,7 @@ echo "Running build tests"
         GOOS=linux go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/llm_ingester
         go build -o /dev/null ./hosted/runner
         go build -o /dev/null ./gwcli
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
