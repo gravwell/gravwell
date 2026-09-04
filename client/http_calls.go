@@ -10,6 +10,32 @@ import (
 	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
+// This file provides similar, alternative mechanisms for staticActions.go, but implements JSON/v2.
+// Phasing in this file while phasing out staticActions.go allows us to transition piecemeal.
+
+// post submits a POST request against the given url and expects ResponseT in return.
+func (c *Client) post[RequestT, ResponseT any](url string, in *RequestT) (response ResponseT, _ error) {
+	var (
+		body []byte
+		err  error
+	)
+	body, err = json.Marshal(in, jsoncompat.Opts)
+	if err != nil {
+		return response, err
+	}
+	resp, err := c.reqDriver(http.MethodPost, url, body)
+	defer drainResponse(resp)
+	if err != nil {
+		return response, err
+	}
+	if err := json.UnmarshalRead(resp.Body, &response, jsoncompat.Opts); err != nil {
+		return response, err
+	}
+
+	c.objLog.Log("WEB RECV", url, response)
+	return response, nil
+}
+
 // patch submits a PATCH request against the given url.
 func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
 	body, err := json.Marshal(data, jsoncompat.Opts)
