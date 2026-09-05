@@ -46,28 +46,31 @@ func (c *Client) CreateFile(f types.File) (result types.File, err error) {
 
 // GetFile returns the specified file's contents.
 func (c *Client) GetFile(id string) ([]byte, error) {
-	return c.GetFileEx(id, nil, 0)
+	return c.GetFileEx(id, DownloadFileOptions{})
 }
 
-// GetFileEx returns the specified file's contents.
-// If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
-// Up to previewBytes will be returned; if 0, everything is returned.
-func (c *Client) GetFileEx(id string, opts *types.QueryOptions, previewBytes uint64) ([]byte, error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+// DownloadFileOptions specifies alterations to a file download request.
+type DownloadFileOptions struct {
+	GetOptions
+	PreviewBytes uint64
+}
 
-	resp, err := c.methodParamRequestURL(http.MethodGet, filesIdRawUrl(id), map[string]string{
-		"include_deleted": strconv.FormatBool(opts.IncludeDeleted),
-		"bytes":           strconv.FormatUint(previewBytes, 10),
-	})
+func (o DownloadFileOptions) params() []urlParam {
+	p := o.GetOptions.params()
+	if o.PreviewBytes != 0 {
+		p = append(p, urlParam{"bytes", strconv.FormatUint(o.PreviewBytes, 10)})
+	}
+	return p
+}
+
+// GetFileEx returns the specified file's contents, conforming to the given options.
+func (c *Client) GetFileEx(id string, opts DownloadFileOptions) ([]byte, error) {
+	rc, err := c.getDownload(filesIdRawUrl(id), opts.params()...)
 	if err != nil {
 		return nil, err
-	} else if err := aliasResponseError(c, resp); err != nil {
-		return nil, err
 	}
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
+	defer rc.Close()
+	return io.ReadAll(rc)
 }
 
 // UpdateFileMetadata modifies an existing file's metadata and returns the complete, updated struct.
@@ -80,9 +83,7 @@ func (c *Client) UpdateFileMetadata(ID string, p types.FilePatch) (updated types
 
 // GetFileMetadata gets the specified file sans contents.
 func (c *Client) GetFileMetadata(id string) (types.File, error) {
-	var metadata types.File
-	err := c.getStaticURL(filesIdUrl(id), &metadata)
-	return metadata, err
+	return c.get[types.File](filesIdUrl(id))
 }
 
 // PopulateFile sets the content of the specified file to the given data.
