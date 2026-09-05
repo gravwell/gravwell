@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json/v2"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -66,9 +67,47 @@ func (c *Client) delete(url string) error {
 	return err
 }
 
+// GetOptions is the base set of options support by asset GET requests.
+type GetOptions struct {
+	IncludeDeleted bool
+}
+
+func (o GetOptions) params() []urlParam {
+	var p []urlParam
+	if o.IncludeDeleted {
+		p = append(p, urlParam{"incldue_deleted", "true"})
+	}
+	return p
+}
+
+func (c *Client) get[ResponseT any](url string, params ...urlParam) (response ResponseT, _ error) {
+	resp, err := c.reqDriver(http.MethodGet, url, nil, params...)
+	defer drainResponse(resp)
+	if err != nil {
+		return response, err
+	}
+
+	if err := json.UnmarshalRead(resp.Body, &response, jsoncompat.Opts); err != nil {
+		return response, err
+	}
+
+	c.objLog.Log("WEB RECV", url, response)
+	return response, nil
+}
+
+// getDownload issues a GET request, but returns a reader on the body instead of trying to unmarshal said body.
+func (c *Client) getDownload(url string, params ...urlParam) (io.ReadCloser, error) {
+	resp, err := c.reqDriver(http.MethodGet, url, nil, params...)
+	if err != nil {
+		drainResponse(resp)
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
 // reqDriver powers outbound requests and serves as a funnel to keep them consistent.
 // If err == nil, the caller is responsible for draining the response.
-func (c *Client) reqDriver(method string, url string, body []byte) (*http.Response, error) {
+func (c *Client) reqDriver(method string, url string, body []byte, params ...urlParam) (*http.Response, error) {
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
 	req, err := http.NewRequest(method, uri, bytes.NewBuffer(body))
 	if err != nil {
@@ -78,9 +117,18 @@ func (c *Client) reqDriver(method string, url string, body []byte) (*http.Respon
 
 	c.hm.populateRequest(req.Header) // add in the headers
 
-	// add in any queries like ?admin=true
+	// add in properties from the client itself
 	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
 		return nil, err
+	}
+
+	// add in params
+	if len(params) > 0 {
+		q := req.URL.Query()
+		for _, v := range params {
+			q.Add(v.key, v.value)
+		}
+		req.URL.RawQuery = q.Encode()
 	}
 
 	c.objLog.Log("WEB REQ "+req.Method, url, string(body))
