@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -195,6 +195,7 @@ func (p Palette) GenerateSheet() Sheet {
 		BorderStyle lipgloss.Style
 	}{
 		HeaderCells: lipgloss.NewStyle().
+			Padding(0, 1).
 			Foreground(p.PrimaryColor).
 			AlignHorizontal(lipgloss.Center).
 			AlignVertical(lipgloss.Center).Bold(true),
