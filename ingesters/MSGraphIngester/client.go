@@ -16,7 +16,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/msgraph"
 )
 
 type msGraphFetcher interface {

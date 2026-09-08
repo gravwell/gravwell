@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"golang.org/x/time/rate"
 )
 

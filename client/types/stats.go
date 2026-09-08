@@ -13,7 +13,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 type SearchModuleStatsUpdate struct {
@@ -201,7 +201,7 @@ func (ss *StatSet) MarshalJSON() ([]byte, error) {
 	type alias StatSet
 	return json.Marshal(&struct {
 		alias
-		Stats sms
+		Stats sms `json:"ModuleStats"`
 	}{
 		alias: alias(*ss),
 		Stats: sms(ss.Stats),

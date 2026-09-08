@@ -1,0 +1,178 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+// Package ingest provides an action for streaming data TO Gravwell (as opposed to most other actions that operate in reverse).
+// File paths and tags can be specified as bare arguments and have the form "path,tag", where tag and the splitting comma are optional (in some cases).
+package ingest
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
+	"github.com/gravwell/gravwell/v4/gwcli/mother"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+)
+
+var (
+	helpDesc = "Ingest files into Gravwell.\n" +
+		"An arbitrary number of arguments can be specified, each of which takes the form: " + ft.Mandatory("path") + ft.Optional(",tag") + "\n" +
+		"If no tag is specified for a path, ingest will attempt to use the tag specified by --default-tag.\n" +
+		"The path can point to a single file or a directory; if it is the latter, ingest will shallowly walk the directory to upload each immediate child (unless -r is specified).\n" +
+		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
+		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
+		"\n" +
+		"In non-interactive mode, data can also be ingested via STDIN (requires --stdin). If this data is not Gravwell JSON, --default-tag must be specified." +
+		"\n" +
+		"Calling ingest with no arguments will spin up a file picker (unless --" + ft.NoInteractive.Name() + " is specified in which case it will fail out).\n"
+)
+
+// NewIngestAction does as it says on the tin, enabling the caller to insert the returned pair into the action map.
+func NewIngestAction() action.Pair {
+	cmd := treeutils.GenerateAction(
+		"ingest",
+		"ingest data from a file or STDIN",
+		helpDesc, runE,
+		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+			CommandAliases: []string{"in", "sip", "read", "load", "slurp"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Ingest},
+				XPermissions: []types.Capability{types.Ingest},
+			},
+		}})
+	cmd.Example = "./gwcli ingest picture/of/space.png,pulsar query_results.json cat/pics/,animals ..."
+
+	{ // install flags
+		fs := initialLocalFlagSet()
+		cmd.Flags().AddFlagSet(&fs)
+	}
+
+	return action.NewPair(cmd, Initial())
+
+}
+
+// Returns the set of flags expected by ingest.
+func initialLocalFlagSet() pflag.FlagSet {
+	fs := pflag.FlagSet{}
+
+	/*fs.Bool("hidden", false,
+	"include hidden files when ingesting a directory")*/
+	fs.BoolP("recursive", "r", false,
+		"recursively traverse directories, ingesting each file at every level")
+
+	fs.StringP("source", "s", "",
+		"IP address to use as the source of these files")
+	fs.Bool("ignore-timestamp", false,
+		"all entries will be tagged with the current time")
+	fs.Bool("local-time", false,
+		"any timezone information in the data will be ignored and "+
+			"timestamps will be assumed to be in the Gravwell server's local timezone")
+	fs.String("dir", "",
+		ft.InteractiveOnly()+" Directory to start the interactive file picker in.")
+	fs.StringP("default-tag", "t", "",
+		"tag to use for each file that does not have one specified (either in the argument or embedded in the JSON (in the case of Gravwell JSON files))")
+	fs.Bool("stdin", false,
+		ft.NonInteractiveOnly()+" Read raw data from stdin instead of parsing argument pairs.\n"+
+			"Requires --default-tag unless the data is Gravwell JSON")
+
+	return fs
+}
+
+// driver subroutine invoked by Cobra when ingest is called from an external shell.
+// runE boots Mother if !script && no files were specified; otherwise it attempts to autoingest the files.
+func runE(c *cobra.Command, args []string) error {
+	// fetch flags
+	flags, invalids, err := transmogrifyFlags(c.Flags())
+	if err != nil {
+		return err
+	} else if len(invalids) > 0 { // spit each invalid out in its own line and
+		return fmt.Errorf("- %v", strings.Join(invalids, "\n- "))
+	}
+
+	// branch on --stdin
+	if flags.stdin {
+		resp, err := connection.Client.Ingest(
+			c.InOrStdin(),
+			flags.defaultTag, flags.src,
+			flags.ignoreTS, flags.localTime,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to ingest from stdin: %w", err)
+		}
+		clilog.Tee(clilog.INFO, c.OutOrStdout(), phrases.SuccessfullyLoadedFile("from STDIN")+fmt.Sprintf(" (returned tags: %v)", resp.Tags))
+		return nil
+	}
+
+	// fetch pairs from bare arguments
+	pairs, err := parsePairs(c.Flags().Args())
+	if err != nil {
+		return err
+	}
+	clilog.Writer.Debugf("ingest pairs: %v", pairs)
+
+	// if no files were given, launch mother or fail out
+	if len(pairs) == 0 {
+		if flags.noInteractive {
+			return errNoFilesSpecified(true)
+		}
+		return mother.Spawn(c.Root(), c, args)
+	}
+
+	// attempt autoingestion
+
+	resultCh := make(chan struct {
+		string
+		error
+	})
+
+	count := autoingest(resultCh, flags, pairs)
+	if count == 0 { // should be impossible
+		return errors.New("autoingest returned a count of 0")
+	}
+
+	// start up a spinner
+	var spinner *tea.Program
+	if !flags.noInteractive {
+		var s = "ingesting file"
+		if len(pairs) > 1 {
+			s += "s"
+		}
+		spinner = stylesheet.CobraSpinner(s)
+		go func() { spinner.Run() }()
+	}
+	// print each result to stdout/stderr
+	var errored uint
+	for range count {
+		res := <-resultCh
+		if res.error != nil {
+			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+			errored += 1
+		} else {
+			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
+		}
+	}
+	// kill the spinner
+	if spinner != nil {
+		spinner.Kill()
+	}
+	if errored > 0 {
+		return fmt.Errorf("%d files failed", errored)
+	}
+	return nil
+}

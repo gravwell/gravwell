@@ -18,7 +18,7 @@ package main
 import (
 	"gravwell"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func main() {
@@ -92,7 +92,7 @@ package main
 import (
 	"gravwell"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func main() {
@@ -117,7 +117,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -190,11 +190,11 @@ package main
 import (
 	"gravwell"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 
 	// all the imports
-	_ "github.com/gravwell/gravwell/v3/ingest"
-	_ "github.com/gravwell/gravwell/v3/ingest/config"
+	_ "github.com/gravwell/gravwell/v4/ingest"
+	_ "github.com/gravwell/gravwell/v4/ingest/config"
 	_ "github.com/crewjam/rfc5424"
 	_ "github.com/dchest/safefile"
 	_ "github.com/gobwas/glob"
@@ -363,7 +363,7 @@ package main
 import (
 	"gravwell"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"golang.org/x/text/encoding/japanese"
 )
 

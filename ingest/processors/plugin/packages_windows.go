@@ -1,5 +1,5 @@
-//go:build !386 && !arm && !mips && !mipsle && !s390x && !linux
-// +build !386,!arm,!mips,!mipsle,!s390x,!linux
+//go:build windows
+// +build windows
 
 package plugin
 
@@ -133,9 +133,10 @@ import (
 	rfc5424 "github.com/crewjam/rfc5424"
 	glob "github.com/gobwas/glob"
 	uuid "github.com/google/uuid"
-	ingest "github.com/gravwell/gravwell/v3/ingest"
-	config "github.com/gravwell/gravwell/v3/ingest/config"
-	entry "github.com/gravwell/gravwell/v3/ingest/entry"
+	ingest "github.com/gravwell/gravwell/v4/ingest"
+	config "github.com/gravwell/gravwell/v4/ingest/config"
+	entry "github.com/gravwell/gravwell/v4/ingest/entry"
+	ingestLog "github.com/gravwell/gravwell/v4/ingest/log"
 	ipfix "github.com/gravwell/ipfix"
 	jsonparser_2 "github.com/gravwell/jsonparser"
 	filetype "github.com/h2non/filetype"
@@ -1401,8 +1402,8 @@ func init() {
 		Name:         "uuid",
 		Declarations: decs,
 	}
-	// "github.com/gravwell/gravwell/v3/ingest"
-	decs = make(native.Declarations, 177)
+	// "github.com/gravwell/gravwell/v4/ingest"
+	decs = make(native.Declarations, 175)
 	decs["ABSOLUTE_MAX_UNCONFIRMED_WRITES"] = ingest.ABSOLUTE_MAX_UNCONFIRMED_WRITES
 	decs["ACK_SIZE"] = ingest.ACK_SIZE
 	decs["ACK_WRITER_BUFFER_SIZE"] = ingest.ACK_WRITER_BUFFER_SIZE
@@ -1501,7 +1502,7 @@ func init() {
 	decs["INVALID_MAGIC"] = ingest.INVALID_MAGIC
 	decs["IngestCommand"] = reflect.TypeOf((*ingest.IngestCommand)(nil)).Elem()
 	decs["IngestConnection"] = reflect.TypeOf((*ingest.IngestConnection)(nil)).Elem()
-	decs["IngestLogger"] = reflect.TypeOf((*ingest.IngestLogger)(nil)).Elem()
+	decs["IngestLogger"] = reflect.TypeOf((*ingestLog.IngestLogger)(nil)).Elem()
 	decs["IngestMuxer"] = reflect.TypeOf((*ingest.IngestMuxer)(nil)).Elem()
 	decs["IngesterState"] = reflect.TypeOf((*ingest.IngesterState)(nil)).Elem()
 	decs["IngesterStateCallback"] = reflect.TypeOf((*ingest.IngesterStateCallback)(nil)).Elem()
@@ -1509,7 +1510,7 @@ func init() {
 	decs["K"] = native.UntypedNumericConst("1000.0")
 	decs["KB"] = ingest.KB
 	decs["LockedSource"] = reflect.TypeOf((*ingest.LockedSource)(nil)).Elem()
-	decs["Logger"] = reflect.TypeOf((*ingest.Logger)(nil)).Elem()
+	decs["Logger"] = reflect.TypeOf((*ingestLog.Logger)(nil)).Elem()
 	decs["M"] = native.UntypedNumericConst("1000000.0")
 	decs["MAX_ENTRY_SIZE"] = ingest.MAX_ENTRY_SIZE
 	decs["MAX_TAG_LENGTH"] = ingest.MAX_TAG_LENGTH
@@ -1546,7 +1547,7 @@ func init() {
 	decs["NewUniformIngestMuxer"] = ingest.NewUniformIngestMuxer
 	decs["NewUniformIngestMuxerExt"] = ingest.NewUniformIngestMuxerExt
 	decs["NewUniformMuxer"] = ingest.NewUniformMuxer
-	decs["NoLogger"] = ingest.NoLogger
+	decs["NoLogger"] = ingestLog.NoLogger
 	decs["NsPerSec"] = ingest.NsPerSec
 	decs["P"] = native.UntypedNumericConst("1000000000000.0")
 	decs["PB"] = ingest.PB
@@ -1580,11 +1581,12 @@ func init() {
 	decs["WRITE_BUFFER_SIZE"] = ingest.WRITE_BUFFER_SIZE
 	decs["Y"] = native.UntypedNumericConst("1000000000000000.0")
 	decs["YB"] = ingest.YB
-	packages["github.com/gravwell/gravwell/v3/ingest"] = native.Package{
+	packages["github.com/gravwell/gravwell/v4/ingest"] = native.Package{
 		Name:         "ingest",
 		Declarations: decs,
 	}
-	// "github.com/gravwell/gravwell/v3/ingest/config"
+
+	// "github.com/gravwell/gravwell/v4/ingest/config"
 	decs = make(native.Declarations, 41)
 	decs["AppendDefaultPort"] = config.AppendDefaultPort
 	decs["CACHE_DEPTH_DEFAULT"] = native.UntypedNumericConst("128")
@@ -1627,12 +1629,12 @@ func init() {
 	decs["ParseUint64"] = config.ParseUint64
 	decs["TimeFormat"] = reflect.TypeOf((*config.TimeFormat)(nil)).Elem()
 	decs["VariableConfig"] = reflect.TypeOf((*config.VariableConfig)(nil)).Elem()
-	packages["github.com/gravwell/gravwell/v3/ingest/config"] = native.Package{
+	packages["github.com/gravwell/gravwell/v4/ingest/config"] = native.Package{
 		Name:         "config",
 		Declarations: decs,
 	}
-	// "github.com/gravwell/gravwell/v3/ingest/entry"
-	decs = make(native.Declarations, 90)
+	// "github.com/gravwell/gravwell/v4/ingest/entry"
+	decs = make(native.Declarations, 89)
 	decs["BoolEnumData"] = entry.BoolEnumData
 	decs["ByteEnumData"] = entry.ByteEnumData
 	decs["DecodeEVBlockHeader"] = entry.DecodeEVBlockHeader
@@ -1723,7 +1725,7 @@ func init() {
 	decs["Uint64EnumData"] = entry.Uint64EnumData
 	decs["UintEnumData"] = entry.UintEnumData
 	decs["UnixTime"] = entry.UnixTime
-	packages["github.com/gravwell/gravwell/v3/ingest/entry"] = native.Package{
+	packages["github.com/gravwell/gravwell/v4/ingest/entry"] = native.Package{
 		Name:         "entry",
 		Declarations: decs,
 	}
@@ -5286,4 +5288,5 @@ func init() {
 		Name:         "utf8",
 		Declarations: decs,
 	}
+	initLegacy(packages) // bring in the old v3 packages
 }

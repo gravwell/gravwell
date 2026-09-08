@@ -1,0 +1,176 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+// Package mfaprompt provide a tiny, mother-independent TUI to collect a TOTP or recovery code.
+// Use .Collect().
+package mfaprompt
+
+// a tiny tea.Model to prompt for MFA
+//
+// typically follows a cred prompt
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/validate"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// Collect runs a tiny tea.Model that returns a code OR recovery key.
+//
+// ! Not intended to be run while Mother is running.
+func Collect(in io.Reader, out io.Writer) (code string, at types.AuthType, err error) {
+	// spawn our own program using the given I/O
+	var progOpts []tea.ProgramOption
+	if in != nil {
+		progOpts = append(progOpts, tea.WithInput(in))
+	}
+	if out != nil {
+		progOpts = append(progOpts, tea.WithOutput(out))
+	}
+	clilog.Writer.Debug("spawning mfaprompt",
+		log.KV("caller", log.CallLoc(1)),
+		clilog.ProgramOptions(in, out),
+	)
+	return collect(tea.NewProgram(New(), progOpts...))
+}
+
+// internal implementation of collect.
+// Allows custom programs (likely programs with mocked input) for testing purposes.
+//
+// ! Prog must not be nil.
+func collect(prog *tea.Program) (code string, at types.AuthType, err error) {
+	if prog == nil {
+		return "", "", errors.New("nil program passed into collect")
+	}
+
+	m, err := prog.Run()
+	if err != nil {
+		return "", types.AUTH_TYPE_NONE, err
+	}
+	// pull input results
+	final, ok := m.(mfaModel)
+	if !ok {
+		return "", types.AUTH_TYPE_NONE, clilog.TypeAssert(m, mfaModel{})
+	} else if final.killed {
+		return "", types.AUTH_TYPE_NONE, errors.New("you must authenticate to use gwcli")
+	}
+
+	err = nil
+	code = strings.TrimSpace(final.codeTI.Value())
+	at = types.AUTH_TYPE_TOTP
+	if code == "" {
+		code = strings.TrimSpace(final.recoveryTI.Value())
+		at = types.AUTH_TYPE_RECOVERY
+	}
+
+	return
+}
+
+type mfaModel struct {
+	codeTI       textinput.Model
+	recoveryTI   textinput.Model
+	codeSelected bool // code or recovery TI focused
+	killed       bool
+	done         bool
+
+	hotkeys hotkeys.Model
+}
+
+func New() mfaModel {
+	c := mfaModel{codeSelected: true, hotkeys: hotkeys.NewModel()}
+	c.codeTI = textinput.New()
+	c.codeTI.Prompt = ""
+	c.codeTI.Validate = func(s string) error {
+		if err := validate.Numeric(s); err != nil {
+			return fmt.Errorf("TOTP: %w", err)
+		}
+		return nil
+	}
+	c.codeTI.Width = 6
+	c.codeTI.CharLimit = 6
+	c.codeTI.Placeholder = "123456"
+	c.codeTI.Focus()
+
+	c.recoveryTI = textinput.New()
+	c.recoveryTI.Prompt = ""
+	c.recoveryTI.Blur()
+
+	c.hotkeys.Invoke.SetHelp(sigils.Enter, "submit")
+	c.hotkeys.Select.Unbind()
+	return c
+}
+
+func (m mfaModel) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.done { // do not accept more input once killed
+		return m, nil
+	}
+	if kill := killer.CheckKillKeys(msg); kill != killer.None {
+		m.killed = true
+		m.done = true
+		return m, tea.Quit
+	}
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch {
+		case hotkeys.Match(msg, hotkeys.CursorUp, hotkeys.CursorDown): // swap
+			return m.swap(), textinput.Blink
+		case hotkeys.Match(msg, hotkeys.Invoke): // submit
+			m.done = true
+			return m, tea.Quit
+		}
+
+	}
+	var (
+		codecmd  tea.Cmd
+		recovcmd tea.Cmd
+	)
+	m.codeTI, codecmd = m.codeTI.Update(msg)
+	m.recoveryTI, recovcmd = m.recoveryTI.Update(msg)
+
+	return m, tea.Batch(codecmd, recovcmd)
+}
+
+func (m mfaModel) View() string {
+	return fmt.Sprintf("%v%v\n"+
+		"If you don't have access to your authenticator, you can enter a recovery code below:\n"+
+		"%v%v\n"+
+		"Once a recovery code has been used, it cannot be used again!\n",
+		stylesheet.Cur.Prompt("TOTP", false), m.codeTI.View(),
+		stylesheet.Cur.Prompt("recovery", false), m.recoveryTI.View()) + m.hotkeys.View()
+}
+
+// select the next TI
+func (m mfaModel) swap() mfaModel {
+	m.codeSelected = !m.codeSelected
+	if m.codeSelected {
+		m.codeTI.Focus()
+		m.recoveryTI.Blur()
+	} else {
+		m.codeTI.Blur()
+		m.recoveryTI.Focus()
+	}
+
+	return m
+}

@@ -12,11 +12,10 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 // emitCtx bundles the per-request metadata shared by every entry emitted from
@@ -37,7 +36,7 @@ type emitCtx struct {
 	requestID    string
 	model        string
 	durationMs   int64
-	lg           ingest.Logger
+	lg           log.IngestLogger
 }
 
 // emitRequestEvents writes the request-side events that the listener's

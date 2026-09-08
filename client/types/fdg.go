@@ -8,6 +8,8 @@
 
 package types
 
+import "encoding/json"
+
 const (
 	// request IDs
 	FDG_REQ_GET_ENTRIES uint32 = 0x02000002
@@ -23,25 +25,44 @@ type FdgRequest struct {
 }
 
 type FdgSet struct {
-	Nodes  []Node   `json:"nodes"`
-	Edges  []Edge   `json:"links"`
-	Groups []string `json:"groups"`
+	Nodes  []Node
+	Edges  []Edge
+	Groups []string
 }
 
 type Node struct {
-	Name  string `json:"name"`
-	Group int    `json:"group"`
+	Name  string
+	Group int
 }
 
 type Edge struct {
-	Value int64 `json:"value"`
+	Value int64
 	// Source and Destination nodes for an edge are represented by an index
 	// into the parent node set
-	Src int `json:"source"` // index into the source node list
-	Dst int `json:"target"` // index into the destination node list
+	Src int // index into the source node list
+	Dst int // index into the destination node list
 }
 
 type FdgResponse struct {
 	BaseResponse
 	Entries FdgSet
+}
+
+func (x FdgResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries FdgSet
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }

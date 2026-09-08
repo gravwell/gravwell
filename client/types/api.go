@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	//MAJOR API VERSIONS should always be compatible, there just may be
-	//additional features
-	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 2
+	// Equal major versions should always be compatible
+	API_VERSION_MAJOR uint32 = 1
+	// Minor versions define features sets, but have no bearing on compatibility.
+	API_VERSION_MINOR uint32 = 0
 
 	AUTH_TYPE_NONE     AuthType = `None` // for when you don't have MFA set up at all yet.
 	AUTH_TYPE_TOTP     AuthType = `TOTP`
@@ -49,8 +49,19 @@ var empty es
 // ErrorObject is a basic error object with the error value and an optional
 // info structure that has more info about the error
 type ErrorObject struct {
-	Err  string `json:"error"`
-	Info string `json:"info,omitempty"`
+	Err  string
+	Info string `json:",omitempty"`
+}
+
+// BaseListResponse contains the common set of fields returned when
+// querying lists of assets.
+type BaseListResponse struct {
+	CursorNext       string
+	CursorPrev       string
+	Offset           int
+	TotalCount       int
+	Type             string
+	AvailableFilters []AvailableFilter
 }
 
 type VersionInfo struct {
@@ -65,15 +76,37 @@ type ApiInfo struct {
 
 type BuildInfo struct {
 	CanonicalVersion
-	BuildDate  time.Time `json:",omitempty"`
-	BuildID    string    `json:",omitempty"`
-	GUIBuildID string    `json:",omitempty"`
+	BuildDate  time.Time
+	BuildID    string `json:",omitempty"`
+	GUIBuildID string `json:",omitempty"`
 }
 
 type CanonicalVersion struct {
 	Major uint32
 	Minor uint32
 	Point uint32
+}
+
+// ErrVersionMismatch returns an error stating that the local client and the remote server are running different major API versions and thus
+// are not compatible.
+type ErrVersionMismatch struct {
+	Local  ApiInfo
+	Remote ApiInfo
+}
+
+func (e ErrVersionMismatch) Error() string {
+	return fmt.Sprintf("Version mismatch!\nLocal: %d.%d\nRemote %d.%d\n",
+		e.Local.Major, e.Local.Minor, e.Remote.Major, e.Remote.Minor)
+}
+
+// Is tests only that the error is a VersionMismatchError without any concern for the numbers themselves.
+func (ErrVersionMismatch) Is(target error) bool {
+	switch target.(type) {
+	case ErrVersionMismatch, *ErrVersionMismatch:
+		return true
+	default:
+		return false
+	}
 }
 
 func ApiVersion() ApiInfo {
@@ -98,13 +131,13 @@ func (bi BuildInfo) NewerVersion(nbi BuildInfo) bool {
 	return bi.CanonicalVersion.NewerVersion(nbi.CanonicalVersion)
 }
 
+// CheckApiVersion returns an error iff the remote's major version != the caller's major version.
 func CheckApiVersion(remote ApiInfo) error {
 	local := ApiVersion()
 	if local.Major == remote.Major {
 		return nil //we match
 	}
-	return fmt.Errorf("Version mismatch!\nLocal: %d.%d\nRemote %d.%d\n",
-		local.Major, local.Minor, remote.Major, remote.Minor)
+	return ErrVersionMismatch{Local: local, Remote: remote}
 
 }
 
@@ -137,7 +170,7 @@ func ParseCanonicalVersion(s string) (r CanonicalVersion, err error) {
 	return
 }
 
-// NewerVersion returns true if the incoming version is newer than coming
+// NewerVersion returns true if the argument is newer than the receiver.
 func (cv CanonicalVersion) NewerVersion(ncv CanonicalVersion) bool {
 	return cv.Compare(ncv) > 0
 }
@@ -230,7 +263,7 @@ type MFATOTPInstallResponse struct {
 }
 
 type SSOStatus struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool
 }
 
 type WarnResp struct {
@@ -311,13 +344,13 @@ type SearchAgentConfig struct {
 	Disable_Network_Script_Functions bool // disables "risky" scripting functions (network stuff)
 	Disable_Self_Ingest              bool // disables ingesting search agent logs to indexers
 	HTTP_Proxy                       string
-}
 
-type SearchAgentCheckin struct {
-	LastCheckin     string
-	Warning         bool
-	SearchAgentUUID string
-	SearchAgentIP   string
+	Search_Rate  int64 // searches launched per second
+	Search_Burst int64 // allows some burst
+	Script_Rate  int64
+	Script_Burst int64
+	Flow_Rate    int64
+	Flow_Burst   int64
 }
 
 type emptyInts []int32

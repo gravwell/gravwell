@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gravwell/gravwell/v3/hosted/plugins"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v4/hosted/plugins"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
 )
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {

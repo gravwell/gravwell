@@ -27,6 +27,11 @@ type RawResponse struct {
 	ContainsBinaryEntries bool            //just a flag to tell the GUI that we might have data that needs some help
 	Entries               []SearchEntry   `json:",omitempty"`
 	Explore               []ExploreResult `json:",omitempty"`
+	printableData         bool            // true if the search entries have printable DATA fields.
+}
+
+func (r *RawResponse) SetPrintableData(b bool) {
+	r.printableData = b
 }
 
 type RawRequest struct {
@@ -34,12 +39,22 @@ type RawRequest struct {
 }
 
 func (tr TextResponse) MarshalJSON() ([]byte, error) {
-	type alias TextResponse
-	return json.Marshal(&struct {
-		alias
+	base, err := json.Marshal(tr.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
 		Entries emptyEntries
+		Explore []ExploreResult `json:",omitempty"`
 	}{
-		alias:   alias(tr),
 		Entries: emptyEntries(tr.Entries),
+		Explore: tr.Explore,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }

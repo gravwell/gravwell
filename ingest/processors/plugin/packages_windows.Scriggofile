@@ -1,9 +1,9 @@
 SET PACKAGE plugin
 SET VARIABLE packages
 
-IMPORT github.com/gravwell/gravwell/v3/ingest
-IMPORT github.com/gravwell/gravwell/v3/ingest/config
-IMPORT github.com/gravwell/gravwell/v3/ingest/entry
+IMPORT github.com/gravwell/gravwell/v4/ingest
+IMPORT github.com/gravwell/gravwell/v4/ingest/config
+IMPORT github.com/gravwell/gravwell/v4/ingest/entry
 IMPORT golang.org/x/text/encoding/japanese
 IMPORT github.com/crewjam/rfc5424
 IMPORT github.com/gobwas/glob

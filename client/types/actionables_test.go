@@ -13,25 +13,8 @@ import (
 	"testing"
 )
 
-func TestActionableTriggerUnmarshalString(t *testing.T) {
-	data := []byte(`"^\\d+\\.\\d+\\.\\d+\\.\\d+$"`)
-	var trigger ActionableTrigger
-	if err := json.Unmarshal(data, &trigger); err != nil {
-		t.Fatal(err)
-	}
-	if trigger.Pattern != `^\d+\.\d+\.\d+\.\d+$` {
-		t.Fatalf("unexpected pattern: %q", trigger.Pattern)
-	}
-	if !trigger.Hyperlink {
-		t.Fatal("string trigger should default to Hyperlink=true")
-	}
-	if trigger.Disabled {
-		t.Fatal("string trigger should default to Disabled=false")
-	}
-}
-
 func TestActionableTriggerUnmarshalObject(t *testing.T) {
-	data := []byte(`{"pattern":"test.*","hyperlink":false,"disabled":true}`)
+	data := []byte(`{"Pattern":"test.*","ActivatesOn":"selection","Disabled":true}`)
 	var trigger ActionableTrigger
 	if err := json.Unmarshal(data, &trigger); err != nil {
 		t.Fatal(err)
@@ -39,8 +22,8 @@ func TestActionableTriggerUnmarshalObject(t *testing.T) {
 	if trigger.Pattern != "test.*" {
 		t.Fatalf("unexpected pattern: %q", trigger.Pattern)
 	}
-	if trigger.Hyperlink {
-		t.Fatal("expected Hyperlink=false")
+	if trigger.ActivatesOn != "selection" {
+		t.Fatalf("expected ActivatesOn=selection, got %q", trigger.ActivatesOn)
 	}
 	if !trigger.Disabled {
 		t.Fatal("expected Disabled=true")
@@ -48,13 +31,13 @@ func TestActionableTriggerUnmarshalObject(t *testing.T) {
 }
 
 func TestActionableTriggerMarshal(t *testing.T) {
-	trigger := ActionableTrigger{Pattern: "foo", Hyperlink: true, Disabled: false}
+	trigger := ActionableTrigger{Pattern: "foo", ActivatesOn: "always", Disabled: false}
 	data, err := json.Marshal(trigger)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Always marshals as object form.
-	expected := `{"pattern":"foo","hyperlink":true,"disabled":false}`
+	expected := `{"Pattern":"foo","ActivatesOn":"always","Disabled":false}`
 	if string(data) != expected {
 		t.Fatalf("expected %s, got %s", expected, string(data))
 	}
@@ -64,44 +47,36 @@ func TestActionableContentRoundTrip(t *testing.T) {
 	input := ActionableContent{
 		MenuLabel: "My Pivot",
 		Triggers: []ActionableTrigger{
-			{Pattern: `\d+\.\d+\.\d+\.\d+`, Hyperlink: true, Disabled: false},
+			{Pattern: `\d+\.\d+\.\d+\.\d+`, ActivatesOn: "always", Disabled: false},
 		},
 		Actions: []ActionableAction{
 			{
-				Name:        "Query IP",
-				Description: "Look up IP",
-				Placeholder: "Enter IP",
+				Type:               ACTIONABLE_COMMAND_QUERY,
+				Name:               "Query IP",
+				Description:        "Look up IP",
+				Query:              "tag=netflow src==_VALUE_",
+				TriggerPlaceholder: "_VALUE_",
+			},
+			{
+				Type:        ACTIONABLE_COMMAND_DASHBOARD,
+				Name:        "Open Dashboard",
+				DashboardID: "some-uuid",
+				Variable:    "ip",
+			},
+			{
+				Type:               ACTIONABLE_COMMAND_URL,
+				Name:               "Open URL",
+				TemplateURL:        "https://example.com/lookup?ip=_VALUE_",
+				TriggerPlaceholder: "_VALUE_",
+				OpenInModal:        true,
+				ModalWidthPercent:  80,
+				NoValueUrlEncode:   true,
 				Start: &ActionableTimeVariable{
 					Type:   "string",
 					Format: "YYYY-MM-DD",
 				},
 				End: &ActionableTimeVariable{
-					Type: "timestamp",
-				},
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_QUERY,
-					Reference: "tag=netflow src==_VALUE_",
-				},
-			},
-			{
-				Name: "Open Dashboard",
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_DASHBOARD,
-					Reference: "some-uuid",
-					Options:   &ActionableCommandOptions{Variable: "ip"},
-				},
-			},
-			{
-				Name:             "Open URL",
-				NoValueURLEncode: true,
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_URL,
-					Reference: "https://example.com/lookup?ip=_VALUE_",
-					Options: &ActionableCommandOptions{
-						Modal:            true,
-						ModalWidth:       "80",
-						NoValueURLEncode: true,
-					},
+					Type: "unix",
 				},
 			},
 		},
@@ -124,39 +99,5 @@ func TestActionableContentRoundTrip(t *testing.T) {
 	}
 	if string(data) != string(data2) {
 		t.Fatalf("round-trip mismatch:\n  got:  %s\n  want: %s", string(data2), string(data))
-	}
-}
-
-func TestActionableContentUnmarshalMixedTriggers(t *testing.T) {
-	// Simulates JSON from the server that contains both string and object triggers.
-	raw := `{
-		"menuLabel": null,
-		"triggers": [
-			"plain-pattern",
-			{"pattern":"obj-pattern","hyperlink":false,"disabled":true}
-		],
-		"actions": []
-	}`
-	var content ActionableContent
-	if err := json.Unmarshal([]byte(raw), &content); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if content.MenuLabel != "" {
-		t.Fatalf("expected empty MenuLabel, got %q", content.MenuLabel)
-	}
-	if len(content.Triggers) != 2 {
-		t.Fatalf("expected 2 triggers, got %d", len(content.Triggers))
-	}
-
-	// String trigger: defaults to Hyperlink=true, Disabled=false.
-	tr0 := content.Triggers[0]
-	if tr0.Pattern != "plain-pattern" || !tr0.Hyperlink || tr0.Disabled {
-		t.Fatalf("unexpected string trigger: %+v", tr0)
-	}
-
-	// Object trigger: explicit values.
-	tr1 := content.Triggers[1]
-	if tr1.Pattern != "obj-pattern" || tr1.Hyperlink || !tr1.Disabled {
-		t.Fatalf("unexpected object trigger: %+v", tr1)
 	}
 }

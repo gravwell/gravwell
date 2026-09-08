@@ -50,10 +50,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/log/rotate"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -256,10 +256,10 @@ func (ic *IngestConfig) Verify() error {
 				//try to make the directory
 				err = os.MkdirAll(logdir, 0700)
 				if err != nil {
-					return err
+					return fmt.Errorf("Failed to create Log Directory %w", err)
 				}
 			} else {
-				return err
+				return fmt.Errorf("Failed to find Log Location %w", err)
 			}
 		} else if !fi.IsDir() {
 			return errors.New("Log Location is not a directory")

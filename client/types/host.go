@@ -11,8 +11,6 @@ package types
 import (
 	"encoding/json"
 	"errors"
-
-	"github.com/shirou/gopsutil/load"
 )
 
 var (
@@ -70,14 +68,21 @@ type HostSysStats struct {
 	CPUUsage              float64
 	CPUCount              int `json:",omitempty"`
 	HostHash              string
-	Net                   NetworkUsage `json:",omitempty"`
+	Net                   NetworkUsage
 	IO                    []DiskIO
-	VirtSystem            string       `json:",omitempty"` // e.g. "kvm" or "xen"
-	VirtRole              string       `json:",omitempty"` // "host" or "guest"
-	BuildInfo             BuildInfo    `json:",omitempty"` // e.g. 3.3.1
-	LoadAverage           load.AvgStat `json:",omitempty"`
+	VirtSystem            string    `json:",omitempty"` // e.g. "kvm" or "xen"
+	VirtRole              string    `json:",omitempty"` // "host" or "guest"
+	BuildInfo             BuildInfo // e.g. 3.3.1
+	LoadAverage           AvgStat
 	Iowait                float64
-	PSI                   PSIStats `json:"psi,omitempty"` // Pressure Stall Information, for CPU, memory, and IO
+	PSI                   PSIStats // Pressure Stall Information, for CPU, memory, and IO
+}
+
+// AvgStat mirrors gopsutil's load.AvgStat so we can drop the native JSON tags.
+type AvgStat struct {
+	Load1  float64
+	Load5  float64
+	Load15 float64
 }
 
 type DeploymentInfo struct {
@@ -91,20 +96,20 @@ type DeploymentInfo struct {
 }
 
 type PSIStats struct {
-	CPU    PressureStats `json:"cpu,omitempty"`
-	Memory PressureStats `json:"memory,omitempty"`
-	IO     PressureStats `json:"io,omitempty"`
+	CPU    PressureStats
+	Memory PressureStats
+	IO     PressureStats
 }
 
 type PressureStats struct {
-	SomeAvg10  float64 `json:"some_avg_10"`
-	SomeAvg60  float64 `json:"some_avg_60"`
-	SomeAvg300 float64 `json:"some_avg_300"`
+	SomeAvg10  float64
+	SomeAvg60  float64
+	SomeAvg300 float64
 
 	// "full" lines are only present in memory and IO pressure files, not CPU
-	FullAvg10  float64 `json:"full_avg_10"`
-	FullAvg60  float64 `json:"full_avg_60"`
-	FullAvg300 float64 `json:"full_avg_300"`
+	FullAvg10  float64
+	FullAvg60  float64
+	FullAvg300 float64
 }
 
 func (si SysInfo) Empty() bool {
