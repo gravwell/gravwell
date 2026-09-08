@@ -142,7 +142,10 @@ func main() {
 					// give up and LOUDLY quit
 					lg.Fatal("giving up fetch stream description for stream after 5 attempts, exiting.", log.KV("stream", stream.Stream_Name))
 				}
-				utils.QuitableSleep(ctx, 1*time.Second)
+				if utils.QuitableSleep(ctx, 1*time.Second) {
+					// Context has been cancelled. Let's bail out so cleanup can happen.
+					return
+				}
 				continue
 			}
 			newshards := streamdesc.StreamDescription.Shards
