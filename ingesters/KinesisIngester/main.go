@@ -420,6 +420,7 @@ func main() {
 
 	close(dieChan)
 
+	// stop outstanding writes in 1 second while we wait
 	go func() {
 		time.Sleep(time.Second)
 		cancel()
