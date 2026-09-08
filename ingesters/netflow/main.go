@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -36,8 +36,7 @@ const (
 )
 
 var (
-	debugOn bool
-	lg      *log.Logger
+	lg *log.Logger
 
 	exitCtx, exitFn = context.WithCancel(context.Background())
 )
@@ -60,7 +59,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	debugOn = ib.Verbose
+	debug.SetPrintStdout(ib.Verbose)
 	lg = ib.Logger
 	id, ok := cfg.IngesterUUID()
 	if !ok {
@@ -75,7 +74,7 @@ func main() {
 	defer igst.Close()
 	ib.AnnounceStartup()
 
-	debugout("Started ingester muxer\n")
+	debug.Out("Started ingester muxer\n")
 
 	connClosers = make(map[int]closer, 1)
 	wg := sync.WaitGroup{}
@@ -123,6 +122,11 @@ func main() {
 				lg.FatalCode(0, "NewIpfixHandler failed", log.KVErr(err))
 				return
 			}
+		// case sflowv5Type:
+		// 	if bh, err = NewSFlowV5Handler(bc); err != nil {
+		// 		lg.FatalCode(0, "NewSFlowV5Handler failed", log.KVErr(err))
+		// 		return
+		// 	}
 		default:
 			lg.FatalCode(0, "invalid flow type", log.KV("flowtype", ft))
 			return
@@ -136,22 +140,18 @@ func main() {
 		}
 		wg.Add(1)
 	}
-	debugout("Started %d handlers\n", len(cfg.Collector))
+	debug.Out("Started %d handlers\n", len(cfg.Collector))
 	//fire off our relay
 	doneChan := make(chan bool)
 	go relay(ch, doneChan, src, igst)
 
-	debugout("Running\n")
+	debug.Out("Running\n")
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
-	debugout("Closing %d connections\n", connCount())
-	mtx.Lock()
-	for _, v := range connClosers {
-		v.Close()
-	}
-	mtx.Unlock() //must unlock so they can delete their connections
+	debug.Out("Closing %d connections\n", connCount())
+	closeAllConn()
 
 	//wait for everyone to exit with a timeout
 	wch := make(chan bool, 1)
@@ -231,10 +231,4 @@ mainLoop:
 		}
 	}
 	close(done)
-}
-
-func debugout(format string, args ...interface{}) {
-	if debugOn {
-		fmt.Printf(format, args...)
-	}
 }
