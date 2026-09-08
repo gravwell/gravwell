@@ -273,14 +273,14 @@ func main() {
 				// make the shardMetrics and add it to the array
 				tracker := shardMetrics{}
 
-				metricsTrackersMu.Lock()
-				metricsTrackers = append(metricsTrackers, &tracker)
-				metricsTrackersMu.Unlock()
-
 				if stream.Metrics_Interval == 0 {
 					// disable it
 					tracker.Disabled = true
 				}
+
+				metricsTrackersMu.Lock()
+				metricsTrackers = append(metricsTrackers, &tracker)
+				metricsTrackersMu.Unlock()
 
 			reconnectLoop:
 				for {
