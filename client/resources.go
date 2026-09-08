@@ -34,8 +34,7 @@ func (c *Client) ListResources(opts *types.QueryOptions) (rm types.ResourceListR
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(RESOURCES_LIST_URL, opts, &rm)
-	return
+	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, opts)
 }
 
 // ListAllResources is an admin-only API to pull back the entire resource list.
@@ -45,9 +44,7 @@ func (c *Client) ListAllResources(opts *types.QueryOptions) (rm types.ResourceLi
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true
-	err = c.postStaticURL(RESOURCES_LIST_URL, opts, &rm)
-
-	return
+	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, opts)
 }
 
 // PopulateResource sets the content of the specified resource to the given data.
@@ -152,17 +149,17 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 
 // DeleteResource removes a resource by ID by marking it deleted in the database.
 func (c *Client) DeleteResource(id string) error {
-	return c.deleteStaticURL(resourcesIdUrl(id), nil)
+	return c.delete(resourcesIdUrl(id), false)
 }
 
 // PurgeResource removes a resource by ID entirely.
 func (c *Client) PurgeResource(id string) error {
-	return c.deleteStaticURL(resourcesIdUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(resourcesIdUrl(id), true)
 }
 
 // CleanupResources (admin-only) purges all deleted resources for all users.
 func (c *Client) CleanupResources() error {
-	return c.deleteStaticURL(RESOURCES_URL, nil)
+	return c.delete(RESOURCES_URL, false)
 }
 
 // UpdateResourceMetadata modifies an existing resource's metadata and returns the complete, updated struct.
@@ -175,9 +172,7 @@ func (c *Client) UpdateResourceMetadata(id string, p types.ResourcePatch) (updat
 
 // GetResourceMetadata gets the specified resource's metadata.
 func (c *Client) GetResourceMetadata(id string) (types.Resource, error) {
-	var metadata types.Resource
-	err := c.getStaticURL(resourcesIdUrl(id), &metadata)
-	return metadata, err
+	return c.get[types.Resource](resourcesIdUrl(id))
 }
 
 // GetResource returns the contents of the resource with the specified name. The
@@ -188,47 +183,43 @@ func (c *Client) GetResourceMetadata(id string) (types.Resource, error) {
 // 2. Resources shared with a group to which the user belongs are next
 // 3. Global resources are the lowest priority
 func (c *Client) GetResource(name string) ([]byte, error) {
-	return c.GetResourceEx(name, nil, 0)
+	return c.GetResourceEx(name, DownloadResourceOptions{})
 }
 
-// GetResourceEx returns the contents of the resource with the specified name, up to previewBytes (if 0, everything is returned).
-// Follows the name/ID logic of GetResource.
-//
-// If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
-// Up to previewBytes will be returned; if 0, everything is returned.
-func (c *Client) GetResourceEx(name string, opts *types.QueryOptions, previewBytes uint64) ([]byte, error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+// DownloadResourceOptions specifies alterations to a resource content request.
+type DownloadResourceOptions struct {
+	GetOptions
+	PreviewBytes uint64
+}
 
-	var meta types.Resource
-	err := c.getStaticURL(resourcesLookupUrl(name), &meta, ezParam("include_deleted", opts.IncludeDeleted))
+func (o DownloadResourceOptions) params() []urlParam {
+	p := o.GetOptions.params()
+	if o.PreviewBytes != 0 {
+		p = append(p, urlParam{"bytes", strconv.FormatUint(o.PreviewBytes, 10)})
+	}
+	return p
+}
+
+// GetResourceEx returns the contents of the resource with the specified name, conforming to
+// the given options. Follows the name/ID logic of GetResource.
+func (c *Client) GetResourceEx(name string, opts DownloadResourceOptions) ([]byte, error) {
+	meta, err := c.get[types.Resource](resourcesLookupUrl(name), opts.GetOptions.params()...)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.methodParamRequestURL(http.MethodGet, resourcesIdRawUrl(meta.ID), map[string]string{
-		"include_deleted": strconv.FormatBool(opts.IncludeDeleted),
-		"bytes":           strconv.FormatUint(previewBytes, 10),
-	})
+	rc, err := c.getDownload(resourcesIdRawUrl(meta.ID), opts.params()...)
 	if err != nil {
 		return nil, err
-	} else if err := aliasResponseError(c, resp); err != nil {
-		return nil, err
 	}
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
+	defer rc.Close()
+	return io.ReadAll(rc)
 }
 
 // LookupResource attempts to resolve the resource with the specified
 // user-friendly name. It follows precedence as defined on the GetResource method.
 func (c *Client) LookupResource(name string) (types.Resource, error) {
-	var meta types.Resource
-	err := c.getStaticURL(resourcesLookupUrl(name), &meta)
-	if err != nil {
-		return types.Resource{}, err
-	}
-	return meta, nil
+	return c.get[types.Resource](resourcesLookupUrl(name))
 }
 
 // CloneResource creates a copy of an existing resource (specified by ID) with the
@@ -237,9 +228,5 @@ func (c *Client) CloneResource(id string, newName string) (types.Resource, error
 	spec := struct{ Name string }{
 		Name: newName,
 	}
-	var resp types.Resource
-	if err := c.postStaticURL(resourcesCloneUrl(id), spec, &resp); err != nil {
-		return resp, err
-	}
-	return resp, nil
+	return c.post[struct{ Name string }, types.Resource](resourcesCloneUrl(id), &spec)
 }

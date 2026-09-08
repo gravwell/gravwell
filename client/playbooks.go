@@ -17,8 +17,7 @@ func (c *Client) ListPlaybooks(opts *types.QueryOptions) (ret types.PlaybookList
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(PLAYBOOKS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, opts)
 }
 
 // ListAllPlaybooks (admin-only) returns all playbooks on the system.
@@ -27,37 +26,27 @@ func (c *Client) ListAllPlaybooks(opts *types.QueryOptions) (ret types.PlaybookL
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	err = c.postStaticURL(PLAYBOOKS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, opts)
 }
 
 // GetPlaybook returns a particular playbook.
 func (c *Client) GetPlaybook(id string) (types.Playbook, error) {
-	var pb types.Playbook
-	err := c.getStaticURL(playbookUrl(id), &pb)
-	return pb, err
+	return c.GetPlaybookEx(id, GetOptions{})
 }
 
-// GetPlaybookEx returns a particular playbook. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetPlaybookEx(id string, opts *types.QueryOptions) (types.Playbook, error) {
-	var pb types.Playbook
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(playbookUrl(id), &pb, ezParam("include_deleted", opts.IncludeDeleted))
-	return pb, err
+// GetPlaybookEx returns a particular playbook, modified by opts.
+func (c *Client) GetPlaybookEx(id string, opts GetOptions) (types.Playbook, error) {
+	return c.get[types.Playbook](playbookUrl(id), opts.params()...)
 }
 
 // DeletePlaybook deletes a playbook by marking it deleted in the database.
 func (c *Client) DeletePlaybook(id string) error {
-	return c.deleteStaticURL(playbookUrl(id), nil)
+	return c.delete(playbookUrl(id), false)
 }
 
 // PurgePlaybook deletes a playbook entirely, removing it from the database.
 func (c *Client) PurgePlaybook(id string) error {
-	return c.deleteStaticURL(playbookUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(playbookUrl(id), true)
 }
 
 // CreatePlaybook creates a new playbook, returning the newly-created playbook.
@@ -75,5 +64,5 @@ func (c *Client) UpdatePlaybook(ID string, p types.PlaybookPatch) (updated types
 
 // CleanupPlaybooks (admin-only) purges all deleted playbooks for all users.
 func (c *Client) CleanupPlaybooks() error {
-	return c.deleteStaticURL(PLAYBOOKS_URL, nil)
+	return c.delete(PLAYBOOKS_URL, false)
 }

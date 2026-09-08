@@ -17,8 +17,7 @@ func (c *Client) ListActionables(opts *types.QueryOptions) (ret types.Actionable
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(ACTIONABLES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, opts)
 }
 
 // ListAllActionables (admin-only) returns all actionables on the system.
@@ -27,37 +26,27 @@ func (c *Client) ListAllActionables(opts *types.QueryOptions) (ret types.Actiona
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true
-	err = c.postStaticURL(ACTIONABLES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, opts)
 }
 
 // GetActionable returns a particular actionable by ID.
 func (c *Client) GetActionable(id string) (types.Actionable, error) {
-	var actionable types.Actionable
-	err := c.getStaticURL(actionableIdUrl(id), &actionable)
-	return actionable, err
+	return c.GetActionableEx(id, GetOptions{})
 }
 
-// GetActionableEx returns a particular actionable. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetActionableEx(id string, opts *types.QueryOptions) (types.Actionable, error) {
-	var actionable types.Actionable
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(actionableIdUrl(id), &actionable, ezParam("include_deleted", opts.IncludeDeleted))
-	return actionable, err
+// GetActionableEx returns a particular actionable, modified by opts.
+func (c *Client) GetActionableEx(id string, opts GetOptions) (types.Actionable, error) {
+	return c.get[types.Actionable](actionableIdUrl(id), opts.params()...)
 }
 
 // DeleteActionable deletes an actionable by marking it deleted in the database.
 func (c *Client) DeleteActionable(id string) error {
-	return c.deleteStaticURL(actionableIdUrl(id), nil)
+	return c.delete(actionableIdUrl(id), false)
 }
 
 // PurgeActionable deletes an actionable entirely, removing it from the database.
 func (c *Client) PurgeActionable(id string) error {
-	return c.deleteStaticURL(actionableIdUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(actionableIdUrl(id), true)
 }
 
 // CreateActionable creates a new actionable, returning the newly-created actionable.
@@ -75,5 +64,5 @@ func (c *Client) UpdateActionable(ID string, p types.ActionablePatch) (updated t
 
 // CleanupActionables (admin-only) purges all deleted actionables for all users.
 func (c *Client) CleanupActionables() error {
-	return c.deleteStaticURL(ACTIONABLES_URL, nil)
+	return c.delete(ACTIONABLES_URL, false)
 }

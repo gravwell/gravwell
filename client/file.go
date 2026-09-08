@@ -32,7 +32,7 @@ var ErrOversizedFile error = fmt.Errorf("Files must be %v or smaller", ingest.Hu
 
 // CleanupFiles (admin-only) purges all deleted files for all users.
 func (c *Client) CleanupFiles() error {
-	return c.delete(filesUrl())
+	return c.delete(filesUrl(), false)
 }
 
 // CreateFile makes a new file.
@@ -182,8 +182,7 @@ func (c *Client) ListFiles(opts *types.QueryOptions) (ret types.FileListResponse
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(FILES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, opts)
 }
 
 // ListAllFiles is an admin-only API to pull back the entire file list.
@@ -193,17 +192,15 @@ func (c *Client) ListAllFiles(opts *types.QueryOptions) (ret types.FileListRespo
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true
-	err = c.postStaticURL(FILES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, opts)
 }
 
 // DeleteFile removes a file by ID by marking it deleted in the database.
 func (c *Client) DeleteFile(id string) error {
-	return c.deleteStaticURL(filesIdUrl(id), nil)
+	return c.delete(filesIdUrl(id), false)
 }
 
 // PurgeFile removes the specified ID entirely, skipping any kind of soft-delete.
 func (c *Client) PurgeFile(id string) error {
-	return c.deleteStaticURL(filesIdUrl(id), nil, ezParam("purge", "true"))
-
+	return c.delete(filesIdUrl(id), true)
 }

@@ -19,8 +19,7 @@ func (c *Client) ListGroups(opts *types.QueryOptions) (ret types.GroupListRespon
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(GROUP_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.GroupListResponse](GROUP_LIST_URL, opts)
 }
 
 // GetGroupMap returns a map of GID to group name for every group on
@@ -40,28 +39,17 @@ func (c *Client) GetGroupMap() (map[int32]string, error) {
 
 // GetGroup returns information about the specified group.
 func (c *Client) GetGroup(id int32) (types.GroupWithCBAC, error) {
-	var gp types.GroupWithCBAC
-	if err := c.getStaticURL(groupIdUrl(id), &gp); err != nil {
-		return gp, err
-	}
-	return gp, nil
+	return c.GetGroupEx(id, GetOptions{})
 }
 
-// GetGroupEx returns a particular group. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetGroupEx(id int32, opts *types.QueryOptions) (types.GroupWithCBAC, error) {
-	var gp types.GroupWithCBAC
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(groupIdUrl(id), &gp, ezParam("include_deleted", opts.IncludeDeleted))
-	return gp, err
+// GetGroupEx returns a particular group, modified by opts.
+func (c *Client) GetGroupEx(id int32, opts GetOptions) (types.GroupWithCBAC, error) {
+	return c.get[types.GroupWithCBAC](groupIdUrl(id), opts.params()...)
 }
 
 // DeleteGroup deletes a group by marking it deleted in the database.
 func (c *Client) DeleteGroup(gid int32) error {
-	return c.deleteStaticURL(groupIdUrl(gid), nil)
+	return c.delete(groupIdUrl(gid), false)
 }
 
 // CreateGroup creates a new group, returning the newly-created group.
@@ -79,7 +67,7 @@ func (c *Client) UpdateGroup(ID int32, p types.GroupPatch) (updated types.Group,
 
 // CleanupGroups (admin-only) purges all deleted groups.
 func (c *Client) CleanupGroups() error {
-	return c.delete(groupUrl())
+	return c.delete(groupUrl(), false)
 }
 
 // LookupGroup looks up a Group object given a group name.  If the

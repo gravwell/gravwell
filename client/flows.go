@@ -19,10 +19,7 @@ func (c *Client) ListFlows(opts *types.QueryOptions) (flows types.FlowListRespon
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	if err = c.postStaticURL(FLOW_LIST_URL, opts, &flows); err != nil {
-		return
-	}
-	return
+	return c.post[types.QueryOptions, types.FlowListResponse](FLOW_LIST_URL, opts)
 }
 
 // ListAllFlows returns all flows on the system (for admins).
@@ -31,39 +28,27 @@ func (c *Client) ListAllFlows(opts *types.QueryOptions) (flows types.FlowListRes
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	if err = c.postStaticURL(FLOW_LIST_URL, opts, &flows); err != nil {
-		return
-	}
-	return
+	return c.post[types.QueryOptions, types.FlowListResponse](FLOW_LIST_URL, opts)
 }
 
 // GetFlow returns the flow with the given ID.
 func (c *Client) GetFlow(id string) (types.Flow, error) {
-	var flow types.Flow
-	err := c.getStaticURL(flowIdUrl(id), &flow)
-	return flow, err
+	return c.GetFlowEx(id, GetOptions{})
 }
 
-// GetFlowEx returns a particular flow. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetFlowEx(id string, opts *types.QueryOptions) (types.Flow, error) {
-	var flow types.Flow
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(flowIdUrl(id), &flow, ezParam("include_deleted", opts.IncludeDeleted))
-	return flow, err
+// GetFlowEx returns a particular flow, modified by opts.
+func (c *Client) GetFlowEx(id string, opts GetOptions) (types.Flow, error) {
+	return c.get[types.Flow](flowIdUrl(id), opts.params()...)
 }
 
 // DeleteFlow removes the specified flow.
 func (c *Client) DeleteFlow(id string) error {
-	return c.deleteStaticURL(flowIdUrl(id), nil)
+	return c.delete(flowIdUrl(id), false)
 }
 
 // PurgeFlow permanently removes the specified flow.
 func (c *Client) PurgeFlow(id string) error {
-	return c.deleteStaticURL(flowIdUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(flowIdUrl(id), true)
 }
 
 // CreateFlow makes a new flow.
@@ -116,13 +101,12 @@ func (c *Client) ReportFlowResults(id string, results types.FlowResults) error {
 
 // GetFlowResults retrieves the most recent results for the specified flow
 func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error) {
-	err = c.getStaticURL(flowResultsIdUrl(id), &results)
-	return
+	return c.get[types.FlowResults](flowResultsIdUrl(id))
 }
 
 // ClearFlowResults deletes all results for the specified flow
 func (c *Client) ClearFlowResults(id string) error {
-	return c.deleteStaticURL(flowResultsIdUrl(id), nil)
+	return c.delete(flowResultsIdUrl(id), false)
 }
 
 // DebugFlow schedules an immediate execution of the specified flow.
@@ -132,5 +116,5 @@ func (c *Client) DebugFlow(id string, opts types.AutomationDebugRequest) error {
 
 // CancelFlow cancels any active run of the specified flow.
 func (c *Client) CancelFlow(id string) error {
-	return c.deleteStaticURL(flowCancelIdUrl(id), nil)
+	return c.delete(flowCancelIdUrl(id), false)
 }

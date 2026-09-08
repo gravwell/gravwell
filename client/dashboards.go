@@ -17,8 +17,7 @@ func (c *Client) ListDashboards(opts *types.QueryOptions) (ret types.DashboardLi
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(DASHBOARDS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.DashboardListResponse](DASHBOARDS_LIST_URL, opts)
 }
 
 // ListAllDashboards (admin-only) returns all dashboards on the system.
@@ -27,37 +26,27 @@ func (c *Client) ListAllDashboards(opts *types.QueryOptions) (ret types.Dashboar
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true
-	err = c.postStaticURL(DASHBOARDS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.DashboardListResponse](DASHBOARDS_LIST_URL, opts)
 }
 
 // GetDashboard returns a particular dashboard.
 func (c *Client) GetDashboard(id string) (types.Dashboard, error) {
-	var dashboard types.Dashboard
-	err := c.getStaticURL(dashboardIdUrl(id), &dashboard)
-	return dashboard, err
+	return c.GetDashboardEx(id, GetOptions{})
 }
 
-// GetDashboardEx returns a particular dashboard. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetDashboardEx(id string, opts *types.QueryOptions) (types.Dashboard, error) {
-	var dashboard types.Dashboard
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(dashboardIdUrl(id), &dashboard, ezParam("include_deleted", opts.IncludeDeleted))
-	return dashboard, err
+// GetDashboardEx returns a particular dashboard, modified by opts.
+func (c *Client) GetDashboardEx(id string, opts GetOptions) (types.Dashboard, error) {
+	return c.get[types.Dashboard](dashboardIdUrl(id), opts.params()...)
 }
 
 // DeleteDashboard deletes a dashboard by marking it deleted in the database.
 func (c *Client) DeleteDashboard(id string) error {
-	return c.deleteStaticURL(dashboardIdUrl(id), nil)
+	return c.delete(dashboardIdUrl(id), false)
 }
 
 // PurgeDashboard deletes a dashboard entirely, removing it from the database.
 func (c *Client) PurgeDashboard(id string) error {
-	return c.deleteStaticURL(dashboardIdUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(dashboardIdUrl(id), true)
 }
 
 // CreateDashboard creates a new dashboard, returning the newly-created dashboard.
@@ -75,5 +64,5 @@ func (c *Client) UpdateDashboard(ID string, p types.DashboardPatch) (updated typ
 
 // CleanupDashboards (admin-only) purges all deleted dashboards for all users.
 func (c *Client) CleanupDashboards() error {
-	return c.deleteStaticURL(DASHBOARDS_URL, nil)
+	return c.delete(DASHBOARDS_URL, false)
 }

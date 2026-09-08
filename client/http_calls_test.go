@@ -185,7 +185,7 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1"); err != nil {
+		if err := c.delete("/things/1", false); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
 		if gotMethod != http.MethodDelete {
@@ -203,7 +203,7 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1"); !errors.Is(err, ErrNotFound) {
+		if err := c.delete("/things/1", false); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v, want ErrNotFound", err)
 		}
 	})
@@ -312,7 +312,7 @@ func TestReqDriver(t *testing.T) {
 		c.hm.add("X-Test-Header", "hdrval")
 		c.qm.add("clientparam", "clientval")
 
-		resp, err := c.reqDriver(http.MethodGet, "/req", nil, urlParam{"extra", "extraval"})
+		resp, err := c.reqDriver(http.MethodGet, "/req", nil, nil, urlParam{"extra", "extraval"})
 		if err != nil {
 			t.Fatalf("reqDriver: %v", err)
 		}
@@ -337,7 +337,7 @@ func TestReqDriver(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		resp, err := c.reqDriver(http.MethodGet, "/req", nil)
+		resp, err := c.reqDriver(http.MethodGet, "/req", nil, nil)
 		if resp != nil {
 			t.Errorf("expected nil response on error, got %v", resp)
 		}
@@ -354,7 +354,7 @@ func TestReqDriver(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		resp, err := c.reqDriver(http.MethodPost, "/req", []byte(`{"a":1}`))
+		resp, err := c.reqDriver(http.MethodPost, "/req", []byte(`{"a":1}`), nil)
 		if err != nil {
 			t.Fatalf("reqDriver: %v", err)
 		}

@@ -22,8 +22,7 @@ func (c *Client) ListSavedQueries(opts *types.QueryOptions) (wsl types.SavedQuer
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(LIBRARY_LIST_URL, opts, &wsl)
-	return
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, opts)
 }
 
 // ListAllSavedQueries (admin-only) returns the list of all search library entries for all users.
@@ -33,8 +32,7 @@ func (c *Client) ListAllSavedQueries(opts *types.QueryOptions) (wsl types.SavedQ
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true
-	err = c.postStaticURL(LIBRARY_LIST_URL, opts, &wsl)
-	return
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, opts)
 }
 
 // GetSavedQuery returns a query which matches the UUID given.
@@ -42,20 +40,17 @@ func (c *Client) ListAllSavedQueries(opts *types.QueryOptions) (wsl types.SavedQ
 // If that is not found, it looks for a query with a matching GUID, prioritizing
 // queries belonging to the current user.
 func (c *Client) GetSavedQuery(id string) (sl types.SavedQuery, err error) {
-	err = c.getStaticURL(searchLibIdUrl(id), &sl)
-	return
+	return c.get[types.SavedQuery](searchLibIdUrl(id))
 }
 
 // DeleteSavedQuery deletes a specific library entry.
 func (c *Client) DeleteSavedQuery(id string) (err error) {
-	err = c.deleteStaticURL(searchLibIdUrl(id), nil)
-	return
+	return c.delete(searchLibIdUrl(id), false)
 }
 
 // PurgeSavedQuery deletes a specific library entry.
 func (c *Client) PurgeSavedQuery(id string) (err error) {
-	err = c.deleteStaticURL(searchLibIdUrl(id), nil, ezParam("purge", "true"))
-	return
+	return c.delete(searchLibIdUrl(id), true)
 }
 
 // UpdateSavedQuery modifies an existing saved query and returns the complete, updated struct.
@@ -68,5 +63,5 @@ func (c *Client) UpdateSavedQuery(ID string, p types.SavedQueryPatch) (updated t
 
 // CleanupSavedQueries (admin-only) purges all deleted saved queries for all users.
 func (c *Client) CleanupSavedQueries() error {
-	return c.deleteStaticURL(LIBRARY_URL, nil)
+	return c.delete(LIBRARY_URL, false)
 }

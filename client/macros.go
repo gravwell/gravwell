@@ -17,8 +17,7 @@ func (c *Client) ListMacros(opts *types.QueryOptions) (ret types.MacroListRespon
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(MACROS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.MacroListResponse](MACROS_LIST_URL, opts)
 }
 
 // ListAllMacros (admin-only) returns all macros on the system.
@@ -27,37 +26,27 @@ func (c *Client) ListAllMacros(opts *types.QueryOptions) (ret types.MacroListRes
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	err = c.postStaticURL(MACROS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.MacroListResponse](MACROS_LIST_URL, opts)
 }
 
 // GetMacro returns a particular macro.
 func (c *Client) GetMacro(id string) (types.Macro, error) {
-	var macro types.Macro
-	err := c.getStaticURL(macroIDUrl(id), &macro)
-	return macro, err
+	return c.GetMacroEx(id, GetOptions{})
 }
 
-// GetMacroEx returns a particular macro. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetMacroEx(id string, opts *types.QueryOptions) (types.Macro, error) {
-	var macro types.Macro
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(macroIDUrl(id), &macro, ezParam("include_deleted", opts.IncludeDeleted))
-	return macro, err
+// GetMacroEx returns a particular macro, modified by opts.
+func (c *Client) GetMacroEx(id string, opts GetOptions) (types.Macro, error) {
+	return c.get[types.Macro](macroIDUrl(id), opts.params()...)
 }
 
 // DeleteMacro deletes a macro by marking it deleted in the database.
 func (c *Client) DeleteMacro(id string) error {
-	return c.deleteStaticURL(macroIDUrl(id), nil)
+	return c.delete(macroIDUrl(id), false)
 }
 
 // PurgeMacro deletes a macro entirely, removing it from the database.
 func (c *Client) PurgeMacro(id string) error {
-	return c.deleteStaticURL(macroIDUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(macroIDUrl(id), true)
 }
 
 // CreateMacro creates a new macro, returning the newly-created macro.
@@ -75,5 +64,5 @@ func (c *Client) UpdateMacro(ID string, p types.MacroPatch) (updated types.Macro
 
 // CleanupMacros (admin-only) purges all deleted macros for all users.
 func (c *Client) CleanupMacros() error {
-	return c.delete(MACROS_URL)
+	return c.delete(MACROS_URL, false)
 }
