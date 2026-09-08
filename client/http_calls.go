@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
@@ -24,7 +24,7 @@ func (c *Client) post[RequestT, ResponseT any](url string, in *RequestT) (respon
 	if err != nil {
 		return response, err
 	}
-	resp, err := c.reqDriver(http.MethodPost, url, body)
+	resp, err := c.reqDriver(http.MethodPost, url, body, nil)
 	defer drainResponse(resp)
 	if err != nil {
 		return response, err
@@ -38,7 +38,7 @@ func (c *Client) post[RequestT, ResponseT any](url string, in *RequestT) (respon
 }
 
 // patch submits a PATCH request against the given url.
-func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
+func (c *Client) patch[PatchT any, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
 	body, err := json.Marshal(data, jsoncompat.Opts)
 	if err != nil {
 		return patched, err
@@ -46,7 +46,7 @@ func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data P
 		return patched, ErrEmptyPatch
 	}
 
-	resp, err := c.reqDriver(http.MethodPatch, url, body)
+	resp, err := c.reqDriver(http.MethodPatch, url, body, nil)
 	defer drainResponse(resp)
 	if err != nil {
 		return patched, err
@@ -61,8 +61,13 @@ func (c *Client) patch[PatchT types.PatchType, ResponseT any](url string, data P
 }
 
 // delete submits an empty DELETE request against the given URL.
-func (c *Client) delete(url string) error {
-	resp, err := c.reqDriver(http.MethodDelete, url, nil)
+// It swallows 204s.
+func (c *Client) delete(url string, purge bool) error {
+	var params []urlParam
+	if purge {
+		params = append(params, urlParam{key: "purge", value: "true"})
+	}
+	resp, err := c.reqDriver(http.MethodDelete, url, nil, []int{http.StatusNoContent}, params...)
 	defer drainResponse(resp)
 	return err
 }
@@ -81,7 +86,7 @@ func (o GetOptions) params() []urlParam {
 }
 
 func (c *Client) get[ResponseT any](url string, params ...urlParam) (response ResponseT, _ error) {
-	resp, err := c.reqDriver(http.MethodGet, url, nil, params...)
+	resp, err := c.reqDriver(http.MethodGet, url, nil, nil, params...)
 	defer drainResponse(resp)
 	if err != nil {
 		return response, err
@@ -97,7 +102,7 @@ func (c *Client) get[ResponseT any](url string, params ...urlParam) (response Re
 
 // getDownload issues a GET request, but returns a reader on the body instead of trying to unmarshal said body.
 func (c *Client) getDownload(url string, params ...urlParam) (io.ReadCloser, error) {
-	resp, err := c.reqDriver(http.MethodGet, url, nil, params...)
+	resp, err := c.reqDriver(http.MethodGet, url, nil, nil, params...)
 	if err != nil {
 		drainResponse(resp)
 		return nil, err
@@ -107,7 +112,9 @@ func (c *Client) getDownload(url string, params ...urlParam) (io.ReadCloser, err
 
 // reqDriver powers outbound requests and serves as a funnel to keep them consistent.
 // If err == nil, the caller is responsible for draining the response.
-func (c *Client) reqDriver(method string, url string, body []byte, params ...urlParam) (*http.Response, error) {
+//
+// okCodes is the set of non-200 codes that will be swallowed (instead of erroring).
+func (c *Client) reqDriver(method string, url string, body []byte, okCodes []int, params ...urlParam) (*http.Response, error) {
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
 	req, err := http.NewRequest(method, uri, bytes.NewBuffer(body))
 	if err != nil {
@@ -141,7 +148,7 @@ func (c *Client) reqDriver(method string, url string, body []byte, params ...url
 	if resp == nil {
 		return nil, ErrNilResponse
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && !slices.Contains(okCodes, resp.StatusCode) {
 		c.objLog.Log("WEB "+req.Method, url+" "+resp.Status, nil)
 		defer drainResponse(resp)
 		return nil, aliasResponseError(c, resp)
