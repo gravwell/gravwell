@@ -26,7 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
-	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 var (

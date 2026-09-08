@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -121,7 +121,11 @@ func listOutput[struct_t any](
 	case formatJSON:
 		toRet, err = weave.ToJSON(data, dqColumns, weave.JSONOptions{Aliases: aliases})
 	case formatTable:
-		toRet = weave.ToTable(data, dqColumns, weave.TableOptions{Base: stylesheet.Table, Aliases: aliases})
+		toRet = weave.ToTable(data, dqColumns, weave.TableOptions{
+			Base:            stylesheet.Table,
+			Aliases:         aliases,
+			HeaderWrapWidth: stylesheet.TableColumnContentWidth(),
+		})
 	default:
 		toRet = ""
 		err = fmt.Errorf("unknown output format (%d)", format)

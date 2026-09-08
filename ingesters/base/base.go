@@ -32,7 +32,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/version"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v4/host"
 )
 
 var (

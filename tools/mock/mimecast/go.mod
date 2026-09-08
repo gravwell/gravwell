@@ -11,6 +11,7 @@ require (
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56 // indirect
 	github.com/crewjam/rfc5424 v0.1.0 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
@@ -27,12 +28,18 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/miekg/dns v1.1.56 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
+	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/shirou/gopsutil v2.20.9+incompatible // indirect
+	github.com/shirou/gopsutil/v4 v4.26.6 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
+	github.com/tklauser/go-sysconf v0.3.16 // indirect
+	github.com/tklauser/numcpus v0.11.0 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
