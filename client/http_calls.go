@@ -75,7 +75,7 @@ type GetOptions struct {
 func (o GetOptions) params() []urlParam {
 	var p []urlParam
 	if o.IncludeDeleted {
-		p = append(p, urlParam{"incldue_deleted", "true"})
+		p = append(p, urlParam{"include_deleted", "true"})
 	}
 	return p
 }
