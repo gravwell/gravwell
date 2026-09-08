@@ -18,7 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
@@ -46,7 +45,7 @@ type proxyHandler struct {
 	// always forward, even when Allow_Unknown_Paths is off (see
 	// protocol.Protocol.PassthroughPaths).
 	passSet map[string]bool
-	lg      ingest.Logger
+	lg      log.IngestLogger
 }
 
 // newProxyHandler builds the handler for one listener. lg is required: every
@@ -54,7 +53,7 @@ type proxyHandler struct {
 // would silently discard the only signal an operator gets. Callers with no
 // interest in the output (tests, mostly) pass log.NewDiscardLogger().
 func newProxyHandler(name string, cfg *listener, proto protocol.Protocol, tag entry.EntryTag,
-	pproc *processors.ProcessorSet, sessions *sessionStore, lg ingest.Logger) (*proxyHandler, error) {
+	pproc *processors.ProcessorSet, sessions *sessionStore, lg log.IngestLogger) (*proxyHandler, error) {
 	if lg == nil {
 		return nil, errors.New("nil logger")
 	}

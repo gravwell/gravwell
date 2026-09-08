@@ -37,6 +37,9 @@ type QueryOptions struct {
 
 	// Filtering on fields of assets
 	Filters []Filter
+
+	// Search filters on multiple fields for a rough string match
+	Search string
 }
 
 // Filter based on the values given, e.g. Key = "Name", Operation = "=", Values = ["foo", "bar"].

@@ -46,6 +46,7 @@ const (
 	// alongside /v1/messages. We do not parse it, but a listener that answered
 	// 404 here would break the client, so it is declared as a passthrough.
 	countTokensPath = "/v1/messages/count_tokens"
+	modelPath       = "/v1/models"
 
 	roleSystem    = "system"
 	roleUser      = "user"
@@ -70,7 +71,7 @@ func (messagesProtocol) Paths() []string { return []string{messagesPath} }
 
 // PassthroughPaths declares the endpoints a Messages API client legitimately
 // needs that this module does not parse.
-func (messagesProtocol) PassthroughPaths() []string { return []string{countTokensPath} }
+func (messagesProtocol) PassthroughPaths() []string { return []string{countTokensPath, modelPath} }
 
 // The following types mirror the Anthropic Messages request/response schema; see
 // https://docs.claude.com/en/api/messages for the authoritative definitions.

@@ -38,8 +38,8 @@ type TableResponse struct {
 type GaugeValue struct {
 	Name      string
 	Magnitude float64
-	Min       float64
-	Max       float64
+	Min       Optional[float64]
+	Max       Optional[float64]
 }
 
 type GaugeRequest struct {

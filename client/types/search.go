@@ -61,28 +61,6 @@ type Element struct {
 	Filters     []string
 }
 
-// A GenerateAXRequest contains a tag name and a set of entries.
-// It is used by clients to request all possible extractions from the given entries.
-// All entries should have the same tag.
-type GenerateAXRequest struct {
-	Tag     string
-	Entries []SearchEntry
-}
-
-// A GenerateAXResponse contains an autoextractor definition
-// and corresponding Element extractions as gathered from a single extraction module
-type GenerateAXResponse struct {
-	Extractor AX
-	// Confidence is a range from 0 to 10, with 10 meaning "we are very confident"
-	// and 0 meaning "we didn't extract anything of worth".
-	// Some modules, like xml, will return values lower than 10 even if they extracted
-	// lots of data, because other modules like winlog should take precedence if they
-	// succeed.
-	Confidence float64
-	Entries    []SearchEntry
-	Explore    []ExploreResult
-}
-
 // ExploreRequest is used to request that the webserver perform a complete cracking of
 // all entries in the given range, the webserver will return an array of ExploreResult
 type ExploreRequest struct {
@@ -292,6 +270,10 @@ type SearchInfo struct {
 	Tags                  []string
 	EVs                   []string   // EVs produced by the search
 	Import                ImportInfo //information attached if this search is saved and from an external import
+	MultiTag              bool       // MultiTag is true when the search covers more than one tag.
+	ModifiesData          bool       // ModifiesData is true when a search module in the pipeline rewrote the entry DATA field.
+	AXEligible            bool       // AXEligible is true when the search can serve as a base for AX generation: the renderer is raw, and both MultiTag and ModifiesData are false.
+
 	// Preview indicates that this search is a preview search.
 	// This means that the query most likely did not cover the entire time range that was originally requested.
 	// A preview search is used when a user is trying to understand what they have or establish AX relationships.
