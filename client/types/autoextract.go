@@ -25,6 +25,15 @@ var (
 	ErrMissingName   error = errors.New("extraction name missing")
 )
 
+// A PotentialAutoExtractor is one autoextractor the webserver could install for a
+// tag, plus the sample that produced it. Results holds that sample rendered through
+// Extractor, so a caller can see what it pulls out before installing it.
+type PotentialAutoExtractor struct {
+	Confidence float64
+	Extractor  AX
+	Results    ResultsTable
+}
+
 // AX object, when setting an AutoExtractor, only Name, Module,
 // Params, and Tag must be set.
 type AX struct {
