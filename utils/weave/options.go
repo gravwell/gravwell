@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package weave
 
 import "github.com/charmbracelet/lipgloss/table"
@@ -14,6 +22,11 @@ type TableOptions struct {
 	// When writing headers, ToTable will prefer an Alias, if found.
 	// Operates in O(len(columns)) time, if not nil.
 	Aliases map[string]string
+	// HeaderWrapWidth, if > 0, is the content width (in columns, excluding cell padding and borders)
+	// that header/title text is pre-wrapped to fit, preferring to break after '.' over breaking
+	// mid-word. Headers that already fit are left untouched. If <= 0, header text is left as-is.
+	// Base's own column styling, ex: a fixed Width(), may still force lipgloss to truncate it.
+	HeaderWrapWidth int
 }
 
 // CSVOptions defines a set of modifiers that ToCSV can take into account at Render time.

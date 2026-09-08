@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -647,7 +647,7 @@ func TestToTable(t *testing.T) {
 		}
 		expectedHeader := []string{"A", "B", "c"}
 
-		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		actual := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{})
 		if actual != expected {
@@ -666,7 +666,7 @@ func TestToTable(t *testing.T) {
 			{"1", "2", "c", "ein", "zwei"},
 		}
 		expectedHeader := []string{"A", "B", "c", "depth1.one", "depth1.Two"}
-		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -684,7 +684,7 @@ func TestToTable(t *testing.T) {
 			{"1", "one", "Two"},
 		}
 		expectedHeader := []string{"A", "depth1.one", "depth1.Two"}
-		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -702,7 +702,7 @@ func TestToTable(t *testing.T) {
 			{"3", "one2", "Two2"},
 		}
 		expectedHeader := []string{"A", "depth1.one", "depth1.Two"}
-		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -724,7 +724,7 @@ func TestToTable(t *testing.T) {
 			{"3", "one2", "Two2"},
 		}
 		expectedHeader := []string{"a", "depth1.one", "d1Two"}
-		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -761,7 +761,7 @@ func TestToTable(t *testing.T) {
 			{"1", "2", "c"},
 		}
 		expectedHeader := []string{"A", "B", "c"}
-		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -785,7 +785,7 @@ func TestToTable(t *testing.T) {
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},
 		}
 		expectedHeader := []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"}
-		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -817,10 +817,37 @@ func TestToTable(t *testing.T) {
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},
 		}
 		expectedHeader := []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"}
-		expected := styleFunc().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := styleFunc().Rows(append([][]string{expectedHeader}, expectedRows...)...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
+		}
+	})
+
+	t.Run("header wrapping", func(t *testing.T) {
+		actualData := []d0{{A: 1, B: 2, c: "c"}}
+
+		// short headers should be left untouched, even with wrapping enabled
+		short := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{HeaderWrapWidth: 10})
+		noWrap := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{})
+		if short != noWrap {
+			t.Errorf("a header that already fits should render identically regardless of HeaderWrapWidth.\nwith HeaderWrapWidth\n%s\nwithout\n%s", short, noWrap)
+		}
+
+		// a long, dot-qualified header should wrap rather than get truncated with "…"
+		long := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{
+			Aliases:         map[string]string{"c": "a.very.long.dot.qualified.header"},
+			HeaderWrapWidth: 10,
+		})
+		if strings.Contains(long, "…") {
+			t.Errorf("header was truncated instead of wrapped:\n%s", long)
+		}
+		// every fragment of the dot-qualified title should still be present somewhere,
+		// broken across lines at the '.' boundaries rather than dropped or hard-truncated.
+		for _, fragment := range []string{"a.very.", "long.dot.", "qualified.", "header"} {
+			if !strings.Contains(long, fragment) {
+				t.Errorf("expected wrapped header to still contain fragment %q:\n%s", fragment, long)
+			}
 		}
 	})
 }

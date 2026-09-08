@@ -367,7 +367,8 @@ func Test_listOutput(t *testing.T) {
 		},
 		{[]string{"Rogue", "Plant", "Robot", "Export.YV.YungCuz"}, formatTable,
 			"┌───────────────┬───────────────┬───────────────┬───────────────┐\n" +
-				"│ Rogue         │ Plant         │ munch         │ Export.YV.Yun │\n" +
+				"│     Rogue     │     Plant     │     munch     │  Export.YV.   │\n" +
+				"│               │               │               │    YungCuz    │\n" +
 				"├───────────────┼───────────────┼───────────────┼───────────────┤\n" +
 				"│ (0+0i)        │ vines         │ []            │ nil           │\n" +
 				"├───────────────┼───────────────┼───────────────┼───────────────┤\n" +

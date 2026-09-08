@@ -1,5 +1,5 @@
-/*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+/**********************6**************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -24,6 +24,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/charmbracelet/lipgloss/table"
+	"github.com/charmbracelet/x/ansi"
 )
 
 //#region errors
@@ -387,22 +388,31 @@ func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 		tbl = table.New()
 	}
 
-	// apply aliases
-	if options.Aliases != nil {
-		withAliases := make([]string, len(columns))
+	// Resolve header titles, preferring aliases.
+	headers := make([]string, len(columns))
+	if len(options.Aliases) > 0 {
 		for i := range columns {
-			// on match, replace the column
 			if alias, found := options.Aliases[columns[i]]; found {
-				withAliases[i] = alias
+				headers[i] = alias
 			} else {
-				withAliases[i] = columns[i]
+				headers[i] = columns[i]
 			}
 		}
-		tbl.Headers(withAliases...)
 	} else {
-		tbl.Headers(columns...)
+		copy(headers, columns)
 	}
-	tbl.Rows(rows...)
+
+	// Wrap header titles that are too wide for their column, preferring to break after '.'.
+	// We deliberately do NOT use tbl.Headers(). lipgloss/table hard caps header rows to a
+	// single line and always truncates overflowing header text without a way to opt out.
+	// Feeding the header in as an ordinary row instead lets it use the same wrap-capable
+	// path body cells already get.
+	if options.HeaderWrapWidth > 0 {
+		for i := range headers {
+			headers[i] = ansi.Wrap(headers[i], options.HeaderWrapWidth, ".")
+		}
+	}
+	tbl.Rows(append([][]string{headers}, rows...)...)
 
 	return tbl.Render()
 }

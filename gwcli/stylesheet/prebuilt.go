@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -123,15 +123,39 @@ func Table() *table.Table {
 		Border(Cur.TableSty.BorderType).
 		BorderStyle(Cur.TableSty.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			switch row % 2 {
-			case 0:
-				return Cur.TableSty.EvenCells
-			default:
-				return Cur.TableSty.OddCells
+			// row 0 is the header
+			// (weave.ToTable feeds it in as an ordinary row so it can wrap. See TableColumnContentWidth)
+			// Body-row parity is shifted by one to compensate, so the first body row still renders as it did before.
+			if row == 0 {
+				return Cur.TableSty.HeaderCells
 			}
+			if row%2 == 1 {
+				return Cur.TableSty.EvenCells
+			}
+			return Cur.TableSty.OddCells
 		}).BorderRow(true)
 
 	return tbl
+}
+
+// TableColumnContentWidth returns the usable content width (in columns) for a single table
+// cell under the current stylesheet, after accounting for TableSty.EvenCells's fixed column
+// width and horizontal padding. Used to pre-wrap header text so it fits within the same width
+// its column renders at, as opposed to it getting truncated.
+// Returns 0 if the current stylesheet does not lock columns to a fixed width (ex: Plain()),
+// in which case header pre-wrapping should get skipped.
+func TableColumnContentWidth() int {
+	w := Cur.TableSty.EvenCells.GetWidth()
+
+	if w <= 0 {
+		return 0
+	}
+
+	if content := w - Cur.TableSty.EvenCells.GetHorizontalPadding(); content > 0 {
+		return content
+	}
+
+	return 0
 }
 
 // NewList creates and returns a new list.Model with customized defaults.
