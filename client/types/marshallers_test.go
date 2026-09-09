@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"math"
 	"net"
 	"reflect"
 	"strings"
@@ -415,6 +416,10 @@ func TestDeadCustomMarshalers(t *testing.T) {
 			Names: []string{"n1"}, KeyComps: []types.KeyComponents{{}}, Categories: []string{"cat1"},
 		}, `{"Names":["n1"],"KeyComps":[{"Keys":[]}],"Categories":["cat1"],"Values":[]}`},
 
+		{"ChartableDataPoint zero value", types.ChartableDataPoint(0), `0`},
+		{"ChartableDataPoint NaN", types.ChartableDataPoint(math.NaN()), `null`},
+		{"ChartableDataPoint valid", types.ChartableDataPoint(3.14), `3.14`},
+
 		// CapabilityState and TagAccess are both single-field structs wrapping Grants
 		{"CapabilityState zero value", types.CapabilityState{}, `{"Grants":[]}`},
 		{"CapabilityState populated", types.CapabilityState{Grants: []string{"read", "write"}}, `{"Grants":["read","write"]}`},
@@ -448,6 +453,19 @@ func TestDeadCustomMarshalers(t *testing.T) {
 
 		{"IngestStats zero value", types.IngestStats{},
 			`{"QuotaUsed":0,"QuotaMax":0,"EntriesPerSecond":0,"BytesPerSecond":0,"TotalCount":0,"TotalSize":0,"LastDayCount":0,"LastDaySize":0,"EntriesHourTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"EntriesMinuteTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"BytesHourTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"BytesMinuteTail":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"Ingesters":[],"Missing":[]}`},
+
+		{"SysInfo zero value", types.SysInfo{}, `{}`},
+		{"SysInfo zero value", types.SysInfo{
+			VirtSystem:    "kvm",
+			VirtRole:      "host",
+			CPUCount:      16,
+			CPUModel:      "FakeIntel",
+			CPUMhz:        "2",
+			CPUCache:      "existent",
+			TotalMemoryMB: 12,
+			SystemVersion: "6.0.0",
+			Error:         "an error",
+		}, `{"VirtSystem":"kvm","VirtRole":"host","CPUCount":16,"CPUModel":"FakeIntel","CPUMhz":"2","CPUCache":"existent","TotalMemoryMB":12,"SystemVersion":"6.0.0","Error":"an error"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
