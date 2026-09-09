@@ -9,8 +9,6 @@
 package client
 
 import (
-	"net/http"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -90,10 +88,12 @@ func (c *Client) CreateUserPreference(p types.UserPreference) (result types.User
 	return
 }
 
-// UpdateUserPreference modifies an existing user preference.
-func (c *Client) UpdateUserPreference(p types.UserPreference) (result types.UserPreference, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, userPreferenceUrl(p.ID), p, &result, nil, nil)
-	return
+// UpdateUserPreference modifies an existing user preference and returns the complete, updated struct.
+func (c *Client) UpdateUserPreference(ID string, p types.UserPreferencePatch) (updated types.UserPreference, err error) {
+	if ID == "" {
+		return types.UserPreference{}, ErrEmptyID
+	}
+	return c.patch[types.UserPreferencePatch, types.UserPreference](userPreferenceUrl(ID), p)
 }
 
 // CleanupUserPreferences (admin-only) purges all deleted user preferences for all users.

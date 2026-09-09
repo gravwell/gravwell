@@ -9,7 +9,8 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"hash/fnv"
 	"io"
@@ -236,14 +237,14 @@ type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
 	EntryRange *EntryRange         `json:",omitempty"`
-	Addendum   json.RawMessage     `json:",omitempty"`
+	Addendum   jsontext.Value      `json:",omitempty"`
 }
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
 	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
-	Addendum   json.RawMessage           `json:",omitempty"`
+	Addendum   jsontext.Value            `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
 	EntryRange *EntryRange               `json:",omitempty"`
 	Metadata   *SearchMetadata           `json:",omitempty"`
@@ -414,11 +415,11 @@ type SearchStatsRequest struct {
 	SetCount int64 `json:",omitempty"`
 	SetStart entry.Timestamp
 	SetEnd   entry.Timestamp
-	Addendum json.RawMessage `json:",omitempty"`
+	Addendum jsontext.Value `json:",omitempty"`
 }
 
 type SearchStatsResponse struct {
-	Addendum    json.RawMessage `json:",omitempty"`
+	Addendum    jsontext.Value `json:",omitempty"`
 	RangeStart  entry.Timestamp
 	RangeEnd    entry.Timestamp
 	Current     entry.Timestamp
@@ -553,7 +554,7 @@ func (tr *TimeRange) Swap() {
 }
 
 func (tr *TimeRange) DecodeJSON(r io.Reader) error {
-	if err := json.NewDecoder(r).Decode(tr); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(r), &tr); err != nil {
 		if err == io.EOF {
 			tr.StartTS = entry.Timestamp{}
 			tr.EndTS = entry.Timestamp{}
@@ -576,17 +577,6 @@ func (is IngesterStats) Hash() uint64 {
 	return n.Sum64()
 }
 
-func (is IngesterStats) MarshalJSON() ([]byte, error) {
-	type alias IngesterStats
-	return json.Marshal(&struct {
-		alias
-		Tags emptyStrings
-	}{
-		alias: alias(is),
-		Tags:  emptyStrings(is.Tags),
-	})
-}
-
 func UniqueIngesters(sts []IngestStats) (r uint64) {
 	mp := map[uint64]bool{}
 	for _, st := range sts {
@@ -601,26 +591,6 @@ func UniqueIngesters(sts []IngestStats) (r uint64) {
 	return
 }
 
-func (m *RenderModuleInfo) MarshalJSON() ([]byte, error) {
-	type alias RenderModuleInfo
-	return json.Marshal(&struct {
-		alias
-		Examples emptyStrings
-	}{
-		alias:    alias(*m),
-		Examples: emptyStrings(m.Examples),
-	})
-}
-
-type emptyEntries []SearchEntry
-
-func (ee emptyEntries) MarshalJSON() ([]byte, error) {
-	if len(ee) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal(([]SearchEntry)(ee))
-}
-
 type emptyPrintableEntries []SearchEntry
 
 func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
@@ -633,111 +603,6 @@ func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
 		pse = append(pse, PrintableSearchEntry(v))
 	}
 	return json.Marshal(pse)
-}
-
-type emptyIngesterStats []IngesterStats
-
-func (eis emptyIngesterStats) MarshalJSON() ([]byte, error) {
-	if len(eis) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]IngesterStats(eis))
-}
-
-type emptyIngesterStates []ingest.IngesterState
-
-func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
-	if len(eis) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]ingest.IngesterState(eis))
-}
-
-func (is IngestStats) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		QuotaUsed         uint64
-		QuotaMax          uint64
-		EntriesPerSecond  float64
-		BytesPerSecond    float64
-		TotalCount        uint64
-		TotalSize         uint64
-		LastDayCount      uint64 //total entries in last 24 hours
-		LastDaySize       uint64 //total ingested in last 24 hours
-		EntriesHourTail   [24]uint64
-		EntriesMinuteTail [60]uint64
-		BytesHourTail     [24]uint64
-		BytesMinuteTail   [60]uint64
-		Ingesters         emptyIngesterStats
-		Missing           emptyIngesterStates
-	}{
-		QuotaUsed:         is.QuotaUsed,
-		QuotaMax:          is.QuotaMax,
-		EntriesPerSecond:  is.EntriesPerSecond,
-		BytesPerSecond:    is.BytesPerSecond,
-		TotalCount:        is.TotalCount,
-		TotalSize:         is.TotalSize,
-		LastDayCount:      is.LastDayCount,
-		LastDaySize:       is.LastDaySize,
-		EntriesHourTail:   is.EntriesHourTail,
-		EntriesMinuteTail: is.EntriesMinuteTail,
-		BytesHourTail:     is.BytesHourTail,
-		BytesMinuteTail:   is.BytesMinuteTail,
-		Ingesters:         emptyIngesterStats(is.Ingesters),
-		Missing:           emptyIngesterStates(is.Missing),
-	})
-}
-
-func (s StatSetResponse) MarshalJSON() ([]byte, error) {
-	type alias StatSetResponse
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(s),
-		Messages: emptyMessages(s.Messages),
-	})
-}
-
-func (s SearchMetadata) MarshalJSON() ([]byte, error) {
-	type alias SearchMetadata
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(s),
-		Messages: emptyMessages(s.Messages),
-	})
-}
-
-func (o OverviewStats) MarshalJSON() ([]byte, error) {
-	type alias OverviewStats
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(o),
-		Messages: emptyMessages(o.Messages),
-	})
-}
-
-func (b BaseResponse) MarshalJSON() ([]byte, error) {
-	type alias BaseResponse
-	return json.Marshal(&struct {
-		alias
-		Messages emptyMessages
-	}{
-		alias:    alias(b),
-		Messages: emptyMessages(b.Messages),
-	})
-}
-
-type emptyMessages []Message
-
-func (em emptyMessages) MarshalJSON() ([]byte, error) {
-	if len(em) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal(([]Message)(em))
 }
 
 func (r RawResponse) MarshalJSON() ([]byte, error) {
@@ -762,11 +627,11 @@ func (r RawResponse) MarshalJSON() ([]byte, error) {
 	} else {
 		e, err = json.Marshal(&struct {
 			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
-			Entries               emptyEntries
+			Entries               []SearchEntry
 			Explore               []ExploreResult `json:",omitempty"`
 		}{
 			ContainsBinaryEntries: r.ContainsBinaryEntries,
-			Entries:               emptyEntries(r.Entries),
+			Entries:               r.Entries,
 			Explore:               r.Explore,
 		})
 	}

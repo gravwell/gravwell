@@ -169,10 +169,12 @@ func (c *Client) CleanupResources() error {
 	return c.deleteStaticURL(RESOURCES_URL, nil)
 }
 
-// UpdateResourceMetadata sets the specified resource's metadata.
-func (c *Client) UpdateResourceMetadata(id string, metadata types.Resource) (updated types.Resource, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, resourcesIdUrl(id), metadata, &updated, nil, nil)
-	return updated, err
+// UpdateResourceMetadata modifies an existing resource's metadata and returns the complete, updated struct.
+func (c *Client) UpdateResourceMetadata(id string, p types.ResourcePatch) (updated types.Resource, err error) {
+	if id == "" {
+		return types.Resource{}, ErrEmptyID
+	}
+	return c.patch[types.ResourcePatch, types.Resource](resourcesIdUrl(id), p)
 }
 
 // GetResourceMetadata gets the specified resource's metadata.

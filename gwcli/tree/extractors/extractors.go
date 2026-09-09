@@ -430,20 +430,8 @@ func edit() action.Pair {
 					clilog.Writer.Error("update subroutine given nil data!")
 					return "", errors.New("an error occurred")
 				}
-				warnings, err := connection.Client.UpdateExtraction(*data)
-				if err != nil {
+				if _, err := connection.Client.UpdateExtraction(data.ID, data.ToPatch()); err != nil {
 					return "", err
-				}
-				if len(warnings) > 0 {
-					var params = make([]rfc5424.SDParam, len(warnings))
-					for i, warn := range warnings {
-						params[i] = rfc5424.SDParam{
-							Name:  fmt.Sprint("warning", i),
-							Value: fmt.Sprint(warn.Name, ": ", warn.Err),
-						}
-					}
-
-					clilog.Writer.Warn("extractor update caused warnings", params...)
 				}
 				return data.Name, nil
 			},

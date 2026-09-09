@@ -10,7 +10,8 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strconv"
@@ -40,7 +41,7 @@ var (
 
 type AuthType string
 
-type RawObject json.RawMessage
+type RawObject jsontext.Value
 
 type es struct{}
 
@@ -353,61 +354,17 @@ type SearchAgentConfig struct {
 	Flow_Burst   int64
 }
 
-type emptyInts []int32
-
-func (ei emptyInts) MarshalJSON() ([]byte, error) {
-	if len(ei) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]int32(ei))
-}
-
-type emptyStrings []string
-
-func (es emptyStrings) MarshalJSON() ([]byte, error) {
-	if len(es) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]string(es))
-}
-
-type emptyByteArrays [][]byte
-
-func (eba emptyByteArrays) MarshalJSON() ([]byte, error) {
-	if len(eba) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([][]byte(eba))
-}
-
-type emptyInt64s []int64
-
-func (ei emptyInt64s) MarshalJSON() ([]byte, error) {
-	if len(ei) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]int64(ei))
-}
-
-type emptyFloat64s []float64
-
-func (ei emptyFloat64s) MarshalJSON() ([]byte, error) {
-	if len(ei) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]float64(ei))
-}
-
+// MarshalJSON ensures empty RawObjects marshal to {} and populated as jsontext.Value.
 func (o RawObject) MarshalJSON() ([]byte, error) {
 	if len(o) == 0 || o == nil {
 		return emptyObj, nil
 	}
-	b := json.RawMessage(o)
+	b := jsontext.Value(o)
 	return json.Marshal(&b)
 }
 
 func (o *RawObject) UnmarshalJSON(buff []byte) error {
-	var b json.RawMessage
+	var b jsontext.Value
 	if err := json.Unmarshal(buff, &b); err != nil {
 		return err
 	}
@@ -426,15 +383,4 @@ type LoggingLevels struct {
 
 type LogLevel struct {
 	Level string
-}
-
-func (m *LoggingLevels) MarshalJSON() ([]byte, error) {
-	type alias LoggingLevels
-	return json.Marshal(&struct {
-		alias
-		Levels emptyStrings
-	}{
-		alias:  alias(*m),
-		Levels: emptyStrings(m.Levels),
-	})
 }

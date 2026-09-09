@@ -570,7 +570,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateSavedQuery(res); err != nil {
+					if _, err := connection.Client.UpdateSavedQuery(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown saved query %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -591,7 +591,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateDashboard(res); err != nil {
+					if _, err := connection.Client.UpdateDashboard(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown dashboard %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -615,7 +615,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateExtraction(res); err != nil {
+					if _, err := connection.Client.UpdateExtraction(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown extraction %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -636,7 +636,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateActionable(res); err != nil {
+					if _, err := connection.Client.UpdateActionable(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown actionable %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -657,7 +657,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdatePlaybook(res); err != nil {
+					if _, err := connection.Client.UpdatePlaybook(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown playbook %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -678,7 +678,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if err := connection.Client.UpdateScheduledSearch(res); err != nil {
+					if _, err := connection.Client.UpdateScheduledSearch(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown scheduled search %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -699,7 +699,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if err := connection.Client.UpdateScheduledScript(res); err != nil {
+					if _, err := connection.Client.UpdateScheduledScript(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown scheduled script %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -720,7 +720,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateFileMetadata(res.ID, res); err != nil {
+					if _, err := connection.Client.UpdateFileMetadata(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown file %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -741,7 +741,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateTemplate(res); err != nil {
+					if _, err := connection.Client.UpdateTemplate(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown template %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -762,7 +762,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateResourceMetadata(res.ID, res); err != nil {
+					if _, err := connection.Client.UpdateResourceMetadata(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown resource %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -783,7 +783,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if err := connection.Client.UpdateMacro(res); err != nil {
+					if _, err := connection.Client.UpdateMacro(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown macro %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -804,7 +804,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if err := connection.Client.UpdateFlow(res); err != nil {
+					if _, err := connection.Client.UpdateFlow(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown flow %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -825,7 +825,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateAlert(res); err != nil {
+					if _, err := connection.Client.UpdateAlert(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown alert %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -847,7 +847,7 @@ func massChown() action.Pair {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
-					if _, err := connection.Client.UpdateSecret(res.ID, types.SecretCreate{CommonFields: res.CommonFields}); err != nil {
+					if _, err := connection.Client.UpdateSecret(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown secret %s: %v", res.ID, err)
 						if !noFail {
 							return sb.String(), nil
@@ -1187,7 +1187,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("dashboard (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateDashboard(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateDashboard(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "dashboard")
 		} else if err != nil {
 			return err
@@ -1203,7 +1203,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("extraction (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateExtraction(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateExtraction(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "extraction")
 		} else if err != nil {
 			return err
@@ -1219,7 +1219,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("actionable (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateActionable(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateActionable(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "actionable")
 		} else if err != nil {
 			return err
@@ -1235,7 +1235,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("playbook (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdatePlaybook(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdatePlaybook(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "playbook")
 		} else if err != nil {
 			return err
@@ -1251,7 +1251,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("template (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateTemplate(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateTemplate(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "template")
 		} else if err != nil {
 			return err
@@ -1267,7 +1267,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("macro (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if err := connection.Client.UpdateMacro(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateMacro(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "macro")
 		} else if err != nil {
 			return err
@@ -1283,7 +1283,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("flow (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if err := connection.Client.UpdateFlow(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateFlow(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "flow")
 		} else if err != nil {
 			return err
@@ -1299,7 +1299,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("alert (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateAlert(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateAlert(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "alert")
 		} else if err != nil {
 			return err
@@ -1315,7 +1315,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("file (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateFileMetadata(ID, itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateFileMetadata(ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "file")
 		} else if err != nil {
 			return err
@@ -1331,7 +1331,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("resource (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateResourceMetadata(ID, itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateResourceMetadata(ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "resource")
 		} else if err != nil {
 			return err
@@ -1350,7 +1350,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("saved query (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if _, err := connection.Client.UpdateSavedQuery(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateSavedQuery(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "saved query")
 		} else if err != nil {
 			return err
@@ -1366,7 +1366,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("scheduled search (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if err := connection.Client.UpdateScheduledSearch(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateScheduledSearch(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "scheduled search")
 		} else if err != nil {
 			return err
@@ -1382,7 +1382,7 @@ func transferEntity(ID string, from, to int32) error {
 			return fmt.Errorf("scheduled script (ID: %s) does not belong to from-user (ID: %d)", ID, from)
 		}
 		itm.OwnerID = to
-		if err := connection.Client.UpdateScheduledScript(itm); phrases.IsNotFoundErr(err) {
+		if _, err := connection.Client.UpdateScheduledScript(itm.ID, itm.ToPatch()); phrases.IsNotFoundErr(err) {
 			return phrases.ErrUnknownIdentifier(ID, "scheduled script")
 		} else if err != nil {
 			return err

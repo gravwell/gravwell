@@ -56,6 +56,10 @@ var (
 	ErrNoLogin           error = errors.New("Not logged in")
 	ErrEmptyUserAgent    error = errors.New("UserAgent cannot be empty")
 	errNoRedirect              = errors.New(`Refused to follow redirect`)
+
+	ErrEmptyPatch  = errors.New("empty PATCHs are ineffectual")
+	ErrNilResponse = errors.New("nil response")
+	ErrEmptyID     = errors.New("ID must be set")
 )
 
 // Client handles interaction with the server's REST APIs and websockets.

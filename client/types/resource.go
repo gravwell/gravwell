@@ -91,6 +91,18 @@ type Resource struct {
 	FileExtension string // The extension of the uploaded file, with the dot (ex: ".csv").
 }
 
+// ResourcePatch is the type used to request an update to the metadata of an existing Resource.
+type ResourcePatch struct {
+	CommonFieldsPatch
+}
+
+// ToPatch converts r into a ResourcePatch with every field set.
+func (r Resource) ToPatch() ResourcePatch {
+	return ResourcePatch{
+		CommonFieldsPatch: r.CommonFields.ToPatch(),
+	}
+}
+
 type ResourceListResponse struct {
 	BaseListResponse
 	Results []Resource

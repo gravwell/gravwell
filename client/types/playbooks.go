@@ -22,6 +22,32 @@ type Playbook struct {
 	AuthorURL     string
 }
 
+// PlaybookPatch is the type used to request an update to an existing Playbook.
+type PlaybookPatch struct {
+	CommonFieldsPatch
+	AuthorCompany Optional[string] `json:",omitzero"`
+	AuthorEmail   Optional[string] `json:",omitzero"`
+	AuthorName    Optional[string] `json:",omitzero"`
+	AuthorURL     Optional[string] `json:",omitzero"`
+	Banner        Optional[string] `json:",omitzero"`
+	Body          Optional[string] `json:",omitzero"`
+	Cover         Optional[string] `json:",omitzero"`
+}
+
+// ToPatch converts pb into a PlaybookPatch with every field set.
+func (pb Playbook) ToPatch() PlaybookPatch {
+	return PlaybookPatch{
+		CommonFieldsPatch: pb.CommonFields.ToPatch(),
+		AuthorCompany:     NewOptional(pb.AuthorCompany),
+		AuthorEmail:       NewOptional(pb.AuthorEmail),
+		AuthorName:        NewOptional(pb.AuthorName),
+		AuthorURL:         NewOptional(pb.AuthorURL),
+		Banner:            NewOptional(pb.Banner),
+		Body:              NewOptional(pb.Body),
+		Cover:             NewOptional(pb.Cover),
+	}
+}
+
 type PlaybookListResponse struct {
 	BaseListResponse
 	Results []Playbook

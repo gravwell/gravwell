@@ -267,7 +267,7 @@ func edit() action.Pair {
 		GetTitleSub:       func(item types.Playbook) string { return item.Name },
 		GetDescriptionSub: func(item types.Playbook) string { return item.Description },
 		UpdateSub: func(data *types.Playbook) (string, error) {
-			_, err := connection.Client.UpdatePlaybook(*data)
+			_, err := connection.Client.UpdatePlaybook(data.ID, data.ToPatch())
 			return data.Name, err
 		},
 	}

@@ -9,7 +9,7 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 )
 
 type TextRequest struct {
@@ -46,10 +46,10 @@ func (tr TextResponse) MarshalJSON() ([]byte, error) {
 	base[len(base)-1] = ','
 
 	e, err := json.Marshal(&struct {
-		Entries emptyEntries
+		Entries []SearchEntry
 		Explore []ExploreResult `json:",omitempty"`
 	}{
-		Entries: emptyEntries(tr.Entries),
+		Entries: tr.Entries,
 		Explore: tr.Explore,
 	})
 	if err != nil {

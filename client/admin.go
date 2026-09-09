@@ -127,15 +127,8 @@ func (c *Client) SetDefaultSearchGroups(uid int32, gids []int32) error {
 		}
 	}
 
-	req := types.UpdateUser{
-		Username:            udet.Username,
-		Name:                udet.Name,
-		Email:               udet.Email,
-		Admin:               udet.Admin,
-		Locked:              udet.Locked,
-		DefaultSearchGroups: gids,
-	}
-	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(uid), req, nil, nil, nil)
+	_, err = c.patch[types.UserPatch, types.User](usersInfoUrl(uid), types.UserPatch{DefaultSearchGroups: types.NewOptional(gids)})
+	return err
 }
 
 // GetDefaultSearchGroups returns the specified users default search groups.
@@ -414,13 +407,12 @@ func (c *Client) AddExtraction(d types.AX) (result types.AX, wrs []types.WarnRes
 	return
 }
 
-// UpdateExtraction modifies an existing autoextractor. The UUID field of the definition
-// passed in must match the UUID of an existing definition owned by the user.
-func (c *Client) UpdateExtraction(d types.AX) (wrs []types.WarnResp, err error) {
-	if err = c.methodStaticPushURL(http.MethodPut, extractionIdUrl(d.ID), d, nil, nil, nil); err == io.EOF {
-		err = nil
+// UpdateExtraction modifies an existing autoextractor and returns the complete, updated struct.
+func (c *Client) UpdateExtraction(ID string, p types.AXPatch) (updated types.AX, err error) {
+	if ID == "" {
+		return types.AX{}, ErrEmptyID
 	}
-	return
+	return c.patch[types.AXPatch, types.AX](extractionIdUrl(ID), p)
 }
 
 // UploadExtraction uploads a TOML-formatted byteslice containing one or more autoextractor

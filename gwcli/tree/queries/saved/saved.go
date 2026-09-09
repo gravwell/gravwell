@@ -143,7 +143,7 @@ func edit() action.Pair {
 			return fmt.Sprintf("%s\nQuery: %s", item.Description, item.Query)
 		},
 		UpdateSub: func(data *types.SavedQuery) (identifier string, err error) {
-			result, err := connection.Client.UpdateSavedQuery(*data)
+			result, err := connection.Client.UpdateSavedQuery(data.ID, data.ToPatch())
 			return result.Name, err
 		},
 	}

@@ -316,7 +316,8 @@ func edit() action.Pair {
 				return fmt.Sprintf("(%s) %s", item.Schedule, item.Description)
 			},
 			UpdateSub: func(data *types.ScheduledSearch) (identifier string, err error) {
-				return data.Name, connection.Client.UpdateScheduledSearch(*data)
+				_, err = connection.Client.UpdateScheduledSearch(data.ID, data.ToPatch())
+				return data.Name, err
 			},
 		},
 		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
@@ -425,7 +426,7 @@ func backfillToggle() action.Pair {
 					ss.BackfillEnabled = false
 				}
 
-				if err := connection.Client.UpdateScheduledSearch(ss); err != nil {
+				if _, err := connection.Client.UpdateScheduledSearch(ss.ID, ss.ToPatch()); err != nil {
 					results[i] = scaffold.Result{Success: false, Output: err.Error()}
 				} else {
 					state := "enabled"
