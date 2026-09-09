@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -602,11 +603,11 @@ func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
 	for _, v := range ([]SearchEntry)(ee) {
 		pse = append(pse, PrintableSearchEntry(v))
 	}
-	return json.Marshal(pse)
+	return json.Marshal(pse, jsoncompat.Opts)
 }
 
 func (r RawResponse) MarshalJSON() ([]byte, error) {
-	base, err := json.Marshal(r.BaseResponse)
+	base, err := json.Marshal(r.BaseResponse, jsoncompat.Opts)
 	if err != nil {
 		return nil, err
 	}
@@ -623,7 +624,7 @@ func (r RawResponse) MarshalJSON() ([]byte, error) {
 			ContainsBinaryEntries: r.ContainsBinaryEntries,
 			Entries:               emptyPrintableEntries(r.Entries),
 			Explore:               r.Explore,
-		})
+		}, jsoncompat.Opts)
 	} else {
 		e, err = json.Marshal(&struct {
 			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
@@ -633,7 +634,7 @@ func (r RawResponse) MarshalJSON() ([]byte, error) {
 			ContainsBinaryEntries: r.ContainsBinaryEntries,
 			Entries:               r.Entries,
 			Explore:               r.Explore,
-		})
+		}, jsoncompat.Opts)
 	}
 	if err != nil {
 		return nil, err
