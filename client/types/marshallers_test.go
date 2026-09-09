@@ -550,3 +550,48 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 		require.Equal(t, "\"abc�def\"", strings.TrimSpace(bb.String()))
 	})
 }
+
+// test that slices and maps marshal to []/{} (respectively) instead of null.
+func TestNoNilSlicesMaps(t *testing.T) {
+	t.Run("Labels", func(t *testing.T) {
+		fp := types.File{}
+		b, err := json.Marshal(fp, jsoncompat.Opts)
+		require.NoError(t, err)
+		var out map[string]jsontext.Value
+		require.NoError(t, json.Unmarshal(b, &out, jsoncompat.Opts))
+		lbls, found := out["Labels"]
+		require.True(t, found, "failed to parse \"Labels\" out of json")
+		require.Equal(t, "[]", lbls.String())
+	})
+	t.Run("complex struct", func(t *testing.T) {
+		st := struct {
+			S   []time.Duration
+			M   map[string]string
+			Sub struct {
+				S []uint
+				M map[int]map[string][]float32
+			}
+			Set []int
+		}{
+
+			S:   []time.Duration{},
+			Set: []int{1, 2},
+		}
+		want := `{
+          "S": [],
+          "M": {},
+          "Sub": {
+            "S": [],
+            "M": {}
+          },
+          "Set": [
+            1,
+            2
+          ]
+        }`
+		b, err := json.Marshal(st, jsoncompat.Opts)
+		require.NoError(t, err)
+		require.JSONEq(t, want, string(b))
+	})
+
+}
