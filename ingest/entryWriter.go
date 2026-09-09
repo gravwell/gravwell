@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -46,7 +46,7 @@ const (
 
 	maxThrottleDur time.Duration = 5 * time.Second
 
-	flushTimeout        time.Duration = 10 * time.Second
+	defaultFlushTimeout time.Duration = 10 * time.Second
 	negotiateTagTimeout time.Duration = 10 * time.Second
 )
 
@@ -74,6 +74,10 @@ const (
 	CONFIRM_DITTO_BLOCK_MAGIC    IngestCommand = 0x55667788
 )
 
+var (
+	ErrInvalidDuration = errors.New("invalid duration")
+)
+
 type IngestCommand uint32
 type entrySendID uint64
 
@@ -94,6 +98,7 @@ type EntryWriter struct {
 	buff          []byte
 	id            entrySendID
 	ackTimeout    time.Duration
+	flushTimeout  time.Duration
 	serverVersion uint16
 	ctx           context.Context
 }
@@ -128,6 +133,15 @@ type EntryReaderWriterConfig struct {
 	Timeout               time.Duration
 	TagMan                TagManager
 	CTX                   context.Context
+	// FlushTimeout/WriteBlockSize are writer-only, meaning that
+	// NewEntryReaderEx will ignore them. They configure EntryWriter's
+	// own flush() deadline and, further down, fullSpeed's per-block
+	// write deadline (see throttle.go). If left zeroed out, validate()
+	// will populate them with the same defaults production has always
+	// used before these were made configurable. Mainly so tests can
+	// shrink them without waiting out the real values.
+	FlushTimeout   time.Duration
+	WriteBlockSize int
 }
 
 func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
@@ -135,32 +149,50 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	utc := newUnthrottledConn(cfg.Conn)
+	utc := newUnthrottledConn(cfg.Conn, cfg.FlushTimeout, cfg.WriteBlockSize)
 	if cfg.CTX == nil {
 		cfg.CTX = context.Background()
 	}
 
 	return &EntryWriter{
-		conn:       utc,
-		bIO:        bufio.NewWriterSize(utc, cfg.BufferSize),
-		bAckReader: bufio.NewReaderSize(utc, cfg.OutstandingEntryCount*ACK_SIZE),
-		mtx:        &sync.Mutex{},
-		ecb:        ecb,
-		hot:        true,
-		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
-		id:         1,
-		ackTimeout: cfg.Timeout,
-		ctx:        cfg.CTX,
+		conn:         utc,
+		bIO:          bufio.NewWriterSize(utc, cfg.BufferSize),
+		bAckReader:   bufio.NewReaderSize(utc, cfg.OutstandingEntryCount*ACK_SIZE),
+		mtx:          &sync.Mutex{},
+		ecb:          ecb,
+		hot:          true,
+		buff:         make([]byte, READ_ENTRY_HEADER_SIZE),
+		id:           1,
+		ackTimeout:   cfg.Timeout,
+		ctx:          cfg.CTX,
+		flushTimeout: cfg.FlushTimeout,
 	}, nil
 }
 
 func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
-	ew.ackTimeout = t
+
 	if t <= 0 {
-		return errors.New("invalid duration")
+		return ErrInvalidDuration
 	}
+	ew.ackTimeout = t
+
+	return nil
+}
+
+// OverrideFlushTimeout lets a caller (namely tests) shrink the deadline
+// EntryWriter.flush() sets before flushing, instead of constructing a whole
+// new EntryWriter just to change it.
+func (ew *EntryWriter) OverrideFlushTimeout(ft time.Duration) error {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ft <= 0 {
+		return ErrInvalidDuration
+	}
+	ew.flushTimeout = ft
+
 	return nil
 }
 
@@ -535,7 +567,7 @@ func (ew *EntryWriter) WriteDittoBlock(ents []entry.Entry) error {
 // if the timeout expires we attempt to service acks and go back to attempting to flush
 func (ew *EntryWriter) flush() (err error) {
 	//set the write timeout
-	if err = ew.conn.SetWriteTimeout(flushTimeout); err != nil {
+	if err = ew.conn.SetWriteTimeout(ew.flushTimeout); err != nil {
 		return
 	}
 
@@ -1155,5 +1187,13 @@ func (erwc *EntryReaderWriterConfig) validate() error {
 	if erwc.OutstandingEntryCount <= 0 {
 		erwc.OutstandingEntryCount = MAX_UNCONFIRMED_COUNT
 	}
+
+	if erwc.FlushTimeout <= 0 {
+		erwc.FlushTimeout = defaultFlushTimeout
+	}
+	if erwc.WriteBlockSize <= 0 {
+		erwc.WriteBlockSize = defaultWriteBlockSize
+	}
+
 	return nil
 }

@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -1056,4 +1056,140 @@ func attachEVs(ent *entry.Entry, cnt int) (err error) {
 		}
 	}
 	return
+}
+
+// ---------------------------------------------------------------------
+// Coverage for gravwell/issues#2820: EntryReaderWriterConfig.FlushTimeout /
+// WriteBlockSize, EntryWriter.OverrideFlushTimeout, and the ordering fix on
+// both Override* methods (validate before mutating, not after).
+// ---------------------------------------------------------------------
+
+func TestEntryReaderWriterConfigValidateDefaultsFlushSettings(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer cli.Close()
+	defer srv.Close()
+
+	cfg := EntryReaderWriterConfig{Conn: cli}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("validate failed: %v", err)
+	}
+	if cfg.FlushTimeout != defaultFlushTimeout {
+		t.Fatalf("expected validate() to default FlushTimeout to %v, got %v", defaultFlushTimeout, cfg.FlushTimeout)
+	}
+	if cfg.WriteBlockSize != defaultWriteBlockSize {
+		t.Fatalf("expected validate() to default WriteBlockSize to %d, got %d", defaultWriteBlockSize, cfg.WriteBlockSize)
+	}
+
+	// explicit positive values must survive validate() untouched
+	cfg2 := EntryReaderWriterConfig{Conn: cli, FlushTimeout: 42 * time.Second, WriteBlockSize: 12345}
+	if err := cfg2.validate(); err != nil {
+		t.Fatalf("validate failed: %v", err)
+	}
+	if cfg2.FlushTimeout != 42*time.Second {
+		t.Fatalf("validate() overwrote an explicit FlushTimeout: got %v", cfg2.FlushTimeout)
+	}
+	if cfg2.WriteBlockSize != 12345 {
+		t.Fatalf("validate() overwrote an explicit WriteBlockSize: got %d", cfg2.WriteBlockSize)
+	}
+}
+
+func TestOverrideFlushTimeoutRejectsInvalidWithoutMutating(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer cli.Close()
+	defer srv.Close()
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{Conn: cli, FlushTimeout: 5 * time.Second, WriteBlockSize: minBufferSize})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+
+	for _, bad := range []time.Duration{0, -1, -time.Second} {
+		if err := ew.OverrideFlushTimeout(bad); err == nil {
+			t.Fatalf("expected OverrideFlushTimeout(%v) to be rejected", bad)
+		}
+		if ew.flushTimeout != 5*time.Second {
+			t.Fatalf("OverrideFlushTimeout(%v) mutated flushTimeout to %v despite returning an error -- "+
+				"validation must happen before the field is set, not after", bad, ew.flushTimeout)
+		}
+	}
+
+	if err := ew.OverrideFlushTimeout(9 * time.Second); err != nil {
+		t.Fatalf("expected a valid override to succeed: %v", err)
+	}
+	if ew.flushTimeout != 9*time.Second {
+		t.Fatalf("expected flushTimeout to be updated to 9s, got %v", ew.flushTimeout)
+	}
+}
+
+func TestOverrideAckTimeoutRejectsInvalidWithoutMutating(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer cli.Close()
+	defer srv.Close()
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{Conn: cli, Timeout: 5 * time.Second, WriteBlockSize: minBufferSize})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+
+	for _, bad := range []time.Duration{0, -1, -time.Second} {
+		if err := ew.OverrideAckTimeout(bad); err == nil {
+			t.Fatalf("expected OverrideAckTimeout(%v) to be rejected", bad)
+		}
+		if ew.ackTimeout != 5*time.Second {
+			t.Fatalf("OverrideAckTimeout(%v) mutated ackTimeout to %v despite returning an error -- "+
+				"validation must happen before the field is set, not after", bad, ew.ackTimeout)
+		}
+	}
+
+	if err := ew.OverrideAckTimeout(9 * time.Second); err != nil {
+		t.Fatalf("expected a valid override to succeed: %v", err)
+	}
+	if ew.ackTimeout != 9*time.Second {
+		t.Fatalf("expected ackTimeout to be updated to 9s, got %v", ew.ackTimeout)
+	}
+}
+
+// TestEntryWriterWriteSurvivesSlowButAlivePeer proves the invariant from
+// gravwell/issues#2820 holds all the way up at the EntryWriter level (not
+// just the raw fullSpeed/throttleConn wrappers in throttle_test.go): a small
+// FlushTimeout combined with a peer that drains slowly, but never stops,
+// must not fail the write just because the total transfer outlasts a single
+// FlushTimeout window. Reuses dialLoopback/slowReader from throttle_test.go.
+func TestEntryWriterWriteSurvivesSlowButAlivePeer(t *testing.T) {
+	cli, srv, cleanup := dialLoopback(t)
+	defer cleanup()
+
+	go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay)
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+		Conn:                  cli,
+		OutstandingEntryCount: 16,
+		BufferSize:            minBufferSize,
+		FlushTimeout:          slowPeerWriteTimeout,
+		WriteBlockSize:        slowPeerBlockSize,
+	})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+
+	ent := &entry.Entry{TS: entry.Now(), Tag: 0, Data: make([]byte, slowPeerPayloadSize)}
+
+	start := time.Now()
+	done := make(chan error, 1)
+	go func() { done <- ew.Write(ent) }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected Write to succeed against a slow but alive peer, got: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("EntryWriter.Write hung against a slow but alive peer")
+	}
+	elapsed := time.Since(start)
+	if elapsed < slowPeerWriteTimeout*2 {
+		t.Fatalf("Write finished in %v, expected comfortably more than one FlushTimeout (%v) -- "+
+			"test may not be exercising real backpressure", elapsed, slowPeerWriteTimeout)
+	}
+	t.Logf("EntryWriter.Write succeeded in %v against a peer slower than FlushTimeout (%v)", elapsed, slowPeerWriteTimeout)
 }
