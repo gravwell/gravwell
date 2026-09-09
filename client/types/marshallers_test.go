@@ -13,15 +13,18 @@ package types_test
 
 import (
 	"bytes"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 	"github.com/stretchr/testify/require"
 )
 
@@ -251,7 +254,7 @@ func TestOptionalNoTags(t *testing.T) {
 				Writers:     types.NewOptional(types.ACL{GIDs: []int32{1, 2, 12}}),
 			},
 			true,
-			`{"Description":"","Writers":{"GIDs":[1,2,12],"Global":false}}`,
+			`{"Description":"","Writers":{"GIDs":[1,2,12]}}`,
 		},
 		{"Fully populated Patch type results in full JSON",
 			types.CommonFieldsPatch{
@@ -263,7 +266,7 @@ func TestOptionalNoTags(t *testing.T) {
 				Writers:     types.NewOptional(types.ACL{}),
 			},
 			true,
-			`{"Description":"desc","Labels":["shí"],"Name":"fully popped","OwnerID":1,"Readers":{"GIDs":[0,5,8,0],"Global":false},"Writers":{"GIDs":[],"Global":false}}`,
+			`{"Description":"desc","Labels":["shí"],"Name":"fully popped","OwnerID":1,"Readers":{"GIDs":[0,5,8,0]},"Writers":{}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -500,5 +503,50 @@ func TestMarshalUnmarshal(t *testing.T) {
 		out := types.MacroPatch{}
 		require.Nil(t, json.Unmarshal(b, &out))
 		require.Equal(t, mp.Expansion.Value(), out.Expansion.Value())
+	})
+}
+
+// Optional[T] should forward encoder/decoder options (likely jsoncompat.Opts) down into T,
+// rather than (un)marshaling T bare and potentially dropping options.
+func TestOptionalForwardsCallerOptions(t *testing.T) {
+	t.Run("AllowInvalidUTF8 on marshal", func(t *testing.T) {
+		v := types.NewOptional("abc\xffdef")
+
+		_, err := json.Marshal(&v)
+		require.Error(t, err, "default marshal should reject invalid UTF-8")
+
+		b, err := json.Marshal(&v, jsoncompat.Opts)
+		require.NoError(t, err, "jsoncompat.Opts should tolerate invalid UTF-8")
+		require.Equal(t, "\"abc�def\"", string(b))
+	})
+	t.Run("AllowInvalidUTF8 on unmarshal", func(t *testing.T) {
+		raw := []byte("\"abc\xffdef\"")
+
+		var v types.Optional[string]
+		err := json.Unmarshal(raw, &v)
+		require.Error(t, err, "default options should reject invalid UTF-8")
+
+		err = json.Unmarshal(raw, &v, jsoncompat.Opts)
+		require.NoError(t, err, "jsoncompat.Opts should tolerate invalid UTF-8")
+		require.Equal(t, "abc�def", v.Value())
+	})
+	t.Run("MatchCaseInsensitiveNames on unmarshal of a nested struct", func(t *testing.T) {
+		raw := []byte(`{"gids":[1,2,3]}`)
+
+		var v types.Optional[types.ACL]
+		err := json.Unmarshal(raw, &v)
+		require.NoError(t, err)
+		require.Empty(t, v.Value().GIDs, "case-sensitive default should not match lowercase key")
+
+		err = json.Unmarshal(raw, &v, jsoncompat.Opts)
+		require.NoError(t, err)
+		require.Equal(t, []int32{1, 2, 3}, v.Value().GIDs, "jsoncompat.Opts should match names case-insensitively")
+	})
+	t.Run("options flow through to jsontext.Encoder/Decoder", func(t *testing.T) {
+		bb := bytes.NewBuffer(nil)
+		v := types.NewOptional("abc\xffdef")
+		enc := jsontext.NewEncoder(bb, jsoncompat.Opts)
+		require.NoError(t, json.MarshalEncode(enc, &v))
+		require.Equal(t, "\"abc�def\"", strings.TrimSpace(bb.String()))
 	})
 }

@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 )
 
@@ -72,19 +73,25 @@ func (o Optional[T]) IsZero() bool {
 	return !o.IsSet()
 }
 
-// MarshalJSON causes optional to always marshal to a safe value.
+// MarshalJSONTo causes optional to always marshal to a safe value.
 // If !o.IsSet(), T zero will be used.
-func (o Optional[T]) MarshalJSON() ([]byte, error) {
+//
+// NOTE(rlandau): implemented as MarshalJSONTo instead of MarshalJSON in order to propagate encoder
+// option (likely jsoncompat.Opts).
+func (o Optional[T]) MarshalJSONTo(enc *jsontext.Encoder) error {
 	if !o.IsSet() {
 		var zero T
-		return json.Marshal(zero)
+		return json.MarshalEncode(enc, zero)
 	}
-	return json.Marshal(o.value)
+	return json.MarshalEncode(enc, o.value)
 }
 
-// UnmarshalJSON decodes the given data into o's value and marks it as set.
-func (o *Optional[T]) UnmarshalJSON(data []byte) error {
-	if err := json.Unmarshal(data, &o.value); err != nil {
+// UnmarshalJSONFrom decodes the given data into o's value and marks it as set.
+//
+// NOTE(rlandau): implemented as MarshalJSONFrom instead of MarshalJSON in order to propagate encoder
+// option (likely jsoncompat.Opts).
+func (o *Optional[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	if err := json.UnmarshalDecode(dec, &o.value); err != nil {
 		return err
 	}
 	o.set = true
