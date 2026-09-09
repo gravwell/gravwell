@@ -377,6 +377,7 @@ func TestDeadCustomMarshalers(t *testing.T) {
 		{"RawObject populated array passes through", types.RawObject(`[1,2,3]`), `[1,2,3]`},
 
 		{"RawResponse", types.RawResponse{}, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[]}`},
+		{"TextResponse", types.TextResponse{}, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"Entries":[]}`},
 
 		{"LoggingLevels populated passes through", &types.LoggingLevels{
 			Levels: []string{"INFO", "WARN"}, Current: "INFO",
