@@ -214,7 +214,7 @@ func edit() action.Pair {
 		GetTitleSub:       func(item types.Template) string { return item.Name },
 		GetDescriptionSub: func(item types.Template) string { return item.Description },
 		UpdateSub: func(data *types.Template) (string, error) {
-			_, err := connection.Client.UpdateTemplate(*data)
+			_, err := connection.Client.UpdateTemplate(data.ID, data.ToPatch())
 			return data.Name, err
 		},
 	}

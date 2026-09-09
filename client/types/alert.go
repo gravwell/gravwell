@@ -59,6 +59,36 @@ type Alert struct {
 	UserMetadata map[string]interface{}
 }
 
+// AlertPatch is the type used to request an update to an existing Alert.
+type AlertPatch struct {
+	CommonFieldsPatch
+	Consumers          Optional[[]AlertConsumer]        `json:",omitzero"`
+	Disabled           Optional[bool]                   `json:",omitzero"`
+	Dispatchers        Optional[[]AlertDispatcher]      `json:",omitzero"`
+	MaxEvents          Optional[int]                    `json:",omitzero"`
+	SaveSearchDuration Optional[int32]                  `json:",omitzero"`
+	SaveSearchEnabled  Optional[bool]                   `json:",omitzero"`
+	Schemas            Optional[AlertSchemas]           `json:",omitzero"`
+	TargetTag          Optional[string]                 `json:",omitzero"`
+	UserMetadata       Optional[map[string]interface{}] `json:",omitzero"`
+}
+
+// ToPatch converts a into an AlertPatch with every field set.
+func (a Alert) ToPatch() AlertPatch {
+	return AlertPatch{
+		CommonFieldsPatch:  a.CommonFields.ToPatch(),
+		Disabled:           NewOptional(a.Disabled),
+		Consumers:          NewOptional(a.Consumers),
+		Dispatchers:        NewOptional(a.Dispatchers),
+		MaxEvents:          NewOptional(a.MaxEvents),
+		SaveSearchDuration: NewOptional(a.SaveSearchDuration),
+		SaveSearchEnabled:  NewOptional(a.SaveSearchEnabled),
+		Schemas:            NewOptional(a.Schemas),
+		TargetTag:          NewOptional(a.TargetTag),
+		UserMetadata:       NewOptional(a.UserMetadata),
+	}
+}
+
 // AlertConsumer - Something which consumes alerts.
 type AlertConsumer struct {
 	ID string

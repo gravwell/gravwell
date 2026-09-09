@@ -212,14 +212,7 @@ func edit() action.Pair {
 			return item.Description
 		},
 		UpdateSub: func(data *types.Secret) (identifier string, err error) {
-			// build the secret create off the selected secret; update only what can be set
-			var sc types.SecretCreate
-			sc.CommonFields = data.CommonFields
-			sc.CommonFields.Name = data.Name
-			sc.CommonFields.Description = data.Description
-			sc.CommonFields.Labels = data.Labels
-
-			s, err := connection.Client.UpdateSecret(data.ID, sc)
+			s, err := connection.Client.UpdateSecret(data.ID, data.ToPatch())
 			return s.Name, err
 		},
 	}, scaffoldedit.Options{

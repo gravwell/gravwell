@@ -9,8 +9,6 @@
 package client
 
 import (
-	"net/http"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -68,10 +66,12 @@ func (c *Client) CreateDashboard(d types.Dashboard) (result types.Dashboard, err
 	return
 }
 
-// UpdateDashboard modifies an existing dashboard.
-func (c *Client) UpdateDashboard(d types.Dashboard) (result types.Dashboard, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, dashboardIdUrl(d.ID), d, &result, nil, nil)
-	return
+// UpdateDashboard modifies an existing dashboard and returns the complete, updated struct.
+func (c *Client) UpdateDashboard(ID string, p types.DashboardPatch) (updated types.Dashboard, err error) {
+	if ID == "" {
+		return types.Dashboard{}, ErrEmptyID
+	}
+	return c.patch[types.DashboardPatch, types.Dashboard](dashboardIdUrl(ID), p)
 }
 
 // CleanupDashboards (admin-only) purges all deleted dashboards for all users.

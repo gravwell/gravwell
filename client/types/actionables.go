@@ -27,6 +27,22 @@ type Actionable struct {
 	Disabled bool
 }
 
+// ActionablePatch is the type used to request an update to an existing Actionable.
+type ActionablePatch struct {
+	CommonFieldsPatch
+	Contents Optional[ActionableContent] `json:",omitzero"`
+	Disabled Optional[bool]              `json:",omitzero"`
+}
+
+// ToPatch converts a into an ActionablePatch with every field set.
+func (a Actionable) ToPatch() ActionablePatch {
+	return ActionablePatch{
+		CommonFieldsPatch: a.CommonFields.ToPatch(),
+		Contents:          NewOptional(a.Contents),
+		Disabled:          NewOptional(a.Disabled),
+	}
+}
+
 // ActionableContent defines the content of an actionable (pivot),
 // including its menu label, triggers, and actions.
 type ActionableContent struct {

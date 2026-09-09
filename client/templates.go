@@ -9,8 +9,6 @@
 package client
 
 import (
-	"net/http"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -68,10 +66,12 @@ func (c *Client) CreateTemplate(t types.Template) (result types.Template, err er
 	return
 }
 
-// UpdateTemplate modifies an existing template.
-func (c *Client) UpdateTemplate(t types.Template) (result types.Template, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, templateUrl(t.ID), t, &result, nil, nil)
-	return
+// UpdateTemplate modifies an existing template and returns the complete, updated struct.
+func (c *Client) UpdateTemplate(ID string, p types.TemplatePatch) (updated types.Template, err error) {
+	if ID == "" {
+		return types.Template{}, ErrEmptyID
+	}
+	return c.patch[types.TemplatePatch, types.Template](templateUrl(ID), p)
 }
 
 // CleanupTemplates (admin-only) purges all deleted templates for all users.

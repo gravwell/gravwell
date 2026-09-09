@@ -190,6 +190,7 @@ const (
 	TOKENS_URL                       = `/api/tokens`
 	TOKENS_LIST_URL                  = `/api/tokens/list`
 	TOKENS_ID_URL                    = `/api/tokens/%s`
+	TOKENS_ID_REGEN_URL              = `/api/tokens/%s/regenerate`
 	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
 	SECRETS_URL                      = `/api/secrets`
 	SECRETS_LIST_URL                 = `/api/secrets/list`
@@ -460,7 +461,7 @@ func searchQueueUrl() string {
 	return QUEUE_URL
 }
 
-func macroUrl(id string) string {
+func macroIDUrl(id string) string {
 	return fmt.Sprintf(MACROS_ID_URL, id)
 }
 
@@ -581,6 +582,10 @@ func tokensUrl() string {
 
 func tokenIdUrl(id string) string {
 	return fmt.Sprintf(TOKENS_ID_URL, id)
+}
+
+func tokenIDRegenURL(id string) string {
+	return fmt.Sprintf(TOKENS_ID_REGEN_URL, id)
 }
 
 func tokenCapabilitiesUrl() string {

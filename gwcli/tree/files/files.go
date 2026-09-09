@@ -222,7 +222,7 @@ func edit() action.Pair {
 				if data == nil {
 					return "", errors.New("cannot update nil item")
 				}
-				_, err = connection.Client.UpdateFileMetadata(data.ID, *data)
+				_, err = connection.Client.UpdateFileMetadata(data.ID, data.ToPatch())
 				return data.ID, err
 			},
 		},

@@ -212,7 +212,7 @@ func toggle() action.Pair {
 				} else if toggleDisable {
 					alert.Disabled = true
 				}
-				if _, err := connection.Client.UpdateAlert(alert); err != nil {
+				if _, err := connection.Client.UpdateAlert(alert.ID, alert.ToPatch()); err != nil {
 					results[i] = scaffold.Result{
 						Output: fmt.Sprintf("failed to update alert %s (ID: %s) (to Disabled=%v)", alert.Name, alert.ID, alert.Disabled),
 					}
@@ -338,7 +338,7 @@ func dispatchers() action.Pair {
 					}
 				}
 
-				if _, err := connection.Client.UpdateAlert(a); err != nil {
+				if _, err := connection.Client.UpdateAlert(a.ID, a.ToPatch()); err != nil {
 					results[i] = scaffold.Result{
 						Success: false,
 						Output:  fmt.Sprintf("failed to update alert: %v\nOriginal operation: %v", err, results[i].Output),
@@ -442,7 +442,7 @@ func save() action.Pair {
 					a.SaveSearchDuration = int32(defaultDuration.Seconds())
 				}
 
-				a, err = connection.Client.UpdateAlert(a)
+				a, err = connection.Client.UpdateAlert(a.ID, a.ToPatch())
 				if err != nil {
 					results[i] = scaffold.Result{Output: fmt.Sprintf("failed to update alert %s (ID: %s): %v", a.Name, ID, err)}
 					continue

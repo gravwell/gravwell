@@ -222,7 +222,7 @@ func edit() action.Pair {
 		},
 		GetDescriptionSub: func(item types.Macro) string { return item.Description },
 		UpdateSub: func(data *types.Macro) (identifier string, err error) {
-			if err := connection.Client.UpdateMacro(*data); err != nil {
+			if _, err := connection.Client.UpdateMacro(data.ID, data.ToPatch()); err != nil {
 				return "", err
 			}
 			return data.Name, nil

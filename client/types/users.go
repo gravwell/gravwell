@@ -11,7 +11,7 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
+	"encoding/json/v2"
 	"net"
 	"time"
 
@@ -176,14 +176,14 @@ type AddGroup struct {
 	Description string
 }
 
-type UpdateUser struct {
-	Username            string
-	Name                string
-	Email               string
-	DefaultSearchGroups []int32
-	// The following are ignored if sent by a non-admin
-	Admin  bool
-	Locked bool
+// UserPatch is the type used to request an update to an existing User.
+type UserPatch struct {
+	Admin               Optional[bool]    `json:",omitzero"` // ignored if you are not an admin
+	DefaultSearchGroups Optional[[]int32] `json:",omitzero"`
+	Email               Optional[string]  `json:",omitzero"` // Email cannot be updated to ""
+	Locked              Optional[bool]    `json:",omitzero"` // ignored if you are not an admin
+	Name                Optional[string]  `json:",omitzero"` // Name cannot be updated to ""
+	Username            Optional[string]  `json:",omitzero"` // ignored if you are not an admin
 }
 
 type UserAddGroups struct {
@@ -339,28 +339,6 @@ func (ud *UserDetails) ClearSecrets() {
 	ud.MFA.ClearSecrets()
 }
 
-// MarshalJSON marshaller hacks to get it to return [] on empty lists
-func (ud UserDetails) MarshalJSON() ([]byte, error) {
-	type alias UserDetails
-	return json.Marshal(&struct {
-		alias
-		Groups groupsAlias
-	}{
-		alias:  alias(ud),
-		Groups: groupsAlias(ud.Groups),
-	})
-}
-
-type groupsAlias []GroupDetails
-
-func (ga groupsAlias) MarshalJSON() ([]byte, error) {
-	if len(ga) == 0 {
-		return emptyList, nil
-	}
-	//this will cause an infinite recursion if we don't change the type
-	return json.Marshal([]GroupDetails(ga))
-}
-
 func (s *UserSessions) MarshalJSON() ([]byte, error) {
 	type alias UserSessions
 	return json.Marshal(&struct {
@@ -379,17 +357,6 @@ func (s sessions) MarshalJSON() ([]byte, error) {
 		return emptyList, nil
 	}
 	return json.Marshal([]Session(s))
-}
-
-func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
-	type alias UserAddGroups
-	return json.Marshal(&struct {
-		alias
-		GIDs emptyInts
-	}{
-		alias: alias(*uag),
-		GIDs:  emptyInts(uag.GIDs),
-	})
 }
 
 /************************************************************
@@ -427,18 +394,15 @@ type UserWithCBAC struct {
 	CBAC CBACExpandedRules
 }
 
-func (u *User) ForUpdate() UpdateUser {
-	sg := make([]int32, len(u.DefaultSearchGroups))
-	for i := range u.DefaultSearchGroups {
-		sg[i] = u.DefaultSearchGroups[i].ID
-	}
-	return UpdateUser{
-		Username:            u.Username,
-		Name:                u.Name,
-		Email:               u.Email,
-		Admin:               u.Admin,
-		Locked:              u.Locked,
-		DefaultSearchGroups: sg,
+// ToPatch converts u into a UserPatch with every field set
+func (u *User) ToPatch() UserPatch {
+	return UserPatch{
+		Username:            NewOptional(u.Username),
+		Name:                NewOptional(u.Name),
+		Email:               NewOptional(u.Email),
+		DefaultSearchGroups: NewOptional(u.DefaultSearchGIDs()),
+		Admin:               NewOptional(u.Admin),
+		Locked:              NewOptional(u.Locked),
 	}
 }
 
@@ -534,6 +498,21 @@ type GroupWithCBAC struct {
 	CBAC CBACExpandedRules
 }
 
+// GroupPatch is the type used to request an update to an existing Group.
+type GroupPatch struct {
+	Description Optional[string] `json:",omitzero"`
+	// Name cannot be updated to ""
+	Name Optional[string] `json:",omitzero"`
+}
+
+// ToPatch converts g into a GroupPatch with every editable field set.
+func (g *Group) ToPatch() GroupPatch {
+	return GroupPatch{
+		Description: NewOptional(g.Description),
+		Name:        NewOptional(g.Name),
+	}
+}
+
 func (g *Group) GetOld() GroupDetails {
 	return GroupDetails{
 		GID:  g.ID,
@@ -546,6 +525,20 @@ type UserPreference struct {
 	CommonFields
 
 	Data RawObject
+}
+
+// UserPreferencePatch is the type used to request an update to an existing UserPreference.
+type UserPreferencePatch struct {
+	CommonFieldsPatch
+	Data Optional[RawObject] `json:",omitzero"`
+}
+
+// ToPatch converts p into a UserPreferencePatch with every field set.
+func (p UserPreference) ToPatch() UserPreferencePatch {
+	return UserPreferencePatch{
+		CommonFieldsPatch: p.CommonFields.ToPatch(),
+		Data:              NewOptional(p.Data),
+	}
 }
 
 type UserPreferenceResponse struct {
