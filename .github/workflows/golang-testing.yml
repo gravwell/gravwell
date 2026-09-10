@@ -21,9 +21,9 @@ jobs:
     # If you change one, change the other.
     env:
       # We deploy with cgo disabled, so everything is checked that way by default.
+      CGO_ENABLED: 0
       # ingesters/networkLog is the sole exception: it pulls in gopacket/pcap,
       # which needs libpcap via cgo, so it gets its own CGO_ENABLED=1 pass.
-      CGO_ENABLED: 0
       CGO_PKG: ./ingesters/networkLog/...
       # Packages that cannot be built or tested on a native Linux host. These are
       # covered separately via the GOOS/GOARCH cross-checks below.
@@ -62,8 +62,8 @@ jobs:
 
     - name: Installing tooling
       run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        go install honnef.co/go/tools/cmd/staticcheck@latest
+        go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+        go install honnef.co/go/tools/cmd/staticcheck@2026.2.1
 
     - name: Checking module hygiene
       run: |
