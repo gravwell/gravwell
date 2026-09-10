@@ -160,7 +160,7 @@ func slowReader(c net.Conn, chunk int, delay time.Duration) {
 	}
 }
 
-// Parameters below were arrived at empirically across two rounds of CI
+// Parameters below were arrived at empirically across three rounds of CI
 // failures (see conversation history / gravwell/gravwell#2756), not just
 // derived on paper.
 //
@@ -172,32 +172,44 @@ func slowReader(c net.Conn, chunk int, delay time.Duration) {
 // is a ceiling, not something writes normally wait out, so it doesn't slow
 // the test down when things work.
 //
-// Round 2: a *small* blockSize (4096) then caused a genuine 30s+ hang on the
-// actual GitHub Actions Linux runner (actions run 34494493307), while
-// staying fast (~5s) locally. Best explanation: Linux honors a requested
-// small SetReadBuffer far more literally than macOS/OrbStack does locally,
-// so the effective OS buffer there is genuinely tiny -- meaning nearly every
-// one of the ~512 blocks needed its own dedicated read cycle, multiplying
-// total time far past the 30s watchdog even though each individual block was
-// still correctly bounded by writeTimeout. The number of blocks, not their
-// size, was driving total time, and that count is what varies unpredictably
-// by platform. Fixed by using a much larger blockSize (few blocks total) so
-// worst-case total time is bounded and platform-independent: with
-// blockSize=256KB and readChunk=64KB, even a maximally pessimistic (tiny
-// buffer) block needs at most a handful of read cycles -- comfortably under
-// writeTimeout -- and only 8 such blocks are needed for the whole payload.
+// Round 2: a small blockSize (4096) then caused a genuine 30s+ hang on the
+// actual GitHub Actions Linux runner (actions run 34494493307), while staying
+// fast (~5s) locally. Misdiagnosed the cause as "too many blocks" and fixed
+// it by growing blockSize to 256KB -- which promptly made every block time
+// out at exactly 5s on the next CI run (actions run 34496306372, "expected
+// the slow but alive peer's write to succeed ... after 5.000759676s").
+//
+// The real mechanism, understood after that: what actually gates how much
+// gets through per read cycle is the KERNEL's receive buffer (set via
+// dialLoopback's SetReadBuffer(4096) on the accepting side), not slowReader's
+// own per-call read size (slowPeerReadChunk). On Linux that request is
+// apparently honored close to literally, so each read only frees roughly
+// 4KB of window regardless of how big slowReader's own buffer is. A bigger
+// blockSize doesn't reduce read cycles needed -- it means each individual
+// block needs MORE of them, making it MORE likely to blow its own per-block
+// writeTimeout, not less. Round 2 had it backwards.
+//
+// Fixed for real by going back to a small blockSize (so each block completes
+// in the 1-2 read cycles its size actually requires against a ~4KB kernel
+// buffer, comfortably inside writeTimeout) and shrinking the total payload
+// instead, to bound the cumulative time across the resulting larger block
+// count: 256KB / 4096 = 64 blocks, at most ~200ms of real waiting each in the
+// worst case = ~12.8s worst-case total, comfortably inside both writeTimeout
+// per block and the outer per-test watchdog below.
 const (
 	slowPeerWriteTimeout = 5 * time.Second
-	slowPeerBlockSize    = 256 * 1024
-	slowPeerPayloadSize  = 2 * 1024 * 1024
-	slowPeerReadChunk    = 64 * 1024
+	slowPeerBlockSize    = 4096
+	slowPeerPayloadSize  = 256 * 1024
+	slowPeerReadChunk    = 65536
 	slowPeerReadDelay    = 200 * time.Millisecond // well under writeTimeout: no single gap should ever trip the deadline
 	// slowPeerMinRealisticDuration is the "this wasn't just buffered instantly"
-	// sanity floor for the survives-a-slow-peer tests. Deliberately NOT derived
-	// from slowPeerWriteTimeout (a much larger ceiling used only to tolerate CI
-	// scheduling jitter, see above) -- it's a floor on the read-cadence-driven
-	// duration instead, which is what actually proves real backpressure occurred.
-	slowPeerMinRealisticDuration = 1 * time.Second
+	// sanity floor for the survives-a-slow-peer tests. Kept deliberately lenient
+	// (not derived from slowPeerWriteTimeout or slowPeerReadDelay) because how
+	// much of slowPeerPayloadSize gets buffered "for free" before any real
+	// waiting is needed varies a lot by platform (observed ~306ms end-to-end
+	// for the full payload on macOS/OrbStack, where kernel buffers run larger
+	// than requested) -- this just needs to rule out a literal no-op write.
+	slowPeerMinRealisticDuration = 100 * time.Millisecond
 )
 
 func TestFullSpeedWriteSurvivesSlowButAlivePeer(t *testing.T) {
