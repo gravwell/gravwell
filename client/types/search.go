@@ -9,8 +9,8 @@
 package types
 
 import (
-	"encoding/json"
-	jsonv2 "encoding/json/v2"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"reflect"
@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -174,10 +173,10 @@ type StartSearchRequest struct {
 	Preview bool `json:",omitempty"`
 	//NonTemporal is used to hint that we do not want this query to be temporal IF POSSIBLE
 	//some queries cannot respect this, but things like table and some charts can
-	NonTemporal bool            `json:",omitempty"`
-	Metadata    json.RawMessage `json:",omitempty"`
-	Addendum    json.RawMessage `json:",omitempty"`
-	Name        string          `json:",omitempty"`
+	NonTemporal bool           `json:",omitempty"`
+	Metadata    jsontext.Value `json:",omitempty"`
+	Addendum    jsontext.Value `json:",omitempty"`
+	Name        string         `json:",omitempty"`
 	Filters     []FilterRequest
 	LaunchInfo  SearchLaunchInfo // information about how a search was launched
 	// Sharing parameters
@@ -203,8 +202,8 @@ type StartSearchResponse struct {
 	Background           bool             `json:",omitempty"`
 	NonTemporal          bool             `json:",omitempty"`
 	CollapsingIndex      int              // index of the first collapsed module
-	Metadata             json.RawMessage  `json:",omitempty"`
-	Addendum             json.RawMessage  `json:",omitempty"`
+	Metadata             jsontext.Value   `json:",omitempty"`
+	Addendum             jsontext.Value   `json:",omitempty"`
 	LaunchInfo           SearchLaunchInfo // information about how a search was launched
 	QueryTimeSpecified   bool             `json:",omitempty"` // True if the query itself specifies the time spec
 	SearchHints
@@ -243,19 +242,19 @@ type AttachSearchResponse struct {
 type SearchInfo struct {
 	CommonFields
 
-	UserQuery      string          //query provided by the user on search
-	EffectiveQuery string          //the effective query that was actually used
-	StartRange     time.Time       //start time range
-	EndRange       time.Time       //end time range
-	Started        time.Time       //time when the search was kicked off
-	LastUpdate     time.Time       //last timestamp we saw (tells us where indexers are working)
-	Duration       time.Duration   //Amount of time required to complete the search
-	StoreSize      int64           //size of the main storage file
-	IndexSize      int64           //size of an extra index file
-	ItemCount      int64           //How many items have been stored
-	Metadata       json.RawMessage `json:",omitempty"` //additional metadata associated with a search
-	NoHistory      bool            // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
-	Background     bool            // set to true if this search has been marked as backgrounded.
+	UserQuery      string         //query provided by the user on search
+	EffectiveQuery string         //the effective query that was actually used
+	StartRange     time.Time      //start time range
+	EndRange       time.Time      //end time range
+	Started        time.Time      //time when the search was kicked off
+	LastUpdate     time.Time      //last timestamp we saw (tells us where indexers are working)
+	Duration       time.Duration  //Amount of time required to complete the search
+	StoreSize      int64          //size of the main storage file
+	IndexSize      int64          //size of an extra index file
+	ItemCount      int64          //How many items have been stored
+	Metadata       jsontext.Value `json:",omitempty"` //additional metadata associated with a search
+	NoHistory      bool           // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
+	Background     bool           // set to true if this search has been marked as backgrounded.
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
 
@@ -347,7 +346,7 @@ func (rs RendererSettings) MarshalJSON() ([]byte, error) {
 	// v2 is used here (rather than the v1 import used elsewhere in this file) so that the
 	// required-but-possibly-nil array fields on the channel types (e.g. RSP2PChannels.Tooltip)
 	// encode as [] instead of null, regardless of which json package the caller marshals with.
-	return jsonv2.Marshal(active)
+	return json.Marshal(active)
 }
 
 func (rs *RendererSettings) UnmarshalJSON(data []byte) error {
@@ -558,16 +557,24 @@ type RowSelection struct {
 // recursion doom loop.
 type aliasRowSelection RowSelection
 
-func (rs RowSelection) MarshalJSON() ([]byte, error) {
+// MarshalJSONTo causes a Marshal to fail if the RowSelection is invalid.
+//
+// NOTE(rlandau): implemented as MarshalJSONTo instead of MarshalJSON in order to propagate encoder
+// options (likely jsoncompat.Opts).
+func (rs RowSelection) MarshalJSONTo(enc *jsontext.Encoder) error {
 	if err := rs.validate(); err != nil {
-		return nil, err
+		return err
 	}
-	return json.Marshal(aliasRowSelection(rs))
+	return json.MarshalEncode(enc, aliasRowSelection(rs))
 }
 
-func (rs *RowSelection) UnmarshalJSON(data []byte) error {
+// UnmarshalJSONFrom causes an Unmarshal to fail if the incoming RowSelection fails validation.
+//
+// NOTE(rlandau): implemented as UnmarshalJSONFrom instead of UnmarshalJSON in order to propagate
+// decoder options (likely jsoncompat.Opts).
+func (rs *RowSelection) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	var v aliasRowSelection
-	if err := json.Unmarshal(data, &v); err != nil {
+	if err := json.UnmarshalDecode(dec, &v); err != nil {
 		return err
 	}
 	if err := RowSelection(v).validate(); err != nil {
@@ -701,31 +708,6 @@ func CheckMacroName(name string) error {
 	return nil
 }
 
-type emptyStatSet []StatSet
-
-func (ess emptyStatSet) MarshalJSON() ([]byte, error) {
-	if len(ess) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]StatSet(ess))
-}
-
-func (ssr SearchStatsResponse) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Size       int
-		Set        emptyStatSet
-		RangeStart *entry.Timestamp `json:",omitempty"`
-		RangeEnd   *entry.Timestamp `json:",omitempty"`
-		Current    *entry.Timestamp `json:",omitempty"`
-	}{
-		Size:       ssr.Size,
-		Set:        emptyStatSet(ssr.Set),
-		RangeStart: tsPointer(ssr.RangeStart),
-		RangeEnd:   tsPointer(ssr.RangeEnd),
-		Current:    tsPointer(ssr.Current),
-	})
-}
-
 type SaveSearchPatch struct {
 	SearchLaunchInfo
 	// these are the supported fields in the free form search metadata; these are used by the GUI
@@ -733,7 +715,7 @@ type SaveSearchPatch struct {
 	Notes string `json:",omitempty"`
 }
 
-func (p SaveSearchPatch) GetMetadata() json.RawMessage {
+func (p SaveSearchPatch) GetMetadata() jsontext.Value {
 	if p.Name == `` && p.Notes == `` {
 		return nil
 	}
@@ -745,7 +727,7 @@ func (p SaveSearchPatch) GetMetadata() json.RawMessage {
 		Notes: p.Notes,
 	}
 	if v, err := json.Marshal(md); err == nil && len(v) > 0 {
-		return json.RawMessage(v)
+		return jsontext.Value(v)
 	}
 	return nil
 }

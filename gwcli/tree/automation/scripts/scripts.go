@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -69,7 +70,11 @@ func listAction() action.Pair {
 			if id, err := fs.GetString("id"); err != nil {
 				clilog.GetFlag(err)
 			} else if id != "" {
-				s, err := connection.Client.GetScheduledScriptEx(id, params.QueryOpts)
+				var opts client.GetOptions
+				if params.QueryOpts != nil {
+					opts.IncludeDeleted = params.QueryOpts.IncludeDeleted
+				}
+				s, err := connection.Client.GetScheduledScriptEx(id, opts)
 				return []types.ScheduledScript{s}, err
 			}
 			list, err := connection.Client.ListScheduledScripts(params.QueryOpts)

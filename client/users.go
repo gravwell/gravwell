@@ -21,8 +21,7 @@ func (c *Client) ListUsers(opts *types.QueryOptions) (ret types.UserListResponse
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(USERS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.UserListResponse](USERS_LIST_URL, opts)
 }
 
 // GetUserMap returns a map of UID to username for every user on the system. This calls ListUsers under the hood, so the user must have the ListUsers capability enabled.
@@ -40,26 +39,17 @@ func (c *Client) GetUserMap() (map[int32]string, error) {
 
 // GetUser returns a particular user.
 func (c *Client) GetUser(id int32) (types.UserWithCBAC, error) {
-	var user types.UserWithCBAC
-	err := c.getStaticURL(usersInfoUrl(id), &user)
-	return user, err
+	return c.GetUserEx(id, GetOptions{})
 }
 
-// GetUserEx returns a particular user. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetUserEx(id int32, opts *types.QueryOptions) (types.UserWithCBAC, error) {
-	var user types.UserWithCBAC
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(usersInfoUrl(id), &user, ezParam("include_deleted", opts.IncludeDeleted))
-	return user, err
+// GetUserEx returns a particular user, modified by opts.
+func (c *Client) GetUserEx(id int32, opts GetOptions) (types.UserWithCBAC, error) {
+	return c.get[types.UserWithCBAC](usersInfoUrl(id), opts.params()...)
 }
 
 // DeleteUser deletes a user by marking it deleted in the database.
 func (c *Client) DeleteUser(id int32) error {
-	return c.deleteStaticURL(usersInfoUrl(id), nil)
+	return c.delete(usersInfoUrl(id), false)
 }
 
 // PurgeUser is implemented in admin.go and also deletes the user's assets.
@@ -68,8 +58,7 @@ func (c *Client) DeleteUser(id int32) error {
 // user. Note that unlike most Create* types, this takes a special
 // type which includes the password and leaves out other fields.
 func (c *Client) CreateUser(m types.AddUser) (result types.User, err error) {
-	err = c.postStaticURL(USERS_URL, m, &result)
-	return
+	return c.post[types.AddUser, types.User](USERS_URL, &m)
 }
 
 // UpdateUser (admin-only) modifies an existing user and returns the complete, updated struct.
@@ -102,7 +91,7 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 
 // CleanupUsers (admin-only) purges all deleted users for all users.
 func (c *Client) CleanupUsers() error {
-	return c.deleteStaticURL(USERS_URL, nil)
+	return c.delete(USERS_URL, false)
 }
 
 // LookupUser looks up a User object given a username.  If the

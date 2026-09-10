@@ -205,7 +205,7 @@ func (s swapper) Swap(i, j int) {
 
 func (cdp ChartableDataPoint) MarshalJSON() ([]byte, error) {
 	if math.IsNaN(float64(cdp)) {
-		return jsonNull, nil
+		return []byte(`null`), nil
 	}
 	return json.Marshal(float64(cdp))
 }

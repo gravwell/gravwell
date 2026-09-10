@@ -47,9 +47,9 @@ func (c *Client) MyNewNotifications() (types.NotificationSet, error) {
 
 func (c *Client) getNotifications(after time.Time, update bool) (n types.NotificationSet, err error) {
 	params := []urlParam{
-		urlParam{key: "after", value: after.Format("2006-01-02T15:04:05.999999999Z07")},
+		{key: "after", value: after.Format("2006-01-02T15:04:05.999999999Z07")},
 	}
-	if err = c.methodStaticParamURL(http.MethodGet, NOTIFICATIONS_URL, params, &n); err == nil && update {
+	if n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, params...); err == nil && update {
 		for _, v := range n {
 			if v.Sent.After(c.sessionData.LastNotificationTime) {
 				c.sessionData.LastNotificationTime = v.Sent
@@ -66,7 +66,7 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	if !c.userDetails.Admin {
 		err = ErrNotAdmin
 	} else {
-		err = c.methodStaticParamURL(http.MethodGet, NOTIFICATIONS_URL, adminParams, &n)
+		n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, adminParams...)
 	}
 	return
 }
@@ -81,7 +81,7 @@ func (c *Client) AddSelfTargetedNotification(notifType uint32, msg, link string,
 
 // DeleteNotification will delete a notification using a notification ID
 func (c *Client) DeleteNotification(id uint64) error {
-	return c.deleteStaticURL(notificationsUrl(id), nil)
+	return c.delete(notificationsUrl(id), false)
 }
 
 // UpdateNotification will update a notification using a notification ID

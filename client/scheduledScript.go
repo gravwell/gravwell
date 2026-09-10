@@ -20,10 +20,7 @@ func (c *Client) ListScheduledScripts(opts *types.QueryOptions) (scripts types.S
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	if err = c.postStaticURL(SCHEDULED_SCRIPT_LIST_URL, opts, &scripts); err != nil {
-		return
-	}
-	return
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, opts)
 }
 
 // ListAllScheduledScripts returns all scheduled scripts on the system (for admins).
@@ -32,45 +29,32 @@ func (c *Client) ListAllScheduledScripts(opts *types.QueryOptions) (scripts type
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	if err = c.postStaticURL(SCHEDULED_SCRIPT_LIST_URL, opts, &scripts); err != nil {
-		return
-	}
-	return
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, opts)
 }
 
 // GetScheduledScript returns the scheduled script with the given ID.
 func (c *Client) GetScheduledScript(id string) (types.ScheduledScript, error) {
-	var script types.ScheduledScript
-	err := c.getStaticURL(scheduledScriptIdUrl(id), &script)
-	return script, err
+	return c.GetScheduledScriptEx(id, GetOptions{})
 }
 
-// GetScheduledScriptEx returns a particular scheduled script. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetScheduledScriptEx(id string, opts *types.QueryOptions) (types.ScheduledScript, error) {
-	var script types.ScheduledScript
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(scheduledScriptIdUrl(id), &script, ezParam("include_deleted", opts.IncludeDeleted))
-	return script, err
+// GetScheduledScriptEx returns a particular scheduled script, modified by opts.
+func (c *Client) GetScheduledScriptEx(id string, opts GetOptions) (types.ScheduledScript, error) {
+	return c.get[types.ScheduledScript](scheduledScriptIdUrl(id), opts.params()...)
 }
 
 // DeleteScheduledScript removes the specified scheduled script.
 func (c *Client) DeleteScheduledScript(id string) error {
-	return c.deleteStaticURL(scheduledScriptIdUrl(id), nil)
+	return c.delete(scheduledScriptIdUrl(id), false)
 }
 
 // PurgeScheduledScript permanently removes the specified scheduled script.
 func (c *Client) PurgeScheduledScript(id string) error {
-	return c.deleteStaticURL(scheduledScriptIdUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(scheduledScriptIdUrl(id), true)
 }
 
 // CreateScheduledScript makes a new scheduled script.
 func (c *Client) CreateScheduledScript(spec types.ScheduledScript) (result types.ScheduledScript, err error) {
-	err = c.postStaticURL(scheduledScriptUrl(), spec, &result)
-	return
+	return c.post[types.ScheduledScript, types.ScheduledScript](scheduledScriptUrl(), &spec)
 }
 
 // UpdateScheduledScript modifies an existing scheduled script and returns the complete, updated struct.
@@ -123,13 +107,12 @@ func (c *Client) ReportScheduledScriptResults(id string, results types.Scheduled
 
 // GetScheduledScriptResults retrieves the most recent results for the specified scheduled script
 func (c *Client) GetScheduledScriptResults(id string) (results types.ScheduledScriptResults, err error) {
-	err = c.getStaticURL(scheduledScriptResultsIdUrl(id), &results)
-	return
+	return c.get[types.ScheduledScriptResults](scheduledScriptResultsIdUrl(id))
 }
 
 // ClearScheduledScriptResults deletes all results for the specified scheduled script
 func (c *Client) ClearScheduledScriptResults(id string) error {
-	return c.deleteStaticURL(scheduledScriptResultsIdUrl(id), nil)
+	return c.delete(scheduledScriptResultsIdUrl(id), false)
 }
 
 // DebugScheduledScript requests an immediate debug run of the specified scheduled script.
@@ -139,5 +122,5 @@ func (c *Client) DebugScheduledScript(id string, opts types.AutomationDebugReque
 
 // CancelScheduledScript cancels any active run of the specified scheduled script.
 func (c *Client) CancelScheduledScript(id string) error {
-	return c.deleteStaticURL(scheduledScriptCancelIdUrl(id), nil)
+	return c.delete(scheduledScriptCancelIdUrl(id), false)
 }

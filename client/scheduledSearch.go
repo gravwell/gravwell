@@ -17,10 +17,7 @@ func (c *Client) ListScheduledSearches(opts *types.QueryOptions) (searches types
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	if err = c.postStaticURL(SCHEDULED_SEARCH_LIST_URL, opts, &searches); err != nil {
-		return
-	}
-	return
+	return c.post[types.QueryOptions, types.ScheduledSearchListResponse](SCHEDULED_SEARCH_LIST_URL, opts)
 }
 
 // ListAllScheduledSearches returns all scheduled searches on the system (for admins).
@@ -29,45 +26,32 @@ func (c *Client) ListAllScheduledSearches(opts *types.QueryOptions) (searches ty
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	if err = c.postStaticURL(SCHEDULED_SEARCH_LIST_URL, opts, &searches); err != nil {
-		return
-	}
-	return
+	return c.post[types.QueryOptions, types.ScheduledSearchListResponse](SCHEDULED_SEARCH_LIST_URL, opts)
 }
 
 // GetScheduledSearch returns the scheduled search with the given ID.
 func (c *Client) GetScheduledSearch(id string) (types.ScheduledSearch, error) {
-	var search types.ScheduledSearch
-	err := c.getStaticURL(scheduledSearchIdUrl(id), &search)
-	return search, err
+	return c.GetScheduledSearchEx(id, GetOptions{})
 }
 
-// GetScheduledSearchEx returns a particular scheduled search. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetScheduledSearchEx(id string, opts *types.QueryOptions) (types.ScheduledSearch, error) {
-	var search types.ScheduledSearch
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(scheduledSearchIdUrl(id), &search, ezParam("include_deleted", opts.IncludeDeleted))
-	return search, err
+// GetScheduledSearchEx returns a particular scheduled search, modified by opts.
+func (c *Client) GetScheduledSearchEx(id string, opts GetOptions) (types.ScheduledSearch, error) {
+	return c.get[types.ScheduledSearch](scheduledSearchIdUrl(id), opts.params()...)
 }
 
 // DeleteScheduledSearch removes the specified scheduled search.
 func (c *Client) DeleteScheduledSearch(id string) error {
-	return c.deleteStaticURL(scheduledSearchIdUrl(id), nil)
+	return c.delete(scheduledSearchIdUrl(id), false)
 }
 
 // PurgeScheduledSearch permanently removes the specified scheduled search.
 func (c *Client) PurgeScheduledSearch(id string) error {
-	return c.deleteStaticURL(scheduledSearchIdUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(scheduledSearchIdUrl(id), true)
 }
 
 // CreateScheduledSearch makes a new scheduled search.
 func (c *Client) CreateScheduledSearch(spec types.ScheduledSearch) (result types.ScheduledSearch, err error) {
-	err = c.postStaticURL(scheduledSearchUrl(), spec, &result)
-	return
+	return c.post[types.ScheduledSearch, types.ScheduledSearch](scheduledSearchUrl(), &spec)
 }
 
 // UpdateScheduledSearch modifies an existing scheduled search and returns the complete, updated struct.
@@ -88,16 +72,12 @@ func (c *Client) UpdateScheduledSearchResults(ss types.ScheduledSearch) error {
 // ScheduledSearchCheckin (admin-only) informs the webserver that the search agent is active and passes along info about what it is currently doing. The server may send back new jobs, or jobs to cancel, in the response.
 func (c *Client) ScheduledSearchCheckin(cfg types.SearchAgentCheckin) (types.SearchAgentCheckinResponse, error) {
 	cfg.Cfg.Search_Agent_Auth = ""
-	var resp types.SearchAgentCheckinResponse
-	err := c.postStaticURL(scheduledSearchCheckinUrl(), cfg, &resp)
-	return resp, err
+	return c.post[types.SearchAgentCheckin, types.SearchAgentCheckinResponse](scheduledSearchCheckinUrl(), &cfg)
 }
 
 // GetSearchAgentStatus returns information about searchagents which have checked in with Gravwell.
 func (c *Client) GetSearchAgentStatus() (types.SearchAgentStatus, error) {
-	var resp types.SearchAgentStatus
-	err := c.getStaticURL(scheduledSearchCheckinUrl(), &resp)
-	return resp, err
+	return c.get[types.SearchAgentStatus](scheduledSearchCheckinUrl())
 }
 
 // ReportScheduledSearchResults uploads a set of results for the scheduled search with the specified ID.
@@ -107,13 +87,12 @@ func (c *Client) ReportScheduledSearchResults(id string, results types.Scheduled
 
 // GetScheduledSearchResults retrieves the most recent results for the specified scheduled search
 func (c *Client) GetScheduledSearchResults(id string) (results types.ScheduledSearchResults, err error) {
-	err = c.getStaticURL(scheduledSearchResultsIdUrl(id), &results)
-	return
+	return c.get[types.ScheduledSearchResults](scheduledSearchResultsIdUrl(id))
 }
 
 // ClearScheduledSearchResults deletes all results for the specified scheduled search
 func (c *Client) ClearScheduledSearchResults(id string) error {
-	return c.deleteStaticURL(scheduledSearchResultsIdUrl(id), nil)
+	return c.delete(scheduledSearchResultsIdUrl(id), false)
 }
 
 // DebugScheduledSearch requests an immediate debug run of the specified scheduled search.
@@ -123,5 +102,5 @@ func (c *Client) DebugScheduledSearch(id string, opts types.AutomationDebugReque
 
 // CancelScheduledSearch cancels any active run of the specified scheduled search.
 func (c *Client) CancelScheduledSearch(id string) error {
-	return c.deleteStaticURL(scheduledSearchCancelIdUrl(id), nil)
+	return c.delete(scheduledSearchCancelIdUrl(id), false)
 }
