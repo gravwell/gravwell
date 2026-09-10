@@ -557,16 +557,24 @@ type RowSelection struct {
 // recursion doom loop.
 type aliasRowSelection RowSelection
 
-func (rs RowSelection) MarshalJSON() ([]byte, error) {
+// MarshalJSONTo causes a Marshal to fail if the RowSelection is invalid.
+//
+// NOTE(rlandau): implemented as MarshalJSONTo instead of MarshalJSON in order to propagate encoder
+// options (likely jsoncompat.Opts).
+func (rs RowSelection) MarshalJSONTo(enc *jsontext.Encoder) error {
 	if err := rs.validate(); err != nil {
-		return nil, err
+		return err
 	}
-	return json.Marshal(aliasRowSelection(rs))
+	return json.MarshalEncode(enc, aliasRowSelection(rs))
 }
 
-func (rs *RowSelection) UnmarshalJSON(data []byte) error {
+// UnmarshalJSONFrom causes an Unmarshal to fail if the incoming RowSelection fails validation.
+//
+// NOTE(rlandau): implemented as UnmarshalJSONFrom instead of UnmarshalJSON in order to propagate
+// decoder options (likely jsoncompat.Opts).
+func (rs *RowSelection) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	var v aliasRowSelection
-	if err := json.Unmarshal(data, &v); err != nil {
+	if err := json.UnmarshalDecode(dec, &v); err != nil {
 		return err
 	}
 	if err := RowSelection(v).validate(); err != nil {

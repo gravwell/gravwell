@@ -452,6 +452,9 @@ func TestDeadCustomMarshalers(t *testing.T) {
 
 		{"IngesterState zero value", ingest.IngesterState{}, `{"UUID":"","Name":"","Version":"","Label":"","IP":"","Hostname":"","Entries":0,"Size":0,"Uptime":0,"Tags":[],"CacheState":"","CacheSize":0,"LastSeen":"0001-01-01T00:00:00Z","Children":{}}`},
 
+		{"SearchDownloadRequest zero value", types.SearchDownloadRequest{}, `{"Format":""}`},
+		{"SearchDownloadRequest populated", types.SearchDownloadRequest{Format: "pcap", Rows: []types.RowSelection{{Kind: "single", Index: 111}}, Timeframe: &types.Timeframe{}}, `{"Format":"pcap","Rows":[{"Kind":"single","Start":0,"End":0,"Index":111}],"Timeframe":{"End":"0001-01-01T00:00:00Z","Start":"0001-01-01T00:00:00Z"}}`},
+
 		// CapabilityState and TagAccess are both single-field structs wrapping Grants
 		{"CapabilityState zero value", types.CapabilityState{}, `{"Grants":[]}`},
 		{"CapabilityState populated", types.CapabilityState{Grants: []string{"read", "write"}}, `{"Grants":["read","write"]}`},
