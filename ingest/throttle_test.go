@@ -167,12 +167,27 @@ func slowReader(c net.Conn, chunk int, delay time.Duration) {
 // false failure that has nothing to do with the code under test. A small
 // blockSize relative to readChunk keeps each block's progress within a
 // single read cycle, so only genuine, sustained silence trips the deadline.
+//
+// slowPeerWriteTimeout carries a large (15x+) margin over slowPeerReadDelay
+// on purpose: an 800ms timeout reliably passed locally but flaked in CI
+// (gravwell/gravwell#2756, actions run 34393112885) because a loaded/shared
+// runner's goroutine scheduling latency alone can eat several hundred ms
+// before the reader's first wakeup, which has nothing to do with the code
+// under test. Widening this doesn't slow the test down when things work
+// normally -- it's a ceiling, not something writes wait out -- it only
+// matters when something is genuinely stuck.
 const (
-	slowPeerWriteTimeout = 800 * time.Millisecond
+	slowPeerWriteTimeout = 5 * time.Second
 	slowPeerBlockSize    = 4096
 	slowPeerPayloadSize  = 2 * 1024 * 1024 // proven (empirically) to force sustained real backpressure, not get buffered instantly
 	slowPeerReadChunk    = 65536
 	slowPeerReadDelay    = 200 * time.Millisecond // well under writeTimeout: no single gap should ever trip the deadline
+	// slowPeerMinRealisticDuration is the "this wasn't just buffered instantly"
+	// sanity floor for the survives-a-slow-peer tests. Deliberately NOT derived
+	// from slowPeerWriteTimeout (a much larger ceiling used only to tolerate CI
+	// scheduling jitter, see above) -- it's a floor on the read-cadence-driven
+	// duration instead, which is what actually proves real backpressure occurred.
+	slowPeerMinRealisticDuration = 1 * time.Second
 )
 
 func TestFullSpeedWriteSurvivesSlowButAlivePeer(t *testing.T) {
@@ -196,12 +211,13 @@ func TestFullSpeedWriteSurvivesSlowButAlivePeer(t *testing.T) {
 	if n != slowPeerPayloadSize {
 		t.Fatalf("expected to write all %d bytes, wrote %d", slowPeerPayloadSize, n)
 	}
-	// A write bounded by a single writeTimeout window (the pre-fix bug) could
-	// never survive this long -- if this finishes in comfortably more than
-	// one writeTimeout, real repeated backpressure was involved.
-	if elapsed < slowPeerWriteTimeout*2 {
-		t.Fatalf("write finished in %v, expected comfortably more than one writeTimeout (%v) -- "+
-			"test may not be exercising real backpressure, so it isn't proving anything", elapsed, slowPeerWriteTimeout)
+	// The read-cadence-driven transfer time is a hard floor regardless of how
+	// generous writeTimeout is -- if this finishes suspiciously fast, the
+	// reader's pacing didn't actually create real backpressure, so it isn't
+	// proving anything either way.
+	if elapsed < slowPeerMinRealisticDuration {
+		t.Fatalf("write finished in %v, expected at least %v -- "+
+			"test may not be exercising real backpressure, so it isn't proving anything", elapsed, slowPeerMinRealisticDuration)
 	}
 	t.Logf("write of %d bytes succeeded in %v against a peer slower than a single writeTimeout (%v) -- "+
 		"proves the per-block deadline doesn't kill a legitimately slow transfer", slowPeerPayloadSize, elapsed, slowPeerWriteTimeout)
@@ -231,9 +247,9 @@ func TestThrottleConnWriteSurvivesSlowButAlivePeer(t *testing.T) {
 	if n != slowPeerPayloadSize {
 		t.Fatalf("expected to write all %d bytes, wrote %d", slowPeerPayloadSize, n)
 	}
-	if elapsed < slowPeerWriteTimeout*2 {
-		t.Fatalf("write finished in %v, expected comfortably more than one writeTimeout (%v) -- "+
-			"test may not be exercising real backpressure", elapsed, slowPeerWriteTimeout)
+	if elapsed < slowPeerMinRealisticDuration {
+		t.Fatalf("write finished in %v, expected at least %v -- "+
+			"test may not be exercising real backpressure", elapsed, slowPeerMinRealisticDuration)
 	}
 	t.Logf("write of %d bytes succeeded in %v against a peer slower than a single writeTimeout (%v)", slowPeerPayloadSize, elapsed, slowPeerWriteTimeout)
 }

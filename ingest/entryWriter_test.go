@@ -1187,9 +1187,9 @@ func TestEntryWriterWriteSurvivesSlowButAlivePeer(t *testing.T) {
 		t.Fatal("EntryWriter.Write hung against a slow but alive peer")
 	}
 	elapsed := time.Since(start)
-	if elapsed < slowPeerWriteTimeout*2 {
-		t.Fatalf("Write finished in %v, expected comfortably more than one FlushTimeout (%v) -- "+
-			"test may not be exercising real backpressure", elapsed, slowPeerWriteTimeout)
+	if elapsed < slowPeerMinRealisticDuration {
+		t.Fatalf("Write finished in %v, expected at least %v -- "+
+			"test may not be exercising real backpressure", elapsed, slowPeerMinRealisticDuration)
 	}
 	t.Logf("EntryWriter.Write succeeded in %v against a peer slower than FlushTimeout (%v)", elapsed, slowPeerWriteTimeout)
 }

@@ -288,3 +288,41 @@ func IngestPlatform() string {
 	defer mtx.RUnlock()
 	return *ingestPlatform
 }
+
+// PauseInstance freezes every process inside the running Gravwell instance
+// container (via the Docker cgroup freezer) without closing the underlying
+// TCP connections. This simulates an indexer that has stopped draining its
+// ingest socket -- e.g. because it's stuck on disk I/O -- rather than a
+// connection that drops outright, matching the failure mode in
+// gravwell/issues#2820. Always pair with a later UnpauseInstance: while
+// paused, nothing in the container runs, including the search API that
+// e2e.GetClient/WaitForEntries need.
+//
+// testcontainers-go's DockerContainer does not expose pause/unpause, so this
+// shells out to the docker CLI directly, the same way Build above does.
+func PauseInstance(t *testing.T) {
+	t.Helper()
+	mtx.RLock()
+	con := instance
+	mtx.RUnlock()
+	if con == nil {
+		t.Fatal("PauseInstance: no running gravwell instance (are you running with -endpoint?)")
+	}
+	if out, err := exec.Command("docker", "pause", con.GetContainerID()).CombinedOutput(); err != nil {
+		t.Fatalf("failed to pause gravwell instance: %v: %s", err, out)
+	}
+}
+
+// UnpauseInstance reverses PauseInstance.
+func UnpauseInstance(t *testing.T) {
+	t.Helper()
+	mtx.RLock()
+	con := instance
+	mtx.RUnlock()
+	if con == nil {
+		t.Fatal("UnpauseInstance: no running gravwell instance (are you running with -endpoint?)")
+	}
+	if out, err := exec.Command("docker", "unpause", con.GetContainerID()).CombinedOutput(); err != nil {
+		t.Fatalf("failed to unpause gravwell instance: %v: %s", err, out)
+	}
+}
