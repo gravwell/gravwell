@@ -13,117 +13,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
-
-// fakeRuntime is a minimal, self-contained implementation of hosted.Runtime
-// for exercising Handle() without a real ingest muxer or BoltDB. The real
-// hosted package has its own equivalent (testRuntime), but it is unexported
-// and lives in package hosted, so plugin packages need their own; this
-// mirrors the pattern the real hosted/plugins/jamf and hosted/plugins/msgraph
-// tests use, embedding hosted.StatusTracker for the SetError/ClearError/
-// SetWarn/ClearWarn methods hosted.Runtime requires rather than hand-rolling
-// them.
-type fakeRuntime struct {
-	hosted.StatusTracker
-
-	mu      sync.Mutex
-	ctx     context.Context
-	store   map[string][]byte
-	tags    map[string]entry.EntryTag
-	nextTag entry.EntryTag
-	entries []entry.Entry
-
-	negotiateErr error // if set, NegotiateTag always fails with this error
-}
-
-func newFakeRuntime() *fakeRuntime {
-	return &fakeRuntime{
-		ctx:   context.Background(),
-		store: make(map[string][]byte),
-		tags:  make(map[string]entry.EntryTag),
-	}
-}
-
-// Runtime
-func (r *fakeRuntime) Alive() bool              { return true }
-func (r *fakeRuntime) Sleep(time.Duration) bool { return false }
-func (r *fakeRuntime) Context() context.Context { return r.ctx }
-
-// Storage
-func (r *fakeRuntime) Get(key string) ([]byte, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	v, ok := r.store[key]
-	if !ok {
-		return nil, storage.ErrStorageNotFound
-	}
-	return append([]byte(nil), v...), nil
-}
-func (r *fakeRuntime) Put(key string, value []byte) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.store[key] = append([]byte(nil), value...)
-	return nil
-}
-func (r *fakeRuntime) GetString(key string) (string, error) {
-	v, err := r.Get(key)
-	return string(v), err
-}
-func (r *fakeRuntime) PutString(key, value string) error { return r.Put(key, []byte(value)) }
-func (r *fakeRuntime) GetInt64(string) (int64, error)    { return 0, storage.ErrStorageNotFound }
-func (r *fakeRuntime) PutInt64(string, int64) error      { return nil }
-func (r *fakeRuntime) GetTime(key string) (time.Time, error) {
-	v, err := r.GetString(key)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return time.Parse(time.RFC3339Nano, v)
-}
-func (r *fakeRuntime) PutTime(key string, value time.Time) error {
-	return r.PutString(key, value.Format(time.RFC3339Nano))
-}
-
-// Logger (no-ops; nothing under test asserts on log output)
-func (r *fakeRuntime) Debug(string, ...rfc5424.SDParam)    {}
-func (r *fakeRuntime) Info(string, ...rfc5424.SDParam)     {}
-func (r *fakeRuntime) Warn(string, ...rfc5424.SDParam)     {}
-func (r *fakeRuntime) Error(string, ...rfc5424.SDParam)    {}
-func (r *fakeRuntime) Critical(string, ...rfc5424.SDParam) {}
-
-// Writer
-func (r *fakeRuntime) Write(e entry.Entry) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.entries = append(r.entries, e)
-	return nil
-}
-func (r *fakeRuntime) NegotiateTag(name string) (entry.EntryTag, error) {
-	if r.negotiateErr != nil {
-		return 0, r.negotiateErr
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if t, ok := r.tags[name]; ok {
-		return t, nil
-	}
-	r.nextTag++
-	r.tags[name] = r.nextTag
-	return r.nextTag, nil
-}
-
-func (r *fakeRuntime) writtenEntries() []entry.Entry {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]entry.Entry(nil), r.entries...)
-}
 
 func incidentsPage(nextLink, next string, incidents string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -177,9 +71,9 @@ func TestHandleIncidentsFirstPageContinuesNow(t *testing.T) {
 	defer server.Close()
 
 	th := New(newIncidentConfig(server.URL))
-	rt := newFakeRuntime()
+	rt := hosted.NewMock(t.Context())
 
-	cont, err := th.Handle(context.Background(), rt)
+	cont, err := th.Handle(t.Context(), rt)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -187,7 +81,7 @@ func TestHandleIncidentsFirstPageContinuesNow(t *testing.T) {
 		t.Fatalf("got continuation %v, want ContinueNow (delay 0)", cont)
 	}
 
-	entries := rt.writtenEntries()
+	entries := rt.Entries()
 	if len(entries) != 1 {
 		t.Fatalf("got %d entries, want 1", len(entries))
 	}
@@ -210,9 +104,9 @@ func TestHandleIncidentsLastPageWaitsInterval(t *testing.T) {
 	defer server.Close()
 
 	th := New(newIncidentConfig(server.URL))
-	rt := newFakeRuntime()
+	rt := hosted.NewMock(t.Context())
 
-	cont, err := th.Handle(context.Background(), rt)
+	cont, err := th.Handle(t.Context(), rt)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -220,7 +114,7 @@ func TestHandleIncidentsLastPageWaitsInterval(t *testing.T) {
 	if cont == nil || cont.Delay != want {
 		t.Fatalf("got continuation %v, want ContinueAfter(%v)", cont, want)
 	}
-	if len(rt.writtenEntries()) != 0 {
+	if len(rt.Entries()) != 0 {
 		t.Errorf("expected no entries written on an empty page")
 	}
 	if cursor, _ := rt.GetString(cursorKey); cursor != "" {
@@ -238,16 +132,16 @@ func TestHandleIncidentsTracksMaxSinceID(t *testing.T) {
 	defer server.Close()
 
 	th := New(newIncidentConfig(server.URL))
-	rt := newFakeRuntime()
+	rt := hosted.NewMock(t.Context())
 	if err := rt.PutString(sinceIDKey, "1"); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := th.Handle(context.Background(), rt); err != nil {
+	if _, err := th.Handle(t.Context(), rt); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(rt.writtenEntries()) != 3 {
-		t.Fatalf("got %d entries, want 3", len(rt.writtenEntries()))
+	if len(rt.Entries()) != 3 {
+		t.Fatalf("got %d entries, want 3", len(rt.Entries()))
 	}
 	sinceID, _ := rt.GetString(sinceIDKey)
 	if sinceID != "9" {
@@ -262,14 +156,13 @@ func TestHandleIncidentsHTTPError(t *testing.T) {
 	defer server.Close()
 
 	th := New(newIncidentConfig(server.URL))
-	rt := newFakeRuntime()
 	// The production HTTP client treats 5xx as retryable and keeps retrying
 	// for as long as its context allows, so bind a short-lived context here;
 	// against a server that always returns 500 an uncancelled context would
 	// retry forever instead of ever surfacing an error.
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 	defer cancel()
-	rt.ctx = ctx
+	rt := hosted.NewMock(ctx)
 
 	cont, err := th.Handle(ctx, rt)
 	if err == nil {
@@ -278,7 +171,7 @@ func TestHandleIncidentsHTTPError(t *testing.T) {
 	if cont != nil {
 		t.Errorf("expected nil continuation on error, got %v", cont)
 	}
-	if len(rt.writtenEntries()) != 0 {
+	if len(rt.Entries()) != 0 {
 		t.Errorf("expected no entries written on error")
 	}
 }
@@ -292,13 +185,13 @@ func TestHandleAuditSkipsAlreadySeenAndTracksLatest(t *testing.T) {
 	defer server.Close()
 
 	th := New(newAuditConfig(server.URL))
-	rt := newFakeRuntime()
+	rt := hosted.NewMock(t.Context())
 	watermark, _ := time.Parse(TimeFormat, "2026-01-01 00:00:00 UTC+0000")
 	if err := rt.PutTime(timestampKey, watermark); err != nil {
 		t.Fatal(err)
 	}
 
-	cont, err := th.Handle(context.Background(), rt)
+	cont, err := th.Handle(t.Context(), rt)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -307,7 +200,7 @@ func TestHandleAuditSkipsAlreadySeenAndTracksLatest(t *testing.T) {
 		t.Fatalf("got continuation %v, want ContinueAfter(%v)", cont, want)
 	}
 
-	entries := rt.writtenEntries()
+	entries := rt.Entries()
 	if len(entries) != 2 {
 		t.Fatalf("got %d entries, want 2 (the watermark record should be skipped)", len(entries))
 	}
@@ -329,9 +222,9 @@ func TestHandleAuditMorePagesContinuesNow(t *testing.T) {
 	defer server.Close()
 
 	th := New(newAuditConfig(server.URL))
-	rt := newFakeRuntime()
+	rt := hosted.NewMock(t.Context())
 
-	cont, err := th.Handle(context.Background(), rt)
+	cont, err := th.Handle(t.Context(), rt)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -352,9 +245,9 @@ func TestHandleUnsupportedApi(t *testing.T) {
 	c := &Config{Domain: "example.canary.tools", Token: "tok", Api: Api("bogus")}
 	c.Requests_Per_Minute = defaultRequestsPerMinute
 	th := New(c)
-	rt := newFakeRuntime()
+	rt := hosted.NewMock(t.Context())
 
-	cont, err := th.Handle(context.Background(), rt)
+	cont, err := th.Handle(t.Context(), rt)
 	if err == nil {
 		t.Fatal("expected error for unsupported api, got nil")
 	}
@@ -365,10 +258,10 @@ func TestHandleUnsupportedApi(t *testing.T) {
 
 func TestHandleTagNegotiationError(t *testing.T) {
 	th := New(newIncidentConfig("example.canary.tools"))
-	rt := newFakeRuntime()
-	rt.negotiateErr = fmt.Errorf("tag negotiation boom")
+	rt := hosted.NewMock(t.Context())
+	rt.NegotiateErr = fmt.Errorf("tag negotiation boom")
 
-	_, err := th.Handle(context.Background(), rt)
+	_, err := th.Handle(t.Context(), rt)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
