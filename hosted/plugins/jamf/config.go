@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultIngesterUUIDStr string = "7e468cc4-ab10-4b33-b066-90eb4905980b"
+	defaultIngesterUUIDStr   = "7e468cc4-ab10-4b33-b066-90eb4905980b"
 	defaultTagPrefix         = `jamf`
 	defaultPageSize          = 100
 	defaultLookback          = 1   // hours
@@ -70,7 +70,7 @@ func (c *Config) Equal(ncp any) bool {
 		return false
 	}
 	return c.BaseConfig == nc.BaseConfig &&
-		c.Tag_Prefix == c.Tag_Prefix &&
+		c.Tag_Prefix == nc.Tag_Prefix &&
 		c.PollingConfig == nc.PollingConfig &&
 		c.Host == nc.Host &&
 		c.Client_Id == nc.Client_Id &&
