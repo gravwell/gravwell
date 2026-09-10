@@ -17,7 +17,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Mirrors .github/workflows/run_checks.sh -- same steps, same order.
+    # Mirrors .github/workflows/local_run_checks.sh -- same steps, same order.
     # If you change one, change the other.
     env:
       # We deploy with cgo disabled, so everything is checked that way by default.
