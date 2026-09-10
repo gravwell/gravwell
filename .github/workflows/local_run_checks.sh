@@ -38,7 +38,7 @@ go list ./... 2>/dev/null | grep -E "$NON_NATIVE"
 
 section "Installing tooling"
 go install golang.org/x/vuln/cmd/govulncheck@latest
-go install honnef.co/go/tools/cmd/staticcheck@latest
+go install honnef.co/go/tools/cmd/staticcheck@2026.2.1
 
 section "Checking module hygiene"
 go mod tidy && git diff --exit-code go.mod go.sum
