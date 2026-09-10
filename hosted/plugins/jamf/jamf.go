@@ -9,11 +9,11 @@
 package jamf
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/hosted"
@@ -49,13 +49,19 @@ func (j *Jamf) initClient(ctx context.Context) {
 
 // Handle implements hosted.Job. It fetches every computer-inventory record
 // whose general.reportDate falls in (lastEnd, now-buffer], paginating until
-// the API reports no more results, then schedules the next run.
+// the API reports no more results, then schedules the next run. Each
+// configured section is split out to its own tag, with the GENERAL
+// section's data folded into every entry.
 func (j *Jamf) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
-	j.initClient(ctx)
+	j.initClient(rt.Context())
 
-	tag, err := rt.NegotiateTag(j.conf.Tags()[0])
-	if err != nil {
-		return nil, fmt.Errorf("negotiating tag: %w", err)
+	tags := make(map[string]entry.EntryTag, len(j.conf.Sections))
+	for _, section := range j.conf.Sections {
+		tag, err := rt.NegotiateTag(j.conf.tagForSection(section))
+		if err != nil {
+			return nil, fmt.Errorf("negotiating tag for section %s: %w", section, err)
+		}
+		tags[section] = tag
 	}
 
 	start, err := hosted.GetTimeOrDefault(rt, stateKeyLastEnd, time.Now().Add(-j.conf.LookbackDuration()))
@@ -72,7 +78,7 @@ func (j *Jamf) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuat
 	filter := fmt.Sprintf("general.reportDate>%s;general.reportDate<%s",
 		start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339))
 
-	if err := j.drain(ctx, rt, tag, filter); err != nil {
+	if err := j.drain(ctx, rt, tags, filter); err != nil {
 		return nil, err
 	}
 
@@ -83,11 +89,14 @@ func (j *Jamf) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuat
 	return j.conf.ContinueAfterInterval(), nil
 }
 
-// drain pages through every result for filter, writing each record as an
-// entry until the API reports totalCount == 0.
-func (j *Jamf) drain(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, filter string) error {
+// drain pages through every result for filter, splitting each device record
+// into one entry per configured section and writing them until the API
+// reports totalCount == 0.
+func (j *Jamf) drain(ctx context.Context, rt hosted.Runtime, tags map[string]entry.EntryTag, filter string) error {
+	requestSections := j.conf.requestSections()
+
 	for page := 0; ; page++ {
-		resp, err := j.c.FetchInventoryPage(ctx, filter, j.conf.Sections, page, j.conf.Page_Size)
+		resp, err := j.c.FetchInventoryPage(ctx, filter, requestSections, page, j.conf.Page_Size)
 		if err != nil {
 			return fmt.Errorf("fetching page %d: %w", page, err)
 		}
@@ -98,64 +107,102 @@ func (j *Jamf) drain(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag,
 		rt.Debug("fetched inventory page", log.KV("page", page), log.KV("count", len(resp.Results)))
 
 		for _, raw := range resp.Results {
-			ts, data, err := stampTimestamp(raw)
+			entries, err := splitRecord(raw, j.conf.Sections, tags)
 			if err != nil {
 				rt.Error("failed to process inventory record", log.KVErr(err))
 				continue
 			}
-			e := entry.Entry{
-				TS:   entry.FromStandard(ts),
-				Tag:  tag,
-				Data: data,
-			}
-			if err := rt.Write(e); err != nil {
-				rt.Error("failed to write entry", log.KVErr(err))
+			for _, e := range entries {
+				if err := rt.Write(e); err != nil {
+					rt.Error("failed to write entry", log.KVErr(err))
+				}
 			}
 		}
 	}
 }
 
-// generalSection is just enough of the computers-inventory record shape to
-// pull out the GENERAL section's reportDate field.
-type generalSection struct {
-	General struct {
-		ReportDate string `json:"reportDate"`
-	} `json:"general"`
+// sectionJSONKey converts a Jamf computers-inventory section constant (e.g.
+// "DISK_ENCRYPTION") into the camelCase JSON key Jamf nests that section's
+// data under in a record (e.g. "diskEncryption").
+func sectionJSONKey(section string) string {
+	parts := strings.Split(strings.ToLower(section), "_")
+	for i := 1; i < len(parts); i++ {
+		if parts[i] == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+	}
+	return strings.Join(parts, "")
 }
 
-// stampTimestamp parses general.reportDate out of a raw computers-inventory
-// record and returns both the parsed time (used as the entry's TS) and the
-// original record with a top-level "timestamp" field inserted, preserving
-// compatibility with dashboards/searches built against the original flow's
-// output shape.
-func stampTimestamp(raw json.RawMessage) (time.Time, []byte, error) {
-	var g generalSection
-	if err := json.Unmarshal(raw, &g); err != nil {
-		return time.Time{}, nil, fmt.Errorf("unmarshal record: %w", err)
-	}
-	if g.General.ReportDate == "" {
-		return time.Time{}, nil, errors.New("record missing general.reportDate")
+// splitRecord pulls the GENERAL section's reportDate out of a raw
+// computers-inventory record (used as every resulting entry's TS), then
+// builds one entry per section in sections that's both configured and
+// actually present on this device: {"timestamp", "general", "<section>"}
+// for content sections, or just {"timestamp", "general"} for GENERAL
+// itself. A section configured but absent from this particular device's
+// record is silently skipped for that device.
+func splitRecord(raw json.RawMessage, sections []string, tags map[string]entry.EntryTag) ([]entry.Entry, error) {
+	var full map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &full); err != nil {
+		return nil, fmt.Errorf("unmarshal record: %w", err)
 	}
 
-	ts, err := time.Parse(time.RFC3339Nano, g.General.ReportDate)
+	generalRaw, ok := full[sectionJSONKey(generalSectionName)]
+	if !ok {
+		return nil, errors.New("record missing general section")
+	}
+
+	var g struct {
+		ReportDate string `json:"reportDate"`
+	}
+	if err := json.Unmarshal(generalRaw, &g); err != nil {
+		return nil, fmt.Errorf("unmarshal general section: %w", err)
+	}
+	if g.ReportDate == "" {
+		return nil, errors.New("record missing general.reportDate")
+	}
+	ts, err := time.Parse(time.RFC3339Nano, g.ReportDate)
 	if err != nil {
-		return time.Time{}, nil, fmt.Errorf("parsing reportDate %q: %w", g.General.ReportDate, err)
+		return nil, fmt.Errorf("parsing reportDate %q: %w", g.ReportDate, err)
+	}
+	tsJSON, err := json.Marshal(g.ReportDate)
+	if err != nil {
+		return nil, fmt.Errorf("encoding timestamp: %w", err)
 	}
 
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, raw); err != nil {
-		return time.Time{}, nil, fmt.Errorf("compacting record: %w", err)
-	}
-	compact := buf.Bytes()
-	if len(compact) == 0 || compact[0] != '{' {
-		return time.Time{}, nil, errors.New("record is not a JSON object")
-	}
+	entries := make([]entry.Entry, 0, len(sections))
+	for _, section := range sections {
+		tag, ok := tags[section]
+		if !ok {
+			// Every configured section is negotiated up front in Handle;
+			// this would only happen if called incorrectly.
+			continue
+		}
 
-	stamped := make([]byte, 0, len(compact)+len(g.General.ReportDate)+16)
-	stamped = append(stamped, []byte(`{"timestamp":"`)...)
-	stamped = append(stamped, []byte(g.General.ReportDate)...)
-	stamped = append(stamped, []byte(`",`)...)
-	stamped = append(stamped, compact[1:]...)
+		doc := map[string]json.RawMessage{
+			"timestamp": tsJSON,
+			"general":   generalRaw,
+		}
+		if section != generalSectionName {
+			key := sectionJSONKey(section)
+			sectionRaw, present := full[key]
+			if !present {
+				// This device has no data for the section; nothing to emit.
+				continue
+			}
+			doc[key] = sectionRaw
+		}
 
-	return ts, stamped, nil
+		data, err := json.Marshal(doc)
+		if err != nil {
+			return nil, fmt.Errorf("marshal %s entry: %w", section, err)
+		}
+		entries = append(entries, entry.Entry{
+			TS:   entry.FromStandard(ts),
+			Tag:  tag,
+			Data: data,
+		})
+	}
+	return entries, nil
 }
