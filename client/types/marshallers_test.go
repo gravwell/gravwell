@@ -13,8 +13,9 @@ package types_test
 
 import (
 	"bytes"
+	v1 "encoding/json"
 	"encoding/json/jsontext"
-	"encoding/json/v2"
+	v2 "encoding/json/v2"
 	"math"
 	"net"
 	"reflect"
@@ -23,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
@@ -36,11 +38,11 @@ func TestTimeRangeEncodeDecode(t *testing.T) {
 		EndTS:   ts.Add(time.Hour),
 	}
 	bb := bytes.NewBuffer(nil)
-	if err := json.MarshalWrite(bb, tr); err != nil {
+	if err := v2.MarshalWrite(bb, tr); err != nil {
 		t.Fatal(err)
 	}
 	var ttr types.TimeRange
-	if err := json.UnmarshalRead(bb, &ttr); err != nil {
+	if err := v2.UnmarshalRead(bb, &ttr); err != nil {
 		t.Fatal(err)
 	}
 
@@ -73,9 +75,9 @@ func TestSearchEntryEncodeDecode(t *testing.T) {
 		Data: []byte("this is my data, there are many like it, but this is mine"),
 	}
 	var d types.SearchEntry
-	if err := json.MarshalWrite(bb, s); err != nil {
+	if err := v2.MarshalWrite(bb, s); err != nil {
 		t.Fatal(err)
-	} else if err = json.UnmarshalRead(bb, &d); err != nil {
+	} else if err = v2.UnmarshalRead(bb, &d); err != nil {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
@@ -96,9 +98,9 @@ func TestSearchEntryEncodeDecodeEnum(t *testing.T) {
 		},
 	}
 	var d types.SearchEntry
-	if err := json.MarshalWrite(bb, s); err != nil {
+	if err := v2.MarshalWrite(bb, s); err != nil {
 		t.Fatal(err)
-	} else if err = json.UnmarshalRead(bb, &d); err != nil {
+	} else if err = v2.UnmarshalRead(bb, &d); err != nil {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
@@ -121,7 +123,7 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 	raw := `{"TS": "2020-12-23T16:04:17.417437Z", "Tag": 4919, "SRC": "DEAD::BEEF", "Data": "dGVzdGRhdGE="}`
 	bb.WriteString(raw)
 	var d types.SearchEntry
-	if err = json.UnmarshalRead(bb, &d); err != nil {
+	if err = v2.UnmarshalRead(bb, &d); err != nil {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
@@ -184,10 +186,10 @@ func TestResponseRoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bb := bytes.NewBuffer(nil)
-			require.NoError(t, json.MarshalWrite(bb, tt.src))
+			require.NoError(t, v2.MarshalWrite(bb, tt.src))
 
 			decoded := reflect.New(reflect.TypeOf(tt.src)).Interface()
-			require.NoError(t, json.UnmarshalRead(bb, decoded))
+			require.NoError(t, v2.UnmarshalRead(bb, decoded))
 
 			// all parent types have a messages field;
 			// we have to access it via reflection as there is no interface we can assert.
@@ -272,11 +274,11 @@ func TestOptionalNoTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var opts []json.Options
+			var opts []v2.Options
 			if tt.includeOmitZeroOption {
-				opts = append(opts, json.OmitZeroStructFields(true))
+				opts = append(opts, v2.OmitZeroStructFields(true))
 			}
-			b, err := json.Marshal(&tt.data, opts...)
+			b, err := v2.Marshal(&tt.data, opts...)
 			require.Nil(t, err, "failed to marshal %v", &tt.data)
 			t.Logf("Marshaled %+v to %s", tt.data, b)
 			require.Equal(t, tt.expected, string(b))
@@ -298,13 +300,13 @@ func TestOptionalNoTags(t *testing.T) {
 				Yī string
 				èr string
 			}{"one", "two"}}})
-			b, err := json.Marshal(&v, json.OmitZeroStructFields(true))
+			b, err := v2.Marshal(&v, v2.OmitZeroStructFields(true))
 			require.Nil(t, err, "failed to marshal %v", &v)
 			t.Logf("Marshaled %+v to %s", v, b)
 			require.Equal(t, `[{"A":5,"B":{"Yī":"one"}}]`, string(b))
 
 			v.Unset()
-			b, err = json.Marshal(&v, json.OmitZeroStructFields(true))
+			b, err = v2.Marshal(&v, v2.OmitZeroStructFields(true))
 			require.Nil(t, err, "failed to marshal %v", &v)
 			t.Logf("Marshaled %+v to %s", v, b)
 			// we unset the whole thing, so the zero value ([]struct{...}(nil)) is marshaled;
@@ -331,7 +333,7 @@ func TestOptionalNoTags(t *testing.T) {
 				}{true, 4.4}),
 			}
 			// everything should be included
-			b, err := json.Marshal(&v, json.OmitZeroStructFields(true))
+			b, err := v2.Marshal(&v, v2.OmitZeroStructFields(true))
 			require.Nil(t, err, "failed to marshal %v", &v)
 			t.Logf("Marshaled %+v to %s", v, b)
 			require.Equal(t, `{"A":0,"B":{"One":"Yī"},"C":{"Four":4.4}}`, string(b))
@@ -340,7 +342,7 @@ func TestOptionalNoTags(t *testing.T) {
 			v.B.One.Set("ein")
 			v.B.two.Set("swei")
 			// everything should be included
-			b, err = json.Marshal(&v, json.OmitZeroStructFields(true))
+			b, err = v2.Marshal(&v, v2.OmitZeroStructFields(true))
 			require.Nil(t, err, "failed to marshal %v", &v)
 			t.Logf("Marshaled %+v to %s", v, b)
 			require.Equal(t, `{"A":0,"B":{"One":"ein"},"C":{"Four":4.4}}`, string(b))
@@ -349,7 +351,7 @@ func TestOptionalNoTags(t *testing.T) {
 			v.A.Unset()
 			v.B.One.Unset()
 			v.C.Unset()
-			b, err = json.Marshal(&v, json.OmitZeroStructFields(true))
+			b, err = v2.Marshal(&v, v2.OmitZeroStructFields(true))
 			require.Nil(t, err, "failed to marshal %v", &v)
 			t.Logf("Marshaled %+v to %s", v, b)
 			// B is a concrete struct, so it will always be included.
@@ -420,6 +422,36 @@ func TestDeadCustomMarshalers(t *testing.T) {
 		{"ChartableDataPoint NaN", types.ChartableDataPoint(math.NaN()), `null`},
 		{"ChartableDataPoint valid", types.ChartableDataPoint(3.14), `3.14`},
 
+		{"[]Session zero value", []types.Session{}, `[]`},
+		{"UserSessions zero value", types.UserSessions{}, `{"UID":0,"User":"","Sessions":[]}`},
+
+		{"IndexManagerStats zero value", types.IndexManagerStats{}, `{"Name":"","Stats":[]}`},
+		{"*IndexManagerStats zero value", &types.IndexManagerStats{}, `{"Name":"","Stats":[]}`},
+		{"[]IndexManagerStats zero value", []*types.IndexManagerStats{}, `[]`},
+
+		{"IndexerStats zero value", types.IndexerStats{}, `{"ID":"","Data":0,"Entries":0,"Path":"","Cold":false}`},
+		{"*IndexerStats zero value", &types.IndexerStats{}, `{"ID":"","Data":0,"Entries":0,"Path":"","Cold":false}`},
+		{"[]IndexerStats zero value", []types.IndexManagerStats{}, `[]`},
+		{"[]*IndexerStats zero value", []*types.IndexManagerStats{}, `[]`},
+
+		{"IdxStats zero value", types.IdxStats{}, `{"UUID":"00000000-0000-0000-0000-000000000000","IndexStats":[]}`},
+		{"*IdxStats zero value", &types.IdxStats{}, `{"UUID":"00000000-0000-0000-0000-000000000000","IndexStats":[]}`},
+
+		{"SearchModuleStats zero value", types.SearchModuleStats{}, `{"InputCount":0,"OutputCount":0,"InputBytes":0,"OutputBytes":0,"Duration":0,"ScratchWritten":0,"Name":"","Args":""}`},
+		{"*SearchModuleStats zero value", &types.SearchModuleStats{}, `{"InputCount":0,"OutputCount":0,"InputBytes":0,"OutputBytes":0,"Duration":0,"ScratchWritten":0,"Name":"","Args":""}`},
+
+		{"*StatSet zero value", &types.StatSet{}, `{"ModuleStats":[],"TS":"0001-01-01T00:00:00Z"}`},
+
+		{"*SearchModuleStatsUpdate zero value", &types.SearchModuleStatsUpdate{}, `{"Stats":[],"TS":"0001-01-01T00:00:00Z"}`},
+
+		{"SearchStatsRequest zero value", types.SearchStatsRequest{}, `{"SetCount":0}`},
+		{"*SearchStatsRequest zero value", &types.SearchStatsRequest{}, `{"SetCount":0}`},
+
+		{"SearchStatsResponse zero value", types.SearchStatsResponse{}, `{"Set":[],"Size":0}`},
+		{"*SearchStatsResponse zero value", &types.SearchStatsResponse{}, `{"Set":[],"Size":0}`},
+
+		{"IngesterState zero value", ingest.IngesterState{}, `{"UUID":"","Name":"","Version":"","Label":"","IP":"","Hostname":"","Entries":0,"Size":0,"Uptime":0,"Tags":[],"CacheState":"","CacheSize":0,"LastSeen":"0001-01-01T00:00:00Z","Children":{}}`},
+
 		// CapabilityState and TagAccess are both single-field structs wrapping Grants
 		{"CapabilityState zero value", types.CapabilityState{}, `{"Grants":[]}`},
 		{"CapabilityState populated", types.CapabilityState{Grants: []string{"read", "write"}}, `{"Grants":["read","write"]}`},
@@ -469,7 +501,7 @@ func TestDeadCustomMarshalers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := json.Marshal(tt.data, json.Deterministic(true)) // we want deterministic so we can properly test expected values
+			b, err := v2.Marshal(tt.data, v2.Deterministic(true), v1.FormatDurationAsNano(true)) // we want deterministic so we can properly test expected values
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, string(b))
 		})
@@ -479,7 +511,7 @@ func TestDeadCustomMarshalers(t *testing.T) {
 		rr := types.RawResponse{}
 		rr.SetPrintableData(true)
 
-		b, err := json.Marshal(rr, json.Deterministic(true)) // we want deterministic so we can properly test expected values
+		b, err := v2.Marshal(rr, v2.Deterministic(true)) // we want deterministic so we can properly test expected values
 		require.NoError(t, err)
 		require.Equal(t, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[]}`, string(b))
 	})
@@ -487,7 +519,7 @@ func TestDeadCustomMarshalers(t *testing.T) {
 		rr := types.RawResponse{Entries: []types.SearchEntry{{TS: entry.Timestamp{Sec: 55555555}, Data: []byte("Hello World")}}}
 		rr.SetPrintableData(true)
 
-		b, err := json.Marshal(rr, json.Deterministic(true)) // we want deterministic so we can properly test expected values
+		b, err := v2.Marshal(rr, v2.Deterministic(true)) // we want deterministic so we can properly test expected values
 		require.NoError(t, err)
 		require.Equal(t, `{"ID":0,"Finished":false,"EntryCount":0,"EntryCountValid":false,"AdditionalEntries":false,"OverLimit":false,"LimitDroppedRange":{"StartTS":"0001-01-01T00:00:00Z","EndTS":"0001-01-01T00:00:00Z"},"SessionID":"00000000-0000-0000-0000-000000000000","Interval":0,"Messages":[],"ContainsBinaryEntries":false,"Entries":[{"TS":"0002-10-06T00:05:55Z","SRC":"","Tag":0,"Data":"Hello World","Enumerated":null}]}`, string(b))
 	})
@@ -496,19 +528,19 @@ func TestDeadCustomMarshalers(t *testing.T) {
 func TestMarshalUnmarshal(t *testing.T) {
 	t.Run("empty patch", func(t *testing.T) {
 		mp := types.MacroPatch{}
-		b, err := json.Marshal(&mp)
+		b, err := v2.Marshal(&mp)
 		require.Nil(t, err, "failed to marshal %v", &mp)
 
 		out := types.MacroPatch{}
-		require.Nil(t, json.Unmarshal(b, &out))
+		require.Nil(t, v2.Unmarshal(b, &out))
 	})
 	t.Run("partial patch", func(t *testing.T) {
 		mp := types.MacroPatch{Expansion: types.NewOptional("exp")}
-		b, err := json.Marshal(&mp)
+		b, err := v2.Marshal(&mp)
 		require.Nil(t, err, "failed to marshal %v", &mp)
 
 		out := types.MacroPatch{}
-		require.Nil(t, json.Unmarshal(b, &out))
+		require.Nil(t, v2.Unmarshal(b, &out))
 		require.Equal(t, mp.Expansion.Value(), out.Expansion.Value())
 	})
 	t.Run("partial patch 2", func(t *testing.T) {
@@ -516,11 +548,11 @@ func TestMarshalUnmarshal(t *testing.T) {
 			Labels:    types.NewOptional([]string{"kuài"}),
 			OwnerID:   types.NewOptional[int32](0),
 			Expansion: types.NewOptional("exp")}
-		b, err := json.Marshal(&mp)
+		b, err := v2.Marshal(&mp)
 		require.Nil(t, err, "failed to marshal %v", &mp)
 
 		out := types.MacroPatch{}
-		require.Nil(t, json.Unmarshal(b, &out))
+		require.Nil(t, v2.Unmarshal(b, &out))
 		require.Equal(t, mp.Expansion.Value(), out.Expansion.Value())
 	})
 }
@@ -531,10 +563,10 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 	t.Run("AllowInvalidUTF8 on marshal", func(t *testing.T) {
 		v := types.NewOptional("abc\xffdef")
 
-		_, err := json.Marshal(&v)
+		_, err := v2.Marshal(&v)
 		require.Error(t, err, "default marshal should reject invalid UTF-8")
 
-		b, err := json.Marshal(&v, jsoncompat.Opts)
+		b, err := v2.Marshal(&v, jsoncompat.Opts)
 		require.NoError(t, err, "jsoncompat.Opts should tolerate invalid UTF-8")
 		require.Equal(t, "\"abc�def\"", string(b))
 	})
@@ -542,10 +574,10 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 		raw := []byte("\"abc\xffdef\"")
 
 		var v types.Optional[string]
-		err := json.Unmarshal(raw, &v)
+		err := v2.Unmarshal(raw, &v)
 		require.Error(t, err, "default options should reject invalid UTF-8")
 
-		err = json.Unmarshal(raw, &v, jsoncompat.Opts)
+		err = v2.Unmarshal(raw, &v, jsoncompat.Opts)
 		require.NoError(t, err, "jsoncompat.Opts should tolerate invalid UTF-8")
 		require.Equal(t, "abc�def", v.Value())
 	})
@@ -553,11 +585,11 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 		raw := []byte(`{"gids":[1,2,3]}`)
 
 		var v types.Optional[types.ACL]
-		err := json.Unmarshal(raw, &v)
+		err := v2.Unmarshal(raw, &v)
 		require.NoError(t, err)
 		require.Empty(t, v.Value().GIDs, "case-sensitive default should not match lowercase key")
 
-		err = json.Unmarshal(raw, &v, jsoncompat.Opts)
+		err = v2.Unmarshal(raw, &v, jsoncompat.Opts)
 		require.NoError(t, err)
 		require.Equal(t, []int32{1, 2, 3}, v.Value().GIDs, "jsoncompat.Opts should match names case-insensitively")
 	})
@@ -565,7 +597,7 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 		bb := bytes.NewBuffer(nil)
 		v := types.NewOptional("abc\xffdef")
 		enc := jsontext.NewEncoder(bb, jsoncompat.Opts)
-		require.NoError(t, json.MarshalEncode(enc, &v))
+		require.NoError(t, v2.MarshalEncode(enc, &v))
 		require.Equal(t, "\"abc�def\"", strings.TrimSpace(bb.String()))
 	})
 }
@@ -574,10 +606,10 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 func TestNoNilSlicesMaps(t *testing.T) {
 	t.Run("Labels", func(t *testing.T) {
 		fp := types.File{}
-		b, err := json.Marshal(fp, jsoncompat.Opts)
+		b, err := v2.Marshal(fp, jsoncompat.Opts)
 		require.NoError(t, err)
 		var out map[string]jsontext.Value
-		require.NoError(t, json.Unmarshal(b, &out, jsoncompat.Opts))
+		require.NoError(t, v2.Unmarshal(b, &out, jsoncompat.Opts))
 		lbls, found := out["Labels"]
 		require.True(t, found, "failed to parse \"Labels\" out of json")
 		require.Equal(t, "[]", lbls.String())
@@ -608,7 +640,7 @@ func TestNoNilSlicesMaps(t *testing.T) {
             2
           ]
         }`
-		b, err := json.Marshal(st, jsoncompat.Opts)
+		b, err := v2.Marshal(st, jsoncompat.Opts)
 		require.NoError(t, err)
 		require.JSONEq(t, want, string(b))
 	})

@@ -11,7 +11,6 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json/v2"
 	"net"
 	"time"
 
@@ -337,26 +336,6 @@ func (ud *UserDetails) GroupTagAccess() (r []TagAccess) {
 func (ud *UserDetails) ClearSecrets() {
 	ud.Hash = []byte{}
 	ud.MFA.ClearSecrets()
-}
-
-func (s *UserSessions) MarshalJSON() ([]byte, error) {
-	type alias UserSessions
-	return json.Marshal(&struct {
-		alias
-		Sessions sessions
-	}{
-		alias:    alias(*s),
-		Sessions: sessions(s.Sessions),
-	})
-}
-
-type sessions []Session
-
-func (s sessions) MarshalJSON() ([]byte, error) {
-	if len(s) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]Session(s))
 }
 
 /************************************************************

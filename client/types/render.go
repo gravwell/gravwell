@@ -344,8 +344,8 @@ type IndexManagerStats struct {
 
 type IdxStats struct {
 	UUID       uuid.UUID
-	Error      string              `json:",omitempty"`
-	IndexStats []IndexManagerStats `json:",omitempty"`
+	Error      string `json:",omitempty"`
+	IndexStats []IndexManagerStats
 }
 
 type IdxStatResponse struct {
@@ -413,18 +413,18 @@ type IngesterStatsResponse struct {
 }
 
 type SearchStatsRequest struct {
-	SetCount int64 `json:",omitempty"`
-	SetStart entry.Timestamp
-	SetEnd   entry.Timestamp
-	Addendum jsontext.Value `json:",omitempty"`
+	SetCount int64           `json:",omitempty"`
+	SetStart entry.Timestamp `json:",omitzero"`
+	SetEnd   entry.Timestamp `json:",omitzero"`
+	Addendum jsontext.Value  `json:",omitempty"`
 }
 
 type SearchStatsResponse struct {
-	Addendum    jsontext.Value `json:",omitempty"`
-	RangeStart  entry.Timestamp
-	RangeEnd    entry.Timestamp
-	Current     entry.Timestamp
-	Set         []StatSet         `json:",omitempty"`
+	Addendum    jsontext.Value  `json:",omitempty"`
+	RangeStart  entry.Timestamp `json:",omitzero"`
+	RangeEnd    entry.Timestamp `json:",omitzero"`
+	Current     entry.Timestamp `json:",omitzero"`
+	Set         []StatSet
 	OverviewSet []OverviewStatSet `json:",omitempty"`
 	Size        int               `json:",omitempty"`
 }
@@ -699,26 +699,6 @@ func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
 	}
 
 	return nil
-}
-
-func (ssr SearchStatsRequest) MarshalJSON() ([]byte, error) {
-	type alias SearchStatsRequest
-	return json.Marshal(&struct {
-		alias
-		SetStart *entry.Timestamp `json:",omitempty"`
-		SetEnd   *entry.Timestamp `json:",omitempty"`
-	}{
-		alias:    alias(ssr),
-		SetStart: tsPointer(ssr.SetStart),
-		SetEnd:   tsPointer(ssr.SetEnd),
-	})
-}
-
-func tsPointer(t entry.Timestamp) *entry.Timestamp {
-	if t.IsZero() {
-		return nil
-	}
-	return &t
 }
 
 func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
