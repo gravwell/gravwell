@@ -160,27 +160,37 @@ func slowReader(c net.Conn, chunk int, delay time.Duration) {
 	}
 }
 
-// Parameters below were arrived at empirically (see conversation history),
-// not just derived on paper: a large blockSize relative to how much the
-// reader drains per cycle makes a single block need multiple read cycles to
-// get through, which can accidentally exceed writeTimeout and produce a
-// false failure that has nothing to do with the code under test. A small
-// blockSize relative to readChunk keeps each block's progress within a
-// single read cycle, so only genuine, sustained silence trips the deadline.
+// Parameters below were arrived at empirically across two rounds of CI
+// failures (see conversation history / gravwell/gravwell#2756), not just
+// derived on paper.
 //
-// slowPeerWriteTimeout carries a large (15x+) margin over slowPeerReadDelay
-// on purpose: an 800ms timeout reliably passed locally but flaked in CI
-// (gravwell/gravwell#2756, actions run 34393112885) because a loaded/shared
-// runner's goroutine scheduling latency alone can eat several hundred ms
-// before the reader's first wakeup, which has nothing to do with the code
-// under test. Widening this doesn't slow the test down when things work
-// normally -- it's a ceiling, not something writes wait out -- it only
-// matters when something is genuinely stuck.
+// Round 1: an 800ms writeTimeout reliably passed locally but flaked in CI
+// (actions run 34393112885) because a loaded/shared runner's goroutine
+// scheduling latency alone can eat several hundred ms before the reader's
+// first wakeup -- nothing to do with the code under test. Fixed by widening
+// slowPeerWriteTimeout to a large (15x+) margin over slowPeerReadDelay. This
+// is a ceiling, not something writes normally wait out, so it doesn't slow
+// the test down when things work.
+//
+// Round 2: a *small* blockSize (4096) then caused a genuine 30s+ hang on the
+// actual GitHub Actions Linux runner (actions run 34494493307), while
+// staying fast (~5s) locally. Best explanation: Linux honors a requested
+// small SetReadBuffer far more literally than macOS/OrbStack does locally,
+// so the effective OS buffer there is genuinely tiny -- meaning nearly every
+// one of the ~512 blocks needed its own dedicated read cycle, multiplying
+// total time far past the 30s watchdog even though each individual block was
+// still correctly bounded by writeTimeout. The number of blocks, not their
+// size, was driving total time, and that count is what varies unpredictably
+// by platform. Fixed by using a much larger blockSize (few blocks total) so
+// worst-case total time is bounded and platform-independent: with
+// blockSize=256KB and readChunk=64KB, even a maximally pessimistic (tiny
+// buffer) block needs at most a handful of read cycles -- comfortably under
+// writeTimeout -- and only 8 such blocks are needed for the whole payload.
 const (
 	slowPeerWriteTimeout = 5 * time.Second
-	slowPeerBlockSize    = 4096
-	slowPeerPayloadSize  = 2 * 1024 * 1024 // proven (empirically) to force sustained real backpressure, not get buffered instantly
-	slowPeerReadChunk    = 65536
+	slowPeerBlockSize    = 256 * 1024
+	slowPeerPayloadSize  = 2 * 1024 * 1024
+	slowPeerReadChunk    = 64 * 1024
 	slowPeerReadDelay    = 200 * time.Millisecond // well under writeTimeout: no single gap should ever trip the deadline
 	// slowPeerMinRealisticDuration is the "this wasn't just buffered instantly"
 	// sanity floor for the survives-a-slow-peer tests. Deliberately NOT derived
@@ -200,7 +210,7 @@ func TestFullSpeedWriteSurvivesSlowButAlivePeer(t *testing.T) {
 	payload := make([]byte, slowPeerPayloadSize)
 
 	start := time.Now()
-	n, err := writeWithWatchdog(t, 30*time.Second, func() (int, error) {
+	n, err := writeWithWatchdog(t, 60*time.Second, func() (int, error) {
 		return fs.Write(payload)
 	})
 	elapsed := time.Since(start)
@@ -236,7 +246,7 @@ func TestThrottleConnWriteSurvivesSlowButAlivePeer(t *testing.T) {
 	payload := make([]byte, slowPeerPayloadSize)
 
 	start := time.Now()
-	n, err := writeWithWatchdog(t, 30*time.Second, func() (int, error) {
+	n, err := writeWithWatchdog(t, 60*time.Second, func() (int, error) {
 		return tc.Write(payload)
 	})
 	elapsed := time.Since(start)

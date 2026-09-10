@@ -1183,7 +1183,7 @@ func TestEntryWriterWriteSurvivesSlowButAlivePeer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected Write to succeed against a slow but alive peer, got: %v", err)
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(60 * time.Second):
 		t.Fatal("EntryWriter.Write hung against a slow but alive peer")
 	}
 	elapsed := time.Since(start)
