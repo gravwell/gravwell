@@ -221,7 +221,7 @@ func (s *IngesterState) trimChildren(maxCount int) {
 func (s *IngesterState) Write(wtr io.Writer) (err error) {
 	// First, encode to JSON
 	var data []byte
-	if data, err = json.Marshal(s); err != nil {
+	if data, err = json.Marshal(s, jsoncompat.Opts); err != nil {
 		return err
 	} else if len(data) > int(maxIngestStateSize) || len(data) == 0 {
 		return ErrInvalidIngestStateHeader
@@ -282,7 +282,7 @@ func (s *IngesterState) Read(rdr io.Reader) (err error) {
 	}
 
 	// Decode the JSON
-	if err = json.Unmarshal(buff, s); err != nil {
+	if err = json.Unmarshal(buff, s, jsoncompat.Opts); err != nil {
 		return
 	}
 
