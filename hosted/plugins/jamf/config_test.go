@@ -149,8 +149,8 @@ func TestConfig_Tags(t *testing.T) {
 		{
 			name:     "custom prefix",
 			sections: []string{"APPLICATIONS"},
-			prefix:   "utad",
-			want:     []string{"utad_applications"},
+			prefix:   "custom",
+			want:     []string{"custom_applications"},
 		},
 		{
 			name:     "tag name override for single section",

@@ -18,11 +18,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"slices"
 
 	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 const (
+	defaultIngesterUUIDStr string = "7e468cc4-ab10-4b33-b066-90eb4905980b"
 	defaultTagPrefix         = `jamf`
 	defaultPageSize          = 100
 	defaultLookback          = 1   // hours
@@ -60,7 +62,27 @@ type Config struct {
 	Insecure_Skip_TLS_Verify bool
 }
 
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.Tag_Prefix == c.Tag_Prefix &&
+		c.PollingConfig == nc.PollingConfig &&
+		c.Host == nc.Host &&
+		c.Client_Id == nc.Client_Id &&
+		c.Client_Secret == nc.Client_Secret &&
+		c.Page_Size == nc.Page_Size &&
+		c.Insecure_Skip_TLS_Verify == nc.Insecure_Skip_TLS_Verify &&
+		slices.Equal(c.Sections, nc.Sections)
+}
+
 func (c *Config) Verify() error {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Host == "" {
 		return errors.New("Host not specified")
 	}
