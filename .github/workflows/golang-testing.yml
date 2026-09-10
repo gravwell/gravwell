@@ -16,6 +16,20 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+
+    # Mirrors .github/workflows/local_run_checks.sh -- same steps, same order.
+    # If you change one, change the other.
+    env:
+      # We deploy with cgo disabled, so everything is checked that way by default.
+      CGO_ENABLED: 0
+      # ingesters/networkLog is the sole exception: it pulls in gopacket/pcap,
+      # which needs libpcap via cgo, so it gets its own CGO_ENABLED=1 pass.
+      CGO_PKG: ./ingesters/networkLog/...
+      # Packages that cannot be built or tested on a native Linux host. These are
+      # covered separately via the GOOS/GOARCH cross-checks below.
+      NON_NATIVE: /(winevent|experiments|windowsEventGenerator|test_data)
+      WINDOWS_PKGS: ./winevent/... ./ingesters/winevents/... ./generators/windowsEventGenerator/...
+
     steps:
     - run: echo "Executing on  ${{ runner.os }} due to ${{ github.event_name }}"
     - run: echo "Branch is ${{ github.ref }} executing on  ${{ runner.os }} due to ${{ github.event_name }}"
@@ -29,231 +43,82 @@ jobs:
         go-version-file: go.mod
         cache: false
 
-    - name: Go Tidy
-      run: go mod tidy && git diff --exit-code
-
-    - name: Go Mod
-      run: go mod download
-
-    - name: Go Mod Verify
-      run: go mod verify
-
-    - name: Install govulncheck
-      run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-    - name: Install staticcheck
-      run: go install honnef.co/go/tools/cmd/staticcheck@latest
-
-    - name: Run govulncheck
-      run: |
-        govulncheck -test ./netflow/...
-        govulncheck -test ./manager/...
-        govulncheck -test ./ipexist/...
-        govulncheck -test ./generators/ipgen/...
-        govulncheck -test ./generators/base/...
-        govulncheck -test ./generators/gravwellGenerator/...
-        govulncheck -test ./filewatch/...
-        govulncheck -test ./client/...
-        govulncheck -test ./chancacher/...
-        govulncheck -test ./timegrinder/...
-        govulncheck -test ./ingest
-        govulncheck -test ./ingest/entry/...
-        govulncheck -test ./ingest/config/...
-        govulncheck -test ./ingest/log
-        govulncheck -test ./ingest/processors
-        govulncheck -test ./ingest/processors/tags
-        govulncheck -test ./ingest/processors/plugin
-        govulncheck -test ./tools/...
-        govulncheck -test ./kitctl/...
-        govulncheck -test ./migrate/...
-        govulncheck -test ./ingesters/s3Ingester
-        govulncheck -test ./ingesters/HttpIngester
-        govulncheck -test ./ingesters/pcapFileIngester
-        govulncheck -test ./ingesters/collectd
-        govulncheck -test ./ingesters/hackernews_ingester
-        govulncheck -test ./ingesters/base
-        govulncheck -test ./ingesters/massFile
-        govulncheck -test ./ingesters/MSGraphIngester
-        govulncheck -test ./ingesters/kafka_consumer
-        govulncheck -test ./ingesters/reddit_ingester
-        govulncheck -test ./ingesters/O365Ingester
-        govulncheck -test ./ingesters/args
-        govulncheck -test ./ingesters/version
-        govulncheck -test ./ingesters/sqsIngester
-        govulncheck -test ./ingesters/diskmonitor
-        govulncheck -test ./ingesters/session
-        govulncheck -test ./ingesters/snmp
-        govulncheck -test ./ingesters/xlsxIngester
-        govulncheck -test ./ingesters/multiFile
-        govulncheck -test ./ingesters/Shodan
-        govulncheck -test ./ingesters/reimport
-        govulncheck -test ./ingesters/SimpleRelay
-        govulncheck -test ./ingesters/KinesisIngester
-        govulncheck -test ./ingesters/netflow
-        govulncheck -test ./ingesters/AzureEventHubs
-        govulncheck -test ./ingesters/utils
-        govulncheck -test ./ingesters/IPMIIngester
-        govulncheck -test ./ingesters/regexFile
-        govulncheck -test ./ingesters/PacketFleet
-        govulncheck -test ./ingesters/canbus
-        govulncheck -test ./ingesters/GooglePubSubIngester
-        govulncheck -test ./ingesters/fileFollow
-        govulncheck -test ./ingesters/singleFile
-        govulncheck -test ./ingesters/llm_ingester
-        govulncheck -test ./gwcli/...
-        govulncheck -test ./hosted/...
-        GOOS=windows govulncheck -test ./ingesters/winevents
-        GOOS=windows govulncheck -test ./winevent/...
-
+    # Needed by the CGO_ENABLED=1 networkLog passes below.
     - name: Install libpcap
       run: sudo apt-get install -y libpcap-dev
 
-    - name: Vet
+    # The script keeps these in shell variables; steps get their own shell, so
+    # stash them in the environment instead.
+    - name: Compute package lists
       run: |
-        go vet ./generators/ipgen
-        go vet ./chancacher
-        go vet ./debug
-        go vet ./ingest
-        go vet ./ingest/entry
-        go vet ./ingest/processors
-        go vet ./ingest/processors/plugin
-        go vet ./ingest/config
-        go vet ./ingest/log
-        go vet ./timegrinder
-        go vet ./filewatch
-        go vet ./hosted/...
-        go vet ./ingesters/utils
-        go vet ./ingesters/kafka_consumer
-        go vet ./ingesters/SimpleRelay
-        go vet ./ingesters/llm_ingester
-        go vet ./ipexist
-        go vet ./netflow
-        go vet ./client/...
-        go vet ./gwcli/...
+        NATIVE=$(go list ./... 2>/dev/null | grep -vE "$NON_NATIVE" | grep -v '/ingesters/networkLog$' | tr '\n' ' ')
+        # gwcli is tested separately with -tags ci, which is a superset of the untagged run
+        NATIVE_NO_GWCLI=$(echo "$NATIVE" | tr ' ' '\n' | grep -v '/gwcli' | tr '\n' ' ')
+        echo "NATIVE=$NATIVE" >> "$GITHUB_ENV"
+        echo "NATIVE_NO_GWCLI=$NATIVE_NO_GWCLI" >> "$GITHUB_ENV"
 
+    - name: Skipping native vet/test/build for
+      run: go list ./... 2>/dev/null | grep -E "$NON_NATIVE"
 
-    - name: Test
+    - name: Installing tooling
       run: |
-        go test -v ./generators/ipgen
-        go test -v ./chancacher
-        go test -v ./ingest
-        go test -v ./ingest/entry
-        go test -v ./ingest/processors
-        go test -v ./ingest/processors/plugin
-        go test -v ./ingest/config
-        go test -v ./ingest/log
-        go test -v ./timegrinder
-        go test -v ./filewatch
-        go test -v ./hosted/...
-        go test -v ./ingesters/utils
-        go test -v ./ingesters/kafka_consumer
-        go test -v ./ingesters/SimpleRelay
-        go test -v ./ingesters/llm_ingester
-        go test -v ./ipexist
-        go test -v ./netflow
-        go test -v ./client/...
-        go test -v -tags ci ./gwcli/...
+        go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+        go install honnef.co/go/tools/cmd/staticcheck@2026.2.1
 
-
-    - name: StaticCheck
+    - name: Checking module hygiene
       run: |
-        staticcheck ./chancacher/...
-        staticcheck ./debug/...
-        staticcheck ./manager/...
-        staticcheck ./generators/base/... ./generators/gravwellGenerator/... ./generators/ipgen/...
-        staticcheck ./gwcli/...
-        GOOS=windows staticcheck ./generators/windowsEventGenerator/...
-        GOOS=windows staticcheck ./winevent/...
-        GOOS=windows staticcheck ./ingesters/winevents/...
-        staticcheck ./ingest
-        staticcheck ./ingest/attach
-        staticcheck ./ingest/config/...
-        staticcheck ./ingest/log/...
-        staticcheck ./ingest/entry
-        staticcheck ./ingest/processors
-        staticcheck ./ingest/processors/plugin
-        staticcheck ./ingest/processors/tags
-        staticcheck ./utils/...
-        staticcheck ./tools/...
-        staticcheck ./timegrinder/...
-        staticcheck ./ipexist/...
-        staticcheck ./sqs_common/...
-        staticcheck ./kitctl/...
-        staticcheck ./netflow/...
-        staticcheck ./migrate/...
-        staticcheck ./filewatch/...
-        staticcheck ./client/...
-        staticcheck ./ingesters/args/...
-        staticcheck ./ingesters/base/...
-        staticcheck ./hosted/...
-        staticcheck ./ingesters/AzureEventHubs/...
-        staticcheck ./ingesters/canbus/...
-        staticcheck ./ingesters/utils/...
-        staticcheck ./ingesters/version/...
-        staticcheck ./ingesters/collectd/...
-        staticcheck ./ingesters/diskmonitor/...
-        staticcheck ./ingesters/fileFollow/...
-        staticcheck ./ingesters/GooglePubSubIngester/...
-        staticcheck ./ingesters/hackernews_ingester/...
-        staticcheck ./ingesters/IPMIIngester/...
-        staticcheck ./ingesters/kafka_consumer/...
-        staticcheck ./ingesters/KinesisIngester/...
-        staticcheck ./ingesters/llm_ingester/...
-        staticcheck ./ingesters/massFile/...
-        staticcheck ./ingesters/MSGraphIngester/...
-        staticcheck ./ingesters/multiFile/...
-        staticcheck ./ingesters/netflow/...
-        staticcheck ./ingesters/networkLog/...
-        staticcheck ./ingesters/O365Ingester/...
-        staticcheck ./ingesters/PacketFleet/...
-        staticcheck ./ingesters/pcapFileIngester/...
-        staticcheck ./ingesters/reddit_ingester/...
-        staticcheck ./ingesters/regexFile/...
-        staticcheck ./ingesters/reimport/...
-        staticcheck ./ingesters/s3Ingester/...
-        staticcheck ./ingesters/session/...
-        staticcheck ./ingesters/Shodan/...
-        staticcheck ./ingesters/SimpleRelay/...
-        staticcheck ./ingesters/singleFile/...
-        staticcheck ./ingesters/snmp/...
-        staticcheck ./ingesters/sqsIngester/...
-        staticcheck ./ingesters/xlsxIngester/...
-        staticcheck ./ingesters/HttpIngester/...
+        go mod tidy && git diff --exit-code go.mod go.sum
+        go mod download
+        go mod verify
 
-    - name: Build
+    - name: Running go vet
       run: |
-        go build -o /dev/null ./generators/gravwellGenerator
-        go build -o /dev/null ./manager
-        go build -o /dev/null ./migrate
-        go build -o /dev/null ./tools/timetester
-        go build -o /dev/null ./timegrinder/cmd
-        go build -o /dev/null ./ipexist/textinput
-        go build -o /dev/null ./kitctl
-        go build -o /dev/null ./hosted/runner
+        go vet $NATIVE
+        GOOS=windows go vet $WINDOWS_PKGS
+        CGO_ENABLED=1 go vet $CGO_PKG
+
+    - name: Running staticcheck
+      run: |
+        staticcheck $NATIVE
+        GOOS=windows staticcheck $WINDOWS_PKGS
+        CGO_ENABLED=1 staticcheck $CGO_PKG
+
+    - name: Running govulncheck
+      run: |
+        govulncheck -test $NATIVE
+        CGO_ENABLED=1 govulncheck -test $CGO_PKG
+
+    - name: Running govulncheck on windows and non-native ingesters
+      run: |
+        GOOS=windows govulncheck -test ./ingesters/winevents
+        GOOS=windows govulncheck -test ./winevent/...
+        GOOS=darwin GOARCH=amd64 govulncheck -test ./ingesters/fileFollow
+        GOOS=darwin GOARCH=arm64 govulncheck -test ./ingesters/fileFollow
+        GOOS=linux GOARCH=arm64 govulncheck -test ./ingesters/fileFollow
+
+    - name: Running go test and excluding windows and experiments
+      run: |
+        go test -p 4 $NATIVE_NO_GWCLI
+        go test -p 4 -tags ci ./gwcli/...
+        CGO_ENABLED=1 go test -p 4 $CGO_PKG
+
+    - name: Building native components
+      run: |
+        go build $NATIVE
+        CGO_ENABLED=1 go build -o /dev/null ./ingesters/networkLog
+
+    - name: Building Windows, Darwin, and non-native components
+      run: |
         GOOS=windows go build -o /dev/null ./ingesters/fileFollow
         GOOS=windows go build -o /dev/null ./ingesters/winevents
-        GOOS=windows go build ./generators/windowsEventGenerator
-        go build -o /dev/null ./ingesters/massFile
-        go build -o /dev/null ./ingesters/diskmonitor
-        go build -o /dev/null ./ingesters/xlsxIngester
-        go build -o /dev/null ./ingesters/reimport
-        go build -o /dev/null ./ingesters/version
-        go build -o /dev/null ./ingesters/canbus
-        go build -o /dev/null ./ingesters/reddit_ingester
-        go build -o /dev/null ./ingesters/hackernews_ingester
-        go build -o /dev/null ./ingesters/multiFile
-        go build -o /dev/null ./ingesters/session
-        go build -o /dev/null ./ingesters/regexFile
-        go build -o /dev/null ./ingesters/Shodan
-        go build -o /dev/null ./ingesters/singleFile
-        go build -o /dev/null ./ingesters/pcapFileIngester
-        go build -o /dev/null ./ingesters/llm_ingester
+        GOOS=windows go build -o /dev/null ./generators/windowsEventGenerator
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
-        go build -o /dev/null ./gwcli
 
-        /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ./ingesters/test/configs/pubsub_ingest.conf
+    - name: Performing a test build and check with config
+      run: |
+        /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ingesters/test/configs/pubsub_ingest.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/AzureEventHubs ingesters/test/configs/azure_event_hubs.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/HttpIngester ingesters/test/configs/gravwell_http_ingester.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/collectd ingesters/test/configs/collectd.conf
@@ -266,10 +131,11 @@ jobs:
         /bin/bash ./ingesters/test/build.sh ./ingesters/s3Ingester ingesters/test/configs/s3.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/snmp ingesters/test/configs/snmp.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/sqsIngester ingesters/test/configs/sqs.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/networkLog ingesters/test/configs/network_capture.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/SimpleRelay ingesters/test/configs/simple_relay.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/O365Ingester ingesters/test/configs/o365_ingest.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/PacketFleet ingesters/test/configs/packet_fleet.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/llm_ingester ingesters/test/configs/llm_ingester.conf
+        CGO_ENABLED=1 /bin/bash ./ingesters/test/build.sh ./ingesters/networkLog ingesters/test/configs/network_capture.conf
 
     - name: Final status
       run: echo "Status is ${{ job.status }} 🚀"
