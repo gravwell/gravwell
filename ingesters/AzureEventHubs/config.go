@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2022 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -14,29 +14,32 @@ import (
 	"strings"
 	"time"
 
-	eventhubs "github.com/Azure/azure-event-hubs-go/v3"
+	eventhubs "github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2"
+
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
 const (
-	MAX_CONFIG_SIZE   int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
-	defaultStateStore       = `/opt/gravwell/etc/azure_event_hubs.state`
-	defaultLogFile          = `/opt/gravwell/log/azure_event_hubs.log`
-	defaultCheckpoint       = `start`
-)
+	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 
-type bindType int
-type readerType int
+	defaultLogFile    = `/opt/gravwell/log/azure_event_hubs.log`
+	defaultCheckpoint = `start`
+	defaultStateStore = `/opt/gravwell/etc/azure_event_hubs.state`
+)
 
 type global struct {
 	config.IngestConfig
+	// State_Store_Location is a local directory where per-partition
+	// checkpoint files are written. It's created on startup if it
+	// doesn't already exist.
 	State_Store_Location string
 }
 
 type eventHubConf struct {
 	Event_Hubs_Namespace  string
+	Event_Hubs_Endpoint   string // optional; when set, connects to a local Event Hubs emulator at this host instead of Event_Hubs_Namespace on Azure
 	Event_Hub             string
 	Consumer_Group        string // defaults to "$Default"
 	Token_Name            string
@@ -56,6 +59,15 @@ type cfgType struct {
 	Preprocessor processors.ProcessorConfig
 }
 
+func applyDefaults(c *cfgType) {
+	if c.Global.Log_File == `` {
+		c.Global.Log_File = defaultLogFile
+	}
+	if c.Global.State_Store_Location == `` {
+		c.Global.State_Store_Location = defaultStateStore
+	}
+}
+
 func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var c cfgType
 	if err := config.LoadConfigFile(&c, path); err != nil {
@@ -63,13 +75,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	} else if err = config.LoadConfigOverlays(&c, overlayPath); err != nil {
 		return nil, err
 	}
-	//initialize the state store location if its empty
-	if c.Global.State_Store_Location == `` {
-		c.Global.State_Store_Location = defaultStateStore
-	}
-	if c.Global.Log_File == `` {
-		c.Global.Log_File = defaultLogFile
-	}
+	applyDefaults(&c)
 	return &c, nil
 }
 
@@ -79,15 +85,18 @@ func (c cfgType) Verify() error {
 	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
+
 	if to, err := c.parseTimeout(); err != nil || to < 0 {
 		if err != nil {
 			return err
 		}
 		return errors.New("Invalid connection timeout")
 	}
+
 	if c.Global.Ingest_Secret == "" {
 		return errors.New("Ingest-Secret not specified")
 	}
+
 	//ensure there is at least one target
 	connCount := len(c.Global.Cleartext_Backend_Target) +
 		len(c.Global.Encrypted_Backend_Target) +
@@ -95,6 +104,7 @@ func (c cfgType) Verify() error {
 	if connCount == 0 {
 		return errors.New("No backend targets specified")
 	}
+
 	if len(c.EventHub) == 0 {
 		return errors.New("at least one EventHub definition is required")
 	}
@@ -102,38 +112,52 @@ func (c cfgType) Verify() error {
 		return err
 	}
 	for k, v := range c.EventHub {
-		if v == nil {
-			return fmt.Errorf("EventHub stream %v config is nil", k)
+		if err := verifyEventHub(k, v); err != nil {
+			return err
 		}
-		if v.Event_Hubs_Namespace == "" {
-			return fmt.Errorf("EventHub config %v Event-Hubs-Namespace parameter is empty", k)
-		}
-		if v.Event_Hub == "" {
-			return fmt.Errorf("EventHub config %v Event-Hub parameter is empty", k)
-		}
-		if v.Token_Name == "" {
-			return fmt.Errorf("EventHub config %v Token-Name parameter is empty", k)
-		}
-		if v.Token_Key == "" {
-			return fmt.Errorf("EventHub config %v Token-Key parameter is empty", k)
-		}
-		if v.Consumer_Group == "" {
-			c.EventHub[k].Consumer_Group = eventhubs.DefaultConsumerGroup
-		}
-		if v.Initial_Checkpoint == "" {
-			c.EventHub[k].Initial_Checkpoint = defaultCheckpoint
-		}
-		switch v.Initial_Checkpoint {
-		case "start":
-		case "end":
-		default:
-			return fmt.Errorf(`Invalid Starting-Checkpoint %s for stream %s, must be "start" or "end"`, v.Initial_Checkpoint, k)
-		}
+		normalizeEventHub(v)
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("EventHub stream %s preprocessor invalid: %v", k, err)
 		}
 	}
 	return nil
+}
+
+// verifyEventHub checks that a single EventHub config block has every
+// required field set and a valid Initial-Checkpoint value (if set at all).
+func verifyEventHub(k string, v *eventHubConf) error {
+	if v == nil {
+		return fmt.Errorf("EventHub stream %v config is nil", k)
+	}
+	if v.Event_Hubs_Namespace == "" && v.Event_Hubs_Endpoint == "" {
+		return fmt.Errorf("EventHub config %v Event-Hubs-Namespace parameter is empty", k)
+	}
+	if v.Event_Hub == "" {
+		return fmt.Errorf("EventHub config %v Event-Hub parameter is empty", k)
+	}
+	if v.Token_Name == "" {
+		return fmt.Errorf("EventHub config %v Token-Name parameter is empty", k)
+	}
+	if v.Token_Key == "" {
+		return fmt.Errorf("EventHub config %v Token-Key parameter is empty", k)
+	}
+	switch v.Initial_Checkpoint {
+	case "", "start", "end":
+	default:
+		return fmt.Errorf(`Invalid Starting-Checkpoint %s for stream %s, must be "start" or "end"`, v.Initial_Checkpoint, k)
+	}
+	return nil
+}
+
+// normalizeEventHub fills in defaults for a single EventHub config block.
+// It assumes verifyEventHub has already been called and returned nil.
+func normalizeEventHub(v *eventHubConf) {
+	if v.Consumer_Group == "" {
+		v.Consumer_Group = eventhubs.DefaultConsumerGroup
+	}
+	if v.Initial_Checkpoint == "" {
+		v.Initial_Checkpoint = defaultCheckpoint
+	}
 }
 
 func (c *cfgType) Targets() ([]string, error) {
