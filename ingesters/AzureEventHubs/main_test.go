@@ -30,6 +30,7 @@ import (
 // be tested without a live Event Hub and Storage account.
 
 func TestBuildEventHubConnectionString(t *testing.T) {
+	t.Parallel()
 	hubDef := eventHubConf{
 		Event_Hubs_Namespace: "myNamespace",
 		Event_Hub:            "myHub",
@@ -46,6 +47,7 @@ func TestBuildEventHubConnectionString(t *testing.T) {
 }
 
 func TestStartPositionFor(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		checkpoint string
@@ -59,6 +61,7 @@ func TestStartPositionFor(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			pos := startPositionFor(tc.checkpoint)
 
 			gotEarliest := pos.Earliest != nil && *pos.Earliest
@@ -84,6 +87,7 @@ func TestStartPositionFor(t *testing.T) {
 }
 
 func TestEntryTimestamp_ParseTimeDisabled_UsesEnqueuedTime(t *testing.T) {
+	t.Parallel()
 	hubDef := &eventHubConf{Parse_Time: false}
 	enqueued := time.Date(2024, 3, 4, 5, 6, 7, 0, time.UTC)
 
@@ -104,6 +108,7 @@ func TestEntryTimestamp_ParseTimeDisabled_UsesEnqueuedTime(t *testing.T) {
 }
 
 func TestEntryTimestamp_ParseTimeDisabled_NoEnqueuedTime_UsesNow(t *testing.T) {
+	t.Parallel()
 	hubDef := &eventHubConf{Parse_Time: false}
 	before := entry.FromStandard(time.Now())
 
@@ -117,6 +122,7 @@ func TestEntryTimestamp_ParseTimeDisabled_NoEnqueuedTime_UsesNow(t *testing.T) {
 }
 
 func TestEntryTimestamp_ParseTimeEnabled_ExtractsFromBody(t *testing.T) {
+	t.Parallel()
 	tg, err := timegrinder.NewTimeGrinder(timegrinder.Config{EnableLeftMostSeed: true})
 	if err != nil {
 		t.Fatalf("failed to build timegrinder: %v", err)
@@ -138,6 +144,7 @@ func TestEntryTimestamp_ParseTimeEnabled_ExtractsFromBody(t *testing.T) {
 }
 
 func TestEntryTimestamp_ParseTimeEnabled_FailsExtraction_FallsBackAndDisables(t *testing.T) {
+	t.Parallel()
 	tg, err := timegrinder.NewTimeGrinder(timegrinder.Config{EnableLeftMostSeed: true})
 	if err != nil {
 		t.Fatalf("failed to build timegrinder: %v", err)

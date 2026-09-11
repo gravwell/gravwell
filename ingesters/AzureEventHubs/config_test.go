@@ -26,6 +26,7 @@ import (
 // either, so they're tested directly against cfgType/global as well.
 
 func TestApplyDefaults(t *testing.T) {
+	t.Parallel()
 	c := &cfgType{}
 	applyDefaults(c)
 
@@ -61,6 +62,7 @@ func validEventHub() *eventHubConf {
 }
 
 func TestVerifyEventHub(t *testing.T) {
+	t.Parallel()
 	if err := verifyEventHub("hub1", validEventHub()); err != nil {
 		t.Errorf("verifyEventHub() on a fully valid config = %v, want nil", err)
 	}
@@ -80,6 +82,7 @@ func TestVerifyEventHub(t *testing.T) {
 	}
 	for _, tc := range requiredFields {
 		t.Run("missing "+tc.name, func(t *testing.T) {
+			t.Parallel()
 			v := validEventHub()
 			tc.mutate(v)
 			if err := verifyEventHub("hub1", v); err == nil {
@@ -100,6 +103,7 @@ func TestVerifyEventHub(t *testing.T) {
 	}
 	for _, tc := range checkpointCases {
 		t.Run("Initial_Checkpoint="+tc.value, func(t *testing.T) {
+			t.Parallel()
 			v := validEventHub()
 			v.Initial_Checkpoint = tc.value
 			err := verifyEventHub("hub1", v)
@@ -114,6 +118,7 @@ func TestVerifyEventHub(t *testing.T) {
 }
 
 func TestNormalizeEventHub(t *testing.T) {
+	t.Parallel()
 	v := &eventHubConf{}
 	normalizeEventHub(v)
 
@@ -136,7 +141,9 @@ func TestNormalizeEventHub(t *testing.T) {
 }
 
 func TestTags(t *testing.T) {
+	t.Parallel()
 	t.Run("no tags at all", func(t *testing.T) {
+		t.Parallel()
 		c := &cfgType{EventHub: map[string]*eventHubConf{
 			"a": {},
 		}}
@@ -146,6 +153,7 @@ func TestTags(t *testing.T) {
 	})
 
 	t.Run("dedups repeated tag names", func(t *testing.T) {
+		t.Parallel()
 		c := &cfgType{EventHub: map[string]*eventHubConf{
 			"a": {Tag_Name: "shared"},
 			"b": {Tag_Name: "shared"},
@@ -172,6 +180,7 @@ func TestTags(t *testing.T) {
 }
 
 func TestParseTimeout(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		raw     string
@@ -186,6 +195,7 @@ func TestParseTimeout(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			c := &cfgType{}
 			c.Global.Connection_Timeout = tc.raw
 			got, err := c.parseTimeout()
@@ -206,6 +216,7 @@ func TestParseTimeout(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
+	t.Parallel()
 	c := &cfgType{}
 	c.Global.Connection_Timeout = "5s"
 	if got := c.Timeout(); got != 5*time.Second {
@@ -220,6 +231,7 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestSimpleGetters(t *testing.T) {
+	t.Parallel()
 	c := &cfgType{}
 	c.Global.Ingest_Secret = "shh"
 	c.Global.Log_Level = "INFO"

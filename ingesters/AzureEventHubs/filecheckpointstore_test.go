@@ -29,6 +29,7 @@ func mustNewStore(t *testing.T) *fileCheckpointStore {
 }
 
 func TestFileCheckpointStore_SetAndListCheckpoints_RoundTrip(t *testing.T) {
+	t.Parallel()
 	store := mustNewStore(t)
 	ctx := context.Background()
 
@@ -66,6 +67,7 @@ func TestFileCheckpointStore_SetAndListCheckpoints_RoundTrip(t *testing.T) {
 }
 
 func TestFileCheckpointStore_SetCheckpoint_OverwritesPreviousValue(t *testing.T) {
+	t.Parallel()
 	store := mustNewStore(t)
 	ctx := context.Background()
 
@@ -101,6 +103,7 @@ func TestFileCheckpointStore_SetCheckpoint_OverwritesPreviousValue(t *testing.T)
 }
 
 func TestFileCheckpointStore_ListCheckpoints_NoneYet(t *testing.T) {
+	t.Parallel()
 	store := mustNewStore(t)
 	got, err := store.ListCheckpoints(context.Background(), "ns", "hub", "$Default", nil)
 	if err != nil {
@@ -112,6 +115,7 @@ func TestFileCheckpointStore_ListCheckpoints_NoneYet(t *testing.T) {
 }
 
 func TestFileCheckpointStore_ListCheckpoints_KeepsHubsAndConsumerGroupsSeparate(t *testing.T) {
+	t.Parallel()
 	store := mustNewStore(t)
 	ctx := context.Background()
 
@@ -135,6 +139,7 @@ func TestFileCheckpointStore_ListCheckpoints_KeepsHubsAndConsumerGroupsSeparate(
 }
 
 func TestFileCheckpointStore_ClaimAndListOwnership(t *testing.T) {
+	t.Parallel()
 	store := mustNewStore(t)
 	ctx := context.Background()
 
@@ -170,6 +175,7 @@ func TestFileCheckpointStore_ClaimAndListOwnership(t *testing.T) {
 }
 
 func TestSanitizePathElement(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"plain":       "plain",
 		"has/slash":   "has_slash",
