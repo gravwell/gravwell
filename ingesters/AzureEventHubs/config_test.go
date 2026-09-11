@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -32,21 +32,21 @@ func TestApplyDefaults(t *testing.T) {
 	if c.Global.Log_File != defaultLogFile {
 		t.Errorf("applyDefaults() Log_File = %q, want %q", c.Global.Log_File, defaultLogFile)
 	}
-	if c.Global.Checkpoint_Storage_Location != defaultCheckpointStorageLocation {
+	if c.Global.State_Store_Location != defaultStateStore {
 		t.Errorf("applyDefaults() Checkpoint_Storage_Location = %q, want %q",
-			c.Global.Checkpoint_Storage_Location, defaultCheckpointStorageLocation)
+			c.Global.State_Store_Location, defaultStateStore)
 	}
 
 	// explicit values should not be overwritten
 	c2 := &cfgType{}
 	c2.Global.Log_File = "/custom/log"
-	c2.Global.Checkpoint_Storage_Location = "/custom/checkpoints"
+	c2.Global.State_Store_Location = "/custom/checkpoints"
 	applyDefaults(c2)
 	if c2.Global.Log_File != "/custom/log" {
 		t.Errorf("applyDefaults() overwrote an explicit Log_File: got %q", c2.Global.Log_File)
 	}
-	if c2.Global.Checkpoint_Storage_Location != "/custom/checkpoints" {
-		t.Errorf("applyDefaults() overwrote an explicit Checkpoint_Storage_Location: got %q", c2.Global.Checkpoint_Storage_Location)
+	if c2.Global.State_Store_Location != "/custom/checkpoints" {
+		t.Errorf("applyDefaults() overwrote an explicit Checkpoint_Storage_Location: got %q", c2.Global.State_Store_Location)
 	}
 }
 

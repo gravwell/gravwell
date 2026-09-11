@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -87,7 +87,7 @@ func main() {
 	// you run more than one instance of this ingester against the same hub +
 	// consumer group they will not coordinate with each other (see
 	// fileCheckpointStore's doc comment).
-	checkpointStore, err := newFileCheckpointStore(cfg.Global.Checkpoint_Storage_Location)
+	checkpointStore, err := newFileCheckpointStore(cfg.Global.State_Store_Location)
 	if err != nil {
 		lg.FatalCode(0, "failed to create checkpoint store", log.KVErr(err))
 	}

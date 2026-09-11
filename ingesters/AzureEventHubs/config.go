@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2022 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -24,34 +24,31 @@ import (
 const (
 	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 
-	defaultLogFile                   = `/opt/gravwell/log/azure_event_hubs.log`
-	defaultCheckpoint                = `start`
-	defaultCheckpointStorageLocation = `/opt/gravwell/etc/azure_event_hubs_checkpoints`
+	defaultLogFile    = `/opt/gravwell/log/azure_event_hubs.log`
+	defaultCheckpoint = `start`
+	defaultStateStore = `/opt/gravwell/etc/azure_event_hubs.state`
 )
-
-type bindType int
-type readerType int
 
 type global struct {
 	config.IngestConfig
-	// Checkpoint_Storage_Location is a local directory where per-partition
-	// checkpoint files are written. It's created on startup if it doesn't
-	// already exist.
-	Checkpoint_Storage_Location string
+	// State_Store_Location is a local directory where per-partition
+	// checkpoint files are written. It's created on startup if it
+	// doesn't already exist.
+	State_Store_Location string
 }
 
 type eventHubConf struct {
-	Event_Hubs_Namespace string
-	Event_Hub string
-	Consumer_Group string // defaults to "$Default"
-	Token_Name string
-	Token_Key string `json:"-"` // DO NOT send this when marshalling
-	Initial_Checkpoint string // "start" or "end" of stream, defaults to "start"
-	Tag_Name string
+	Event_Hubs_Namespace  string
+	Event_Hub             string
+	Consumer_Group        string // defaults to "$Default"
+	Token_Name            string
+	Token_Key             string `json:"-"` // DO NOT send this when marshalling
+	Initial_Checkpoint    string // "start" or "end" of stream, defaults to "start"
+	Tag_Name              string
 	Assume_Local_Timezone bool
-	Timezone_Override string
-	Parse_Time bool
-	Preprocessor []string
+	Timezone_Override     string
+	Parse_Time            bool
+	Preprocessor          []string
 }
 
 type cfgType struct {
@@ -65,8 +62,8 @@ func applyDefaults(c *cfgType) {
 	if c.Global.Log_File == `` {
 		c.Global.Log_File = defaultLogFile
 	}
-	if c.Global.Checkpoint_Storage_Location == `` {
-		c.Global.Checkpoint_Storage_Location = defaultCheckpointStorageLocation
+	if c.Global.State_Store_Location == `` {
+		c.Global.State_Store_Location = defaultStateStore
 	}
 }
 
