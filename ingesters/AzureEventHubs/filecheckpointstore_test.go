@@ -28,9 +28,6 @@ func mustNewStore(t *testing.T) *fileCheckpointStore {
 	return store
 }
 
-func strPtr(s string) *string { return &s }
-func i64Ptr(i int64) *int64   { return &i }
-
 func TestFileCheckpointStore_SetAndListCheckpoints_RoundTrip(t *testing.T) {
 	store := mustNewStore(t)
 	ctx := context.Background()
@@ -40,8 +37,8 @@ func TestFileCheckpointStore_SetAndListCheckpoints_RoundTrip(t *testing.T) {
 		EventHubName:            "myHub",
 		FullyQualifiedNamespace: "myNamespace.servicebus.windows.net",
 		PartitionID:             "0",
-		Offset:                  strPtr("12345"),
-		SequenceNumber:          i64Ptr(42),
+		Offset:                  new("12345"),
+		SequenceNumber:          new(int64(42)),
 	}
 
 	if err := store.SetCheckpoint(ctx, cp, nil); err != nil {
@@ -80,13 +77,13 @@ func TestFileCheckpointStore_SetCheckpoint_OverwritesPreviousValue(t *testing.T)
 	}
 
 	first := base
-	first.Offset = strPtr("100")
+	first.Offset = new("100")
 	if err := store.SetCheckpoint(ctx, first, nil); err != nil {
 		t.Fatalf("first SetCheckpoint() returned error: %v", err)
 	}
 
 	second := base
-	second.Offset = strPtr("200")
+	second.Offset = new("200")
 	if err := store.SetCheckpoint(ctx, second, nil); err != nil {
 		t.Fatalf("second SetCheckpoint() returned error: %v", err)
 	}
@@ -119,9 +116,9 @@ func TestFileCheckpointStore_ListCheckpoints_KeepsHubsAndConsumerGroupsSeparate(
 	ctx := context.Background()
 
 	for _, cp := range []eventhubs.Checkpoint{
-		{FullyQualifiedNamespace: "ns", EventHubName: "hubA", ConsumerGroup: "$Default", PartitionID: "0", Offset: strPtr("1")},
-		{FullyQualifiedNamespace: "ns", EventHubName: "hubB", ConsumerGroup: "$Default", PartitionID: "0", Offset: strPtr("2")},
-		{FullyQualifiedNamespace: "ns", EventHubName: "hubA", ConsumerGroup: "other", PartitionID: "0", Offset: strPtr("3")},
+		{FullyQualifiedNamespace: "ns", EventHubName: "hubA", ConsumerGroup: "$Default", PartitionID: "0", Offset: new("1")},
+		{FullyQualifiedNamespace: "ns", EventHubName: "hubB", ConsumerGroup: "$Default", PartitionID: "0", Offset: new("2")},
+		{FullyQualifiedNamespace: "ns", EventHubName: "hubA", ConsumerGroup: "other", PartitionID: "0", Offset: new("3")},
 	} {
 		if err := store.SetCheckpoint(ctx, cp, nil); err != nil {
 			t.Fatalf("SetCheckpoint() returned error: %v", err)

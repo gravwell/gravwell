@@ -20,7 +20,6 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	eventhubs "github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2"
 
 	"github.com/gravwell/gravwell/v3/debug"
@@ -313,7 +312,7 @@ func runPartition(ctx context.Context, pc *eventhubs.ProcessorPartitionClient, p
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
@@ -333,9 +332,9 @@ func buildEventHubConnectionString(hubDef eventHubConf) string {
 // should start reading from, based on the config's Initial-Checkpoint setting.
 func startPositionFor(initialCheckpoint string) eventhubs.StartPosition {
 	if initialCheckpoint == "end" {
-		return eventhubs.StartPosition{Latest: to.Ptr(true)}
+		return eventhubs.StartPosition{Latest: new(true)}
 	}
-	return eventhubs.StartPosition{Earliest: to.Ptr(true)}
+	return eventhubs.StartPosition{Earliest: new(true)}
 }
 
 // entryTimestamp picks the timestamp for a received event: if time parsing is
