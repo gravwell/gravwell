@@ -122,7 +122,7 @@ func main() {
 			// config already supplies.
 			connStr := buildEventHubConnectionString(hubDef)
 
-			consumerClient, err := eventhubs.NewConsumerClientFromConnectionString(connStr, "", eventhubs.DefaultConsumerGroup, nil)
+			consumerClient, err := eventhubs.NewConsumerClientFromConnectionString(connStr, "", hubDef.Consumer_Group, nil)
 			if err != nil {
 				lg.Fatal("failed to connect to hub", log.KVErr(err))
 			}
