@@ -122,7 +122,7 @@ func main() {
 			// config already supplies.
 			connStr := buildEventHubConnectionString(hubDef)
 
-			consumerClient, err := eventhubs.NewConsumerClientFromConnectionString(connStr, "", hubDef.Consumer_Group, nil)
+			consumerClient, err := eventhubs.NewConsumerClientFromConnectionString(connStr, hubDef.Event_Hub, hubDef.Consumer_Group, nil)
 			if err != nil {
 				lg.Fatal("failed to connect to hub", log.KVErr(err))
 			}
@@ -335,12 +335,27 @@ func debugout(format string, args ...any) {
 }
 
 // buildEventHubConnectionString builds a SAS connection string for the new SDK
-// from the same Event-Hubs-Namespace/Token-Name/Token-Key/Event-Hub config values
-// used by the old SDK's sas.TokenProvider.
+// from the same Event-Hubs-Namespace/Token-Name/Token-Key config values used
+// by the old SDK's sas.TokenProvider. The entity path (event hub name) is
+// deliberately left out of the string and passed to
+// NewConsumerClientFromConnectionString instead, since it's mutually
+// exclusive with EntityPath in the connection string and the caller always
+// has the event hub name in hand.
+//
+// If Event-Hubs-Endpoint is set, the connection string instead targets a
+// local Event Hubs emulator (see
+// https://learn.microsoft.com/en-us/azure/event-hubs/overview-emulator)
+// using UseDevelopmentEmulator=true rather than a real Azure namespace.
 func buildEventHubConnectionString(hubDef eventHubConf) string {
+	if hubDef.Event_Hubs_Endpoint != "" {
+		return fmt.Sprintf(
+			"Endpoint=sb://%s;SharedAccessKeyName=%s;SharedAccessKey=%s;UseDevelopmentEmulator=true;",
+			hubDef.Event_Hubs_Endpoint, hubDef.Token_Name, hubDef.Token_Key,
+		)
+	}
 	return fmt.Sprintf(
-		"Endpoint=sb://%s.servicebus.windows.net/;SharedAccessKeyName=%s;SharedAccessKey=%s;EntityPath=%s",
-		hubDef.Event_Hubs_Namespace, hubDef.Token_Name, hubDef.Token_Key, hubDef.Event_Hub,
+		"Endpoint=sb://%s.servicebus.windows.net/;SharedAccessKeyName=%s;SharedAccessKey=%s",
+		hubDef.Event_Hubs_Namespace, hubDef.Token_Name, hubDef.Token_Key,
 	)
 }
 

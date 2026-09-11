@@ -39,6 +39,7 @@ type global struct {
 
 type eventHubConf struct {
 	Event_Hubs_Namespace  string
+	Event_Hubs_Endpoint   string // optional; when set, connects to a local Event Hubs emulator at this host instead of Event_Hubs_Namespace on Azure
 	Event_Hub             string
 	Consumer_Group        string // defaults to "$Default"
 	Token_Name            string
@@ -128,7 +129,7 @@ func verifyEventHub(k string, v *eventHubConf) error {
 	if v == nil {
 		return fmt.Errorf("EventHub stream %v config is nil", k)
 	}
-	if v.Event_Hubs_Namespace == "" {
+	if v.Event_Hubs_Namespace == "" && v.Event_Hubs_Endpoint == "" {
 		return fmt.Errorf("EventHub config %v Event-Hubs-Namespace parameter is empty", k)
 	}
 	if v.Event_Hub == "" {

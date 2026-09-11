@@ -117,6 +117,34 @@ func TestVerifyEventHub(t *testing.T) {
 	}
 }
 
+func TestVerifyEventHub_EmulatorEndpoint(t *testing.T) {
+	t.Parallel()
+	// Event_Hubs_Namespace can be omitted when Event_Hubs_Endpoint (the local
+	// emulator override) is set instead.
+	v := validEventHub()
+	v.Event_Hubs_Namespace = ""
+	v.Event_Hubs_Endpoint = "localhost"
+	if err := verifyEventHub("hub1", v); err != nil {
+		t.Errorf("verifyEventHub() with only Event_Hubs_Endpoint set = %v, want nil", err)
+	}
+
+	// Still requires the other fields even with the endpoint override set.
+	v2 := validEventHub()
+	v2.Event_Hubs_Namespace = ""
+	v2.Event_Hubs_Endpoint = "localhost"
+	v2.Token_Name = ""
+	if err := verifyEventHub("hub1", v2); err == nil {
+		t.Errorf("verifyEventHub() with Event_Hubs_Endpoint set but missing Token_Name = nil, want error")
+	}
+
+	// Missing both Event_Hubs_Namespace and Event_Hubs_Endpoint is still an error.
+	v3 := validEventHub()
+	v3.Event_Hubs_Namespace = ""
+	if err := verifyEventHub("hub1", v3); err == nil {
+		t.Errorf("verifyEventHub() with neither Event_Hubs_Namespace nor Event_Hubs_Endpoint set = nil, want error")
+	}
+}
+
 func TestNormalizeEventHub(t *testing.T) {
 	t.Parallel()
 	v := &eventHubConf{}

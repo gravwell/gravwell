@@ -21,7 +21,7 @@ The compose file spins up a Gravwell instance alongside the three emulators. Gra
 ```yaml
 services:
   gravwell:
-    image: ghcr.io/gravwell/alpha-next-minor:5.9.0-alpha20260512114933
+    image: gravwell/gravwell:latest
     container_name: gravwell
     ports:
       - "8080:80"

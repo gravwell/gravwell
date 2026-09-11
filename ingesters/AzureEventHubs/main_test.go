@@ -39,7 +39,25 @@ func TestBuildEventHubConnectionString(t *testing.T) {
 	}
 
 	got := buildEventHubConnectionString(hubDef)
-	want := "Endpoint=sb://myNamespace.servicebus.windows.net/;SharedAccessKeyName=myPolicy;SharedAccessKey=s3cr3t==;EntityPath=myHub"
+	want := "Endpoint=sb://myNamespace.servicebus.windows.net/;SharedAccessKeyName=myPolicy;SharedAccessKey=s3cr3t=="
+
+	if got != want {
+		t.Errorf("buildEventHubConnectionString() = %q, want %q", got, want)
+	}
+}
+
+func TestBuildEventHubConnectionString_EmulatorEndpoint(t *testing.T) {
+	t.Parallel()
+	hubDef := eventHubConf{
+		Event_Hubs_Namespace: "myNamespace", // should be ignored in favor of the endpoint override
+		Event_Hubs_Endpoint:  "localhost",
+		Event_Hub:            "myHub",
+		Token_Name:           "RootManageSharedAccessKey",
+		Token_Key:            "s3cr3t==",
+	}
+
+	got := buildEventHubConnectionString(hubDef)
+	want := "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=s3cr3t==;UseDevelopmentEmulator=true;"
 
 	if got != want {
 		t.Errorf("buildEventHubConnectionString() = %q, want %q", got, want)
