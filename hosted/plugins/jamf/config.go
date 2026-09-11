@@ -8,43 +8,49 @@
 
 // Package jamf is a hosted ingester plugin that polls the Jamf Pro API's
 // computers-inventory endpoint for records that were modified in a given
-// time window, using general.reportDate as the tracking cursor.
+// time window, using general.reportDate as the tracking cursor. Each
+// configured section is emitted to its own tag, with the GENERAL section's
+// data folded into every entry for context.
 package jamf
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
+	"slices"
 
 	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 const (
-	defaultIngesterUUIDStr string = "7e468cc4-ab10-4b33-b066-90eb4905980b"
-
-	defaultTag               = `jamf`
+	defaultIngesterUUIDStr   = "7e468cc4-ab10-4b33-b066-90eb4905980b"
+	defaultTagPrefix         = `jamf`
 	defaultPageSize          = 100
 	defaultLookback          = 1   // hours
 	defaultRequestsPerMinute = 60  // token bucket for the inventory + oauth calls
 	defaultInterval          = 600 // seconds (10 minutes)
 
-	// PollBufferSeconds keeps the window from reaching all the way up to
+	// pollBufferSeconds keeps the window from reaching all the way up to
 	// "now", since Jamf can take a few seconds to finish writing a record
 	// after a device checks in. Without this, records near the trailing
 	// edge of a window could be missed entirely.
 	pollBufferSeconds = 60
 )
 
-const sectionGeneral string = "GENERAL"
+// generalSectionName is the Jamf computers-inventory section that's always
+// requested (for reportDate/id) and folded into every other section's
+// entry. It only needs a place in Sections if you also want a dedicated
+// general-only stream.
+const generalSectionName = "GENERAL"
 
-// Sections lists the computers-inventory sections we'll request if the
-// config doesn't specify any explicitly.
-var defaultSections = []string{sectionGeneral}
+// defaultSections lists the computers-inventory sections we request data
+// for, and emit a separate tag for, if the config doesn't specify any.
+var defaultSections = []string{"DISK_ENCRYPTION", "STORAGE"}
 
 type Config struct {
 	hosted.BaseConfig
-	hosted.SingleTagConfig
+	hosted.MultiTagConfig
 	hosted.PollingConfig
 
 	Host          string
@@ -66,7 +72,8 @@ func (c *Config) Equal(ncp any) bool {
 		return false
 	}
 	return c.BaseConfig == nc.BaseConfig &&
-		c.SingleTagConfig == nc.SingleTagConfig &&
+		c.Tag_Prefix == nc.Tag_Prefix &&
+		c.MultiTagConfig == nc.MultiTagConfig &&
 		c.PollingConfig == nc.PollingConfig &&
 		c.Host == nc.Host &&
 		c.Client_Id == nc.Client_Id &&
@@ -97,11 +104,21 @@ func (c *Config) Verify() error {
 		return fmt.Errorf("Page-Size %d is too large, must be <= 1000", c.Page_Size)
 	}
 
-	// GENERAL should _always_ be in c.Sections.
 	if len(c.Sections) == 0 {
-		c.Sections = defaultSections
-	} else if !slices.Contains(c.Sections, sectionGeneral) {
-		c.Sections = append(c.Sections, sectionGeneral)
+		c.Sections = append([]string{}, defaultSections...)
+	}
+	for i, s := range c.Sections {
+		c.Sections[i] = strings.ToUpper(strings.TrimSpace(s))
+	}
+	if dup := firstDuplicate(c.Sections); dup != "" {
+		return fmt.Errorf("Sections lists %q more than once", dup)
+	}
+
+	if err := c.MultiTagConfig.ValidateTags(); err != nil {
+		return err
+	}
+	if c.Tag_Name != "" && len(c.Sections) > 1 {
+		return errors.New("Tag-Name can only be used with a single Sections entry; use Tag-Prefix instead")
 	}
 
 	c.PollingConfig.ApplyDefaults(defaultLookback, defaultRequestsPerMinute, defaultInterval)
@@ -109,6 +126,50 @@ func (c *Config) Verify() error {
 	return nil
 }
 
+func firstDuplicate(vals []string) string {
+	seen := make(map[string]bool, len(vals))
+	for _, v := range vals {
+		if seen[v] {
+			return v
+		}
+		seen[v] = true
+	}
+	return ""
+}
+
+// requestSections returns the full set of Jamf inventory sections to
+// request from the API for a page: every configured section plus GENERAL
+// (deduplicated). GENERAL is always requested since it carries the
+// reportDate/id used for every emitted entry, regardless of whether the
+// operator listed it explicitly in Sections.
+func (c *Config) requestSections() []string {
+	out := make([]string, 0, len(c.Sections)+1)
+	out = append(out, generalSectionName)
+	for _, s := range c.Sections {
+		if s != generalSectionName {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// tagForSection returns the tag that a configured section's entries should
+// be written under: Tag-Name verbatim if set (only valid for a single
+// configured section), otherwise "<Tag-Prefix or 'jamf'>_<section, lowercased>".
+func (c *Config) tagForSection(section string) string {
+	if c.Tag_Name != "" {
+		return c.Tag_Name
+	}
+	prefix := cmp.Or(c.Tag_Prefix, defaultTagPrefix)
+	return prefix + "_" + strings.ToLower(section)
+}
+
+// Tags returns every tag this plugin instance can write to, one per
+// configured section.
 func (c *Config) Tags() []string {
-	return []string{c.ResolveTag(defaultTag)}
+	tags := make([]string, 0, len(c.Sections))
+	for _, s := range c.Sections {
+		tags = append(tags, c.tagForSection(s))
+	}
+	return tags
 }
