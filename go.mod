@@ -7,7 +7,6 @@ tool github.com/gravwell/gravwell/v3/tools/repo
 require (
 	cloud.google.com/go/pubsub/v2 v2.5.1
 	collectd.org v0.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
 	github.com/Bowery/prompt v0.0.0-20190916142128-fa8279994f75
 	github.com/IBM/sarama v1.45.1
@@ -76,6 +75,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.13.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/go-amqp v1.5.0 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
