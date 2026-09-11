@@ -313,6 +313,11 @@ func runPartition(ctx context.Context, pc *eventhubs.ProcessorPartitionClient, p
 				return
 			}
 			lg.Error("failed to receive events from partition", log.KV("partition", pc.PartitionID()), log.KVErr(err))
+			// Back off before retrying so a persistent failure (ex: bad credentials, etc.)
+			// doesn't spam logs or hammer the service.
+			if utils.QuitableSleep(ctx, time.Second) {
+				return
+			}
 			continue
 		}
 
