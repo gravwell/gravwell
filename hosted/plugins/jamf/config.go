@@ -62,6 +62,8 @@ type Config struct {
 	Insecure_Skip_TLS_Verify bool
 }
 
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
 // Equal implements hosted.Config so the runner can decide whether a config reload
 // actually changed anything for this ingester.
 func (c *Config) Equal(ncp any) bool {
@@ -71,6 +73,7 @@ func (c *Config) Equal(ncp any) bool {
 	}
 	return c.BaseConfig == nc.BaseConfig &&
 		c.Tag_Prefix == nc.Tag_Prefix &&
+		c.MultiTagConfig == nc.MultiTagConfig &&
 		c.PollingConfig == nc.PollingConfig &&
 		c.Host == nc.Host &&
 		c.Client_Id == nc.Client_Id &&
