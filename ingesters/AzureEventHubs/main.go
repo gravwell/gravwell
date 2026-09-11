@@ -212,6 +212,17 @@ func main() {
 			// Where to start a partition that has no existing checkpoint yet.
 			startPosition := startPositionFor(hubDef.Initial_Checkpoint)
 
+			// One-time, idempotent migration of any checkpoint left behind by
+			// the old persist.FilePersister from before the SDK migration.
+			// This must happen before NewProcessor/.Run as the Processor
+			// resolves each partition's start position from checkpointStore
+			// as soon as it starts.
+			if props, err := consumerClient.GetEventHubProperties(ctx, nil); err != nil {
+				lg.Error("failed to fetch event hub properties, skipping legacy checkpoint migration", log.KVErr(err))
+			} else {
+				migrateLegacyCheckpoints(ctx, cfg.Global.State_Store_Location, hubDef, props.PartitionIDs, checkpointStore, lg)
+			}
+
 			processor, err := eventhubs.NewProcessor(consumerClient, checkpointStore, &eventhubs.ProcessorOptions{
 				StartPositions: eventhubs.StartPositions{Default: startPosition},
 			})
