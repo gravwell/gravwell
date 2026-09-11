@@ -91,7 +91,6 @@ type EntryWriter struct {
 	flshr         flusher
 	bIO           *bufio.Writer
 	bAckReader    *bufio.Reader
-	errCount      uint32
 	mtx           *sync.Mutex
 	ecb           entryConfBuffer
 	hot           bool
@@ -193,10 +192,14 @@ func (ew *EntryWriter) OverrideFlushTimeout(ft time.Duration) error {
 	}
 	ew.flushTimeout = ft
 
+	// ew.flushTimeout alone only governs flush()'s own deadline.
+	// The conn's Write() loop resets the deadline from its own copy
+	// before every block, so that copy has to be updated too or the
+	// override is a no-op.
+	ew.conn.SetFlushTimeout(ft)
+
 	return nil
 }
-
-type connWrapper func(conn) conn
 
 // wrapConn passes in a function that can wrap a reader/writer
 // when called we reset the write buffer, caller should make sure there isn't anything buffered
@@ -254,14 +257,6 @@ func (ew *EntryWriter) forceAckCtx(ctx context.Context) error {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 	return ew.forceAckNoLock(ctx)
-}
-
-// outstandingEntries gives you a list of entries that have not been confirmed yet
-// the list IS NOT CLEARED, if you call it over and over you will get them all over and over
-func (ew *EntryWriter) outstandingEntries() []*entry.Entry {
-	ew.mtx.Lock()
-	defer ew.mtx.Unlock()
-	return ew.ecb.outstandingEntries()
 }
 
 // ejectOutstandingEntries is almost identical to outstandingEntries, but it also resets the confirmation buffer
@@ -571,16 +566,22 @@ func (ew *EntryWriter) flush() (err error) {
 		return
 	}
 
+	// Clear it unconditionally on the way out, not just on success.
+	// It sticks with the connection otherwise, even past the point
+	// this flush is done or has failed.
+	defer ew.conn.ClearWriteTimeout()
+
 	//issue the flush with timeout
-	if err = ew.bIO.Flush(); err == nil {
-		//check if we can cast to a flusher and flush
-		if ew.flshr != nil {
-			if err = ew.flshr.Flush(); err != nil {
-				return
-			}
-		}
-		err = ew.conn.ClearWriteTimeout()
+	if err = ew.bIO.Flush(); err != nil {
+		return
 	}
+	//check if we can cast to a flusher and flush
+	if ew.flshr != nil {
+		if err = ew.flshr.Flush(); err != nil {
+			return
+		}
+	}
+
 	return
 }
 

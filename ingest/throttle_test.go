@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -296,7 +297,7 @@ func TestFullSpeedWriteDetectsPeerGoingSilentMidTransfer(t *testing.T) {
 
 	go func() {
 		buf := make([]byte, blockSize)
-		for i := 0; i < readsBeforeDeath; i++ {
+		for range readsBeforeDeath {
 			if _, err := srv.Read(buf); err != nil {
 				return
 			}
@@ -440,5 +441,54 @@ func TestThrottleConnWriteDoesNotFailWithZeroWriteTimeout(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("Write hung with a zero writeTimeout instead of falling back to a sane default")
+	}
+}
+
+// ---------------------------------------------------------------------
+// Regression coverage for a bug caught in review (gravwell/pull/2756):
+// throttleConn.Write's error paths return without adding the just-written r
+// bytes to n, unlike its fullSpeed.Write sibling fixed in the same diff. A
+// partial write that then hits a deadline/error still delivered bytes to the
+// peer -- under-reporting n makes higher level retry logic
+// (syncAndCloseConnection -> flush()) believe those bytes were never sent,
+// so it resends them on the next connection and duplicates data at the
+// indexer.
+// ---------------------------------------------------------------------
+
+// partialWriteErrConn is a minimal net.Conn stand-in that reports writing
+// exactly partial bytes (regardless of how many the caller asked for) and
+// then returns failErr, simulating a real partial write that was cut short
+// by a deadline or a reset peer.
+type partialWriteErrConn struct {
+	net.Conn
+	partial int
+	failErr error
+}
+
+func (c *partialWriteErrConn) Write(b []byte) (int, error) {
+	n := min(len(b), c.partial)
+	return n, c.failErr
+}
+
+func (c *partialWriteErrConn) SetWriteDeadline(time.Time) error { return nil }
+
+func TestThrottleConnWriteReportsBytesWrittenBeforeError(t *testing.T) {
+	const partial = 65482
+	failErr := errors.New("synthetic write failure")
+
+	p := newParent(1<<30, 1) // effectively unlimited, so WaitN never blocks or errors
+	tc := p.newThrottleConn(&partialWriteErrConn{partial: partial, failErr: failErr})
+
+	// Bigger than one block so the first (and only, since it errors) chunk
+	// written is capped by blockSize, not by len(payload).
+	payload := make([]byte, defaultWriteBlockSize*4)
+
+	n, err := tc.Write(payload)
+	if err == nil {
+		t.Fatalf("expected the synthetic write failure to propagate")
+	}
+	if n != partial {
+		t.Fatalf("Write reported n=%d after a failed write that actually delivered %d bytes to the peer -- "+
+			"a caller that trusts this return value will resend data the peer already has", n, partial)
 	}
 }

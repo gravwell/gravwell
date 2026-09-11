@@ -74,6 +74,19 @@ func TestSurvivesStalledIndexer(t *testing.T) {
 	// Freeze the indexer so it stops draining its ingest socket entirely,
 	// without closing the connection.
 	e2e.PauseInstance(t)
+	// Safety net: if anything below Fatals (e.g. the duringPauseCount check
+	// just below) before the explicit UnpauseInstance further down runs, this
+	// still unpauses the shared container instead of leaving it frozen for
+	// every later test. Guarded so the happy path -- which unpauses itself
+	// once the freeze window is over -- doesn't double-unpause: "docker
+	// unpause" on an already-running container exits non-zero, which would
+	// otherwise fail an already-passing test right here in cleanup.
+	paused := true
+	defer func() {
+		if paused {
+			e2e.UnpauseInstance(t)
+		}
+	}()
 
 	// Entries must be big enough to force EntryWriter past its 1MB bufio
 	// buffer and into an actual auto-flush against the (now frozen) socket --
@@ -129,6 +142,7 @@ func TestSurvivesStalledIndexer(t *testing.T) {
 	time.Sleep(25 * time.Second)
 
 	e2e.UnpauseInstance(t)
+	paused = false
 
 	// Every entry sent while paused must still show up -- no data loss, and
 	// delivery actually resumes once the indexer can drain again. Generous

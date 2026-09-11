@@ -49,7 +49,7 @@ func init() {
 		os.Exit(-1)
 	}
 	entryPad = make([]byte, ENTRY_PAD_SIZE)
-	for i := 0; i < ENTRY_PAD_SIZE; i++ {
+	for i := range ENTRY_PAD_SIZE {
 		entryPad[i] = byte(rand.Intn(0xff))
 	}
 	//rand.Seed(0xBEEF3)
@@ -157,7 +157,7 @@ func TestDittoWrite(t *testing.T) {
 	count := 100000
 	go dittoreader(etSrv, count, 0, errChan)
 
-	for i := 0; i < count; i++ {
+	for range count {
 		ent := makeEntry()
 		if ent == nil {
 			t.Fatal("got a nil entry")
@@ -226,7 +226,7 @@ func TestDittoWriteFail(t *testing.T) {
 	errThresh := count / 2 // when we expect to see an error
 	go dittoreader(etSrv, count, errThresh, errChan)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ent := makeEntry()
 		if ent == nil {
 			t.Fatal("got a nil entry")
@@ -370,9 +370,7 @@ func TestConfigureStreamRace(t *testing.T) {
 	//to the ack writer while ConfigureStream performs its exchange
 	done := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-done:
@@ -383,7 +381,7 @@ func TestConfigureStreamRace(t *testing.T) {
 				}
 			}
 		}
-	}()
+	})
 
 	//client sends a stream configuration request
 	wErrCh := make(chan error, 1)
@@ -440,7 +438,7 @@ func TestIngesterInfoRace(t *testing.T) {
 	//feed identification blocks with names of differing length, a torn read then
 	//picks up a pointer and a length that do not belong to each other
 	go func() {
-		for i := 0; i < identRounds; i++ {
+		for i := range identRounds {
 			nm := strings.Repeat(`ingester`, 1+(i%16))
 			if err := writeIdentBlock(cli, nm, nm+`-version`, nm+`-uuid`); err != nil {
 				return
@@ -456,10 +454,8 @@ func TestIngesterInfoRace(t *testing.T) {
 	//hammer the accessors while SetupConnection is writing them
 	done := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 4 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-done:
@@ -473,7 +469,7 @@ func TestIngesterInfoRace(t *testing.T) {
 				_ = er.GetIngesterAPIVersion()
 				_ = er.GetIngesterState()
 			}
-		}()
+		})
 	}
 
 	err = er.SetupConnection()
@@ -540,7 +536,7 @@ func outstandingMismatchCycle(rdrCfg, wtrCfg EntryReaderWriterConfig, count, seg
 		t.Fatal(err)
 	}
 	go reader(etSrv, count, segments, errChan)
-	for i := 0; i < count; i++ {
+	for range count {
 		ent := makeEntry()
 		if ent == nil {
 			t.Fatal("got a nil entry")
@@ -613,7 +609,7 @@ func performReaderCycles(t *testing.T, count, segments int) (time.Duration, uint
 	}
 	start := time.Now()
 	go reader(etSrv, count, segments, errChan)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ent := makeEntry()
 		if ent == nil {
 			t.Fatal("got a nil entry")
@@ -685,7 +681,7 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 	go reader(etSrv, count, 0xffffffff, errChan)
 
 	start := time.Now()
-	for i := 0; i < count; i++ {
+	for range count {
 		ent := makeEntry()
 		if ent == nil {
 			t.Fatal("got a nil entry")
@@ -1010,8 +1006,8 @@ func makeEntryWithKey(key int64) *entry.Entry {
 }
 
 func attachEVs(ent *entry.Entry, cnt int) (err error) {
-	for i := 0; i < cnt; i++ {
-		var val interface{}
+	for i := range cnt {
+		var val any
 		id := uint8(i % 17)
 		switch id {
 		case 0:
@@ -1118,6 +1114,62 @@ func TestOverrideFlushTimeoutRejectsInvalidWithoutMutating(t *testing.T) {
 	}
 	if ew.flushTimeout != 9*time.Second {
 		t.Fatalf("expected flushTimeout to be updated to 9s, got %v", ew.flushTimeout)
+	}
+}
+
+// TestOverrideFlushTimeoutActuallyChangesEnforcedTimeout is a regression test
+// for a bug caught in review (gravwell/pull/2756): OverrideFlushTimeout only
+// ever updated EntryWriter.flushTimeout, a field the actual write path never
+// reads. fullSpeed.Write (and throttleConn.Write) re-derive their deadline
+// from their own construction-time writeTimeout before every block, silently
+// overwriting whatever flush() had just installed from ew.flushTimeout -- so
+// a shrunk override never took effect. Confirmed in review: FlushTimeout: 5s
+// + OverrideFlushTimeout(300ms) against a peer that never reads still failed
+// at ~5s, not ~300ms. This proves the override changes real wall-clock
+// enforcement, not just the struct field the test above stops at.
+func TestOverrideFlushTimeoutActuallyChangesEnforcedTimeout(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer cli.Close()
+	defer srv.Close() // never read from -- nothing ever drains cli's writes
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+		Conn:           cli,
+		BufferSize:     minBufferSize,
+		FlushTimeout:   5 * time.Second,
+		WriteBlockSize: minBufferSize,
+	})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+
+	const shrunk = 300 * time.Millisecond
+	if err := ew.OverrideFlushTimeout(shrunk); err != nil {
+		t.Fatalf("OverrideFlushTimeout failed: %v", err)
+	}
+
+	// Bigger than BufferSize so encodeAndSendEntry is forced to flush()
+	// explicitly before writing the data, against a pipe nothing ever reads.
+	ent := &entry.Entry{TS: entry.Now(), Tag: 0, Data: make([]byte, minBufferSize*2)}
+
+	start := time.Now()
+	done := make(chan error, 1)
+	go func() { done <- ew.Write(ent) }()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatalf("expected Write against a peer that never reads to fail once the shrunk override elapsed")
+		}
+		if !isTimeout(err) {
+			t.Fatalf("expected a timeout error, got: %v", err)
+		}
+	case <-time.After(7 * time.Second):
+		t.Fatalf("Write did not return within 7s -- OverrideFlushTimeout(%v) had no effect on the enforced "+
+			"deadline (construction used FlushTimeout=5s)", shrunk)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("Write took %v to fail, expected close to the overridden %v -- "+
+			"OverrideFlushTimeout is not actually being honored by the write path", elapsed, shrunk)
 	}
 }
 

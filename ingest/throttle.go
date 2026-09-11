@@ -56,6 +56,9 @@ type conn interface {
 	SetWriteTimeout(time.Duration) error
 	ClearWriteTimeout() error
 	ClearReadTimeout() error
+	// SetFlushTimeout updates the duration this conn's own Write() loop
+	// resets the deadline to before every block.
+	SetFlushTimeout(time.Duration)
 }
 
 func newParent(bps int64, burstMult int) *parent {
@@ -110,6 +113,11 @@ func (w *throttleConn) ClearWriteTimeout() error {
 	return w.Conn.SetWriteDeadline(time.Time{})
 }
 
+// SetFlushTimeout updates the per-block write deadline duration Write uses.
+func (w *throttleConn) SetFlushTimeout(d time.Duration) {
+	w.writeTimeout = d
+}
+
 func (w *throttleConn) Write(b []byte) (n int, err error) {
 	var r int
 	ctx := w.ctx
@@ -134,6 +142,11 @@ func (w *throttleConn) Write(b []byte) (n int, err error) {
 		writeTimeout = defaultFlushTimeout
 	}
 
+	// Always leave the connection without a write deadline once this call is
+	// done, whether it succeeded or not. A deadline is an absolute point in
+	// time and does not go away on its own once hit or once a write finishes.
+	defer w.ClearWriteTimeout()
+
 	for n < len(b) {
 		// Cap each underlying write at w.blockSize regardless of the
 		// configured rate-limit burst, so the deadline below actually
@@ -150,9 +163,11 @@ func (w *throttleConn) Write(b []byte) (n int, err error) {
 		}
 
 		if r, err = w.Conn.Write(b[n : n+sz]); err != nil {
+			n += r
 			return
 		}
 		if err = w.lm.WaitN(ctx, r); err != nil {
+			n += r
 			return
 		}
 		n += r
@@ -177,7 +192,7 @@ type fullSpeed struct {
 // progressing transfer early. It pushes at most blockSize bytes per underlying
 // Write call and resets the writeTimeout deadline before each one. This is so
 // the bound is "no progress within writeTimeout", not "total transfer time".
-func (fs fullSpeed) Write(b []byte) (n int, err error) {
+func (fs *fullSpeed) Write(b []byte) (n int, err error) {
 	// Same fallback as throttleConn.Write, for the same reason.
 	blockSize := fs.blockSize
 	if blockSize <= 0 {
@@ -188,6 +203,9 @@ func (fs fullSpeed) Write(b []byte) (n int, err error) {
 	if writeTimeout <= 0 {
 		writeTimeout = defaultFlushTimeout
 	}
+
+	// Don't leave a stale deadline installed on the conn after this call returns.
+	defer fs.ClearWriteTimeout()
 
 	for n < len(b) {
 		if err = fs.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
@@ -208,27 +226,32 @@ func (fs fullSpeed) Write(b []byte) (n int, err error) {
 	return
 }
 
-func (fs fullSpeed) SetReadTimeout(to time.Duration) error {
+func (fs *fullSpeed) SetReadTimeout(to time.Duration) error {
 	return fs.Conn.SetReadDeadline(time.Now().Add(to))
 }
 
-func (fs fullSpeed) ClearReadTimeout() error {
+func (fs *fullSpeed) ClearReadTimeout() error {
 	return fs.Conn.SetReadDeadline(time.Time{})
 }
 
-func (fs fullSpeed) SetWriteTimeout(to time.Duration) error {
+func (fs *fullSpeed) SetWriteTimeout(to time.Duration) error {
 	return fs.Conn.SetWriteDeadline(time.Now().Add(to))
 }
 
-func (fs fullSpeed) ClearWriteTimeout() error {
+func (fs *fullSpeed) ClearWriteTimeout() error {
 	return fs.Conn.SetWriteDeadline(time.Time{})
+}
+
+// SetFlushTimeout updates the per-block write deadline duration Write uses.
+func (fs *fullSpeed) SetFlushTimeout(d time.Duration) {
+	fs.writeTimeout = d
 }
 
 // newUnthrottledConn wraps c with fullSpeed's per-block write deadline
 // behavior. A zero writeTimeout/blockSize (ex: a caller that skipped
 // EntryReaderWriterConfig.validate()) falls back to the same defaults
 // validate() would have set, so this is safe to call directly too.
-func newUnthrottledConn(c net.Conn, writeTimeout time.Duration, blockSize int) fullSpeed {
+func newUnthrottledConn(c net.Conn, writeTimeout time.Duration, blockSize int) *fullSpeed {
 	if writeTimeout <= 0 {
 		writeTimeout = defaultFlushTimeout
 	}
@@ -236,7 +259,7 @@ func newUnthrottledConn(c net.Conn, writeTimeout time.Duration, blockSize int) f
 		blockSize = defaultWriteBlockSize
 	}
 
-	return fullSpeed{
+	return &fullSpeed{
 		Conn:         c,
 		writeTimeout: writeTimeout,
 		blockSize:    blockSize,
