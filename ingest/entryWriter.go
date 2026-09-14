@@ -87,19 +87,20 @@ type flusher interface {
 }
 
 type EntryWriter struct {
-	conn          conn
-	flshr         flusher
-	bIO           *bufio.Writer
-	bAckReader    *bufio.Reader
-	mtx           *sync.Mutex
-	ecb           entryConfBuffer
-	hot           bool
-	buff          []byte
-	id            entrySendID
-	ackTimeout    time.Duration
-	flushTimeout  time.Duration
-	serverVersion uint16
-	ctx           context.Context
+	conn           conn
+	flshr          flusher
+	bIO            *bufio.Writer
+	bAckReader     *bufio.Reader
+	mtx            *sync.Mutex
+	ecb            entryConfBuffer
+	hot            bool
+	buff           []byte
+	id             entrySendID
+	ackTimeout     time.Duration
+	flushTimeout   time.Duration
+	writeBlockSize int
+	serverVersion  uint16
+	ctx            context.Context
 }
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
@@ -135,10 +136,15 @@ type EntryReaderWriterConfig struct {
 	// FlushTimeout/WriteBlockSize are writer-only, meaning that
 	// NewEntryReaderEx will ignore them. They configure EntryWriter's
 	// own flush() deadline and, further down, fullSpeed's per-block
-	// write deadline (see throttle.go). If left zeroed out, validate()
-	// will populate them with the same defaults production has always
-	// used before these were made configurable. Mainly so tests can
-	// shrink them without waiting out the real values.
+	// write deadline (see throttle.go). EntryWriter also holds onto them
+	// (see flushTimeout/writeBlockSize fields) so a later switch to a
+	// rate-limited throttleConn -- ex: muxer.go's mid-stream newThrottleConn
+	// call once a THROTTLE command arrives -- carries the same configured
+	// values forward instead of silently reverting to package defaults.
+	// If left zeroed out, validate() will populate them with the same
+	// defaults production has always used before these were made
+	// configurable. Mainly so tests can shrink them without waiting out
+	// the real values.
 	FlushTimeout   time.Duration
 	WriteBlockSize int
 }
@@ -154,17 +160,18 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 	}
 
 	return &EntryWriter{
-		conn:         utc,
-		bIO:          bufio.NewWriterSize(utc, cfg.BufferSize),
-		bAckReader:   bufio.NewReaderSize(utc, cfg.OutstandingEntryCount*ACK_SIZE),
-		mtx:          &sync.Mutex{},
-		ecb:          ecb,
-		hot:          true,
-		buff:         make([]byte, READ_ENTRY_HEADER_SIZE),
-		id:           1,
-		ackTimeout:   cfg.Timeout,
-		ctx:          cfg.CTX,
-		flushTimeout: cfg.FlushTimeout,
+		conn:           utc,
+		bIO:            bufio.NewWriterSize(utc, cfg.BufferSize),
+		bAckReader:     bufio.NewReaderSize(utc, cfg.OutstandingEntryCount*ACK_SIZE),
+		mtx:            &sync.Mutex{},
+		ecb:            ecb,
+		hot:            true,
+		buff:           make([]byte, READ_ENTRY_HEADER_SIZE),
+		id:             1,
+		ackTimeout:     cfg.Timeout,
+		ctx:            cfg.CTX,
+		flushTimeout:   cfg.FlushTimeout,
+		writeBlockSize: cfg.WriteBlockSize,
 	}, nil
 }
 
@@ -238,6 +245,17 @@ func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
 	}
 
 	ew.hot = false
+
+	// forceAckNoLock above flushes at least once (throwAckSync), and
+	// flush()/the conn's own Write() always clear the write deadline on
+	// their way out, success or not (see flush() below, and
+	// fullSpeed.Write/throttleConn.Write in throttle.go). That erases the
+	// closeTimeout deadline set at the top of this function. flshr.Close()
+	// (ex: a compressor writing a trailer) and conn.Close() (ex: TLS writing
+	// a close_notify) can still hit the wire, so reinstate the deadline right
+	// before them or a peer that has stopped reading can stall shutdown
+	// forever instead of respecting closeTimeout.
+	ew.conn.SetDeadline(time.Now().Add(to))
 	if ew.flshr != nil {
 		ew.flshr.Close() // close our flusher if we need to
 	}

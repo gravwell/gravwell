@@ -2041,7 +2041,7 @@ loop:
 			log.KV("version", version.GetVersion()),
 			log.KV("ingesteruuid", im.uuid))
 		if im.rateParent != nil {
-			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
+			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn, ig.ew.flushTimeout, ig.ew.writeBlockSize))
 		}
 
 		//no error, attempt to do a tag translation

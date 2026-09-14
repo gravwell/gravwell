@@ -1245,3 +1245,63 @@ func TestEntryWriterWriteSurvivesSlowButAlivePeer(t *testing.T) {
 	}
 	t.Logf("EntryWriter.Write succeeded in %v against a peer slower than FlushTimeout (%v)", elapsed, slowPeerWriteTimeout)
 }
+
+// ---------------------------------------------------------------------
+// Regression coverage for a bug caught in review (gravwell/pull/2756):
+// closeTimeout sets a bounding deadline on the connection up front so
+// shutdown can't hang, but forceAckNoLock flushes at least once along the
+// way (throwAckSync), and flush()/the conn's own Write() always clear the
+// write deadline on their way out, success or not (see flush() and
+// fullSpeed.Write/throttleConn.Write in throttle.go). That erases
+// closeTimeout's own deadline before flshr.Close()/conn.Close() run. Those
+// can still write to the wire in real usage (a compressor's trailer, a TLS
+// close_notify), so without reinstating the deadline right before them,
+// shutdown can stall forever against a peer that has stopped reading.
+// ---------------------------------------------------------------------
+
+// closeWritesCloser wraps a net.Conn so Close() itself performs one more
+// write before closing the underlying connection, mimicking real protocols
+// (ex: tls.Conn.Close() sending a close_notify record) where Close is not
+// purely local and can block against an unresponsive peer.
+type closeWritesCloser struct {
+	net.Conn
+}
+
+func (c *closeWritesCloser) Close() error {
+	_, werr := c.Conn.Write(make([]byte, stalledPeerPayloadSize))
+	cerr := c.Conn.Close()
+	if werr != nil {
+		return werr
+	}
+	return cerr
+}
+
+func TestEntryWriterCloseDoesNotStallForever(t *testing.T) {
+	cli, srv, cleanup := dialLoopback(t)
+	defer cleanup()
+	_ = srv // never read from -- a stalled peer, see dialLoopback's doc comment
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+		Conn:           &closeWritesCloser{Conn: cli},
+		BufferSize:     minBufferSize,
+		FlushTimeout:   300 * time.Millisecond,
+		WriteBlockSize: minBufferSize,
+	})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+
+	const closeBudget = 500 * time.Millisecond
+	done := make(chan error, 1)
+	go func() { done <- ew.closeTimeout(closeBudget) }()
+
+	select {
+	case <-done:
+		// closeTimeout returned within its own budget (give or take the
+		// watchdog's margin below) -- the reinstated deadline bounded the
+		// stalled write inside conn.Close(), as expected.
+	case <-time.After(closeBudget + 5*time.Second):
+		t.Fatal("EntryWriter.closeTimeout stalled forever -- the deadline it set up front was cleared by an " +
+			"intervening flush before conn.Close ran, leaving conn.Close's own write unbounded")
+	}
+}

@@ -123,9 +123,7 @@ func TestThrottleConnWriteTimesOutOnStalledPeer(t *testing.T) {
 
 	const writeTimeout = 150 * time.Millisecond
 	p := newParent(100*1024*1024, 1) // huge burst: a single chunk would span the whole payload pre-blockSize-cap
-	tc := p.newThrottleConn(cli)
-	tc.writeTimeout = writeTimeout
-	tc.blockSize = 4096
+	tc := p.newThrottleConn(cli, writeTimeout, 4096)
 	payload := make([]byte, stalledPeerPayloadSize)
 
 	n, err := writeWithWatchdog(t, writeTimeout+10*time.Second, func() (int, error) {
@@ -253,9 +251,7 @@ func TestThrottleConnWriteSurvivesSlowButAlivePeer(t *testing.T) {
 	go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay)
 
 	p := newParent(100*1024*1024, 1)
-	tc := p.newThrottleConn(cli)
-	tc.writeTimeout = slowPeerWriteTimeout
-	tc.blockSize = slowPeerBlockSize
+	tc := p.newThrottleConn(cli, slowPeerWriteTimeout, slowPeerBlockSize)
 	payload := make([]byte, slowPeerPayloadSize)
 
 	start := time.Now()
@@ -398,8 +394,8 @@ func TestThrottleConnWriteDoesNotSpinWithZeroBlockSize(t *testing.T) {
 	go io.Copy(io.Discard, srv)
 
 	p := newParent(100*1024*1024, 1)
-	tc := p.newThrottleConn(cli) // writeTimeout set by newThrottleConn...
-	tc.blockSize = 0             // ...but deliberately zeroed out here to simulate a caller that skipped it
+	tc := p.newThrottleConn(cli, 0, 0) // writeTimeout set by newThrottleConn...
+	tc.blockSize = 0                   // ...but deliberately zeroed out here to simulate a caller that skipped it
 	payload := make([]byte, 64*1024)
 
 	done := make(chan error, 1)
@@ -424,7 +420,7 @@ func TestThrottleConnWriteDoesNotFailWithZeroWriteTimeout(t *testing.T) {
 	go io.Copy(io.Discard, srv)
 
 	p := newParent(100*1024*1024, 1)
-	tc := p.newThrottleConn(cli)
+	tc := p.newThrottleConn(cli, 0, 0)
 	tc.writeTimeout = 0 // deliberately zeroed out to simulate a caller that skipped it
 	payload := make([]byte, 64*1024)
 
@@ -477,7 +473,7 @@ func TestThrottleConnWriteReportsBytesWrittenBeforeError(t *testing.T) {
 	failErr := errors.New("synthetic write failure")
 
 	p := newParent(1<<30, 1) // effectively unlimited, so WaitN never blocks or errors
-	tc := p.newThrottleConn(&partialWriteErrConn{partial: partial, failErr: failErr})
+	tc := p.newThrottleConn(&partialWriteErrConn{partial: partial, failErr: failErr}, 0, 0)
 
 	// Bigger than one block so the first (and only, since it errors) chunk
 	// written is capped by blockSize, not by len(payload).
@@ -490,5 +486,83 @@ func TestThrottleConnWriteReportsBytesWrittenBeforeError(t *testing.T) {
 	if n != partial {
 		t.Fatalf("Write reported n=%d after a failed write that actually delivered %d bytes to the peer -- "+
 			"a caller that trusts this return value will resend data the peer already has", n, partial)
+	}
+}
+
+// ---------------------------------------------------------------------
+// Regression coverage for a bug caught in review (gravwell/pull/2756):
+// throttleConn.Write feeds w.burst directly into the min() that picks each
+// chunk size. A zero (or negative) burst -- the zero value of a literal, or a
+// misconfigured rate limit with bps <= 0 -- makes every chunk a zero-length
+// write that "succeeds" without advancing n, spinning forever. Identical
+// failure mode to the blockSize == 0 case above, just via a different field.
+// ---------------------------------------------------------------------
+
+func TestThrottleConnWriteDoesNotSpinWithZeroBurst(t *testing.T) {
+	cli, srv, cleanup := dialLoopback(t)
+	defer cleanup()
+	go io.Copy(io.Discard, srv)
+
+	p := newParent(100*1024*1024, 1)
+	tc := p.newThrottleConn(cli, 10*time.Second, 4096)
+	tc.burst = 0 // deliberately zeroed out to simulate a misconfigured/zero-value rate limit
+	payload := make([]byte, 64*1024)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := tc.Write(payload)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected a zero burst to fall back to a sane default and succeed, got: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Write spun/hung with a zero burst instead of falling back to a sane default")
+	}
+}
+
+// ---------------------------------------------------------------------
+// Regression coverage for a bug caught in review (gravwell/pull/2756):
+// newThrottleConn always constructed the returned throttleConn with the
+// package defaults (defaultFlushTimeout/defaultWriteBlockSize), ignoring
+// whatever FlushTimeout/WriteBlockSize the EntryWriter was actually
+// configured with. In muxer.go, a rate-limited connection is built by
+// wrapping an already-configured EntryWriter's conn with newThrottleConn once
+// a THROTTLE command arrives mid-stream -- so any non-default configuration
+// silently reverted back to the defaults at that point.
+// ---------------------------------------------------------------------
+
+func TestNewThrottleConnPreservesConfiguredValues(t *testing.T) {
+	cli, _, cleanup := dialLoopback(t)
+	defer cleanup()
+
+	p := newParent(1024, 1)
+
+	const writeTimeout = 42 * time.Second
+	const blockSize = 12345
+	tc := p.newThrottleConn(cli, writeTimeout, blockSize)
+	if tc.writeTimeout != writeTimeout {
+		t.Fatalf("expected newThrottleConn to preserve writeTimeout=%v, got %v", writeTimeout, tc.writeTimeout)
+	}
+	if tc.blockSize != blockSize {
+		t.Fatalf("expected newThrottleConn to preserve blockSize=%d, got %d", blockSize, tc.blockSize)
+	}
+}
+
+func TestNewThrottleConnDefaultsZeroedValues(t *testing.T) {
+	cli, _, cleanup := dialLoopback(t)
+	defer cleanup()
+
+	p := newParent(1024, 1)
+
+	tc := p.newThrottleConn(cli, 0, 0)
+	if tc.writeTimeout != defaultFlushTimeout {
+		t.Fatalf("expected newThrottleConn to default a zero writeTimeout to %v, got %v", defaultFlushTimeout, tc.writeTimeout)
+	}
+	if tc.blockSize != defaultWriteBlockSize {
+		t.Fatalf("expected newThrottleConn to default a zero blockSize to %d, got %d", defaultWriteBlockSize, tc.blockSize)
 	}
 }

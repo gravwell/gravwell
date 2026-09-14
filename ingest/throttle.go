@@ -43,7 +43,7 @@ type throttleConn struct {
 	ctx   context.Context
 	cncl  func()
 	// writeTimeout/blockSize configure the per-block deadline behavior in Write
-	// below. Set to sane defaults by newThrottleConn. Tests construct a throttleCon
+	// below. Set to sane defaults by newThrottleConn. Tests construct a throttleConn
 	// literal directly to override them per-instance instead of mutating shared
 	// package state.
 	writeTimeout time.Duration
@@ -75,7 +75,19 @@ func newParent(bps int64, burstMult int) *parent {
 	}
 }
 
-func (p *parent) newThrottleConn(c net.Conn) *throttleConn {
+// newThrottleConn wraps c with throttleConn's rate-limited, per-block write
+// deadline behavior. writeTimeout/blockSize follow the same convention as
+// newUnthrottledConn: a caller that leaves either zeroed (ex: a caller that
+// skipped EntryReaderWriterConfig.validate()) gets the same defaults
+// validate() would have set, so this is safe to call directly too.
+func (p *parent) newThrottleConn(c net.Conn, writeTimeout time.Duration, blockSize int) *throttleConn {
+	if writeTimeout <= 0 {
+		writeTimeout = defaultFlushTimeout
+	}
+	if blockSize <= 0 {
+		blockSize = defaultWriteBlockSize
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	return &throttleConn{
 		Conn:         c,
@@ -83,8 +95,8 @@ func (p *parent) newThrottleConn(c net.Conn) *throttleConn {
 		lm:           p.lm,
 		cncl:         cancel,
 		ctx:          ctx,
-		writeTimeout: defaultFlushTimeout,
-		blockSize:    defaultWriteBlockSize,
+		writeTimeout: writeTimeout,
+		blockSize:    blockSize,
 	}
 }
 
@@ -130,9 +142,11 @@ func (w *throttleConn) Write(b []byte) (n int, err error) {
 	// A caller that constructs a throttleConn literal directly (tests do
 	// exactly this, see throttle_test.go) can leave these values zeroed.
 	// Without this fallback, blockSize == 0 makes every chunk a zero-length
-	// write that "succeeds" without advancing n. An infite spin, not a clean
+	// write that "succeeds" without advancing n. An infinite spin, not a clean
 	// failure. writeTimeout == 0 sets an already-past deadline, so every write
-	// fails immediately instead of using a sane default.
+	// fails immediately instead of using a sane default. burst <= 0 (zero-value,
+	// or a misconfigured rate limit) hits the exact same zero-length-write spin
+	// as blockSize == 0 below, since it also feeds into the min() that picks sz.
 	blockSize := w.blockSize
 	if blockSize <= 0 {
 		blockSize = defaultWriteBlockSize
@@ -140,6 +154,10 @@ func (w *throttleConn) Write(b []byte) (n int, err error) {
 	writeTimeout := w.writeTimeout
 	if writeTimeout <= 0 {
 		writeTimeout = defaultFlushTimeout
+	}
+	burst := w.burst
+	if burst <= 0 {
+		burst = blockSize
 	}
 
 	// Always leave the connection without a write deadline once this call is
@@ -152,7 +170,7 @@ func (w *throttleConn) Write(b []byte) (n int, err error) {
 		// configured rate-limit burst, so the deadline below actually
 		// gets reset often enough to detect a stall promptly even when
 		// a large burst is configured.
-		sz := min(len(b)-n, w.burst, blockSize)
+		sz := min(len(b)-n, burst, blockSize)
 
 		// Reset the floor write deadline before every block, so a stalled
 		// peer is caught within one block's worth of silence. Not blocked
