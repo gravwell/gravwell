@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package jamf
 
 import (
@@ -109,14 +117,16 @@ func (m *mockRuntime) PutTime(key string, value time.Time) error {
 	return m.PutString(key, value.Format(time.RFC3339Nano))
 }
 
-// newTestConfig builds a minimal, already-Verify()'d Config pointed at host,
-// failing the test immediately if validation doesn't pass.
-func newTestConfig(t *testing.T, host string) *Config {
+// newTestConfig builds a minimal, already-Verify()'d Config pointed at host
+// with the given Sections (falling back to the package defaults if none are
+// given), failing the test immediately if validation doesn't pass.
+func newTestConfig(t *testing.T, host string, sections ...string) *Config {
 	t.Helper()
 	conf := &Config{
 		Host:          host,
 		Client_Id:     "id",
 		Client_Secret: "secret",
+		Sections:      sections,
 	}
 	if err := conf.Verify(); err != nil {
 		t.Fatalf("unexpected error verifying test config: %v", err)
@@ -125,13 +135,13 @@ func newTestConfig(t *testing.T, host string) *Config {
 }
 
 // TestHandle_IngestsRecords runs a single Handle cycle against a fake Jamf
-// server returning one inventory record, and verifies the resulting entry's
-// TS is set from general.reportDate, its Data has the "timestamp" field
-// stamped in front of the original fields, and it's written under the
-// default tag.
+// server returning one inventory record for a single configured section,
+// and verifies the resulting entry's TS is set from general.reportDate, its
+// Data has both the "general" and the section's own data folded in, and
+// it's written under that section's tag.
 func TestHandle_IngestsRecords(t *testing.T) {
 	reportDate := time.Now().Add(-2 * time.Hour).Truncate(time.Second).UTC()
-	record := `{"id":1,"general":{"reportDate":"` + reportDate.Format(time.RFC3339Nano) + `"},"udid":"abc"}`
+	record := `{"general":{"id":1,"reportDate":"` + reportDate.Format(time.RFC3339Nano) + `"},"applications":{"apps":["Safari"]}}`
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +162,7 @@ func TestHandle_IngestsRecords(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	conf := newTestConfig(t, server.URL)
+	conf := newTestConfig(t, server.URL, "APPLICATIONS")
 	rt := newMockRuntime(t.Context())
 	j := New(conf)
 
@@ -171,17 +181,91 @@ func TestHandle_IngestsRecords(t *testing.T) {
 	if e.TS != entry.FromStandard(reportDate) {
 		t.Errorf("expected TS %v, got %v", entry.FromStandard(reportDate), e.TS)
 	}
-	if !strings.HasPrefix(string(e.Data), `{"timestamp":"`+reportDate.Format(time.RFC3339Nano)+`",`) {
-		t.Errorf("expected stamped timestamp prefix, got %s", e.Data)
+
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(e.Data, &doc); err != nil {
+		t.Fatalf("entry data is not valid JSON: %v", err)
 	}
-	if !strings.Contains(string(e.Data), `"id":1`) {
-		t.Errorf("expected original fields preserved, got %s", e.Data)
+	if _, ok := doc["general"]; !ok {
+		t.Errorf("expected general section folded into the entry, got %s", e.Data)
+	}
+	if _, ok := doc["applications"]; !ok {
+		t.Errorf("expected applications section in the entry, got %s", e.Data)
 	}
 
-	wantTag, _ := rt.NegotiateTag(defaultTag)
+	wantTag, _ := rt.NegotiateTag(conf.tagForSection("APPLICATIONS"))
 	if e.Tag != wantTag {
 		t.Errorf("expected tag %v, got %v", wantTag, e.Tag)
 	}
+}
+
+// TestHandle_SplitsRecordAcrossSectionTags verifies the core multi-section
+// feature end to end: a single device record containing data for two
+// configured sections is split into one entry per section, each of them
+// tagged distinctly but each carrying the GENERAL section's data.
+func TestHandle_SplitsRecordAcrossSectionTags(t *testing.T) {
+	ts := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
+	record := `{"general":{"reportDate":"` + ts + `"},"applications":{"apps":["Safari"]},"storage":{"disks":1}}`
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(tokenResponse{AccessToken: "tok", ExpiresIn: 3600})
+	})
+	calls := 0
+	mux.HandleFunc("/api/v1/computers-inventory", func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			json.NewEncoder(w).Encode(Response{
+				TotalCount: 1,
+				Results:    []json.RawMessage{json.RawMessage(record)},
+			})
+			return
+		}
+		json.NewEncoder(w).Encode(Response{TotalCount: 0})
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	conf := newTestConfig(t, server.URL, "APPLICATIONS", "STORAGE")
+	rt := newMockRuntime(t.Context())
+	j := New(conf)
+
+	if _, err := j.Handle(t.Context(), rt); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.entries) != 2 {
+		t.Fatalf("expected one entry per configured section, got %d", len(rt.entries))
+	}
+
+	appsTag, _ := rt.NegotiateTag(conf.tagForSection("APPLICATIONS"))
+	storageTag, _ := rt.NegotiateTag(conf.tagForSection("STORAGE"))
+	if appsTag == storageTag {
+		t.Fatal("expected APPLICATIONS and STORAGE to negotiate distinct tags")
+	}
+
+	var gotTags []entry.EntryTag
+	for _, e := range rt.entries {
+		gotTags = append(gotTags, e.Tag)
+		var doc map[string]json.RawMessage
+		if err := json.Unmarshal(e.Data, &doc); err != nil {
+			t.Fatalf("entry data is not valid JSON: %v", err)
+		}
+		if _, ok := doc["general"]; !ok {
+			t.Errorf("expected general section folded into every entry, got %s", e.Data)
+		}
+	}
+	if !containsTag(gotTags, appsTag) || !containsTag(gotTags, storageTag) {
+		t.Errorf("expected entries tagged %v and %v, got %v", appsTag, storageTag, gotTags)
+	}
+}
+
+func containsTag(tags []entry.EntryTag, want entry.EntryTag) bool {
+	for _, tag := range tags {
+		if tag == want {
+			return true
+		}
+	}
+	return false
 }
 
 // TestHandle_PaginatesUntilExhausted verifies that a single Handle call
@@ -204,14 +288,14 @@ func TestHandle_PaginatesUntilExhausted(t *testing.T) {
 			json.NewEncoder(w).Encode(Response{
 				TotalCount: 2,
 				Results: []json.RawMessage{
-					json.RawMessage(`{"id":1,"general":{"reportDate":"` + ts + `"}}`),
+					json.RawMessage(`{"general":{"reportDate":"` + ts + `"},"applications":{"id":1}}`),
 				},
 			})
 		case "1":
 			json.NewEncoder(w).Encode(Response{
 				TotalCount: 2,
 				Results: []json.RawMessage{
-					json.RawMessage(`{"id":2,"general":{"reportDate":"` + ts + `"}}`),
+					json.RawMessage(`{"general":{"reportDate":"` + ts + `"},"applications":{"id":2}}`),
 				},
 			})
 		default:
@@ -221,7 +305,7 @@ func TestHandle_PaginatesUntilExhausted(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	conf := newTestConfig(t, server.URL)
+	conf := newTestConfig(t, server.URL, "APPLICATIONS")
 	rt := newMockRuntime(t.Context())
 	j := New(conf)
 
@@ -334,16 +418,16 @@ func TestHandle_SkipsMalformedRecordsButContinues(t *testing.T) {
 		json.NewEncoder(w).Encode(Response{
 			TotalCount: 3,
 			Results: []json.RawMessage{
-				json.RawMessage(`{"id":1,"general":{"reportDate":"` + goodTS + `"}}`), // good
-				json.RawMessage(`{"id":2,"general":{}}`),                              // missing reportDate
-				json.RawMessage(`{"id":3,"general":{"reportDate":"not-a-time"}}`),     // bad format
+				json.RawMessage(`{"general":{"id":1,"reportDate":"` + goodTS + `"},"applications":{"apps":["Safari"]}}`), // good
+				json.RawMessage(`{"id":2,"general":{}}`),                          // missing reportDate
+				json.RawMessage(`{"id":3,"general":{"reportDate":"not-a-time"}}`), // bad format
 			},
 		})
 	})
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	conf := newTestConfig(t, server.URL)
+	conf := newTestConfig(t, server.URL, "APPLICATIONS")
 	rt := newMockRuntime(t.Context())
 	j := New(conf)
 

@@ -9,13 +9,14 @@
 package jamf
 
 import (
-	"slices"
+	"reflect"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
 )
 
+// TestConfig_Verify checks the required-field, Page-Size, duplicate-section,
+// and Tag-Name/Tag-Prefix validation rules enforced by Config.Verify.
 func TestConfig_Verify(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -46,9 +47,44 @@ func TestConfig_Verify(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "duplicate section",
+			config: Config{
+				Host: "https://jamf.example.com", Client_Id: "id", Client_Secret: "secret",
+				Sections: []string{"APPLICATIONS", "applications"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "tag name with multiple sections",
+			config: Config{
+				Host: "https://jamf.example.com", Client_Id: "id", Client_Secret: "secret",
+				Sections:       []string{"APPLICATIONS", "STORAGE"},
+				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: "combined"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "tag name and tag prefix together",
+			config: Config{
+				Host: "https://jamf.example.com", Client_Id: "id", Client_Secret: "secret",
+				Sections:       []string{"APPLICATIONS"},
+				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: "combined", Tag_Prefix: "custom"},
+			},
+			wantErr: true,
+		},
+		{
 			name: "valid minimal config",
 			config: Config{
 				Host: "https://jamf.example.com/", Client_Id: "id", Client_Secret: "secret",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid single section with tag name",
+			config: Config{
+				Host: "https://jamf.example.com", Client_Id: "id", Client_Secret: "secret",
+				Sections:       []string{"APPLICATIONS"},
+				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: "jamf_apps"},
 			},
 			wantErr: false,
 		},
@@ -75,44 +111,57 @@ func TestConfig_Verify_Defaults(t *testing.T) {
 	if c.Page_Size != defaultPageSize {
 		t.Errorf("expected default page size %d, got %d", defaultPageSize, c.Page_Size)
 	}
-	if !slices.Equal(c.Sections, defaultSections) {
+	if !reflect.DeepEqual(c.Sections, defaultSections) {
 		t.Errorf("expected default sections %v, got %v", defaultSections, c.Sections)
-	}
-	if got := c.Tags(); len(got) != 1 || got[0] != defaultTag {
-		t.Errorf("expected default tag %q, got %v", defaultTag, got)
 	}
 }
 
-func TestConfig_Verify_Sections(t *testing.T) {
+func TestConfig_Verify_NormalizesSectionCase(t *testing.T) {
+	c := Config{
+		Host: "https://jamf.example.com", Client_Id: "id", Client_Secret: "secret",
+		Sections: []string{" applications ", "Disk_Encryption"},
+	}
+	if err := c.Verify(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"APPLICATIONS", "DISK_ENCRYPTION"}
+	if !reflect.DeepEqual(c.Sections, want) {
+		t.Errorf("expected normalized sections %v, got %v", want, c.Sections)
+	}
+}
+
+// TestConfig_Tags checks tag derivation: one tag per configured section by
+// default, a Tag-Prefix override, and a Tag-Name override for the
+// single-section case.
+func TestConfig_Tags(t *testing.T) {
 	tests := []struct {
-		name         string
-		sections     []string
-		wantSections []string
+		name     string
+		sections []string
+		tagName  string
+		prefix   string
+		want     []string
 	}{
 		{
-			name:         "nil sections get GENERAL defaults",
-			sections:     nil,
-			wantSections: defaultSections,
+			name:     "default prefix",
+			sections: []string{"APPLICATIONS", "STORAGE"},
+			want:     []string{"jamf_applications", "jamf_storage"},
 		},
 		{
-			name:         "empty sections get GENERAL defaults",
-			sections:     []string{},
-			wantSections: defaultSections,
+			name:     "custom prefix",
+			sections: []string{"APPLICATIONS"},
+			prefix:   "custom",
+			want:     []string{"custom_applications"},
 		},
 		{
-			name:         "user sections without GENERAL get it appended",
-			sections:     []string{"STORAGE"},
-			wantSections: []string{"STORAGE", sectionGeneral},
+			name:     "tag name override for single section",
+			sections: []string{"APPLICATIONS"},
+			tagName:  "jamf_apps_custom",
+			want:     []string{"jamf_apps_custom"},
 		},
 		{
-			name:         "user sections already containing GENERAL are unchanged",
-			sections:     []string{sectionGeneral, "STORAGE"},
-			wantSections: []string{sectionGeneral, "STORAGE"},
-		},
-		{
-			name:         "user sections with GENERAL not first are unchanged",
-			sections:     []string{"STORAGE", sectionGeneral, "DISK_ENCRYPTION"},
-			wantSections: []string{"STORAGE", sectionGeneral, "DISK_ENCRYPTION"},
+			name:     "general included explicitly",
+			sections: []string{"GENERAL", "APPLICATIONS"},
+			want:     []string{"jamf_general", "jamf_applications"},
 		},
 	}
 
@@ -120,45 +169,43 @@ func TestConfig_Verify_Sections(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := Config{
 				Host: "https://jamf.example.com", Client_Id: "id", Client_Secret: "secret",
-				Sections: tt.sections,
+				Sections:       tt.sections,
+				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: tt.tagName, Tag_Prefix: tt.prefix},
 			}
 			if err := c.Verify(); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if !slices.Equal(c.Sections, tt.wantSections) {
-				t.Errorf("Sections = %v, want %v", c.Sections, tt.wantSections)
-			}
-			if !slices.Contains(c.Sections, sectionGeneral) {
-				t.Errorf("Sections %v does not contain %q", c.Sections, sectionGeneral)
-			}
-			// Guard against GENERAL being duplicated by a broken slices.Contains check.
-			var generalCount int
-			for _, s := range c.Sections {
-				if s == sectionGeneral {
-					generalCount++
-				}
-			}
-			if generalCount != 1 {
-				t.Errorf("Sections %v contains %q %d times, want exactly 1", c.Sections, sectionGeneral, generalCount)
+			if got := c.Tags(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("expected tags %v, got %v", tt.want, got)
 			}
 		})
 	}
 }
 
-func TestConfigEqual(t *testing.T) {
-	configtest.CheckEqual(t, Config{
-		BaseConfig:      hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
-		SingleTagConfig: hosted.SingleTagConfig{Tag_Name: defaultTag},
-		PollingConfig: hosted.PollingConfig{
-			Lookback:            defaultLookback,
-			Requests_Per_Minute: defaultRequestsPerMinute,
-			Request_Interval:    defaultInterval,
+func TestConfig_RequestSections(t *testing.T) {
+	tests := []struct {
+		name     string
+		sections []string
+		want     []string
+	}{
+		{
+			name:     "general added when absent",
+			sections: []string{"APPLICATIONS", "STORAGE"},
+			want:     []string{"GENERAL", "APPLICATIONS", "STORAGE"},
 		},
-		Host:                     "https://example.jamfcloud.com",
-		Client_Id:                "id",
-		Client_Secret:            "secret",
-		Page_Size:                defaultPageSize,
-		Sections:                 defaultSections,
-		Insecure_Skip_TLS_Verify: true,
-	})
+		{
+			name:     "general not duplicated when present",
+			sections: []string{"GENERAL", "APPLICATIONS"},
+			want:     []string{"GENERAL", "APPLICATIONS"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{Sections: tt.sections}
+			if got := c.requestSections(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("expected request sections %v, got %v", tt.want, got)
+			}
+		})
+	}
 }
