@@ -124,7 +124,7 @@ func TestMuxerSurvivesSlowButAliveIndexer(t *testing.T) {
 	const (
 		numEntries    = 10
 		entrySize     = 2 * 1024 * 1024
-		perEntryDelay = 400 * time.Millisecond // the indexer pauses this long after each entry, well under the 10s default FlushTimeout
+		perEntryDelay = 400 * time.Millisecond // the indexer pauses this long after each entry, well under defaultFlushTimeout
 		drainWithin   = 60 * time.Second
 	)
 
