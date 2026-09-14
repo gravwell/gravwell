@@ -49,8 +49,12 @@ func TestMuxerReconnectsWhileIndexerStaysDown(t *testing.T) {
 		// write against the held indexer, regardless of buffer auto-tuning.
 		entrySize = 8 * 1024 * 1024
 		// long enough to guarantee we are deep into at least one blocked
-		// write attempt (and its recycle/reconnect aftermath) when we release
-		holdFor = 30 * time.Second
+		// write attempt (and its recycle/reconnect aftermath) when we release.
+		// Tied to defaultFlushTimeout (the real per-block write deadline the
+		// muxer's connection actually enforces here, see the comment on
+		// TestMuxerSurvivesSlowButAliveIndexer below) rather than a hardcoded
+		// duration, so this keeps its margin if that default ever changes.
+		holdFor = 3 * defaultFlushTimeout
 	)
 
 	ti, mxr, tg := newSyncTestMuxer(t)

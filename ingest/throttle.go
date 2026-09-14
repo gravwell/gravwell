@@ -27,7 +27,10 @@ const (
 	// one. Chunking into blocks and resetting the deadline before each one bounds
 	// "no progress within the deadline", not "total transfer time", which is the
 	// invariant we actually want.
-	defaultWriteBlockSize int = 256 * 1024
+	//
+	// Kept small so the deadline resets (and gets checked) more often, catching
+	// a truly stalled peer sooner without having to shorten defaultFlushTimeout.
+	defaultWriteBlockSize int = 64 * 1024
 )
 
 type parent struct {

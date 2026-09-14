@@ -46,7 +46,10 @@ const (
 
 	maxThrottleDur time.Duration = 5 * time.Second
 
-	defaultFlushTimeout time.Duration = 10 * time.Second
+	// defaultFlushTimeout is the per-block write deadline fullSpeed.Write/
+	// throttleConn.Write reset before every defaultWriteBlockSize chunk (see
+	// throttle.go), not a deadline over an entire flush/entry.
+	defaultFlushTimeout time.Duration = 30 * time.Second
 	negotiateTagTimeout time.Duration = 10 * time.Second
 )
 
