@@ -420,12 +420,12 @@ type SearchStatsRequest struct {
 }
 
 type SearchStatsResponse struct {
-	Addendum    jsontext.Value  `json:",omitempty"`
+	Addendum    jsontext.Value  `json:"-"`
 	RangeStart  entry.Timestamp `json:",omitzero"`
 	RangeEnd    entry.Timestamp `json:",omitzero"`
 	Current     entry.Timestamp `json:",omitzero"`
 	Set         []StatSet
-	OverviewSet []OverviewStatSet `json:",omitempty"`
+	OverviewSet []OverviewStatSet `json:"-"`
 	Size        int               `json:",omitempty"`
 }
 
