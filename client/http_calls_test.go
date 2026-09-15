@@ -40,6 +40,7 @@ func newTestClient(t *testing.T, mux *http.ServeMux) *Client {
 	if err != nil {
 		t.Fatal(err)
 	}
+	c.state = STATE_AUTHED // these tests exercise reqDriver directly, without going through login
 	return c
 }
 

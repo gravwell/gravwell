@@ -115,6 +115,9 @@ func (c *Client) getDownload(url string, params ...urlParam) (io.ReadCloser, err
 //
 // okCodes is the set of non-200 codes that will be swallowed (instead of erroring).
 func (c *Client) reqDriver(method string, url string, body []byte, okCodes []int, params ...urlParam) (*http.Response, error) {
+	if c.state != STATE_AUTHED {
+		return nil, ErrNoLogin
+	}
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
 	req, err := http.NewRequest(method, uri, bytes.NewBuffer(body))
 	if err != nil {
