@@ -80,8 +80,8 @@ func (c *Client) MyAdminStatus() bool {
 	return c.userDetails.Admin
 }
 
-// Groups returns the current user's group memberships.
-func (c *Client) Groups() (gps []types.Group, err error) {
+// MyGroups returns the current user's group memberships.
+func (c *Client) MyGroups() (gps []types.Group, err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.userDetails.ID == 0 {

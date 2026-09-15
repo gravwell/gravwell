@@ -143,7 +143,7 @@ func myCapabilities() action.Pair {
 		capExp{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]capExp, error) {
 			var caps []capExp
-			if ex, err := connection.Client.CurrentUserCapabilityExplanations(); err != nil {
+			if ex, err := connection.Client.MyCapabilityExplanations(); err != nil {
 				return nil, err
 			} else { // trim out permissions the user doesn't have
 				for _, e := range ex {
