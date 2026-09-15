@@ -85,7 +85,7 @@ func (c *Client) CleanupSecrets() error {
 	return c.delete(SECRETS_URL, false)
 }
 
-// GetFullSecret fetches the entire Secret, including the value.
+// GetSecretFull fetches the entire Secret, including the value.
 // This can only be used if you have authenticated using the searchagent token.
 // The search agent knows how to set up the Client object correctly for this.
 // If you are not writing something which acts like the search agent, you don't
