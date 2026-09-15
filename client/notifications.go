@@ -59,8 +59,8 @@ func (c *Client) getNotifications(after time.Time, update bool) (n types.Notific
 	return
 }
 
-// AllNotifications is an admin only API that retrieves all notifications for all users regardless of
-// ownership and or ignored until status.
+// AllNotifications is an admin only API that retrieves all notifications for all users.
+// Ignores IgnoreUntil status.
 func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	//check locally just so we don't hit the API needlessly, it will be rejected anyway
 	if !c.userDetails.Admin {
