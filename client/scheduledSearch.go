@@ -104,3 +104,8 @@ func (c *Client) DebugScheduledSearch(id string, opts types.AutomationDebugReque
 func (c *Client) CancelScheduledSearch(id string) error {
 	return c.delete(scheduledSearchCancelIdUrl(id), false)
 }
+
+// CleanupScheduledSearches (admin-only) purges all deleted scheduled searches for all users.
+func (c *Client) CleanupScheduledSearches() error {
+	return c.delete(SCHEDULED_SEARCH_URL, false)
+}

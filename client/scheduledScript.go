@@ -124,3 +124,8 @@ func (c *Client) DebugScheduledScript(id string, opts types.AutomationDebugReque
 func (c *Client) CancelScheduledScript(id string) error {
 	return c.delete(scheduledScriptCancelIdUrl(id), false)
 }
+
+// CleanupScheduledScripts (admin-only) purges all deleted scheduled scripts for all users.
+func (c *Client) CleanupScheduledScripts() error {
+	return c.delete(SCHEDULED_SCRIPT_URL, false)
+}

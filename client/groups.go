@@ -22,6 +22,15 @@ func (c *Client) ListGroups(opts *types.QueryOptions) (ret types.GroupListRespon
 	return c.post[types.QueryOptions, types.GroupListResponse](GROUP_LIST_URL, opts)
 }
 
+// ListAllGroups (admin-only) returns a list of all groups on the system.
+func (c *Client) ListAllGroups(opts *types.QueryOptions) (ret types.GroupListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true
+	return c.post[types.QueryOptions, types.GroupListResponse](GROUP_LIST_URL, opts)
+}
+
 // GetGroupMap returns a map of GID to group name for every group on
 // the system. This calls ListGroups under the hood, so the user must
 // have the ListGroups capability enabled.
