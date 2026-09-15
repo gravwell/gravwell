@@ -50,20 +50,18 @@ func show() action.Pair {
 	return scaffoldlist.NewListAction("display email configuration", "Display the current email/SMTP configuration.",
 		types.UserMailConfig{},
 		func(_ *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.UserMailConfig, error) {
-			mc, err := connection.Client.MailConfig()
+			mc, err := connection.Client.GetMailConfig()
 			return []types.UserMailConfig{mc}, err
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "show",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SOAREmail},
-					XPermissions: []types.Capability{types.SOAREmail},
-				},
+			Use: "show",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SOAREmail},
+				XPermissions: []types.Capability{types.SOAREmail},
 			},
 			Pretty: func(_ *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, _ scaffoldlist.DataParameters) (string, error) {
-				mc, err := connection.Client.MailConfig()
+				mc, err := connection.Client.GetMailConfig()
 				if err != nil {
 					return "", err
 				}
@@ -96,7 +94,7 @@ func getCurEmailCfg() types.UserMailConfig {
 	if time.Since(curEmailCfgTime) > cacheStale { // re-cache
 		curEmailCfgTime = time.Now()
 		var err error
-		curEmailCfg, err = connection.Client.MailConfig()
+		curEmailCfg, err = connection.Client.GetMailConfig()
 		if err != nil {
 			clilog.Writer.Warn("failed to cache mail config", log.KVErr(err))
 		}
@@ -220,7 +218,7 @@ func configure() action.Pair {
 			}
 
 			// to prevent clobbering the password, do not make an update if everything is the same and password is empty
-			if cur, err := connection.Client.MailConfig(); err != nil {
+			if cur, err := connection.Client.GetMailConfig(); err != nil {
 				return nil, "", fmt.Errorf("failed to check current mail configuration: %w", err)
 			} else if cur.Username == fields["user"].Provider.Get() &&
 				cur.Password == "" &&
@@ -232,7 +230,7 @@ func configure() action.Pair {
 			}
 
 			clilog.Writer.Info("updating email configuration...")
-			return nil, "", connection.Client.ConfigureMail(
+			return nil, "", connection.Client.SetMailConfig(
 				fields["user"].Provider.Get(),
 				fields["pass"].Provider.Get(),
 				fields["server"].Provider.Get(),

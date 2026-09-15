@@ -96,15 +96,15 @@ func (c *Client) GetGuiPreferences(uid int32, obj interface{}) error {
 	return c.getStaticURL(preferencesUrl(uid), obj)
 }
 
-// DeleteGuiPreferences clears the Data field of the preferences
+// ClearGuiPreferences clears the Data field of the preferences
 // object named `prefs` belonging to the specified user. It does *not*
 // delete the underlying asset, though.
-func (c *Client) DeleteGuiPreferences(id int32) error {
+func (c *Client) ClearGuiPreferences(id int32) error {
 	return c.delete(preferencesUrl(id), false)
 }
 
-// PutGuiPreferences updates the Data field of the preferences object
+// UpdateGuiPreferences updates the Data field of the preferences object
 // named `prefs` belonging to the specified user.
-func (c *Client) PutGuiPreferences(id int32, obj interface{}) error {
+func (c *Client) UpdateGuiPreferences(id int32, obj interface{}) error {
 	return c.putStaticURL(preferencesUrl(id), obj)
 }

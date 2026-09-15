@@ -90,6 +90,6 @@ func (c *Client) CleanupSecrets() error {
 // The search agent knows how to set up the Client object correctly for this.
 // If you are not writing something which acts like the search agent, you don't
 // want this function, it won't work.
-func (c *Client) GetFullSecret(id string) (s types.SecretFull, err error) {
+func (c *Client) GetSecretFull(id string) (s types.SecretFull, err error) {
 	return c.get[types.SecretFull](secretIdFullUrl(id))
 }

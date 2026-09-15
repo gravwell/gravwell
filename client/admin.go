@@ -364,17 +364,17 @@ func (c *Client) PurgeExtraction(id string) (wrs []types.WarnResp, err error) {
 	return
 }
 
-// TestAddExtraction validates an autoextractor definition.
-func (c *Client) TestAddExtraction(d types.AX) (wrs []types.WarnResp, err error) {
+// ValidateExtraction validates an autoextractor definition.
+func (c *Client) ValidateExtraction(d types.AX) (wrs []types.WarnResp, err error) {
 	if err = c.postStaticURL(extractionsTestUrl(), d, nil); err == io.EOF {
 		err = nil
 	}
 	return
 }
 
-// AddExtraction installs an autoextractor definition, returning the UUID of the new
+// CreateExtraction installs an autoextractor definition, returning the UUID of the new
 // extraction or an error if it is invalid.
-func (c *Client) AddExtraction(d types.AX) (result types.AX, wrs []types.WarnResp, err error) {
+func (c *Client) CreateExtraction(d types.AX) (result types.AX, wrs []types.WarnResp, err error) {
 	if err = c.postStaticURL(extractionsUrl(), d, &result); err == io.EOF {
 		err = nil
 	}

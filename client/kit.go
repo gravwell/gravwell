@@ -162,10 +162,10 @@ func (c *Client) DeleteKit(id string) (err error) {
 	return c.delete(kitIdUrl(id), false)
 }
 
-// DeleteKitEx attempts to uninstall a kit. If kit items have been modified,
+// DeleteKitVerbose attempts to uninstall a kit. If kit items have been modified,
 // it will return an error and a list of modified items. If nothing has been
 // changed, it returns an empty list and a nil error.
-func (c *Client) DeleteKitEx(id string) ([]types.ModifiedKitItem, error) {
+func (c *Client) DeleteKitVerbose(id string) ([]types.ModifiedKitItem, error) {
 	var resp *http.Response
 	var err error
 	resp, err = c.methodRequestURL(http.MethodDelete, kitIdUrl(id), ``, nil)

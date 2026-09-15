@@ -71,10 +71,10 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	return
 }
 
-// AddSelfTargetedNotification creates a new notification with the given
+// CreateNotification creates a new notification with the given
 // type, message, link, and expiration. If expiration time is invalid, the webserver
 // will instead set a default expiration.
-func (c *Client) AddSelfTargetedNotification(notifType uint32, msg, link string, expiration time.Time) error {
+func (c *Client) CreateNotification(notifType uint32, msg, link string, expiration time.Time) error {
 	n := types.Notification{Type: notifType, Msg: msg, Link: link, Expires: expiration}
 	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil, nil, nil)
 }

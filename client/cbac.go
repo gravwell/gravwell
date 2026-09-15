@@ -14,14 +14,14 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// CapabilityList returns a complete list of capabilities.
-func (c *Client) CapabilityList() (cl []types.CapabilityDesc, err error) {
+// ListCapabilities returns a complete list of capabilities.
+func (c *Client) ListCapabilities() (cl []types.CapabilityDesc, err error) {
 	err = c.getStaticURL(CAPABILITY_LIST_URL, &cl)
 	return
 }
 
-// CapabilityTemplateList returns a list of CBAC templates defined on the system.
-func (c *Client) CapabilityTemplateList() (cl []types.CapabilityTemplate, err error) {
+// ListCapabilityTemplates returns a list of CBAC templates defined on the system.
+func (c *Client) ListCapabilityTemplates() (cl []types.CapabilityTemplate, err error) {
 	err = c.getStaticURL(CAPABILITY_TEMPLATE_LIST_URL, &cl)
 	return
 }

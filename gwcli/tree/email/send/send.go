@@ -31,7 +31,7 @@ func NewPair() action.Pair {
 			"Attachments are not currently supported.",
 		func(c *cobra.Command, s []string) error {
 			// check that a mail configuration is set
-			if cfg, err := connection.Client.MailConfig(); err != nil {
+			if cfg, err := connection.Client.GetMailConfig(); err != nil {
 				return err
 			} else if cfg.Server == "" || cfg.Port == 0 {
 				return errors.New("you must configure a mail server before you can send mail")
@@ -141,7 +141,7 @@ func newSendMailModel() *model {
 
 func (m *model) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
 	// check that a mail configuration is set
-	if cfg, err := connection.Client.MailConfig(); err != nil {
+	if cfg, err := connection.Client.GetMailConfig(); err != nil {
 		return "", nil, err
 	} else if cfg.Server == "" || cfg.Port == 0 {
 		return "You must configure a mail server before you can send mail", nil, nil

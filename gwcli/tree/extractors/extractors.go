@@ -230,9 +230,9 @@ func create() action.Pair {
 				wrs []types.WarnResp
 			)
 			if dr {
-				wrs, err = connection.Client.TestAddExtraction(axd)
+				wrs, err = connection.Client.ValidateExtraction(axd)
 			} else {
-				axd, wrs, err = connection.Client.AddExtraction(axd)
+				axd, wrs, err = connection.Client.CreateExtraction(axd)
 				id = axd.ID
 			}
 
