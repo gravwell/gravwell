@@ -1031,7 +1031,7 @@ func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRa
 	}
 
 	var resp *http.Response
-	if resp, err = c.DownloadRequestWithContext(sdr.DownloadResourceURL, ctx); err != nil {
+	if resp, err = c.DownloadRequestWithContext(ctx, sdr.DownloadResourceURL); err != nil {
 		return
 	}
 	if resp.StatusCode != 200 {
