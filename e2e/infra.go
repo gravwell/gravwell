@@ -289,6 +289,17 @@ func IngestPlatform() string {
 	return *ingestPlatform
 }
 
+// HasInstance reports whether this process is driving a Gravwell instance
+// container of its own, rather than talking to an external deployment given
+// with -endpoint. Tests that rely on PauseInstance/UnpauseInstance MUST skip
+// when this is false: there is no container to freeze, so they would otherwise
+// hard fail on a perfectly valid way of running the suite.
+func HasInstance() bool {
+	mtx.RLock()
+	defer mtx.RUnlock()
+	return instance != nil
+}
+
 // PauseInstance freezes every process inside the running Gravwell instance
 // container (via the Docker cgroup freezer) without closing the underlying
 // TCP connections. This simulates an indexer that has stopped draining its

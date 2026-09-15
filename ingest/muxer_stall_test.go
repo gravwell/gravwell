@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -175,4 +176,88 @@ func TestMuxerSurvivesSlowButAliveIndexer(t *testing.T) {
 	}
 	t.Logf("delivered all %d entries in %v against a slow (throttled %v/entry) but always-alive indexer, "+
 		"with zero reconnects", numEntries, elapsed.Round(time.Millisecond), perEntryDelay)
+}
+
+// TestIngestConnectionSyncAndCloseHonorsBudgetAgainstStalledPeer pins the
+// production shutdown path one level above the EntryWriter-level tests in
+// entryWriter_test.go (TestCloseTimeoutHonorsBudgetAgainstStalledPeer,
+// TestForceAckCtxHonorsBudgetAgainstStalledPeer): IngestMuxer.
+// syncAndCloseConnection tears down a connection with exactly two calls --
+//
+//	nc.ig.syncTimeout(connectionShutdownSyncTimeout)
+//	nc.ig.Close()
+//
+// -- back to back, using the real, unmodified production constants
+// (connectionShutdownSyncTimeout and closeTimeout, both 10s). Before the
+// clamp fix, syncTimeout's flush() re-armed the write deadline from
+// EntryWriter.flushTimeout regardless of the much shorter budget it was asked
+// for, so it alone could take a full flushTimeout (30s in production) against
+// a stalled peer instead of connectionShutdownSyncTimeout (10s).
+//
+// Close() usually returns near-instantly right after: once syncTimeout's
+// flush() fails, bufio.Writer latches that error (see its Flush -- "if b.err
+// != nil { return b.err }") and every later Flush() short-circuits on it
+// without touching the conn again, clamp or no clamp. That's a real
+// production characteristic, not a test artifact, so this asserts against
+// syncTimeout's own budget with slack for Close, rather than the sum of both
+// -- TestCloseTimeoutHonorsBudgetAgainstStalledPeer is what independently
+// pins Close's own clamp, using a writer whose flush has never failed.
+//
+// This deliberately does not drive a full IngestMuxer: the write relay
+// routine's reconnect/retry loop introduces its own timing (how long the
+// already in-flight write that predates a Close() call takes to hit its own,
+// unrelated deadline, whether a reconnect attempt is tried before the
+// muxer's context cancellation is honored, etc.) that has nothing to do with
+// this fix and would make a muxer-level version of this test slow and
+// non-deterministic without proving anything more than this does.
+// IngestConnection.syncTimeout/Close are themselves each a one line
+// delegation to EntryWriter, so constructing one directly and driving the
+// exact sequence syncAndCloseConnection uses is a faithful, deterministic
+// stand-in for "one level above EntryWriter" -- and IngestConnection
+// otherwise has no test coverage of its own at all.
+func TestIngestConnectionSyncAndCloseHonorsBudgetAgainstStalledPeer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long running stall test")
+	}
+	// Comfortably larger than connectionShutdownSyncTimeout (10s) so the clamp
+	// actually has something to tighten -- if this were <= 10s, clamping would
+	// be a no-op and the test would pass whether or not the fix is present,
+	// proving nothing.
+	const flushTimeout = 25 * time.Second
+
+	ew := stalledWriter(t, flushTimeout)
+	igst := &IngestConnection{
+		ew:      ew,
+		running: true,
+		ctx:     context.Background(),
+	}
+
+	// Generous slack over connectionShutdownSyncTimeout for Close()'s own
+	// (usually near-instant, see above) contribution and scheduling noise --
+	// comfortably under flushTimeout+flushTimeout (~50s), what an unfixed
+	// build would take if both legs actually blocked for a full flushTimeout.
+	maxAllowed := connectionShutdownSyncTimeout + 15*time.Second
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		igst.syncTimeout(connectionShutdownSyncTimeout)
+		igst.Close()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(maxAllowed):
+		t.Fatalf("syncTimeout+Close ran for at least %v against a stalled peer -- expected close to "+
+			"connectionShutdownSyncTimeout (%v); syncTimeout's flush() must be re-arming the write deadline "+
+			"from flushTimeout (%v) again instead of honoring its own much shorter budget",
+			maxAllowed, connectionShutdownSyncTimeout, flushTimeout)
+	}
+	if elapsed := time.Since(start); elapsed > maxAllowed {
+		t.Fatalf("syncTimeout+Close took %v, want close to %v", elapsed, connectionShutdownSyncTimeout)
+	} else {
+		t.Logf("syncTimeout+Close against a stalled peer returned in %v (budget ~%v)",
+			elapsed.Round(time.Millisecond), connectionShutdownSyncTimeout)
+	}
 }

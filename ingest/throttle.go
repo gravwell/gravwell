@@ -42,7 +42,6 @@ type throttleConn struct {
 	net.Conn
 	burst int
 	lm    *rate.Limiter
-	to    time.Duration
 	ctx   context.Context
 	cncl  func()
 	// writeTimeout/blockSize configure the per-block deadline behavior in Write
@@ -119,37 +118,45 @@ func (w *throttleConn) ClearReadTimeout() error {
 }
 
 func (w *throttleConn) SetWriteTimeout(to time.Duration) error {
-	w.to = to
 	return w.Conn.SetWriteDeadline(time.Now().Add(to))
 }
 
 func (w *throttleConn) ClearWriteTimeout() error {
-	w.to = 0
 	return w.Conn.SetWriteDeadline(time.Time{})
 }
 
 // SetFlushTimeout updates the per-block write deadline duration Write uses.
+// The conn we wrap may be another one of these wrappers: muxer.go layers a
+// throttleConn over the EntryWriter's existing fullSpeed when a THROTTLE
+// command arrives. The inner wrapper arms its deadline last, so it is the
+// one that's actually enforced. Push the value all the way down or else
+// updating the outer wrapper does nothing.
 func (w *throttleConn) SetFlushTimeout(d time.Duration) {
 	w.writeTimeout = d
+	propagateFlushTimeout(w.Conn, d)
+}
+
+// waitN bounds the rate limiter wait for a SINGLE block. The invariant we
+// want is "no progress within writeTimeout", so the bound has to be per block
+// exactly like the write deadline is. Deriving one context for the whole call
+// instead reimposes a total transfer time limit through the back door and
+// fails a peer that is draining perfectly happily, just slower than the
+// configured rate limit allows us to feed it.
+func (w *throttleConn) waitN(r int, writeTimeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(w.ctx, writeTimeout)
+	defer cancel()
+	return w.lm.WaitN(ctx, r)
 }
 
 func (w *throttleConn) Write(b []byte) (n int, err error) {
 	var r int
-	ctx := w.ctx
-	if w.to > 0 {
-		var cancel func()
-		ctx, cancel = context.WithTimeout(w.ctx, w.to)
-		defer cancel()
-	}
 
 	// A caller that constructs a throttleConn literal directly (tests do
 	// exactly this, see throttle_test.go) can leave these values zeroed.
 	// Without this fallback, blockSize == 0 makes every chunk a zero-length
 	// write that "succeeds" without advancing n. An infinite spin, not a clean
 	// failure. writeTimeout == 0 sets an already-past deadline, so every write
-	// fails immediately instead of using a sane default. burst <= 0 (zero-value,
-	// or a misconfigured rate limit) hits the exact same zero-length-write spin
-	// as blockSize == 0 below, since it also feeds into the min() that picks sz.
+	// fails immediately instead of using a sane default.
 	blockSize := w.blockSize
 	if blockSize <= 0 {
 		blockSize = defaultWriteBlockSize
@@ -158,8 +165,18 @@ func (w *throttleConn) Write(b []byte) (n int, err error) {
 	if writeTimeout <= 0 {
 		writeTimeout = defaultFlushTimeout
 	}
+
+	// burst <= 0 is the zero value of a literal, or a parent built from a
+	// bps <= 0 rate limit. Feeding it to the min() below makes every chunk a
+	// zero-length write that "succeeds" without advancing n, the same infinite
+	// spin as blockSize == 0. Substituting blockSize is not enough on its own
+	// though. w.lm was built with that same zero burst and rate.Limiter rejects
+	// any WaitN larger than its own burst, so the write would still fail after
+	// already putting bytes on the wire. There is no usable rate limit to
+	// honor in that state, so skip limiting entirely.
+	limited := w.lm != nil && w.burst > 0
 	burst := w.burst
-	if burst <= 0 {
+	if !limited {
 		burst = blockSize
 	}
 
@@ -187,9 +204,11 @@ func (w *throttleConn) Write(b []byte) (n int, err error) {
 			n += r
 			return
 		}
-		if err = w.lm.WaitN(ctx, r); err != nil {
-			n += r
-			return
+		if limited {
+			if err = w.waitN(r, writeTimeout); err != nil {
+				n += r
+				return
+			}
 		}
 		n += r
 	}
@@ -264,8 +283,23 @@ func (fs *fullSpeed) ClearWriteTimeout() error {
 }
 
 // SetFlushTimeout updates the per-block write deadline duration Write uses.
+// It propagates for the same reason throttleConn.SetFlushTimeout does.
 func (fs *fullSpeed) SetFlushTimeout(d time.Duration) {
 	fs.writeTimeout = d
+	propagateFlushTimeout(fs.Conn, d)
+}
+
+// propagateFlushTimeout pushes d down to a wrapped conn that keeps its own
+// per-block deadline, so a stack of wrappers cannot end up enforcing a stale
+// value from whichever layer happens to arm the deadline last.
+func propagateFlushTimeout(c net.Conn, d time.Duration) {
+	type limiter interface {
+		SetFlushTimeout(time.Duration)
+	}
+
+	if inner, ok := c.(limiter); ok {
+		inner.SetFlushTimeout(d)
+	}
 }
 
 // newUnthrottledConn wraps c with fullSpeed's per-block write deadline

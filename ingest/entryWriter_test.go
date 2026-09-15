@@ -11,6 +11,7 @@
 package ingest
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -1304,4 +1305,295 @@ func TestEntryWriterCloseDoesNotStallForever(t *testing.T) {
 		t.Fatal("EntryWriter.closeTimeout stalled forever -- the deadline it set up front was cleared by an " +
 			"intervening flush before conn.Close ran, leaving conn.Close's own write unbounded")
 	}
+}
+
+// ---------------------------------------------------------------------
+// Regression coverage for bugs caught in review (gravwell/pull/2756), all
+// variations on the same theme: something re-arms the per-block write deadline
+// from flushTimeout and thereby escapes a bound somebody else set.
+// ---------------------------------------------------------------------
+
+// TestFlushSurvivesRateLimitSlowerThanFlushTimeout is the throttled twin of
+// TestEntryWriterWriteSurvivesSlowButAlivePeer. throttleConn.Write used to
+// derive ONE context for the whole call from the timeout flush() had just
+// installed and hand it to every lm.WaitN, which quietly reimposed a "total
+// transfer time" ceiling on the rate limited path -- the exact bound the
+// per-block deadline exists to get rid of. Any flush needing more than
+// flushTimeout worth of rate limited waiting failed against a peer that was
+// draining perfectly happily.
+func TestFlushSurvivesRateLimitSlowerThanFlushTimeout(t *testing.T) {
+	cli, srv, cleanup := dialLoopback(t)
+	defer cleanup()
+	go io.Copy(io.Discard, srv) // always draining, never stalls
+
+	const (
+		bps          = 64 * 1024       // so burst is 64KB
+		blockSize    = 16 * 1024       // one block waits ~250ms, well inside flushTimeout
+		payload      = 256 * 1024      // ~3s of rate limited waiting in total
+		flushTimeout = 2 * time.Second // shorter than that total, longer than any single block
+		minExpected  = 2500 * time.Millisecond
+	)
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+		Conn:                  cli,
+		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
+		BufferSize:            WRITE_BUFFER_SIZE,
+		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
+		FlushTimeout:          flushTimeout,
+		WriteBlockSize:        blockSize,
+	})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+	//exactly what muxer.go does once a THROTTLE command arrives mid-stream
+	ew.setConn(newParent(bps, 0).newThrottleConn(ew.conn, ew.flushTimeout, ew.writeBlockSize))
+
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+	if err = ew.writeAll(make([]byte, payload)); err != nil {
+		t.Fatalf("failed to buffer test payload: %v", err)
+	}
+
+	start := time.Now()
+	err = ew.flush()
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("flush of %d bytes at %d bytes/sec failed after %v against an always draining peer: %v -- "+
+			"the rate limiter wait is bounded per call instead of per block, so it still enforces a total "+
+			"transfer time limit", payload, bps, elapsed, err)
+	}
+	if elapsed < minExpected {
+		t.Fatalf("flush finished in %v, expected at least %v -- the rate limit was not actually applied, "+
+			"so this proves nothing", elapsed, minExpected)
+	}
+}
+
+// stalledWriter builds an EntryWriter over a peer that never reads, with
+// stalledPeerPayloadSize bytes parked in the bufio buffer so the next flush has
+// something big enough to genuinely block on. Anything smaller (512KB, say) is
+// silently absorbed by kernel socket buffering and the flush just succeeds,
+// which would make the budget assertions below vacuous -- see dialLoopback's
+// doc comment in throttle_test.go.
+func stalledWriter(t *testing.T, flushTimeout time.Duration) *EntryWriter {
+	t.Helper()
+	cli, srv, cleanup := dialLoopback(t)
+	t.Cleanup(cleanup)
+	_ = srv // never read from -- a stalled peer
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+		Conn:                  cli,
+		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
+		BufferSize:            2 * stalledPeerPayloadSize, // room to park it without auto-flushing first
+		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
+		FlushTimeout:          flushTimeout,
+		WriteBlockSize:        defaultWriteBlockSize,
+	})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+	if err = ew.writeAll(make([]byte, stalledPeerPayloadSize)); err != nil {
+		t.Fatalf("failed to buffer test payload: %v", err)
+	}
+	return ew
+}
+
+// TestCloseTimeoutHonorsBudgetAgainstStalledPeer pins the invariant that
+// closeTimeout(to) actually returns within roughly to. Setting a deadline on
+// the connection up front is not enough: forceAckNoLock flushes on the way
+// through, flush() re-arms the write deadline from flushTimeout, and the conn's
+// own Write loop re-arms it again before every block -- so a stalled peer used
+// to hold shutdown open for a full flushTimeout (30s with the production
+// default) no matter how short a budget the caller asked for.
+func TestCloseTimeoutHonorsBudgetAgainstStalledPeer(t *testing.T) {
+	const (
+		flushTimeout = 10 * time.Second
+		closeBudget  = time.Second
+	)
+	ew := stalledWriter(t, flushTimeout)
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		ew.closeTimeout(closeBudget)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(flushTimeout):
+		t.Fatalf("closeTimeout(%v) ran for at least %v -- flush() re-armed the write deadline from "+
+			"flushTimeout (%v) and escaped the close budget", closeBudget, flushTimeout, flushTimeout)
+	}
+	if elapsed := time.Since(start); elapsed > closeBudget+2*time.Second {
+		t.Fatalf("closeTimeout(%v) took %v", closeBudget, elapsed)
+	}
+}
+
+// TestForceAckCtxHonorsBudgetAgainstStalledPeer is the same invariant one layer
+// up the shutdown path: IngestMuxer.syncAndCloseConnection calls
+// syncTimeout(connectionShutdownSyncTimeout) before Close, which lands in
+// forceAckCtx. forceAckNoLock only consults ctx between ack service rounds, so
+// without clamping flush() too, the sync leg burns a whole flushTimeout against
+// a stalled indexer before the close leg even starts.
+func TestForceAckCtxHonorsBudgetAgainstStalledPeer(t *testing.T) {
+	const (
+		flushTimeout = 10 * time.Second
+		syncBudget   = time.Second
+	)
+	ew := stalledWriter(t, flushTimeout)
+
+	ctx, cf := context.WithTimeout(context.Background(), syncBudget)
+	defer cf()
+
+	start := time.Now()
+	done := make(chan error, 1)
+	go func() { done <- ew.forceAckCtx(ctx) }()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected forceAckCtx against a stalled peer to fail")
+		}
+	case <-time.After(flushTimeout):
+		t.Fatalf("forceAckCtx blew past its %v context budget and ran for at least %v -- flush() re-armed "+
+			"the write deadline from flushTimeout (%v)", syncBudget, flushTimeout, flushTimeout)
+	}
+	if elapsed := time.Since(start); elapsed > syncBudget+2*time.Second {
+		t.Fatalf("forceAckCtx with a %v budget took %v", syncBudget, elapsed)
+	}
+}
+
+// TestOverrideFlushTimeoutReachesNestedConn covers the throttled half of
+// TestOverrideFlushTimeoutActuallyChangesEnforcedTimeout. muxer.go installs a
+// rate-limited connection by wrapping the EntryWriter's EXISTING conn (already
+// a fullSpeed) in a throttleConn, so the two nest. Both arm a deadline before
+// every block and the inner one arms last, which means updating only the
+// outermost wrapper leaves the inner, stale value in force. Asserted on the
+// fields rather than on wall-clock, because the enforced value is what is
+// actually under test and real socket timing only adds flake.
+func TestOverrideFlushTimeoutReachesNestedConn(t *testing.T) {
+	cli, srv, cleanup := dialLoopback(t)
+	defer cleanup()
+	_ = srv
+
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+		Conn:           cli,
+		BufferSize:     minBufferSize,
+		FlushTimeout:   5 * time.Second,
+		WriteBlockSize: minBufferSize,
+	})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+	inner, ok := ew.conn.(*fullSpeed)
+	if !ok {
+		t.Fatalf("expected the base conn to be a *fullSpeed, got %T", ew.conn)
+	}
+
+	// exactly what muxer.go does once a THROTTLE command arrives mid-stream
+	ew.setConn(newParent(1<<30, 0).newThrottleConn(ew.conn, ew.flushTimeout, ew.writeBlockSize))
+
+	const shrunk = 300 * time.Millisecond
+	if err = ew.OverrideFlushTimeout(shrunk); err != nil {
+		t.Fatalf("OverrideFlushTimeout failed: %v", err)
+	}
+
+	outer, ok := ew.conn.(*throttleConn)
+	if !ok {
+		t.Fatalf("expected the wrapped conn to be a *throttleConn, got %T", ew.conn)
+	}
+	if outer.writeTimeout != shrunk {
+		t.Fatalf("outer throttleConn still enforcing %v, want %v", outer.writeTimeout, shrunk)
+	}
+	if inner.writeTimeout != shrunk {
+		t.Fatalf("inner fullSpeed still enforcing %v, want %v -- the override stopped at the outer wrapper, "+
+			"and the inner one arms its deadline last so its stale value is the one actually in force",
+			inner.writeTimeout, shrunk)
+	}
+}
+
+// TestClampFlushTimeoutNeverLoosensAnAlreadyTightBudget pins down
+// clampFlushTimeout's own guard directly, rather than only through
+// closeTimeout/forceAckCtx's integration tests above (which only ever
+// exercise the tightening case: a long flushTimeout clamped down to a short
+// caller budget). Nothing else proves the opposite -- if FlushTimeout was
+// already configured tighter than the budget a caller hands in, clamping must
+// be a no-op, not loosen it back up. Silently loosening would reintroduce the
+// exact bug clampFlushTimeout exists to fix, just triggered by an unusual
+// config (a deliberately tight FlushTimeout) instead of a stalled peer.
+func TestClampFlushTimeoutNeverLoosensAnAlreadyTightBudget(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer cli.Close()
+	defer srv.Close()
+
+	const configured = 300 * time.Millisecond
+	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+		Conn:           cli,
+		BufferSize:     minBufferSize,
+		FlushTimeout:   configured,
+		WriteBlockSize: minBufferSize,
+	})
+	if err != nil {
+		t.Fatalf("failed to build EntryWriter: %v", err)
+	}
+	fs, ok := ew.conn.(*fullSpeed)
+	if !ok {
+		t.Fatalf("expected the base conn to be a *fullSpeed, got %T", ew.conn)
+	}
+
+	noopCases := []struct {
+		name string
+		dur  time.Duration
+	}{
+		{"zero budget is a no-op", 0},
+		{"negative budget is a no-op", -time.Second},
+		{"budget looser than the configured timeout does not loosen it", configured + time.Second},
+		{"budget exactly equal to the configured timeout is left alone", configured},
+	}
+	for _, tt := range noopCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ew.mtx.Lock()
+			defer ew.mtx.Unlock()
+
+			restore := ew.clampFlushTimeout(tt.dur)
+			if ew.flushTimeout != configured {
+				t.Fatalf("flushTimeout changed to %v, want unchanged %v", ew.flushTimeout, configured)
+			}
+			if fs.writeTimeout != configured {
+				t.Fatalf("conn's writeTimeout changed to %v, want unchanged %v", fs.writeTimeout, configured)
+			}
+			restore()
+			if ew.flushTimeout != configured || fs.writeTimeout != configured {
+				t.Fatalf("restore corrupted state: flushTimeout=%v writeTimeout=%v, want both %v",
+					ew.flushTimeout, fs.writeTimeout, configured)
+			}
+		})
+	}
+
+	// For contrast: a genuinely tighter budget must still apply, and restore
+	// afterward, so the no-op cases above are proven against a clamp that
+	// actually works rather than one that has quietly stopped doing anything.
+	t.Run("a genuinely tighter budget clamps and then restores", func(t *testing.T) {
+		ew.mtx.Lock()
+		defer ew.mtx.Unlock()
+
+		const tighter = 50 * time.Millisecond
+		restore := ew.clampFlushTimeout(tighter)
+		if ew.flushTimeout != tighter {
+			t.Fatalf("flushTimeout = %v, want clamped to %v", ew.flushTimeout, tighter)
+		}
+		if fs.writeTimeout != tighter {
+			t.Fatalf("conn's writeTimeout = %v, want clamped to %v", fs.writeTimeout, tighter)
+		}
+		restore()
+		if ew.flushTimeout != configured {
+			t.Fatalf("flushTimeout after restore = %v, want restored to %v", ew.flushTimeout, configured)
+		}
+		if fs.writeTimeout != configured {
+			t.Fatalf("conn's writeTimeout after restore = %v, want restored to %v", fs.writeTimeout, configured)
+		}
+	})
 }

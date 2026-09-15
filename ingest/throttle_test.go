@@ -497,31 +497,56 @@ func TestThrottleConnWriteReportsBytesWrittenBeforeError(t *testing.T) {
 // misconfigured rate limit with bps <= 0 -- makes every chunk a zero-length
 // write that "succeeds" without advancing n, spinning forever. Identical
 // failure mode to the blockSize == 0 case above, just via a different field.
+//
+// Substituting blockSize for the bad burst is only half the fix, and the
+// "burst zeroed by hand" case below hides the other half: it leaves the
+// parent's limiter holding a real burst, so WaitN still works. A parent built
+// from bps <= 0 has a limiter whose burst is zero too, and rate.Limiter
+// rejects any WaitN larger than its own burst -- so the write fails anyway,
+// after blockSize bytes have already gone out on the wire. Both shapes have to
+// pass, which means Write has to skip an unusable limiter entirely.
 // ---------------------------------------------------------------------
 
 func TestThrottleConnWriteDoesNotSpinWithZeroBurst(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
-	go io.Copy(io.Discard, srv)
+	tests := []struct {
+		name string
+		conn func(net.Conn) *throttleConn
+	}{
+		{
+			// a caller that skipped the constructor, or otherwise stomped burst
+			name: "burst zeroed on an otherwise healthy limiter",
+			conn: func(c net.Conn) *throttleConn {
+				tc := newParent(100*1024*1024, 1).newThrottleConn(c, 10*time.Second, 4096)
+				tc.burst = 0
+				return tc
+			},
+		},
+		{
+			// the real thing: bps <= 0 zeroes the limiter's burst as well
+			name: "parent built from a bps <= 0 rate limit",
+			conn: func(c net.Conn) *throttleConn {
+				return newParent(0, 0).newThrottleConn(c, 10*time.Second, 4096)
+			},
+		},
+	}
 
-	p := newParent(100*1024*1024, 1)
-	tc := p.newThrottleConn(cli, 10*time.Second, 4096)
-	tc.burst = 0 // deliberately zeroed out to simulate a misconfigured/zero-value rate limit
-	payload := make([]byte, 64*1024)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cli, srv, cleanup := dialLoopback(t)
+			defer cleanup()
+			go io.Copy(io.Discard, srv)
 
-	done := make(chan error, 1)
-	go func() {
-		_, err := tc.Write(payload)
-		done <- err
-	}()
-
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("expected a zero burst to fall back to a sane default and succeed, got: %v", err)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("Write spun/hung with a zero burst instead of falling back to a sane default")
+			tc := tt.conn(cli)
+			payload := make([]byte, 64*1024)
+			n, err := writeWithWatchdog(t, 3*time.Second, func() (int, error) { return tc.Write(payload) })
+			if err != nil {
+				t.Fatalf("expected an unusable rate limit to be skipped entirely, got: %v (after %d of %d "+
+					"bytes had already gone out on the wire)", err, n, len(payload))
+			}
+			if n != len(payload) {
+				t.Fatalf("wrote %d bytes, want %d", n, len(payload))
+			}
+		})
 	}
 }
 

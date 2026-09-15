@@ -163,18 +163,21 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 	}
 
 	return &EntryWriter{
-		conn:           utc,
-		bIO:            bufio.NewWriterSize(utc, cfg.BufferSize),
-		bAckReader:     bufio.NewReaderSize(utc, cfg.OutstandingEntryCount*ACK_SIZE),
-		mtx:            &sync.Mutex{},
-		ecb:            ecb,
-		hot:            true,
-		buff:           make([]byte, READ_ENTRY_HEADER_SIZE),
-		id:             1,
-		ackTimeout:     cfg.Timeout,
-		ctx:            cfg.CTX,
-		flushTimeout:   cfg.FlushTimeout,
-		writeBlockSize: cfg.WriteBlockSize,
+		conn:       utc,
+		bIO:        bufio.NewWriterSize(utc, cfg.BufferSize),
+		bAckReader: bufio.NewReaderSize(utc, cfg.OutstandingEntryCount*ACK_SIZE),
+		mtx:        &sync.Mutex{},
+		ecb:        ecb,
+		hot:        true,
+		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
+		id:         1,
+		ackTimeout: cfg.Timeout,
+		ctx:        cfg.CTX,
+		// take the normalized values back off the conn rather than the raw
+		// config. NewEntryWriterEx is exported and does NOT run validate().
+		// cfg may still hold zero values that newUnthrottledConn just defaulted.
+		flushTimeout:   utc.writeTimeout,
+		writeBlockSize: utc.blockSize,
 	}, nil
 }
 
@@ -211,12 +214,36 @@ func (ew *EntryWriter) OverrideFlushTimeout(ft time.Duration) error {
 	return nil
 }
 
+// clampFlushTimeout temporarily lowers the per-block write deadline to dur and
+// returns a func that restores the previous value. Callers working against a
+// bounded budget need this. flush() and the conn's own Write loop re-arm the
+// deadline from flushTimeout before every block, which otherwise blows straight
+// through any shorter budget the caller was given. The caller MUST hold the lock.
+func (ew *EntryWriter) clampFlushTimeout(dur time.Duration) func() {
+	prev := ew.flushTimeout
+	if dur <= 0 || (prev > 0 && prev <= dur) {
+		// There's nothing to clamp.
+		return func() {}
+	}
+
+	ew.flushTimeout = dur
+	ew.conn.SetFlushTimeout(dur)
+
+	return func() {
+		ew.flushTimeout = prev
+		ew.conn.SetFlushTimeout(prev)
+	}
+}
+
 // wrapConn passes in a function that can wrap a reader/writer
 // when called we reset the write buffer, caller should make sure there isn't anything buffered
 func (ew *EntryWriter) setConn(c conn) {
 	ew.mtx.Lock()
 	ew.conn = c
 	ew.bIO.Reset(c)
+	// A conn built elsewhere does not know about an override.
+	// Tell it before anything can be written through it.
+	c.SetFlushTimeout(ew.flushTimeout)
 	ew.mtx.Unlock()
 }
 
@@ -231,8 +258,16 @@ func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 	//try to set a deadline on the connection, we are exiting so everything BETTER wrap up within our closeTimeout
-	ew.conn.SetDeadline(time.Now().Add(to))
+	deadline := time.Now().Add(to)
+	ew.conn.SetDeadline(deadline)
 	defer ew.conn.SetDeadline(nilTime)
+
+	// A connection deadline alone is not enough. Every flush below re-arms the
+	// write deadline from flushTimeout (30s by default), which is longer than
+	// the close budget and lets a stalled peer hold shutdown open for a full
+	// flushTimeout instead of honoring `to`.
+	defer ew.clampFlushTimeout(to)()
+
 	ctx, cf := context.WithTimeout(ew.ctx, to)
 	defer cf()
 	if err = ew.forceAckNoLock(ctx); err == nil {
@@ -250,15 +285,18 @@ func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
 	ew.hot = false
 
 	// forceAckNoLock above flushes at least once (throwAckSync), and
-	// flush()/the conn's own Write() always clear the write deadline on
-	// their way out, success or not (see flush() below, and
-	// fullSpeed.Write/throttleConn.Write in throttle.go). That erases the
-	// closeTimeout deadline set at the top of this function. flshr.Close()
-	// (ex: a compressor writing a trailer) and conn.Close() (ex: TLS writing
-	// a close_notify) can still hit the wire, so reinstate the deadline right
-	// before them or a peer that has stopped reading can stall shutdown
-	// forever instead of respecting closeTimeout.
-	ew.conn.SetDeadline(time.Now().Add(to))
+	// flush()/the conn's own Write() always clear the write deadline on their
+	// way out, success or not. That erases the deadline set at the top of this
+	// function, so reinstate it before the close path.
+	//
+	// This is belt and suspenders for a caller-supplied net.Conn whose Close()
+	// writes straight to the wire, bypassing our per-block Write loop. Neither
+	// conn we build ourselves needs it: snappy's Close() is just Flush() with
+	// no trailer, and it latches its error so it is a no-op after a failed
+	// flush; and crypto/tls overwrites this deadline with its own 5s one inside
+	// closeNotify(). What actually keeps this function inside `to` is the
+	// clampFlushTimeout above.
+	ew.conn.SetDeadline(deadline)
 	if ew.flshr != nil {
 		ew.flshr.Close() // close our flusher if we need to
 	}
@@ -277,6 +315,16 @@ func (ew *EntryWriter) ForceAck() error {
 func (ew *EntryWriter) forceAckCtx(ctx context.Context) error {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
+
+	// forceAckNoLock only consults ctx between ack service rounds. The flush it
+	// leads with is bounded by the write deadline instead. Hand the caller's
+	// budget to the write path too, otherwise IngestMuxer.syncAndCloseConnection
+	// asks for connectionShutdownSyncTimeout and then waits a full flushTimeout
+	// against a stalled indexer.
+	if dl, ok := ctx.Deadline(); ok {
+		defer ew.clampFlushTimeout(time.Until(dl))()
+	}
+
 	return ew.forceAckNoLock(ctx)
 }
 

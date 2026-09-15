@@ -19,6 +19,20 @@ import (
 // connection wasn't fully drained.
 var noKeepAliveClient = &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
 
+// indexerWriteDeadline mirrors ingest.defaultFlushTimeout, the per-block write
+// deadline the muxer's connection actually enforces here. It is unexported and
+// there is no config path from MuxerConfig down to it, so this test cannot read
+// it or shrink it -- keep the two in sync by hand. Holding the freeze for LESS
+// than this is the one thing that makes this test worthless: every write stays
+// merely blocked, nothing ever times out, and the whole backlog drains the
+// moment the container thaws, with or without the fix.
+const indexerWriteDeadline = 30 * time.Second
+
+// holdFor is how long the indexer stays frozen. Two write deadlines so the
+// write relay routine hits the stall, times out, and goes through at least one
+// full recycle/reconnect cycle while still frozen.
+const holdFor = 2 * indexerWriteDeadline
+
 // sendLarge posts body and returns an error describing anything that went
 // wrong. It deliberately does NOT call t.Fatal/t.Fatalf itself: it's called
 // from multiple goroutines below, and the testing package requires FailNow
@@ -62,6 +76,10 @@ func sendLarge(endpoint string, body string) error {
 // mode from the bug report, reproduced against a real indexer instead of a
 // simulated one.
 func TestSurvivesStalledIndexer(t *testing.T) {
+	if !e2e.HasInstance() {
+		t.Skip("freezing the gravwell instance needs a container this process owns, not an external -endpoint")
+	}
+
 	_, endpoint := setup(t, "stall")
 
 	// Baseline: confirm the pipe works before doing anything adversarial.
@@ -135,21 +153,21 @@ func TestSurvivesStalledIndexer(t *testing.T) {
 	}
 
 	// Hold the freeze comfortably longer than the ingest muxer's per-block
-	// write deadline (10s in production) so the write relay routine actually
-	// hits the stall, times out, and goes through at least one full
-	// recycle/reconnect cycle while still frozen -- proving it doesn't wedge
-	// permanently on the connection that was live when the freeze hit.
-	time.Sleep(25 * time.Second)
+	// write deadline, proving the relay doesn't wedge permanently on the
+	// connection that was live when the freeze hit.
+	time.Sleep(holdFor)
 
 	e2e.UnpauseInstance(t)
 	paused = false
 
 	// Every entry sent while paused must still show up -- no data loss, and
 	// delivery actually resumes once the indexer can drain again. Generous
-	// wait: after a 25s freeze, the write relay routine may still need to
-	// finish an in-flight recycle/reconnect cycle before it can even start
-	// draining the backlog, on top of normal indexing/search latency.
-	ents := e2e.WaitForEntries(t, c, "tag=http-stall words during pause", 2*time.Minute, duringPauseCount, 90*time.Second)
+	// wait: after the freeze, the write relay routine may still need to finish
+	// an in-flight recycle/reconnect cycle before it can even start draining
+	// the backlog, on top of normal indexing/search latency. The search window
+	// has to comfortably outrun holdFor plus that wait, or the entries we are
+	// looking for age out of the query range before the last poll runs.
+	ents := e2e.WaitForEntries(t, c, "tag=http-stall words during pause", 10*time.Minute, duringPauseCount, 3*time.Minute)
 	if len(ents) != duringPauseCount {
 		e2e.Fatalf(t, "got %d entries after unpausing, want %d -- data sent during the stall was lost", len(ents), duringPauseCount)
 	}
