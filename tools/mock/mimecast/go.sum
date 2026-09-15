@@ -42,8 +42,8 @@ github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8 h1:RrGCja4Grfz7
 github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8/go.mod h1:KrtyD5PFj++GKkFS/7/RRrfnRhAMGQwy75GLCHWrCNs=
 github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 h1:Rb2KtyUbQRsoqGzuIReP55VBhTyrDXgbi2YIStuJHM8=
 github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949/go.mod h1:CixWBSPtPv3WFceEvubOBc8RhADaZr7t7Xk6j+hKOXU=
-github.com/klauspost/compress v1.19.2 h1:hMRETovs/pu/dVWN7zIT1PGG8t509MwT6bO7XSi26R8=
-github.com/klauspost/compress v1.19.2/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
+github.com/klauspost/compress v1.20.0 h1:a3C1ke2ohxFymNlb2HWAHjDeKCI90scRskErZkR0ezA=
+github.com/klauspost/compress v1.20.0/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
