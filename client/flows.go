@@ -118,3 +118,8 @@ func (c *Client) DebugFlow(id string, opts types.AutomationDebugRequest) error {
 func (c *Client) CancelFlow(id string) error {
 	return c.delete(flowCancelIdUrl(id), false)
 }
+
+// CleanupFlows (admin-only) purges all deleted flows for all users.
+func (c *Client) CleanupFlows() error {
+	return c.delete(FLOW_URL, false)
+}

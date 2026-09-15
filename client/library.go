@@ -39,8 +39,13 @@ func (c *Client) ListAllSavedQueries(opts *types.QueryOptions) (wsl types.SavedQ
 // It first checks for a query with a matching ThingUUID.
 // If that is not found, it looks for a query with a matching GUID, prioritizing
 // queries belonging to the current user.
-func (c *Client) GetSavedQuery(id string) (sl types.SavedQuery, err error) {
-	return c.get[types.SavedQuery](searchLibIdUrl(id))
+func (c *Client) GetSavedQuery(id string) (types.SavedQuery, error) {
+	return c.GetSavedQueryEx(id, GetOptions{})
+}
+
+// GetSavedQueryEx returns a particular saved query, modified by opts.
+func (c *Client) GetSavedQueryEx(id string, opts GetOptions) (types.SavedQuery, error) {
+	return c.get[types.SavedQuery](searchLibIdUrl(id), opts.params()...)
 }
 
 // DeleteSavedQuery deletes a specific library entry.

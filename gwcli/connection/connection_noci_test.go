@@ -518,7 +518,13 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret 
 	}
 
 	t.Logf("failed to lookup user %v, attempting creation...", altUser)
-	if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+	if _, err := testclient.CreateUser(types.AddUser{
+		Username: altUser,
+		Password: altPass,
+		Name:     "Mildred Knolastname",
+		Email:    "milly@imp.com",
+		Admin:    false,
+	}); err != nil {
 		t.Fatal(err)
 	}
 

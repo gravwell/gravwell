@@ -56,32 +56,6 @@ func (c *Client) UnlockUserAccount(id int32) error {
 	return c.deleteStaticURL(lockUrl(id), nil)
 }
 
-// AddUser (admin-only) creates a new user. The user and pass parameters specify login information.
-// The name parameter is the user's real name and the email parameter is the user's
-// email address. If 'admin' is set to true, the user will be flagged as an administrator.
-func (c *Client) AddUser(user, pass, name, email string, admin bool) error {
-	userDetails := types.AddUser{
-		Username: user,
-		Password: pass,
-		Name:     name,
-		Email:    email,
-		Admin:    admin,
-	}
-	if err := c.postStaticURL(ADD_USER_URL, userDetails, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-// AddGroup (admin-only) creates a new group with the given name and description.
-func (c *Client) AddGroup(name, desc string) error {
-	gpInfo := types.AddGroup{
-		Name:        name,
-		Description: desc,
-	}
-	return c.postStaticURL(groupUrl(), gpInfo, nil)
-}
-
 // changePass will change a users password
 func (c *Client) changePass(id int32, req types.ChangePassword) error {
 	if err := c.putStaticURL(usersChangePassUrl(id), req); err != nil {
@@ -390,17 +364,17 @@ func (c *Client) PurgeExtraction(id string) (wrs []types.WarnResp, err error) {
 	return
 }
 
-// TestAddExtraction validates an autoextractor definition.
-func (c *Client) TestAddExtraction(d types.AX) (wrs []types.WarnResp, err error) {
+// ValidateExtraction validates an autoextractor definition.
+func (c *Client) ValidateExtraction(d types.AX) (wrs []types.WarnResp, err error) {
 	if err = c.postStaticURL(extractionsTestUrl(), d, nil); err == io.EOF {
 		err = nil
 	}
 	return
 }
 
-// AddExtraction installs an autoextractor definition, returning the UUID of the new
+// CreateExtraction installs an autoextractor definition, returning the UUID of the new
 // extraction or an error if it is invalid.
-func (c *Client) AddExtraction(d types.AX) (result types.AX, wrs []types.WarnResp, err error) {
+func (c *Client) CreateExtraction(d types.AX) (result types.AX, wrs []types.WarnResp, err error) {
 	if err = c.postStaticURL(extractionsUrl(), d, &result); err == io.EOF {
 		err = nil
 	}

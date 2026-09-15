@@ -64,9 +64,9 @@ func (c *Client) TOTPLogin(user, pass, code string) (types.LoginResponse, error)
 	return c.MFALogin(user, pass, types.AUTH_TYPE_TOTP, code)
 }
 
-// TOTPClear deletes the user's TOTP setup.
+// ClearTOTP deletes the user's TOTP setup.
 // Note that this may return an error if another MFA method is not configured.
-func (c *Client) TOTPClear(user, pass string, authtype types.AuthType, code string) error {
+func (c *Client) ClearTOTP(user, pass string, authtype types.AuthType, code string) error {
 	rq := types.MFAAuthRequest{
 		User:     user,
 		Pass:     pass,
@@ -84,8 +84,8 @@ func (c *Client) GetMFAInfo() (resp types.MFAInfo, err error) {
 	return
 }
 
-// ClearAllMFA completely clears the current user's MFA configuration, if allowed by site policy.
-func (c *Client) ClearAllMFA(user, pass string, authtype types.AuthType, code string) error {
+// ClearMFA completely clears the current user's MFA configuration, if allowed by site policy.
+func (c *Client) ClearMFA(user, pass string, authtype types.AuthType, code string) error {
 	rq := types.MFAAuthRequest{
 		User:     user,
 		Pass:     pass,
@@ -95,10 +95,10 @@ func (c *Client) ClearAllMFA(user, pass string, authtype types.AuthType, code st
 	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil, nil, nil)
 }
 
-// AdminClearUserMFA completely clears the specified user's MFA
+// AdminClearMFA completely clears the specified user's MFA
 // configuration. They will have to re-configure MFA on their next
 // login.
-func (c *Client) AdminClearUserMFA(uid int32) error {
+func (c *Client) AdminClearMFA(uid int32) error {
 	return c.methodStaticParamURL(http.MethodDelete, clearUserMFAUrl(uid), nil, nil)
 }
 

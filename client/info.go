@@ -80,8 +80,8 @@ func (c *Client) MyAdminStatus() bool {
 	return c.userDetails.Admin
 }
 
-// Groups returns the current user's group memberships.
-func (c *Client) Groups() (gps []types.Group, err error) {
+// MyGroups returns the current user's group memberships.
+func (c *Client) MyGroups() (gps []types.Group, err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.userDetails.ID == 0 {
@@ -322,11 +322,11 @@ func (c *Client) SendPrebuiltMail(msg types.UserMail) error {
 	return c.postStaticURL(MAIL_URL, &msg, nil)
 }
 
-// ConfigureMail sets up mail server options for the current user.
+// SetMailConfig sets up mail server options for the current user.
 // The user, pass, server, and port parameters specify the mail server and authentication
 // options for the server. The useTLS flag enables TLS for SMTP, and the noVerify flag disables
 // checking of TLS certs.
-func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, noVerify bool) error {
+func (c *Client) SetMailConfig(user, pass, server string, port uint16, useTLS, noVerify bool) error {
 	msg := types.UserMailConfig{
 		Server:             server,
 		Username:           user,
@@ -344,24 +344,24 @@ func (c *Client) DeleteMailConfig() error {
 	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, []int{http.StatusOK, http.StatusNotFound}, nil)
 }
 
-// MailConfig retrieves the current mail config
+// GetMailConfig retrieves the current mail config
 // if no mail config is set an empty UserMailConfig is returned
 // Even on a valid mail config the Password portion is not present in the response
-func (c *Client) MailConfig() (mc types.UserMailConfig, err error) {
+func (c *Client) GetMailConfig() (mc types.UserMailConfig, err error) {
 	err = c.getStaticURL(MAIL_CONFIGURE_URL, &mc)
 	return
 }
 
-// WellData returns information about the storage wells on the indexers.
+// GetWellData returns information about the storage wells on the indexers.
 // The return value is a map of indexer name strings to IndexerWellData objects.
-func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
+func (c *Client) GetWellData() (mp map[string]types.IndexerWellData, err error) {
 	err = c.getStaticURL(wellDataUrl(), &mp)
 	return
 }
 
-// SearchQueue returns information about the search queue. If rate limiting is
+// GetSearchQueue returns information about the search queue. If rate limiting is
 // disabled, all values will be zero.
-func (c *Client) SearchQueue() (s types.SearchQueue, err error) {
+func (c *Client) GetSearchQueue() (s types.SearchQueue, err error) {
 	err = c.getStaticURL(searchQueueUrl(), &s)
 	return
 }
