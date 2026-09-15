@@ -605,6 +605,21 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 	})
 }
 
+// tests that MarshalJSONTo/UnmarshalJSONFrom properly carries the caller's encoder/decoder options.
+func TestRowSelectionForwardsCallerOptions(t *testing.T) {
+	t.Run("MatchCaseInsensitiveNames on unmarshal", func(t *testing.T) {
+		raw := []byte(`{"kind":"single","index":5}`)
+
+		var rs types.RowSelection
+		err := v2.Unmarshal(raw, &rs)
+		require.Error(t, err, "default should not match lowercase keys, failing validation")
+
+		err = v2.Unmarshal(raw, &rs, jsoncompat.Opts)
+		require.NoError(t, err)
+		require.Equal(t, types.RowSelection{Kind: "single", Index: 5}, rs)
+	})
+}
+
 // test that slices and maps marshal to []/{} (respectively) instead of null.
 func TestNoNilSlicesMaps(t *testing.T) {
 	t.Run("Labels", func(t *testing.T) {
