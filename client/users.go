@@ -24,15 +24,6 @@ func (c *Client) ListUsers(opts *types.QueryOptions) (ret types.UserListResponse
 	return c.post[types.QueryOptions, types.UserListResponse](USERS_LIST_URL, opts)
 }
 
-// ListAllUsers (admin-only) returns a list of all users on the system.
-func (c *Client) ListAllUsers(opts *types.QueryOptions) (ret types.UserListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true
-	return c.post[types.QueryOptions, types.UserListResponse](USERS_LIST_URL, opts)
-}
-
 // GetUserMap returns a map of UID to username for every user on the system. This calls ListUsers under the hood, so the user must have the ListUsers capability enabled.
 func (c *Client) GetUserMap() (map[int32]string, error) {
 	users, err := c.ListUsers(nil)
