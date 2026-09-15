@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -68,7 +69,11 @@ func listAction() action.Pair {
 			if id, err := fs.GetString("id"); err != nil {
 				clilog.GetFlag(err)
 			} else if id != "" {
-				ss, err := connection.Client.GetScheduledSearchEx(id, params.QueryOpts)
+				var opts client.GetOptions
+				if params.QueryOpts != nil {
+					opts.IncludeDeleted = params.QueryOpts.IncludeDeleted
+				}
+				ss, err := connection.Client.GetScheduledSearchEx(id, opts)
 				return []types.ScheduledSearch{ss}, err
 			}
 			list, err := connection.Client.ListScheduledSearches(params.QueryOpts)

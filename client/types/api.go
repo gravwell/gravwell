@@ -32,11 +32,7 @@ const (
 
 // Helpers for the marshaling functions
 var (
-	emptyList   = []byte(`[]`)
-	emptyObj    = []byte(`{}`)
-	emptyRawObj = RawObject(`{}`)
-	emptyString = []byte(`""`)
-	jsonNull    = []byte(`null`)
+	emptyList = []byte(`[]`)
 )
 
 type AuthType string
@@ -356,8 +352,8 @@ type SearchAgentConfig struct {
 
 // MarshalJSON ensures empty RawObjects marshal to {} and populated as jsontext.Value.
 func (o RawObject) MarshalJSON() ([]byte, error) {
-	if len(o) == 0 || o == nil {
-		return emptyObj, nil
+	if len(o) == 0 {
+		return []byte("{}"), nil
 	}
 	b := jsontext.Value(o)
 	return json.Marshal(&b)

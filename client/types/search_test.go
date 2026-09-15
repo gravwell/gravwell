@@ -10,10 +10,13 @@ package types
 
 import (
 	"encoding/json"
+	v2 "encoding/json/v2"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 func TestRowSelectionMarshal(t *testing.T) {
@@ -59,18 +62,20 @@ func TestRowSelectionUnmarshal(t *testing.T) {
 		input   string
 		wantErr bool
 	}{
-		{"valid range", `{"kind":"range","start":0,"end":10}`, false},
+		{"valid range (lower case)", `{"kind":"range","start":0,"end":10}`, false},
+		{"valid range (title case)", `{"Kind":"range","Start":0,"end":10}`, false},
 		{"valid single", `{"kind":"single","index":5}`, false},
 		{"range with index set", `{"kind":"range","start":0,"end":10,"index":3}`, true},
 		{"single with start set", `{"kind":"single","index":5,"start":1}`, true},
-		{"single with end set", `{"kind":"single","index":5,"end":1}`, true},
+		{"single with end set (lower case)", `{"kind":"single","index":5,"end":1}`, true},
+		{"single with end set (mixwed case)", `{"kind":"single","Index":5,"end":1}`, true},
 		{"single with start and end set", `{"kind":"single","index":5,"start":1,"end":7}`, true},
 		{"unknown kind", `{"kind":"bogus"}`, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out RowSelection
-			err := json.Unmarshal([]byte(tt.input), &out)
+			err := v2.Unmarshal([]byte(tt.input), &out, jsoncompat.Opts)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error")

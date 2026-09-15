@@ -17,8 +17,7 @@ func (c *Client) ListTemplates(opts *types.QueryOptions) (ret types.TemplateList
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(TEMPLATES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, opts)
 }
 
 // ListAllTemplates (admin-only) returns all templates on the system.
@@ -27,43 +26,32 @@ func (c *Client) ListAllTemplates(opts *types.QueryOptions) (ret types.TemplateL
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	err = c.postStaticURL(TEMPLATES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, opts)
 }
 
 // GetTemplate returns a particular template.
 func (c *Client) GetTemplate(id string) (types.Template, error) {
-	var template types.Template
-	err := c.getStaticURL(templateUrl(id), &template)
-	return template, err
+	return c.GetTemplateEx(id, GetOptions{})
 }
 
-// GetTemplateEx returns a particular template. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetTemplateEx(id string, opts *types.QueryOptions) (types.Template, error) {
-	var template types.Template
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(templateUrl(id), &template, ezParam("include_deleted", opts.IncludeDeleted))
-	return template, err
+// GetTemplateEx returns a particular template, modified by opts.
+func (c *Client) GetTemplateEx(id string, opts GetOptions) (types.Template, error) {
+	return c.get[types.Template](templateUrl(id), opts.params()...)
 }
 
 // DeleteTemplate deletes a template by marking it deleted in the database.
 func (c *Client) DeleteTemplate(id string) error {
-	return c.deleteStaticURL(templateUrl(id), nil)
+	return c.delete(templateUrl(id), false)
 }
 
 // PurgeTemplate deletes a template entirely, removing it from the database.
 func (c *Client) PurgeTemplate(id string) error {
-	return c.deleteStaticURL(templateUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(templateUrl(id), true)
 }
 
 // CreateTemplate creates a new template, returning the newly-created template.
 func (c *Client) CreateTemplate(t types.Template) (result types.Template, err error) {
-	err = c.postStaticURL(TEMPLATES_URL, t, &result)
-	return
+	return c.post[types.Template, types.Template](TEMPLATES_URL, &t)
 }
 
 // UpdateTemplate modifies an existing template and returns the complete, updated struct.
@@ -76,5 +64,5 @@ func (c *Client) UpdateTemplate(ID string, p types.TemplatePatch) (updated types
 
 // CleanupTemplates (admin-only) purges all deleted templates for all users.
 func (c *Client) CleanupTemplates() error {
-	return c.deleteStaticURL(TEMPLATES_URL, nil)
+	return c.delete(TEMPLATES_URL, false)
 }

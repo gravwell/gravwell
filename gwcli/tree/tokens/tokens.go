@@ -19,6 +19,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -138,8 +139,12 @@ func get() action.Pair {
 
 func getTokens(bare []string, params scaffoldlist.DataParameters) ([]types.Token, error) {
 	var tokens = make([]types.Token, len(bare))
+	var opts client.GetOptions
+	if params.QueryOpts != nil {
+		opts.IncludeDeleted = params.QueryOpts.IncludeDeleted
+	}
 	for i, id := range bare {
-		t, err := connection.Client.GetTokenEx(id, params.QueryOpts)
+		t, err := connection.Client.GetTokenEx(id, opts)
 		if err != nil {
 			if phrases.IsNotFoundErr(err) {
 				return nil, phrases.ErrUnknownIdentifier(id, "token ID")
