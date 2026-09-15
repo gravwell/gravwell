@@ -17,8 +17,7 @@ func (c *Client) ListUserPreferences(opts *types.QueryOptions) (ret types.UserPr
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(USER_PREFERENCES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, opts)
 }
 
 // ListAllUserPreferences (admin-only) returns all user preferences on the system.
@@ -27,27 +26,17 @@ func (c *Client) ListAllUserPreferences(opts *types.QueryOptions) (ret types.Use
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	err = c.postStaticURL(USER_PREFERENCES_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, opts)
 }
 
 // GetUserPreference returns a particular user preference.
 func (c *Client) GetUserPreference(id string) (types.UserPreference, error) {
-	var pref types.UserPreference
-	err := c.getStaticURL(userPreferenceUrl(id), &pref)
-	return pref, err
+	return c.GetUserPreferenceEx(id, GetOptions{})
 }
 
-// GetUserPreferenceEx returns a particular user preference. If the QueryOptions arg is
-// not nil, applicable parameters (currently only IncludeDeleted) will
-// be applied to the query.
-func (c *Client) GetUserPreferenceEx(id string, opts *types.QueryOptions) (types.UserPreference, error) {
-	var pref types.UserPreference
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	err := c.getStaticURL(userPreferenceUrl(id), &pref, ezParam("include_deleted", opts.IncludeDeleted))
-	return pref, err
+// GetUserPreferenceEx returns a particular user preference, modified by opts.
+func (c *Client) GetUserPreferenceEx(id string, opts GetOptions) (types.UserPreference, error) {
+	return c.get[types.UserPreference](userPreferenceUrl(id), opts.params()...)
 }
 
 // GetUserPreferenceByName returns the user preference with the given name owned by the
@@ -74,18 +63,17 @@ func (c *Client) GetUserPreferenceByName(name string) (types.UserPreference, err
 
 // DeleteUserPreference deletes a user preference by marking it deleted in the database.
 func (c *Client) DeleteUserPreference(id string) error {
-	return c.deleteStaticURL(userPreferenceUrl(id), nil)
+	return c.delete(userPreferenceUrl(id), false)
 }
 
 // PurgeUserPreference deletes a user preference entirely, removing it from the database.
 func (c *Client) PurgeUserPreference(id string) error {
-	return c.deleteStaticURL(userPreferenceUrl(id), nil, ezParam("purge", "true"))
+	return c.delete(userPreferenceUrl(id), true)
 }
 
 // CreateUserPreference creates a new user preference, returning the newly-created user preference.
 func (c *Client) CreateUserPreference(p types.UserPreference) (result types.UserPreference, err error) {
-	err = c.postStaticURL(USER_PREFERENCES_URL, p, &result)
-	return
+	return c.post[types.UserPreference, types.UserPreference](USER_PREFERENCES_URL, &p)
 }
 
 // UpdateUserPreference modifies an existing user preference and returns the complete, updated struct.
@@ -98,7 +86,7 @@ func (c *Client) UpdateUserPreference(ID string, p types.UserPreferencePatch) (u
 
 // CleanupUserPreferences (admin-only) purges all deleted user preferences for all users.
 func (c *Client) CleanupUserPreferences() error {
-	return c.deleteStaticURL(USER_PREFERENCES_URL, nil)
+	return c.delete(USER_PREFERENCES_URL, false)
 }
 
 // GetGuiPreferences is a convenience function: it returns the Data
@@ -112,7 +100,7 @@ func (c *Client) GetGuiPreferences(uid int32, obj interface{}) error {
 // object named `prefs` belonging to the specified user. It does *not*
 // delete the underlying asset, though.
 func (c *Client) DeleteGuiPreferences(id int32) error {
-	return c.deleteStaticURL(preferencesUrl(id), nil)
+	return c.delete(preferencesUrl(id), false)
 }
 
 // PutGuiPreferences updates the Data field of the preferences object

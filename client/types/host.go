@@ -9,7 +9,6 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
 )
 
@@ -20,15 +19,15 @@ var (
 
 // SysInfo as displayed in the System Overview in Gravwell.
 type SysInfo struct {
-	VirtSystem    string `json:",omitempty"` // e.g. "kvm" or "xen"
-	VirtRole      string `json:",omitempty"` // "host" or "guest"
-	CPUCount      int    `json:",omitempty"`
-	CPUModel      string `json:",omitempty"`
-	CPUMhz        string `json:",omitempty"`
-	CPUCache      string `json:",omitempty"`
-	TotalMemoryMB uint64 `json:",omitempty"`
-	SystemVersion string `json:",omitempty"`
-	Error         string `json:",omitempty"`
+	VirtSystem    string `json:",omitzero"` // e.g. "kvm" or "xen"
+	VirtRole      string `json:",omitzero"` // "host" or "guest"
+	CPUCount      int    `json:",omitzero"`
+	CPUModel      string `json:",omitzero"`
+	CPUMhz        string `json:",omitzero"`
+	CPUCache      string `json:",omitzero"`
+	TotalMemoryMB uint64 `json:",omitzero"`
+	SystemVersion string `json:",omitzero"`
+	Error         string `json:",omitzero"`
 }
 
 // DiskStats as shown in the System Stats - Hardware and Disks view in Gravwell.
@@ -119,16 +118,4 @@ func (si SysInfo) Empty() bool {
 		return false
 	}
 	return true
-}
-
-func (si SysInfo) MarshalJSON() ([]byte, error) {
-	if si.Empty() {
-		return emptyObj, nil
-	}
-	type alias SysInfo
-	return json.Marshal(struct {
-		alias
-	}{
-		alias: alias(si),
-	})
 }
