@@ -39,16 +39,12 @@ var (
 
 // DeleteSearch will request that a search is deleted by search ID
 func (c *Client) DeleteSearch(sid string) error {
-	return c.deleteStaticURL(searchCtrlIdUrl(sid), nil)
+	return c.delete(searchCtrlIdUrl(sid), false)
 }
 
 // GetSearch requests the status of a given search ID
 func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
-	var si types.SearchInfo
-	if err := c.getStaticURL(searchCtrlIdUrl(sid), &si); err != nil {
-		return si, err
-	}
-	return si, nil
+	return c.get[types.SearchInfo](searchCtrlIdUrl(sid))
 }
 
 // SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
@@ -88,11 +84,7 @@ func (c *Client) ListSearches(opts *types.QueryOptions) (types.SearchInfoListRes
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	var scs types.SearchInfoListResponse
-	if err := c.postStaticURL(SEARCH_CTRL_LIST_URL, opts, &scs); err != nil {
-		return scs, err
-	}
-	return scs, nil
+	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, opts)
 }
 
 // ListAllSearches returns a list of all searches on the system. Only admin
@@ -102,53 +94,33 @@ func (c *Client) ListAllSearches(opts *types.QueryOptions) (types.SearchInfoList
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	var scs types.SearchInfoListResponse
-	if err := c.postStaticURL(SEARCH_CTRL_LIST_URL, opts, &scs); err != nil {
-		return scs, err
-	}
-	return scs, nil
+	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, opts)
 }
 
 // GetSearchHistoryEntry retrieves a single search history entry by ID.
 // Use the includeDeleted parameter to include deleted entries.
 func (c *Client) GetSearchHistoryEntry(id string, includeDeleted bool) (types.SearchHistoryEntry, error) {
-	var entry types.SearchHistoryEntry
-	params := []urlParam{}
-	if includeDeleted {
-		params = append(params, urlParam{key: `include_deleted`, value: `true`})
-	}
-	if err := c.getStaticURL(searchHistoryIdUrl(id), &entry, params...); err != nil {
-		return entry, err
-	}
-	return entry, nil
+	return c.get[types.SearchHistoryEntry](searchHistoryIdUrl(id), GetOptions{IncludeDeleted: includeDeleted}.params()...)
 }
 
 // ListSearchHistory retrieves the search history for the currently logged in user
 // with advanced query options for filtering, sorting, and pagination.
 func (c *Client) ListSearchHistory(opts *types.QueryOptions) (types.SearchHistoryListResponse, error) {
-	var resp types.SearchHistoryListResponse
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	if err := c.postStaticURL(searchHistoryListUrl(), opts, &resp); err != nil {
-		return resp, err
-	}
-	return resp, nil
+	return c.post[types.QueryOptions, types.SearchHistoryListResponse](searchHistoryListUrl(), opts)
 }
 
 // DeleteSearchHistoryEntry deletes or purges a search history entry by ID.
 // If purge is true, the entry is permanently removed; otherwise it is soft-deleted.
 func (c *Client) DeleteSearchHistoryEntry(id string, purge bool) error {
-	params := []urlParam{}
-	if purge {
-		params = append(params, urlParam{key: `purge`, value: `true`})
-	}
-	return c.methodStaticParamURL(http.MethodDelete, searchHistoryIdUrl(id), params, nil)
+	return c.delete(searchHistoryIdUrl(id), purge)
 }
 
 // CleanupSearchHistory purges all soft-deleted search history entries for the current user.
 func (c *Client) CleanupSearchHistory() error {
-	return c.deleteStaticURL(SEARCH_HISTORY_URL, nil)
+	return c.delete(SEARCH_HISTORY_URL, false)
 }
 
 // ParseSearch validates a search query. Gravwell will return an error if the query
