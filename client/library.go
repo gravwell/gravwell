@@ -31,7 +31,9 @@ func (c *Client) ListAllSavedQueries(opts *types.QueryOptions) (wsl types.SavedQ
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	opts.AdminMode = true
+	a := opts.AdminMode
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, opts)
 }
 

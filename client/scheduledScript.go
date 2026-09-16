@@ -28,7 +28,9 @@ func (c *Client) ListAllScheduledScripts(opts *types.QueryOptions) (scripts type
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
+	a := opts.AdminMode
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, opts)
 }
 

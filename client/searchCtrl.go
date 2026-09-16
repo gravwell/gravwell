@@ -93,7 +93,9 @@ func (c *Client) ListAllSearches(opts *types.QueryOptions) (types.SearchInfoList
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
+	a := opts.AdminMode
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, opts)
 }
 

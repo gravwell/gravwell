@@ -129,7 +129,9 @@ func (c *Client) ListAllKits(opts *types.QueryOptions) (pkgs types.KitStateListR
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	opts.AdminMode = true
+	a := opts.AdminMode
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, opts)
 }
 

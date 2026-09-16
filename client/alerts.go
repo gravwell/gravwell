@@ -30,7 +30,9 @@ func (c *Client) ListAllAlerts(opts *types.QueryOptions) (result types.AlertList
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	opts.AdminMode = true
+	a := opts.AdminMode
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, opts)
 }
 

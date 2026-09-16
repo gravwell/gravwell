@@ -42,7 +42,9 @@ func (c *Client) ListAllTokens(opts *types.QueryOptions) (ts types.TokenListResp
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	opts.AdminMode = true
+	a := opts.AdminMode
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, opts)
 }
 

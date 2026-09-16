@@ -43,7 +43,9 @@ func (c *Client) ListAllResources(opts *types.QueryOptions) (rm types.ResourceLi
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	opts.AdminMode = true
+	a := opts.AdminMode
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, opts)
 }
 

@@ -25,7 +25,9 @@ func (c *Client) ListAllPlaybooks(opts *types.QueryOptions) (ret types.PlaybookL
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
+	a := opts.AdminMode
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, opts)
 }
 

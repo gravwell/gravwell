@@ -25,7 +25,9 @@ func (c *Client) ListAllDashboards(opts *types.QueryOptions) (ret types.Dashboar
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	opts.AdminMode = true
+	a := opts.AdminMode
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	defer func() { opts.AdminMode = a }()
 	return c.post[types.QueryOptions, types.DashboardListResponse](DASHBOARDS_LIST_URL, opts)
 }
 
