@@ -10,11 +10,17 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
+// ExtractionSupportedEngines returns a list of valid engines for use in
+// autoextraction definitions.
+func (c *Client) ExtractionSupportedEngines() (v []string, err error) {
+	err = c.getStaticURL(extractionEnginesUrl(), &v)
+	return
+}
+
 // ListExtractions returns the list of autoextraction definitions available
 // to the current user.
 func (c *Client) ListExtractions(opts types.QueryOptions) (ret types.AXListResponse, err error) {
-	err = c.postStaticURL(EXTRACTORS_LIST_URL, opts, &ret)
-	return
+	return c.post[types.QueryOptions, types.AXListResponse](EXTRACTORS_LIST_URL, &opts)
 }
 
 // ListAllExtractions returns the list of autoextraction definitions available
@@ -26,30 +32,20 @@ func (c *Client) ListAllExtractions(opts types.QueryOptions) (ret types.AXListRe
 
 // GetExtraction returns a particular extraction by UUID
 func (c *Client) GetExtraction(id string) (d types.AX, err error) {
-	err = c.getStaticURL(extractionIdUrl(id), &d)
-	return
+	return c.get[types.AX](extractionIdUrl(id))
 }
 
 // FindExtraction returns the most appropriate extraction for a given tag
 func (c *Client) FindExtraction(tag string) (d types.AX, err error) {
-	err = c.getStaticURL(extractionFindUrl(tag), &d)
-	return
+	return c.get[types.AX](extractionFindUrl(tag))
 }
 
 // DeleteExtraction deletes the specified autoextraction.
-func (c *Client) DeleteExtraction(id string) (wrs []types.WarnResp, err error) {
-	if err = c.deleteStaticURL(extractionIdUrl(id), nil); err == io.EOF {
-		err = nil
-	}
-	return
+//
+// NOTE: Extractions are always hard-deleted.
+func (c *Client) DeleteExtraction(id string) (err error) {
+	return c.delete(extractionIdUrl(id), false)
 }
-
-// PurgeExtraction deletes the specified autoextraction.
-func (c *Client) PurgeExtraction(id string) (wrs []types.WarnResp, err error) {
-	if err = c.deleteStaticURL(extractionIdUrl(id), nil, ezParam("purge", "true")); err == io.EOF {
-		err = nil
-	}
-	return
 }
 
 // ValidateExtraction validates an autoextractor definition.

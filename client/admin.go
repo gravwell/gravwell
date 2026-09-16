@@ -308,13 +308,6 @@ func (c *Client) AddIndexer(dialstring string) (map[string]string, error) {
 	return errors, err
 }
 
-// ExtractionSupportedEngines returns a list of valid engines for use in
-// autoextraction definitions.
-func (c *Client) ExtractionSupportedEngines() (v []string, err error) {
-	err = c.getStaticURL(extractionEnginesUrl(), &v)
-	return
-}
-
 // Backup generates a complete backup of all content on the Gravwell webserver and writes
 // it out to the io.Writer provided. By default, scheduled searches / scheduled scripts are
 // not included; set the 'includeSS' option to include them.
@@ -570,7 +563,7 @@ func (c *Client) PurgeUser(id int32) error {
 	} else if len(exts.Results) > 0 {
 		for _, e := range exts.Results {
 			if e.OwnerID == id {
-				if _, err := nc.PurgeExtraction(e.ID); err != nil {
+				if err := nc.DeleteExtraction(e.ID); err != nil {
 					return fmt.Errorf("failed to delete user extraction %v - %w", e.ID, err)
 				}
 			}
