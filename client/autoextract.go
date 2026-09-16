@@ -2,10 +2,12 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 )
@@ -46,14 +48,22 @@ func (c *Client) FindExtraction(tag string) (d types.AX, err error) {
 func (c *Client) DeleteExtraction(id string) (err error) {
 	return c.delete(extractionIdUrl(id), false)
 }
+
+type AXValidateResponse struct {
+	TagExists bool // does this tag already exist?
+	Error     string
 }
 
 // ValidateExtraction validates an autoextractor definition.
-func (c *Client) ValidateExtraction(d types.AX) (wrs []types.WarnResp, err error) {
-	if err = c.postStaticURL(extractionsTestUrl(), d, nil); err == io.EOF {
-		err = nil
+func (c *Client) ValidateExtraction(d types.AX) (tagExists bool, err error) {
+	axvr, err := c.post[types.AX, AXValidateResponse](extractionsTestUrl(), &d)
+	if err != nil {
+		return false, err
+	} else if strings.TrimSpace(axvr.Error) != "" {
+		// this should never actually happen as it should be caught by c.post, but just in case
+		return false, errors.New(axvr.Error)
 	}
-	return
+	return axvr.TagExists, nil
 }
 
 // CreateExtraction installs an autoextractor definition, returning the UUID of the new
