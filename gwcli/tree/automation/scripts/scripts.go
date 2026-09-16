@@ -77,7 +77,7 @@ func listAction() action.Pair {
 				s, err := connection.Client.GetScheduledScriptEx(id, opts)
 				return []types.ScheduledScript{s}, err
 			}
-			list, err := connection.Client.ListScheduledScripts(params.QueryOpts)
+			list, err := connection.Client.ListScheduledScripts(params.QueryOptions())
 			return list.Results, err
 		},
 		nil,
@@ -210,7 +210,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteScheduledScript(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledScripts(params.QueryOpts)
+			lr, err := connection.Client.ListScheduledScripts(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -270,7 +270,7 @@ func edit() action.Pair {
 				return connection.Client.GetScheduledScript(id)
 			},
 			FetchSub: func() (items []types.ScheduledScript, err error) {
-				list, err := connection.Client.ListScheduledScripts(nil)
+				list, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
 				return list.Results, err
 			},
 			GetFieldSub: func(item types.ScheduledScript, fieldKey string) (value string, err error) {
@@ -353,7 +353,7 @@ func cancel() action.Pair {
 		"Cancel one or several scripts by ID, killing any active runs.",
 		"script",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledScripts(nil)
+			lr, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -392,7 +392,7 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			l, err := connection.Client.ListScheduledScripts(nil)
+			l, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -467,7 +467,7 @@ func clear() action.Pair {
 		"Clear the execution results (including errors and state) for one or several scripts.",
 		"script",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledScripts(nil)
+			lr, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}

@@ -13,22 +13,14 @@ import (
 )
 
 // ListScheduledSearches returns scheduled searches the user has access to.
-func (c *Client) ListScheduledSearches(opts *types.QueryOptions) (searches types.ScheduledSearchListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.ScheduledSearchListResponse](SCHEDULED_SEARCH_LIST_URL, opts)
+func (c *Client) ListScheduledSearches(opts types.QueryOptions) (searches types.ScheduledSearchListResponse, err error) {
+	return c.post[types.QueryOptions, types.ScheduledSearchListResponse](SCHEDULED_SEARCH_LIST_URL, &opts)
 }
 
 // ListAllScheduledSearches returns all scheduled searches on the system (for admins).
-func (c *Client) ListAllScheduledSearches(opts *types.QueryOptions) (searches types.ScheduledSearchListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	a := opts.AdminMode
+func (c *Client) ListAllScheduledSearches(opts types.QueryOptions) (searches types.ScheduledSearchListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	defer func() { opts.AdminMode = a }()
-	return c.post[types.QueryOptions, types.ScheduledSearchListResponse](SCHEDULED_SEARCH_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.ScheduledSearchListResponse](SCHEDULED_SEARCH_LIST_URL, &opts)
 }
 
 // GetScheduledSearch returns the scheduled search with the given ID.

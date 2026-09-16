@@ -18,23 +18,15 @@ func (c *Client) CreateSavedQuery(sl types.SavedQuery) (wsl types.SavedQuery, er
 }
 
 // ListSavedQueries returns the list of queries in the search library available to the user.
-func (c *Client) ListSavedQueries(opts *types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, opts)
+func (c *Client) ListSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
 }
 
 // ListAllSavedQueries (admin-only) returns the list of all search library entries for all users.
 // Non-administrators will receive the same list as returned by ListSavedQueries.
-func (c *Client) ListAllSavedQueries(opts *types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	a := opts.AdminMode
+func (c *Client) ListAllSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	defer func() { opts.AdminMode = a }()
-	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
 }
 
 // GetSavedQuery returns a query which matches the UUID given.

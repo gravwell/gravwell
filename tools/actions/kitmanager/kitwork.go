@@ -203,7 +203,7 @@ func unpackKitFile(pth, targetDir string) (err error) {
 
 func getSearchLibraryItems(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var items types.SavedQueryListResponse
-	if items, err = cli.ListAllSavedQueries(nil); err != nil {
+	if items, err = cli.ListAllSavedQueries(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get search library items: %w", err)
 		return
 	}
@@ -217,7 +217,7 @@ func getSearchLibraryItems(cli *client.Client, label string, orig types.KitBuild
 
 func getKitDashboards(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var dashboards types.DashboardListResponse
-	if dashboards, err = cli.ListAllDashboards(nil); err != nil {
+	if dashboards, err = cli.ListAllDashboards(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get dashboards: %w", err)
 		return
 	}
@@ -231,7 +231,7 @@ func getKitDashboards(cli *client.Client, label string, orig types.KitBuildReque
 
 func getKitTemplates(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var templates types.TemplateListResponse
-	if templates, err = cli.ListAllTemplates(nil); err != nil {
+	if templates, err = cli.ListAllTemplates(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get user templates: %w", err)
 		return
 	}
@@ -245,7 +245,7 @@ func getKitTemplates(cli *client.Client, label string, orig types.KitBuildReques
 
 func getKitActionables(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var actionables types.ActionableListResponse
-	if actionables, err = cli.ListAllActionables(nil); err != nil {
+	if actionables, err = cli.ListAllActionables(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get actionables: %w", err)
 		return
 	}
@@ -259,7 +259,7 @@ func getKitActionables(cli *client.Client, label string, orig types.KitBuildRequ
 
 func getKitResources(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var resources types.ResourceListResponse
-	if resources, err = cli.ListAllResources(nil); err != nil {
+	if resources, err = cli.ListAllResources(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get resources: %w", err)
 		return
 	}
@@ -273,7 +273,7 @@ func getKitResources(cli *client.Client, label string, orig types.KitBuildReques
 
 func getKitScheduledSearches(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var searches types.ScheduledSearchListResponse
-	if searches, err = cli.ListScheduledSearches(nil); err != nil {
+	if searches, err = cli.ListScheduledSearches(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get scheduled searches: %w", err)
 		return
 	}
@@ -287,7 +287,7 @@ func getKitScheduledSearches(cli *client.Client, label string, orig types.KitBui
 
 func getKitScheduledScripts(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var scripts types.ScheduledScriptListResponse
-	if scripts, err = cli.ListScheduledScripts(nil); err != nil {
+	if scripts, err = cli.ListScheduledScripts(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get scheduled scripts: %w", err)
 		return
 	}
@@ -301,7 +301,7 @@ func getKitScheduledScripts(cli *client.Client, label string, orig types.KitBuil
 
 func getKitFlows(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var flows types.FlowListResponse
-	if flows, err = cli.ListFlows(nil); err != nil {
+	if flows, err = cli.ListFlows(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get flows: %w", err)
 		return
 	}
@@ -315,7 +315,7 @@ func getKitFlows(cli *client.Client, label string, orig types.KitBuildRequest, k
 
 func getKitAlerts(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var alerts types.AlertListResponse
-	if alerts, err = cli.ListAllAlerts(nil); err != nil {
+	if alerts, err = cli.ListAllAlerts(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get alerts: %w", err)
 		return
 	}
@@ -329,7 +329,7 @@ func getKitAlerts(cli *client.Client, label string, orig types.KitBuildRequest, 
 
 func getKitMacros(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var macros types.MacroListResponse
-	if macros, err = cli.ListAllMacros(nil); err != nil {
+	if macros, err = cli.ListAllMacros(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get macros: %w", err)
 		return
 	}
@@ -343,7 +343,7 @@ func getKitMacros(cli *client.Client, label string, orig types.KitBuildRequest, 
 
 func getKitExtractors(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var extractors types.AXListResponse
-	if extractors, err = cli.ListAllExtractions(nil); err != nil {
+	if extractors, err = cli.ListAllExtractions(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get extractors: %w", err)
 		return
 	}
@@ -356,7 +356,7 @@ func getKitExtractors(cli *client.Client, label string, orig types.KitBuildReque
 }
 
 func getKitFiles(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	flr, err := cli.ListFiles(nil)
+	flr, err := cli.ListFiles(types.QueryOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed to get files: %w", err)
 		return
@@ -371,7 +371,7 @@ func getKitFiles(cli *client.Client, label string, orig types.KitBuildRequest, k
 
 func getKitPlaybooks(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
 	var playbooks types.PlaybookListResponse
-	if playbooks, err = cli.ListPlaybooks(nil); err != nil {
+	if playbooks, err = cli.ListPlaybooks(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get playbooks: %w", err)
 		return
 	}
@@ -407,7 +407,7 @@ func pushKit(cli *client.Client, force bool) (err error) {
 	// overwrite a newer kit with an older one.  If we have a kit with the same ID but a lower version,
 	// then we can proceed with the deployment because the manifest version will overwrite the existing kit version on the server.
 	var kits types.KitStateListResponse
-	if kits, err = cli.ListAllKits(nil); err != nil {
+	if kits, err = cli.ListAllKits(types.QueryOptions{}); err != nil {
 		err = fmt.Errorf("failed to get list of kits from server: %w", err)
 		return
 	}

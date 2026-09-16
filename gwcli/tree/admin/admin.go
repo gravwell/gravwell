@@ -441,7 +441,7 @@ func listUserSearchStorage() action.Pair {
 			"This does not factor in other items related to this user that are stored on the system.",
 		userSearchStorage{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]userSearchStorage, error) {
-			statuses, err := connection.Client.ListAllSearches(nil)
+			statuses, err := connection.Client.ListAllSearches(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			} else if len(statuses.Results) < 1 {
@@ -552,7 +552,7 @@ func massChown() action.Pair {
 				connection.Client.SetAdminMode()
 				defer connection.Client.ClearAdminMode()
 			}
-			qo := &types.QueryOptions{
+			qo := types.QueryOptions{
 				Filters: []types.Filter{
 					{Key: "OwnerID", Operation: "=", Values: []any{from}},
 				},
@@ -929,7 +929,7 @@ func chown() action.Pair {
 			}
 			// fetch ALL items owned by the FROM user
 			data := make([]multiselectlist.SelectableItem[string], 0)
-			qo := &types.QueryOptions{
+			qo := types.QueryOptions{
 				Filters: []types.Filter{
 					{Key: "OwnerID", Operation: "=", Values: []any{from}},
 				},

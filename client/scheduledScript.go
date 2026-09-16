@@ -16,22 +16,14 @@ import (
 )
 
 // ListScheduledScripts returns scheduled scripts the user has access to.
-func (c *Client) ListScheduledScripts(opts *types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, opts)
+func (c *Client) ListScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
 }
 
 // ListAllScheduledScripts returns all scheduled scripts on the system (for admins).
-func (c *Client) ListAllScheduledScripts(opts *types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	a := opts.AdminMode
+func (c *Client) ListAllScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	defer func() { opts.AdminMode = a }()
-	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
 }
 
 // GetScheduledScript returns the scheduled script with the given ID.

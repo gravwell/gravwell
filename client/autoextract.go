@@ -12,10 +12,7 @@ import (
 
 // ListExtractions returns the list of autoextraction definitions available
 // to the current user.
-func (c *Client) ListExtractions(opts *types.QueryOptions) (ret types.AXListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+func (c *Client) ListExtractions(opts types.QueryOptions) (ret types.AXListResponse, err error) {
 	err = c.postStaticURL(EXTRACTORS_LIST_URL, opts, &ret)
 	return
 }

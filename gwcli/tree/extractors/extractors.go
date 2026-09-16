@@ -96,7 +96,7 @@ func list() action.Pair {
 				return []types.AX{d}, err
 			}
 
-			lr, err := connection.Client.ListExtractions(param.QueryOpts)
+			lr, err := connection.Client.ListExtractions(param.QueryOptions())
 			return lr.Results, err
 
 		},
@@ -288,7 +288,7 @@ func delete() action.Pair {
 			return nil
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(params.QueryOpts)
+			lr, err := connection.Client.ListExtractions(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -373,7 +373,7 @@ func edit() action.Pair {
 				return connection.Client.GetExtraction(id)
 			},
 			FetchSub: func() (items []types.AX, err error) {
-				resp, err := connection.Client.ListExtractions(nil)
+				resp, err := connection.Client.ListExtractions(types.QueryOptions{})
 				if err != nil {
 					return nil, err
 				}
@@ -545,7 +545,7 @@ func find() action.Pair {
 func clear() action.Pair {
 	return scaffoldselect.NewSelectAction("clear a tag's extractor", "Unassign and delete whatever extractor is on the given tag(s).", "ax",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListExtractions(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}

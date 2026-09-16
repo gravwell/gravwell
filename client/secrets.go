@@ -16,23 +16,15 @@ import (
 
 // ListSecrets returns all secrets accessible to the current user.
 // The actual secret string will not be returned.
-func (c *Client) ListSecrets(opts *types.QueryOptions) (ret types.SecretListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, opts)
+func (c *Client) ListSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
+	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
 }
 
 // ListAllSecrets (admin-only) returns all secrets on the system.
 // The actual secret string will not be returned.
-func (c *Client) ListAllSecrets(opts *types.QueryOptions) (ret types.SecretListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	a := opts.AdminMode
+func (c *Client) ListAllSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	defer func() { opts.AdminMode = a }()
-	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
 }
 
 // CreateSecret instantiates and returns a new Secret.

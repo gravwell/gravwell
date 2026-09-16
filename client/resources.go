@@ -30,23 +30,15 @@ func (c *Client) CreateResource(r types.Resource) (types.Resource, error) {
 }
 
 // ListResources returns information about all resources the user can access.
-func (c *Client) ListResources(opts *types.QueryOptions) (rm types.ResourceListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, opts)
+func (c *Client) ListResources(opts types.QueryOptions) (rm types.ResourceListResponse, err error) {
+	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, &opts)
 }
 
 // ListAllResources is an admin-only API to pull back the entire resource list.
 // Non-administrators will receive the same list as returned by ListResources.
-func (c *Client) ListAllResources(opts *types.QueryOptions) (rm types.ResourceListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	a := opts.AdminMode
+func (c *Client) ListAllResources(opts types.QueryOptions) (rm types.ResourceListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	defer func() { opts.AdminMode = a }()
-	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, &opts)
 }
 
 // PopulateResource sets the content of the specified resource to the given data.

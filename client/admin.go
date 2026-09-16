@@ -436,7 +436,7 @@ func (c *Client) PurgeUser(id int32) error {
 	//enumerate and delete user assets
 
 	//persistent searches
-	if ss, err := nc.ListAllSearches(nil); err != nil {
+	if ss, err := nc.ListAllSearches(types.QueryOptions{}); err != nil {
 		return fmt.Errorf("failed to list search statuses %w", err)
 	} else if len(ss.Results) > 0 {
 		for _, s := range ss.Results {
@@ -449,7 +449,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//scheduled searches
-	if ss, err := nc.ListScheduledSearches(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if ss, err := nc.ListScheduledSearches(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get the users scheduled searches %d %w", id, err)
 	} else if len(ss.Results) > 0 {
 		for _, s := range ss.Results {
@@ -462,7 +462,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//scheduled scripts
-	if ss, err := nc.ListScheduledScripts(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if ss, err := nc.ListScheduledScripts(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get the users scheduled scripts %d %w", id, err)
 	} else if len(ss.Results) > 0 {
 		for _, s := range ss.Results {
@@ -475,7 +475,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//flows
-	if ss, err := nc.ListFlows(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if ss, err := nc.ListFlows(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get the users flows %d %w", id, err)
 	} else if len(ss.Results) > 0 {
 		for _, s := range ss.Results {
@@ -488,7 +488,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	// files
-	if lfr, err := nc.ListFiles(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if lfr, err := nc.ListFiles(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get files %d %w", id, err)
 	} else if lfr.TotalCount > 0 {
 		for _, f := range lfr.Results {
@@ -502,7 +502,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//kits
-	if ks, err := nc.ListKits(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if ks, err := nc.ListKits(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to list kits %w", err)
 	} else if len(ks.Results) > 0 {
 		for _, k := range ks.Results {
@@ -515,7 +515,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//kit builds
-	if kbs, err := nc.ListKitBuildHistory(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if kbs, err := nc.ListKitBuildHistory(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to list kit build history %w", err)
 	} else if len(kbs.Results) > 0 {
 		for _, k := range kbs.Results {
@@ -526,7 +526,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//actionables
-	if pvs, err := nc.ListActionables(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if pvs, err := nc.ListActionables(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to list actionables %w", err)
 	} else if len(pvs.Results) > 0 {
 		for _, p := range pvs.Results {
@@ -539,7 +539,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//macros
-	if ms, err := nc.ListMacros(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if ms, err := nc.ListMacros(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to list macros %w", err)
 	} else if len(ms.Results) > 0 {
 		for _, p := range ms.Results {
@@ -552,7 +552,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//API tokens
-	if toks, err := nc.ListTokens(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if toks, err := nc.ListTokens(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user API tokens %w", err)
 	} else if len(toks.Results) > 0 {
 		for _, t := range toks.Results {
@@ -565,7 +565,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//extractors
-	if exts, err := nc.ListExtractions(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if exts, err := nc.ListExtractions(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user autoextractors %w", err)
 	} else if len(exts.Results) > 0 {
 		for _, e := range exts.Results {
@@ -578,7 +578,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//resources
-	if rsr, err := nc.ListResources(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if rsr, err := nc.ListResources(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user resource list %w", err)
 	} else if len(rsr.Results) > 0 {
 		for _, r := range rsr.Results {
@@ -591,7 +591,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//templates
-	if tmpls, err := nc.ListTemplates(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if tmpls, err := nc.ListTemplates(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user templates %w", err)
 	} else if len(tmpls.Results) > 0 {
 		for _, t := range tmpls.Results {
@@ -604,7 +604,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//playbooks
-	if pbs, err := nc.ListPlaybooks(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if pbs, err := nc.ListPlaybooks(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user playbooks %d %w", id, err)
 	} else if len(pbs.Results) > 0 {
 		for _, pb := range pbs.Results {
@@ -617,7 +617,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//dashboards
-	if dbs, err := nc.ListDashboards(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if dbs, err := nc.ListDashboards(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get user dashboards %d %w", id, err)
 	} else if len(dbs.Results) > 0 {
 		for _, db := range dbs.Results {
@@ -630,7 +630,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//query library
-	if sls, err := nc.ListSavedQueries(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if sls, err := nc.ListSavedQueries(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user search library list %w", err)
 	} else if len(sls.Results) > 0 {
 		for _, sl := range sls.Results {
@@ -643,7 +643,7 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//preferences
-	if prefs, err := nc.ListUserPreferences(&types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
+	if prefs, err := nc.ListUserPreferences(types.QueryOptions{Filters: []types.Filter{types.Filter{Key: "OwnerID", Operation: "=", Values: []any{id}}}, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user preferences list %w", err)
 	} else if len(prefs.Results) > 0 {
 		for _, p := range prefs.Results {

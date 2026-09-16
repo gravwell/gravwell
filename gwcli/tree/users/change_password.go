@@ -170,7 +170,7 @@ func (m *changePasswordModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, 
 	m.passwordTI.SetValue(pass)
 
 	// fetch all users
-	users, err := connection.Client.ListUsers(nil)
+	users, err := connection.Client.ListUsers(types.QueryOptions{})
 	if err != nil {
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")

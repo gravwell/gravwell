@@ -55,7 +55,7 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.User, error) {
-			resp, err := connection.Client.ListUsers(param.QueryOpts)
+			resp, err := connection.Client.ListUsers(param.QueryOptions())
 			return resp.Results, err
 		}, nil,
 		scaffoldlist.Options{
@@ -164,7 +164,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteUser(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListUsers(param.QueryOpts)
+			lr, err := connection.Client.ListUsers(param.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -212,7 +212,7 @@ func edit() action.Pair {
 				return userCBAC.User, nil
 			},
 			FetchSub: func() (items []types.User, err error) {
-				resp, err := connection.Client.ListUsers(nil)
+				resp, err := connection.Client.ListUsers(types.QueryOptions{})
 				return resp.Results, err
 			},
 			GetFieldSub: func(item types.User, fieldKey string) (value string, err error) {
@@ -418,7 +418,7 @@ func lock() action.Pair {
 			"The user will be unable to log in until unlocked, and all existing sessions will be terminated.",
 		"account",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
-			ulr, err := connection.Client.ListUsers(nil)
+			ulr, err := connection.Client.ListUsers(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -455,7 +455,7 @@ func lock() action.Pair {
 func unlock() action.Pair {
 	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
-			ulr, err := connection.Client.ListUsers(nil)
+			ulr, err := connection.Client.ListUsers(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}

@@ -13,22 +13,14 @@ import (
 )
 
 // ListTemplates returns all templates accessible to the current user.
-func (c *Client) ListTemplates(opts *types.QueryOptions) (ret types.TemplateListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, opts)
+func (c *Client) ListTemplates(opts types.QueryOptions) (ret types.TemplateListResponse, err error) {
+	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, &opts)
 }
 
 // ListAllTemplates (admin-only) returns all templates on the system.
-func (c *Client) ListAllTemplates(opts *types.QueryOptions) (ret types.TemplateListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	a := opts.AdminMode
+func (c *Client) ListAllTemplates(opts types.QueryOptions) (ret types.TemplateListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	defer func() { opts.AdminMode = a }()
-	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, &opts)
 }
 
 // GetTemplate returns a particular template.

@@ -51,7 +51,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.File{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.File, error) {
-			flr, err := connection.Client.ListFiles(param.QueryOpts)
+			flr, err := connection.Client.ListFiles(param.QueryOptions())
 			return flr.Results, err
 		},
 		map[string]string{"Size": "SizeBytes"},
@@ -175,7 +175,7 @@ func edit() action.Pair {
 				return connection.Client.GetFileMetadata(id)
 			},
 			FetchSub: func() (items []types.File, err error) {
-				flr, err := connection.Client.ListFiles(nil)
+				flr, err := connection.Client.ListFiles(types.QueryOptions{})
 				if err != nil {
 					return nil, err
 				}
@@ -247,7 +247,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteFile(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFiles(params.QueryOpts)
+			lr, err := connection.Client.ListFiles(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -268,7 +268,7 @@ func replace() action.Pair {
 		"Populate one or many files with the contents of a single local file, clobbering any existing data",
 		"file ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListFiles(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
