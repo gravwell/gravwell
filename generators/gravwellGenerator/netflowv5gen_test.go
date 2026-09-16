@@ -19,7 +19,7 @@ func TestGenDataNetflowV5(t *testing.T) {
 	seedVars(128)
 	ts := time.Date(2026, 7, 19, 12, 34, 56, 789000000, time.UTC)
 	var lastSeq uint32
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		ts = ts.Add(time.Second)
 		b := genDataNetflowV5(ts)
 

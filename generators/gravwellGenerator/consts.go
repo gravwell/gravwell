@@ -164,10 +164,10 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to instantiate v6 generator: %v\n", err)
 	}
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		serverIPs = append(serverIPs, v4gen.IP())
 	}
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		serverIP6s = append(serverIP6s, v6gen.IP())
 	}
 }
@@ -224,7 +224,7 @@ func seedUsers(usercount, gcount int) {
 
 	for i := 0; i < usercount; i++ {
 		email := rd.Email()
-		user := strings.Split(email, "@")[0]
+		user, _, _ := strings.Cut(email, "@")
 		a := Account{
 			User:    user,
 			Name:    rd.FullName(i & 1),
@@ -241,7 +241,7 @@ func seedUsers(usercount, gcount int) {
 func seedHosts(cnt int) {
 	fint := fake.Internet()
 	hosts = make([]string, 0, cnt)
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		if (i & 1) == 0 {
 			hosts = append(hosts, rd.Noun())
 		} else {
@@ -251,7 +251,7 @@ func seedHosts(cnt int) {
 }
 
 func seedApps(cnt int) {
-	for i := 0; i < cnt; i++ {
+	for range cnt {
 		apps = append(apps, strings.ReplaceAll(fake.App().Name(), " ", "_"))
 	}
 }
@@ -339,7 +339,7 @@ func ports() (int, int) {
 
 func randomBase62(l int) string {
 	r := make([]byte, l)
-	for i := 0; i < l; i++ {
+	for i := range l {
 		r[i] = alphabet[rand.Intn(len(alphabet))]
 	}
 	return string(r)
@@ -359,7 +359,7 @@ func randAttributes(max int) (r []string) {
 func randLocations(max int) (r []ComplexLocation) {
 	n := rand.Intn(max) + 1
 	r = make([]ComplexLocation, 0, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		r = append(r, ComplexLocation{
 			Country: rd.Country(rd.FullCountry),
 			State:   rd.Locale(),
