@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -22,11 +23,23 @@ const (
 	JsonNormalizeProcessor string = `jsonnormalize`
 
 	defaultJsonNormalizeMaxDepth uint = 8
+
+	// maxStructuralDepth caps how many levels of plain (already-decoded)
+	// object/array nesting normalizeValue will walk into for a single
+	// value, independent of Max_Depth. Max_Depth budgets escaping
+	// *layers* -- how many times a string is re-parsed as embedded JSON
+	// -- not the structural nesting of an already-valid document, which
+	// costs nothing against that budget (see normalizeValue). This
+	// separate, generous cap exists purely to bound recursion against
+	// pathological inputs (e.g. megabytes of "[[[[...]]]]") and avoid a
+	// stack overflow; it is not user-configurable.
+	maxStructuralDepth int = 1000
 )
 
 var (
 	// ErrNotJSON is returned when an entry cannot be coerced into valid JSON,
-	// even after attempting to repair common escaping problems.
+	// even after attempting to repair common escaping problems, or when it
+	// decodes but contains invalid UTF-8.
 	ErrNotJSON = errors.New("Input does not appear to be JSON, even after unescaping")
 )
 
@@ -49,19 +62,23 @@ var (
 // JsonNormalize repairs both cases and re-emits a single, clean JSON
 // document with all string-encoded JSON inlined as real objects/arrays.
 type JsonNormalizeConfig struct {
-	// Max_Depth bounds how many layers of escaping/nesting the processor
-	// will unwind, both when repairing a malformed, over-escaped document
-	// and when recursively inlining JSON-encoded strings found as field
-	// values. A value of 0 means "use the default" (8). This bound exists
-	// primarily to protect against pathological or adversarial input that
-	// nests indefinitely.
+	// Max_Depth bounds how many layers of string-escaping the processor
+	// will unwind: both when repairing a malformed, over-escaped document
+	// (Step 1) and when recursively inlining JSON-encoded strings found as
+	// field values (Step 2). A value of 0 means "use the default" (8).
+	//
+	// This budgets escaping layers, not structural nesting -- walking down
+	// through an already-valid document's plain objects/arrays costs
+	// nothing against it. A CloudTrail record nested 20 objects deep with a
+	// single escaped field at the bottom is handled the same as one nested
+	// 2 objects deep, as long as that field is only escaped once.
 	Max_Depth uint
 
 	// Passthrough_Non_JSON controls what happens to entries that are not
-	// valid JSON and cannot be repaired into valid JSON by unescaping. If
-	// true, the entry is passed through unmodified. If false (the default),
-	// the entry is dropped, mirroring the Passthrough_Non_Gzip behavior of
-	// the gzip processor.
+	// valid JSON and cannot be repaired into valid JSON by unescaping, or
+	// that decode but contain invalid UTF-8. If true, the entry is passed
+	// through unmodified. If false (the default), the entry is dropped,
+	// mirroring the Passthrough_Non_Gzip behavior of the gzip processor.
 	Passthrough_Non_JSON bool
 
 	// Pretty, if true, indents the normalized JSON output for readability.
@@ -164,25 +181,31 @@ func (jn *JsonNormalize) processItem(ent *entry.Entry) (rset *entry.Entry, err e
 		return
 	}
 
+	// json.Valid only checks structural well-formedness; it does not
+	// guarantee the string content is valid UTF-8. Decoding a string value
+	// containing invalid UTF-8 silently replaces the bad bytes with U+FFFD
+	// rather than erroring, which would corrupt latin-1/cp1252 payloads
+	// on the happy path. Reject explicitly instead, so the existing
+	// Passthrough_Non_JSON/drop behavior governs this case too.
+	if !utf8.Valid(data) {
+		err = ErrNotJSON
+		return
+	}
+
 	// Step 2: decode generically and recursively inline any string value
 	// that is itself JSON-encoded (an object, array, or another encoded
-	// string), up to maxDepth levels of nesting. This handles the common
-	// case of a well-formed document with one or more fields whose values
-	// are themselves JSON serialized as strings.
-	var v interface{}
-	if err = json.Unmarshal(data, &v); err != nil {
+	// string), up to maxDepth escaping layers of nesting. This handles the
+	// common case of a well-formed document with one or more fields whose
+	// values are themselves JSON serialized as strings.
+	v, derr := decodeJSON(data)
+	if derr != nil {
 		err = ErrNotJSON
 		return
 	}
 	v = normalizeValue(v, jn.maxDepth)
 
-	var out []byte
-	if jn.Pretty {
-		out, err = json.MarshalIndent(v, ``, `  `)
-	} else {
-		out, err = json.Marshal(v)
-	}
-	if err != nil {
+	out, merr := marshalJSON(v, jn.Pretty)
+	if merr != nil {
 		err = ErrNotJSON
 		return
 	}
@@ -193,37 +216,61 @@ func (jn *JsonNormalize) processItem(ent *entry.Entry) (rset *entry.Entry, err e
 		TS:   ent.TS,
 		Data: out,
 	}
+	// Preserve any enumerated values (e.g. attached upstream by the attach
+	// processor) rather than silently dropping them on the new entry.
+	rset.CopyEnumeratedBlock(ent)
 	return
 }
 
-// unescapeOnce attempts to remove a single layer of JSON string-escaping
-// from data.
-//
-// It first tries the strict path: if data is a properly quoted JSON string
-// literal (e.g. `"{\"a\":1}"`), json.Unmarshal is used to unquote it
-// correctly, handling all valid JSON escape sequences (\n, \t, \uXXXX, etc).
-//
-// If that fails -- commonly because an upstream system stripped the
-// enclosing quotes but left the internal backslash-escaping behind, e.g.
-// `{\"a\":1}` -- it falls back to a byte-level unescape of \" and \\
-// sequences.
-//
-// It returns ok=false if neither approach changes the input, signaling that
-// no further progress can be made and the remaining bytes are not
-// recoverable JSON.
-func unescapeOnce(data []byte) ([]byte, bool) {
-	// Strict path: data is a properly quoted JSON string literal.
-	if len(data) >= 2 && data[0] == '"' {
-		var s string
-		if err := json.Unmarshal(data, &s); err == nil {
-			return []byte(s), true
-		}
-	}
+// decodeJSON decodes data into a generic interface{} tree, preserving the
+// exact textual representation of numbers via json.Number rather than
+// coercing everything to float64. float64 only has ~15-17 significant
+// decimal digits of precision, so a naive json.Unmarshal into interface{}
+// silently corrupts 19-digit values like Snowflake IDs, Windows
+// EventRecordIDs, or epoch-nanosecond timestamps
+// (1234567890123456789 -> 1234567890123456800).
+func decodeJSON(data []byte) (v interface{}, err error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	err = dec.Decode(&v)
+	return
+}
 
-	// Heuristic path: strip one layer of backslash-escaping from quotes and
-	// backslashes wherever they occur in the raw bytes. This repairs
-	// documents where a JSON object was serialized to a string and the
-	// enclosing quotes were lost somewhere upstream.
+// marshalJSON serializes v back to JSON without HTML-escaping. The standard
+// json.Marshal escapes <, >, and & (e.g. "?a=1&b=2" becomes
+// "?a=1\u0026b=2"), which breaks downstream regex/grok extraction that
+// expects the literal characters. json.Encoder.Encode always appends a
+// trailing newline, which is trimmed to match json.Marshal's output shape.
+func marshalJSON(v interface{}, pretty bool) ([]byte, error) {
+	bb := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(bb)
+	enc.SetEscapeHTML(false)
+	if pretty {
+		enc.SetIndent(``, `  `)
+	}
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(bb.Bytes(), []byte("\n")), nil
+}
+
+// unescapeOnce attempts to remove a single layer of backslash-escaping from
+// data by stripping \" and \\ sequences wherever they occur in the raw
+// bytes. This repairs the common case where a JSON object was serialized
+// to a string and the enclosing quotes were lost somewhere upstream,
+// leaving invalid JSON like {\"a\":1} instead of either a valid {"a":1} or
+// a valid quoted literal "{\"a\":1}".
+//
+// It returns ok=false if the input contains no such escape sequences,
+// signaling that no further progress can be made.
+//
+// Note: this is only ever called on data that has already failed
+// json.Valid (see the Step 1 loop in processItem). A properly quoted JSON
+// string literal is itself valid JSON and would never reach this function;
+// that case is instead handled naturally in Step 2, where normalizeValue
+// re-parses decoded string values that look like embedded JSON -- so no
+// separate "strict" unquoting path is needed here.
+func unescapeOnce(data []byte) ([]byte, bool) {
 	if !bytes.Contains(data, []byte(`\"`)) && !bytes.Contains(data, []byte(`\\`)) {
 		return nil, false
 	}
@@ -252,15 +299,30 @@ func unescapeOnce(data []byte) ([]byte, bool) {
 //
 //	"payload": {"user":"alice","count":3}
 //
-// Recursion is bounded by depth to avoid runaway work on adversarial or
-// unexpectedly deep input; once the budget is exhausted, remaining values
-// are left as-is.
-func normalizeValue(v interface{}, depth uint) interface{} {
-	if depth == 0 {
+// escapeDepth bounds how many layers of string-escaping will be unwound;
+// it is only consumed when a string value is successfully re-parsed as
+// embedded JSON (an actual escaping layer). Recursing into the children of
+// an already-decoded map or array is plain structural traversal, not an
+// escaping layer, and does not consume escapeDepth -- otherwise a document
+// that is simply deeply *nested* (not deeply *escaped*), such as CloudTrail,
+// Kubernetes audit, or Windows event JSON routinely is, would exhaust the
+// budget just walking down to an escaped field and come back byte-identical
+// with no error or indication that nothing happened. Structural recursion
+// is instead bounded by the separate, generous maxStructuralDepth constant
+// purely to guard against stack overflow on pathological input.
+func normalizeValue(v interface{}, escapeDepth uint) interface{} {
+	return normalizeValueDepth(v, escapeDepth, maxStructuralDepth)
+}
+
+func normalizeValueDepth(v interface{}, escapeDepth uint, structDepth int) interface{} {
+	if structDepth <= 0 {
 		return v
 	}
 	switch t := v.(type) {
 	case string:
+		if escapeDepth == 0 {
+			return t
+		}
 		trimmed := bytes.TrimSpace([]byte(t))
 		if len(trimmed) < 2 {
 			return t
@@ -275,19 +337,23 @@ func normalizeValue(v interface{}, depth uint) interface{} {
 		default:
 			return t
 		}
-		var nested interface{}
-		if err := json.Unmarshal(trimmed, &nested); err != nil {
+		nested, err := decodeJSON(trimmed)
+		if err != nil {
 			return t
 		}
-		return normalizeValue(nested, depth-1)
+		// Unwrapping a layer of string-encoding consumes one unit of the
+		// escaping budget. The freshly unwrapped value gets a fresh
+		// structural-depth allowance, since maxStructuralDepth bounds a
+		// single value's nesting, not the cumulative walk across unwraps.
+		return normalizeValueDepth(nested, escapeDepth-1, maxStructuralDepth)
 	case map[string]interface{}:
 		for k, val := range t {
-			t[k] = normalizeValue(val, depth-1)
+			t[k] = normalizeValueDepth(val, escapeDepth, structDepth-1)
 		}
 		return t
 	case []interface{}:
 		for i, val := range t {
-			t[i] = normalizeValue(val, depth-1)
+			t[i] = normalizeValueDepth(val, escapeDepth, structDepth-1)
 		}
 		return t
 	default:
