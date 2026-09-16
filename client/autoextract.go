@@ -15,8 +15,7 @@ import (
 // ExtractionSupportedEngines returns a list of valid engines for use in
 // autoextraction definitions.
 func (c *Client) ExtractionSupportedEngines() (v []string, err error) {
-	err = c.getStaticURL(extractionEnginesUrl(), &v)
-	return
+	return c.get[[]string](extractionEnginesUrl())
 }
 
 // ListExtractions returns the list of autoextraction definitions available
