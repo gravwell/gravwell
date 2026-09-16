@@ -40,6 +40,7 @@ type testIndexer struct {
 	throttleNS int64  // nanoseconds to sleep per entry
 	entries    uint64 // total entries consumed
 	conns      int64  // ingest connections currently attached
+	accepted   int64  // cumulative count of connections ever accepted
 
 	lst    net.Listener
 	secret string
@@ -92,6 +93,14 @@ func (ti *testIndexer) Entries() uint64 {
 // Conns is the number of ingest connections currently attached.
 func (ti *testIndexer) Conns() int64 {
 	return atomic.LoadInt64(&ti.conns)
+}
+
+// Accepted is the cumulative count of connections ever accepted, unlike Conns
+// this never goes down, so it can be used to detect that a reconnect
+// happened even if the old and new connection counts happen to overlap or
+// land on the same instantaneous value.
+func (ti *testIndexer) Accepted() int64 {
+	return atomic.LoadInt64(&ti.accepted)
 }
 
 // hold stops the indexer from consuming entries.  Entries already in flight
@@ -159,6 +168,7 @@ func (ti *testIndexer) acceptRoutine() {
 			}
 			return
 		}
+		atomic.AddInt64(&ti.accepted, 1)
 		ti.wg.Add(1)
 		go func(c net.Conn) {
 			defer ti.wg.Done()

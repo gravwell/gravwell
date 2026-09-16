@@ -34,7 +34,7 @@ echo "Running go vet"
 echo "Running go test -v"
 	go test -v ./generators/ipgen
         go test -v ./chancacher
-        go test -v ./ingest
+        CGO_ENABLED=1 go test -race -v ./ingest
         go test -v ./ingest/entry
         go test -v ./ingest/processors
         go test -v ./ingest/processors/plugin
