@@ -23,4 +23,7 @@ var Opts = v2.JoinOptions(
 	jsontext.AllowInvalidUTF8(true),
 	// we may have to consume old JSON; flexible ingestion is better
 	v2.MatchCaseInsensitiveNames(true),
+	// escape characters as v1 did
+	jsontext.EscapeForHTML(true),
+	jsontext.EscapeForJS(true),
 )
