@@ -27,7 +27,7 @@ require (
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/miekg/dns v1.1.56 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
