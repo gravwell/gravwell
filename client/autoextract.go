@@ -66,13 +66,9 @@ func (c *Client) ValidateExtraction(d types.AX) (tagExists bool, err error) {
 	return axvr.TagExists, nil
 }
 
-// CreateExtraction installs an autoextractor definition, returning the UUID of the new
-// extraction or an error if it is invalid.
-func (c *Client) CreateExtraction(d types.AX) (result types.AX, wrs []types.WarnResp, err error) {
-	if err = c.postStaticURL(extractionsUrl(), d, &result); err == io.EOF {
-		err = nil
-	}
-	return
+// CreateExtraction installs an autoextractor definition, returning the newly-created autoextractor.
+func (c *Client) CreateExtraction(d types.AX) (result types.AX, err error) {
+	return c.post[types.AX, types.AX](extractionsUrl(), &d)
 }
 
 // UpdateExtraction modifies an existing autoextractor and returns the complete, updated struct.
