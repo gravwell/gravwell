@@ -46,7 +46,7 @@ func auditPage(next string, records string) http.HandlerFunc {
 }
 
 func newIncidentConfig(domain string) *Config {
-	c := &Config{Domain: domain, Token: "tok", Api: IncidentApi}
+	c := &Config{Domain: domain, Token: "tok", Api: []Api{IncidentApi}}
 	c.Tag_Name = "thinkst-incidents"
 	if err := c.Verify(); err != nil {
 		panic(err) // programmer error in test setup
@@ -55,7 +55,7 @@ func newIncidentConfig(domain string) *Config {
 }
 
 func newAuditConfig(domain string) *Config {
-	c := &Config{Domain: domain, Token: "tok", Api: AuditApi}
+	c := &Config{Domain: domain, Token: "tok", Api: []Api{AuditApi}}
 	c.Tag_Name = "thinkst-audit"
 	if err := c.Verify(); err != nil {
 		panic(err)
@@ -242,7 +242,7 @@ func TestHandleUnsupportedApi(t *testing.T) {
 	// this Api value: this test targets Handle's own defensive default case.
 	// Requests_Per_Minute is set explicitly since Verify() (which would
 	// normally supply it) is deliberately skipped here.
-	c := &Config{Domain: "example.canary.tools", Token: "tok", Api: Api("bogus")}
+	c := &Config{Domain: "example.canary.tools", Token: "tok", Api: []Api{"bogus"}}
 	c.Requests_Per_Minute = defaultRequestsPerMinute
 	th := New(c)
 	rt := hosted.NewMock(t.Context())

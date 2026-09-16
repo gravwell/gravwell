@@ -40,11 +40,11 @@ func IsValidApi(a Api) bool {
 
 type Config struct {
 	hosted.BaseConfig
-	hosted.SingleTagConfig
+	hosted.MultiTagConfig
 	hosted.PollingConfig
 	Domain string
 	Token  string `json:"-"` // DO NOT send this when marshalling
-	Api    Api
+	Api    []Api
 }
 
 func (c *Config) Verify() error {
@@ -58,8 +58,10 @@ func (c *Config) Verify() error {
 	if c.Token == "" {
 		return errors.New("Token not specified")
 	}
-	if !IsValidApi(c.Api) {
-		return fmt.Errorf("Api %q is not valid, must be %q or %q", c.Api, IncidentApi, AuditApi)
+	for _, api := range c.Api {
+		if !IsValidApi(api) {
+			return fmt.Errorf("Api %q is not valid, must be %q or %q", c.Api, IncidentApi, AuditApi)
+		}
 	}
 	return nil
 }

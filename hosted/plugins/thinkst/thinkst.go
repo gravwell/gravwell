@@ -73,11 +73,13 @@ func (t *Thinkst) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Contin
 		return nil, fmt.Errorf("failed to negotiate tag: %w", err)
 	}
 
-	switch t.conf.Api {
-	case IncidentApi:
-		return t.handleIncidents(ctx, rt, tag)
-	case AuditApi:
-		return t.handleAudit(ctx, rt, tag)
+	for _, api := range t.conf.Api {
+		switch api {
+		case IncidentApi:
+			return t.handleIncidents(ctx, rt, tag)
+		case AuditApi:
+			return t.handleAudit(ctx, rt, tag)
+		}
 	}
 	return nil, fmt.Errorf("unsupported api %q", t.conf.Api)
 }

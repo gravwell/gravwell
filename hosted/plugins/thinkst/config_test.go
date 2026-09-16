@@ -14,7 +14,7 @@ func validConfig() *Config {
 	c := &Config{
 		Domain: "example.canary.tools",
 		Token:  "token",
-		Api:    IncidentApi,
+		Api:    []Api{IncidentApi},
 	}
 	c.Tag_Name = "thinkst"
 	return c
@@ -27,11 +27,11 @@ func TestConfigVerify(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "valid incident", mutate: func(c *Config) {}, wantErr: false},
-		{name: "valid audit", mutate: func(c *Config) { c.Api = AuditApi }, wantErr: false},
+		{name: "valid audit", mutate: func(c *Config) { c.Api = []Api{AuditApi} }, wantErr: false},
 		{name: "missing tag", mutate: func(c *Config) { c.Tag_Name = "" }, wantErr: true},
 		{name: "missing domain", mutate: func(c *Config) { c.Domain = "" }, wantErr: true},
 		{name: "missing token", mutate: func(c *Config) { c.Token = "" }, wantErr: true},
-		{name: "bad api", mutate: func(c *Config) { c.Api = "bogus" }, wantErr: true},
+		{name: "bad api", mutate: func(c *Config) { c.Api = []Api{"bogus"} }, wantErr: true},
 	}
 
 	for _, test := range tests {
