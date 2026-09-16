@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -277,6 +278,25 @@ func (ti *testIndexer) authenticate(conn net.Conn) error {
 		return fmt.Errorf("ingester did not go hot, got state %x", hot.ID)
 	}
 	return nil
+}
+
+// hasTag indicates whether the indexer has minted a tag for the given name.
+func (ti *testIndexer) hasTag(name string) (ok bool) {
+	ti.tagMtx.Lock()
+	_, ok = ti.tags[name]
+	ti.tagMtx.Unlock()
+	return
+}
+
+// tagNames hands back every tag name the indexer has minted, for error output.
+func (ti *testIndexer) tagNames() (r []string) {
+	ti.tagMtx.Lock()
+	for k := range ti.tags {
+		r = append(r, k)
+	}
+	ti.tagMtx.Unlock()
+	sort.Strings(r)
+	return
 }
 
 // tagID hands back the indexer side tag value for a name, minting a new one

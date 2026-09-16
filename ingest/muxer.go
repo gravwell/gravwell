@@ -851,6 +851,41 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		return
 	}
 
+	var pending []connSet
+	tg, pending, err = im.stageTag(name)
+
+	// Actually talk to the indexers.  Callers expect the tag to exist on the
+	// backend when this returns, ingesters negotiate tags at startup and then
+	// may not push an entry on that tag for hours.  Deferring the negotiation
+	// until the first entry lands means the tag does not exist and cannot be
+	// searched until data flows, which is exactly what we are avoiding here.
+	//
+	// This MUST happen with the muxer lock released, a negotiation is a
+	// synchronous round trip to the indexer and holding im.mtx across it
+	// starves the write relay routines and the state push timers.
+	for _, nc := range pending {
+		if lerr := nc.negotiateOutstandingTags(); lerr != nil {
+			// The tag is already in im.tags at this point, so bouncing the
+			// connection gets it negotiated as part of the authentication
+			// handshake.  This is also the ErrNotRunning path, a connection
+			// that died out from under us just comes back with the full set.
+			im.Warn("tag negotiation failed, reconnecting",
+				log.KV("indexer", nc.dst),
+				log.KV("tag", name),
+				log.KV("ingester", im.name),
+				log.KV("ingesteruuid", im.uuid),
+				log.KVErr(lerr))
+			nc.ig.Close()
+		}
+	}
+	return
+}
+
+// stageTag adds a tag to the muxer tag set and queues it for negotiation on
+// every live connection.  It hands back the intermediate tag value along with
+// the connections that still need to talk to their indexer so that the caller
+// can do that work with the muxer lock released.
+func (im *IngestMuxer) stageTag(name string) (tg entry.EntryTag, pending []connSet, err error) {
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
 	if len(im.tagMap) >= int(entry.MaxTagId) {
@@ -885,20 +920,31 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	}
 
 	for k, v := range im.igst {
-		if v != nil {
-			if im.tagTranslators[k] != nil {
-				//check if this translator already knows about this tag
-				if !im.tagTranslators[k].hasTag(tg) {
-					if lerr := im.tagTranslators[k].registerTagForNegotiation(name, tg); lerr != nil {
-						// on error set the return error
-						err = lerr
-						v.Close()
-					}
-				}
-			} else {
-				v.Close()
-			}
+		if v == nil {
+			continue
 		}
+		tt := im.tagTranslators[k]
+		if tt == nil {
+			v.Close()
+			continue
+		}
+		//check if this translator already knows about this tag
+		if tt.hasTag(tg) {
+			continue
+		}
+		if lerr := tt.registerTagForNegotiation(name, tg); lerr != nil {
+			// on error set the return error
+			err = lerr
+			v.Close()
+			continue
+		}
+		var dst string
+		if k < len(im.dests) {
+			dst = im.dests[k].Address
+		} else {
+			dst = unknownAddr
+		}
+		pending = append(pending, connSet{ig: v, tt: tt, dst: dst})
 	}
 	return
 }
@@ -2351,21 +2397,15 @@ func (nc connSet) translateTag(t entry.EntryTag) (rt entry.EntryTag, err error) 
 		return
 	}
 
-	if len(nc.tt.toNegotiate) == 0 {
+	if !nc.tt.negotiationsPending() {
 		err = ErrUnknownTag
 		return
 	}
 
-	//ok, go negotiate all the tags, but grab a local copy to avoid races
-	toNeg := nc.tt.toNegotiate
-	for _, v := range toNeg {
-		if rt, err = nc.ig.NegotiateTag(v.name); err != nil {
-			return
-		} else if err = nc.tt.registerTag(v.local, rt); err != nil {
-			return
-		}
-		nc.tt.clearToNegotiate(1)
+	if err = nc.negotiateOutstandingTags(); err != nil {
+		return
 	}
+
 	// all tags negotiated, try to translate again
 	if rt, ok = nc.tt.translate(t); !ok {
 		err = ErrUnknownTag
@@ -2374,13 +2414,37 @@ func (nc connSet) translateTag(t entry.EntryTag) (rt entry.EntryTag, err error) 
 	return
 }
 
+// negotiateOutstandingTags walks the tags that have been registered with the
+// translator but not yet negotiated with the indexer and negotiates them.
+// Tags MUST be negotiated in order, the translator is a dense slice indexed by
+// the intermediate tag value, so the negotiation lock serializes callers.  Both
+// the write relay routine and IngestMuxer.NegotiateTag land here.
+func (nc connSet) negotiateOutstandingTags() (err error) {
+	nc.tt.negMtx.Lock()
+	defer nc.tt.negMtx.Unlock()
+	for {
+		v, ok := nc.tt.peekToNegotiate()
+		if !ok {
+			return //nothing left to do
+		}
+		var rt entry.EntryTag
+		if rt, err = nc.ig.NegotiateTag(v.name); err != nil {
+			return
+		} else if err = nc.tt.registerTag(v.local, rt); err != nil {
+			return
+		}
+		nc.tt.clearToNegotiate(1)
+	}
+}
+
 type unNegotiatedTag struct {
 	local entry.EntryTag
 	name  string
 }
 
 type tagTrans struct {
-	sync.Mutex
+	mtx         sync.RWMutex // guards toNegotiate and active
+	negMtx      sync.Mutex   // serializes negotiation with the indexer so tags land in order
 	toNegotiate []unNegotiatedTag
 	active      []entry.EntryTag
 }
@@ -2391,6 +2455,8 @@ func (tt *tagTrans) translate(t entry.EntryTag) (entry.EntryTag, bool) {
 	if t == entry.GravwellTagId {
 		return t, true
 	}
+	tt.mtx.RLock()
+	defer tt.mtx.RUnlock()
 	//if this is a tag we have not negotiated, set it to the first one we have
 	//we are assuming that its an error, but we still want the entry, so send it to the default well
 	if int(t) >= len(tt.active) {
@@ -2402,13 +2468,16 @@ func (tt *tagTrans) translate(t entry.EntryTag) (entry.EntryTag, bool) {
 func (tt *tagTrans) hasTag(t entry.EntryTag) bool {
 	if t == entry.GravwellTagId {
 		return true
-	} else if int(t) < len(tt.active) {
-		return true
 	}
-	return false
+	tt.mtx.RLock()
+	defer tt.mtx.RUnlock()
+	return int(t) < len(tt.active)
 }
 
 func (tt *tagTrans) registerTag(local entry.EntryTag, remote entry.EntryTag) error {
+	// lock our tag set for the update
+	tt.mtx.Lock()
+	defer tt.mtx.Unlock()
 	if int(local) != len(tt.active) {
 		// this means the local tag numbers got out of sync and something is bad
 		return errors.New("Cannot register tag, local tag out of sync with tag translator")
@@ -2419,11 +2488,8 @@ func (tt *tagTrans) registerTag(local entry.EntryTag, remote entry.EntryTag) err
 		return ErrTooManyTags
 	}
 
-	// lock our tag set for the update
-	tt.Lock()
 	//registering a new tag
 	tt.active = append(tt.active, remote)
-	tt.Unlock()
 	return nil
 }
 
@@ -2431,28 +2497,50 @@ func (tt *tagTrans) clearToNegotiate(cnt int) {
 	if cnt <= 0 {
 		return
 	}
-	tt.Lock()
+	tt.mtx.Lock()
 	if cnt < len(tt.toNegotiate) {
 		// someone registered something while we were negotiating, so just chop off what we know about
 		tt.toNegotiate = tt.toNegotiate[cnt:]
 	} else {
 		tt.toNegotiate = nil
 	}
-	tt.Unlock()
+	tt.mtx.Unlock()
+}
+
+// negotiationsPending indicates whether any tags are registered but not yet
+// negotiated with the indexer.
+func (tt *tagTrans) negotiationsPending() (ok bool) {
+	tt.mtx.RLock()
+	ok = len(tt.toNegotiate) > 0
+	tt.mtx.RUnlock()
+	return
+}
+
+// peekToNegotiate hands back the next tag awaiting negotiation without removing
+// it, the entry is only dropped via clearToNegotiate once it has actually been
+// registered.  Callers must hold negMtx.
+func (tt *tagTrans) peekToNegotiate() (v unNegotiatedTag, ok bool) {
+	tt.mtx.RLock()
+	if len(tt.toNegotiate) > 0 {
+		v, ok = tt.toNegotiate[0], true
+	}
+	tt.mtx.RUnlock()
+	return
 }
 
 func (tt *tagTrans) registerTagForNegotiation(name string, local entry.EntryTag) error {
 	if err := CheckTag(name); err != nil {
 		return err
-	} else if len(tt.active) >= int(entry.MaxTagId) {
+	}
+	tt.mtx.Lock()
+	defer tt.mtx.Unlock()
+	if len(tt.active) >= int(entry.MaxTagId) {
 		return ErrTooManyTags
 	}
-	tt.Lock()
 	tt.toNegotiate = append(tt.toNegotiate, unNegotiatedTag{
 		name:  name,
 		local: local,
 	})
-	tt.Unlock()
 	return nil
 }
 
@@ -2464,6 +2552,8 @@ func (tt *tagTrans) reverse(t entry.EntryTag) entry.EntryTag {
 	if t == entry.GravwellTagId {
 		return t
 	}
+	tt.mtx.RLock()
+	defer tt.mtx.RUnlock()
 	for i := range tt.active {
 		if tt.active[i] == t {
 			return entry.EntryTag(i)

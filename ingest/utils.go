@@ -18,6 +18,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -176,29 +177,31 @@ func EnableKeepAlive(c net.Conn, period time.Duration) {
 	}
 }
 
-type tagMaskTracker [0x2000]byte
+// tagMaskTracker is a bitmask of every tag the muxer knows about.  It is read on
+// every single entry write and updated whenever a tag is negotiated on a running
+// muxer, so the words are manipulated atomically instead of leaning on the muxer
+// lock, which the write paths deliberately do not take.
+type tagMaskTracker [0x800]uint32
 
 func (tmt *tagMaskTracker) add(tg entry.EntryTag) {
 	offset, mask := tagbitmask(tg)
-	tmt[offset] |= mask
+	atomic.OrUint32(&tmt[offset], mask)
 }
 
 func (tmt *tagMaskTracker) clear(tg entry.EntryTag) {
-	off, mask := tagbitmask(tg)
+	offset, mask := tagbitmask(tg)
 	//remove the bit
-	if r := (tmt[off] & mask) != 0; r {
-		tmt[off] ^= mask
-	}
+	atomic.AndUint32(&tmt[offset], ^mask)
 }
 
 func (tmt *tagMaskTracker) has(tg entry.EntryTag) bool {
 	offset, mask := tagbitmask(tg)
-	return (tmt[offset] & mask) != 0
+	return (atomic.LoadUint32(&tmt[offset]) & mask) != 0
 }
 
-func tagbitmask(tg entry.EntryTag) (offset int, mask byte) {
-	offset = (int(tg) / 8)
-	mask = byte(1 << (int(tg) % 8))
+func tagbitmask(tg entry.EntryTag) (offset int, mask uint32) {
+	offset = int(tg) / 32
+	mask = uint32(1) << (uint(tg) % 32)
 	return
 }
 

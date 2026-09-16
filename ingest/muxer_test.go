@@ -15,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 // rawStr builds a valid JSON string value of n filler bytes for use as a
@@ -191,4 +193,142 @@ func TestGetTrimmedStateStages(t *testing.T) {
 			t.Fatal("stage6: expected an error when the state cannot be shrunk below the limit")
 		}
 	})
+}
+
+const (
+	tagTestSecret = `tagTestSecret`
+	tagTestTag    = `tagtest`
+)
+
+// TestNegotiateTagIsImmediate checks that a tag negotiated on a live muxer
+// actually exists on the indexer when NegotiateTag returns.  Ingesters and
+// preprocessors (the routers in particular) negotiate their tags at startup and
+// may not push an entry on one of them for hours, so a tag that is not
+// established until data flows is not searchable in the meantime.
+func TestNegotiateTagIsImmediate(t *testing.T) {
+	ti, mxr := newTagTestMuxer(t)
+	defer ti.Close()
+	defer mxr.Close()
+
+	tg, err := mxr.NegotiateTag(`new-tag`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ti.hasTag(`new-tag`) {
+		t.Fatalf("indexer did not get the tag negotiation, it knows about %v", ti.tagNames())
+	}
+
+	// the entry path had better still work on the new tag
+	if err = mxr.WriteEntry(&entry.Entry{TS: entry.Now(), Tag: tg, Data: []byte(`test`)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = mxr.Sync(time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestNegotiateTagRepeat makes sure that negotiating a batch of tags keeps the
+// local and remote tag sets lined up, and that renegotiating an existing tag is
+// a no-op that hands back the same value.
+func TestNegotiateTagRepeat(t *testing.T) {
+	ti, mxr := newTagTestMuxer(t)
+	defer ti.Close()
+	defer mxr.Close()
+
+	tags := []string{`alpha`, `beta`, `charlie`, `delta`}
+	tgs := make([]entry.EntryTag, 0, len(tags))
+	for _, name := range tags {
+		tg, err := mxr.NegotiateTag(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ti.hasTag(name) {
+			t.Fatalf("indexer did not get tag %q, it knows about %v", name, ti.tagNames())
+		}
+		tgs = append(tgs, tg)
+	}
+
+	//renegotiating should hand back exactly what we already have
+	for i, name := range tags {
+		tg, err := mxr.NegotiateTag(name)
+		if err != nil {
+			t.Fatal(err)
+		} else if tg != tgs[i] {
+			t.Fatalf("tag %q changed on renegotiation, %d != %d", name, tg, tgs[i])
+		}
+	}
+
+	//every tag should route to its own well on the indexer side
+	for i, name := range tags {
+		if err := mxr.WriteEntry(&entry.Entry{TS: entry.Now(), Tag: tgs[i], Data: []byte(name)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := mxr.Sync(time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestNegotiateTagWhileWriting exercises the negotiation path while the write
+// relay routine is actively translating tags, the two share the translator.
+func TestNegotiateTagWhileWriting(t *testing.T) {
+	ti, mxr := newTagTestMuxer(t)
+	defer ti.Close()
+	defer mxr.Close()
+
+	tg, err := mxr.GetTag(tagTestTag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		writeUntil(mxr, tg, stop)
+	}()
+
+	for i := 0; i < 16; i++ {
+		name := `concurrent` + string(rune('a'+i))
+		if _, err = mxr.NegotiateTag(name); err != nil {
+			close(stop)
+			<-done
+			t.Fatal(err)
+		}
+		if !ti.hasTag(name) {
+			close(stop)
+			<-done
+			t.Fatalf("indexer did not get tag %q, it knows about %v", name, ti.tagNames())
+		}
+	}
+	close(stop)
+	<-done
+}
+
+func newTagTestMuxer(t *testing.T) (*testIndexer, *IngestMuxer) {
+	t.Helper()
+	ti, err := newTestIndexer(tagTestSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mxr, err := NewUniformMuxer(UniformMuxerConfig{
+		Destinations:    []string{ti.Destination()},
+		Tags:            []string{tagTestTag},
+		Auth:            tagTestSecret,
+		IngesterName:    `tagtest`,
+		IngesterVersion: `test`,
+	})
+	if err != nil {
+		ti.Close()
+		t.Fatal(err)
+	}
+	if err = mxr.Start(); err != nil {
+		ti.Close()
+		t.Fatal(err)
+	}
+	if err = mxr.WaitForHot(10 * time.Second); err != nil {
+		mxr.Close()
+		ti.Close()
+		t.Fatal(err)
+	}
+	return ti, mxr
 }
