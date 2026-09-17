@@ -476,7 +476,7 @@ func build() action.Pair {
 						}
 						lr, err := connection.Client.ListResources(types.QueryOptions{AdminMode: true})
 						if err != nil {
-							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
+							clilog.Writer.Warn("failed to fetch resources", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
 						return listitem.WrapAssets(lr.Results, preselections)
