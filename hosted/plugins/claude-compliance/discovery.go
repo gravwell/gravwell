@@ -160,7 +160,16 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 				if !exists || old.Revision != w.Revision || refresh {
 					w.Pending = true
 					w.LastCompleted = old.LastCompleted
-					w.LastAttempt = old.LastAttempt
+					if exists {
+						w.LastAttempt = old.LastAttempt
+					} else {
+						// A never-attempted item defaults its LastAttempt to the zero
+						// value, which would otherwise sort ahead of every item that has
+						// already been attempted (see the scheduling sort below). Seed it
+						// to the discovery time instead so a fresh arrival is queued
+						// fairly relative to older work rather than jumping ahead of it.
+						w.LastAttempt = p.now().UTC()
+					}
 					if old.Revision == w.Revision {
 						w.RetryAt, w.Failures = old.RetryAt, old.Failures
 					}
@@ -188,12 +197,25 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 			keys = append(keys, k)
 		}
 	}
+	// Order the oldest-attempted work first. A zero LastAttempt is reserved
+	// for work items persisted before this fairness fix existed; treat it as
+	// the lowest priority (rather than the highest, which is what an
+	// unqualified time-zero comparison would do) so a legacy item is not
+	// stuck perpetually cutting ahead of everything else. Once such an item
+	// is actually attempted it gets a real LastAttempt and sorts normally.
 	sort.Slice(keys, func(i, j int) bool {
 		a, b := list.Items[keys[i]].LastAttempt, list.Items[keys[j]].LastAttempt
-		if a.Equal(b) {
+		az, bz := a.IsZero(), b.IsZero()
+		switch {
+		case az && !bz:
+			return false
+		case !az && bz:
+			return true
+		case a.Equal(b):
 			return keys[i] < keys[j]
+		default:
+			return a.Before(b)
 		}
-		return a.Before(b)
 	})
 	var errs []error
 	if rootErr != nil {
@@ -331,7 +353,7 @@ func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work) error {
 		}
 		key = c.key()
 	}
-	st := state{Since: w.LastCompleted, Manifest: map[string]string{}}
+	st := state{Since: w.LastCompleted, Manifest: manifest{}}
 	if b, e := rt.Get(key); e == nil {
 		if e = json.Unmarshal(b, &st); e != nil {
 			return errors.New("invalid Compliance child checkpoint")
@@ -339,7 +361,7 @@ func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work) error {
 	} else if !errors.Is(e, storage.ErrStorageNotFound) {
 		return e
 	}
-	st.Manifest = map[string]string{}
+	st.Manifest = manifest{}
 	st.Traversal = nil
 	st.Retired = w.Revision
 	b, e := json.Marshal(st)

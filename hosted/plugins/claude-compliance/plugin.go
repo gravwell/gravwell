@@ -22,15 +22,16 @@ import (
 )
 
 type Plugin struct {
-	conf         *Config
-	http         *http.Client
-	now          func() time.Time
-	wait         func(context.Context, time.Duration) error
-	limiter      *rate.Limiter
-	onRecord     func(Dataset, []byte) error
-	flushRecords func() error
-	syncIngest   func(context.Context, time.Duration) error
-	maxRecords   int
+	conf               *Config
+	http               *http.Client
+	now                func() time.Time
+	wait               func(context.Context, time.Duration) error
+	limiter            *rate.Limiter
+	onRecord           func(Dataset, []byte) error
+	flushRecords       func() error
+	syncIngest         func(context.Context, time.Duration) error
+	maxRecords         int
+	maxManifestEntries int
 }
 
 // New binds the muxer's existing synchronization capability at build time.
@@ -56,19 +57,105 @@ func sleep(ctx context.Context, d time.Duration) error {
 }
 
 type state struct {
-	Since           time.Time         `json:"since"`
-	Manifest        map[string]string `json:"manifest"`
-	Traversal       *traversal        `json:"traversal,omitempty"`
-	Retired         string            `json:"retired_revision,omitempty"`
-	HistoryComplete bool              `json:"history_complete,omitempty"`
+	Since           time.Time  `json:"since"`
+	Manifest        manifest   `json:"manifest"`
+	Traversal       *traversal `json:"traversal,omitempty"`
+	Retired         string     `json:"retired_revision,omitempty"`
+	HistoryComplete bool       `json:"history_complete,omitempty"`
 }
 
 type traversal struct {
-	Since       time.Time         `json:"since"`
-	Until       time.Time         `json:"until"`
-	Cursor      string            `json:"cursor"`
-	Manifest    map[string]string `json:"manifest"`
-	FullHistory bool              `json:"full_history,omitempty"`
+	Since       time.Time `json:"since"`
+	Until       time.Time `json:"until"`
+	Cursor      string    `json:"cursor"`
+	Manifest    manifest  `json:"manifest"`
+	FullHistory bool      `json:"full_history,omitempty"`
+}
+
+// manifestEntry pairs a record's content digest with a hint of how recently
+// the vendor itself reports the record changing. Seen is Unix seconds taken
+// from the record's own updated_at/created_at/timestamp field (see
+// sourceTime); it is used only to choose which identity to forget first once
+// the manifest is full, never to decide whether a record changed.
+type manifestEntry struct {
+	Digest string `json:"d"`
+	Seen   int64  `json:"s,omitempty"`
+}
+
+// manifest bounds the retained identity->digest dedup cache for a dataset.
+// A full, unwindowed parent scan (organizations, groups, chats/projects/
+// local-sessions with Follow-Children enabled, and similar) re-lists every
+// record the vendor still reports on every cycle, including long-settled or
+// deleted-but-retained compliance records, so this cache would otherwise
+// grow without bound. Capping it can only cause an already-unchanged record
+// to be rewritten once more after its identity is forgotten; it can never
+// cause a changed record to be silently treated as unchanged, because
+// eviction only ever runs on insertion of a *new* identity, never on a
+// lookup of an existing one.
+type manifest map[string]manifestEntry
+
+// defaultMaxManifestEntries bounds retained identities to the same order of
+// magnitude as the existing per-cycle record cap (see Plugin.maxRecords),
+// keeping the marshaled checkpoint on the order of a few MiB even for the
+// largest observed tenants, and well under the 32 MiB bound already enforced
+// for the child-work list.
+const defaultMaxManifestEntries = 100000
+
+// digestOf reports the retained digest for key, or "" if key is not tracked.
+func (m manifest) digestOf(key string) string { return m[key].Digest }
+
+// put records key's digest and vendor-reported seen time, evicting the
+// identity the vendor reports as least recently updated when the manifest is
+// already at limit. Eviction never removes the identity being inserted.
+func (m manifest) put(key, digest string, seen time.Time, limit int) {
+	if limit <= 0 {
+		limit = defaultMaxManifestEntries
+	}
+	if _, exists := m[key]; !exists {
+		for len(m) >= limit {
+			m.evictOldest()
+		}
+	}
+	m[key] = manifestEntry{Digest: digest, Seen: seen.Unix()}
+}
+
+// evictOldest removes the identity with the oldest recorded Seen time,
+// breaking ties on the identity key so eviction is deterministic.
+func (m manifest) evictOldest() {
+	victim, victimSeen := "", int64(0)
+	for k, e := range m {
+		if victim == "" || e.Seen < victimSeen || (e.Seen == victimSeen && k < victim) {
+			victim, victimSeen = k, e.Seen
+		}
+	}
+	if victim != "" {
+		delete(m, victim)
+	}
+}
+
+// UnmarshalJSON accepts both the current {"key":{"d":"...","s":...}} shape
+// and the plain {"key":"digest"} shape written before this bound existed, so
+// checkpoints persisted by earlier builds keep loading.
+func (m *manifest) UnmarshalJSON(b []byte) error {
+	var raw map[string]json.RawMessage
+	if e := json.Unmarshal(b, &raw); e != nil {
+		return e
+	}
+	out := make(manifest, len(raw))
+	for k, v := range raw {
+		var legacy string
+		if e := json.Unmarshal(v, &legacy); e == nil {
+			out[k] = manifestEntry{Digest: legacy}
+			continue
+		}
+		var entry manifestEntry
+		if e := json.Unmarshal(v, &entry); e != nil {
+			return e
+		}
+		out[k] = entry
+	}
+	*m = out
+	return nil
 }
 
 func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
@@ -80,7 +167,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 	if e != nil {
 		return nil, e
 	}
-	st := state{Manifest: map[string]string{}}
+	st := state{Manifest: manifest{}}
 	b, e := rt.Get(c.key())
 	if e == nil {
 		if e = json.Unmarshal(b, &st); e != nil {
@@ -90,7 +177,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		return nil, e
 	}
 	if st.Manifest == nil {
-		st.Manifest = map[string]string{}
+		st.Manifest = manifest{}
 	}
 	now := p.now().UTC()
 	since := st.Since
@@ -104,7 +191,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 	scan := traversal{
 		Since:       since,
 		Until:       now,
-		Manifest:    map[string]string{},
+		Manifest:    manifest{},
 		FullHistory: c.discovered && c.dataset.Name == "chat-messages" && !st.HistoryComplete,
 	}
 	if st.Traversal != nil {
@@ -113,7 +200,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			return nil, errors.New("invalid Compliance traversal state")
 		}
 		if scan.Manifest == nil {
-			scan.Manifest = map[string]string{}
+			scan.Manifest = manifest{}
 		}
 	}
 	q := url.Values{}
@@ -150,6 +237,10 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 	maxRecords := p.maxRecords
 	if maxRecords == 0 {
 		maxRecords = 100000
+	}
+	manifestLimit := p.maxManifestEntries
+	if manifestLimit == 0 {
+		manifestLimit = defaultMaxManifestEntries
 	}
 	for page := 0; page < c.Max_Pages; page++ {
 		if e = ctx.Err(); e != nil {
@@ -195,8 +286,9 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			h := sha256.Sum256(compact)
 			digest := hex.EncodeToString(h[:])
 			key := identity(compact, digest)
-			unchanged := st.Manifest[key] == digest || scan.Manifest[key] == digest
-			scan.Manifest[key] = digest
+			unchanged := st.Manifest.digestOf(key) == digest || scan.Manifest.digestOf(key) == digest
+			recordTime := sourceTime(compact, scan.Until)
+			scan.Manifest.put(key, digest, recordTime, manifestLimit)
 			if p.onRecord != nil {
 				if e = p.onRecord(d, compact); e != nil {
 					return nil, e
@@ -205,7 +297,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			if unchanged {
 				continue
 			}
-			ent := entry.Entry{TS: entry.FromStandard(sourceTime(compact, scan.Until)), Tag: tag, Data: compact}
+			ent := entry.Entry{TS: entry.FromStandard(recordTime), Tag: tag, Data: compact}
 			for _, kv := range [][2]string{{"_vendor", "Anthropic"}, {"_product", "Claude Enterprise Compliance"}, {"_source", d.Name}, {"_recordType", d.Name}, {"_endpoint", "/v1/compliance" + d.Path}, {"_apiVersion", "2023-06-01"}, {"_parent", strings.Join(c.Parameter, ",")}} {
 				if e = ent.AddEnumeratedValueEx(kv[0], kv[1]); e != nil {
 					return nil, e

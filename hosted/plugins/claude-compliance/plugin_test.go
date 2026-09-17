@@ -678,7 +678,7 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	}
 	old1.StateKey = old1Config.key()
 	list.Items["old1"] = old1
-	large, _ := json.Marshal(state{Since: p.now(), Manifest: map[string]string{"message": strings.Repeat("a", 4096)}})
+	large, _ := json.Marshal(state{Since: p.now(), Manifest: manifest{"message": {Digest: strings.Repeat("a", 4096)}}})
 	rt.states[old1.StateKey] = large
 	b, _ := json.Marshal(list)
 	rt.states[p.conf.key()+"/child-work-v1"] = b
@@ -753,6 +753,131 @@ func TestFailedChildDoesNotStarveHealthyWork(t *testing.T) {
 	}
 	if healthy != 1 {
 		t.Fatal("failed child starved healthy child")
+	}
+}
+
+// TestInProgressChildIsNotPreemptedByNewDiscovery guards against a newly
+// discovered child (LastAttempt zero) cutting ahead of an older child that
+// is already mid-pagination (LastAttempt set, but not yet Pending=false).
+// Under Max-Children=1 saturation, g1 must keep making progress on each
+// eligible cycle instead of losing its turn to g2 every time g2 appears.
+func TestInProgressChildIsNotPreemptedByNewDiscovery(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Children = 1
+	p.conf.Max_Pages = 1 // force group-members to need more than one Handle cycle
+	rt.states = map[string][]byte{}
+
+	addG2 := false
+	g1Page := 0
+	g1Calls, g2Calls := 0, 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/groups"):
+			body := `{"data":[{"id":"g1"}`
+			if addG2 {
+				body += `,{"id":"g2"}`
+			}
+			return reply(body+`],"has_more":false}`, 200), nil
+		case strings.Contains(r.URL.Path, "g1"):
+			g1Calls++
+			if g1Page == 0 {
+				g1Page++
+				return reply(`{"data":[{"id":"m1"}],"has_more":false,"next_page":"tok"}`, 200), nil
+			}
+			return reply(`{"data":[{"id":"m2"}],"has_more":false}`, 200), nil
+		case strings.Contains(r.URL.Path, "g2"):
+			g2Calls++
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		t.Fatal("unexpected path")
+		return nil, nil
+	})
+
+	// Cycle 1: discovers and makes the first attempt at g1. It is not done
+	// (its own page cap was hit) so it remains Pending with a real LastAttempt.
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if g1Calls != 1 || g2Calls != 0 {
+		t.Fatalf("unexpected cycle 1 calls: g1=%d g2=%d", g1Calls, g2Calls)
+	}
+
+	// Cycle 2: g2 is newly discovered in the same cycle g1 is next eligible.
+	// g1 (older, already in progress) must keep its turn under Max-Children=1.
+	addG2 = true
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if g1Calls != 2 || g2Calls != 0 {
+		t.Fatalf("in-progress child g1 was preempted by newly-discovered child g2: g1Calls=%d g2Calls=%d", g1Calls, g2Calls)
+	}
+
+	// Cycle 3: g1 has completed; g2 must still get its turn.
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if g2Calls != 1 {
+		t.Fatalf("newly-discovered child g2 never ran: g1Calls=%d g2Calls=%d", g1Calls, g2Calls)
+	}
+}
+
+// TestLegacyZeroLastAttemptWorkItemIsNotStuckFirstForever confirms that a
+// child-work item persisted before the fairness fix (LastAttempt left at
+// its Go zero value) does not perpetually cut ahead of items that have a
+// real recorded attempt time, and that it still runs (and thereby acquires
+// a real LastAttempt) once nothing newer is competing for the slot.
+func TestLegacyZeroLastAttemptWorkItemIsNotStuckFirstForever(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Children = 1
+	rt.states = map[string][]byte{}
+
+	legacyConfig, e := childConfig(p.conf, work{Dataset: "group-members", Parameter: []string{"group_id:legacy"}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	attempted := work{Dataset: "group-members", Parameter: []string{"group_id:attempted"}, Revision: "rev-attempted", Pending: true, LastAttempt: p.now().Add(-time.Minute)}
+	attemptedConfig, e := childConfig(p.conf, attempted)
+	if e != nil {
+		t.Fatal(e)
+	}
+	list := worklist{Items: map[string]work{
+		"group-members/group_id:legacy":    {Dataset: "group-members", Parameter: []string{"group_id:legacy"}, Revision: "rev-legacy", Pending: true, StateKey: legacyConfig.key()}, // LastAttempt left zero, as pre-fix persisted state would have it
+		"group-members/group_id:attempted": {Dataset: "group-members", Parameter: []string{"group_id:attempted"}, Revision: "rev-attempted", Pending: true, LastAttempt: attempted.LastAttempt, StateKey: attemptedConfig.key()},
+	}}
+	b, _ := json.Marshal(list)
+	rt.states[p.conf.key()+"/child-work-v1"] = b
+
+	var order []string
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		switch {
+		case strings.Contains(r.URL.Path, "legacy"):
+			order = append(order, "legacy")
+		case strings.Contains(r.URL.Path, "attempted"):
+			order = append(order, "attempted")
+		default:
+			t.Fatal("unexpected child path")
+		}
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+
+	// The already-attempted item must run before the never-attempted
+	// (zero LastAttempt) legacy item under Max-Children=1.
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(order) != 1 || order[0] != "attempted" {
+		t.Fatalf("legacy zero-LastAttempt item cut ahead of already-attempted work: order=%v", order)
+	}
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(order) != 2 || order[1] != "legacy" {
+		t.Fatalf("legacy zero-LastAttempt item never got its turn: order=%v", order)
 	}
 }
 
@@ -976,7 +1101,7 @@ func TestLegacyDiscoveredChatCheckpointGetsHistoryBackfill(t *testing.T) {
 	rt.states = map[string][]byte{}
 	legacy, e := json.Marshal(state{
 		Since:    p.now().Add(-time.Hour),
-		Manifest: map[string]string{"old": "digest"},
+		Manifest: manifest{"old": {Digest: "digest"}},
 	})
 	if e != nil {
 		t.Fatal(e)
@@ -1104,5 +1229,165 @@ func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
 	}
 	if childCalls != 1 {
 		t.Fatal("deleted chat transcript was fetched again")
+	}
+}
+
+// TestManifestGrowthIsBounded proves the primary dataset checkpoint's
+// identity/digest manifest cannot grow past the configured bound, and that
+// repeatedly exceeding the bound (as a full, unwindowed "organizations"
+// scan does on every cycle once the tenant has more entities than the
+// bound) never turns into an error or a replay loop.
+func TestManifestGrowthIsBounded(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	p.maxManifestEntries = 5
+	const total = 20
+	var body strings.Builder
+	body.WriteString(`{"data":[`)
+	for i := 0; i < total; i++ {
+		if i > 0 {
+			body.WriteByte(',')
+		}
+		fmt.Fprintf(&body, `{"uuid":"org-%02d","updated_at":"2026-01-01T00:00:%02dZ"}`, i, i)
+	}
+	body.WriteString(`],"has_more":false}`)
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(body.String(), 200), nil
+	})
+	for cycle := 0; cycle < 6; cycle++ {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatalf("cycle %d: reaching the manifest bound caused an error instead of evicting: %v", cycle, e)
+		}
+	}
+	var st state
+	if e := json.Unmarshal(rt.saved, &st); e != nil {
+		t.Fatal(e)
+	}
+	if len(st.Manifest) > 5 {
+		t.Fatalf("manifest retained %d entries, exceeding the configured bound of 5", len(st.Manifest))
+	}
+	if len(rt.saved) > 4<<10 {
+		t.Fatalf("checkpoint blob grew unexpectedly large for a 5-entry bound: %d bytes", len(rt.saved))
+	}
+}
+
+// TestManifestBoundPreservesDedupAcrossRestart confirms that, as long as the
+// working set fits within the configured manifest bound, restart-and-resume
+// still recognizes unchanged records and does not replay them.
+func TestManifestBoundPreservesDedupAcrossRestart(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	p.maxManifestEntries = 10
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"data":[{"uuid":"o1","updated_at":"2026-01-01T00:00:00Z"},{"uuid":"o2","updated_at":"2026-01-01T00:00:01Z"}],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 2 {
+		t.Fatalf("first scan must write both new records, got %d", len(rt.entries))
+	}
+	restarted, e := New(p.conf, rt)
+	if e != nil {
+		t.Fatal(e)
+	}
+	restarted.maxManifestEntries = p.maxManifestEntries
+	restarted.now, restarted.wait, restarted.limiter = p.now, p.wait, p.limiter
+	restarted.http.Transport = p.http.Transport
+	if _, e := restarted.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 2 {
+		t.Fatalf("restart replayed unchanged records within the manifest bound, entries = %d", len(rt.entries))
+	}
+}
+
+// TestManifestEvictionRewritesStaleRecordsInsteadOfDroppingData proves the
+// eviction direction is safe: once the bound is exceeded, only the identity
+// the vendor reports as least-recently-updated stops being deduplicated, and
+// it is rewritten (a bounded, deterministic duplicate) rather than lost.
+// Records that remain within the bound stay correctly deduplicated.
+func TestManifestEvictionRewritesStaleRecordsInsteadOfDroppingData(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	p.maxManifestEntries = 2
+	const body = `{"data":[{"uuid":"o1","updated_at":"2020-01-01T00:00:00Z"},{"uuid":"o2","updated_at":"2020-01-02T00:00:00Z"},{"uuid":"o3","updated_at":"2020-01-03T00:00:00Z"}],"has_more":false}`
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(body, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 3 {
+		t.Fatalf("first scan must write every record, got %d", len(rt.entries))
+	}
+	for cycle := 0; cycle < 3; cycle++ {
+		before := len(rt.entries)
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatalf("cycle %d: %v", cycle, e)
+		}
+		// Exactly the oldest identity (o1, evicted to respect the bound of 2)
+		// must be rewritten each cycle; o2/o3 stay cached and deduplicated.
+		if got := len(rt.entries) - before; got != 1 {
+			t.Fatalf("cycle %d: want exactly 1 rewritten stale record, got %d", cycle, got)
+		}
+		var st state
+		if e := json.Unmarshal(rt.saved, &st); e != nil {
+			t.Fatal(e)
+		}
+		if len(st.Manifest) > 2 {
+			t.Fatalf("cycle %d: manifest exceeded its bound of 2: %d entries", cycle, len(st.Manifest))
+		}
+	}
+}
+
+// TestLegacyPlainStringManifestShapeStillLoads confirms a checkpoint written
+// before this bound existed -- where each manifest value was a bare digest
+// string rather than {"d":"...","s":...} -- still loads, and that its
+// digest is still honored for unchanged-record detection.
+func TestLegacyPlainStringManifestShapeStillLoads(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	rt.states = map[string][]byte{}
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"data":[{"uuid":"o1"}],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 1 {
+		t.Fatalf("first scan must write the new record, got %d", len(rt.entries))
+	}
+	var st state
+	if e := json.Unmarshal(rt.saved, &st); e != nil {
+		t.Fatal(e)
+	}
+	if len(st.Manifest) != 1 {
+		t.Fatalf("expected exactly one manifest entry, got %d", len(st.Manifest))
+	}
+	var key, digest string
+	for k, v := range st.Manifest {
+		key, digest = k, v.Digest
+	}
+
+	// Rewrite the persisted checkpoint into the plain {"key":"digest"} shape
+	// that builds before this fix wrote, to prove the upgraded reader still
+	// loads it and still honors its dedup digest.
+	legacy, e := json.Marshal(struct {
+		Since    time.Time         `json:"since"`
+		Manifest map[string]string `json:"manifest"`
+	}{Since: st.Since, Manifest: map[string]string{key: digest}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	rt.states[p.conf.key()] = legacy
+
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatalf("legacy plain-string manifest failed to load: %v", e)
+	}
+	if len(rt.entries) != 1 {
+		t.Fatal("legacy manifest digest match was not honored; unchanged record was rewritten")
+	}
+	if e := json.Unmarshal(rt.states[p.conf.key()], &st); e != nil {
+		t.Fatal(e)
+	}
+	if st.Manifest[key].Digest != digest {
+		t.Fatal("legacy manifest entry was not upgraded to the current shape")
 	}
 }
