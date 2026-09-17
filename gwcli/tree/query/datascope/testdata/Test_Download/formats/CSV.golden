@@ -1,0 +1,295 @@
+[?25l[?2004h╭──────────────────╮╭──────────────────╮╭──────────────────╮╭──────────────────╮
+│      table       ││       help       ││     download     ││     schedule     │
+└──────────────────┴┴──────────────────┴┴──────────────────┴┘                  ╵
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+           Schedule this search to be rerun at consistent intervals.            
+                                    Query:                                      
+                                                                                
+                            >Frequency: * * * * *                               
+                                  Name:                                         
+                           Description:                                         
+                                                                                
+                                    ╭──────╮                                    
+                                    │submit│                                    
+                                    ╰──────╯                                    
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                [80D[49A
+
+└──────────────────┴┴──────────────────┴┘                  └┴──────────────────┘
+
+
+
+
+
+
+
+
+
+ Download all data in your preferred format or cherry-pick specific records by  
+                                  their index.                                  
+                                                                                
+                          >Output Path:                                         
+                                Append? [ ]                                     
+                                     Format                                     
+                                   JSON ( )                                     
+                                    CSV ( )                                     
+                                    raw (✓)                                     
+                                                                                
+                        Record Numbers: (optional)                              
+                   Enter a comma-seperated list of records to                   
+                          download just those records,                          
+                           instead of the whole file.                           
+
+                                    ╭──────╮                                    
+                                    │submit│                                    
+                                    ╰──────╯                                    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[80D[49A
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                           Output Path:                                         
+                               >Append? [ ]                                     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[80D[49A
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                Append? [ ]                                     
+
+                                  >JSON ( )                                     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[80D[49A
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                   JSON ( )                                     
+                                   >CSV ( )                                     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[80D[49A
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                   >CSV (✓)                                     
+                                    raw ( )                                     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[80D[2K[?2004l[?25h[?1002l[?1003l[?1006l

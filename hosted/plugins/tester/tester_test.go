@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {

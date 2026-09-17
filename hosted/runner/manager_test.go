@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/ingest"
 )
 
 // TestSyncChildrenRegisters covers the startup case, every configured plugin has to land on the

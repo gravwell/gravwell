@@ -15,11 +15,11 @@ import (
 	"sort"
 
 	"github.com/gosnmp/gosnmp"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 )
 
 type listener struct {
@@ -46,14 +46,14 @@ type global struct {
 
 type cfgReadType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener     map[string]*listener
 	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener     map[string]*listener
 	Preprocessor processors.ProcessorConfig
 }

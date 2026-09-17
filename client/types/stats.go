@@ -13,7 +13,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 type SearchModuleStatsUpdate struct {
@@ -184,75 +184,4 @@ func (s *SearchModuleStatsUpdate) CopyZero() SearchModuleStatsUpdate {
 		TS:    s.TS,
 		Stats: st,
 	}
-}
-
-func (s *SearchModuleStatsUpdate) MarshalJSON() ([]byte, error) {
-	type alias SearchModuleStatsUpdate
-	return json.Marshal(&struct {
-		alias
-		Stats sms
-	}{
-		alias: alias(*s),
-		Stats: sms(s.Stats),
-	})
-}
-
-func (ss *StatSet) MarshalJSON() ([]byte, error) {
-	type alias StatSet
-	return json.Marshal(&struct {
-		alias
-		Stats sms
-	}{
-		alias: alias(*ss),
-		Stats: sms(ss.Stats),
-	})
-}
-
-func (m *IndexManagerStats) MarshalJSON() ([]byte, error) {
-	type alias IndexManagerStats
-	return json.Marshal(&struct {
-		alias
-		Stats ls
-	}{
-		alias: alias(*m),
-		Stats: ls(m.Stats),
-	})
-}
-
-func (m *IdxStats) MarshalJSON() ([]byte, error) {
-	type alias IdxStats
-	return json.Marshal(&struct {
-		alias
-		IndexStats is
-	}{
-		alias:      alias(*m),
-		IndexStats: is(m.IndexStats),
-	})
-}
-
-type is []IndexManagerStats
-
-func (i is) MarshalJSON() ([]byte, error) {
-	if len(i) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]IndexManagerStats(i))
-}
-
-type ls []IndexerStats
-
-func (m ls) MarshalJSON() ([]byte, error) {
-	if len(m) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]IndexerStats(m))
-}
-
-type sms []SearchModuleStats
-
-func (m sms) MarshalJSON() ([]byte, error) {
-	if len(m) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]SearchModuleStats(m))
 }

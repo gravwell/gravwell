@@ -1,0 +1,160 @@
+package client
+
+import (
+	"bytes"
+	"encoding/json/v2"
+	"fmt"
+	"io"
+	"net/http"
+	"slices"
+
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
+)
+
+// This file provides similar, alternative mechanisms for staticActions.go, but implements JSON/v2.
+// Phasing in this file while phasing out staticActions.go allows us to transition piecemeal.
+
+// post submits a POST request against the given url and expects ResponseT in return.
+func (c *Client) post[RequestT, ResponseT any](url string, in *RequestT) (response ResponseT, _ error) {
+	var (
+		body []byte
+		err  error
+	)
+	body, err = json.Marshal(in, jsoncompat.Opts)
+	if err != nil {
+		return response, err
+	}
+	resp, err := c.reqDriver(http.MethodPost, url, body, nil)
+	defer drainResponse(resp)
+	if err != nil {
+		return response, err
+	}
+	if err := json.UnmarshalRead(resp.Body, &response, jsoncompat.Opts); err != nil {
+		return response, err
+	}
+
+	c.objLog.Log("WEB RECV", url, response)
+	return response, nil
+}
+
+// patch submits a PATCH request against the given url.
+func (c *Client) patch[PatchT any, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
+	body, err := json.Marshal(data, jsoncompat.Opts)
+	if err != nil {
+		return patched, err
+	} else if body == nil || string(body) == "{}" { // if this marshaled to no data, throw away the request
+		return patched, ErrEmptyPatch
+	}
+
+	resp, err := c.reqDriver(http.MethodPatch, url, body, nil)
+	defer drainResponse(resp)
+	if err != nil {
+		return patched, err
+	}
+
+	if err := json.UnmarshalRead(resp.Body, &patched, jsoncompat.Opts); err != nil {
+		return patched, err
+	}
+
+	c.objLog.Log("WEB RECV", url, patched)
+	return patched, nil
+}
+
+// delete submits an empty DELETE request against the given URL.
+// It swallows 204s.
+func (c *Client) delete(url string, purge bool) error {
+	var params []urlParam
+	if purge {
+		params = append(params, urlParam{key: "purge", value: "true"})
+	}
+	resp, err := c.reqDriver(http.MethodDelete, url, nil, []int{http.StatusNoContent}, params...)
+	defer drainResponse(resp)
+	return err
+}
+
+// GetOptions is the base set of options support by asset GET requests.
+type GetOptions struct {
+	IncludeDeleted bool
+}
+
+func (o GetOptions) params() []urlParam {
+	var p []urlParam
+	if o.IncludeDeleted {
+		p = append(p, urlParam{"include_deleted", "true"})
+	}
+	return p
+}
+
+func (c *Client) get[ResponseT any](url string, params ...urlParam) (response ResponseT, _ error) {
+	resp, err := c.reqDriver(http.MethodGet, url, nil, nil, params...)
+	defer drainResponse(resp)
+	if err != nil {
+		return response, err
+	}
+
+	if err := json.UnmarshalRead(resp.Body, &response, jsoncompat.Opts); err != nil {
+		return response, err
+	}
+
+	c.objLog.Log("WEB RECV", url, response)
+	return response, nil
+}
+
+// getDownload issues a GET request, but returns a reader on the body instead of trying to unmarshal said body.
+func (c *Client) getDownload(url string, params ...urlParam) (io.ReadCloser, error) {
+	resp, err := c.reqDriver(http.MethodGet, url, nil, nil, params...)
+	if err != nil {
+		drainResponse(resp)
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+// reqDriver powers outbound requests and serves as a funnel to keep them consistent.
+// If err == nil, the caller is responsible for draining the response.
+//
+// okCodes is the set of non-200 codes that will be swallowed (instead of erroring).
+func (c *Client) reqDriver(method string, url string, body []byte, okCodes []int, params ...urlParam) (*http.Response, error) {
+	if c.state != STATE_AUTHED {
+		return nil, ErrNoLogin
+	}
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
+	req, err := http.NewRequest(method, uri, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	c.hm.populateRequest(req.Header) // add in the headers
+
+	// add in properties from the client itself
+	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
+		return nil, err
+	}
+
+	// add in params
+	if len(params) > 0 {
+		q := req.URL.Query()
+		for _, v := range params {
+			q.Add(v.key, v.value)
+		}
+		req.URL.RawQuery = q.Encode()
+	}
+
+	c.objLog.Log("WEB REQ "+req.Method, url, string(body))
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		c.objLog.Log("WEB "+req.Method+" Error "+err.Error(), url, nil)
+		drainResponse(resp)
+		return nil, err
+	}
+	if resp == nil {
+		return nil, ErrNilResponse
+	}
+	if resp.StatusCode != http.StatusOK && !slices.Contains(okCodes, resp.StatusCode) {
+		c.objLog.Log("WEB "+req.Method, url+" "+resp.Status, nil)
+		defer drainResponse(resp)
+		return nil, aliasResponseError(c, resp)
+	}
+	return resp, nil
+}

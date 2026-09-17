@@ -11,7 +11,6 @@ package types
 import (
 	"bytes"
 	"encoding/gob"
-	"encoding/json"
 	"net"
 	"time"
 
@@ -38,24 +37,6 @@ type TokenSigningKey struct {
 	Expiration time.Time
 }
 
-type UserBackup struct {
-	Groups []GroupDetails
-	Users  []UserDetails
-}
-
-func (ub *UserBackup) ClearSynced() {
-	for i := range ub.Groups {
-		ub.Groups[i].Synced = false
-	}
-	for i := range ub.Users {
-		ub.Users[i].Synced = false
-		//wipe the groups as well just in case
-		for j := range ub.Users[i].Groups {
-			ub.Users[i].Groups[j].Synced = false
-		}
-	}
-}
-
 // Session contains all the information needed to authenticate.
 type Session struct {
 	ID          uint64 `json:",omitempty"`
@@ -63,7 +44,7 @@ type Session struct {
 	UID         int32  `json:",omitempty"`
 	Origin      net.IP
 	LastHit     time.Time
-	UDets       *UserDetails `json:",omitempty"`
+	UDets       *User `json:",omitempty"`
 	TempSession bool
 	Synced      bool
 }
@@ -85,15 +66,6 @@ func DecodeSession(b []byte) (*Session, error) {
 	return &s, nil
 }
 
-type UserPreference struct {
-	UID     int32
-	Name    string
-	Updated time.Time
-	Data    []byte
-	Synced  bool
-}
-type UserPreferences []UserPreference
-
 type UserSessions struct {
 	UID      int32
 	User     string
@@ -107,8 +79,8 @@ type UserDetails struct {
 	Email      string
 	Admin      bool
 	Locked     bool
-	TS         time.Time `json:",omitempty"`
-	DefaultGID int32     `json:",omitempty"`
+	TS         time.Time
+	DefaultGID int32 `json:",omitempty"`
 	Groups     []GroupDetails
 	MFA        MFAUserConfig
 	Hash       []byte `json:"-"` //do not include in API responses
@@ -191,32 +163,30 @@ type GroupDetails struct {
 }
 
 type AddUser struct {
-	User  string
-	Pass  string
-	Name  string
-	Email string
-	Admin bool
+	Username string
+	Password string
+	Name     string
+	Email    string
+	Admin    bool
 }
 
 type AddGroup struct {
-	Name string
-	Desc string
+	Name        string
+	Description string
 }
 
-type UpdateUser struct {
-	User   string
-	Name   string
-	Email  string
-	Admin  bool
-	Locked bool
+// UserPatch is the type used to request an update to an existing User.
+type UserPatch struct {
+	Admin               Optional[bool]    `json:",omitzero"` // ignored if you are not an admin
+	DefaultSearchGroups Optional[[]int32] `json:",omitzero"`
+	Email               Optional[string]  `json:",omitzero"` // Email cannot be updated to ""
+	Locked              Optional[bool]    `json:",omitzero"` // ignored if you are not an admin
+	Name                Optional[string]  `json:",omitzero"` // Name cannot be updated to ""
+	Username            Optional[string]  `json:",omitzero"` // ignored if you are not an admin
 }
 
 type UserAddGroups struct {
 	GIDs []int32
-}
-
-type UserDefaultSearchGroup struct {
-	GID int32
 }
 
 type AdminActionResp struct {
@@ -368,62 +338,199 @@ func (ud *UserDetails) ClearSecrets() {
 	ud.MFA.ClearSecrets()
 }
 
-func (ups UserPreferences) MarshalJSON() ([]byte, error) {
-	if len(ups) == 0 {
-		return emptyList, nil
+/************************************************************
+ *
+ * New (registry) types begin here.
+ *
+ ************************************************************/
+
+type ACL struct {
+	GIDs   []int32
+	Global bool
+}
+
+type User struct {
+	ID                  int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	DeletedAt           time.Time
+	LastLogin           time.Time
+	Username            string
+	Name                string
+	Email               string
+	Admin               bool
+	Locked              bool
+	Groups              []Group
+	MFA                 MFAUserConfig
+	SSOUser             bool
+	DefaultSearchGroups []Group
+	SearchPriority      int
+}
+
+// UserWithCBAC is just the User struct plus CBAC information. Only available via admin APIs.
+type UserWithCBAC struct {
+	User
+	CBAC CBACExpandedRules
+}
+
+// ToPatch converts u into a UserPatch with every field set
+func (u *User) ToPatch() UserPatch {
+	return UserPatch{
+		Username:            NewOptional(u.Username),
+		Name:                NewOptional(u.Name),
+		Email:               NewOptional(u.Email),
+		DefaultSearchGroups: NewOptional(u.DefaultSearchGIDs()),
+		Admin:               NewOptional(u.Admin),
+		Locked:              NewOptional(u.Locked),
 	}
-	return json.Marshal([]UserPreference(ups))
 }
 
-// MarshalJSON marshaller hacks to get it to return [] on empty lists
-func (ud UserDetails) MarshalJSON() ([]byte, error) {
-	type alias UserDetails
-	return json.Marshal(&struct {
-		alias
-		Groups groupsAlias
-	}{
-		alias:  alias(ud),
-		Groups: groupsAlias(ud.Groups),
-	})
-}
-
-type groupsAlias []GroupDetails
-
-func (ga groupsAlias) MarshalJSON() ([]byte, error) {
-	if len(ga) == 0 {
-		return emptyList, nil
+// IsGroupMember returns true if the user is a member of group with
+// the specified ID.
+func (u *User) IsGroupMember(gid int32) bool {
+	for _, g := range u.Groups {
+		if g.ID == gid {
+			return true
+		}
 	}
-	//this will cause an infinite recursion if we don't change the type
-	return json.Marshal([]GroupDetails(ga))
+	return false
 }
 
-func (s *UserSessions) MarshalJSON() ([]byte, error) {
-	type alias UserSessions
-	return json.Marshal(&struct {
-		alias
-		Sessions sessions
-	}{
-		alias:    alias(*s),
-		Sessions: sessions(s.Sessions),
-	})
-}
-
-type sessions []Session
-
-func (s sessions) MarshalJSON() ([]byte, error) {
-	if len(s) == 0 {
-		return emptyList, nil
+// IsAnyGroupMember returns true if the user is a member of any group
+// from the provided list of group IDs.
+func (u *User) IsAnyGroupMember(gids []int32) bool {
+	for _, g := range u.Groups {
+		for _, gid := range gids {
+			if g.ID == gid {
+				return true
+			}
+		}
 	}
-	return json.Marshal([]Session(s))
+	return false
 }
 
-func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
-	type alias UserAddGroups
-	return json.Marshal(&struct {
-		alias
-		GIDs emptyInts
-	}{
-		alias: alias(*uag),
-		GIDs:  emptyInts(uag.GIDs),
-	})
+// IsMemberOfAllGroups returns true if the user is a member of *every* group in the provided list.
+func (u *User) IsMemberOfAllGroups(gids []int32) bool {
+	for _, gid := range gids {
+		if !u.IsGroupMember(gid) {
+			return false
+		}
+	}
+	return true
+}
+
+// DefaultSearchGIDs returns the IDs of the user's default search groups.
+func (u *User) DefaultSearchGIDs() []int32 {
+	var gids []int32
+	for _, g := range u.DefaultSearchGroups {
+		gids = append(gids, g.ID)
+	}
+	return gids
+}
+
+func (u *User) GetOld() *UserDetails {
+	ud := UserDetails{
+		UID:     u.ID,
+		User:    u.Username,
+		Name:    u.Name,
+		Email:   u.Email,
+		Locked:  u.Locked,
+		TS:      u.LastLogin,
+		Admin:   u.Admin,
+		SSOUser: u.SSOUser,
+		// Secrets may have already been cleared
+		MFA: u.MFA,
+	}
+	// This is goofy...
+	if len(u.DefaultSearchGroups) > 0 {
+		ud.DefaultGID = u.DefaultSearchGIDs()[0]
+	}
+	for _, g := range u.Groups {
+		ud.Groups = append(ud.Groups, g.GetOld())
+	}
+	return &ud
+}
+
+// CapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
+func (u *User) CapabilityList() []CapabilityDesc {
+	return CreateUserCapabilityList(u.GetOld())
+}
+
+// HasCapability returns whether the user has access to a given capability
+func (u *User) HasCapability(c Capability) bool {
+	return CheckUserCapabilityAccess(u.GetOld(), c)
+}
+
+type Group struct {
+	ID             int32
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      time.Time
+	Name           string
+	Description    string
+	SearchPriority int
+}
+
+// GroupWithCBAC is just the Group struct plus CBAC information. Only available via admin APIs.
+type GroupWithCBAC struct {
+	Group
+	CBAC CBACExpandedRules
+}
+
+// GroupPatch is the type used to request an update to an existing Group.
+type GroupPatch struct {
+	Description Optional[string] `json:",omitzero"`
+	// Name cannot be updated to ""
+	Name Optional[string] `json:",omitzero"`
+}
+
+// ToPatch converts g into a GroupPatch with every editable field set.
+func (g *Group) ToPatch() GroupPatch {
+	return GroupPatch{
+		Description: NewOptional(g.Description),
+		Name:        NewOptional(g.Name),
+	}
+}
+
+func (g *Group) GetOld() GroupDetails {
+	return GroupDetails{
+		GID:  g.ID,
+		Name: g.Name,
+		Desc: g.Description,
+	}
+}
+
+type UserPreference struct {
+	CommonFields
+
+	Data RawObject
+}
+
+// UserPreferencePatch is the type used to request an update to an existing UserPreference.
+type UserPreferencePatch struct {
+	CommonFieldsPatch
+	Data Optional[RawObject] `json:",omitzero"`
+}
+
+// ToPatch converts p into a UserPreferencePatch with every field set.
+func (p UserPreference) ToPatch() UserPreferencePatch {
+	return UserPreferencePatch{
+		CommonFieldsPatch: p.CommonFields.ToPatch(),
+		Data:              NewOptional(p.Data),
+	}
+}
+
+type UserPreferenceResponse struct {
+	BaseListResponse
+	Results []UserPreference
+}
+
+type UserListResponse struct {
+	BaseListResponse
+	Results []User
+}
+
+type GroupListResponse struct {
+	BaseListResponse
+	Results []Group
 }

@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -9,7 +9,8 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"hash/fnv"
 	"io"
@@ -17,8 +18,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -67,9 +69,7 @@ const (
 
 	STATS_MASK    uint32 = 0xFF000000
 	STATS_MASK_ID uint32 = 0x7F000000
-)
 
-const (
 	DownloadJSON       string = `json`       //encode as JSON
 	DownloadCSV        string = `csv`        //standard CSV file
 	DownloadText       string = `text`       //just text...
@@ -96,36 +96,156 @@ const (
 	RenderNamePointmap   string = `pointmap`
 	RenderNameHeatmap    string = `heatmap`
 	RenderNameP2P        string = `point2point`
+	RenderNameWordcloud  string = `wordcloud`
 
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
+
+	ResultsKindTable = "table"
+	ResultsKindGraph = "graph"
+
+	TransformOperatorCount       TransformOperator = "count"
+	TransformOperatorSum         TransformOperator = "sum"
+	TransformOperatorTotal       TransformOperator = "total"
+	TransformOperatorMean        TransformOperator = "mean"
+	TransformOperatorStddev      TransformOperator = "stddev"
+	TransformOperatorVariance    TransformOperator = "variance"
+	TransformOperatorMin         TransformOperator = "min"
+	TransformOperatorMax         TransformOperator = "max"
+	TransformOperatorUniqueCount TransformOperator = "unique_count"
 )
 
+var (
+	ErrResultsRequestStatsOverInvalid = errors.New("only one of 'width' or 'count' may be specified, got both")
+	ErrResultsResponseInvalid         = errors.New("ResultsResponse has no variant set")
+)
+
+// TransformOperator represents the operator to apply to results
+type TransformOperator string
+
+type ResultsRequest struct {
+	Fence  Geofence
+	End    time.Time
+	Limit  uint64        `json:",omitempty"`
+	Offset uint64        `json:",omitempty"`
+	Sort   []ResultsSort `json:",omitempty"`
+	Start  time.Time
+	SID    string
+	Stats  ResultsRequestStats
+}
+
+type ResultsSort struct {
+	Column string
+	// One of "asc" | "desc"
+	Direction string `json:",omitempty"`
+	// One of "string" | "number" | "IP" | "time"
+	SortAs string `json:",omitempty"`
+}
+
+type ResultsRequestStats struct {
+	Operations ResultsRequestStatsOperationList `json:",omitempty"`
+	Over       ResultsRequestStatsOver
+}
+
+type ResultsRequestStatsOperationList = []StatsOperation
+
+// ResultsRequestStatsOver only one of the properties is populated at a time.
+type ResultsRequestStatsOver struct {
+	OverWidth *ResultsRequestStatsOverWidth
+	OverCount *ResultsRequestStatsOverCount
+}
+
+type ResultsRequestStatsOverCount struct {
+	Count int
+}
+
+type ResultsRequestStatsOverWidth struct {
+	Width int
+}
+
+type StatsInfo struct {
+	// If omitted, no stats operations are fixed.
+	FixedStatsOperation []StatsOperation `json:",omitempty"`
+	// One of: "querySpecifiedRenderer" | "incompatibleWithFinalModule". If omitted, stats operations are not disabled.
+	StatsOperationsDisabled string `json:",omitempty"`
+}
+
+type StatsOperation struct {
+	As string   `json:",omitempty"`
+	By []string `json:",omitempty"`
+	// The EV to perform the operation on. If omitted, the operand will be the entire entry.
+	Operand string `json:",omitempty"`
+	// one of "count" | "sum" | "avg" | "min" | "max"
+	Operation string
+}
+
+// ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
+type ResultsResponse struct {
+	Table *ResultsTable
+	Graph *ResultsGraph
+}
+
+type ResultsTable struct {
+	HasExplore       bool
+	Kind             string
+	BinCount         int
+	BinWidth         float64
+	Columns          []string
+	Rows             []map[string]*ResultsTableCell
+	TotalResultCount int64
+}
+
+type ResultsTableCell struct {
+	Elements    []Element `json:",omitempty"`
+	Value       string
+	WordOffsets []WordOffset `json:",omitempty"`
+}
+
+type ResultsGraph struct {
+	Kind                     string
+	Links                    []ResultsGraphLink
+	NodeEnumeratedValueNames []string
+	LinkEnumeratedValueNames []string
+	Nodes                    []ResultsGraphNode
+}
+
+type ResultsGraphLink struct {
+	Source           string
+	Target           string
+	EnumeratedValues map[string]string
+}
+
+type ResultsGraphNode struct {
+	EnumeratedValues map[string]string
+	ID               string
+}
+
 type TimeRange struct {
-	StartTS entry.Timestamp `json:",omitempty"`
-	EndTS   entry.Timestamp `json:",omitempty"`
+	StartTS entry.Timestamp
+	EndTS   entry.Timestamp
 }
 
 type EntryRange struct {
-	StartTS entry.Timestamp `json:",omitempty"`
-	EndTS   entry.Timestamp `json:",omitempty"`
+	StartTS entry.Timestamp
+	EndTS   entry.Timestamp
 	First   uint64
 	Last    uint64
 }
 
 // BaseRequest contains elements common to all renderer requests.
+// DEPRECATED - use REST API
 type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
 	EntryRange *EntryRange         `json:",omitempty"`
-	Addendum   json.RawMessage     `json:",omitempty"`
+	Addendum   jsontext.Value      `json:",omitempty"`
 }
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
-	ID         uint32
+	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
-	Addendum   json.RawMessage           `json:",omitempty"`
+	Addendum   jsontext.Value            `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
 	EntryRange *EntryRange               `json:",omitempty"`
 	Metadata   *SearchMetadata           `json:",omitempty"`
@@ -155,14 +275,20 @@ type BaseResponse struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
+	// SessionID is the search Session ID, used for tracking "handles" on a search using REST interface
+	SessionID uuid.UUID
+
+	// Interval is the number of seconds between hits on the search control REST API for a given second
+	// that can transpire before we consider the search session abandoned
+	Interval uint
+
+	// Messages are warnings, errors, etc. for this request.
+	Messages []Message
 }
 
-func (br BaseResponse) Err() error {
-	if br.Error != `` {
-		return errors.New(br.Error)
+func (b BaseResponse) Err() error {
+	if b.Error != `` {
+		return errors.New(b.Error)
 	}
 	return nil
 }
@@ -218,8 +344,8 @@ type IndexManagerStats struct {
 
 type IdxStats struct {
 	UUID       uuid.UUID
-	Error      string              `json:",omitempty"`
-	IndexStats []IndexManagerStats `json:",omitempty"`
+	Error      string `json:",omitempty"`
+	IndexStats []IndexManagerStats
 }
 
 type IdxStatResponse struct {
@@ -288,23 +414,28 @@ type IngesterStatsResponse struct {
 
 type SearchStatsRequest struct {
 	SetCount int64           `json:",omitempty"`
-	SetStart entry.Timestamp `json:",omitempty"`
-	SetEnd   entry.Timestamp `json:",omitempty"`
-	Addendum json.RawMessage `json:",omitempty"`
+	SetStart entry.Timestamp `json:",omitzero"`
+	SetEnd   entry.Timestamp `json:",omitzero"`
+	Addendum jsontext.Value  `json:",omitempty"`
 }
 
 type SearchStatsResponse struct {
-	Addendum    json.RawMessage   `json:",omitempty"`
-	RangeStart  entry.Timestamp   `json:",omitempty"`
-	RangeEnd    entry.Timestamp   `json:",omitempty"`
-	Current     entry.Timestamp   `json:",omitempty"`
-	Set         []StatSet         `json:",omitempty"`
-	OverviewSet []OverviewStatSet `json:",omitempty"`
+	Addendum    jsontext.Value  `json:"-"`
+	RangeStart  entry.Timestamp `json:",omitzero"`
+	RangeEnd    entry.Timestamp `json:",omitzero"`
+	Current     entry.Timestamp `json:",omitzero"`
+	Set         []StatSet
+	OverviewSet []OverviewStatSet `json:"-"`
 	Size        int               `json:",omitempty"`
 }
 
+type StatSetResponse struct {
+	Stats    []StatSet
+	Messages []Message
+}
+
 type StatSet struct {
-	Stats     []SearchModuleStats
+	Stats     []SearchModuleStats `json:"ModuleStats"`
 	TS        entry.Timestamp
 	populated bool
 }
@@ -328,16 +459,16 @@ type OverviewStats struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
-
 	// For some renderers, the EntryCount accurately represents the total
 	// number of results available. This field is set to 'true' in that case,
 	// meaning the EntryCount number can be displayed alongside the results
 	// without confusion.
 	EntryCountValid bool
+	EntryCount      uint64
 	Stats           []OverviewStatSet `json:",omitempty"`
+
+	// Warnings, errors, etc.
+	Messages []Message
 }
 
 type SearchMetadataNumber struct {
@@ -354,8 +485,8 @@ type SearchMetadataRaw struct {
 type SearchMetadataEntry struct {
 	Name   string
 	Type   string
-	Number SearchMetadataNumber `json:",omitempty"`
-	Raw    SearchMetadataRaw    `json:",omitempty"`
+	Number SearchMetadataNumber
+	Raw    SearchMetadataRaw
 }
 
 type SourceMetadataEntry struct {
@@ -367,6 +498,7 @@ type SearchMetadata struct {
 	ValueStats  []SearchMetadataEntry `json:",omitempty"`
 	SourceStats []SourceMetadataEntry `json:",omitempty"`
 	TagStats    map[string]uint       `json:",omitempty"`
+	Messages    []Message
 }
 
 func (ss *StatSet) AddParts(ts entry.Timestamp, stats []SearchModuleStats) {
@@ -423,7 +555,7 @@ func (tr *TimeRange) Swap() {
 }
 
 func (tr *TimeRange) DecodeJSON(r io.Reader) error {
-	if err := json.NewDecoder(r).Decode(tr); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(r), &tr); err != nil {
 		if err == io.EOF {
 			tr.StartTS = entry.Timestamp{}
 			tr.EndTS = entry.Timestamp{}
@@ -446,17 +578,6 @@ func (is IngesterStats) Hash() uint64 {
 	return n.Sum64()
 }
 
-func (is IngesterStats) MarshalJSON() ([]byte, error) {
-	type alias IngesterStats
-	return json.Marshal(&struct {
-		alias
-		Tags emptyStrings
-	}{
-		alias: alias(is),
-		Tags:  emptyStrings(is.Tags),
-	})
-}
-
 func UniqueIngesters(sts []IngestStats) (r uint64) {
 	mp := map[uint64]bool{}
 	for _, st := range sts {
@@ -471,87 +592,55 @@ func UniqueIngesters(sts []IngestStats) (r uint64) {
 	return
 }
 
-func (m *RenderModuleInfo) MarshalJSON() ([]byte, error) {
-	type alias RenderModuleInfo
-	return json.Marshal(&struct {
-		alias
-		Examples emptyStrings
-	}{
-		alias:    alias(*m),
-		Examples: emptyStrings(m.Examples),
-	})
-}
+type emptyPrintableEntries []SearchEntry
 
-type emptyEntries []SearchEntry
-
-func (ee emptyEntries) MarshalJSON() ([]byte, error) {
+func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
 	if len(ee) == 0 {
 		return emptyList, nil
 	}
-	return json.Marshal(([]SearchEntry)(ee))
-}
 
-type emptyIngesterStats []IngesterStats
-
-func (eis emptyIngesterStats) MarshalJSON() ([]byte, error) {
-	if len(eis) == 0 {
-		return emptyList, nil
+	var pse []PrintableSearchEntry
+	for _, v := range ([]SearchEntry)(ee) {
+		pse = append(pse, PrintableSearchEntry(v))
 	}
-	return json.Marshal([]IngesterStats(eis))
+	return json.Marshal(pse, jsoncompat.Opts)
 }
 
-type emptyIngesterStates []ingest.IngesterState
-
-func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
-	if len(eis) == 0 {
-		return emptyList, nil
+func (r RawResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(r.BaseResponse, jsoncompat.Opts)
+	if err != nil {
+		return nil, err
 	}
-	return json.Marshal([]ingest.IngesterState(eis))
-}
+	base[len(base)-1] = ','
 
-func (is IngestStats) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		QuotaUsed         uint64
-		QuotaMax          uint64
-		EntriesPerSecond  float64
-		BytesPerSecond    float64
-		TotalCount        uint64
-		TotalSize         uint64
-		LastDayCount      uint64 //total entries in last 24 hours
-		LastDaySize       uint64 //total ingested in last 24 hours
-		EntriesHourTail   [24]uint64
-		EntriesMinuteTail [60]uint64
-		BytesHourTail     [24]uint64
-		BytesMinuteTail   [60]uint64
-		Ingesters         emptyIngesterStats
-		Missing           emptyIngesterStates
-	}{
-		QuotaUsed:         is.QuotaUsed,
-		QuotaMax:          is.QuotaMax,
-		EntriesPerSecond:  is.EntriesPerSecond,
-		BytesPerSecond:    is.BytesPerSecond,
-		TotalCount:        is.TotalCount,
-		TotalSize:         is.TotalSize,
-		LastDayCount:      is.LastDayCount,
-		LastDaySize:       is.LastDaySize,
-		EntriesHourTail:   is.EntriesHourTail,
-		EntriesMinuteTail: is.EntriesMinuteTail,
-		BytesHourTail:     is.BytesHourTail,
-		BytesMinuteTail:   is.BytesMinuteTail,
-		Ingesters:         emptyIngesterStats(is.Ingesters),
-		Missing:           emptyIngesterStates(is.Missing),
-	})
-}
+	var e []byte
 
-func (rr RawResponse) MarshalJSON() ([]byte, error) {
-	type alias RawResponse
-	return json.Marshal(&struct {
-		alias
-		Entries emptyEntries
-	}{
-		alias:   alias(rr),
-		Entries: emptyEntries(rr.Entries),
-	})
+	if r.printableData {
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               emptyPrintableEntries
+			Explore               []ExploreResult `json:",omitempty"`
+		}{
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               emptyPrintableEntries(r.Entries),
+			Explore:               r.Explore,
+		}, jsoncompat.Opts)
+	} else {
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               []SearchEntry
+			Explore               []ExploreResult `json:",omitempty"`
+		}{
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               r.Entries,
+			Explore:               r.Explore,
+		}, jsoncompat.Opts)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }
 
 func (tr *TimeRange) UnmarshalJSON(d []byte) error {
@@ -568,22 +657,58 @@ func (tr *TimeRange) UnmarshalJSON(d []byte) error {
 	return nil
 }
 
-func (ssr SearchStatsRequest) MarshalJSON() ([]byte, error) {
-	type alias SearchStatsRequest
-	return json.Marshal(&struct {
-		alias
-		SetStart *entry.Timestamp `json:",omitempty"`
-		SetEnd   *entry.Timestamp `json:",omitempty"`
-	}{
-		alias:    alias(ssr),
-		SetStart: tsPointer(ssr.SetStart),
-		SetEnd:   tsPointer(ssr.SetEnd),
-	})
+func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
+	if rr.OverCount != nil && rr.OverWidth != nil {
+		return nil, ErrResultsRequestStatsOverInvalid
+	}
+
+	if rr.OverCount != nil {
+		return json.Marshal(rr.OverCount)
+	}
+
+	if rr.OverWidth != nil {
+		return json.Marshal(rr.OverWidth)
+	}
+
+	return []byte(`{}`), nil
 }
 
-func tsPointer(t entry.Timestamp) *entry.Timestamp {
-	if t.IsZero() {
+func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
+	if len(d) == 0 || string(d) == "null" {
 		return nil
 	}
-	return &t
+
+	var raw map[string]int
+	if err := json.Unmarshal(d, &raw); err != nil {
+		return err
+	}
+
+	w, hasWidth := raw["width"]
+	c, hasCount := raw["count"]
+
+	if hasWidth && hasCount {
+		return ErrResultsRequestStatsOverInvalid
+	}
+
+	if hasWidth {
+		rr.OverWidth = &ResultsRequestStatsOverWidth{Width: w}
+	}
+
+	if hasCount {
+		rr.OverCount = &ResultsRequestStatsOverCount{Count: c}
+	}
+
+	return nil
+}
+
+func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
+	if rr.Table != nil {
+		return json.Marshal(rr.Table)
+	}
+
+	if rr.Graph != nil {
+		return json.Marshal(rr.Graph)
+	}
+
+	return nil, ErrResultsResponseInvalid
 }

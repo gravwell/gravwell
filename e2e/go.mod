@@ -1,6 +1,6 @@
 module gravwell/e2e
 
-go 1.26.8
+go 1.27.0
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
@@ -17,7 +17,8 @@ require (
 	google.golang.org/protobuf v1.36.12
 )
 
-replace github.com/gravwell/gravwell/v3 => ..
+// todo(2278) update to v4 post next-major beta
+// replace github.com/gravwell/gravwell/v4 => ..
 
 require (
 	dario.cat/mergo v1.0.2 // indirect

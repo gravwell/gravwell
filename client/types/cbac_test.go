@@ -234,7 +234,7 @@ func TestAddRemove(t *testing.T) {
 }
 
 func TestOverlap(t *testing.T) {
-	//setup user with default allow and two groups, all allow
+	//setup user with default allow and two groups
 	ud := UserDetails{
 		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
@@ -243,18 +243,18 @@ func TestOverlap(t *testing.T) {
 		},
 	}
 
-	//check that the user cannot do... anything
+	//check that the user cannot do anything
 	for _, c := range fullCapList {
 		if ud.HasCapability(c) {
-			t.Fatal("user does not have capability with all allow")
+			t.Fatalf("user has capability with empty sets: %s", c.String())
 		}
 	}
 
-	//swap the last group to deny and recheck
+	//swap the last to all and check they show
 	ud.Groups[1].CBAC.Capabilities = testGetAllCaps()
-	for _, c := range fullCapList {
+	for _, c := range userCapList {
 		if !ud.HasCapability(c) {
-			t.Fatal("user has capability with group deny")
+			t.Fatalf("user missing capability with all caps: %s", c.String())
 		}
 	}
 }
@@ -293,6 +293,29 @@ func TestOverlapWithUserExplicit(t *testing.T) {
 	}
 }
 
+func TestAdmin(t *testing.T) {
+	adminCap := adminOnlyCapList[0]
+
+	// ensure admin is allowed to have an admin cap
+	admin := UserDetails{
+		Admin: true,
+		CBAC:  CBACRules{Capabilities: CapabilitySet{}},
+	}
+	admin.CBAC.Capabilities.Set(adminCap)
+	if !admin.HasCapability(adminCap) {
+		t.Fatalf("%q capability not set", adminCap)
+	}
+
+	// ensure user is dened admin cap even if assigned
+	ud := UserDetails{
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
+	}
+	ud.CBAC.Capabilities.Set(adminCap)
+	if ud.HasCapability(adminCap) {
+		t.Fatalf("%q capability not set", adminCap)
+	}
+}
+
 func TestCapabilityList(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
@@ -302,17 +325,31 @@ func TestCapabilityList(t *testing.T) {
 			GroupDetails{CBAC: CBACRules{Capabilities: testGetAllCaps()}},
 		},
 	}
-	if lst := ud.CapabilityList(); len(lst) != len(fullCapList) {
+	if lst := ud.CapabilityList(); len(lst) != len(userCapList) {
 		t.Fatalf("wide open user does not have all capabilities: %d != %d", len(lst), _maxCap)
 	}
 
 	ud.Groups[1].CBAC.Capabilities = CapabilitySet{}
-	//allow a few explicite in the group
+	//allow a few explicit in the group
 	ud.Groups[1].CBAC.Capabilities.Set(Download)
 	if lst := ud.CapabilityList(); len(lst) != 1 {
 		t.Fatalf("shut out user has capabilities: %d != 1", len(lst))
 	} else if lst[0].Name != Download.Name() {
 		t.Fatalf("invalid allowed list: %v", lst)
+	}
+
+	// ensure all caps come back in the list if set
+	ud.Groups[1].CBAC.Capabilities = CapabilitySet{}
+	ud.Admin = true
+	for i := Search; i.Valid(); i++ {
+		ud.CBAC.Capabilities = CapabilitySet{}
+		if i == 5 {
+			continue
+		}
+		ud.CBAC.Capabilities.Set(i)
+		if lst := ud.CapabilityList(); len(lst) != 1 {
+			t.Fatalf("user missing cap: %q", i.Name())
+		}
 	}
 }
 
@@ -432,7 +469,7 @@ func TestGlobalTagDenyExplicitAllowGroup(t *testing.T) {
 }
 
 func testGetAllCaps() (cs CapabilitySet) {
-	for _, c := range fullCapList {
+	for _, c := range userCapList {
 		cs.Set(c)
 	}
 	return
