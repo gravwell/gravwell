@@ -5,12 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"golang.org/x/time/rate"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +33,8 @@ type runtime struct {
 	failDelivery         bool
 	states               map[string][]byte
 	negotiatedTags       []string
+	putCounts            map[string]int
+	warnings             int
 }
 
 func (r *runtime) SyncContext(ctx context.Context, timeout time.Duration) error {
@@ -87,11 +92,20 @@ func (r *runtime) Put(key string, b []byte) error {
 		return errors.New("synthetic state failure")
 	}
 	r.saved = append([]byte(nil), b...)
+	if r.putCounts != nil {
+		r.putCounts[key]++
+	}
 	if r.states != nil {
 		r.states[key] = append([]byte(nil), b...)
 	}
 	return nil
 }
+
+func (r *runtime) Debug(string, ...rfc5424.SDParam)    {}
+func (r *runtime) Info(string, ...rfc5424.SDParam)     {}
+func (r *runtime) Warn(string, ...rfc5424.SDParam)     { r.warnings++ }
+func (r *runtime) Error(string, ...rfc5424.SDParam)    {}
+func (r *runtime) Critical(string, ...rfc5424.SDParam) {}
 func (r *runtime) Write(e entry.Entry) error {
 	if r.failWrite {
 		return errors.New("synthetic write failure")
@@ -195,8 +209,8 @@ func TestChatMessagesUseCorrectEnvelope(t *testing.T) {
 		t.Fatal("accepted wrong messages envelope")
 	}
 }
-func TestFailuresNeverAdvanceState(t *testing.T) {
-	for _, kind := range []string{"write", "403", "application", "missing-array", "repeated", "missing-token", "size"} {
+func TestFailuresBeforePageCommitNeverAdvanceState(t *testing.T) {
+	for _, kind := range []string{"write", "403", "application", "missing-array", "missing-token", "size"} {
 		t.Run(kind, func(t *testing.T) {
 			p, rt := setup(t, "activities")
 			rt.failWrite = kind == "write"
@@ -229,6 +243,23 @@ func TestFailuresNeverAdvanceState(t *testing.T) {
 				t.Fatal("error leaked response")
 			}
 		})
+	}
+}
+
+func TestRepeatedCursorRetainsCompletedPageCheckpoint(t *testing.T) {
+	p, rt := setup(t, "activities")
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"data":[{"id":"x"}],"has_more":true,"last_id":"same"}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e == nil {
+		t.Fatal("repeated cursor accepted")
+	}
+	if len(rt.entries) != 1 || rt.saved == nil {
+		t.Fatal("completed page checkpoint was not retained")
+	}
+	var st state
+	if e := json.Unmarshal(rt.saved, &st); e != nil || st.Traversal == nil || st.Traversal.Cursor != "same" {
+		t.Fatal("missing resumable traversal state")
 	}
 }
 func TestRetryAfterAndNoRetryHeader(t *testing.T) {
@@ -325,8 +356,8 @@ func TestStandardRuntimeDoesNotNeedPrivateMethods(t *testing.T) {
 	}
 }
 
-func TestPartialPageAndStateFailuresReplay(t *testing.T) {
-	for _, failure := range []string{"next-page", "state", "cancel-after-sync", "max-pages"} {
+func TestPageCheckpointBoundsReplayAfterLaterFailure(t *testing.T) {
+	for _, failure := range []string{"next-page", "state", "cancel-after-sync"} {
 		t.Run(failure, func(t *testing.T) {
 			p, rt := setup(t, "activities")
 			failed := true
@@ -342,26 +373,58 @@ func TestPartialPageAndStateFailuresReplay(t *testing.T) {
 				return reply(`{"data":[{"id":"a"}],"has_more":true,"last_id":"a"}`, 200), nil
 			})
 			rt.failState = failure == "state"
-			if failure == "max-pages" {
-				p.conf.Max_Pages = 1
-			}
 			if failure == "cancel-after-sync" {
 				p.syncIngest = func(context.Context, time.Duration) error { cancel(); return nil }
 			}
-			if _, err := p.Handle(ctx, rt); err == nil || rt.saved != nil {
-				t.Fatal("failure advanced checkpoint")
+			if _, err := p.Handle(ctx, rt); err == nil {
+				t.Fatal("failure accepted")
 			}
 			before := len(rt.entries)
+			if failure == "next-page" {
+				if rt.saved == nil {
+					t.Fatal("completed page was not checkpointed")
+				}
+			} else if rt.saved != nil {
+				t.Fatal("failed page advanced checkpoint")
+			}
 			failed, rt.failState = false, false
-			p.conf.Max_Pages = 5
 			p.syncIngest = rt.SyncContext
 			if _, err := p.Handle(t.Context(), rt); err != nil {
 				t.Fatal(err)
 			}
-			if len(rt.entries) != before+2 || rt.saved == nil {
-				t.Fatal("partial cycle was not replayed")
+			wantAdded := 2
+			if failure == "next-page" {
+				wantAdded = 1
+			}
+			if len(rt.entries) != before+wantAdded || rt.saved == nil {
+				t.Fatal("unexpected replay after failure")
 			}
 		})
+	}
+}
+
+func TestMaxPagesContinuesFromCommittedCursor(t *testing.T) {
+	p, rt := setup(t, "activities")
+	p.conf.Max_Pages = 1
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Query().Get("after_id") == "a" {
+			return reply(`{"data":[{"id":"b"}],"has_more":false}`, 200), nil
+		}
+		return reply(`{"data":[{"id":"a"}],"has_more":true,"last_id":"a"}`, 200), nil
+	})
+	cont, e := p.Handle(t.Context(), rt)
+	if e != nil || cont == nil || cont.Delay != 0 || len(rt.entries) != 1 || rt.saved == nil {
+		t.Fatal("page limit did not return a committed immediate continuation")
+	}
+	restarted, e := New(p.conf, rt)
+	if e != nil {
+		t.Fatal(e)
+	}
+	restarted.http.Transport = p.http.Transport
+	restarted.now, restarted.wait, restarted.limiter = p.now, p.wait, p.limiter
+	cont, e = restarted.Handle(t.Context(), rt)
+	if e != nil || cont == nil || cont.Delay == 0 || len(rt.entries) != 2 {
+		t.Fatal("resumed traversal did not complete without replay")
 	}
 }
 
@@ -605,9 +668,18 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	p.conf.Max_Children = 2
 	rt.states = map[string][]byte{}
 	list := worklist{Items: map[string]work{
-		"old1": {Dataset: "group-members", Parameter: []string{"group_id:old1"}, LastCompleted: p.now().Add(-time.Hour)},
-		"old2": {Dataset: "group-members", Parameter: []string{"group_id:old2"}, LastCompleted: p.now()},
+		"old1": {Dataset: "group-members", Parameter: []string{"group_id:old1"}, Revision: "rev-old1", LastCompleted: p.now().Add(-time.Hour)},
+		"old2": {Dataset: "group-members", Parameter: []string{"group_id:old2"}, Revision: "rev-old2", LastCompleted: p.now()},
 	}}
+	old1 := list.Items["old1"]
+	old1Config, e := childConfig(p.conf, old1)
+	if e != nil {
+		t.Fatal(e)
+	}
+	old1.StateKey = old1Config.key()
+	list.Items["old1"] = old1
+	large, _ := json.Marshal(state{Since: p.now(), Manifest: map[string]string{"message": strings.Repeat("a", 4096)}})
+	rt.states[old1.StateKey] = large
 	b, _ := json.Marshal(list)
 	rt.states[p.conf.key()+"/child-work-v1"] = b
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -629,6 +701,10 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	if _, ok := list.Items["old1"]; ok {
 		t.Fatal("oldest completed entry retained")
 	}
+	var pruned state
+	if e := json.Unmarshal(rt.states[old1.StateKey], &pruned); e != nil || len(pruned.Manifest) != 0 || pruned.Retired != "rev-old1" {
+		t.Fatal("evicted child checkpoint was not compacted")
+	}
 	for k, w := range list.Items {
 		w.Pending = true
 		w.RetryAt = p.now().Add(time.Hour)
@@ -639,8 +715,17 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		return reply(`{"data":[{"id":"different"}],"has_more":false}`, 200), nil
 	})
-	if _, e := p.Handle(t.Context(), rt); e == nil {
-		t.Fatal("pending work silently evicted")
+	before := len(rt.entries)
+	cont, e := p.Handle(t.Context(), rt)
+	if e != nil || cont == nil || cont.Delay != 0 {
+		t.Fatal("pending capacity did not defer the root page")
+	}
+	if len(rt.entries) != before {
+		t.Fatal("deferred root page was partially written")
+	}
+	var after worklist
+	if e = json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &after); e != nil || len(after.Items) != 2 {
+		t.Fatal("pending work was not preserved")
 	}
 }
 
@@ -752,5 +837,272 @@ func TestSingleUnderscoreMetadataPreservesNativeRecord(t *testing.T) {
 	}
 	if rt.saved == nil {
 		t.Fatal("acknowledged record did not retain normal checkpoint behavior")
+	}
+}
+
+func TestRecordCapContinuesFromCommittedCursor(t *testing.T) {
+	p, rt := setup(t, "activities")
+	p.maxRecords = 1
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Query().Get("after_id") == "a" {
+			return reply(`{"data":[{"id":"b"}],"has_more":false}`, 200), nil
+		}
+		return reply(`{"data":[{"id":"a"}],"has_more":true,"last_id":"a"}`, 200), nil
+	})
+	cont, e := p.Handle(t.Context(), rt)
+	if e != nil || cont == nil || cont.Delay != 0 || len(rt.entries) != 1 {
+		t.Fatal("record cap did not preserve a resumable page boundary")
+	}
+	cont, e = p.Handle(t.Context(), rt)
+	if e != nil || cont == nil || cont.Delay == 0 || len(rt.entries) != 2 {
+		t.Fatal("record-cap continuation replayed or skipped data")
+	}
+}
+
+func TestPendingCapacityDefersPageWithoutDuplicateRootWrites(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Pending = 2
+	p.conf.Max_Children = 2
+	rt.states = map[string][]byte{}
+	children := map[string]int{}
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[{"id":"g1"},{"id":"g2"},{"id":"g3"}],"has_more":false}`, 200), nil
+		}
+		for _, id := range []string{"g1", "g2", "g3"} {
+			if strings.Contains(r.URL.Path, id) {
+				children[id]++
+				return reply(`{"data":[],"has_more":false}`, 200), nil
+			}
+		}
+		t.Fatal("unexpected child path")
+		return nil, nil
+	})
+	cont, e := p.Handle(t.Context(), rt)
+	if e != nil || cont == nil || cont.Delay != 0 || len(rt.entries) != 0 {
+		t.Fatal("capacity-limited page was partially accepted")
+	}
+	cont, e = p.Handle(t.Context(), rt)
+	if e != nil || cont == nil || cont.Delay == 0 || len(rt.entries) != 3 {
+		t.Fatal("deferred root page did not complete exactly once")
+	}
+	for _, id := range []string{"g1", "g2", "g3"} {
+		if children[id] != 1 {
+			t.Fatalf("child %s calls = %d", id, children[id])
+		}
+	}
+}
+
+func TestChildWorkPersistenceIsBatchedPerPage(t *testing.T) {
+	p, rt := setup(t, "activities")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	rt.putCounts = map[string]int{}
+	var body strings.Builder
+	body.WriteString(`{"data":[`)
+	for i := 0; i < 500; i++ {
+		if i > 0 {
+			body.WriteByte(',')
+		}
+		fmt.Fprintf(&body, `{"id":"a-%d"}`, i)
+	}
+	body.WriteString(`],"has_more":false}`)
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(body.String(), 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if got := rt.putCounts[p.conf.key()+"/child-work-v1"]; got != 0 {
+		t.Fatalf("activity records wrote child worklist %d times", got)
+	}
+	if got := rt.putCounts[p.conf.key()]; got != 1 {
+		t.Fatalf("dataset checkpoint writes = %d", got)
+	}
+}
+
+func TestOversizedSessionContextDoesNotBlockMessages(t *testing.T) {
+	p, rt := setup(t, "local-session-messages")
+	session := strings.Repeat("s", entry.MaxEvDataLength+1)
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"session":{"id":"`+session+`"},"data":[{"id":"m","content":"retained"}],"next_page":null}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 1 || rt.saved == nil || rt.warnings != 1 {
+		t.Fatal("oversized session blocked message delivery")
+	}
+	if _, ok := rt.entries[0].GetEnumeratedValue("_session"); ok {
+		t.Fatal("oversized session was attached as an enumerated value")
+	}
+	if !bytes.Contains(rt.entries[0].Data, []byte(`"content":"retained"`)) {
+		t.Fatal("native message fields were discarded")
+	}
+}
+
+func TestDiscoveredChatCollectsHistoryBeforeUsingWindow(t *testing.T) {
+	p, rt := setup(t, "chats")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	childQueries := []url.Values{}
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/chats") {
+			return reply(`{"data":[{"id":"c1","updated_at":"2020-01-01T00:00:00Z"}],"has_more":false}`, 200), nil
+		}
+		childQueries = append(childQueries, r.URL.Query())
+		return reply(`{"session":{"id":"c1"},"chat_messages":[],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(childQueries) != 1 || childQueries[0].Has("updated_at.gte") || childQueries[0].Has("updated_at.lte") {
+		t.Fatal("initial discovered chat history was windowed")
+	}
+	oldNow := p.now()
+	p.now = func() time.Time { return oldNow.Add(2 * time.Hour) }
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(childQueries) != 2 || !childQueries[1].Has("updated_at.gte") || !childQueries[1].Has("updated_at.lte") {
+		t.Fatal("completed chat history did not resume bounded polling")
+	}
+}
+
+func TestLegacyDiscoveredChatCheckpointGetsHistoryBackfill(t *testing.T) {
+	p, rt := setup(t, "chat-messages")
+	p.conf.discovered = true
+	rt.states = map[string][]byte{}
+	legacy, e := json.Marshal(state{
+		Since:    p.now().Add(-time.Hour),
+		Manifest: map[string]string{"old": "digest"},
+	})
+	if e != nil {
+		t.Fatal(e)
+	}
+	rt.states[p.conf.key()] = legacy
+	var query url.Values
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		query = r.URL.Query()
+		return reply(`{"session":{"id":"c1"},"chat_messages":[],"has_more":false}`, 200), nil
+	})
+	if _, e = p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if query.Has("updated_at.gte") || query.Has("updated_at.lte") {
+		t.Fatal("legacy discovered chat checkpoint skipped corrective history backfill")
+	}
+	var upgraded state
+	if e = json.Unmarshal(rt.states[p.conf.key()], &upgraded); e != nil {
+		t.Fatal(e)
+	}
+	if !upgraded.HistoryComplete {
+		t.Fatal("corrective history backfill was not recorded")
+	}
+}
+
+func TestMissingParentIdentityIsLoggedAndSkipped(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	children := map[string]int{}
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[{"id":"g1"},{"name":"missing-id"},{"id":"g2"}],"has_more":false}`, 200), nil
+		}
+		for _, id := range []string{"g1", "g2"} {
+			if strings.Contains(r.URL.Path, id) {
+				children[id]++
+				return reply(`{"data":[],"has_more":false}`, 200), nil
+			}
+		}
+		t.Fatal("unexpected child path")
+		return nil, nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 3 || rt.saved == nil || rt.warnings != 1 {
+		t.Fatal("malformed parent blocked the root dataset")
+	}
+	if children["g1"] != 1 || children["g2"] != 1 {
+		t.Fatal("valid siblings were not collected")
+	}
+}
+
+func TestCredentialReadsFullFileAndRejectsUnsafeContent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "key")
+	want := strings.Repeat("k", 16384)
+	if e := os.WriteFile(path, []byte(want), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if got, e := credential(path); e != nil || got != want {
+		t.Fatal("full credential file was not read")
+	}
+	if e := os.WriteFile(path, []byte("key\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if got, e := credential(path); e != nil || got != "key" {
+		t.Fatal("single trailing newline was not handled")
+	}
+	if e := os.WriteFile(path, []byte("first\nsecond"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := credential(path); e == nil {
+		t.Fatal("multiline credential accepted")
+	}
+	if e := os.WriteFile(path, []byte(strings.Repeat("x", 16385)), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := credential(path); e == nil {
+		t.Fatal("oversized credential accepted")
+	}
+}
+
+func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
+	p, rt := setup(t, "chats")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	deleted := false
+	childCalls := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/chats") {
+			if deleted {
+				return reply(`{"data":[{"id":"c1","deleted_at":"2026-09-08T01:00:00Z"}],"has_more":false}`, 200), nil
+			}
+			return reply(`{"data":[{"id":"c1","deleted_at":null}],"has_more":false}`, 200), nil
+		}
+		childCalls++
+		return reply(`{"session":{"id":"c1"},"chat_messages":[{"id":"m1"}],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	var list worklist
+	workKey := p.conf.key() + "/child-work-v1"
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 1 {
+		t.Fatal("chat child work was not retained")
+	}
+	var child work
+	for _, child = range list.Items {
+	}
+	deleted = true
+	oldNow := p.now()
+	p.now = func() time.Time { return oldNow.Add(2 * time.Hour) }
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	list = worklist{}
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 0 {
+		t.Fatal("deleted chat retained child work")
+	}
+	var pruned state
+	if e := json.Unmarshal(rt.states[child.StateKey], &pruned); e != nil || len(pruned.Manifest) != 0 || pruned.Retired == "" {
+		t.Fatal("deleted chat checkpoint was not compacted")
+	}
+	if childCalls != 1 {
+		t.Fatal("deleted chat transcript was fetched again")
 	}
 }

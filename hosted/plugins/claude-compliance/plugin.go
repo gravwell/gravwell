@@ -11,6 +11,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"golang.org/x/time/rate"
 	"io"
 	"net/http"
@@ -21,13 +22,15 @@ import (
 )
 
 type Plugin struct {
-	conf       *Config
-	http       *http.Client
-	now        func() time.Time
-	wait       func(context.Context, time.Duration) error
-	limiter    *rate.Limiter
-	onRecord   func(Dataset, []byte) error
-	syncIngest func(context.Context, time.Duration) error
+	conf         *Config
+	http         *http.Client
+	now          func() time.Time
+	wait         func(context.Context, time.Duration) error
+	limiter      *rate.Limiter
+	onRecord     func(Dataset, []byte) error
+	flushRecords func() error
+	syncIngest   func(context.Context, time.Duration) error
+	maxRecords   int
 }
 
 // New binds the muxer's existing synchronization capability at build time.
@@ -53,8 +56,19 @@ func sleep(ctx context.Context, d time.Duration) error {
 }
 
 type state struct {
-	Since    time.Time         `json:"since"`
-	Manifest map[string]string `json:"manifest"`
+	Since           time.Time         `json:"since"`
+	Manifest        map[string]string `json:"manifest"`
+	Traversal       *traversal        `json:"traversal,omitempty"`
+	Retired         string            `json:"retired_revision,omitempty"`
+	HistoryComplete bool              `json:"history_complete,omitempty"`
+}
+
+type traversal struct {
+	Since       time.Time         `json:"since"`
+	Until       time.Time         `json:"until"`
+	Cursor      string            `json:"cursor"`
+	Manifest    map[string]string `json:"manifest"`
+	FullHistory bool              `json:"full_history,omitempty"`
 }
 
 func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
@@ -75,6 +89,9 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 	} else if !errors.Is(e, storage.ErrStorageNotFound) {
 		return nil, e
 	}
+	if st.Manifest == nil {
+		st.Manifest = map[string]string{}
+	}
 	now := p.now().UTC()
 	since := st.Since
 	if since.IsZero() {
@@ -82,6 +99,21 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			since, _ = time.Parse(time.RFC3339, c.Start_Time)
 		} else {
 			since = now.Add(-time.Duration(c.Lookback) * time.Hour)
+		}
+	}
+	scan := traversal{
+		Since:       since,
+		Until:       now,
+		Manifest:    map[string]string{},
+		FullHistory: c.discovered && c.dataset.Name == "chat-messages" && !st.HistoryComplete,
+	}
+	if st.Traversal != nil {
+		scan = *st.Traversal
+		if scan.Cursor == "" || scan.Until.IsZero() {
+			return nil, errors.New("invalid Compliance traversal state")
+		}
+		if scan.Manifest == nil {
+			scan.Manifest = map[string]string{}
 		}
 	}
 	q := url.Values{}
@@ -93,11 +125,14 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 	// not advance the parent's updated_at. Bound the full traversal with the
 	// configured page/record limits, retaining queued children on any failure.
 	fullParents := c.Follow_Children != "disabled" && (d.Name == "chats" || d.Name == "projects" || d.Name == "local-sessions")
-	if d.Window != "" && !fullParents {
-		q.Set(d.Window+".gte", since.Format(time.RFC3339Nano))
+	if d.Window != "" && !fullParents && !scan.FullHistory {
+		q.Set(d.Window+".gte", scan.Since.Format(time.RFC3339Nano))
 		if d.Name != "local-sessions" {
-			q.Set(d.Window+".lte", now.Format(time.RFC3339Nano))
+			q.Set(d.Window+".lte", scan.Until.Format(time.RFC3339Nano))
 		}
+	}
+	if scan.Cursor != "" {
+		q.Set(d.Cursor, scan.Cursor)
 	}
 	if d.Name == "activities" || strings.HasSuffix(d.Name, "messages") {
 		q.Set("order", "asc")
@@ -110,9 +145,12 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		return nil, e
 	}
 	limiter := p.limiter
-	nextState := state{Since: now.Add(-time.Duration(c.Overlap_Seconds) * time.Second), Manifest: map[string]string{}}
 	seen := map[string]bool{}
 	count := 0
+	maxRecords := p.maxRecords
+	if maxRecords == 0 {
+		maxRecords = 100000
+	}
 	for page := 0; page < c.Max_Pages; page++ {
 		if e = ctx.Err(); e != nil {
 			return nil, e
@@ -140,11 +178,16 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 				return nil, fmt.Errorf("Compliance response missing %s array", d.Rows)
 			}
 		}
+		if count > 0 && count+len(rows) > maxRecords {
+			return hosted.ContinueNow(), nil
+		}
+		next, more, e := continuation(envelope, d)
+		if e != nil {
+			return nil, e
+		}
+		plans := make([]entry.Entry, 0, len(rows))
 		for _, raw := range rows {
 			count++
-			if count > 100000 {
-				return nil, errors.New("Compliance scan exceeds 100000 records; narrow collection window")
-			}
 			compact, e := compactObject(raw, c.Max_Entry_Bytes)
 			if e != nil {
 				return nil, e
@@ -152,16 +195,17 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			h := sha256.Sum256(compact)
 			digest := hex.EncodeToString(h[:])
 			key := identity(compact, digest)
-			nextState.Manifest[key] = digest
-			if st.Manifest[key] == digest {
-				if p.onRecord != nil {
-					if e = p.onRecord(d, compact); e != nil {
-						return nil, e
-					}
+			unchanged := st.Manifest[key] == digest || scan.Manifest[key] == digest
+			scan.Manifest[key] = digest
+			if p.onRecord != nil {
+				if e = p.onRecord(d, compact); e != nil {
+					return nil, e
 				}
+			}
+			if unchanged {
 				continue
 			}
-			ent := entry.Entry{TS: entry.FromStandard(sourceTime(compact, now)), Tag: tag, Data: compact}
+			ent := entry.Entry{TS: entry.FromStandard(sourceTime(compact, scan.Until)), Tag: tag, Data: compact}
 			for _, kv := range [][2]string{{"_vendor", "Anthropic"}, {"_product", "Claude Enterprise Compliance"}, {"_source", d.Name}, {"_recordType", d.Name}, {"_endpoint", "/v1/compliance" + d.Path}, {"_apiVersion", "2023-06-01"}, {"_parent", strings.Join(c.Parameter, ",")}} {
 				if e = ent.AddEnumeratedValueEx(kv[0], kv[1]); e != nil {
 					return nil, e
@@ -169,48 +213,60 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			}
 			// Session/chat envelope context is retained intrinsically for each message.
 			if raw := envelope["session"]; d.Rows != "" && len(raw) > 0 && string(raw) != "null" {
-				v, e := compactObject(raw, c.Max_Entry_Bytes)
+				v, e := compactObject(raw, c.Max_Response_Bytes)
 				if e != nil {
 					return nil, e
 				}
-				if e = ent.AddEnumeratedValueEx("_session", string(v)); e != nil {
-					return nil, e
+				if len(v) <= entry.MaxEvDataLength {
+					if e = ent.AddEnumeratedValueEx("_session", string(v)); e != nil {
+						return nil, e
+					}
+				} else {
+					rt.Warn("Compliance session context exceeds enumerated-value limit; message retained without _session", log.KV("dataset", d.Name), log.KV("bytes", len(v)))
 				}
 			}
-			if e = rt.Write(ent); e != nil {
+			plans = append(plans, ent)
+		}
+		if p.flushRecords != nil {
+			if e = p.flushRecords(); e != nil {
 				return nil, e
 			}
-			if p.onRecord != nil {
-				if e = p.onRecord(d, compact); e != nil {
-					return nil, e
-				}
+		}
+		for _, plan := range plans {
+			if e = rt.Write(plan); e != nil {
+				return nil, e
 			}
 		}
-		next, more, e := continuation(envelope, d)
+		// SyncContext is the upstream muxer barrier, not proof that every
+		// cached entry has reached a backend. Keep cache and state together.
+		if e = p.syncIngest(ctx, 2*time.Minute); e != nil {
+			return nil, fmt.Errorf("Compliance ingest synchronization: %w", e)
+		}
+		if e = ctx.Err(); e != nil {
+			return nil, e
+		}
+		checkpoint := state{Since: st.Since, Manifest: st.Manifest, HistoryComplete: st.HistoryComplete}
+		if more {
+			scan.Cursor = next
+			checkpoint.Traversal = &scan
+		} else {
+			checkpoint.Since = scan.Until.Add(-time.Duration(c.Overlap_Seconds) * time.Second)
+			checkpoint.Manifest = scan.Manifest
+			checkpoint.HistoryComplete = checkpoint.HistoryComplete || scan.FullHistory
+		}
+		b, e = json.Marshal(checkpoint)
 		if e != nil {
 			return nil, e
 		}
+		if e = rt.Put(c.key(), b); e != nil {
+			return nil, e
+		}
 		if !more {
-			// SyncContext is the upstream muxer barrier, not proof that every
-			// cached entry has reached a backend. Keep cache and state together.
-			if e = p.syncIngest(ctx, 2*time.Minute); e != nil {
-				return nil, fmt.Errorf("Compliance ingest synchronization: %w", e)
-			}
-			if e = ctx.Err(); e != nil {
-				return nil, e
-			}
-			b, e = json.Marshal(nextState)
-			if e != nil {
-				return nil, e
-			}
-			if e = rt.Put(c.key(), b); e != nil {
-				return nil, e
-			}
 			return c.ContinueAfterInterval(), nil
 		}
 		q.Set(d.Cursor, next)
 	}
-	return nil, errors.New("Compliance Max-Pages reached; state retained for replay")
+	return hosted.ContinueNow(), nil
 }
 func continuation(env map[string]json.RawMessage, d Dataset) (string, bool, error) {
 	if d.Cursor == "" {

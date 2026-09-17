@@ -79,6 +79,7 @@ type Config struct {
 	Max_Children, Max_Pending                                                               int
 	dataset                                                                                 Dataset
 	path                                                                                    string
+	discovered                                                                              bool
 }
 
 var (
@@ -208,21 +209,18 @@ func (c *Config) key() string {
 	return "claude-compliance-v1/" + hex.EncodeToString(s[:])
 }
 func credential(p string) (string, error) {
-	f, e := os.Open(p)
-	if e != nil {
-		return "", errors.New("cannot open Compliance credential file")
-	}
-	defer f.Close()
-	st, e := f.Stat()
+	st, e := os.Stat(p)
 	if e != nil || !st.Mode().IsRegular() || st.Size() > 16384 {
 		return "", errors.New("invalid Compliance credential file")
 	}
-	b := make([]byte, 16385)
-	n, e := f.Read(b)
+	b, e := os.ReadFile(p)
 	if e != nil {
 		return "", errors.New("cannot read Compliance credential file")
 	}
-	v := strings.TrimSpace(string(b[:n]))
+	if len(b) > 16384 {
+		return "", errors.New("invalid Compliance credential file")
+	}
+	v := strings.TrimSpace(string(b))
 	if v == "" || strings.ContainsAny(v, "\r\n") {
 		return "", errors.New("invalid Compliance credential")
 	}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"golang.org/x/time/rate"
 	"sort"
 	"strings"
@@ -42,6 +43,7 @@ type work struct {
 	Dataset       string
 	Parameter     []string
 	Revision      string
+	StateKey      string `json:",omitempty"`
 	Pending       bool
 	LastCompleted time.Time
 	LastAttempt   time.Time
@@ -49,6 +51,11 @@ type work struct {
 	Failures      uint
 }
 type worklist struct{ Items map[string]work }
+
+var (
+	errPendingCapacity = errors.New("Compliance pending child-work capacity reached")
+	errMissingParentID = errors.New("Compliance parent identity is missing")
+)
 
 func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
 	if p.conf.Follow_Children == "disabled" {
@@ -64,7 +71,11 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	} else if !errors.Is(e, storage.ErrStorageNotFound) {
 		return nil, e
 	}
+	dirty := false
 	persist := func() error {
+		if !dirty {
+			return nil
+		}
 		b, e := json.Marshal(list)
 		if e != nil {
 			return e
@@ -72,17 +83,60 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		if len(b) > 32<<20 {
 			return errors.New("child worklist exceeds size bound")
 		}
-		return rt.Put(key, b)
+		if e = rt.Put(key, b); e != nil {
+			return e
+		}
+		dirty = false
+		return nil
 	}
 	discover := func(parent *Config) func(Dataset, []byte) error {
 		return func(d Dataset, raw []byte) error {
+			if retired, ok, e := deletedChildWork(d, parent.Parameter, raw); e != nil {
+				if errors.Is(e, errMissingParentID) {
+					rt.Warn("Compliance deleted parent is missing its child-discovery identity; child checkpoint cannot be compacted", log.KV("dataset", d.Name))
+					return nil
+				}
+				return e
+			} else if ok {
+				k := retired.Dataset + "/" + strings.Join(retired.Parameter, "/")
+				if old, exists := list.Items[k]; exists {
+					retired.LastCompleted = old.LastCompleted
+					retired.StateKey = old.StateKey
+				}
+				if e = pruneCheckpoint(rt, parent, retired); e != nil {
+					return e
+				}
+				delete(list.Items, k)
+				dirty = true
+				return nil
+			}
 			children, e := childWork(d, parent.Parameter, raw)
 			if e != nil {
+				if errors.Is(e, errMissingParentID) {
+					rt.Warn("Compliance parent is missing its child-discovery identity; parent retained and child discovery skipped", log.KV("dataset", d.Name))
+					return nil
+				}
 				return e
 			}
 			for _, w := range children {
 				k := w.Dataset + "/" + strings.Join(w.Parameter, "/")
 				old, exists := list.Items[k]
+				if w.StateKey == "" {
+					child, e := childConfig(parent, w)
+					if e != nil {
+						return e
+					}
+					w.StateKey = child.key()
+				}
+				if !exists {
+					retired, e := retiredCheckpoint(rt, w.StateKey, w.Revision)
+					if e != nil {
+						return e
+					}
+					if retired {
+						continue
+					}
+				}
 				if !exists && len(list.Items) >= p.conf.Max_Pending {
 					// Completed history is expendable; pending work is never evicted.
 					victim := ""
@@ -92,9 +146,13 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 						}
 					}
 					if victim == "" {
-						return errors.New("Compliance pending child-work capacity reached; state retained; increase Max-Pending or reduce parent scope")
+						return errPendingCapacity
+					}
+					if e = pruneCheckpoint(rt, parent, list.Items[victim]); e != nil {
+						return e
 					}
 					delete(list.Items, victim)
+					dirty = true
 				}
 				// Membership/content can change without a parent revision. Refresh all
 				// child families hourly; active remote sessions refresh each poll.
@@ -107,14 +165,23 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 						w.RetryAt, w.Failures = old.RetryAt, old.Failures
 					}
 					list.Items[k] = w
+					dirty = true
 				}
 			}
-			return persist()
+			return nil
 		}
 	}
 	p.onRecord = discover(p.conf)
-	defer func() { p.onRecord = nil }()
-	_, rootErr := p.handleOne(ctx, rt)
+	p.flushRecords = persist
+	defer func() { p.onRecord, p.flushRecords = nil, nil }()
+	rootCont, rootErr := p.handleOne(ctx, rt)
+	rootPending := rootCont != nil && rootCont.Delay == 0
+	if errors.Is(rootErr, errPendingCapacity) {
+		rootPending, rootErr = true, nil
+	}
+	if e = persist(); e != nil {
+		return nil, e
+	}
 	keys := []string{}
 	for k, w := range list.Items {
 		if w.Pending && !p.now().Before(w.RetryAt) {
@@ -140,32 +207,43 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 			return nil, e
 		}
 		w := list.Items[k]
-		c := *p.conf
-		c.Dataset = w.Dataset
-		c.Parameter = append([]string(nil), w.Parameter...)
-		c.Follow_Children = "disabled"
-		d, _ := lookup(c.Dataset)
-		if d.Tag != p.conf.dataset.Tag {
-			return nil, errors.New("Compliance cross-family discovery requires an explicit tag mapping")
+		childConf, ce := childConfig(p.conf, w)
+		if ce != nil {
+			return nil, ce
 		}
-		if d.Limit > 0 {
-			c.Page_Size = min(c.Page_Size, d.Limit)
-		}
-		if e = c.Verify(); e != nil {
-			return nil, e
+		c := *childConf
+		if w.StateKey == "" {
+			w.StateKey = c.key()
 		}
 		child := *p
 		child.conf = &c
 		child.onRecord = discover(&c)
+		child.flushRecords = persist
 		w.LastAttempt = p.now().UTC()
-		if _, e = child.handleOne(ctx, rt); e != nil {
+		childCont, childErr := child.handleOne(ctx, rt)
+		if errors.Is(childErr, errPendingCapacity) {
+			childCont, childErr = hosted.ContinueNow(), nil
+		}
+		if childErr != nil {
 			w.Failures = min(w.Failures+1, 10)
 			w.RetryAt = w.LastAttempt.Add(time.Minute * time.Duration(1<<(w.Failures-1)))
 			list.Items[k] = w
+			dirty = true
 			if pe := persist(); pe != nil {
 				return nil, pe
 			}
-			errs = append(errs, fmt.Errorf("pending %s: %w", w.Dataset, e))
+			errs = append(errs, fmt.Errorf("pending %s: %w", w.Dataset, childErr))
+			continue
+		}
+		if childCont != nil && childCont.Delay == 0 {
+			w.Pending = true
+			w.RetryAt = time.Time{}
+			list.Items[k] = w
+			dirty = true
+			rootPending = true
+			if e = persist(); e != nil {
+				return nil, e
+			}
 			continue
 		}
 		w.Pending = false
@@ -173,6 +251,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		w.RetryAt = time.Time{}
 		w.Failures = 0
 		list.Items[k] = w
+		dirty = true
 		if e = persist(); e != nil {
 			return nil, e
 		}
@@ -180,7 +259,94 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
-	return p.conf.ContinueAfterInterval(), nil
+	return p.conf.PendingOrInterval(rootPending || len(keys) > p.conf.Max_Children), nil
+}
+
+func deletedChildWork(d Dataset, inherited []string, raw []byte) (work, bool, error) {
+	if d.Name != "chats" {
+		return work{}, false, nil
+	}
+	var v map[string]json.RawMessage
+	if e := json.Unmarshal(raw, &v); e != nil {
+		return work{}, false, e
+	}
+	deleted := v["deleted_at"]
+	if len(deleted) == 0 || string(deleted) == "null" {
+		return work{}, false, nil
+	}
+	var id string
+	_ = json.Unmarshal(v["id"], &id)
+	if id == "" {
+		return work{}, false, fmt.Errorf("%w: chats parent missing id", errMissingParentID)
+	}
+	params := append(append([]string(nil), inherited...), "chat_id:"+id)
+	sort.Strings(params)
+	h := sha256.Sum256(raw)
+	return work{Dataset: "chat-messages", Parameter: params, Revision: fmt.Sprintf("%x", h)}, true, nil
+}
+
+func childConfig(parent *Config, w work) (*Config, error) {
+	c := *parent
+	c.Dataset = w.Dataset
+	c.Parameter = append([]string(nil), w.Parameter...)
+	c.Follow_Children = "disabled"
+	c.discovered = true
+	d, ok := lookup(c.Dataset)
+	if !ok {
+		return nil, errors.New("unknown Compliance child dataset")
+	}
+	if d.Tag != parent.dataset.Tag {
+		return nil, errors.New("Compliance cross-family discovery requires an explicit tag mapping")
+	}
+	if d.Limit > 0 {
+		c.Page_Size = min(c.Page_Size, d.Limit)
+	}
+	if e := c.Verify(); e != nil {
+		return nil, e
+	}
+	return &c, nil
+}
+
+func retiredCheckpoint(rt hosted.Runtime, key, revision string) (bool, error) {
+	b, e := rt.Get(key)
+	if errors.Is(e, storage.ErrStorageNotFound) {
+		return false, nil
+	}
+	if e != nil {
+		return false, e
+	}
+	var st state
+	if e = json.Unmarshal(b, &st); e != nil {
+		return false, errors.New("invalid Compliance child checkpoint")
+	}
+	return st.Retired != "" && st.Retired == revision, nil
+}
+
+func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work) error {
+	key := w.StateKey
+	if key == "" {
+		c, e := childConfig(parent, w)
+		if e != nil {
+			return e
+		}
+		key = c.key()
+	}
+	st := state{Since: w.LastCompleted, Manifest: map[string]string{}}
+	if b, e := rt.Get(key); e == nil {
+		if e = json.Unmarshal(b, &st); e != nil {
+			return errors.New("invalid Compliance child checkpoint")
+		}
+	} else if !errors.Is(e, storage.ErrStorageNotFound) {
+		return e
+	}
+	st.Manifest = map[string]string{}
+	st.Traversal = nil
+	st.Retired = w.Revision
+	b, e := json.Marshal(st)
+	if e != nil {
+		return e
+	}
+	return rt.Put(key, b)
 }
 func childWork(d Dataset, inherited []string, raw []byte) ([]work, error) {
 	var v map[string]json.RawMessage
@@ -218,7 +384,7 @@ func childWork(d Dataset, inherited []string, raw []byte) ([]work, error) {
 		return nil, nil
 	}
 	if id == "" {
-		return nil, fmt.Errorf("%s parent missing %s", d.Name, idKey)
+		return nil, fmt.Errorf("%w: %s parent missing %s", errMissingParentID, d.Name, idKey)
 	}
 	var result []work
 	h := sha256.Sum256(raw)

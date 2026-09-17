@@ -28,13 +28,17 @@ offset) overrides lookback when that checkpoint is absent. Overlap defaults to
 300 seconds. Discovery scans parent inventories without their time filter so
 unchanged parents cannot hide changed child records. Inventory and transcript
 endpoints without a time filter are bounded full scans, not lookback-filtered.
+A newly discovered chat collects its complete message history before later
+refreshes use the stored message checkpoint and overlap window.
 
 The named stanza owns all polling settings. Repeat settings in each stanza as
 needed. Defaults:
 lookback 24 hours, 60 requests/minute, 300-second poll interval, page size 100,
 1,000 pages, four retries, 16 MiB responses, 4 MiB entries, 100 children per
 cycle, and 10,000 remembered child work items. The example sets 30 requests/minute.
-The strictest configured rate is shared within a scope label.
+The strictest configured rate is shared within a scope label. `Max-Pages` and
+the 100,000-record per-call bound chunk large traversals into immediately
+rescheduled calls; a stored opaque cursor resumes the same frozen traversal.
 
 ## Datasets and tags
 
@@ -53,13 +57,18 @@ Discovered children inherit the parent's tag. Native JSON stays compact and
 unwrapped; `_source`, `_recordType`, and `_endpoint` intrinsic fields distinguish
 datasets. Other intrinsic context is `_vendor`, `_product`, `_apiVersion`,
 `_parent`, and `_session` when provided. These are not JSON properties.
+If a response's session envelope exceeds Gravwell's enumerated-value limit, the
+native message is retained and `_session` is omitted with a warning.
 
 Seven roots require no `Parameter`: `activities`, `organizations`, `groups`,
 `chats`, `projects`, `local-sessions`, and `remote-sessions`. With
 `Follow-Children="enabled"`, organizations discover users/roles/permissions,
 groups discover members, chats and sessions discover messages, and projects
 discover attachments/collaborators. Failed children remain queued with bounded
-backoff. Membership/content is revisited hourly; remote sessions every poll.
+backoff. A full pending queue defers the current root page until existing work
+can complete; it does not partially ingest or silently drop that page. Completed
+work evicted from the bounded queue has its large manifest compacted to a small
+retired checkpoint. Membership/content is revisited hourly; remote sessions every poll.
 
 Other selectors need explicit IDs matching placeholders in `catalog.go`, e.g.
 `Parameter="artifact_version_id:the-id"` for `artifact-metadata`. Binary content,
@@ -72,16 +81,20 @@ The builder obtains the existing muxer's `SyncContext` method through its
 standard `TagNegotiator` argument. No shared runtime, runner, storage, or ingest
 SDK extension is required. After every completed dataset traversal:
 
-1. Every new record must be accepted by `Runtime.Write`.
-2. The existing muxer's `SyncContext` must return successfully, within two minutes.
-3. Cancellation is checked, then the dataset checkpoint is stored.
-4. The standard `WrapJobWithSync` adapter synchronizes state after a successful
+1. A complete response page is validated before any record from that page is written.
+2. Every new record must be accepted by `Runtime.Write`.
+3. The existing muxer's `SyncContext` must return successfully, within two minutes.
+4. Cancellation is checked, then the page cursor and partial manifest or final
+   dataset checkpoint is stored.
+5. The standard `WrapJobWithSync` adapter synchronizes state after a successful
    complete `Handle` cycle. `State.Sync=true` also flushes each state transaction.
 
-A write, page, synchronization, or state-write failure prevents that dataset's
-checkpoint from advancing. Already accepted entries can replay after a partial
-cycle or crash. Discovery work is persisted incrementally; one child failure
-does not roll back other completed datasets.
+A validation or discovery failure prevents that page from being written. A later
+page, synchronization, or state-write failure retains the last completed page
+cursor, so a retry does not restart the whole traversal. A write or synchronization
+failure can still replay the affected page because ingest and state are not one
+transaction. Discovery work is persisted once per page rather than once per
+record; one child failure does not roll back other completed datasets.
 
 **This is not an all-cache-drained backend-acknowledgement guarantee.** Upstream
 `SyncContext` drains exposed channels and synchronizes current connections, but
