@@ -22,7 +22,8 @@ export CGO_ENABLED=0
 # ingesters/networkLog is the sole exception: it pulls in gopacket/pcap, which
 # needs libpcap via cgo. It is excluded from the CGO_ENABLED=0 sweeps below and
 # gets its own CGO_ENABLED=1 pass. Requires libpcap-dev to be installed.
-CGO_PKG='./ingesters/networkLog/...'
+# ./ingest needs to make sure the race check passes.
+CGO_PKG='./ingesters/networkLog/... ./ingest'
 
 # Packages that cannot be built or tested on a native Linux host. These are
 # covered separately via the GOOS/GOARCH cross-checks below.
@@ -69,7 +70,7 @@ GOOS=linux GOARCH=arm64 govulncheck -test ./ingesters/fileFollow
 section "Running go test and excluding windows and experiments"
 go test -p 4 $NATIVE_NO_GWCLI
 go test -p 4 -tags ci ./gwcli/...
-CGO_ENABLED=1 go test -p 4 $CGO_PKG
+CGO_ENABLED=1 go test -race -p 4 $CGO_PKG
 
 section "Building native components"
 go build $NATIVE

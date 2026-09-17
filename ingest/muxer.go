@@ -115,8 +115,17 @@ type IngestMuxer struct {
 	//connHot, and connDead have atomic operations
 	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
-	connHot              int32 //how many connections are functioning
-	connDead             int32 //how many connections are dead
+	connHot  int32 //how many connections are functioning
+	connDead int32 //how many connections are dead
+	// entryCount/byteCount are the source of truth for how many entries/bytes
+	// have been written. They're bumped from every WriteEntry*/WriteBatch*/
+	// DittoWriteContext caller, which never holds mtx, so a plain field would
+	// race with ingesterState.Entries/.Size being read (ex: getIngesterState's
+	// dirty check) or snapshotted (ex: its Copy() for the API/child push)
+	// elsewhere. ingesterState.Entries/.Size are only ever written from these,
+	// under mtx, when a snapshot is taken -- see getIngesterState.
+	entryCount           atomic.Uint64
+	byteCount            atomic.Uint64
 	mtx                  *sync.RWMutex
 	sig                  *sync.Cond
 	igst                 []*IngestConnection
@@ -647,7 +656,7 @@ func (im *IngestMuxer) ingesterStateDirty() (dirty bool) {
 func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint64) (s IngesterState, shouldPush bool) {
 	gap := time.Since(lastPush)
 	//check if it has been long enough that we push no matter what or the state is dirty and we need push
-	if gap > maxIngesterStateUpdateInterval || im.ingesterStateDirty() || (im.ingesterState.Entries != lastEntryCount && gap > ingesterStateUpdateInterval) {
+	if gap > maxIngesterStateUpdateInterval || im.ingesterStateDirty() || (im.entryCount.Load() != lastEntryCount && gap > ingesterStateUpdateInterval) {
 		shouldPush = true
 	} else {
 		return //nothing new in the ingester state, just return
@@ -661,6 +670,11 @@ func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint6
 	}
 	im.ingesterState.Uptime = time.Since(im.start)
 	im.ingesterState.Tags = im.tags
+	// Entries/Size are only ever written here, under mtx -- see the field
+	// comments on entryCount/byteCount for why the counters themselves are
+	// atomic rather than plain fields on ingesterState.
+	im.ingesterState.Entries = im.entryCount.Load()
+	im.ingesterState.Size = im.byteCount.Load()
 
 	// The ingesterState object is of type ingest.IngesterState which contains a map of children.
 	// You must make a deep copy (which is what Copy does) if you are going to concurrently read and write it.
@@ -1182,6 +1196,14 @@ func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
 	return
 }
 
+// recordWritten bumps the atomic entry/byte counters that back
+// ingesterState.Entries/.Size. See the field comments on IngestMuxer for why
+// these can't just be plain fields updated in place.
+func (im *IngestMuxer) recordWritten(entries, size uint64) {
+	im.entryCount.Add(entries)
+	im.byteCount.Add(size)
+}
+
 // WriteEntry puts an entry into the queue to be sent out by the first available
 // entry writer routine, if all routines are dead, THIS WILL BLOCK once the
 // channel fills up.  We figure this is a natural "wait" mechanism
@@ -1204,8 +1226,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
-	im.ingesterState.Entries++
-	im.ingesterState.Size += e.Size()
+	im.recordWritten(1, e.Size())
 	return nil
 }
 
@@ -1229,8 +1250,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	}
 	select {
 	case im.eChan <- e:
-		im.ingesterState.Entries++
-		im.ingesterState.Size += e.Size()
+		im.recordWritten(1, e.Size())
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-im.writeBarrier:
@@ -1260,8 +1280,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	tmr := time.NewTimer(d)
 	select {
 	case im.eChan <- e:
-		im.ingesterState.Entries++
-		im.ingesterState.Size += e.Size()
+		im.recordWritten(1, e.Size())
 	case <-tmr.C:
 		err = ErrWriteTimeout
 	case <-im.writeBarrier:
@@ -1303,10 +1322,11 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
-	im.ingesterState.Entries += uint64(len(b))
+	var sz uint64
 	for i := range b {
-		im.ingesterState.Size += b[i].Size()
+		sz += b[i].Size()
 	}
+	im.recordWritten(uint64(len(b)), sz)
 	return nil
 }
 
@@ -1343,10 +1363,11 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	}
 	select {
 	case im.bChan <- b:
-		im.ingesterState.Entries += uint64(len(b))
+		var sz uint64
 		for i := range b {
-			im.ingesterState.Size += b[i].Size()
+			sz += b[i].Size()
 		}
+		im.recordWritten(uint64(len(b)), sz)
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-im.writeBarrier:
@@ -1418,10 +1439,11 @@ func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) e
 		// Now wait for the callback to be called
 		wg.Wait()
 		// Success, update stats
-		im.ingesterState.Entries += uint64(len(b))
+		var sz uint64
 		for i := range b {
-			im.ingesterState.Size += b[i].Size()
+			sz += b[i].Size()
 		}
+		im.recordWritten(uint64(len(b)), sz)
 
 	case <-ctx.Done():
 		return ctx.Err()
@@ -2043,7 +2065,7 @@ loop:
 			log.KV("version", version.GetVersion()),
 			log.KV("ingesteruuid", im.uuid))
 		if im.rateParent != nil {
-			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
+			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn, ig.ew.flushTimeout, ig.ew.writeBlockSize))
 		}
 
 		//no error, attempt to do a tag translation

@@ -38,14 +38,13 @@ var (
 //
 // Deprecated: Use the IngestMuxer instead.
 type IngestConnection struct {
-	conn       net.Conn
-	ew         *EntryWriter
-	src        net.IP
-	tags       map[string]entry.EntryTag
-	running    bool
-	errorState error
-	mtx        sync.RWMutex
-	ctx        context.Context // this is the parent context from the main muxer
+	conn    net.Conn
+	ew      *EntryWriter
+	src     net.IP
+	tags    map[string]entry.EntryTag
+	running bool
+	mtx     sync.RWMutex
+	ctx     context.Context // this is the parent context from the main muxer
 }
 
 func (igst *IngestConnection) String() (s string) {
@@ -102,15 +101,6 @@ func (igst *IngestConnection) IngestOK() (ok bool, err error) {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
 	return igst.ew.IngestOK()
-}
-
-func (igst *IngestConnection) outstandingEntries() []*entry.Entry {
-	igst.mtx.RLock()
-	defer igst.mtx.RUnlock()
-	if igst.ew == nil {
-		return nil
-	}
-	return igst.ew.outstandingEntries()
 }
 
 func (igst *IngestConnection) ejectOutstandingEntries() []*entry.Entry {
