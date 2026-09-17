@@ -32,11 +32,15 @@ const (
 	nfv9Version      uint16 = 9
 	nfv9V4TemplateID uint16 = 256
 	nfv9V6TemplateID uint16 = 257
-	nfv9SourceID     uint32 = 1
+	nfv9HeaderLen           = 20 // fixed NetFlow v9 message header size
 	nfv9MaxRecords          = 15
 	nfv9MaxFlowMS           = 60 * 1000
-	// keep uptime well below the uint32 millisecond wrap (~49.7 days)
-	nfv9MaxBootBehind = 40 * 24 * time.Hour
+
+	// nfv9SourceID is deliberately not ipfixDomainID: the two generators
+	// model two different exporters, and keeping their observation domains
+	// apart keeps their sessions apart in a collector that keys on
+	// (domain, source address), such as the netflow ingester
+	nfv9SourceID uint32 = 2
 )
 
 var (
@@ -90,10 +94,7 @@ var nfv9CommonFieldSpecifiers = []ipfix.TemplateFieldSpecifier{
 }
 
 func genDataNetflowV9(ts time.Time) []byte {
-	if nfv9Boot.IsZero() || ts.Before(nfv9Boot) {
-		nfv9Boot = ts.Add(-time.Duration(rand.Int63n(int64(nfv9MaxBootBehind))))
-	}
-	uptime := uint32(ts.Sub(nfv9Boot).Milliseconds())
+	uptime := netflowUptime(ts, &nfv9Boot, &nfv9Sequence)
 
 	var msg ipfix.Message
 	msg.Header.Version = nfv9Version
