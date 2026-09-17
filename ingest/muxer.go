@@ -938,13 +938,7 @@ func (im *IngestMuxer) stageTag(name string) (tg entry.EntryTag, pending []connS
 			v.Close()
 			continue
 		}
-		var dst string
-		if k < len(im.dests) {
-			dst = im.dests[k].Address
-		} else {
-			dst = unknownAddr
-		}
-		pending = append(pending, connSet{ig: v, tt: tt, dst: dst})
+		pending = append(pending, connSet{ig: v, tt: tt, dst: im.dests[k].Address})
 	}
 	return
 }
