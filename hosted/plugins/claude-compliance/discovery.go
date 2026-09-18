@@ -249,8 +249,18 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 						// fairly relative to older work rather than jumping ahead of it.
 						w.LastAttempt = p.now().UTC()
 					}
+					// Failures reflects the outcome of this plugin's own requests
+					// against this child resource, not the freshness of the
+					// parent's content, so it must survive a revision change --
+					// otherwise a permanently-failing child whose parent content
+					// keeps changing (e.g. a live member_count) can never reach
+					// maxChildFailures and becomes permanently ineligible for the
+					// stuck-pending eviction fallback above. RetryAt is content-
+					// scoped, not request-scoped, so it still resets on a revision
+					// change to let genuinely new content retry promptly.
+					w.Failures = old.Failures
 					if old.Revision == w.Revision {
-						w.RetryAt, w.Failures = old.RetryAt, old.Failures
+						w.RetryAt = old.RetryAt
 					}
 					if tracked {
 						w.SeenThisScan, w.AbsentStreak = true, 0
