@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -77,6 +78,10 @@ const (
 	recycleTimeout   time.Duration = time.Second
 	unknownAddr      string        = `unknown`
 	waitTickerDur    time.Duration = 50 * time.Millisecond
+
+	// how long NegotiateTag will wait for a relay routine to establish a tag before
+	// giving up on it.  The tag stays staged when this expires, we just stop waiting.
+	tagNegotiationTimeout time.Duration = 10 * time.Second
 
 	ingesterStateUpdateInterval    = 30 * time.Second //if the only thing changing is general ingest we will update this often
 	maxIngesterStateUpdateInterval = 5 * time.Minute  //throw an update this often no matter what
@@ -857,14 +862,98 @@ func (im *IngestMuxer) KnownTags() (tgs []string) {
 	return
 }
 
-// NegotiateTag will attempt to lookup a tag name in the negotiated set
-// The the tag name has not already been negotiated, the muxer will contact
-// each indexer and negotiate it.  This call can potentially block and fail
+// NegotiateTag looks a tag name up in the negotiated set, adding it if the muxer has
+// not seen it before.  The intermediate tag handed back is always usable.
+//
+// A nil error means the tag is established on at least one indexer and is searchable.
+// The round trips are done by each connection's write relay routine, which owns its
+// connection and is already the only thing allowed to talk on it, so they happen in
+// parallel and this waits for the FIRST one to land rather than the sum of all of them.
+// One unresponsive indexer cannot hold up a tag the healthy ones already took.
+//
+// An error means no live connection could establish it.  That is worth surfacing, but
+// it is not necessarily fatal, the tag is still in the muxer tag set and rides in on
+// the authentication handshake when a connection comes back, so callers that can carry
+// on should.  A muxer with no live connections is not a failure for the same reason and
+// comes back nil.
 func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+	return im.NegotiateTagContext(context.Background(), name)
+}
+
+// NegotiateTagContext is NegotiateTag with a caller supplied context bounding the wait.
+// A context that already carries a deadline is honored as is, one that does not gets
+// the same default bound NegotiateTag uses so a caller cannot wedge itself forever.
+func (im *IngestMuxer) NegotiateTagContext(ctx context.Context, name string) (tg entry.EntryTag, err error) {
 	if err = CheckTag(name); err != nil {
 		return
 	}
+	var w *negotiationWaiter
+	if tg, w, err = im.stageTag(name); err != nil || w == nil {
+		return //already known, or the muxer cannot take another tag
+	}
+	to := tagNegotiationTimeout
+	if _, ok := ctx.Deadline(); ok {
+		to = 0 //the caller is bounding this themselves
+	}
+	// Wait on the relay routines rather than doing the round trips here.  They run in
+	// parallel, so this costs whatever the FASTEST indexer costs, not the sum, and one
+	// wedged indexer cannot hold up a tag the healthy ones already took.
+	if lerr := w.wait(ctx, im.ctx, to); lerr != nil {
+		// the tag is staged either way, it stays in im.tags and gets established on
+		// the next handshake, so the intermediate value handed back is still good
+		err = lerr
+	}
+	return
+}
 
+// reconcileTags queues any tag the muxer knows about that a freshly built translator
+// does not.  getConnection snapshots the tag map under the muxer lock, sends it in the
+// authentication handshake, and then finishes the connection with that lock released,
+// which can take an unbounded amount of time while an indexer refuses ingest.  A
+// NegotiateTag landing in that window sees a nil entry in im.igst and skips the
+// destination, so without this the tag is missing from the translator and nothing else
+// would ever put it there, the connection would only learn about it if an entry
+// happened to be written on it.  Callers must hold im.mtx.
+// It does not log, a self ingesting logger relays through WriteEntry, and blocking on
+// that channel while holding the muxer lock is not something to invite.
+func (im *IngestMuxer) reconcileTags(tt *tagTrans) (err error) {
+	known := tt.activeLen() //read once, this walks every tag the muxer knows about
+	var missing []unNegotiatedTag
+	for name, tg := range im.tagMap {
+		if int(tg) >= known {
+			missing = append(missing, unNegotiatedTag{local: tg, name: name})
+		}
+	}
+	if len(missing) == 0 {
+		return
+	}
+	// the translator is a dense slice indexed by the intermediate tag, so these have
+	// to be queued in tag order, and a map range is not ordered
+	sort.Slice(missing, func(i, j int) bool { return missing[i].local < missing[j].local })
+	for _, v := range missing {
+		if err = tt.registerTagForNegotiation(v.name, v.local, nil); err != nil {
+			err = fmt.Errorf("failed to queue tag %q: %w", v.name, err)
+			return
+		}
+	}
+	return
+}
+
+// stageTag adds a tag to the muxer tag set and queues it for negotiation on
+// every live connection, waking each connection's write relay routine so it goes and
+// does the actual negotiation.  No network IO happens here, the muxer lock is held
+// the whole way through.
+func (im *IngestMuxer) stageTag(name string) (tg entry.EntryTag, w *negotiationWaiter, err error) {
+	// Closing a connection flushes and drains acks with a ten second budget, doing that
+	// under the muxer lock stalls every writer and every state push.  Collect them and
+	// do it on the way out, defers run last in first out so this fires AFTER the
+	// unlock below.
+	var toClose []*IngestConnection
+	defer func() {
+		for _, c := range toClose {
+			c.Close()
+		}
+	}()
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
 	if len(im.tagMap) >= int(entry.MaxTagId) {
@@ -873,7 +962,7 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	}
 
 	if tag, ok := im.tagMap[name]; ok {
-		// tag already exists, just return it
+		// tag already exists, nothing to negotiate and nothing to wait on
 		tg = tag
 		return
 	}
@@ -898,22 +987,45 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		writeTagCache(im.tagMap, im.cachePath)
 	}
 
+	// Work out who needs to negotiate before waking any of them.  Registering a tag
+	// wakes the relay routine that owns the connection, and it can report back before
+	// this loop finishes, so the waiter has to know its full count up front.
+	type target struct {
+		ig *IngestConnection
+		tt *tagTrans
+	}
+	var targets []target
 	for k, v := range im.igst {
-		if v != nil {
-			if im.tagTranslators[k] != nil {
-				//check if this translator already knows about this tag
-				if !im.tagTranslators[k].hasTag(tg) {
-					if lerr := im.tagTranslators[k].registerTagForNegotiation(name, tg); lerr != nil {
-						// on error set the return error
-						err = lerr
-						v.Close()
-					}
-				}
-			} else {
-				v.Close()
-			}
+		if v == nil {
+			continue
+		}
+		tt := im.tagTranslators[k]
+		if tt == nil {
+			toClose = append(toClose, v)
+			continue
+		}
+		//check if this translator already knows about this tag
+		if tt.hasTag(tg) {
+			continue
+		}
+		targets = append(targets, target{ig: v, tt: tt})
+	}
+
+	w = newNegotiationWaiter()
+	for range targets {
+		w.add()
+	}
+	for _, t := range targets {
+		if lerr := t.tt.registerTagForNegotiation(name, tg, w); lerr != nil {
+			// This connection is never going to report for itself, so hand the
+			// failure straight to the waiter.  It is NOT the whole call's failure,
+			// another connection may still take the tag, let the waiter decide.
+			w.report(lerr)
+			toClose = append(toClose, t.ig)
 		}
 	}
+	// nothing live to negotiate with, the tag rides in on the next handshake
+	w.seal()
 	return
 }
 
@@ -1476,6 +1588,24 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 		if nc, ok = <-csc; !ok {
 			return
 		}
+		// A tag negotiated while this connection was coming up missed both the
+		// handshake and stageTag, reconcileTags queued those at install time.  This has
+		// to happen before the emergency queue is flushed, that queue can be holding
+		// entries on exactly those tags and clearing it would fail to translate them.
+		if lerr := nc.negotiateOutstandingTags(); lerr != nil {
+			im.Warn("failed to negotiate tags staged while connecting, reconnecting",
+				log.KV("indexer", nc.dst),
+				log.KV("ingester", im.name),
+				log.KV("ingesteruuid", im.uuid),
+				log.KVErr(lerr))
+			//try to send, if we can't just roll on
+			select {
+			case connFailure <- shouldSleep:
+			default:
+			}
+			ok = false
+			continue
+		}
 		//attempt to clear the emergency queue and throw at our new connection
 		if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
 			//try to send, if we can't just roll on
@@ -1544,6 +1674,22 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 inputLoop:
 	for {
 		select {
+		case <-nc.tt.notify:
+			// a tag was staged for this connection, establish it now rather than
+			// waiting for an entry to be written on it
+			if err = nc.negotiateOutstandingTags(); err != nil {
+				im.Warn("tag negotiation failed, reconnecting",
+					log.KV("indexer", nc.dst),
+					log.KV("ingester", im.name),
+					log.KV("ingesteruuid", im.uuid),
+					log.KVErr(err))
+				// every staged tag is already in im.tags, so the reconnect
+				// establishes them in the authentication handshake
+				if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
+					break inputLoop
+				}
+			}
+			continue inputLoop
 		case <-im.ctx.Done():
 			//the caller will detect that we exited and will take care of getting outstanding entries
 			/*
@@ -1906,7 +2052,18 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		im.mtx.Lock()
 		im.igst[igIdx] = igst
 		im.tagTranslators[igIdx] = tt
+		// a tag negotiated while this connection was coming up missed both the
+		// handshake and stageTag, queue it so the relay routine establishes it as soon
+		// as it adopts the connection
+		terr := im.reconcileTags(tt)
 		im.mtx.Unlock()
+		if terr != nil {
+			im.Error("failed to queue tags added while connecting",
+				log.KV("indexer", dst.Address),
+				log.KV("ingester", im.name),
+				log.KV("ingesteruuid", im.uuid),
+				log.KVErr(terr))
+		}
 
 		im.goHot()
 		ncc <- connSet{
@@ -2170,12 +2327,15 @@ loop:
 func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (*tagTrans, error) {
 	tt := &tagTrans{
 		active: make([]entry.EntryTag, len(im.tagMap)),
+		notify: make(chan struct{}, 1),
 	}
 	if len(tt.active) == 0 {
 		return nil, ErrTagMapInvalid
 	}
 	for k, v := range im.tagMap {
-		if int(v) > len(tt.active) {
+		if int(v) >= len(tt.active) {
+			// active is indexed by the intermediate tag, so a value equal to the
+			// length is just as out of range as one past it
 			return nil, ErrTagMapInvalid
 		}
 		tg, ok := igst.GetTag(k)
@@ -2373,21 +2533,15 @@ func (nc connSet) translateTag(t entry.EntryTag) (rt entry.EntryTag, err error) 
 		return
 	}
 
-	if len(nc.tt.toNegotiate) == 0 {
+	if !nc.tt.negotiationsPending() {
 		err = ErrUnknownTag
 		return
 	}
 
-	//ok, go negotiate all the tags, but grab a local copy to avoid races
-	toNeg := nc.tt.toNegotiate
-	for _, v := range toNeg {
-		if rt, err = nc.ig.NegotiateTag(v.name); err != nil {
-			return
-		} else if err = nc.tt.registerTag(v.local, rt); err != nil {
-			return
-		}
-		nc.tt.clearToNegotiate(1)
+	if err = nc.negotiateOutstandingTags(); err != nil {
+		return
 	}
+
 	// all tags negotiated, try to translate again
 	if rt, ok = nc.tt.translate(t); !ok {
 		err = ErrUnknownTag
@@ -2396,15 +2550,153 @@ func (nc connSet) translateTag(t entry.EntryTag) (rt entry.EntryTag, err error) 
 	return
 }
 
+// negotiateOutstandingTags walks the tags that have been registered with the
+// translator but not yet negotiated with the indexer and negotiates them.  Tags MUST be
+// negotiated in order because the translator is a dense slice indexed by the
+// intermediate tag value, which is free here, this only ever runs on the write relay
+// routine that owns the connection.
+func (nc connSet) negotiateOutstandingTags() (err error) {
+	for {
+		v, ok := nc.tt.peekToNegotiate()
+		if !ok {
+			return //nothing left to do
+		}
+		var rt entry.EntryTag
+		// the failure belongs to whichever tag is at the head of the queue, which is
+		// not necessarily the one the caller asked about, so name it in the error
+		if rt, err = nc.ig.NegotiateTag(v.name); err != nil {
+			err = fmt.Errorf("failed to negotiate tag %q with %s: %w", v.name, nc.dst, err)
+			nc.tt.failQueued(err)
+			return
+		} else if err = nc.tt.registerTag(v.local, rt); err != nil {
+			err = fmt.Errorf("failed to register tag %q from %s: %w", v.name, nc.dst, err)
+			nc.tt.failQueued(err)
+			return
+		}
+		nc.tt.clearToNegotiate(1)
+		v.report(nil)
+	}
+}
+
 type unNegotiatedTag struct {
-	local entry.EntryTag
-	name  string
+	local  entry.EntryTag
+	name   string
+	waiter *negotiationWaiter //nil when nobody is waiting on the outcome
+}
+
+// report hands the outcome of an attempt back to whoever asked for the tag.
+func (unt unNegotiatedTag) report(err error) {
+	unt.waiter.report(err)
+}
+
+// negotiationWaiter lets NegotiateTag block until a tag has actually been established
+// on at least one indexer, or until every connection it was staged on has failed.  The
+// relay routines do the work and report here, the caller only ever waits.
+type negotiationWaiter struct {
+	mtx       sync.Mutex
+	pending   int //connections that still owe an answer
+	errs      []error
+	settled   bool
+	succeeded bool
+	done      chan struct{}
+}
+
+func newNegotiationWaiter() *negotiationWaiter {
+	return &negotiationWaiter{done: make(chan struct{})}
+}
+
+// add registers one more connection that is expected to report.
+func (nw *negotiationWaiter) add() {
+	nw.mtx.Lock()
+	nw.pending++
+	nw.mtx.Unlock()
+}
+
+// report records one connection's outcome.  The first success settles the waiter, and
+// so does the last failure.  Extra reports are ignored, a connection that fails and
+// then retries after a reconnect will come back through here.
+func (nw *negotiationWaiter) report(err error) {
+	if nw == nil {
+		return //nobody is waiting, this is the reconcile path
+	}
+	nw.mtx.Lock()
+	defer nw.mtx.Unlock()
+	if nw.settled {
+		return
+	}
+	if err == nil {
+		nw.succeeded, nw.settled = true, true
+		close(nw.done)
+		return
+	}
+	nw.errs = append(nw.errs, err)
+	if nw.pending > 0 {
+		nw.pending--
+	}
+	if nw.pending == 0 {
+		nw.settled = true
+		close(nw.done)
+	}
+}
+
+// seal settles a waiter that nobody is going to report on, which is what happens when
+// the tag was staged while every connection was down.  Those tags ride in on the
+// authentication handshake when the connections come back, so that is not a failure.
+func (nw *negotiationWaiter) seal() (settled bool) {
+	nw.mtx.Lock()
+	defer nw.mtx.Unlock()
+	if nw.settled || nw.pending > 0 {
+		return nw.settled
+	}
+	nw.succeeded, nw.settled = true, true
+	close(nw.done)
+	return true
+}
+
+// err builds the failure the caller sees when no connection could establish the tag.
+func (nw *negotiationWaiter) err() error {
+	nw.mtx.Lock()
+	defer nw.mtx.Unlock()
+	if nw.succeeded {
+		return nil
+	}
+	return fmt.Errorf("failed to negotiate tag on any of %d connections: %w",
+		len(nw.errs), errors.Join(nw.errs...))
+}
+
+// wait blocks until the tag is established somewhere, every connection has failed, or
+// we give up.  A timeout is not a negotiation failure, the tag stays staged and the
+// relay routines keep at it, the caller just stops waiting on them.
+func (nw *negotiationWaiter) wait(ctx, muxCtx context.Context, to time.Duration) error {
+	var tc <-chan time.Time
+	if to > 0 {
+		tmr := time.NewTimer(to)
+		defer tmr.Stop()
+		tc = tmr.C
+	}
+	select {
+	case <-nw.done:
+		return nw.err()
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-muxCtx.Done():
+		// the muxer is shutting down, the relay routines are gone and nobody is ever
+		// going to report, do not make the caller sit out the timeout
+		return ErrNotRunning
+	case <-tc:
+		return ErrTimeout
+	}
 }
 
 type tagTrans struct {
-	sync.Mutex
+	mtx         sync.RWMutex // guards toNegotiate and active
 	toNegotiate []unNegotiatedTag
 	active      []entry.EntryTag
+
+	// notify wakes the write relay routine that owns this connection so it can go
+	// negotiate whatever just landed in toNegotiate.  Buffered by one and only ever
+	// written with a non blocking send, a pending wake up covers any number of tags.
+	notify chan struct{}
 }
 
 // Translate translates a local tag to a remote tag.  Senders should not use this function
@@ -2413,6 +2705,8 @@ func (tt *tagTrans) translate(t entry.EntryTag) (entry.EntryTag, bool) {
 	if t == entry.GravwellTagId {
 		return t, true
 	}
+	tt.mtx.RLock()
+	defer tt.mtx.RUnlock()
 	//if this is a tag we have not negotiated, set it to the first one we have
 	//we are assuming that its an error, but we still want the entry, so send it to the default well
 	if int(t) >= len(tt.active) {
@@ -2421,16 +2715,26 @@ func (tt *tagTrans) translate(t entry.EntryTag) (entry.EntryTag, bool) {
 	return tt.active[t], true
 }
 
+// activeLen is the number of tags this translator has negotiated.
+func (tt *tagTrans) activeLen() int {
+	tt.mtx.RLock()
+	defer tt.mtx.RUnlock()
+	return len(tt.active)
+}
+
 func (tt *tagTrans) hasTag(t entry.EntryTag) bool {
 	if t == entry.GravwellTagId {
 		return true
-	} else if int(t) < len(tt.active) {
-		return true
 	}
-	return false
+	tt.mtx.RLock()
+	defer tt.mtx.RUnlock()
+	return int(t) < len(tt.active)
 }
 
 func (tt *tagTrans) registerTag(local entry.EntryTag, remote entry.EntryTag) error {
+	// lock our tag set for the update
+	tt.mtx.Lock()
+	defer tt.mtx.Unlock()
 	if int(local) != len(tt.active) {
 		// this means the local tag numbers got out of sync and something is bad
 		return errors.New("Cannot register tag, local tag out of sync with tag translator")
@@ -2441,11 +2745,8 @@ func (tt *tagTrans) registerTag(local entry.EntryTag, remote entry.EntryTag) err
 		return ErrTooManyTags
 	}
 
-	// lock our tag set for the update
-	tt.Lock()
 	//registering a new tag
 	tt.active = append(tt.active, remote)
-	tt.Unlock()
 	return nil
 }
 
@@ -2453,29 +2754,76 @@ func (tt *tagTrans) clearToNegotiate(cnt int) {
 	if cnt <= 0 {
 		return
 	}
-	tt.Lock()
+	tt.mtx.Lock()
 	if cnt < len(tt.toNegotiate) {
 		// someone registered something while we were negotiating, so just chop off what we know about
 		tt.toNegotiate = tt.toNegotiate[cnt:]
 	} else {
 		tt.toNegotiate = nil
 	}
-	tt.Unlock()
+	tt.mtx.Unlock()
 }
 
-func (tt *tagTrans) registerTagForNegotiation(name string, local entry.EntryTag) error {
+// negotiationsPending indicates whether any tags are registered but not yet
+// negotiated with the indexer.
+func (tt *tagTrans) negotiationsPending() (ok bool) {
+	tt.mtx.RLock()
+	ok = len(tt.toNegotiate) > 0
+	tt.mtx.RUnlock()
+	return
+}
+
+// peekToNegotiate hands back the next tag awaiting negotiation without removing
+// it, the entry is only dropped via clearToNegotiate once it has actually been
+// registered.  Callers must hold negMtx.
+func (tt *tagTrans) peekToNegotiate() (v unNegotiatedTag, ok bool) {
+	tt.mtx.RLock()
+	if len(tt.toNegotiate) > 0 {
+		v, ok = tt.toNegotiate[0], true
+	}
+	tt.mtx.RUnlock()
+	return
+}
+
+func (tt *tagTrans) registerTagForNegotiation(name string, local entry.EntryTag, w *negotiationWaiter) error {
 	if err := CheckTag(name); err != nil {
 		return err
-	} else if len(tt.active) >= int(entry.MaxTagId) {
+	}
+	tt.mtx.Lock()
+	defer tt.mtx.Unlock()
+	if len(tt.active) >= int(entry.MaxTagId) {
 		return ErrTooManyTags
 	}
-	tt.Lock()
 	tt.toNegotiate = append(tt.toNegotiate, unNegotiatedTag{
-		name:  name,
-		local: local,
+		name:   name,
+		local:  local,
+		waiter: w,
 	})
-	tt.Unlock()
+	tt.wake()
 	return nil
+}
+
+// failQueued reports err to everything still waiting on this connection.  Negotiation
+// stops at the first failure and this connection is about to be bounced, so the tags
+// queued behind the one that broke are never going to be attempted on it.  Telling
+// their callers now beats making each of them sit out the full timeout.
+func (tt *tagTrans) failQueued(err error) {
+	tt.mtx.RLock()
+	queued := make([]unNegotiatedTag, len(tt.toNegotiate))
+	copy(queued, tt.toNegotiate)
+	tt.mtx.RUnlock()
+	for _, v := range queued {
+		v.report(err)
+	}
+}
+
+// wake nudges the write relay routine that owns this connection.  Never blocks, a wake
+// up that is already pending is as good as another one.
+func (tt *tagTrans) wake() {
+	select {
+	case tt.notify <- struct{}{}:
+	default:
+	}
 }
 
 // Reverse translates a remote tag back to a local tag
@@ -2486,6 +2834,8 @@ func (tt *tagTrans) reverse(t entry.EntryTag) entry.EntryTag {
 	if t == entry.GravwellTagId {
 		return t
 	}
+	tt.mtx.RLock()
+	defer tt.mtx.RUnlock()
 	for i := range tt.active {
 		if tt.active[i] == t {
 			return entry.EntryTag(i)

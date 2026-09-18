@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,12 +47,30 @@ type testIndexer struct {
 
 	gate readGate
 
+	// postAuth parks a connection after it has answered the tag handshake but before
+	// the muxer installs it, which is the window a tag negotiated mid connect falls into
+	postAuth readGate
+
 	tagMtx  sync.Mutex
 	tags    map[string]entry.EntryTag
 	tagNext entry.EntryTag
+	// reject names the indexer refuses to mint, which is how a real indexer answers
+	// when it is out of tag ids or does not like the name
+	reject map[string]bool
 
 	wg   sync.WaitGroup
 	done chan struct{}
+
+	// live tracks accepted connections so Close can force them shut.  A handler
+	// parked on a read has no deadline and will not notice the listener closing, so
+	// without this a connection the muxer abandoned mid handshake hangs shutdown.
+	connMtx sync.Mutex
+	live    map[net.Conn]struct{}
+
+	// received counts the entries consumed per INDEXER side tag, which is what
+	// catches a translator handing entries to the wrong well
+	rxMtx    sync.Mutex
+	received map[entry.EntryTag]uint64
 
 	errMtx sync.Mutex
 	errs   []error
@@ -65,10 +84,13 @@ func newTestIndexer(secret string) (*testIndexer, error) {
 		return nil, err
 	}
 	ti := &testIndexer{
-		lst:    lst,
-		secret: secret,
-		tags:   map[string]entry.EntryTag{},
-		done:   make(chan struct{}),
+		lst:      lst,
+		secret:   secret,
+		tags:     map[string]entry.EntryTag{},
+		reject:   map[string]bool{},
+		live:     map[net.Conn]struct{}{},
+		received: map[entry.EntryTag]uint64{},
+		done:     make(chan struct{}),
 	}
 	// tag zero is always the default tag
 	ti.tags[entry.DefaultTagName] = 0
@@ -127,7 +149,9 @@ func (ti *testIndexer) Close() error {
 	}
 	close(ti.done)
 	err := ti.lst.Close()
-	ti.gate.release() //make sure nothing is parked on the gate
+	ti.closeConns()       //unpark anything sitting on a read
+	ti.gate.release()     //make sure nothing is parked on the gate
+	ti.postAuth.release() //...or on the post auth gate
 	ti.wg.Wait()
 	return err
 }
@@ -139,6 +163,27 @@ func (ti *testIndexer) Errors() []error {
 	ti.errMtx.Lock()
 	defer ti.errMtx.Unlock()
 	return append([]error(nil), ti.errs...)
+}
+
+func (ti *testIndexer) addConn(c net.Conn) {
+	ti.connMtx.Lock()
+	ti.live[c] = struct{}{}
+	ti.connMtx.Unlock()
+}
+
+func (ti *testIndexer) dropConn(c net.Conn) {
+	ti.connMtx.Lock()
+	delete(ti.live, c)
+	ti.connMtx.Unlock()
+	c.Close()
+}
+
+func (ti *testIndexer) closeConns() {
+	ti.connMtx.Lock()
+	for c := range ti.live {
+		c.Close()
+	}
+	ti.connMtx.Unlock()
 }
 
 func (ti *testIndexer) addError(err error) {
@@ -169,9 +214,10 @@ func (ti *testIndexer) acceptRoutine() {
 		}
 		atomic.AddInt64(&ti.accepted, 1)
 		ti.wg.Add(1)
+		ti.addConn(conn)
 		go func(c net.Conn) {
 			defer ti.wg.Done()
-			defer c.Close()
+			defer ti.dropConn(c)
 			if err := ti.handleConn(c); err != nil {
 				ti.addError(err)
 			}
@@ -183,6 +229,9 @@ func (ti *testIndexer) handleConn(conn net.Conn) error {
 	if err := ti.authenticate(conn); err != nil {
 		return fmt.Errorf("authentication failed %w", err)
 	}
+	// a held postAuth gate leaves this connection sitting between the tag handshake
+	// and the point the muxer can see it
+	ti.postAuth.wait(ti.done)
 
 	rdr, err := NewEntryReaderEx(EntryReaderWriterConfig{
 		Conn:                  conn,
@@ -222,11 +271,17 @@ func (ti *testIndexer) handleConn(conn net.Conn) error {
 		// the gate is checked before every read so a held indexer leaves
 		// entries sitting in the socket and in the muxer pipeline
 		ti.gate.wait(ti.done)
-		if _, err = rdr.Read(); err != nil {
+		ent, err := rdr.Read()
+		if err != nil {
 			if err == io.EOF {
 				return nil
 			}
 			return err
+		}
+		if ent != nil {
+			ti.rxMtx.Lock()
+			ti.received[ent.Tag]++
+			ti.rxMtx.Unlock()
 		}
 		atomic.AddUint64(&ti.entries, 1)
 		if d := atomic.LoadInt64(&ti.throttleNS); d > 0 {
@@ -289,6 +344,55 @@ func (ti *testIndexer) authenticate(conn net.Conn) error {
 	return nil
 }
 
+// entriesForTag is how many entries arrived carrying the indexer side id minted for the
+// given tag name.  Zero when the tag was never minted.
+func (ti *testIndexer) entriesForTag(name string) uint64 {
+	ti.tagMtx.Lock()
+	tg, ok := ti.tags[name]
+	ti.tagMtx.Unlock()
+	if !ok {
+		return 0
+	}
+	ti.rxMtx.Lock()
+	defer ti.rxMtx.Unlock()
+	return ti.received[tg]
+}
+
+// rejectTag makes the indexer refuse a runtime tag renegotiation, which comes back to
+// the ingester as ERROR_TAG_MAGIC.  The authentication handshake is deliberately left
+// alone, a tag refused there kills the connection outright and that is a different
+// failure than the one worth testing here.
+func (ti *testIndexer) rejectTag(name string) {
+	ti.tagMtx.Lock()
+	ti.reject[name] = true
+	ti.tagMtx.Unlock()
+}
+
+// holdPostAuth parks every new connection once it has answered the tag handshake.
+func (ti *testIndexer) holdPostAuth() { ti.postAuth.hold() }
+
+// releasePostAuth lets parked connections finish coming up.
+func (ti *testIndexer) releasePostAuth() { ti.postAuth.release() }
+
+// hasTag indicates whether the indexer has minted a tag for the given name.
+func (ti *testIndexer) hasTag(name string) (ok bool) {
+	ti.tagMtx.Lock()
+	_, ok = ti.tags[name]
+	ti.tagMtx.Unlock()
+	return
+}
+
+// tagNames hands back every tag name the indexer has minted, for error output.
+func (ti *testIndexer) tagNames() (r []string) {
+	ti.tagMtx.Lock()
+	for k := range ti.tags {
+		r = append(r, k)
+	}
+	ti.tagMtx.Unlock()
+	sort.Strings(r)
+	return
+}
+
 // tagID hands back the indexer side tag value for a name, minting a new one
 // if we have not seen it before.
 func (ti *testIndexer) tagID(name string) (entry.EntryTag, error) {
@@ -316,6 +420,12 @@ type testTagManager struct {
 }
 
 func (ttm testTagManager) GetAndPopulate(name string) (entry.EntryTag, error) {
+	ttm.ti.tagMtx.Lock()
+	rejected := ttm.ti.reject[name]
+	ttm.ti.tagMtx.Unlock()
+	if rejected {
+		return 0, fmt.Errorf("tag %q is rejected", name)
+	}
 	return ttm.ti.tagID(name)
 }
 
