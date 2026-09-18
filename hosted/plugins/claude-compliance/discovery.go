@@ -80,6 +80,16 @@ const maxDiscoveredParameterLen = 512
 // live work.
 const absentRetirementThreshold = 3
 
+// maxChildFailures is the number of consecutive attempt failures after
+// which a pending child is treated as stuck rather than actively
+// in-progress, for the sole purpose of Max-Pending eviction eligibility
+// (see the capacity check in Handle). It matches the existing cap already
+// applied to w.Failures itself when computing retry backoff, so reaching
+// this threshold already means the child has been failing, with
+// exponentially growing backoff between attempts, for an extended period
+// -- not a single transient error.
+const maxChildFailures = 10
+
 // absenceTrackedParents are the root parent dataset kinds that have no
 // vendor-reported deletion signal (unlike "chats", which reports
 // deleted_at). For these, and only these, absence from a complete,
@@ -192,11 +202,26 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					}
 				}
 				if !exists && len(list.Items) >= p.conf.Max_Pending {
-					// Completed history is expendable; pending work is never evicted.
+					// Completed history is expendable; pending work is never
+					// evicted -- except a child stuck at maxChildFailures
+					// (see its doc comment), which is only ever considered
+					// once no genuinely non-pending candidate exists. This
+					// keeps a healthy, in-progress child fully protected
+					// while still giving Max-Pending capacity a way out of
+					// being permanently occupied by a child that can never
+					// succeed, which would otherwise wedge discovery of
+					// every subsequent new child on this parent forever.
 					victim := ""
 					for candidate, item := range list.Items {
 						if !item.Pending && (victim == "" || item.LastCompleted.Before(list.Items[victim].LastCompleted) || (item.LastCompleted.Equal(list.Items[victim].LastCompleted) && candidate < victim)) {
 							victim = candidate
+						}
+					}
+					if victim == "" {
+						for candidate, item := range list.Items {
+							if item.Pending && item.Failures >= maxChildFailures && (victim == "" || item.LastAttempt.Before(list.Items[victim].LastAttempt) || (item.LastAttempt.Equal(list.Items[victim].LastAttempt) && candidate < victim)) {
+								victim = candidate
+							}
 						}
 					}
 					if victim == "" {
@@ -340,7 +365,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 			childCont, childErr = hosted.ContinueNow(), nil
 		}
 		if childErr != nil {
-			w.Failures = min(w.Failures+1, 10)
+			w.Failures = min(w.Failures+1, maxChildFailures)
 			w.RetryAt = w.LastAttempt.Add(time.Minute * time.Duration(1<<(w.Failures-1)))
 			list.Items[k] = w
 			dirty = true
