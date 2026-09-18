@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/thinkst"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
@@ -195,4 +196,23 @@ func NewSQSBuilder(config *sqs.Config, kind, id, version string) *SQSBuilder {
 			version: version,
 		},
 	}
+}
+
+type ThinkstBuilder struct {
+        Builder[*thinkst.Config]
+}
+
+func (jb *ThinkstBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+        return hosted.WrapJobWithSync(thinkst.New(jb.config), syncFn), nil
+}
+
+func NewThinkstBuilder(config *thinkst.Config, kind, id, version string) *ThinkstBuilder {
+        return &ThinkstBuilder{
+                Builder[*thinkst.Config]{
+                        config:  config,
+                        kind:    kind,
+                        id:      id,
+                        version: version,
+                },
+        }
 }
