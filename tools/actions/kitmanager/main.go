@@ -56,7 +56,7 @@ func main() {
 	defer cli.Close()
 
 	// go get a list of kit builds
-	kbrs, err := cli.ListKitBuildHistory(nil)
+	kbrs, err := cli.ListKitBuildHistory(types.QueryOptions{})
 	if err != nil {
 		fatalf("Error getting kit build history: %v\n", err)
 	}

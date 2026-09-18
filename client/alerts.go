@@ -18,20 +18,14 @@ func (c *Client) CreateAlert(def types.Alert) (result types.Alert, err error) {
 }
 
 // ListAlerts returns a list of alerts the user has access to.
-func (c *Client) ListAlerts(opts *types.QueryOptions) (result types.AlertListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, opts)
+func (c *Client) ListAlerts(opts types.QueryOptions) (result types.AlertListResponse, err error) {
+	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, &opts)
 }
 
 // ListAllAlerts (admin-only) returns all alerts on the system.
-func (c *Client) ListAllAlerts(opts *types.QueryOptions) (result types.AlertListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true
-	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, opts)
+func (c *Client) ListAllAlerts(opts types.QueryOptions) (result types.AlertListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, &opts)
 }
 
 // GetAlert returns the definition for a specific alert.

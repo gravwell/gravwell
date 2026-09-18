@@ -28,11 +28,16 @@ func (c *Client) CreateToken(tc types.Token) (tf types.TokenFull, err error) {
 // ListTokens gets a list of tokens accessible to the user. If
 // non-nil, the QueryOptions will be applied for pagination,
 // filtering, etc.
-func (c *Client) ListTokens(opts *types.QueryOptions) (ts types.TokenListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, opts)
+func (c *Client) ListTokens(opts types.QueryOptions) (ts types.TokenListResponse, err error) {
+	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, &opts)
+}
+
+// ListAllTokens (admin-only) gets a list of all tokens on the system. If
+// non-nil, the QueryOptions will be applied for pagination,
+// filtering, etc.
+func (c *Client) ListAllTokens(opts types.QueryOptions) (ts types.TokenListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, &opts)
 }
 
 // GetToken returns a particular token.

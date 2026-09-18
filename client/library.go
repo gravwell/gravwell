@@ -18,29 +18,28 @@ func (c *Client) CreateSavedQuery(sl types.SavedQuery) (wsl types.SavedQuery, er
 }
 
 // ListSavedQueries returns the list of queries in the search library available to the user.
-func (c *Client) ListSavedQueries(opts *types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, opts)
+func (c *Client) ListSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
 }
 
 // ListAllSavedQueries (admin-only) returns the list of all search library entries for all users.
 // Non-administrators will receive the same list as returned by ListSavedQueries.
-func (c *Client) ListAllSavedQueries(opts *types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true
-	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, opts)
+func (c *Client) ListAllSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
 }
 
 // GetSavedQuery returns a query which matches the UUID given.
 // It first checks for a query with a matching ThingUUID.
 // If that is not found, it looks for a query with a matching GUID, prioritizing
 // queries belonging to the current user.
-func (c *Client) GetSavedQuery(id string) (sl types.SavedQuery, err error) {
-	return c.get[types.SavedQuery](searchLibIdUrl(id))
+func (c *Client) GetSavedQuery(id string) (types.SavedQuery, error) {
+	return c.GetSavedQueryEx(id, GetOptions{})
+}
+
+// GetSavedQueryEx returns a particular saved query, modified by opts.
+func (c *Client) GetSavedQueryEx(id string, opts GetOptions) (types.SavedQuery, error) {
+	return c.get[types.SavedQuery](searchLibIdUrl(id), opts.params()...)
 }
 
 // DeleteSavedQuery deletes a specific library entry.

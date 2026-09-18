@@ -67,7 +67,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction(
 		"list installed and staged kits", "Lists system kits visible to you or, if you are an admin, available on this system.",
 		types.KitState{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.KitState, error) {
-			kits, err := connection.Client.ListKits(param.QueryOpts)
+			kits, err := connection.Client.ListKits(param.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -109,7 +109,7 @@ func uninstall() action.Pair {
 			return connection.Client.DeleteKit(ID)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			pkgs, err := connection.Client.ListKits(params.QueryOpts)
+			pkgs, err := connection.Client.ListKits(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -146,7 +146,7 @@ func install() action.Pair {
 		"Install a kit that has been uploaded/staged, queuing it for full installation.",
 		"kit",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			ks, err := connection.Client.ListKits(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			ks, err := connection.Client.ListKits(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
@@ -370,7 +370,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListDashboards(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListDashboards(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch dashboards", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -394,7 +394,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListTemplates(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListTemplates(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch templates", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -411,7 +411,7 @@ func build() action.Pair {
 				Order:    500,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListActionables(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch actionables", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -428,7 +428,7 @@ func build() action.Pair {
 				Order:    480,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListFlows(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListFlows(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch flows", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -451,7 +451,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListScheduledSearches(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -474,9 +474,9 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListResources(types.QueryOptions{AdminMode: true})
 						if err != nil {
-							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
+							clilog.Writer.Warn("failed to fetch resources", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
 						return listitem.WrapAssets(lr.Results, preselections)
@@ -497,7 +497,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListMacros(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListMacros(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch macros", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -520,7 +520,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListExtractions(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -543,7 +543,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListFiles(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListFiles(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch files", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -566,7 +566,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListPlaybooks(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListPlaybooks(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch playbooks", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -589,7 +589,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListSavedQueries(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListSavedQueries(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch saved queries", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -612,7 +612,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListAlerts(types.QueryOptions{AdminMode: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch alert", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -842,7 +842,7 @@ func build() action.Pair {
 				if rebuild != "" && repack != "" {
 					return ft.MutuallyExclusive("--"+buildFlagRebuild, "--"+buildFlagRepack), nil
 				} else if rebuild != "" {
-					lr, err := connection.Client.ListKitBuildHistory(&types.QueryOptions{
+					lr, err := connection.Client.ListKitBuildHistory(types.QueryOptions{
 						Filters: []types.Filter{{Key: "KitID", Operation: "=", Values: []any{rebuild}}},
 					})
 					if err != nil {
@@ -855,7 +855,7 @@ func build() action.Pair {
 					}
 					priorKBR = &lr.Results[0]
 				} else if repack != "" {
-					lr, err := connection.Client.ListKits(&types.QueryOptions{
+					lr, err := connection.Client.ListKits(types.QueryOptions{
 						Filters: []types.Filter{{Key: "ID", Operation: "=", Values: []any{repack}}},
 					})
 					if err != nil {
@@ -984,7 +984,7 @@ func buildRequests() action.Pair {
 			"Note that only the most recent build request is stored for each unique kit ID (e.g. \"io.gravwell.foo\").",
 		types.KitBuildRequest{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitBuildRequest, error) {
-			lr, err := connection.Client.ListKitBuildHistory(params.QueryOpts)
+			lr, err := connection.Client.ListKitBuildHistory(params.QueryOptions())
 			return lr.Results, err
 		},
 		nil,
@@ -1034,7 +1034,7 @@ func download() action.Pair {
 		"Download a kit, remote or on the connected Gravwell system, into a local directory",
 		"kit ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lrLocal, err := connection.Client.ListKits(nil)
+			lrLocal, err := connection.Client.ListKits(types.QueryOptions{})
 			if err != nil {
 				clilog.Writer.Warn("failed to list local kits", log.KVErr(err))
 			}

@@ -64,7 +64,7 @@ func main() {
 		log.Fatalf("Failed to log in to %q: %v\n", *server, err)
 	}
 
-	wellData, err := cli.WellData()
+	wellData, err := cli.GetWellData()
 	if err != nil {
 		log.Fatalf("Failed to retrieve data topologies: %v\n", err)
 	}

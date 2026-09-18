@@ -53,7 +53,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list playbooks", "List playbooks available to your user.",
 		types.Playbook{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Playbook, error) {
-			resp, err := connection.Client.ListPlaybooks(params.QueryOpts)
+			resp, err := connection.Client.ListPlaybooks(params.QueryOptions())
 			return resp.Results, err
 		},
 		nil,
@@ -74,7 +74,7 @@ func download() action.Pair {
 	return scaffoldselect.NewSelectAction("download the content of a playbook",
 		"Download the markdown body of a playbook for use locally.",
 		"playbook", func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListPlaybooks(nil)
+			lr, err := connection.Client.ListPlaybooks(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -203,7 +203,7 @@ func delete() action.Pair {
 			return connection.Client.DeletePlaybook(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListPlaybooks(params.QueryOpts)
+			lr, err := connection.Client.ListPlaybooks(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -237,7 +237,7 @@ func edit() action.Pair {
 			return connection.Client.GetPlaybook(id)
 		},
 		FetchSub: func() ([]types.Playbook, error) {
-			resp, err := connection.Client.ListPlaybooks(nil)
+			resp, err := connection.Client.ListPlaybooks(types.QueryOptions{})
 			return resp.Results, err
 		},
 		GetFieldSub: func(item types.Playbook, fieldKey string) (string, error) {

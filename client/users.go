@@ -17,16 +17,13 @@ import (
 // ListUsers returns a list of users. If CBAC is enabled, regular
 // users must possess the ListUsers capability or the function will
 // return an error.
-func (c *Client) ListUsers(opts *types.QueryOptions) (ret types.UserListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.UserListResponse](USERS_LIST_URL, opts)
+func (c *Client) ListUsers(opts types.QueryOptions) (ret types.UserListResponse, err error) {
+	return c.post[types.QueryOptions, types.UserListResponse](USERS_LIST_URL, &opts)
 }
 
 // GetUserMap returns a map of UID to username for every user on the system. This calls ListUsers under the hood, so the user must have the ListUsers capability enabled.
 func (c *Client) GetUserMap() (map[int32]string, error) {
-	users, err := c.ListUsers(nil)
+	users, err := c.ListUsers(types.QueryOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +97,7 @@ func (c *Client) CleanupUsers() error {
 // capability enabled.
 func (c *Client) LookupUser(username string) (ud types.User, err error) {
 	var lst types.UserListResponse
-	if lst, err = c.ListUsers(nil); err != nil {
+	if lst, err = c.ListUsers(types.QueryOptions{}); err != nil {
 		return
 	}
 	for _, l := range lst.Results {

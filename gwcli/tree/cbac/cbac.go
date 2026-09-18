@@ -61,7 +61,7 @@ func listCapabilities() action.Pair {
 		"List every capability by its canonical name and description",
 		types.CapabilityDesc{},
 		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.CapabilityDesc, error) {
-			caps, err := connection.Client.CapabilityList()
+			caps, err := connection.Client.ListCapabilities()
 			if err != nil {
 				return nil, err
 			}
@@ -93,7 +93,7 @@ func listTemplates() action.Pair {
 		"List every capability grouping (template)",
 		types.CapabilityTemplate{},
 		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.CapabilityTemplate, error) {
-			return connection.Client.CapabilityTemplateList()
+			return connection.Client.ListCapabilityTemplates()
 		},
 		map[string]string{
 			"Desc": "Description",
@@ -143,7 +143,7 @@ func myCapabilities() action.Pair {
 		capExp{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]capExp, error) {
 			var caps []capExp
-			if ex, err := connection.Client.CurrentUserCapabilityExplanations(); err != nil {
+			if ex, err := connection.Client.MyCapabilityExplanations(); err != nil {
 				return nil, err
 			} else { // trim out permissions the user doesn't have
 				for _, e := range ex {
@@ -259,7 +259,7 @@ func edit() action.Pair {
 			// NOTE(rlandau): grant/revoke do not affect cap collection for interactive mode; they only alter how the final set is constructed.
 
 			// fetch all caps
-			caps, err := connection.Client.CapabilityList()
+			caps, err := connection.Client.ListCapabilities()
 			if err != nil {
 				return nil, err
 			}
@@ -395,26 +395,24 @@ func edit() action.Pair {
 			}
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "edit",
-				Usage: "edit " +
-					ft.MutuallyExclusive("--uid", "--gid") +
-					ft.Optional(ft.MutuallyExclusive("--grant", "--revoke")),
-				Example: "edit --uid=5",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Int32("uid", 0, "ID of the user to edit.\n"+
-						"Mutually exclusive with --gid")
-					fs.Int32("gid", 0, "ID of the group to edit.\n"+
-						"Mutually exclusive with --uid")
-					fs.Bool("grant", false, "Only grant caps; no caps will be removed through this call")
-					fs.Bool("revoke", false, "Only revoke caps; no caps will be added through this call")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					DeploymentHasCBAC: true,
-					UserIsAdmin:       true,
-				},
+			Use: "edit",
+			Usage: "edit " +
+				ft.MutuallyExclusive("--uid", "--gid") +
+				ft.Optional(ft.MutuallyExclusive("--grant", "--revoke")),
+			Example: "edit --uid=5",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Int32("uid", 0, "ID of the user to edit.\n"+
+					"Mutually exclusive with --gid")
+				fs.Int32("gid", 0, "ID of the group to edit.\n"+
+					"Mutually exclusive with --uid")
+				fs.Bool("grant", false, "Only grant caps; no caps will be removed through this call")
+				fs.Bool("revoke", false, "Only revoke caps; no caps will be added through this call")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				DeploymentHasCBAC: true,
+				UserIsAdmin:       true,
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure all prior data is destroyed
@@ -453,7 +451,7 @@ func edit() action.Pair {
 				// ensure that pre-selected cap names are valid
 				bare := fs.Args()
 				if len(bare) > 0 {
-					caps, err := connection.Client.CapabilityList()
+					caps, err := connection.Client.ListCapabilities()
 					if err != nil {
 						return "", err
 					}
@@ -486,7 +484,7 @@ func set() action.Pair {
 				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
 					ListOptions: multiselectlist.Options{},
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListUsers(nil)
+						lr, err := connection.Client.ListUsers(types.QueryOptions{})
 						if err != nil {
 							clilog.Writer.Error("failed to get user list", log.KVErr(err))
 						} else if len(lr.Results) < 1 {
@@ -521,7 +519,7 @@ func set() action.Pair {
 				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
 					ListOptions: multiselectlist.Options{},
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListGroups(nil)
+						lr, err := connection.Client.ListGroups(types.QueryOptions{})
 						if err != nil {
 							clilog.Writer.Error("failed to get group list", log.KVErr(err))
 						} else if len(lr.Results) < 1 {
@@ -551,7 +549,7 @@ func set() action.Pair {
 				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
 					ListOptions: multiselectlist.Options{},
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						allCaps, err := connection.Client.CapabilityList()
+						allCaps, err := connection.Client.ListCapabilities()
 						if err != nil {
 							clilog.Writer.Error("failed to get capability list", log.KVErr(err))
 						} else if len(allCaps) < 1 {

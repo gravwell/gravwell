@@ -96,7 +96,7 @@ func list() action.Pair {
 				return []types.AX{d}, err
 			}
 
-			lr, err := connection.Client.ListExtractions(param.QueryOpts)
+			lr, err := connection.Client.ListExtractions(param.QueryOptions())
 			return lr.Results, err
 
 		},
@@ -225,26 +225,17 @@ func create() action.Pair {
 				return 0, "", err
 			}
 
-			var (
-				id  string
-				wrs []types.WarnResp
-			)
 			if dr {
-				wrs, err = connection.Client.TestAddExtraction(axd)
-			} else {
-				axd, wrs, err = connection.Client.AddExtraction(axd)
-				id = axd.ID
-			}
-
-			if len(wrs) > 0 {
-				var invSB strings.Builder
-				for _, wr := range wrs {
-					fmt.Fprintf(&invSB, "%v: %v\n", wr.Name, wr.Err)
+				var tagExists bool
+				tagExists, err = connection.Client.ValidateExtraction(axd)
+				if tagExists {
+					return 0, fmt.Sprintf("tag '%v' exists", axd.Tags), err
 				}
-				return 0, invSB.String(), nil
+				return 0, "", err
 			}
+			axd, err = connection.Client.CreateExtraction(axd)
 
-			return id, "", err
+			return axd.ID, "", err
 		},
 		scaffoldcreate.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -273,22 +264,13 @@ func delete() action.Pair {
 				_, err := connection.Client.GetExtraction(id)
 				return err
 			}
-			if wrs, err := connection.Client.DeleteExtraction(id); err != nil {
+			if err := connection.Client.DeleteExtraction(id); err != nil {
 				return err
-			} else if wrs != nil {
-				var sb strings.Builder
-				sb.WriteString("failed to delete ax with warning(s):")
-				for _, wr := range wrs {
-					sb.WriteString("\n")
-					sb.WriteString(wr.Err.Error())
-				}
-				clilog.Writer.Warn(sb.String())
-				return errors.New(sb.String())
 			}
 			return nil
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(params.QueryOpts)
+			lr, err := connection.Client.ListExtractions(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -373,7 +355,7 @@ func edit() action.Pair {
 				return connection.Client.GetExtraction(id)
 			},
 			FetchSub: func() (items []types.AX, err error) {
-				resp, err := connection.Client.ListExtractions(nil)
+				resp, err := connection.Client.ListExtractions(types.QueryOptions{})
 				if err != nil {
 					return nil, err
 				}
@@ -545,7 +527,7 @@ func find() action.Pair {
 func clear() action.Pair {
 	return scaffoldselect.NewSelectAction("clear a tag's extractor", "Unassign and delete whatever extractor is on the given tag(s).", "ax",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListExtractions(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
@@ -583,24 +565,19 @@ func clear() action.Pair {
 					continue
 				}
 
-				warns, err := connection.Client.DeleteExtraction(ax.ID)
-				if err != nil {
+				if err := connection.Client.DeleteExtraction(ax.ID); err != nil {
 					results[i] = scaffold.Result{Output: "failed to update ax: " + err.Error()}
 					continue
-				} else if len(warns) > 0 {
-					clilog.Writer.Warn("updating the AX triggered warnings", log.KV("warnings", warns))
 				}
 				results[i] = scaffold.Result{Success: true, Output: "removed ax '" + ax.Name + "' from tag '" + tag + "'"}
 			}
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "clear",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
-					XPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
-				},
+			Use: "clear",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
+				XPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
 			},
 		})
 }

@@ -70,7 +70,7 @@ func past() action.Pair {
 		"display search history", "display past searches made by your user",
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
-			resp, err := connection.Client.ListSearchHistory(params.QueryOpts)
+			resp, err := connection.Client.ListSearchHistory(params.QueryOptions())
 			if err != nil {
 				// check for explicit no records error
 				if strings.Contains(err.Error(), "No record") {
@@ -105,7 +105,7 @@ func past() action.Pair {
 //
 // TODO install omit
 func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[string], error) {
-	lsd, err := connection.Client.ListSearches(nil)
+	lsd, err := connection.Client.ListSearches(types.QueryOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -167,10 +167,10 @@ func listAction() action.Pair {
 		types.SearchInfo{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchInfo, error) {
 			if params.QueryOpts.AdminMode {
-				resp, err := connection.Client.ListAllSearches(nil)
+				resp, err := connection.Client.ListAllSearches(types.QueryOptions{})
 				return resp.Results, err
 			}
-			resp, err := connection.Client.ListSearches(nil)
+			resp, err := connection.Client.ListSearches(types.QueryOptions{})
 			return resp.Results, err
 		},
 		nil,

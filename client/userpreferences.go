@@ -13,20 +13,14 @@ import (
 )
 
 // ListUserPreferences returns all user preferences accessible to the current user.
-func (c *Client) ListUserPreferences(opts *types.QueryOptions) (ret types.UserPreferenceResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, opts)
+func (c *Client) ListUserPreferences(opts types.QueryOptions) (ret types.UserPreferenceResponse, err error) {
+	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, &opts)
 }
 
 // ListAllUserPreferences (admin-only) returns all user preferences on the system.
-func (c *Client) ListAllUserPreferences(opts *types.QueryOptions) (ret types.UserPreferenceResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+func (c *Client) ListAllUserPreferences(opts types.QueryOptions) (ret types.UserPreferenceResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, &opts)
 }
 
 // GetUserPreference returns a particular user preference.
@@ -51,7 +45,7 @@ func (c *Client) GetUserPreferenceByName(name string) (types.UserPreference, err
 			{Key: "Name", Operation: "=", Values: []any{name}},
 		},
 	}
-	resp, err := c.ListUserPreferences(&opts)
+	resp, err := c.ListUserPreferences(opts)
 	if err != nil {
 		return types.UserPreference{}, err
 	}
@@ -96,15 +90,15 @@ func (c *Client) GetGuiPreferences(uid int32, obj interface{}) error {
 	return c.getStaticURL(preferencesUrl(uid), obj)
 }
 
-// DeleteGuiPreferences clears the Data field of the preferences
+// ClearGuiPreferences clears the Data field of the preferences
 // object named `prefs` belonging to the specified user. It does *not*
 // delete the underlying asset, though.
-func (c *Client) DeleteGuiPreferences(id int32) error {
+func (c *Client) ClearGuiPreferences(id int32) error {
 	return c.delete(preferencesUrl(id), false)
 }
 
-// PutGuiPreferences updates the Data field of the preferences object
+// UpdateGuiPreferences updates the Data field of the preferences object
 // named `prefs` belonging to the specified user.
-func (c *Client) PutGuiPreferences(id int32, obj interface{}) error {
+func (c *Client) UpdateGuiPreferences(id int32, obj interface{}) error {
 	return c.putStaticURL(preferencesUrl(id), obj)
 }

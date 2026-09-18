@@ -463,7 +463,7 @@ func TestJWTRefreshing(t *testing.T) {
 		t.Error("token file was not updated while we were sleeping")
 	}
 	// validate that we can still make calls
-	_, err = connection.Client.ListKits(nil)
+	_, err = connection.Client.ListKits(types.QueryOptions{})
 	if err != nil {
 		t.Error("client failed to fetch kits:", err)
 	}
@@ -518,7 +518,13 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret 
 	}
 
 	t.Logf("failed to lookup user %v, attempting creation...", altUser)
-	if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+	if _, err := testclient.CreateUser(types.AddUser{
+		Username: altUser,
+		Password: altPass,
+		Name:     "Mildred Knolastname",
+		Email:    "milly@imp.com",
+		Admin:    false,
+	}); err != nil {
 		t.Fatal(err)
 	}
 

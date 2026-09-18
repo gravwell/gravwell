@@ -11,10 +11,7 @@ package client
 import "github.com/gravwell/gravwell/v4/client/types"
 
 // ListAll lists all assets on the system. You can filter on the Type field to restrict to a subset of asset types.
-func (c *Client) ListAll(opts *types.QueryOptions) (ret types.ListAllResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+func (c *Client) ListAll(opts types.QueryOptions) (ret types.ListAllResponse, err error) {
 	err = c.postStaticURL(LIST_URL, opts, &ret)
 	return
 }

@@ -263,7 +263,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 
 	// cache CBAC state
 	wg.Go(func() {
-		if caps, err := Client.CurrentUserCapabilities(); err != nil {
+		if caps, err := Client.MyCapabilities(); err != nil {
 			clilog.Writer.Warn("failed to cache current user caps", log.KVErr(err))
 		} else {
 			m := make(map[types.Capability]bool, len(caps))

@@ -82,14 +82,14 @@ func Action() action.Pair {
 //
 // Returns the list of dispatchers and consumers so we don't have to hit the backend again.
 func prerequisites() (availDispatchers map[string]types.ScheduledSearch, availConsumers map[string]types.Flow, inv string, _ error) {
-	dispatchers, err := connection.Client.ListScheduledSearches(nil)
+	dispatchers, err := connection.Client.ListScheduledSearches(types.QueryOptions{})
 	if err != nil {
 		return nil, nil, "", err
 	} else if len(dispatchers.Results) < 1 {
 		return nil, nil, "No dispatchers available. Dispatchers may be scheduled searches. Please create one before creating an alert.", nil
 	}
 
-	consumers, err := connection.Client.ListFlows(nil)
+	consumers, err := connection.Client.ListFlows(types.QueryOptions{})
 	if err != nil {
 		return nil, nil, "", err
 	} else if len(consumers.Results) < 1 {
