@@ -664,3 +664,47 @@ func TestNoNilSlicesMaps(t *testing.T) {
 	})
 
 }
+
+// DeletedAt used to be a time.Time, so every asset that had never been deleted
+// reported the Go zero time on the wire. It is nullable on read now, so an
+// asset that is alive reports null and a soft-deleted one reports a real
+// timestamp.
+func TestDeletedAtMarshalsNullable(t *testing.T) {
+	ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		data any
+		want string // the raw JSON value we expect for the DeletedAt member
+	}{
+		{"live CommonFields", types.CommonFields{}, `null`},
+		{"deleted CommonFields", types.CommonFields{DeletedAt: &ts}, `"2026-09-17T12:00:00Z"`},
+		// DeletedAt is inlined from the embedded CommonFields, so it has to
+		// land at the top level of every asset that embeds it.
+		{"live SearchInfo", types.SearchInfo{}, `null`},
+		{"live Macro", types.Macro{}, `null`},
+		{"deleted Macro", types.Macro{CommonFields: types.CommonFields{DeletedAt: &ts}}, `"2026-09-17T12:00:00Z"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := v2.Marshal(tt.data, jsoncompat.Opts)
+			require.NoError(t, err)
+			var out map[string]jsontext.Value
+			require.NoError(t, v2.Unmarshal(b, &out, jsoncompat.Opts))
+			raw, found := out["DeletedAt"]
+			require.True(t, found, "DeletedAt missing from JSON: %s", b)
+			require.Equal(t, tt.want, raw.String())
+		})
+	}
+
+	t.Run("round trips", func(t *testing.T) {
+		var cf types.CommonFields
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &cf, jsoncompat.Opts))
+		require.Nil(t, cf.DeletedAt)
+
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":"2026-09-17T12:00:00Z"}`), &cf, jsoncompat.Opts))
+		require.NotNil(t, cf.DeletedAt)
+		require.True(t, cf.DeletedAt.Equal(ts))
+	})
+}
