@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted"
 
 	// include all the native hosted ingesters
+	"github.com/gravwell/gravwell/v3/hosted/plugins/claude-compliance"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
@@ -28,17 +29,26 @@ import (
 )
 
 type Configs struct {
-	Okta     map[string]*okta.Config
-	Mimecast map[string]*mimecast.Config
-	MSGraph  map[string]*msgraph.Config
-	Tester   map[string]*tester.Config
-	Jamf     map[string]*jamf.Config
-	Wiz      map[string]*wiz.Config
-	SQS      map[string]*sqs.Config
+	ClaudeCompliance map[string]*claudecompliance.Config
+	Okta             map[string]*okta.Config
+	Mimecast         map[string]*mimecast.Config
+	MSGraph          map[string]*msgraph.Config
+	Tester           map[string]*tester.Config
+	Jamf             map[string]*jamf.Config
+	Wiz              map[string]*wiz.Config
+	SQS              map[string]*sqs.Config
 }
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
+	for k, v := range c.ClaudeCompliance {
+		if v == nil {
+			return fmt.Errorf("ClaudeCompliance config %q is nil", k)
+		}
+		if err = v.Verify(); err != nil {
+			return fmt.Errorf("ClaudeCompliance config %q failed validation: %w", k, err)
+		}
+	}
 	for k, v := range c.Okta {
 		if v == nil {
 			err = fmt.Errorf("Okta config %q is nil", k)
@@ -114,6 +124,9 @@ func (c Configs) Verify() (err error) {
 
 // Tags implements the required interface for base.cfgHelper which is used during startup
 func (c Configs) Tags() (tags []string, err error) {
+	for _, v := range c.ClaudeCompliance {
+		tags = append(tags, v.Tags()...)
+	}
 	if len(c.Okta) > 0 {
 		tags = append(tags, okta.Tags...)
 	}
@@ -140,6 +153,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
+	count += len(c.ClaudeCompliance)
 	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
 	return
 }
@@ -158,6 +172,11 @@ type IngesterBuilder interface {
 // Any new plugins MUST add another loop here returning an IngesterBuilder for each config entry.
 func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 	return func(yield func(string, IngesterBuilder) bool) {
+		for name, config := range c.ClaudeCompliance {
+			if !yield(name, NewClaudeComplianceBuilder(config, claudecompliance.Name, claudecompliance.ID, claudecompliance.Version)) {
+				return
+			}
+		}
 		for name, config := range c.Tester {
 			if !yield(name, NewTesterBuilder(config, tester.Name, tester.ID, tester.Version)) {
 				return
