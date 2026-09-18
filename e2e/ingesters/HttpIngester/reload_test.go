@@ -28,6 +28,11 @@ const (
 
 	// the ingester logs this once it has accepted a new config off a SIGHUP
 	reloadComplete = "loaded new config"
+	// the muxer logs this every time a connection comes back up.  A failed tag
+	// negotiation bounces the connection and the tag then rides in on the
+	// authentication handshake, so counting these is how the test tells a real
+	// negotiation apart from the recovery path landing the tag anyway.
+	reconnected = "re-connected"
 	// ...and these when it did not, surface them instead of burning the timeout
 	reloadParseFailed = "failed to parse new configuration"
 	reloadLoadFailed  = "failed to load new configuration"
@@ -61,12 +66,23 @@ func TestHotReloadNegotiatesTag(t *testing.T) {
 		e2e.Fatalf(t, "tag %q already exists before the reload, pick a different name", after)
 	}
 
+	bounces := countLog(t, con, reconnected)
+
 	reloadIngester(t, con, reloadConfig{IngestConfig: e2e.DefaultConfig, Tag: after})
 
 	// NOTHING has been posted to /ingest at this point and nothing will be, the tag
 	// must exist purely because the reload negotiated it
 	if !waitForTag(t, c, after, 30*time.Second) {
 		e2e.Fatalf(t, "tag %q was not negotiated with the indexer during the hot reload, no data has flowed on it", after)
+	}
+
+	// and it has to have come from the negotiation itself.  A failed negotiation
+	// bounces the connection and the handshake establishes the tag on the way back up,
+	// which would satisfy the check above while the thing it is meant to prove is
+	// broken.  No reconnect means the tag was genuinely negotiated in place.
+	if now := countLog(t, con, reconnected); now != bounces {
+		e2e.Fatalf(t, "the ingester reconnected %d time(s) during the reload, tag %q may have been established by the handshake rather than negotiated",
+			now-bounces, after)
 	}
 
 	// and it has to be searchable, which is what a user actually notices
