@@ -147,7 +147,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					retired.LastCompleted = old.LastCompleted
 					retired.StateKey = old.StateKey
 				}
-				if e = pruneCheckpoint(rt, parent, retired); e != nil {
+				if e = pruneCheckpoint(rt, parent, retired, true); e != nil {
 					return e
 				}
 				delete(list.Items, k)
@@ -202,7 +202,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					if victim == "" {
 						return errPendingCapacity
 					}
-					if e = pruneCheckpoint(rt, parent, list.Items[victim]); e != nil {
+					if e = pruneCheckpoint(rt, parent, list.Items[victim], false); e != nil {
 						return e
 					}
 					delete(list.Items, victim)
@@ -259,7 +259,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 			continue
 		}
 		rt.Warn("Compliance discovered work item has an oversized parameter; retiring", log.KV("dataset", w.Dataset), log.KV("parameter", name), log.KV("length", n))
-		if e = pruneCheckpoint(rt, p.conf, w); e != nil {
+		if e = pruneCheckpoint(rt, p.conf, w, true); e != nil {
 			return nil, e
 		}
 		delete(list.Items, k)
@@ -440,7 +440,18 @@ func retiredCheckpoint(rt hosted.Runtime, key, revision string) (bool, error) {
 	return st.Retired != "" && st.Retired == revision, nil
 }
 
-func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work) error {
+// pruneCheckpoint always compacts a child's checkpoint (clearing Manifest
+// and Traversal to reclaim space) and, when tombstone is true, additionally
+// marks it Retired under the current revision. The tombstone must be
+// reserved for a signal that is actually tied to the parent's content --
+// today, only confirmed vendor deletion (a deleted_at flip changes the raw
+// JSON, and therefore the sha256 revision, so an undelete is guaranteed to
+// present a different revision and bypass the tombstone). Max-Pending
+// capacity eviction and absence-based retirement remove a child for reasons
+// unrelated to the parent's content, so an unchanged parent would reappear
+// with the *same* revision; tombstoning there would be indistinguishable
+// from "still deleted" and would suppress a valid parent forever.
+func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work, tombstone bool) error {
 	key := w.StateKey
 	if key == "" {
 		c, e := childConfig(parent, w)
@@ -459,7 +470,9 @@ func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work) error {
 	}
 	st.Manifest = manifest{}
 	st.Traversal = nil
-	st.Retired = w.Revision
+	if tombstone {
+		st.Retired = w.Revision
+	}
 	b, e := json.Marshal(st)
 	if e != nil {
 		return e
@@ -574,10 +587,12 @@ func isDirectChildOf(parent *Config, specs []spec, w work) bool {
 // error-free pass (see the call site in Handle). Every existing direct
 // child of parent that was touched during that pass (SeenThisScan) has its
 // AbsentStreak reset to zero; every one that was not accrues one miss. A
-// child missed on absentRetirementThreshold consecutive complete passes is
-// retired through the same tombstone/pruning path used for an explicitly
-// deleted chat, so a later reappearance under the same revision is not
-// mistaken for still-cached, already-ingested history.
+// child missed on absentRetirementThreshold consecutive complete passes has
+// its checkpoint compacted through the same pruning path used for an
+// explicitly deleted chat, but without a tombstone: absence is not a
+// content-derived signal, so an unchanged parent could reappear under the
+// very same revision, and tombstoning it would suppress a still-valid
+// parent forever.
 func retireAbsentChildren(rt hosted.Runtime, parent *Config, list *worklist, dirty *bool) error {
 	specs := childSpecs(parent.dataset.Name)
 	if len(specs) == 0 {
@@ -599,7 +614,7 @@ func retireAbsentChildren(rt hosted.Runtime, parent *Config, list *worklist, dir
 			*dirty = true
 			continue
 		}
-		if e := pruneCheckpoint(rt, parent, w); e != nil {
+		if e := pruneCheckpoint(rt, parent, w, false); e != nil {
 			return e
 		}
 		delete(list.Items, k)

@@ -714,8 +714,11 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 		t.Fatal("oldest completed entry retained")
 	}
 	var pruned state
-	if e := json.Unmarshal(rt.states[old1.StateKey], &pruned); e != nil || len(pruned.Manifest) != 0 || pruned.Retired != "rev-old1" {
+	if e := json.Unmarshal(rt.states[old1.StateKey], &pruned); e != nil || len(pruned.Manifest) != 0 {
 		t.Fatal("evicted child checkpoint was not compacted")
+	}
+	if pruned.Retired != "" {
+		t.Fatal("capacity eviction must not tombstone the checkpoint; it would suppress an unchanged parent forever")
 	}
 	for k, w := range list.Items {
 		w.Pending = true
@@ -738,6 +741,91 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	var after worklist
 	if e = json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &after); e != nil || len(after.Items) != 2 {
 		t.Fatal("pending work was not preserved")
+	}
+}
+
+// TestCapacityEvictedUnchangedParentIsRediscovered proves the fix for the
+// tombstone-reuse defect: Max-Pending capacity eviction must compact a
+// child's checkpoint without marking it Retired, because the parent's
+// revision is unrelated to why it was evicted. A still-unchanged parent
+// (identical revision) has to be rediscovered and its child work re-run the
+// next time capacity allows it back in -- not permanently suppressed as if
+// it were confirmed-deleted.
+func TestCapacityEvictedUnchangedParentIsRediscovered(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Pending = 1
+	p.conf.Max_Children = 1
+	rt.states = map[string][]byte{}
+	active := "g1"
+	g1Calls := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(fmt.Sprintf(`{"data":[{"id":%q}],"has_more":false}`, active), 200), nil
+		}
+		if strings.Contains(r.URL.Path, "g1") {
+			g1Calls++
+		}
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+	// Cycle 1: g1 is discovered and its membership completed.
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	g1, ok := list.Items["group-members/group_id:g1"]
+	if !ok || g1.Pending {
+		t.Fatal("g1 was not discovered and completed")
+	}
+	callsAfterCycle1 := g1Calls
+	if callsAfterCycle1 == 0 {
+		t.Fatal("g1's child work never ran")
+	}
+
+	// Cycle 2: g2 appears. With Max_Pending exhausted, g1 -- the only
+	// non-pending candidate -- is evicted for capacity.
+	active = "g2"
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	list = worklist{}
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	if _, ok := list.Items["group-members/group_id:g1"]; ok {
+		t.Fatal("g1 was not evicted for Max-Pending capacity")
+	}
+	var pruned state
+	if e := json.Unmarshal(rt.states[g1.StateKey], &pruned); e != nil {
+		t.Fatal(e)
+	}
+	if pruned.Retired != "" {
+		t.Fatal("capacity eviction must not tombstone the checkpoint")
+	}
+
+	// Cycle 3: g1 reappears, content-identical (same revision) to before
+	// its eviction. It must be rediscovered, not silently dropped.
+	active = "g1"
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	list = worklist{}
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	g1Again, ok := list.Items["group-members/group_id:g1"]
+	if !ok {
+		t.Fatal("unchanged capacity-evicted parent was never rediscovered")
+	}
+	if g1Again.Revision != g1.Revision {
+		t.Fatal("test setup issue: g1's revision changed across cycles")
+	}
+	if g1Calls == callsAfterCycle1 {
+		t.Fatal("rediscovered parent's child work never actually ran")
 	}
 }
 
@@ -1244,6 +1332,89 @@ func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
 	}
 }
 
+// TestStillDeletedChatRemainsSuppressed proves the tombstone-reuse fix did
+// not weaken the one case where a revision tombstone is actually correct:
+// a chat that stays deleted across further cycles (identical deleted_at
+// content, hence identical revision) must remain suppressed forever, with
+// its transcript never refetched.
+func TestStillDeletedChatRemainsSuppressed(t *testing.T) {
+	p, rt := setup(t, "chats")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	childCalls := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/chats") {
+			return reply(`{"data":[{"id":"c1","deleted_at":"2026-09-08T01:00:00Z"}],"has_more":false}`, 200), nil
+		}
+		childCalls++
+		return reply(`{"session":{"id":"c1"},"chat_messages":[{"id":"m1"}],"has_more":false}`, 200), nil
+	})
+	oldNow := p.now()
+	for i := 0; i < 3; i++ {
+		delay := time.Duration(i) * 2 * time.Hour
+		p.now = func() time.Time { return oldNow.Add(delay) }
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 0 {
+		t.Fatal("still-deleted chat should have no child work")
+	}
+	if childCalls != 0 {
+		t.Fatal("still-deleted chat's transcript should never be fetched")
+	}
+}
+
+// TestUndeletedChatBecomesDiscoverable proves the tombstone-reuse fix did
+// not weaken genuine vendor deletion: once a deleted chat's record actually
+// changes (deleted_at reverts to null), its revision changes too, so the
+// tombstone correctly no longer matches and the chat becomes discoverable
+// again.
+func TestUndeletedChatBecomesDiscoverable(t *testing.T) {
+	p, rt := setup(t, "chats")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	deleted := true
+	childCalls := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/chats") {
+			if deleted {
+				return reply(`{"data":[{"id":"c1","deleted_at":"2026-09-08T01:00:00Z"}],"has_more":false}`, 200), nil
+			}
+			return reply(`{"data":[{"id":"c1","deleted_at":null}],"has_more":false}`, 200), nil
+		}
+		childCalls++
+		return reply(`{"session":{"id":"c1"},"chat_messages":[{"id":"m1"}],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 0 {
+		t.Fatal("deleted chat should have no child work")
+	}
+	if childCalls != 0 {
+		t.Fatal("deleted chat's transcript should never be fetched")
+	}
+
+	deleted = false
+	oldNow := p.now()
+	p.now = func() time.Time { return oldNow.Add(2 * time.Hour) }
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	list = worklist{}
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 1 {
+		t.Fatal("undeleted chat was not rediscovered")
+	}
+	if childCalls == 0 {
+		t.Fatal("rediscovered chat's transcript was never fetched")
+	}
+}
+
 // TestManifestGrowthIsBounded proves the primary dataset checkpoint's
 // identity/digest manifest cannot grow past the configured bound, and that
 // repeatedly exceeding the bound (as a full, unwindowed "organizations"
@@ -1532,8 +1703,8 @@ func TestAbsentParentRetiredAfterConsecutiveCompleteScans(t *testing.T) {
 	if e := json.Unmarshal(rt.states[child.StateKey], &pruned); e != nil {
 		t.Fatal(e)
 	}
-	if pruned.Retired != child.Revision {
-		t.Fatalf("retirement did not tombstone the child checkpoint: retired=%q want=%q", pruned.Retired, child.Revision)
+	if pruned.Retired != "" {
+		t.Fatalf("absence retirement must not tombstone the child checkpoint (revision is unrelated to why it was retired): retired=%q", pruned.Retired)
 	}
 	if len(pruned.Manifest) != 0 || pruned.Traversal != nil {
 		t.Fatal("retirement did not compact the child checkpoint")
@@ -1639,6 +1810,88 @@ func TestAbsentParentRetirementLeavesUnrelatedChildWorkAlone(t *testing.T) {
 	}
 	if g2Calls == 0 {
 		t.Fatal("g2's child work never made progress")
+	}
+}
+
+// TestAbsenceRetiredUnchangedParentIsRediscovered proves the fix for the
+// tombstone-reuse defect: absence-based retirement must compact a child's
+// checkpoint without marking it Retired, because absence is not a
+// content-derived signal -- a parent that reappears unchanged after being
+// retired presents the very same revision. It must be rediscovered and its
+// child work re-run, not permanently suppressed as if it were
+// confirmed-deleted.
+func TestAbsenceRetiredUnchangedParentIsRediscovered(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	present := true
+	g1Calls := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			if present {
+				return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
+			}
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		g1Calls++
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	child, ok := list.Items["group-members/group_id:g1"]
+	if !ok || child.StateKey == "" || child.Revision == "" {
+		t.Fatal("child work was not discovered as expected")
+	}
+	callsBeforeRetirement := g1Calls
+	if callsBeforeRetirement == 0 {
+		t.Fatal("g1's child work never ran")
+	}
+
+	present = false
+	for i := 0; i < absentRetirementThreshold; i++ {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+	}
+	list = worklist{}
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	if _, ok := list.Items["group-members/group_id:g1"]; ok {
+		t.Fatalf("child work was not retired after %d consecutive complete absent scans", absentRetirementThreshold)
+	}
+	var pruned state
+	if e := json.Unmarshal(rt.states[child.StateKey], &pruned); e != nil {
+		t.Fatal(e)
+	}
+	if pruned.Retired != "" {
+		t.Fatal("absence retirement must not tombstone the checkpoint")
+	}
+
+	// g1 reappears, content-identical (same revision) to before retirement.
+	present = true
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	list = worklist{}
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	again, ok := list.Items["group-members/group_id:g1"]
+	if !ok {
+		t.Fatal("unchanged absence-retired parent was never rediscovered")
+	}
+	if again.Revision != child.Revision {
+		t.Fatal("test setup issue: g1's revision changed across cycles")
+	}
+	if g1Calls == callsBeforeRetirement {
+		t.Fatal("rediscovered parent's child work never actually ran")
 	}
 }
 
