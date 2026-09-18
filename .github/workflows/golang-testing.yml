@@ -129,7 +129,7 @@ jobs:
       run: |
         go test -v ./generators/ipgen
         go test -v ./chancacher
-        go test -v ./ingest
+        go test -v -race ./ingest
         go test -v ./ingest/entry
         go test -v ./ingest/processors
         go test -v ./ingest/processors/plugin
