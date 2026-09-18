@@ -35,6 +35,11 @@ type runtime struct {
 	negotiatedTags       []string
 	putCounts            map[string]int
 	warnings             int
+	// warningLog additively captures each Warn call's rendered message and
+	// KV fields, for tests that need to inspect what a warning contained
+	// (e.g. proving a value was never logged), without disturbing the
+	// existing warnings counter that other tests already rely on.
+	warningLog []string
 }
 
 func (r *runtime) SyncContext(ctx context.Context, timeout time.Duration) error {
@@ -101,9 +106,16 @@ func (r *runtime) Put(key string, b []byte) error {
 	return nil
 }
 
-func (r *runtime) Debug(string, ...rfc5424.SDParam)    {}
-func (r *runtime) Info(string, ...rfc5424.SDParam)     {}
-func (r *runtime) Warn(string, ...rfc5424.SDParam)     { r.warnings++ }
+func (r *runtime) Debug(string, ...rfc5424.SDParam) {}
+func (r *runtime) Info(string, ...rfc5424.SDParam)  {}
+func (r *runtime) Warn(msg string, params ...rfc5424.SDParam) {
+	r.warnings++
+	line := msg
+	for _, p := range params {
+		line += " " + p.Name + "=" + p.Value
+	}
+	r.warningLog = append(r.warningLog, line)
+}
 func (r *runtime) Error(string, ...rfc5424.SDParam)    {}
 func (r *runtime) Critical(string, ...rfc5424.SDParam) {}
 func (r *runtime) Write(e entry.Entry) error {
@@ -1389,5 +1401,517 @@ func TestLegacyPlainStringManifestShapeStillLoads(t *testing.T) {
 	}
 	if st.Manifest[key].Digest != digest {
 		t.Fatal("legacy manifest entry was not upgraded to the current shape")
+	}
+}
+
+// --- Bounded absence-based retirement for parent kinds with no vendor
+// deletion signal (organizations, groups, projects, local-sessions; see
+// absenceTrackedParents). ---
+
+func TestAbsentParentBelowThresholdDoesNotRetireChild(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	present := true
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			if present {
+				return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
+			}
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	present = false
+	// Two consecutive complete scans in which the parent is absent must not
+	// retire its child work; the threshold requires three.
+	for i := 0; i < 2; i++ {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	w, ok := list.Items["group-members/group_id:g1"]
+	if !ok {
+		t.Fatal("child work was retired before the required consecutive absences")
+	}
+	if w.AbsentStreak != 2 {
+		t.Fatalf("expected AbsentStreak=2 after two complete absent scans, got %d", w.AbsentStreak)
+	}
+}
+
+func TestAbsentParentReappearanceResetsStreak(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	present := true
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			if present {
+				return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
+			}
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+	step := func() {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+	}
+	step() // discovered, present
+	present = false
+	step() // absent, streak -> 1
+	present = true
+	step() // reappears, streak resets to 0
+	present = false
+	step() // absent again, streak -> 1 (not 3: proves the reset took)
+
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	w, ok := list.Items["group-members/group_id:g1"]
+	if !ok {
+		t.Fatal("child work was retired despite a reappearance resetting its streak")
+	}
+	if w.AbsentStreak != 1 {
+		t.Fatalf("expected AbsentStreak=1 after a reappearance reset the streak, got %d", w.AbsentStreak)
+	}
+}
+
+func TestAbsentParentRetiredAfterConsecutiveCompleteScans(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	present := true
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			if present {
+				return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
+			}
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	child, ok := list.Items["group-members/group_id:g1"]
+	if !ok || child.StateKey == "" || child.Revision == "" {
+		t.Fatal("child work was not discovered as expected")
+	}
+
+	present = false
+	for i := 0; i < absentRetirementThreshold; i++ {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+	}
+	list = worklist{}
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	if _, ok := list.Items["group-members/group_id:g1"]; ok {
+		t.Fatalf("child work was not retired after %d consecutive complete absent scans", absentRetirementThreshold)
+	}
+	var pruned state
+	if e := json.Unmarshal(rt.states[child.StateKey], &pruned); e != nil {
+		t.Fatal(e)
+	}
+	if pruned.Retired != child.Revision {
+		t.Fatalf("retirement did not tombstone the child checkpoint: retired=%q want=%q", pruned.Retired, child.Revision)
+	}
+	if len(pruned.Manifest) != 0 || pruned.Traversal != nil {
+		t.Fatal("retirement did not compact the child checkpoint")
+	}
+}
+
+func TestPartialAndErroredScansNeverAdvanceAbsenceRetirement(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Pages = 1
+	rt.states = map[string][]byte{}
+
+	// Discover g1 with one clean, complete scan.
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	streak := func() uint {
+		var list worklist
+		if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+			t.Fatal(e)
+		}
+		return list.Items["group-members/group_id:g1"].AbsentStreak
+	}
+
+	// A chunked scan that never completes (Max-Pages=1, has_more always
+	// true, g1 never present on any page fetched so far) must never be
+	// mistaken for a confirmed absence: it never reaches a complete pass.
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[],"has_more":true,"next_page":"tok"}`, 200), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+	for i := 0; i < 4; i++ {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if s := streak(); s != 0 {
+		t.Fatalf("a chunked, never-completing scan advanced AbsentStreak to %d", s)
+	}
+
+	// A request failure must also never advance the streak.
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"error":"boom"}`, 500), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+	for i := 0; i < 3; i++ {
+		if _, e := p.Handle(t.Context(), rt); e == nil {
+			t.Fatal("expected the request failure to surface as an error")
+		}
+	}
+	if s := streak(); s != 0 {
+		t.Fatalf("a failing request advanced AbsentStreak to %d", s)
+	}
+}
+
+func TestAbsentParentRetirementLeavesUnrelatedChildWorkAlone(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	g1Present := true
+	g2Calls := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/groups"):
+			if g1Present {
+				return reply(`{"data":[{"id":"g1"},{"id":"g2"}],"has_more":false}`, 200), nil
+			}
+			return reply(`{"data":[{"id":"g2"}],"has_more":false}`, 200), nil
+		case strings.Contains(r.URL.Path, "g2"):
+			g2Calls++
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		default:
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	g1Present = false
+	for i := 0; i < absentRetirementThreshold; i++ {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	if _, ok := list.Items["group-members/group_id:g1"]; ok {
+		t.Fatal("g1's child work should have been retired")
+	}
+	if _, ok := list.Items["group-members/group_id:g2"]; !ok {
+		t.Fatal("unrelated g2 child work was removed alongside g1's retirement")
+	}
+	if g2Calls == 0 {
+		t.Fatal("g2's child work never made progress")
+	}
+}
+
+// --- Bounding the combined primary + in-flight traversal manifest as a
+// single shared budget. ---
+
+func TestCombinedManifestNeverExceedsConfiguredLimitDuringTraversal(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	p.conf.Max_Pages = 1
+	p.conf.Page_Size = 1
+	p.maxManifestEntries = 5
+	rt.states = map[string][]byte{}
+
+	// Prime a primary manifest already at the bound; the forced multi-page
+	// traversal below revisits exactly these five identities, letting
+	// compaction keep pace with insertion as it goes.
+	prior := manifest{}
+	for i := 0; i < 5; i++ {
+		prior[fmt.Sprintf("uuid:o%d", i)] = manifestEntry{Digest: "will-not-match", Seen: int64(i)}
+	}
+	primed, e := json.Marshal(state{Since: p.now().Add(-time.Hour), Manifest: prior})
+	if e != nil {
+		t.Fatal(e)
+	}
+	rt.states[p.conf.key()] = primed
+
+	call := 0
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		body := fmt.Sprintf(`{"data":[{"uuid":"o%d","updated_at":"2026-01-01T00:00:%02dZ"}],"has_more":%v`, call, call, call < 4)
+		if call < 4 {
+			body += fmt.Sprintf(`,"next_page":"c%d"`, call+1)
+		}
+		body += `}`
+		call++
+		return reply(body, 200), nil
+	})
+
+	for i := 0; i < 5; i++ {
+		if _, e := p.Handle(t.Context(), rt); e != nil {
+			t.Fatal(e)
+		}
+		var st state
+		if e := json.Unmarshal(rt.saved, &st); e != nil {
+			t.Fatal(e)
+		}
+		total := len(st.Manifest)
+		if st.Traversal != nil {
+			total += len(st.Traversal.Manifest)
+		}
+		if total > p.maxManifestEntries {
+			t.Fatalf("cycle %d: combined manifest entries %d exceeded the configured limit %d", i, total, p.maxManifestEntries)
+		}
+	}
+}
+
+func TestManifestCompactionRestartResumesWithoutSkippingOrDuplicating(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	p.conf.Max_Pages = 1
+	p.conf.Page_Size = 1
+	p.maxManifestEntries = 2
+	rt.states = map[string][]byte{}
+
+	call := 0
+	makeTransport := func() transport {
+		return transport(func(*http.Request) (*http.Response, error) {
+			body := fmt.Sprintf(`{"data":[{"uuid":"o%d","updated_at":"2026-01-01T00:00:%02dZ"}],"has_more":%v`, call, call, call < 3)
+			if call < 3 {
+				body += fmt.Sprintf(`,"next_page":"c%d"`, call+1)
+			}
+			body += `}`
+			call++
+			return reply(body, 200), nil
+		})
+	}
+	p.http.Transport = makeTransport()
+
+	if _, e := p.Handle(t.Context(), rt); e != nil { // o0
+		t.Fatal(e)
+	}
+	if _, e := p.Handle(t.Context(), rt); e != nil { // o1
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 2 {
+		t.Fatalf("expected 2 entries before restart, got %d", len(rt.entries))
+	}
+
+	// Simulate a restart mid-traversal: a fresh Plugin sharing only the
+	// backing state store.
+	restarted, e := New(p.conf, rt)
+	if e != nil {
+		t.Fatal(e)
+	}
+	restarted.maxManifestEntries = p.maxManifestEntries
+	restarted.now, restarted.wait, restarted.limiter = p.now, p.wait, p.limiter
+	restarted.http.Transport = makeTransport()
+
+	if _, e := restarted.Handle(t.Context(), rt); e != nil { // o2
+		t.Fatal(e)
+	}
+	if _, e := restarted.Handle(t.Context(), rt); e != nil { // o3, scan completes
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 4 {
+		t.Fatalf("expected all 4 records written across the restart with none skipped or duplicated, got %d", len(rt.entries))
+	}
+
+	// A re-poll of the still-cached, unchanged o3 (the manifest bound of 2
+	// keeps only the two most recently seen identities: o2 and o3) must not
+	// duplicate it.
+	before := len(rt.entries)
+	restarted.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"data":[{"uuid":"o3","updated_at":"2026-01-01T00:00:03Z"}],"has_more":false}`, 200), nil
+	})
+	if _, e := restarted.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != before {
+		t.Fatal("re-polling an unchanged, still-cached record duplicated it")
+	}
+}
+
+func TestManifestCompactionStillEmitsGenuinelyChangedRecords(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	p.maxManifestEntries = 2
+	rt.states = map[string][]byte{}
+	body := `{"data":[{"uuid":"o1","updated_at":"2026-01-01T00:00:00Z"},{"uuid":"o2","updated_at":"2026-01-01T00:00:01Z"}],"has_more":false}`
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(body, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 2 {
+		t.Fatalf("first scan must write both records, got %d", len(rt.entries))
+	}
+	// o1's content genuinely changes. Even though the manifest is at its
+	// bound and subject to compaction, the change must still be detected
+	// and written -- never silently skipped.
+	body = `{"data":[{"uuid":"o1","updated_at":"2026-01-01T01:00:00Z"},{"uuid":"o2","updated_at":"2026-01-01T00:00:01Z"}],"has_more":false}`
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if len(rt.entries) != 3 {
+		t.Fatalf("a genuinely changed record was not emitted (and/or the unchanged sibling was duplicated): entries=%d", len(rt.entries))
+	}
+	if !bytes.Contains(rt.entries[2].Data, []byte("01:00:00")) {
+		t.Fatal("the newly written entry was not the changed o1 record")
+	}
+}
+
+// --- Preventing oversized discovered identities from stalling children. ---
+
+func TestOversizedDiscoveredParentDoesNotBlockValidSibling(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	hugeID := strings.Repeat("a", maxDiscoveredParameterLen+1)
+	memberCalls := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/groups"):
+			return reply(fmt.Sprintf(`{"data":[{"id":%q},{"id":"g2"}],"has_more":false}`, hugeID), 200), nil
+		case strings.Contains(r.URL.Path, "g2"):
+			memberCalls++
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		t.Fatalf("unexpected request to %s: the oversized identity must never reach a child request", r.URL.Path)
+		return nil, nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if memberCalls != 1 {
+		t.Fatalf("valid sibling g2 was blocked by the oversized parent: memberCalls=%d", memberCalls)
+	}
+	workKey := p.conf.key() + "/child-work-v1"
+	var list worklist
+	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		t.Fatal(e)
+	}
+	if _, ok := list.Items["group-members/group_id:g2"]; !ok {
+		t.Fatal("valid sibling's child work is missing")
+	}
+	for k := range list.Items {
+		if strings.Contains(k, hugeID) {
+			t.Fatal("the oversized parent produced a persisted work item, which would retry forever")
+		}
+	}
+	if rt.warnings == 0 {
+		t.Fatal("expected a warning for the skipped oversized parent")
+	}
+	for _, line := range rt.warningLog {
+		if strings.Contains(line, hugeID) {
+			t.Fatal("warning logged the oversized value itself")
+		}
+	}
+}
+
+func TestLegacyOversizedPersistedWorkItemIsRetiredSafely(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	hugeID := strings.Repeat("b", maxDiscoveredParameterLen+1)
+	badParam := "group_id:" + hugeID
+	childConf, e := childConfig(p.conf, work{Dataset: "group-members", Parameter: []string{badParam}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	list := worklist{Items: map[string]work{
+		"group-members/" + badParam: {Dataset: "group-members", Parameter: []string{badParam}, Revision: "rev", Pending: true, StateKey: childConf.key()},
+	}}
+	b, e := json.Marshal(list)
+	if e != nil {
+		t.Fatal(e)
+	}
+	rt.states[p.conf.key()+"/child-work-v1"] = b
+
+	attempts := 0
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		attempts++
+		return reply(`{"data":[],"has_more":false}`, 200), nil
+	})
+
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if attempts != 0 {
+		t.Fatalf("legacy oversized work item was attempted instead of retired: attempts=%d", attempts)
+	}
+	var after worklist
+	if e := json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &after); e != nil {
+		t.Fatal(e)
+	}
+	if _, ok := after.Items["group-members/"+badParam]; ok {
+		t.Fatal("legacy oversized work item was not removed")
+	}
+	var pruned state
+	if e := json.Unmarshal(rt.states[childConf.key()], &pruned); e != nil {
+		t.Fatal(e)
+	}
+	if pruned.Retired != "rev" {
+		t.Fatalf("legacy oversized work item was not tombstoned: retired=%q", pruned.Retired)
+	}
+}
+
+func TestOversizedParentEnumeratedValueWarnsAndOmitsInsteadOfFailing(t *testing.T) {
+	p, rt := setup(t, "organization-users")
+	huge := strings.Repeat("c", entry.MaxEvDataLength+1)
+	p.conf.Parameter = []string{"organization_id:" + huge}
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"data":[{"id":"u1"}],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatalf("an oversized _parent value must not fail an otherwise valid entry: %v", e)
+	}
+	if len(rt.entries) != 1 {
+		t.Fatalf("expected the entry to still be written, got %d entries", len(rt.entries))
+	}
+	if _, ok := rt.entries[0].GetEnumeratedValue("_parent"); ok {
+		t.Fatal("oversized _parent should have been omitted, not attached")
+	}
+	if v, ok := rt.entries[0].GetEnumeratedValue("_vendor"); !ok || v != "Anthropic" {
+		t.Fatal("unrelated enumerated values must still be attached")
+	}
+	if rt.warnings == 0 {
+		t.Fatal("expected a warning for the oversized _parent value")
+	}
+	for _, line := range rt.warningLog {
+		if strings.Contains(line, huge) {
+			t.Fatal("warning logged the oversized _parent value itself")
+		}
 	}
 }

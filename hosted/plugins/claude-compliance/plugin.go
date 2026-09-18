@@ -288,7 +288,28 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			key := identity(compact, digest)
 			unchanged := st.Manifest.digestOf(key) == digest || scan.Manifest.digestOf(key) == digest
 			recordTime := sourceTime(compact, scan.Until)
-			scan.Manifest.put(key, digest, recordTime, manifestLimit)
+			// Compare against the prior digest above (unchanged is already
+			// decided), then compact: a key visited this scan no longer
+			// needs to live in the pre-scan primary manifest, because the
+			// put below immediately re-establishes its currency in the
+			// in-progress scan manifest. Sizing that put's own limit to the
+			// remaining room in the (shrinking, as compaction proceeds)
+			// primary manifest -- rather than a second independent
+			// manifestLimit -- keeps the combined retained-entry count
+			// bounded by manifestLimit as a single shared budget, instead
+			// of letting each manifest reach manifestLimit on its own
+			// while a traversal is in progress. The floor of 1 guarantees
+			// put can always insert the record currently being processed;
+			// it only matters while the primary manifest is still fully
+			// unvisited-and-stale (nothing yet compacted out of it), and
+			// self-corrects to the full manifestLimit bound as soon as any
+			// visited identity is compacted out of the primary manifest.
+			delete(st.Manifest, key)
+			budget := manifestLimit - len(st.Manifest)
+			if budget < 1 {
+				budget = 1
+			}
+			scan.Manifest.put(key, digest, recordTime, budget)
 			if p.onRecord != nil {
 				if e = p.onRecord(d, compact); e != nil {
 					return nil, e
@@ -299,6 +320,16 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			}
 			ent := entry.Entry{TS: entry.FromStandard(recordTime), Tag: tag, Data: compact}
 			for _, kv := range [][2]string{{"_vendor", "Anthropic"}, {"_product", "Claude Enterprise Compliance"}, {"_source", d.Name}, {"_recordType", d.Name}, {"_endpoint", "/v1/compliance" + d.Path}, {"_apiVersion", "2023-06-01"}, {"_parent", strings.Join(c.Parameter, ",")}} {
+				// Discovered parameter values are bounded well below this
+				// limit (see maxDiscoveredParameterLen), but a directly
+				// user-configured Parameter is not. Degrade the same way
+				// "_session" does below rather than failing an otherwise
+				// valid entry over a single oversized context field. Never
+				// log the value itself, only its length.
+				if kv[0] == "_parent" && len(kv[1]) > entry.MaxEvDataLength {
+					rt.Warn("Compliance _parent context exceeds enumerated-value limit; entry retained without _parent", log.KV("dataset", d.Name), log.KV("bytes", len(kv[1])))
+					continue
+				}
 				if e = ent.AddEnumeratedValueEx(kv[0], kv[1]); e != nil {
 					return nil, e
 				}

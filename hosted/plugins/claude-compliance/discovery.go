@@ -49,13 +49,53 @@ type work struct {
 	LastAttempt   time.Time
 	RetryAt       time.Time
 	Failures      uint
+	// SeenThisScan and AbsentStreak support bounded retirement of child work
+	// whose parent kind has no vendor deletion signal (see
+	// absenceTrackedParents). Both are zero-valued (and therefore absent from
+	// the wire encoding) on any work item persisted before this existed, which
+	// is exactly the correct starting state: never yet confirmed absent.
+	SeenThisScan bool `json:",omitempty"`
+	AbsentStreak uint `json:",omitempty"`
 }
 type worklist struct{ Items map[string]work }
 
 var (
-	errPendingCapacity = errors.New("Compliance pending child-work capacity reached")
-	errMissingParentID = errors.New("Compliance parent identity is missing")
+	errPendingCapacity   = errors.New("Compliance pending child-work capacity reached")
+	errMissingParentID   = errors.New("Compliance parent identity is missing")
+	errOversizedIdentity = errors.New("Compliance discovered identity exceeds safe parameter length")
 )
+
+// maxDiscoveredParameterLen bounds a vendor-supplied id/uuid before it can
+// become a child Parameter value or a persisted worklist identity. Real
+// vendor identities are short opaque tokens; this is a defensive ceiling far
+// below entry.MaxEvDataLength (the hard limit on a single enumerated value),
+// so a pathological or corrupted vendor id cannot make the derived "_parent"
+// enumerated value fail to encode.
+const maxDiscoveredParameterLen = 512
+
+// absentRetirementThreshold is the number of consecutive, complete,
+// unwindowed parent enumerations in which a child's parent must be observed
+// absent before that child's work is retired. It intentionally requires more
+// than one miss so that a single incomplete/racy listing can never retire
+// live work.
+const absentRetirementThreshold = 3
+
+// absenceTrackedParents are the root parent dataset kinds that have no
+// vendor-reported deletion signal (unlike "chats", which reports
+// deleted_at). For these, and only these, absence from a complete,
+// unwindowed full listing -- observed on absentRetirementThreshold
+// consecutive such listings -- is treated as a safe proxy for deletion.
+// This list intentionally excludes "remote-sessions" (refreshed every poll
+// rather than hourly) and nested parents such as "organization-roles" (only
+// ever visited as a discovered child, never as the root scan whose
+// completion this package can observe): both are out of scope for this
+// repair.
+var absenceTrackedParents = map[string]bool{
+	"organizations":  true,
+	"groups":         true,
+	"projects":       true,
+	"local-sessions": true,
+}
 
 func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
 	if p.conf.Follow_Children == "disabled" {
@@ -96,6 +136,10 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					rt.Warn("Compliance deleted parent is missing its child-discovery identity; child checkpoint cannot be compacted", log.KV("dataset", d.Name))
 					return nil
 				}
+				if errors.Is(e, errOversizedIdentity) {
+					rt.Warn("Compliance deleted parent identity exceeds safe parameter length; child checkpoint cannot be compacted", log.KV("dataset", d.Name))
+					return nil
+				}
 				return e
 			} else if ok {
 				k := retired.Dataset + "/" + strings.Join(retired.Parameter, "/")
@@ -116,11 +160,21 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					rt.Warn("Compliance parent is missing its child-discovery identity; parent retained and child discovery skipped", log.KV("dataset", d.Name))
 					return nil
 				}
+				if errors.Is(e, errOversizedIdentity) {
+					rt.Warn("Compliance parent identity exceeds safe parameter length; child expansion skipped for this record", log.KV("dataset", d.Name))
+					return nil
+				}
 				return e
 			}
+			tracked := absenceTrackedParents[d.Name]
 			for _, w := range children {
 				k := w.Dataset + "/" + strings.Join(w.Parameter, "/")
 				old, exists := list.Items[k]
+				if tracked && exists && (!old.SeenThisScan || old.AbsentStreak != 0) {
+					old.SeenThisScan, old.AbsentStreak = true, 0
+					list.Items[k] = old
+					dirty = true
+				}
 				if w.StateKey == "" {
 					child, e := childConfig(parent, w)
 					if e != nil {
@@ -173,6 +227,9 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					if old.Revision == w.Revision {
 						w.RetryAt, w.Failures = old.RetryAt, old.Failures
 					}
+					if tracked {
+						w.SeenThisScan, w.AbsentStreak = true, 0
+					}
 					list.Items[k] = w
 					dirty = true
 				}
@@ -190,6 +247,42 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	}
 	if e = persist(); e != nil {
 		return nil, e
+	}
+	// A work item persisted before the discovery-side oversized-identity guard
+	// existed (or one that otherwise slipped through) can never make progress:
+	// its "_parent" value will permanently fail to encode as an enumerated
+	// value. Retire it safely now instead of letting it cycle through
+	// RetryAt backoff forever.
+	for k, w := range list.Items {
+		name, n, bad := oversizedParameter(w)
+		if !bad {
+			continue
+		}
+		rt.Warn("Compliance discovered work item has an oversized parameter; retiring", log.KV("dataset", w.Dataset), log.KV("parameter", name), log.KV("length", n))
+		if e = pruneCheckpoint(rt, p.conf, w); e != nil {
+			return nil, e
+		}
+		delete(list.Items, k)
+		dirty = true
+	}
+	if e = persist(); e != nil {
+		return nil, e
+	}
+	// Bounded absence-based retirement: only for parent kinds with no vendor
+	// deletion signal, and only when this cycle's root scan was a genuinely
+	// complete, unwindowed pass -- never for a partial Max-Pages/record-limit
+	// continuation, a request/rate-limit/cancellation error, or a malformed
+	// page. rootCont is nil on every error path out of handleOne (including
+	// the errPendingCapacity conversion above, which leaves rootCont
+	// untouched), and rootCont.Delay is 0 for every chunked-continuation
+	// path, so this condition can only be true after a full, clean pass.
+	if rootErr == nil && rootCont != nil && rootCont.Delay != 0 && absenceTrackedParents[p.conf.dataset.Name] {
+		if e = retireAbsentChildren(rt, p.conf, &list, &dirty); e != nil {
+			return nil, e
+		}
+		if e = persist(); e != nil {
+			return nil, e
+		}
 	}
 	keys := []string{}
 	for k, w := range list.Items {
@@ -301,6 +394,9 @@ func deletedChildWork(d Dataset, inherited []string, raw []byte) (work, bool, er
 	if id == "" {
 		return work{}, false, fmt.Errorf("%w: chats parent missing id", errMissingParentID)
 	}
+	if len(id) > maxDiscoveredParameterLen {
+		return work{}, false, fmt.Errorf("%w: chats id is %d bytes", errOversizedIdentity, len(id))
+	}
 	params := append(append([]string(nil), inherited...), "chat_id:"+id)
 	sort.Strings(params)
 	h := sha256.Sum256(raw)
@@ -370,6 +466,35 @@ func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work) error {
 	}
 	return rt.Put(key, b)
 }
+
+// spec names a child dataset a parent record can spawn, and the parameter
+// key its own identity is inherited under.
+type spec struct{ name, param string }
+
+// childSpecs returns the child dataset specs a parent dataset kind can
+// produce. It depends only on the parent dataset's name, not on any single
+// record's content, so it also serves as the family membership table used
+// by retireAbsentChildren to recognize direct children of a given parent.
+func childSpecs(name string) []spec {
+	switch name {
+	case "organizations":
+		return []spec{{"organization-users", "organization_id"}, {"organization-roles", "organization_id"}}
+	case "organization-roles":
+		return []spec{{"role-permissions", "role_id"}}
+	case "groups":
+		return []spec{{"group-members", "group_id"}}
+	case "chats":
+		return []spec{{"chat-messages", "chat_id"}}
+	case "projects":
+		return []spec{{"project-attachments", "project_id"}, {"project-collaborators", "project_id"}}
+	case "local-sessions":
+		return []spec{{"local-session-messages", "session_id"}}
+	case "remote-sessions":
+		return []spec{{"remote-session-messages", "session_id"}}
+	}
+	return nil
+}
+
 func childWork(d Dataset, inherited []string, raw []byte) ([]work, error) {
 	var v map[string]json.RawMessage
 	if e := json.Unmarshal(raw, &v); e != nil {
@@ -381,32 +506,20 @@ func childWork(d Dataset, inherited []string, raw []byte) ([]work, error) {
 	}
 	var id string
 	_ = json.Unmarshal(v[idKey], &id)
-	type spec struct{ name, param string }
-	var specs []spec
-	switch d.Name {
-	case "organizations":
-		specs = []spec{{"organization-users", "organization_id"}, {"organization-roles", "organization_id"}}
-	case "organization-roles":
-		specs = []spec{{"role-permissions", "role_id"}}
-	case "groups":
-		specs = []spec{{"group-members", "group_id"}}
-	case "chats":
+	if d.Name == "chats" {
 		if s := v["deleted_at"]; len(s) > 0 && string(s) != "null" {
 			return nil, nil
 		}
-		specs = []spec{{"chat-messages", "chat_id"}}
-	case "projects":
-		specs = []spec{{"project-attachments", "project_id"}, {"project-collaborators", "project_id"}}
-	case "local-sessions":
-		specs = []spec{{"local-session-messages", "session_id"}}
-	case "remote-sessions":
-		specs = []spec{{"remote-session-messages", "session_id"}}
 	}
+	specs := childSpecs(d.Name)
 	if len(specs) == 0 {
 		return nil, nil
 	}
 	if id == "" {
 		return nil, fmt.Errorf("%w: %s parent missing %s", errMissingParentID, d.Name, idKey)
+	}
+	if len(id) > maxDiscoveredParameterLen {
+		return nil, fmt.Errorf("%w: %s %s is %d bytes", errOversizedIdentity, d.Name, idKey, len(id))
 	}
 	var result []work
 	h := sha256.Sum256(raw)
@@ -416,4 +529,81 @@ func childWork(d Dataset, inherited []string, raw []byte) ([]work, error) {
 		result = append(result, work{Dataset: s.name, Parameter: params, Revision: fmt.Sprintf("%x", h), Pending: true})
 	}
 	return result, nil
+}
+
+// oversizedParameter reports the first Parameter entry of w whose value
+// exceeds maxDiscoveredParameterLen, identified only by its parameter name
+// and measured length -- never its value -- so callers can log and retire
+// it safely.
+func oversizedParameter(w work) (name string, length int, bad bool) {
+	for _, p := range w.Parameter {
+		k, v, ok := strings.Cut(p, ":")
+		if ok && len(v) > maxDiscoveredParameterLen {
+			return k, len(v), true
+		}
+	}
+	return "", 0, false
+}
+
+// isDirectChildOf reports whether w is exactly one discovery level below
+// parent: its dataset matches one of parent's child specs, and its
+// Parameter set is parent's own Parameter plus exactly one more entry.
+func isDirectChildOf(parent *Config, specs []spec, w work) bool {
+	for _, s := range specs {
+		if w.Dataset != s.name || len(w.Parameter) != len(parent.Parameter)+1 {
+			continue
+		}
+		matched := 0
+		for _, pp := range parent.Parameter {
+			for _, wp := range w.Parameter {
+				if wp == pp {
+					matched++
+					break
+				}
+			}
+		}
+		if matched == len(parent.Parameter) {
+			return true
+		}
+	}
+	return false
+}
+
+// retireAbsentChildren runs only after handleOne reports that this cycle's
+// scan of an absence-tracked parent dataset was a complete, unwindowed,
+// error-free pass (see the call site in Handle). Every existing direct
+// child of parent that was touched during that pass (SeenThisScan) has its
+// AbsentStreak reset to zero; every one that was not accrues one miss. A
+// child missed on absentRetirementThreshold consecutive complete passes is
+// retired through the same tombstone/pruning path used for an explicitly
+// deleted chat, so a later reappearance under the same revision is not
+// mistaken for still-cached, already-ingested history.
+func retireAbsentChildren(rt hosted.Runtime, parent *Config, list *worklist, dirty *bool) error {
+	specs := childSpecs(parent.dataset.Name)
+	if len(specs) == 0 {
+		return nil
+	}
+	for k, w := range list.Items {
+		if !isDirectChildOf(parent, specs, w) {
+			continue
+		}
+		if w.SeenThisScan {
+			w.SeenThisScan, w.AbsentStreak = false, 0
+			list.Items[k] = w
+			*dirty = true
+			continue
+		}
+		w.AbsentStreak++
+		if w.AbsentStreak < absentRetirementThreshold {
+			list.Items[k] = w
+			*dirty = true
+			continue
+		}
+		if e := pruneCheckpoint(rt, parent, w); e != nil {
+			return e
+		}
+		delete(list.Items, k)
+		*dirty = true
+	}
+	return nil
 }
