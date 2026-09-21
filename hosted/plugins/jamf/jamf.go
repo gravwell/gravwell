@@ -206,3 +206,4 @@ func splitRecord(raw json.RawMessage, sections []string, tags map[string]entry.E
 	}
 	return entries, nil
 }
+

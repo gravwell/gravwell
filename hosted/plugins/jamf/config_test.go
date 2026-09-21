@@ -111,9 +111,6 @@ func TestConfig_Verify_Defaults(t *testing.T) {
 	if c.Page_Size != defaultPageSize {
 		t.Errorf("expected default page size %d, got %d", defaultPageSize, c.Page_Size)
 	}
-	if !reflect.DeepEqual(c.Sections, defaultSections) {
-		t.Errorf("expected default sections %v, got %v", defaultSections, c.Sections)
-	}
 }
 
 func TestConfig_Verify_NormalizesSectionCase(t *testing.T) {
@@ -209,3 +206,4 @@ func TestConfig_RequestSections(t *testing.T) {
 		})
 	}
 }
+

@@ -44,10 +44,6 @@ const (
 // general-only stream.
 const generalSectionName = "GENERAL"
 
-// defaultSections lists the computers-inventory sections we request data
-// for, and emit a separate tag for, if the config doesn't specify any.
-var defaultSections = []string{"DISK_ENCRYPTION", "STORAGE"}
-
 type Config struct {
 	hosted.BaseConfig
 	hosted.MultiTagConfig
@@ -105,7 +101,7 @@ func (c *Config) Verify() error {
 	}
 
 	if len(c.Sections) == 0 {
-		c.Sections = append([]string{}, defaultSections...)
+		c.Sections = append([]string{}, generalSectionName)
 	}
 	for i, s := range c.Sections {
 		c.Sections[i] = strings.ToUpper(strings.TrimSpace(s))
@@ -173,3 +169,4 @@ func (c *Config) Tags() []string {
 	}
 	return tags
 }
+
