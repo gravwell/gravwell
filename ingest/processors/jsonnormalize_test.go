@@ -444,3 +444,4 @@ func checkNormalized(t *testing.T, got []byte, want interface{}) {
 		t.Fatalf("normalized output mismatch:\n got:  %#v\n want: %#v", v, want)
 	}
 }
+

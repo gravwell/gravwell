@@ -168,8 +168,12 @@ func (jn *JsonNormalize) processItem(ent *entry.Entry) (rset *entry.Entry, err e
 	// layer of string-escaping was applied without (or in addition to) the
 	// enclosing quotes that would make them valid JSON string literals.
 	// We progressively strip one layer of escaping at a time until the
-	// result parses as valid JSON, or we exhaust our depth budget.
-	for depth := uint(0); !json.Valid(data) && depth < jn.maxDepth; depth++ {
+	// result parses as valid JSON, or we exhaust our depth budget. depth
+	// is declared outside the loop so the layers consumed here can be
+	// deducted from the budget passed to Step 2 below -- Max_Depth bounds
+	// escaping layers unwound across the whole record, not per step.
+	var depth uint
+	for ; !json.Valid(data) && depth < jn.maxDepth; depth++ {
 		unescaped, ok := unescapeOnce(data)
 		if !ok {
 			break
@@ -202,7 +206,7 @@ func (jn *JsonNormalize) processItem(ent *entry.Entry) (rset *entry.Entry, err e
 		err = ErrNotJSON
 		return
 	}
-	v = normalizeValue(v, jn.maxDepth)
+	v = normalizeValue(v, jn.maxDepth-depth)
 
 	out, merr := marshalJSON(v, jn.Pretty)
 	if merr != nil {
@@ -290,8 +294,8 @@ func unescapeOnce(data []byte) ([]byte, bool) {
 }
 
 // normalizeValue walks a decoded JSON value looking for strings that are
-// themselves JSON-encoded objects, arrays, or (possibly further-escaped)
-// strings, and inlines them in place. This is what turns a field like:
+// themselves JSON-encoded objects or arrays, and inlines them in place.
+// This is what turns a field like:
 //
 //	"payload": "{\"user\":\"alice\",\"count\":3}"
 //
@@ -328,12 +332,14 @@ func normalizeValueDepth(v interface{}, escapeDepth uint, structDepth int) inter
 			return t
 		}
 		// Only attempt to re-parse strings that look like they could be a
-		// JSON object, array, or another quoted JSON string. This avoids
-		// wasting cycles trying to parse ordinary text values, and avoids
-		// surprising conversions of things like "123" or "true" into
-		// numbers/booleans.
+		// JSON object or array. This avoids wasting cycles trying to parse
+		// ordinary text values, and avoids surprising conversions -- a
+		// literal string that merely starts and ends with a quote (e.g. a
+		// quoted phrase in a log message) is indistinguishable from a
+		// doubly-encoded JSON string, so it is left alone rather than
+		// having its quotes silently stripped.
 		switch trimmed[0] {
-		case '{', '[', '"':
+		case '{', '[':
 		default:
 			return t
 		}
@@ -360,3 +366,4 @@ func normalizeValueDepth(v interface{}, escapeDepth uint, structDepth int) inter
 		return v
 	}
 }
+
