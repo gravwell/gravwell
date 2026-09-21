@@ -47,4 +47,4 @@
 ────────────────────────────────────────────────────────────────────────────100%
                  ↑/↓ scroll • home: jump top • end: jump bottom                 
     alt+[1-9]: increase column size • shift+alt+[1-9]: decrease column size     
-                             tab: cycle • esc: quit                             [80D[2K[?2004l[?25h[?1002l[?1003l[?1006l
+                             tab: cycle • esc: quit                             [D[2K[?2004l[?25h[?1002l[?1003l[?1006l

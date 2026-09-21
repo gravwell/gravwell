@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -72,6 +72,11 @@ type query struct {
 	width  uint
 	height uint
 
+	// the terminal's dimensions, as handed down by Mother and refreshed on resize.
+	// ! Distinct from width/height above, which are the fixed dimensions of the editor and
+	// modifier subviews.
+	termWidth, termHeight int
+
 	editor editorView
 
 	modifiers modifView
@@ -141,6 +146,12 @@ func Initial() *query {
 }
 
 func (q *query) Update(msg tea.Msg) tea.Cmd {
+	// track the terminal's dimensions no matter the mode; datascope wants them when we eventually
+	// construct it (see the waiting branch below)
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		q.termWidth, q.termHeight = wsm.Width, wsm.Height
+	}
+
 	switch q.mode {
 	case quitting:
 		return textarea.Blink
@@ -192,7 +203,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 			var cmd tea.Cmd
 			// JSON,CSV,outfn,append are user-editable in the DataScope; these just set initial
 			// values
-			q.scope, cmd, err = datascope.NewDataScope(results, true, q.curSearch, tableMode,
+			dsOpts := []datascope.DataScopeOption{
 				datascope.WithAutoDownload(
 					q.flagModifiers.outfn,
 					q.flagModifiers.append,
@@ -203,7 +214,13 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 					q.flagModifiers.schedule.Name,
 					q.flagModifiers.schedule.Desc),
 				datascope.WithPerPage(uint(perpage)),
-			)
+			}
+			// Only hand down dimensions if we actually know them; WithDimensions rejects
+			// non-positive values and DS measures the terminal itself when it is not told.
+			if q.termWidth > 0 && q.termHeight > 0 {
+				dsOpts = append(dsOpts, datascope.WithDimensions(q.termWidth, q.termHeight))
+			}
+			q.scope, cmd, err = datascope.NewDataScope(results, true, q.curSearch, tableMode, dsOpts...)
 			if err != nil {
 				clilog.Writer.Errorf("failed to create DataScope: %v", err)
 				q.mode = quitting
@@ -325,6 +342,9 @@ func (q *query) Reset() error {
 // deciding whether to boot into the editor view, datascope directly, or launch the query and return to Mother's prompt.
 func (q *query) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
+	// stash the terminal's dimensions so we can hand them down to datascope when we build it
+	q.termWidth, q.termHeight = width, height
+
 	// parse the tokens against the local flagset
 	if err := localFS.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
