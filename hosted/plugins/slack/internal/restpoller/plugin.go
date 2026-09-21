@@ -1,3 +1,4 @@
+// Package restpoller implements the Slack Hosted Runner's generic REST polling engine.
 package restpoller
 
 import (
