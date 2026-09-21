@@ -157,7 +157,8 @@ func (c *Config) tagForSection(section string) string {
 		return c.Tag_Name
 	}
 	prefix := cmp.Or(c.Tag_Prefix, defaultTagPrefix)
-	return prefix + "_" + strings.ToLower(section)
+	return prefix + "-" + strings.Replace(strings.ToLower(section),"_","",-1)
+	//return prefix + "_" + strings.ToLower(section)
 }
 
 // Tags returns every tag this plugin instance can write to, one per
