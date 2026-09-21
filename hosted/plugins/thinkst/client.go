@@ -9,6 +9,7 @@
 package thinkst
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -189,7 +190,13 @@ func (c *Client) doJSON(req *http.Request, out any) error {
 			continue
 		}
 
-		return json.Unmarshal(body, out)
+		// UseNumber preserves the exact text of any JSON number decoded into
+		// an `any` field (e.g. Cursor.Next) as a json.Number instead of a
+		// lossy float64, so pagination cursors survive round-tripping
+		// through fmt.Sprintf("%v", ...) unchanged.
+		dec := json.NewDecoder(bytes.NewReader(body))
+		dec.UseNumber()
+		return dec.Decode(out)
 	}
 	return lastErr
 }

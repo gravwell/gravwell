@@ -12,8 +12,13 @@ package thinkst
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"maps"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,10 +40,15 @@ const (
 	httpTimeout = 10 * time.Second
 	httpBackoff = 10 * time.Second
 
-	// storage keys
-	sinceIDKey   = "since-id"  // last incidents_since value used for the incidents API
-	cursorKey    = "cursor"    // pagination cursor, shared shape for both APIs
-	timestampKey = "timestamp" // last-seen record timestamp, used by the audit API
+	// storage keys, namespaced per Api so an instance configured to poll both
+	// incidents and audit trail doesn't have one API's pagination cursor
+	// clobber the other's.
+	incidentSinceIDKey = "incident-since-id" // last incidents_since value used for the incidents API
+	incidentCursorKey  = "incident-cursor"   // incidents API pagination cursor
+
+	auditCursorKey          = "audit-cursor"           // audit trail API pagination cursor
+	auditTimestampKey       = "audit-timestamp"        // last-seen audit record timestamp
+	auditTimestampHashesKey = "audit-timestamp-hashes" // content hashes of records already ingested at auditTimestampKey
 )
 
 type Thinkst struct {
@@ -62,64 +72,86 @@ func (t *Thinkst) initClient(ctx context.Context) {
 	})
 }
 
-// Handle fetches a single page of data from the configured API and returns a
-// Continuation telling the runner when to call Handle again: immediately if
-// more pages are pending, otherwise after the configured poll interval.
+// Handle fetches a single page of data from every configured Api and returns
+// a Continuation telling the runner when to call Handle again: immediately
+// if any Api still has more pages pending, otherwise after the configured
+// poll interval.
 func (t *Thinkst) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
 	t.initClient(rt.Context())
 
-	tag, err := rt.NegotiateTag(t.conf.Tag_Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to negotiate tag: %w", err)
+	if len(t.conf.Api) == 0 {
+		return nil, fmt.Errorf("unsupported api %q", t.conf.Api)
 	}
 
+	var pending bool
 	for _, api := range t.conf.Api {
+		tag, err := rt.NegotiateTag(api.Tag(t.conf.Tag_Name, t.conf.Tag_Prefix))
+		if err != nil {
+			return nil, fmt.Errorf("failed to negotiate tag: %w", err)
+		}
+
+		var p bool
 		switch api {
 		case IncidentApi:
-			return t.handleIncidents(ctx, rt, tag)
+			p, err = t.handleIncidents(ctx, rt, tag)
 		case AuditApi:
-			return t.handleAudit(ctx, rt, tag)
+			p, err = t.handleAudit(ctx, rt, tag)
+		default:
+			err = fmt.Errorf("unsupported api %q", api)
 		}
+		if err != nil {
+			return nil, err
+		}
+		pending = pending || p
 	}
-	return nil, fmt.Errorf("unsupported api %q", t.conf.Api)
+	return t.conf.PendingOrInterval(pending), nil
 }
 
-func (t *Thinkst) handleIncidents(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag) (*hosted.Continuation, error) {
-	sinceID, err := hosted.GetStringOrDefault(rt, sinceIDKey, "")
+// handleIncidents fetches a single page of incidents and reports whether
+// another page is immediately pending.
+func (t *Thinkst) handleIncidents(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag) (bool, error) {
+	sinceID, err := hosted.GetStringOrDefault(rt, incidentSinceIDKey, "")
 	if err != nil {
-		return nil, fmt.Errorf("get since-id: %w", err)
+		return false, fmt.Errorf("get since-id: %w", err)
 	}
-	cursor, err := hosted.GetStringOrDefault(rt, cursorKey, "")
+	cursor, err := hosted.GetStringOrDefault(rt, incidentCursorKey, "")
 	if err != nil {
-		return nil, fmt.Errorf("get cursor: %w", err)
+		return false, fmt.Errorf("get cursor: %w", err)
 	}
 
 	resp, err := t.client.GetIncidents(ctx, sinceID, cursor)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	rt.Debug("got incidents page", log.KV("count", len(resp.Incidents)))
 
 	newSinceID := sinceID
 	for _, raw := range resp.Incidents {
 		var meta incidentMeta
-		var ts time.Time
 		if err := parseInto(raw, &meta); err != nil {
-			rt.Error("failed to parse incident metadata", log.KVErr(err))
-		} else {
-			if parsedTS, perr := time.Parse(TimeFormat, meta.UpdatedStd); perr == nil {
-				ts = parsedTS
-			}
-			if id, ierr := strconv.Atoi(newSinceID); ierr == nil {
-				if meta.UpdatedID > id {
-					newSinceID = strconv.Itoa(meta.UpdatedID)
-				}
-			} else {
-				newSinceID = strconv.Itoa(meta.UpdatedID)
-			}
+			// The record's true ID is unknown, so since-id can never be
+			// advanced past it safely; ingesting it anyway would mean
+			// re-fetching and re-writing it on every poll forever, so it's
+			// dropped instead (mirroring handleAudit's parse-failure
+			// handling below).
+			rt.Error("failed to parse incident metadata, skipping record", log.KVErr(err))
+			continue
+		}
+
+		var ts time.Time
+		if parsedTS, perr := time.Parse(TimeFormat, meta.UpdatedStd); perr == nil {
+			ts = parsedTS
 		}
 		if ts.IsZero() {
 			ts = time.Now()
+		}
+
+		if id, ierr := strconv.Atoi(newSinceID); ierr == nil {
+			if meta.UpdatedID > id {
+				newSinceID = strconv.Itoa(meta.UpdatedID)
+			}
+		} else {
+			newSinceID = strconv.Itoa(meta.UpdatedID)
 		}
 
 		if err := rt.Write(entry.Entry{
@@ -131,7 +163,7 @@ func (t *Thinkst) handleIncidents(ctx context.Context, rt hosted.Runtime, tag en
 		}
 	}
 
-	if err := rt.PutString(sinceIDKey, newSinceID); err != nil {
+	if err := rt.PutString(incidentSinceIDKey, newSinceID); err != nil {
 		rt.Error("failed to store since-id", log.KVErr(err))
 	}
 
@@ -140,33 +172,46 @@ func (t *Thinkst) handleIncidents(ctx context.Context, rt hosted.Runtime, tag en
 	// even when there is no further page to fetch.
 	next := ""
 	if resp.Cursor.NextLink != nil {
-		next = fmt.Sprintf("%v", resp.Cursor.Next)
+		next = stringify(resp.Cursor.Next)
 	}
-	if err := rt.PutString(cursorKey, next); err != nil {
+	if err := rt.PutString(incidentCursorKey, next); err != nil {
 		rt.Error("failed to store cursor", log.KVErr(err))
 	}
 
-	pending := next != "" && len(resp.Incidents) > 0
-	return t.conf.PendingOrInterval(pending), nil
+	return next != "" && len(resp.Incidents) > 0, nil
 }
 
-func (t *Thinkst) handleAudit(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag) (*hosted.Continuation, error) {
-	cursor, err := hosted.GetStringOrDefault(rt, cursorKey, "")
+// handleAudit fetches a single page of audit trail records and reports
+// whether another page is immediately pending.
+func (t *Thinkst) handleAudit(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag) (bool, error) {
+	cursor, err := hosted.GetStringOrDefault(rt, auditCursorKey, "")
 	if err != nil {
-		return nil, fmt.Errorf("get cursor: %w", err)
+		return false, fmt.Errorf("get cursor: %w", err)
 	}
-	lastTS, err := hosted.GetTimeOrDefault(rt, timestampKey, time.Now().Add(-t.conf.LookbackDuration()))
+	lastTS, err := hosted.GetTimeOrDefault(rt, auditTimestampKey, time.Now().Add(-t.conf.LookbackDuration()))
 	if err != nil {
-		return nil, fmt.Errorf("get timestamp: %w", err)
+		return false, fmt.Errorf("get timestamp: %w", err)
 	}
+	seenRaw, err := hosted.GetStringOrDefault(rt, auditTimestampHashesKey, "")
+	if err != nil {
+		return false, fmt.Errorf("get timestamp-hashes: %w", err)
+	}
+	seenAtWatermark := splitHashes(seenRaw)
 
 	resp, err := t.client.GetAuditTrail(ctx, cursor)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	rt.Debug("got audit trail page", log.KV("count", len(resp.AuditTrail)))
 
+	// latestHashes tracks the content hashes of every record ingested at
+	// exactly `latest`. It starts as a copy of the hashes already known at
+	// the current watermark (lastTS) and is reset whenever the watermark
+	// actually advances, so a poll that never sees a newer record doesn't
+	// forget what was already deduped at this second.
 	latest := lastTS
+	latestHashes := maps.Clone(seenAtWatermark)
+
 	for _, raw := range resp.AuditTrail {
 		var meta auditMeta
 		if err := parseInto(raw, &meta); err != nil {
@@ -177,9 +222,15 @@ func (t *Thinkst) handleAudit(ctx context.Context, rt hosted.Runtime, tag entry.
 		if perr != nil {
 			ts = time.Now()
 		}
-		// The audit trail API has no server-side time filter, so records
-		// already seen on a prior page are skipped client-side.
-		if !ts.After(lastTS) {
+
+		// The audit trail API has no server-side time filter and its
+		// timestamps only carry second resolution, so records already seen
+		// on a prior page/poll are skipped client-side: anything strictly
+		// before the watermark was already handled, and anything exactly at
+		// the watermark is deduped by content hash so that distinct records
+		// legitimately sharing that same second aren't dropped.
+		h := recordHash(raw)
+		if ts.Before(lastTS) || (ts.Equal(lastTS) && seenAtWatermark[h]) {
 			continue
 		}
 
@@ -191,22 +242,65 @@ func (t *Thinkst) handleAudit(ctx context.Context, rt hosted.Runtime, tag entry.
 			rt.Error("failed to write audit entry", log.KVErr(err))
 			continue
 		}
-		if ts.After(latest) {
+
+		switch {
+		case ts.After(latest):
 			latest = ts
+			latestHashes = map[string]bool{h: true}
+		case ts.Equal(latest):
+			latestHashes[h] = true
 		}
 	}
 
 	next := ""
 	if resp.Cursor.Next != nil {
-		next = fmt.Sprintf("%v", resp.Cursor.Next)
+		next = stringify(resp.Cursor.Next)
 	}
-	if err := rt.PutString(cursorKey, next); err != nil {
+	if err := rt.PutString(auditCursorKey, next); err != nil {
 		rt.Error("failed to store cursor", log.KVErr(err))
 	}
-	if err := rt.PutTime(timestampKey, latest); err != nil {
+	if err := rt.PutTime(auditTimestampKey, latest); err != nil {
 		rt.Error("failed to store timestamp", log.KVErr(err))
 	}
+	if err := rt.PutString(auditTimestampHashesKey, joinHashes(latestHashes)); err != nil {
+		rt.Error("failed to store timestamp-hashes", log.KVErr(err))
+	}
 
-	pending := next != "" && len(resp.AuditTrail) > 0
-	return t.conf.PendingOrInterval(pending), nil
+	return next != "" && len(resp.AuditTrail) > 0, nil
+}
+
+// stringify renders a JSON-decoded `any` cursor value as a string, without
+// producing the literal "<nil>" when the value is absent.
+func stringify(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+// recordHash returns a short, stable content hash for an audit trail record,
+// used to dedup records that share a watermark timestamp.
+func recordHash(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:8])
+}
+
+func splitHashes(s string) map[string]bool {
+	out := make(map[string]bool)
+	if s == "" {
+		return out
+	}
+	for _, h := range strings.Split(s, ",") {
+		out[h] = true
+	}
+	return out
+}
+
+func joinHashes(m map[string]bool) string {
+	hashes := make([]string, 0, len(m))
+	for h := range m {
+		hashes = append(hashes, h)
+	}
+	sort.Strings(hashes)
+	return strings.Join(hashes, ",")
 }
