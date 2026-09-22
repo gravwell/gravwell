@@ -141,24 +141,24 @@ func TestConfig_Tags(t *testing.T) {
 		{
 			name:     "default prefix",
 			sections: []string{"APPLICATIONS", "STORAGE"},
-			want:     []string{"jamf_applications", "jamf_storage"},
+			want:     []string{"jamf-applications", "jamf-storage"},
 		},
 		{
 			name:     "custom prefix",
 			sections: []string{"APPLICATIONS"},
 			prefix:   "custom",
-			want:     []string{"custom_applications"},
+			want:     []string{"custom-applications"},
 		},
 		{
 			name:     "tag name override for single section",
 			sections: []string{"APPLICATIONS"},
-			tagName:  "jamf_apps_custom",
-			want:     []string{"jamf_apps_custom"},
+			tagName:  "jamf-apps-custom",
+			want:     []string{"jamf-apps-custom"},
 		},
 		{
 			name:     "general included explicitly",
 			sections: []string{"GENERAL", "APPLICATIONS"},
-			want:     []string{"jamf_general", "jamf_applications"},
+			want:     []string{"jamf-general", "jamf-applications"},
 		},
 	}
 
