@@ -73,6 +73,15 @@ func (o Optional[T]) IsZero() bool {
 	return !o.IsSet()
 }
 
+// IsOpaqueValue reports that Optional[T] is an opaque, self-marshaling
+// value: its own fields are private implementation detail, not a composite
+// record. Reflection-based tooling that walks a struct's fields (e.g. this
+// module's utils/weave package) should treat an Optional[T] field as a
+// single leaf rather than recursing into it.
+func (o Optional[T]) IsOpaqueValue() bool {
+	return true
+}
+
 // MarshalJSONTo causes optional to always marshal to a safe value.
 // If !o.IsSet(), T zero will be used.
 //

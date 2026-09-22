@@ -60,23 +60,21 @@ func TestAssetTypeMapNoDuplicateValues(t *testing.T) {
 	}
 }
 
-// TestCommonFieldsIsDeleted pins IsDeleted's nil-check contract.
-// A live asset (DeletedAt == nil or zero time) reports false, a soft-deleted one
-// with DeletedAt set reports true.
+// TestCommonFieldsIsDeleted pins IsDeleted's contract.
+// A live asset (DeletedAt null or set to the zero time) reports false, a
+// soft-deleted one (DeletedAt set to a real timestamp) reports true.
 func TestCommonFieldsIsDeleted(t *testing.T) {
 	var cf CommonFields
 	if cf.IsDeleted() {
-		t.Error("IsDeleted() = true for a lie asset, want false")
+		t.Error("IsDeleted() = true for a live asset, want false")
 	}
 
-	zero := time.Time{}
-	cf.DeletedAt = &zero
+	cf.DeletedAt.Set(time.Time{})
 	if cf.IsDeleted() {
-		t.Error("IsDeleted() = true for a non-nil pointer to zero time, want false")
+		t.Error("IsDeleted() = true for a non-null zero time, want false")
 	}
 
-	ts := time.Now()
-	cf.DeletedAt = &ts
+	cf.DeletedAt.Set(time.Now())
 	if !cf.IsDeleted() {
 		t.Error("IsDeleted() = false for a soft-deleted asset, want true")
 	}
