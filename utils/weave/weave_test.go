@@ -1971,6 +1971,33 @@ type ptr struct {
 	non      string
 }
 
+// opaqueWrapper mimics client/types' Optional[T]/Nullable[T]: a struct with
+// only unexported fields that explicitly opts out of struct-field
+// recursion via the same IsOpaqueValue marker those types implement.
+type opaqueWrapper struct {
+	value string
+	valid bool
+}
+
+func (opaqueWrapper) IsOpaqueValue() bool { return true }
+
+// plainUnexported has the exact same all-unexported-fields shape as
+// opaqueWrapper, but does NOT implement IsOpaqueValue. It must NOT be
+// treated as a leaf merely because it happens to have no exported fields --
+// that's also the shape of an ordinary struct embedding an unexported-named
+// type (see mbd/dblmbd above), which legitimately needs to be recursed
+// into to reach fields nested further down.
+type plainUnexported struct {
+	value string
+	valid bool
+}
+
+type hasOpaqueField struct {
+	Wrapped opaqueWrapper
+	Plain   plainUnexported
+	Normal  string
+}
+
 func TestStructFieldsAll(t *testing.T) {
 
 	// silence "unused" warnings as we only care about types
@@ -2049,6 +2076,39 @@ func TestStructFieldsAll(t *testing.T) {
 			now.String() + ",normal"
 		if out != wantOut {
 			t.Fatalf("expected \"%s\", got %s", wantOut, out)
+		}
+	})
+
+	// "opaque struct field" pins the leaf treatment for types like
+	// client/types' Optional[T]/Nullable[T] that explicitly implement
+	// IsOpaqueValue, using a plain unrelated struct instead of depending on
+	// client/types. It also pins the negative case: a struct with the exact
+	// same all-unexported-fields shape that does NOT implement the marker
+	// must NOT be treated as a leaf -- that would regress to the unsound
+	// "no exported fields => leaf" heuristic that breaks mbd/dblmbd above
+	// (an ordinary struct embedding an unexported-named type also has no
+	// *directly* exported fields, yet still needs recursing into).
+	t.Run("opaque struct field", func(t *testing.T) {
+		want := []string{"Wrapped", "Normal"}
+		cols, err := StructFields(hasOpaqueField{}, true)
+		if err != nil {
+			t.Error(err)
+		}
+		if !reflect.DeepEqual(cols, want) {
+			t.Errorf("exportedOnly=true: StructFields() = %v, want %v", cols, want)
+		}
+
+		// Without exportedOnly: the IsOpaqueValue-marked field is still a
+		// single leaf ("Wrapped"), but the unmarked plainUnexported field's
+		// internals DO surface (matching how mbd's unexported "z" field
+		// surfaces in this mode) since nothing tells the walker it's opaque.
+		want = []string{"Wrapped", "Plain.value", "Plain.valid", "Normal"}
+		cols, err = StructFields(hasOpaqueField{}, false)
+		if err != nil {
+			t.Error(err)
+		}
+		if !reflect.DeepEqual(cols, want) {
+			t.Errorf("exportedOnly=false: StructFields() = %v, want %v", cols, want)
 		}
 	})
 }

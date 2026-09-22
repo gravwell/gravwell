@@ -760,10 +760,25 @@ func innerStructFields(qualification string, field reflect.StructField, exported
 		dq = qualification + "." + field.Name
 	}
 
-	// ! Time requires special handling.
-	// It is technically a struct composed of unexported fields.
-	// If we delve it (with exportedOnly) like a normal struct, we will find no exported fields and thus skip the field entirely.
-	if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Time]() {
+	// ! Time, and opaqueValue implementors, require special handling.
+	// time.Time is technically a struct composed of unexported fields; the
+	// same shape shows up deliberately in this repo's Optional[T]/Nullable[T]
+	// wrapper types (client/types), which mark themselves via opaqueValue.
+	// If we delve into one of these (with exportedOnly) like a normal struct,
+	// we will find no exported fields and thus skip the field entirely; without
+	// exportedOnly, we would instead leak its unexported internals as
+	// nonsensical qualified names (e.g. "DeletedAt.value"). Either way, the
+	// field itself is what the caller actually wants, so treat it as a leaf.
+	//
+	// Note this can't be generalized to "struct with no exported fields" --
+	// an ordinary struct embedding an unexported-named type (e.g. one
+	// embedding a lowercase-named struct from another package) also has no
+	// *directly* exported fields, yet still needs recursing into to reach
+	// the exported fields nested inside. Opacity is a property of type
+	// intent, not field shape, so it must be an explicit opt-in.
+	if field.Type.Kind() == reflect.Struct &&
+		field.Type != reflect.TypeFor[time.Time]() &&
+		!field.Type.Implements(opaqueValueType) {
 		// delve into each subfield
 		for subfield := range field.Type.Fields() {
 			columns = append(columns, innerStructFields(dq, subfield, exportedOnly)...)
@@ -774,6 +789,19 @@ func innerStructFields(qualification string, field reflect.StructField, exported
 
 	return columns
 }
+
+// opaqueValue is implemented by wrapper types (e.g. client/types'
+// Optional[T]/Nullable[T]) that are conceptually a single value rather than
+// a composite record. Their own fields are private implementation detail:
+// delving into them via reflection would find nothing useful (with
+// exportedOnly) or leak internals as nonsensical qualified names (without
+// it). A type opts out of struct-field recursion by implementing this
+// method and returning true.
+type opaqueValue interface {
+	IsOpaqueValue() bool
+}
+
+var opaqueValueType = reflect.TypeFor[opaqueValue]()
 
 // Given a struct and the desired fields (columns), maps the full, qualified
 // field names to their complete index chain. If a field is not found in the
