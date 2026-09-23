@@ -694,7 +694,10 @@ func (p *TextAreaProvider) View(selected bool, _ int) (_ ViewKind, value, second
 			clilog.Writer.Warnf("TA provider is in takeover mode, but is not selected!")
 		}
 
-		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.ta.Focused(), p.ta.Width()), ""
+		hint := stylesheet.Cur.DisabledText.Render(
+			sigils.UpDown + " move • " + hotkeys.Select.Help().Key + "/" + sigils.Enter + " return",
+		)
+		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.ta.Focused(), p.ta.Width()) + "\n  " + hint, ""
 	}
 	main, secondLine := p.NormalModeDisplay(selected)
 
