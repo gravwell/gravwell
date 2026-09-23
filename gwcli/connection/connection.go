@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -665,8 +665,11 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 			AutomationCommonFields: types.AutomationCommonFields{
 				Schedule: freq,
 			},
-			SearchString: qry,
-			Duration:     -int64(dur.Abs().Seconds()),
+			Search: types.Searchable{
+				Kind:        types.SearchableKindQueryString,
+				QueryString: qry,
+			},
+			Duration: -int64(dur.Abs().Seconds()),
 		})
 	return result.ID, "", err
 }

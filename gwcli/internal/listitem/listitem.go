@@ -285,7 +285,11 @@ func WrapAssets[asset_t wrappableAsset](x asset_t, preselected ...map[string]boo
 		}
 	case []types.ScheduledSearch:
 		for i, itm := range t {
-			line := fmt.Sprintf("[%s] %s", itm.Schedule, itm.SearchString)
+			search := itm.Search.QueryString
+			if itm.Search.Kind == types.SearchableKindSavedQuery {
+				search = "saved query " + itm.Search.ID
+			}
+			line := fmt.Sprintf("[%s] %s", itm.Schedule, search)
 			if itm.Description != "" {
 				line += " - " + itm.Description
 			}
