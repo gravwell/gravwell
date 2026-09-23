@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 
 	// include all the native hosted ingesters
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
@@ -30,31 +29,24 @@ import (
 )
 
 type Configs struct {
-	ServiceNow   map[string]*servicenow.Config
-	Preprocessor processors.ProcessorConfig
-	Okta         map[string]*okta.Config
-	Mimecast     map[string]*mimecast.Config
-	MSGraph      map[string]*msgraph.Config
-	Tester       map[string]*tester.Config
-	Jamf         map[string]*jamf.Config
-	Wiz          map[string]*wiz.Config
-	SQS          map[string]*sqs.Config
+	ServiceNow map[string]*servicenow.Config
+	Okta       map[string]*okta.Config
+	Mimecast   map[string]*mimecast.Config
+	MSGraph    map[string]*msgraph.Config
+	Tester     map[string]*tester.Config
+	Jamf       map[string]*jamf.Config
+	Wiz        map[string]*wiz.Config
+	SQS        map[string]*sqs.Config
 }
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
-	if err = c.Preprocessor.Validate(); err != nil {
-		return
-	}
 	for name, cfg := range c.ServiceNow {
 		if cfg == nil {
 			return fmt.Errorf("ServiceNow config %q is nil", name)
 		}
 		if err = cfg.Verify(); err != nil {
 			return fmt.Errorf("ServiceNow config %q failed validation: %w", name, err)
-		}
-		if err = c.Preprocessor.CheckProcessors(cfg.Preprocessor); err != nil {
-			return fmt.Errorf("ServiceNow config %q preprocessor invalid: %w", name, err)
 		}
 	}
 	for k, v := range c.Okta {
@@ -180,7 +172,7 @@ type IngesterBuilder interface {
 func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 	return func(yield func(string, IngesterBuilder) bool) {
 		for name, cfg := range c.ServiceNow {
-			if !yield(name, NewServiceNowBuilder(name, cfg, c.Preprocessor)) {
+			if !yield(name, servicenow.NewBuilder(name, cfg)) {
 				return
 			}
 		}

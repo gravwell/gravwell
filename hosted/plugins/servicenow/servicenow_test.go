@@ -1092,3 +1092,18 @@ Lookback=` + value + "\n"
 		}
 	}
 }
+
+func TestHostedRunnerServiceNowRejectsUnsupportedPreprocessorSelection(t *testing.T) {
+	type registeredConfig struct {
+		ServiceNow map[string]*Config
+	}
+	path := filepath.Join(t.TempDir(), "hosted.conf")
+	body := "[ServiceNow \"test\"]\nPreprocessor=\"unexpected\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var parsed registeredConfig
+	if err := ingestconfig.LoadConfigFile(&parsed, path); err == nil {
+		t.Fatal("unsupported ServiceNow Preprocessor selection was accepted")
+	}
+}

@@ -45,7 +45,6 @@ type Config struct {
 	Skip_Unavailable              bool
 	Normalization                 string
 	Normalization_Field           []string
-	Preprocessor                  []string
 	normalizationRules            map[string][]normalizationRule
 }
 

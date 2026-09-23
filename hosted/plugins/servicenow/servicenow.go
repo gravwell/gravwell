@@ -17,7 +17,6 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
 type provenanceMetadata struct {
@@ -75,16 +74,21 @@ type cursorState struct {
 	Seen                  map[string]time.Time
 	Hashes                map[string][sha256.Size]byte
 }
+
+type entryProcessor interface {
+	Process(*entry.Entry) error
+}
+
 type ServiceNow struct {
 	conf             *Config
-	proc             *processors.ProcessorSet
+	proc             entryProcessor
 	processMu, tagMu sync.Mutex
 	tags             map[string]entry.EntryTag
 	source           net.IP
 	now              func() time.Time
 }
 
-func New(conf *Config, proc *processors.ProcessorSet) *ServiceNow {
+func New(conf *Config, proc entryProcessor) *ServiceNow {
 	return &ServiceNow{conf: conf, proc: proc, tags: map[string]entry.EntryTag{}, source: net.ParseIP("127.0.0.1"), now: time.Now}
 }
 

@@ -74,15 +74,9 @@ func TestServiceNowRegistrationPreservesExistingPlugin(t *testing.T) {
 	}
 }
 
-func TestServiceNowRegistrationRejectsNilAndUnknownProcessor(t *testing.T) {
+func TestServiceNowRegistrationRejectsNil(t *testing.T) {
 	c := Configs{ServiceNow: map[string]*servicenow.Config{"nil": nil}}
 	if c.Verify() == nil {
 		t.Fatal("nil config accepted")
-	}
-	cfg := serviceNowRegistrationConfig(t)
-	cfg.Preprocessor = []string{"missing"}
-	c.ServiceNow = map[string]*servicenow.Config{"invalid": cfg}
-	if c.Verify() == nil {
-		t.Fatal("unknown preprocessor accepted")
 	}
 }

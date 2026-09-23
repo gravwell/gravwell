@@ -11,13 +11,12 @@ import (
 )
 
 type Builder struct {
-	config        *Config
-	name          string
-	preprocessors processors.ProcessorConfig
+	config *Config
+	name   string
 }
 
-func NewBuilder(name string, config *Config, p processors.ProcessorConfig) *Builder {
-	return &Builder{config, name, p}
+func NewBuilder(name string, config *Config) *Builder {
+	return &Builder{config, name}
 }
 func (b *Builder) Config() any     { return b.config }
 func (b *Builder) Name() string    { return b.name }
@@ -36,14 +35,15 @@ type processorWriter interface {
 	WriteBatchContext(context.Context, []*entry.Entry) error
 }
 
+func newPassThroughProcessor(w processorWriter) *processors.ProcessorSet {
+	return processors.NewProcessorSet(w)
+}
+
 func (b *Builder) Build(n hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
 	w, ok := n.(processorWriter)
 	if !ok {
-		return nil, fmt.Errorf("ServiceNow preprocessor writer is incompatible with the ingest muxer")
+		return nil, fmt.Errorf("ServiceNow ingest writer is incompatible with the ingest muxer")
 	}
-	p, err := b.preprocessors.ProcessorSet(w, b.config.Preprocessor)
-	if err != nil {
-		return nil, err
-	}
+	p := newPassThroughProcessor(w)
 	return hosted.WrapJobWithSync(New(b.config, p), syncFn), nil
 }
