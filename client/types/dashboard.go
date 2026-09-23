@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -51,9 +51,22 @@ type DashboardSearchable struct {
 	TimeframeOverride *DashboardTimeframe `json:",omitempty"`
 }
 
+// Kind values for Searchable. Which of these are legal depends on the consumer.
+// See Searchable.
+const (
+	SearchableKindTemplate    = "template"
+	SearchableKindSavedQuery  = "saved_query"
+	SearchableKindQueryString = "query_string"
+)
+
 // Searchable represents a searchable thing that can launch or attach to a search.
 // Kind determines the variant: "template", "saved_query", "scheduled_search" use ID;
 // "query_string" uses QueryString.
+//
+// Searchable is shared by multiple consumers, each of which restricts the set of
+// legal Kinds. DashboardSearchable.Reference accepts all four, while
+// ScheduledSearch.Search accepts only SearchableKindSavedQuery and
+// SearchableKindQueryString.
 type Searchable struct {
 	Kind        string
 	ID          string `json:",omitempty"`
