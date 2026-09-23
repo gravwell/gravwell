@@ -16,29 +16,47 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 
 	// include all the native hosted ingesters
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/servicenow"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
 type Configs struct {
-	Okta     map[string]*okta.Config
-	Mimecast map[string]*mimecast.Config
-	MSGraph  map[string]*msgraph.Config
-	Tester   map[string]*tester.Config
-	Jamf     map[string]*jamf.Config
-	Wiz      map[string]*wiz.Config
-	SQS      map[string]*sqs.Config
+	ServiceNow   map[string]*servicenow.Config
+	Preprocessor processors.ProcessorConfig
+	Okta         map[string]*okta.Config
+	Mimecast     map[string]*mimecast.Config
+	MSGraph      map[string]*msgraph.Config
+	Tester       map[string]*tester.Config
+	Jamf         map[string]*jamf.Config
+	Wiz          map[string]*wiz.Config
+	SQS          map[string]*sqs.Config
 }
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
+	if err = c.Preprocessor.Validate(); err != nil {
+		return
+	}
+	for name, cfg := range c.ServiceNow {
+		if cfg == nil {
+			return fmt.Errorf("ServiceNow config %q is nil", name)
+		}
+		if err = cfg.Verify(); err != nil {
+			return fmt.Errorf("ServiceNow config %q failed validation: %w", name, err)
+		}
+		if err = c.Preprocessor.CheckProcessors(cfg.Preprocessor); err != nil {
+			return fmt.Errorf("ServiceNow config %q preprocessor invalid: %w", name, err)
+		}
+	}
 	for k, v := range c.Okta {
 		if v == nil {
 			err = fmt.Errorf("Okta config %q is nil", k)
@@ -114,6 +132,9 @@ func (c Configs) Verify() (err error) {
 
 // Tags implements the required interface for base.cfgHelper which is used during startup
 func (c Configs) Tags() (tags []string, err error) {
+	for _, cfg := range c.ServiceNow {
+		tags = append(tags, cfg.Tags()...)
+	}
 	if len(c.Okta) > 0 {
 		tags = append(tags, okta.Tags...)
 	}
@@ -140,7 +161,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
+	count += len(c.ServiceNow) + len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
 	return
 }
 
@@ -158,6 +179,11 @@ type IngesterBuilder interface {
 // Any new plugins MUST add another loop here returning an IngesterBuilder for each config entry.
 func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 	return func(yield func(string, IngesterBuilder) bool) {
+		for name, cfg := range c.ServiceNow {
+			if !yield(name, NewServiceNowBuilder(name, cfg, c.Preprocessor)) {
+				return
+			}
+		}
 		for name, config := range c.Tester {
 			if !yield(name, NewTesterBuilder(config, tester.Name, tester.ID, tester.Version)) {
 				return

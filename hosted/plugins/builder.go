@@ -15,9 +15,11 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/servicenow"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
 type BuilderConfig interface {
@@ -195,4 +197,8 @@ func NewSQSBuilder(config *sqs.Config, kind, id, version string) *SQSBuilder {
 			version: version,
 		},
 	}
+}
+
+func NewServiceNowBuilder(name string, cfg *servicenow.Config, pp processors.ProcessorConfig) IngesterBuilder {
+	return servicenow.NewBuilder(name, cfg, pp)
 }
