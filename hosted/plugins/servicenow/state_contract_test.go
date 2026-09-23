@@ -21,11 +21,13 @@ import (
 
 type serviceNowContractRuntime struct {
 	hosted.Runtime
-	state       map[string][]byte
-	entries     []entry.Entry
-	writeCalls  int
-	failWriteAt int
-	tagErr      error
+	state             map[string][]byte
+	entries           []entry.Entry
+	writeCalls        int
+	failWriteAt       int
+	tagErr            error
+	blockContextWrite bool
+	writeStarted      chan struct{}
 }
 
 func newServiceNowContractRuntime() *serviceNowContractRuntime {
@@ -61,7 +63,18 @@ func (r *serviceNowContractRuntime) WriteEntry(value *entry.Entry) error {
 	return nil
 }
 
-func (r *serviceNowContractRuntime) WriteEntryContext(_ context.Context, value *entry.Entry) error {
+func (r *serviceNowContractRuntime) WriteEntryContext(ctx context.Context, value *entry.Entry) error {
+	if r.blockContextWrite {
+		if r.writeStarted != nil {
+			select {
+			case <-r.writeStarted:
+			default:
+				close(r.writeStarted)
+			}
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	return r.WriteEntry(value)
 }
 
@@ -224,6 +237,65 @@ func TestPartialPageFailureUsesDurableItemDeduplication(t *testing.T) {
 	}
 	if len(runtime.entries) != 2 || string(runtime.entries[0].Data) == string(runtime.entries[1].Data) {
 		t.Fatalf("partial replay entries=%d data=%q", len(runtime.entries), []string{string(runtime.entries[0].Data), string(runtime.entries[len(runtime.entries)-1].Data)})
+	}
+}
+
+func TestCanceledProcessorWriteDoesNotAdvanceStateAndRetries(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"00000000000000000000000000000001","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	runtime.blockContextWrite = true
+	runtime.writeStarted = make(chan struct{})
+	config := serviceNowContractConfig(t, server.URL)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- plugin.collect(ctx, runtime, client, catalog["incidents"])
+	}()
+	select {
+	case <-runtime.writeStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("processor write did not block")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled collect error=%v want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("canceled processor write did not return")
+	}
+	if len(runtime.entries) != 0 {
+		t.Fatalf("canceled write delivered %d entries", len(runtime.entries))
+	}
+	key := config.StateNamespace() + "/incidents"
+	if _, exists, err := loadCursorIfExists(runtime, key); err != nil || exists {
+		t.Fatalf("canceled write advanced state: exists=%v err=%v", exists, err)
+	}
+
+	runtime.blockContextWrite = false
+	restarted := New(config, processors.NewProcessorSet(runtime))
+	restarted.now = plugin.now
+	if err := restarted.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.entries) != 1 {
+		t.Fatalf("retried entries=%d want=1", len(runtime.entries))
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Hashes) != 1 || state.Checkpoint.IsZero() {
+		t.Fatalf("retry state hashes=%d checkpoint=%v", len(state.Hashes), state.Checkpoint)
 	}
 }
 

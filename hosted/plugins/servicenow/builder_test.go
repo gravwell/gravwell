@@ -48,7 +48,7 @@ func TestPassThroughProcessorWritesWithoutConfiguredProcessors(t *testing.T) {
 		t.Fatalf("processor count=%d want=0", processor.Count())
 	}
 	want := &entry.Entry{Data: []byte(`{"result":"pass-through"}`)}
-	if err := processor.Process(want); err != nil {
+	if err := processor.ProcessContext(want, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if len(writer.entries) != 1 || writer.entries[0] != want {

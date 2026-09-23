@@ -76,7 +76,7 @@ type cursorState struct {
 }
 
 type entryProcessor interface {
-	Process(*entry.Entry) error
+	ProcessContext(*entry.Entry, context.Context) error
 }
 
 type ServiceNow struct {
@@ -217,7 +217,7 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 				return err
 			}
 			s.processMu.Lock()
-			err = s.proc.Process(ent)
+			err = s.proc.ProcessContext(ent, ctx)
 			s.processMu.Unlock()
 			if err != nil {
 				return err
