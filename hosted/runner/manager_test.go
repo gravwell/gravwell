@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/servicenow"
 	"github.com/gravwell/gravwell/v3/ingest"
 )
 
@@ -92,6 +93,22 @@ func TestStopUnregistersChildren(t *testing.T) {
 	}
 }
 
+func TestUnchangedServiceNowConfigDoesNotRestart(t *testing.T) {
+	cfg := &servicenow.Config{
+		BaseConfig: hosted.BaseConfig{Ingester_UUID: "42000000-0000-4000-8000-000000000001"},
+	}
+	runner := configRunner{
+		testRunner: testRunner{kind: servicenow.Name, name: "all-products", guid: cfg.UUID()},
+		config:     cfg,
+		id:         servicenow.ID,
+		version:    servicenow.Version,
+	}
+	wrapped := wrappedRunner{Runner: runner}
+	if wrapped.configChanged("all-products", servicenow.NewBuilder("all-products", cfg)) {
+		t.Fatal("unchanged ServiceNow config was treated as changed")
+	}
+}
+
 func newTestManager(reg childRegistry, runners ...testRunner) *runtimeManager {
 	ctx, cf := context.WithCancel(context.Background())
 	rm := &runtimeManager{
@@ -149,6 +166,17 @@ type testRunner struct {
 	guid    uuid.UUID
 	entries uint64
 }
+
+type configRunner struct {
+	testRunner
+	config  any
+	id      string
+	version string
+}
+
+func (r configRunner) Config() any     { return r.config }
+func (r configRunner) ID() string      { return r.id }
+func (r configRunner) Version() string { return r.version }
 
 func (tr testRunner) Start() error                                  { return nil }
 func (tr testRunner) Close() error                                  { return nil }

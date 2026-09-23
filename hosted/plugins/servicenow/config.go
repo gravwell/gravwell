@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,6 +47,37 @@ type Config struct {
 	Normalization                 string
 	Normalization_Field           []string
 	normalizationRules            map[string][]normalizationRule
+}
+
+var _ hosted.Config = (*Config)(nil)
+
+// Equal implements hosted.Config so unchanged configuration reloads do not
+// interrupt an active ServiceNow poll.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.MultiTagConfig == nc.MultiTagConfig &&
+		c.PollingConfig == nc.PollingConfig &&
+		c.Instance == nc.Instance &&
+		c.Secret_File == nc.Secret_File &&
+		slices.Equal(c.Product, nc.Product) &&
+		slices.Equal(c.API, nc.API) &&
+		slices.Equal(c.API_Endpoint, nc.API_Endpoint) &&
+		slices.Equal(c.Table, nc.Table) &&
+		slices.Equal(c.Table_Override, nc.Table_Override) &&
+		slices.Equal(c.Selector, nc.Selector) &&
+		slices.Equal(c.Selector_Override, nc.Selector_Override) &&
+		c.Page_Size == nc.Page_Size &&
+		c.Max_Pages == nc.Max_Pages &&
+		c.Timeout == nc.Timeout &&
+		c.OverlapSeconds() == nc.OverlapSeconds() &&
+		c.MaxRetries() == nc.MaxRetries() &&
+		c.Skip_Unavailable == nc.Skip_Unavailable &&
+		c.Normalization == nc.Normalization &&
+		slices.Equal(c.Normalization_Field, nc.Normalization_Field)
 }
 
 func (c *Config) Verify() error {
