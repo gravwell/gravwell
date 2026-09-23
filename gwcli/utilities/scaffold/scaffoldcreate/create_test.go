@@ -450,7 +450,7 @@ func TestBoolean(t *testing.T) {
 
 // Tests that the create form tells the user how to interact with its fields.
 // Without the legend, fields that can only be entered by pressing space (ex: the Capabilities
-// multiselect list of `token create`) appear inert. See gwcli#2545.
+// multiselect list of `token create`) appear inert.
 //
 // The legend is intentionally omitted while a field has taken over the pane.
 // This test covers the MSL provider, whose takeover view (multiselectlist.Model.View()) appends
@@ -486,7 +486,7 @@ func TestHotkeyLegend(t *testing.T) {
 		},
 		{"takeover is not decorated with the form's legend",
 			80, []tea.Msg{testsupport.SendHotkey(hotkeys.Select)},
-			[]string{"space select • ↲ continue"}, []string{wantLegend},
+			[]string{"space select • ↵ continue"}, []string{wantLegend},
 		},
 		{"legend returns after leaving takeover",
 			80, []tea.Msg{testsupport.SendHotkey(hotkeys.Select), testsupport.SendHotkey(hotkeys.Invoke)},

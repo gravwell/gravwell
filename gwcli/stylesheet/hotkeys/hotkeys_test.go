@@ -27,7 +27,7 @@ const wantLegend = sigils.UpDown + " up/down • " + sigils.Enter + " invoke •
 
 // Checks that the short legend advertises every key needed to drive a form.
 // Select is of particular note: fields that can only be entered by pressing space (multiselect
-// lists, text areas) are undiscoverable if the legend does not mention it. See gwcli#2545.
+// lists, text areas) are undiscoverable if the legend does not mention it.
 func TestModel_ShortHelp(t *testing.T) {
 	shortHelp := hotkeys.NewModel().ShortHelp()
 

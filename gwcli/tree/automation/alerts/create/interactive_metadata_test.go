@@ -26,8 +26,8 @@ const wantLegend = sigils.UpDown + " up/down • " + sigils.Enter + " invoke •
 
 // The metadata form footers itself with the shared legend, so changes to hotkeys.Model.ShortHelp()
 // land here too.
-// Select ("space") is of particular note: it is the only way to flip the Enable checkbox.
-// See gwcli#2545.
+// Select ("space") is of particular note: it is the only way to flip the Enable checkbox, and
+// nothing else on screen tells the user that.
 func TestMetadataView_HotkeyLegend(t *testing.T) {
 	// use a consistent color scheme
 	stylesheet.Cur = stylesheet.Plain()
