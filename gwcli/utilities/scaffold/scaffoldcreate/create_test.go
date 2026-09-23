@@ -20,15 +20,21 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 )
+
+// The hotkey legend, as it is displayed at the bottom of the create form.
+const wantLegend = sigils.UpDown + " up/down • " + sigils.Enter + " invoke • space select"
 
 func TestCleanPathSuggestions(t *testing.T) {
 	tests := []struct {
@@ -374,7 +380,8 @@ func TestBoolean(t *testing.T) {
          b2:[✓]
          ╭──────╮
         >│submit│
-         ╰──────╯`)
+         ╰──────╯
+         ` + wantLegend)
 				if v := testsupport.LinesTrimSpace(view()); v != wantV {
 					t.Error("incorrect view after wrap to submit button", testsupport.ExpectedActual(wantV, v))
 				}
@@ -400,7 +407,8 @@ func TestBoolean(t *testing.T) {
          b2:[ ]
          ╭──────╮
         >│submit│
-         ╰──────╯`)
+         ╰──────╯
+         ` + wantLegend)
 				if v := testsupport.LinesTrimSpace(view()); v != wantV {
 					t.Error("incorrect view after wrap to submit button", testsupport.ExpectedActual(wantV, v))
 				}
@@ -438,4 +446,142 @@ func TestBoolean(t *testing.T) {
 		})
 	}
 
+}
+
+// Tests that the create form tells the user how to interact with its fields.
+// Without the legend, fields that can only be entered by pressing space (ex: the Capabilities
+// multiselect list of `token create`) appear inert. See gwcli#2545.
+//
+// The legend is intentionally omitted while a field has taken over the pane.
+// This test covers the MSL provider, whose takeover view (multiselectlist.Model.View()) appends
+// its own hint; the assertions below check that that hint is shown and that the form's legend does
+// not double up on it. Other takeover-capable providers are not covered here.
+func TestHotkeyLegend(t *testing.T) {
+	// use a consistent color scheme
+	stylesheet.Cur = stylesheet.Plain()
+
+	tests := []struct {
+		name string // description of this test case
+		// pane width handed to SetArgs
+		width int
+		// messages fed into the model prior to checking its view
+		msgs            []tea.Msg
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{"legend is displayed on the field cursor's first field",
+			80, nil,
+			[]string{wantLegend}, nil,
+		},
+		{"legend is displayed while the submit button is selected",
+			80, []tea.Msg{testsupport.SendHotkey(hotkeys.CursorUp)},
+			[]string{wantLegend}, nil,
+		},
+		// bubbles' help truncates from the right, so a width-bounded legend loses "space select"
+		// (the entire reason the legend exists) first. 30 is narrow enough to elide it; see
+		// hotkeys.TestDefaultView_WidthIsNotSticky.
+		{"legend is not truncated on a narrow pane",
+			30, nil,
+			[]string{wantLegend}, nil,
+		},
+		{"takeover is not decorated with the form's legend",
+			80, []tea.Msg{testsupport.SendHotkey(hotkeys.Select)},
+			[]string{"space select • ↲ continue"}, []string{wantLegend},
+		},
+		{"legend returns after leaving takeover",
+			80, []tea.Msg{testsupport.SendHotkey(hotkeys.Select), testsupport.SendHotkey(hotkeys.Invoke)},
+			[]string{wantLegend}, nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// mirrors `token create`: a multiselect list that can only be entered by pressing space
+			pair := scaffoldcreate.NewCreateAction("legend", map[string]scaffoldcreate.Field{
+				"capabilities": {
+					Title: "Capabilities",
+					Order: 100, // the field cursor starts here
+					Provider: scaffoldcreate.NewMSLProvider(
+						[]multiselectlist.SelectableItem[string]{
+							&multiselectlist.DefaultSelectableItem[string]{Title_: "search", ID_: "search"},
+							&multiselectlist.DefaultSelectableItem[string]{Title_: "download", ID_: "download"},
+						},
+						scaffoldcreate.MSLOptions{ListOptions: multiselectlist.Options{HideDescription: true}},
+					),
+				},
+				"name": {Title: "name", Order: 50, Provider: &scaffoldcreate.TextProvider{}},
+			},
+				func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+					return 0, "", nil
+				}, scaffoldcreate.Options{})
+			testsupport.CheckSetArgs(t, pair.Model.SetArgs, &pflag.FlagSet{}, nil, tt.width, 30, false, nil, false)
+
+			for _, msg := range tt.msgs {
+				pair.Model.Update(msg)
+			}
+
+			v := pair.Model.View()
+			for _, want := range tt.wantContains {
+				assert.Contains(t, v, want, testsupport.Uncloak(v))
+			}
+			for _, dontWant := range tt.wantNotContains {
+				assert.NotContains(t, v, dontWant, testsupport.Uncloak(v))
+			}
+		})
+	}
+}
+
+// When the form is in an error state, stylesheet.ViewSubmitButton swaps the single-line submit
+// button for a multi-line, bordered error box.
+// The legend must survive that change in height; it is the last thing in the view either way.
+func TestHotkeyLegendWhileErrored(t *testing.T) {
+	// use a consistent color scheme
+	stylesheet.Cur = stylesheet.Plain()
+
+	tests := []struct {
+		name string // description of this test case
+		// if set, the name field is required (and left empty), erroring inputs.err
+		required bool
+		// if set, the create func fails with this error, setting createErr
+		createErr error
+		// messages fed into the model prior to checking its view
+		msgs []tea.Msg
+		// a distinctive fragment of the error expected in place of the submit button
+		wantErrFragment string
+	}{
+		{"unsatisfied required field",
+			true, nil, nil,
+			"required",
+		},
+		{"create func failed",
+			false, errors.New("the backend rejected this"), []tea.Msg{
+				testsupport.SendHotkey(hotkeys.CursorUp), // wrap to submit
+				testsupport.SendHotkey(hotkeys.Invoke),
+			},
+			"rejected",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pair := scaffoldcreate.NewCreateAction("errored", map[string]scaffoldcreate.Field{
+				"name": {Title: "name", Required: tt.required, Provider: &scaffoldcreate.TextProvider{}},
+			},
+				func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+					return 0, "", tt.createErr
+				}, scaffoldcreate.Options{})
+			// SetArgs checks satisfaction, so an unsatisfied field errors the form immediately
+			testsupport.CheckSetArgs(t, pair.Model.SetArgs, &pflag.FlagSet{}, nil, 80, 30, false, nil, false)
+
+			for _, msg := range tt.msgs {
+				pair.Model.Update(msg)
+			}
+
+			v := pair.Model.View()
+			// the error box should have taken the place of the submit button
+			assert.Contains(t, v, tt.wantErrFragment, testsupport.Uncloak(v))
+			assert.NotContains(t, v, "submit", testsupport.Uncloak(v))
+			// ... without displacing the legend
+			assert.True(t, strings.HasSuffix(v, wantLegend),
+				"legend is not the trailing content of the view\n"+testsupport.Uncloak(v))
+		})
+	}
 }

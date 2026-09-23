@@ -23,10 +23,14 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 )
+
+// The hint displayed beneath the text area while it has taken over the pane.
+const wantTATakeoverHint = sigils.UpDown + " move • space/" + sigils.Enter + " return"
 
 func TestTextProvider(t *testing.T) {
 	t.Run("simple get set", func(t *testing.T) {
@@ -636,9 +640,12 @@ func TestTextAreaProvider(t *testing.T) {
 			_, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
 			assert.True(t, takeover)
 			// make sure view agrees
-			vk, _, second := f.Provider.View(true, 0)
+			vk, val, second := f.Provider.View(true, 0)
 			assert.Equal(t, scaffoldcreate.Takeover, vk)
 			assert.Empty(t, second)
+			// the takeover pane replaces the form's hotkey legend, so it must carry its own hint;
+			// without it, the user has no indication of how to get back out. See gwcli#2545.
+			assert.Contains(t, val, wantTATakeoverHint, testsupport.Uncloak(val))
 
 			// pass a message into the TA
 			f.Provider.Update(true, tea.KeyMsg{Type: tea.KeyEnter})
