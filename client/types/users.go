@@ -353,7 +353,7 @@ type User struct {
 	ID                  int32
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
-	DeletedAt           time.Time
+	DeletedAt           Nullable[time.Time]
 	LastLogin           time.Time
 	Username            string
 	Name                string
@@ -465,7 +465,7 @@ type Group struct {
 	ID             int32
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
-	DeletedAt      time.Time
+	DeletedAt      Nullable[time.Time]
 	Name           string
 	Description    string
 	SearchPriority int
