@@ -9,6 +9,8 @@
 package types_test
 
 import (
+	"bytes"
+	"encoding/gob"
 	"testing"
 	"time"
 
@@ -66,6 +68,58 @@ func TestNullableString(t *testing.T) {
 
 	var ntZero types.Nullable[time.Time]
 	require.Equal(t, "null", ntZero.String())
+}
+
+// TestNullableGobRoundTrip is a regression test for gravwell/issues#2797:
+// Nullable[T]'s fields are private, so without GobEncode/GobDecode,
+// encoding/gob refuses to encode it at all -- "gob: type ... has no exported
+// fields" -- since gob has no notion of the JSON hooks Nullable relies on
+// elsewhere. This bit backend code that gob-encodes CommonFields (and
+// therefore its embedded Nullable[time.Time] DeletedAt) for internal
+// transport.
+func TestNullableGobRoundTrip(t *testing.T) {
+	roundTrip := func(t *testing.T, in types.Nullable[time.Time]) types.Nullable[time.Time] {
+		t.Helper()
+		var buf bytes.Buffer
+		require.NoError(t, gob.NewEncoder(&buf).Encode(in))
+		var out types.Nullable[time.Time]
+		require.NoError(t, gob.NewDecoder(&buf).Decode(&out))
+		return out
+	}
+
+	t.Run("null", func(t *testing.T) {
+		var n types.Nullable[time.Time]
+		out := roundTrip(t, n)
+		require.True(t, out.IsNull())
+	})
+
+	t.Run("set", func(t *testing.T) {
+		ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+		n := types.NewNullable(ts)
+		out := roundTrip(t, n)
+		require.False(t, out.IsNull())
+		require.True(t, out.Value().Equal(ts))
+	})
+
+	// The actual reported failure: gob-encoding a struct that *contains* a
+	// Nullable[T] field, not the Nullable value directly.
+	t.Run("embedded in a struct", func(t *testing.T) {
+		type wrapper struct {
+			Name      string
+			DeletedAt types.Nullable[time.Time]
+		}
+		ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+		in := wrapper{Name: "asset", DeletedAt: types.NewNullable(ts)}
+
+		var buf bytes.Buffer
+		require.NoError(t, gob.NewEncoder(&buf).Encode(in))
+		var out wrapper
+		require.NoError(t, gob.NewDecoder(&buf).Decode(&out))
+
+		require.Equal(t, "asset", out.Name)
+		require.False(t, out.DeletedAt.IsNull())
+		require.True(t, out.DeletedAt.Value().Equal(ts))
+	})
 }
 
 // NOTE: the marshaler tests for Nullable are in client/types/marshallers_test.go
