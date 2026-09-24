@@ -24,7 +24,7 @@ type QueryOptions struct {
 	Type string // Specifies the type of asset to return, 'mixed' for everything. Ignored except on the /api/list (ListAll) endpoint
 
 	IncludeDeleted bool
-	Version        int // fetch a particular version, when appropriate. 0 means latest, -1 means all versions (list only)
+	Version        int32 // fetch a particular version, when appropriate. 0 means latest, -1 means all versions (list only)
 
 	// If true and requesting user is an admin, a list request will return items for all users
 	AdminMode bool
@@ -33,7 +33,7 @@ type QueryOptions struct {
 	OrderBy        string // Sort by this field (defaults to ID)
 	OrderDirection string
 	CursorID       string // Return assets whose ID is greater than the given ID.
-	Limit          int    // Max number of assets to return
+	Limit          int32  // Max number of assets to return. 0/-1 means no limit.
 
 	// Filtering on fields of assets
 	Filters []Filter
