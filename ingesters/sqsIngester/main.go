@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v3/debug"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -44,8 +44,13 @@ var (
 	lg      *log.Logger
 )
 
+type sqsClient interface {
+	GetMessages(ctx context.Context) ([]types.Message, error)
+	DeleteMessages(ctx context.Context, m []types.Message) error
+}
+
 type handlerConfig struct {
-	SQS  *sqs_common.SQS
+	SQS  sqsClient
 	Name string
 
 	tag              entry.EntryTag
@@ -195,7 +200,9 @@ func debugout(format string, args ...any) {
 func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 	defer hcfg.wg.Done()
 
-	c := make(chan []types.Message)
+	// buffered by 1 so the goroutine below can always deliver its single result and exit,
+	// even if this loop has already returned via the done case below.
+	c := make(chan []types.Message, 1)
 	for {
 		var out []types.Message
 		go func() {
@@ -203,6 +210,7 @@ func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 			if err != nil {
 				lg.Error("sqs receive message error", log.KV("listener", hcfg.Name), log.KVErr(err))
 				c <- nil
+				return
 			}
 			c <- o
 		}()
@@ -222,23 +230,7 @@ func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 		for _, v := range out {
 			msg := []byte(*v.Body)
 
-			var ts entry.Timestamp
-			if !hcfg.ignoreTimestamps {
-				// grab the timestamp from SQS
-				t, mok := v.Attributes["SentTimestamp"]
-				if !mok {
-					lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
-				} else {
-					ut, err := strconv.ParseInt(t, 10, 64)
-					if err != nil {
-						lg.Error("failed parseint on unix time", log.KV("value", t), log.KVErr(err))
-					} else {
-						ts = entry.UnixTime(ut/1000, 0)
-					}
-				}
-			} else {
-				ts = entry.Now()
-			}
+			ts := entry.FromStandard(sqs.ExtractTimestamp(v, hcfg.ignoreTimestamps))
 
 			ent := &entry.Entry{
 				SRC:  hcfg.src,
@@ -251,7 +243,7 @@ func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 			if err != nil {
 				lg.Error("failed to ingest entry", log.KVErr(err))
 			} else {
-				err = hcfg.SQS.DeleteMessages(ctx, []types.Message{v}, lg)
+				err = hcfg.SQS.DeleteMessages(ctx, []types.Message{v})
 				if err != nil {
 					lg.Error("failed to delete message", log.KVErr(err))
 				}
