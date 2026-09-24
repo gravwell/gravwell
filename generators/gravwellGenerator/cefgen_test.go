@@ -54,7 +54,7 @@ var cefRx = regexp.MustCompile(`^[A-Z][a-z]{2} [ 0-9][0-9] \d{2}:\d{2}:\d{2} \S+
 func TestGenDataCEF(t *testing.T) {
 	seedVars(128)
 	ts := time.Date(2026, 7, 19, 12, 34, 56, 0, time.UTC)
-	for i := 0; i < 256; i++ {
+	for range 256 {
 		v := string(genDataCEF(ts))
 		if !cefRx.MatchString(v) {
 			t.Fatalf("bad CEF prefix: %q", v)
