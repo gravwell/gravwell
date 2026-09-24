@@ -1,6 +1,8 @@
 package types
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
@@ -105,4 +107,31 @@ func (n Nullable[T]) String() string {
 		return "null"
 	}
 	return fmt.Sprint(n.value)
+}
+
+// gobNullable mirrors Nullable[T]'s private fields with exported names so
+// encoding/gob (which requires at least one exported field, and has no
+// notion of the JSON hooks above) has something to encode.
+type gobNullable[T any] struct {
+	Value T
+	Valid bool
+}
+
+// GobEncode implements gob.GobEncoder.
+func (n Nullable[T]) GobEncode() ([]byte, error) {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(gobNullable[T]{Value: n.value, Valid: n.valid}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// GobDecode implements gob.GobDecoder.
+func (n *Nullable[T]) GobDecode(data []byte) error {
+	var g gobNullable[T]
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&g); err != nil {
+		return err
+	}
+	n.value, n.valid = g.Value, g.Valid
+	return nil
 }
