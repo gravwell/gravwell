@@ -10,6 +10,7 @@ package types_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,29 @@ func TestOptional(t *testing.T) {
 		require.Equal(t, "psychologist", s)
 	})
 
+}
+
+// TestOptionalString pins Optional[T]'s fmt.Stringer contract: an unset
+// Optional prints T's zero value (matching MarshalJSONTo's own
+// unset-falls-back-to-zero behavior), and a set value prints its underlying
+// value's own string form (delegating to T's Stringer, e.g. time.Time, when
+// it has one) rather than a raw struct dump of Optional's private fields.
+func TestOptionalString(t *testing.T) {
+	var o types.Optional[string]
+	require.Equal(t, "", o.String())
+
+	o.Set("biologist")
+	require.Equal(t, "biologist", o.String())
+
+	o.Unset()
+	require.Equal(t, "", o.String())
+
+	ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+	ot := types.NewOptional(ts)
+	require.Equal(t, ts.String(), ot.String())
+
+	var otZero types.Optional[time.Time]
+	require.Equal(t, time.Time{}.String(), otZero.String())
 }
 
 // NOTE: the marshaler tests for Optional are in client/types/marshallers_test.go
