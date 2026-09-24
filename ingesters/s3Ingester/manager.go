@@ -13,7 +13,7 @@ import (
 
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (

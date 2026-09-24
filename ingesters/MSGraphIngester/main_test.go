@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

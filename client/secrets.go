@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2022 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -11,57 +11,79 @@ package client
 import (
 	"net/http"
 
-	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// ListSecrets returns a list of all Secret objects the user has access to.
+// ListSecrets returns all secrets accessible to the current user.
 // The actual secret string will not be returned.
-func (c *Client) ListSecrets() (s []types.Secret, err error) {
-	err = c.getStaticURL(secretsUrl(), &s)
-	return
+func (c *Client) ListSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
+	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
+}
+
+// ListAllSecrets (admin-only) returns all secrets on the system.
+// The actual secret string will not be returned.
+func (c *Client) ListAllSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
 }
 
 // CreateSecret instantiates and returns a new Secret.
 // The actual secret string will not be returned.
 func (c *Client) CreateSecret(sc types.SecretCreate) (sf types.Secret, err error) {
-	err = c.postStaticURL(secretsUrl(), sc, &sf)
-	return
+	return c.post[types.SecretCreate, types.Secret](secretsUrl(), &sc)
 }
 
-// SecretInfo fetches information about a particular Secret.
+// GetSecret fetches information about a particular Secret.
 // The actual secret string will not be returned.
-func (c *Client) SecretInfo(id uuid.UUID) (s types.Secret, err error) {
-	err = c.getStaticURL(secretIdUrl(id), &s)
-	return
+func (c *Client) GetSecret(id string) (s types.Secret, err error) {
+	return c.GetSecretEx(id, GetOptions{})
 }
 
-// UpdateSecret changes the value of a particular secret.
+// GetSecretEx returns a particular secret, modified by opts.
 // The actual secret string will not be returned.
-func (c *Client) UpdateSecret(id uuid.UUID, value string) (s types.Secret, err error) {
-	sc := types.SecretCreate{Value: value}
-	err = c.methodStaticPushURL(http.MethodPut, secretIdUrl(id), sc, &s)
-	return
+func (c *Client) GetSecretEx(id string, opts GetOptions) (s types.Secret, err error) {
+	return c.get[types.Secret](secretIdUrl(id), opts.params()...)
 }
 
-// UpdateSecretDetails changes the details (not the value) of a particular secret.
+// UpdateSecretValue changes the value of a particular secret.
 // The actual secret string will not be returned.
-func (c *Client) UpdateSecretDetails(id uuid.UUID, sc types.SecretCreate) (s types.Secret, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, secretIdDetailsUrl(id), sc, &s)
-	return
+func (c *Client) UpdateSecretValue(id string, value string) (s types.Secret, err error) {
+	if id == "" {
+		return types.Secret{}, ErrEmptyID
+	}
+
+	err = c.methodStaticPushURL(http.MethodPut, secretIdValueUrl(id), types.SecretValuePatch{Value: value}, &s, nil, nil)
+	return s, err
+}
+
+// UpdateSecret changes the details (not the value) of a particular secret and returns the complete, updated struct.
+func (c *Client) UpdateSecret(id string, p types.SecretPatch) (updated types.Secret, err error) {
+	if id == "" {
+		return types.Secret{}, ErrEmptyID
+	}
+	return c.patch[types.SecretPatch, types.Secret](secretIdUrl(id), p)
 }
 
 // DeleteSecret deletes a Secret.
-func (c *Client) DeleteSecret(id uuid.UUID) (err error) {
-	return c.methodStaticPushURL(http.MethodDelete, secretIdUrl(id), nil, nil, http.StatusNoContent)
+func (c *Client) DeleteSecret(id string) (err error) {
+	return c.delete(secretIdUrl(id), false)
 }
 
-// GetFullSecret fetches the entire Secret, including the value.
+// PurgeSecret deletes a secret entirely, removing it from the database.
+func (c *Client) PurgeSecret(id string) error {
+	return c.delete(secretIdUrl(id), true)
+}
+
+// CleanupSecrets (admin-only) purges all deleted secrets for all users.
+func (c *Client) CleanupSecrets() error {
+	return c.delete(SECRETS_URL, false)
+}
+
+// GetSecretFull fetches the entire Secret, including the value.
 // This can only be used if you have authenticated using the searchagent token.
 // The search agent knows how to set up the Client object correctly for this.
 // If you are not writing something which acts like the search agent, you don't
 // want this function, it won't work.
-func (c *Client) GetFullSecret(id uuid.UUID) (s types.SecretFull, err error) {
-	err = c.getStaticURL(secretIdFullUrl(id), &s)
-	return
+func (c *Client) GetSecretFull(id string) (s types.SecretFull, err error) {
+	return c.get[types.SecretFull](secretIdFullUrl(id))
 }

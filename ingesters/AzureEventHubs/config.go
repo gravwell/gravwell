@@ -16,9 +16,9 @@ import (
 
 	eventhubs "github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2"
 
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 )
 
 const (
@@ -54,7 +54,7 @@ type eventHubConf struct {
 
 type cfgType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	EventHub     map[string]*eventHubConf
 	Preprocessor processors.ProcessorConfig
 }

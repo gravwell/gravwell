@@ -18,12 +18,18 @@ const (
 )
 
 var (
-	fullTagAccess       = TagAccess{Grants: []string{`*`}}
+	fullTagAccess = TagAccess{Grants: []string{`*`}}
+	// fullCapabilityState represents the "caps" a user has when cbac is not enabled.
 	fullCapabilityState CapabilityState
 	fullCapStringList   []string
-	fullCapList         []Capability
-	templateSet         []CapabilityTemplate
-	capabilitySet       = [...]CapabilityDesc{
+	// fullCapList is used by most cbac related functions to filter available caps
+	// or when listing caps this slice is iterated to ensure only known caps are included.
+	// This MUST include all possible caps or listing caps on a token/user will not return all caps assigned.
+	fullCapList []Capability
+	// userCapList stores all caps a non-admin user could be assigned
+	userCapList   []Capability
+	templateSet   []CapabilityTemplate
+	capabilitySet = [...]CapabilityDesc{
 		Search.CapabilityDesc(),
 		Download.CapabilityDesc(),
 		AttachSearch.CapabilityDesc(),
@@ -39,16 +45,16 @@ var (
 		ResourceWrite.CapabilityDesc(),
 		TemplateRead.CapabilityDesc(),
 		TemplateWrite.CapabilityDesc(),
-		PivotRead.CapabilityDesc(),
-		PivotWrite.CapabilityDesc(),
+		ActionableRead.CapabilityDesc(),
+		ActionableWrite.CapabilityDesc(),
 		MacroRead.CapabilityDesc(),
 		MacroWrite.CapabilityDesc(),
 		LibraryRead.CapabilityDesc(),
 		LibraryWrite.CapabilityDesc(),
 		ExtractorRead.CapabilityDesc(),
 		ExtractorWrite.CapabilityDesc(),
-		UserFileRead.CapabilityDesc(),
-		UserFileWrite.CapabilityDesc(),
+		FileRead.CapabilityDesc(),
+		FileWrite.CapabilityDesc(),
 		KitRead.CapabilityDesc(),
 		KitWrite.CapabilityDesc(),
 		KitBuild.CapabilityDesc(),
@@ -88,11 +94,11 @@ var (
 		DashboardRead,
 		ResourceRead,
 		TemplateRead,
-		PivotRead,
+		ActionableRead,
 		MacroRead,
 		LibraryRead,
 		ExtractorRead,
-		UserFileRead,
+		FileRead,
 		KitRead,
 		PlaybookRead,
 		LicenseRead,
@@ -104,12 +110,33 @@ var (
 		AlertRead,
 		LogbotAI,
 	}
+	adminOnlyCapList = []Capability{
+		KitWrite,
+		KitBuild,
+		KitDownload,
+	}
+	tokenOnlyCapList = []Capability{
+		KitWrite,
+		KitBuild,
+		KitDownload,
+	}
 )
 
 func init() {
 	fullCapList = make([]Capability, 0, len(capabilitySet))
 	fullCapStringList = make([]string, 0, len(capabilitySet))
+	userCapList = make([]Capability, 0, len(capabilitySet))
+	fullCapabilityState = CapabilityState{
+		Grants: make([]string, 0, len(fullCapList)),
+	}
 	for _, v := range capabilitySet {
+		if !(v.AdminOnly && v.TokenOnly) {
+			// Both of these lists are represent access for normal users (non-admins)
+			// We don't want AdminOnly or TokenOnly caps in this list to avoid assigning them or saying they have a cap
+			// that in reality they don't have.
+			userCapList = append(userCapList, v.Cap)
+			fullCapabilityState.Grants = append(fullCapabilityState.Grants, v.Cap.Name())
+		}
 		fullCapList = append(fullCapList, v.Cap)
 		fullCapStringList = append(fullCapStringList, v.Cap.Name())
 	}
@@ -117,19 +144,13 @@ func init() {
 		CapabilityTemplate{
 			Name: TemplateFullUserName,
 			Desc: "Standard user that can operate all aspects of Gravwell.\nThis user has full access to automations.",
-			Caps: fullCapList,
+			Caps: userCapList,
 		},
 		CapabilityTemplate{
 			Name: TemplateReadOnlyName,
 			Desc: "Standard user that can access all resources, but not create or modify stored data.\nThis user can execute queries.\nThis user cannot access automations.",
 			Caps: readOnlyCapList,
 		},
-	}
-	fullCapabilityState = CapabilityState{
-		Grants: make([]string, 0, len(fullCapList)),
-	}
-	for _, c := range fullCapList {
-		fullCapabilityState.Grants = append(fullCapabilityState.Grants, c.Name())
 	}
 }
 
@@ -141,8 +162,36 @@ func AllCapabilityAccess() CapabilityState {
 	return fullCapabilityState
 }
 
-func CapabilityDescriptions() (r []CapabilityDesc) {
-	return capabilitySet[:]
+func AdminOnlyCapabilityList() []Capability {
+	return adminOnlyCapList
+}
+
+func TokenOnlyCapabilityList() []Capability {
+	return tokenOnlyCapList
+}
+
+func CapabilityDescriptions(admin bool, token bool) (r []CapabilityDesc) {
+	for _, desc := range capabilitySet {
+		if !(desc.AdminOnly || desc.TokenOnly) { // include all plain caps
+			r = append(r, desc)
+			continue
+		}
+		if desc.AdminOnly && admin { // if admin caps requested and user is admin include admin caps
+			if desc.TokenOnly && !token { // unless it's also a token cap and those weren't requested
+				continue
+			}
+			r = append(r, desc)
+			continue
+		}
+		if desc.TokenOnly && token { // if token caps requests include token caps
+			if desc.AdminOnly && !admin { // unless it's also an admin cap and those weren't requested
+				continue
+			}
+			r = append(r, desc)
+			continue
+		}
+	}
+	return r
 }
 
 func TemplateList() []CapabilityTemplate {

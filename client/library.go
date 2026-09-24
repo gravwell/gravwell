@@ -9,53 +9,58 @@
 package client
 
 import (
-	"net/http"
-
-	"github.com/gravwell/gravwell/v3/client/types"
-
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// NewSearchLibrary creates a new search library entry for the current user.
-func (c *Client) NewSearchLibrary(sl types.WireSearchLibrary) (wsl types.WireSearchLibrary, err error) {
-	err = c.methodStaticPushURL(http.MethodPost, searchLibUrl(), sl, &wsl)
-	return
+// CreateSavedQuery creates a new saved query for the current user.
+func (c *Client) CreateSavedQuery(sl types.SavedQuery) (wsl types.SavedQuery, err error) {
+	return c.post[types.SavedQuery, types.SavedQuery](searchLibUrl(), &sl)
 }
 
-// ListSearchLibrary returns the list of queries in the search library available to the user.
-func (c *Client) ListSearchLibrary() (wsl []types.WireSearchLibrary, err error) {
-	err = c.getStaticURL(searchLibUrl(), &wsl)
-	return
+// ListSavedQueries returns the list of queries in the search library available to the user.
+func (c *Client) ListSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
 }
 
-// ListAllSearchLibrary (admin-only) returns the list of all search library entries for all users.
-// Non-administrators will receive the same list as returned by ListSearchLibrary.
-func (c *Client) ListAllSearchLibrary() (wsl []types.WireSearchLibrary, err error) {
-	c.SetAdminMode()
-	if err = c.getStaticURL(searchLibUrl(), &wsl); err != nil {
-		wsl = nil
-	}
-	c.ClearAdminMode()
-	return
+// ListAllSavedQueries (admin-only) returns the list of all search library entries for all users.
+// Non-administrators will receive the same list as returned by ListSavedQueries.
+func (c *Client) ListAllSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
 }
 
-// GetSearchLibrary returns a query which matches the UUID given.
+// GetSavedQuery returns a query which matches the UUID given.
 // It first checks for a query with a matching ThingUUID.
 // If that is not found, it looks for a query with a matching GUID, prioritizing
 // queries belonging to the current user.
-func (c *Client) GetSearchLibrary(id uuid.UUID) (sl types.WireSearchLibrary, err error) {
-	err = c.getStaticURL(searchLibIdUrl(id), &sl)
-	return
+func (c *Client) GetSavedQuery(id string) (types.SavedQuery, error) {
+	return c.GetSavedQueryEx(id, GetOptions{})
 }
 
-// DeleteSearchLibrary deletes a specific libary entry.
-func (c *Client) DeleteSearchLibrary(id uuid.UUID) (err error) {
-	err = c.deleteStaticURL(searchLibIdUrl(id), nil)
-	return
+// GetSavedQueryEx returns a particular saved query, modified by opts.
+func (c *Client) GetSavedQueryEx(id string, opts GetOptions) (types.SavedQuery, error) {
+	return c.get[types.SavedQuery](searchLibIdUrl(id), opts.params()...)
 }
 
-// UpdateSearchLibrary updates a specific search library entry.
-func (c *Client) UpdateSearchLibrary(sl types.WireSearchLibrary) (nsl types.WireSearchLibrary, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, searchLibIdUrl(sl.ThingUUID), sl, &nsl)
-	return
+// DeleteSavedQuery deletes a specific library entry.
+func (c *Client) DeleteSavedQuery(id string) (err error) {
+	return c.delete(searchLibIdUrl(id), false)
+}
+
+// PurgeSavedQuery deletes a specific library entry.
+func (c *Client) PurgeSavedQuery(id string) (err error) {
+	return c.delete(searchLibIdUrl(id), true)
+}
+
+// UpdateSavedQuery modifies an existing saved query and returns the complete, updated struct.
+func (c *Client) UpdateSavedQuery(ID string, p types.SavedQueryPatch) (updated types.SavedQuery, err error) {
+	if ID == "" {
+		return types.SavedQuery{}, ErrEmptyID
+	}
+	return c.patch[types.SavedQueryPatch, types.SavedQuery](searchLibIdUrl(ID), p)
+}
+
+// CleanupSavedQueries (admin-only) purges all deleted saved queries for all users.
+func (c *Client) CleanupSavedQueries() error {
+	return c.delete(LIBRARY_URL, false)
 }

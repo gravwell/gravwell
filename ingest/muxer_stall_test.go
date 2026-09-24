@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 // TestMuxerReconnectsWhileIndexerStaysDown reproduces gravwell/issues#2820: an

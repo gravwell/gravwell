@@ -24,13 +24,13 @@ import (
 
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/debug"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
-	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
-	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/openai"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
+	_ "github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol/anthropic"
+	_ "github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol/openai"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
 
 const (

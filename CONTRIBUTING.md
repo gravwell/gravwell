@@ -33,11 +33,19 @@ Try to avoid introducing too many new dependencies, as it introduces additional 
 
 Please add tests for new functionality you add to packages in the repo.
 
-You can run the full set of checks manually by running the following command at the top level:
+Please run the tests locally before submitting a PR, you can run them manually by executing the following commands at the top level:
 
 ```
-bash .github/workflows/run_local_build_checks.sh
+bash .github/workflows/local_run_checks.sh
 ```
+
+The end-to-end tests live in their own module and are not covered by that script, so please run them as well. They use [testcontainers](https://golang.testcontainers.org/) to stand up a Gravwell instance and ingester containers, so Docker must be running:
+
+```
+cd e2e && go test ./...
+```
+
+See [the e2e README](e2e/README.md) for how to run a single test package and for flags such as `-version`, `-license`, and `-artifacts`.
 
 Don't submit PRs that modify existing tests without discussing it with Gravwell first.
 

@@ -33,7 +33,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 // ProtocolName is the registry key for this module. The proxy core gates

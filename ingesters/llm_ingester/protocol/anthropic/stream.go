@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 // sseReassembler accumulates Anthropic Messages streaming events into a single

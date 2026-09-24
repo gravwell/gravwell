@@ -11,15 +11,14 @@ package kits
 import (
 	"archive/tar"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 
-	"github.com/gravwell/gravwell/v3/client/types"
-
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"encoding/hex"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
 
 var (
@@ -49,7 +48,7 @@ type Reader struct {
 
 // NewReader returns a Reader which will parse a kit from the given ReadResetCloser.
 // Note that rdr is a ReadResetCloser; the Reset function is used to reset the reader to
-// the beginning of the stream. The github.com/gravwell/gravwell/v3/ingesters/utils package
+// the beginning of the stream. The github.com/gravwell/gravwell/v4/ingesters/utils package
 // includes several convenient ReadResetCloser implementations.
 //
 // The sigVerify parameter is an optional function used to validate the kit's manifest signature.
@@ -119,7 +118,7 @@ func (rp *Reader) Verify() (err error) {
 
 // CallbackFunc is the function type which is passed to the Process method. The function
 // will be called for each Item in the kit. The item itself can be read from the io.Reader.
-type CallbackFunc func(name string, tp ItemType, hash [sha256.Size]byte, rdr io.Reader) error
+type CallbackFunc func(itm types.KitItem, rdr io.Reader) error
 
 // Process walks the contents of the kit, extracting individual items and calling
 // the CallbackFunc for each item. If the callback returns an error, Process will terminate
@@ -135,7 +134,7 @@ func (rp *Reader) Process(cb CallbackFunc) (err error) {
 	if err = rp.rdr.Reset(); err != nil {
 		return
 	}
-	var item Item
+	var item types.KitItem
 	var hdr *tar.Header
 	tr := tar.NewReader(rp.rdr)
 	for {
@@ -152,14 +151,14 @@ func (rp *Reader) Process(cb CallbackFunc) (err error) {
 		if item, err = rp.getItem(nm); err != nil {
 			return err
 		}
-		if err = cb(item.Name, item.Type, item.Hash, tr); err != nil {
+		if err = cb(item, tr); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (rp *Reader) getItem(n string) (item Item, err error) {
+func (rp *Reader) getItem(n string) (item types.KitItem, err error) {
 	for _, v := range rp.manifest.Items {
 		if v.Filename() == n {
 			item = v
@@ -180,7 +179,7 @@ type SigVerificationFunc func(manifest []byte, sig []byte) error
 // It returns two errors, one from the signature verification function and
 // one for all other errors.
 func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest Manifest, sigerr error, err error) {
-	fileHashes := map[string][sha256.Size]byte{}
+	fileHashes := map[string]string{}
 	var m, s []byte
 	var hdr *tar.Header
 
@@ -220,7 +219,7 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 				return
 			}
 			copy(v[0:sha256.Size], x)
-			fileHashes[hdr.Name] = v
+			fileHashes[hdr.Name] = hex.EncodeToString(v[:])
 		}
 	}
 	//check that we got a manifest
@@ -254,94 +253,5 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 		}
 	}
 
-	return
-}
-
-// GetKitItem extracts additional data about a given Item by extracting the object from
-// the rdr and fetching metadata from it. It is typically used in conjunction with the Process
-// method, e.g.:
-//
-//	kitreader.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
-//		if itm, err := kits.GetKitItem(name, tp, rdr); err != nil {
-//			return err
-//		} else {
-//			itm.Hash = hash
-//			kitItems = append(kitItems, itm)
-//		}
-//		return nil
-//	})
-func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err error) {
-	switch tp {
-	case Resource:
-		var pr PackedResource
-		if err = json.NewDecoder(rdr).Decode(&pr); err == nil {
-			itm.AdditionalInfo, err = pr.JSONMetadata()
-		}
-	case ScheduledSearch:
-		var ps PackedScheduledSearch
-		if err = json.NewDecoder(rdr).Decode(&ps); err == nil {
-			itm.AdditionalInfo, err = ps.JSONMetadata()
-		}
-	case Dashboard:
-		var pdb PackedDashboard
-		if err = json.NewDecoder(rdr).Decode(&pdb); err == nil {
-			itm.AdditionalInfo, err = pdb.JSONMetadata()
-		}
-	case Extractor:
-		var ex types.AXDefinition
-		if err = json.NewDecoder(rdr).Decode(&ex); err == nil {
-			itm.AdditionalInfo, err = ex.JSONMetadata()
-		}
-	case Template:
-		var tmpl types.PackedUserTemplate
-		if err = json.NewDecoder(rdr).Decode(&tmpl); err == nil {
-			itm.AdditionalInfo, err = tmpl.JSONMetadata()
-		}
-	case Pivot:
-		var tmpl types.PackedPivot
-		if err = json.NewDecoder(rdr).Decode(&tmpl); err == nil {
-			itm.AdditionalInfo, err = tmpl.JSONMetadata()
-		}
-	case File:
-		var file types.UserFile
-		if err = json.NewDecoder(rdr).Decode(&file); err == nil {
-			itm.AdditionalInfo, err = file.JSONMetadata()
-		}
-	case Macro:
-		var macro PackedMacro
-		if err = json.NewDecoder(rdr).Decode(&macro); err == nil {
-			itm.AdditionalInfo, err = macro.JSONMetadata()
-		}
-	case SearchLibrary:
-		var sl types.SearchLibrary
-		if err = json.NewDecoder(rdr).Decode(&sl); err == nil {
-			itm.AdditionalInfo, err = sl.JSONMetadata()
-		}
-	case Playbook:
-		var pb types.Playbook
-		if err = json.NewDecoder(rdr).Decode(&pb); err == nil {
-			itm.AdditionalInfo, err = pb.JSONMetadata()
-		}
-	case License:
-		var b []byte
-		if b, err = io.ReadAll(rdr); err == nil {
-			if len(b) == 0 {
-				err = errors.New("Empty license file")
-			} else {
-				itm.AdditionalInfo, err = json.Marshal(string(b))
-			}
-		}
-	case Alert:
-		var def types.AlertDefinition
-		if err = json.NewDecoder(rdr).Decode(&def); err == nil {
-			itm.AdditionalInfo, err = def.JSONMetadata()
-		}
-	default:
-		err = fmt.Errorf("kit item %s has unknown type %s", name, tp)
-	}
-	if err == nil {
-		itm.Name = name
-		itm.Type = tp.String()
-	}
 	return
 }
