@@ -9,6 +9,8 @@
 package types
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
@@ -116,4 +118,31 @@ func (o Optional[T]) String() string {
 		return fmt.Sprint(zero)
 	}
 	return fmt.Sprint(o.value)
+}
+
+// gobOptional mirrors Optional[T]'s private fields with exported names so
+// encoding/gob (which requires at least one exported field, and has no
+// notion of the JSON hooks above) has something to encode.
+type gobOptional[T any] struct {
+	Value T
+	Set   bool
+}
+
+// GobEncode implements gob.GobEncoder.
+func (o Optional[T]) GobEncode() ([]byte, error) {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(gobOptional[T]{Value: o.value, Set: o.set}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// GobDecode implements gob.GobDecoder.
+func (o *Optional[T]) GobDecode(data []byte) error {
+	var g gobOptional[T]
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&g); err != nil {
+		return err
+	}
+	o.value, o.set = g.Value, g.Set
+	return nil
 }
