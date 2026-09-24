@@ -668,7 +668,8 @@ func TestNoNilSlicesMaps(t *testing.T) {
 // DeletedAt used to be a time.Time, so every asset that had never been deleted
 // reported the Go zero time on the wire. It is nullable on read now, so an
 // asset that is alive reports null and a soft-deleted one reports a real
-// timestamp.
+// timestamp. User and Group carry the same field independently of
+// CommonFields (they don't embed it), so they need their own coverage.
 func TestDeletedAtMarshalsNullable(t *testing.T) {
 	ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
 
@@ -684,6 +685,10 @@ func TestDeletedAtMarshalsNullable(t *testing.T) {
 		{"live SearchInfo", types.SearchInfo{}, `null`},
 		{"live Macro", types.Macro{}, `null`},
 		{"deleted Macro", types.Macro{CommonFields: types.CommonFields{DeletedAt: types.NewNullable(ts)}}, `"2026-09-17T12:00:00Z"`},
+		{"live User", types.User{}, `null`},
+		{"deleted User", types.User{DeletedAt: types.NewNullable(ts)}, `"2026-09-17T12:00:00Z"`},
+		{"live Group", types.Group{}, `null`},
+		{"deleted Group", types.Group{DeletedAt: types.NewNullable(ts)}, `"2026-09-17T12:00:00Z"`},
 	}
 
 	for _, tt := range tests {
@@ -711,5 +716,19 @@ func TestDeletedAtMarshalsNullable(t *testing.T) {
 		// not leave the previously decoded timestamp in place.
 		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &cf, jsoncompat.Opts))
 		require.True(t, cf.DeletedAt.IsNull())
+
+		var u types.User
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":"2026-09-17T12:00:00Z"}`), &u, jsoncompat.Opts))
+		require.False(t, u.DeletedAt.IsNull())
+		require.True(t, u.DeletedAt.Value().Equal(ts))
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &u, jsoncompat.Opts))
+		require.True(t, u.DeletedAt.IsNull())
+
+		var g types.Group
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":"2026-09-17T12:00:00Z"}`), &g, jsoncompat.Opts))
+		require.False(t, g.DeletedAt.IsNull())
+		require.True(t, g.DeletedAt.Value().Equal(ts))
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &g, jsoncompat.Opts))
+		require.True(t, g.DeletedAt.IsNull())
 	})
 }
