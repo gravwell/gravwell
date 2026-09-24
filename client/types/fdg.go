@@ -25,14 +25,12 @@ type FdgRequest struct {
 }
 
 type FdgSet struct {
-	Nodes  []Node
-	Edges  []Edge
-	Groups []string
+	Nodes []Node
+	Edges []Edge
 }
 
 type Node struct {
-	Name  string
-	Group int
+	Name string
 }
 
 type Edge struct {

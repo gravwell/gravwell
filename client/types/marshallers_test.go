@@ -144,8 +144,8 @@ func TestResponseRoundTrip(t *testing.T) {
 		}, func(d any) int { return len(d.(*types.ChartResponse).Entries.Names) }},
 		{"FdgResponse", types.FdgResponse{
 			Messages: []types.Message{{ID: 1}},
-			Entries:  types.FdgSet{Groups: []string{"test"}},
-		}, func(d any) int { return len(d.(*types.FdgResponse).Entries.Groups) }},
+			Entries:  types.FdgSet{Nodes: []types.Node{{Name: "test"}}},
+		}, func(d any) int { return len(d.(*types.FdgResponse).Entries.Nodes) }},
 		{"PointmapResponse", types.PointmapResponse{
 			Messages: []types.Message{{ID: 1}},
 			Entries:  []types.PointmapValue{{Loc: types.Location{Lat: 1, Long: 1}}},
