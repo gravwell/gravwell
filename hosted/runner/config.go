@@ -26,16 +26,16 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
-	if err := cr.Verify(); err != nil {
-		return nil, err
-	}
-
-	return &cfgType{
+	cfg := &cfgType{
 		IngestConfig: cr.Global,
 		Attach:       cr.Attach,
 		State:        cr.State,
 		Configs:      cr.Configs,
-	}, nil
+	}
+	if err := cfg.Verify(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 type cfgReadType struct {
@@ -59,7 +59,7 @@ type cfgType struct {
 	plugins.Configs // embed the type so we can abstract the startup more easily
 }
 
-func (c cfgType) Verify() (err error) {
+func (c *cfgType) Verify() (err error) {
 	if err = c.IngestConfig.Verify(); err != nil {
 		return
 	} else if err = c.Attach.Verify(); err != nil {
