@@ -68,7 +68,9 @@ type CommonFields struct {
 	Type      AssetType
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt time.Time
+	// DeletedAt is null unless the asset has been soft-deleted.
+	// It is server-managed. Any value sent by a client is ignored on write.
+	DeletedAt Nullable[time.Time]
 	ID        string
 	// the parent object this was cloned from.
 	// Not user settable.
@@ -95,6 +97,12 @@ type CommonFields struct {
 
 	// Auto-generated for the requesting user based on permissions of this object.
 	Can Actions
+}
+
+// IsDeleted reports whether the asset has been soft-deleted. A nil
+// DeletedAt, or one pointing at the zero time.Time, both mean "not deleted".
+func (cf *CommonFields) IsDeleted() bool {
+	return !cf.DeletedAt.IsNull() && !cf.DeletedAt.Value().IsZero()
 }
 
 func (cf *CommonFields) CanRead(u *User) bool {

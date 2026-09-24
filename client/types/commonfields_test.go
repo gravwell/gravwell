@@ -8,7 +8,10 @@
 
 package types
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // TestAssetSearchInfoConstant pins the wire value of the new AssetType.
 // It must stay "search_info" -- it's what the backend's rtypes.AssetSearchInfo
@@ -54,5 +57,25 @@ func TestAssetTypeMapNoDuplicateValues(t *testing.T) {
 			t.Errorf("duplicate AssetType value %q in AssetTypeMap", v)
 		}
 		seen[v] = true
+	}
+}
+
+// TestCommonFieldsIsDeleted pins IsDeleted's contract.
+// A live asset (DeletedAt null or set to the zero time) reports false, a
+// soft-deleted one (DeletedAt set to a real timestamp) reports true.
+func TestCommonFieldsIsDeleted(t *testing.T) {
+	var cf CommonFields
+	if cf.IsDeleted() {
+		t.Error("IsDeleted() = true for a live asset, want false")
+	}
+
+	cf.DeletedAt.Set(time.Time{})
+	if cf.IsDeleted() {
+		t.Error("IsDeleted() = true for a non-null zero time, want false")
+	}
+
+	cf.DeletedAt.Set(time.Now())
+	if !cf.IsDeleted() {
+		t.Error("IsDeleted() = false for a soft-deleted asset, want true")
 	}
 }

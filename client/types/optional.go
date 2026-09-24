@@ -11,6 +11,7 @@ package types
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"fmt"
 )
 
 type PatchType interface {
@@ -73,6 +74,15 @@ func (o Optional[T]) IsZero() bool {
 	return !o.IsSet()
 }
 
+// IsOpaqueValue reports that Optional[T] is an opaque, self-marshaling
+// value: its own fields are private implementation detail, not a composite
+// record. Reflection-based tooling that walks a struct's fields (e.g. this
+// module's utils/weave package) should treat an Optional[T] field as a
+// single leaf rather than recursing into it.
+func (o Optional[T]) IsOpaqueValue() bool {
+	return true
+}
+
 // MarshalJSONTo causes optional to always marshal to a safe value.
 // If !o.IsSet(), T zero will be used.
 //
@@ -96,4 +106,14 @@ func (o *Optional[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	}
 	o.set = true
 	return nil
+}
+
+// String implements fmt.Stringer for the same reason Nullable[T] does (see Nullable[T].String).
+// An unset Optional prints T's zero value, matching MarshalJSONTo's own unset-falls-back-to-zero behavior.
+func (o Optional[T]) String() string {
+	if !o.IsSet() {
+		var zero T
+		return fmt.Sprint(zero)
+	}
+	return fmt.Sprint(o.value)
 }
