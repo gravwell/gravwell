@@ -73,10 +73,7 @@ var cefEventClasses = []cefEventClass{
 
 func genDataCEF(ts time.Time) []byte {
 	ec := cefEventClasses[rand.Intn(len(cefEventClasses))]
-	sev := ec.severity - rand.Intn(cefMaxSeveritySkew)
-	if sev < 0 {
-		sev = 0
-	}
+	sev := max(ec.severity-rand.Intn(cefMaxSeveritySkew), 0)
 	var sb strings.Builder
 	// the CEF spec transport is syslog, so prepend a syslog style header
 	fmt.Fprintf(&sb, "%s %s CEF:%d|%s|%s|%s|%s|%s|%d|",

@@ -30,6 +30,7 @@ var (
 		"ipfix":     genDataIPFIX,
 		"json":      genDataJSON,
 		"netflowv5": genDataNetflowV5,
+		"netflowv9": genDataNetflowV9,
 		"xml":       genDataXML,
 		"regex":     genDataRegex,
 		"syslog":    genDataSyslog,
@@ -48,6 +49,7 @@ var (
 		"ipfix":     fin("ipfix"),
 		"json":      fin("JSON"),
 		"netflowv5": fin("netflow v5"),
+		"netflowv9": fin("netflow v9"),
 		"xml":       fin("XML"),
 		"regex":     fin("regex"),
 		"syslog":    fin("syslog"),
@@ -131,7 +133,7 @@ func getDomain(min, max int) string {
 	}
 
 	var ret string
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		if i == 0 {
 			ret = fake.Lorem().Word()
 		} else {
