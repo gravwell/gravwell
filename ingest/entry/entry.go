@@ -52,10 +52,10 @@ type Entry struct {
 }
 
 func init() {
-	gob.Register(&EVBlock{})
-	gob.Register(&Entry{})
-	gob.Register([]Entry{})
-	gob.Register([]*Entry{})
+	gob.RegisterName("*EVBlock.v4", &EVBlock{})
+	gob.RegisterName("*Entry.v4", &Entry{})
+	gob.RegisterName("[]Entry.v4", []Entry{})
+	gob.RegisterName("[]*Entry.v4", []*Entry{})
 }
 
 func (ent *Entry) Key() EntryKey {
@@ -594,7 +594,7 @@ func (ent *Entry) Compare(v *Entry) error {
 	} else if ent.Tag != v.Tag {
 		return errors.New("differing tags")
 	} else if !ent.SRC.Equal(v.SRC) {
-		return errors.New("differeing source values")
+		return errors.New("differing source values")
 	} else if !bytes.Equal(ent.Data, v.Data) {
 		return errors.New("differing data")
 	}

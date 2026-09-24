@@ -20,12 +20,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/winevent"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/winevent"
 )
 
 const (
@@ -75,7 +75,7 @@ type CfgType struct {
 		Bookmark_Location string
 		Ignore_Timestamps bool
 	}
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	EventChannel map[string]*EventStreamConfig
 	Preprocessor processors.ProcessorConfig
 }
@@ -162,7 +162,7 @@ func (c *CfgType) RawConfig() interface{} {
 		config.IngestConfig
 		Bookmark_Location string
 		Ignore_Timestamps bool
-		Attach            attach.AttachConfig
+		Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 		EventChannel      map[string]*EventStreamConfig
 		Preprocessor      processors.ProcessorConfig
 	}{

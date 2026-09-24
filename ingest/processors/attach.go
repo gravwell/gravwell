@@ -13,10 +13,9 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gcfg"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -25,17 +24,14 @@ const (
 
 var (
 	ErrAttachUUIDNotSupported = errors.New("$UUID is not supported in the attach preprocessor; it is only available in the global Attach configuration")
+	ErrEmptyAttachValue       = errors.New("empty attach value")
+	ErrMultipleAttachValues   = errors.New("multiple attach values")
 )
 
 func validateAttachConfig(c attach.AttachConfig) error {
-	for _, valptr := range c.Vals {
-		if valptr == nil {
-			continue
-		}
-		for _, v := range *valptr {
-			if v == "$UUID" {
-				return ErrAttachUUIDNotSupported
-			}
+	for _, v := range c {
+		if v == "$UUID" {
+			return ErrAttachUUIDNotSupported
 		}
 	}
 	return nil
@@ -44,25 +40,32 @@ func validateAttachConfig(c attach.AttachConfig) error {
 // AttachLoadConfig loads the configuration for the attach processor
 // It converts the VariableConfig to an attach.AttachConfig
 func AttachLoadConfig(vc *config.VariableConfig) (c attach.AttachConfig, err error) {
-	// The VariableConfig and AttachConfig have the same underlying structure
-	// (gcfg.Idxer and Vals map[gcfg.Idx]*[]string)
-	c.Idxer = vc.Idxer
+	c = make(attach.AttachConfig)
+	names := vc.Names()
 
-	// Copy the Vals map so we can filter without affecting the source config
-	c.Vals = make(map[gcfg.Idx]*[]string, len(vc.Vals))
-	for k, v := range vc.Vals {
-		c.Vals[gcfg.Idx(k)] = v
+	for _, name := range names {
+		valptr := vc.Vals[vc.Idx(name)]
+		if valptr == nil {
+			continue
+		}
+		vals := *valptr
+		if len(vals) == 0 {
+			return nil, fmt.Errorf("%w for %s", ErrEmptyAttachValue, name)
+		}
+		if len(vals) > 1 {
+			return nil, fmt.Errorf("%w for %s, %d values given", ErrMultipleAttachValues, name, len(vals))
+		}
+
+		c[name] = vals[0]
 	}
 
 	// Filter out the "type" key which is used for preprocessor selection
 	// but should not be attached as an enumerated value
-	delete(c.Vals, c.Idx("type"))
+	delete(c, "type")
 
 	// Check for $UUID which is not supported in preprocessor attach
-	if err == nil {
-		if err = validateAttachConfig(c); err != nil {
-			return
-		}
+	if err = validateAttachConfig(c); err != nil {
+		return
 	}
 
 	err = c.Verify()

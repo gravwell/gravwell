@@ -10,7 +10,8 @@ package ingest
 
 import (
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -18,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -48,23 +49,6 @@ type CompressionType uint8
 
 func PrintVersion(wtr io.Writer) {
 	fmt.Fprintf(wtr, "API Version:\t%d.%d\n", API_VERSION_MAJOR, API_VERSION_MINOR)
-}
-
-type Logger interface {
-	Infof(string, ...interface{}) error
-	Warnf(string, ...interface{}) error
-	Errorf(string, ...interface{}) error
-	Info(string, ...rfc5424.SDParam) error
-	Warn(string, ...rfc5424.SDParam) error
-	Error(string, ...rfc5424.SDParam) error
-	InfofWithDepth(int, string, ...interface{}) error
-	WarnfWithDepth(int, string, ...interface{}) error
-	ErrorfWithDepth(int, string, ...interface{}) error
-	InfoWithDepth(int, string, ...rfc5424.SDParam) error
-	WarnWithDepth(int, string, ...rfc5424.SDParam) error
-	ErrorWithDepth(int, string, ...rfc5424.SDParam) error
-	Hostname() string
-	Appname() string
 }
 
 // StreamConfiguration is a structure that can be sent back and
@@ -179,8 +163,8 @@ type IngesterState struct {
 	CacheSize     uint64
 	LastSeen      time.Time
 	Children      map[string]IngesterState
-	Configuration json.RawMessage `json:",omitempty"`
-	Metadata      json.RawMessage `json:",omitempty"`
+	Configuration jsontext.Value `json:",omitempty"`
+	Metadata      jsontext.Value `json:",omitempty"`
 }
 
 type writeCounter struct {
@@ -193,9 +177,10 @@ func (wc *writeCounter) Write(b []byte) (n int, err error) {
 	return
 }
 
+// EncodedSize encodes IngesterState as JSON, length checks it, and returns the length.
 func (s *IngesterState) EncodedSize() (uint32, error) {
 	var wc writeCounter
-	if err := json.NewEncoder(&wc).Encode(s); err != nil {
+	if err := json.MarshalWrite(&wc, s, jsoncompat.Opts); err != nil {
 		return 0, err
 	}
 	return uint32(wc.bts), nil
@@ -236,7 +221,7 @@ func (s *IngesterState) trimChildren(maxCount int) {
 func (s *IngesterState) Write(wtr io.Writer) (err error) {
 	// First, encode to JSON
 	var data []byte
-	if data, err = json.Marshal(s); err != nil {
+	if data, err = json.Marshal(s, jsoncompat.Opts); err != nil {
 		return err
 	} else if len(data) > int(maxIngestStateSize) || len(data) == 0 {
 		return ErrInvalidIngestStateHeader
@@ -297,7 +282,7 @@ func (s *IngesterState) Read(rdr io.Reader) (err error) {
 	}
 
 	// Decode the JSON
-	if err = json.Unmarshal(buff, s); err != nil {
+	if err = json.Unmarshal(buff, s, jsoncompat.Opts); err != nil {
 		return
 	}
 
@@ -334,63 +319,4 @@ func (s IngesterState) Copy() (r IngesterState) {
 		copy(r.IP, s.IP)
 	}
 	return
-}
-
-type es []string
-
-func (e es) MarshalJSON() ([]byte, error) {
-	if len(e) == 0 {
-		return []byte("[]"), nil
-	}
-	return json.Marshal([]string(e))
-}
-
-type mis struct {
-	mp map[string]IngesterState
-}
-
-func (m mis) MarshalJSON() ([]byte, error) {
-	if len(m.mp) == 0 {
-		return []byte("{}"), nil
-	}
-	return json.Marshal(m.mp)
-}
-
-func (s IngesterState) MarshalJSON() ([]byte, error) {
-	x := struct {
-		UUID          string
-		Name          string
-		Version       string
-		Label         string
-		IP            net.IP
-		Hostname      string
-		Entries       uint64
-		Size          uint64
-		Uptime        time.Duration
-		Tags          es
-		CacheState    string
-		CacheSize     uint64
-		LastSeen      time.Time
-		Children      mis
-		Configuration json.RawMessage `json:",omitempty"`
-		Metadata      json.RawMessage `json:",omitempty"`
-	}{
-		UUID:          s.UUID,
-		Name:          s.Name,
-		Version:       s.Version,
-		Label:         s.Label,
-		IP:            s.IP,
-		Hostname:      s.Hostname,
-		Entries:       s.Entries,
-		Size:          s.Size,
-		Uptime:        s.Uptime,
-		Tags:          es(s.Tags),
-		CacheState:    s.CacheState,
-		CacheSize:     s.CacheSize,
-		LastSeen:      s.LastSeen,
-		Children:      mis{mp: s.Children},
-		Configuration: s.Configuration,
-		Metadata:      s.Metadata,
-	}
-	return json.Marshal(x)
 }

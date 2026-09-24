@@ -1,10 +1,18 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package client
 
 import (
 	"net/http"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // GetTOTPSetup requests the parameters necessary for configuring
@@ -44,7 +52,7 @@ func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstall
 		AuthCode: code,
 	}
 	var resp types.MFATOTPInstallResponse
-	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp)
+	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp, nil, nil)
 	if err == nil {
 		c.state = STATE_LOGGED_OFF // the backend boots our session; reflect that locally
 	}
@@ -56,16 +64,16 @@ func (c *Client) TOTPLogin(user, pass, code string) (types.LoginResponse, error)
 	return c.MFALogin(user, pass, types.AUTH_TYPE_TOTP, code)
 }
 
-// TOTPClear deletes the user's TOTP setup.
+// ClearTOTP deletes the user's TOTP setup.
 // Note that this may return an error if another MFA method is not configured.
-func (c *Client) TOTPClear(user, pass string, authtype types.AuthType, code string) error {
+func (c *Client) ClearTOTP(user, pass string, authtype types.AuthType, code string) error {
 	rq := types.MFAAuthRequest{
 		User:     user,
 		Pass:     pass,
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil)
+	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil, nil, nil)
 	return err
 }
 
@@ -76,21 +84,21 @@ func (c *Client) GetMFAInfo() (resp types.MFAInfo, err error) {
 	return
 }
 
-// ClearAllMFA completely clears the current user's MFA configuration, if allowed by site policy.
-func (c *Client) ClearAllMFA(user, pass string, authtype types.AuthType, code string) error {
+// ClearMFA completely clears the current user's MFA configuration, if allowed by site policy.
+func (c *Client) ClearMFA(user, pass string, authtype types.AuthType, code string) error {
 	rq := types.MFAAuthRequest{
 		User:     user,
 		Pass:     pass,
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil)
+	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil, nil, nil)
 }
 
-// AdminClearUserMFA completely clears the specified user's MFA
+// AdminClearMFA completely clears the specified user's MFA
 // configuration. They will have to re-configure MFA on their next
 // login.
-func (c *Client) AdminClearUserMFA(uid int32) error {
+func (c *Client) AdminClearMFA(uid int32) error {
 	return c.methodStaticParamURL(http.MethodDelete, clearUserMFAUrl(uid), nil, nil)
 }
 
@@ -111,12 +119,13 @@ func (c *Client) GenerateRecoveryCodes(user, pass string, authtype types.AuthTyp
 		Remaining int
 		Generated time.Time
 	}
-	err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp)
-	codes = types.RecoveryCodes{
-		Enabled:   resp.Enabled,
-		Codes:     resp.Codes,
-		Remaining: resp.Remaining,
-		Generated: resp.Generated,
+	if err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp, nil, nil); err == nil {
+		codes = types.RecoveryCodes{
+			Enabled:   resp.Enabled,
+			Codes:     resp.Codes,
+			Remaining: resp.Remaining,
+			Generated: resp.Generated,
+		}
 	}
 	return
 }
