@@ -11,6 +11,7 @@ package types
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"fmt"
 )
 
 type PatchType interface {
@@ -105,4 +106,14 @@ func (o *Optional[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	}
 	o.set = true
 	return nil
+}
+
+// String implements fmt.Stringer for the same reason Nullable[T] does (see Nullable[T].String).
+// An unset Optional prints T's zero value, matching MarshalJSONTo's own unset-falls-back-to-zero behavior.
+func (o Optional[T]) String() string {
+	if !o.IsSet() {
+		var zero T
+		return fmt.Sprint(zero)
+	}
+	return fmt.Sprint(o.value)
 }

@@ -1981,6 +1981,18 @@ type opaqueWrapper struct {
 
 func (opaqueWrapper) IsOpaqueValue() bool { return true }
 
+// String mirrors Nullable[T]'s real Stringer contract: invalid/null prints
+// "null", otherwise the underlying value. Opting out of struct-field
+// recursion (IsOpaqueValue) says nothing about how to print the leaf value
+// once recursion stops -- that's this method's job, and without it %v falls
+// back to a raw dump of value/valid.
+func (o opaqueWrapper) String() string {
+	if !o.valid {
+		return "null"
+	}
+	return o.value
+}
+
 // plainUnexported has the exact same all-unexported-fields shape as
 // opaqueWrapper, but does NOT implement IsOpaqueValue. It must NOT be
 // treated as a leaf merely because it happens to have no exported fields --
@@ -2111,6 +2123,31 @@ func TestStructFieldsAll(t *testing.T) {
 			t.Errorf("exportedOnly=false: StructFields() = %v, want %v", cols, want)
 		}
 	})
+}
+
+// TestOpaqueValueRendersViaStringer guards against the failure mode found in
+// review of the IsOpaqueValue change: opting a type out of struct-field
+// recursion (via IsOpaqueValue) is not enough on its own for it to render
+// sensibly through ToCSV/ToTable. Those call valueToString, which falls back
+// to fmt.Sprintf("%v", v) for anything that isn't a Stringer -- for a struct
+// with only unexported fields, that prints a raw dump of its private state
+// (e.g. "{ true}") instead of something a user can read. A type needs BOTH
+// IsOpaqueValue (stop recursing) and String() (know how to print the leaf)
+// to be usable as a struct field feeding into this package's output.
+func TestOpaqueValueRendersViaStringer(t *testing.T) {
+	type row struct {
+		Live    opaqueWrapper
+		Deleted opaqueWrapper
+	}
+	data := []row{
+		{Live: opaqueWrapper{valid: false}, Deleted: opaqueWrapper{value: "2026-09-17", valid: true}},
+	}
+
+	got := ToCSV(data, []string{"Live", "Deleted"}, CSVOptions{})
+	want := "Live,Deleted\n" + "null,2026-09-17"
+	if got != want {
+		t.Errorf("ToCSV() = %q, want %q", got, want)
+	}
 }
 
 func TestStructFieldsExported(t *testing.T) {

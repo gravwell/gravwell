@@ -355,7 +355,7 @@ func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 				for _, findex := range findicies {
 					// step one level lower
 					data = data.Field(findex)
-					if data.Kind() == reflect.Ptr {
+					if data.Kind() == reflect.Pointer {
 						if data.IsNil() { // stop traveling at a nil pointer
 							invalid = true
 							break
@@ -760,10 +760,10 @@ func innerStructFields(qualification string, field reflect.StructField, exported
 		dq = qualification + "." + field.Name
 	}
 
-	// ! Time, and opaqueValue implementors, require special handling.
+	// ! Time, and OpaqueValue implementors, require special handling.
 	// time.Time is technically a struct composed of unexported fields; the
 	// same shape shows up deliberately in this repo's Optional[T]/Nullable[T]
-	// wrapper types (client/types), which mark themselves via opaqueValue.
+	// wrapper types (client/types), which mark themselves via OpaqueValue.
 	// If we delve into one of these (with exportedOnly) like a normal struct,
 	// we will find no exported fields and thus skip the field entirely; without
 	// exportedOnly, we would instead leak its unexported internals as
@@ -790,18 +790,19 @@ func innerStructFields(qualification string, field reflect.StructField, exported
 	return columns
 }
 
-// opaqueValue is implemented by wrapper types (e.g. client/types'
+// OpaqueValue is implemented by wrapper types (e.g. client/types'
 // Optional[T]/Nullable[T]) that are conceptually a single value rather than
 // a composite record. Their own fields are private implementation detail:
 // delving into them via reflection would find nothing useful (with
 // exportedOnly) or leak internals as nonsensical qualified names (without
 // it). A type opts out of struct-field recursion by implementing this
-// method and returning true.
-type opaqueValue interface {
+// method and returning true. Exported so packages outside this module can
+// mark their own wrapper types the same way.
+type OpaqueValue interface {
 	IsOpaqueValue() bool
 }
 
-var opaqueValueType = reflect.TypeFor[opaqueValue]()
+var opaqueValueType = reflect.TypeFor[OpaqueValue]()
 
 // Given a struct and the desired fields (columns), maps the full, qualified
 // field names to their complete index chain. If a field is not found in the

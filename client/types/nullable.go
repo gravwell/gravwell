@@ -3,6 +3,7 @@ package types
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"fmt"
 )
 
 // A Nullable represents a field that is always present in a JSON
@@ -94,4 +95,14 @@ func (n *Nullable[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	n.valid = true
 
 	return nil
+}
+
+// String implements fmt.Stringer so Nullable[T] renders sensibly wherever
+// it's stringified via %v/fmt.Sprintf. Without this, the zero value's private
+// fields print as a raw struct dump instead of something readable.
+func (n Nullable[T]) String() string {
+	if n.IsNull() {
+		return "null"
+	}
+	return fmt.Sprint(n.value)
 }

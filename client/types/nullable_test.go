@@ -10,6 +10,7 @@ package types_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,30 @@ func TestNullableZeroValueIsNull(t *testing.T) {
 	var n types.Nullable[string]
 	require.True(t, n.IsNull())
 	require.Equal(t, "", n.Value())
+}
+
+// TestNullableString pins Nullable[T]'s fmt.Stringer contract: a null value
+// prints the literal "null", and a non-null value prints its underlying
+// value's own string form (delegating to T's Stringer, e.g. time.Time, when
+// it has one) rather than a raw struct dump of Nullable's private fields.
+// This is what utils/weave's CSV/table output actually calls when
+// stringifying a Nullable field via %v/fmt.Sprint.
+func TestNullableString(t *testing.T) {
+	var n types.Nullable[string]
+	require.Equal(t, "null", n.String())
+
+	n.Set("biologist")
+	require.Equal(t, "biologist", n.String())
+
+	n.SetNull()
+	require.Equal(t, "null", n.String())
+
+	ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+	nt := types.NewNullable(ts)
+	require.Equal(t, ts.String(), nt.String())
+
+	var ntZero types.Nullable[time.Time]
+	require.Equal(t, "null", ntZero.String())
 }
 
 // NOTE: the marshaler tests for Nullable are in client/types/marshallers_test.go
