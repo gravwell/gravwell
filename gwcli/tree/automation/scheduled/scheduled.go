@@ -98,7 +98,8 @@ func listAction() action.Pair {
 				"CommonFields.Description",
 				"AutomationCommonFields.Schedule",
 				"AutomationCommonFields.Disabled",
-				"SearchString",
+				"Search.Kind",
+				"Search.QueryString",
 			},
 		})
 }
@@ -274,7 +275,7 @@ func edit() action.Pair {
 				case "description":
 					return item.Description, nil
 				case "search":
-					return item.SearchString, nil
+					return searchValue(item), nil
 				case "frequency":
 					return item.Schedule, nil
 				case "duration":
@@ -292,7 +293,7 @@ func edit() action.Pair {
 				case "description":
 					item.Description = val
 				case "search":
-					item.SearchString = val
+					applySearchEdit(item, val)
 				case "frequency":
 					item.Schedule = val
 				case "duration":
@@ -315,7 +316,7 @@ func edit() action.Pair {
 
 			},
 			GetTitleSub: func(item types.ScheduledSearch) string {
-				return fmt.Sprintf("%s (executes '%s')", item.Name, item.SearchString)
+				return fmt.Sprintf("%s (executes '%s')", item.Name, searchValue(item))
 			},
 			GetDescriptionSub: func(item types.ScheduledSearch) string {
 				return fmt.Sprintf("(%s) %s", item.Schedule, item.Description)
@@ -331,6 +332,29 @@ func edit() action.Pair {
 				XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
 			},
 		}})
+}
+
+// searchValue returns a displayable representation of the search attached to item.
+// The query text for a raw query, or the saved query's ID otherwise,
+func searchValue(item types.ScheduledSearch) string {
+	if item.Search.Kind == types.SearchableKindQueryString {
+		return item.Search.QueryString
+	}
+	return item.Search.ID
+}
+
+// applySearchEdit updates the search field, but only if the value actually changed.
+// The edit form resends every field on submit, even ones you didn't touch. For a saved-query
+// reference, the field just shows the query's ID. So if we always applied it, editing
+// anything else would quietly turn the reference into a broken raw query.
+func applySearchEdit(item *types.ScheduledSearch, val string) {
+	if val == searchValue(*item) {
+		return
+	}
+	item.Search = types.Searchable{
+		Kind:        types.SearchableKindQueryString,
+		QueryString: val,
+	}
 }
 
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {

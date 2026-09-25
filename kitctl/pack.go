@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 
 	"encoding/hex"
+
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
 )
@@ -393,11 +394,15 @@ func writeScheduledSearch(dir string, id string, x kits.PackedScheduledSearch) e
 
 	// Now drop files
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
-	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", id))
-	if err := os.WriteFile(searchPath, []byte(x.SearchString), 0644); err != nil {
-		return err
+	// Only a query_string search has any text to break out into a sibling file.
+	// A saved_query search carries its ID in the metadata and nothing else.
+	if x.Search.Kind == types.SearchableKindQueryString {
+		searchPath := filepath.Join(p, fmt.Sprintf("%v.search", id))
+		if err := os.WriteFile(searchPath, []byte(x.Search.QueryString), 0644); err != nil {
+			return err
+		}
+		x.Search.QueryString = ""
 	}
-	x.SearchString = ``
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -408,7 +413,6 @@ func writeScheduledSearch(dir string, id string, x kits.PackedScheduledSearch) e
 func readScheduledSearch(dir, id string) (x kits.PackedScheduledSearch, err error) {
 	p := filepath.Join(dir, "scheduled")
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
-	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", id))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = os.ReadFile(metaPath)
@@ -418,11 +422,15 @@ func readScheduledSearch(dir, id string) (x kits.PackedScheduledSearch, err erro
 	if err = json.Unmarshal(bts, &x); err != nil {
 		return
 	}
-	bts, err = os.ReadFile(searchPath)
-	if err != nil {
-		return
+	// Only a query_string search has its text broken out into a sibling file.
+	if x.Search.Kind == types.SearchableKindQueryString {
+		searchPath := filepath.Join(p, fmt.Sprintf("%s.search", id))
+		bts, err = os.ReadFile(searchPath)
+		if err != nil {
+			return
+		}
+		x.Search.QueryString = string(bts)
 	}
-	x.SearchString = string(bts)
 	return
 }
 
