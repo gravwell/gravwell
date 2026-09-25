@@ -11,6 +11,7 @@ package client
 import (
 	"net/http"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -101,6 +102,15 @@ func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error
 // ClearFlowResults deletes all results for the specified flow
 func (c *Client) ClearFlowResults(id string) error {
 	return c.delete(flowResultsIdUrl(id))
+}
+
+// ClearAllFlowResults (admin-only) deletes all results for the specified flow,
+// regardless of which user owns them.
+func (c *Client) ClearAllFlowResults(id string) error {
+	if !c.userDetails.Admin {
+		return ErrNotAdmin
+	}
+	return c.delete(flowResultsIdUrl(id), urlParam{queryparams.All, "true"})
 }
 
 // DebugFlow schedules an immediate execution of the specified flow.

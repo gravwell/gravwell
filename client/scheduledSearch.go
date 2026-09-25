@@ -9,6 +9,7 @@
 package client
 
 import (
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -95,7 +96,7 @@ func (c *Client) ClearAllScheduledSearchResults(id string) error {
 	if !c.userDetails.Admin {
 		return ErrNotAdmin
 	}
-	return c.delete(scheduledSearchResultsIdUrl(id), adminParams...)
+	return c.delete(scheduledSearchResultsIdUrl(id), urlParam{queryparams.All, "true"})
 }
 
 // DebugScheduledSearch requests an immediate debug run of the specified scheduled search.

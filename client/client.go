@@ -784,25 +784,3 @@ func (c *Client) DebugDeleteQueryValue(key string) {
 	c.qm.remove(key)
 	c.mtx.Unlock()
 }
-
-// SetAdminMode sets the ?admin=true parameter on future API requests. Note that setting this
-// parameter has no effect for non-admin users.
-// Admin users should use this parameter carefully, as it gives access to objects belonging
-// to other users and makes it easy to break things.
-func (c *Client) SetAdminMode() {
-	c.qm.set("admin", "true")
-}
-
-// ClearAdminMode unsets the ?admin=true parameter for future API requests.
-func (c *Client) ClearAdminMode() {
-	c.qm.remove("admin")
-}
-
-// AdminMode returns true if the ?admin=true parameter is set for API requests.
-func (c *Client) AdminMode() bool {
-	v, ok := c.qm.get("admin")
-	if !ok {
-		return false
-	}
-	return v == `true`
-}

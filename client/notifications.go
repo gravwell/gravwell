@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -66,7 +67,7 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	if !c.userDetails.Admin {
 		err = ErrNotAdmin
 	} else {
-		n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, adminParams...)
+		n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, urlParam{queryparams.All, "true"})
 	}
 	return
 }

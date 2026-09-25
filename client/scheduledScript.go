@@ -12,6 +12,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -107,6 +108,15 @@ func (c *Client) GetScheduledScriptResults(id string) (results types.ScheduledSc
 // ClearScheduledScriptResults deletes all results for the specified scheduled script
 func (c *Client) ClearScheduledScriptResults(id string) error {
 	return c.delete(scheduledScriptResultsIdUrl(id))
+}
+
+// ClearAllScheduledScriptResults (admin-only) deletes all results for the specified scheduled
+// script, regardless of which user owns them.
+func (c *Client) ClearAllScheduledScriptResults(id string) error {
+	if !c.userDetails.Admin {
+		return ErrNotAdmin
+	}
+	return c.delete(scheduledScriptResultsIdUrl(id), urlParam{queryparams.All, "true"})
 }
 
 // DebugScheduledScript requests an immediate debug run of the specified scheduled script.

@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -220,9 +221,19 @@ func (c *Client) KitDownloadRequest(id string) (*http.Response, error) {
 	return c.DownloadRequest(kitDownloadUrl(id))
 }
 
-// KitStatuses returns the statuses of any ongoing or completed kit installations.
+// KitStatuses returns the statuses of any ongoing or completed kit installations owned by the
+// current user.
 func (c *Client) KitStatuses() (statuses []types.InstallStatus, err error) {
 	return c.get[[]types.InstallStatus](kitStatusUrl())
+}
+
+// AllKitStatuses (admin-only) returns the statuses of any ongoing or completed kit
+// installations, regardless of which user owns them.
+func (c *Client) AllKitStatuses() (statuses []types.InstallStatus, err error) {
+	if !c.userDetails.Admin {
+		return nil, ErrNotAdmin
+	}
+	return c.get[[]types.InstallStatus](kitStatusUrl(), urlParam{queryparams.All, "true"})
 }
 
 // KitStatus returns the status of a particular kit installation
