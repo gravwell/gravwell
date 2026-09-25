@@ -10,6 +10,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"golang.org/x/time/rate"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -141,7 +142,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	}
 	discover := func(parent *Config) func(Dataset, []byte) error {
 		return func(d Dataset, raw []byte) error {
-			if retired, ok, e := deletedChildWork(d, parent.Parameter, raw); e != nil {
+			if retiredItems, ok, e := deletedChildWork(d, parent.Parameter, raw); e != nil {
 				if errors.Is(e, errMissingParentID) {
 					rt.Warn("Compliance deleted parent is missing its child-discovery identity; child checkpoint cannot be compacted", log.KV("dataset", d.Name))
 					return nil
@@ -152,16 +153,18 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 				}
 				return e
 			} else if ok {
-				k := retired.Dataset + "/" + strings.Join(retired.Parameter, "/")
-				if old, exists := list.Items[k]; exists {
-					retired.LastCompleted = old.LastCompleted
-					retired.StateKey = old.StateKey
+				for _, retired := range retiredItems {
+					k := retired.Dataset + "/" + strings.Join(retired.Parameter, "/")
+					if old, exists := list.Items[k]; exists {
+						retired.LastCompleted = old.LastCompleted
+						retired.StateKey = old.StateKey
+					}
+					if e = pruneCheckpoint(rt, parent, retired, true); e != nil {
+						return e
+					}
+					delete(list.Items, k)
+					dirty = true
 				}
-				if e = pruneCheckpoint(rt, parent, retired, true); e != nil {
-					return e
-				}
-				delete(list.Items, k)
-				dirty = true
 				return nil
 			}
 			children, e := childWork(d, parent.Parameter, raw)
@@ -177,6 +180,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 				return e
 			}
 			tracked := absenceTrackedParents[d.Name]
+			active := d.Name == "remote-sessions" && jsonString(raw, "status") == "active"
 			for _, w := range children {
 				k := w.Dataset + "/" + strings.Join(w.Parameter, "/")
 				old, exists := list.Items[k]
@@ -233,9 +237,12 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					delete(list.Items, victim)
 					dirty = true
 				}
-				// Membership/content can change without a parent revision. Refresh all
-				// child families hourly; active remote sessions refresh each poll.
-				refresh := !old.Pending && (d.Name == "remote-sessions" || p.now().Sub(old.LastCompleted) >= time.Hour)
+				// Membership/content can change without a parent revision, so child
+				// families refresh hourly. A local session's updated_at is its last
+				// inference call, so its revision already changes whenever the
+				// transcript grows; re-reading every transcript hourly would only
+				// spend the shared budget. Active remote sessions refresh each poll.
+				refresh := !old.Pending && ((d.Name == "remote-sessions" && active) || (d.Name != "local-sessions" && p.now().Sub(old.LastCompleted) >= time.Hour))
 				if !exists || old.Revision != w.Revision || refresh {
 					w.Pending = true
 					w.LastCompleted = old.LastCompleted
@@ -374,6 +381,15 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		if errors.Is(childErr, errPendingCapacity) {
 			childCont, childErr = hosted.ContinueNow(), nil
 		}
+		// A resource 404 for a child of a root that just listed successfully
+		// means the vendor has removed it (deleted, retained out, or a remote
+		// session that is not yet running); the documented handling is to
+		// drop it from the queue. It is completed rather than failed, so it
+		// is requeued only by a parent revision change or a later refresh.
+		if childErr != nil && rootErr == nil && httpStatus(childErr) == http.StatusNotFound {
+			rt.Warn("Compliance child resource was not found; marking it complete until its parent changes", log.KV("dataset", w.Dataset))
+			childCont, childErr = p.conf.ContinueAfterInterval(), nil
+		}
 		if childErr != nil {
 			w.Failures = min(w.Failures+1, maxChildFailures)
 			w.RetryAt = w.LastAttempt.Add(time.Minute * time.Duration(1<<(w.Failures-1)))
@@ -412,30 +428,47 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	return p.conf.PendingOrInterval(rootPending || len(keys) > p.conf.Max_Children), nil
 }
 
-func deletedChildWork(d Dataset, inherited []string, raw []byte) (work, bool, error) {
-	if d.Name != "chats" {
-		return work{}, false, nil
+// deletedChildWork returns every child of a parent the vendor reports as
+// deleted through deleted_at (chats and projects), so their checkpoints can
+// be compacted and tombstoned under the deleted revision.
+func deletedChildWork(d Dataset, inherited []string, raw []byte) ([]work, bool, error) {
+	if d.Name != "chats" && d.Name != "projects" {
+		return nil, false, nil
 	}
 	var v map[string]json.RawMessage
 	if e := json.Unmarshal(raw, &v); e != nil {
-		return work{}, false, e
+		return nil, false, e
 	}
 	deleted := v["deleted_at"]
 	if len(deleted) == 0 || string(deleted) == "null" {
-		return work{}, false, nil
+		return nil, false, nil
 	}
 	var id string
 	_ = json.Unmarshal(v["id"], &id)
 	if id == "" {
-		return work{}, false, fmt.Errorf("%w: chats parent missing id", errMissingParentID)
+		return nil, false, fmt.Errorf("%w: %s parent missing id", errMissingParentID, d.Name)
 	}
 	if len(id) > maxDiscoveredParameterLen {
-		return work{}, false, fmt.Errorf("%w: chats id is %d bytes", errOversizedIdentity, len(id))
+		return nil, false, fmt.Errorf("%w: %s id is %d bytes", errOversizedIdentity, d.Name, len(id))
 	}
-	params := append(append([]string(nil), inherited...), "chat_id:"+id)
-	sort.Strings(params)
 	h := sha256.Sum256(raw)
-	return work{Dataset: "chat-messages", Parameter: params, Revision: fmt.Sprintf("%x", h)}, true, nil
+	var result []work
+	for _, s := range childSpecs(d.Name) {
+		params := append(append([]string(nil), inherited...), s.param+":"+id)
+		sort.Strings(params)
+		result = append(result, work{Dataset: s.name, Parameter: params, Revision: fmt.Sprintf("%x", h)})
+	}
+	return result, true, nil
+}
+
+// jsonString returns a top-level string field of a compact record, or "".
+func jsonString(raw []byte, field string) string {
+	var v map[string]json.RawMessage
+	var s string
+	if json.Unmarshal(raw, &v) == nil {
+		_ = json.Unmarshal(v[field], &s)
+	}
+	return s
 }
 
 func childConfig(parent *Config, w work) (*Config, error) {
@@ -554,10 +587,15 @@ func childWork(d Dataset, inherited []string, raw []byte) ([]work, error) {
 	}
 	var id string
 	_ = json.Unmarshal(v[idKey], &id)
-	if d.Name == "chats" {
+	if d.Name == "chats" || d.Name == "projects" {
 		if s := v["deleted_at"]; len(s) > 0 && string(s) != "null" {
 			return nil, nil
 		}
+	}
+	// A pending remote session has no transcript yet and its messages
+	// endpoint returns 404; its revision changes when it starts.
+	if d.Name == "remote-sessions" && jsonString(raw, "status") == "pending" {
+		return nil, nil
 	}
 	specs := childSpecs(d.Name)
 	if len(specs) == 0 {

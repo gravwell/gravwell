@@ -48,7 +48,7 @@ func TestPendingWedge_PermanentlyFailingChildEventuallyEvicted(t *testing.T) {
 			return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
 		}
 		if strings.Contains(r.URL.Path, "g1") {
-			return reply(`{"error":{"message":"gone"}}`, 404), nil
+			return reply(`{"error":{"message":"forbidden"}}`, 403), nil
 		}
 		return reply(`{"data":[],"has_more":false}`, 200), nil
 	})
@@ -141,7 +141,7 @@ func TestPendingWedge_NewChildEventuallySchedulableAfterEviction(t *testing.T) {
 			return reply(`{"data":[{"id":"g2"}],"has_more":false}`, 200), nil
 		}
 		if strings.Contains(r.URL.Path, "g1") {
-			return reply(`{"error":{"message":"gone"}}`, 404), nil
+			return reply(`{"error":{"message":"forbidden"}}`, 403), nil
 		}
 		g2Calls++
 		return reply(`{"data":[],"has_more":false}`, 200), nil
@@ -362,7 +362,7 @@ func TestPendingWedge_MaxPendingStrictlyBounded(t *testing.T) {
 		}
 		for id := range failing {
 			if strings.Contains(r.URL.Path, id) {
-				return reply(`{"error":{"message":"gone"}}`, 404), nil
+				return reply(`{"error":{"message":"forbidden"}}`, 403), nil
 			}
 		}
 		return reply(`{"data":[],"has_more":false}`, 200), nil

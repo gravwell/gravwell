@@ -314,7 +314,15 @@ func TestRestartDeduplicatesAndRetainsWindow(t *testing.T) {
 		if r.URL.Query().Get("order_by") != "updated_at" || r.URL.Query().Has("user_ids[]") {
 			t.Fatal("invalid org-wide update filter")
 		}
-		return reply(`{"data":[{"id":"chat","updated_at":"2026-09-07T22:00:00Z"}],"has_more":false}`, 200), nil
+		// Honor the requested window as the vendor does: the record is
+		// inside both the initial lookback and the overlap of the next poll.
+		updated, _ := time.Parse(time.RFC3339, "2026-09-07T23:57:00Z")
+		gte, _ := time.Parse(time.RFC3339Nano, r.URL.Query().Get("updated_at.gte"))
+		lte, _ := time.Parse(time.RFC3339Nano, r.URL.Query().Get("updated_at.lte"))
+		if updated.Before(gte) || updated.After(lte) {
+			return reply(`{"data":[],"has_more":false}`, 200), nil
+		}
+		return reply(`{"data":[{"id":"chat","updated_at":"2026-09-07T23:57:00Z"}],"has_more":false}`, 200), nil
 	})
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
@@ -340,7 +348,7 @@ func TestCancellationAndTimestampFallback(t *testing.T) {
 		t.Fatal("ignored cancellation")
 	}
 	now := p.now()
-	if sourceTime([]byte(`{"created_at":"2026-09-08T00:00:00"}`), now) != now {
+	if sourceTime([]byte(`{"created_at":"2026-09-08T00:00:00"}`), "created_at", now) != now {
 		t.Fatal("invented timezone")
 	}
 }
@@ -453,7 +461,9 @@ func TestLookbackStartAndCheckpointPrecedence(t *testing.T) {
 	if _, err := p.Handle(t.Context(), rt); err != nil {
 		t.Fatal(err)
 	}
-	want = p.now().Add(-300 * time.Second)
+	// The completed window ended indexingLag before now; the next one
+	// starts Overlap-Seconds before that end.
+	want = p.now().Add(-time.Minute - 300*time.Second)
 	p.conf.Lookback = 720
 	if _, err := p.Handle(t.Context(), rt); err != nil {
 		t.Fatal(err)
@@ -600,11 +610,17 @@ func TestNewParentsAndFailedTranscriptSurviveRestart(t *testing.T) {
 		}
 	}
 }
-func TestActiveRemoteSessionsAreRevisitedAndPending404Retained(t *testing.T) {
+
+// TestActiveRemoteSession404IsDroppedThenRevisited follows the vendor's
+// 404 guidance: after a healthy root listing, a child 404 means the resource
+// is gone or not yet running, so it is logged and completed rather than
+// retried as a failure. An active remote session is still revisited on the
+// next poll, so its transcript is collected once it becomes readable.
+func TestActiveRemoteSession404IsDroppedThenRevisited(t *testing.T) {
 	p, rt := setup(t, "remote-sessions")
 	p.conf.Follow_Children = "enabled"
 	rt.states = map[string][]byte{}
-	pending := true
+	missing := true
 	calls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/remote") {
@@ -614,15 +630,27 @@ func TestActiveRemoteSessionsAreRevisitedAndPending404Retained(t *testing.T) {
 			return reply(`{"data":[{"id":"agent-session","user":null,"agent_id":"a","status":"active"}],"next_page":null}`, 200), nil
 		}
 		calls++
-		if pending {
-			return reply(`{}`, 404), nil
+		if missing {
+			return reply(`{"error":{"type":"not_found_error","message":"Remote session not found"}}`, 404), nil
 		}
 		return reply(`{"session":{"id":"agent-session"},"data":[{"id":"m"}],"next_page":null}`, 200), nil
 	})
-	if _, e := p.Handle(t.Context(), rt); e == nil {
-		t.Fatal("pending 404 hidden")
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
 	}
-	pending = false
+	if rt.warnings != 1 {
+		t.Fatalf("child 404 was not reported: warnings=%d", rt.warnings)
+	}
+	var list worklist
+	if e := json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &list); e != nil || len(list.Items) != 1 {
+		t.Fatal("child work missing")
+	}
+	for _, w := range list.Items {
+		if w.Pending || w.Failures != 0 {
+			t.Fatalf("404 child retained as failing pending work: %+v", w)
+		}
+	}
+	missing = false
 	oldNow := p.now()
 	p.now = func() time.Time { return oldNow.Add(2 * time.Minute) }
 	if _, e := p.Handle(t.Context(), rt); e != nil {
@@ -631,8 +659,35 @@ func TestActiveRemoteSessionsAreRevisitedAndPending404Retained(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if calls != 3 {
-		t.Fatal("active remote session not revisited")
+	if calls != 3 || len(rt.entries) != 2 {
+		t.Fatalf("active remote session not revisited: calls=%d entries=%d", calls, len(rt.entries))
+	}
+}
+
+// TestChild404DuringRootFailureRemainsFailure keeps a 404 an ordinary
+// failure when the root listing itself failed, because the vendor's bare
+// 404 also signals an unauthenticated request rather than a missing child.
+func TestChild404DuringRootFailureRemainsFailure(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	rt.states = map[string][]byte{}
+	key := p.conf.key() + "/child-work-v1"
+	seeded, _ := json.Marshal(worklist{Items: map[string]work{
+		"group-members/group_id:g1": {Dataset: "group-members", Parameter: []string{"group_id:g1"}, Revision: "r", Pending: true, LastAttempt: p.now().Add(-time.Hour)},
+	}})
+	rt.states[key] = seeded
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		return reply(`{"error":{"type":"not_found_error","message":"Not found"}}`, 404), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e == nil {
+		t.Fatal("unauthenticated 404 hidden")
+	}
+	var list worklist
+	if e := json.Unmarshal(rt.states[key], &list); e != nil {
+		t.Fatal(e)
+	}
+	if w := list.Items["group-members/group_id:g1"]; !w.Pending || w.Failures != 1 {
+		t.Fatalf("child 404 under a failed root was not counted as a failure: %+v", w)
 	}
 }
 
@@ -840,7 +895,7 @@ func TestFailedChildDoesNotStarveHealthyWork(t *testing.T) {
 			return reply(`{"data":[{"id":"a-failing"},{"id":"z-healthy"}],"has_more":false}`, 200), nil
 		}
 		if strings.Contains(r.URL.Path, "a-failing") {
-			return reply(`{}`, 404), nil
+			return reply(`{}`, 403), nil
 		}
 		healthy++
 		return reply(`{"data":[],"has_more":false}`, 200), nil
@@ -883,7 +938,7 @@ func TestInProgressChildIsNotPreemptedByNewDiscovery(t *testing.T) {
 			g1Calls++
 			if g1Page == 0 {
 				g1Page++
-				return reply(`{"data":[{"id":"m1"}],"has_more":false,"next_page":"tok"}`, 200), nil
+				return reply(`{"data":[{"id":"m1"}],"has_more":true,"next_page":"tok"}`, 200), nil
 			}
 			return reply(`{"data":[{"id":"m2"}],"has_more":false}`, 200), nil
 		case strings.Contains(r.URL.Path, "g2"):

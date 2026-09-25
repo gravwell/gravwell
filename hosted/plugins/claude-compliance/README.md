@@ -25,11 +25,17 @@ combined, such as `Lookback=1d12h`; legacy bare integers remain hours. An
 existing checkpoint takes precedence;
 `Start-Time` (RFC3339 with
 offset) overrides lookback when that checkpoint is absent. Overlap defaults to
-300 seconds. Discovery scans parent inventories without their time filter so
-unchanged parents cannot hide changed child records. Inventory and transcript
-endpoints without a time filter are bounded full scans, not lookback-filtered.
-A newly discovered chat collects its complete message history before later
-refreshes use the stored message checkpoint and overlap window.
+300 seconds. A windowed request's upper bound trails the current time by one
+minute, the vendor's documented indexing delay, so a late-indexed record is not
+excluded whatever the overlap is. With `Follow-Children="enabled"`, the
+`projects` and `local-sessions` inventories are listed without their time
+filter so an unchanged parent cannot hide changed child records. The `chats`
+root stays an incremental `order_by=updated_at` poll, because the vendor
+returns a chat again whenever it receives a new message, changes project, or is
+deleted. Inventory and transcript endpoints without a time filter are bounded
+full scans, not lookback-filtered. A newly discovered chat collects its
+complete message history before later refreshes use the stored message
+checkpoint and overlap window.
 
 The named stanza owns all polling settings. Repeat settings in each stanza as
 needed. Defaults:
@@ -39,6 +45,18 @@ cycle, and 10,000 remembered child work items. The example sets 30 requests/minu
 The strictest configured rate is shared within a scope label. `Max-Pages` and
 the 100,000-record per-call bound chunk large traversals into immediately
 rescheduled calls; a stored opaque cursor resumes the same frozen traversal.
+A stored walk older than 23 hours, or whose cursor the API rejects with HTTP
+400, restarts from its first page, because vendor cursors expire or are
+re-evaluated after 24 hours. The restarted walk keeps its manifest, so records
+already written are deduplicated rather than replayed.
+
+Pagination follows the documented contract: `after_id` endpoints continue while
+`has_more` is true (an absent `has_more` means false); page-token endpoints stop
+when `has_more` is false or, on session endpoints without `has_more`, when
+`next_page` is null. HTTP 429 and transient 5xx responses, and connection or
+read failures, are retried up to `Max-Retries` with one-second exponential
+backoff capped at 60 seconds and a longer `retry-after` honored;
+`x-should-retry: false` is never retried.
 
 ## Datasets and tags
 
@@ -55,24 +73,42 @@ The default prefix is `claude-compliance-`: exactly six semantic tags, not one
 tag per endpoint. Set `Tag-Name="claude"` in every stanza to combine all data.
 Discovered children inherit the parent's tag. Native JSON stays compact and
 unwrapped; `_source`, `_recordType`, and `_endpoint` intrinsic fields distinguish
-datasets. Other intrinsic context is `_vendor`, `_product`, `_apiVersion`,
+datasets. `_endpoint` is the endpoint template, such as
+`/v1/compliance/groups/{group_id}/members`; the resolved IDs are in `_parent`. Other intrinsic context is `_vendor`, `_product`, `_apiVersion`,
 `_parent`, and `_session` when provided. These are not JSON properties.
 If a response's session envelope exceeds Gravwell's enumerated-value limit, the
 native message is retained and `_session` is omitted with a warning.
+
+Each dataset declares its timestamp and identity in `catalog.go`. Events and
+messages use their `created_at`; mutable objects use `updated_at`; snapshots
+without a change time, such as users, organizations, role permissions,
+collaborators, and settings, use collection time instead of an unrelated
+creation time. Records are deduplicated by their documented stable identity:
+`uuid` for organizations, `user_id` for group members, `version_id` for artifact
+metadata, a composite key for role permissions and collaborators, otherwise `id`.
+For windowed datasets an identity last seen before the next window is dropped
+from the manifest once the walk completes.
 
 Seven roots require no `Parameter`: `activities`, `organizations`, `groups`,
 `chats`, `projects`, `local-sessions`, and `remote-sessions`. With
 `Follow-Children="enabled"`, organizations discover users/roles/permissions,
 groups discover members, chats and sessions discover messages, and projects
-discover attachments/collaborators. Failed children remain queued with bounded
-backoff. A full pending queue defers the current root page until existing work
+discover attachments/collaborators. Deleted chats and projects tombstone their
+child work; a `pending` remote session is not queued until it starts. Failed
+children remain queued with bounded backoff. A child that returns HTTP 404 after
+its root listed successfully is logged and completed, as the vendor documents a
+404 on a known ID as removed content. A full pending queue defers the current root page until existing work
 can complete; it does not partially ingest or silently drop that page. Completed
 work evicted from the bounded queue has its large manifest compacted to a small
-retired checkpoint. Membership/content is revisited hourly; remote sessions every poll.
+retired checkpoint. Membership and content are revisited hourly and whenever a
+parent's revision changes. Local-session transcripts are revisited only when
+the session's `updated_at` (its last inference call) changes, and active remote
+sessions every poll.
 
 Other selectors need explicit IDs matching placeholders in `catalog.go`, e.g.
 `Parameter="artifact_version_id:the-id"` for `artifact-metadata`. Binary content,
-file/document ID discovery, and a global artifact inventory are not implemented.
+file/document ID discovery, a global artifact inventory, and the Claude Code
+Artifacts list (`GET /v1/compliance/apps/code/artifacts`) are not implemented.
 Only configure operations your Compliance access key is authorized to read.
 
 ## State and delivery contract

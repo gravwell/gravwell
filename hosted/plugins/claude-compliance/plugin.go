@@ -70,6 +70,9 @@ type traversal struct {
 	Cursor      string    `json:"cursor"`
 	Manifest    manifest  `json:"manifest"`
 	FullHistory bool      `json:"full_history,omitempty"`
+	// Started is when this page walk issued its first request; a walk older
+	// than maxTraversalAge restarts rather than reusing an expired cursor.
+	Started time.Time `json:"started,omitempty"`
 }
 
 // manifestEntry pairs a record's content digest with a hint of how recently
@@ -158,6 +161,42 @@ func (m *manifest) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// statusError reports a non-200 Compliance response by status code only;
+// the response body is never surfaced because it can echo request data.
+type statusError struct{ code int }
+
+func (e *statusError) Error() string {
+	return fmt.Sprintf("Compliance HTTP %d; state retained", e.code)
+}
+
+func httpStatus(e error) int {
+	var se *statusError
+	if errors.As(e, &se) {
+		return se.code
+	}
+	return 0
+}
+
+const (
+	// indexingLag keeps a window's upper bound behind the documented Activity
+	// Feed queryability delay so a late-indexed record is never excluded by a
+	// window that has already advanced past it, whatever Overlap-Seconds is.
+	indexingLag = time.Minute
+	// maxTraversalAge restarts a stored page walk before the vendor's
+	// 24-hour cursor lifetime (local-session messages reject older cursors
+	// with a permanent 400; remote tokens must not be stored long-term).
+	maxTraversalAge = 23 * time.Hour
+)
+
+// fullParentScan reports whether a root inventory must be listed without its
+// time filter so that unchanged parents still requeue child work. Chats are
+// excluded: the vendor documents that order_by=updated_at returns a chat
+// again whenever it receives a new message, moves project, or is deleted.
+func fullParentScan(c *Config) bool {
+	d := c.dataset
+	return c.Follow_Children != "disabled" && (d.Name == "projects" || d.Name == "local-sessions")
+}
+
 func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
 	if p.syncIngest == nil {
 		return nil, errors.New("Compliance ingest synchronization is not configured")
@@ -180,6 +219,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		st.Manifest = manifest{}
 	}
 	now := p.now().UTC()
+	d := c.dataset
 	since := st.Since
 	if since.IsZero() {
 		if c.Start_Time != "" {
@@ -188,12 +228,32 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			since = now.Add(-time.Duration(c.Lookback) * time.Hour)
 		}
 	}
+	fullParents := fullParentScan(c)
 	scan := traversal{
 		Since:       since,
 		Until:       now,
 		Manifest:    manifest{},
-		FullHistory: c.discovered && c.dataset.Name == "chat-messages" && !st.HistoryComplete,
+		FullHistory: c.discovered && d.Name == "chat-messages" && !st.HistoryComplete,
+		Started:     now,
 	}
+	windowed := func(t traversal) bool { return d.Window != "" && !fullParents && !t.FullHistory }
+	if windowed(scan) {
+		scan.Until = now.Add(-indexingLag)
+	}
+	// restart begins a stored walk again from its first page. The walk's
+	// lower bound and in-progress manifest are kept, so records already
+	// written by the abandoned walk are deduplicated rather than replayed.
+	restart := func(old traversal) traversal {
+		old.Cursor, old.Started, old.Until = "", now, now
+		if windowed(old) {
+			old.Until = now.Add(-indexingLag)
+		}
+		if old.Manifest == nil {
+			old.Manifest = manifest{}
+		}
+		return old
+	}
+	resumed := false
 	if st.Traversal != nil {
 		scan = *st.Traversal
 		if scan.Cursor == "" || scan.Until.IsZero() {
@@ -202,30 +262,12 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		if scan.Manifest == nil {
 			scan.Manifest = manifest{}
 		}
-	}
-	q := url.Values{}
-	d := c.dataset
-	if d.Rows != "" {
-		q.Set("limit", strconv.Itoa(c.Page_Size))
-	}
-	// Discovery must see unchanged parents: membership and child content need
-	// not advance the parent's updated_at. Bound the full traversal with the
-	// configured page/record limits, retaining queued children on any failure.
-	fullParents := c.Follow_Children != "disabled" && (d.Name == "chats" || d.Name == "projects" || d.Name == "local-sessions")
-	if d.Window != "" && !fullParents && !scan.FullHistory {
-		q.Set(d.Window+".gte", scan.Since.Format(time.RFC3339Nano))
-		if d.Name != "local-sessions" {
-			q.Set(d.Window+".lte", scan.Until.Format(time.RFC3339Nano))
+		if scan.Started.IsZero() || now.Sub(scan.Started) >= maxTraversalAge {
+			rt.Warn("Compliance stored page walk exceeded the cursor lifetime; restarting it from the first page", log.KV("dataset", d.Name))
+			scan = restart(scan)
+		} else {
+			resumed = true
 		}
-	}
-	if scan.Cursor != "" {
-		q.Set(d.Cursor, scan.Cursor)
-	}
-	if d.Name == "activities" || strings.HasSuffix(d.Name, "messages") {
-		q.Set("order", "asc")
-	}
-	if d.Name == "chats" {
-		q.Set("order_by", "updated_at")
 	}
 	tag, e := rt.NegotiateTag(c.Tag_Name)
 	if e != nil {
@@ -246,6 +288,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		if e = ctx.Err(); e != nil {
 			return nil, e
 		}
+		q := query(c, scan, windowed(scan))
 		requestKey := q.Encode()
 		if seen[requestKey] {
 			return nil, errors.New("Compliance returned a repeated cursor")
@@ -253,8 +296,19 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		seen[requestKey] = true
 		body, e := p.request(ctx, token, q, limiter)
 		if e != nil {
+			// A rejected stored cursor (expired or no longer decodable) is
+			// permanent for that cursor; restart the walk once instead of
+			// failing identically on every later poll.
+			if resumed && page == 0 && httpStatus(e) == http.StatusBadRequest {
+				rt.Warn("Compliance rejected a stored page cursor; restarting the walk from the first page", log.KV("dataset", d.Name))
+				scan, resumed = restart(scan), false
+				seen = map[string]bool{}
+				page--
+				continue
+			}
 			return nil, e
 		}
+		resumed = false
 		var envelope map[string]json.RawMessage
 		if e = json.Unmarshal(body, &envelope); e != nil || envelope == nil {
 			return nil, errors.New("Compliance response is not an object")
@@ -285,9 +339,15 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			}
 			h := sha256.Sum256(compact)
 			digest := hex.EncodeToString(h[:])
-			key := identity(compact, digest)
+			key := identity(compact, d.Identity, digest)
 			unchanged := st.Manifest.digestOf(key) == digest || scan.Manifest.digestOf(key) == digest
-			recordTime := sourceTime(compact, scan.Until)
+			recordTime := sourceTime(compact, d.Time, now)
+			// seenTime orders manifest eviction and, for windowed datasets,
+			// decides when an identity can no longer be returned again.
+			seenTime := recordTime
+			if d.Window != "" {
+				seenTime = sourceTime(compact, d.Window, recordTime)
+			}
 			// Compare against the prior digest above (unchanged is already
 			// decided), then compact: a key visited this scan no longer
 			// needs to live in the pre-scan primary manifest, because the
@@ -309,7 +369,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			if budget < 1 {
 				budget = 1
 			}
-			scan.Manifest.put(key, digest, recordTime, budget)
+			scan.Manifest.put(key, digest, seenTime, budget)
 			if p.onRecord != nil {
 				if e = p.onRecord(d, compact); e != nil {
 					return nil, e
@@ -376,6 +436,17 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			checkpoint.Since = scan.Until.Add(-time.Duration(c.Overlap_Seconds) * time.Second)
 			checkpoint.Manifest = scan.Manifest
 			checkpoint.HistoryComplete = checkpoint.HistoryComplete || scan.FullHistory
+			// The next windowed walk starts at checkpoint.Since, so an
+			// identity last seen before it can never be returned again.
+			// Dropping it bounds a windowed dataset's manifest by the
+			// records inside one poll interval plus overlap.
+			if d.Window != "" && !fullParents {
+				for k, m := range checkpoint.Manifest {
+					if m.Seen < checkpoint.Since.Unix() {
+						delete(checkpoint.Manifest, k)
+					}
+				}
+			}
 		}
 		b, e = json.Marshal(checkpoint)
 		if e != nil {
@@ -387,29 +458,59 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		if !more {
 			return c.ContinueAfterInterval(), nil
 		}
-		q.Set(d.Cursor, next)
 	}
 	return hosted.ContinueNow(), nil
 }
+
+// query builds one page request for the dataset and traversal.
+func query(c *Config, scan traversal, windowed bool) url.Values {
+	d := c.dataset
+	q := url.Values{}
+	if d.Rows != "" {
+		q.Set("limit", strconv.Itoa(c.Page_Size))
+	}
+	if windowed {
+		q.Set(d.Window+".gte", scan.Since.Format(time.RFC3339Nano))
+		// Local sessions document only updated_at.gte.
+		if d.Name != "local-sessions" {
+			q.Set(d.Window+".lte", scan.Until.Format(time.RFC3339Nano))
+		}
+	}
+	if scan.Cursor != "" {
+		q.Set(d.Cursor, scan.Cursor)
+	}
+	if d.Name == "activities" || strings.HasSuffix(d.Name, "messages") {
+		q.Set("order", "asc")
+	}
+	if d.Name == "chats" {
+		q.Set("order_by", "updated_at")
+	}
+	return q
+}
+
+// continuation applies the documented pagination contract: after_id
+// endpoints continue only while has_more is true (absent means false) and
+// return last_id; page endpoints stop when has_more is false or, on the
+// session endpoints that omit has_more, when next_page is null.
 func continuation(env map[string]json.RawMessage, d Dataset) (string, bool, error) {
 	if d.Cursor == "" {
 		return "", false, nil
 	}
 	var has bool
-	if b, ok := env["has_more"]; ok {
+	b, present := env["has_more"]
+	if present && string(b) != "null" {
 		if json.Unmarshal(b, &has) != nil {
 			return "", false, errors.New("invalid has_more")
 		}
+	} else {
+		present = false
 	}
 	field := "next_page"
 	if d.Cursor == "after_id" {
 		field = "last_id"
-		if _, ok := env["has_more"]; !ok {
-			return "", false, errors.New("missing has_more")
-		}
-		if !has {
-			return "", false, nil
-		}
+	}
+	if (d.Cursor == "after_id" || present) && !has {
+		return "", false, nil
 	}
 	var next string
 	if b, ok := env[field]; ok && string(b) != "null" {
@@ -434,14 +535,36 @@ func (p *Plugin) request(ctx context.Context, token string, q url.Values, limite
 		req.Header.Set("x-api-key", token)
 		req.Header.Set("anthropic-version", "2023-06-01")
 		req.Header.Set("Accept", "application/json")
+		// Documented backoff: start at one second, double, cap at 60.
+		delay := time.Duration(min(1<<attempt, 60)) * time.Second
 		resp, e := p.http.Do(req)
 		if e != nil {
-			return nil, errors.New("Compliance transport failed")
+			// A GET is idempotent, so a connection or timeout failure is
+			// retried with the same bounded backoff as a transient 5xx.
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if attempt == p.conf.Max_Retries {
+				return nil, errors.New("Compliance transport failed")
+			}
+			if e = p.wait(ctx, delay); e != nil {
+				return nil, e
+			}
+			continue
 		}
 		body, e := io.ReadAll(io.LimitReader(resp.Body, int64(p.conf.Max_Response_Bytes)+1))
 		resp.Body.Close()
 		if e != nil {
-			return nil, errors.New("incomplete Compliance response")
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if attempt == p.conf.Max_Retries {
+				return nil, errors.New("incomplete Compliance response")
+			}
+			if e = p.wait(ctx, delay); e != nil {
+				return nil, e
+			}
+			continue
 		}
 		if len(body) > p.conf.Max_Response_Bytes {
 			return nil, errors.New("Compliance response exceeds size limit")
@@ -451,9 +574,8 @@ func (p *Plugin) request(ctx context.Context, token string, q url.Values, limite
 		}
 		retry := (resp.StatusCode == 429 || resp.StatusCode >= 500) && resp.Header.Get("x-should-retry") != "false"
 		if !retry || attempt == p.conf.Max_Retries {
-			return nil, fmt.Errorf("Compliance HTTP %d; state retained", resp.StatusCode)
+			return nil, &statusError{resp.StatusCode}
 		}
-		delay := time.Duration(min(1<<attempt, 60)) * time.Second
 		if seconds, e := strconv.ParseUint(resp.Header.Get("retry-after"), 10, 32); e == nil {
 			delay = max(delay, time.Duration(seconds)*time.Second)
 		} else if when, e := http.ParseTime(resp.Header.Get("retry-after")); e == nil {
@@ -478,28 +600,4 @@ func compactObject(raw []byte, maxBytes int) ([]byte, error) {
 		return nil, errors.New("Compliance entry exceeds size limit")
 	}
 	return b.Bytes(), nil
-}
-func identity(raw []byte, fallback string) string {
-	var v map[string]json.RawMessage
-	_ = json.Unmarshal(raw, &v)
-	for _, k := range []string{"id", "uuid"} {
-		var s string
-		if json.Unmarshal(v[k], &s) == nil && s != "" {
-			return k + ":" + s
-		}
-	}
-	return "sha256:" + fallback
-}
-func sourceTime(raw []byte, fallback time.Time) time.Time {
-	var v map[string]json.RawMessage
-	_ = json.Unmarshal(raw, &v)
-	for _, k := range []string{"updated_at", "created_at", "timestamp"} {
-		var s string
-		if json.Unmarshal(v[k], &s) == nil {
-			if t, e := time.Parse(time.RFC3339Nano, s); e == nil {
-				return t.UTC()
-			}
-		}
-	}
-	return fallback
 }
