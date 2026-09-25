@@ -23,9 +23,22 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
+)
+
+// The hint displayed beneath the text area while it has taken over the pane.
+// It is focus-dependent: space/↵ only press the "return" button once the text area has been
+// blurred. While the text area is focused they are ordinary text input and the only way out is
+// walking the cursor off the content.
+//
+// The focused hint deliberately avoids promising "top/bottom line": hotkeys.MoveCursor gates on
+// logical line, not visual row, so on wrapped content ↑/↓ can reach the button mid-paragraph.
+const (
+	wantTATakeoverHintFocused = sigils.UpDown + " past the content to reach return"
+	wantTATakeoverHintBlurred = sigils.UpDown + " move • space/" + sigils.Enter + " return"
 )
 
 func TestTextProvider(t *testing.T) {
@@ -259,7 +272,7 @@ func TestMSLProvider(t *testing.T) {
                                                                       
                                                                       
   ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
-  space select • ↲ continue`)
+  space select • ↵ continue`)
 		if view = testsupport.LinesTrimSpace(view); view != want {
 			t.Fatal("incorrect no descriptions view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(view)))
 		}
@@ -636,9 +649,14 @@ func TestTextAreaProvider(t *testing.T) {
 			_, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select))
 			assert.True(t, takeover)
 			// make sure view agrees
-			vk, _, second := f.Provider.View(true, 0)
+			vk, val, second := f.Provider.View(true, 0)
 			assert.Equal(t, scaffoldcreate.Takeover, vk)
 			assert.Empty(t, second)
+			// the takeover pane replaces the form's hotkey legend, so it must carry its own hint;
+			// without it, the user has no indication of how to get back out.
+			// Takeover focuses the text area, so the hint must be the focused variant.
+			assert.Contains(t, val, wantTATakeoverHintFocused, testsupport.Uncloak(val))
+			assert.NotContains(t, val, wantTATakeoverHintBlurred, testsupport.Uncloak(val))
 
 			// pass a message into the TA
 			f.Provider.Update(true, tea.KeyMsg{Type: tea.KeyEnter})
@@ -652,8 +670,15 @@ func TestTextAreaProvider(t *testing.T) {
 				f.Provider.Update(true, msg)
 			}
 
-			// exit takeover mode
-			f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorDown))
+			// exit takeover mode.
+			// down from the last line walks the cursor off the text area and onto the return button
+			_, takeover = f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorDown))
+			assert.True(t, takeover, "leaving the text area should not leave takeover mode")
+			// blurred, the hint should now advertise space/↵ as the way out
+			_, val, _ = f.Provider.View(true, 0)
+			assert.Contains(t, val, wantTATakeoverHintBlurred, testsupport.Uncloak(val))
+			assert.NotContains(t, val, wantTATakeoverHintFocused, testsupport.Uncloak(val))
+
 			_, takeover = f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Invoke))
 			assert.False(t, takeover)
 
@@ -665,4 +690,103 @@ func TestTextAreaProvider(t *testing.T) {
 			}
 		})
 	})
+}
+
+// The takeover hint used to claim "space/↵ return" unconditionally, but Update() only treats those
+// keys as the return button once the text area has been blurred; while it is focused they are
+// ordinary text input that silently lands in the user's content.
+// Walks a full takeover: type the key while focused (content grows, takeover holds), step off the
+// text area onto the return button, then press the same key to actually leave.
+func TestTextAreaProviderTakeoverFocus(t *testing.T) {
+	t.Parallel()
+
+	const initial = "content"
+
+	tests := []struct {
+		name string // description of this test case
+		// a keypress that presses the return button while the text area is blurred
+		key tea.KeyMsg
+		// the provider's value after that key is fed to the focused text area
+		wantValue string
+	}{
+		// note the runes: bubbletea populates them for a real space keypress, which is exactly why
+		// the text area consumes it as input rather than as a button press
+		{"space", tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}, initial + " "},
+		{"enter", tea.KeyMsg{Type: tea.KeyEnter}, initial + "\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := scaffoldcreate.NewField("test", false, &scaffoldcreate.TextAreaProvider{})
+			f.Provider.Initialize(initial, false)
+			f.Provider.SetArgs(50, 20)
+
+			// enter takeover mode; doing so focuses the text area
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select)); !takeover {
+				t.Fatal("failed to enter takeover mode")
+			}
+
+			// while focused, the key is just text input
+			_, takeover := f.Provider.Update(true, tt.key)
+			assert.True(t, takeover, "%s exited takeover mode while the text area was focused", tt.name)
+			assert.Equal(t, tt.wantValue, f.Provider.Get(), "%s was not taken as text input", tt.name)
+			vk, val, _ := f.Provider.View(true, 0)
+			assert.Equal(t, scaffoldcreate.Takeover, vk)
+			assert.Contains(t, val, wantTATakeoverHintFocused, testsupport.Uncloak(val))
+			assert.NotContains(t, val, wantTATakeoverHintBlurred, testsupport.Uncloak(val))
+
+			// the cursor sits on the last line, so down moves off the text area and onto the button
+			_, takeover = f.Provider.Update(true, testsupport.SendHotkey(hotkeys.CursorDown))
+			assert.True(t, takeover, "reaching the return button should not leave takeover mode")
+			vk, val, _ = f.Provider.View(true, 0)
+			assert.Equal(t, scaffoldcreate.Takeover, vk)
+			assert.Contains(t, val, wantTATakeoverHintBlurred, testsupport.Uncloak(val))
+			assert.NotContains(t, val, wantTATakeoverHintFocused, testsupport.Uncloak(val))
+
+			// blurred, the same key presses the return button instead of typing
+			_, takeover = f.Provider.Update(true, tt.key)
+			assert.False(t, takeover, "%s did not press the return button while blurred", tt.name)
+			if vk, _, _ := f.Provider.View(true, 0); vk == scaffoldcreate.Takeover {
+				t.Error("view still believes it is in takeover mode")
+			}
+			assert.Equal(t, tt.wantValue, f.Provider.Get(), "pressing the return button altered the value")
+		})
+	}
+}
+
+// TestTextAreaProviderTakeoverSingleLineBothArrowsExit checks the case the focused hint's wording
+// leans on: for an empty/single-line text area, top and bottom are the same line, so BOTH ↑ and ↓
+// must reach the return button, not just ↓ (the only direction the other takeover tests exercise).
+func TestTextAreaProviderTakeoverSingleLineBothArrowsExit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		key  tea.KeyMsg
+	}{
+		{"up", testsupport.SendHotkey(hotkeys.CursorUp)},
+		{"down", testsupport.SendHotkey(hotkeys.CursorDown)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := scaffoldcreate.NewField("test", false, &scaffoldcreate.TextAreaProvider{})
+			f.Provider.Initialize("", false) // empty: a single, zero-length logical line
+			f.Provider.SetArgs(50, 20)
+
+			if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select)); !takeover {
+				t.Fatal("failed to enter takeover mode")
+			}
+			vk, val, _ := f.Provider.View(true, 0)
+			assert.Equal(t, scaffoldcreate.Takeover, vk)
+			assert.Contains(t, val, wantTATakeoverHintFocused, testsupport.Uncloak(val))
+
+			_, takeover := f.Provider.Update(true, tt.key)
+			assert.True(t, takeover, "%s should reach the return button, not exit takeover", tt.name)
+			vk, val, _ = f.Provider.View(true, 0)
+			assert.Equal(t, scaffoldcreate.Takeover, vk)
+			assert.Contains(t, val, wantTATakeoverHintBlurred, testsupport.Uncloak(val))
+			assert.NotContains(t, val, wantTATakeoverHintFocused, testsupport.Uncloak(val))
+		})
+	}
 }

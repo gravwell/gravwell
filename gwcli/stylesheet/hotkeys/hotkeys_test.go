@@ -9,15 +9,69 @@
 package hotkeys_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
 	"github.com/stretchr/testify/assert"
 )
+
+// The legend as it is displayed to the user at the bottom of a pane.
+const wantLegend = sigils.UpDown + " up/down • " + sigils.Enter + " invoke • space select"
+
+// Checks that the short legend advertises every key needed to drive a form.
+// Select is of particular note: fields that can only be entered by pressing space (multiselect
+// lists, text areas) are undiscoverable if the legend does not mention it.
+func TestModel_ShortHelp(t *testing.T) {
+	shortHelp := hotkeys.NewModel().ShortHelp()
+
+	tests := []struct {
+		name string // description of this test case
+		want key.Help
+	}{
+		{"up/down", key.Help{Key: sigils.UpDown, Desc: "up/down"}},
+		{"invoke", hotkeys.Invoke.Help()},
+		{"select", hotkeys.Select.Help()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.True(t,
+				slices.ContainsFunc(shortHelp, func(b key.Binding) bool { return b.Help() == tt.want }),
+				testsupport.ExpectedActual(tt.want, shortHelp))
+		})
+	}
+}
+
+func TestDefaultView(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for target function.
+		width int
+	}{
+		{"unbounded", 0},
+		{"standard pane width", 80},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, wantLegend, hotkeys.DefaultView(tt.width))
+		})
+	}
+}
+
+// DefaultView mutates the width of a package-level singleton.
+// A bounded call must not cap the legend of every subsequent, unbounded caller.
+func TestDefaultView_WidthIsNotSticky(t *testing.T) {
+	// 30 is narrow enough that the legend is elided, so a failure to restore the singleton's width
+	// is visible in the unbounded call below.
+	hotkeys.DefaultView(30)
+	assert.Equal(t, wantLegend, hotkeys.DefaultView(0))
+}
 
 func TestMoveCursor(t *testing.T) {
 	// set up some TAs we can test against

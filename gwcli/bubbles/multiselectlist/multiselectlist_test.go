@@ -148,7 +148,7 @@ func TestModel(t *testing.T) {
                                                           
                                                           
   ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
-  space select • ↲ continue`)
+  space select • ↵ continue`)
 		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
@@ -180,7 +180,7 @@ func TestModel(t *testing.T) {
                                                           
                                                           
   ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
-  space select • ↲ continue`)
+  space select • ↵ continue`)
 		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
@@ -210,7 +210,7 @@ func TestModel(t *testing.T) {
                                                           
                                                           
   ↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
-  space select • ↲ continue`)
+  space select • ↵ continue`)
 		if v := testsupport.LinesTrimSpace(msl.View()); v != want {
 			t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
