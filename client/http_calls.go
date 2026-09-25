@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
@@ -69,7 +70,7 @@ type DeleteOptions struct {
 func (o DeleteOptions) params() []urlParam {
 	var p []urlParam
 	if o.Purge {
-		p = append(p, urlParam{"purge", "true"})
+		p = append(p, urlParam{queryparams.Purge, "true"})
 	}
 	return p
 }
@@ -90,7 +91,7 @@ type GetOptions struct {
 func (o GetOptions) params() []urlParam {
 	var p []urlParam
 	if o.IncludeDeleted {
-		p = append(p, urlParam{"include_deleted", "true"})
+		p = append(p, urlParam{queryparams.IncludeDeleted, "true"})
 	}
 	return p
 }
