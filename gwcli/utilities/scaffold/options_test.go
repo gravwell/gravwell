@@ -27,11 +27,11 @@ func TestQOBuilder(t *testing.T) {
 	}{
 		{"omit everything", scaffold.QOOmit{Everything: true}, types.QueryOptions{}},
 		{"omit all", scaffold.QOOmit{AllData: true}, types.QueryOptions{IncludeDeleted: true, Limit: 5}},
-		{"omit limit", scaffold.QOOmit{Limit: true}, types.QueryOptions{AdminMode: true, IncludeDeleted: true}},
+		{"omit limit", scaffold.QOOmit{Limit: true}, types.QueryOptions{AllUsers: true, IncludeDeleted: true}},
 
 		{"include everything",
 			scaffold.QOInclude{Everything: true},
-			types.QueryOptions{AdminMode: true, IncludeDeleted: true, Limit: 5}},
+			types.QueryOptions{AllUsers: true, IncludeDeleted: true, Limit: 5}},
 		{"include include-deleted & limit",
 			scaffold.QOInclude{IncludeDeleted: true, Limit: true},
 			types.QueryOptions{IncludeDeleted: true, Limit: 5}},

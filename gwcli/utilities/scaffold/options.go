@@ -14,7 +14,6 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -101,8 +100,7 @@ func (co CommonOptions) Apply(cmd *cobra.Command) {
 const (
 	FlagNameAllData  string = "all" // fetch data from all users instead of just the current user
 	FlagUsageAllData string = "Requests that results include data from all users and groups instead of just yours.\n" +
-		"Ignored if you are not an admin.\n" +
-		"Implied by admin mode"
+		"Ignored if you are not an admin."
 	FlagNameLimit string = "limit" // limit the number of elements returned
 )
 
@@ -144,11 +142,8 @@ func (o QOInclude) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
 		clilog.GetFlag(err)
 	}
 	if o.Everything || o.AllData {
-		qo.AdminMode = connection.AdminMode()
-		if !qo.AdminMode { // check for --all override
-			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
-			clilog.GetFlag(err)
-		}
+		qo.All, err = fs.GetBool(FlagNameAllData)
+		clilog.GetFlag(err)
 	}
 	if o.Everything || o.Limit {
 		lim, err := fs.GetInt32(FlagNameLimit)
@@ -200,11 +195,8 @@ func (o QOOmit) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
 		clilog.GetFlag(err)
 	}
 	if !o.AllData {
-		qo.AdminMode = connection.AdminMode()
-		if !qo.AdminMode { // check for --all override
-			qo.AdminMode, err = fs.GetBool(FlagNameAllData)
-			clilog.GetFlag(err)
-		}
+		qo.All, err = fs.GetBool(FlagNameAllData)
+		clilog.GetFlag(err)
 	}
 	if !o.Limit {
 		lim, err := fs.GetInt32(FlagNameLimit)

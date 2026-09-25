@@ -306,7 +306,9 @@ func replace() action.Pair {
 		"Populate one or many resources with the contents of a single local file, clobbering any existing data",
 		"resource ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListResources(types.QueryOptions{AdminMode: connection.AdminMode()})
+			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
+			clilog.GetFlag(err)
+			lr, err := connection.Client.ListResources(types.QueryOptions{All: all})
 			if err != nil {
 				return nil, err
 			}
@@ -350,6 +352,7 @@ func replace() action.Pair {
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					ft.Path.Register(fs, "", "local file to replace the resource contents")
+					fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
 					return fs
 				},
 				Requirements: annotations.Requirements{

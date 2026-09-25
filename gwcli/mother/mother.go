@@ -482,7 +482,7 @@ func (m *Mother) promptString(live bool) string {
 	} else {
 		ti = m.ti.Value()
 	}
-	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.AdminMode()) + ti
+	return stylesheet.Cur.Prompt(m.pwd.CommandPath()) + ti
 }
 
 // helper subroutine for processInput

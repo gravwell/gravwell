@@ -818,7 +818,7 @@ func TestOmitFlags(t *testing.T) {
 					scaffoldlist.DataParameters{
 						&types.QueryOptions{
 							IncludeDeleted: true,
-							AdminMode:      true,
+							AllUsers:      true,
 						},
 					},
 				},
@@ -833,7 +833,7 @@ func TestOmitFlags(t *testing.T) {
 					scaffoldlist.DataParameters{
 						&types.QueryOptions{
 							IncludeDeleted: true,
-							AdminMode:      true,
+							AllUsers:      true,
 							Limit:          5,
 						},
 					},
@@ -910,7 +910,7 @@ func TestOmitFlags(t *testing.T) {
 					scaffoldlist.DataParameters{
 						&types.QueryOptions{
 							IncludeDeleted: true,
-							AdminMode:      true,
+							AllUsers:      true,
 						},
 					},
 				},
