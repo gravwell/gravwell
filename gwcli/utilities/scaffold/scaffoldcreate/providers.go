@@ -694,7 +694,18 @@ func (p *TextAreaProvider) View(selected bool, _ int) (_ ViewKind, value, second
 			clilog.Writer.Warnf("TA provider is in takeover mode, but is not selected!")
 		}
 
-		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.ta.Focused(), p.ta.Width()), ""
+		// The hint must match reality for the field's current focus state. Space/enter only press
+		// "return" once the textarea is blurred (see Update() above, !p.ta.Focused()).
+		// While focused they are ordinary text inputs, and the only way out is moving the cursor to the first/last line.
+		// Deliberately not "top/bottom line": hotkeys.MoveCursor gates on logical line, not visual row,
+		// so on wrapped content ↑/↓ can jump to the button mid-paragraph, not just at the true edges.
+		var hint string
+		if p.ta.Focused() {
+			hint = stylesheet.Cur.DisabledText.Render(sigils.UpDown + " past the content to reach return")
+		} else {
+			hint = stylesheet.Cur.DisabledText.Render(sigils.UpDown + " move • " + hotkeys.Select.Help().Key + "/" + sigils.Enter + " return")
+		}
+		return Takeover, p.ta.View() + "\n" + stylesheet.ViewSubmitLikeButton("return", !p.ta.Focused(), p.ta.Width()) + "\n  " + hint, ""
 	}
 	main, secondLine := p.NormalModeDisplay(selected)
 

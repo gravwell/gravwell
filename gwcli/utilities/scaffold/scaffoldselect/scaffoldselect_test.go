@@ -333,7 +333,7 @@ func TestInteractiveCycle(t *testing.T) {
 
 
 		↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
-		space select • ↲ continue`)
+		space select • ↵ continue`)
 
 				assert.Equal(t, want, v)
 			})
@@ -378,7 +378,7 @@ func TestInteractiveCycle(t *testing.T) {
 
 
 		↑ cursor up • ↓ cursor down • \ filter • shift+← clear filter • ↹ accept • ctrl+\ cancel filter • esc quit • ? more
-		space select • ↲ continue`)
+		space select • ↵ continue`)
 
 				assert.Equal(t, want, v)
 			})
