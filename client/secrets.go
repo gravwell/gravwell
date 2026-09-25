@@ -23,7 +23,7 @@ func (c *Client) ListSecrets(opts types.QueryOptions) (ret types.SecretListRespo
 // ListAllSecrets (admin-only) returns all secrets on the system.
 // The actual secret string will not be returned.
 func (c *Client) ListAllSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
 }
 
@@ -65,18 +65,14 @@ func (c *Client) UpdateSecret(id string, p types.SecretPatch) (updated types.Sec
 }
 
 // DeleteSecret deletes a Secret.
+// Secrets cannot be soft-deleted.
 func (c *Client) DeleteSecret(id string) (err error) {
-	return c.delete(secretIdUrl(id), false)
-}
-
-// PurgeSecret deletes a secret entirely, removing it from the database.
-func (c *Client) PurgeSecret(id string) error {
-	return c.delete(secretIdUrl(id), true)
+	return c.delete(secretIdUrl(id))
 }
 
 // CleanupSecrets (admin-only) purges all deleted secrets for all users.
 func (c *Client) CleanupSecrets() error {
-	return c.delete(SECRETS_URL, false)
+	return c.delete(SECRETS_URL)
 }
 
 // GetSecretFull fetches the entire Secret, including the value.

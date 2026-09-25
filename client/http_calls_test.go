@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -186,7 +187,7 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1", false); err != nil {
+		if err := c.delete("/things/1"); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
 		if gotMethod != http.MethodDelete {
@@ -204,7 +205,7 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1", false); !errors.Is(err, ErrNotFound) {
+		if err := c.delete("/things/1"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v, want ErrNotFound", err)
 		}
 	})
@@ -214,7 +215,7 @@ func TestGetOptionsParams(t *testing.T) {
 	if got := (GetOptions{}).params(); len(got) != 0 {
 		t.Errorf("params() with defaults = %+v, want empty", got)
 	}
-	want := []urlParam{{"include_deleted", "true"}}
+	want := []urlParam{{queryparams.IncludeDeleted, "true"}}
 	if got := (GetOptions{IncludeDeleted: true}).params(); !reflect.DeepEqual(got, want) {
 		t.Errorf("params() with IncludeDeleted = %+v, want %+v", got, want)
 	}
@@ -227,7 +228,7 @@ func TestGet(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/files/abc", func(w http.ResponseWriter, r *http.Request) {
 			gotMethod = r.Method
-			gotQuery = r.URL.Query().Get("include_deleted")
+			gotQuery = r.URL.Query().Get(queryparams.IncludeDeleted)
 			w.Write([]byte(`{"Name":"a-file"}`))
 		})
 		c := newTestClient(t, mux)

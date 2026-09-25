@@ -19,7 +19,7 @@ func (c *Client) ListMacros(opts types.QueryOptions) (ret types.MacroListRespons
 
 // ListAllMacros (admin-only) returns all macros on the system.
 func (c *Client) ListAllMacros(opts types.QueryOptions) (ret types.MacroListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.MacroListResponse](MACROS_LIST_URL, &opts)
 }
 
@@ -35,12 +35,12 @@ func (c *Client) GetMacroEx(id string, opts GetOptions) (types.Macro, error) {
 
 // DeleteMacro deletes a macro by marking it deleted in the database.
 func (c *Client) DeleteMacro(id string) error {
-	return c.delete(macroIDUrl(id), false)
+	return c.delete(macroIDUrl(id))
 }
 
 // PurgeMacro deletes a macro entirely, removing it from the database.
 func (c *Client) PurgeMacro(id string) error {
-	return c.delete(macroIDUrl(id), true)
+	return c.delete(macroIDUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateMacro creates a new macro, returning the newly-created macro.
@@ -58,5 +58,5 @@ func (c *Client) UpdateMacro(ID string, p types.MacroPatch) (updated types.Macro
 
 // CleanupMacros (admin-only) purges all deleted macros for all users.
 func (c *Client) CleanupMacros() error {
-	return c.delete(MACROS_URL, false)
+	return c.delete(MACROS_URL)
 }

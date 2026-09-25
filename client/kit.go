@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -123,7 +124,7 @@ func (c *Client) ListKits(opts types.QueryOptions) (pkgs types.KitStateListRespo
 
 // ListAllKits returns a list of all installed and staged kits.
 func (c *Client) ListAllKits(opts types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, &opts)
 }
 
@@ -153,7 +154,7 @@ func (c *Client) ModifyKit(id string, cfg types.KitConfig) (report types.KitModi
 // have been modified, DeleteKit will return an error; use ForceDeleteKit to
 // remove the kit regardless.
 func (c *Client) DeleteKit(id string) (err error) {
-	return c.delete(kitIdUrl(id), false)
+	return c.delete(kitIdUrl(id))
 }
 
 // DeleteKitVerbose attempts to uninstall a kit. If kit items have been modified,
@@ -210,7 +211,7 @@ func (c *Client) BuildKit(pbr types.KitBuildRequest) (r types.KitBuildResponse, 
 
 // DeleteBuildKit removes a recently-built kit.
 func (c *Client) DeleteBuildKit(id string) (err error) {
-	return c.delete(kitDownloadUrl(id), false)
+	return c.delete(kitDownloadUrl(id))
 }
 
 // KitDownloadRequest initiates a download for the specified kit and returns
@@ -220,9 +221,19 @@ func (c *Client) KitDownloadRequest(id string) (*http.Response, error) {
 	return c.DownloadRequest(kitDownloadUrl(id))
 }
 
-// KitStatuses returns the statuses of any ongoing or completed kit installations.
+// KitStatuses returns the statuses of any ongoing or completed kit installations owned by the
+// current user.
 func (c *Client) KitStatuses() (statuses []types.InstallStatus, err error) {
 	return c.get[[]types.InstallStatus](kitStatusUrl())
+}
+
+// AllKitStatuses (admin-only) returns the statuses of any ongoing or completed kit
+// installations, regardless of which user owns them.
+func (c *Client) AllKitStatuses() (statuses []types.InstallStatus, err error) {
+	if !c.userDetails.Admin {
+		return nil, ErrNotAdmin
+	}
+	return c.get[[]types.InstallStatus](kitStatusUrl(), urlParam{queryparams.All, "true"})
 }
 
 // KitStatus returns the status of a particular kit installation
@@ -239,5 +250,5 @@ func (c *Client) ListKitBuildHistory(opts types.QueryOptions) (hist types.KitBui
 
 // DeleteKitBuildHistory deletes a build history entry for the given ID e.g. "io.gravwell.foo"
 func (c *Client) DeleteKitBuildHistory(id string) error {
-	return c.delete(kitDeleteBuildHistoryUrl(id), false)
+	return c.delete(kitDeleteBuildHistoryUrl(id))
 }

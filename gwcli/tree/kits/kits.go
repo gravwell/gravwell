@@ -146,7 +146,9 @@ func install() action.Pair {
 		"Install a kit that has been uploaded/staged, queuing it for full installation.",
 		"kit",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			ks, err := connection.Client.ListKits(types.QueryOptions{AdminMode: connection.AdminMode()})
+			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
+			clilog.GetFlag(err)
+			ks, err := connection.Client.ListKits(types.QueryOptions{All: all})
 			if err != nil {
 				return nil, err
 			}
@@ -196,22 +198,21 @@ func install() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "install",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("overwrite-existing", false, "Overwrite existing assets")
-					fs.Bool("allow-unsigned", false, "Allow installation of unsigned kits")
-					fs.StringArray("item-label", nil, "Label to apply to each item of each kit. "+
-						"Each instance of --item-label will create exactly one item label; they will not be split on commas")
-					fs.StringArray("kit-label", nil, "Label to apply to each kit. "+
-						"Each instance of --kit-label will create exactly one kit label; they will not be split on commas")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitRead, types.KitWrite},
-					XPermissions: []types.Capability{types.KitWrite},
-				},
+			Use: "install",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
+				fs.Bool("overwrite-existing", false, "Overwrite existing assets")
+				fs.Bool("allow-unsigned", false, "Allow installation of unsigned kits")
+				fs.StringArray("item-label", nil, "Label to apply to each item of each kit. "+
+					"Each instance of --item-label will create exactly one item label; they will not be split on commas")
+				fs.StringArray("kit-label", nil, "Label to apply to each kit. "+
+					"Each instance of --kit-label will create exactly one kit label; they will not be split on commas")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitRead, types.KitWrite},
+				XPermissions: []types.Capability{types.KitWrite},
 			},
 		},
 	)
@@ -370,7 +371,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListDashboards(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListDashboards(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch dashboards", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -394,7 +395,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListTemplates(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListTemplates(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch templates", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -411,7 +412,7 @@ func build() action.Pair {
 				Order:    500,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListActionables(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListActionables(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch actionables", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -428,7 +429,7 @@ func build() action.Pair {
 				Order:    480,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListFlows(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListFlows(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch flows", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -451,7 +452,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -474,7 +475,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListResources(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListResources(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch resources", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -497,7 +498,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListMacros(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListMacros(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch macros", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -520,7 +521,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListExtractions(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListExtractions(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -543,7 +544,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListFiles(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListFiles(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch files", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -566,7 +567,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListPlaybooks(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListPlaybooks(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch playbooks", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -589,7 +590,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListSavedQueries(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListSavedQueries(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch saved queries", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -612,7 +613,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListAlerts(types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListAlerts(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch alert", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -1006,7 +1007,7 @@ func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
 		types.KitMetadata{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitMetadata, error) {
-			lr, err := connection.Client.ListRemoteKits(params.QueryOpts.AdminMode)
+			lr, err := connection.Client.ListRemoteKits(params.QueryOpts.All)
 			return lr.Results, err
 		},
 		nil,

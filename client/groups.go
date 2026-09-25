@@ -46,7 +46,7 @@ func (c *Client) GetGroupEx(id int32, opts GetOptions) (types.GroupWithCBAC, err
 
 // DeleteGroup deletes a group by marking it deleted in the database.
 func (c *Client) DeleteGroup(gid int32) error {
-	return c.delete(groupIdUrl(gid), false)
+	return c.delete(groupIdUrl(gid))
 }
 
 // CreateGroup creates a new group, returning the newly-created group.
@@ -64,7 +64,7 @@ func (c *Client) UpdateGroup(ID int32, p types.GroupPatch) (updated types.Group,
 
 // CleanupGroups (admin-only) purges all deleted groups.
 func (c *Client) CleanupGroups() error {
-	return c.delete(groupUrl(), false)
+	return c.delete(groupUrl())
 }
 
 // LookupGroup looks up a Group object given a group name.  If the

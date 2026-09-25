@@ -36,7 +36,7 @@ func (c *Client) ListTokens(opts types.QueryOptions) (ts types.TokenListResponse
 // non-nil, the QueryOptions will be applied for pagination,
 // filtering, etc.
 func (c *Client) ListAllTokens(opts types.QueryOptions) (ts types.TokenListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, &opts)
 }
 
@@ -65,17 +65,9 @@ func (c *Client) RegenToken(id string, tr types.TokenRegeneration) (t types.Toke
 	return c.patch[types.TokenRegeneration, types.TokenFull](tokenIDRegenURL(id), tr)
 }
 
-// DeleteToken removes a token value without deleting the data around the token, it essentially disables the token
+// DeleteToken deletes a token.
+//
+// Tokens are always purged.
 func (c *Client) DeleteToken(id string) (err error) {
-	return c.delete(tokenIdUrl(id), false)
-}
-
-// PurgeToken completely deletes a token.
-func (c *Client) PurgeToken(id string) (err error) {
-	return c.delete(tokenIdUrl(id), true)
-}
-
-// CleanupTokens (admin-only) purges all deleted tokens for all users.
-func (c *Client) CleanupTokens() error {
-	return c.delete(tokensUrl(), false)
+	return c.delete(tokenIdUrl(id))
 }

@@ -268,7 +268,9 @@ func replace() action.Pair {
 		"Populate one or many files with the contents of a single local file, clobbering any existing data",
 		"file ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFiles(types.QueryOptions{AdminMode: connection.AdminMode()})
+			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
+			clilog.GetFlag(err)
+			lr, err := connection.Client.ListFiles(types.QueryOptions{All: all})
 			if err != nil {
 				return nil, err
 			}
@@ -292,17 +294,16 @@ func replace() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "replace",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "local file to replace the remote file")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.FileRead, types.FileWrite},
-					XPermissions: []types.Capability{types.FileWrite},
-				},
+			Use: "replace",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Path.Register(fs, "", "local file to replace the remote file")
+				fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.FileRead, types.FileWrite},
+				XPermissions: []types.Capability{types.FileWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				pth, err := fs.GetString(ft.Path.Name())
