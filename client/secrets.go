@@ -23,7 +23,7 @@ func (c *Client) ListSecrets(opts types.QueryOptions) (ret types.SecretListRespo
 // ListAllSecrets (admin-only) returns all secrets on the system.
 // The actual secret string will not be returned.
 func (c *Client) ListAllSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
 }
 

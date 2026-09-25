@@ -19,7 +19,7 @@ func (c *Client) ListMacros(opts types.QueryOptions) (ret types.MacroListRespons
 
 // ListAllMacros (admin-only) returns all macros on the system.
 func (c *Client) ListAllMacros(opts types.QueryOptions) (ret types.MacroListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.MacroListResponse](MACROS_LIST_URL, &opts)
 }
 

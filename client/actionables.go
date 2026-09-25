@@ -19,7 +19,7 @@ func (c *Client) ListActionables(opts types.QueryOptions) (ret types.ActionableL
 
 // ListAllActionables (admin-only) returns all actionables on the system.
 func (c *Client) ListAllActionables(opts types.QueryOptions) (ret types.ActionableListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, &opts)
 }
 

@@ -36,7 +36,7 @@ func (c *Client) ListTokens(opts types.QueryOptions) (ts types.TokenListResponse
 // non-nil, the QueryOptions will be applied for pagination,
 // filtering, etc.
 func (c *Client) ListAllTokens(opts types.QueryOptions) (ts types.TokenListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, &opts)
 }
 

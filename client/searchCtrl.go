@@ -87,7 +87,7 @@ func (c *Client) ListSearches(opts types.QueryOptions) (types.SearchInfoListResp
 // ListAllSearches returns a list of all searches on the system. Only admin
 // users can use this function.
 func (c *Client) ListAllSearches(opts types.QueryOptions) (types.SearchInfoListResponse, error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, &opts)
 }
 

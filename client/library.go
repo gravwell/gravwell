@@ -25,7 +25,7 @@ func (c *Client) ListSavedQueries(opts types.QueryOptions) (wsl types.SavedQuery
 // ListAllSavedQueries (admin-only) returns the list of all search library entries for all users.
 // Non-administrators will receive the same list as returned by ListSavedQueries.
 func (c *Client) ListAllSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
 }
 

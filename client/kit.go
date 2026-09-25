@@ -123,7 +123,7 @@ func (c *Client) ListKits(opts types.QueryOptions) (pkgs types.KitStateListRespo
 
 // ListAllKits returns a list of all installed and staged kits.
 func (c *Client) ListAllKits(opts types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, &opts)
 }
 

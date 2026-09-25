@@ -19,7 +19,7 @@ func (c *Client) ListScheduledSearches(opts types.QueryOptions) (searches types.
 
 // ListAllScheduledSearches returns all scheduled searches on the system (for admins).
 func (c *Client) ListAllScheduledSearches(opts types.QueryOptions) (searches types.ScheduledSearchListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.ScheduledSearchListResponse](SCHEDULED_SEARCH_LIST_URL, &opts)
 }
 

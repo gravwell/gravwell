@@ -19,7 +19,7 @@ func (c *Client) ListPlaybooks(opts types.QueryOptions) (ret types.PlaybookListR
 
 // ListAllPlaybooks (admin-only) returns all playbooks on the system.
 func (c *Client) ListAllPlaybooks(opts types.QueryOptions) (ret types.PlaybookListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, &opts)
 }
 

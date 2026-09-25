@@ -22,7 +22,7 @@ func (c *Client) ListScheduledScripts(opts types.QueryOptions) (scripts types.Sc
 
 // ListAllScheduledScripts returns all scheduled scripts on the system (for admins).
 func (c *Client) ListAllScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
 }
 

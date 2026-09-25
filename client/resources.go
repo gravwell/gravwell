@@ -37,7 +37,7 @@ func (c *Client) ListResources(opts types.QueryOptions) (rm types.ResourceListRe
 // ListAllResources is an admin-only API to pull back the entire resource list.
 // Non-administrators will receive the same list as returned by ListResources.
 func (c *Client) ListAllResources(opts types.QueryOptions) (rm types.ResourceListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, &opts)
 }
 

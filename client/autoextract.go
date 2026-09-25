@@ -27,7 +27,7 @@ func (c *Client) ListExtractions(opts types.QueryOptions) (ret types.AXListRespo
 // ListAllExtractions returns the list of autoextraction definitions available
 // to the current user, setting admin mode to true -- admin users will receive ALL definitions.
 func (c *Client) ListAllExtractions(opts types.QueryOptions) (ret types.AXListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.AXListResponse](EXTRACTORS_LIST_URL, &opts)
 }
 

@@ -24,7 +24,7 @@ func (c *Client) ListAlerts(opts types.QueryOptions) (result types.AlertListResp
 
 // ListAllAlerts (admin-only) returns all alerts on the system.
 func (c *Client) ListAllAlerts(opts types.QueryOptions) (result types.AlertListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, &opts)
 }
 

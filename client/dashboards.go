@@ -19,7 +19,7 @@ func (c *Client) ListDashboards(opts types.QueryOptions) (ret types.DashboardLis
 
 // ListAllDashboards (admin-only) returns all dashboards on the system.
 func (c *Client) ListAllDashboards(opts types.QueryOptions) (ret types.DashboardListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.DashboardListResponse](DASHBOARDS_LIST_URL, &opts)
 }
 
