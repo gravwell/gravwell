@@ -550,7 +550,7 @@ func (c *Client) PurgeUser(id int32) error {
 	} else if len(toks.Results) > 0 {
 		for _, t := range toks.Results {
 			if t.OwnerID == id {
-				if err := nc.PurgeToken(t.ID); err != nil {
+				if err := nc.DeleteToken(t.ID); err != nil { // Tokens only ever hard delete
 					return fmt.Errorf("failed to delete user token %v - %w", t.ID, err)
 				}
 			}

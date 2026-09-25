@@ -65,17 +65,8 @@ func (c *Client) RegenToken(id string, tr types.TokenRegeneration) (t types.Toke
 	return c.patch[types.TokenRegeneration, types.TokenFull](tokenIDRegenURL(id), tr)
 }
 
-// DeleteToken removes a token value without deleting the data around the token, it essentially disables the token
+// DeleteToken deletes a token.
+// Tokens cannot be soft-deleted.
 func (c *Client) DeleteToken(id string) (err error) {
 	return c.delete(tokenIdUrl(id), false)
-}
-
-// PurgeToken completely deletes a token.
-func (c *Client) PurgeToken(id string) (err error) {
-	return c.delete(tokenIdUrl(id), true)
-}
-
-// CleanupTokens (admin-only) purges all deleted tokens for all users.
-func (c *Client) CleanupTokens() error {
-	return c.delete(tokensUrl(), false)
 }
