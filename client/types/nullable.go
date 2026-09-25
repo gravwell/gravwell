@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"reflect"
 )
 
 // A Nullable represents a field that is always present in a JSON
@@ -107,6 +108,23 @@ func (n Nullable[T]) String() string {
 		return "null"
 	}
 	return fmt.Sprint(n.value)
+}
+
+// Equal reports whether n and o represent the same value: both null, or
+// both non-null with deeply-equal underlying values. Without this,
+// github.com/google/go-cmp panics on any type containing a Nullable[T]
+// field ("cannot handle unexported field ... consider using
+// cmpopts.EquateComparable") since value/valid are private and cmp has no
+// other way to compare them. cmp specifically looks for an Equal method
+// before falling back to field reflection, so this is enough to fix that.
+func (n Nullable[T]) Equal(o Nullable[T]) bool {
+	if n.valid != o.valid {
+		return false
+	}
+	if !n.valid {
+		return true
+	}
+	return reflect.DeepEqual(n.value, o.value)
 }
 
 // gobNullable mirrors Nullable[T]'s private fields with exported names so
