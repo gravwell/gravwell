@@ -122,4 +122,18 @@ func TestNullableGobRoundTrip(t *testing.T) {
 	})
 }
 
+func TestNullableEqual(t *testing.T) {
+	var a, b types.Nullable[string]
+	require.True(t, a.Equal(b), "two null values should be equal")
+
+	a.Set("x")
+	require.False(t, a.Equal(b), "a set value should not equal a null one")
+
+	b.Set("x")
+	require.True(t, a.Equal(b), "two sets holding the same value should be equal")
+
+	b.Set("y")
+	require.False(t, a.Equal(b), "two sets holding different values should not be equal")
+}
+
 // NOTE: the marshaler tests for Nullable are in client/types/marshallers_test.go

@@ -14,6 +14,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"reflect"
 )
 
 type PatchType interface {
@@ -118,6 +119,19 @@ func (o Optional[T]) String() string {
 		return fmt.Sprint(zero)
 	}
 	return fmt.Sprint(o.value)
+}
+
+// Equal reports whether o and p represent the same value: both unset, or
+// both set with deeply-equal underlying values. See Nullable[T].Equal for
+// why this exists.
+func (o Optional[T]) Equal(p Optional[T]) bool {
+	if o.set != p.set {
+		return false
+	}
+	if !o.set {
+		return true
+	}
+	return reflect.DeepEqual(o.value, p.value)
 }
 
 // gobOptional mirrors Optional[T]'s private fields with exported names so
