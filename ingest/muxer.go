@@ -880,18 +880,35 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		return
 	}
 
+	// Pick the ID first, so a refusal below cannot leave the name in im.tags with no
+	// entry in im.tagMap.
+	//
+	// The next ID is one past the highest in use, which is what NewIngestMuxer does.
+	// The empty check matters: tagNext starts at zero, so without it an empty map looks
+	// like one whose highest ID is zero and the first tag gets ID 1, leaving nothing at
+	// ID 0.  newTagTrans sizes its table by tag count and indexes it by ID, so that hole
+	// panics on the first connection.
+	if len(im.tagMap) != 0 {
+		var tagNext entry.EntryTag
+		for _, v := range im.tagMap {
+			if v > tagNext {
+				tagNext = v
+			}
+		}
+		// the count check above misses this: cached IDs are not dense, so the highest can
+		// be at the ceiling while the map is small, and one past it wraps to zero
+		if tagNext >= entry.MaxTagId {
+			err = ErrTooManyTags
+			return
+		}
+		tg = tagNext + 1
+	}
+
 	// update the tag list and map
 	im.tags = append(im.tags, name)
 	im.ingesterState.Tags = im.tags
 	im.ingesterStateUpdated = true
 
-	var tagNext entry.EntryTag
-	for _, v := range im.tagMap {
-		if v > tagNext {
-			tagNext = v
-		}
-	}
-	tg = entry.EntryTag(tagNext + 1)
 	im.tagMap[name] = tg
 	im.tc.add(tg)
 
@@ -2177,7 +2194,9 @@ func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (*tagTrans, error) {
 		return nil, ErrTagMapInvalid
 	}
 	for k, v := range im.tagMap {
-		if int(v) > len(tt.active) {
+		// >= because active is indexed by tag ID, so the last valid index is len-1.
+		// As > an ID equal to the length got through and the assignment below panicked.
+		if int(v) >= len(tt.active) {
 			return nil, ErrTagMapInvalid
 		}
 		tg, ok := igst.GetTag(k)
