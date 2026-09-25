@@ -293,11 +293,7 @@ func edit() action.Pair {
 				case "description":
 					item.Description = val
 				case "search":
-					// The only search a user can set from the CLI is a raw query.
-					item.Search = types.Searchable{
-						Kind:        types.SearchableKindQueryString,
-						QueryString: val,
-					}
+					applySearchEdit(item, val)
 				case "frequency":
 					item.Schedule = val
 				case "duration":
@@ -345,6 +341,20 @@ func searchValue(item types.ScheduledSearch) string {
 		return item.Search.QueryString
 	}
 	return item.Search.ID
+}
+
+// applySearchEdit updates the search field, but only if the value actually changed.
+// The edit form resends every field on submit, even ones you didn't touch. For a saved-query
+// reference, the field just shows the query's ID. So if we always applied it, editing
+// anything else would quietly turn the reference into a broken raw query.
+func applySearchEdit(item *types.ScheduledSearch, val string) {
+	if val == searchValue(*item) {
+		return
+	}
+	item.Search = types.Searchable{
+		Kind:        types.SearchableKindQueryString,
+		QueryString: val,
+	}
 }
 
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
