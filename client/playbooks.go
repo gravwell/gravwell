@@ -35,12 +35,12 @@ func (c *Client) GetPlaybookEx(id string, opts GetOptions) (types.Playbook, erro
 
 // DeletePlaybook deletes a playbook by marking it deleted in the database.
 func (c *Client) DeletePlaybook(id string) error {
-	return c.delete(playbookUrl(id), false)
+	return c.delete(playbookUrl(id))
 }
 
 // PurgePlaybook deletes a playbook entirely, removing it from the database.
 func (c *Client) PurgePlaybook(id string) error {
-	return c.delete(playbookUrl(id), true)
+	return c.delete(playbookUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreatePlaybook creates a new playbook, returning the newly-created playbook.
@@ -58,5 +58,5 @@ func (c *Client) UpdatePlaybook(ID string, p types.PlaybookPatch) (updated types
 
 // CleanupPlaybooks (admin-only) purges all deleted playbooks for all users.
 func (c *Client) CleanupPlaybooks() error {
-	return c.delete(PLAYBOOKS_URL, false)
+	return c.delete(PLAYBOOKS_URL)
 }

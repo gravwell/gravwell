@@ -39,7 +39,7 @@ var (
 
 // DeleteSearch will request that a search is deleted by search ID
 func (c *Client) DeleteSearch(sid string) error {
-	return c.delete(searchCtrlIdUrl(sid), false)
+	return c.delete(searchCtrlIdUrl(sid))
 }
 
 // GetSearch requests the status of a given search ID
@@ -106,12 +106,12 @@ func (c *Client) ListSearchHistory(opts types.QueryOptions) (types.SearchHistory
 // DeleteSearchHistoryEntry deletes or purges a search history entry by ID.
 // If purge is true, the entry is permanently removed; otherwise it is soft-deleted.
 func (c *Client) DeleteSearchHistoryEntry(id string, purge bool) error {
-	return c.delete(searchHistoryIdUrl(id), purge)
+	return c.delete(searchHistoryIdUrl(id), DeleteOptions{Purge: purge}.params()...)
 }
 
 // CleanupSearchHistory purges all soft-deleted search history entries for the current user.
 func (c *Client) CleanupSearchHistory() error {
-	return c.delete(SEARCH_HISTORY_URL, false)
+	return c.delete(SEARCH_HISTORY_URL)
 }
 
 // ParseSearch validates a search query. Gravwell will return an error if the query

@@ -37,12 +37,12 @@ func (c *Client) GetFlowEx(id string, opts GetOptions) (types.Flow, error) {
 
 // DeleteFlow removes the specified flow.
 func (c *Client) DeleteFlow(id string) error {
-	return c.delete(flowIdUrl(id), false)
+	return c.delete(flowIdUrl(id))
 }
 
 // PurgeFlow permanently removes the specified flow.
 func (c *Client) PurgeFlow(id string) error {
-	return c.delete(flowIdUrl(id), true)
+	return c.delete(flowIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateFlow makes a new flow.
@@ -100,7 +100,7 @@ func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error
 
 // ClearFlowResults deletes all results for the specified flow
 func (c *Client) ClearFlowResults(id string) error {
-	return c.delete(flowResultsIdUrl(id), false)
+	return c.delete(flowResultsIdUrl(id))
 }
 
 // DebugFlow schedules an immediate execution of the specified flow.
@@ -110,10 +110,10 @@ func (c *Client) DebugFlow(id string, opts types.AutomationDebugRequest) error {
 
 // CancelFlow cancels any active run of the specified flow.
 func (c *Client) CancelFlow(id string) error {
-	return c.delete(flowCancelIdUrl(id), false)
+	return c.delete(flowCancelIdUrl(id))
 }
 
 // CleanupFlows (admin-only) purges all deleted flows for all users.
 func (c *Client) CleanupFlows() error {
-	return c.delete(FLOW_URL, false)
+	return c.delete(FLOW_URL)
 }

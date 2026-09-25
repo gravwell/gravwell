@@ -66,7 +66,8 @@ func (c *Client) RegenToken(id string, tr types.TokenRegeneration) (t types.Toke
 }
 
 // DeleteToken deletes a token.
-// Tokens cannot be soft-deleted.
+//
+// Tokens are always purged.
 func (c *Client) DeleteToken(id string) (err error) {
-	return c.delete(tokenIdUrl(id), false)
+	return c.delete(tokenIdUrl(id))
 }

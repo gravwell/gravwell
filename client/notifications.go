@@ -81,7 +81,7 @@ func (c *Client) CreateNotification(notifType uint32, msg, link string, expirati
 
 // DeleteNotification will delete a notification using a notification ID
 func (c *Client) DeleteNotification(id uint64) error {
-	return c.delete(notificationsUrl(id), false)
+	return c.delete(notificationsUrl(id))
 }
 
 // UpdateNotification will update a notification using a notification ID

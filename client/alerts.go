@@ -48,12 +48,12 @@ func (c *Client) UpdateAlert(ID string, p types.AlertPatch) (updated types.Alert
 
 // DeleteAlert marks an alert as deleted.
 func (c *Client) DeleteAlert(id string) (err error) {
-	return c.delete(alertsIdUrl(id), false)
+	return c.delete(alertsIdUrl(id))
 }
 
 // PurgeAlert deletes an alert completely from the database
 func (c *Client) PurgeAlert(id string) (err error) {
-	return c.delete(alertsIdUrl(id), true)
+	return c.delete(alertsIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // GetAlertSampleEvent asks the webserver to generate a sample event for the given alert.
@@ -92,5 +92,5 @@ func (c *Client) ValidateAlertFlowConsumer(flowID string, alert types.Alert) (re
 
 // CleanupAlerts (admin-only) purges all deleted alerts for all users.
 func (c *Client) CleanupAlerts() error {
-	return c.delete(ALERTS_URL, false)
+	return c.delete(ALERTS_URL)
 }

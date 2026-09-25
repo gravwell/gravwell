@@ -186,7 +186,7 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1", false); err != nil {
+		if err := c.delete("/things/1"); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
 		if gotMethod != http.MethodDelete {
@@ -204,7 +204,7 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1", false); !errors.Is(err, ErrNotFound) {
+		if err := c.delete("/things/1"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v, want ErrNotFound", err)
 		}
 	})

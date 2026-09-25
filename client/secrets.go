@@ -67,12 +67,12 @@ func (c *Client) UpdateSecret(id string, p types.SecretPatch) (updated types.Sec
 // DeleteSecret deletes a Secret.
 // Secrets cannot be soft-deleted.
 func (c *Client) DeleteSecret(id string) (err error) {
-	return c.delete(secretIdUrl(id), false)
+	return c.delete(secretIdUrl(id))
 }
 
 // CleanupSecrets (admin-only) purges all deleted secrets for all users.
 func (c *Client) CleanupSecrets() error {
-	return c.delete(SECRETS_URL, false)
+	return c.delete(SECRETS_URL)
 }
 
 // GetSecretFull fetches the entire Secret, including the value.

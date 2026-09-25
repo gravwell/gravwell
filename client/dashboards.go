@@ -35,12 +35,12 @@ func (c *Client) GetDashboardEx(id string, opts GetOptions) (types.Dashboard, er
 
 // DeleteDashboard deletes a dashboard by marking it deleted in the database.
 func (c *Client) DeleteDashboard(id string) error {
-	return c.delete(dashboardIdUrl(id), false)
+	return c.delete(dashboardIdUrl(id))
 }
 
 // PurgeDashboard deletes a dashboard entirely, removing it from the database.
 func (c *Client) PurgeDashboard(id string) error {
-	return c.delete(dashboardIdUrl(id), true)
+	return c.delete(dashboardIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateDashboard creates a new dashboard, returning the newly-created dashboard.
@@ -58,5 +58,5 @@ func (c *Client) UpdateDashboard(ID string, p types.DashboardPatch) (updated typ
 
 // CleanupDashboards (admin-only) purges all deleted dashboards for all users.
 func (c *Client) CleanupDashboards() error {
-	return c.delete(DASHBOARDS_URL, false)
+	return c.delete(DASHBOARDS_URL)
 }

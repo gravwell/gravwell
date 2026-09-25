@@ -44,12 +44,12 @@ func (c *Client) GetSavedQueryEx(id string, opts GetOptions) (types.SavedQuery, 
 
 // DeleteSavedQuery deletes a specific library entry.
 func (c *Client) DeleteSavedQuery(id string) (err error) {
-	return c.delete(searchLibIdUrl(id), false)
+	return c.delete(searchLibIdUrl(id))
 }
 
 // PurgeSavedQuery deletes a specific library entry.
 func (c *Client) PurgeSavedQuery(id string) (err error) {
-	return c.delete(searchLibIdUrl(id), true)
+	return c.delete(searchLibIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // UpdateSavedQuery modifies an existing saved query and returns the complete, updated struct.
@@ -62,5 +62,5 @@ func (c *Client) UpdateSavedQuery(ID string, p types.SavedQueryPatch) (updated t
 
 // CleanupSavedQueries (admin-only) purges all deleted saved queries for all users.
 func (c *Client) CleanupSavedQueries() error {
-	return c.delete(LIBRARY_URL, false)
+	return c.delete(LIBRARY_URL)
 }

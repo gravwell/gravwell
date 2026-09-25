@@ -57,12 +57,12 @@ func (c *Client) GetUserPreferenceByName(name string) (types.UserPreference, err
 
 // DeleteUserPreference deletes a user preference by marking it deleted in the database.
 func (c *Client) DeleteUserPreference(id string) error {
-	return c.delete(userPreferenceUrl(id), false)
+	return c.delete(userPreferenceUrl(id))
 }
 
 // PurgeUserPreference deletes a user preference entirely, removing it from the database.
 func (c *Client) PurgeUserPreference(id string) error {
-	return c.delete(userPreferenceUrl(id), true)
+	return c.delete(userPreferenceUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateUserPreference creates a new user preference, returning the newly-created user preference.
@@ -80,7 +80,7 @@ func (c *Client) UpdateUserPreference(ID string, p types.UserPreferencePatch) (u
 
 // CleanupUserPreferences (admin-only) purges all deleted user preferences for all users.
 func (c *Client) CleanupUserPreferences() error {
-	return c.delete(USER_PREFERENCES_URL, false)
+	return c.delete(USER_PREFERENCES_URL)
 }
 
 // GetGuiPreferences is a convenience function: it returns the Data
@@ -94,7 +94,7 @@ func (c *Client) GetGuiPreferences(uid int32, obj interface{}) error {
 // object named `prefs` belonging to the specified user. It does *not*
 // delete the underlying asset, though.
 func (c *Client) ClearGuiPreferences(id int32) error {
-	return c.delete(preferencesUrl(id), false)
+	return c.delete(preferencesUrl(id))
 }
 
 // UpdateGuiPreferences updates the Data field of the preferences object

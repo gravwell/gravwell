@@ -38,12 +38,12 @@ func (c *Client) GetScheduledScriptEx(id string, opts GetOptions) (types.Schedul
 
 // DeleteScheduledScript removes the specified scheduled script.
 func (c *Client) DeleteScheduledScript(id string) error {
-	return c.delete(scheduledScriptIdUrl(id), false)
+	return c.delete(scheduledScriptIdUrl(id))
 }
 
 // PurgeScheduledScript permanently removes the specified scheduled script.
 func (c *Client) PurgeScheduledScript(id string) error {
-	return c.delete(scheduledScriptIdUrl(id), true)
+	return c.delete(scheduledScriptIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateScheduledScript makes a new scheduled script.
@@ -106,7 +106,7 @@ func (c *Client) GetScheduledScriptResults(id string) (results types.ScheduledSc
 
 // ClearScheduledScriptResults deletes all results for the specified scheduled script
 func (c *Client) ClearScheduledScriptResults(id string) error {
-	return c.delete(scheduledScriptResultsIdUrl(id), false)
+	return c.delete(scheduledScriptResultsIdUrl(id))
 }
 
 // DebugScheduledScript requests an immediate debug run of the specified scheduled script.
@@ -116,10 +116,10 @@ func (c *Client) DebugScheduledScript(id string, opts types.AutomationDebugReque
 
 // CancelScheduledScript cancels any active run of the specified scheduled script.
 func (c *Client) CancelScheduledScript(id string) error {
-	return c.delete(scheduledScriptCancelIdUrl(id), false)
+	return c.delete(scheduledScriptCancelIdUrl(id))
 }
 
 // CleanupScheduledScripts (admin-only) purges all deleted scheduled scripts for all users.
 func (c *Client) CleanupScheduledScripts() error {
-	return c.delete(SCHEDULED_SCRIPT_URL, false)
+	return c.delete(SCHEDULED_SCRIPT_URL)
 }

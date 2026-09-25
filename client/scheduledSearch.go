@@ -35,12 +35,12 @@ func (c *Client) GetScheduledSearchEx(id string, opts GetOptions) (types.Schedul
 
 // DeleteScheduledSearch removes the specified scheduled search.
 func (c *Client) DeleteScheduledSearch(id string) error {
-	return c.delete(scheduledSearchIdUrl(id), false)
+	return c.delete(scheduledSearchIdUrl(id))
 }
 
 // PurgeScheduledSearch permanently removes the specified scheduled search.
 func (c *Client) PurgeScheduledSearch(id string) error {
-	return c.delete(scheduledSearchIdUrl(id), true)
+	return c.delete(scheduledSearchIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateScheduledSearch makes a new scheduled search.
@@ -86,7 +86,16 @@ func (c *Client) GetScheduledSearchResults(id string) (results types.ScheduledSe
 
 // ClearScheduledSearchResults deletes all results for the specified scheduled search
 func (c *Client) ClearScheduledSearchResults(id string) error {
-	return c.delete(scheduledSearchResultsIdUrl(id), false)
+	return c.delete(scheduledSearchResultsIdUrl(id))
+}
+
+// ClearAllScheduledSearchResults (admin-only) deletes all results for the specified scheduled
+// search, regardless of which user owns them.
+func (c *Client) ClearAllScheduledSearchResults(id string) error {
+	if !c.userDetails.Admin {
+		return ErrNotAdmin
+	}
+	return c.delete(scheduledSearchResultsIdUrl(id), adminParams...)
 }
 
 // DebugScheduledSearch requests an immediate debug run of the specified scheduled search.
@@ -96,10 +105,10 @@ func (c *Client) DebugScheduledSearch(id string, opts types.AutomationDebugReque
 
 // CancelScheduledSearch cancels any active run of the specified scheduled search.
 func (c *Client) CancelScheduledSearch(id string) error {
-	return c.delete(scheduledSearchCancelIdUrl(id), false)
+	return c.delete(scheduledSearchCancelIdUrl(id))
 }
 
 // CleanupScheduledSearches (admin-only) purges all deleted scheduled searches for all users.
 func (c *Client) CleanupScheduledSearches() error {
-	return c.delete(SCHEDULED_SEARCH_URL, false)
+	return c.delete(SCHEDULED_SEARCH_URL)
 }

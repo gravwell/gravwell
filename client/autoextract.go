@@ -43,9 +43,9 @@ func (c *Client) FindExtraction(tag string) (d types.AX, err error) {
 
 // DeleteExtraction deletes the specified autoextraction.
 //
-// NOTE: Extractions are always hard-deleted.
+// Extractions are always purged.
 func (c *Client) DeleteExtraction(id string) (err error) {
-	return c.delete(extractionIdUrl(id), false)
+	return c.delete(extractionIdUrl(id))
 }
 
 type AXValidateResponse struct {

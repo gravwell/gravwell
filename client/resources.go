@@ -143,17 +143,17 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 
 // DeleteResource removes a resource by ID by marking it deleted in the database.
 func (c *Client) DeleteResource(id string) error {
-	return c.delete(resourcesIdUrl(id), false)
+	return c.delete(resourcesIdUrl(id))
 }
 
 // PurgeResource removes a resource by ID entirely.
 func (c *Client) PurgeResource(id string) error {
-	return c.delete(resourcesIdUrl(id), true)
+	return c.delete(resourcesIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CleanupResources (admin-only) purges all deleted resources for all users.
 func (c *Client) CleanupResources() error {
-	return c.delete(RESOURCES_URL, false)
+	return c.delete(RESOURCES_URL)
 }
 
 // UpdateResourceMetadata modifies an existing resource's metadata and returns the complete, updated struct.
