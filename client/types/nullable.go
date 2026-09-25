@@ -111,12 +111,8 @@ func (n Nullable[T]) String() string {
 }
 
 // Equal reports whether n and o represent the same value: both null, or
-// both non-null with deeply-equal underlying values. Without this,
-// github.com/google/go-cmp panics on any type containing a Nullable[T]
-// field ("cannot handle unexported field ... consider using
-// cmpopts.EquateComparable") since value/valid are private and cmp has no
-// other way to compare them. cmp specifically looks for an Equal method
-// before falling back to field reflection, so this is enough to fix that.
+// both non-null with the exact same underlying values. Satisfies the Equal
+// method go-cmp looks for, since all fields are unexported.
 func (n Nullable[T]) Equal(o Nullable[T]) bool {
 	if n.valid != o.valid {
 		return false
