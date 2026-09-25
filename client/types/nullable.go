@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"reflect"
 )
 
 // A Nullable represents a field that is always present in a JSON
@@ -107,6 +108,19 @@ func (n Nullable[T]) String() string {
 		return "null"
 	}
 	return fmt.Sprint(n.value)
+}
+
+// Equal reports whether n and o represent the same value: both null, or
+// both non-null with the exact same underlying values. Satisfies the Equal
+// method go-cmp looks for, since all fields are unexported.
+func (n Nullable[T]) Equal(o Nullable[T]) bool {
+	if n.valid != o.valid {
+		return false
+	}
+	if !n.valid {
+		return true
+	}
+	return reflect.DeepEqual(n.value, o.value)
 }
 
 // gobNullable mirrors Nullable[T]'s private fields with exported names so
