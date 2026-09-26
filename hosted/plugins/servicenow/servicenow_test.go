@@ -1107,3 +1107,25 @@ func TestHostedRunnerServiceNowRejectsUnsupportedPreprocessorSelection(t *testin
 		t.Fatal("unsupported ServiceNow Preprocessor selection was accepted")
 	}
 }
+
+func TestRequestIntervalDurationBoundary(t *testing.T) {
+	maximum := int(int64(^uint64(0)>>1) / int64(time.Second))
+	config := &Config{
+		BaseConfig:    hosted.BaseConfig{Ingester_UUID: "42000000-0000-4000-8000-000000000001"},
+		PollingConfig: hosted.PollingConfig{Lookback: 24, Requests_Per_Minute: 60, Request_Interval: maximum},
+		Instance:      "https://example.service-now.com",
+		Secret_File:   secretFile(t),
+		API:           []string{"incidents"},
+	}
+	if err := config.Verify(); err != nil {
+		t.Fatalf("maximum safe Request-Interval rejected: %v", err)
+	}
+	if got := config.Interval(); got != time.Duration(maximum)*time.Second || got <= 0 {
+		t.Fatalf("maximum safe Request-Interval converted to %v", got)
+	}
+
+	config.Request_Interval = maximum + 1
+	if err := config.Verify(); err == nil || !strings.Contains(err.Error(), "Request-Interval") {
+		t.Fatalf("overflowing Request-Interval accepted: %v", err)
+	}
+}

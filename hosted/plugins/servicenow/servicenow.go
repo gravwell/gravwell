@@ -71,6 +71,7 @@ type cursorState struct {
 	PageID                string
 	Offset                int
 	NextURL               string
+	SourceContract        string
 	Seen                  map[string]time.Time
 	Hashes                map[string][sha256.Size]byte
 }
@@ -120,10 +121,21 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 	for _, namespace := range s.conf.FallbackStateNamespaces() {
 		fallbacks = append(fallbacks, namespace+"/"+d.Name)
 	}
-	state, copied, err := loadCursorWithFallback(rt, key, fallbacks...)
+	state, copied, exists, err := loadCursorWithFallback(rt, key, fallbacks...)
 	if err != nil {
 		return err
 	}
+	contract := s.conf.SourceContractFingerprint(d)
+	if exists && state.SourceContract != contract {
+		// A missing fingerprint is state written by the immediately prior
+		// contract. Because its source identity cannot be proven compatible,
+		// discard it and replay only the configured Lookback window.
+		state = cursorState{}
+		copied = true
+		rt.Warn("reset incompatible ServiceNow cursor; replay is bounded by Lookback",
+			log.KV("dataset", d.Name), log.KV("lookback_hours", s.conf.Lookback))
+	}
+	state.SourceContract = contract
 	now := s.now().UTC().Truncate(time.Second)
 	if state.Checkpoint.IsZero() {
 		state.Checkpoint = now.Add(-time.Duration(s.conf.Lookback) * time.Hour)
@@ -380,21 +392,21 @@ func loadCursorIfExists(rt hosted.Storage, key string) (cursorState, bool, error
 	return state, true, err
 }
 
-func loadCursorWithFallback(rt hosted.Storage, key string, fallbacks ...string) (cursorState, bool, error) {
+func loadCursorWithFallback(rt hosted.Storage, key string, fallbacks ...string) (cursorState, bool, bool, error) {
 	state, exists, err := loadCursorIfExists(rt, key)
 	if err != nil || exists {
-		return state, false, err
+		return state, false, exists, err
 	}
 	for _, fallback := range fallbacks {
 		state, exists, err = loadCursorIfExists(rt, fallback)
 		if err != nil {
-			return cursorState{}, false, err
+			return cursorState{}, false, false, err
 		}
 		if exists {
-			return state, true, nil
+			return state, true, true, nil
 		}
 	}
-	return cursorState{}, false, nil
+	return cursorState{}, false, false, nil
 }
 func saveCursor(rt hosted.Storage, key string, state cursorState) error {
 	raw, err := json.Marshal(state)

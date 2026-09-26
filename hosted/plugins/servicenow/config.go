@@ -1,6 +1,7 @@
 package servicenow
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/ingest"
 )
+
+const maxRequestIntervalSeconds = int64((1<<63 - 1) / int64(time.Second))
 
 type Override struct{ Table, Fields, Query, Timestamp, Tag string }
 
@@ -137,6 +140,9 @@ func (c *Config) Verify() error {
 	}
 	if c.Request_Interval < 60 {
 		return errors.New("Request-Interval must be at least 60 seconds")
+	}
+	if int64(c.Request_Interval) > maxRequestIntervalSeconds {
+		return fmt.Errorf("Request-Interval must not exceed %d seconds", maxRequestIntervalSeconds)
 	}
 	if _, err := c.NormalizationEnabled(); err != nil {
 		return err
@@ -429,6 +435,43 @@ func (c *Config) StateNamespace() string {
 		return normalizationNamespace(c.Normalization_Field)
 	}
 	return "servicenow/raw"
+}
+
+// SourceContractFingerprint identifies every non-secret input that changes the
+// meaning or resumability of a dataset cursor. A mismatch resets that dataset
+// to a fresh, Lookback-bounded replay rather than reusing pagination,
+// deduplication, or checkpoint state from an incompatible source contract.
+func (c *Config) SourceContractFingerprint(d Dataset) string {
+	type restContract struct {
+		Path, ResultPath, IDField, StaticID, LimitParameter, OffsetParameter string
+		Parameters                                                           map[string]string
+	}
+	contract := struct {
+		Version                     int
+		Instance                    string
+		Name, Table, Fields         string
+		Timestamp, Query            string
+		PageSize, MaxPages, Overlap int
+		REST                        *restContract
+	}{
+		Version: 1, Instance: c.Instance,
+		Name: d.Name, Table: d.Table, Fields: d.Fields, Timestamp: d.Timestamp, Query: d.Query,
+		PageSize: c.Page_Size, MaxPages: c.Max_Pages, Overlap: c.OverlapSeconds(),
+	}
+	if d.REST != nil {
+		contract.REST = &restContract{
+			Path: d.REST.Path, ResultPath: d.REST.ResultPath,
+			IDField: d.REST.IDField, StaticID: d.REST.StaticID,
+			LimitParameter: d.REST.LimitParameter, OffsetParameter: d.REST.OffsetParameter,
+			Parameters: cloneStringMap(d.REST.Parameters),
+		}
+	}
+	encoded, err := json.Marshal(contract)
+	if err != nil {
+		panic(fmt.Sprintf("marshal ServiceNow source contract: %v", err))
+	}
+	digest := sha256.Sum256(encoded)
+	return fmt.Sprintf("v1:%x", digest)
 }
 
 // FallbackStateNamespaces lists alternate keys that may contain the same

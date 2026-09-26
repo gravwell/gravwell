@@ -509,13 +509,16 @@ func TestNormalizedFallbackStateCopiesWithoutDeletingSourceState(t *testing.T) {
 	runtime := newServiceNowContractRuntime()
 	checkpoint := time.Date(2026, 9, 20, 10, 0, 0, 0, time.UTC)
 	fallbackKey := "servicenow-normalization-v2/incidents"
-	encoded, err := json.Marshal(cursorState{Checkpoint: checkpoint, Seen: map[string]time.Time{}, Hashes: map[string][32]byte{}})
+	config := serviceNowContractConfig(t, server.URL)
+	config.Normalization = "enabled"
+	encoded, err := json.Marshal(cursorState{
+		Checkpoint: checkpoint, SourceContract: config.SourceContractFingerprint(catalog["incidents"]),
+		Seen: map[string]time.Time{}, Hashes: map[string][32]byte{},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	runtime.state[fallbackKey] = encoded
-	config := serviceNowContractConfig(t, server.URL)
-	config.Normalization = "enabled"
 	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
 	plugin := New(config, processors.NewProcessorSet(runtime))
 	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
@@ -529,6 +532,135 @@ func TestNormalizedFallbackStateCopiesWithoutDeletingSourceState(t *testing.T) {
 	}
 	if _, exists := runtime.state[fallbackKey]; !exists {
 		t.Fatal("fallback source state was deleted")
+	}
+}
+
+func TestLegacyCursorWithoutSourceContractResetsToBoundedLookback(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	oldCheckpoint := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	encoded, err := json.Marshal(cursorState{Checkpoint: oldCheckpoint, Seen: map[string]time.Time{}, Hashes: map[string][32]byte{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := serviceNowContractConfig(t, server.URL)
+	key := config.StateNamespace() + "/incidents"
+	runtime.state[key] = encoded
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return now }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCheckpoint := now.Add(-24 * time.Hour)
+	if !state.Checkpoint.Equal(wantCheckpoint) || state.SourceContract != config.SourceContractFingerprint(catalog["incidents"]) {
+		t.Fatalf("legacy state was not reset to bounded replay: state=%+v want_checkpoint=%v", state, wantCheckpoint)
+	}
+}
+
+func TestSourceContractChangesResetCursorWithBoundedReplay(t *testing.T) {
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	response := `{"result":[{"sys_id":"same","sys_updated_on":"2026-09-21 10:00:00"}]}`
+
+	tests := []struct {
+		name       string
+		oldConfig  func(*testing.T, string) *Config
+		newConfig  func(*testing.T, string) *Config
+		oldDataset func(*testing.T, *Config) Dataset
+		newDataset func(*testing.T, *Config) Dataset
+	}{
+		{
+			name: "instance",
+			oldConfig: func(t *testing.T, instance string) *Config {
+				return serviceNowContractConfig(t, instance)
+			},
+			newConfig: func(t *testing.T, instance string) *Config {
+				return serviceNowContractConfig(t, instance+"/changed")
+			},
+			oldDataset: func(_ *testing.T, _ *Config) Dataset { return catalog["incidents"] },
+			newDataset: func(_ *testing.T, _ *Config) Dataset { return catalog["incidents"] },
+		},
+		{
+			name: "table override",
+			oldConfig: func(t *testing.T, instance string) *Config {
+				return serviceNowContractConfig(t, instance)
+			},
+			newConfig: func(t *testing.T, instance string) *Config {
+				config := serviceNowContractConfig(t, instance)
+				config.Table_Override = []string{`incidents={"Table":"problem"}`}
+				return config
+			},
+			oldDataset: func(_ *testing.T, _ *Config) Dataset { return catalog["incidents"] },
+			newDataset: func(t *testing.T, config *Config) Dataset {
+				config.API = []string{"incidents"}
+				datasets, err := config.Datasets()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return datasets[0]
+			},
+		},
+		{
+			name: "custom endpoint",
+			oldConfig: func(t *testing.T, instance string) *Config {
+				config := serviceNowContractConfig(t, instance)
+				config.API_Endpoint = []string{`custom={"Product":"Test","Path":"/api/example/v1/old","Tag":"servicenow-test","Static_ID":"same","Required_Role":"reader","Documentation":"https://www.servicenow.com/docs/r/example"}`}
+				return config
+			},
+			newConfig: func(t *testing.T, instance string) *Config {
+				config := serviceNowContractConfig(t, instance)
+				config.API_Endpoint = []string{`custom={"Product":"Test","Path":"/api/example/v2/new","Tag":"servicenow-test","Static_ID":"same","Required_Role":"reader","Documentation":"https://www.servicenow.com/docs/r/example"}`}
+				return config
+			},
+			oldDataset: func(t *testing.T, config *Config) Dataset {
+				datasets, err := config.EndpointDatasets()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return datasets[0]
+			},
+			newDataset: func(t *testing.T, config *Config) Dataset {
+				datasets, err := config.EndpointDatasets()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return datasets[0]
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(response))
+			}))
+			defer server.Close()
+			runtime := newServiceNowContractRuntime()
+			poll := func(config *Config, dataset Dataset) {
+				client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+				plugin := New(config, processors.NewProcessorSet(runtime))
+				plugin.now = func() time.Time { return now }
+				if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			oldConfig := test.oldConfig(t, server.URL)
+			poll(oldConfig, test.oldDataset(t, oldConfig))
+			newConfig := test.newConfig(t, server.URL)
+			poll(newConfig, test.newDataset(t, newConfig))
+			if len(runtime.entries) != 2 {
+				t.Fatalf("source-contract change reused incompatible deduplication state: entries=%d want=2", len(runtime.entries))
+			}
+		})
 	}
 }
 
