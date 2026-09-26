@@ -146,6 +146,21 @@ bound replay after partial failure; one entry accepted immediately before a
 state-write failure may replay because the SDK does not expose an atomic
 ingest-and-state transaction.
 
+Each dataset cursor stores a versioned SHA-256 fingerprint of the non-secret
+source contract: the instance, dataset identity and product, resolved output
+tag, table fields/query/timestamp, paging bounds, overlap, and REST path,
+result, identity, continuation, and fixed-parameter settings. Secret paths and
+credential contents are not part of the fingerprint. An unchanged fingerprint
+preserves the checkpoint, page continuation, and deduplication hashes across a
+reload or restart. Legacy state without a fingerprint, or state whose
+fingerprint no longer matches, is incompatible: the ingester discards that
+dataset's old cursor and hashes and starts a deterministic replay from the
+current UTC second minus `Lookback`. The reset can duplicate entries within
+that bounded window and cannot recover older entries; it never reuses a
+checkpoint from another instance, table, endpoint, query, identity, paging, or
+provenance contract. Changing `Lookback` alone does not reset otherwise
+compatible durable state.
+
 `Overlap` and `Max-Retries` default to 300 seconds and four retries when they
 are omitted. An explicit zero disables overlap or retries. `Max-Retries` counts
 attempts after the initial request.

@@ -819,6 +819,83 @@ func TestNormalizationStateNamespaceTracksRuleContract(t *testing.T) {
 	}
 }
 
+func TestSourceContractFingerprintCoversCursorAndProvenanceInputs(t *testing.T) {
+	baseConfig := Config{
+		Instance: "https://one.service-now.com", Page_Size: 100, Max_Pages: 10,
+		Overlap: intPointer(300), Secret_File: "/secret/one.json",
+	}
+	baseDataset := Dataset{
+		Name: "custom", Product: "Product One", Table: "x_one", Tag: "servicenow-one",
+		Fields: "sys_id,sys_updated_on,value", Timestamp: "sys_updated_on", Query: "active=true",
+		REST: &RESTSpec{
+			Path: "/api/x_one/v1/events", ResultPath: "result.events", IDField: "sys_id",
+			StaticID: "", LimitParameter: "limit", OffsetParameter: "offset",
+			Parameters: map[string]string{"status": "active"},
+		},
+	}
+	clone := func() (Config, Dataset) {
+		config := baseConfig
+		dataset := baseDataset
+		rest := *baseDataset.REST
+		rest.Parameters = cloneStringMap(baseDataset.REST.Parameters)
+		dataset.REST = &rest
+		return config, dataset
+	}
+	base := baseConfig.SourceContractFingerprint(baseDataset)
+	if len(base) != len("v1:")+sha256.Size*2 || !strings.HasPrefix(base, "v1:") {
+		t.Fatalf("fingerprint format=%q", base)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Config, *Dataset)
+	}{
+		{"instance", func(c *Config, _ *Dataset) { c.Instance = "https://two.service-now.com" }},
+		{"name", func(_ *Config, d *Dataset) { d.Name = "custom-two" }},
+		{"product", func(_ *Config, d *Dataset) { d.Product = "Product Two" }},
+		{"catalog tag", func(_ *Config, d *Dataset) { d.Tag = "servicenow-two" }},
+		{"resolved tag", func(c *Config, _ *Dataset) { c.Tag_Name = "servicenow-override" }},
+		{"table", func(_ *Config, d *Dataset) { d.Table = "x_two" }},
+		{"fields", func(_ *Config, d *Dataset) { d.Fields += ",other" }},
+		{"timestamp", func(_ *Config, d *Dataset) { d.Timestamp = "updated_at" }},
+		{"query", func(_ *Config, d *Dataset) { d.Query = "active=false" }},
+		{"page size", func(c *Config, _ *Dataset) { c.Page_Size++ }},
+		{"max pages", func(c *Config, _ *Dataset) { c.Max_Pages++ }},
+		{"overlap", func(c *Config, _ *Dataset) { c.Overlap = intPointer(301) }},
+		{"REST path", func(_ *Config, d *Dataset) { d.REST.Path = "/api/x_one/v2/events" }},
+		{"REST result path", func(_ *Config, d *Dataset) { d.REST.ResultPath = "result.items" }},
+		{"REST identity", func(_ *Config, d *Dataset) { d.REST.IDField = "number" }},
+		{"REST static identity", func(_ *Config, d *Dataset) { d.REST.StaticID = "singleton" }},
+		{"REST limit parameter", func(_ *Config, d *Dataset) { d.REST.LimitParameter = "page_size" }},
+		{"REST offset parameter", func(_ *Config, d *Dataset) { d.REST.OffsetParameter = "start" }},
+		{"REST fixed parameter", func(_ *Config, d *Dataset) { d.REST.Parameters["status"] = "closed" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config, dataset := clone()
+			test.mutate(&config, &dataset)
+			if got := config.SourceContractFingerprint(dataset); got == base {
+				t.Fatalf("source-contract change did not change fingerprint: %s", got)
+			}
+		})
+	}
+
+	unchangedConfig, unchangedDataset := clone()
+	unchangedDataset.REST.Parameters = map[string]string{"status": "active"}
+	if got := unchangedConfig.SourceContractFingerprint(unchangedDataset); got != base {
+		t.Fatalf("equivalent contract fingerprint=%q want=%q", got, base)
+	}
+	unchangedConfig.Secret_File = "/secret/two.json"
+	if got := unchangedConfig.SourceContractFingerprint(unchangedDataset); got != base {
+		t.Fatalf("secret path changed non-secret source fingerprint=%q want=%q", got, base)
+	}
+	for _, forbidden := range []string{baseConfig.Instance, baseConfig.Secret_File, baseDataset.Table, baseDataset.Query} {
+		if strings.Contains(base, forbidden) {
+			t.Fatalf("fingerprint exposed source input %q: %q", forbidden, base)
+		}
+	}
+}
+
 func TestRecordIDHandlesDisplayValueAndMissingField(t *testing.T) {
 	if got := recordID([]byte(`{"sys_id":{"display_value":"abc","value":"native-id"}}`)); got != "native-id" {
 		t.Fatalf("display-value sys_id=%q", got)

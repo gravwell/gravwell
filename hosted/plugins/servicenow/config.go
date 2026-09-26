@@ -449,13 +449,15 @@ func (c *Config) SourceContractFingerprint(d Dataset) string {
 	contract := struct {
 		Version                     int
 		Instance                    string
-		Name, Table, Fields         string
+		Name, Product, Tag          string
+		Table, Fields               string
 		Timestamp, Query            string
 		PageSize, MaxPages, Overlap int
 		REST                        *restContract
 	}{
 		Version: 1, Instance: c.Instance,
-		Name: d.Name, Table: d.Table, Fields: d.Fields, Timestamp: d.Timestamp, Query: d.Query,
+		Name: d.Name, Product: d.Product, Tag: c.Tag(d),
+		Table: d.Table, Fields: d.Fields, Timestamp: d.Timestamp, Query: d.Query,
 		PageSize: c.Page_Size, MaxPages: c.Max_Pages, Overlap: c.OverlapSeconds(),
 	}
 	if d.REST != nil {
