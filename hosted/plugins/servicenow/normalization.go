@@ -181,13 +181,10 @@ func documentedNormalizationRules(d Dataset) []normalizationRule {
 		if !validCanonicalTarget(target) || (target == source && !strings.Contains(source, ".")) {
 			continue
 		}
-		sources := []string{target}
-		if base != target {
-			sources = append(sources, base)
-		}
-		if source != base {
-			sources = append(sources, source)
-		}
+		// Preserve an existing canonical target first, then prefer the exact
+		// documented dotted leaf over its enclosing vendor wrapper. The wrapper
+		// remains a final fallback for response variants that expose it directly.
+		sources := []string{target, source, base}
 		byTarget[target] = normalizationRule{Group: strings.ToLower(d.Name), Target: target, Sources: compactStrings(sources)}
 	}
 	targets := make([]string, 0, len(byTarget))

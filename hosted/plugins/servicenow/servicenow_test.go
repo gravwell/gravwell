@@ -620,6 +620,48 @@ func TestRawAndNormalizedFraming(t *testing.T) {
 	}
 }
 
+func TestChangeModelsNormalizationPrefersDocumentedDottedLeaves(t *testing.T) {
+	conf := &Config{Normalization: "enabled"}
+	dataset := endpointDataset("change-models", endpointCatalog["change-models"])
+	raw := []byte(`{"sys_id":{"value":"model-1"},"sys_updated_on":{"value":"2026-09-03 10:11:12"},"name":{"value":"Standard"},"active":{"value":"true"}}`)
+	prepared, err := PrepareRecord(conf, dataset, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []struct {
+		name string
+		want string
+	}{
+		{name: "sysId", want: "model-1"},
+		{name: "sysUpdatedOn", want: "2026-09-03 10:11:12"},
+	} {
+		value, kind, _, err := jsonparser.Get(prepared.Data, field.name)
+		if err != nil || kind != jsonparser.String || string(value) != field.want {
+			t.Fatalf("%s value=%q kind=%v err=%v want scalar %q record=%s", field.name, value, kind, err, field.want, prepared.Data)
+		}
+	}
+	for _, field := range []struct {
+		path []string
+		want string
+	}{
+		{path: []string{"sys_id", "value"}, want: "model-1"},
+		{path: []string{"sys_updated_on", "value"}, want: "2026-09-03 10:11:12"},
+	} {
+		value, err := jsonparser.GetString(prepared.Data, field.path...)
+		if err != nil || value != field.want {
+			t.Fatalf("vendor wrapper %v=%q err=%v want=%q record=%s", field.path, value, err, field.want, prepared.Data)
+		}
+	}
+	for _, want := range []string{
+		"sysId(sys_id.value|sys_id)",
+		"sysUpdatedOn(sys_updated_on.value|sys_updated_on)",
+	} {
+		if got := prepared.Intrinsic["_normalizationCollision"]; !strings.Contains(got, want) {
+			t.Fatalf("collision metadata %q missing %q", got, want)
+		}
+	}
+}
+
 func TestNormalizationUsesCanonicalFirstPrecedenceAndReportsCollisions(t *testing.T) {
 	d := catalog["users"]
 	conf := &Config{
