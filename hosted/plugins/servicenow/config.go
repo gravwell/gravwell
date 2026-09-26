@@ -442,6 +442,8 @@ func (c *Config) StateNamespace() string {
 // to a fresh, Lookback-bounded replay rather than reusing pagination,
 // deduplication, or checkpoint state from an incompatible source contract.
 func (c *Config) SourceContractFingerprint(d Dataset) string {
+	const sourceContractVersion = 2
+
 	type restContract struct {
 		Path, ResultPath, IDField, StaticID, LimitParameter, OffsetParameter string
 		Parameters                                                           map[string]string
@@ -455,7 +457,7 @@ func (c *Config) SourceContractFingerprint(d Dataset) string {
 		PageSize, MaxPages, Overlap int
 		REST                        *restContract
 	}{
-		Version: 1, Instance: c.Instance,
+		Version: sourceContractVersion, Instance: c.Instance,
 		Name: d.Name, Product: d.Product, Tag: c.Tag(d),
 		Table: d.Table, Fields: d.Fields, Timestamp: d.Timestamp, Query: d.Query,
 		PageSize: c.Page_Size, MaxPages: c.Max_Pages, Overlap: c.OverlapSeconds(),
@@ -473,7 +475,7 @@ func (c *Config) SourceContractFingerprint(d Dataset) string {
 		panic(fmt.Sprintf("marshal ServiceNow source contract: %v", err))
 	}
 	digest := sha256.Sum256(encoded)
-	return fmt.Sprintf("v1:%x", digest)
+	return fmt.Sprintf("v%d:%x", sourceContractVersion, digest)
 }
 
 // FallbackStateNamespaces lists alternate keys that may contain the same

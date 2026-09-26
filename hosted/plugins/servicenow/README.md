@@ -138,7 +138,10 @@ their values, and all original source fields remain intact. A target such as
 `Lookback` is an integer number of hours. It initializes a missing checkpoint only; durable state wins
 after restart. Incremental Table API datasets retain their initial or
 established lower-bound anchor on an empty poll and advance monotonically only
-to the greatest fully accepted source ordering timestamp. Full-snapshot REST
+to the greatest fully accepted source ordering timestamp. Table ordering
+timestamps must have whole-second precision: fractional values are rejected
+before delivery because the encoded keyset continuation cannot safely express
+them. Full-snapshot REST
 profiles hash stable identities, emit changed content even when timestamps do
 not change, and prune absent objects from local deduplication state without
 emitting deletion tombstones. Per-item hashes and per-page continuation state

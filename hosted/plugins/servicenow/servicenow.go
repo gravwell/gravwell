@@ -166,7 +166,10 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 		query := WindowQuery(d, state.Checkpoint, state.WindowEnd, s.conf.OverlapSeconds())
 		offset := state.Offset
 		if d.REST == nil {
-			query = WindowQueryAfter(d, state.Checkpoint, state.WindowEnd, s.conf.OverlapSeconds(), state.PageTimestamp, state.PageID)
+			query, err = windowQueryAfter(d, state.Checkpoint, state.WindowEnd, s.conf.OverlapSeconds(), state.PageTimestamp, state.PageID)
+			if err != nil {
+				return err
+			}
 			offset = 0
 		}
 		page, err := client.FetchPageAfter(ctx, d, query, s.conf.Page_Size, offset, state.NextURL)
@@ -323,11 +326,24 @@ func WindowQuery(d Dataset, checkpoint, windowEnd time.Time, overlap int) string
 // window. Ordering by timestamp and sys_id avoids the row-shift loss inherent
 // to offsets when records are updated between page requests.
 func WindowQueryAfter(d Dataset, checkpoint, windowEnd time.Time, overlap int, afterTimestamp time.Time, afterID string) string {
-	if afterTimestamp.IsZero() && afterID == "" {
+	query, err := windowQueryAfter(d, checkpoint, windowEnd, overlap, afterTimestamp, afterID)
+	if err != nil {
+		// Preserve the established helper signature and return a safe bounded
+		// replay query instead of truncating an unsafe cursor timestamp.
 		return WindowQuery(d, checkpoint, windowEnd, overlap)
 	}
+	return query
+}
+
+func windowQueryAfter(d Dataset, checkpoint, windowEnd time.Time, overlap int, afterTimestamp time.Time, afterID string) (string, error) {
+	if afterTimestamp.IsZero() && afterID == "" {
+		return WindowQuery(d, checkpoint, windowEnd, overlap), nil
+	}
+	if !afterTimestamp.IsZero() && afterTimestamp.Nanosecond() != 0 {
+		return "", fmt.Errorf("ServiceNow dataset %s cursor has a fractional ordering timestamp; Table API keyset pagination requires whole-second precision", d.Name)
+	}
 	if afterTimestamp.IsZero() || !validKeysetID(afterID) {
-		return WindowQuery(d, checkpoint, windowEnd, overlap)
+		return WindowQuery(d, checkpoint, windowEnd, overlap), nil
 	}
 	filter := strings.Trim(strings.TrimSpace(d.Query), "^")
 	timestamp := afterTimestamp.UTC().Format("2006-01-02 15:04:05")
@@ -340,7 +356,7 @@ func WindowQueryAfter(d Dataset, checkpoint, windowEnd time.Time, overlap int, a
 	}
 	newer := branch(fmt.Sprintf("%s>%s", d.Timestamp, timestamp), upper)
 	sameTimestamp := branch(fmt.Sprintf("%s=%s", d.Timestamp, timestamp), "sys_id>"+afterID, upper)
-	return newer + "^NQ" + sameTimestamp + "^ORDERBY" + d.Timestamp + "^ORDERBYsys_id"
+	return newer + "^NQ" + sameTimestamp + "^ORDERBY" + d.Timestamp + "^ORDERBYsys_id", nil
 }
 
 func validKeysetID(value string) bool {

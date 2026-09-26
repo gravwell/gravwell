@@ -884,7 +884,7 @@ func TestSourceContractFingerprintCoversCursorAndProvenanceInputs(t *testing.T) 
 		return config, dataset
 	}
 	base := baseConfig.SourceContractFingerprint(baseDataset)
-	if len(base) != len("v1:")+sha256.Size*2 || !strings.HasPrefix(base, "v1:") {
+	if len(base) != len("v2:")+sha256.Size*2 || !strings.HasPrefix(base, "v2:") {
 		t.Fatalf("fingerprint format=%q", base)
 	}
 

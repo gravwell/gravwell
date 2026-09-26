@@ -166,8 +166,8 @@ func TestIncrementalEmptyPollRetainsAnchorCatalogWide(t *testing.T) {
 	}
 }
 
-func TestIncrementalCatalogStableTieAndSubsecondBoundary(t *testing.T) {
-	checkpoint := time.Date(2026, 9, 21, 10, 0, 0, 987654321, time.UTC)
+func TestIncrementalCatalogStableTieAndWholeSecondBoundary(t *testing.T) {
+	checkpoint := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
 	windowEnd := checkpoint.Add(time.Hour)
 	for _, dataset := range Catalog() {
 		query := WindowQuery(dataset, checkpoint, windowEnd, 300)
@@ -184,8 +184,8 @@ func TestIncrementalCatalogStableTieAndSubsecondBoundary(t *testing.T) {
 	}
 }
 
-func TestIncrementalEqualAndSubsecondBoundaryDeduplicatesByIdentity(t *testing.T) {
-	response := `{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21T10:00:00.100Z"},{"sys_id":"two","sys_updated_on":"2026-09-21T10:00:00.900Z"}]}`
+func TestIncrementalEqualSecondBoundaryDeduplicatesByIdentity(t *testing.T) {
+	response := `{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"two","sys_updated_on":"2026-09-21 10:00:00"}]}`
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(response))
 	}))
@@ -198,7 +198,7 @@ func TestIncrementalEqualAndSubsecondBoundaryDeduplicatesByIdentity(t *testing.T
 	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
 		t.Fatal(err)
 	}
-	response = `{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21T10:00:00.100Z"},{"sys_id":"two","sys_updated_on":"2026-09-21T10:00:00.900Z"},{"sys_id":"three","sys_updated_on":"2026-09-21T10:00:00.900Z"}]}`
+	response = `{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"two","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"three","sys_updated_on":"2026-09-21 10:00:00"}]}`
 	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
 		t.Fatal(err)
 	}
@@ -206,8 +206,46 @@ func TestIncrementalEqualAndSubsecondBoundaryDeduplicatesByIdentity(t *testing.T
 		t.Fatalf("entries=%d want=3", len(runtime.entries))
 	}
 	state, err := loadCursor(runtime, config.StateNamespace()+"/incidents")
-	if err != nil || !state.Checkpoint.Equal(time.Date(2026, 9, 21, 10, 0, 0, 900000000, time.UTC)) {
+	if err != nil || !state.Checkpoint.Equal(time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)) {
 		t.Fatalf("state=%+v err=%v", state, err)
+	}
+}
+
+func TestTableSubsecondOrderingTimestampRejectedBeforeDelivery(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21T10:00:00.900Z"}]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	err := plugin.collect(context.Background(), runtime, client, catalog["incidents"])
+	if err == nil || !strings.Contains(err.Error(), "fractional") {
+		t.Fatalf("fractional Table ordering timestamp error=%v", err)
+	}
+	if len(runtime.entries) != 0 {
+		t.Fatalf("fractional Table ordering timestamp delivered %d entries", len(runtime.entries))
+	}
+	if _, exists := runtime.state[config.StateNamespace()+"/incidents"]; exists {
+		t.Fatal("fractional Table ordering timestamp persisted cursor state")
+	}
+}
+
+func TestWindowQueryAfterRejectsFractionalCursor(t *testing.T) {
+	dataset := catalog["incidents"]
+	_, err := windowQueryAfter(
+		dataset,
+		time.Date(2026, 9, 21, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC),
+		300,
+		time.Date(2026, 9, 21, 10, 0, 0, 900000000, time.UTC),
+		"00000000000000000000000000000001",
+	)
+	if err == nil || !strings.Contains(err.Error(), "fractional") {
+		t.Fatalf("fractional cursor error=%v", err)
 	}
 }
 
@@ -351,6 +389,59 @@ func TestTablePageCeilingResumesPersistedKeyset(t *testing.T) {
 	}
 	state, err = loadCursor(runtime, config.StateNamespace()+"/incidents")
 	if err != nil || state.Offset != 0 || state.PageID != "" || !state.PageTimestamp.IsZero() || !state.WindowEnd.IsZero() {
+		t.Fatalf("drained state=%+v err=%v", state, err)
+	}
+}
+
+func TestTablePageSizeOneRestartAdvancesKeyset(t *testing.T) {
+	ids := []string{
+		"00000000000000000000000000000001",
+		"00000000000000000000000000000002",
+		"00000000000000000000000000000003",
+	}
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("sysparm_limit"); got != "1" {
+			t.Fatalf("limit=%q want=1", got)
+		}
+		query := r.URL.Query().Get("sysparm_query")
+		if requests == 0 {
+			if strings.Contains(query, "^NQ") {
+				t.Fatalf("initial query unexpectedly contains keyset: %q", query)
+			}
+		} else {
+			for _, part := range []string{"^NQ", "sys_id>" + ids[requests-1]} {
+				if !strings.Contains(query, part) {
+					t.Fatalf("request %d query %q missing %q", requests+1, query, part)
+				}
+			}
+		}
+		if requests < len(ids) {
+			_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"%s","sys_updated_on":"2026-09-21 10:0%d:00"}]}`, ids[requests], requests)
+		} else {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+		}
+		requests++
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 1
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	for cycle := 0; cycle < len(ids)+1; cycle++ {
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return now }
+		if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+			t.Fatalf("cycle %d: %v", cycle+1, err)
+		}
+	}
+	if requests != 4 || len(runtime.entries) != len(ids) {
+		t.Fatalf("requests=%d entries=%d want requests=4 entries=%d", requests, len(runtime.entries), len(ids))
+	}
+	state, err := loadCursor(runtime, config.StateNamespace()+"/incidents")
+	if err != nil || state.PageID != "" || !state.PageTimestamp.IsZero() || !state.WindowEnd.IsZero() || !state.Checkpoint.Equal(time.Date(2026, 9, 21, 10, 2, 0, 0, time.UTC)) {
 		t.Fatalf("drained state=%+v err=%v", state, err)
 	}
 }
@@ -563,6 +654,40 @@ func TestLegacyCursorWithoutSourceContractResetsToBoundedLookback(t *testing.T) 
 	wantCheckpoint := now.Add(-24 * time.Hour)
 	if !state.Checkpoint.Equal(wantCheckpoint) || state.SourceContract != config.SourceContractFingerprint(catalog["incidents"]) {
 		t.Fatalf("legacy state was not reset to bounded replay: state=%+v want_checkpoint=%v", state, wantCheckpoint)
+	}
+}
+
+func TestPriorSourceContractVersionResetsToBoundedLookback(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	oldCheckpoint := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	encoded, err := json.Marshal(cursorState{
+		Checkpoint: oldCheckpoint, SourceContract: "v1:" + strings.Repeat("0", 64),
+		Seen: map[string]time.Time{}, Hashes: map[string][32]byte{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := serviceNowContractConfig(t, server.URL)
+	key := config.StateNamespace() + "/incidents"
+	runtime.state[key] = encoded
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return now }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCheckpoint := now.Add(-24 * time.Hour)
+	if !state.Checkpoint.Equal(wantCheckpoint) || !strings.HasPrefix(state.SourceContract, "v2:") {
+		t.Fatalf("prior contract state was not reset: state=%+v want_checkpoint=%v", state, wantCheckpoint)
 	}
 }
 
