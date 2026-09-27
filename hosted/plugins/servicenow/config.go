@@ -211,10 +211,22 @@ func (c *Config) Overrides() (map[string]Override, error) {
 			if err := json.Unmarshal([]byte(body), &value); err != nil {
 				return nil, fmt.Errorf("%s %s: %w", item.name, name, err)
 			}
+			if containsEncodedQueryNQ(value.Query) {
+				return nil, fmt.Errorf("%s %s Query must not contain encoded-query NQ branches", item.name, name)
+			}
 			result[name] = value
 		}
 	}
 	return result, nil
+}
+
+func containsEncodedQueryNQ(query string) bool {
+	for _, term := range strings.Split(strings.Trim(strings.TrimSpace(query), "^"), "^") {
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(term)), "NQ") {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Config) Datasets() ([]Dataset, error) {

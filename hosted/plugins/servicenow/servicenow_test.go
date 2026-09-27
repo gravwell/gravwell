@@ -990,6 +990,33 @@ func TestConfigRequiresCustomTableOverride(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsTableOverrideNQQueryBranches(t *testing.T) {
+	for _, query := range []string{
+		"active=true^NQpriority=1",
+		"^NQpriority=1",
+		"active=true^nqpriority=1",
+		"NQpriority=1",
+	} {
+		encoded, err := json.Marshal(Override{Query: query})
+		if err != nil {
+			t.Fatal(err)
+		}
+		config := &Config{Table_Override: []string{"incidents=" + string(encoded)}}
+		if _, err := config.Overrides(); err == nil || !strings.Contains(err.Error(), "encoded-query NQ branches") {
+			t.Fatalf("query=%q error=%v", query, err)
+		}
+	}
+
+	encoded, err := json.Marshal(Override{Query: "active=true^short_descriptionLIKENQ review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := &Config{Table_Override: []string{"incidents=" + string(encoded)}}
+	if _, err := config.Overrides(); err != nil {
+		t.Fatalf("ordinary query value containing NQ rejected: %v", err)
+	}
+}
+
 func TestProductAllExpandsEveryCatalogDataset(t *testing.T) {
 	c := &Config{
 		Product:        []string{"all"},
