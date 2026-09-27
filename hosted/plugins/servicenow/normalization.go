@@ -120,7 +120,11 @@ func compileNormalizationRules(values []string) (map[string][]normalizationRule,
 		if !seen[target] {
 			sources = append([]string{target}, sources...)
 		}
-		byKey[group+":"+target] = normalizationRule{Group: group, Target: target, Sources: sources}
+		key := group + ":" + target
+		if _, duplicate := byKey[key]; duplicate {
+			return nil, fmt.Errorf("duplicate Normalization-Field group and target %q", key)
+		}
+		byKey[key] = normalizationRule{Group: group, Target: target, Sources: sources}
 	}
 	keys := make([]string, 0, len(byKey))
 	for key := range byKey {

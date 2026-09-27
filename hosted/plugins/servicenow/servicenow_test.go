@@ -861,6 +861,38 @@ func TestNormalizationStateNamespaceTracksRuleContract(t *testing.T) {
 	}
 }
 
+func TestNormalizationRejectsDuplicateGroupTargetRules(t *testing.T) {
+	for _, rules := range [][]string{
+		{"users:preferred=a", "users:preferred=b"},
+		{"users:preferred=b", "users:preferred=a"},
+	} {
+		config := &Config{
+			BaseConfig:          hosted.BaseConfig{Ingester_UUID: "42000000-0000-4000-8000-000000000001"},
+			Instance:            "https://example.service-now.com",
+			Secret_File:         secretFile(t),
+			API:                 []string{"incidents"},
+			Normalization:       "enabled",
+			Normalization_Field: rules,
+		}
+		err := config.Verify()
+		if err == nil || !strings.Contains(err.Error(), "duplicate Normalization-Field group and target") {
+			t.Fatalf("rules=%q error=%v", rules, err)
+		}
+	}
+
+	valid := &Config{
+		BaseConfig:          hosted.BaseConfig{Ingester_UUID: "42000000-0000-4000-8000-000000000001"},
+		Instance:            "https://example.service-now.com",
+		Secret_File:         secretFile(t),
+		API:                 []string{"incidents"},
+		Normalization:       "enabled",
+		Normalization_Field: []string{"all:preferred=a", "users:preferred=b"},
+	}
+	if err := valid.Verify(); err != nil {
+		t.Fatalf("same target in distinct groups rejected: %v", err)
+	}
+}
+
 func TestSourceContractFingerprintCoversCursorAndProvenanceInputs(t *testing.T) {
 	baseConfig := Config{
 		Instance: "https://one.service-now.com", Page_Size: 100, Max_Pages: 10,

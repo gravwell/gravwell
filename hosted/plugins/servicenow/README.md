@@ -132,8 +132,10 @@ Lookback=24
 `group:target=source1|source2`. The canonical target wins when it is already
 populated. Otherwise, the first populated source wins. Divergent populated
 sources add `_normalizationCollision` as intrinsic metadata without exposing
-their values, and all original source fields remain intact. A target such as
-`username` is distinct from the built-in lowerCamel `userName` target.
+their values, and all original source fields remain intact. Each group and
+target pair may be defined only once; duplicate pairs are rejected so list
+order cannot change the effective schema while reusing durable state. A target
+such as `username` is distinct from the built-in lowerCamel `userName` target.
 
 `Lookback` is an integer number of hours. It initializes a missing checkpoint only; durable state wins
 after restart. Incremental Table API datasets retain their initial or
