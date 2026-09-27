@@ -181,6 +181,10 @@ func TestIncrementalCatalogStableTieAndWholeSecondBoundary(t *testing.T) {
 				t.Errorf("dataset %s query %q missing %q", dataset.Name, query, want)
 			}
 		}
+		zeroOverlapQuery := WindowQuery(dataset, checkpoint, windowEnd, 0)
+		if want := dataset.Timestamp + ">2026-09-21 09:59:59"; !strings.Contains(zeroOverlapQuery, want) {
+			t.Errorf("dataset %s zero-overlap query %q missing mandatory equal-second boundary %q", dataset.Name, zeroOverlapQuery, want)
+		}
 	}
 }
 
@@ -208,6 +212,43 @@ func TestIncrementalEqualSecondBoundaryDeduplicatesByIdentity(t *testing.T) {
 	state, err := loadCursor(runtime, config.StateNamespace()+"/incidents")
 	if err != nil || !state.Checkpoint.Equal(time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)) {
 		t.Fatalf("state=%+v err=%v", state, err)
+	}
+}
+
+func TestIncrementalZeroOverlapReplaysLaterVisibleEqualSecondRecord(t *testing.T) {
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests == 1 {
+			_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+			return
+		}
+		query := r.URL.Query().Get("sysparm_query")
+		if strings.Contains(query, "sys_updated_on>2026-09-21 10:00:00") {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+			return
+		}
+		if !strings.Contains(query, "sys_updated_on>2026-09-21 09:59:59") {
+			t.Errorf("second zero-overlap query %q did not replay the completed checkpoint second", query)
+		}
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"two","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Overlap = intPointer(0)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	for cycle := 0; cycle < 2; cycle++ {
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return now.Add(time.Duration(cycle) * time.Minute) }
+		if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+			t.Fatalf("cycle %d: %v", cycle+1, err)
+		}
+	}
+	if len(runtime.entries) != 2 {
+		t.Fatalf("later-visible equal-second entries=%d want=2", len(runtime.entries))
 	}
 }
 

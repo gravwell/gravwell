@@ -165,8 +165,11 @@ provenance contract. Changing `Lookback` alone does not reset otherwise
 compatible durable state.
 
 `Overlap` and `Max-Retries` default to 300 seconds and four retries when they
-are omitted. An explicit zero disables overlap or retries. `Max-Retries` counts
-attempts after the initial request.
+are omitted. An explicit `Overlap=0` disables replay of earlier seconds but
+still re-reads the completed checkpoint second because Table timestamps have
+whole-second precision; per-record hashes suppress rows already accepted from
+that boundary. An explicit `Max-Retries=0` disables retries. `Max-Retries`
+counts attempts after the initial request.
 
 Raw and normalized modes use separate state namespaces. Changing normalization
 rules creates an intentionally separate state route and can replay records

@@ -317,7 +317,15 @@ func WindowQuery(d Dataset, checkpoint, windowEnd time.Time, overlap int) string
 	if strings.TrimSpace(d.Query) != "" {
 		parts = append(parts, strings.Trim(d.Query, "^"))
 	}
-	start := checkpoint.Add(-time.Duration(overlap) * time.Second)
+	// Table ordering timestamps have whole-second precision. Even when the
+	// configured overlap is zero, replay the completed checkpoint second so a
+	// record that becomes visible later at that same second cannot be skipped.
+	// Per-record hashes suppress rows already accepted from that boundary.
+	effectiveOverlap := overlap
+	if effectiveOverlap == 0 {
+		effectiveOverlap = 1
+	}
+	start := checkpoint.Add(-time.Duration(effectiveOverlap) * time.Second)
 	parts = append(parts, fmt.Sprintf("%s>%s", d.Timestamp, start.Format("2006-01-02 15:04:05")), fmt.Sprintf("%s<=%s", d.Timestamp, windowEnd.Format("2006-01-02 15:04:05")), "ORDERBY"+d.Timestamp, "ORDERBYsys_id")
 	return strings.Join(parts, "^")
 }
