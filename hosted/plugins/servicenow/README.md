@@ -158,8 +158,9 @@ profiles hash stable identities, emit changed content even when timestamps do
 not change, and prune absent objects from local deduplication state without
 emitting deletion tombstones. When an offset-paginated snapshot contains an
 exact multiple of the configured page size, ServiceNow's precise terminal
-offset rejection completes that fixed snapshot, advances its checkpoint, and
-performs the same absence pruning as a short final page. Per-item hashes and
+offset rejection completes that fixed snapshot in the current or next
+collection call, advances its checkpoint, and performs the same absence
+pruning as a short final page. Per-item hashes and
 per-page continuation state
 bound replay after partial failure; one entry accepted immediately before a
 state-write failure may replay because the SDK does not expose an atomic

@@ -179,7 +179,7 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 			// precise rejected-offset response. Complete the fixed snapshot instead
 			// of resetting its offset and replaying it forever. All other HTTP 400
 			// responses remain hard failures.
-			if d.REST != nil && d.REST.OffsetParameter != "" && state.Offset > 0 && fetched == 0 && IsIllegalParameters(err) {
+			if d.REST != nil && d.REST.OffsetParameter != "" && state.Offset > 0 && IsIllegalParameters(err) {
 				state.Checkpoint = state.WindowEnd
 				state.WindowEnd = time.Time{}
 				state.HighWater = time.Time{}

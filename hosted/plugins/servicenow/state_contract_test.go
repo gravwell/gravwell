@@ -623,6 +623,117 @@ func TestMutableSnapshotMutationRepeatAndDeletionContract(t *testing.T) {
 	}
 }
 
+func TestOffsetSnapshotExactMultipleTerminalRejectionCompletesSameCycle(t *testing.T) {
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		switch r.URL.Query().Get("offset") {
+		case "0":
+			_, _ = w.Write([]byte(`{"result":[{"id":"current","created":"2026-09-20T10:00:00Z","value":"stable"}]}`))
+		case "1":
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Illegal query parameters"}}`))
+		default:
+			t.Fatalf("unexpected offset %q", r.URL.Query().Get("offset"))
+		}
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 3
+	dataset := Dataset{
+		Name: "same-cycle-offset-snapshot", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created",
+		REST: &RESTSpec{Path: "/api/same-cycle-offset-snapshot", ResultPath: "result", IDField: "id", LimitParameter: "limit", OffsetParameter: "offset"},
+	}
+	key := config.StateNamespace() + "/" + dataset.Name
+	initialCheckpoint := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	if err := saveCursor(runtime, key, cursorState{
+		Checkpoint:     initialCheckpoint,
+		SourceContract: config.SourceContractFingerprint(dataset),
+		Seen:           map[string]time.Time{"stale": initialCheckpoint},
+		Hashes:         map[string][32]byte{"stale": {1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewClient(server.URL, config.Secret_File, time.Second, 0, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	completedAt := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	plugin.now = func() time.Time { return completedAt }
+	if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatalf("same-cycle terminal offset returned a false failure after %d requests: %v", requests, err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 || !state.Checkpoint.Equal(completedAt) || !state.WindowEnd.IsZero() || !state.HighWater.IsZero() || state.Offset != 0 || state.NextURL != "" || state.PageID != "" || !state.PageTimestamp.IsZero() {
+		t.Fatalf("same-cycle terminal completion requests=%d state=%+v", requests, state)
+	}
+	if _, exists := state.Hashes["stale"]; exists {
+		t.Fatalf("same-cycle terminal completion retained stale identity: state=%+v", state)
+	}
+	if _, exists := state.Hashes["current"]; !exists || len(runtime.entries) != 1 {
+		t.Fatalf("same-cycle terminal completion hashes=%v entries=%d", state.Hashes, len(runtime.entries))
+	}
+}
+
+func TestOffsetTerminalRejectionExcludedCasesRemainHardFailures(t *testing.T) {
+	tests := []struct {
+		name        string
+		status      int
+		message     string
+		offsetBased bool
+		failAtZero  bool
+	}{
+		{name: "different 400 body", status: http.StatusBadRequest, message: "Invalid query detected", offsetBased: true},
+		{name: "different status", status: http.StatusInternalServerError, message: "Illegal query parameters", offsetBased: true},
+		{name: "offset zero", status: http.StatusBadRequest, message: "Illegal query parameters", offsetBased: true, failAtZero: true},
+		{name: "no offset parameter", status: http.StatusBadRequest, message: "Illegal query parameters", failAtZero: true},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			requests := 0
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if !test.failAtZero && r.URL.Query().Get("offset") == "0" {
+					_, _ = w.Write([]byte(`{"result":[{"id":"one","created":"2026-09-20T10:00:00Z"}]}`))
+					return
+				}
+				w.WriteHeader(test.status)
+				_, _ = fmt.Fprintf(w, `{"error":{"message":%q}}`, test.message)
+			}))
+			defer server.Close()
+
+			config := serviceNowContractConfig(t, server.URL)
+			config.Page_Size = 1
+			config.Max_Pages = 3
+			config.Max_Retries = intPointer(0)
+			rest := &RESTSpec{Path: "/api/excluded-terminal", ResultPath: "result", IDField: "id", LimitParameter: "limit"}
+			if test.offsetBased {
+				rest.OffsetParameter = "offset"
+			}
+			dataset := Dataset{Name: "excluded-terminal", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created", REST: rest}
+			runtime := newServiceNowContractRuntime()
+			client := NewClient(server.URL, config.Secret_File, time.Second, 0, 60000, server.Client().Transport)
+			plugin := New(config, processors.NewProcessorSet(runtime))
+			plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+			if err := plugin.collect(context.Background(), runtime, client, dataset); err == nil {
+				t.Fatalf("excluded terminal condition succeeded after %d requests", requests)
+			}
+			if !test.failAtZero {
+				state, err := loadCursor(runtime, config.StateNamespace()+"/"+dataset.Name)
+				if err != nil || state.Offset != 1 || state.WindowEnd.IsZero() || !state.Checkpoint.Before(state.WindowEnd) {
+					t.Fatalf("hard failure lost recoverable continuation: state=%+v err=%v", state, err)
+				}
+			}
+		})
+	}
+}
+
 func TestOffsetSnapshotExactMultipleTerminalRejectionCompletesAcrossRestarts(t *testing.T) {
 	present := true
 	var offsets []string
