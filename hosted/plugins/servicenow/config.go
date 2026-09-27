@@ -214,6 +214,9 @@ func (c *Config) Overrides() (map[string]Override, error) {
 			if containsEncodedQueryNQ(value.Query) {
 				return nil, fmt.Errorf("%s %s Query must not contain encoded-query NQ branches", item.name, name)
 			}
+			if value.Timestamp != "" && !validNormalizationSource(value.Timestamp) {
+				return nil, fmt.Errorf("%s %s Timestamp must be a safe ServiceNow field path", item.name, name)
+			}
 			result[name] = value
 		}
 	}

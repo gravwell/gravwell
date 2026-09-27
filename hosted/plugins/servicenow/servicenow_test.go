@@ -1017,6 +1017,79 @@ func TestConfigRejectsTableOverrideNQQueryBranches(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsUnsafeOverrideTimestampBeforeQueryGeneration(t *testing.T) {
+	type overrideForm struct {
+		name        string
+		selection   func(*Config)
+		setOverride func(*Config, string)
+	}
+	forms := []overrideForm{
+		{
+			name:      "Table-Override",
+			selection: func(c *Config) { c.API = []string{"incidents"} },
+			setOverride: func(c *Config, value string) {
+				c.Table_Override = []string{value}
+			},
+		},
+		{
+			name:      "Selector-Override",
+			selection: func(c *Config) { c.Selector = []string{"incidents"} },
+			setOverride: func(c *Config, value string) {
+				c.Selector_Override = []string{value}
+			},
+		},
+	}
+	for _, form := range forms {
+		form := form
+		t.Run(form.name, func(t *testing.T) {
+			for _, timestamp := range []string{
+				"sys_updated_on^NQpriority",
+				"sys_updated_on ORDERBYsys_id",
+				"sys_updated_on>1970-01-01",
+				"sys_updated_on\nNQpriority",
+				".sys_updated_on",
+				"sys_updated_on.",
+				"sys..updated_on",
+			} {
+				encoded, err := json.Marshal(Override{Timestamp: timestamp})
+				if err != nil {
+					t.Fatal(err)
+				}
+				config := &Config{}
+				form.selection(config)
+				form.setOverride(config, "incidents="+string(encoded))
+				if _, err := config.Datasets(); err == nil || !strings.Contains(err.Error(), "safe ServiceNow field path") {
+					t.Fatalf("timestamp=%q error=%v", timestamp, err)
+				}
+			}
+
+			encoded, err := json.Marshal(Override{Timestamp: "audit.sys_updated_on"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			config := &Config{}
+			form.selection(config)
+			form.setOverride(config, "incidents="+string(encoded))
+			datasets, err := config.Datasets()
+			if err != nil {
+				t.Fatalf("safe timestamp rejected: %v", err)
+			}
+			if len(datasets) != 1 {
+				t.Fatalf("datasets=%d want=1", len(datasets))
+			}
+			checkpoint := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+			windowEnd := checkpoint.Add(time.Hour)
+			initial := WindowQuery(datasets[0], checkpoint, windowEnd, 300)
+			resumed := WindowQueryAfter(datasets[0], checkpoint, windowEnd, 300, checkpoint.Add(time.Minute), "0123456789abcdef0123456789abcdef")
+			for label, query := range map[string]string{"initial": initial, "resumed": resumed} {
+				if !strings.Contains(query, "audit.sys_updated_on") {
+					t.Fatalf("%s query=%q missing safe timestamp", label, query)
+				}
+			}
+		})
+	}
+}
+
 func TestProductAllExpandsEveryCatalogDataset(t *testing.T) {
 	c := &Config{
 		Product:        []string{"all"},
