@@ -570,6 +570,96 @@ func TestMutableSnapshotMutationRepeatAndDeletionContract(t *testing.T) {
 	}
 }
 
+func TestOffsetSnapshotExactMultipleTerminalRejectionCompletesAcrossRestarts(t *testing.T) {
+	present := true
+	var offsets []string
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offset := r.URL.Query().Get("offset")
+		offsets = append(offsets, offset)
+		if offset == "1" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Illegal query parameters"}}`))
+			return
+		}
+		if !present {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"result":[{"id":"one","created":"2026-09-20T10:00:00Z","value":"stable"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 1
+	dataset := Dataset{
+		Name: "offset-snapshot", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created",
+		REST: &RESTSpec{Path: "/api/offset-snapshot", ResultPath: "result", IDField: "id", LimitParameter: "limit", OffsetParameter: "offset"},
+	}
+	key := config.StateNamespace() + "/" + dataset.Name
+	initialCheckpoint := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	if err := saveCursor(runtime, key, cursorState{
+		Checkpoint:     initialCheckpoint,
+		SourceContract: config.SourceContractFingerprint(dataset),
+		Seen:           map[string]time.Time{"stale": initialCheckpoint},
+		Hashes:         map[string][32]byte{"stale": {1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	current := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	poll := func() {
+		t.Helper()
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return current }
+		if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+			t.Fatal(err)
+		}
+		current = current.Add(time.Second)
+	}
+
+	// The first full page persists offset 1. A recreated job then receives the
+	// ServiceNow terminal-offset rejection and must complete the fixed snapshot.
+	completedAt := current
+	poll()
+	poll()
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.Checkpoint.Equal(completedAt) || !state.WindowEnd.IsZero() || !state.HighWater.IsZero() || state.Offset != 0 || state.NextURL != "" || state.PageID != "" || !state.PageTimestamp.IsZero() {
+		t.Fatalf("terminal rejection did not complete snapshot: state=%+v", state)
+	}
+	if _, exists := state.Hashes["stale"]; exists {
+		t.Fatalf("terminal completion retained stale identity: state=%+v", state)
+	}
+	if _, exists := state.Hashes["one"]; !exists || len(runtime.entries) != 1 {
+		t.Fatalf("terminal completion hashes=%v entries=%d", state.Hashes, len(runtime.entries))
+	}
+
+	// A later empty snapshot prunes the item without a tombstone. Reappearance
+	// must emit it again, and its own exact-page terminal rejection must finish.
+	present = false
+	deletedAt := current
+	poll()
+	state, err = loadCursor(runtime, key)
+	if err != nil || !state.Checkpoint.Equal(deletedAt) || len(state.Hashes) != 0 || len(state.Seen) != 0 || len(runtime.entries) != 1 {
+		t.Fatalf("deleted snapshot state=%+v entries=%d err=%v", state, len(runtime.entries), err)
+	}
+	present = true
+	reappearedAt := current
+	poll()
+	poll()
+	state, err = loadCursor(runtime, key)
+	if err != nil || !state.Checkpoint.Equal(reappearedAt) || !state.WindowEnd.IsZero() || state.Offset != 0 || len(state.Hashes) != 1 || len(runtime.entries) != 2 {
+		t.Fatalf("reappeared snapshot state=%+v entries=%d err=%v", state, len(runtime.entries), err)
+	}
+	if got, want := strings.Join(offsets, ","), "0,1,0,0,1"; got != want {
+		t.Fatalf("offset sequence=%q want=%q", got, want)
+	}
+}
+
 func TestEndpointCatalogMutableSnapshotContract(t *testing.T) {
 	for _, dataset := range EndpointCatalog() {
 		dataset := dataset
