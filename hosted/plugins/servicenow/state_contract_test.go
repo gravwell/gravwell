@@ -487,6 +487,59 @@ func TestTablePageSizeOneRestartAdvancesKeyset(t *testing.T) {
 	}
 }
 
+func TestSafeOverrideFilterPageSizeOneZeroOverlapAdvancesOldestFirst(t *testing.T) {
+	ids := []string{
+		"00000000000000000000000000000001",
+		"00000000000000000000000000000002",
+		"00000000000000000000000000000003",
+	}
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("sysparm_query")
+		if !strings.Contains(query, "active=true^short_descriptionLIKEORDERBY review") {
+			t.Fatalf("request %d query=%q missing safe override filter", requests+1, query)
+		}
+		if !strings.HasSuffix(query, "^ORDERBYsys_updated_on^ORDERBYsys_id") {
+			t.Fatalf("request %d query=%q does not end with the owned ascending keyset order", requests+1, query)
+		}
+		if requests > 0 && !strings.Contains(query, "sys_id>"+ids[requests-1]) {
+			t.Fatalf("request %d query=%q missing durable keyset", requests+1, query)
+		}
+		if requests < len(ids) {
+			_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"%s","sys_updated_on":"2026-09-21 10:0%d:00"}]}`, ids[requests], requests)
+		} else {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+		}
+		requests++
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 1
+	config.Overlap = intPointer(0)
+	dataset := catalog["incidents"]
+	dataset.Query = "active=true^short_descriptionLIKEORDERBY review"
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	for cycle := 0; cycle < len(ids)+1; cycle++ {
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return now }
+		if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+			t.Fatalf("cycle %d: %v", cycle+1, err)
+		}
+	}
+	if requests != len(ids)+1 || len(runtime.entries) != len(ids) {
+		t.Fatalf("requests=%d entries=%d want requests=%d entries=%d", requests, len(runtime.entries), len(ids)+1, len(ids))
+	}
+	for i, entry := range runtime.entries {
+		if !bytes.Contains(entry.Data, []byte(ids[i])) {
+			t.Fatalf("entry %d=%q want oldest-first id %q", i, entry.Data, ids[i])
+		}
+	}
+}
+
 func TestNoOffsetPageCeilingResumesPersistedContinuation(t *testing.T) {
 	var server *httptest.Server
 	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

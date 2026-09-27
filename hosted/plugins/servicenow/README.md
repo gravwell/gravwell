@@ -41,12 +41,14 @@ ServiceNow table names provide exact-table selection and can be combined with
 `Product=` or `API=`.
 
 `Table-Override` and `Selector-Override` may add a conjunctive encoded `Query`,
-but `^NQ` branches are rejected. A new-query branch can escape the fixed Table
-timestamp window and make checkpoint advancement unsafe; use one bounded
-conjunctive filter per selected dataset instead. An override `Timestamp` must
-be a field path containing only letters, digits, underscores, and single dots;
-encoded-query controls, operators, whitespace, and empty path segments are
-rejected before either an initial or resumed Table API query is generated.
+but `^NQ`, `ORDERBY`, `ORDERBYDESC`, and `GROUPBY` controls are rejected. A
+new-query branch can escape the fixed Table timestamp window, while custom
+ordering or grouping can invalidate the ingester-owned ascending timestamp and
+`sys_id` keyset; use one bounded conjunctive filter per selected dataset
+instead. An override `Timestamp` must be a field path containing only letters,
+digits, underscores, and single dots; encoded-query controls, operators,
+whitespace, and empty path segments are rejected before either an initial or
+resumed Table API query is generated.
 
 The live state above is bounded to the Zurich PDI and Gravwell 5.9.2. Twenty-eight
 datasets have direct PDI-to-Gravwell evidence, exceeding the agreed seven-dataset

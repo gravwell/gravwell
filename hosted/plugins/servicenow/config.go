@@ -214,6 +214,9 @@ func (c *Config) Overrides() (map[string]Override, error) {
 			if containsEncodedQueryNQ(value.Query) {
 				return nil, fmt.Errorf("%s %s Query must not contain encoded-query NQ branches", item.name, name)
 			}
+			if containsEncodedQueryOrderingOrGrouping(value.Query) {
+				return nil, fmt.Errorf("%s %s Query must not contain encoded-query ordering or grouping controls", item.name, name)
+			}
 			if value.Timestamp != "" && !validNormalizationSource(value.Timestamp) {
 				return nil, fmt.Errorf("%s %s Timestamp must be a safe ServiceNow field path", item.name, name)
 			}
@@ -226,6 +229,16 @@ func (c *Config) Overrides() (map[string]Override, error) {
 func containsEncodedQueryNQ(query string) bool {
 	for _, term := range strings.Split(strings.Trim(strings.TrimSpace(query), "^"), "^") {
 		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(term)), "NQ") {
+			return true
+		}
+	}
+	return false
+}
+
+func containsEncodedQueryOrderingOrGrouping(query string) bool {
+	for _, term := range strings.Split(strings.Trim(strings.TrimSpace(query), "^"), "^") {
+		term = strings.ToUpper(strings.TrimSpace(term))
+		if strings.HasPrefix(term, "ORDERBY") || strings.HasPrefix(term, "GROUPBY") {
 			return true
 		}
 	}
