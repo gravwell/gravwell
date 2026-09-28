@@ -160,6 +160,11 @@ func TestConfig_Tags(t *testing.T) {
 			sections: []string{"GENERAL", "APPLICATIONS"},
 			want:     []string{"jamf-general", "jamf-applications"},
 		},
+		{
+                        name:     "sections containing _",
+                        sections: []string{"STORAGE", generalSectionName, "DISK_ENCRYPTION"},
+                        want:     []string{"jamf-storage", "jamf-general", "jamf-disk-encryption"},
+                },
 	}
 
 	for _, tt := range tests {
@@ -188,13 +193,18 @@ func TestConfig_RequestSections(t *testing.T) {
 		{
 			name:     "general added when absent",
 			sections: []string{"APPLICATIONS", "STORAGE"},
-			want:     []string{"GENERAL", "APPLICATIONS", "STORAGE"},
+			want:     []string{generalSectionName, "APPLICATIONS", "STORAGE"},
 		},
 		{
 			name:     "general not duplicated when present",
-			sections: []string{"GENERAL", "APPLICATIONS"},
-			want:     []string{"GENERAL", "APPLICATIONS"},
+			sections: []string{generalSectionName, "APPLICATIONS"},
+			want:     []string{generalSectionName, "APPLICATIONS"},
 		},
+		{
+                        name:     "user sections with GENERAL not first are unchanged",
+                        sections: []string{"STORAGE", generalSectionName, "DISK_ENCRYPTION"},
+                        want:     []string{generalSectionName, "STORAGE", "DISK_ENCRYPTION"},
+                },
 	}
 
 	for _, tt := range tests {
