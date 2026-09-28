@@ -179,6 +179,8 @@ func TestIngest(t *testing.T) {
 | `e2e.Ingester(t, name, binary, ...)` | Returns `[]tc.ContainerCustomizer` that configures an ingester container with sensible defaults (image, network, platform, wait strategy). |
 | `e2e.WithConfig(t, src, target, data)` | Renders a Go template config and mounts it at `/opt/gravwell/etc/<target>`. |
 | `e2e.WithDefaults(t, name, ...)` | Like `Ingester` but without the ingester-specific image/env — useful for auxiliary containers (mocks, etc.). |
+| `e2e.Kumo(t, name, ...)` | Returns `[]tc.ContainerCustomizer` that runs the [Kumo](https://github.com/sivchari/kumo) AWS emulator (S3/SQS/Kinesis) with sensible defaults (image, exposed port, wait strategy). |
+| `e2e.KumoAWSConfig(ctx)` | Returns an `aws.Config` using Kumo's dummy credentials; combine with a service client's endpoint override to talk to a running Kumo container. |
 | `e2e.GetClient(t)` | Returns an authenticated `*client.Client` connected to the running Gravwell instance. |
 | `e2e.RunSearch(t, c, query, duration)` | Executes a search query and returns the entries. Also writes results as artifacts. |
 | `e2e.SaveTestFiles(t, container, type, paths)` | Copies files out of a container and saves them as test artifacts. |
