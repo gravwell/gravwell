@@ -9,43 +9,73 @@
 package client
 
 import (
-	"net/http"
-
-	"github.com/gravwell/gravwell/v3/client/types"
-
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
+// TokenCapabilities returns a list of strings which are valid options
+// for the Capabilities in a token definition.
 func (c *Client) TokenCapabilities() (cl []string, err error) {
-	err = c.getStaticURL(tokenCapabilitiesUrl(), &cl)
-	return
+	return c.get[[]string](tokenCapabilitiesUrl())
 }
 
-func (c *Client) CreateToken(tc types.TokenCreate) (tf types.TokenFull, err error) {
-	err = c.postStaticURL(tokensUrl(), tc, &tf)
-	return
+// CreateToken instantiates a new token. CreateToken and RegenToken are
+// the only cases in which a TokenFull object (containing the Value field)
+// is returned.
+func (c *Client) CreateToken(tc types.Token) (tf types.TokenFull, err error) {
+	return c.post[types.Token, types.TokenFull](tokensUrl(), &tc)
 }
 
-func (c *Client) ListTokens() (ts []types.Token, err error) {
-	err = c.getStaticURL(tokensUrl(), &ts)
-	return
+// ListTokens gets a list of tokens accessible to the user. If
+// non-nil, the QueryOptions will be applied for pagination,
+// filtering, etc.
+func (c *Client) ListTokens(opts types.QueryOptions) (ts types.TokenListResponse, err error) {
+	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, &opts)
 }
 
-func (c *Client) TokenInfo(id uuid.UUID) (t types.Token, err error) {
-	err = c.getStaticURL(tokenIdUrl(id), &t)
-	return
+// ListAllTokens (admin-only) gets a list of all tokens on the system. If
+// non-nil, the QueryOptions will be applied for pagination,
+// filtering, etc.
+func (c *Client) ListAllTokens(opts types.QueryOptions) (ts types.TokenListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.TokenListResponse](TOKENS_LIST_URL, &opts)
 }
 
-func (c *Client) UpdateToken(id uuid.UUID, tr types.TokenCreate) (t types.Token, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(id), tr, &t)
-	return
+// GetToken returns a particular token.
+func (c *Client) GetToken(id string) (t types.Token, err error) {
+	return c.GetTokenEx(id, GetOptions{})
 }
 
-func (c *Client) RegenToken(id uuid.UUID, tr types.TokenRegeneration) (t types.TokenFull, err error) {
-	err = c.methodStaticPushURL(http.MethodPatch, tokenIdUrl(id), tr, &t)
-	return
+// GetTokenEx returns a particular token. If the QueryOptions arg is
+// not nil, applicable parameters (currently only IncludeDeleted) will
+// be applied to the query.
+func (c *Client) GetTokenEx(id string, opts GetOptions) (types.Token, error) {
+	return c.get[types.Token](tokenIdUrl(id), opts.params()...)
 }
 
-func (c *Client) DeleteToken(id uuid.UUID) (err error) {
-	return c.methodStaticPushURL(http.MethodDelete, tokenIdUrl(id), nil, nil, http.StatusNoContent)
+// UpdateToken modifies an existing token and returns the complete, updated struct.
+func (c *Client) UpdateToken(id string, p types.TokenPatch) (updated types.Token, err error) {
+	if id == "" {
+		return types.Token{}, ErrEmptyID
+	}
+	return c.patch[types.TokenPatch, types.Token](tokenIdUrl(id), p)
+}
+
+// RegenToken requests that the secret token string be regenerated without modifying the token contents or permissions
+func (c *Client) RegenToken(id string, tr types.TokenRegeneration) (t types.TokenFull, err error) {
+	return c.patch[types.TokenRegeneration, types.TokenFull](tokenIDRegenURL(id), tr)
+}
+
+// DeleteToken removes a token value without deleting the data around the token, it essentially disables the token
+func (c *Client) DeleteToken(id string) (err error) {
+	return c.delete(tokenIdUrl(id), false)
+}
+
+// PurgeToken completely deletes a token.
+func (c *Client) PurgeToken(id string) (err error) {
+	return c.delete(tokenIdUrl(id), true)
+}
+
+// CleanupTokens (admin-only) purges all deleted tokens for all users.
+func (c *Client) CleanupTokens() error {
+	return c.delete(tokensUrl(), false)
 }

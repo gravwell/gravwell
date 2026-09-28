@@ -9,14 +9,13 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gobwas/glob"
-	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v4/ingest"
 )
 
 type Capability uint16
@@ -38,16 +37,18 @@ const (
 	ResourceWrite      Capability = 13
 	TemplateRead       Capability = 14
 	TemplateWrite      Capability = 15
-	PivotRead          Capability = 16
-	PivotWrite         Capability = 17
+	PivotRead          Capability = 16 // Legacy name
+	ActionableRead     Capability = 16
+	PivotWrite         Capability = 17 // Legacy name
+	ActionableWrite    Capability = 17
 	MacroRead          Capability = 18
 	MacroWrite         Capability = 19
 	LibraryRead        Capability = 20
 	LibraryWrite       Capability = 21
 	ExtractorRead      Capability = 22
 	ExtractorWrite     Capability = 23
-	UserFileRead       Capability = 24
-	UserFileWrite      Capability = 25
+	FileRead           Capability = 24
+	FileWrite          Capability = 25
 	KitRead            Capability = 26
 	KitWrite           Capability = 27
 	KitBuild           Capability = 28
@@ -125,35 +126,35 @@ type CapabilitySet struct {
 	Grants []byte
 }
 
-// CapabilityState is the expanded set of capabilities that is exchanged between clients the the API
+// CBACExpandedRules contain the more human/UI-friendly CapabilityState and TagAccess structs.
+type CBACExpandedRules struct {
+	Capabilities CapabilityState
+	Tags         TagAccess
+}
+
+// CapabilityState is the expanded set of capabilities that is exchanged between clients and the API
 // The grants specified using the full name of a capability to make the API more explicit
 type CapabilityState struct {
 	Grants []string
 }
 
-func (st CapabilityState) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		st.Grants,
-	})
-}
-
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
 type CapabilityDesc struct {
-	Cap      Capability
-	Name     string
-	Desc     string
-	Category CapabilityCategory
+	Cap       Capability
+	Name      string
+	Desc      string
+	Category  CapabilityCategory
+	TokenOnly bool
+	AdminOnly bool
 }
 
 // CapabilityExplanation wraps a CapabilityDesc with information about if and
 // how the user *obtained* that capability.
 type CapabilityExplanation struct {
 	CapabilityDesc
-	Granted     bool           // True if the user has this capability
-	UserGrant   bool           // True if the capability was explicitly granted to the user
-	GroupGrants []GroupDetails // An array of groups to which the user belongs that grant the capability.
+	Granted     bool    // True if the user has this capability
+	UserGrant   bool    // True if the capability was explicitly granted to the user
+	GroupGrants []Group // An array of groups to which the user belongs that grant the capability.
 }
 
 // CapabilityTemplate is group of capabilities with a name and description, this is used to build up a simplified set of
@@ -175,6 +176,15 @@ func (cs CapabilitySet) check(c Capability) (grant bool) {
 // Has checks if a capability is allowed given the default value and grants
 func (cs CapabilitySet) Has(c Capability) bool {
 	return cs.check(c)
+}
+
+func (cs CapabilitySet) HasOneOf(c []Capability) (has bool) {
+	for _, i := range c {
+		if cs.Has(i) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsSet checks if a capability grant is set
@@ -217,13 +227,24 @@ func (cs *CapabilitySet) CapabilityList() (r []CapabilityDesc) {
 	return
 }
 
+// IsAdminCap returns if this Capability is an AdminOnlyCap
+func (c Capability) IsAdminCap() bool {
+	return slices.Contains(adminOnlyCapList, c)
+}
+
+func (c Capability) IsTokenCap() bool {
+	return slices.Contains(tokenOnlyCapList, c)
+}
+
 // CapabilityDesc converts a Capability into a CapabilityDescription
 func (c Capability) CapabilityDesc() CapabilityDesc {
 	return CapabilityDesc{
-		Cap:      c,
-		Name:     c.Name(),
-		Desc:     c.Description(),
-		Category: c.Category(),
+		Cap:       c,
+		Name:      c.Name(),
+		Desc:      c.Description(),
+		Category:  c.Category(),
+		AdminOnly: c.IsAdminCap(),
+		TokenOnly: c.IsTokenCap(),
 	}
 }
 
@@ -265,10 +286,10 @@ func (c Capability) Name() string {
 		return `TemplateRead`
 	case TemplateWrite:
 		return `TemplateWrite`
-	case PivotRead:
-		return `PivotRead`
-	case PivotWrite:
-		return `PivotWrite`
+	case ActionableRead:
+		return `ActionableRead`
+	case ActionableWrite:
+		return `ActionableWrite`
 	case MacroRead:
 		return `MacroRead`
 	case MacroWrite:
@@ -281,10 +302,10 @@ func (c Capability) Name() string {
 		return `ExtractorRead`
 	case ExtractorWrite:
 		return `ExtractorWrite`
-	case UserFileRead:
-		return `UserFileRead`
-	case UserFileWrite:
-		return `UserFileWrite`
+	case FileRead:
+		return `FileRead`
+	case FileWrite:
+		return `FileWrite`
 	case KitRead:
 		return `KitRead`
 	case KitWrite:
@@ -366,9 +387,9 @@ func (c Capability) Category() CapabilityCategory {
 	case Ingest:
 		return IngestCat
 
-	case PivotRead:
+	case ActionableRead:
 		return ActionablesCat
-	case PivotWrite:
+	case ActionableWrite:
 		return ActionablesCat
 
 	case DashboardRead:
@@ -381,9 +402,9 @@ func (c Capability) Category() CapabilityCategory {
 	case ExtractorWrite:
 		return ExtractorsCat
 
-	case UserFileRead:
+	case FileRead:
 		return FilesCat
-	case UserFileWrite:
+	case FileWrite:
 		return FilesCat
 
 	case KitRead:
@@ -503,9 +524,13 @@ func (c *Capability) Parse(v string) (err error) {
 	case `templatewrite`:
 		*c = TemplateWrite
 	case `pivotread`:
-		*c = PivotRead
+		fallthrough
+	case `actionableread`:
+		*c = ActionableRead
 	case `pivotwrite`:
-		*c = PivotWrite
+		fallthrough
+	case `actionablewrite`:
+		*c = ActionableWrite
 	case `macroread`:
 		*c = MacroRead
 	case `macrowrite`:
@@ -518,10 +543,10 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = ExtractorRead
 	case `extractorwrite`:
 		*c = ExtractorWrite
-	case `userfileread`:
-		*c = UserFileRead
-	case `userfilewrite`:
-		*c = UserFileWrite
+	case `fileread`:
+		*c = FileRead
+	case `filewrite`:
+		*c = FileWrite
 	case `kitread`:
 		*c = KitRead
 	case `kitwrite`:
@@ -613,10 +638,10 @@ func (c Capability) String() string {
 		return `Template Read`
 	case TemplateWrite:
 		return `Template Write`
-	case PivotRead:
-		return `Pivot Read`
-	case PivotWrite:
-		return `Pivot Write`
+	case ActionableRead:
+		return `Actionable Read`
+	case ActionableWrite:
+		return `Actionable Write`
 	case MacroRead:
 		return `Macro Read`
 	case MacroWrite:
@@ -629,10 +654,10 @@ func (c Capability) String() string {
 		return `Extractor Read`
 	case ExtractorWrite:
 		return `Extractor Write`
-	case UserFileRead:
-		return `User File Read`
-	case UserFileWrite:
-		return `User File Write`
+	case FileRead:
+		return `File Read`
+	case FileWrite:
+		return `File Write`
 	case KitRead:
 		return `Kit Read`
 	case KitWrite:
@@ -722,9 +747,9 @@ func (c Capability) Description() string {
 		return `User can read and use search templates`
 	case TemplateWrite:
 		return `User can create and modify templates`
-	case PivotRead:
+	case ActionableRead:
 		return `User can read and use actionables`
-	case PivotWrite:
+	case ActionableWrite:
 		return `User can create and modify actionables`
 	case MacroRead:
 		return `User can read and use macros`
@@ -738,10 +763,10 @@ func (c Capability) Description() string {
 		return `User can view and use auto extractors`
 	case ExtractorWrite:
 		return `User can create and modify auto extractors`
-	case UserFileRead:
-		return `User can view user files`
-	case UserFileWrite:
-		return `User can create and update user files`
+	case FileRead:
+		return `User can view files`
+	case FileWrite:
+		return `User can create and update files`
 	case KitRead:
 		return `User can view kits`
 	case KitWrite:
@@ -809,14 +834,6 @@ type CapError struct {
 // a Grant can be a specific tag name or a globbing patttern
 type TagAccess struct {
 	Grants []string //Grants specify tag names and/or globbing patterns which represent allowed tags
-}
-
-func (ta TagAccess) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Grants emptyStrings
-	}{
-		ta.Grants,
-	})
 }
 
 const globChars = `*?[]{}!`
@@ -939,6 +956,10 @@ func (ud *UserDetails) FilterTags(all []string) (r []string) {
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
 func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
+	if c.IsAdminCap() && !ud.Admin {
+		return false
+	}
+
 	if allowed = ud.CBAC.Capabilities.check(c); allowed {
 		return
 	}
@@ -974,28 +995,37 @@ func (ud *UserDetails) CapabilityList() []CapabilityDesc {
 	return CreateUserCapabilityList(ud)
 }
 
-// Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token
+// Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token but does NOT contain the actual secret string. It is also the type used to create a new token.
 type Token struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Desc         string    `json:"description"`
-	UID          int32     `json:"uid"`
-	Created      time.Time `json:"createdAt"`
-	Expires      time.Time `json:"expiresAt,omitempty"`
-	Capabilities []string  `json:"capabilities"`
+	CommonFields
+	ExpiresAt    time.Time
+	Capabilities []string
 }
 
-// TokenCreate is the structure used to ask the API to make a new token, only the request parameters are present
-type TokenCreate struct {
-	Name         string    `json:"name"`
-	Desc         string    `json:"description"`
-	Expires      time.Time `json:"expiresAt,omitempty"`
-	Capabilities []string  `json:"capabilities"`
+// TokenPatch is the type used to request an update to an existing Token and the capabilities it provides.
+type TokenPatch struct {
+	CommonFieldsPatch
+	// If capabilities is set, it must contain at least 1 capability.
+	Capabilities Optional[[]string] `json:",omitzero"`
+}
+
+// ToPatch converts t into a TokenPatch with every field set.
+func (t Token) ToPatch() TokenPatch {
+	return TokenPatch{
+		CommonFieldsPatch: t.CommonFields.ToPatch(),
+		Capabilities:      NewOptional(t.Capabilities),
+	}
+}
+
+// TokenListResponse is the type returned when querying a list of tokens.
+type TokenListResponse struct {
+	BaseListResponse
+	Results []Token
 }
 
 // TokenRegeneration is the structure used to request regeneration of an existing token
 type TokenRegeneration struct {
-	Expires time.Time `json:"expiresAt,omitempty"`
+	ExpiresAt time.Time
 }
 
 // TokenFull represents the response value for a token create request.
@@ -1003,29 +1033,23 @@ type TokenRegeneration struct {
 // ONLY provided when creating a new token or regenerating a token.
 type TokenFull struct {
 	Token
-	Value string `json:"token"`
-}
-
-// TokenFullWire is the internal type for storing token values
-type TokenFullWire struct {
-	TokenFull
-	Caps []byte
+	Value string
 }
 
 // Expired returns whether a token is expired or not, if no expiration is set then the token is not expired
 func (t Token) Expired() bool {
-	if t.Expires.IsZero() {
+	if t.ExpiresAt.IsZero() {
 		return false
 	}
-	return time.Now().After(t.Expires)
+	return time.Now().After(t.ExpiresAt)
 }
 
 // ExpiresString returns a human friendly string of when a token expires
 func (t Token) ExpiresString() string {
-	if t.Expires.IsZero() {
+	if t.ExpiresAt.IsZero() {
 		return `NEVER`
 	}
-	return t.Expires.Format(time.RFC3339)
+	return t.ExpiresAt.Format(time.RFC3339)
 }
 
 // CapabilitiesString returns a human friendly space delimited list of capabilities
@@ -1054,6 +1078,17 @@ func EncodeCapabilities(caps []Capability) (b []byte, err error) {
 		if b, err = AddCapability(b, c); err != nil {
 			b = nil
 			return
+		}
+	}
+	return
+}
+
+// DecodeCapabilities turns an encoded capability slice into a list of
+// friendly names.
+func DecodeCapabilities(caps []byte) (names []string) {
+	for _, c := range fullCapList {
+		if CheckCapability(caps, c) {
+			names = append(names, c.Name())
 		}
 	}
 	return

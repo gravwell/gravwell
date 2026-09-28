@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 // CheckEqual validates that *T implements hosted.Config correctly.

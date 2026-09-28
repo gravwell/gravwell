@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 const (

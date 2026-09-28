@@ -9,63 +9,54 @@
 package client
 
 import (
-	"github.com/gravwell/gravwell/v3/client/types"
-
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// GetUserPlaybooks returns all playbooks accessible to the current user.
-func (c *Client) GetUserPlaybooks() ([]types.Playbook, error) {
-	var pbs []types.Playbook
-	if err := c.getStaticURL(PLAYBOOKS_URL, &pbs); err != nil {
-		return nil, err
+// ListPlaybooks returns all playbooks accessible to the current user.
+func (c *Client) ListPlaybooks(opts types.QueryOptions) (ret types.PlaybookListResponse, err error) {
+	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, &opts)
+}
+
+// ListAllPlaybooks (admin-only) returns all playbooks on the system.
+func (c *Client) ListAllPlaybooks(opts types.QueryOptions) (ret types.PlaybookListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, &opts)
+}
+
+// GetPlaybook returns a particular playbook.
+func (c *Client) GetPlaybook(id string) (types.Playbook, error) {
+	return c.GetPlaybookEx(id, GetOptions{})
+}
+
+// GetPlaybookEx returns a particular playbook, modified by opts.
+func (c *Client) GetPlaybookEx(id string, opts GetOptions) (types.Playbook, error) {
+	return c.get[types.Playbook](playbookUrl(id), opts.params()...)
+}
+
+// DeletePlaybook deletes a playbook by marking it deleted in the database.
+func (c *Client) DeletePlaybook(id string) error {
+	return c.delete(playbookUrl(id), false)
+}
+
+// PurgePlaybook deletes a playbook entirely, removing it from the database.
+func (c *Client) PurgePlaybook(id string) error {
+	return c.delete(playbookUrl(id), true)
+}
+
+// CreatePlaybook creates a new playbook, returning the newly-created playbook.
+func (c *Client) CreatePlaybook(pb types.Playbook) (result types.Playbook, err error) {
+	return c.post[types.Playbook, types.Playbook](PLAYBOOKS_URL, &pb)
+}
+
+// UpdatePlaybook modifies an existing playbook and returns the complete, updated struct.
+func (c *Client) UpdatePlaybook(ID string, p types.PlaybookPatch) (updated types.Playbook, err error) {
+	if ID == "" {
+		return types.Playbook{}, ErrEmptyID
 	}
-	return pbs, nil
+	return c.patch[types.PlaybookPatch, types.Playbook](playbookUrl(ID), p)
 }
 
-// GetPlaybook fetches the playbook with the specified UUID or GUID.
-func (c *Client) GetPlaybook(id uuid.UUID) (types.Playbook, error) {
-	var pb types.Playbook
-	err := c.getStaticURL(playbookUrl(id), &pb)
-	return pb, err
-}
-
-// DeletePlaybook deletes the playbook with the specified UUID or GUID.
-func (c *Client) DeletePlaybook(id uuid.UUID) error {
-	return c.deleteStaticURL(playbookUrl(id), nil)
-}
-
-// AddPlaybook creates a new playbook with the specified name, description, and body, returning
-// the UUID of the new playbook. Note that the UUID and GUID fields will be automatically chosen,
-// but the GUID field may be updated later.
-func (c *Client) AddPlaybook(name, desc string, body []byte) (uuid.UUID, error) {
-	m := types.Playbook{Name: name, Desc: desc, Body: body}
-	var id uuid.UUID
-	err := c.postStaticURL(PLAYBOOKS_URL, m, &id)
-	return id, err
-}
-
-// UpdatePlaybook modifies an existing playbook. The UUID or GUID field of the parameter
-// must match an existing playbook on the system that the user has access to.
-func (c *Client) UpdatePlaybook(m types.Playbook) error {
-	return c.putStaticURL(playbookUrl(m.UUID), m)
-}
-
-// GetAllPlaybooks (admin-only) returns all playbooks for all users.
-// Non-administrators will receive the same list as returned by GetUserPlaybooks.
-func (c *Client) GetAllPlaybooks() (pbs []types.Playbook, err error) {
-	//check our status locally, server will kick it too, but no reason in even
-	//making the request if we know it will fail
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		if !c.AdminMode() {
-			c.SetAdminMode()
-			defer c.ClearAdminMode()
-		}
-		if err = c.getStaticURL(PLAYBOOKS_URL, &pbs); err != nil {
-			pbs = nil
-		}
-	}
-	return
+// CleanupPlaybooks (admin-only) purges all deleted playbooks for all users.
+func (c *Client) CleanupPlaybooks() error {
+	return c.delete(PLAYBOOKS_URL, false)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -9,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const maxChunkSize = 256 * 1024 * 1024 //256MB at a time
@@ -93,7 +94,7 @@ func processChunk(cli *client.Client, s, e time.Time, pth, query string) (sz int
 		StartTS: entry.FromStandard(s),
 		EndTS:   entry.FromStandard(e),
 	}
-	if rdr, err = cli.DownloadSearch(search.ID, tr, `json`); err != nil {
+	if rdr, err = cli.DownloadSearch(context.Background(), search.ID, tr, `json`); err != nil {
 		err = fmt.Errorf("Failed to download data %w", err)
 		return
 	}
