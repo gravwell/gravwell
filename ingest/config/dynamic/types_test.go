@@ -266,13 +266,10 @@ func TestTypeString(t *testing.T) {
 		{`unicode`, `héllo→世界`, true},
 		{`env`, `${HOME}`, true},
 		{`trailing space`, `pad  `, true},
-		// a raw string may span lines, so a newline is escaped instead: a value that put
-		// the rest of itself on lines of its own would look like structure to anything
-		// reading a rendered block back a line at a time
-		{`newline`, "line1\nline2", false},
-		// a carriage return on its own does not start a line, so it stays on the raw
-		// path, which is the only place it can go at all: gcfg has no escape for it
+		{`newline`, "line1\nline2", true},
+		// a carriage return can only go on the raw path at all: gcfg has no escape for it
 		{`carriage return`, "line1\rline2", true},
+		{`crlf`, "line1\r\nline2", true},
 		{`tab`, "a\tb", true},
 		{`double quote`, `say "hi"`, false},
 		{`backslash`, `C:\path\to`, false},
@@ -287,19 +284,6 @@ func TestTypeString(t *testing.T) {
 		if got := parseBack(t, line).Str; len(got) != 1 || got[0] != tc.in {
 			t.Errorf("%s: %q round tripped to %q via %q", tc.name, tc.in, got, line)
 		}
-	}
-}
-
-// TestStringCRLF documents the one value a config can no longer carry.  A carriage return
-// alone still rides the raw path, but paired with a newline it cannot: the newline forces
-// the quoted path, where gcfg understands only \\ \" \n and \t and so has no way to write
-// a carriage return at all.  Refused outright beats written wrong.
-func TestStringCRLF(t *testing.T) {
-	err := (Variable{Name: `Str`, Type: typeString, Value: "line1\r\nline2"}).emitIniLine(&strings.Builder{}, ``)
-	if err == nil {
-		t.Fatal("expected an error for a CRLF value")
-	} else if !errors.Is(err, ErrUnrepresentable) {
-		t.Errorf("error does not wrap ErrUnrepresentable: %v", err)
 	}
 }
 

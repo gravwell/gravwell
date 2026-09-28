@@ -70,22 +70,18 @@ const (
 	// written: leaving the other field alone is still choosing its default.
 	optRequiredIf = `requiredif`
 
-	// iniRawUnsafe is the set of runes that keep a value off the raw backtick path:
-	// the three the gcfg raw string scanner treats specially -- a backtick, which
-	// terminates the string, a backslash, which sets its escape state, and a double
-	// quote, which gets escaped -- plus a newline.
+	// iniRawUnsafe is the set of runes the gcfg raw string scanner treats specially:
+	// a backtick, a backslash and a double quote.  A value holding none of them is
+	// copied through a backtick string verbatim.
 	//
-	// A raw string may legally span lines, so a newline is unsafe for a different reason
-	// than the other three: it is representable, but it would put the rest of the value
-	// on lines of its own.  Everything that reads a rendered block back a line at a time,
-	// metadata comments in particular, would then be reading a value as though it were
-	// structure, and a value could forge whatever it liked simply by containing it.
-	// Escaped by iniQuote instead, every line of a block is a line of the block.
-	//
-	// A carriage return is deliberately not in the set.  It does not start a line, so it
-	// cannot forge one, and gcfg has no escape for it: putting it here would only turn a
-	// value that carries one from representable into refused.
-	iniRawUnsafe = "`" + `\"` + "\n"
+	// A newline is deliberately not in the set.  A raw string may legally span lines, so
+	// a value that carries one puts the rest of itself on lines of its own, and anything
+	// splitting a rendered block on newlines would read those lines as structure.  The
+	// answer to that is to read a block the way gcfg does rather than to narrow what a
+	// value may hold: iniQuote can carry a newline but not a carriage return, so pushing
+	// values onto it would turn every CRLF value from representable into refused.  See
+	// scanINIComments, which tracks the strings instead.
+	iniRawUnsafe = "`" + `\"`
 )
 
 var (

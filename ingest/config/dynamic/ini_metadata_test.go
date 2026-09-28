@@ -204,41 +204,96 @@ func TestMetadataRenderingIsStable(t *testing.T) {
 	}
 }
 
-// TestValueCannotForgeMetadata is why a newline keeps a value off the raw backtick path.
-// A raw string may span lines, so a value holding one used to put the rest of itself on
-// lines of its own, and a line that starts with the marker is a metadata comment to
-// anything reading the block back.  Escaped, the value is one line and says nothing.
+// TestValueCannotForgeMetadata covers a value trying to write structure into the block it
+// sits in.  There are two ways it can try and the block has to survive both.
 func TestValueCannotForgeMetadata(t *testing.T) {
-	forged := "harmless\n\t#gravwell-metadata \"Tag-Name\" \"secret-key\"=\"attacker/owned\"\n" +
-		"\t#gravwell-metadata \"Token\" \"secret-key\"=\"attacker/owned\"\nstill harmless"
+	// a forged metadata comment needs quotes, and a quote puts the whole value on the
+	// escaped path, so the forgery arrives as one line of text inside one value
+	quoted := "harmless\n\t#gravwell-metadata \"Tag-Name\" \"secret-key\"=\"attacker/owned\"\n" +
+		"\t;gravwell-metadata \"Token\" \"secret-key\"=\"attacker/owned\"\nstill harmless"
+	// a value carrying no quote, backslash or backtick stays on the raw path, where it
+	// really does span lines: these forged lines are lines of the file, and the only
+	// thing that keeps them from being read as structure is the scanner knowing it is
+	// inside a string
+	raw := "harmless\n[metatest \u0060other\u0060]\n#gravwell-metadata \u0060X\u0060\nstill harmless"
+	raw = strings.ReplaceAll(raw, "\u0060", ``) // no backtick, or the value is not raw
+
 	c := RunnerDefinition{Kind: `metatest`, Name: `prod`, Variables: []Variable{
-		{Name: `Tag-Name`, Type: typeString, Value: `metatest`},
-		{Name: `Token`, Type: typeSecret, Value: forged},
+		{Name: `Tag-Name`, Type: typeString, Value: `metatest`,
+			Metadata: map[string]string{`source`: `default`}},
+		{Name: `Token`, Type: typeSecret, Value: quoted},
+		{Name: `Preprocessor`, Type: typeSliceString, Value: []string{raw}},
 	}}
 	ini, err := c.INI()
 	if err != nil {
 		t.Fatalf("INI failed: %v", err)
 	}
-	if strings.Contains(ini, "\n\t#"+iniMetadataMarker) || strings.Contains(ini, "\n\t;"+iniMetadataMarker) {
-		t.Errorf("a value forged a metadata comment:\n%s", ini)
+	t.Logf("generated:\n%s", ini)
+
+	// the raw value has to actually span lines, or this test proves nothing
+	if !strings.Contains(ini, "\nstill harmless`") {
+		t.Fatalf("the raw value did not span lines, the scanner is not being exercised:\n%s", ini)
 	}
+	// the forged section header is one of those lines, and must not be read as one
+	if !strings.Contains(ini, "\n[metatest other]\n") {
+		t.Fatalf("the forged section header is not in the block:\n%s", ini)
+	}
+
 	md, err := ParseINIMetadata(ini)
 	if err != nil {
 		t.Fatalf("ParseINIMetadata failed: %v", err)
-	} else if len(md) != 0 {
-		t.Errorf("a config with no metadata parsed as %#v", md)
 	}
-	// and the value itself still has to survive, escaping is not mangling
+	if len(md) != 1 {
+		t.Fatalf("a value forged metadata, got %#v from:\n%s", md, ini)
+	}
+	if want := (map[string]string{`source`: `default`}); !maps.Equal(md[`Tag-Name`], want) {
+		t.Errorf("Tag-Name came back with %#v", md[`Tag-Name`])
+	}
+
+	// and both values still have to survive, none of this may mangle them
 	var tgt struct {
 		Metatest map[string]*metaConfig
 	}
 	if err = gcfg.ReadStringInto(&tgt, ini); err != nil {
 		t.Fatalf("gcfg rejected the generated INI: %v\n%s", err, ini)
 	}
-	if got := tgt.Metatest[`prod`]; got == nil {
+	got := tgt.Metatest[`prod`]
+	if got == nil {
 		t.Fatal("the section did not load")
-	} else if got.Token != forged {
-		t.Errorf("the value came back as %q", got.Token)
+	} else if got.Token != quoted {
+		t.Errorf("the escaped value came back as %q", got.Token)
+	} else if len(got.Preprocessor) != 1 || got.Preprocessor[0] != raw {
+		t.Errorf("the raw value came back as %q", got.Preprocessor)
+	}
+	// the forged header must not have opened a section of its own
+	if _, forged := tgt.Metatest[`other`]; forged {
+		t.Error("a value opened a section")
+	}
+}
+
+// TestParseINIMetadataIgnoresProse covers an operator writing about this rather than an
+// instance of it.  A comment that cannot be parsed fails the whole blob, so a sentence
+// mistaken for a mangled metadata comment would throw away every real one in the file,
+// which is a great deal more than the sentence is worth.
+func TestParseINIMetadataIgnoresProse(t *testing.T) {
+	for _, prose := range []string{
+		`# gravwell-metadata notes follow, do not edit them by hand`,
+		`#gravwell-metadata comments are written by the webserver`,
+		`; gravwell-metadata is how a secret key is remembered`,
+		`# gravwell-metadata-format is described in the docs`,
+		`#gravwell-metadata` + "\tsee the docs",
+	} {
+		blob := "[metatest \"prod\"]\n\t" + prose + "\n" +
+			"\t#gravwell-metadata \"Token\" \"secret-key\"=\"prod/metatest\"\n\tToken=`shh`\n"
+		md, err := ParseINIMetadata(blob)
+		if err != nil {
+			t.Errorf("prose %q failed the blob: %v", prose, err)
+			continue
+		}
+		want := map[string]string{`secret-key`: `prod/metatest`}
+		if !maps.Equal(md[`Token`], want) {
+			t.Errorf("prose %q cost the real comment, got %#v", prose, md)
+		}
 	}
 }
 
@@ -289,7 +344,6 @@ func TestParseINIMetadataAcceptsHandWriting(t *testing.T) {
 func TestParseINIMetadataErrors(t *testing.T) {
 	for name, blob := range map[string]string{
 		`no payload`:        "#gravwell-metadata",
-		`unquoted name`:     "#gravwell-metadata Token \"k\"=\"v\"",
 		`unterminated name`: "#gravwell-metadata \"Token",
 		`no pairs`:          "#gravwell-metadata \"Token\"",
 		`unquoted key`:      "#gravwell-metadata \"Token\" k=\"v\"",
@@ -438,4 +492,43 @@ func TestMetadataDoesNotDisturbTheValues(t *testing.T) {
 	if strings.TrimSpace(lines[2]) != "Tag-Name=`metatest`" {
 		t.Errorf("line 2 is %q", lines[2])
 	}
+}
+
+// FuzzINIMetadataBlock is the standing guard on the two properties the whole scheme rests
+// on: whatever a value holds, it cannot invent metadata that was never there, and
+// whatever a key or value holds, the metadata that was there comes back exactly.
+//
+// Both are properties rather than cases because the interesting inputs are the ones
+// nobody thought to write down: a value that spans lines, a key holding a comment
+// character, a value that is itself a well formed metadata comment.
+func FuzzINIMetadataBlock(f *testing.F) {
+	f.Add(`plain`, `k`, `v`)
+	f.Add("a\n\t#gravwell-metadata \"Forged\" \"a\"=\"b\"\nb", `k`, `v`)
+	f.Add("a\n[other section]\n#gravwell-metadata X\nb", "\x00", "\xff")
+	f.Add("spans\nlines\nraw", "\n", "\"")
+	f.Add("a`b\\c\"d", " ", "\U0010ffff")
+	f.Fuzz(func(t *testing.T, value, k, v string) {
+		c := RunnerDefinition{Kind: `metatest`, Name: `prod`, Variables: []Variable{
+			{Name: `Val`, Type: typeString, Value: value},
+			{Name: `Tag`, Type: typeString, Value: `t`, Metadata: map[string]string{k: v}},
+		}}
+		ini, err := c.INI()
+		if err != nil {
+			// a value a config file cannot carry is refused, which is an answer
+			if !errors.Is(err, ErrUnrepresentable) {
+				t.Fatalf("INI failed with something other than ErrUnrepresentable: %v", err)
+			}
+			return
+		}
+		md, err := ParseINIMetadata(ini)
+		if err != nil {
+			t.Fatalf("ParseINIMetadata failed on:\n%s\nerr: %v", ini, err)
+		}
+		if len(md) != 1 {
+			t.Fatalf("expected one variable's metadata, got %#v from:\n%s", md, ini)
+		}
+		if !maps.Equal(md[`Tag`], c.Variables[1].Metadata) {
+			t.Fatalf("%q=%q came back as %#v from:\n%s", k, v, md[`Tag`], ini)
+		}
+	})
 }

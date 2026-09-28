@@ -33,6 +33,13 @@ import (
 // plugin exactly as one written without it does.  It survives the trip back out because
 // ParseINIMetadata reads the comments the parser skipped.
 //
+// The writing half is wired into INI and happens to every config this package renders.
+// The reading half is exported and has no caller here on purpose: nothing in this package
+// rebuilds a definition from a file, because Load parses straight into a plugin's own
+// struct and Sync is handed definitions, metadata and all, by the webserver.  Whoever
+// does need a definition back out of a file calls ParseINIMetadata or RestoreMetadata
+// themselves.
+//
 // Names, keys and values are all written as Go quoted strings.  Quoting is not decoration
 // here, it is what makes the round trip total: a key or value may hold a quote, a
 // backslash, a newline, a comment character or a control character, and metaQuote escapes
@@ -96,26 +103,21 @@ func (v Variable) emitIniMetadata(w io.Writer, prefix string) (err error) {
 // name and then by metadata key.  A blob carrying no metadata comments comes back as a
 // nil map and no error, which is the ordinary case for a config written by anything else.
 //
-// This reads the blob a line at a time, which is sound because nothing INI writes spans
-// one: a value holding a newline takes the quoted path, where the newline is escaped.  A
-// blob from somewhere else could in principle carry a raw string that spans lines and so
-// a value that looks like a metadata comment, and the only thing that costs is metadata
-// that was not really there, on a file this package did not write.
+// The blob is scanned the way gcfg scans it rather than split on newlines, because a raw
+// backtick string may span lines: a value holding a newline puts the rest of itself on
+// lines of its own, and one of those lines can look exactly like a metadata comment.  A
+// value that could forge one could point a variable at whatever stored secret it liked.
+// scanINIComments tracks the strings, so a comment is only a comment where gcfg would
+// also see one.
 //
 // Metadata under more than one section is refused.  The comments name a variable, not a
 // section, so a file holding two runners has two answers to the same question and no way
 // to tell them apart.  INI renders exactly one section, so the blob this is meant for
 // never has that problem, and a blob that does is better refused than merged.
 func ParseINIMetadata(ini string) (r map[string]map[string]string, err error) {
-	var section, found string
-	for line := range strings.SplitSeq(ini, "\n") {
-		if line = strings.TrimSpace(line); line == `` {
-			continue
-		} else if line[0] == '[' {
-			section = line
-			continue
-		}
-		body, ok := metadataCommentBody(line)
+	var found string
+	for _, c := range scanINIComments(ini) {
+		body, ok := metadataCommentBody(c.text)
 		if !ok {
 			continue
 		}
@@ -125,10 +127,10 @@ func ParseINIMetadata(ini string) (r map[string]map[string]string, err error) {
 			return nil, err
 		}
 		if r == nil {
-			r, found = map[string]map[string]string{}, section
-		} else if section != found {
+			r, found = map[string]map[string]string{}, c.section
+		} else if c.section != found {
 			return nil, fmt.Errorf("%w: metadata under both %s and %s, the comments cannot say which runner %s belongs to",
-				ErrBadMetadataComment, sectionName(found), sectionName(section), name)
+				ErrBadMetadataComment, sectionName(found), sectionName(c.section), name)
 		}
 		if _, dup := r[name]; dup {
 			return nil, fmt.Errorf("%w: %s has two metadata comments", ErrBadMetadataComment, name)
@@ -163,9 +165,18 @@ func (c *RunnerDefinition) RestoreMetadata(ini string) (err error) {
 // metadataCommentBody reports whether a line is a metadata comment and hands back what
 // follows the marker.  The line is expected to have been trimmed already.
 //
-// The marker has to be a whole word: a comment opening with gravwell-metadata-format is
-// somebody writing about this, not an instance of it, and reading it as one would turn a
-// note into an error.
+// Two things have to hold before a comment is treated as ours, and between them they draw
+// the line at the same place a reader would.  The marker has to be a whole word, so that
+// a comment opening with gravwell-metadata-format is somebody writing about this rather
+// than an instance of it.  And what follows it has to open a quoted variable name, which
+// is what every comment this writes does, including one later truncated or mangled, and
+// what prose never does.
+//
+// Without the second test a sentence like "# gravwell-metadata notes follow" would be
+// read as a mangled instance, and since a comment that cannot be parsed fails the whole
+// blob, one line of an operator's prose would throw away every real metadata comment in
+// the file.  Genuine corruption still reports itself, because corruption does not remove
+// the opening quote.
 func metadataCommentBody(line string) (body string, ok bool) {
 	if len(line) == 0 || (line[0] != ';' && line[0] != '#') {
 		return
@@ -174,13 +185,15 @@ func metadataCommentBody(line string) (body string, ok bool) {
 	if !cut {
 		return
 	} else if rest == `` {
-		// ours, and empty: a marker with nothing after it is a truncated metadata
-		// comment rather than a comment about something else
+		// the marker and nothing else: no prose to mistake it for, so this is a
+		// truncated metadata comment rather than a comment about something
 		return ``, true
 	} else if rest[0] != ' ' && rest[0] != '\t' {
 		return ``, false
+	} else if body = strings.TrimSpace(rest); body == `` || body[0] != '"' {
+		return ``, false
 	}
-	return strings.TrimSpace(rest), true
+	return body, true
 }
 
 // parseMetadataComment reads the body of a metadata comment: a quoted variable name
@@ -304,6 +317,100 @@ func scanQuoted(s string) (val, rest string, err error) {
 	}
 	err = fmt.Errorf("unterminated quoted string %q", s)
 	return
+}
+
+// iniComment is one comment found in a blob, along with the section header that was in
+// force where it appeared.
+type iniComment struct {
+	section string
+	text    string
+}
+
+// scanINIComments walks a blob and hands back every comment in it, in order.
+//
+// This is a scan rather than a line split because gcfg's strings are part of its
+// structure.  A raw backtick string may span lines, so a value holding a newline puts the
+// rest of itself on lines of its own, and one of those lines can read exactly like a
+// comment or a section header.  Anything splitting on newlines would take a value at its
+// word, which for metadata means a config value could name whichever stored secret it
+// wanted.  Tracking the strings is what keeps a value a value.
+//
+// The rules mirror the gcfg scanner: a raw string opens on a backtick at the start of a
+// value and closes at the very next backtick, with no escape, a quoted string closes at
+// the first unescaped quote and may not span a line, and a comment opens on a hash or a
+// semicolon outside both and runs to the end of the line.  A blob that leaves a string
+// open is one gcfg would refuse, so the scan stops rather than guessing at what follows.
+func scanINIComments(ini string) (r []iniComment) {
+	var section string
+	blank, afterEq := true, false // start of a line, and just past an assignment
+	for i := 0; i < len(ini); i++ {
+		switch ini[i] {
+		case '\n':
+			blank, afterEq = true, false
+		case ' ', '\t', '\r':
+			// whitespace separates, it does not count as content either way
+		case '=':
+			blank, afterEq = false, true
+		case '`':
+			// only at the start of a value: gcfg reads a backtick anywhere else as an
+			// ordinary byte of an unquoted value, and so must this
+			if !afterEq {
+				blank = false
+				break
+			}
+			n := strings.IndexByte(ini[i+1:], '`')
+			if n < 0 {
+				return // unterminated, the rest of the blob is one value
+			}
+			i += n + 1
+			blank, afterEq = false, false
+		case '"':
+			i = skipINIQuoted(ini, i)
+			blank, afterEq = false, false
+		case '[':
+			// a bracket partway down a line is a byte of a value, not a header
+			if !blank {
+				afterEq = false
+				break
+			}
+			end := iniLineEnd(ini, i)
+			section = strings.TrimSpace(ini[i:end])
+			i = end - 1
+		case ';', '#':
+			end := iniLineEnd(ini, i)
+			r = append(r, iniComment{section: section, text: strings.TrimSpace(ini[i:end])})
+			i = end - 1
+		default:
+			blank, afterEq = false, false
+		}
+	}
+	return
+}
+
+// skipINIQuoted returns the index of the quote closing the one at i.  A quoted string may
+// not span a line, so one that reaches the end of its line hands back the byte before the
+// newline and lets the caller carry on with the next line rather than swallowing it.
+func skipINIQuoted(s string, i int) int {
+	for j := i + 1; j < len(s); j++ {
+		switch s[j] {
+		case '\\':
+			j++ // whatever follows a backslash belongs to the escape
+		case '"':
+			return j
+		case '\n':
+			return j - 1
+		}
+	}
+	return len(s) - 1
+}
+
+// iniLineEnd returns the index of the newline ending the line that i sits on, or the
+// length of the blob when the last line is unterminated.
+func iniLineEnd(s string, i int) int {
+	if n := strings.IndexByte(s[i:], '\n'); n >= 0 {
+		return i + n
+	}
+	return len(s)
 }
 
 // sectionName describes a section for an error message.  Metadata ahead of any section
