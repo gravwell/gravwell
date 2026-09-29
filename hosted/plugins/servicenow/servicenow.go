@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 // Package servicenow implements a read-only multi-product ServiceNow Table API
 // Hosted Runner plugin and the shared client contract used by both Fetchers.
 package servicenow
