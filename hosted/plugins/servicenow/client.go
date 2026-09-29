@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package servicenow
 
 import (
@@ -279,7 +287,11 @@ func (c *Client) FetchPageAfter(ctx context.Context, d Dataset, query string, li
 			}
 			id = d.REST.StaticID
 		}
-		page.Records = append(page.Records, Record{Raw: b, ID: id, Timestamp: recordTimestamp(b, d.Timestamp)})
+		timestamp := recordTimestamp(b, d.Timestamp)
+		if d.REST == nil && !timestamp.IsZero() && timestamp.Nanosecond() != 0 {
+			return Page{}, fmt.Errorf("ServiceNow dataset %s returned a fractional ordering timestamp in %s; Table API keyset pagination requires whole-second precision", d.Name, d.Timestamp)
+		}
+		page.Records = append(page.Records, Record{Raw: b, ID: id, Timestamp: timestamp})
 	}
 	if d.REST != nil && d.REST.OffsetParameter == "" {
 		page.NextURL = nextLink(resp.Header.Get("Link"))

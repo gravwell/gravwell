@@ -40,6 +40,16 @@ exact catalog keys such as `itom-events`. `Table="incident"` and other real
 ServiceNow table names provide exact-table selection and can be combined with
 `Product=` or `API=`.
 
+`Table-Override` and `Selector-Override` may add a conjunctive encoded `Query`,
+but `^NQ`, `ORDERBY`, `ORDERBYDESC`, and `GROUPBY` controls are rejected. A
+new-query branch can escape the fixed Table timestamp window, while custom
+ordering or grouping can invalidate the ingester-owned ascending timestamp and
+`sys_id` keyset; use one bounded conjunctive filter per selected dataset
+instead. An override `Timestamp` must be a field path containing only letters,
+digits, underscores, and single dots; encoded-query controls, operators,
+whitespace, and empty path segments are rejected before either an initial or
+resumed Table API query is generated.
+
 The live state above is bounded to the Zurich PDI and Gravwell 5.9.2. Twenty-eight
 datasets have direct PDI-to-Gravwell evidence, exceeding the agreed seven-dataset
 common-transport threshold. The remaining Table API datasets use the identical
@@ -132,23 +142,51 @@ Lookback=24
 `group:target=source1|source2`. The canonical target wins when it is already
 populated. Otherwise, the first populated source wins. Divergent populated
 sources add `_normalizationCollision` as intrinsic metadata without exposing
-their values, and all original source fields remain intact. A target such as
-`username` is distinct from the built-in lowerCamel `userName` target.
+their values, and all original source fields remain intact. Each group and
+target pair may be defined only once; duplicate pairs are rejected so list
+order cannot change the effective schema while reusing durable state. A target
+such as `username` is distinct from the built-in lowerCamel `userName` target.
 
 `Lookback` is an integer number of hours. It initializes a missing checkpoint only; durable state wins
 after restart. Incremental Table API datasets retain their initial or
 established lower-bound anchor on an empty poll and advance monotonically only
-to the greatest fully accepted source ordering timestamp. Full-snapshot REST
+to the greatest fully accepted source ordering timestamp. Table ordering
+timestamps must have whole-second precision: fractional values are rejected
+before delivery because the encoded keyset continuation cannot safely express
+them. Full-snapshot REST
 profiles hash stable identities, emit changed content even when timestamps do
 not change, and prune absent objects from local deduplication state without
-emitting deletion tombstones. Per-item hashes and per-page continuation state
+emitting deletion tombstones. When an offset-paginated snapshot contains an
+exact multiple of the configured page size, ServiceNow's precise terminal
+offset rejection completes that fixed snapshot in the current or next
+collection call, advances its checkpoint, and performs the same absence
+pruning as a short final page. Per-item hashes and
+per-page continuation state
 bound replay after partial failure; one entry accepted immediately before a
 state-write failure may replay because the SDK does not expose an atomic
 ingest-and-state transaction.
 
+Each dataset cursor stores a versioned SHA-256 fingerprint of the non-secret
+source contract: the instance, dataset identity and product, resolved output
+tag, table fields/query/timestamp, paging bounds, overlap, and REST path,
+result, identity, continuation, and fixed-parameter settings. Secret paths and
+credential contents are not part of the fingerprint. An unchanged fingerprint
+preserves the checkpoint, page continuation, and deduplication hashes across a
+reload or restart. Legacy state without a fingerprint, or state whose
+fingerprint no longer matches, is incompatible: the ingester discards that
+dataset's old cursor and hashes and starts a deterministic replay from the
+current UTC second minus `Lookback`. The reset can duplicate entries within
+that bounded window and cannot recover older entries; it never reuses a
+checkpoint from another instance, table, endpoint, query, identity, paging, or
+provenance contract. Changing `Lookback` alone does not reset otherwise
+compatible durable state.
+
 `Overlap` and `Max-Retries` default to 300 seconds and four retries when they
-are omitted. An explicit zero disables overlap or retries. `Max-Retries` counts
-attempts after the initial request.
+are omitted. An explicit `Overlap=0` disables replay of earlier seconds but
+still re-reads the completed checkpoint second because Table timestamps have
+whole-second precision; per-record hashes suppress rows already accepted from
+that boundary. An explicit `Max-Retries=0` disables retries. `Max-Retries`
+counts attempts after the initial request.
 
 Raw and normalized modes use separate state namespaces. Changing normalization
 rules creates an intentionally separate state route and can replay records

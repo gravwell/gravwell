@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package servicenow
 
 import (
@@ -120,7 +128,11 @@ func compileNormalizationRules(values []string) (map[string][]normalizationRule,
 		if !seen[target] {
 			sources = append([]string{target}, sources...)
 		}
-		byKey[group+":"+target] = normalizationRule{Group: group, Target: target, Sources: sources}
+		key := group + ":" + target
+		if _, duplicate := byKey[key]; duplicate {
+			return nil, fmt.Errorf("duplicate Normalization-Field group and target %q", key)
+		}
+		byKey[key] = normalizationRule{Group: group, Target: target, Sources: sources}
 	}
 	keys := make([]string, 0, len(byKey))
 	for key := range byKey {
@@ -181,13 +193,10 @@ func documentedNormalizationRules(d Dataset) []normalizationRule {
 		if !validCanonicalTarget(target) || (target == source && !strings.Contains(source, ".")) {
 			continue
 		}
-		sources := []string{target}
-		if base != target {
-			sources = append(sources, base)
-		}
-		if source != base {
-			sources = append(sources, source)
-		}
+		// Preserve an existing canonical target first, then prefer the exact
+		// documented dotted leaf over its enclosing vendor wrapper. The wrapper
+		// remains a final fallback for response variants that expose it directly.
+		sources := []string{target, source, base}
 		byTarget[target] = normalizationRule{Group: strings.ToLower(d.Name), Target: target, Sources: compactStrings(sources)}
 	}
 	targets := make([]string, 0, len(byTarget))
