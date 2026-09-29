@@ -242,7 +242,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	cached.user, err = Client.MyInfo()
 	cached.mu.Unlock()
 	if err != nil {
-		return errors.New("failed to cache user info: " + err.Error())
+		return fmt.Errorf("failed to cache user info: %w", err)
 	}
 
 	// check that the info of the user we fetched actually matches the given username
