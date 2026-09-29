@@ -17,7 +17,6 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
 type provenanceMetadata struct {
@@ -72,19 +71,25 @@ type cursorState struct {
 	PageID                string
 	Offset                int
 	NextURL               string
+	SourceContract        string
 	Seen                  map[string]time.Time
 	Hashes                map[string][sha256.Size]byte
 }
+
+type entryProcessor interface {
+	ProcessContext(*entry.Entry, context.Context) error
+}
+
 type ServiceNow struct {
 	conf             *Config
-	proc             *processors.ProcessorSet
+	proc             entryProcessor
 	processMu, tagMu sync.Mutex
 	tags             map[string]entry.EntryTag
 	source           net.IP
 	now              func() time.Time
 }
 
-func New(conf *Config, proc *processors.ProcessorSet) *ServiceNow {
+func New(conf *Config, proc entryProcessor) *ServiceNow {
 	return &ServiceNow{conf: conf, proc: proc, tags: map[string]entry.EntryTag{}, source: net.ParseIP("127.0.0.1"), now: time.Now}
 }
 
@@ -116,10 +121,21 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 	for _, namespace := range s.conf.FallbackStateNamespaces() {
 		fallbacks = append(fallbacks, namespace+"/"+d.Name)
 	}
-	state, copied, err := loadCursorWithFallback(rt, key, fallbacks...)
+	state, copied, exists, err := loadCursorWithFallback(rt, key, fallbacks...)
 	if err != nil {
 		return err
 	}
+	contract := s.conf.SourceContractFingerprint(d)
+	if exists && state.SourceContract != contract {
+		// A missing fingerprint is state written by the immediately prior
+		// contract. Because its source identity cannot be proven compatible,
+		// discard it and replay only the configured Lookback window.
+		state = cursorState{}
+		copied = true
+		rt.Warn("reset incompatible ServiceNow cursor; replay is bounded by Lookback",
+			log.KV("dataset", d.Name), log.KV("lookback_hours", s.conf.Lookback))
+	}
+	state.SourceContract = contract
 	now := s.now().UTC().Truncate(time.Second)
 	if state.Checkpoint.IsZero() {
 		state.Checkpoint = now.Add(-time.Duration(s.conf.Lookback) * time.Hour)
@@ -150,20 +166,32 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 		query := WindowQuery(d, state.Checkpoint, state.WindowEnd, s.conf.OverlapSeconds())
 		offset := state.Offset
 		if d.REST == nil {
-			query = WindowQueryAfter(d, state.Checkpoint, state.WindowEnd, s.conf.OverlapSeconds(), state.PageTimestamp, state.PageID)
+			query, err = windowQueryAfter(d, state.Checkpoint, state.WindowEnd, s.conf.OverlapSeconds(), state.PageTimestamp, state.PageID)
+			if err != nil {
+				return err
+			}
 			offset = 0
 		}
 		page, err := client.FetchPageAfter(ctx, d, query, s.conf.Page_Size, offset, state.NextURL)
 		if err != nil {
-			// The Service Catalog API can publish a stale next link and then reject
-			// the persisted terminal offset. Reset only that precise recoverable
-			// condition; all other HTTP 400 responses remain hard failures.
-			if d.REST != nil && d.REST.OffsetParameter != "" && state.Offset > 0 && fetched == 0 && IsIllegalParameters(err) {
+			// An offset-paginated snapshot can contain an exact multiple of the
+			// requested page size, so the only terminal signal is ServiceNow's
+			// precise rejected-offset response. Complete the fixed snapshot instead
+			// of resetting its offset and replaying it forever. All other HTTP 400
+			// responses remain hard failures.
+			if d.REST != nil && d.REST.OffsetParameter != "" && state.Offset > 0 && IsIllegalParameters(err) {
+				state.Checkpoint = state.WindowEnd
+				state.WindowEnd = time.Time{}
+				state.HighWater = time.Time{}
+				state.PageTimestamp = time.Time{}
+				state.PageID = ""
 				state.Offset = 0
+				state.NextURL = ""
+				pruneSeen(state.Seen, state.Hashes, state.Checkpoint)
 				if saveErr := saveCursor(rt, key, state); saveErr != nil {
 					return saveErr
 				}
-				rt.Warn("reset stale ServiceNow endpoint offset after terminal-page rejection", log.KV("dataset", d.Name))
+				rt.Info("completed ServiceNow API poll after terminal-offset rejection", log.KV("dataset", d.Name), log.KV("fetched", fetched), log.KV("written", written), log.KV("normalization", s.conf.Normalization))
 				return nil
 			}
 			return err
@@ -213,7 +241,7 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 				return err
 			}
 			s.processMu.Lock()
-			err = s.proc.Process(ent)
+			err = s.proc.ProcessContext(ent, ctx)
 			s.processMu.Unlock()
 			if err != nil {
 				return err
@@ -298,7 +326,15 @@ func WindowQuery(d Dataset, checkpoint, windowEnd time.Time, overlap int) string
 	if strings.TrimSpace(d.Query) != "" {
 		parts = append(parts, strings.Trim(d.Query, "^"))
 	}
-	start := checkpoint.Add(-time.Duration(overlap) * time.Second)
+	// Table ordering timestamps have whole-second precision. Even when the
+	// configured overlap is zero, replay the completed checkpoint second so a
+	// record that becomes visible later at that same second cannot be skipped.
+	// Per-record hashes suppress rows already accepted from that boundary.
+	effectiveOverlap := overlap
+	if effectiveOverlap == 0 {
+		effectiveOverlap = 1
+	}
+	start := checkpoint.Add(-time.Duration(effectiveOverlap) * time.Second)
 	parts = append(parts, fmt.Sprintf("%s>%s", d.Timestamp, start.Format("2006-01-02 15:04:05")), fmt.Sprintf("%s<=%s", d.Timestamp, windowEnd.Format("2006-01-02 15:04:05")), "ORDERBY"+d.Timestamp, "ORDERBYsys_id")
 	return strings.Join(parts, "^")
 }
@@ -307,11 +343,24 @@ func WindowQuery(d Dataset, checkpoint, windowEnd time.Time, overlap int) string
 // window. Ordering by timestamp and sys_id avoids the row-shift loss inherent
 // to offsets when records are updated between page requests.
 func WindowQueryAfter(d Dataset, checkpoint, windowEnd time.Time, overlap int, afterTimestamp time.Time, afterID string) string {
-	if afterTimestamp.IsZero() && afterID == "" {
+	query, err := windowQueryAfter(d, checkpoint, windowEnd, overlap, afterTimestamp, afterID)
+	if err != nil {
+		// Preserve the established helper signature and return a safe bounded
+		// replay query instead of truncating an unsafe cursor timestamp.
 		return WindowQuery(d, checkpoint, windowEnd, overlap)
 	}
+	return query
+}
+
+func windowQueryAfter(d Dataset, checkpoint, windowEnd time.Time, overlap int, afterTimestamp time.Time, afterID string) (string, error) {
+	if afterTimestamp.IsZero() && afterID == "" {
+		return WindowQuery(d, checkpoint, windowEnd, overlap), nil
+	}
+	if !afterTimestamp.IsZero() && afterTimestamp.Nanosecond() != 0 {
+		return "", fmt.Errorf("ServiceNow dataset %s cursor has a fractional ordering timestamp; Table API keyset pagination requires whole-second precision", d.Name)
+	}
 	if afterTimestamp.IsZero() || !validKeysetID(afterID) {
-		return WindowQuery(d, checkpoint, windowEnd, overlap)
+		return WindowQuery(d, checkpoint, windowEnd, overlap), nil
 	}
 	filter := strings.Trim(strings.TrimSpace(d.Query), "^")
 	timestamp := afterTimestamp.UTC().Format("2006-01-02 15:04:05")
@@ -324,7 +373,7 @@ func WindowQueryAfter(d Dataset, checkpoint, windowEnd time.Time, overlap int, a
 	}
 	newer := branch(fmt.Sprintf("%s>%s", d.Timestamp, timestamp), upper)
 	sameTimestamp := branch(fmt.Sprintf("%s=%s", d.Timestamp, timestamp), "sys_id>"+afterID, upper)
-	return newer + "^NQ" + sameTimestamp + "^ORDERBY" + d.Timestamp + "^ORDERBYsys_id"
+	return newer + "^NQ" + sameTimestamp + "^ORDERBY" + d.Timestamp + "^ORDERBYsys_id", nil
 }
 
 func validKeysetID(value string) bool {
@@ -376,21 +425,21 @@ func loadCursorIfExists(rt hosted.Storage, key string) (cursorState, bool, error
 	return state, true, err
 }
 
-func loadCursorWithFallback(rt hosted.Storage, key string, fallbacks ...string) (cursorState, bool, error) {
+func loadCursorWithFallback(rt hosted.Storage, key string, fallbacks ...string) (cursorState, bool, bool, error) {
 	state, exists, err := loadCursorIfExists(rt, key)
 	if err != nil || exists {
-		return state, false, err
+		return state, false, exists, err
 	}
 	for _, fallback := range fallbacks {
 		state, exists, err = loadCursorIfExists(rt, fallback)
 		if err != nil {
-			return cursorState{}, false, err
+			return cursorState{}, false, false, err
 		}
 		if exists {
-			return state, true, nil
+			return state, true, true, nil
 		}
 	}
-	return cursorState{}, false, nil
+	return cursorState{}, false, false, nil
 }
 func saveCursor(rt hosted.Storage, key string, state cursorState) error {
 	raw, err := json.Marshal(state)

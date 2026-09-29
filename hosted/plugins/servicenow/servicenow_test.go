@@ -620,6 +620,48 @@ func TestRawAndNormalizedFraming(t *testing.T) {
 	}
 }
 
+func TestChangeModelsNormalizationPrefersDocumentedDottedLeaves(t *testing.T) {
+	conf := &Config{Normalization: "enabled"}
+	dataset := endpointDataset("change-models", endpointCatalog["change-models"])
+	raw := []byte(`{"sys_id":{"value":"model-1"},"sys_updated_on":{"value":"2026-09-03 10:11:12"},"name":{"value":"Standard"},"active":{"value":"true"}}`)
+	prepared, err := PrepareRecord(conf, dataset, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []struct {
+		name string
+		want string
+	}{
+		{name: "sysId", want: "model-1"},
+		{name: "sysUpdatedOn", want: "2026-09-03 10:11:12"},
+	} {
+		value, kind, _, err := jsonparser.Get(prepared.Data, field.name)
+		if err != nil || kind != jsonparser.String || string(value) != field.want {
+			t.Fatalf("%s value=%q kind=%v err=%v want scalar %q record=%s", field.name, value, kind, err, field.want, prepared.Data)
+		}
+	}
+	for _, field := range []struct {
+		path []string
+		want string
+	}{
+		{path: []string{"sys_id", "value"}, want: "model-1"},
+		{path: []string{"sys_updated_on", "value"}, want: "2026-09-03 10:11:12"},
+	} {
+		value, err := jsonparser.GetString(prepared.Data, field.path...)
+		if err != nil || value != field.want {
+			t.Fatalf("vendor wrapper %v=%q err=%v want=%q record=%s", field.path, value, err, field.want, prepared.Data)
+		}
+	}
+	for _, want := range []string{
+		"sysId(sys_id.value|sys_id)",
+		"sysUpdatedOn(sys_updated_on.value|sys_updated_on)",
+	} {
+		if got := prepared.Intrinsic["_normalizationCollision"]; !strings.Contains(got, want) {
+			t.Fatalf("collision metadata %q missing %q", got, want)
+		}
+	}
+}
+
 func TestNormalizationUsesCanonicalFirstPrecedenceAndReportsCollisions(t *testing.T) {
 	d := catalog["users"]
 	conf := &Config{
@@ -819,6 +861,115 @@ func TestNormalizationStateNamespaceTracksRuleContract(t *testing.T) {
 	}
 }
 
+func TestNormalizationRejectsDuplicateGroupTargetRules(t *testing.T) {
+	for _, rules := range [][]string{
+		{"users:preferred=a", "users:preferred=b"},
+		{"users:preferred=b", "users:preferred=a"},
+	} {
+		config := &Config{
+			BaseConfig:          hosted.BaseConfig{Ingester_UUID: "42000000-0000-4000-8000-000000000001"},
+			Instance:            "https://example.service-now.com",
+			Secret_File:         secretFile(t),
+			API:                 []string{"incidents"},
+			Normalization:       "enabled",
+			Normalization_Field: rules,
+		}
+		err := config.Verify()
+		if err == nil || !strings.Contains(err.Error(), "duplicate Normalization-Field group and target") {
+			t.Fatalf("rules=%q error=%v", rules, err)
+		}
+	}
+
+	valid := &Config{
+		BaseConfig:          hosted.BaseConfig{Ingester_UUID: "42000000-0000-4000-8000-000000000001"},
+		Instance:            "https://example.service-now.com",
+		Secret_File:         secretFile(t),
+		API:                 []string{"incidents"},
+		Normalization:       "enabled",
+		Normalization_Field: []string{"all:preferred=a", "users:preferred=b"},
+	}
+	if err := valid.Verify(); err != nil {
+		t.Fatalf("same target in distinct groups rejected: %v", err)
+	}
+}
+
+func TestSourceContractFingerprintCoversCursorAndProvenanceInputs(t *testing.T) {
+	baseConfig := Config{
+		Instance: "https://one.service-now.com", Page_Size: 100, Max_Pages: 10,
+		Overlap: intPointer(300), Secret_File: "/secret/one.json",
+	}
+	baseDataset := Dataset{
+		Name: "custom", Product: "Product One", Table: "x_one", Tag: "servicenow-one",
+		Fields: "sys_id,sys_updated_on,value", Timestamp: "sys_updated_on", Query: "active=true",
+		REST: &RESTSpec{
+			Path: "/api/x_one/v1/events", ResultPath: "result.events", IDField: "sys_id",
+			StaticID: "", LimitParameter: "limit", OffsetParameter: "offset",
+			Parameters: map[string]string{"status": "active"},
+		},
+	}
+	clone := func() (Config, Dataset) {
+		config := baseConfig
+		dataset := baseDataset
+		rest := *baseDataset.REST
+		rest.Parameters = cloneStringMap(baseDataset.REST.Parameters)
+		dataset.REST = &rest
+		return config, dataset
+	}
+	base := baseConfig.SourceContractFingerprint(baseDataset)
+	if len(base) != len("v2:")+sha256.Size*2 || !strings.HasPrefix(base, "v2:") {
+		t.Fatalf("fingerprint format=%q", base)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Config, *Dataset)
+	}{
+		{"instance", func(c *Config, _ *Dataset) { c.Instance = "https://two.service-now.com" }},
+		{"name", func(_ *Config, d *Dataset) { d.Name = "custom-two" }},
+		{"product", func(_ *Config, d *Dataset) { d.Product = "Product Two" }},
+		{"catalog tag", func(_ *Config, d *Dataset) { d.Tag = "servicenow-two" }},
+		{"resolved tag", func(c *Config, _ *Dataset) { c.Tag_Name = "servicenow-override" }},
+		{"table", func(_ *Config, d *Dataset) { d.Table = "x_two" }},
+		{"fields", func(_ *Config, d *Dataset) { d.Fields += ",other" }},
+		{"timestamp", func(_ *Config, d *Dataset) { d.Timestamp = "updated_at" }},
+		{"query", func(_ *Config, d *Dataset) { d.Query = "active=false" }},
+		{"page size", func(c *Config, _ *Dataset) { c.Page_Size++ }},
+		{"max pages", func(c *Config, _ *Dataset) { c.Max_Pages++ }},
+		{"overlap", func(c *Config, _ *Dataset) { c.Overlap = intPointer(301) }},
+		{"REST path", func(_ *Config, d *Dataset) { d.REST.Path = "/api/x_one/v2/events" }},
+		{"REST result path", func(_ *Config, d *Dataset) { d.REST.ResultPath = "result.items" }},
+		{"REST identity", func(_ *Config, d *Dataset) { d.REST.IDField = "number" }},
+		{"REST static identity", func(_ *Config, d *Dataset) { d.REST.StaticID = "singleton" }},
+		{"REST limit parameter", func(_ *Config, d *Dataset) { d.REST.LimitParameter = "page_size" }},
+		{"REST offset parameter", func(_ *Config, d *Dataset) { d.REST.OffsetParameter = "start" }},
+		{"REST fixed parameter", func(_ *Config, d *Dataset) { d.REST.Parameters["status"] = "closed" }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config, dataset := clone()
+			test.mutate(&config, &dataset)
+			if got := config.SourceContractFingerprint(dataset); got == base {
+				t.Fatalf("source-contract change did not change fingerprint: %s", got)
+			}
+		})
+	}
+
+	unchangedConfig, unchangedDataset := clone()
+	unchangedDataset.REST.Parameters = map[string]string{"status": "active"}
+	if got := unchangedConfig.SourceContractFingerprint(unchangedDataset); got != base {
+		t.Fatalf("equivalent contract fingerprint=%q want=%q", got, base)
+	}
+	unchangedConfig.Secret_File = "/secret/two.json"
+	if got := unchangedConfig.SourceContractFingerprint(unchangedDataset); got != base {
+		t.Fatalf("secret path changed non-secret source fingerprint=%q want=%q", got, base)
+	}
+	for _, forbidden := range []string{baseConfig.Instance, baseConfig.Secret_File, baseDataset.Table, baseDataset.Query} {
+		if strings.Contains(base, forbidden) {
+			t.Fatalf("fingerprint exposed source input %q: %q", forbidden, base)
+		}
+	}
+}
+
 func TestRecordIDHandlesDisplayValueAndMissingField(t *testing.T) {
 	if got := recordID([]byte(`{"sys_id":{"display_value":"abc","value":"native-id"}}`)); got != "native-id" {
 		t.Fatalf("display-value sys_id=%q", got)
@@ -836,6 +987,180 @@ func TestConfigRequiresCustomTableOverride(t *testing.T) {
 	c.Table_Override = []string{`app-engine-custom={"Table":"x_example_table"}`}
 	if err := c.Verify(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestConfigRejectsTableOverrideNQQueryBranches(t *testing.T) {
+	for _, query := range []string{
+		"active=true^NQpriority=1",
+		"^NQpriority=1",
+		"active=true^nqpriority=1",
+		"NQpriority=1",
+	} {
+		encoded, err := json.Marshal(Override{Query: query})
+		if err != nil {
+			t.Fatal(err)
+		}
+		config := &Config{Table_Override: []string{"incidents=" + string(encoded)}}
+		if _, err := config.Overrides(); err == nil || !strings.Contains(err.Error(), "encoded-query NQ branches") {
+			t.Fatalf("query=%q error=%v", query, err)
+		}
+	}
+
+	encoded, err := json.Marshal(Override{Query: "active=true^short_descriptionLIKENQ review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := &Config{Table_Override: []string{"incidents=" + string(encoded)}}
+	if _, err := config.Overrides(); err != nil {
+		t.Fatalf("ordinary query value containing NQ rejected: %v", err)
+	}
+}
+
+func TestConfigRejectsOverrideQueryControlsBeforeQueryGeneration(t *testing.T) {
+	type overrideForm struct {
+		name        string
+		selection   func(*Config)
+		setOverride func(*Config, string)
+	}
+	forms := []overrideForm{
+		{
+			name:      "Table-Override",
+			selection: func(c *Config) { c.API = []string{"incidents"} },
+			setOverride: func(c *Config, value string) {
+				c.Table_Override = []string{value}
+			},
+		},
+		{
+			name:      "Selector-Override",
+			selection: func(c *Config) { c.Selector = []string{"incidents"} },
+			setOverride: func(c *Config, value string) {
+				c.Selector_Override = []string{value}
+			},
+		},
+	}
+	unsafeQueries := []string{
+		"ORDERBYsys_updated_on^active=true",
+		"active=true^ORDERBYDESCsys_updated_on",
+		"active=true^orderbypriority",
+		"active=true^GrOuPbYpriority",
+	}
+	for _, form := range forms {
+		form := form
+		t.Run(form.name, func(t *testing.T) {
+			for _, query := range unsafeQueries {
+				encoded, err := json.Marshal(Override{Query: query})
+				if err != nil {
+					t.Fatal(err)
+				}
+				config := &Config{}
+				form.selection(config)
+				form.setOverride(config, "incidents="+string(encoded))
+				if _, err := config.Datasets(); err == nil || !strings.Contains(err.Error(), "ordering or grouping controls") {
+					t.Fatalf("query=%q error=%v", query, err)
+				}
+			}
+
+			const safeQuery = "active=true^short_descriptionLIKEORDERBY review^descriptionLIKEGROUPBY review"
+			encoded, err := json.Marshal(Override{Query: safeQuery})
+			if err != nil {
+				t.Fatal(err)
+			}
+			config := &Config{}
+			form.selection(config)
+			form.setOverride(config, "incidents="+string(encoded))
+			datasets, err := config.Datasets()
+			if err != nil {
+				t.Fatalf("ordinary values containing control names rejected: %v", err)
+			}
+			if len(datasets) != 1 {
+				t.Fatalf("datasets=%d want=1", len(datasets))
+			}
+			checkpoint := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+			windowEnd := checkpoint.Add(time.Hour)
+			queries := map[string]string{
+				"initial": WindowQuery(datasets[0], checkpoint, windowEnd, 0),
+				"resumed": WindowQueryAfter(datasets[0], checkpoint, windowEnd, 0, checkpoint.Add(time.Minute), "0123456789abcdef0123456789abcdef"),
+			}
+			for label, query := range queries {
+				if !strings.Contains(query, safeQuery) || !strings.HasSuffix(query, "^ORDERBYsys_updated_on^ORDERBYsys_id") {
+					t.Fatalf("%s query=%q does not retain safe filters followed by the owned keyset order", label, query)
+				}
+			}
+		})
+	}
+}
+
+func TestConfigRejectsUnsafeOverrideTimestampBeforeQueryGeneration(t *testing.T) {
+	type overrideForm struct {
+		name        string
+		selection   func(*Config)
+		setOverride func(*Config, string)
+	}
+	forms := []overrideForm{
+		{
+			name:      "Table-Override",
+			selection: func(c *Config) { c.API = []string{"incidents"} },
+			setOverride: func(c *Config, value string) {
+				c.Table_Override = []string{value}
+			},
+		},
+		{
+			name:      "Selector-Override",
+			selection: func(c *Config) { c.Selector = []string{"incidents"} },
+			setOverride: func(c *Config, value string) {
+				c.Selector_Override = []string{value}
+			},
+		},
+	}
+	for _, form := range forms {
+		form := form
+		t.Run(form.name, func(t *testing.T) {
+			for _, timestamp := range []string{
+				"sys_updated_on^NQpriority",
+				"sys_updated_on ORDERBYsys_id",
+				"sys_updated_on>1970-01-01",
+				"sys_updated_on\nNQpriority",
+				".sys_updated_on",
+				"sys_updated_on.",
+				"sys..updated_on",
+			} {
+				encoded, err := json.Marshal(Override{Timestamp: timestamp})
+				if err != nil {
+					t.Fatal(err)
+				}
+				config := &Config{}
+				form.selection(config)
+				form.setOverride(config, "incidents="+string(encoded))
+				if _, err := config.Datasets(); err == nil || !strings.Contains(err.Error(), "safe ServiceNow field path") {
+					t.Fatalf("timestamp=%q error=%v", timestamp, err)
+				}
+			}
+
+			encoded, err := json.Marshal(Override{Timestamp: "audit.sys_updated_on"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			config := &Config{}
+			form.selection(config)
+			form.setOverride(config, "incidents="+string(encoded))
+			datasets, err := config.Datasets()
+			if err != nil {
+				t.Fatalf("safe timestamp rejected: %v", err)
+			}
+			if len(datasets) != 1 {
+				t.Fatalf("datasets=%d want=1", len(datasets))
+			}
+			checkpoint := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+			windowEnd := checkpoint.Add(time.Hour)
+			initial := WindowQuery(datasets[0], checkpoint, windowEnd, 300)
+			resumed := WindowQueryAfter(datasets[0], checkpoint, windowEnd, 300, checkpoint.Add(time.Minute), "0123456789abcdef0123456789abcdef")
+			for label, query := range map[string]string{"initial": initial, "resumed": resumed} {
+				if !strings.Contains(query, "audit.sys_updated_on") {
+					t.Fatalf("%s query=%q missing safe timestamp", label, query)
+				}
+			}
+		})
 	}
 }
 
@@ -1090,5 +1415,42 @@ Lookback=` + value + "\n"
 		if err := config.Verify(); err == nil {
 			t.Fatalf("out-of-range Lookback=%d accepted", value)
 		}
+	}
+}
+
+func TestHostedRunnerServiceNowRejectsUnsupportedPreprocessorSelection(t *testing.T) {
+	type registeredConfig struct {
+		ServiceNow map[string]*Config
+	}
+	path := filepath.Join(t.TempDir(), "hosted.conf")
+	body := "[ServiceNow \"test\"]\nPreprocessor=\"unexpected\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var parsed registeredConfig
+	if err := ingestconfig.LoadConfigFile(&parsed, path); err == nil {
+		t.Fatal("unsupported ServiceNow Preprocessor selection was accepted")
+	}
+}
+
+func TestRequestIntervalDurationBoundary(t *testing.T) {
+	maximum := int(int64(^uint64(0)>>1) / int64(time.Second))
+	config := &Config{
+		BaseConfig:    hosted.BaseConfig{Ingester_UUID: "42000000-0000-4000-8000-000000000001"},
+		PollingConfig: hosted.PollingConfig{Lookback: 24, Requests_Per_Minute: 60, Request_Interval: maximum},
+		Instance:      "https://example.service-now.com",
+		Secret_File:   secretFile(t),
+		API:           []string{"incidents"},
+	}
+	if err := config.Verify(); err != nil {
+		t.Fatalf("maximum safe Request-Interval rejected: %v", err)
+	}
+	if got := config.Interval(); got != time.Duration(maximum)*time.Second || got <= 0 {
+		t.Fatalf("maximum safe Request-Interval converted to %v", got)
+	}
+
+	config.Request_Interval = maximum + 1
+	if err := config.Verify(); err == nil || !strings.Contains(err.Error(), "Request-Interval") {
+		t.Fatalf("overflowing Request-Interval accepted: %v", err)
 	}
 }

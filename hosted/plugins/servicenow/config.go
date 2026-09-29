@@ -1,11 +1,13 @@
 package servicenow
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -13,6 +15,8 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/ingest"
 )
+
+const maxRequestIntervalSeconds = int64((1<<63 - 1) / int64(time.Second))
 
 type Override struct{ Table, Fields, Query, Timestamp, Tag string }
 
@@ -45,8 +49,38 @@ type Config struct {
 	Skip_Unavailable              bool
 	Normalization                 string
 	Normalization_Field           []string
-	Preprocessor                  []string
 	normalizationRules            map[string][]normalizationRule
+}
+
+var _ hosted.Config = (*Config)(nil)
+
+// Equal implements hosted.Config so unchanged configuration reloads do not
+// interrupt an active ServiceNow poll.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.MultiTagConfig == nc.MultiTagConfig &&
+		c.PollingConfig == nc.PollingConfig &&
+		c.Instance == nc.Instance &&
+		c.Secret_File == nc.Secret_File &&
+		slices.Equal(c.Product, nc.Product) &&
+		slices.Equal(c.API, nc.API) &&
+		slices.Equal(c.API_Endpoint, nc.API_Endpoint) &&
+		slices.Equal(c.Table, nc.Table) &&
+		slices.Equal(c.Table_Override, nc.Table_Override) &&
+		slices.Equal(c.Selector, nc.Selector) &&
+		slices.Equal(c.Selector_Override, nc.Selector_Override) &&
+		c.Page_Size == nc.Page_Size &&
+		c.Max_Pages == nc.Max_Pages &&
+		c.Timeout == nc.Timeout &&
+		c.OverlapSeconds() == nc.OverlapSeconds() &&
+		c.MaxRetries() == nc.MaxRetries() &&
+		c.Skip_Unavailable == nc.Skip_Unavailable &&
+		c.Normalization == nc.Normalization &&
+		slices.Equal(c.Normalization_Field, nc.Normalization_Field)
 }
 
 func (c *Config) Verify() error {
@@ -106,6 +140,9 @@ func (c *Config) Verify() error {
 	}
 	if c.Request_Interval < 60 {
 		return errors.New("Request-Interval must be at least 60 seconds")
+	}
+	if int64(c.Request_Interval) > maxRequestIntervalSeconds {
+		return fmt.Errorf("Request-Interval must not exceed %d seconds", maxRequestIntervalSeconds)
 	}
 	if _, err := c.NormalizationEnabled(); err != nil {
 		return err
@@ -174,10 +211,38 @@ func (c *Config) Overrides() (map[string]Override, error) {
 			if err := json.Unmarshal([]byte(body), &value); err != nil {
 				return nil, fmt.Errorf("%s %s: %w", item.name, name, err)
 			}
+			if containsEncodedQueryNQ(value.Query) {
+				return nil, fmt.Errorf("%s %s Query must not contain encoded-query NQ branches", item.name, name)
+			}
+			if containsEncodedQueryOrderingOrGrouping(value.Query) {
+				return nil, fmt.Errorf("%s %s Query must not contain encoded-query ordering or grouping controls", item.name, name)
+			}
+			if value.Timestamp != "" && !validNormalizationSource(value.Timestamp) {
+				return nil, fmt.Errorf("%s %s Timestamp must be a safe ServiceNow field path", item.name, name)
+			}
 			result[name] = value
 		}
 	}
 	return result, nil
+}
+
+func containsEncodedQueryNQ(query string) bool {
+	for _, term := range strings.Split(strings.Trim(strings.TrimSpace(query), "^"), "^") {
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(term)), "NQ") {
+			return true
+		}
+	}
+	return false
+}
+
+func containsEncodedQueryOrderingOrGrouping(query string) bool {
+	for _, term := range strings.Split(strings.Trim(strings.TrimSpace(query), "^"), "^") {
+		term = strings.ToUpper(strings.TrimSpace(term))
+		if strings.HasPrefix(term, "ORDERBY") || strings.HasPrefix(term, "GROUPBY") {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Config) Datasets() ([]Dataset, error) {
@@ -398,6 +463,47 @@ func (c *Config) StateNamespace() string {
 		return normalizationNamespace(c.Normalization_Field)
 	}
 	return "servicenow/raw"
+}
+
+// SourceContractFingerprint identifies every non-secret input that changes the
+// meaning or resumability of a dataset cursor. A mismatch resets that dataset
+// to a fresh, Lookback-bounded replay rather than reusing pagination,
+// deduplication, or checkpoint state from an incompatible source contract.
+func (c *Config) SourceContractFingerprint(d Dataset) string {
+	const sourceContractVersion = 2
+
+	type restContract struct {
+		Path, ResultPath, IDField, StaticID, LimitParameter, OffsetParameter string
+		Parameters                                                           map[string]string
+	}
+	contract := struct {
+		Version                     int
+		Instance                    string
+		Name, Product, Tag          string
+		Table, Fields               string
+		Timestamp, Query            string
+		PageSize, MaxPages, Overlap int
+		REST                        *restContract
+	}{
+		Version: sourceContractVersion, Instance: c.Instance,
+		Name: d.Name, Product: d.Product, Tag: c.Tag(d),
+		Table: d.Table, Fields: d.Fields, Timestamp: d.Timestamp, Query: d.Query,
+		PageSize: c.Page_Size, MaxPages: c.Max_Pages, Overlap: c.OverlapSeconds(),
+	}
+	if d.REST != nil {
+		contract.REST = &restContract{
+			Path: d.REST.Path, ResultPath: d.REST.ResultPath,
+			IDField: d.REST.IDField, StaticID: d.REST.StaticID,
+			LimitParameter: d.REST.LimitParameter, OffsetParameter: d.REST.OffsetParameter,
+			Parameters: cloneStringMap(d.REST.Parameters),
+		}
+	}
+	encoded, err := json.Marshal(contract)
+	if err != nil {
+		panic(fmt.Sprintf("marshal ServiceNow source contract: %v", err))
+	}
+	digest := sha256.Sum256(encoded)
+	return fmt.Sprintf("v%d:%x", sourceContractVersion, digest)
 }
 
 // FallbackStateNamespaces lists alternate keys that may contain the same
