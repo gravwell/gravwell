@@ -29,7 +29,9 @@ func NewAction() action.Pair {
 	)
 	return scaffold.NewBasicAction(use, short, long,
 		func(*pflag.FlagSet) (string, tea.Cmd) {
-			connection.Client.Logout()
+			if err := connection.Client.Logout(); err != nil {
+				clilog.Writer.Warnf("failed to log out: %v", err)
+			}
 			connection.End()
 
 			// Make sure we destroy the cached token so a stale/invalidated session can never be
