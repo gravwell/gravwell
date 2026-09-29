@@ -754,6 +754,37 @@ func TestTextAreaProviderTakeoverFocus(t *testing.T) {
 	}
 }
 
+// ESC (Mother.unsetAction) calls Reset() directly instead of exiting takeover mode
+// through Update(), so Reset() must clear the provider's takeover flag itself. Otherwise
+// View() and Update() keep treating the field as if it still owns the pane the next time
+// it's used.
+func TestTextAreaProviderResetClearsTakeover(t *testing.T) {
+	t.Parallel()
+
+	f := scaffoldcreate.NewField("test", false, &scaffoldcreate.TextAreaProvider{})
+	f.Provider.Initialize("initial", false)
+	f.Provider.SetArgs(50, 20)
+
+	// enter takeover mode, as pressing [space] would
+	if _, takeover := f.Provider.Update(true, testsupport.SendHotkey(hotkeys.Select)); !takeover {
+		t.Fatal("failed to enter takeover mode")
+	}
+	if vk, _, _ := f.Provider.View(true, 0); vk != scaffoldcreate.Takeover {
+		t.Fatal("expected to be in takeover mode before Reset")
+	}
+
+	// simulate ESC out of the action
+	f.Provider.Reset()
+
+	if vk, _, _ := f.Provider.View(true, 0); vk == scaffoldcreate.Takeover {
+		t.Error("Reset() did not clear takeover mode; View() still reports Takeover")
+	}
+	// an ordinary keystroke (not the select hotkey) should not be swallowed as takeover input
+	if _, takeover := f.Provider.Update(true, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}); takeover {
+		t.Error("Reset() did not clear takeover mode; Update() still routes input to the takeover pane")
+	}
+}
+
 // TestTextAreaProviderTakeoverSingleLineBothArrowsExit checks the case the focused hint's wording
 // leans on: for an empty/single-line text area, top and bottom are the same line, so BOTH ↑ and ↓
 // must reach the return button, not just ↓ (the only direction the other takeover tests exercise).
