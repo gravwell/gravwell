@@ -169,25 +169,8 @@ func isNoColor(fs *pflag.FlagSet) bool {
 // Safe (ineffectual) to call if already logged in.
 func EnforceLogin(cmd *cobra.Command, args []string) error {
 	if connection.Client == nil || connection.Client.State() == client.STATE_CLOSED { // if we just started, initialize connection
-		server, err := cmd.Flags().GetString("server")
-		if err != nil {
-			return err
-		}
-		insecure, err := cmd.Flags().GetBool("insecure")
-		if err != nil {
-			return err
-		}
-		restlog, err := cmd.Flags().GetString("restlog")
-		clilog.GetFlag(err)
-		if err = connection.Initialize(server, !insecure, insecure, restlog); err != nil {
-			return err
-		}
-		if err := connection.Client.Test(); err != nil { // make the errors user-friendly
-			// ECONNREFUSED relies on the syscalls packages which I really don't want to import so let's just make a string check
-			if strings.Contains(err.Error(), "connection refused") {
-				return fmt.Errorf("%s: connection refused", server)
-			}
-			return fmt.Errorf("failed to connect to server %s: %w", server, err)
+		if err := initializeConnection(cmd); err != nil {
+			return fmt.Errorf("initialize connection: %w", err)
 		}
 	}
 	username, password, apiToken, err := GatherCredentials(cmd.Flags())
@@ -196,23 +179,60 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 	}
 	// pass all information to Login to decide how to proceed
 	if err := connection.Login(username, password, apiToken, !state.Interactive(), cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
-		if errors.Is(err, client.ErrNotAuthed) {
+		// In the case where the user explicitly provided credentials (username+password or api token), don't clear any local cache.
+		explicitCreds := (apiToken != nil && *apiToken != "") || (password != nil && username != "" && *password != "")
+		if errors.Is(err, client.ErrNotAuthed) && !explicitCreds {
 			// Failsafe for when the command tree returns ErrNotAuthed, meaning the client
-			// thought it had a valid session/token, but it wasn't actually accepted by
-			// the server. Force a clean logout, destroy any cached token/session,
-			// and retry once so the user is prompted fresh instead of getting stuck
-			// in a permanent failure loop.
+			// thought it had a valid session/token, but it wasn't accepted by the server.
+			// Force a clean logout, destroy the local token file, and retry once so the
+			// user is prompted fresh instead of getting stuck in a permanent failure loop.
 			clilog.Writer.Warnf("stale/invalid session detected (%v); clearing local session and retrying login", err)
 			connection.End()
+
 			if rmErr := connection.DestroyTokenFile(cfgdir.DefaultTokenPath); rmErr != nil {
 				clilog.Writer.Warnf("failed to remove cached token file: %v", rmErr)
 			}
+
+			// Re-initialize our connections so we can login again.
+			if err := initializeConnection(cmd); err != nil {
+				return fmt.Errorf("initialize connection: %w", err)
+			}
+
 			return connection.Login(username, password, apiToken, !state.Interactive(), cmd.InOrStdin(), cmd.OutOrStdout())
 		}
 		return err
 	}
 	return nil
+}
 
+func initializeConnection(cmd *cobra.Command) error {
+	server, err := cmd.Flags().GetString("server")
+	if err != nil {
+		return err
+	}
+
+	insecure, err := cmd.Flags().GetBool("insecure")
+
+	if err != nil {
+		return err
+	}
+
+	restlog, err := cmd.Flags().GetString("restlog")
+	clilog.GetFlag(err)
+
+	if err = connection.Initialize(server, !insecure, insecure, restlog); err != nil {
+		return err
+	}
+
+	if err := connection.Client.Test(); err != nil { // make the errors user-friendly
+		// ECONNREFUSED relies on the syscalls packages which I really don't want to import so let's just make a string check
+		if strings.Contains(err.Error(), "connection refused") {
+			return fmt.Errorf("%s: connection refused", server)
+		}
+		return fmt.Errorf("failed to connect to server %s: %w", server, err)
+	}
+
+	return nil
 }
 
 // GatherCredentials reads username, password, and api token from flags and the environment, returning all set values.
