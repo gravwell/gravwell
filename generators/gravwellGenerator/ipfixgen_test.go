@@ -21,7 +21,7 @@ func TestGenDataIPFIX(t *testing.T) {
 	ts := time.Date(2026, 7, 19, 12, 34, 56, 0, time.UTC)
 	var expectedSeq uint32
 	first := true
-	for i := 0; i < 256; i++ {
+	for range 256 {
 		ts = ts.Add(time.Second)
 		b := genDataIPFIX(ts)
 
@@ -70,7 +70,7 @@ func TestGenDataIPFIX(t *testing.T) {
 			if len(fields) != len(ipfixV4Template.FieldSpecifiers) {
 				t.Fatalf("record %d interpreted to %d fields", j, len(fields))
 			}
-			vals := make(map[string]interface{}, len(fields))
+			vals := make(map[string]any, len(fields))
 			for _, f := range fields {
 				if f.Name == `` || f.Value == nil {
 					t.Fatalf("record %d field %d not interpretable: %+v", j, f.FieldID, f)
