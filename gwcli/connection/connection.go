@@ -595,11 +595,11 @@ func CBACEnabled() bool {
 	return cached.cbacEnabled
 }
 
-// DestroyCachedToken removes the locally cached login token file, if one exists.
+// DestroyTokenFile removes the locally cached login token file, if one exists.
 // Safe to call if no token file exists.
-func DestroyCachedToken() error {
-	if err := os.Remove(cfgdir.DefaultTokenPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+func DestroyTokenFile(file string) error {
+	if err := os.Remove(file); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove %q: %w", file, err)
 	}
 	return nil
 }

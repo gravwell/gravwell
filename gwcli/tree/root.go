@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -196,6 +196,19 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 	}
 	// pass all information to Login to decide how to proceed
 	if err := connection.Login(username, password, apiToken, !state.Interactive(), cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
+		if errors.Is(err, client.ErrNotAuthed) {
+			// Failsafe for when the command tree returns ErrNotAuthed, meaning the client
+			// thought it had a valid session/token, but it wasn't actually accepted by
+			// the server. Force a clean logout, destroy any cached token/session,
+			// and retry once so the user is prompted fresh instead of getting stuck
+			// in a permanent failure loop.
+			clilog.Writer.Warnf("stale/invalid session detected (%v); clearing local session and retrying login", err)
+			connection.End()
+			if rmErr := connection.DestroyTokenFile(cfgdir.DefaultTokenPath); rmErr != nil {
+				clilog.Writer.Warnf("failed to remove cached token file: %v", rmErr)
+			}
+			return connection.Login(username, password, apiToken, !state.Interactive(), cmd.InOrStdin(), cmd.OutOrStdout())
+		}
 		return err
 	}
 	return nil

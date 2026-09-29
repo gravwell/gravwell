@@ -34,8 +34,8 @@ func NewAction() action.Pair {
 
 			// Make sure we destroy the cached token so a stale/invalidated session can never be
 			// re-used on the next login attempt.
-			if err := connection.DestroyCachedToken(); err != nil {
-				clilog.Writer.Warnf("failed to remove cached token file %q: %v", cfgdir.DefaultTokenPath, err)
+			if err := connection.DestroyTokenFile(cfgdir.DefaultTokenPath); err != nil {
+				clilog.Writer.Warnf("failed to remove cached token file: %v", err)
 			}
 
 			return "Successfully logged out", tea.Quit
