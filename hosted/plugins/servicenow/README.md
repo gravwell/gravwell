@@ -160,8 +160,11 @@ emitting deletion tombstones. When an offset-paginated snapshot contains an
 exact multiple of the configured page size, ServiceNow's precise terminal
 offset rejection completes that fixed snapshot in the current or next
 collection call, advances its checkpoint, and performs the same absence
-pruning as a short final page. Per-item hashes and
-per-page continuation state
+pruning as a short final page. A resumed vendor continuation URL that
+ServiceNow rejects the same way completes the snapshot identically, so a stale
+final-page link cannot stall a dataset on every later poll. Every other
+rejected request remains a hard failure that retains the recoverable cursor.
+Per-item hashes and per-page continuation state
 bound replay after partial failure; one entry accepted immediately before a
 state-write failure may replay because the SDK does not expose an atomic
 ingest-and-state transaction.

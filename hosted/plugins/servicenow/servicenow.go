@@ -185,9 +185,13 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 			// An offset-paginated snapshot can contain an exact multiple of the
 			// requested page size, so the only terminal signal is ServiceNow's
 			// precise rejected-offset response. Complete the fixed snapshot instead
-			// of resetting its offset and replaying it forever. All other HTTP 400
-			// responses remain hard failures.
-			if d.REST != nil && d.REST.OffsetParameter != "" && state.Offset > 0 && IsIllegalParameters(err) {
+			// of resetting its offset and replaying it forever. A vendor
+			// continuation URL published on a final page is rejected the same way,
+			// so a persisted continuation completes the cycle rather than failing
+			// every later poll. All other HTTP 400 responses remain hard failures.
+			resumedPagination := d.REST != nil &&
+				((d.REST.OffsetParameter != "" && state.Offset > 0) || (d.REST.OffsetParameter == "" && state.NextURL != ""))
+			if resumedPagination && IsIllegalParameters(err) {
 				state.Checkpoint = state.WindowEnd
 				state.WindowEnd = time.Time{}
 				state.HighWater = time.Time{}
@@ -199,7 +203,7 @@ func (s *ServiceNow) collect(ctx context.Context, rt hosted.Runtime, client *Cli
 				if saveErr := saveCursor(rt, key, state); saveErr != nil {
 					return saveErr
 				}
-				rt.Info("completed ServiceNow API poll after terminal-offset rejection", log.KV("dataset", d.Name), log.KV("fetched", fetched), log.KV("written", written), log.KV("normalization", s.conf.Normalization))
+				rt.Info("completed ServiceNow API poll after terminal pagination rejection", log.KV("dataset", d.Name), log.KV("fetched", fetched), log.KV("written", written), log.KV("normalization", s.conf.Normalization))
 				return nil
 			}
 			return err

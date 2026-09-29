@@ -680,6 +680,74 @@ func TestOffsetSnapshotExactMultipleTerminalRejectionCompletesSameCycle(t *testi
 	}
 }
 
+func TestNoOffsetSnapshotStaleContinuationRejectionCompletesSameCycle(t *testing.T) {
+	requests := 0
+	var server *httptest.Server
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Query().Get("sysparm_offset") == "1" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Illegal query parameters"}}`))
+			return
+		}
+		w.Header().Set("Link", `<`+server.URL+r.URL.Path+`?sysparm_offset=1>; rel="next"`)
+		_, _ = w.Write([]byte(`{"result":[{"id":"current","created":"2026-09-20T10:00:00Z","value":"stable"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 3
+	dataset := Dataset{
+		Name: "stale-continuation-snapshot", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created",
+		REST: &RESTSpec{Path: "/api/stale-continuation-snapshot", ResultPath: "result", IDField: "id"},
+	}
+	key := config.StateNamespace() + "/" + dataset.Name
+	initialCheckpoint := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	if err := saveCursor(runtime, key, cursorState{
+		Checkpoint:     initialCheckpoint,
+		SourceContract: config.SourceContractFingerprint(dataset),
+		Seen:           map[string]time.Time{"stale": initialCheckpoint},
+		Hashes:         map[string][32]byte{"stale": {1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewClient(server.URL, config.Secret_File, time.Second, 0, 60000, server.Client().Transport)
+	completedAt := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return completedAt }
+	if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatalf("stale continuation returned a false failure after %d requests: %v", requests, err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 || !state.Checkpoint.Equal(completedAt) || !state.WindowEnd.IsZero() || !state.HighWater.IsZero() || state.NextURL != "" || state.Offset != 0 {
+		t.Fatalf("stale continuation completion requests=%d state=%+v", requests, state)
+	}
+	if _, exists := state.Hashes["stale"]; exists {
+		t.Fatalf("stale continuation completion retained stale identity: state=%+v", state)
+	}
+	if _, exists := state.Hashes["current"]; !exists || len(runtime.entries) != 1 {
+		t.Fatalf("stale continuation completion hashes=%v entries=%d", state.Hashes, len(runtime.entries))
+	}
+
+	// The next poll opens a fresh window instead of replaying the rejected
+	// continuation forever.
+	nextAt := completedAt.Add(time.Hour)
+	next := New(config, processors.NewProcessorSet(runtime))
+	next.now = func() time.Time { return nextAt }
+	if err := next.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatalf("poll after stale continuation completion failed: %v", err)
+	}
+	if state, err = loadCursor(runtime, key); err != nil || !state.Checkpoint.Equal(nextAt) || state.NextURL != "" {
+		t.Fatalf("poll after stale continuation completion state=%+v err=%v", state, err)
+	}
+}
+
 func TestOffsetTerminalRejectionExcludedCasesRemainHardFailures(t *testing.T) {
 	tests := []struct {
 		name        string
