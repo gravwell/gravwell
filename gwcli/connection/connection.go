@@ -80,6 +80,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 	"sync"
@@ -592,6 +593,15 @@ func CBACEnabled() bool {
 	cached.mu.Lock()
 	defer cached.mu.Unlock()
 	return cached.cbacEnabled
+}
+
+// DestroyCachedToken removes the locally cached login token file, if one exists.
+// Safe to call if no token file exists.
+func DestroyCachedToken() error {
+	if err := os.Remove(cfgdir.DefaultTokenPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // End closes the connection to the server and destroys the data in the connection singleton.
