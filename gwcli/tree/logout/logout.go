@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -11,7 +11,9 @@ package logout
 
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,8 +29,16 @@ func NewAction() action.Pair {
 	)
 	return scaffold.NewBasicAction(use, short, long,
 		func(*pflag.FlagSet) (string, tea.Cmd) {
-			connection.Client.Logout()
+			if err := connection.Client.Logout(); err != nil {
+				clilog.Writer.Warnf("failed to log out: %v", err)
+			}
 			connection.End()
+
+			// Make sure we destroy the cached token so a stale/invalidated session can never be
+			// re-used on the next login attempt.
+			if err := connection.DestroyTokenFile(cfgdir.DefaultTokenPath); err != nil {
+				clilog.Writer.Warnf("failed to remove cached token file: %v", err)
+			}
 
 			return "Successfully logged out", tea.Quit
 		},
