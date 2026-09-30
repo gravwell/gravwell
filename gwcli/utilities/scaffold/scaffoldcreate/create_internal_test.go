@@ -1,7 +1,7 @@
 //go:build ci
 
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -170,6 +171,42 @@ func Test_ValueSetting(t *testing.T) {
 			}
 		}
 	})
+}
+
+// ESC (Mother.unsetAction) calls Reset() directly instead of exiting takeover mode
+// through Update(), so Reset() must clear inputs.takeover itself. Otherwise the stale key
+// survives into the action's next run and hijacks it, since View() and Update() both
+// render/route exclusively to whatever field inputs.takeover names.
+func Test_createModel_ResetClearsTakeover(t *testing.T) {
+	items := []multiselectlist.SelectableItem[string]{
+		&multiselectlist.DefaultSelectableItem[string]{Title_: "1", Description_: "desc1", ID_: "one"},
+	}
+	cm := setup(t, map[string]Field{
+		"capabilities": {Required: false, Title: "capabilities", Order: 0,
+			Provider: NewMSLProvider(items, MSLOptions{})},
+	})
+
+	// enter takeover mode, as pressing [space] does on tokens create's "capabilities" field
+	cm.Update(SendHotkey(hotkeys.Select))
+	if cm.inputs.takeover != "capabilities" {
+		t.Fatalf("failed to enter takeover mode; %s", ExpectedActual("capabilities", cm.inputs.takeover))
+	}
+
+	// simulate ESC: Mother.unsetAction() calls model.Reset() directly, never routing
+	// through Update()'s normal takeover-exit path
+	if err := cm.Reset(); err != nil {
+		t.Fatalf("Reset() returned an error: %v", err)
+	}
+	if cm.inputs.takeover != "" {
+		t.Fatalf("Reset() left a stale takeover key: %q", cm.inputs.takeover)
+	}
+
+	// on the "next invocation" of the action, View() must render the full field list
+	// again, not just the stale field's lone fragment
+	view := cm.View()
+	if !strings.Contains(view, "capabilities") {
+		t.Errorf("expected restarted view to contain the field list (title 'capabilities'); got:\n%s", view)
+	}
 }
 
 // E2E testing for a dummy create action.

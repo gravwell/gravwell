@@ -621,6 +621,7 @@ func (p *TextAreaProvider) Initialize(defaultValue string, required bool) {
 }
 
 func (p *TextAreaProvider) Reset() {
+	p.takeover = false
 	if p.CustomReset != nil {
 		p.ta = p.CustomReset(p.ta)
 		return
