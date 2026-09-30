@@ -80,6 +80,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 	"sync"
@@ -242,7 +243,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	cached.user, err = Client.MyInfo()
 	cached.mu.Unlock()
 	if err != nil {
-		return errors.New("failed to cache user info: " + err.Error())
+		return fmt.Errorf("failed to cache user info: %w", err)
 	}
 
 	// check that the info of the user we fetched actually matches the given username
@@ -592,6 +593,15 @@ func CBACEnabled() bool {
 	cached.mu.Lock()
 	defer cached.mu.Unlock()
 	return cached.cbacEnabled
+}
+
+// DestroyTokenFile removes the locally cached login token file, if one exists.
+// Safe to call if no token file exists.
+func DestroyTokenFile(file string) error {
+	if err := os.Remove(file); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove %q: %w", file, err)
+	}
+	return nil
 }
 
 // End closes the connection to the server and destroys the data in the connection singleton.
