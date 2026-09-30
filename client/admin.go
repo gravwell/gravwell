@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +34,8 @@ const (
 )
 
 var (
-	ErrNotAdmin = errors.New("You are not an admin")
+	ErrNotAdmin      = errors.New("You are not an admin")
+	ErrNoIngesterIDs = errors.New("no ingester IDs provided")
 )
 
 // IsAdmin checks if the logged-in user is an admin.
@@ -655,6 +657,26 @@ func (c *Client) PurgeUser(id int32) error {
 	return c.deleteStaticURL(usersInfoUrl(id), nil, ezParam("purge", "true")) //finally, delete the user
 }
 
-func (c *Client) ForgetIngester(id uuid.UUID) (err error) {
-	return c.deleteStaticURL(fmt.Sprintf(INGESTERS_TRACKING_URL, id), nil)
+// ForgetIngesters asks the system to stop tracking a set of missing ingesters.
+// The response carries a success or error status for every requested ID, ingester UUIDs are always
+// tracked and reported in canonical lowercase form.
+func (c *Client) ForgetIngesters(ids ...uuid.UUID) (resp types.ForgetIngestersResponse, err error) {
+	if len(ids) == 0 {
+		err = ErrNoIngesterIDs
+		return
+	}
+	strIDs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		strIDs = append(strIDs, id.String())
+	}
+	err = c.methodStaticPushURL(http.MethodDelete, INGESTERS_BULK_TRACKING_URL, nil, &resp, nil,
+		[]urlParam{ezParam("id", strings.Join(strIDs, ","))})
+	return
+}
+
+// ForgetAllMissingIngesters asks the system to stop tracking every missing ingester.
+// The response lists every ingester that was forgotten.
+func (c *Client) ForgetAllMissingIngesters() (resp types.ForgetIngestersResponse, err error) {
+	err = c.methodStaticPushURL(http.MethodDelete, INGESTERS_BULK_TRACKING_URL, nil, &resp, nil, nil)
+	return
 }
