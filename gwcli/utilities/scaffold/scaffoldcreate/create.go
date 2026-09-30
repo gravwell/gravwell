@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -486,6 +486,7 @@ func (c *createModel) Reset() error {
 	c.createErr = ""
 	c.inputs.err = ""
 	c.inputs.selected = 0
+	c.inputs.takeover = ""
 	c.focusInput(true)
 	return nil
 }

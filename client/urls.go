@@ -198,8 +198,9 @@ const (
 	SECRETS_ID_VALUE_URL             = `/api/secrets/%s/value`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
-	INGESTERS_TRACKING_URL           = `/api/ingesters/tracking/%s`
-	INGESTERS_CONTROL_URL            = `/api/ingesters/control`
+
+	INGESTERS_BULK_TRACKING_URL = `/api/ingesters/tracking`
+	INGESTERS_CONTROL_URL       = `/api/ingesters/control`
 
 	ALERTS_URL                     = `/api/alerts`
 	ALERTS_LIST_URL                = `/api/alerts/list`
@@ -211,6 +212,7 @@ const (
 	USER_PREFERENCES_LIST_URL      = `/api/userpreferences/list`
 	USER_PREFERENCES_ID_URL        = `/api/userpreferences/%s`
 	LIST_URL                       = `/api/list`
+
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -415,7 +417,7 @@ func flowParseUrl() string {
 	return FLOW_PARSE_URL
 }
 
-func flowIdUrl(id interface{}) string {
+func flowIdUrl(id any) string {
 	return fmt.Sprintf(FLOW_ID_URL, id)
 }
 
