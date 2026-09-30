@@ -9,6 +9,10 @@
 package connection_test
 
 import (
+	"errors"
+	"io/fs"
+	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -41,5 +45,71 @@ func TestParseJWT(t *testing.T) {
 		t.Fatal("payload mismatch:", testsupport.ExpectedActual(expectedPayload, payload))
 	} else if sig == nil {
 		t.Fatalf("nil signature")
+	}
+}
+
+// TestDestroyTokenFile checks that DestroyTokenFile removes an existing token file,
+// no-ops (returns nil) if the file is already absent, and otherwise propagates any real
+// removal error instead of swallowing it.
+//
+// Regression coverage for gwcli logout never deleting the cached JWT file, which left a
+// stale/invalidated token behind forever after logging out.
+func TestDestroyTokenFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) (file string)
+		wantErr bool
+	}{
+		{
+			name: "removes an existing file",
+			setup: func(t *testing.T) string {
+				pth := path.Join(t.TempDir(), "tknfile")
+				if err := os.WriteFile(pth, []byte("someuser\nsometoken"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				return pth
+			},
+			wantErr: false,
+		},
+		{
+			name: "no-ops when the file does not exist",
+			setup: func(t *testing.T) string {
+				return path.Join(t.TempDir(), "does-not-exist")
+			},
+			wantErr: false,
+		},
+		{
+			name: "propagates a real removal error",
+			setup: func(t *testing.T) string {
+				// os.Remove cannot remove a non-empty directory; this gives us a
+				// deterministic, non-ErrNotExist error without relying on permission
+				// tricks that behave inconsistently (e.g. when run as root).
+				dir := t.TempDir()
+				if err := os.WriteFile(path.Join(dir, "child"), []byte("x"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				return dir
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			file := tt.setup(t)
+			err := connection.DestroyTokenFile(file)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("DestroyTokenFile() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			// DestroyTokenFile should never surface a "file does not exist" error; that
+			// case is meant to be a no-op.
+			if err != nil && errors.Is(err, fs.ErrNotExist) {
+				t.Fatal("DestroyTokenFile should swallow ErrNotExist, not return it:", err)
+			}
+			if !tt.wantErr {
+				if _, statErr := os.Stat(file); !errors.Is(statErr, fs.ErrNotExist) {
+					t.Fatalf("expected file to no longer exist, stat returned: %v", statErr)
+				}
+			}
+		})
 	}
 }
