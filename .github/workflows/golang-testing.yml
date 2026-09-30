@@ -95,6 +95,7 @@ jobs:
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
         govulncheck -test ./ingesters/llm_ingester
+        govulncheck -test ./ingesters/macosUnifiedLog
         govulncheck -test ./hosted/...
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
@@ -120,6 +121,7 @@ jobs:
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
         go vet ./ingesters/llm_ingester
+        go vet ./ingesters/macosUnifiedLog
         go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
@@ -142,6 +144,7 @@ jobs:
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
         go test -v ./ingesters/llm_ingester
+        go test -v ./ingesters/macosUnifiedLog
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...
@@ -190,6 +193,7 @@ jobs:
         staticcheck ./ingesters/kafka_consumer/...
         staticcheck ./ingesters/KinesisIngester/...
         staticcheck ./ingesters/llm_ingester/...
+        staticcheck ./ingesters/macosUnifiedLog/...
         staticcheck ./ingesters/massFile/...
         staticcheck ./ingesters/MSGraphIngester/...
         staticcheck ./ingesters/multiFile/...
@@ -241,6 +245,8 @@ jobs:
         go build -o /dev/null ./ingesters/llm_ingester
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
+        GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/macosUnifiedLog
+        GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/macosUnifiedLog
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
 
         /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ./ingesters/test/configs/pubsub_ingest.conf
@@ -260,6 +266,7 @@ jobs:
         /bin/bash ./ingesters/test/build.sh ./ingesters/SimpleRelay ingesters/test/configs/simple_relay.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/O365Ingester ingesters/test/configs/o365_ingest.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/PacketFleet ingesters/test/configs/packet_fleet.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/macosUnifiedLog ingesters/test/configs/macos_unified_log.conf
 
     - name: Final status
       run: echo "Status is ${{ job.status }} 🚀"
