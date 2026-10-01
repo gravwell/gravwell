@@ -50,7 +50,6 @@ func main() {
 
 	var wg sync.WaitGroup
 	var cfg *cfgType
-	running := true
 
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 appName,
@@ -143,7 +142,10 @@ func main() {
 					// give up and LOUDLY quit
 					lg.Fatal("giving up fetch stream description for stream after 5 attempts, exiting.", log.KV("stream", stream.Stream_Name))
 				}
-				utils.QuitableSleep(ctx, 1*time.Second)
+				if utils.QuitableSleep(ctx, 1*time.Second) {
+					// Context has been cancelled. Let's bail out so cleanup can happen.
+					return
+				}
 				continue
 			}
 			newshards := streamdesc.StreamDescription.Shards
@@ -157,7 +159,12 @@ func main() {
 		debugout("Read %d shards from stream %s\n", len(shards), stream.Stream_Name)
 
 		// Now start up the metrics reporter
+		// metricsTracker is written concurrently by every per-shard goroutine via append
+		// and read concurrently by the reporter goroutine below, so it MUST be guarded
+		// by a mutex to avoid race conditions.
 		var metricsTrackers []*shardMetrics
+		var metricsTrackersMu sync.Mutex
+
 		if stream.Metrics_Interval > 0 {
 			go func(stream streamDef) {
 				for {
@@ -165,15 +172,27 @@ func main() {
 					case <-dieChan:
 						return
 					case <-time.After(time.Duration(stream.Metrics_Interval) * time.Second):
+						metricsTrackersMu.Lock()
+						trackers := make([]*shardMetrics, len(metricsTrackers))
+						copy(trackers, metricsTrackers)
+						metricsTrackersMu.Unlock()
+
 						report := metricsReport{StreamName: stream.Stream_Name, ShardCount: len(shards)}
-						for i := range metricsTrackers {
-							l, b, e, r := metricsTrackers[i].ReadAndReset()
+						for i := range trackers {
+							l, b, e, r := trackers[i].ReadAndReset()
 							report.AverageLag += l
 							report.CompressedDataSize += b
 							report.EntryDataSize += e
 							report.KinesisRequests += r
 						}
-						report.AverageLag = report.AverageLag / int64(len(metricsTrackers))
+
+						// Avoid a divide-by-zero panic if the ticker fires
+						// before any shard goroutine has registered a tracker
+						// or if the stream currently has zero open shards.
+						if len(trackers) > 0 {
+							report.AverageLag = report.AverageLag / int64(len(trackers))
+						}
+
 						if stream.JSON_Metrics {
 							jr, err := json.Marshal(report)
 							if err == nil {
@@ -245,14 +264,23 @@ func main() {
 				if err != nil {
 					lg.Fatal("preprocessor construction error", log.KVErr(err))
 				}
+				defer func() {
+					if cerr := procset.Close(); cerr != nil {
+						lg.Error("Failed to close processor set", log.KVErr(cerr))
+					}
+				}()
 
 				// make the shardMetrics and add it to the array
 				tracker := shardMetrics{}
-				metricsTrackers = append(metricsTrackers, &tracker)
+
 				if stream.Metrics_Interval == 0 {
 					// disable it
 					tracker.Disabled = true
 				}
+
+				metricsTrackersMu.Lock()
+				metricsTrackers = append(metricsTrackers, &tracker)
+				metricsTrackersMu.Unlock()
 
 			reconnectLoop:
 				for {
@@ -273,19 +301,23 @@ func main() {
 					output, err := svc.GetShardIterator(ctx, gsii)
 					if err != nil {
 						_ = lg.Error("error on shard", log.KV("number", shardid), log.KV("stream", stream.Stream_Name), log.KV("shard", *shard.ShardId), log.KVErr(err))
-						utils.QuitableSleep(ctx, 5*time.Second)
+						if utils.QuitableSleep(ctx, 5*time.Second) {
+							break reconnectLoop
+						}
 						continue
 					}
 					if output.ShardIterator == nil {
 						// this is weird, we are going to bail out
 						_ = lg.Error("got nil initial shard iterator, sleeping and retrying")
-						utils.QuitableSleep(ctx, 5*time.Second)
+						if utils.QuitableSleep(ctx, 5*time.Second) {
+							break reconnectLoop
+						}
 						continue
 					}
 					iter := *output.ShardIterator
 
 					var lastSeqNum string
-					for running {
+					for ctx.Err() == nil {
 						gri := &kinesis.GetRecordsInput{
 							Limit:         new(int32(5000)),
 							ShardIterator: new(iter),
@@ -300,27 +332,45 @@ func main() {
 								}
 							}
 							if err != nil {
+								if ctx.Err() != nil {
+									// Shut down, stop retrying and let the goroutine exit.
+									break reconnectLoop
+								}
+
 								var throughputErr *types.ProvisionedThroughputExceededException
 								var iteratorErr *types.ExpiredIteratorException
+
 								switch {
 								case errors.As(err, &throughputErr):
 									_ = lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									utils.QuitableSleep(ctx, 500*time.Millisecond)
+
+									if utils.QuitableSleep(ctx, 500*time.Millisecond) {
+										break reconnectLoop
+									}
 								case errors.As(err, &iteratorErr):
 									_ = lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									utils.QuitableSleep(ctx, 100*time.Millisecond)
+
+									if utils.QuitableSleep(ctx, 100*time.Millisecond) {
+										break reconnectLoop
+									}
+
 									continue reconnectLoop
 								default:
 									_ = lg.Error("answer error", log.KVErr(err), log.KV("shard", *shard.ShardId), log.KV("stream",
 										stream.Stream_Name))
-									utils.QuitableSleep(ctx, 500*time.Millisecond)
+
+									if utils.QuitableSleep(ctx, 500*time.Millisecond) {
+										break reconnectLoop
+									}
 								}
 							} else {
 								// if we got no records, chill for a sec before we hit it again
 								if len(res.Records) == 0 {
-									utils.QuitableSleep(ctx, 100*time.Millisecond)
+									if utils.QuitableSleep(ctx, 100*time.Millisecond) {
+										break reconnectLoop
+									}
 								}
 								break
 							}
@@ -357,9 +407,7 @@ func main() {
 							stateMan.UpdateSequenceNum(stream.Stream_Name, *shard.ShardId, lastSeqNum)
 						}
 					}
-					if err = procset.Close(); err != nil {
-						lg.Error("Failed to close processor set", log.KVErr(err))
-					}
+
 					// if we get to this point, exit the for loop
 					break
 				}
@@ -370,9 +418,9 @@ func main() {
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
 
-	running = false
 	close(dieChan)
 
+	// stop outstanding writes in 1 second while we wait
 	go func() {
 		time.Sleep(time.Second)
 		cancel()
