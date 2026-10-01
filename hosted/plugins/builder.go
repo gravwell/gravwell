@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/slack"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
@@ -172,6 +173,22 @@ func NewMSGraphBuilder(cfg *msgraph.Config, kind, id, version string) *MSGraphBu
 			version: version,
 		},
 	}
+}
+
+type SlackBuilder struct{ Builder[*slack.Config] }
+
+func (b *SlackBuilder) Build(t hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	if t != nil {
+		for _, tag := range b.config.Tags() {
+			if _, e := t.NegotiateTag(tag); e != nil {
+				return nil, e
+			}
+		}
+	}
+	return hosted.WrapJobWithSync(slack.New(b.config), syncFn), nil
+}
+func NewSlackBuilder(c *slack.Config, kind, id, version string) *SlackBuilder {
+	return &SlackBuilder{Builder[*slack.Config]{config: c, kind: kind, id: id, version: version}}
 }
 
 type SQSBuilder struct {

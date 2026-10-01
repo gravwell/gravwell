@@ -22,12 +22,14 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/slack"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
 type Configs struct {
+	Slack    map[string]*slack.Config
 	Okta     map[string]*okta.Config
 	Mimecast map[string]*mimecast.Config
 	MSGraph  map[string]*msgraph.Config
@@ -39,6 +41,14 @@ type Configs struct {
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
+	for _, v := range c.Slack {
+		if v == nil {
+			return fmt.Errorf("nil Slack configuration")
+		}
+		if err = v.Verify(); err != nil {
+			return err
+		}
+	}
 	for k, v := range c.Okta {
 		if v == nil {
 			err = fmt.Errorf("Okta config %q is nil", k)
@@ -114,6 +124,9 @@ func (c Configs) Verify() (err error) {
 
 // Tags implements the required interface for base.cfgHelper which is used during startup
 func (c Configs) Tags() (tags []string, err error) {
+	for _, v := range c.Slack {
+		tags = append(tags, v.Tags()...)
+	}
 	if len(c.Okta) > 0 {
 		tags = append(tags, okta.Tags...)
 	}
@@ -140,6 +153,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
+	count += len(c.Slack)
 	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
 	return
 }
@@ -158,6 +172,11 @@ type IngesterBuilder interface {
 // Any new plugins MUST add another loop here returning an IngesterBuilder for each config entry.
 func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 	return func(yield func(string, IngesterBuilder) bool) {
+		for name, cfg := range c.Slack {
+			if !yield(name, NewSlackBuilder(cfg, slack.Name, slack.ID, slack.Version)) {
+				return
+			}
+		}
 		for name, config := range c.Tester {
 			if !yield(name, NewTesterBuilder(config, tester.Name, tester.ID, tester.Version)) {
 				return
