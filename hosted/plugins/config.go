@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/thinkst"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
 )
 
@@ -35,6 +36,7 @@ type Configs struct {
 	Jamf     map[string]*jamf.Config
 	Wiz      map[string]*wiz.Config
 	SQS      map[string]*sqs.Config
+	Thinkst  map[string]*thinkst.Config
 }
 
 // Verify ensures that the plugin configs are valid
@@ -109,6 +111,16 @@ func (c Configs) Verify() (err error) {
 			return
 		}
 	}
+	for k, v := range c.Thinkst {
+                if v == nil {
+                        err = fmt.Errorf("Thinkst config %q is nil", k)
+                        return
+                }
+                if err = v.Verify(); err != nil {
+                        err = fmt.Errorf("Thinkst config %q failed validation: %w", k, err)
+                        return
+                }
+        }
 	return
 }
 
@@ -135,12 +147,15 @@ func (c Configs) Tags() (tags []string, err error) {
 	for _, v := range c.SQS {
 		tags = append(tags, v.Tags()...)
 	}
+	for _, v := range c.Thinkst {
+                tags = append(tags, v.Tags()...)
+        }
 	return
 }
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS) + len(c.Thinkst)
 	return
 }
 
@@ -193,5 +208,10 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 				return
 			}
 		}
+		for name, config := range c.Thinkst {
+                        if !yield(name, NewThinkstBuilder(config, thinkst.Name, thinkst.ID, thinkst.Version)) {
+                                return
+                        }
+                }
 	}
 }
