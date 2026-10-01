@@ -59,7 +59,7 @@ type cfgType struct {
 	plugins.Configs // embed the type so we can abstract the startup more easily
 }
 
-func (c cfgType) Verify() (err error) {
+func (c *cfgType) Verify() (err error) {
 	if err = c.IngestConfig.Verify(); err != nil {
 		return
 	} else if err = c.Attach.Verify(); err != nil {
