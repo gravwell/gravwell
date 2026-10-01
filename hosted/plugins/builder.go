@@ -11,6 +11,7 @@ package plugins
 import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/claude-compliance"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
@@ -22,6 +23,22 @@ import (
 
 type BuilderConfig interface {
 	UUID() uuid.UUID
+}
+
+type ClaudeComplianceBuilder struct {
+	Builder[*claudecompliance.Config]
+}
+
+func (b *ClaudeComplianceBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	j, err := claudecompliance.New(b.config, tn)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJobWithSync(j, syncFn), nil
+}
+
+func NewClaudeComplianceBuilder(config *claudecompliance.Config, kind, id, version string) *ClaudeComplianceBuilder {
+	return &ClaudeComplianceBuilder{Builder[*claudecompliance.Config]{config: config, kind: kind, id: id, version: version}}
 }
 
 // Builder is provided as a generic way to implement the IngesterBuilder interface.
