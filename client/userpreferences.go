@@ -1,0 +1,104 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+package client
+
+import (
+	"github.com/gravwell/gravwell/v4/client/types"
+)
+
+// ListUserPreferences returns all user preferences accessible to the current user.
+func (c *Client) ListUserPreferences(opts types.QueryOptions) (ret types.UserPreferenceResponse, err error) {
+	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, &opts)
+}
+
+// ListAllUserPreferences (admin-only) returns all user preferences on the system.
+func (c *Client) ListAllUserPreferences(opts types.QueryOptions) (ret types.UserPreferenceResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.UserPreferenceResponse](USER_PREFERENCES_LIST_URL, &opts)
+}
+
+// GetUserPreference returns a particular user preference.
+func (c *Client) GetUserPreference(id string) (types.UserPreference, error) {
+	return c.GetUserPreferenceEx(id, GetOptions{})
+}
+
+// GetUserPreferenceEx returns a particular user preference, modified by opts.
+func (c *Client) GetUserPreferenceEx(id string, opts GetOptions) (types.UserPreference, error) {
+	return c.get[types.UserPreference](userPreferenceUrl(id), opts.params()...)
+}
+
+// GetUserPreferenceByName returns the user preference with the given name owned by the
+// currently logged-in user.
+func (c *Client) GetUserPreferenceByName(name string) (types.UserPreference, error) {
+	if c.userDetails.ID == 0 {
+		return types.UserPreference{}, ErrNotSynced
+	}
+	opts := types.QueryOptions{
+		Filters: []types.Filter{
+			{Key: "OwnerID", Operation: "=", Values: []any{c.userDetails.ID}},
+			{Key: "Name", Operation: "=", Values: []any{name}},
+		},
+	}
+	resp, err := c.ListUserPreferences(opts)
+	if err != nil {
+		return types.UserPreference{}, err
+	}
+	if len(resp.Results) == 0 {
+		return types.UserPreference{}, ErrNotFound
+	}
+	return resp.Results[0], nil
+}
+
+// DeleteUserPreference deletes a user preference by marking it deleted in the database.
+func (c *Client) DeleteUserPreference(id string) error {
+	return c.delete(userPreferenceUrl(id), false)
+}
+
+// PurgeUserPreference deletes a user preference entirely, removing it from the database.
+func (c *Client) PurgeUserPreference(id string) error {
+	return c.delete(userPreferenceUrl(id), true)
+}
+
+// CreateUserPreference creates a new user preference, returning the newly-created user preference.
+func (c *Client) CreateUserPreference(p types.UserPreference) (result types.UserPreference, err error) {
+	return c.post[types.UserPreference, types.UserPreference](USER_PREFERENCES_URL, &p)
+}
+
+// UpdateUserPreference modifies an existing user preference and returns the complete, updated struct.
+func (c *Client) UpdateUserPreference(ID string, p types.UserPreferencePatch) (updated types.UserPreference, err error) {
+	if ID == "" {
+		return types.UserPreference{}, ErrEmptyID
+	}
+	return c.patch[types.UserPreferencePatch, types.UserPreference](userPreferenceUrl(ID), p)
+}
+
+// CleanupUserPreferences (admin-only) purges all deleted user preferences for all users.
+func (c *Client) CleanupUserPreferences() error {
+	return c.delete(USER_PREFERENCES_URL, false)
+}
+
+// GetGuiPreferences is a convenience function: it returns the Data
+// field of the preferences object named `prefs` belonging to the
+// specified user, loading it into the specified object.
+func (c *Client) GetGuiPreferences(uid int32, obj interface{}) error {
+	return c.getStaticURL(preferencesUrl(uid), obj)
+}
+
+// ClearGuiPreferences clears the Data field of the preferences
+// object named `prefs` belonging to the specified user. It does *not*
+// delete the underlying asset, though.
+func (c *Client) ClearGuiPreferences(id int32) error {
+	return c.delete(preferencesUrl(id), false)
+}
+
+// UpdateGuiPreferences updates the Data field of the preferences object
+// named `prefs` belonging to the specified user.
+func (c *Client) UpdateGuiPreferences(id int32, obj interface{}) error {
+	return c.putStaticURL(preferencesUrl(id), obj)
+}

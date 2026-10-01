@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/winevent"
-	"github.com/gravwell/gravwell/v3/winevent/wineventlog"
+	"github.com/gravwell/gravwell/v4/winevent"
+	"github.com/gravwell/gravwell/v4/winevent/wineventlog"
 )
 
 const (

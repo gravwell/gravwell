@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -119,27 +119,27 @@ type Features struct {
 }
 
 type LicenseIndexerStatus struct {
-	Indexer  string `json:"indexer"`
-	Serviced bool   `json:"ready"`
-	Error    string `json:"error,omitempty"`
+	Indexer  string
+	Serviced bool
+	Error    string `json:",omitempty"`
 }
 
 type LicenseDistributionStatus struct {
-	Status string                 `json:"status"`
-	States []LicenseIndexerStatus `json:"states,omitempty"`
+	Status string
+	States []LicenseIndexerStatus `json:",omitempty"`
 
 	// information about whether the system is allowed to run in unlicensed/free mode
-	UnlicensedAllowed bool `json:"unlicensed_allowed"`
+	UnlicensedAllowed bool
 
 	// if system cannot run in unlicensed mode, a list of reasons will be provided
 	// they may be things like "system is configured as a cluster" or "CBAC is enabled"
-	DisallowUnlicensedReasons []string `json:"disallow_unlicensed_reasons,omitempty"`
+	DisallowUnlicensedReasons []string `json:",omitempty"`
 }
 
 type LicenseIndexerInfo struct {
-	Indexer string      `json:"indexer"`
-	Error   error       `json:"error,omitempty"`
-	Info    LicenseInfo `json:"info,omitempty"`
+	Indexer string
+	Error   error `json:",omitempty"`
+	Info    LicenseInfo
 }
 
 // LicenseUsageBucket is a time bucket of license quota activity

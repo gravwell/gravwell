@@ -15,7 +15,7 @@ import (
 
 // NOTE ON SCOPE: cfgType.Verify() calls c.Global.IngestConfig.Verify() and
 // c.Attach.Verify() first, before any of this file's own checks run. Those
-// are external gravwell/v3/ingest types whose pass/fail conditions aren't
+// are external gravwell/v4/ingest types whose pass/fail conditions aren't
 // visible from here, so a full cfgType.Verify() test would risk failing (or
 // silently passing) for reasons that have nothing to do with this ingester's
 // own logic. Instead, the checks and defaulting this ingester actually owns
