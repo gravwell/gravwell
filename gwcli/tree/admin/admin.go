@@ -74,7 +74,6 @@ var cleanupTargets = []string{
 	"macros",
 	"resources",
 	"search_history",
-	"secrets",
 	"templates",
 	"user_preferences",
 }
@@ -92,8 +91,6 @@ func getTarget(target string) func() error {
 		return connection.Client.CleanupResources
 	case "search_history":
 		return connection.Client.CleanupSearchHistory
-	case "secrets":
-		return connection.Client.CleanupSecrets
 	case "templates":
 		return connection.Client.CleanupTemplates
 	case "user_preferences":
@@ -152,12 +149,10 @@ func cleanup() action.Pair {
 			return strings.Join(runCleanup(requested), "\n"), nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases:      []string{"clean", "tidy", "purge", "burninate"},
-				Usage:        "cleanup " + ft.VariadicArgs("target", true),
-				Example:      "cleanup macros secrets",
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Aliases:      []string{"clean", "tidy", "purge", "burninate"},
+			Usage:        "cleanup " + ft.VariadicArgs("target", true),
+			Example:      "cleanup macros templates",
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
 					return "you must specify at least one item to clean up or \"all\"", nil
