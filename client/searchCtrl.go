@@ -54,12 +54,12 @@ func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
 	if len(ssp) == 1 {
 		arg = ssp[0]
 	}
-	return c.patchStaticURL(searchCtrlSaveUrl(sid), arg)
+	return c.putStaticURL(searchCtrlSaveUrl(sid), arg)
 }
 
 // BackgroundSearch will request that a search is backgrounded by ID
 func (c *Client) BackgroundSearch(sid string) error {
-	return c.patchStaticURL(searchCtrlBackgroundUrl(sid), nil)
+	return c.putStaticURL(searchCtrlBackgroundUrl(sid), nil)
 }
 
 // SetAccess sets the Readers/Writers ACLs and, for admins, reassigns ownership

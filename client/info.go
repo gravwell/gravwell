@@ -335,7 +335,7 @@ func (c *Client) SetMailConfig(user, pass, server string, port uint16, useTLS, n
 		UseTLS:             useTLS,
 		InsecureSkipVerify: noVerify,
 	}
-	return c.postStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
+	return c.putStaticURL(MAIL_CONFIGURE_URL, &msg)
 }
 
 // DeleteMailConfig removes a users mail configuration fom preferences

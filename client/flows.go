@@ -66,7 +66,7 @@ func (c *Client) ParseFlow(flow string) (resp types.FlowParseResponse, err error
 	req := types.FlowParseRequest{
 		Flow: flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPost, flowParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 	return
@@ -82,7 +82,7 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (resp types.F
 		DebugEvent: &event,
 		Flow:       flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPost, flowParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 	return

@@ -42,7 +42,7 @@ func TestSetAccess(t *testing.T) {
 	var failReq bool
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/searchctrl/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/searches/", func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
 		gotBody = accessBody{}
@@ -77,7 +77,7 @@ func TestSetAccess(t *testing.T) {
 		if gotMethod != http.MethodPut {
 			t.Errorf("method = %q, want %q", gotMethod, http.MethodPut)
 		}
-		if want := "/api/searchctrl/search-123/access"; gotPath != want {
+		if want := "/api/searches/search-123/access"; gotPath != want {
 			t.Errorf("path = %q, want %q", gotPath, want)
 		}
 		if gotBody.OwnerID != nid {
