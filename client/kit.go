@@ -70,7 +70,7 @@ func (c *Client) UploadKit(p string) (pc types.KitState, err error) {
 		return
 	}
 
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, kitUrl())
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, kitsUrl())
 	if req, err = http.NewRequest(http.MethodPost, uri, bb); err != nil {
 		return
 	}
@@ -99,7 +99,7 @@ func (c *Client) PullKit(id string) (pc types.KitState, err error) {
 	if err = wtr.Close(); err != nil {
 		return
 	}
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, kitUrl())
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, kitsUrl())
 	if req, err = http.NewRequest(http.MethodPost, uri, bb); err != nil {
 		return
 	}
@@ -113,31 +113,31 @@ func (c *Client) PullKit(id string) (pc types.KitState, err error) {
 
 // ListRemoteKits returns a list of kits available on the kit server.
 func (c *Client) ListRemoteKits(all bool) (mds types.RemoteKitListResponse, err error) {
-	return c.get[types.RemoteKitListResponse](remoteKitUrl(all))
+	return c.get[types.RemoteKitListResponse](listRemoteKitsUrl(all))
 }
 
 // ListKits returns a list of all installed and staged kits.
 func (c *Client) ListKits(opts types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
-	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.KitStateListResponse](LIST_KITS_URL, &opts)
 }
 
 // ListAllKits returns a list of all installed and staged kits.
 func (c *Client) ListAllKits(opts types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.KitStateListResponse](LIST_KITS_URL, &opts)
 }
 
 // GetKit returns information about a particular installed/staged kit, specified
 // by the kit's unique ID.
 func (c *Client) GetKit(id string) (ki types.KitState, err error) {
-	return c.get[types.KitState](kitIdUrl(id))
+	return c.get[types.KitState](kitsIdUrl(id))
 }
 
 // InstallKit tells the webserver to install a staged kit. The id parameter
 // is the ID of the staged kit. The cfg parameter provides install-time
 // options.
 func (c *Client) InstallKit(id string, cfg types.KitConfig) (installId int, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, kitIdUrl(id), cfg, &installId, nil, nil)
+	err = c.methodStaticPushURL(http.MethodPut, kitsIdUrl(id), cfg, &installId, nil, nil)
 	return
 }
 
@@ -146,14 +146,14 @@ func (c *Client) InstallKit(id string, cfg types.KitConfig) (installId int, err 
 // the desired changes, with the following fields being respected: Global, InstallationGroup,
 // and Labels.
 func (c *Client) ModifyKit(id string, cfg types.KitConfig) (report types.KitModifyReport, err error) {
-	return c.patch[types.KitConfig, types.KitModifyReport](kitIdUrl(id), cfg)
+	return c.patch[types.KitConfig, types.KitModifyReport](kitsIdUrl(id), cfg)
 }
 
 // DeleteKit uninstalls a kit (specified by ID). Note that if kit items
 // have been modified, DeleteKit will return an error; use ForceDeleteKit to
 // remove the kit regardless.
 func (c *Client) DeleteKit(id string) (err error) {
-	return c.delete(kitIdUrl(id), false)
+	return c.delete(kitsIdUrl(id), false)
 }
 
 // DeleteKitVerbose attempts to uninstall a kit. If kit items have been modified,
@@ -162,7 +162,7 @@ func (c *Client) DeleteKit(id string) (err error) {
 func (c *Client) DeleteKitVerbose(id string) ([]types.ModifiedKitItem, error) {
 	var resp *http.Response
 	var err error
-	resp, err = c.methodRequestURL(http.MethodDelete, kitIdUrl(id), ``, nil)
+	resp, err = c.methodRequestURL(http.MethodDelete, kitsIdUrl(id), ``, nil)
 	if err != nil {
 		// this means we weren't able to get a request to the server, return the error
 		return []types.ModifiedKitItem{}, err
@@ -196,7 +196,7 @@ func (c *Client) ForceDeleteKit(id string) (err error) {
 	params := []urlParam{
 		urlParam{key: "force", value: "true"},
 	}
-	err = c.methodStaticParamURL(http.MethodDelete, kitIdUrl(id), params, nil)
+	err = c.methodStaticParamURL(http.MethodDelete, kitsIdUrl(id), params, nil)
 	return
 }
 
@@ -205,39 +205,39 @@ func (c *Client) ForceDeleteKit(id string) (err error) {
 // returned KitBuildResponse will contain a ID which can be used to download
 // the kit via the KitDownloadRequest function.
 func (c *Client) BuildKit(pbr types.KitBuildRequest) (r types.KitBuildResponse, err error) {
-	return c.post[types.KitBuildRequest, types.KitBuildResponse](kitBuildUrl(), &pbr)
+	return c.post[types.KitBuildRequest, types.KitBuildResponse](kitBuildsUrl(), &pbr)
 }
 
 // DeleteBuildKit removes a recently-built kit.
 func (c *Client) DeleteBuildKit(id string) (err error) {
-	return c.delete(kitDownloadUrl(id), false)
+	return c.delete(kitBuildsIdUrl(id), false)
 }
 
 // KitDownloadRequest initiates a download for the specified kit and returns
 // the associated http.Response structure. The kit is available in the Body
 // field of the response.
 func (c *Client) KitDownloadRequest(id string) (*http.Response, error) {
-	return c.DownloadRequest(kitDownloadUrl(id))
+	return c.DownloadRequest(kitBuildsIdUrl(id))
 }
 
 // KitStatuses returns the statuses of any ongoing or completed kit installations.
 func (c *Client) KitStatuses() (statuses []types.InstallStatus, err error) {
-	return c.get[[]types.InstallStatus](kitStatusUrl())
+	return c.get[[]types.InstallStatus](listKitInstallsUrl())
 }
 
 // KitStatus returns the status of a particular kit installation
 func (c *Client) KitStatus(id int) (status types.InstallStatus, err error) {
-	return c.get[types.InstallStatus](kitStatusIdUrl(id))
+	return c.get[types.InstallStatus](kitInstallsIdUrl(id))
 }
 
 // ListKitBuildHistory returns KitBuildRequests for all kits previously built by the
 // user. Note that only the most recent build request is stored for each unique
 // kit ID (e.g. "io.gravwell.foo").
 func (c *Client) ListKitBuildHistory(opts types.QueryOptions) (hist types.KitBuildRequestListResponse, err error) {
-	return c.post[types.QueryOptions, types.KitBuildRequestListResponse](KIT_BUILD_HISTORY_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.KitBuildRequestListResponse](LIST_KIT_BUILD_REQUESTS_URL, &opts)
 }
 
 // DeleteKitBuildHistory deletes a build history entry for the given ID e.g. "io.gravwell.foo"
 func (c *Client) DeleteKitBuildHistory(id string) error {
-	return c.delete(kitDeleteBuildHistoryUrl(id), false)
+	return c.delete(kitBuildRequestsIdUrl(id), false)
 }

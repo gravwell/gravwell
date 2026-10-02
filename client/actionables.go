@@ -14,13 +14,13 @@ import (
 
 // ListActionables returns all actionables accessible to the current user.
 func (c *Client) ListActionables(opts types.QueryOptions) (ret types.ActionableListResponse, err error) {
-	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.ActionableListResponse](LIST_ACTIONABLES_URL, &opts)
 }
 
 // ListAllActionables (admin-only) returns all actionables on the system.
 func (c *Client) ListAllActionables(opts types.QueryOptions) (ret types.ActionableListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.ActionableListResponse](LIST_ACTIONABLES_URL, &opts)
 }
 
 // GetActionable returns a particular actionable by ID.
@@ -30,17 +30,17 @@ func (c *Client) GetActionable(id string) (types.Actionable, error) {
 
 // GetActionableEx returns a particular actionable, modified by opts.
 func (c *Client) GetActionableEx(id string, opts GetOptions) (types.Actionable, error) {
-	return c.get[types.Actionable](actionableIdUrl(id), opts.params()...)
+	return c.get[types.Actionable](actionablesIdUrl(id), opts.params()...)
 }
 
 // DeleteActionable deletes an actionable by marking it deleted in the database.
 func (c *Client) DeleteActionable(id string) error {
-	return c.delete(actionableIdUrl(id), false)
+	return c.delete(actionablesIdUrl(id), false)
 }
 
 // PurgeActionable deletes an actionable entirely, removing it from the database.
 func (c *Client) PurgeActionable(id string) error {
-	return c.delete(actionableIdUrl(id), true)
+	return c.delete(actionablesIdUrl(id), true)
 }
 
 // CreateActionable creates a new actionable, returning the newly-created actionable.
@@ -53,7 +53,7 @@ func (c *Client) UpdateActionable(ID string, p types.ActionablePatch) (updated t
 	if ID == "" {
 		return types.Actionable{}, ErrEmptyID
 	}
-	return c.patch[types.ActionablePatch, types.Actionable](actionableIdUrl(ID), p)
+	return c.patch[types.ActionablePatch, types.Actionable](actionablesIdUrl(ID), p)
 }
 
 // CleanupActionables (admin-only) purges all deleted actionables for all users.

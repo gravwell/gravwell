@@ -49,7 +49,7 @@ func (c *Client) getNotifications(after time.Time, update bool) (n types.Notific
 	params := []urlParam{
 		{key: "after", value: after.Format("2006-01-02T15:04:05.999999999Z07")},
 	}
-	if n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, params...); err == nil && update {
+	if n, err = c.get[types.NotificationSet](LIST_NOTIFICATIONS_URL, params...); err == nil && update {
 		for _, v := range n {
 			if v.Sent.After(c.sessionData.LastNotificationTime) {
 				c.sessionData.LastNotificationTime = v.Sent
@@ -66,7 +66,7 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	if !c.userDetails.Admin {
 		err = ErrNotAdmin
 	} else {
-		n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, adminParams...)
+		n, err = c.get[types.NotificationSet](LIST_NOTIFICATIONS_URL, adminParams...)
 	}
 	return
 }
@@ -76,15 +76,15 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 // will instead set a default expiration.
 func (c *Client) CreateNotification(notifType uint32, msg, link string, expiration time.Time) error {
 	n := types.Notification{Type: notifType, Msg: msg, Link: link, Expires: expiration}
-	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil, nil, nil)
+	return c.methodStaticPushURL(http.MethodPost, notificationsUrl(), n, nil, nil, nil)
 }
 
 // DeleteNotification will delete a notification using a notification ID
 func (c *Client) DeleteNotification(id uint64) error {
-	return c.delete(notificationsUrl(id), false)
+	return c.delete(notificationsIdUrl(id), false)
 }
 
 // UpdateNotification will update a notification using a notification ID
 func (c *Client) UpdateNotification(id uint64, n types.Notification) error {
-	return c.putStaticURL(notificationsUrl(id), n)
+	return c.putStaticURL(notificationsIdUrl(id), n)
 }
