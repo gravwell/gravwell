@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -186,7 +187,7 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1", false); err != nil {
+		if err := c.delete("/things/1"); err != nil {
 			t.Fatalf("delete: %v", err)
 		}
 		if gotMethod != http.MethodDelete {
@@ -204,17 +205,60 @@ func TestDelete(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		if err := c.delete("/things/1", false); !errors.Is(err, ErrNotFound) {
+		if err := c.delete("/things/1"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v, want ErrNotFound", err)
 		}
 	})
+}
+
+// tests that a sampling of ListAll* functions actually set the All field properly while still allowing other QOs to persist.
+// Validates that ?all=true is not sent (as it would be redundant with All in QO).
+func TestListAll(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		call func(c *Client, opts types.QueryOptions) error
+	}{
+		{"tokens", TOKENS_LIST_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllTokens(o); return err }},
+		{"secrets", SECRETS_LIST_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllSecrets(o); return err }},
+		{"macros", MACROS_LIST_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllMacros(o); return err }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotOpts types.QueryOptions
+			var gotQuery url.Values
+			mux := http.NewServeMux()
+			mux.HandleFunc(tt.url, func(w http.ResponseWriter, r *http.Request) {
+				gotQuery = r.URL.Query()
+				if err := json.UnmarshalRead(r.Body, &gotOpts); err != nil {
+					t.Errorf("failed to unmarshal request: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{}`))
+			})
+			c := newTestClient(t, mux)
+
+			if err := tt.call(c, types.QueryOptions{Limit: 5}); err != nil {
+				t.Fatalf("ListAll: %v", err)
+			}
+			if !gotOpts.All {
+				t.Errorf("All = false in request body, want true")
+			}
+			if gotOpts.Limit != 5 {
+				t.Errorf("Limit = %d, want caller's options preserved (5)", gotOpts.Limit)
+			}
+			if gotQuery.Has(queryparams.All) {
+				t.Errorf("unexpected ?%s in query: %v", queryparams.All, gotQuery)
+			}
+		})
+	}
 }
 
 func TestGetOptionsParams(t *testing.T) {
 	if got := (GetOptions{}).params(); len(got) != 0 {
 		t.Errorf("params() with defaults = %+v, want empty", got)
 	}
-	want := []urlParam{{"include_deleted", "true"}}
+	want := []urlParam{{queryparams.IncludeDeleted, "true"}}
 	if got := (GetOptions{IncludeDeleted: true}).params(); !reflect.DeepEqual(got, want) {
 		t.Errorf("params() with IncludeDeleted = %+v, want %+v", got, want)
 	}
@@ -227,7 +271,7 @@ func TestGet(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/files/abc", func(w http.ResponseWriter, r *http.Request) {
 			gotMethod = r.Method
-			gotQuery = r.URL.Query().Get("include_deleted")
+			gotQuery = r.URL.Query().Get(queryparams.IncludeDeleted)
 			w.Write([]byte(`{"Name":"a-file"}`))
 		})
 		c := newTestClient(t, mux)

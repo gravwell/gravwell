@@ -113,7 +113,7 @@ func TestQueryOptions(t *testing.T) {
 			scaffolddelete.DataParameters{
 				&types.QueryOptions{
 					IncludeDeleted: true,
-					AdminMode:      true,
+					All:            true,
 				},
 			},
 		},
@@ -128,7 +128,7 @@ func TestQueryOptions(t *testing.T) {
 			scaffolddelete.DataParameters{
 				&types.QueryOptions{
 					IncludeDeleted: true,
-					AdminMode:      true,
+					All:            true,
 					Limit:          5,
 				},
 			},

@@ -26,8 +26,9 @@ type QueryOptions struct {
 	IncludeDeleted bool
 	Version        int32 // fetch a particular version, when appropriate. 0 means latest, -1 means all versions (list only)
 
-	// If true and requesting user is an admin, a list request will return items for all users
-	AdminMode bool
+	// All requests items owned by every user, not just the caller.
+	// It is silently ignored if the caller is not an admin.
+	All bool
 
 	// Listing options
 	OrderBy        string // Sort by this field (defaults to ID)

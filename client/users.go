@@ -46,7 +46,7 @@ func (c *Client) GetUserEx(id int32, opts GetOptions) (types.UserWithCBAC, error
 
 // DeleteUser deletes a user by marking it deleted in the database.
 func (c *Client) DeleteUser(id int32) error {
-	return c.delete(usersInfoUrl(id), false)
+	return c.delete(usersInfoUrl(id))
 }
 
 // PurgeUser is implemented in admin.go and also deletes the user's assets.
@@ -88,7 +88,7 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 
 // CleanupUsers (admin-only) purges all deleted users for all users.
 func (c *Client) CleanupUsers() error {
-	return c.delete(USERS_URL, false)
+	return c.delete(USERS_URL)
 }
 
 // LookupUser looks up a User object given a username.  If the

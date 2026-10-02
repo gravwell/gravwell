@@ -12,6 +12,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -22,7 +23,7 @@ func (c *Client) ListScheduledScripts(opts types.QueryOptions) (scripts types.Sc
 
 // ListAllScheduledScripts returns all scheduled scripts on the system (for admins).
 func (c *Client) ListAllScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
 }
 
@@ -38,12 +39,12 @@ func (c *Client) GetScheduledScriptEx(id string, opts GetOptions) (types.Schedul
 
 // DeleteScheduledScript removes the specified scheduled script.
 func (c *Client) DeleteScheduledScript(id string) error {
-	return c.delete(scheduledScriptIdUrl(id), false)
+	return c.delete(scheduledScriptIdUrl(id))
 }
 
 // PurgeScheduledScript permanently removes the specified scheduled script.
 func (c *Client) PurgeScheduledScript(id string) error {
-	return c.delete(scheduledScriptIdUrl(id), true)
+	return c.delete(scheduledScriptIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateScheduledScript makes a new scheduled script.
@@ -106,7 +107,16 @@ func (c *Client) GetScheduledScriptResults(id string) (results types.ScheduledSc
 
 // ClearScheduledScriptResults deletes all results for the specified scheduled script
 func (c *Client) ClearScheduledScriptResults(id string) error {
-	return c.delete(scheduledScriptResultsIdUrl(id), false)
+	return c.delete(scheduledScriptResultsIdUrl(id))
+}
+
+// ClearAllScheduledScriptResults (admin-only) deletes all results for the specified scheduled
+// script, regardless of which user owns them.
+func (c *Client) ClearAllScheduledScriptResults(id string) error {
+	if !c.userDetails.Admin {
+		return ErrNotAdmin
+	}
+	return c.delete(scheduledScriptResultsIdUrl(id), urlParam{queryparams.All, "true"})
 }
 
 // DebugScheduledScript requests an immediate debug run of the specified scheduled script.
@@ -116,10 +126,10 @@ func (c *Client) DebugScheduledScript(id string, opts types.AutomationDebugReque
 
 // CancelScheduledScript cancels any active run of the specified scheduled script.
 func (c *Client) CancelScheduledScript(id string) error {
-	return c.delete(scheduledScriptCancelIdUrl(id), false)
+	return c.delete(scheduledScriptCancelIdUrl(id))
 }
 
 // CleanupScheduledScripts (admin-only) purges all deleted scheduled scripts for all users.
 func (c *Client) CleanupScheduledScripts() error {
-	return c.delete(SCHEDULED_SCRIPT_URL, false)
+	return c.delete(SCHEDULED_SCRIPT_URL)
 }

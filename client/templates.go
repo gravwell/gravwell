@@ -19,7 +19,7 @@ func (c *Client) ListTemplates(opts types.QueryOptions) (ret types.TemplateListR
 
 // ListAllTemplates (admin-only) returns all templates on the system.
 func (c *Client) ListAllTemplates(opts types.QueryOptions) (ret types.TemplateListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, &opts)
 }
 
@@ -35,12 +35,12 @@ func (c *Client) GetTemplateEx(id string, opts GetOptions) (types.Template, erro
 
 // DeleteTemplate deletes a template by marking it deleted in the database.
 func (c *Client) DeleteTemplate(id string) error {
-	return c.delete(templateUrl(id), false)
+	return c.delete(templateUrl(id))
 }
 
 // PurgeTemplate deletes a template entirely, removing it from the database.
 func (c *Client) PurgeTemplate(id string) error {
-	return c.delete(templateUrl(id), true)
+	return c.delete(templateUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateTemplate creates a new template, returning the newly-created template.
@@ -58,5 +58,5 @@ func (c *Client) UpdateTemplate(ID string, p types.TemplatePatch) (updated types
 
 // CleanupTemplates (admin-only) purges all deleted templates for all users.
 func (c *Client) CleanupTemplates() error {
-	return c.delete(TEMPLATES_URL, false)
+	return c.delete(TEMPLATES_URL)
 }

@@ -527,7 +527,9 @@ func find() action.Pair {
 func clear() action.Pair {
 	return scaffoldselect.NewSelectAction("clear a tag's extractor", "Unassign and delete whatever extractor is on the given tag(s).", "ax",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(types.QueryOptions{AdminMode: connection.AdminMode()})
+			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
+			clilog.GetFlag(err)
+			lr, err := connection.Client.ListExtractions(types.QueryOptions{All: all})
 			if err != nil {
 				return nil, err
 			}
@@ -575,6 +577,11 @@ func clear() action.Pair {
 		},
 		scaffoldselect.Options{
 			Use: "clear",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
+				return fs
+			},
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
 				XPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},

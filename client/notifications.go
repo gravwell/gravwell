@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -66,7 +67,7 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	if !c.userDetails.Admin {
 		err = ErrNotAdmin
 	} else {
-		n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, adminParams...)
+		n, err = c.get[types.NotificationSet](NOTIFICATIONS_URL, urlParam{queryparams.All, "true"})
 	}
 	return
 }
@@ -81,7 +82,7 @@ func (c *Client) CreateNotification(notifType uint32, msg, link string, expirati
 
 // DeleteNotification will delete a notification using a notification ID
 func (c *Client) DeleteNotification(id uint64) error {
-	return c.delete(notificationsUrl(id), false)
+	return c.delete(notificationsUrl(id))
 }
 
 // UpdateNotification will update a notification using a notification ID
