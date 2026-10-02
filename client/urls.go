@@ -308,11 +308,7 @@ func usersIdPreferencesUrl(id int32) string {
 }
 
 func notificationsIdUrl(id uint64) string {
-	if id == 0 {
-		return LIST_NOTIFICATIONS_URL
-	} else {
-		return fmt.Sprintf(NOTIFICATIONS_ID_URL, id)
-	}
+	return fmt.Sprintf(NOTIFICATIONS_ID_URL, id)
 }
 
 func notificationsUrl() string {
