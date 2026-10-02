@@ -82,6 +82,9 @@ var (
 		AlertRead.CapabilityDesc(),
 		AlertWrite.CapabilityDesc(),
 		LogbotAI.CapabilityDesc(),
+		KVRead.CapabilityDesc(),
+		KVWrite.CapabilityDesc(),
+		KVCreate.CapabilityDesc(),
 	}
 	readOnlyCapList = []Capability{
 		Search,
@@ -109,6 +112,7 @@ var (
 		SecretRead,
 		AlertRead,
 		LogbotAI,
+		KVRead,
 	}
 	adminOnlyCapList = []Capability{
 		KitWrite,

@@ -10,6 +10,7 @@ package client
 
 import (
 	"fmt"
+	"net/url"
 	"path"
 )
 
@@ -209,6 +210,12 @@ const (
 	USER_PREFERENCES_LIST_URL        = `/api/userpreferences/list`
 	USER_PREFERENCES_ID_URL          = `/api/userpreferences/%s`
 	LIST_URL                         = `/api/list`
+	KV_URL                           = `/api/kv`
+	KV_LIST_URL                      = `/api/list/kv`
+	KV_ID_URL                        = `/api/kv/%s`
+	KV_ROWS_URL                      = `/api/kv/%s/rows`
+	KV_ROW_URL                       = `/api/kv/%s/rows/%s`
+	KV_ROWS_LIST_URL                 = `/api/list/kv-rows`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -546,6 +553,19 @@ func templateUrl(id string) string {
 
 func actionableIdUrl(id string) string {
 	return fmt.Sprintf(ACTIONABLES_ID_URL, id)
+}
+
+func kvIdUrl(id string) string {
+	return fmt.Sprintf(KV_ID_URL, id)
+}
+
+func kvRowsUrl(id string) string {
+	return fmt.Sprintf(KV_ROWS_URL, id)
+}
+
+// kvRowUrl escapes key, which may contain "/" and other reserved characters.
+func kvRowUrl(id, key string) string {
+	return fmt.Sprintf(KV_ROW_URL, id, url.PathEscape(key))
 }
 
 func filesUrl() string {

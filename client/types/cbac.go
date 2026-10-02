@@ -78,7 +78,10 @@ const (
 	AlertRead   Capability = 49
 	AlertWrite  Capability = 50
 	LogbotAI    Capability = 51
-	_maxCap     Capability = 52 //REMINDER - when adding capabilities, make sure to expand this number
+	KVRead      Capability = 52
+	KVWrite     Capability = 53
+	KVCreate    Capability = 54
+	_maxCap     Capability = 55 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 type CapabilityCategory string
@@ -103,6 +106,7 @@ const (
 	SystemAndStatsCat = `System and Stats`
 	SecretsCat        = `Secrets`
 	LogbotAICat       = `Logbot AI`
+	KVCat             = `KV`
 )
 
 const (
@@ -358,6 +362,12 @@ func (c Capability) Name() string {
 		return `AlertWrite`
 	case LogbotAI:
 		return `LogbotAI`
+	case KVRead:
+		return `KVRead`
+	case KVWrite:
+		return `KVWrite`
+	case KVCreate:
+		return `KVCreate`
 	}
 	return `UNKNOWN`
 }
@@ -484,6 +494,13 @@ func (c Capability) Category() CapabilityCategory {
 		return SecretsCat
 	case LogbotAI:
 		return LogbotAICat
+
+	case KVRead:
+		return KVCat
+	case KVWrite:
+		return KVCat
+	case KVCreate:
+		return KVCat
 	}
 	return `UNKNOWN`
 }
@@ -599,6 +616,12 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertWrite
 	case `logbotai`:
 		*c = LogbotAI
+	case `kvread`:
+		*c = KVRead
+	case `kvwrite`:
+		*c = KVWrite
+	case `kvcreate`:
+		*c = KVCreate
 	default:
 		err = ErrUnknownCapability
 	}
@@ -710,6 +733,12 @@ func (c Capability) String() string {
 		return `Write and Delete Alerts`
 	case LogbotAI:
 		return `Logbot AI`
+	case KVRead:
+		return `Read KV Tables`
+	case KVWrite:
+		return `Write KV Tables`
+	case KVCreate:
+		return `Create and Delete KV Tables`
 	}
 	return `UNKNOWN`
 }
@@ -819,6 +848,12 @@ func (c Capability) Description() string {
 		return `User can create, update, and delete alerts`
 	case LogbotAI:
 		return `User can use the AI completions and MCP services`
+	case KVRead:
+		return `User can read kv table definitions and rows`
+	case KVWrite:
+		return `User can write kv table rows and modify kv table definitions`
+	case KVCreate:
+		return `User can create and delete kv tables`
 	}
 	return `UNKNOWN`
 }
