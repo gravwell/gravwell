@@ -70,11 +70,6 @@ func (c *Client) DeleteSecret(id string) (err error) {
 	return c.delete(secretIdUrl(id))
 }
 
-// CleanupSecrets (admin-only) purges all deleted secrets for all users.
-func (c *Client) CleanupSecrets() error {
-	return c.delete(SECRETS_URL)
-}
-
 // GetSecretFull fetches the entire Secret, including the value.
 // This can only be used if you have authenticated using the searchagent token.
 // The search agent knows how to set up the Client object correctly for this.
