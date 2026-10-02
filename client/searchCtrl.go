@@ -39,12 +39,12 @@ var (
 
 // DeleteSearch will request that a search is deleted by search ID
 func (c *Client) DeleteSearch(sid string) error {
-	return c.delete(searchCtrlIdUrl(sid), false)
+	return c.delete(searchesIdUrl(sid), false)
 }
 
 // GetSearch requests the status of a given search ID
 func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
-	return c.get[types.SearchInfo](searchCtrlIdUrl(sid))
+	return c.get[types.SearchInfo](searchesIdUrl(sid))
 }
 
 // SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
@@ -54,12 +54,12 @@ func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
 	if len(ssp) == 1 {
 		arg = ssp[0]
 	}
-	return c.putStaticURL(searchCtrlSaveUrl(sid), arg)
+	return c.putStaticURL(searchesIdSaveUrl(sid), arg)
 }
 
 // BackgroundSearch will request that a search is backgrounded by ID
 func (c *Client) BackgroundSearch(sid string) error {
-	return c.putStaticURL(searchCtrlBackgroundUrl(sid), nil)
+	return c.putStaticURL(searchesIdBackgroundUrl(sid), nil)
 }
 
 // SetAccess sets the Readers/Writers ACLs and, for admins, reassigns ownership
@@ -75,20 +75,20 @@ func (c *Client) SetAccess(sid string, ownerID int32, readers, writers types.ACL
 		Readers: readers,
 		Writers: writers,
 	}
-	return c.putStaticURL(searchCtrlAccessUrl(sid), request)
+	return c.putStaticURL(searchesIdAccessUrl(sid), request)
 }
 
 // ListSearches returns a list of all searches the current user has access to
 // and their current status.
 func (c *Client) ListSearches(opts types.QueryOptions) (types.SearchInfoListResponse, error) {
-	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.SearchInfoListResponse](LIST_SEARCHES_URL, &opts)
 }
 
 // ListAllSearches returns a list of all searches on the system. Only admin
 // users can use this function.
 func (c *Client) ListAllSearches(opts types.QueryOptions) (types.SearchInfoListResponse, error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.SearchInfoListResponse](LIST_SEARCHES_URL, &opts)
 }
 
 // GetSearchHistoryEntry retrieves a single search history entry by ID.
@@ -100,7 +100,7 @@ func (c *Client) GetSearchHistoryEntry(id string, includeDeleted bool) (types.Se
 // ListSearchHistory retrieves the search history for the currently logged in user
 // with advanced query options for filtering, sorting, and pagination.
 func (c *Client) ListSearchHistory(opts types.QueryOptions) (types.SearchHistoryListResponse, error) {
-	return c.post[types.QueryOptions, types.SearchHistoryListResponse](searchHistoryListUrl(), &opts)
+	return c.post[types.QueryOptions, types.SearchHistoryListResponse](listSearchHistoryUrl(), &opts)
 }
 
 // DeleteSearchHistoryEntry deletes or purges a search history entry by ID.
@@ -128,7 +128,7 @@ func (c *Client) ParseSearchWithResponse(query string, filters []types.FilterReq
 		SearchString: query,
 		Filters:      filters,
 	}
-	if err = c.postStaticURL(searchParseUrl(), ssr, &psr); err != nil {
+	if err = c.postStaticURL(validateQueryUrl(), ssr, &psr); err != nil {
 		return
 	}
 
@@ -175,7 +175,7 @@ func (c *Client) StartSearch(query string, start, end time.Time, nohistory bool)
 // This function grants the maximum amount of control over the search starting process
 func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error) {
 	var resp types.LaunchResponse
-	if err = c.postStaticURL(searchLaunchUrl(), sr, &resp); err != nil {
+	if err = c.postStaticURL(searchesUrl(), sr, &resp); err != nil {
 		return
 	}
 	//populate the time range in the search object from the search, we use what the server says, not what we handed in
@@ -200,7 +200,7 @@ func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error
 // unless the caller is an admin
 func (c *Client) StopSearch(id string) (err error) {
 	//send request
-	err = c.putStaticURL(searchCtrlStopUrl(id), nil)
+	err = c.putStaticURL(searchesIdStopUrl(id), nil)
 	return
 }
 
@@ -226,7 +226,7 @@ func (c *Client) StartFilteredSearch(query string, start, end time.Time, nohisto
 // returns the associated Search object.
 func (c *Client) AttachSearch(id string) (s Search, err error) {
 	var resp types.LaunchResponse
-	if err = c.getStaticURL(searchAttachUrl(id), &resp); err != nil {
+	if err = c.getStaticURL(searchesIdAttachUrl(id), &resp); err != nil {
 		return
 	}
 	//populate the time range in the search object from the search, we use what the server says, not what we handed in
@@ -393,7 +393,7 @@ func (c *Client) getRenderResults(s Search, er types.EntryRange, obj interface{}
 		ezParam(`start`, er.StartTS.Format(time.RFC3339)),
 		ezParam(`end`, er.EndTS.Format(time.RFC3339)),
 	}
-	err = c.getStaticURL(searchEntriesUrl(s.ID, s.RenderMod), obj, params...)
+	err = c.getStaticURL(searchesIdRendererUrl(s.ID, s.RenderMod), obj, params...)
 	return
 }
 
@@ -414,7 +414,7 @@ func (c *Client) getFencedRenderResults(s Search, er types.EntryRange, fence typ
 		ezParam(`nelat`, fence.NorthEast.Lat),
 		ezParam(`nelong`, fence.NorthEast.Long),
 	}
-	err = c.getStaticURL(searchEntriesUrl(s.ID, s.RenderMod), obj, params...)
+	err = c.getStaticURL(searchesIdRendererUrl(s.ID, s.RenderMod), obj, params...)
 	return
 }
 
@@ -938,7 +938,7 @@ func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchE
 		ezParam(`start`, s.StartRange.Format(time.RFC3339)),
 		ezParam(`end`, s.EndRange.Format(time.RFC3339)),
 	}
-	if err := c.getStaticURL(searchExploreUrl(s.ID, s.RenderMod), &resp, params...); err != nil {
+	if err := c.getStaticURL(searchesIdExploreUrl(s.ID, s.RenderMod), &resp, params...); err != nil {
 		return nil, nil, err
 	} else if err = resp.Err(); err != nil {
 		return nil, nil, err
@@ -951,7 +951,7 @@ func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchE
 // AX definition, a confidence score, and the sample rendered through that definition.
 // Results come back sorted by confidence, highest first.
 func (c *Client) GetExtractorSuggestions(search Search) (pa []types.PotentialAutoExtractor, err error) {
-	err = c.getStaticURL(exploreGenerateUrl(search.ID), &pa, ezParam("SessionID", search.session.String()))
+	err = c.getStaticURL(searchesIdExtractorSuggestionsUrl(search.ID), &pa, ezParam("SessionID", search.session.String()))
 	return
 }
 
@@ -960,7 +960,7 @@ func (c *Client) GetExtractorSuggestions(search Search) (pa []types.PotentialAut
 // The survey info may contain numerical info such as min and max for numbers and a sample
 // of enumerated value values for non-numerical types.
 func (c *Client) GetSearchMetadata(s Search) (sm types.SearchMetadata, err error) {
-	err = c.getStaticURL(searchStatsMetadataUrl(s.ID), &sm, s.sidParam())
+	err = c.getStaticURL(searchesIdStatsMetadataUrl(s.ID), &sm, s.sidParam())
 	return
 }
 
@@ -987,20 +987,20 @@ func (c *Client) getStats(s Search, count uint, start, end time.Time, pth string
 
 // GetSearchOverviewStats returns a set of overview stats for the query
 func (c *Client) GetSearchOverviewStats(s Search, count uint, start, end time.Time) (sm types.OverviewStats, err error) {
-	err = c.getStats(s, count, start, end, searchStatsUrl(s.ID), &sm)
+	err = c.getStats(s, count, start, end, searchesIdStatsUrl(s.ID), &sm)
 	return
 }
 
 // GetSearchStats returns a set of overview stats for the query
 func (c *Client) GetSearchStats(s Search, count uint, start, end time.Time) (ss []types.StatSet, err error) {
 	var r types.StatSetResponse
-	err = c.getStats(s, count, start, end, searchStatsModules(s.ID), &r)
+	err = c.getStats(s, count, start, end, searchesIdModulesUrl(s.ID), &r)
 	return r.Stats, err
 }
 
 // DetachSearch disconnects the client from a search. This may lead to the search being garbage collected.
 func (c *Client) DetachSearch(s Search) {
-	c.putStaticURL(searchDetachUrl(s.ID), nil, s.sidParam())
+	c.putStaticURL(searchesIdDetachUrl(s.ID), nil, s.sidParam())
 }
 
 // DownloadSearch returns an io.ReadCloser which can be used to download the results of the search
@@ -1075,7 +1075,7 @@ func (c *Client) ImportSearchBatchInfo(rdr io.Reader, gid int32, name, info stri
 
 func (c *Client) importSearch(rdr io.Reader, flds map[string]string) (err error) {
 	var resp *http.Response
-	if resp, err = c.uploadMultipartFile(searchCtrlImportUrl(), importFormFile, `file`, rdr, flds); err != nil {
+	if resp, err = c.uploadMultipartFile(importPersistentSearchUrl(), importFormFile, `file`, rdr, flds); err != nil {
 		return
 	}
 	if resp.StatusCode != 200 {
@@ -1112,7 +1112,7 @@ func (s *Search) Ping() error {
 // Close will close our handle on the search, effectively releasing our lock.
 // The search will be cleaned up if there are no other clients and it is not a backgrounded/saved search.
 func (s *Search) Close() error {
-	return s.cli.putStaticURL(searchDetachUrl(s.ID), nil, s.sidParam())
+	return s.cli.putStaticURL(searchesIdDetachUrl(s.ID), nil, s.sidParam())
 }
 
 func (s *Search) sidParam() (p urlParam) {
@@ -1131,7 +1131,7 @@ func (s *Search) ping(iu uint) error {
 		Interval: iu,
 	}
 	params := []urlParam{s.sidParam()}
-	if err := s.cli.methodStaticPushURL(http.MethodPut, searchPingUrl(s.ID), req, &resp, nil, params); err != nil {
+	if err := s.cli.methodStaticPushURL(http.MethodPut, searchesIdPingUrl(s.ID), req, &resp, nil, params); err != nil {
 		return err
 	}
 	if resp.Interval > 0 {

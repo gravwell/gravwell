@@ -42,7 +42,7 @@ func TestSetAccess(t *testing.T) {
 	var failReq bool
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/searches/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(client.SEARCHES_URL+"/", func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
 		gotBody = accessBody{}

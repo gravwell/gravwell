@@ -17,14 +17,14 @@ import (
 // ListSecrets returns all secrets accessible to the current user.
 // The actual secret string will not be returned.
 func (c *Client) ListSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
-	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.SecretListResponse](LIST_SECRETS_URL, &opts)
 }
 
 // ListAllSecrets (admin-only) returns all secrets on the system.
 // The actual secret string will not be returned.
 func (c *Client) ListAllSecrets(opts types.QueryOptions) (ret types.SecretListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.SecretListResponse](SECRETS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.SecretListResponse](LIST_SECRETS_URL, &opts)
 }
 
 // CreateSecret instantiates and returns a new Secret.
@@ -42,7 +42,7 @@ func (c *Client) GetSecret(id string) (s types.Secret, err error) {
 // GetSecretEx returns a particular secret, modified by opts.
 // The actual secret string will not be returned.
 func (c *Client) GetSecretEx(id string, opts GetOptions) (s types.Secret, err error) {
-	return c.get[types.Secret](secretIdUrl(id), opts.params()...)
+	return c.get[types.Secret](secretsIdUrl(id), opts.params()...)
 }
 
 // UpdateSecretValue changes the value of a particular secret.
@@ -52,7 +52,7 @@ func (c *Client) UpdateSecretValue(id string, value string) (s types.Secret, err
 		return types.Secret{}, ErrEmptyID
 	}
 
-	err = c.methodStaticPushURL(http.MethodPut, secretIdValueUrl(id), types.SecretValuePatch{Value: value}, &s, nil, nil)
+	err = c.methodStaticPushURL(http.MethodPut, secretsIdValueUrl(id), types.SecretValuePatch{Value: value}, &s, nil, nil)
 	return s, err
 }
 
@@ -61,17 +61,17 @@ func (c *Client) UpdateSecret(id string, p types.SecretPatch) (updated types.Sec
 	if id == "" {
 		return types.Secret{}, ErrEmptyID
 	}
-	return c.patch[types.SecretPatch, types.Secret](secretIdUrl(id), p)
+	return c.patch[types.SecretPatch, types.Secret](secretsIdUrl(id), p)
 }
 
 // DeleteSecret deletes a Secret.
 func (c *Client) DeleteSecret(id string) (err error) {
-	return c.delete(secretIdUrl(id), false)
+	return c.delete(secretsIdUrl(id), false)
 }
 
 // PurgeSecret deletes a secret entirely, removing it from the database.
 func (c *Client) PurgeSecret(id string) error {
-	return c.delete(secretIdUrl(id), true)
+	return c.delete(secretsIdUrl(id), true)
 }
 
 // CleanupSecrets (admin-only) purges all deleted secrets for all users.
@@ -85,5 +85,5 @@ func (c *Client) CleanupSecrets() error {
 // If you are not writing something which acts like the search agent, you don't
 // want this function, it won't work.
 func (c *Client) GetSecretFull(id string) (s types.SecretFull, err error) {
-	return c.get[types.SecretFull](secretIdFullUrl(id))
+	return c.get[types.SecretFull](secretsIdFullUrl(id))
 }
