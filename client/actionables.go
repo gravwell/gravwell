@@ -58,5 +58,5 @@ func (c *Client) UpdateActionable(ID string, p types.ActionablePatch) (updated t
 
 // CleanupActionables (admin-only) purges all deleted actionables for all users.
 func (c *Client) CleanupActionables() error {
-	return c.delete(ACTIONABLES_URL, DeleteOptions{Purge: true}.params()...)
+	return c.delete(ACTIONABLES_URL)
 }
