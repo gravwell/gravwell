@@ -122,7 +122,7 @@ func TestAPIVersionCheck(t *testing.T) {
 		mockMajor atomic.Uint32
 		mockMinor atomic.Uint32
 	)
-	mux.HandleFunc(client.API_VERSION_URL, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(client.VERSION_URL, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		vi := types.VersionInfo{
 			API: types.ApiInfo{Major: mockMajor.Load(), Minor: mockMinor.Load()},
