@@ -19,7 +19,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 var (
@@ -50,21 +50,21 @@ func (c *Client) GetGuiSettings() (types.GUISettings, error) {
 
 func (c *Client) getGuiSettings() (types.GUISettings, error) {
 	settings := types.GUISettings{}
-	err := c.getStaticURL(SETTINGS_URL, &settings)
+	err := c.getStaticURL(INFO_SETTINGS_URL, &settings)
 	return settings, err
 
 }
 
 // MySessions returns an array of the current user's sessions.
 func (c *Client) MySessions() ([]types.Session, error) {
-	if c.userDetails.UID == 0 {
+	if c.userDetails.ID == 0 {
 		return nil, ErrNotSynced
 	}
-	return c.Sessions(c.userDetails.UID)
+	return c.Sessions(c.userDetails.ID)
 }
 
 // MyInfo returns the current user's information.
-func (c *Client) MyInfo() (types.UserDetails, error) {
+func (c *Client) MyInfo() (types.User, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	return c.getMyInfo()
@@ -72,7 +72,7 @@ func (c *Client) MyInfo() (types.UserDetails, error) {
 
 // MyUID returns the current user's numeric user ID.
 func (c *Client) MyUID() int32 {
-	return c.userDetails.UID
+	return c.userDetails.ID
 }
 
 // MyAdminStatus returns true if the current user is marked as an administrator.
@@ -80,11 +80,11 @@ func (c *Client) MyAdminStatus() bool {
 	return c.userDetails.Admin
 }
 
-// Groups returns the current user's group memberships.
-func (c *Client) Groups() (gps []types.GroupDetails, err error) {
+// MyGroups returns the current user's group memberships.
+func (c *Client) MyGroups() (gps []types.Group, err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
-	if c.userDetails.UID == 0 {
+	if c.userDetails.ID == 0 {
 		if err = c.syncNoLock(); err != nil {
 			return
 		}
@@ -93,9 +93,9 @@ func (c *Client) Groups() (gps []types.GroupDetails, err error) {
 	return
 }
 
-func (c *Client) getMyInfo() (types.UserDetails, error) {
-	dets := types.UserDetails{}
-	if err := c.getStaticURL(USER_INFO_URL, &dets); err != nil {
+func (c *Client) getMyInfo() (types.User, error) {
+	dets := types.User{}
+	if err := c.getStaticURL(SELF_URL, &dets); err != nil {
 		return dets, err
 	}
 	return dets, nil
@@ -103,23 +103,23 @@ func (c *Client) getMyInfo() (types.UserDetails, error) {
 
 // CheckApiVersion asserts the REST API version of the webserver is compatible
 // with the client.
-func (c *Client) CheckApiVersion() (string, error) {
+func (c *Client) CheckApiVersion() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	return c.checkApiVersionNoLock()
 }
 
-func (c *Client) checkApiVersionNoLock() (string, error) {
+func (c *Client) checkApiVersionNoLock() error {
 	// manually operate the request as helper functions like methodStaticURL expect authentication
 
 	//build up URL we are going to throw at
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, API_VERSION_URL)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, VERSION_URL)
 
 	//build up the request
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	c.hm.populateRequest(req.Header) // add in the headers
@@ -127,53 +127,53 @@ func (c *Client) checkApiVersionNoLock() (string, error) {
 	resp, err := c.clnt.Do(req)
 	if err != nil {
 		c.objLog.Log("WEB "+req.Method+" Error "+err.Error(), req.URL.String(), nil)
-		return "", err
+		return err
 	}
 	if resp == nil {
-		return "", errors.New("Invalid response")
+		return errors.New("Invalid response")
 	}
 	defer drainResponse(resp)
 	switch resp.StatusCode {
 	case http.StatusOK: // do nothing
 	case http.StatusUnauthorized:
 		c.state = STATE_LOGGED_OFF
-		return "", ErrNotAuthed
+		return ErrNotAuthed
 	case http.StatusNotFound:
-		return "", ErrNotFound
+		return ErrNotFound
 	default:
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
-		return "", &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
 
 	var version types.VersionInfo
 	if err := json.NewDecoder(resp.Body).Decode(&version); err != nil {
-		return "", err
+		return err
 	}
 
 	c.objLog.Log("WEB "+req.Method, req.URL.String(), &version)
 
 	if err := types.CheckApiVersion(version.API); err != nil {
-		return err.Error(), nil
+		return err
 	}
-	return "", nil
+	return nil
 }
 
 // GetApiVersion returns the REST API version of the webserver.
 func (c *Client) GetApiVersion() (types.ApiInfo, error) {
 	var version types.VersionInfo
-	err := c.getStaticURL(API_VERSION_URL, &version)
+	err := c.getStaticURL(VERSION_URL, &version)
 	return version.API, err
 }
 
 // GetVersion returns the REST version struct from the webserver.
 func (c *Client) GetVersion() (version types.VersionInfo, err error) {
-	err = c.getStaticURL(API_VERSION_URL, &version)
+	err = c.getStaticURL(VERSION_URL, &version)
 	return
 }
 
 func (c *Client) getLogLevelInfo() (types.LoggingLevels, error) {
 	ll := types.LoggingLevels{}
-	if err := c.methodStaticURL(http.MethodGet, LOGGING_PATH_URL, &ll); err != nil {
+	if err := c.methodStaticURL(http.MethodGet, LOGGING_URL, &ll); err != nil {
 		return ll, err
 	}
 	return ll, nil
@@ -214,13 +214,13 @@ func (c *Client) SetLogLevel(level string) error {
 	l := types.LogLevel{
 		Level: level,
 	}
-	return c.methodStaticPushURL(http.MethodPut, LOGGING_PATH_URL, l, nil)
+	return c.methodStaticPushURL(http.MethodPut, LOGGING_URL, l, nil, nil, nil)
 }
 
 // GetTags returns an array of strings representing the tags on the Gravwell system.
 func (c *Client) GetTags() ([]string, error) {
 	var tags []string
-	err := c.methodStaticURL(http.MethodGet, TAGS_URL, &tags)
+	err := c.methodStaticURL(http.MethodGet, LIST_TAGS_URL, &tags)
 	return tags, err
 }
 
@@ -322,11 +322,11 @@ func (c *Client) SendPrebuiltMail(msg types.UserMail) error {
 	return c.postStaticURL(MAIL_URL, &msg, nil)
 }
 
-// ConfigureMail sets up mail server options for the current user.
+// SetMailConfig sets up mail server options for the current user.
 // The user, pass, server, and port parameters specify the mail server and authentication
 // options for the server. The useTLS flag enables TLS for SMTP, and the noVerify flag disables
 // checking of TLS certs.
-func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, noVerify bool) error {
+func (c *Client) SetMailConfig(user, pass, server string, port uint16, useTLS, noVerify bool) error {
 	msg := types.UserMailConfig{
 		Server:             server,
 		Username:           user,
@@ -335,27 +335,34 @@ func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, n
 		UseTLS:             useTLS,
 		InsecureSkipVerify: noVerify,
 	}
-	return c.postStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
+	return c.putStaticURL(SELF_MAIL_CONFIGURATION_URL, &msg)
 }
 
 // DeleteMailConfig removes a users mail configuration fom preferences
 // this completely uninstalls any mail configs
 func (c *Client) DeleteMailConfig() error {
-	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, http.StatusOK, http.StatusNotFound)
+	return c.methodStaticPushURL(http.MethodDelete, SELF_MAIL_CONFIGURATION_URL, nil, nil, []int{http.StatusOK, http.StatusNotFound}, nil)
 }
 
-// MailConfig retrieves the current mail config
+// GetMailConfig retrieves the current mail config
 // if no mail config is set an empty UserMailConfig is returned
 // Even on a valid mail config the Password portion is not present in the response
-func (c *Client) MailConfig() (mc types.UserMailConfig, err error) {
-	err = c.getStaticURL(MAIL_CONFIGURE_URL, &mc)
+func (c *Client) GetMailConfig() (mc types.UserMailConfig, err error) {
+	err = c.getStaticURL(SELF_MAIL_CONFIGURATION_URL, &mc)
 	return
 }
 
-// WellData returns information about the storage wells on the indexers.
+// GetWellData returns information about the storage wells on the indexers.
 // The return value is a map of indexer name strings to IndexerWellData objects.
-func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
-	err = c.getStaticURL(wellDataUrl(), &mp)
+func (c *Client) GetWellData() (mp map[string]types.IndexerWellData, err error) {
+	err = c.getStaticURL(statsWellstatsUrl(), &mp)
+	return
+}
+
+// GetSearchQueue returns information about the search queue. If rate limiting is
+// disabled, all values will be zero.
+func (c *Client) GetSearchQueue() (s types.SearchQueue, err error) {
+	err = c.getStaticURL(statsSearchQueueUrl(), &s)
 	return
 }
 
@@ -382,7 +389,7 @@ func (c *Client) GetLibFile(repo, commit, fn string) (bts []byte, err error) {
 	}
 	mp[`path`] = fn
 	var resp *http.Response
-	if resp, err = c.methodParamRequestURL(http.MethodGet, LIBS_URL, mp, nil); err == nil {
+	if resp, err = c.methodParamRequestURL(http.MethodGet, LIBS_URL, mp); err == nil {
 		if resp.StatusCode != 200 {
 			if err = decodeBodyError(resp.Body); err == nil {
 				err = fmt.Errorf("Invalid response code: %s(%d)", resp.Status, resp.StatusCode)

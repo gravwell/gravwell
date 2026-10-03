@@ -11,7 +11,7 @@ package types
 import (
 	"encoding/json"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 type TableRow struct {
@@ -38,8 +38,8 @@ type TableResponse struct {
 type GaugeValue struct {
 	Name      string
 	Magnitude float64
-	Min       float64
-	Max       float64
+	Min       Optional[float64]
+	Max       Optional[float64]
 }
 
 type GaugeRequest struct {
@@ -49,6 +49,17 @@ type GaugeRequest struct {
 type GaugeResponse struct {
 	BaseResponse
 	Entries []GaugeValue
+}
+
+type WordcloudValue GaugeValue
+
+type WordcloudResponse struct {
+	BaseResponse
+	Entries []WordcloudValue
+}
+
+type WordcloudRequest struct {
+	BaseRequest
 }
 
 // Compare a table to this one. Return false on cols/rows if they do not match.
@@ -76,23 +87,59 @@ func (t *TableValueSet) Compare(u *TableValueSet) (cols bool, rows bool, idx int
 	return true, true, 0
 }
 
-func (t TableValueSet) MarshalJSON() ([]byte, error) {
-	type alias TableValueSet
-	return json.Marshal(&struct {
-		alias
-		Columns emptyStrings
+func (x TableResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries TableValueSet
 	}{
-		alias:   alias(t),
-		Columns: emptyStrings(t.Columns),
+		Entries: x.Entries,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }
 
-func (r TableRow) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		TS  entry.Timestamp
-		Row emptyStrings
+func (x GaugeResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []GaugeValue
 	}{
-		TS:  r.TS,
-		Row: emptyStrings(r.Row),
+		Entries: x.Entries,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
+
+func (x WordcloudResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []WordcloudValue
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }

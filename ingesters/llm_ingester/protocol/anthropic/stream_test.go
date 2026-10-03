@@ -11,7 +11,7 @@ package anthropic
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 func findStreamEvent(p *protocol.ParsedResponse, typ string) *protocol.Event {
