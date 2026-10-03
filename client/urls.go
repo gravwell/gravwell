@@ -209,12 +209,12 @@ const (
 	USER_PREFERENCES_LIST_URL        = `/api/userpreferences/list`
 	USER_PREFERENCES_ID_URL          = `/api/userpreferences/%s`
 	LIST_URL                         = `/api/list`
-	AGENTS_URL                       = `/api/ai/agents`
-	AGENTS_LIST_URL                  = `/api/ai/agents/list`
-	AGENTS_ID_URL                    = `/api/ai/agents/%s`
-	AGENT_SKILLS_URL                 = `/api/ai/skills`
-	AGENT_SKILLS_LIST_URL            = `/api/ai/skills/list`
-	AGENT_SKILLS_ID_URL              = `/api/ai/skills/%s`
+	AGENTS_URL                       = `/api/agents`
+	AGENTS_LIST_URL                  = `/api/list/agents`
+	AGENTS_ID_URL                    = `/api/agents/%s`
+	AGENT_SKILLS_URL                 = `/api/agent-skills`
+	AGENT_SKILLS_LIST_URL            = `/api/list/agent-skills`
+	AGENT_SKILLS_ID_URL              = `/api/agent-skills/%s`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
