@@ -93,7 +93,7 @@ func genDataIPFIX(ts time.Time) []byte {
 	// group records by template so each message holds at most one v4 and
 	// one v6 data set
 	v6cnt := 0
-	for i := 0; i < cnt; i++ {
+	for range cnt {
 		if rand.Intn(4) == 0 { //25% of flows are IPv6, same as ips()
 			v6cnt++
 		}
