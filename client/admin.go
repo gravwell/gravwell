@@ -50,17 +50,17 @@ func (c *Client) IsAdmin() (bool, error) {
 // LockUserAccount (admin-only) locks a user account. The user will be unable
 // to log in until unlocked, and all existing sessions will be terminated.
 func (c *Client) LockUserAccount(id int32) error {
-	return c.putStaticURL(lockUrl(id), nil)
+	return c.putStaticURL(usersIdLockUrl(id), nil)
 }
 
 // UnlockUserAccount (admin-only) unlocks a user account.
 func (c *Client) UnlockUserAccount(id int32) error {
-	return c.deleteStaticURL(lockUrl(id), nil)
+	return c.deleteStaticURL(usersIdLockUrl(id), nil)
 }
 
 // changePass will change a users password
 func (c *Client) changePass(id int32, req types.ChangePassword) error {
-	if err := c.putStaticURL(usersChangePassUrl(id), req); err != nil {
+	if err := c.putStaticURL(usersIdPasswordUrl(id), req); err != nil {
 		return err
 	}
 	return nil
@@ -97,13 +97,13 @@ func (c *Client) SetDefaultSearchGroups(uid int32, gids []int32) error {
 		if !me.Admin {
 			return errors.New("Only admins can change another user's default search groups")
 		} else {
-			if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(uid), &udet); err != nil {
+			if err := c.methodStaticURL(http.MethodGet, usersIdUrl(uid), &udet); err != nil {
 				return err
 			}
 		}
 	}
 
-	_, err = c.patch[types.UserPatch, types.User](usersInfoUrl(uid), types.UserPatch{DefaultSearchGroups: types.NewOptional(gids)})
+	_, err = c.patch[types.UserPatch, types.User](usersIdUrl(uid), types.UserPatch{DefaultSearchGroups: types.NewOptional(gids)})
 	return err
 }
 
@@ -121,7 +121,7 @@ func (c *Client) GetDefaultSearchGroups(uid int32) (gids []int32, err error) {
 			err = errors.New("Only admins can get another user's default search groups")
 			return
 		} else {
-			if err = c.methodStaticURL(http.MethodGet, usersInfoUrl(uid), &udet); err != nil {
+			if err = c.methodStaticURL(http.MethodGet, usersIdUrl(uid), &udet); err != nil {
 				return
 			}
 		}
@@ -144,18 +144,18 @@ func (c *Client) AddUserToGroup(uid, gid int32) error {
 	uag := types.UserAddGroups{
 		GIDs: []int32{gid},
 	}
-	return c.postStaticURL(usersGroupUrl(uid), uag, nil)
+	return c.postStaticURL(usersIdGroupsUrl(uid), uag, nil)
 }
 
 // DeleteUserFromGroup removes a user from a group.
 func (c *Client) DeleteUserFromGroup(uid, gid int32) error {
-	return c.deleteStaticURL(usersGroupIdUrl(uid, gid), nil)
+	return c.deleteStaticURL(usersIdGroupsGroupIdUrl(uid, gid), nil)
 }
 
 // GetUserGroups (admin-only) returns information about groups to which the user belongs.
 func (c *Client) GetUserGroups(uid int32) ([]types.Group, error) {
 	var udet types.User
-	if err := c.getStaticURL(usersInfoUrl(uid), &udet); err != nil {
+	if err := c.getStaticURL(usersIdUrl(uid), &udet); err != nil {
 		return nil, err
 	}
 	return udet.Groups, nil
@@ -165,7 +165,7 @@ func (c *Client) GetUserGroups(uid int32) ([]types.Group, error) {
 // Only administrators or members of the group may call this function.
 func (c *Client) GetGroupUsers(gid int32) ([]types.User, error) {
 	var udets []types.User
-	if err := c.getStaticURL(groupMembersUrl(gid), &udets); err != nil {
+	if err := c.getStaticURL(groupsIdMembersUrl(gid), &udets); err != nil {
 		return nil, err
 	}
 	return udets, nil
@@ -175,7 +175,7 @@ func (c *Client) GetGroupUsers(gid int32) ([]types.User, error) {
 func (c *Client) Sessions(id int32) ([]types.Session, error) {
 	userSessResp := types.UserSessions{}
 
-	if err := c.getStaticURL(sessionsUrl(id), &userSessResp); err != nil {
+	if err := c.getStaticURL(usersIdSessionsUrl(id), &userSessResp); err != nil {
 		return nil, err
 	}
 	return userSessResp.Sessions, nil
@@ -184,13 +184,13 @@ func (c *Client) Sessions(id int32) ([]types.Session, error) {
 
 // GetLicenseInfo returns information about the currently installed license.
 func (c *Client) GetLicenseInfo() (li types.LicenseInfo, err error) {
-	err = c.getStaticURL(licenseInfoUrl(), &li)
+	err = c.getStaticURL(licenseUrl(), &li)
 	return
 }
 
 // GetLicenseSKU returns the SKU for the license in use.
 func (c *Client) GetLicenseSKU() (sku string, err error) {
-	err = c.getStaticURL(licenseSKUUrl(), &sku)
+	err = c.getStaticURL(licenseSkuUrl(), &sku)
 	return
 }
 
@@ -255,7 +255,7 @@ func (c *Client) UploadLicenseFile(f string) ([]types.LicenseUpdateError, error)
 // object which is authenticated as the specified user.
 func (c *Client) Impersonate(uid int32) (nc *Client, err error) {
 	var loginResp types.LoginResponse
-	if err = c.methodStaticURL(http.MethodGet, usersAdminImpersonate(uid), &loginResp); err != nil {
+	if err = c.methodStaticURL(http.MethodGet, usersIdSuUrl(uid), &loginResp); err != nil {
 		return
 	}
 	//create the header map and stuff our user-agent in there
@@ -306,7 +306,7 @@ func (c *Client) AddIndexer(dialstring string) (map[string]string, error) {
 	req := types.IndexerRequest{DialString: dialstring}
 
 	var errors map[string]string
-	err := c.postStaticURL(addIndexerUrl(), req, &errors)
+	err := c.postStaticURL(indexersUrl(), req, &errors)
 	return errors, err
 }
 
@@ -415,7 +415,7 @@ func (c *Client) RestoreEncrypted(rdr io.Reader, password string) (err error) {
 // and therefore using the datastore.  This means that certain resource changes may take some
 // time to fully distribute. This is an admin-only function.
 func (c *Client) DeploymentInfo() (di types.DeploymentInfo, err error) {
-	err = c.getStaticURL(deploymentUrl(), &di)
+	err = c.getStaticURL(infoDeploymentUrl(), &di)
 
 	return
 }
@@ -654,7 +654,7 @@ func (c *Client) PurgeUser(id int32) error {
 		return fmt.Errorf("failed to close impersonated client during purge %w", err)
 	}
 
-	return c.deleteStaticURL(usersInfoUrl(id), nil, ezParam("purge", "true")) //finally, delete the user
+	return c.deleteStaticURL(usersIdUrl(id), nil, ezParam("purge", "true")) //finally, delete the user
 }
 
 // ForgetIngesters asks the system to stop tracking a set of missing ingesters.
@@ -669,7 +669,7 @@ func (c *Client) ForgetIngesters(ids ...uuid.UUID) (resp types.ForgetIngestersRe
 	for _, id := range ids {
 		strIDs = append(strIDs, id.String())
 	}
-	err = c.methodStaticPushURL(http.MethodDelete, INGESTERS_BULK_TRACKING_URL, nil, &resp, nil,
+	err = c.methodStaticPushURL(http.MethodDelete, INGESTERS_TRACKING_URL, nil, &resp, nil,
 		[]urlParam{ezParam("id", strings.Join(strIDs, ","))})
 	return
 }
@@ -677,6 +677,6 @@ func (c *Client) ForgetIngesters(ids ...uuid.UUID) (resp types.ForgetIngestersRe
 // ForgetAllMissingIngesters asks the system to stop tracking every missing ingester.
 // The response lists every ingester that was forgotten.
 func (c *Client) ForgetAllMissingIngesters() (resp types.ForgetIngestersResponse, err error) {
-	err = c.methodStaticPushURL(http.MethodDelete, INGESTERS_BULK_TRACKING_URL, nil, &resp, nil, nil)
+	err = c.methodStaticPushURL(http.MethodDelete, INGESTERS_TRACKING_URL, nil, &resp, nil, nil)
 	return
 }
