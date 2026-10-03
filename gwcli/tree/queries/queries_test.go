@@ -51,7 +51,7 @@ func newAccessMockServer(t *testing.T, existing types.SearchInfo) (got *accessBo
 	sawAccessCall = new(bool)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/searchctrl/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/searches/", func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet:
 			if err := json.NewEncoder(w).Encode(existing); err != nil {

@@ -16,7 +16,7 @@ func (c *Client) ListAgents(opts *types.QueryOptions) (ret types.AgentListRespon
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	return c.post[types.QueryOptions, types.AgentListResponse](AGENTS_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.AgentListResponse](LIST_AGENTS_URL, opts)
 }
 
 // ListAllAgents (admin-only) returns all agents on the system.
@@ -25,7 +25,7 @@ func (c *Client) ListAllAgents(opts *types.QueryOptions) (ret types.AgentListRes
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.AgentListResponse](AGENTS_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.AgentListResponse](LIST_AGENTS_URL, opts)
 }
 
 // GetAgent returns a particular agent.
@@ -35,17 +35,17 @@ func (c *Client) GetAgent(id string) (types.Agent, error) {
 
 // GetAgentEx returns a particular agent, modified by opts.
 func (c *Client) GetAgentEx(id string, opts GetOptions) (types.Agent, error) {
-	return c.get[types.Agent](agentUrl(id), opts.params()...)
+	return c.get[types.Agent](agentsIdUrl(id), opts.params()...)
 }
 
 // DeleteAgent deletes an agent by marking it deleted in the database.
 func (c *Client) DeleteAgent(id string) error {
-	return c.delete(agentUrl(id), false)
+	return c.delete(agentsIdUrl(id), false)
 }
 
 // PurgeAgent deletes an agent entirely, removing it from the database.
 func (c *Client) PurgeAgent(id string) error {
-	return c.delete(agentUrl(id), true)
+	return c.delete(agentsIdUrl(id), true)
 }
 
 // CreateAgent creates a new agent, returning the newly-created agent.
@@ -58,7 +58,7 @@ func (c *Client) UpdateAgent(ID string, p types.AgentPatch) (updated types.Agent
 	if ID == "" {
 		return types.Agent{}, ErrEmptyID
 	}
-	return c.patch[types.AgentPatch, types.Agent](agentUrl(ID), p)
+	return c.patch[types.AgentPatch, types.Agent](agentsIdUrl(ID), p)
 }
 
 // CleanupAgents (admin-only) purges all deleted agents for all users.
@@ -71,7 +71,7 @@ func (c *Client) ListAgentSkills(opts *types.QueryOptions) (ret types.AgentSkill
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	return c.post[types.QueryOptions, types.AgentSkillListResponse](AGENT_SKILLS_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.AgentSkillListResponse](LIST_AGENT_SKILLS_URL, opts)
 }
 
 // ListAllAgentSkills (admin-only) returns all agent skills on the system.
@@ -80,7 +80,7 @@ func (c *Client) ListAllAgentSkills(opts *types.QueryOptions) (ret types.AgentSk
 		opts = &types.QueryOptions{}
 	}
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.AgentSkillListResponse](AGENT_SKILLS_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.AgentSkillListResponse](LIST_AGENT_SKILLS_URL, opts)
 }
 
 // GetAgentSkill returns a particular agent skill.
@@ -90,17 +90,17 @@ func (c *Client) GetAgentSkill(id string) (types.AgentSkill, error) {
 
 // GetAgentSkillEx returns a particular agent skill, modified by opts.
 func (c *Client) GetAgentSkillEx(id string, opts GetOptions) (types.AgentSkill, error) {
-	return c.get[types.AgentSkill](agentSkillUrl(id), opts.params()...)
+	return c.get[types.AgentSkill](agentSkillsIdUrl(id), opts.params()...)
 }
 
 // DeleteAgentSkill deletes an agent skill by marking it deleted in the database.
 func (c *Client) DeleteAgentSkill(id string) error {
-	return c.delete(agentSkillUrl(id), false)
+	return c.delete(agentSkillsIdUrl(id), false)
 }
 
 // PurgeAgentSkill deletes an agent skill entirely, removing it from the database.
 func (c *Client) PurgeAgentSkill(id string) error {
-	return c.delete(agentSkillUrl(id), true)
+	return c.delete(agentSkillsIdUrl(id), true)
 }
 
 // CreateAgentSkill creates a new agent skill, returning the newly-created skill.
@@ -113,7 +113,7 @@ func (c *Client) UpdateAgentSkill(ID string, p types.AgentSkillPatch) (updated t
 	if ID == "" {
 		return types.AgentSkill{}, ErrEmptyID
 	}
-	return c.patch[types.AgentSkillPatch, types.AgentSkill](agentSkillUrl(ID), p)
+	return c.patch[types.AgentSkillPatch, types.AgentSkill](agentSkillsIdUrl(ID), p)
 }
 
 // CleanupAgentSkills (admin-only) purges all deleted agent skills for all users.

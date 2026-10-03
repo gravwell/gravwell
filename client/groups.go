@@ -16,7 +16,7 @@ import (
 // enabled, regular users must possess the ListGroups capability or
 // the function will return an error.
 func (c *Client) ListGroups(opts types.QueryOptions) (ret types.GroupListResponse, err error) {
-	return c.post[types.QueryOptions, types.GroupListResponse](GROUP_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.GroupListResponse](LIST_GROUPS_URL, &opts)
 }
 
 // GetGroupMap returns a map of GID to group name for every group on
@@ -41,17 +41,17 @@ func (c *Client) GetGroup(id int32) (types.GroupWithCBAC, error) {
 
 // GetGroupEx returns a particular group, modified by opts.
 func (c *Client) GetGroupEx(id int32, opts GetOptions) (types.GroupWithCBAC, error) {
-	return c.get[types.GroupWithCBAC](groupIdUrl(id), opts.params()...)
+	return c.get[types.GroupWithCBAC](groupsIdUrl(id), opts.params()...)
 }
 
 // DeleteGroup deletes a group by marking it deleted in the database.
 func (c *Client) DeleteGroup(gid int32) error {
-	return c.delete(groupIdUrl(gid), false)
+	return c.delete(groupsIdUrl(gid), false)
 }
 
 // CreateGroup creates a new group, returning the newly-created group.
 func (c *Client) CreateGroup(m types.Group) (result types.Group, err error) {
-	return c.post[types.Group, types.Group](GROUP_URL, &m)
+	return c.post[types.Group, types.Group](GROUPS_URL, &m)
 }
 
 // UpdateGroup modifies an existing group and returns the complete, updated struct.
@@ -59,12 +59,12 @@ func (c *Client) UpdateGroup(ID int32, p types.GroupPatch) (updated types.Group,
 	if ID == 0 {
 		return types.Group{}, ErrEmptyID
 	}
-	return c.patch[types.GroupPatch, types.Group](groupIdUrl(ID), p)
+	return c.patch[types.GroupPatch, types.Group](groupsIdUrl(ID), p)
 }
 
 // CleanupGroups (admin-only) purges all deleted groups.
 func (c *Client) CleanupGroups() error {
-	return c.delete(groupUrl(), false)
+	return c.delete(groupsUrl(), false)
 }
 
 // LookupGroup looks up a Group object given a group name.  If the
