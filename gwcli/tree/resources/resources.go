@@ -73,7 +73,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Resource{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.Resource, error) {
-			resp, err := connection.Client.ListResources(param.QueryOpts)
+			resp, err := connection.Client.ListResources(param.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -216,7 +216,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteResource(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListResources(params.QueryOpts)
+			lr, err := connection.Client.ListResources(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -243,7 +243,7 @@ func edit() action.Pair {
 			return connection.Client.GetResourceMetadata(id)
 		},
 		FetchSub: func() (items []types.Resource, err error) { // get all available resources
-			resp, err := connection.Client.ListResources(nil)
+			resp, err := connection.Client.ListResources(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -306,7 +306,7 @@ func replace() action.Pair {
 		"Populate one or many resources with the contents of a single local file, clobbering any existing data",
 		"resource ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListResources(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListResources(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}

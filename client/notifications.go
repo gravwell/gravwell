@@ -59,8 +59,8 @@ func (c *Client) getNotifications(after time.Time, update bool) (n types.Notific
 	return
 }
 
-// AllNotifications is an admin only API that retrieves all notifications for all users regardless of
-// ownership and or ignored until status.
+// AllNotifications is an admin only API that retrieves all notifications for all users.
+// Ignores IgnoreUntil status.
 func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	//check locally just so we don't hit the API needlessly, it will be rejected anyway
 	if !c.userDetails.Admin {
@@ -71,10 +71,10 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	return
 }
 
-// AddSelfTargetedNotification creates a new notification with the given
+// CreateNotification creates a new notification with the given
 // type, message, link, and expiration. If expiration time is invalid, the webserver
 // will instead set a default expiration.
-func (c *Client) AddSelfTargetedNotification(notifType uint32, msg, link string, expiration time.Time) error {
+func (c *Client) CreateNotification(notifType uint32, msg, link string, expiration time.Time) error {
 	n := types.Notification{Type: notifType, Msg: msg, Link: link, Expires: expiration}
 	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil, nil, nil)
 }

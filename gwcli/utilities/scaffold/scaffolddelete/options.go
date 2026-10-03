@@ -25,3 +25,12 @@ type Options struct {
 type DataParameters struct {
 	QueryOpts *types.QueryOptions
 }
+
+// QueryOptions returns the resolved query options by value, or the zero value
+// if none were configured for this action.
+func (p DataParameters) QueryOptions() types.QueryOptions {
+	if p.QueryOpts == nil {
+		return types.QueryOptions{}
+	}
+	return *p.QueryOpts
+}

@@ -10,6 +10,7 @@ package main
 
 import (
 	"log"
+	"math"
 	"math/rand"
 	"time"
 
@@ -22,9 +23,16 @@ import (
 // zeekconn generator: random v4 talkers, ports, and counters.
 
 const (
-	nfv5MaxRecords    = 30 // hard cap in the NetFlow v5 spec
-	nfv5MaxFlowMS     = 60 * 1000
-	nfv5MaxBootBehind = 40 * 24 * time.Hour // keep uptime well below the uint32 ms wrap (~49.7 days)
+	nfv5MaxRecords = 30 // hard cap in the NetFlow v5 spec
+	nfv5MaxFlowMS  = 60 * 1000
+
+	// netflowMaxUptimeMS is the ceiling of the uint32 millisecond uptime
+	// fields shared by NetFlow v5 and v9, about 49.7 days
+	netflowMaxUptimeMS = int64(math.MaxUint32)
+
+	// netflowMaxBootBehind bounds how much uptime an exporter starts with,
+	// leaving the rest of the uint32 range for the run to advance through
+	netflowMaxBootBehind = 7 * 24 * time.Hour
 )
 
 var (
@@ -57,11 +65,29 @@ var (
 	nfv5ICMPCodes = []uint16{0x0000, 0x0301, 0x0800, 0x0800, 0x0b00}
 )
 
-func genDataNetflowV5(ts time.Time) []byte {
-	if nfv5Boot.IsZero() || ts.Before(nfv5Boot) {
-		nfv5Boot = ts.Add(-time.Duration(rand.Int63n(int64(nfv5MaxBootBehind))))
+// netflowUptime returns the exporter uptime in milliseconds at ts, rebooting
+// the exporter whenever the uptime field cannot represent the answer.  NetFlow
+// v5 and v9 both carry uptime and flow switch times as uint32 milliseconds, so
+// an exporter can only stay up for about 49.7 days before the field wraps.
+// Generator runs can easily span longer than that (-duration takes day and week
+// suffixes), and letting the conversion truncate would silently emit flow times
+// ~49 days in the past for the tail of the run.  Instead we model what a real
+// exporter does when it runs out of uptime: reboot.  Uptime restarts near zero
+// and the export sequence counter restarts with it.  The same happens when ts
+// walks backwards behind the boot time, which chaos mode timestamps can do.
+func netflowUptime(ts time.Time, boot *time.Time, seq *uint32) uint32 {
+	if !boot.IsZero() {
+		if ms := ts.Sub(*boot).Milliseconds(); ms >= 0 && ms <= netflowMaxUptimeMS {
+			return uint32(ms)
+		}
+		*seq = 0 // a reboot restarts the export sequence
 	}
-	uptime := uint32(ts.Sub(nfv5Boot).Milliseconds())
+	*boot = ts.Add(-time.Duration(rand.Int63n(int64(netflowMaxBootBehind))))
+	return uint32(ts.Sub(*boot).Milliseconds())
+}
+
+func genDataNetflowV5(ts time.Time) []byte {
+	uptime := netflowUptime(ts, &nfv5Boot, &nfv5Sequence)
 
 	var nf netflow.NFv5
 	nf.Version = 5

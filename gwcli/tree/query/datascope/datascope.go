@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -33,6 +33,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	grav "github.com/gravwell/gravwell/v4/client"
+)
+
+var (
+	ErrWidthMustBeGreaterThanZero  = errors.New("width must be greater than zero")
+	ErrHeightMustBeGreaterThanZero = errors.New("height must be greater than zero")
 )
 
 // Meant to be called as a goroutine that provides a heartbeat for the search id.
@@ -140,10 +145,22 @@ func NewDataScope(data []string, motherRunning bool,
 		}
 	}
 
+	// If we were given our dimensions up front, draw the display now so our first frame is the real
+	// deal instead of the "Initializing..." placeholder.
+	// Deliberately done after the options have been applied so it is not order-dependent (ex: WithPerPage).
+	if s.rawWidth > 0 && s.rawHeight > 0 {
+		s.primeDisplay()
+	}
+
 	// mother does not start in alt screen, and thus requires manual measurements
 	if motherRunning {
+		// If the caller already told us how big we are, we don't need to ask the terminal.
+		if s.rawWidth > 0 && s.rawHeight > 0 {
+			return s, tea.EnterAltScreen, nil
+		}
+
 		return s, tea.Sequence(tea.EnterAltScreen, func() tea.Msg {
-			w, h, err := term.GetSize(os.Stdin.Fd())
+			w, h, err := term.GetSize(os.Stdout.Fd())
 			if err != nil {
 				clilog.Writer.Errorf("Failed to fetch terminal size: %v", err)
 			}
@@ -156,7 +173,21 @@ func NewDataScope(data []string, motherRunning bool,
 
 //#region constructor options
 
-// TODO include WithDimensions(width, height int)
+// WithDimensions informs datascope of the dimensions of the terminal at construction.
+// Without it, datascope does not know how much space it has to draw in until the first
+// tea.WindowSizeMsg arrives and therefore displays a placeholder until then.
+func WithDimensions(width, height int) DataScopeOption {
+	return func(ds *DataScope) error {
+		if width <= 0 {
+			return ErrWidthMustBeGreaterThanZero
+		}
+		if height <= 0 {
+			return ErrHeightMustBeGreaterThanZero
+		}
+		ds.rawWidth, ds.rawHeight = width, height
+		return nil
+	}
+}
 
 // WithAutoDownload prep-populates the download tab's values and, if able, automatically download the results in the
 // given format.
@@ -249,12 +280,24 @@ func (s DataScope) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.rawHeight = msg.Height
 		s.rawWidth = msg.Width
-		s.recalculateWindowMargins(msg.Width, msg.Height)
-
-		recompileHelp(&s)
+		s.primeDisplay()
 	}
 
 	return s, s.tabs[s.activeTab].updateFunc(&s, msg)
+}
+
+// primeDisplay draws every size-dependent piece of datascope at its current dimensions.
+// It is the single path by which datascope goes from "I don't know how big I am" to displayable,
+// whether we learned our size at construction (WithDimensions) or via tea.WindowSizeMsg.
+//
+// ! Requires rawWidth and rawHeight to be set.
+func (s *DataScope) primeDisplay() {
+	s.recalculateWindowMargins(s.rawWidth, s.rawHeight)
+	if !s.tableMode {
+		// The table tab refreshes its contents as part of recalculateSize, the results tab does not.
+		s.setResultsDisplayed()
+	}
+	recompileHelp(s)
 }
 
 // View displays the view function of the current tab.
@@ -270,6 +313,11 @@ func (s DataScope) View() string {
 // Start the returned program via .Run().
 func CobraNew(data []string, search *grav.Search, table bool, opts ...DataScopeOption,
 ) (p *tea.Program, err error) {
+	// Hand ds the terminal's dimensions so its first frame is complete rather than a placeholder.
+	// Prepend so an explicit, caller-supplied WithDimensions still wins.
+	if w, h, gsErr := term.GetSize(os.Stdout.Fd()); gsErr == nil && w > 0 && h > 0 {
+		opts = append([]DataScopeOption{WithDimensions(w, h)}, opts...)
+	}
 	ds, _, err := NewDataScope(data, false, search, table, opts...)
 	if err != nil {
 		return nil, err

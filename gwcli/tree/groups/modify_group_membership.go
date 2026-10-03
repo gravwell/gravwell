@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -165,13 +166,13 @@ func (m *membershipChanges) SetArgs(parentFS *pflag.FlagSet, tokens []string, wi
 	// TODO we need to check for flags for preselections!
 
 	// build each list from the set of users and groups
-	glr, err := connection.Client.ListGroups(nil)
+	glr, err := connection.Client.ListGroups(types.QueryOptions{})
 	if err != nil {
 		return "", nil, err
 	} else if len(glr.Results) < 1 {
 		return "", nil, errors.New("no groups available. Please create one before attempting to change its users")
 	}
-	ulr, err := connection.Client.ListUsers(nil)
+	ulr, err := connection.Client.ListUsers(types.QueryOptions{})
 	if err != nil {
 		return "", nil, err
 	} else if len(ulr.Results) < 1 {

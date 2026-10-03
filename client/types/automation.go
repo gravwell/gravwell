@@ -281,11 +281,17 @@ type ScheduledSearch struct {
 
 	AutomationCommonFields
 
-	SearchReference    string // A reference to a saved query item by ID. If SearchString is populated on a GET, it represents the query referenced by SearchReference.
-	SearchString       string // The actual search to run. If SearchReference is populated on a GET, SearchString represents the query referenced by SearchReference.
-	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
-	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
-	TimeframeOffset    int64  // How many seconds to offset the search timeframe, MUST BE NEGATIVE
+	// Search is the search to run. Only two Kinds are legal here:
+	// SearchableKindSavedQuery, which references a saved query by ID, and
+	// SearchableKindQueryString, which carries the query text directly.
+	//
+	// A saved query reference is never resolved by the server. QueryString stays
+	// empty on a GET. Callers that need the query text must fetch the saved query
+	// themselves.
+	Search             Searchable
+	Duration           int64 // How many seconds back to search, MUST BE NEGATIVE.
+	SearchSinceLastRun bool  // If set, ignore Duration and run from last run time to now.
+	TimeframeOffset    int64 // How many seconds to offset the search timeframe, MUST BE NEGATIVE.
 	LatestResults      *ScheduledSearchResults
 }
 
@@ -294,8 +300,7 @@ func (s ScheduledSearch) ToPatch() ScheduledSearchPatch {
 	return ScheduledSearchPatch{
 		CommonFieldsPatch:           s.CommonFields.ToPatch(),
 		AutomationCommonFieldsPatch: s.AutomationCommonFields.ToPatch(),
-		SearchReference:             NewOptional(s.SearchReference),
-		SearchString:                NewOptional(s.SearchString),
+		Search:                      NewOptional(s.Search),
 		Duration:                    NewOptional(s.Duration),
 		SearchSinceLastRun:          NewOptional(s.SearchSinceLastRun),
 		TimeframeOffset:             NewOptional(s.TimeframeOffset),
@@ -322,11 +327,10 @@ type ScheduledSearchPatch struct {
 	CommonFieldsPatch
 	AutomationCommonFieldsPatch
 
-	Duration           Optional[int64]  `json:",omitzero"`
-	SearchReference    Optional[string] `json:",omitzero"`
-	SearchString       Optional[string] `json:",omitzero"`
-	SearchSinceLastRun Optional[bool]   `json:",omitzero"`
-	TimeframeOffset    Optional[int64]  `json:",omitzero"`
+	Duration           Optional[int64]      `json:",omitzero"`
+	Search             Optional[Searchable] `json:",omitzero"`
+	SearchSinceLastRun Optional[bool]       `json:",omitzero"`
+	TimeframeOffset    Optional[int64]      `json:",omitzero"`
 }
 
 // ScheduledSearchResults represents the results of a ScheduledSearch execution.

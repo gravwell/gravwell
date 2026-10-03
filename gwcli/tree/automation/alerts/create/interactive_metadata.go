@@ -216,7 +216,10 @@ func (m *metadata) View() string {
 	sb.WriteString(stylesheet.ViewSubmitLikeButton("continue", m.selected == metaContinue, titleLength*2, m.inputErr))
 
 	sb.WriteString("\n")
-	sb.WriteString(hotkeys.DefaultView(titleLength * 2))
+	// Rendered unbounded. A bounded width leaves "space select" surviving only
+	// by a bubbles/help quirk (elides only when there's room for the ellipsis).
+	// See scaffoldcreate/create.go's identical footer for the same rationale.
+	sb.WriteString(hotkeys.DefaultView(0))
 	return sb.String()
 }
 

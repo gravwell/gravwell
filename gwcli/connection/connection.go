@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -80,6 +80,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 	"sync"
@@ -242,7 +243,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 	cached.user, err = Client.MyInfo()
 	cached.mu.Unlock()
 	if err != nil {
-		return errors.New("failed to cache user info: " + err.Error())
+		return fmt.Errorf("failed to cache user info: %w", err)
 	}
 
 	// check that the info of the user we fetched actually matches the given username
@@ -263,7 +264,7 @@ func Login(username string, password, apiToken *string, noInteractive bool, in i
 
 	// cache CBAC state
 	wg.Go(func() {
-		if caps, err := Client.CurrentUserCapabilities(); err != nil {
+		if caps, err := Client.MyCapabilities(); err != nil {
 			clilog.Writer.Warn("failed to cache current user caps", log.KVErr(err))
 		} else {
 			m := make(map[types.Capability]bool, len(caps))
@@ -594,6 +595,15 @@ func CBACEnabled() bool {
 	return cached.cbacEnabled
 }
 
+// DestroyTokenFile removes the locally cached login token file, if one exists.
+// Safe to call if no token file exists.
+func DestroyTokenFile(file string) error {
+	if err := os.Remove(file); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove %q: %w", file, err)
+	}
+	return nil
+}
+
 // End closes the connection to the server and destroys the data in the connection singleton.
 // Does not logout the user as to not invalidate existing JWTs.
 //
@@ -665,8 +675,11 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 			AutomationCommonFields: types.AutomationCommonFields{
 				Schedule: freq,
 			},
-			SearchString: qry,
-			Duration:     -int64(dur.Abs().Seconds()),
+			Search: types.Searchable{
+				Kind:        types.SearchableKindQueryString,
+				QueryString: qry,
+			},
+			Duration: -int64(dur.Abs().Seconds()),
 		})
 	return result.ID, "", err
 }

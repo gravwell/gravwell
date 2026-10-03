@@ -16,20 +16,14 @@ import (
 )
 
 // ListScheduledScripts returns scheduled scripts the user has access to.
-func (c *Client) ListScheduledScripts(opts *types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, opts)
+func (c *Client) ListScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
 }
 
 // ListAllScheduledScripts returns all scheduled scripts on the system (for admins).
-func (c *Client) ListAllScheduledScripts(opts *types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+func (c *Client) ListAllScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
 }
 
 // GetScheduledScript returns the scheduled script with the given ID.
@@ -123,4 +117,9 @@ func (c *Client) DebugScheduledScript(id string, opts types.AutomationDebugReque
 // CancelScheduledScript cancels any active run of the specified scheduled script.
 func (c *Client) CancelScheduledScript(id string) error {
 	return c.delete(scheduledScriptCancelIdUrl(id), false)
+}
+
+// CleanupScheduledScripts (admin-only) purges all deleted scheduled scripts for all users.
+func (c *Client) CleanupScheduledScripts() error {
+	return c.delete(SCHEDULED_SCRIPT_URL, false)
 }

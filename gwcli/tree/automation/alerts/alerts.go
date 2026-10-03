@@ -72,7 +72,7 @@ func listAction() action.Pair {
 					Operation: "=",
 					Values:    []any{listConsumerID},
 				})
-				resp, err := connection.Client.ListAlerts(params.QueryOpts)
+				resp, err := connection.Client.ListAlerts(params.QueryOptions())
 				return resp.Results, err
 
 			} else if listDispatcherID != "" {
@@ -81,11 +81,11 @@ func listAction() action.Pair {
 					Operation: "=",
 					Values:    []any{listDispatcherID},
 				})
-				resp, err := connection.Client.ListAlerts(params.QueryOpts)
+				resp, err := connection.Client.ListAlerts(params.QueryOptions())
 				return resp.Results, err
 			}
 
-			resp, err := connection.Client.ListAlerts(params.QueryOpts)
+			resp, err := connection.Client.ListAlerts(params.QueryOptions())
 			return resp.Results, err
 		},
 		nil,
@@ -140,7 +140,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteAlert(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(param.QueryOpts)
+			lr, err := connection.Client.ListAlerts(param.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -164,7 +164,7 @@ func toggle() action.Pair {
 		"Toggle the enabled state of an alert. Optionally use --enable or --disable to set explicitly.",
 		"alert",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(nil)
+			lr, err := connection.Client.ListAlerts(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -275,7 +275,7 @@ func dispatchers() action.Pair {
 			"Use --add to add dispatchers, --remove to remove them, or neither to replace the entire list.",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListAlerts(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
@@ -373,7 +373,7 @@ func dispatchers() action.Pair {
 					return phrases.ErrFlagIsRequired("dispatcher-ids").Error(), nil
 				} else {
 					// ensure each dispatcher ID is valid
-					lr, err := connection.Client.ListScheduledSearches(&types.QueryOptions{AdminMode: connection.AdminMode()})
+					lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{AdminMode: connection.AdminMode()})
 					if err != nil {
 						return "", err
 					}
@@ -407,7 +407,7 @@ func save() action.Pair {
 			"If an alert would be enabled but have a save duration of 0, it will default to "+defaultDuration.String()+".",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListAlerts(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}

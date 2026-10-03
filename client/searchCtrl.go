@@ -80,21 +80,15 @@ func (c *Client) SetAccess(sid string, ownerID int32, readers, writers types.ACL
 
 // ListSearches returns a list of all searches the current user has access to
 // and their current status.
-func (c *Client) ListSearches(opts *types.QueryOptions) (types.SearchInfoListResponse, error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, opts)
+func (c *Client) ListSearches(opts types.QueryOptions) (types.SearchInfoListResponse, error) {
+	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, &opts)
 }
 
 // ListAllSearches returns a list of all searches on the system. Only admin
 // users can use this function.
-func (c *Client) ListAllSearches(opts *types.QueryOptions) (types.SearchInfoListResponse, error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+func (c *Client) ListAllSearches(opts types.QueryOptions) (types.SearchInfoListResponse, error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, opts)
+	return c.post[types.QueryOptions, types.SearchInfoListResponse](SEARCH_CTRL_LIST_URL, &opts)
 }
 
 // GetSearchHistoryEntry retrieves a single search history entry by ID.
@@ -105,11 +99,8 @@ func (c *Client) GetSearchHistoryEntry(id string, includeDeleted bool) (types.Se
 
 // ListSearchHistory retrieves the search history for the currently logged in user
 // with advanced query options for filtering, sorting, and pagination.
-func (c *Client) ListSearchHistory(opts *types.QueryOptions) (types.SearchHistoryListResponse, error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.SearchHistoryListResponse](searchHistoryListUrl(), opts)
+func (c *Client) ListSearchHistory(opts types.QueryOptions) (types.SearchHistoryListResponse, error) {
+	return c.post[types.QueryOptions, types.SearchHistoryListResponse](searchHistoryListUrl(), &opts)
 }
 
 // DeleteSearchHistoryEntry deletes or purges a search history entry by ID.
@@ -1031,7 +1022,7 @@ func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRa
 	}
 
 	var resp *http.Response
-	if resp, err = c.DownloadRequestWithContext(sdr.DownloadResourceURL, ctx); err != nil {
+	if resp, err = c.DownloadRequestWithContext(ctx, sdr.DownloadResourceURL); err != nil {
 		return
 	}
 	if resp.StatusCode != 200 {

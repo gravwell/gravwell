@@ -58,7 +58,7 @@ func newCalendarAction() action.Pair {
 
 			// if no wells were given, get all wells associated to this indexer
 			if len(wells) == 0 {
-				wellData, err := connection.Client.WellData()
+				wellData, err := connection.Client.GetWellData()
 				if err != nil {
 					return nil, err
 				}
@@ -81,7 +81,7 @@ func newCalendarAction() action.Pair {
 		// if no wells were given, get all wells
 		if len(wells) == 0 {
 			// if no wells were specified, fetch all wells from all indexers
-			wellData, err := connection.Client.WellData()
+			wellData, err := connection.Client.GetWellData()
 			if err != nil {
 				return nil, err
 			}

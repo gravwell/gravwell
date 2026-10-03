@@ -13,20 +13,14 @@ import (
 )
 
 // ListActionables returns all actionables accessible to the current user.
-func (c *Client) ListActionables(opts *types.QueryOptions) (ret types.ActionableListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, opts)
+func (c *Client) ListActionables(opts types.QueryOptions) (ret types.ActionableListResponse, err error) {
+	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, &opts)
 }
 
 // ListAllActionables (admin-only) returns all actionables on the system.
-func (c *Client) ListAllActionables(opts *types.QueryOptions) (ret types.ActionableListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true
-	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, opts)
+func (c *Client) ListAllActionables(opts types.QueryOptions) (ret types.ActionableListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.ActionableListResponse](ACTIONABLES_LIST_URL, &opts)
 }
 
 // GetActionable returns a particular actionable by ID.

@@ -46,7 +46,7 @@ func NewSavedNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list your saved queries", "Lists all saved queries associated to your user",
 		types.SavedQuery{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.SavedQuery, error) {
-			r, err := connection.Client.ListSavedQueries(param.QueryOpts)
+			r, err := connection.Client.ListSavedQueries(param.QueryOptions())
 			return r.Results, err
 		},
 		nil,
@@ -109,7 +109,7 @@ func edit() action.Pair {
 			return connection.Client.GetSavedQuery(id)
 		},
 		FetchSub: func() ([]types.SavedQuery, error) {
-			r, err := connection.Client.ListSavedQueries(nil)
+			r, err := connection.Client.ListSavedQueries(types.QueryOptions{})
 			return r.Results, err
 		},
 		GetFieldSub: func(item types.SavedQuery, fieldKey string) (string, error) {
@@ -167,7 +167,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteSavedQuery(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListSavedQueries(params.QueryOpts)
+			lr, err := connection.Client.ListSavedQueries(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}

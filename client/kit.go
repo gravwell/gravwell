@@ -117,20 +117,14 @@ func (c *Client) ListRemoteKits(all bool) (mds types.RemoteKitListResponse, err 
 }
 
 // ListKits returns a list of all installed and staged kits.
-func (c *Client) ListKits(opts *types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, opts)
+func (c *Client) ListKits(opts types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
+	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, &opts)
 }
 
 // ListAllKits returns a list of all installed and staged kits.
-func (c *Client) ListAllKits(opts *types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true
-	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, opts)
+func (c *Client) ListAllKits(opts types.QueryOptions) (pkgs types.KitStateListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.KitStateListResponse](KIT_LIST_URL, &opts)
 }
 
 // GetKit returns information about a particular installed/staged kit, specified
@@ -162,10 +156,10 @@ func (c *Client) DeleteKit(id string) (err error) {
 	return c.delete(kitIdUrl(id), false)
 }
 
-// DeleteKitEx attempts to uninstall a kit. If kit items have been modified,
+// DeleteKitVerbose attempts to uninstall a kit. If kit items have been modified,
 // it will return an error and a list of modified items. If nothing has been
 // changed, it returns an empty list and a nil error.
-func (c *Client) DeleteKitEx(id string) ([]types.ModifiedKitItem, error) {
+func (c *Client) DeleteKitVerbose(id string) ([]types.ModifiedKitItem, error) {
 	var resp *http.Response
 	var err error
 	resp, err = c.methodRequestURL(http.MethodDelete, kitIdUrl(id), ``, nil)
@@ -239,11 +233,8 @@ func (c *Client) KitStatus(id int) (status types.InstallStatus, err error) {
 // ListKitBuildHistory returns KitBuildRequests for all kits previously built by the
 // user. Note that only the most recent build request is stored for each unique
 // kit ID (e.g. "io.gravwell.foo").
-func (c *Client) ListKitBuildHistory(opts *types.QueryOptions) (hist types.KitBuildRequestListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.KitBuildRequestListResponse](KIT_BUILD_HISTORY_LIST_URL, opts)
+func (c *Client) ListKitBuildHistory(opts types.QueryOptions) (hist types.KitBuildRequestListResponse, err error) {
+	return c.post[types.QueryOptions, types.KitBuildRequestListResponse](KIT_BUILD_HISTORY_LIST_URL, &opts)
 }
 
 // DeleteKitBuildHistory deletes a build history entry for the given ID e.g. "io.gravwell.foo"

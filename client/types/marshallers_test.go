@@ -144,8 +144,8 @@ func TestResponseRoundTrip(t *testing.T) {
 		}, func(d any) int { return len(d.(*types.ChartResponse).Entries.Names) }},
 		{"FdgResponse", types.FdgResponse{
 			Messages: []types.Message{{ID: 1}},
-			Entries:  types.FdgSet{Groups: []string{"test"}},
-		}, func(d any) int { return len(d.(*types.FdgResponse).Entries.Groups) }},
+			Entries:  types.FdgSet{Nodes: []types.Node{{Name: "test"}}},
+		}, func(d any) int { return len(d.(*types.FdgResponse).Entries.Nodes) }},
 		{"PointmapResponse", types.PointmapResponse{
 			Messages: []types.Message{{ID: 1}},
 			Entries:  []types.PointmapValue{{Loc: types.Location{Lat: 1, Long: 1}}},
@@ -663,4 +663,72 @@ func TestNoNilSlicesMaps(t *testing.T) {
 		require.JSONEq(t, want, string(b))
 	})
 
+}
+
+// DeletedAt used to be a time.Time, so every asset that had never been deleted
+// reported the Go zero time on the wire. It is nullable on read now, so an
+// asset that is alive reports null and a soft-deleted one reports a real
+// timestamp. User and Group carry the same field independently of
+// CommonFields (they don't embed it), so they need their own coverage.
+func TestDeletedAtMarshalsNullable(t *testing.T) {
+	ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		data any
+		want string // the raw JSON value we expect for the DeletedAt member
+	}{
+		{"live CommonFields", types.CommonFields{}, `null`},
+		{"deleted CommonFields", types.CommonFields{DeletedAt: types.NewNullable(ts)}, `"2026-09-17T12:00:00Z"`},
+		// DeletedAt is inlined from the embedded CommonFields, so it has to
+		// land at the top level of every asset that embeds it.
+		{"live SearchInfo", types.SearchInfo{}, `null`},
+		{"live Macro", types.Macro{}, `null`},
+		{"deleted Macro", types.Macro{CommonFields: types.CommonFields{DeletedAt: types.NewNullable(ts)}}, `"2026-09-17T12:00:00Z"`},
+		{"live User", types.User{}, `null`},
+		{"deleted User", types.User{DeletedAt: types.NewNullable(ts)}, `"2026-09-17T12:00:00Z"`},
+		{"live Group", types.Group{}, `null`},
+		{"deleted Group", types.Group{DeletedAt: types.NewNullable(ts)}, `"2026-09-17T12:00:00Z"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := v2.Marshal(tt.data, jsoncompat.Opts)
+			require.NoError(t, err)
+			var out map[string]jsontext.Value
+			require.NoError(t, v2.Unmarshal(b, &out, jsoncompat.Opts))
+			raw, found := out["DeletedAt"]
+			require.True(t, found, "DeletedAt missing from JSON: %s", b)
+			require.Equal(t, tt.want, raw.String())
+		})
+	}
+
+	t.Run("round trips", func(t *testing.T) {
+		var cf types.CommonFields
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &cf, jsoncompat.Opts))
+		require.True(t, cf.DeletedAt.IsNull())
+
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":"2026-09-17T12:00:00Z"}`), &cf, jsoncompat.Opts))
+		require.False(t, cf.DeletedAt.IsNull())
+		require.True(t, cf.DeletedAt.Value().Equal(ts))
+
+		// null overwriting an already-set value must clear it back to null,
+		// not leave the previously decoded timestamp in place.
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &cf, jsoncompat.Opts))
+		require.True(t, cf.DeletedAt.IsNull())
+
+		var u types.User
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":"2026-09-17T12:00:00Z"}`), &u, jsoncompat.Opts))
+		require.False(t, u.DeletedAt.IsNull())
+		require.True(t, u.DeletedAt.Value().Equal(ts))
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &u, jsoncompat.Opts))
+		require.True(t, u.DeletedAt.IsNull())
+
+		var g types.Group
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":"2026-09-17T12:00:00Z"}`), &g, jsoncompat.Opts))
+		require.False(t, g.DeletedAt.IsNull())
+		require.True(t, g.DeletedAt.Value().Equal(ts))
+		require.NoError(t, v2.Unmarshal([]byte(`{"DeletedAt":null}`), &g, jsoncompat.Opts))
+		require.True(t, g.DeletedAt.IsNull())
+	})
 }

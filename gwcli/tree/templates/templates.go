@@ -112,7 +112,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		wrappedTemplate{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedTemplate, error) {
-			resp, err := connection.Client.ListTemplates(params.QueryOpts)
+			resp, err := connection.Client.ListTemplates(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -150,7 +150,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteTemplate(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTemplates(params.QueryOpts)
+			lr, err := connection.Client.ListTemplates(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -184,7 +184,7 @@ func edit() action.Pair {
 			return connection.Client.GetTemplate(id)
 		},
 		FetchSub: func() ([]types.Template, error) {
-			resp, err := connection.Client.ListTemplates(nil)
+			resp, err := connection.Client.ListTemplates(types.QueryOptions{})
 			return resp.Results, err
 		},
 		GetFieldSub: func(item types.Template, fieldKey string) (string, error) {
@@ -238,7 +238,7 @@ type content struct {
 func show() action.Pair {
 	return scaffoldselect.NewSelectAction("display template contents", "Display the contents of a template", "template",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTemplates(nil) // TODO need to pass in params
+			lr, err := connection.Client.ListTemplates(types.QueryOptions{}) // TODO need to pass in params
 			if err != nil {
 				return nil, err
 			}

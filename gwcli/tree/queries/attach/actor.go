@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -58,6 +58,9 @@ type attach struct {
 	search *grav.Search
 
 	ds tea.Model
+
+	// Terminal dimensions, as handed down by Mother and kept current on resize.
+	width, height int
 }
 
 // Attach is the struct that provide bolt-on actions via the action map.
@@ -73,6 +76,12 @@ func Initial() *attach {
 // Update passes control down to selecting view or datascope, depending on the current mode.
 // Handles transitioning from selecting -> displaying.
 func (a *attach) Update(msg tea.Msg) tea.Cmd {
+	// Track the terminal's dimensions no matter the mode.
+	// The selecting branch below hands them to datascope, potentially long after SetArgs stashed them.
+	if wsm, ok := msg.(tea.WindowSizeMsg); ok {
+		a.width, a.height = wsm.Width, wsm.Height
+	}
+
 	switch a.mode {
 	case quitting:
 		return nil
@@ -104,9 +113,16 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 				a.mode = quitting
 				return tea.Println(err)
 			}
+			dsOpts := []datascope.DataScopeOption{
+				datascope.WithAutoDownload(a.flags.OutPath, a.flags.Append, a.flags.JSON, a.flags.CSV),
+			}
+			// Only hand down dimensions if we actually know them; WithDimensions rejects
+			// non-positive values and DS measures the terminal itself when it is not told.
+			if a.width > 0 && a.height > 0 {
+				dsOpts = append(dsOpts, datascope.WithDimensions(a.width, a.height))
+			}
 			var dsCmd tea.Cmd
-			a.ds, dsCmd, err = datascope.NewDataScope(results, true, search, tbl,
-				datascope.WithAutoDownload(a.flags.OutPath, a.flags.Append, a.flags.JSON, a.flags.CSV))
+			a.ds, dsCmd, err = datascope.NewDataScope(results, true, search, tbl, dsOpts...)
 			if err != nil {
 				a.mode = quitting
 				return tea.Println(err)
@@ -160,6 +176,8 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 		return err.Error(), nil, nil
 	}
 
+	a.width, a.height = width, height
+
 	a.flags = querysupport.TransmogrifyFlags(&a.flagset)
 
 	// if we are able to find a valid search, go directly to display mode or download the results and exit
@@ -182,9 +200,16 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 		}
 
 		// jump directly into displaying
+		dsOpts := []datascope.DataScopeOption{
+			datascope.WithAutoDownload(a.flags.OutPath, a.flags.Append, a.flags.JSON, a.flags.CSV),
+		}
+		// Only hand down dimensions if we actually know them; WithDimensions rejects non-positive
+		// values and DS measures the terminal itself when it is not told.
+		if width > 0 && height > 0 {
+			dsOpts = append(dsOpts, datascope.WithDimensions(width, height))
+		}
 		var cmd tea.Cmd
-		a.ds, cmd, err = datascope.NewDataScope(results, true, &s, tblMode,
-			datascope.WithAutoDownload(a.flags.OutPath, a.flags.Append, a.flags.JSON, a.flags.CSV))
+		a.ds, cmd, err = datascope.NewDataScope(results, true, &s, tblMode, dsOpts...)
 		if err != nil {
 			clilog.Writer.Errorf("failed to create DataScope: %v", err)
 			a.mode = quitting

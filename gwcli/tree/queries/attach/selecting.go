@@ -71,7 +71,7 @@ func (sv *selectingView) init() (noAttachables bool, err error) {
 	sv.updatedItems = make(chan []list.Item)
 
 	// build the list
-	ss, err := connection.Client.ListSearches(nil)
+	ss, err := connection.Client.ListSearches(types.QueryOptions{})
 	if err != nil {
 		clilog.Writer.Warnf("failed to list searches: %v", err)
 		return false, err
@@ -324,7 +324,7 @@ func spawnListAndMaintainer(ss []types.SearchInfo, done <-chan bool, updates cha
 				return
 			default:
 				// get the list of persistent searches
-				ss, err := connection.Client.ListSearches(nil)
+				ss, err := connection.Client.ListSearches(types.QueryOptions{})
 				if err != nil {
 					clilog.Writer.Warnf("attach maintainer failed to list searches: %v", err)
 					continue

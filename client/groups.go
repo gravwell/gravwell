@@ -15,18 +15,15 @@ import (
 // ListGroups returns a list of groups on the system. If CBAC is
 // enabled, regular users must possess the ListGroups capability or
 // the function will return an error.
-func (c *Client) ListGroups(opts *types.QueryOptions) (ret types.GroupListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.GroupListResponse](GROUP_LIST_URL, opts)
+func (c *Client) ListGroups(opts types.QueryOptions) (ret types.GroupListResponse, err error) {
+	return c.post[types.QueryOptions, types.GroupListResponse](GROUP_LIST_URL, &opts)
 }
 
 // GetGroupMap returns a map of GID to group name for every group on
 // the system. This calls ListGroups under the hood, so the user must
 // have the ListGroups capability enabled.
 func (c *Client) GetGroupMap() (map[int32]string, error) {
-	groups, err := c.ListGroups(nil)
+	groups, err := c.ListGroups(types.QueryOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +73,7 @@ func (c *Client) CleanupGroups() error {
 // capability enabled.
 func (c *Client) LookupGroup(groupname string) (gd types.Group, err error) {
 	var lst types.GroupListResponse
-	if lst, err = c.ListGroups(nil); err != nil {
+	if lst, err = c.ListGroups(types.QueryOptions{}); err != nil {
 		return
 	}
 	for _, l := range lst.Results {

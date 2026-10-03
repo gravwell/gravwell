@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -417,8 +417,11 @@ func (c *createModel) View() string {
 
 	// generate submit button centered under the modal
 	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), setWidth, c.inputs.err, c.createErr)
-	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
 
+	// Tack on the hotkey legend so users know how to interact with the fields (notably, that space enters select fields).
+	// Rendered unbounded. bubbles' help truncation drops the trailing "space select" entry first,
+	// which could silently hide the exact hint this footer exists to show when on narrow panes.
+	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn + "\n" + hotkeys.DefaultView(0)
 }
 
 // a material is a component view, collected from a Field.
@@ -483,6 +486,7 @@ func (c *createModel) Reset() error {
 	c.createErr = ""
 	c.inputs.err = ""
 	c.inputs.selected = 0
+	c.inputs.takeover = ""
 	c.focusInput(true)
 	return nil
 }

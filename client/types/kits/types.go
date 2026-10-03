@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -13,6 +13,13 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+)
+
+var (
+	ErrMissingSearchID          = errors.New("missing search ID")
+	ErrMissingSearchQueryString = errors.New("missing search query string")
+	ErrInvalidSearchKind        = errors.New("invalid search kind")
+	ErrInvalidDuration          = errors.New("invalid duration, must be negative")
 )
 
 // PackedFile is a stripped-down representation of a file for inclusion in a kit.
@@ -143,23 +150,21 @@ type PackedScheduledSearch struct {
 	Labels      []string
 	Schedule    string // when to run: a cron spec
 
-	SearchString    string `json:",omitempty"` // The actual search to run
-	Duration        int64  `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
-	ID              string // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
-	SearchReference string // Used if we're referencing a search query asset by ID instead of including the search directly.
+	Search   types.Searchable // The search to run. Either a saved query reference or the query text itself.
+	Duration int64            `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
+	ID       string           // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
 }
 
 // PackScheduledSearch converts a ScheduledSearch into a PackedScheduledSearch for inclusion in a kit.
 func PackScheduledSearch(ss types.ScheduledSearch) (p PackedScheduledSearch) {
 	p = PackedScheduledSearch{
-		ID:              ss.ID,
-		Name:            ss.Name,
-		Description:     ss.Description,
-		Schedule:        ss.Schedule,
-		SearchString:    ss.SearchString,
-		Duration:        ss.Duration,
-		Labels:          ss.Labels,
-		SearchReference: ss.SearchReference,
+		ID:          ss.ID,
+		Name:        ss.Name,
+		Description: ss.Description,
+		Schedule:    ss.Schedule,
+		Search:      ss.Search,
+		Duration:    ss.Duration,
+		Labels:      ss.Labels,
 	}
 	return
 }
@@ -170,13 +175,25 @@ func (pss *PackedScheduledSearch) Validate() error {
 		return fmt.Errorf("Missing name")
 	} else if pss.Schedule == `` {
 		return errors.New("Missing schedule")
-	} else if pss.SearchString != `` && pss.Duration >= 0 {
-		return errors.New("Duration is invalid for SearchString, must be negative")
-	} else if pss.SearchReference != "" {
-		if pss.Duration >= 0 {
-			return errors.New("Duration is invalid for SearchReference, must be negative")
-		}
 	}
+
+	switch pss.Search.Kind {
+	case types.SearchableKindSavedQuery:
+		if pss.Search.ID == "" {
+			return ErrMissingSearchID
+		}
+	case types.SearchableKindQueryString:
+		if pss.Search.QueryString == "" {
+			return ErrMissingSearchQueryString
+		}
+	default:
+		return fmt.Errorf("%w: %q", ErrInvalidSearchKind, pss.Search.Kind)
+	}
+
+	if pss.Duration >= 0 {
+		return ErrInvalidDuration
+	}
+
 	return nil
 }
 
@@ -187,11 +204,10 @@ func (pss *PackedScheduledSearch) Unpackage(uid int32, gids []int32) (ss types.S
 	ss.Name = pss.Name
 	ss.Description = pss.Description
 	ss.Schedule = pss.Schedule
-	ss.SearchString = pss.SearchString
+	ss.Search = pss.Search
 	ss.Duration = pss.Duration
 	ss.Labels = pss.Labels
 	ss.ID = pss.ID
-	ss.SearchReference = pss.SearchReference
 	return
 }
 

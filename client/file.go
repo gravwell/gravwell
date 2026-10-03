@@ -178,21 +178,15 @@ func (c *Client) PopulateFileFromReader(id string, extension string, data io.Rea
 }
 
 // ListFiles returns information about all files the user can access
-func (c *Client) ListFiles(opts *types.QueryOptions) (ret types.FileListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, opts)
+func (c *Client) ListFiles(opts types.QueryOptions) (ret types.FileListResponse, err error) {
+	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, &opts)
 }
 
 // ListAllFiles is an admin-only API to pull back the entire file list.
 // Non-administrators will receive the same list as returned by ListFiles.
-func (c *Client) ListAllFiles(opts *types.QueryOptions) (ret types.FileListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
-	opts.AdminMode = true
-	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, opts)
+func (c *Client) ListAllFiles(opts types.QueryOptions) (ret types.FileListResponse, err error) {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, &opts)
 }
 
 // DeleteFile removes a file by ID by marking it deleted in the database.

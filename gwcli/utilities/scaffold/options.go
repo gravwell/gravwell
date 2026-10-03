@@ -131,7 +131,7 @@ func (o QOInclude) Install(fs *pflag.FlagSet) {
 		ft.IncludeDeleted.Register(fs)
 	}
 	if o.Everything || o.Limit {
-		fs.Int(FlagNameLimit, 0, "Limit the number of items to return")
+		fs.Int32(FlagNameLimit, 0, "Limit the number of items to return")
 	}
 }
 
@@ -151,7 +151,7 @@ func (o QOInclude) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
 		}
 	}
 	if o.Everything || o.Limit {
-		lim, err := fs.GetInt(FlagNameLimit)
+		lim, err := fs.GetInt32(FlagNameLimit)
 		clilog.GetFlag(err)
 		if lim > 0 {
 			qo.Limit = lim
@@ -184,7 +184,7 @@ func (o QOOmit) Install(fs *pflag.FlagSet) {
 		ft.IncludeDeleted.Register(fs)
 	}
 	if !o.Limit {
-		fs.Int(FlagNameLimit, 0, "Limit the number of items to return")
+		fs.Int32(FlagNameLimit, 0, "Limit the number of items to return")
 	}
 }
 
@@ -207,7 +207,7 @@ func (o QOOmit) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
 		}
 	}
 	if !o.Limit {
-		lim, err := fs.GetInt(FlagNameLimit)
+		lim, err := fs.GetInt32(FlagNameLimit)
 		clilog.GetFlag(err)
 		if lim > 0 {
 			qo.Limit = lim

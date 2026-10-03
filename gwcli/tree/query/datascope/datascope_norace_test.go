@@ -1,7 +1,7 @@
 //go:build ci && !race
 
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -16,8 +16,10 @@ package datascope
 // Regenerate the associate golden files with: go test ./tree/query/datascope -run ^Test_ -update
 
 import (
+	"io"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +38,10 @@ const (
 	termHeight      int           = 50
 	failedDSAssert  string        = "failed to cast final model to datascope"
 	finalModelAwait time.Duration = 3 * time.Second
+	// BubbleTea's standard renderer only emits bytes when its ~60fps ticker fires.
+	// Stalling for longer than a tick guarantees the current frame is flushed before the next
+	// message is handled.
+	rendererTick time.Duration = 17 * time.Millisecond
 )
 
 // A basic test that spins up DS and immediately shutters it to confirm it still conforms to our expected output.
@@ -52,6 +58,144 @@ func Test_Simple(t *testing.T) {
 	// check the final output
 	TTSendSpecial(tm, tea.KeyCtrlC)
 	TTMatchGolden(t, tm, true, finalModelAwait)
+}
+
+// Datascope must draw the same frame whether it was handed its dimensions at construction or
+// learned them from a tea.WindowSizeMsg.
+//
+// Regression test for issue #2748: datascope used to draw its "Initializing..." placeholder until
+// the first WindowSizeMsg arrived, making its first frame differ from every frame thereafter.
+func Test_WithDimensions(t *testing.T) {
+	data := []string{
+		"Line 1",
+		"Multi\nLine2",
+		"Line 3",
+	}
+
+	t.Run("invalid dimensions", func(t *testing.T) {
+		tests := []struct {
+			name          string
+			width, height int
+		}{
+			{"zero width", 0, termHeight},
+			{"zero height", termWidth, 0},
+			{"negative width", -1, termHeight},
+			{"negative height", termWidth, -1},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				initTestLog(t)
+				search := grav.Search{RenderMod: "text"}
+				if _, _, err := NewDataScope(data, false, &search, false,
+					WithDimensions(tt.width, tt.height)); err == nil {
+					t.Error("expected an error from dimensions", ExpectedActual("an error", nil))
+				}
+			})
+		}
+	})
+
+	tests := []struct {
+		name  string
+		table bool
+		// applied in addition to WithDimensions, in both possible orders
+		others []DataScopeOption
+	}{
+		{"results", false, nil},
+		{"table", true, nil},
+		{"results with per page", false, []DataScopeOption{WithPerPage(2)}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// build the frame the old fashioned way: construct sizeless, then inform via message
+			sizeless := newDS(t, data, tt.table, tt.others...)
+			m, _ := sizeless.Update(tea.WindowSizeMsg{Width: termWidth, Height: termHeight})
+			sized, ok := m.(DataScope)
+			if !ok {
+				t.Fatal(failedDSAssert)
+			}
+			want := sized.View()
+			if strings.Contains(want, "Initializing") {
+				t.Fatal("datascope failed to draw after being given its size:\n" + Uncloak(want))
+			}
+
+			// WithDimensions must produce that same frame prior to any message, no matter where it
+			// falls in the option list
+			orders := []struct {
+				name string
+				opts []DataScopeOption
+			}{
+				{"dimensions last", append(slices.Clone(tt.others), WithDimensions(termWidth, termHeight))},
+				{"dimensions first", append([]DataScopeOption{WithDimensions(termWidth, termHeight)}, tt.others...)},
+			}
+			for _, o := range orders {
+				t.Run(o.name, func(t *testing.T) {
+					if got := newDS(t, data, tt.table, o.opts...).View(); got != want {
+						t.Error("first frame does not match the post-WindowSizeMsg frame",
+							ExpectedActual(Uncloak(want), Uncloak(got)))
+					}
+				})
+			}
+		})
+	}
+}
+
+// The bytes datascope emits must not depend on when BubbleTea's renderer happens to tick.
+//
+// Regression test for issue #2748: BubbleTea writes the initial view to its renderer before the
+// event loop starts and the renderer only flushes on a ~60fps tick, so a stall between the two
+// (routine on a loaded CI runner) leaked datascope's pre-size placeholder frame into the output
+// stream and broke the golden comparisons.
+//
+// Mirrors how setup builds its test models; see the note there on sizing.
+func Test_InitialFrameIsStable(t *testing.T) {
+	data := []string{
+		"Line 1",
+		"Multi\nLine2",
+		"Line 3",
+	}
+	// stall long enough for the renderer to flush the first frame before we interact with it.
+	// Whether it flushed or not must not change the bytes we end up with.
+	stalls := []time.Duration{0, 3 * rendererTick}
+
+	tests := []struct {
+		name  string
+		table bool
+	}{
+		{"results", false},
+		{"table", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outputs := make([]string, len(stalls))
+			for i, stall := range stalls {
+				tm := teatest.NewTestModel(t,
+					newDS(t, data, tt.table, WithDimensions(termWidth, termHeight)))
+				time.Sleep(stall)
+
+				TTSendSpecial(tm, tea.KeyCtrlC)
+				b, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(finalModelAwait)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				outputs[i] = string(b)
+
+				if strings.Contains(outputs[i], "Initializing") {
+					t.Errorf("datascope emitted its placeholder frame (stall: %v):\n%s",
+						stall, Uncloak(outputs[i]))
+				}
+			}
+
+			for i := 1; i < len(outputs); i++ {
+				if outputs[i] != outputs[0] {
+					t.Error("output varies with renderer timing."+
+						"\n\tStall:", stalls[i],
+						ExpectedActual(Uncloak(outputs[0]), Uncloak(outputs[i])))
+				}
+			}
+		})
+	}
 }
 
 func Test_TabCycle(t *testing.T) {
@@ -128,21 +272,20 @@ func Test_MultiPage(t *testing.T) {
 // the "tty" in this case (the file) is probably considered a single bit.
 func Test_ColorWithPerPage(t *testing.T) {
 	// manual setup to set a different color scheme
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-		t.Fatal(err)
-	}
+	initTestLog(t)
 	// use a consistent color scheme
 	stylesheet.Cur = stylesheet.Classic()
 	// create a dummy search that should work so long as we don't trigger download or schedule
 	search := grav.Search{RenderMod: "text"}
-	ds, cmd, err := NewDataScope(loooongData, false, &search, false, WithPerPage(50))
+	ds, cmd, err := NewDataScope(loooongData, false, &search, false,
+		WithPerPage(50), WithDimensions(termWidth, termHeight))
 	if err != nil {
 		t.Fatalf("failed to create datascope: %v", err)
 	} else if cmd != nil {
 		t.Fatalf("datascope should never return a command if it knows Mother isn't running. Returned command: %v", err)
 	}
 	// spin up the teatest
-	tm := teatest.NewTestModel(t, ds, teatest.WithInitialTermSize(termWidth, termHeight))
+	tm := teatest.NewTestModel(t, ds)
 	// check the final output
 	TTSendSpecial(tm, tea.KeyCtrlC)
 	TTMatchGolden(t, tm, true, finalModelAwait)
@@ -194,7 +337,8 @@ func Test_Download(t *testing.T) {
 		TTMatchGolden(t, tm, true, finalModelAwait)
 	})
 
-	outPath := "out.txt" // move to temp dir
+	// shared by the Records and Append subtests; the latter appends to the file the former creates
+	outPath := path.Join(t.TempDir(), "out.txt")
 
 	t.Run("Records", func(t *testing.T) {
 		recordsText := "1"
@@ -465,22 +609,46 @@ func Test_Schedule(t *testing.T) {
 // shared helper function that returns datascope and teatest models ready for use.
 func setup(t *testing.T, data []string, table bool) (DataScope, *teatest.TestModel) {
 	t.Helper()
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-		t.Fatal(err)
-	}
-	// use a consistent color scheme
+	// Hand DS its dimensions directly, rather than via teatest.WithInitialTermSize, so that every
+	// frame it draws is fully formed.
+	// teatest can only deliver a size *after* the program has started rendering, which makes the
+	// captured output depend on scheduler timing in two ways: BubbleTea's renderer may flush DS's
+	// pre-size placeholder frame before the message arrives and, once the message does arrive, it
+	// forces the renderer to repaint (duplicating a frame in the stream) if anything was already
+	// flushed.
+	// See Test_InitialFrameIsStable and issue #2748.
+	ds := newDS(t, data, table, WithDimensions(termWidth, termHeight))
+	// spin up the teatest
+	tm := teatest.NewTestModel(t, ds)
+	return ds, tm
+}
+
+// newDS performs the setup common to all datascope tests, returning a datascope built from the
+// given data and options.
+//
+// Pins the color scheme so output is consistent between runs; a test that requires a different
+// scheme must build its datascope itself (see Test_ColorWithPerPage).
+func newDS(t *testing.T, data []string, table bool, opts ...DataScopeOption) DataScope {
+	t.Helper()
+	initTestLog(t)
 	stylesheet.Cur = stylesheet.Plain()
 	// create a dummy search that should work so long as we don't trigger download or schedule
 	search := grav.Search{RenderMod: "text"}
-	ds, cmd, err := NewDataScope(data, false, &search, table)
+	ds, cmd, err := NewDataScope(data, false, &search, table, opts...)
 	if err != nil {
 		t.Fatalf("failed to create datascope: %v", err)
 	} else if cmd != nil {
 		t.Fatalf("datascope should never return a command if it knows Mother isn't running. Returned command: %v", err)
 	}
-	// spin up the teatest
-	tm := teatest.NewTestModel(t, ds, teatest.WithInitialTermSize(termWidth, termHeight))
-	return ds, tm
+	return ds
+}
+
+// initTestLog spins up the logger that datascope writes to.
+func initTestLog(t *testing.T) {
+	t.Helper()
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // NOTE(rlandau): this has to be pregenerated because it must stay consistent between runs (lest the golden files not match).

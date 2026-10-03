@@ -8,7 +8,12 @@
 
 package types
 
-import "testing"
+import (
+	"bytes"
+	"encoding/gob"
+	"testing"
+	"time"
+)
 
 // TestAssetSearchInfoConstant pins the wire value of the new AssetType.
 // It must stay "search_info" -- it's what the backend's rtypes.AssetSearchInfo
@@ -55,4 +60,70 @@ func TestAssetTypeMapNoDuplicateValues(t *testing.T) {
 		}
 		seen[v] = true
 	}
+}
+
+// TestCommonFieldsIsDeleted pins IsDeleted's contract.
+// A live asset (DeletedAt null or set to the zero time) reports false, a
+// soft-deleted one (DeletedAt set to a real timestamp) reports true.
+func TestCommonFieldsIsDeleted(t *testing.T) {
+	var cf CommonFields
+	if cf.IsDeleted() {
+		t.Error("IsDeleted() = true for a live asset, want false")
+	}
+
+	cf.DeletedAt.Set(time.Time{})
+	if cf.IsDeleted() {
+		t.Error("IsDeleted() = true for a non-null zero time, want false")
+	}
+
+	cf.DeletedAt.Set(time.Now())
+	if !cf.IsDeleted() {
+		t.Error("IsDeleted() = false for a soft-deleted asset, want true")
+	}
+}
+
+// TestCommonFieldsGobRoundTrip is a regression test for gravwell/issues#2797:
+// this is the exact shape that broke in production. The backend
+// gob-registers every asset type (which embeds CommonFields, and therefore
+// DeletedAt Nullable[time.Time]) for internal transport; without
+// Nullable[T].GobEncode/GobDecode, encoding that failed outright with
+// "gob: type types.Nullable[time.Time] has no exported fields".
+func TestCommonFieldsGobRoundTrip(t *testing.T) {
+	roundTrip := func(t *testing.T, in CommonFields) CommonFields {
+		t.Helper()
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(in); err != nil {
+			t.Fatalf("gob encode: %v", err)
+		}
+		var out CommonFields
+		if err := gob.NewDecoder(&buf).Decode(&out); err != nil {
+			t.Fatalf("gob decode: %v", err)
+		}
+		return out
+	}
+
+	t.Run("live", func(t *testing.T) {
+		in := CommonFields{Name: "live-asset"}
+		out := roundTrip(t, in)
+		if out.Name != "live-asset" {
+			t.Errorf("Name = %q, want %q", out.Name, "live-asset")
+		}
+		if out.IsDeleted() {
+			t.Error("IsDeleted() = true for a round-tripped live asset, want false")
+		}
+	})
+
+	t.Run("deleted", func(t *testing.T) {
+		ts := time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+		in := CommonFields{Name: "deleted-asset"}
+		in.DeletedAt.Set(ts)
+
+		out := roundTrip(t, in)
+		if !out.IsDeleted() {
+			t.Error("IsDeleted() = false for a round-tripped deleted asset, want true")
+		}
+		if !out.DeletedAt.Value().Equal(ts) {
+			t.Errorf("DeletedAt = %v, want %v", out.DeletedAt.Value(), ts)
+		}
+	})
 }

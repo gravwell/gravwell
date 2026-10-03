@@ -143,13 +143,13 @@ func sessions() action.Pair {
 func groups() action.Pair {
 	return scaffoldlist.NewListAction("display your group memberships", "Display groups you are a part of.", types.Group{},
 		func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.Group, error) {
-			return connection.Client.Groups()
+			return connection.Client.MyGroups()
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{Use: "groups"},
+			Use: "groups",
 			Pretty: func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ scaffoldlist.DataParameters) (string, error) {
-				groups, err := connection.Client.Groups()
+				groups, err := connection.Client.MyGroups()
 				if err != nil {
 					return "", err
 				} else if len(groups) < 1 {

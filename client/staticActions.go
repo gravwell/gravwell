@@ -364,12 +364,12 @@ func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID 
 // DownloadRequest performs an authenticated GET request on the specified URL
 // and hands back the http.Response object for the request.
 func (c *Client) DownloadRequest(url string) (resp *http.Response, err error) {
-	return c.DownloadRequestWithContext(url, context.TODO())
+	return c.DownloadRequestWithContext(context.TODO(), url)
 }
 
 // DownloadRequestWithContext performs an authenticated GET request on the specified URL
 // and hands back the http.Response object for the request.
-func (c *Client) DownloadRequestWithContext(path string, ctx context.Context) (resp *http.Response, err error) {
+func (c *Client) DownloadRequestWithContext(ctx context.Context, path string) (resp *http.Response, err error) {
 	var req *http.Request
 	uri := c.serverURL.ResolveReference(&url.URL{Path: path}).String()
 	if req, err = http.NewRequestWithContext(ctx, http.MethodGet, uri, nil); err != nil {

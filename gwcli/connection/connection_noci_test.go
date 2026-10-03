@@ -1,7 +1,7 @@
 //go:build noci
 
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -50,6 +50,71 @@ func init() {
 func TestLoginNotInitialized(t *testing.T) {
 	if err := connection.Login("", nil, nil, false, nil, nil); !errors.Is(err, connection.ErrNotInitialized) {
 		t.Fatal(testsupport.ExpectedActual(connection.ErrNotInitialized, err))
+	}
+}
+
+// TestLoginAfterLogout is a regression test for gwcli permanently getting stuck after a
+// user logs out: it drives the *exact* sequence a real logout performs (Client.Logout() +
+// connection.End() + connection.DestroyTokenFile()) and then attempts to log back in
+// *without* manually removing the token file first, unlike every other test in this file.
+// Before the fix, logout never deleted the cached token file, so every subsequent login
+// attempt kept tripping over the same stale/invalidated JWT.
+func TestLoginAfterLogout(t *testing.T) {
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "DEBUG"); err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// isolate the token file
+	orig := cfgdir.DefaultTokenPath
+	cfgdir.DefaultTokenPath = path.Join(t.TempDir(), "tknfile")
+	defer func() { cfgdir.DefaultTokenPath = orig }()
+
+	if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "rest.log")); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { connection.End() })
+
+	// log in for the first time
+	if err := connection.Login(defaultUser, &defaultPass, nil, true, nil, nil); err != nil {
+		t.Fatal("initial login failed: ", err)
+	}
+	if _, err := os.Stat(cfgdir.DefaultTokenPath); err != nil {
+		t.Fatalf("expected a token file to exist after logging in: %v", err)
+	}
+
+	// log out exactly as gwcli's logout action does
+	if err := connection.Client.Logout(); err != nil {
+		t.Log("Client.Logout() returned an error (non-fatal, matches production behaviour):", err)
+	}
+	connection.End()
+	if err := connection.DestroyTokenFile(cfgdir.DefaultTokenPath); err != nil {
+		t.Fatal("failed to destroy token file on logout: ", err)
+	}
+
+	// the token file must actually be gone -- this is the crux of the fix
+	if _, err := os.Stat(cfgdir.DefaultTokenPath); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("expected token file to be removed after logout, stat returned: %v", err)
+	}
+
+	// re-initialize the connection, exactly as a fresh gwcli invocation would
+	if err := connection.Initialize(server, false, true, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// attempting to log in with no credentials should fail cleanly (the JWT is gone, so
+	// there is nothing to fall back on in script mode) instead of looping or returning the
+	// old, unwrapped "failed to cache user info: Not Authed" error.
+	if err := connection.Login("", nil, nil, true, nil, nil); !errors.Is(err, connection.ErrNonInteractiveRequiresDifferentLogin) {
+		t.Fatalf("expected ErrNonInteractiveRequiresDifferentLogin logging in with no credentials post-logout, got: %v", err)
+	}
+
+	// crucially, logging back in via credentials must actually succeed -- this is the
+	// reported bug: "if you log out, you can never log back in."
+	if err := connection.Login(defaultUser, &defaultPass, nil, true, nil, nil); err != nil {
+		t.Fatal("failed to log back in after logging out: ", err)
+	}
+	if err := verifyLoggedInStatus(defaultUser); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -463,7 +528,7 @@ func TestJWTRefreshing(t *testing.T) {
 		t.Error("token file was not updated while we were sleeping")
 	}
 	// validate that we can still make calls
-	_, err = connection.Client.ListKits(nil)
+	_, err = connection.Client.ListKits(types.QueryOptions{})
 	if err != nil {
 		t.Error("client failed to fetch kits:", err)
 	}
@@ -518,7 +583,13 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret 
 	}
 
 	t.Logf("failed to lookup user %v, attempting creation...", altUser)
-	if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+	if _, err := testclient.CreateUser(types.AddUser{
+		Username: altUser,
+		Password: altPass,
+		Name:     "Mildred Knolastname",
+		Email:    "milly@imp.com",
+		Admin:    false,
+	}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -63,7 +63,7 @@ func listAction() action.Pair {
 		"List actionables available to your user.",
 		types.Actionable{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Actionable, error) {
-			lr, err := connection.Client.ListActionables(params.QueryOpts)
+			lr, err := connection.Client.ListActionables(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -223,7 +223,7 @@ func replace() action.Pair {
 		"Replace the JSON content (viewable via "+stylesheet.Cur.Action.Render("get")+") of an actionable, changing its operation/definition",
 		"actionable ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListActionables(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
@@ -302,7 +302,7 @@ func edit() action.Pair {
 			return connection.Client.GetActionable(ID)
 		},
 		FetchSub: func() ([]types.Actionable, error) {
-			lr, err := connection.Client.ListActionables(&types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListActionables(types.QueryOptions{AdminMode: connection.AdminMode()})
 			if err != nil {
 				return nil, err
 			}
@@ -361,7 +361,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteActionable(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListActionables(param.QueryOpts)
+			lr, err := connection.Client.ListActionables(param.QueryOptions())
 			if err != nil {
 				return nil, err
 			}

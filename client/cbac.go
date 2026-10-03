@@ -14,27 +14,27 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// CapabilityList returns a complete list of capabilities.
-func (c *Client) CapabilityList() (cl []types.CapabilityDesc, err error) {
+// ListCapabilities returns a complete list of capabilities.
+func (c *Client) ListCapabilities() (cl []types.CapabilityDesc, err error) {
 	err = c.getStaticURL(CAPABILITY_LIST_URL, &cl)
 	return
 }
 
-// CapabilityTemplateList returns a list of CBAC templates defined on the system.
-func (c *Client) CapabilityTemplateList() (cl []types.CapabilityTemplate, err error) {
+// ListCapabilityTemplates returns a list of CBAC templates defined on the system.
+func (c *Client) ListCapabilityTemplates() (cl []types.CapabilityTemplate, err error) {
 	err = c.getStaticURL(CAPABILITY_TEMPLATE_LIST_URL, &cl)
 	return
 }
 
-// CurrentUserCapabilities returns the list of capabilities enabled for the current user.
-func (c *Client) CurrentUserCapabilities() (set []types.CapabilityDesc, err error) {
+// MyCapabilities returns the list of capabilities enabled for the current user.
+func (c *Client) MyCapabilities() (set []types.CapabilityDesc, err error) {
 	err = c.getStaticURL(CAPABILITY_CURRENT_USER_LIST_URL, &set)
 	return
 }
 
-// CurrentUserCapabilityExplanations returns the list of capabilities, marked up to explain
+// MyCapabilityExplanations returns the list of capabilities, marked up to explain
 // whether or not a user has the capability and why.
-func (c *Client) CurrentUserCapabilityExplanations() (set []types.CapabilityExplanation, err error) {
+func (c *Client) MyCapabilityExplanations() (set []types.CapabilityExplanation, err error) {
 	err = c.getStaticURL(CAPABILITY_CURRENT_USER_WHY_URL, &set)
 	return
 }
@@ -43,7 +43,7 @@ func (c *Client) CurrentUserCapabilityExplanations() (set []types.CapabilityExpl
 func (c *Client) HasCapability(cp types.Capability) bool {
 	if c.capabilities == nil {
 		var err error
-		if c.capabilities, err = c.CurrentUserCapabilities(); err != nil {
+		if c.capabilities, err = c.MyCapabilities(); err != nil {
 			return false
 		}
 	}

@@ -47,7 +47,7 @@
 +-+                                                                             
                                   ○•○○○○○○○○○○                                  
            ←/→ page • ↑/↓ scroll • home: jump top • end: jump bottom            
-           tab: cycle • esc: quit                                               [80D[49A
+           tab: cycle • esc: quit                                               [D[49A
 
 
 51:wWTQofyklR6YvN8z53SpdTCC8                                                    
@@ -96,7 +96,7 @@
 
                                   ○○•○○○○○○○○○                                  
 
-[80D[49A
+[D[49A
 
 
 76:EXs60VC5nmIyGp6n7GnoxJK7e                                                    
@@ -145,4 +145,4 @@
 
                                   ○○○•○○○○○○○○                                  
 
-[80D[2K[?2004l[?25h[?1002l[?1003l[?1006l
+[D[2K[?2004l[?25h[?1002l[?1003l[?1006l

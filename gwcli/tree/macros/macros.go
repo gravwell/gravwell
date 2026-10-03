@@ -64,7 +64,7 @@ func list() action.Pair {
 			clilog.GetFlag(err)
 			if gid != 0 { // fetch all macros our group ID can read
 				// TODO inject the group ID filter here rather than manually filtering after the fact
-				macros, err := connection.Client.ListAllMacros(params.QueryOpts)
+				macros, err := connection.Client.ListAllMacros(params.QueryOptions())
 				if err != nil {
 					return nil, err
 				}
@@ -76,7 +76,7 @@ func list() action.Pair {
 				}
 				return macroResults, nil
 			}
-			r, err := connection.Client.ListMacros(params.QueryOpts)
+			r, err := connection.Client.ListMacros(params.QueryOptions())
 			return r.Results, err
 		},
 		nil,
@@ -185,7 +185,7 @@ func edit() action.Pair {
 			return connection.Client.GetMacro(id)
 		},
 		FetchSub: func() ([]types.Macro, error) {
-			r, err := connection.Client.ListMacros(nil)
+			r, err := connection.Client.ListMacros(types.QueryOptions{})
 			return r.Results, err
 		},
 		GetFieldSub: func(item types.Macro, fieldKey string) (string, error) {
@@ -250,7 +250,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteMacro(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListMacros(params.QueryOpts)
+			lr, err := connection.Client.ListMacros(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}

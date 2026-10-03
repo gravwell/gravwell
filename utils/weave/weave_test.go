@@ -1971,6 +1971,45 @@ type ptr struct {
 	non      string
 }
 
+// opaqueWrapper mimics client/types' Optional[T]/Nullable[T]: a struct with
+// only unexported fields that explicitly opts out of struct-field
+// recursion via the same IsOpaqueValue marker those types implement.
+type opaqueWrapper struct {
+	value string
+	valid bool
+}
+
+func (opaqueWrapper) IsOpaqueValue() bool { return true }
+
+// String mirrors Nullable[T]'s real Stringer contract: invalid/null prints
+// "null", otherwise the underlying value. Opting out of struct-field
+// recursion (IsOpaqueValue) says nothing about how to print the leaf value
+// once recursion stops -- that's this method's job, and without it %v falls
+// back to a raw dump of value/valid.
+func (o opaqueWrapper) String() string {
+	if !o.valid {
+		return "null"
+	}
+	return o.value
+}
+
+// plainUnexported has the exact same all-unexported-fields shape as
+// opaqueWrapper, but does NOT implement IsOpaqueValue. It must NOT be
+// treated as a leaf merely because it happens to have no exported fields --
+// that's also the shape of an ordinary struct embedding an unexported-named
+// type (see mbd/dblmbd above), which legitimately needs to be recursed
+// into to reach fields nested further down.
+type plainUnexported struct {
+	value string
+	valid bool
+}
+
+type hasOpaqueField struct {
+	Wrapped opaqueWrapper
+	Plain   plainUnexported
+	Normal  string
+}
+
 func TestStructFieldsAll(t *testing.T) {
 
 	// silence "unused" warnings as we only care about types
@@ -2051,6 +2090,64 @@ func TestStructFieldsAll(t *testing.T) {
 			t.Fatalf("expected \"%s\", got %s", wantOut, out)
 		}
 	})
+
+	// "opaque struct field" pins the leaf treatment for types like
+	// client/types' Optional[T]/Nullable[T] that explicitly implement
+	// IsOpaqueValue, using a plain unrelated struct instead of depending on
+	// client/types. It also pins the negative case: a struct with the exact
+	// same all-unexported-fields shape that does NOT implement the marker
+	// must NOT be treated as a leaf -- that would regress to the unsound
+	// "no exported fields => leaf" heuristic that breaks mbd/dblmbd above
+	// (an ordinary struct embedding an unexported-named type also has no
+	// *directly* exported fields, yet still needs recursing into).
+	t.Run("opaque struct field", func(t *testing.T) {
+		want := []string{"Wrapped", "Normal"}
+		cols, err := StructFields(hasOpaqueField{}, true)
+		if err != nil {
+			t.Error(err)
+		}
+		if !reflect.DeepEqual(cols, want) {
+			t.Errorf("exportedOnly=true: StructFields() = %v, want %v", cols, want)
+		}
+
+		// Without exportedOnly: the IsOpaqueValue-marked field is still a
+		// single leaf ("Wrapped"), but the unmarked plainUnexported field's
+		// internals DO surface (matching how mbd's unexported "z" field
+		// surfaces in this mode) since nothing tells the walker it's opaque.
+		want = []string{"Wrapped", "Plain.value", "Plain.valid", "Normal"}
+		cols, err = StructFields(hasOpaqueField{}, false)
+		if err != nil {
+			t.Error(err)
+		}
+		if !reflect.DeepEqual(cols, want) {
+			t.Errorf("exportedOnly=false: StructFields() = %v, want %v", cols, want)
+		}
+	})
+}
+
+// TestOpaqueValueRendersViaStringer guards against the failure mode found in
+// review of the IsOpaqueValue change: opting a type out of struct-field
+// recursion (via IsOpaqueValue) is not enough on its own for it to render
+// sensibly through ToCSV/ToTable. Those call valueToString, which falls back
+// to fmt.Sprintf("%v", v) for anything that isn't a Stringer -- for a struct
+// with only unexported fields, that prints a raw dump of its private state
+// (e.g. "{ true}") instead of something a user can read. A type needs BOTH
+// IsOpaqueValue (stop recursing) and String() (know how to print the leaf)
+// to be usable as a struct field feeding into this package's output.
+func TestOpaqueValueRendersViaStringer(t *testing.T) {
+	type row struct {
+		Live    opaqueWrapper
+		Deleted opaqueWrapper
+	}
+	data := []row{
+		{Live: opaqueWrapper{valid: false}, Deleted: opaqueWrapper{value: "2026-09-17", valid: true}},
+	}
+
+	got := ToCSV(data, []string{"Live", "Deleted"}, CSVOptions{})
+	want := "Live,Deleted\n" + "null,2026-09-17"
+	if got != want {
+		t.Errorf("ToCSV() = %q, want %q", got, want)
+	}
 }
 
 func TestStructFieldsExported(t *testing.T) {

@@ -86,7 +86,10 @@ func (msl Model[ID_t]) Update(msg tea.Msg) (Model[ID_t], tea.Cmd) {
 }
 
 func (msl Model[ID_t]) View() string {
-	return msl.Model.View() + "\n  " + stylesheet.Cur.DisabledText.Render("space select • ↲ continue")
+	// Built from hotkeys rather than hardcoded so this stays in sync with the shared legend
+	// (ex: create.go's form footer) instead of drifting to a different enter glyph (↲ vs ↵).
+	return msl.Model.View() + "\n  " + stylesheet.Cur.DisabledText.Render(
+		hotkeys.Select.Help().Key+" "+hotkeys.Select.Help().Desc+" • "+hotkeys.Invoke.Help().Key+" continue")
 }
 
 // CursorItem returns the item at the current cursor.

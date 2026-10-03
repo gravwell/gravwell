@@ -68,7 +68,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Token{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Token, error) {
-			resp, err := connection.Client.ListTokens(params.QueryOpts)
+			resp, err := connection.Client.ListTokens(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -377,7 +377,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteToken(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTokens(params.QueryOpts)
+			lr, err := connection.Client.ListTokens(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -419,7 +419,7 @@ func regenerate() action.Pair {
 				return connection.Client.GetToken(id)
 			},
 			FetchSub: func() (items []types.Token, err error) {
-				resp, err := connection.Client.ListTokens(nil)
+				resp, err := connection.Client.ListTokens(types.QueryOptions{})
 				if err != nil {
 					return nil, err
 				}

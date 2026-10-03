@@ -59,7 +59,7 @@ func TestCBACLifecycle(t *testing.T) {
 	}
 	require.Nil(t, cli.Login("admin", "changeme"))
 
-	allCaps, err := cli.CapabilityList()
+	allCaps, err := cli.ListCapabilities()
 	if err != nil {
 		t.Log("failed to get direct list of capabilities, skipping")
 		t.Skip()

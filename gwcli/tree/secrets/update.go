@@ -183,7 +183,7 @@ func (m *updateModel) SetArgs(_ *pflag.FlagSet, args []string, width, height int
 	}
 
 	if m.stage == selecting {
-		lr, err := connection.Client.ListSecrets(&types.QueryOptions{AdminMode: connection.AdminMode()})
+		lr, err := connection.Client.ListSecrets(types.QueryOptions{AdminMode: connection.AdminMode()})
 		if err != nil {
 			return "", nil, err
 		}

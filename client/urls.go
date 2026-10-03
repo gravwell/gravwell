@@ -198,7 +198,7 @@ const (
 	SECRETS_ID_VALUE_URL             = `/api/secrets/%s/value`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
-	INGESTERS_TRACKING_URL           = `/api/ingesters/%s/tracking`
+	INGESTERS_BULK_TRACKING_URL      = `/api/ingesters/tracking`
 	ALERTS_URL                       = `/api/alerts`
 	ALERTS_LIST_URL                  = `/api/alerts/list`
 	ALERTS_ID_URL                    = `/api/alerts/%s`
@@ -419,7 +419,7 @@ func flowParseUrl() string {
 	return FLOW_PARSE_URL
 }
 
-func flowIdUrl(id interface{}) string {
+func flowIdUrl(id any) string {
 	return fmt.Sprintf(FLOW_ID_URL, id)
 }
 

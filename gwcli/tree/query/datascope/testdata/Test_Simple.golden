@@ -47,4 +47,4 @@ Line2
 +-+                                                                             
                                         •                                       
            ←/→ page • ↑/↓ scroll • home: jump top • end: jump bottom            
-           tab: cycle • esc: quit                                               [80D[2K[?2004l[?25h[?1002l[?1003l[?1006l
+           tab: cycle • esc: quit                                               [D[2K[?2004l[?25h[?1002l[?1003l[?1006l

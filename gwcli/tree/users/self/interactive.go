@@ -260,7 +260,7 @@ func (c *searchGroupModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, hei
 	}
 	success, bootInteractive, err := handleNonInteractive(set, clear, fs.Args())
 	if bootInteractive { // continue into interactive mode
-		grps, err := connection.Client.Groups()
+		grps, err := connection.Client.MyGroups()
 		if err != nil {
 			clilog.Writer.Error("failed to get groups", log.KV("error", err))
 			return "", nil, fmt.Errorf("failed to get groups")

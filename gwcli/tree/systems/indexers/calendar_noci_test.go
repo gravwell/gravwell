@@ -58,7 +58,7 @@ func Test_identifyIndexer(t *testing.T) {
 	}
 
 	// get a random indexer to operate off of
-	welldata, err := testclient.WellData()
+	welldata, err := testclient.GetWellData()
 	if err != nil {
 		t.Skip("testclient: ", err)
 	} else if len(welldata) == 0 {

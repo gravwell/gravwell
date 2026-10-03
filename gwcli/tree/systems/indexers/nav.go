@@ -63,7 +63,7 @@ func wells() action.Pair {
 
 	return scaffoldlist.NewListAction("get a list of all wells", "returns the indexer each well is associated to and the well's full id",
 		wd{}, func(fs *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]wd, error) {
-			wells, err := connection.Client.WellData()
+			wells, err := connection.Client.GetWellData()
 			if err != nil {
 				return nil, err
 			}
