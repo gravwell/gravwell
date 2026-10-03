@@ -221,7 +221,8 @@ type wrappableAsset interface {
 		[]types.Resource |
 		[]types.Macro | []types.SavedQuery |
 		[]types.AX | []types.File |
-		[]types.Playbook | []types.Alert
+		[]types.Playbook | []types.Alert |
+		[]types.Agent | []types.AgentSkill
 }
 
 // WrapAssets returns an MSL- and list.Model-ready array of the given items.
@@ -369,6 +370,26 @@ func WrapAssets[asset_t wrappableAsset](x asset_t, preselected ...map[string]boo
 			}
 		}
 	case []types.Playbook:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.Agent:
+		for i, itm := range t {
+			items[i] = &Generic{
+				Selected_: selected[itm.ID],
+
+				ID_:        itm.ID,
+				Name:       itm.Name,
+				SecondLine: itm.Description,
+			}
+		}
+	case []types.AgentSkill:
 		for i, itm := range t {
 			items[i] = &Generic{
 				Selected_: selected[itm.ID],

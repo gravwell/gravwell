@@ -209,6 +209,12 @@ const (
 	USER_PREFERENCES_LIST_URL        = `/api/userpreferences/list`
 	USER_PREFERENCES_ID_URL          = `/api/userpreferences/%s`
 	LIST_URL                         = `/api/list`
+	AGENTS_URL                       = `/api/ai/agents`
+	AGENTS_LIST_URL                  = `/api/ai/agents/list`
+	AGENTS_ID_URL                    = `/api/ai/agents/%s`
+	AGENT_SKILLS_URL                 = `/api/ai/skills`
+	AGENT_SKILLS_LIST_URL            = `/api/ai/skills/list`
+	AGENT_SKILLS_ID_URL              = `/api/ai/skills/%s`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -666,6 +672,14 @@ func alertsValidateDispatcherUrl() string {
 
 func alertsValidateConsumerUrl() string {
 	return ALERTS_VALIDATE_CONSUMER_URL
+}
+
+func agentUrl(id string) string {
+	return fmt.Sprintf(AGENTS_ID_URL, id)
+}
+
+func agentSkillUrl(id string) string {
+	return fmt.Sprintf(AGENT_SKILLS_ID_URL, id)
 }
 
 func totpSetupUrl() string {

@@ -548,3 +548,94 @@ func PackTemplate(t types.Template) (put PackedUserTemplate) {
 	put.Labels = t.Labels
 	return
 }
+
+// PackedAgent is a stripped-down representation of an AI agent for inclusion in a kit.
+type PackedAgent struct {
+	ID           string
+	Name         string
+	Description  string
+	Labels       []string
+	Entrypoint   types.NodeSpec
+	StateDiagram string
+	Avatar       string
+}
+
+// PackAgent converts an Agent into a PackedAgent for inclusion in a kit.
+func PackAgent(a types.Agent) (p PackedAgent) {
+	p = PackedAgent{
+		ID:           a.ID,
+		Name:         a.Name,
+		Description:  a.Description,
+		Labels:       a.Labels,
+		Entrypoint:   *a.Entrypoint.Clone(),
+		StateDiagram: a.StateDiagram,
+		Avatar:       a.Avatar,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedAgent.
+func (pa *PackedAgent) Validate() error {
+	if pa.Name == `` {
+		return fmt.Errorf("missing agent name")
+	}
+	if err := pa.Entrypoint.Validate(); err != nil {
+		return fmt.Errorf("invalid agent node graph: %w", err)
+	}
+	return nil
+}
+
+// Unpackage expands a PackedAgent into an Agent.
+func (pa *PackedAgent) Unpackage(uid int32, gids []int32) (a types.Agent) {
+	a.ID = pa.ID
+	a.OwnerID = uid
+	a.Readers.GIDs = gids
+	a.Name = pa.Name
+	a.Description = pa.Description
+	a.Labels = pa.Labels
+	a.Entrypoint = *pa.Entrypoint.Clone()
+	a.StateDiagram = pa.StateDiagram
+	a.Avatar = pa.Avatar
+	return
+}
+
+// PackedAgentSkill is a stripped-down representation of an agent skill for inclusion in a kit.
+type PackedAgentSkill struct {
+	ID          string
+	Name        string
+	Description string
+	Labels      []string
+	Body        string
+}
+
+// PackAgentSkill converts an AgentSkill into a PackedAgentSkill for inclusion in a kit.
+func PackAgentSkill(s types.AgentSkill) (p PackedAgentSkill) {
+	p = PackedAgentSkill{
+		ID:          s.ID,
+		Name:        s.Name,
+		Description: s.Description,
+		Labels:      s.Labels,
+		Body:        s.Body,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedAgentSkill.
+func (ps *PackedAgentSkill) Validate() error {
+	if ps.Name == `` {
+		return fmt.Errorf("missing agent skill name")
+	}
+	return nil
+}
+
+// Unpackage expands a PackedAgentSkill into an AgentSkill.
+func (ps *PackedAgentSkill) Unpackage(uid int32, gids []int32) (s types.AgentSkill) {
+	s.ID = ps.ID
+	s.OwnerID = uid
+	s.Readers.GIDs = gids
+	s.Name = ps.Name
+	s.Description = ps.Description
+	s.Labels = ps.Labels
+	s.Body = ps.Body
+	return
+}
