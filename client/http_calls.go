@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
@@ -60,19 +61,29 @@ func (c *Client) patch[PatchT any, ResponseT any](url string, data PatchT) (patc
 	return patched, nil
 }
 
+// DeleteOptions is the base set of options supported by asset DELETE requests.
+type DeleteOptions struct {
+	// remove the item entirely, instead of the usual soft-delete. The item will be unrecoverable
+	Purge bool
+}
+
+func (o DeleteOptions) params() []urlParam {
+	var p []urlParam
+	if o.Purge {
+		p = append(p, urlParam{queryparams.Purge, "true"})
+	}
+	return p
+}
+
 // delete submits an empty DELETE request against the given URL.
 // It swallows 204s.
-func (c *Client) delete(url string, purge bool) error {
-	var params []urlParam
-	if purge {
-		params = append(params, urlParam{key: "purge", value: "true"})
-	}
+func (c *Client) delete(url string, params ...urlParam) error {
 	resp, err := c.reqDriver(http.MethodDelete, url, nil, []int{http.StatusNoContent}, params...)
 	defer drainResponse(resp)
 	return err
 }
 
-// GetOptions is the base set of options support by asset GET requests.
+// GetOptions is the base set of options supported by asset GET requests.
 type GetOptions struct {
 	IncludeDeleted bool
 }
@@ -80,7 +91,7 @@ type GetOptions struct {
 func (o GetOptions) params() []urlParam {
 	var p []urlParam
 	if o.IncludeDeleted {
-		p = append(p, urlParam{"include_deleted", "true"})
+		p = append(p, urlParam{queryparams.IncludeDeleted, "true"})
 	}
 	return p
 }
