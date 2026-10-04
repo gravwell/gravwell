@@ -19,7 +19,7 @@ func (c *Client) ListUserPreferences(opts types.QueryOptions) (ret types.UserPre
 
 // ListAllUserPreferences (admin-only) returns all user preferences on the system.
 func (c *Client) ListAllUserPreferences(opts types.QueryOptions) (ret types.UserPreferenceResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	opts.All = true // we'll reject this if the user isn't actually an admin
 	return c.post[types.QueryOptions, types.UserPreferenceResponse](LIST_USER_PREFERENCES_URL, &opts)
 }
 
@@ -57,12 +57,12 @@ func (c *Client) GetUserPreferenceByName(name string) (types.UserPreference, err
 
 // DeleteUserPreference deletes a user preference by marking it deleted in the database.
 func (c *Client) DeleteUserPreference(id string) error {
-	return c.delete(userPreferencesIdUrl(id), false)
+	return c.delete(userPreferencesIdUrl(id))
 }
 
 // PurgeUserPreference deletes a user preference entirely, removing it from the database.
 func (c *Client) PurgeUserPreference(id string) error {
-	return c.delete(userPreferencesIdUrl(id), true)
+	return c.delete(userPreferencesIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateUserPreference creates a new user preference, returning the newly-created user preference.
@@ -80,7 +80,7 @@ func (c *Client) UpdateUserPreference(ID string, p types.UserPreferencePatch) (u
 
 // CleanupUserPreferences (admin-only) purges all deleted user preferences for all users.
 func (c *Client) CleanupUserPreferences() error {
-	return c.delete(USER_PREFERENCES_URL, false)
+	return c.delete(USER_PREFERENCES_URL)
 }
 
 // GetGuiPreferences is a convenience function: it returns the Data
@@ -94,7 +94,7 @@ func (c *Client) GetGuiPreferences(uid int32, obj interface{}) error {
 // object named `prefs` belonging to the specified user. It does *not*
 // delete the underlying asset, though.
 func (c *Client) ClearGuiPreferences(id int32) error {
-	return c.delete(usersIdPreferencesUrl(id), false)
+	return c.delete(usersIdPreferencesUrl(id))
 }
 
 // UpdateGuiPreferences updates the Data field of the preferences object
