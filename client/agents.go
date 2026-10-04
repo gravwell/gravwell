@@ -21,12 +21,9 @@ func (c *Client) ListAgents(opts *types.QueryOptions) (ret types.AgentListRespon
 }
 
 // ListAllAgents (admin-only) returns all agents on the system.
-func (c *Client) ListAllAgents(opts *types.QueryOptions) (ret types.AgentListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+func (c *Client) ListAllAgents(opts types.QueryOptions) (ret types.AgentListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.AgentListResponse](LIST_AGENTS_URL, opts)
+	return c.post[types.QueryOptions, types.AgentListResponse](LIST_AGENTS_URL, &opts)
 }
 
 // GetAgent returns a particular agent.
@@ -76,12 +73,9 @@ func (c *Client) ListAgentSkills(opts *types.QueryOptions) (ret types.AgentSkill
 }
 
 // ListAllAgentSkills (admin-only) returns all agent skills on the system.
-func (c *Client) ListAllAgentSkills(opts *types.QueryOptions) (ret types.AgentSkillListResponse, err error) {
-	if opts == nil {
-		opts = &types.QueryOptions{}
-	}
+func (c *Client) ListAllAgentSkills(opts types.QueryOptions) (ret types.AgentSkillListResponse, err error) {
 	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.AgentSkillListResponse](LIST_AGENT_SKILLS_URL, opts)
+	return c.post[types.QueryOptions, types.AgentSkillListResponse](LIST_AGENT_SKILLS_URL, &opts)
 }
 
 // GetAgentSkill returns a particular agent skill.
