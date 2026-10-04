@@ -50,7 +50,7 @@ func (c *Client) GetGuiSettings() (types.GUISettings, error) {
 
 func (c *Client) getGuiSettings() (types.GUISettings, error) {
 	settings := types.GUISettings{}
-	err := c.getStaticURL(SETTINGS_URL, &settings)
+	err := c.getStaticURL(INFO_SETTINGS_URL, &settings)
 	return settings, err
 
 }
@@ -95,7 +95,7 @@ func (c *Client) MyGroups() (gps []types.Group, err error) {
 
 func (c *Client) getMyInfo() (types.User, error) {
 	dets := types.User{}
-	if err := c.getStaticURL(USER_INFO_URL, &dets); err != nil {
+	if err := c.getStaticURL(SELF_URL, &dets); err != nil {
 		return dets, err
 	}
 	return dets, nil
@@ -114,7 +114,7 @@ func (c *Client) checkApiVersionNoLock() error {
 	// manually operate the request as helper functions like methodStaticURL expect authentication
 
 	//build up URL we are going to throw at
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, API_VERSION_URL)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, VERSION_URL)
 
 	//build up the request
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
@@ -161,19 +161,19 @@ func (c *Client) checkApiVersionNoLock() error {
 // GetApiVersion returns the REST API version of the webserver.
 func (c *Client) GetApiVersion() (types.ApiInfo, error) {
 	var version types.VersionInfo
-	err := c.getStaticURL(API_VERSION_URL, &version)
+	err := c.getStaticURL(VERSION_URL, &version)
 	return version.API, err
 }
 
 // GetVersion returns the REST version struct from the webserver.
 func (c *Client) GetVersion() (version types.VersionInfo, err error) {
-	err = c.getStaticURL(API_VERSION_URL, &version)
+	err = c.getStaticURL(VERSION_URL, &version)
 	return
 }
 
 func (c *Client) getLogLevelInfo() (types.LoggingLevels, error) {
 	ll := types.LoggingLevels{}
-	if err := c.methodStaticURL(http.MethodGet, LOGGING_PATH_URL, &ll); err != nil {
+	if err := c.methodStaticURL(http.MethodGet, LOGGING_URL, &ll); err != nil {
 		return ll, err
 	}
 	return ll, nil
@@ -214,13 +214,13 @@ func (c *Client) SetLogLevel(level string) error {
 	l := types.LogLevel{
 		Level: level,
 	}
-	return c.methodStaticPushURL(http.MethodPut, LOGGING_PATH_URL, l, nil, nil, nil)
+	return c.methodStaticPushURL(http.MethodPut, LOGGING_URL, l, nil, nil, nil)
 }
 
 // GetTags returns an array of strings representing the tags on the Gravwell system.
 func (c *Client) GetTags() ([]string, error) {
 	var tags []string
-	err := c.methodStaticURL(http.MethodGet, TAGS_URL, &tags)
+	err := c.methodStaticURL(http.MethodGet, LIST_TAGS_URL, &tags)
 	return tags, err
 }
 
@@ -335,34 +335,34 @@ func (c *Client) SetMailConfig(user, pass, server string, port uint16, useTLS, n
 		UseTLS:             useTLS,
 		InsecureSkipVerify: noVerify,
 	}
-	return c.postStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
+	return c.putStaticURL(SELF_MAIL_CONFIGURATION_URL, &msg)
 }
 
 // DeleteMailConfig removes a users mail configuration fom preferences
 // this completely uninstalls any mail configs
 func (c *Client) DeleteMailConfig() error {
-	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, []int{http.StatusOK, http.StatusNotFound}, nil)
+	return c.methodStaticPushURL(http.MethodDelete, SELF_MAIL_CONFIGURATION_URL, nil, nil, []int{http.StatusOK, http.StatusNotFound}, nil)
 }
 
 // GetMailConfig retrieves the current mail config
 // if no mail config is set an empty UserMailConfig is returned
 // Even on a valid mail config the Password portion is not present in the response
 func (c *Client) GetMailConfig() (mc types.UserMailConfig, err error) {
-	err = c.getStaticURL(MAIL_CONFIGURE_URL, &mc)
+	err = c.getStaticURL(SELF_MAIL_CONFIGURATION_URL, &mc)
 	return
 }
 
 // GetWellData returns information about the storage wells on the indexers.
 // The return value is a map of indexer name strings to IndexerWellData objects.
 func (c *Client) GetWellData() (mp map[string]types.IndexerWellData, err error) {
-	err = c.getStaticURL(wellDataUrl(), &mp)
+	err = c.getStaticURL(statsWellstatsUrl(), &mp)
 	return
 }
 
 // GetSearchQueue returns information about the search queue. If rate limiting is
 // disabled, all values will be zero.
 func (c *Client) GetSearchQueue() (s types.SearchQueue, err error) {
-	err = c.getStaticURL(searchQueueUrl(), &s)
+	err = c.getStaticURL(statsSearchQueueUrl(), &s)
 	return
 }
 

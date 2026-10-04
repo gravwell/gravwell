@@ -14,13 +14,13 @@ import (
 
 // ListPlaybooks returns all playbooks accessible to the current user.
 func (c *Client) ListPlaybooks(opts types.QueryOptions) (ret types.PlaybookListResponse, err error) {
-	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.PlaybookListResponse](LIST_PLAYBOOKS_URL, &opts)
 }
 
 // ListAllPlaybooks (admin-only) returns all playbooks on the system.
 func (c *Client) ListAllPlaybooks(opts types.QueryOptions) (ret types.PlaybookListResponse, err error) {
 	opts.All = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.PlaybookListResponse](PLAYBOOKS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.PlaybookListResponse](LIST_PLAYBOOKS_URL, &opts)
 }
 
 // GetPlaybook returns a particular playbook.
@@ -30,17 +30,17 @@ func (c *Client) GetPlaybook(id string) (types.Playbook, error) {
 
 // GetPlaybookEx returns a particular playbook, modified by opts.
 func (c *Client) GetPlaybookEx(id string, opts GetOptions) (types.Playbook, error) {
-	return c.get[types.Playbook](playbookUrl(id), opts.params()...)
+	return c.get[types.Playbook](playbooksIdUrl(id), opts.params()...)
 }
 
 // DeletePlaybook deletes a playbook by marking it deleted in the database.
 func (c *Client) DeletePlaybook(id string) error {
-	return c.delete(playbookUrl(id))
+	return c.delete(playbooksIdUrl(id))
 }
 
 // PurgePlaybook deletes a playbook entirely, removing it from the database.
 func (c *Client) PurgePlaybook(id string) error {
-	return c.delete(playbookUrl(id), DeleteOptions{Purge: true}.params()...)
+	return c.delete(playbooksIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreatePlaybook creates a new playbook, returning the newly-created playbook.
@@ -53,7 +53,7 @@ func (c *Client) UpdatePlaybook(ID string, p types.PlaybookPatch) (updated types
 	if ID == "" {
 		return types.Playbook{}, ErrEmptyID
 	}
-	return c.patch[types.PlaybookPatch, types.Playbook](playbookUrl(ID), p)
+	return c.patch[types.PlaybookPatch, types.Playbook](playbooksIdUrl(ID), p)
 }
 
 // CleanupPlaybooks (admin-only) purges all deleted playbooks for all users.

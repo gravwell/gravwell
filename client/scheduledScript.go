@@ -18,13 +18,13 @@ import (
 
 // ListScheduledScripts returns scheduled scripts the user has access to.
 func (c *Client) ListScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
-	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](LIST_SCHEDULED_SCRIPTS_URL, &opts)
 }
 
 // ListAllScheduledScripts returns all scheduled scripts on the system (for admins).
 func (c *Client) ListAllScheduledScripts(opts types.QueryOptions) (scripts types.ScheduledScriptListResponse, err error) {
 	opts.All = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](SCHEDULED_SCRIPT_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.ScheduledScriptListResponse](LIST_SCHEDULED_SCRIPTS_URL, &opts)
 }
 
 // GetScheduledScript returns the scheduled script with the given ID.
@@ -34,22 +34,22 @@ func (c *Client) GetScheduledScript(id string) (types.ScheduledScript, error) {
 
 // GetScheduledScriptEx returns a particular scheduled script, modified by opts.
 func (c *Client) GetScheduledScriptEx(id string, opts GetOptions) (types.ScheduledScript, error) {
-	return c.get[types.ScheduledScript](scheduledScriptIdUrl(id), opts.params()...)
+	return c.get[types.ScheduledScript](scheduledScriptsIdUrl(id), opts.params()...)
 }
 
 // DeleteScheduledScript removes the specified scheduled script.
 func (c *Client) DeleteScheduledScript(id string) error {
-	return c.delete(scheduledScriptIdUrl(id))
+	return c.delete(scheduledScriptsIdUrl(id))
 }
 
 // PurgeScheduledScript permanently removes the specified scheduled script.
 func (c *Client) PurgeScheduledScript(id string) error {
-	return c.delete(scheduledScriptIdUrl(id), DeleteOptions{Purge: true}.params()...)
+	return c.delete(scheduledScriptsIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateScheduledScript makes a new scheduled script.
 func (c *Client) CreateScheduledScript(spec types.ScheduledScript) (result types.ScheduledScript, err error) {
-	return c.post[types.ScheduledScript, types.ScheduledScript](scheduledScriptUrl(), &spec)
+	return c.post[types.ScheduledScript, types.ScheduledScript](scheduledScriptsUrl(), &spec)
 }
 
 // UpdateScheduledScript modifies an existing scheduled script and returns the complete, updated struct.
@@ -57,14 +57,14 @@ func (c *Client) UpdateScheduledScript(ID string, p types.ScheduledScriptPatch) 
 	if ID == "" {
 		return types.ScheduledScript{}, ErrEmptyID
 	}
-	return c.patch[types.ScheduledScriptPatch, types.ScheduledScript](scheduledScriptIdUrl(ID), p)
+	return c.patch[types.ScheduledScriptPatch, types.ScheduledScript](scheduledScriptsIdUrl(ID), p)
 }
 
 // UpdateScheduledScriptResults is used to update the scheduled script after it has been
 // run. It only updates the PersistentMaps, LastRun, LastRunDuration, LastSearchIDs,
 // and LastError fields
 func (c *Client) UpdateScheduledScriptResults(ss types.ScheduledScript) error {
-	return c.putStaticURL(scheduledScriptResultsIdUrl(ss.ID), ss)
+	return c.putStaticURL(scheduledScriptsIdResultsUrl(ss.ID), ss)
 }
 
 // ParseScheduledScript asks the API to parse a script given an ID.
@@ -79,7 +79,7 @@ func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line,
 		ScriptLanguage: lang,
 		Script:         data,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, scheduledScriptParseUrl(), req, &resp, nil, nil); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPost, validateScheduledScriptUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 	if resp.OK {
@@ -97,17 +97,17 @@ func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line,
 
 // ReportScheduledScriptResults uploads a set of results for the scheduled script with the specified ID.
 func (c *Client) ReportScheduledScriptResults(id string, results types.ScheduledScriptResults) error {
-	return c.postStaticURL(scheduledScriptResultsIdUrl(id), results, nil)
+	return c.postStaticURL(scheduledScriptsIdResultsUrl(id), results, nil)
 }
 
 // GetScheduledScriptResults retrieves the most recent results for the specified scheduled script
 func (c *Client) GetScheduledScriptResults(id string) (results types.ScheduledScriptResults, err error) {
-	return c.get[types.ScheduledScriptResults](scheduledScriptResultsIdUrl(id))
+	return c.get[types.ScheduledScriptResults](scheduledScriptsIdResultsUrl(id))
 }
 
 // ClearScheduledScriptResults deletes all results for the specified scheduled script
 func (c *Client) ClearScheduledScriptResults(id string) error {
-	return c.delete(scheduledScriptResultsIdUrl(id))
+	return c.delete(scheduledScriptsIdResultsUrl(id))
 }
 
 // ClearAllScheduledScriptResults (admin-only) deletes all results for the specified scheduled
@@ -116,20 +116,20 @@ func (c *Client) ClearAllScheduledScriptResults(id string) error {
 	if !c.userDetails.Admin {
 		return ErrNotAdmin
 	}
-	return c.delete(scheduledScriptResultsIdUrl(id), urlParam{queryparams.All, "true"})
+	return c.delete(scheduledScriptsIdResultsUrl(id), urlParam{queryparams.All, "true"})
 }
 
 // DebugScheduledScript requests an immediate debug run of the specified scheduled script.
 func (c *Client) DebugScheduledScript(id string, opts types.AutomationDebugRequest) error {
-	return c.postStaticURL(scheduledScriptDebugIdUrl(id), opts, nil)
+	return c.postStaticURL(scheduledScriptsIdDebugUrl(id), opts, nil)
 }
 
 // CancelScheduledScript cancels any active run of the specified scheduled script.
 func (c *Client) CancelScheduledScript(id string) error {
-	return c.delete(scheduledScriptCancelIdUrl(id))
+	return c.delete(scheduledScriptsIdCancelUrl(id))
 }
 
 // CleanupScheduledScripts (admin-only) purges all deleted scheduled scripts for all users.
 func (c *Client) CleanupScheduledScripts() error {
-	return c.delete(SCHEDULED_SCRIPT_URL)
+	return c.delete(SCHEDULED_SCRIPTS_URL)
 }

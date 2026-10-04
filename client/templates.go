@@ -14,13 +14,13 @@ import (
 
 // ListTemplates returns all templates accessible to the current user.
 func (c *Client) ListTemplates(opts types.QueryOptions) (ret types.TemplateListResponse, err error) {
-	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.TemplateListResponse](LIST_TEMPLATES_URL, &opts)
 }
 
 // ListAllTemplates (admin-only) returns all templates on the system.
 func (c *Client) ListAllTemplates(opts types.QueryOptions) (ret types.TemplateListResponse, err error) {
 	opts.All = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.TemplateListResponse](TEMPLATES_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.TemplateListResponse](LIST_TEMPLATES_URL, &opts)
 }
 
 // GetTemplate returns a particular template.
@@ -30,17 +30,17 @@ func (c *Client) GetTemplate(id string) (types.Template, error) {
 
 // GetTemplateEx returns a particular template, modified by opts.
 func (c *Client) GetTemplateEx(id string, opts GetOptions) (types.Template, error) {
-	return c.get[types.Template](templateUrl(id), opts.params()...)
+	return c.get[types.Template](templatesIdUrl(id), opts.params()...)
 }
 
 // DeleteTemplate deletes a template by marking it deleted in the database.
 func (c *Client) DeleteTemplate(id string) error {
-	return c.delete(templateUrl(id))
+	return c.delete(templatesIdUrl(id))
 }
 
 // PurgeTemplate deletes a template entirely, removing it from the database.
 func (c *Client) PurgeTemplate(id string) error {
-	return c.delete(templateUrl(id), DeleteOptions{Purge: true}.params()...)
+	return c.delete(templatesIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateTemplate creates a new template, returning the newly-created template.
@@ -53,7 +53,7 @@ func (c *Client) UpdateTemplate(ID string, p types.TemplatePatch) (updated types
 	if ID == "" {
 		return types.Template{}, ErrEmptyID
 	}
-	return c.patch[types.TemplatePatch, types.Template](templateUrl(ID), p)
+	return c.patch[types.TemplatePatch, types.Template](templatesIdUrl(ID), p)
 }
 
 // CleanupTemplates (admin-only) purges all deleted templates for all users.

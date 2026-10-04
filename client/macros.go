@@ -14,13 +14,13 @@ import (
 
 // ListMacros returns all macros accessible to the current user.
 func (c *Client) ListMacros(opts types.QueryOptions) (ret types.MacroListResponse, err error) {
-	return c.post[types.QueryOptions, types.MacroListResponse](MACROS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.MacroListResponse](LIST_MACROS_URL, &opts)
 }
 
 // ListAllMacros (admin-only) returns all macros on the system.
 func (c *Client) ListAllMacros(opts types.QueryOptions) (ret types.MacroListResponse, err error) {
 	opts.All = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.MacroListResponse](MACROS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.MacroListResponse](LIST_MACROS_URL, &opts)
 }
 
 // GetMacro returns a particular macro.
@@ -30,17 +30,17 @@ func (c *Client) GetMacro(id string) (types.Macro, error) {
 
 // GetMacroEx returns a particular macro, modified by opts.
 func (c *Client) GetMacroEx(id string, opts GetOptions) (types.Macro, error) {
-	return c.get[types.Macro](macroIDUrl(id), opts.params()...)
+	return c.get[types.Macro](macrosIdUrl(id), opts.params()...)
 }
 
 // DeleteMacro deletes a macro by marking it deleted in the database.
 func (c *Client) DeleteMacro(id string) error {
-	return c.delete(macroIDUrl(id))
+	return c.delete(macrosIdUrl(id))
 }
 
 // PurgeMacro deletes a macro entirely, removing it from the database.
 func (c *Client) PurgeMacro(id string) error {
-	return c.delete(macroIDUrl(id), DeleteOptions{Purge: true}.params()...)
+	return c.delete(macrosIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateMacro creates a new macro, returning the newly-created macro.
@@ -53,7 +53,7 @@ func (c *Client) UpdateMacro(ID string, p types.MacroPatch) (updated types.Macro
 	if ID == "" {
 		return types.Macro{}, ErrEmptyID
 	}
-	return c.patch[types.MacroPatch, types.Macro](macroIDUrl(ID), p)
+	return c.patch[types.MacroPatch, types.Macro](macrosIdUrl(ID), p)
 }
 
 // CleanupMacros (admin-only) purges all deleted macros for all users.

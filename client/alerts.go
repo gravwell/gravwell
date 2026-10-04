@@ -19,13 +19,13 @@ func (c *Client) CreateAlert(def types.Alert) (result types.Alert, err error) {
 
 // ListAlerts returns a list of alerts the user has access to.
 func (c *Client) ListAlerts(opts types.QueryOptions) (result types.AlertListResponse, err error) {
-	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.AlertListResponse](LIST_ALERTS_URL, &opts)
 }
 
 // ListAllAlerts (admin-only) returns all alerts on the system.
 func (c *Client) ListAllAlerts(opts types.QueryOptions) (result types.AlertListResponse, err error) {
 	opts.All = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.AlertListResponse](ALERTS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.AlertListResponse](LIST_ALERTS_URL, &opts)
 }
 
 // GetAlert returns the definition for a specific alert.
@@ -58,7 +58,7 @@ func (c *Client) PurgeAlert(id string) (err error) {
 
 // GetAlertSampleEvent asks the webserver to generate a sample event for the given alert.
 func (c *Client) GetAlertSampleEvent(id string) (result types.Event, err error) {
-	return c.get[types.Event](alertsIdSampleEventUrl(id))
+	return c.get[types.Event](alertsIdSampleUrl(id))
 }
 
 // ValidateAlertScheduledSearchDispatcher validates an existing scheduled search against
@@ -72,7 +72,7 @@ func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID string, schema
 		},
 		Schema: schema,
 	}
-	return c.post[types.AlertDispatcherValidateRequest, types.AlertDispatcherValidateResponse](alertsValidateDispatcherUrl(), &req)
+	return c.post[types.AlertDispatcherValidateRequest, types.AlertDispatcherValidateResponse](validateAlertDispatcherUrl(), &req)
 }
 
 // ValidateAlertFlowConsumer validates an existing flow against
@@ -87,7 +87,7 @@ func (c *Client) ValidateAlertFlowConsumer(flowID string, alert types.Alert) (re
 		},
 		Alert: alert,
 	}
-	return c.post[types.AlertConsumerValidateRequest, types.AlertConsumerValidateResponse](alertsValidateConsumerUrl(), &req)
+	return c.post[types.AlertConsumerValidateRequest, types.AlertConsumerValidateResponse](validateAlertConsumerUrl(), &req)
 }
 
 // CleanupAlerts (admin-only) purges all deleted alerts for all users.

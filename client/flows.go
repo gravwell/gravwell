@@ -17,13 +17,13 @@ import (
 
 // ListFlows returns flows the user has access to.
 func (c *Client) ListFlows(opts types.QueryOptions) (flows types.FlowListResponse, err error) {
-	return c.post[types.QueryOptions, types.FlowListResponse](FLOW_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.FlowListResponse](LIST_FLOWS_URL, &opts)
 }
 
 // ListAllFlows returns all flows on the system (for admins).
 func (c *Client) ListAllFlows(opts types.QueryOptions) (flows types.FlowListResponse, err error) {
 	opts.All = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.FlowListResponse](FLOW_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.FlowListResponse](LIST_FLOWS_URL, &opts)
 }
 
 // GetFlow returns the flow with the given ID.
@@ -33,22 +33,22 @@ func (c *Client) GetFlow(id string) (types.Flow, error) {
 
 // GetFlowEx returns a particular flow, modified by opts.
 func (c *Client) GetFlowEx(id string, opts GetOptions) (types.Flow, error) {
-	return c.get[types.Flow](flowIdUrl(id), opts.params()...)
+	return c.get[types.Flow](flowsIdUrl(id), opts.params()...)
 }
 
 // DeleteFlow removes the specified flow.
 func (c *Client) DeleteFlow(id string) error {
-	return c.delete(flowIdUrl(id))
+	return c.delete(flowsIdUrl(id))
 }
 
 // PurgeFlow permanently removes the specified flow.
 func (c *Client) PurgeFlow(id string) error {
-	return c.delete(flowIdUrl(id), DeleteOptions{Purge: true}.params()...)
+	return c.delete(flowsIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateFlow makes a new flow.
 func (c *Client) CreateFlow(spec types.Flow) (result types.Flow, err error) {
-	return c.post[types.Flow, types.Flow](flowUrl(), &spec)
+	return c.post[types.Flow, types.Flow](flowsUrl(), &spec)
 }
 
 // UpdateFlow modifies an existing flow and returns the complete, updated struct.
@@ -56,7 +56,7 @@ func (c *Client) UpdateFlow(ID string, p types.FlowPatch) (updated types.Flow, e
 	if ID == "" {
 		return types.Flow{}, ErrEmptyID
 	}
-	return c.patch[types.FlowPatch, types.Flow](flowIdUrl(ID), p)
+	return c.patch[types.FlowPatch, types.Flow](flowsIdUrl(ID), p)
 }
 
 // ParseFlow asks the API to check a flow.  It will only return an
@@ -67,7 +67,7 @@ func (c *Client) ParseFlow(flow string) (resp types.FlowParseResponse, err error
 	req := types.FlowParseRequest{
 		Flow: flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPost, validateFlowUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 	return
@@ -83,7 +83,7 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (resp types.F
 		DebugEvent: &event,
 		Flow:       flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPost, validateFlowUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 	return
@@ -91,17 +91,17 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (resp types.F
 
 // ReportFlowResults uploads a set of results for the flow with the specified ID.
 func (c *Client) ReportFlowResults(id string, results types.FlowResults) error {
-	return c.postStaticURL(flowResultsIdUrl(id), results, nil)
+	return c.postStaticURL(flowsIdResultsUrl(id), results, nil)
 }
 
 // GetFlowResults retrieves the most recent results for the specified flow
 func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error) {
-	return c.get[types.FlowResults](flowResultsIdUrl(id))
+	return c.get[types.FlowResults](flowsIdResultsUrl(id))
 }
 
 // ClearFlowResults deletes all results for the specified flow
 func (c *Client) ClearFlowResults(id string) error {
-	return c.delete(flowResultsIdUrl(id))
+	return c.delete(flowsIdResultsUrl(id))
 }
 
 // ClearAllFlowResults (admin-only) deletes all results for the specified flow,
@@ -110,20 +110,20 @@ func (c *Client) ClearAllFlowResults(id string) error {
 	if !c.userDetails.Admin {
 		return ErrNotAdmin
 	}
-	return c.delete(flowResultsIdUrl(id), urlParam{queryparams.All, "true"})
+	return c.delete(flowsIdResultsUrl(id), urlParam{queryparams.All, "true"})
 }
 
 // DebugFlow schedules an immediate execution of the specified flow.
 func (c *Client) DebugFlow(id string, opts types.AutomationDebugRequest) error {
-	return c.postStaticURL(flowDebugIdUrl(id), opts, nil)
+	return c.postStaticURL(flowsIdDebugUrl(id), opts, nil)
 }
 
 // CancelFlow cancels any active run of the specified flow.
 func (c *Client) CancelFlow(id string) error {
-	return c.delete(flowCancelIdUrl(id))
+	return c.delete(flowsIdCancelUrl(id))
 }
 
 // CleanupFlows (admin-only) purges all deleted flows for all users.
 func (c *Client) CleanupFlows() error {
-	return c.delete(FLOW_URL)
+	return c.delete(FLOWS_URL)
 }

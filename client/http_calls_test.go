@@ -219,9 +219,9 @@ func TestListAll(t *testing.T) {
 		url  string
 		call func(c *Client, opts types.QueryOptions) error
 	}{
-		{"tokens", TOKENS_LIST_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllTokens(o); return err }},
-		{"secrets", SECRETS_LIST_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllSecrets(o); return err }},
-		{"macros", MACROS_LIST_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllMacros(o); return err }},
+		{"tokens", LIST_TOKENS_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllTokens(o); return err }},
+		{"secrets", LIST_SECRETS_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllSecrets(o); return err }},
+		{"macros", LIST_MACROS_URL, func(c *Client, o types.QueryOptions) error { _, err := c.ListAllMacros(o); return err }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

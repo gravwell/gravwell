@@ -14,13 +14,13 @@ import (
 
 // ListDashboards returns all dashboards accessible to the current user.
 func (c *Client) ListDashboards(opts types.QueryOptions) (ret types.DashboardListResponse, err error) {
-	return c.post[types.QueryOptions, types.DashboardListResponse](DASHBOARDS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.DashboardListResponse](LIST_DASHBOARDS_URL, &opts)
 }
 
 // ListAllDashboards (admin-only) returns all dashboards on the system.
 func (c *Client) ListAllDashboards(opts types.QueryOptions) (ret types.DashboardListResponse, err error) {
 	opts.All = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.DashboardListResponse](DASHBOARDS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.DashboardListResponse](LIST_DASHBOARDS_URL, &opts)
 }
 
 // GetDashboard returns a particular dashboard.
@@ -30,17 +30,17 @@ func (c *Client) GetDashboard(id string) (types.Dashboard, error) {
 
 // GetDashboardEx returns a particular dashboard, modified by opts.
 func (c *Client) GetDashboardEx(id string, opts GetOptions) (types.Dashboard, error) {
-	return c.get[types.Dashboard](dashboardIdUrl(id), opts.params()...)
+	return c.get[types.Dashboard](dashboardsIdUrl(id), opts.params()...)
 }
 
 // DeleteDashboard deletes a dashboard by marking it deleted in the database.
 func (c *Client) DeleteDashboard(id string) error {
-	return c.delete(dashboardIdUrl(id))
+	return c.delete(dashboardsIdUrl(id))
 }
 
 // PurgeDashboard deletes a dashboard entirely, removing it from the database.
 func (c *Client) PurgeDashboard(id string) error {
-	return c.delete(dashboardIdUrl(id), DeleteOptions{Purge: true}.params()...)
+	return c.delete(dashboardsIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CreateDashboard creates a new dashboard, returning the newly-created dashboard.
@@ -53,7 +53,7 @@ func (c *Client) UpdateDashboard(ID string, p types.DashboardPatch) (updated typ
 	if ID == "" {
 		return types.Dashboard{}, ErrEmptyID
 	}
-	return c.patch[types.DashboardPatch, types.Dashboard](dashboardIdUrl(ID), p)
+	return c.patch[types.DashboardPatch, types.Dashboard](dashboardsIdUrl(ID), p)
 }
 
 // CleanupDashboards (admin-only) purges all deleted dashboards for all users.
