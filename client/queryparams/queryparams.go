@@ -12,3 +12,10 @@ const (
 	// List endpoints use QueryOptions.All instead.
 	All string = "all"
 )
+
+// niche/endpoint-specific parameter keys
+const (
+	// used by GET /api/list/remote-kits.
+	// If set, webserver will filter out locally installed kits when listing available remote kits
+	OmitInstalled string = "omit_installed"
+)
