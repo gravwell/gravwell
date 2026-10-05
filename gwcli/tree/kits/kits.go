@@ -577,6 +577,52 @@ func build() action.Pair {
 				},
 				},
 			},
+			"agents": {
+				Title:    "Agents",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "agents", Usage: "Comma-separated list of AI agent IDs to include in the kit."},
+				Order:    295,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Agents {
+								preselections[x] = true
+							}
+						}
+						lr, err := connection.Client.ListAgents(types.QueryOptions{All: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch agents", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapAssets(lr.Results, preselections)
+					},
+				},
+				},
+			},
+			"agent skills": {
+				Title:    "Agent Skills",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "agent-skills", Usage: "Comma-separated list of agent skill IDs to include in the kit."},
+				Order:    285,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.AgentSkills {
+								preselections[x] = true
+							}
+						}
+						lr, err := connection.Client.ListAgentSkills(types.QueryOptions{All: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch agent skills", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapAssets(lr.Results, preselections)
+					},
+				},
+				},
+			},
 			"saved queries": {
 				Title:    "Saved Queries",
 				Required: false,
@@ -733,6 +779,8 @@ func build() action.Pair {
 				Playbooks:         getSliceOrNil(fields["playbooks"].Provider.Get()),
 				SavedQueries:      getSliceOrNil(fields["saved queries"].Provider.Get()),
 				Alerts:            getSliceOrNil(fields["alerts"].Provider.Get()),
+				Agents:            getSliceOrNil(fields["agents"].Provider.Get()),
+				AgentSkills:       getSliceOrNil(fields["agent skills"].Provider.Get()),
 				EmbeddedItems:     embed,
 				Icon:              iconID,
 			}
@@ -910,6 +958,10 @@ func build() action.Pair {
 							priorKBR.Playbooks = append(priorKBR.Playbooks, item.ID)
 						case types.KitAssetAlert:
 							priorKBR.Alerts = append(priorKBR.Alerts, item.ID)
+						case types.KitAssetAgent:
+							priorKBR.Agents = append(priorKBR.Agents, item.ID)
+						case types.KitAssetAgentSkill:
+							priorKBR.AgentSkills = append(priorKBR.AgentSkills, item.ID)
 						/*case types.KitAssetExternal: // external is unused
 						priorKBR.EmbeddedItems = append(priorKBR.EmbeddedItems, types.KitEmbeddedItem{})*/
 						case types.KitAssetLicense:

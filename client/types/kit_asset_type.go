@@ -28,6 +28,8 @@ const (
 	KitAssetPlaybook        KitAssetType = KitAssetType(AssetPlaybook)
 	KitAssetDashboard       KitAssetType = KitAssetType(AssetDashboard)
 	KitAssetActionable      KitAssetType = KitAssetType(AssetActionable)
+	KitAssetAgent           KitAssetType = KitAssetType(AssetAgent)
+	KitAssetAgentSkill      KitAssetType = KitAssetType(AssetAgentSkill)
 
 	// Kit-only types not backed by the webserver registry.
 	KitAssetExternal KitAssetType = "external"
@@ -48,6 +50,8 @@ var kitAssetTypeSet = map[KitAssetType]struct{}{
 	KitAssetPlaybook:        {},
 	KitAssetDashboard:       {},
 	KitAssetActionable:      {},
+	KitAssetAgent:           {},
+	KitAssetAgentSkill:      {},
 	KitAssetExternal:        {},
 	KitAssetLicense:         {},
 }

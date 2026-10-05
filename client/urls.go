@@ -182,6 +182,12 @@ const (
 	PLAYBOOKS_URL                         = `/api/playbooks`
 	LIST_PLAYBOOKS_URL                    = `/api/list/playbooks`
 	PLAYBOOKS_ID_URL                      = `/api/playbooks/%s`
+	AGENTS_URL                            = `/api/agents`
+	LIST_AGENTS_URL                       = `/api/list/agents`
+	AGENTS_ID_URL                         = `/api/agents/%s`
+	AGENT_SKILLS_URL                      = `/api/agent-skills`
+	LIST_AGENT_SKILLS_URL                 = `/api/list/agent-skills`
+	AGENT_SKILLS_ID_URL                   = `/api/agent-skills/%s`
 	BACKUP_URL                            = `/api/backup`
 	INFO_DEPLOYMENT_URL                   = `/api/info/deployment`
 	TOKENS_URL                            = `/api/tokens`
@@ -460,6 +466,14 @@ func macrosIdUrl(id string) string {
 
 func playbooksIdUrl(id string) string {
 	return fmt.Sprintf(PLAYBOOKS_ID_URL, id)
+}
+
+func agentsIdUrl(id string) string {
+	return fmt.Sprintf(AGENTS_ID_URL, id)
+}
+
+func agentSkillsIdUrl(id string) string {
+	return fmt.Sprintf(AGENT_SKILLS_ID_URL, id)
 }
 
 func kitsUrl() string {

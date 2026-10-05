@@ -35,6 +35,7 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/actionables"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/ai"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/automation"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/cbac"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
@@ -416,6 +417,7 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 	var cmdFn = []func() *cobra.Command{
 		actionables.NewNav,
 		admin.NewNav,
+		ai.NewNav,
 		automation.NewNav,
 		cbac.NewNav,
 		dashboards.NewNav,
