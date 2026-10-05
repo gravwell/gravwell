@@ -84,7 +84,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list agents", "List the agents available to your user.",
 		wrappedAgent{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedAgent, error) {
-			resp, err := connection.Client.ListAgents(params.QueryOpts)
+			resp, err := connection.Client.ListAgents(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -172,7 +172,7 @@ func replace() action.Pair {
 			"Ownership and sharing are untouched.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(nil)
+			lr, err := connection.Client.ListAgents(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -232,7 +232,7 @@ func download() action.Pair {
 		"Download the definition of an agent as JSON, for use with gaftool or to upload elsewhere.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(nil)
+			lr, err := connection.Client.ListAgents(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -300,7 +300,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteAgent(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(params.QueryOpts)
+			lr, err := connection.Client.ListAgents(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}

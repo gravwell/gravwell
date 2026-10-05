@@ -590,7 +590,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListAgents(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListAgents(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch agents", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
@@ -613,7 +613,7 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListAgentSkills(&types.QueryOptions{AdminMode: true})
+						lr, err := connection.Client.ListAgentSkills(types.QueryOptions{All: true})
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch agent skills", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil

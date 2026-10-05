@@ -71,7 +71,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list skills", "List the agent skills available to your user.",
 		wrappedSkill{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedSkill, error) {
-			resp, err := connection.Client.ListAgentSkills(params.QueryOpts)
+			resp, err := connection.Client.ListAgentSkills(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
@@ -158,7 +158,7 @@ func replace() action.Pair {
 			"Ownership and sharing are untouched.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgentSkills(nil)
+			lr, err := connection.Client.ListAgentSkills(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -226,7 +226,7 @@ func download() action.Pair {
 		"Download a skill as a markdown file (with a front matter block naming it) for use locally or to upload elsewhere.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgentSkills(nil)
+			lr, err := connection.Client.ListAgentSkills(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -291,7 +291,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteAgentSkill(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgentSkills(params.QueryOpts)
+			lr, err := connection.Client.ListAgentSkills(params.QueryOptions())
 			if err != nil {
 				return nil, err
 			}
