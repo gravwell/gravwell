@@ -112,25 +112,9 @@ func (c *Client) PullKit(id string) (pc types.KitState, err error) {
 
 }
 
-type RemoteKitQueryOptions struct {
-	AllVersions   bool // include all versions, even those that are outdated or have been superceded
-	OmitInstalled bool // filter out currently-installed kits
-}
-
-func (rkqo RemoteKitQueryOptions) params() []urlParam {
-	var p []urlParam
-	if rkqo.AllVersions {
-		p = append(p, urlParam{queryparams.All, "true"})
-	}
-	if rkqo.OmitInstalled {
-		p = append(p, urlParam{queryparams.OmitInstalled, "true"})
-	}
-	return p
-}
-
 // ListRemoteKits returns a list of kits available on the kit server.
-func (c *Client) ListRemoteKits(rkqo RemoteKitQueryOptions) (mds types.RemoteKitListResponse, err error) {
-	return c.get[types.RemoteKitListResponse](listRemoteKitsUrl(), rkqo.params()...)
+func (c *Client) ListRemoteKits(all bool) (mds types.RemoteKitListResponse, err error) {
+	return c.get[types.RemoteKitListResponse](listRemoteKitsUrl(all))
 }
 
 // ListKits returns a list of all installed and staged kits.
