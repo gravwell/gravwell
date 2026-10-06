@@ -480,7 +480,10 @@ func kitsUrl() string {
 	return KITS_URL
 }
 
-func listRemoteKitsUrl() string {
+func listRemoteKitsUrl(all bool) string {
+	if all {
+		return LIST_REMOTE_KITS_URL + "?all=true"
+	}
 	return LIST_REMOTE_KITS_URL
 }
 
