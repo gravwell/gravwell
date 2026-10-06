@@ -84,7 +84,7 @@ type resourceFields struct {
 	Readers  types.ACL `json:"Readers,omitzero"`
 	Writers  types.ACL `json:"Writers,omitzero"`
 	Labels   []string  `json:"Labels,omitzero"`
-	Kit      string    `json:"Kit,omitzero"`
+	Kit      string    `json:"KitID,omitzero"`
 }
 
 func resourceOf(a *types.Agent) resourceFields {
