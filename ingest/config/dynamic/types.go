@@ -526,10 +526,12 @@ func (v Variable) emitIniLine(w io.Writer, prefix string) (err error) {
 			}
 			fmt.Fprintf(w, "%s%s=%s\n", prefix, v.Name, q)
 		}
+	// we may never support this, getting these into INI formats reliably without types
+	// is going to be extremely difficult and may not be worth our time at all
 	case typeStruct:
-		// TODO
+		// TODO FIXME
 	case typeSliceStruct:
-		// TODO
+		// TODO FIXME
 	}
 	return
 }
