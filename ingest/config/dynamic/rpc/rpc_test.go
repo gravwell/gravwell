@@ -30,10 +30,6 @@ type echoArgs struct {
 	Value string
 }
 
-type echoReply struct {
-	Value string
-}
-
 // testHarness is a running server plus whatever the test needs to dial it.
 type testHarness struct {
 	srv      *httptest.Server
@@ -89,7 +85,7 @@ func echoMux(t *testing.T) *Mux {
 				return nil, err
 			}
 		}
-		return echoReply{Value: a.Value}, nil
+		return echoArgs{Value: a.Value}, nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +112,7 @@ func TestAuthRoundTrip(t *testing.T) {
 	}
 	defer sess.Close()
 
-	var reply echoReply
+	var reply echoArgs
 	if err = sess.Call(context.Background(), `echo`, echoArgs{Value: `hello`}, &reply); err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +308,7 @@ func TestRPCErrors(t *testing.T) {
 		t.Error(`a panicking handler should return an error`)
 	}
 	// and the session still works afterwards
-	var reply echoReply
+	var reply echoArgs
 	if err = sess.Call(ctx, `echo`, echoArgs{Value: `still here`}, &reply); err != nil {
 		t.Fatalf("the session did not survive a panicking handler: %v", err)
 	} else if reply.Value != `still here` {
@@ -334,7 +330,7 @@ func TestBidirectional(t *testing.T) {
 		mtx.Lock()
 		got = a.Value
 		mtx.Unlock()
-		return echoReply{Value: `applied`}, nil
+		return echoArgs{Value: `applied`}, nil
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +349,7 @@ func TestBidirectional(t *testing.T) {
 		t.Fatal(`no server session`)
 	}
 
-	var reply echoReply
+	var reply echoArgs
 	if err = srvSess.Call(context.Background(), `applyConfig`, echoArgs{Value: `new config`}, &reply); err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +380,7 @@ func TestConcurrentCalls(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			want := fmt.Sprintf("call-%d", i)
-			var reply echoReply
+			var reply echoArgs
 			if err := sess.Call(context.Background(), `echo`, echoArgs{Value: want}, &reply); err != nil {
 				errs <- err
 			} else if reply.Value != want {

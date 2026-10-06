@@ -48,7 +48,7 @@ func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
 	return
 }
 
-// THIS RACY, there is no good atomic file operations on windows, so... good luck
+// THIS IS RACY, there is no good atomic file operations on windows, so... good luck
 func updateConfigFile(loc string, content string) error {
 	if loc == `` {
 		return errors.New("Configuration was loaded with bytes, cannot update")

@@ -15,7 +15,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/ingest/config/dynamic"

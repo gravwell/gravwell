@@ -8,9 +8,10 @@
 
 package dynamic
 
-import "slices"
-
-import "uuid"
+import (
+	"slices"
+	"uuid"
+)
 
 // The methods spoken between an ingester and a webserver over an authenticated RPC
 // session.  They live here rather than in the rpc package because rpc moves bytes and

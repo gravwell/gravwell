@@ -102,6 +102,7 @@ const (
 	typeUint        ValueType = `uint`
 	typeFloat       ValueType = `float`
 	typeString      ValueType = `string`
+	typeFile        ValueType = `file`   // identical to a string, but the GUI will treat this differently
 	typeSecret      ValueType = `secret` // identical to a string, but we tell everyone we want to hide it
 	typeUUID        ValueType = `uuid`
 	typeSliceString ValueType = `[]string`
@@ -344,6 +345,7 @@ func (v Variable) Validate() error {
 			if err := v.inEnum(val); err != nil {
 				return err
 			}
+		case typeFile:
 		case typeSecret:
 		case typeUUID:
 			if _, err := uuid.Parse(val); err != nil {
@@ -501,6 +503,7 @@ func (v Variable) emitIniLine(w io.Writer, prefix string) (err error) {
 			return
 		}
 		fmt.Fprintf(w, "%s%s=%s\n", prefix, v.Name, q)
+	case typeFile: // TODO FIXME - emit a filepath ?
 	case typeUUID:
 		// a uuid is only ever hex and dashes, it can never need escaping
 		switch uv := v.Value.(type) {
@@ -597,6 +600,7 @@ func (vt ValueType) Valid() (err error) {
 	case typeUint:
 	case typeFloat:
 	case typeString:
+	case typeFile:
 	case typeSecret:
 	case typeUUID:
 	case typeSliceString:

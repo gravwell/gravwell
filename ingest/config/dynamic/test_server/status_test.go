@@ -14,7 +14,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/hosted/plugins/tester"

@@ -23,7 +23,6 @@ package server
 import (
 	"errors"
 	"time"
-
 	"uuid"
 )
 

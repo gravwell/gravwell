@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/client"

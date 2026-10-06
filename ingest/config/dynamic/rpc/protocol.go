@@ -51,7 +51,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-
 	"uuid"
 )
 
@@ -61,7 +60,7 @@ const (
 	ProtocolVersion int = 1
 
 	// DefaultPath is the route the handler is expected to be mounted on.
-	DefaultPath string = `/api/dynamic/rpc`
+	DefaultPath string = `/api/dynamic/rpc` // TODO FIXME - figure out where this should actually live
 
 	// MethodPing is answered by both ends automatically and is how liveness is checked.
 	// The websocket library in use here does not expose ping control frames, so this

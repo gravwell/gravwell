@@ -16,7 +16,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/ingest/config/dynamic"
@@ -120,7 +119,9 @@ func (a *API) OnSession(s *rpc.Session) {
 	// a reconnect replaces the old handle, the old session is already dead
 	a.ingesters[id] = s
 	a.mtx.Unlock()
-	a.lgr.Info("ingester connected", log.KV("id", id), log.KV("class", s.Class()),
+	a.lgr.Info("ingester connected",
+		log.KV("id", id),
+		log.KV("class", s.Class()),
 		log.KV("remote", s.RemoteAddr()))
 
 	<-s.Done()
@@ -211,7 +212,9 @@ func (a *API) registerKinds(ctx context.Context, params json.RawMessage) (any, e
 	a.mtx.Lock()
 	a.classes[id] = class
 	a.mtx.Unlock()
-	a.lgr.Info("registered kinds", log.KV("ingester", id), log.KV("class", class),
+	a.lgr.Info("registered kinds",
+		log.KV("ingester", id),
+		log.KV("class", class),
 		log.KV("count", len(req.Kinds)))
 	return map[string]any{`ok`: true}, nil
 }
@@ -249,8 +252,11 @@ func (a *API) listRunners(ctx context.Context, params json.RawMessage) (any, err
 			set.Runners = append(set.Runners, rd)
 		}
 	}
-	a.lgr.Info("listed runners", log.KV("ingester", q.ID), log.KV("class", q.Class),
-		log.KV("kinds", len(q.Kinds)), log.KV("matched", len(set.Runners)))
+	a.lgr.Info("listed runners",
+		log.KV("ingester", q.ID),
+		log.KV("class", q.Class),
+		log.KV("kinds", len(q.Kinds)),
+		log.KV("matched", len(set.Runners)))
 	return set, nil
 }
 
@@ -282,8 +288,10 @@ func (a *API) reportStatus(ctx context.Context, params json.RawMessage) (any, er
 			bad++
 		}
 	}
-	a.lgr.Info("recorded runner status", log.KV("ingester", id),
-		log.KV("reported", len(req.Statuses)), log.KV("failing", bad))
+	a.lgr.Info("recorded runner status",
+		log.KV("ingester", id),
+		log.KV("reported", len(req.Statuses)),
+		log.KV("failing", bad))
 	return map[string]any{`ok`: true}, nil
 }
 
@@ -339,8 +347,10 @@ func (a *API) Push(rd dynamic.RunnerDefinition) (delivered int, errs []string) {
 
 	for res := range results {
 		if res.err != nil {
-			a.lgr.Error("failed to push config", log.KV("id", res.id),
-				log.KV("kind", rd.Kind), log.KV("name", rd.Name), log.KVErr(res.err))
+			a.lgr.Error("failed to push config",
+				log.KV("id", res.id),
+				log.KV("kind", rd.Kind),
+				log.KV("name", rd.Name), log.KVErr(res.err))
 			errs = append(errs, fmt.Sprintf("%v: %v", res.id, res.err))
 			continue
 		}

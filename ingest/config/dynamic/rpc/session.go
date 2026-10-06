@@ -15,11 +15,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/net/websocket"
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"golang.org/x/net/websocket"
 )
 
 const (

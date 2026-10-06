@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/ingest/config"

@@ -11,7 +11,6 @@ package main
 import (
 	"strings"
 	"testing"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/hosted/plugins/tester"

@@ -11,7 +11,6 @@ package dynamic
 import (
 	"testing"
 	"time"
-
 	"uuid"
 )
 

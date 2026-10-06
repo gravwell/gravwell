@@ -19,8 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/websocket"
 	"uuid"
+
+	"golang.org/x/net/websocket"
 
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )

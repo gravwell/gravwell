@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/ingest/config/dynamic"

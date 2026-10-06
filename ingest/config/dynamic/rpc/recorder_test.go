@@ -10,6 +10,7 @@ package rpc
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"net"
 	"net/http/httptest"
@@ -187,14 +188,14 @@ func newRecordingServer(t *testing.T, cfg ServerConfig) (*httptest.Server, *reco
 func TestRecorderDecodesMaskedFrames(t *testing.T) {
 	const canary = `CANARY-VALUE-IN-A-CLIENT-TO-SERVER-FRAME`
 	ts, rec := newRecordingServer(t, ServerConfig{Token: testToken, Handlers: echoMux(t)})
-	sess, err := Dial(nil, ClientConfig{
+	sess, err := Dial(context.TODO(), ClientConfig{
 		Webserver: ts.URL, Token: testToken, Class: canary, PingInterval: -1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer sess.Close()
-	if err = sess.Ping(nil); err != nil {
+	if err = sess.Ping(context.TODO()); err != nil {
 		t.Fatal(err)
 	}
 

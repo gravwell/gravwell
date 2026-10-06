@@ -22,6 +22,10 @@ import (
 
 // Package icon rebuilds a plugin supplied SVG into markup that is safe to put in a page.
 //
+// The whole reason for this function to exist is because SVGs can contain a whole host of
+// rather nasty embedded stuff.  The spec got huge, we don't need all of it, just need to
+// draw logos.
+//
 // An icon is drawn by whoever wrote the ingester, and it arrives here over the wire.  It
 // is therefore untrusted markup, and SVG is a document format rather than an image one: it
 // can carry <script>, event handler attributes, <foreignObject> holding arbitrary HTML,

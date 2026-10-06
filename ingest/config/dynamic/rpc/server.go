@@ -15,16 +15,15 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/net/websocket"
-
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"golang.org/x/net/websocket"
 )
 
 const (
 	// defaultHandshakeTimeout bounds how long an unauthenticated connection may sit on
 	// the server.  An attacker should not be able to hold sockets open by connecting and
 	// then saying nothing.
-	defaultHandshakeTimeout = 10 * time.Second
+	defaultHandshakeTimeout = 3 * time.Second
 
 	// defaultIdleTimeout closes a session that has gone quiet.  Clients are expected to
 	// ping well inside this.

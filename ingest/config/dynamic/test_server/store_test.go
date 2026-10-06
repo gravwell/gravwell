@@ -11,7 +11,6 @@ package main
 import (
 	"strings"
 	"testing"
-
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/ingest/config/dynamic"
@@ -274,4 +273,15 @@ func TestDeleteRunnerIsAtomic(t *testing.T) {
 	} else if len(rows) != 1 {
 		t.Errorf("deleting one runner took another's statuses: %d rows", len(rows))
 	}
+}
+
+// TestStoreConformance runs the interface's own suite against the SQLite backing.  It is
+// what keeps this store and the webserver's from drifting: a rule either backend gets
+// wrong is caught here rather than six months later on somebody's status page.
+func TestStoreConformance(t *testing.T) {
+	server.TestStore(t, func(_ *testing.T) server.Store {
+		// a fresh store per case, the suite requires each one to be independent of the
+		// last and several of these check what a store holds in total
+		return NewStore()
+	})
 }
