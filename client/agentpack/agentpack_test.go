@@ -115,7 +115,7 @@ func TestTreeRoundTrip(t *testing.T) {
 	a.Readers = types.ACL{GIDs: []int32{1, 2}, Global: true}
 	a.Writers = types.ACL{GIDs: []int32{2}}
 	a.Labels = []string{"triage"}
-	a.Kit = "io.gravwell.triage"
+	a.KitID = "io.gravwell.triage"
 
 	dir := filepath.Join(t.TempDir(), "tree")
 	if err := WriteTree(dir, a); err != nil {

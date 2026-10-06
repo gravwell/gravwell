@@ -95,14 +95,14 @@ func resourceOf(a *types.Agent) resourceFields {
 		Readers:  a.Readers,
 		Writers:  a.Writers,
 		Labels:   a.Labels,
-		Kit:      a.Kit,
+		Kit:      a.KitID,
 	}
 }
 
 // applyTo copies the resource fields onto an agent.
 func (r resourceFields) applyTo(a *types.Agent) {
 	a.ID, a.ParentID, a.OwnerID = r.ID, r.ParentID, r.OwnerID
-	a.Readers, a.Writers, a.Labels, a.Kit = r.Readers, r.Writers, r.Labels, r.Kit
+	a.Readers, a.Writers, a.Labels, a.KitID = r.Readers, r.Writers, r.Labels, r.Kit
 }
 
 // nodeMetadata is a node's metadata.json: the whole NodeSpec, with the
