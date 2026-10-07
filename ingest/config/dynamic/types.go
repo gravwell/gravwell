@@ -503,7 +503,7 @@ func (v Variable) emitIniLine(w io.Writer, prefix string) (err error) {
 			return
 		}
 		fmt.Fprintf(w, "%s%s=%s\n", prefix, v.Name, q)
-	case typeFile: // TODO FIXME - emit a filepath ?
+	case typeFile: // TODO FIXME - emit a filepath (issue https://github.com/gravwell/gravwell/issues/2833)
 	case typeUUID:
 		// a uuid is only ever hex and dashes, it can never need escaping
 		switch uv := v.Value.(type) {
@@ -528,10 +528,9 @@ func (v Variable) emitIniLine(w io.Writer, prefix string) (err error) {
 		}
 	// we may never support this, getting these into INI formats reliably without types
 	// is going to be extremely difficult and may not be worth our time at all
+	// TODO FIXME (issue https://github.com/gravwell/gravwell/issues/2832)
 	case typeStruct:
-		// TODO FIXME
 	case typeSliceStruct:
-		// TODO FIXME
 	}
 	return
 }
