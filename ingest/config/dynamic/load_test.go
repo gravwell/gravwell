@@ -9,6 +9,7 @@
 package dynamic
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,7 +45,7 @@ func writeConf(t *testing.T, dir, kind, name string, id uuid.UUID, body string) 
 // Load does with a directory, not about talking to anything.
 func newLoadManager(t *testing.T, dir string) *DynamicConfigManager {
 	t.Helper()
-	m, err := NewDynamicConfigManager(nil, Config{
+	m, err := NewDynamicConfigManager(context.TODO(), Config{
 		Webserver:  []string{`http://127.0.0.1:1`},
 		Auth_Token: `token`,
 		Storage:    dir,

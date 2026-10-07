@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,7 @@ import (
 func newManager(t *testing.T, h *harness, id uuid.UUID, class string) (dynamic.Manager, string) {
 	t.Helper()
 	storage := t.TempDir()
-	m, err := dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+	m, err := dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 		Webserver:  []string{h.ts.URL},
 		Auth_Token: testSecret,
 		Storage:    storage,
@@ -300,7 +301,7 @@ func TestManagerOnlyTakesWhatItCanRun(t *testing.T) {
 // appears.
 func TestManagerBacksOffWhenTheServerIsDown(t *testing.T) {
 	// a port nothing is listening on
-	m, err := dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+	m, err := dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 		Webserver:  []string{`127.0.0.1:1`},
 		Auth_Token: testSecret,
 		Storage:    t.TempDir(),
@@ -341,7 +342,7 @@ func TestManagerBacksOffWhenTheServerIsDown(t *testing.T) {
 func TestManagerRejectsBadToken(t *testing.T) {
 	h := newHarness(t)
 	storage := t.TempDir()
-	m, err := dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+	m, err := dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 		Webserver:  []string{h.ts.URL},
 		Auth_Token: `the-wrong-token`,
 		Storage:    storage,

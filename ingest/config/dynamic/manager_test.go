@@ -89,7 +89,7 @@ func TestNewDynamicConfigManager(t *testing.T) {
 
 	// a nil context and a nil logger are both filled in
 	c := Config{Webserver: []string{`10.0.0.1:8080`}, Auth_Token: `token`, Storage: t.TempDir()}
-	m, err := NewDynamicConfigManager(nil, c, uuid.New(), nil)
+	m, err := NewDynamicConfigManager(context.TODO(), c, uuid.New(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

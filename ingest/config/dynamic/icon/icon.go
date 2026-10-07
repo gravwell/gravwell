@@ -6,20 +6,6 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package icon
-
-import (
-	"crypto/sha256"
-	"encoding/xml"
-	"fmt"
-	"html"
-	"io"
-	"regexp"
-	"strconv"
-	"strings"
-	"unicode"
-)
-
 // Package icon rebuilds a plugin supplied SVG into markup that is safe to put in a page.
 //
 // The whole reason for this function to exist is because SVGs can contain a whole host of
@@ -39,6 +25,20 @@ import (
 // An allow list is the only shape that is safe to be wrong about, because the failure of
 // a list of known-bad things is to let something through, and the failure of this is a
 // plugin that draws no icon.
+package icon
+
+import (
+	"crypto/sha256"
+	"encoding/xml"
+	"fmt"
+	"html"
+	"io"
+	"regexp"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
 const (
 	// maxIconBytes caps what will be parsed at all.  An icon is a few hundred bytes of
 	// path data, and a page drawing a list of them should not be able to be made

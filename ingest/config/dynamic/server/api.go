@@ -45,9 +45,6 @@ type API struct {
 	classes   map[uuid.UUID]string
 }
 
-// NewAPI builds the server half.  It takes only ProtocolStore: serving ingesters needs
-// four methods, and a caller that is not also serving a management interface should not
-// have to implement the rest to get there.
 // Option adjusts an API at construction.  Anything that varies by deployment goes through
 // one of these rather than growing NewAPI another parameter that most callers pass nil to.
 type Option func(*API)
@@ -67,6 +64,9 @@ func WithGroupMembership(fn func(uuid.UUID) ([]string, error)) Option {
 	return func(a *API) { a.groups = fn }
 }
 
+// NewAPI builds the server half.  It takes only ProtocolStore: serving ingesters needs
+// four methods, and a caller that is not also serving a management interface should not
+// have to implement the rest to get there.
 func NewAPI(store ProtocolStore, lgr *log.Logger, opts ...Option) *API {
 	if lgr == nil {
 		lgr = log.NewDiscardLogger()

@@ -72,11 +72,11 @@ func tagCases() []tagCase {
 		}},
 		{`Jamf`, func(tag string) verifier {
 			return &jamf.Config{
-				BaseConfig:      hosted.BaseConfig{Ingester_UUID: uuidStr},
-				SingleTagConfig: hosted.SingleTagConfig{Tag_Name: tag},
-				Host:            `https://example.jamfcloud.com`,
-				Client_Id:       `id`,
-				Client_Secret:   `secret`,
+				BaseConfig:     hosted.BaseConfig{Ingester_UUID: uuidStr},
+				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: tag},
+				Host:           `https://example.jamfcloud.com`,
+				Client_Id:      `id`,
+				Client_Secret:  `secret`,
 			}
 		}},
 		{`SQS`, func(tag string) verifier {

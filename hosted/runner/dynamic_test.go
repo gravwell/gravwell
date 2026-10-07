@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -130,7 +131,7 @@ func TestNopRunnerLoadsEveryPluginConfig(t *testing.T) {
 // written for any plugin has to be readable back into the very struct the runner uses.
 func TestDynamicRunnerLoadsEveryPluginConfig(t *testing.T) {
 	dir := t.TempDir()
-	dm, err := dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+	dm, err := dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 		Webserver:  []string{`10.0.0.1:8080`},
 		Auth_Token: `token`,
 		Storage:    dir,
@@ -236,7 +237,7 @@ func TestConfigsIngesterCountCoversEveryPlugin(t *testing.T) {
 	for _, pk := range kinds {
 		dir := t.TempDir()
 		var dm dynamic.Manager
-		if dm, err = dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+		if dm, err = dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 			Webserver:  []string{`10.0.0.1:8080`},
 			Auth_Token: `token`,
 			Storage:    dir,
@@ -264,7 +265,7 @@ func TestConfigsIngesterCountCoversEveryPlugin(t *testing.T) {
 
 	// and the counts have to add up across all of them at once
 	dir := t.TempDir()
-	dm, err := dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+	dm, err := dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 		Webserver:  []string{`10.0.0.1:8080`},
 		Auth_Token: `token`,
 		Storage:    dir,
@@ -304,7 +305,7 @@ func TestConfigsIngesterCountCoversEveryPlugin(t *testing.T) {
 // dynamic config enabled a SIGHUP would quietly stop reloading anything.
 func TestDynamicLoadIntoRunnerConfig(t *testing.T) {
 	dir := t.TempDir()
-	dm, err := dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+	dm, err := dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 		Webserver:  []string{`10.0.0.1:8080`},
 		Auth_Token: `token`,
 		Storage:    dir,
@@ -391,7 +392,7 @@ func TestDynamicLoadIntoRunnerConfig(t *testing.T) {
 // ingester is already on its way down.
 func TestDynamicLoadSkipsABadTagAndKeepsGoing(t *testing.T) {
 	dir := t.TempDir()
-	dm, err := dynamic.NewDynamicConfigManager(nil, dynamic.Config{
+	dm, err := dynamic.NewDynamicConfigManager(context.TODO(), dynamic.Config{
 		Webserver:  []string{`127.0.0.1:1`}, // nothing there, this is about the load
 		Auth_Token: `token`,
 		Storage:    dir,

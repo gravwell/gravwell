@@ -6,6 +6,9 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package dynamic lets an ingester take runner configurations from a Gravwell webserver
+// at runtime rather than only from its config file.  A Manager syncs definitions from the
+// webserver, validates and stores them locally, and starts or stops runners to match.
 package dynamic
 
 import (

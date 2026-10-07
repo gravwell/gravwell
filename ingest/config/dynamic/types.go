@@ -592,7 +592,7 @@ func (v Variable) typeMismatch() error {
 	return fmt.Errorf("Value type %T does not match ValueType %s", v.Value, v.Type)
 }
 
-// ValidType checks that the given ValueType is one that we know how to handle.
+// Valid checks that the given ValueType is one that we know how to handle.
 // An unrecognized type results in an error wrapping ErrInvalidValueType.
 func (vt ValueType) Valid() (err error) {
 	switch vt {
