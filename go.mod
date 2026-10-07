@@ -46,7 +46,7 @@ require (
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
 	github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d
-	github.com/gravwell/gravwell/v3 v3.8.84
+	github.com/gravwell/gravwell/v3 v3.8.85
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
 	github.com/gravwell/jsonparser v0.0.0-20241122184510-d9e3b05f5d3b
@@ -145,7 +145,6 @@ require (
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

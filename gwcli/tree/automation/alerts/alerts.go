@@ -275,7 +275,9 @@ func dispatchers() action.Pair {
 			"Use --add to add dispatchers, --remove to remove them, or neither to replace the entire list.",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(types.QueryOptions{AdminMode: connection.AdminMode()})
+			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
+			clilog.GetFlag(err)
+			lr, err := connection.Client.ListAlerts(types.QueryOptions{All: all})
 			if err != nil {
 				return nil, err
 			}
@@ -349,22 +351,21 @@ func dispatchers() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "dispatchers",
-				Aliases: []string{"dispatcher"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.StringSlice("dispatcher-ids", nil, "REQUIRED. IDs of the dispatchers to add/remove/replace from each alert")
-					fs.Bool("add", false, "add the dispatchers specified by --dispatcher-ids to each alert"+
-						" Mutually exclusive with --remove")
-					fs.Bool("remove", false, "remove the dispatchers specified by --dispatcher-ids from each alert."+
-						" Mutually exclusive with --add")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
-					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
-				},
+			Use:     "dispatchers",
+			Aliases: []string{"dispatcher"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.StringSlice("dispatcher-ids", nil, "REQUIRED. IDs of the dispatchers to add/remove/replace from each alert")
+				fs.Bool("add", false, "add the dispatchers specified by --dispatcher-ids to each alert"+
+					" Mutually exclusive with --remove")
+				fs.Bool("remove", false, "remove the dispatchers specified by --dispatcher-ids from each alert."+
+					" Mutually exclusive with --add")
+				fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if dIDs, err := fs.GetStringSlice("dispatcher-ids"); err != nil { // this is a fatal error
@@ -373,7 +374,9 @@ func dispatchers() action.Pair {
 					return phrases.ErrFlagIsRequired("dispatcher-ids").Error(), nil
 				} else {
 					// ensure each dispatcher ID is valid
-					lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{AdminMode: connection.AdminMode()})
+					all, err := fs.GetBool(scaffold.FlagNameAllData)
+					clilog.GetFlag(err)
+					lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{All: all})
 					if err != nil {
 						return "", err
 					}
@@ -407,7 +410,9 @@ func save() action.Pair {
 			"If an alert would be enabled but have a save duration of 0, it will default to "+defaultDuration.String()+".",
 		"alert ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(types.QueryOptions{AdminMode: connection.AdminMode()})
+			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
+			clilog.GetFlag(err)
+			lr, err := connection.Client.ListAlerts(types.QueryOptions{All: all})
 			if err != nil {
 				return nil, err
 			}
@@ -467,6 +472,7 @@ func save() action.Pair {
 					fs.Duration(ft.DurationName, 0, "Duration for which to save a triggering search. Must be positive.")
 					fs.Bool("disable", false, "Disable search saving.\n"+
 						"Mutually exclusive with --enable")
+					fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
 					return fs
 				},
 				Requirements: annotations.Requirements{

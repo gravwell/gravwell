@@ -170,6 +170,8 @@ type KitBuildRequest struct {
 	SavedQueries          []string          `json:",omitempty"`
 	Playbooks             []string          `json:",omitempty"`
 	Alerts                []string          `json:",omitempty"`
+	Agents                []string          `json:",omitempty"`
+	AgentSkills           []string          `json:",omitempty"`
 	EmbeddedItems         []KitEmbeddedItem `json:",omitempty"`
 	Icon                  string            `json:",omitempty"`
 	Banner                string            `json:",omitempty"`
@@ -293,6 +295,12 @@ func (pbr *KitBuildRequest) Validate() error {
 	if slices.Contains(pbr.Alerts, "") {
 		return errors.New("empty alert ID")
 	}
+	if slices.Contains(pbr.Agents, "") {
+		return errors.New("empty agent ID")
+	}
+	if slices.Contains(pbr.AgentSkills, "") {
+		return errors.New("empty agent skill ID")
+	}
 
 	if pbr.Icon != `` {
 		if err := pbr.validateReferencedFile(pbr.Icon, `Icon`); err != nil {
@@ -327,7 +335,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SavedQueries) + len(pbr.Playbooks) + len(pbr.Alerts)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Actionables) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SavedQueries) + len(pbr.Playbooks) + len(pbr.Alerts) + len(pbr.Agents) + len(pbr.AgentSkills)
 	if kitItemCount == 0 {
 		return errors.New("build request does not contain any items")
 	}

@@ -72,11 +72,9 @@ type Sheet struct {
 	// user inputs (NOT including those already covered by FieldText).
 	// This is primarily used for Mother's prompt and the cred/mfa prompts.
 	PromptSty struct {
-		Symbol      rune // the sigil that sits between the prompt text and the user input
-		AdminSymbol rune // the sigil that sits between the prompt text and the user input when it is an admin prompt
+		Symbol rune // the sigil that sits between the prompt text and the user input
 		// the style to apply to prompt text.
 		// This style will also be applied to the symbol suffixed to it.
-		// If the prompt is printed in an admin context, this style will be ignored in favour of the ErrorText style.
 		Text lipgloss.Style
 	}
 
@@ -111,22 +109,17 @@ func NewSheet() Sheet {
 			BorderStyle lipgloss.Style
 		}{BorderType: lipgloss.ASCIIBorder()},
 		PromptSty: struct {
-			Symbol      rune           // the sigil that sits between the prompt text and the user input
-			AdminSymbol rune           // the sigil that sits between the prompt text and the user input when it is an admin prompt
-			Text        lipgloss.Style // given the text prefixing the input, returns a stylized version of it
+			Symbol rune           // the sigil that sits between the prompt text and the user input
+			Text   lipgloss.Style // given the text prefixing the input, returns a stylized version of it
 		}{
-			Symbol:      '>',
-			AdminSymbol: '#',
+			Symbol: '>',
 			//Text: lipgloss.NewStyle(),
 		},
 	}
 }
 
 // Prompt returns a stylized prompt line of the form: "<text><symbol>"
-func (s Sheet) Prompt(text string, admin bool) string {
-	if admin {
-		return s.ErrorText.Render(("(admin)" + text + string(s.PromptSty.AdminSymbol)))
-	}
+func (s Sheet) Prompt(text string) string {
 	return s.PromptSty.Text.Render(text + string(s.PromptSty.Symbol))
 }
 

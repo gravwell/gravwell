@@ -15,37 +15,37 @@ import (
 // ExtractionSupportedEngines returns a list of valid engines for use in
 // autoextraction definitions.
 func (c *Client) ExtractionSupportedEngines() (v []string, err error) {
-	return c.get[[]string](extractionEnginesUrl())
+	return c.get[[]string](infoExtractorEnginesUrl())
 }
 
 // ListExtractions returns the list of autoextraction definitions available
 // to the current user.
 func (c *Client) ListExtractions(opts types.QueryOptions) (ret types.AXListResponse, err error) {
-	return c.post[types.QueryOptions, types.AXListResponse](EXTRACTORS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.AXListResponse](LIST_AUTO_EXTRACTORS_URL, &opts)
 }
 
 // ListAllExtractions returns the list of autoextraction definitions available
 // to the current user, setting admin mode to true -- admin users will receive ALL definitions.
 func (c *Client) ListAllExtractions(opts types.QueryOptions) (ret types.AXListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.AXListResponse](EXTRACTORS_LIST_URL, &opts)
+	opts.All = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.AXListResponse](LIST_AUTO_EXTRACTORS_URL, &opts)
 }
 
 // GetExtraction returns a particular extraction by UUID
 func (c *Client) GetExtraction(id string) (d types.AX, err error) {
-	return c.get[types.AX](extractionIdUrl(id))
+	return c.get[types.AX](autoExtractorsIdUrl(id))
 }
 
 // FindExtraction returns the most appropriate extraction for a given tag
 func (c *Client) FindExtraction(tag string) (d types.AX, err error) {
-	return c.get[types.AX](extractionFindUrl(tag))
+	return c.get[types.AX](tagsTagAutoExtractorUrl(tag))
 }
 
 // DeleteExtraction deletes the specified autoextraction.
 //
-// NOTE: Extractions are always hard-deleted.
+// Extractions are always purged.
 func (c *Client) DeleteExtraction(id string) (err error) {
-	return c.delete(extractionIdUrl(id), false)
+	return c.delete(autoExtractorsIdUrl(id))
 }
 
 type AXValidateResponse struct {
@@ -55,7 +55,7 @@ type AXValidateResponse struct {
 
 // ValidateExtraction validates an autoextractor definition.
 func (c *Client) ValidateExtraction(d types.AX) (tagExists bool, err error) {
-	axvr, err := c.post[types.AX, AXValidateResponse](extractionsTestUrl(), &d)
+	axvr, err := c.post[types.AX, AXValidateResponse](validateAutoExtractorUrl(), &d)
 	if err != nil {
 		return false, err
 	} else if strings.TrimSpace(axvr.Error) != "" {
@@ -67,7 +67,7 @@ func (c *Client) ValidateExtraction(d types.AX) (tagExists bool, err error) {
 
 // CreateExtraction installs an autoextractor definition, returning the newly-created autoextractor.
 func (c *Client) CreateExtraction(d types.AX) (result types.AX, err error) {
-	return c.post[types.AX, types.AX](extractionsUrl(), &d)
+	return c.post[types.AX, types.AX](autoExtractorsUrl(), &d)
 }
 
 // UpdateExtraction modifies an existing autoextractor and returns the complete, updated struct.
@@ -75,7 +75,7 @@ func (c *Client) UpdateExtraction(ID string, p types.AXPatch) (updated types.AX,
 	if ID == "" {
 		return types.AX{}, ErrEmptyID
 	}
-	return c.patch[types.AXPatch, types.AX](extractionIdUrl(ID), p)
+	return c.patch[types.AXPatch, types.AX](autoExtractorsIdUrl(ID), p)
 }
 
 // UploadExtraction uploads a TOML-formatted byteslice containing one or more autoextractor
@@ -94,7 +94,7 @@ func (c *Client) UploadExtraction(b []byte) (wrs []types.WarnResp, err error) {
 	if err = wtr.Close(); err != nil {
 		return
 	}
-	resp, err = c.methodRequestURL(http.MethodPost, extractionsUploadUrl(), wtr.FormDataContentType(), bb)
+	resp, err = c.methodRequestURL(http.MethodPost, autoExtractorsUploadUrl(), wtr.FormDataContentType(), bb)
 	if err != nil {
 		return
 	}

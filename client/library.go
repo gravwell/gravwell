@@ -14,19 +14,19 @@ import (
 
 // CreateSavedQuery creates a new saved query for the current user.
 func (c *Client) CreateSavedQuery(sl types.SavedQuery) (wsl types.SavedQuery, err error) {
-	return c.post[types.SavedQuery, types.SavedQuery](searchLibUrl(), &sl)
+	return c.post[types.SavedQuery, types.SavedQuery](savedQueriesUrl(), &sl)
 }
 
 // ListSavedQueries returns the list of queries in the search library available to the user.
 func (c *Client) ListSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
-	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIST_SAVED_QUERIES_URL, &opts)
 }
 
 // ListAllSavedQueries (admin-only) returns the list of all search library entries for all users.
 // Non-administrators will receive the same list as returned by ListSavedQueries.
 func (c *Client) ListAllSavedQueries(opts types.QueryOptions) (wsl types.SavedQueryListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIBRARY_LIST_URL, &opts)
+	opts.All = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.SavedQueryListResponse](LIST_SAVED_QUERIES_URL, &opts)
 }
 
 // GetSavedQuery returns a query which matches the UUID given.
@@ -39,17 +39,17 @@ func (c *Client) GetSavedQuery(id string) (types.SavedQuery, error) {
 
 // GetSavedQueryEx returns a particular saved query, modified by opts.
 func (c *Client) GetSavedQueryEx(id string, opts GetOptions) (types.SavedQuery, error) {
-	return c.get[types.SavedQuery](searchLibIdUrl(id), opts.params()...)
+	return c.get[types.SavedQuery](savedQueriesIdUrl(id), opts.params()...)
 }
 
 // DeleteSavedQuery deletes a specific library entry.
 func (c *Client) DeleteSavedQuery(id string) (err error) {
-	return c.delete(searchLibIdUrl(id), false)
+	return c.delete(savedQueriesIdUrl(id))
 }
 
 // PurgeSavedQuery deletes a specific library entry.
 func (c *Client) PurgeSavedQuery(id string) (err error) {
-	return c.delete(searchLibIdUrl(id), true)
+	return c.delete(savedQueriesIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // UpdateSavedQuery modifies an existing saved query and returns the complete, updated struct.
@@ -57,10 +57,10 @@ func (c *Client) UpdateSavedQuery(ID string, p types.SavedQueryPatch) (updated t
 	if ID == "" {
 		return types.SavedQuery{}, ErrEmptyID
 	}
-	return c.patch[types.SavedQueryPatch, types.SavedQuery](searchLibIdUrl(ID), p)
+	return c.patch[types.SavedQueryPatch, types.SavedQuery](savedQueriesIdUrl(ID), p)
 }
 
 // CleanupSavedQueries (admin-only) purges all deleted saved queries for all users.
 func (c *Client) CleanupSavedQueries() error {
-	return c.delete(LIBRARY_URL, false)
+	return c.delete(SAVED_QUERIES_URL)
 }

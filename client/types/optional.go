@@ -20,7 +20,8 @@ import (
 type PatchType interface {
 	MacroPatch | FilePatch | TokenPatch | AXPatch | SavedQueryPatch | ResourcePatch | TemplatePatch |
 		UserPreferencePatch | SecretPatch | SecretValuePatch | ScheduledSearchPatch | ScheduledScriptPatch |
-		FlowPatch | AlertPatch | PlaybookPatch | DashboardPatch | ActionablePatch | UserPatch | GroupPatch
+		FlowPatch | AlertPatch | PlaybookPatch | DashboardPatch | ActionablePatch | UserPatch | GroupPatch |
+		AgentPatch | AgentSkillPatch
 }
 
 // An Optional type represents a field which may be unset during an update, preserving its prior value.

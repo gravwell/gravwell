@@ -254,7 +254,7 @@ func (c *Client) TestLogin() error {
 		return err
 	}
 
-	return c.getStaticURL(TEST_AUTH_URL, nil)
+	return c.getStaticURL(TEST_AUTHENTICATION_URL, nil)
 }
 
 // Login authenticates the client to the webserver using the specified username and password.
@@ -344,7 +344,7 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 	}
 
 	//build up URL we are going to throw at
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, MFA_LOGIN_URL)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LOGIN_MFA_URL)
 
 	//build up the form that we are going to throw at login url
 	loginCreds := types.MFAAuthRequest{
@@ -405,7 +405,7 @@ func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.hm.add(apiTokenHeader, token)
 	//assume we are logged in and test
 	c.state = STATE_AUTHED
-	return c.getStaticURL(TEST_AUTH_URL, nil)
+	return c.getStaticURL(TEST_AUTHENTICATION_URL, nil)
 }
 
 // RefreshLoginToken will ask the webserver to refresh the login state
@@ -419,7 +419,7 @@ func (c *Client) RefreshLoginToken() (err error) {
 		return ErrNoLogin
 	}
 	//build up URL we are going to throw at
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, REFRESH_TOKEN_URL)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LOGIN_REFRESH_TOKEN_URL)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -558,7 +558,7 @@ func (c *Client) InheritSession(sess *ActiveSession) (bool, error) {
 	c.hm.add(authHeaderName, "Bearer "+sess.JWT)
 
 	//try to hit the test page
-	if err := c.nolockTestGet(USER_INFO_URL); err != nil {
+	if err := c.nolockTestGet(SELF_URL); err != nil {
 		return false, nil
 	}
 	c.state = STATE_AUTHED
@@ -783,26 +783,4 @@ func (c *Client) DebugDeleteQueryValue(key string) {
 	c.mtx.Lock()
 	c.qm.remove(key)
 	c.mtx.Unlock()
-}
-
-// SetAdminMode sets the ?admin=true parameter on future API requests. Note that setting this
-// parameter has no effect for non-admin users.
-// Admin users should use this parameter carefully, as it gives access to objects belonging
-// to other users and makes it easy to break things.
-func (c *Client) SetAdminMode() {
-	c.qm.set("admin", "true")
-}
-
-// ClearAdminMode unsets the ?admin=true parameter for future API requests.
-func (c *Client) ClearAdminMode() {
-	c.qm.remove("admin")
-}
-
-// AdminMode returns true if the ?admin=true parameter is set for API requests.
-func (c *Client) AdminMode() bool {
-	v, ok := c.qm.get("admin")
-	if !ok {
-		return false
-	}
-	return v == `true`
 }

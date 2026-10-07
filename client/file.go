@@ -32,7 +32,7 @@ var ErrOversizedFile error = fmt.Errorf("Files must be %v or smaller", ingest.Hu
 
 // CleanupFiles (admin-only) purges all deleted files for all users.
 func (c *Client) CleanupFiles() error {
-	return c.delete(filesUrl(), false)
+	return c.delete(filesUrl())
 }
 
 // CreateFile makes a new file.
@@ -65,7 +65,7 @@ func (o DownloadFileOptions) params() []urlParam {
 
 // GetFileEx returns the specified file's contents, conforming to the given options.
 func (c *Client) GetFileEx(id string, opts DownloadFileOptions) ([]byte, error) {
-	rc, err := c.getDownload(filesIdRawUrl(id), opts.params()...)
+	rc, err := c.getDownload(filesIdContentUrl(id), opts.params()...)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (c *Client) PopulateFileFromReader(id string, extension string, data io.Rea
 		}
 	}()
 
-	resp, err = c.methodRequestURL(http.MethodPut, filesIdRawUrl(id), contentType, rdr)
+	resp, err = c.methodRequestURL(http.MethodPut, filesIdContentUrl(id), contentType, rdr)
 	if err != nil {
 		return types.File{}, err
 	}
@@ -179,22 +179,22 @@ func (c *Client) PopulateFileFromReader(id string, extension string, data io.Rea
 
 // ListFiles returns information about all files the user can access
 func (c *Client) ListFiles(opts types.QueryOptions) (ret types.FileListResponse, err error) {
-	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.FileListResponse](LIST_FILES_URL, &opts)
 }
 
 // ListAllFiles is an admin-only API to pull back the entire file list.
 // Non-administrators will receive the same list as returned by ListFiles.
 func (c *Client) ListAllFiles(opts types.QueryOptions) (ret types.FileListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.FileListResponse](FILES_LIST_URL, &opts)
+	opts.All = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.FileListResponse](LIST_FILES_URL, &opts)
 }
 
 // DeleteFile removes a file by ID by marking it deleted in the database.
 func (c *Client) DeleteFile(id string) error {
-	return c.delete(filesIdUrl(id), false)
+	return c.delete(filesIdUrl(id))
 }
 
 // PurgeFile removes the specified ID entirely, skipping any kind of soft-delete.
 func (c *Client) PurgeFile(id string) error {
-	return c.delete(filesIdUrl(id), true)
+	return c.delete(filesIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }

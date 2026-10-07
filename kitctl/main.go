@@ -498,6 +498,28 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
+		case types.KitAssetAgent:
+			var x kits.PackedAgent
+			if x, err = readAgent(wd, itm.ID); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
+			}
+			if err = x.Validate(); err != nil {
+				log.Fatalf("Could not validate %v %v: %v", itm.Type, itm.ID, err)
+			}
+			if err := marshallAdd(itm, x); err != nil {
+				log.Fatal(err)
+			}
+		case types.KitAssetAgentSkill:
+			var x kits.PackedAgentSkill
+			if x, err = readAgentSkill(wd, itm.ID); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type, itm.ID, err)
+			}
+			if err = x.Validate(); err != nil {
+				log.Fatalf("Could not validate %v %v: %v", itm.Type, itm.ID, err)
+			}
+			if err := marshallAdd(itm, x); err != nil {
+				log.Fatal(err)
+			}
 		case types.KitAssetAlert:
 			var x kits.PackedAlert
 			if err = genericRead(wd, itm, &x); err != nil {
@@ -808,6 +830,22 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
 			}
 			if err := writePlaybook(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
+			}
+		case types.KitAssetAgent:
+			var p kits.PackedAgent
+			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
+			}
+			if err := writeAgent(wd, itm.ID, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
+			}
+		case types.KitAssetAgentSkill:
+			var p kits.PackedAgentSkill
+			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+				return fmt.Errorf("Failed to decode %v %v: %v", itm.Type, itm.ID, err)
+			}
+			if err := writeAgentSkill(wd, itm.ID, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", itm.Type, itm.ID, err)
 			}
 		case types.KitAssetAlert:

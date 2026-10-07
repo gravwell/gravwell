@@ -18,7 +18,7 @@ import (
 // users must possess the ListUsers capability or the function will
 // return an error.
 func (c *Client) ListUsers(opts types.QueryOptions) (ret types.UserListResponse, err error) {
-	return c.post[types.QueryOptions, types.UserListResponse](USERS_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.UserListResponse](LIST_USERS_URL, &opts)
 }
 
 // GetUserMap returns a map of UID to username for every user on the system. This calls ListUsers under the hood, so the user must have the ListUsers capability enabled.
@@ -41,12 +41,12 @@ func (c *Client) GetUser(id int32) (types.UserWithCBAC, error) {
 
 // GetUserEx returns a particular user, modified by opts.
 func (c *Client) GetUserEx(id int32, opts GetOptions) (types.UserWithCBAC, error) {
-	return c.get[types.UserWithCBAC](usersInfoUrl(id), opts.params()...)
+	return c.get[types.UserWithCBAC](usersIdUrl(id), opts.params()...)
 }
 
 // DeleteUser deletes a user by marking it deleted in the database.
 func (c *Client) DeleteUser(id int32) error {
-	return c.delete(usersInfoUrl(id), false)
+	return c.delete(usersIdUrl(id))
 }
 
 // PurgeUser is implemented in admin.go and also deletes the user's assets.
@@ -63,7 +63,7 @@ func (c *Client) UpdateUser(ID int32, p types.UserPatch) (updated types.User, er
 	if ID == 0 {
 		return updated, ErrEmptyID
 	}
-	return c.patch[types.UserPatch, types.User](usersInfoUrl(ID), p)
+	return c.patch[types.UserPatch, types.User](usersIdUrl(ID), p)
 }
 
 // UpdateUserInfo changes basic information about the specified user.
@@ -88,7 +88,7 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 
 // CleanupUsers (admin-only) purges all deleted users for all users.
 func (c *Client) CleanupUsers() error {
-	return c.delete(USERS_URL, false)
+	return c.delete(USERS_URL)
 }
 
 // LookupUser looks up a User object given a username.  If the
