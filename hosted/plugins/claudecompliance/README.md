@@ -86,10 +86,10 @@ distinguishes them downstream: nine directory datasets land on
 `claude-compliance-directory`, and two of them can return byte-identical
 payloads.
 Discovered children inherit the parent's tag. Native JSON stays compact and
-unwrapped; `_source`, `_recordType`, and `_endpoint` intrinsic fields distinguish
-datasets. `_endpoint` is the endpoint template, such as
-`/v1/compliance/groups/{group_id}/members`; the resolved IDs are in `_parent`. Other intrinsic context is `_vendor`, `_product`, `_apiVersion`,
-`_parent`, and `_session` when provided. These are not JSON properties.
+unwrapped. `_source` identifies the configured dataset, `_parent` contains the
+bound parent parameters for discovered child requests, and `_session` contains
+the session or chat envelope when provided. These are intrinsic fields, not
+JSON properties.
 If a response's session envelope exceeds Gravwell's enumerated-value limit, the
 native message is retained and `_session` is omitted with a warning.
 

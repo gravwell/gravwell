@@ -35,8 +35,9 @@ type Dataset struct {
 }
 
 // Datasets maps a configured Dataset selector to its endpoint contract.
-// Metadata and message operations share semantic tags. Selector and parent
-// identity are intrinsic fields; vendor JSON is preserved without wrappers.
+// Metadata and message operations share semantic tags. The _source and
+// _parent intrinsic fields retain dataset and parent context; vendor JSON is
+// preserved without wrappers.
 //
 // Window names the field an endpoint accepts as a documented time filter,
 // and is empty for an endpoint that accepts none. An inventory with no

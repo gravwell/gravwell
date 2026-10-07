@@ -398,7 +398,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime, col collector
 				continue
 			}
 			ent := entry.Entry{TS: entry.FromStandard(recordTime), Tag: tag, Data: compact}
-			for _, kv := range [][2]string{{"_vendor", "Anthropic"}, {"_product", "Claude Enterprise Compliance"}, {"_source", d.Name}, {"_recordType", d.Name}, {"_endpoint", "/v1/compliance" + d.Path}, {"_apiVersion", apiVersion}, {"_parent", strings.Join(c.Parameter, ",")}} {
+			for _, kv := range [][2]string{{"_source", d.Name}, {"_parent", strings.Join(c.Parameter, ",")}} {
 				// Discovered parameter values are bounded well below this
 				// limit (see maxDiscoveredParameterLen), but a directly
 				// user-configured Parameter is not. Degrade the same way

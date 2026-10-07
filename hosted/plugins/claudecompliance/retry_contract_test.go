@@ -54,8 +54,8 @@ func TestPluginRetryIsBoundedAndHonorsHeaders(t *testing.T) {
 	}
 }
 
-// intrinsic EVs are the only thing separating 26 datasets that
-// share 6 tags. Removing them makes datasets indistinguishable downstream.
+// _source is what separates 26 datasets that share 6 tags.
+// Removing it makes datasets indistinguishable downstream.
 func TestIntrinsicEVsAreLoadBearing(t *testing.T) {
 	byTag := map[string][]string{}
 	for name, d := range Datasets {
@@ -72,7 +72,7 @@ func TestIntrinsicEVsAreLoadBearing(t *testing.T) {
 		t.Fatal("no tag carries more than one dataset; _source would be redundant")
 	}
 	// Two datasets on one tag whose payloads are byte-identical are only
-	// distinguishable by the intrinsic fields.
+	// distinguishable by _source.
 	pa, rta := setup(t, "group")
 	pb, rtb := setup(t, "organization-settings")
 	same := `{"id":"x"}`

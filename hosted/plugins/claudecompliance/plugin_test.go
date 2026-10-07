@@ -1360,10 +1360,9 @@ func TestSingleUnderscoreMetadataPreservesNativeRecord(t *testing.T) {
 		t.Fatalf("native JSON changed: %s", ent.Data)
 	}
 	want := map[string]string{
-		"_vendor": "Anthropic", "_product": "Claude Enterprise Compliance",
-		"_source": "local-session-messages", "_recordType": "local-session-messages",
-		"_endpoint": "/v1/compliance" + p.conf.dataset.Path, "_apiVersion": "2023-06-01",
-		"_parent": "session_id:synthetic-id", "_session": `{"id":"session-1"}`,
+		"_source":  "local-session-messages",
+		"_parent":  "session_id:synthetic-id",
+		"_session": `{"id":"session-1"}`,
 	}
 	for key, value := range want {
 		if got, ok := ent.GetEnumeratedValue(key); !ok || got != value {
@@ -1371,6 +1370,11 @@ func TestSingleUnderscoreMetadataPreservesNativeRecord(t *testing.T) {
 		}
 		if _, ok := ent.GetEnumeratedValue("_" + key); ok {
 			t.Errorf("obsolete metadata key emitted: _%s", key)
+		}
+	}
+	for _, key := range []string{"_vendor", "_product", "_recordType", "_endpoint", "_apiVersion"} {
+		if _, ok := ent.GetEnumeratedValue(key); ok {
+			t.Errorf("removed intrinsic field emitted: %s", key)
 		}
 	}
 	if rt.committed(p) == false {
@@ -2389,8 +2393,8 @@ func TestOversizedParentEnumeratedValueWarnsAndOmitsInsteadOfFailing(t *testing.
 	if _, ok := rt.entries[0].GetEnumeratedValue("_parent"); ok {
 		t.Fatal("oversized _parent should have been omitted, not attached")
 	}
-	if v, ok := rt.entries[0].GetEnumeratedValue("_vendor"); !ok || v != "Anthropic" {
-		t.Fatal("unrelated enumerated values must still be attached")
+	if v, ok := rt.entries[0].GetEnumeratedValue("_source"); !ok || v != "organization-users" {
+		t.Fatal("_source must still be attached")
 	}
 	if rt.warnings == 0 {
 		t.Fatal("expected a warning for the oversized _parent value")
