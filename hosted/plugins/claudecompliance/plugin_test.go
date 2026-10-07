@@ -25,24 +25,36 @@ type transport func(*http.Request) (*http.Response, error)
 
 func (f transport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
+// runtime wraps the shared hosted.Mock so this package does not re-implement
+// a Runtime, and adds only the failure injection and call accounting the
+// plugin's tests need on top of it.
 type runtime struct {
-	hosted.Runtime
-	saved                []byte
-	entries              []entry.Entry
+	*hosted.Mock
 	failWrite, failState bool
-	failDelivery         bool
-	states               map[string][]byte
-	negotiatedTags       []string
-	putCounts            map[string]int
-	warnings             int
+	// putFn, when set, observes every storage write.
+	putFn func(string, []byte) error
+	// written records every key this runtime has been asked to write.
+	written []string
+	// failAfter, when set, decides per storage write whether it fails, so a
+	// test can cut a multi-key commit at an exact point.
+	failAfter      func() bool
+	failDelivery   bool
+	entries        []entry.Entry
+	negotiatedTags []string
+	putCounts      map[string]int
+	warnings       int
 	// warningLog additively captures each Warn call's rendered message and
 	// KV fields, for tests that need to inspect what a warning contained
-	// (e.g. proving a value was never logged), without disturbing the
-	// existing warnings counter that other tests already rely on.
+	// (e.g. proving a value was never logged).
 	warningLog []string
+	// sleeps records every Runtime.Sleep duration the plugin asked for, and
+	// sleepCancels makes Sleep report that the context ended.
+	sleeps       []time.Duration
+	sleepCancels bool
 }
 
-func (r *runtime) SyncContext(ctx context.Context, timeout time.Duration) error {
+// SyncContext is the optional muxer barrier the plugin binds when present.
+func (r *runtime) SyncContext(ctx context.Context, _ time.Duration) error {
 	if e := ctx.Err(); e != nil {
 		return e
 	}
@@ -50,6 +62,111 @@ func (r *runtime) SyncContext(ctx context.Context, timeout time.Duration) error 
 		return errors.New("synthetic ingest synchronization failure")
 	}
 	return nil
+}
+
+func newRuntime(t *testing.T) *runtime {
+	t.Helper()
+	return &runtime{Mock: hosted.NewMock(t.Context())}
+}
+
+func (r *runtime) Sleep(d time.Duration) bool {
+	r.sleeps = append(r.sleeps, d)
+	return r.sleepCancels
+}
+
+func (r *runtime) NegotiateTag(tag string) (entry.EntryTag, error) {
+	r.negotiatedTags = append(r.negotiatedTags, tag)
+	return r.Mock.NegotiateTag(tag)
+}
+
+func (r *runtime) Write(e entry.Entry) error {
+	if r.failWrite {
+		return errors.New("synthetic write failure")
+	}
+	r.entries = append(r.entries, e)
+	return nil
+}
+
+func (r *runtime) Put(key string, b []byte) error {
+	if r.failState {
+		return errors.New("synthetic state failure")
+	}
+	if r.failAfter != nil && r.failAfter() {
+		return errors.New("synthetic partial-commit failure")
+	}
+	if r.putFn != nil {
+		if e := r.putFn(key, b); e != nil {
+			return e
+		}
+	}
+	if r.putCounts != nil {
+		r.putCounts[key]++
+	}
+	r.written = append(r.written, key)
+	return r.Mock.Put(key, b)
+}
+
+// PutString and PutTime are re-declared so injected state failures and put
+// accounting cover them too; hosted.Mock implements them against its own Put.
+func (r *runtime) PutString(key, value string) error { return r.Put(key, []byte(value)) }
+func (r *runtime) PutTime(key string, value time.Time) error {
+	return r.PutString(key, value.Format(time.RFC3339Nano))
+}
+
+func (r *runtime) Warn(msg string, params ...rfc5424.SDParam) {
+	r.warnings++
+	line := msg
+	for _, p := range params {
+		line += " " + p.Name + "=" + p.Value
+	}
+	r.warningLog = append(r.warningLog, line)
+}
+
+// committed reports whether p has durably recorded progress of any kind --
+// a completed traversal or a resumable page walk. It is the discrete-key
+// equivalent of "the state blob was written".
+func (r *runtime) committed(p *Plugin) bool {
+	cp, err := loadCheckpoint(r, p.conf.key())
+	return err == nil && (!cp.Since.IsZero() || cp.Walk != nil)
+}
+
+// putsUnder totals recorded Put calls against any key beginning with prefix.
+func (r *runtime) putsUnder(prefix string) int {
+	total := 0
+	for k, n := range r.putCounts {
+		if strings.HasPrefix(k, prefix) {
+			total += n
+		}
+	}
+	return total
+}
+
+// checkpoint reads back p's stored progress through the same discrete keys
+// the plugin writes.
+func (r *runtime) checkpoint(t *testing.T, p *Plugin) checkpoint {
+	t.Helper()
+	cp, err := loadCheckpoint(r, p.conf.key())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cp
+}
+
+// storedKeys lists every key this runtime has been asked to write.
+func (r *runtime) storedKeys() []string {
+	return append([]string(nil), r.written...)
+}
+
+// stateBytes totals every byte this runtime currently holds under prefix.
+func (r *runtime) stateBytes(prefix string) int {
+	total := 0
+	for _, k := range []string{keySince, keyManifest, keyHistory, keyRetired,
+		keyWalkCursor, keyWalkSince, keyWalkUntil, keyWalkStarted, keyWalkHistory, keyWalkMan} {
+		if b, err := r.Get(prefix + k); err == nil {
+			total += len(b)
+		}
+	}
+	return total
 }
 
 func TestFailedIngestSyncDoesNotCommitState(t *testing.T) {
@@ -61,104 +178,97 @@ func TestFailedIngestSyncDoesNotCommitState(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e == nil {
 		t.Fatal("failed synchronization accepted")
 	}
-	if len(rt.entries) != 1 || rt.saved != nil {
+	if len(rt.entries) != 1 || rt.committed(p) {
 		t.Fatal("queued write advanced state")
 	}
 	rt.failDelivery = false
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if rt.saved == nil || len(rt.entries) != 2 {
+	if rt.committed(p) == false || len(rt.entries) != 2 {
 		t.Fatal("record from failed synchronization not replayed")
 	}
 }
 
-func TestMissingSynchronizationCapabilityFailsAtConstruction(t *testing.T) {
-	p, _ := setup(t, "activities")
+// Writing an entry only queues it, and a state-store sync is not proof of
+// ingest delivery. The plugin therefore refuses to be built without a real
+// delivery barrier rather than advancing a checkpoint past records that may
+// never reach a backend.
+func TestConstructionRequiresAnIngestDeliveryBarrier(t *testing.T) {
+	p, rt := setup(t, "activities")
+	bare := struct{ hosted.TagNegotiator }{rt}
+	if _, e := New(p.conf, bare); e == nil {
+		t.Fatal("a negotiator with no SyncContext was accepted")
+	}
 	if _, e := New(p.conf, nil); e == nil {
-		t.Fatal("missing capability accepted")
+		t.Fatal("a nil negotiator was accepted")
+	}
+	// The real muxer provides it, so the ordinary path still builds and the
+	// barrier is bound.
+	full, e := New(p.conf, rt)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if full.syncIngest == nil {
+		t.Fatal("delivery barrier was not bound from a capable negotiator")
 	}
 }
 
-func (r *runtime) Get(key string) ([]byte, error) {
-	if r.states != nil {
-		if b, ok := r.states[key]; ok {
-			return b, nil
-		}
-		return nil, storage.ErrStorageNotFound
+// No checkpoint may advance until the delivery barrier has returned.
+func TestCheckpointWaitsForDeliveryBarrier(t *testing.T) {
+	p, rt := setup(t, "activities")
+	order := []string{}
+	p.syncIngest = func(ctx context.Context, _ time.Duration) error {
+		order = append(order, "sync")
+		return nil
 	}
-	if r.saved == nil {
-		return nil, storage.ErrStorageNotFound
+	rt.putFn = func(string, []byte) error {
+		order = append(order, "checkpoint")
+		return nil
 	}
-	return r.saved, nil
-}
-func (r *runtime) Put(key string, b []byte) error {
-	if r.failState {
-		return errors.New("synthetic state failure")
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"data":[{"id":"a"}],"has_more":false}`, 200), nil
+	})
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
 	}
-	r.saved = append([]byte(nil), b...)
-	if r.putCounts != nil {
-		r.putCounts[key]++
+	if len(order) == 0 || order[0] != "sync" {
+		t.Fatalf("a checkpoint key was written before the delivery barrier: %v", order)
 	}
-	if r.states != nil {
-		r.states[key] = append([]byte(nil), b...)
+	if len(order) < 2 {
+		t.Fatalf("no checkpoint was written at all: %v", order)
 	}
-	return nil
 }
 
-func (r *runtime) Debug(string, ...rfc5424.SDParam) {}
-func (r *runtime) Info(string, ...rfc5424.SDParam)  {}
-func (r *runtime) Warn(msg string, params ...rfc5424.SDParam) {
-	r.warnings++
-	line := msg
-	for _, p := range params {
-		line += " " + p.Name + "=" + p.Value
-	}
-	r.warningLog = append(r.warningLog, line)
-}
-func (r *runtime) Error(string, ...rfc5424.SDParam)    {}
-func (r *runtime) Critical(string, ...rfc5424.SDParam) {}
-func (r *runtime) Write(e entry.Entry) error {
-	if r.failWrite {
-		return errors.New("synthetic write failure")
-	}
-	r.entries = append(r.entries, e)
-	return nil
-}
-func (r *runtime) NegotiateTag(tag string) (entry.EntryTag, error) {
-	r.negotiatedTags = append(r.negotiatedTags, tag)
-	return 1, nil
-}
 func setup(t *testing.T, name string) (*Plugin, *runtime) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "key")
 	if e := os.WriteFile(path, []byte("synthetic-test-key"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	c := &Config{Dataset: name, Credential_File: path, Scope_Identity: "synthetic-" + t.Name(), Page_Size: 100, Max_Pages: 5, Max_Retries: 1, Follow_Children: "disabled"}
+	c := &Config{Dataset: []string{name}, Credential_File: path, Page_Size: 100, Max_Pages: 5, Max_Retries: 1, Follow_Children: "disabled"}
 	c.BaseConfig.Ingester_UUID = "00000000-0000-4000-8000-000000000321"
-	d, _ := lookup(name)
+	d := Datasets[name]
 	for _, m := range placeholder.FindAllStringSubmatch(d.Path, -1) {
 		c.Parameter = append(c.Parameter, m[1]+":synthetic-id")
 	}
 	if e := c.Verify(); e != nil {
 		t.Fatal(e)
 	}
-	rt := &runtime{}
+	rt := newRuntime(t)
 	p, err := New(c, rt)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.limiter = rate.NewLimiter(rate.Inf, 1000)
 	p.now = func() time.Time { return time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC) }
-	p.wait = func(context.Context, time.Duration) error { return nil }
 	return p, rt
 }
 func reply(body string, status int) *http.Response {
 	return &http.Response{StatusCode: status, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}
 }
 func TestEveryJSONOperationFramesOneNativeObject(t *testing.T) {
-	for _, d := range Catalog() {
+	for _, d := range Datasets {
 		t.Run(d.Name, func(t *testing.T) {
 			p, rt := setup(t, d.Name)
 			p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -174,7 +284,7 @@ func TestEveryJSONOperationFramesOneNativeObject(t *testing.T) {
 			if _, e := p.Handle(t.Context(), rt); e != nil {
 				t.Fatal(e)
 			}
-			if len(rt.entries) != 1 || rt.saved == nil {
+			if len(rt.entries) != 1 || rt.committed(p) == false {
 				t.Fatal("missing entry or state")
 			}
 			b := rt.entries[0].Data
@@ -217,7 +327,7 @@ func TestChatMessagesUseCorrectEnvelope(t *testing.T) {
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
 		return reply(`{"data":[{"id":"wrong"}],"has_more":false}`, 200), nil
 	})
-	if _, e := p.Handle(t.Context(), rt); e == nil || rt.saved != nil {
+	if _, e := p.Handle(t.Context(), rt); e == nil || rt.committed(p) {
 		t.Fatal("accepted wrong messages envelope")
 	}
 }
@@ -227,7 +337,7 @@ func TestFailuresBeforePageCommitNeverAdvanceState(t *testing.T) {
 			p, rt := setup(t, "activities")
 			rt.failWrite = kind == "write"
 			if kind == "size" {
-				p.conf.Max_Entry_Bytes = 1
+				p.maxEntryBytes = 1
 			}
 			p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
 				s := `{"data":[{"id":"x"}],"has_more":false}`
@@ -248,7 +358,7 @@ func TestFailuresBeforePageCommitNeverAdvanceState(t *testing.T) {
 				return reply(s, code), nil
 			})
 			_, e := p.Handle(t.Context(), rt)
-			if e == nil || rt.saved != nil {
+			if e == nil || rt.committed(p) {
 				t.Fatal("failure advanced state")
 			}
 			if strings.Contains(e.Error(), "sensitive") {
@@ -266,11 +376,11 @@ func TestRepeatedCursorRetainsCompletedPageCheckpoint(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e == nil {
 		t.Fatal("repeated cursor accepted")
 	}
-	if len(rt.entries) != 1 || rt.saved == nil {
+	if len(rt.entries) != 1 || rt.committed(p) == false {
 		t.Fatal("completed page checkpoint was not retained")
 	}
-	var st state
-	if e := json.Unmarshal(rt.saved, &st); e != nil || st.Traversal == nil || st.Traversal.Cursor != "same" {
+	st := rt.checkpoint(t, p)
+	if st.Walk == nil || st.Walk.Cursor != "same" {
 		t.Fatal("missing resumable traversal state")
 	}
 }
@@ -278,8 +388,6 @@ func TestRetryAfterAndNoRetryHeader(t *testing.T) {
 	for _, noRetry := range []bool{false, true} {
 		p, rt := setup(t, "activities")
 		n := 0
-		var delay time.Duration
-		p.wait = func(_ context.Context, d time.Duration) error { delay = d; return nil }
 		p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
 			n++
 			if n == 1 {
@@ -301,9 +409,59 @@ func TestRetryAfterAndNoRetryHeader(t *testing.T) {
 			if n != 1 || e == nil {
 				t.Fatal("retried prohibited response")
 			}
-		} else if e != nil || n != 2 || delay < 120*time.Second {
-			t.Fatal("Retry-After not honored")
+		} else if e != nil || n != 2 || len(rt.sleeps) != 1 || rt.sleeps[0] != 120*time.Second {
+			t.Fatalf("Retry-After not honored: err=%v requests=%d sleeps=%v", e, n, rt.sleeps)
 		}
+	}
+}
+
+func TestBoundedRetryAfterNumericBounds(t *testing.T) {
+	ceiling := 300 * time.Second
+	for _, tc := range []struct {
+		value string
+		delay time.Duration
+		over  bool
+	}{
+		{value: "300", delay: ceiling},
+		{value: "301", over: true},
+		{value: "18446744073709551615", over: true},
+		{value: "18446744073709551616"},
+		{value: "-1"},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			delay, over := boundedRetryAfter(tc.value, ceiling)
+			if delay != tc.delay || over != tc.over {
+				t.Fatalf("boundedRetryAfter(%q)=(%v,%t), want (%v,%t)", tc.value, delay, over, tc.delay, tc.over)
+			}
+		})
+	}
+}
+
+func TestRetryAfterBeyondPollIntervalStopsCycle(t *testing.T) {
+	for _, retryAfter := range []string{
+		"4294967295",
+		time.Now().Add(24 * time.Hour).UTC().Format(http.TimeFormat),
+	} {
+		t.Run(retryAfter, func(t *testing.T) {
+			p, rt := setup(t, "activities")
+			p.conf.Max_Retries = 1
+			requests := 0
+			p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+				requests++
+				if requests == 1 {
+					r := reply(`{}`, http.StatusTooManyRequests)
+					r.Header.Set("retry-after", retryAfter)
+					return r, nil
+				}
+				return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
+			})
+			if _, err := p.Handle(t.Context(), rt); err == nil {
+				t.Fatal("over-ceiling Retry-After did not end the cycle")
+			}
+			if requests != 1 || len(rt.sleeps) != 0 || rt.committed(p) {
+				t.Fatalf("over-ceiling Retry-After retried, waited, or advanced state: requests=%d sleeps=%v saved=%t", requests, rt.sleeps, rt.committed(p))
+			}
+		})
 	}
 }
 func TestRestartDeduplicatesAndRetainsWindow(t *testing.T) {
@@ -327,24 +485,24 @@ func TestRestartDeduplicatesAndRetainsWindow(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	before := append([]byte(nil), rt.saved...)
+	before := rt.checkpoint(t, p)
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if len(rt.entries) != 1 || n != 2 || !bytes.Equal(before, rt.saved) {
+	if len(rt.entries) != 1 || n != 2 || !before.Since.Equal(rt.checkpoint(t, p).Since) {
 		t.Fatal("restart replayed unchanged records")
 	}
 	old := p.conf.key()
-	p.conf.Scope_Identity = "different-scope"
+	p.conf.path = "/v1/compliance/other"
 	if old == p.conf.key() {
-		t.Fatal("scope not bound to state")
+		t.Fatal("dataset path not bound to state")
 	}
 }
 func TestCancellationAndTimestampFallback(t *testing.T) {
 	p, rt := setup(t, "activities")
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, e := p.Handle(ctx, rt); e == nil || rt.saved != nil {
+	if _, e := p.Handle(ctx, rt); e == nil || rt.committed(p) {
 		t.Fatal("ignored cancellation")
 	}
 	now := p.now()
@@ -360,6 +518,21 @@ type persistedRuntime struct {
 
 func (r persistedRuntime) Get(k string) ([]byte, error) { return r.bucket.Get(k) }
 func (r persistedRuntime) Put(k string, v []byte) error { return r.bucket.Put(k, v) }
+func (r persistedRuntime) GetString(k string) (string, error) {
+	v, err := r.bucket.Get(k)
+	return string(v), err
+}
+func (r persistedRuntime) PutString(k, v string) error { return r.bucket.Put(k, []byte(v)) }
+func (r persistedRuntime) GetTime(k string) (time.Time, error) {
+	v, err := r.GetString(k)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Parse(time.RFC3339Nano, v)
+}
+func (r persistedRuntime) PutTime(k string, v time.Time) error {
+	return r.PutString(k, v.Format(time.RFC3339Nano))
+}
 
 func TestStandardRuntimeDoesNotNeedPrivateMethods(t *testing.T) {
 	p, rt := setup(t, "activities")
@@ -371,7 +544,7 @@ func TestStandardRuntimeDoesNotNeedPrivateMethods(t *testing.T) {
 	if _, err := p.Handle(t.Context(), wrapped); err != nil {
 		t.Fatal(err)
 	}
-	if rt.saved == nil {
+	if rt.committed(p) == false {
 		t.Fatal("missing checkpoint")
 	}
 }
@@ -401,10 +574,10 @@ func TestPageCheckpointBoundsReplayAfterLaterFailure(t *testing.T) {
 			}
 			before := len(rt.entries)
 			if failure == "next-page" {
-				if rt.saved == nil {
+				if rt.committed(p) == false {
 					t.Fatal("completed page was not checkpointed")
 				}
-			} else if rt.saved != nil {
+			} else if rt.committed(p) {
 				t.Fatal("failed page advanced checkpoint")
 			}
 			failed, rt.failState = false, false
@@ -416,7 +589,7 @@ func TestPageCheckpointBoundsReplayAfterLaterFailure(t *testing.T) {
 			if failure == "next-page" {
 				wantAdded = 1
 			}
-			if len(rt.entries) != before+wantAdded || rt.saved == nil {
+			if len(rt.entries) != before+wantAdded || rt.committed(p) == false {
 				t.Fatal("unexpected replay after failure")
 			}
 		})
@@ -433,7 +606,7 @@ func TestMaxPagesContinuesFromCommittedCursor(t *testing.T) {
 		return reply(`{"data":[{"id":"a"}],"has_more":true,"last_id":"a"}`, 200), nil
 	})
 	cont, e := p.Handle(t.Context(), rt)
-	if e != nil || cont == nil || cont.Delay != 0 || len(rt.entries) != 1 || rt.saved == nil {
+	if e != nil || cont == nil || cont.Delay != 0 || len(rt.entries) != 1 || rt.committed(p) == false {
 		t.Fatal("page limit did not return a committed immediate continuation")
 	}
 	restarted, e := New(p.conf, rt)
@@ -441,7 +614,7 @@ func TestMaxPagesContinuesFromCommittedCursor(t *testing.T) {
 		t.Fatal(e)
 	}
 	restarted.http.Transport = p.http.Transport
-	restarted.now, restarted.wait, restarted.limiter = p.now, p.wait, p.limiter
+	restarted.now, restarted.limiter = p.now, p.limiter
 	cont, e = restarted.Handle(t.Context(), rt)
 	if e != nil || cont == nil || cont.Delay == 0 || len(rt.entries) != 2 {
 		t.Fatal("resumed traversal did not complete without replay")
@@ -450,7 +623,16 @@ func TestMaxPagesContinuesFromCommittedCursor(t *testing.T) {
 
 func TestLookbackStartAndCheckpointPrecedence(t *testing.T) {
 	p, rt := setup(t, "activities")
+	// Set it the way a configuration file does -- through the compatibility
+	// spelling -- and re-verify, which normalizes it into the standard
+	// polling field that collection reads.
 	p.conf.Lookback = 48
+	if e := p.conf.Verify(); e != nil {
+		t.Fatal(e)
+	}
+	if p.conf.PollingConfig.Lookback != 48 {
+		t.Fatalf("Lookback did not normalize: %d", p.conf.PollingConfig.Lookback)
+	}
 	want := p.now().Add(-48 * time.Hour)
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if got := r.URL.Query().Get("created_at.gte"); got != want.Format(time.RFC3339Nano) {
@@ -465,12 +647,9 @@ func TestLookbackStartAndCheckpointPrecedence(t *testing.T) {
 	// starts Overlap-Seconds before that end.
 	want = p.now().Add(-time.Minute - 300*time.Second)
 	p.conf.Lookback = 720
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
+	if e := p.conf.Verify(); e != nil {
+		t.Fatal(e)
 	}
-	rt.saved = nil
-	p.conf.Start_Time = "2026-09-01T00:00:00Z"
-	want, _ = time.Parse(time.RFC3339, p.conf.Start_Time)
 	if _, err := p.Handle(t.Context(), rt); err != nil {
 		t.Fatal(err)
 	}
@@ -497,7 +676,7 @@ func TestCheckpointPersistsAcrossBoltReopen(t *testing.T) {
 	if err := bw.Sync(); err != nil {
 		t.Fatal(err)
 	}
-	before, err := bw.Get(p.conf.key())
+	before, err := bw.Get(p.conf.key() + keySince)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +696,7 @@ func TestCheckpointPersistsAcrossBoltReopen(t *testing.T) {
 	if _, err := p.Handle(t.Context(), wrapped); err != nil {
 		t.Fatal(err)
 	}
-	after, err := bw.Get(p.conf.key())
+	after, err := bw.Get(p.conf.key() + keySince)
 	if err != nil || !bytes.Equal(before, after) || len(rt.entries) != 1 {
 		t.Fatal("restart lost checkpoint or replayed unchanged event")
 	}
@@ -529,16 +708,19 @@ func TestConfigIdentityAndBounds(t *testing.T) {
 	if !p.conf.Equal(c) || !p.conf.Equal(&c) || p.conf.Equal(nil) || p.conf.Equal((*Config)(nil)) || p.conf.Equal("wrong") {
 		t.Fatal("config equality contract")
 	}
-	c.Scope_Identity = "another-scope"
-	if p.conf.Equal(c) || c.key() == p.conf.key() {
-		t.Fatal("scope change did not isolate progress")
+	c.Host = "https://eu.example.invalid"
+	if p.conf.Equal(c) {
+		t.Fatal("Host change was not detected by Equal")
 	}
-	for _, hours := range []int{-1, 1 << 30} {
-		c = *p.conf
-		c.Lookback = lookbackHours(hours)
-		if err := c.Verify(); err == nil {
-			t.Fatal("invalid lookback accepted")
-		}
+	c = *p.conf
+	c.path = "/v1/compliance/other"
+	if c.key() == p.conf.key() {
+		t.Fatal("dataset path change did not isolate progress")
+	}
+	c = *p.conf
+	c.Lookback = -1
+	if err := c.Verify(); err == nil {
+		t.Fatal("negative lookback accepted")
 	}
 	c = *p.conf
 	c.Credential_File = filepath.Join(t.TempDir(), "missing")
@@ -550,7 +732,6 @@ func TestConfigIdentityAndBounds(t *testing.T) {
 func TestNewParentsAndFailedTranscriptSurviveRestart(t *testing.T) {
 	p, rt := setup(t, "local-sessions")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	fail := true
 	newParent := false
 	messages := map[string]int{}
@@ -580,7 +761,7 @@ func TestNewParentsAndFailedTranscriptSurviveRestart(t *testing.T) {
 		t.Fatal("missing failure")
 	}
 	var pending worklist
-	if e := json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &pending); e != nil || len(pending.Items) != 1 {
+	if e := json.Unmarshal(mustGet(t, rt, p.conf.key()+"/children"), &pending); e != nil || len(pending.Items) != 1 {
 		t.Fatal("child work not persisted")
 	}
 	fail = false
@@ -593,7 +774,6 @@ func TestNewParentsAndFailedTranscriptSurviveRestart(t *testing.T) {
 	}
 	restarted.http.Transport = tr
 	restarted.now = p.now
-	restarted.wait = p.wait
 	restarted.limiter = p.limiter
 	if _, e := restarted.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
@@ -601,7 +781,7 @@ func TestNewParentsAndFailedTranscriptSurviveRestart(t *testing.T) {
 	if len(messages) != 2 {
 		t.Fatalf("new/pending parents not collected: %v", messages)
 	}
-	if e := json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &pending); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, p.conf.key()+"/children"), &pending); e != nil {
 		t.Fatal(e)
 	}
 	for _, w := range pending.Items {
@@ -619,7 +799,6 @@ func TestNewParentsAndFailedTranscriptSurviveRestart(t *testing.T) {
 func TestActiveRemoteSession404IsDroppedThenRevisited(t *testing.T) {
 	p, rt := setup(t, "remote-sessions")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	missing := true
 	calls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -642,7 +821,7 @@ func TestActiveRemoteSession404IsDroppedThenRevisited(t *testing.T) {
 		t.Fatalf("child 404 was not reported: warnings=%d", rt.warnings)
 	}
 	var list worklist
-	if e := json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &list); e != nil || len(list.Items) != 1 {
+	if e := json.Unmarshal(mustGet(t, rt, p.conf.key()+"/children"), &list); e != nil || len(list.Items) != 1 {
 		t.Fatal("child work missing")
 	}
 	for _, w := range list.Items {
@@ -670,12 +849,13 @@ func TestActiveRemoteSession404IsDroppedThenRevisited(t *testing.T) {
 func TestChild404DuringRootFailureRemainsFailure(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
-	key := p.conf.key() + "/child-work-v1"
+	key := p.conf.key() + "/children"
 	seeded, _ := json.Marshal(worklist{Items: map[string]work{
 		"group-members/group_id:g1": {Dataset: "group-members", Parameter: []string{"group_id:g1"}, Revision: "r", Pending: true, LastAttempt: p.now().Add(-time.Hour)},
 	}})
-	rt.states[key] = seeded
+	if e := rt.Put(key, seeded); e != nil {
+		t.Fatal(e)
+	}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		return reply(`{"error":{"type":"not_found_error","message":"Not found"}}`, 404), nil
 	})
@@ -683,7 +863,7 @@ func TestChild404DuringRootFailureRemainsFailure(t *testing.T) {
 		t.Fatal("unauthenticated 404 hidden")
 	}
 	var list worklist
-	if e := json.Unmarshal(rt.states[key], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, key), &list); e != nil {
 		t.Fatal(e)
 	}
 	if w := list.Items["group-members/group_id:g1"]; !w.Pending || w.Failures != 1 {
@@ -694,7 +874,6 @@ func TestChild404DuringRootFailureRemainsFailure(t *testing.T) {
 func TestUnchangedOrganizationRefreshesMembership(t *testing.T) {
 	p, rt := setup(t, "organizations")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	members := 1
 	calls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -733,7 +912,6 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 2
 	p.conf.Max_Children = 2
-	rt.states = map[string][]byte{}
 	list := worklist{Items: map[string]work{
 		"old1": {Dataset: "group-members", Parameter: []string{"group_id:old1"}, Revision: "rev-old1", LastCompleted: p.now().Add(-time.Hour)},
 		"old2": {Dataset: "group-members", Parameter: []string{"group_id:old2"}, Revision: "rev-old2", LastCompleted: p.now()},
@@ -745,10 +923,11 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	}
 	old1.StateKey = old1Config.key()
 	list.Items["old1"] = old1
-	large, _ := json.Marshal(state{Since: p.now(), Manifest: manifest{"message": {Digest: strings.Repeat("a", 4096)}}})
-	rt.states[old1.StateKey] = large
+	seedCheckpoint(t, rt, old1.StateKey, checkpoint{Since: p.now(), Manifest: manifest{"message": {Digest: strings.Repeat("a", 4096)}}})
 	b, _ := json.Marshal(list)
-	rt.states[p.conf.key()+"/child-work-v1"] = b
+	if e := rt.Put(p.conf.key()+"/children", b); e != nil {
+		t.Fatal(e)
+	}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
 			return reply(`{"data":[{"id":"new"}],"has_more":false}`, 200), nil
@@ -759,7 +938,7 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 		t.Fatal(e)
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, p.conf.key()+"/children"), &list); e != nil {
 		t.Fatal(e)
 	}
 	if len(list.Items) != 2 {
@@ -768,8 +947,8 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	if _, ok := list.Items["old1"]; ok {
 		t.Fatal("oldest completed entry retained")
 	}
-	var pruned state
-	if e := json.Unmarshal(rt.states[old1.StateKey], &pruned); e != nil || len(pruned.Manifest) != 0 {
+	pruned := readCheckpoint(t, rt, old1.StateKey)
+	if len(pruned.Manifest) != 0 {
 		t.Fatal("evicted child checkpoint was not compacted")
 	}
 	if pruned.Retired != "" {
@@ -781,7 +960,9 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 		list.Items[k] = w
 	}
 	b, _ = json.Marshal(list)
-	rt.states[p.conf.key()+"/child-work-v1"] = b
+	if e := rt.Put(p.conf.key()+"/children", b); e != nil {
+		t.Fatal(e)
+	}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		return reply(`{"data":[{"id":"different"}],"has_more":false}`, 200), nil
 	})
@@ -794,12 +975,12 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 		t.Fatal("deferred root page was partially written")
 	}
 	var after worklist
-	if e = json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &after); e != nil || len(after.Items) != 2 {
+	if e = json.Unmarshal(mustGet(t, rt, p.conf.key()+"/children"), &after); e != nil || len(after.Items) != 2 {
 		t.Fatal("pending work was not preserved")
 	}
 }
 
-// TestCapacityEvictedUnchangedParentIsRediscovered proves the fix for the
+// TestCapacityEvictedUnchangedParentIsRediscovered covers the
 // tombstone-reuse defect: Max-Pending capacity eviction must compact a
 // child's checkpoint without marking it Retired, because the parent's
 // revision is unrelated to why it was evicted. A still-unchanged parent
@@ -811,7 +992,6 @@ func TestCapacityEvictedUnchangedParentIsRediscovered(t *testing.T) {
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 1
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
 	active := "g1"
 	g1Calls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -827,9 +1007,9 @@ func TestCapacityEvictedUnchangedParentIsRediscovered(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	g1, ok := list.Items["group-members/group_id:g1"]
@@ -848,16 +1028,13 @@ func TestCapacityEvictedUnchangedParentIsRediscovered(t *testing.T) {
 		t.Fatal(e)
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	if _, ok := list.Items["group-members/group_id:g1"]; ok {
 		t.Fatal("g1 was not evicted for Max-Pending capacity")
 	}
-	var pruned state
-	if e := json.Unmarshal(rt.states[g1.StateKey], &pruned); e != nil {
-		t.Fatal(e)
-	}
+	pruned := readCheckpoint(t, rt, g1.StateKey)
 	if pruned.Retired != "" {
 		t.Fatal("capacity eviction must not tombstone the checkpoint")
 	}
@@ -869,7 +1046,7 @@ func TestCapacityEvictedUnchangedParentIsRediscovered(t *testing.T) {
 		t.Fatal(e)
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	g1Again, ok := list.Items["group-members/group_id:g1"]
@@ -888,7 +1065,6 @@ func TestFailedChildDoesNotStarveHealthyWork(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
 	healthy := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -921,7 +1097,6 @@ func TestInProgressChildIsNotPreemptedByNewDiscovery(t *testing.T) {
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Children = 1
 	p.conf.Max_Pages = 1 // force group-members to need more than one Handle cycle
-	rt.states = map[string][]byte{}
 
 	addG2 := false
 	g1Page := 0
@@ -977,18 +1152,17 @@ func TestInProgressChildIsNotPreemptedByNewDiscovery(t *testing.T) {
 	}
 }
 
-// TestLegacyZeroLastAttemptWorkItemIsNotStuckFirstForever confirms that a
-// child-work item persisted before the fairness fix (LastAttempt left at
-// its Go zero value) does not perpetually cut ahead of items that have a
-// real recorded attempt time, and that it still runs (and thereby acquires
-// a real LastAttempt) once nothing newer is competing for the slot.
-func TestLegacyZeroLastAttemptWorkItemIsNotStuckFirstForever(t *testing.T) {
+// TestZeroLastAttemptWorkItemIsNotStuckFirstForever confirms that a stored
+// child-work item carrying the zero attempt time does not perpetually cut
+// ahead of items with a real recorded attempt time, and that it still runs
+// (and thereby acquires a real LastAttempt) once nothing newer is competing
+// for the slot.
+func TestZeroLastAttemptWorkItemIsNotStuckFirstForever(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
 
-	legacyConfig, e := childConfig(p.conf, work{Dataset: "group-members", Parameter: []string{"group_id:legacy"}})
+	zeroAttemptConfig, e := childConfig(p.conf, work{Dataset: "group-members", Parameter: []string{"group_id:zero-attempt"}})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -998,11 +1172,13 @@ func TestLegacyZeroLastAttemptWorkItemIsNotStuckFirstForever(t *testing.T) {
 		t.Fatal(e)
 	}
 	list := worklist{Items: map[string]work{
-		"group-members/group_id:legacy":    {Dataset: "group-members", Parameter: []string{"group_id:legacy"}, Revision: "rev-legacy", Pending: true, StateKey: legacyConfig.key()}, // LastAttempt left zero, as pre-fix persisted state would have it
-		"group-members/group_id:attempted": {Dataset: "group-members", Parameter: []string{"group_id:attempted"}, Revision: "rev-attempted", Pending: true, LastAttempt: attempted.LastAttempt, StateKey: attemptedConfig.key()},
+		"group-members/group_id:zero-attempt": {Dataset: "group-members", Parameter: []string{"group_id:zero-attempt"}, Revision: "rev-zero-attempt", Pending: true, StateKey: zeroAttemptConfig.key()}, // LastAttempt deliberately left at its zero value
+		"group-members/group_id:attempted":    {Dataset: "group-members", Parameter: []string{"group_id:attempted"}, Revision: "rev-attempted", Pending: true, LastAttempt: attempted.LastAttempt, StateKey: attemptedConfig.key()},
 	}}
 	b, _ := json.Marshal(list)
-	rt.states[p.conf.key()+"/child-work-v1"] = b
+	if e := rt.Put(p.conf.key()+"/children", b); e != nil {
+		t.Fatal(e)
+	}
 
 	var order []string
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -1010,8 +1186,8 @@ func TestLegacyZeroLastAttemptWorkItemIsNotStuckFirstForever(t *testing.T) {
 			return reply(`{"data":[],"has_more":false}`, 200), nil
 		}
 		switch {
-		case strings.Contains(r.URL.Path, "legacy"):
-			order = append(order, "legacy")
+		case strings.Contains(r.URL.Path, "zero-attempt"):
+			order = append(order, "zero-attempt")
 		case strings.Contains(r.URL.Path, "attempted"):
 			order = append(order, "attempted")
 		default:
@@ -1021,25 +1197,24 @@ func TestLegacyZeroLastAttemptWorkItemIsNotStuckFirstForever(t *testing.T) {
 	})
 
 	// The already-attempted item must run before the never-attempted
-	// (zero LastAttempt) legacy item under Max-Children=1.
+	// zero-LastAttempt item under Max-Children=1.
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
 	if len(order) != 1 || order[0] != "attempted" {
-		t.Fatalf("legacy zero-LastAttempt item cut ahead of already-attempted work: order=%v", order)
+		t.Fatalf("zero-LastAttempt item cut ahead of already-attempted work: order=%v", order)
 	}
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if len(order) != 2 || order[1] != "legacy" {
-		t.Fatalf("legacy zero-LastAttempt item never got its turn: order=%v", order)
+	if len(order) != 2 || order[1] != "zero-attempt" {
+		t.Fatalf("zero-LastAttempt item never got its turn: order=%v", order)
 	}
 }
 
 func TestDiscoveryDoesNotFilterOutUnchangedProjects(t *testing.T) {
 	p, rt := setup(t, "projects")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Query().Has("updated_at.gte") || r.URL.Query().Has("updated_at.lte") {
 			t.Fatal("child discovery excludes unchanged project")
@@ -1050,14 +1225,98 @@ func TestDiscoveryDoesNotFilterOutUnchangedProjects(t *testing.T) {
 		t.Fatal(e)
 	}
 }
-func TestDeletedChatDoesNotScheduleContentAndSharedBudget(t *testing.T) {
-	d, _ := lookup("chats")
+func TestDeletedChatDoesNotScheduleContentAndStanzaSharesBudget(t *testing.T) {
+	d := Datasets["chats"]
 	rows, e := childWork(d, nil, []byte(`{"id":"x","deleted_at":"2026-09-08T00:00:00Z"}`))
 	if e != nil || len(rows) != 0 {
 		t.Fatal("scheduled deleted content")
 	}
-	if sharedLimiter("one-parent", 30) != sharedLimiter("one-parent", 60) {
-		t.Fatal("budget multiplied per child")
+	p, _ := setup(t, "chats")
+	child := *p
+	if child.limiter != p.limiter {
+		t.Fatal("copying a stanza for child work multiplied its request budget")
+	}
+}
+
+func TestRateIncreaseAppliesWhenStanzaIsRebuilt(t *testing.T) {
+	p, rt := setup(t, "activities")
+	p.conf.Requests_Per_Minute = 1
+	p.limiter = requestLimiter(p.conf.Requests_Per_Minute)
+
+	reloaded := *p.conf
+	reloaded.Requests_Per_Minute = 600
+	high, err := New(&reloaded, rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantLow := rate.Every(time.Minute)
+	wantHigh := rate.Every(time.Minute / 600)
+	if p.limiter.Limit() != wantLow {
+		t.Fatalf("original limiter changed during reload: got=%v want=%v", p.limiter.Limit(), wantLow)
+	}
+	if high.limiter.Limit() != wantHigh {
+		t.Fatalf("reloaded rate was not applied: got=%v want=%v", high.limiter.Limit(), wantHigh)
+	}
+	if high.limiter == p.limiter {
+		t.Fatal("rebuilt stanza retained the removed configuration's limiter")
+	}
+}
+
+func TestLoweredMaxPendingEvictsCompletedStoredWork(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	key := p.conf.key() + keyChildren
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[{"id":"g1"},{"id":"g2"}],"has_more":false}`, http.StatusOK), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
+	})
+
+	p.conf.Max_Children = 2
+	p.conf.Max_Pending = 2
+	if _, err := p.Handle(t.Context(), rt); err != nil {
+		t.Fatal(err)
+	}
+	p.conf.Max_Children = 1
+	p.conf.Max_Pending = 1
+	if _, err := p.Handle(t.Context(), rt); err != nil {
+		t.Fatal(err)
+	}
+	var got worklist
+	if err := json.Unmarshal(mustGet(t, rt, key), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Items) != p.conf.Max_Pending {
+		t.Fatalf("stored worklist did not honor lowered Max-Pending: got=%d want=%d", len(got.Items), p.conf.Max_Pending)
+	}
+}
+
+func TestLoweredMaxPendingDrainsHealthyPendingWork(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Children = 1
+	p.conf.Max_Pending = 1
+	list := worklist{Items: map[string]work{
+		"group-members/g1": {Dataset: "group-members", Parameter: []string{"group_id:g1"}, Pending: true},
+		"group-members/g2": {Dataset: "group-members", Parameter: []string{"group_id:g2"}, Pending: true},
+	}}
+	dirty := false
+	if err := reconcileWorklistCapacity(rt, p.conf, &list, nil, &dirty); err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != 2 || dirty {
+		t.Fatalf("healthy pending work was discarded while lowering the bound: len=%d dirty=%v", len(list.Items), dirty)
+	}
+	item := list.Items["group-members/g1"]
+	item.Pending = false
+	item.LastCompleted = p.now().Add(-time.Hour)
+	list.Items["group-members/g1"] = item
+	if err := reconcileWorklistCapacity(rt, p.conf, &list, nil, &dirty); err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != 1 || !dirty {
+		t.Fatalf("completed work was not evicted after the pending backlog drained: len=%d dirty=%v", len(list.Items), dirty)
 	}
 }
 
@@ -1065,7 +1324,6 @@ func TestCustomTagIsPreservedForParentAndDiscoveredChildren(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	p.conf.Tag_Name = "tenant-compliance-directory"
-	rt.states = map[string][]byte{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
 			return reply(`{"data":[{"id":"g"}],"has_more":false}`, 200), nil
@@ -1115,7 +1373,7 @@ func TestSingleUnderscoreMetadataPreservesNativeRecord(t *testing.T) {
 			t.Errorf("obsolete metadata key emitted: _%s", key)
 		}
 	}
-	if rt.saved == nil {
+	if rt.committed(p) == false {
 		t.Fatal("acknowledged record did not retain normal checkpoint behavior")
 	}
 }
@@ -1144,7 +1402,6 @@ func TestPendingCapacityDefersPageWithoutDuplicateRootWrites(t *testing.T) {
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 2
 	p.conf.Max_Children = 2
-	rt.states = map[string][]byte{}
 	children := map[string]int{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -1177,7 +1434,6 @@ func TestPendingCapacityDefersPageWithoutDuplicateRootWrites(t *testing.T) {
 func TestChildWorkPersistenceIsBatchedPerPage(t *testing.T) {
 	p, rt := setup(t, "activities")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	rt.putCounts = map[string]int{}
 	var body strings.Builder
 	body.WriteString(`{"data":[`)
@@ -1194,11 +1450,13 @@ func TestChildWorkPersistenceIsBatchedPerPage(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if got := rt.putCounts[p.conf.key()+"/child-work-v1"]; got != 0 {
+	if got := rt.putsUnder(p.conf.key() + keyChildren); got != 0 {
 		t.Fatalf("activity records wrote child worklist %d times", got)
 	}
-	if got := rt.putCounts[p.conf.key()]; got != 1 {
-		t.Fatalf("dataset checkpoint writes = %d", got)
+	// One completed traversal commits a small fixed set of discrete keys;
+	// what must never happen is a write per record.
+	if got := rt.putsUnder(p.conf.key()); got == 0 || got > 8 {
+		t.Fatalf("dataset checkpoint writes = %d for 500 records", got)
 	}
 }
 
@@ -1211,7 +1469,7 @@ func TestOversizedSessionContextDoesNotBlockMessages(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if len(rt.entries) != 1 || rt.saved == nil || rt.warnings != 1 {
+	if len(rt.entries) != 1 || rt.committed(p) == false || rt.warnings != 1 {
 		t.Fatal("oversized session blocked message delivery")
 	}
 	if _, ok := rt.entries[0].GetEnumeratedValue("_session"); ok {
@@ -1225,7 +1483,6 @@ func TestOversizedSessionContextDoesNotBlockMessages(t *testing.T) {
 func TestDiscoveredChatCollectsHistoryBeforeUsingWindow(t *testing.T) {
 	p, rt := setup(t, "chats")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	childQueries := []url.Values{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/chats") {
@@ -1250,18 +1507,14 @@ func TestDiscoveredChatCollectsHistoryBeforeUsingWindow(t *testing.T) {
 	}
 }
 
-func TestLegacyDiscoveredChatCheckpointGetsHistoryBackfill(t *testing.T) {
+func TestDiscoveredChatWithoutHistoryMarkerGetsBackfill(t *testing.T) {
 	p, rt := setup(t, "chat-messages")
 	p.conf.discovered = true
-	rt.states = map[string][]byte{}
-	legacy, e := json.Marshal(state{
+	seedCheckpoint(t, rt, p.conf.key(), checkpoint{
 		Since:    p.now().Add(-time.Hour),
 		Manifest: manifest{"old": {Digest: "digest"}},
 	})
-	if e != nil {
-		t.Fatal(e)
-	}
-	rt.states[p.conf.key()] = legacy
+	var e error
 	var query url.Values
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		query = r.URL.Query()
@@ -1271,13 +1524,10 @@ func TestLegacyDiscoveredChatCheckpointGetsHistoryBackfill(t *testing.T) {
 		t.Fatal(e)
 	}
 	if query.Has("updated_at.gte") || query.Has("updated_at.lte") {
-		t.Fatal("legacy discovered chat checkpoint skipped corrective history backfill")
+		t.Fatal("discovered chat checkpoint without a history marker skipped the backfill")
 	}
-	var upgraded state
-	if e = json.Unmarshal(rt.states[p.conf.key()], &upgraded); e != nil {
-		t.Fatal(e)
-	}
-	if !upgraded.HistoryComplete {
+	after := readCheckpoint(t, rt, p.conf.key())
+	if !after.HistoryComplete {
 		t.Fatal("corrective history backfill was not recorded")
 	}
 }
@@ -1285,7 +1535,6 @@ func TestLegacyDiscoveredChatCheckpointGetsHistoryBackfill(t *testing.T) {
 func TestMissingParentIdentityIsLoggedAndSkipped(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	children := map[string]int{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -1303,7 +1552,7 @@ func TestMissingParentIdentityIsLoggedAndSkipped(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if len(rt.entries) != 3 || rt.saved == nil || rt.warnings != 1 {
+	if len(rt.entries) != 3 || rt.committed(p) == false || rt.warnings != 1 {
 		t.Fatal("malformed parent blocked the root dataset")
 	}
 	if children["g1"] != 1 || children["g2"] != 1 {
@@ -1318,25 +1567,25 @@ func TestCredentialReadsFullFileAndRejectsUnsafeContent(t *testing.T) {
 	if e := os.WriteFile(path, []byte(want), 0600); e != nil {
 		t.Fatal(e)
 	}
-	if got, e := credential(path); e != nil || got != want {
+	if got, e := (&Config{Credential_File: path}).credential(); e != nil || got != want {
 		t.Fatal("full credential file was not read")
 	}
 	if e := os.WriteFile(path, []byte("key\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	if got, e := credential(path); e != nil || got != "key" {
+	if got, e := (&Config{Credential_File: path}).credential(); e != nil || got != "key" {
 		t.Fatal("single trailing newline was not handled")
 	}
 	if e := os.WriteFile(path, []byte("first\nsecond"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	if _, e := credential(path); e == nil {
+	if _, e := (&Config{Credential_File: path}).credential(); e == nil {
 		t.Fatal("multiline credential accepted")
 	}
 	if e := os.WriteFile(path, []byte(strings.Repeat("x", 16385)), 0600); e != nil {
 		t.Fatal(e)
 	}
-	if _, e := credential(path); e == nil {
+	if _, e := (&Config{Credential_File: path}).credential(); e == nil {
 		t.Fatal("oversized credential accepted")
 	}
 }
@@ -1344,7 +1593,6 @@ func TestCredentialReadsFullFileAndRejectsUnsafeContent(t *testing.T) {
 func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
 	p, rt := setup(t, "chats")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	deleted := false
 	childCalls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -1361,8 +1609,8 @@ func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
 		t.Fatal(e)
 	}
 	var list worklist
-	workKey := p.conf.key() + "/child-work-v1"
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 1 {
+	workKey := p.conf.key() + "/children"
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil || len(list.Items) != 1 {
 		t.Fatal("chat child work was not retained")
 	}
 	var child work
@@ -1375,11 +1623,11 @@ func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
 		t.Fatal(e)
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 0 {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil || len(list.Items) != 0 {
 		t.Fatal("deleted chat retained child work")
 	}
-	var pruned state
-	if e := json.Unmarshal(rt.states[child.StateKey], &pruned); e != nil || len(pruned.Manifest) != 0 || pruned.Retired == "" {
+	pruned := readCheckpoint(t, rt, child.StateKey)
+	if len(pruned.Manifest) != 0 || pruned.Retired == "" {
 		t.Fatal("deleted chat checkpoint was not compacted")
 	}
 	if childCalls != 1 {
@@ -1395,7 +1643,6 @@ func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
 func TestStillDeletedChatRemainsSuppressed(t *testing.T) {
 	p, rt := setup(t, "chats")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	childCalls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/chats") {
@@ -1412,9 +1659,9 @@ func TestStillDeletedChatRemainsSuppressed(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 0 {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil || len(list.Items) != 0 {
 		t.Fatal("still-deleted chat should have no child work")
 	}
 	if childCalls != 0 {
@@ -1430,7 +1677,6 @@ func TestStillDeletedChatRemainsSuppressed(t *testing.T) {
 func TestUndeletedChatBecomesDiscoverable(t *testing.T) {
 	p, rt := setup(t, "chats")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	deleted := true
 	childCalls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -1446,9 +1692,9 @@ func TestUndeletedChatBecomesDiscoverable(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 0 {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil || len(list.Items) != 0 {
 		t.Fatal("deleted chat should have no child work")
 	}
 	if childCalls != 0 {
@@ -1462,7 +1708,7 @@ func TestUndeletedChatBecomesDiscoverable(t *testing.T) {
 		t.Fatal(e)
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil || len(list.Items) != 1 {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil || len(list.Items) != 1 {
 		t.Fatal("undeleted chat was not rediscovered")
 	}
 	if childCalls == 0 {
@@ -1496,15 +1742,12 @@ func TestManifestGrowthIsBounded(t *testing.T) {
 			t.Fatalf("cycle %d: reaching the manifest bound caused an error instead of evicting: %v", cycle, e)
 		}
 	}
-	var st state
-	if e := json.Unmarshal(rt.saved, &st); e != nil {
-		t.Fatal(e)
-	}
+	st := rt.checkpoint(t, p)
 	if len(st.Manifest) > 5 {
 		t.Fatalf("manifest retained %d entries, exceeding the configured bound of 5", len(st.Manifest))
 	}
-	if len(rt.saved) > 4<<10 {
-		t.Fatalf("checkpoint blob grew unexpectedly large for a 5-entry bound: %d bytes", len(rt.saved))
+	if n := rt.stateBytes(p.conf.key()); n > 4<<10 {
+		t.Fatalf("checkpoint grew unexpectedly large for a 5-entry bound: %d bytes", n)
 	}
 }
 
@@ -1528,7 +1771,7 @@ func TestManifestBoundPreservesDedupAcrossRestart(t *testing.T) {
 		t.Fatal(e)
 	}
 	restarted.maxManifestEntries = p.maxManifestEntries
-	restarted.now, restarted.wait, restarted.limiter = p.now, p.wait, p.limiter
+	restarted.now, restarted.limiter = p.now, p.limiter
 	restarted.http.Transport = p.http.Transport
 	if _, e := restarted.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
@@ -1539,94 +1782,54 @@ func TestManifestBoundPreservesDedupAcrossRestart(t *testing.T) {
 }
 
 // TestManifestEvictionRewritesStaleRecordsInsteadOfDroppingData proves the
-// eviction direction is safe: once the bound is exceeded, only the identity
-// the vendor reports as least-recently-updated stops being deduplicated, and
-// it is rewritten (a bounded, deterministic duplicate) rather than lost.
-// Records that remain within the bound stay correctly deduplicated.
+// eviction direction is safe. A manifest smaller than the record set cannot
+// deduplicate every record, so some are rewritten each cycle -- but the
+// number is bounded by how far the bound falls short, is identical every
+// cycle rather than growing, and no record is ever dropped. When the bound
+// is large enough to hold every identity, nothing is rewritten at all.
 func TestManifestEvictionRewritesStaleRecordsInsteadOfDroppingData(t *testing.T) {
-	p, rt := setup(t, "organizations")
-	p.maxManifestEntries = 2
+	const records = 3
 	const body = `{"data":[{"uuid":"o1","updated_at":"2020-01-01T00:00:00Z"},{"uuid":"o2","updated_at":"2020-01-02T00:00:00Z"},{"uuid":"o3","updated_at":"2020-01-03T00:00:00Z"}],"has_more":false}`
-	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
-		return reply(body, 200), nil
-	})
-	if _, e := p.Handle(t.Context(), rt); e != nil {
-		t.Fatal(e)
-	}
-	if len(rt.entries) != 3 {
-		t.Fatalf("first scan must write every record, got %d", len(rt.entries))
-	}
-	for cycle := 0; cycle < 3; cycle++ {
-		before := len(rt.entries)
-		if _, e := p.Handle(t.Context(), rt); e != nil {
-			t.Fatalf("cycle %d: %v", cycle, e)
-		}
-		// Exactly the oldest identity (o1, evicted to respect the bound of 2)
-		// must be rewritten each cycle; o2/o3 stay cached and deduplicated.
-		if got := len(rt.entries) - before; got != 1 {
-			t.Fatalf("cycle %d: want exactly 1 rewritten stale record, got %d", cycle, got)
-		}
-		var st state
-		if e := json.Unmarshal(rt.saved, &st); e != nil {
-			t.Fatal(e)
-		}
-		if len(st.Manifest) > 2 {
-			t.Fatalf("cycle %d: manifest exceeded its bound of 2: %d entries", cycle, len(st.Manifest))
-		}
-	}
-}
-
-// TestLegacyPlainStringManifestShapeStillLoads confirms a checkpoint written
-// before this bound existed -- where each manifest value was a bare digest
-// string rather than {"d":"...","s":...} -- still loads, and that its
-// digest is still honored for unchanged-record detection.
-func TestLegacyPlainStringManifestShapeStillLoads(t *testing.T) {
-	p, rt := setup(t, "organizations")
-	rt.states = map[string][]byte{}
-	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
-		return reply(`{"data":[{"uuid":"o1"}],"has_more":false}`, 200), nil
-	})
-	if _, e := p.Handle(t.Context(), rt); e != nil {
-		t.Fatal(e)
-	}
-	if len(rt.entries) != 1 {
-		t.Fatalf("first scan must write the new record, got %d", len(rt.entries))
-	}
-	var st state
-	if e := json.Unmarshal(rt.saved, &st); e != nil {
-		t.Fatal(e)
-	}
-	if len(st.Manifest) != 1 {
-		t.Fatalf("expected exactly one manifest entry, got %d", len(st.Manifest))
-	}
-	var key, digest string
-	for k, v := range st.Manifest {
-		key, digest = k, v.Digest
-	}
-
-	// Rewrite the persisted checkpoint into the plain {"key":"digest"} shape
-	// that builds before this fix wrote, to prove the upgraded reader still
-	// loads it and still honors its dedup digest.
-	legacy, e := json.Marshal(struct {
-		Since    time.Time         `json:"since"`
-		Manifest map[string]string `json:"manifest"`
-	}{Since: st.Since, Manifest: map[string]string{key: digest}})
-	if e != nil {
-		t.Fatal(e)
-	}
-	rt.states[p.conf.key()] = legacy
-
-	if _, e := p.Handle(t.Context(), rt); e != nil {
-		t.Fatalf("legacy plain-string manifest failed to load: %v", e)
-	}
-	if len(rt.entries) != 1 {
-		t.Fatal("legacy manifest digest match was not honored; unchanged record was rewritten")
-	}
-	if e := json.Unmarshal(rt.states[p.conf.key()], &st); e != nil {
-		t.Fatal(e)
-	}
-	if st.Manifest[key].Digest != digest {
-		t.Fatal("legacy manifest entry was not upgraded to the current shape")
+	for _, limit := range []int{1, 2, 3, 4} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			p, rt := setup(t, "organizations")
+			p.maxManifestEntries = limit
+			p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+				return reply(body, 200), nil
+			})
+			if _, e := p.Handle(t.Context(), rt); e != nil {
+				t.Fatal(e)
+			}
+			if len(rt.entries) != records {
+				t.Fatalf("first scan must write every record, got %d", len(rt.entries))
+			}
+			// A bound that cannot hold every identity costs one rewrite for
+			// the shortfall plus the one identity evicted to make room for
+			// the record being processed; a bound that can hold them all
+			// costs nothing.
+			want := 0
+			if limit < records {
+				want = records - limit + 1
+			}
+			var seen []int
+			for cycle := 0; cycle < 3; cycle++ {
+				before := len(rt.entries)
+				if _, e := p.Handle(t.Context(), rt); e != nil {
+					t.Fatalf("cycle %d: %v", cycle, e)
+				}
+				got := len(rt.entries) - before
+				seen = append(seen, got)
+				if got != want {
+					t.Fatalf("limit=%d cycle=%d: rewrote %d records, want a steady %d (seen %v)",
+						limit, cycle, got, want, seen)
+				}
+				st := rt.checkpoint(t, p)
+				if len(st.Manifest) > limit {
+					t.Fatalf("limit=%d cycle=%d: manifest holds %d entries, exceeding its bound",
+						limit, cycle, len(st.Manifest))
+				}
+			}
+		})
 	}
 }
 
@@ -1637,7 +1840,6 @@ func TestLegacyPlainStringManifestShapeStillLoads(t *testing.T) {
 func TestAbsentParentBelowThresholdDoesNotRetireChild(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	present := true
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -1659,9 +1861,9 @@ func TestAbsentParentBelowThresholdDoesNotRetireChild(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	w, ok := list.Items["group-members/group_id:g1"]
@@ -1676,7 +1878,6 @@ func TestAbsentParentBelowThresholdDoesNotRetireChild(t *testing.T) {
 func TestAbsentParentReappearanceResetsStreak(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	present := true
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -1700,9 +1901,9 @@ func TestAbsentParentReappearanceResetsStreak(t *testing.T) {
 	present = false
 	step() // absent again, streak -> 1 (not 3: proves the reset took)
 
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	w, ok := list.Items["group-members/group_id:g1"]
@@ -1717,7 +1918,6 @@ func TestAbsentParentReappearanceResetsStreak(t *testing.T) {
 func TestAbsentParentRetiredAfterConsecutiveCompleteScans(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	present := true
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -1731,9 +1931,9 @@ func TestAbsentParentRetiredAfterConsecutiveCompleteScans(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	child, ok := list.Items["group-members/group_id:g1"]
@@ -1748,20 +1948,17 @@ func TestAbsentParentRetiredAfterConsecutiveCompleteScans(t *testing.T) {
 		}
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	if _, ok := list.Items["group-members/group_id:g1"]; ok {
 		t.Fatalf("child work was not retired after %d consecutive complete absent scans", absentRetirementThreshold)
 	}
-	var pruned state
-	if e := json.Unmarshal(rt.states[child.StateKey], &pruned); e != nil {
-		t.Fatal(e)
-	}
+	pruned := readCheckpoint(t, rt, child.StateKey)
 	if pruned.Retired != "" {
 		t.Fatalf("absence retirement must not tombstone the child checkpoint (revision is unrelated to why it was retired): retired=%q", pruned.Retired)
 	}
-	if len(pruned.Manifest) != 0 || pruned.Traversal != nil {
+	if len(pruned.Manifest) != 0 || pruned.Walk != nil {
 		t.Fatal("retirement did not compact the child checkpoint")
 	}
 }
@@ -1770,7 +1967,6 @@ func TestPartialAndErroredScansNeverAdvanceAbsenceRetirement(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pages = 1
-	rt.states = map[string][]byte{}
 
 	// Discover g1 with one clean, complete scan.
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
@@ -1779,10 +1975,10 @@ func TestPartialAndErroredScansNeverAdvanceAbsenceRetirement(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	streak := func() uint {
 		var list worklist
-		if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+		if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 			t.Fatal(e)
 		}
 		return list.Items["group-members/group_id:g1"].AbsentStreak
@@ -1826,7 +2022,6 @@ func TestPartialAndErroredScansNeverAdvanceAbsenceRetirement(t *testing.T) {
 func TestAbsentParentRetirementLeavesUnrelatedChildWorkAlone(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	g1Present := true
 	g2Calls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -1852,9 +2047,9 @@ func TestAbsentParentRetirementLeavesUnrelatedChildWorkAlone(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	if _, ok := list.Items["group-members/group_id:g1"]; ok {
@@ -1868,7 +2063,7 @@ func TestAbsentParentRetirementLeavesUnrelatedChildWorkAlone(t *testing.T) {
 	}
 }
 
-// TestAbsenceRetiredUnchangedParentIsRediscovered proves the fix for the
+// TestAbsenceRetiredUnchangedParentIsRediscovered covers the
 // tombstone-reuse defect: absence-based retirement must compact a child's
 // checkpoint without marking it Retired, because absence is not a
 // content-derived signal -- a parent that reappears unchanged after being
@@ -1878,7 +2073,6 @@ func TestAbsentParentRetirementLeavesUnrelatedChildWorkAlone(t *testing.T) {
 func TestAbsenceRetiredUnchangedParentIsRediscovered(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	present := true
 	g1Calls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -1894,9 +2088,9 @@ func TestAbsenceRetiredUnchangedParentIsRediscovered(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	child, ok := list.Items["group-members/group_id:g1"]
@@ -1915,16 +2109,13 @@ func TestAbsenceRetiredUnchangedParentIsRediscovered(t *testing.T) {
 		}
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	if _, ok := list.Items["group-members/group_id:g1"]; ok {
 		t.Fatalf("child work was not retired after %d consecutive complete absent scans", absentRetirementThreshold)
 	}
-	var pruned state
-	if e := json.Unmarshal(rt.states[child.StateKey], &pruned); e != nil {
-		t.Fatal(e)
-	}
+	pruned := readCheckpoint(t, rt, child.StateKey)
 	if pruned.Retired != "" {
 		t.Fatal("absence retirement must not tombstone the checkpoint")
 	}
@@ -1935,7 +2126,7 @@ func TestAbsenceRetiredUnchangedParentIsRediscovered(t *testing.T) {
 		t.Fatal(e)
 	}
 	list = worklist{}
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	again, ok := list.Items["group-members/group_id:g1"]
@@ -1958,7 +2149,6 @@ func TestCombinedManifestNeverExceedsConfiguredLimitDuringTraversal(t *testing.T
 	p.conf.Max_Pages = 1
 	p.conf.Page_Size = 1
 	p.maxManifestEntries = 5
-	rt.states = map[string][]byte{}
 
 	// Prime a primary manifest already at the bound; the forced multi-page
 	// traversal below revisits exactly these five identities, letting
@@ -1967,11 +2157,7 @@ func TestCombinedManifestNeverExceedsConfiguredLimitDuringTraversal(t *testing.T
 	for i := 0; i < 5; i++ {
 		prior[fmt.Sprintf("uuid:o%d", i)] = manifestEntry{Digest: "will-not-match", Seen: int64(i)}
 	}
-	primed, e := json.Marshal(state{Since: p.now().Add(-time.Hour), Manifest: prior})
-	if e != nil {
-		t.Fatal(e)
-	}
-	rt.states[p.conf.key()] = primed
+	seedCheckpoint(t, rt, p.conf.key(), checkpoint{Since: p.now().Add(-time.Hour), Manifest: prior})
 
 	call := 0
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
@@ -1988,13 +2174,10 @@ func TestCombinedManifestNeverExceedsConfiguredLimitDuringTraversal(t *testing.T
 		if _, e := p.Handle(t.Context(), rt); e != nil {
 			t.Fatal(e)
 		}
-		var st state
-		if e := json.Unmarshal(rt.saved, &st); e != nil {
-			t.Fatal(e)
-		}
+		st := rt.checkpoint(t, p)
 		total := len(st.Manifest)
-		if st.Traversal != nil {
-			total += len(st.Traversal.Manifest)
+		if st.Walk != nil {
+			total += len(st.Walk.Manifest)
 		}
 		if total > p.maxManifestEntries {
 			t.Fatalf("cycle %d: combined manifest entries %d exceeded the configured limit %d", i, total, p.maxManifestEntries)
@@ -2007,7 +2190,6 @@ func TestManifestCompactionRestartResumesWithoutSkippingOrDuplicating(t *testing
 	p.conf.Max_Pages = 1
 	p.conf.Page_Size = 1
 	p.maxManifestEntries = 2
-	rt.states = map[string][]byte{}
 
 	call := 0
 	makeTransport := func() transport {
@@ -2040,7 +2222,7 @@ func TestManifestCompactionRestartResumesWithoutSkippingOrDuplicating(t *testing
 		t.Fatal(e)
 	}
 	restarted.maxManifestEntries = p.maxManifestEntries
-	restarted.now, restarted.wait, restarted.limiter = p.now, p.wait, p.limiter
+	restarted.now, restarted.limiter = p.now, p.limiter
 	restarted.http.Transport = makeTransport()
 
 	if _, e := restarted.Handle(t.Context(), rt); e != nil { // o2
@@ -2071,7 +2253,6 @@ func TestManifestCompactionRestartResumesWithoutSkippingOrDuplicating(t *testing
 func TestManifestCompactionStillEmitsGenuinelyChangedRecords(t *testing.T) {
 	p, rt := setup(t, "organizations")
 	p.maxManifestEntries = 2
-	rt.states = map[string][]byte{}
 	body := `{"data":[{"uuid":"o1","updated_at":"2026-01-01T00:00:00Z"},{"uuid":"o2","updated_at":"2026-01-01T00:00:01Z"}],"has_more":false}`
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
 		return reply(body, 200), nil
@@ -2102,7 +2283,6 @@ func TestManifestCompactionStillEmitsGenuinelyChangedRecords(t *testing.T) {
 func TestOversizedDiscoveredParentDoesNotBlockValidSibling(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	hugeID := strings.Repeat("a", maxDiscoveredParameterLen+1)
 	memberCalls := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -2122,9 +2302,9 @@ func TestOversizedDiscoveredParentDoesNotBlockValidSibling(t *testing.T) {
 	if memberCalls != 1 {
 		t.Fatalf("valid sibling g2 was blocked by the oversized parent: memberCalls=%d", memberCalls)
 	}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	var list worklist
-	if e := json.Unmarshal(rt.states[workKey], &list); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, workKey), &list); e != nil {
 		t.Fatal(e)
 	}
 	if _, ok := list.Items["group-members/group_id:g2"]; !ok {
@@ -2145,10 +2325,9 @@ func TestOversizedDiscoveredParentDoesNotBlockValidSibling(t *testing.T) {
 	}
 }
 
-func TestLegacyOversizedPersistedWorkItemIsRetiredSafely(t *testing.T) {
+func TestStoredOversizedWorkItemIsRetiredSafely(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	hugeID := strings.Repeat("b", maxDiscoveredParameterLen+1)
 	badParam := "group_id:" + hugeID
 	childConf, e := childConfig(p.conf, work{Dataset: "group-members", Parameter: []string{badParam}})
@@ -2162,7 +2341,9 @@ func TestLegacyOversizedPersistedWorkItemIsRetiredSafely(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	rt.states[p.conf.key()+"/child-work-v1"] = b
+	if e := rt.Put(p.conf.key()+"/children", b); e != nil {
+		t.Fatal(e)
+	}
 
 	attempts := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -2177,21 +2358,18 @@ func TestLegacyOversizedPersistedWorkItemIsRetiredSafely(t *testing.T) {
 		t.Fatal(e)
 	}
 	if attempts != 0 {
-		t.Fatalf("legacy oversized work item was attempted instead of retired: attempts=%d", attempts)
+		t.Fatalf("oversized work item was attempted instead of retired: attempts=%d", attempts)
 	}
 	var after worklist
-	if e := json.Unmarshal(rt.states[p.conf.key()+"/child-work-v1"], &after); e != nil {
+	if e := json.Unmarshal(mustGet(t, rt, p.conf.key()+"/children"), &after); e != nil {
 		t.Fatal(e)
 	}
 	if _, ok := after.Items["group-members/"+badParam]; ok {
-		t.Fatal("legacy oversized work item was not removed")
+		t.Fatal("oversized work item was not removed")
 	}
-	var pruned state
-	if e := json.Unmarshal(rt.states[childConf.key()], &pruned); e != nil {
-		t.Fatal(e)
-	}
+	pruned := readCheckpoint(t, rt, childConf.key())
 	if pruned.Retired != "rev" {
-		t.Fatalf("legacy oversized work item was not tombstoned: retired=%q", pruned.Retired)
+		t.Fatalf("oversized work item was not tombstoned: retired=%q", pruned.Retired)
 	}
 }
 
@@ -2222,4 +2400,43 @@ func TestOversizedParentEnumeratedValueWarnsAndOmitsInsteadOfFailing(t *testing.
 			t.Fatal("warning logged the oversized _parent value itself")
 		}
 	}
+}
+
+// mustGet reads a raw stored value, failing the test if it is absent.
+func mustGet(t *testing.T, rt *runtime, key string) []byte {
+	t.Helper()
+	b, err := rt.Get(key)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+// seedCheckpoint writes a checkpoint through the same discrete keys the
+// plugin uses, so tests can prime arbitrary stored progress.
+func seedCheckpoint(t *testing.T, rt *runtime, prefix string, cp checkpoint) {
+	t.Helper()
+	if err := commitDataset(rt, prefix, cp.Since, cp.Manifest, cp.HistoryComplete); err != nil {
+		t.Fatal(err)
+	}
+	if cp.Walk != nil {
+		if err := commitPage(rt, prefix, cp.Manifest, *cp.Walk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if cp.Retired != "" {
+		if err := rt.PutString(prefix+keyRetired, cp.Retired); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// readCheckpoint reads stored progress back at an arbitrary prefix.
+func readCheckpoint(t *testing.T, rt *runtime, prefix string) checkpoint {
+	t.Helper()
+	cp, err := loadCheckpoint(rt, prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cp
 }

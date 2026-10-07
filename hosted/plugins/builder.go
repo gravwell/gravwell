@@ -11,7 +11,7 @@ package plugins
 import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/claude-compliance"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/claudecompliance"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"

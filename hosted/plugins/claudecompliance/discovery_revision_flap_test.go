@@ -1,20 +1,14 @@
 package claudecompliance
 
-// Regression coverage for Finding 1 of claude-compliance-6e0dbb23-review.md:
-// a parent whose content revision changes on every poll (any live field --
-// member_count, updated_at, a monotonic seq, etc.) used to reset its own
-// permanently-failing child's Failures counter back to 0 every discovery
-// pass, because the old carry-forward at discovery.go only preserved
-// Failures (and RetryAt) when old.Revision == w.Revision. Since
-// maxChildFailures is the sole eligibility gate for the stuck-pending
-// eviction fallback added by commit 6e0dbb23 (see
-// discovery_pending_wedge_test.go), a child could never reach that
-// threshold as long as its parent's content kept changing at least once
-// every ~10 attempts -- something the plugin does not control and cannot
-// assume about vendor data. This exactly defeated the stated purpose of
-// that commit.
+// Coverage for a child whose parent's content revision changes on every
+// poll. Any live field -- member_count, updated_at, a monotonic sequence --
+// moves the revision, and maxChildFailures is the sole eligibility gate for
+// the stuck-pending eviction fallback (see discovery_pending_wedge_test.go).
+// If a revision change reset the child's Failures counter, a permanently
+// failing child whose parent churns at least once every few attempts could
+// never reach that threshold, and nothing the plugin controls could stop it.
 //
-// The fix carries a child's Failures forward across a revision change
+// A child's Failures carry forward across a revision change
 // unconditionally -- only an actual successful request, or eviction itself,
 // may reset it -- while RetryAt still resets on a revision change, so
 // genuinely new content is still retried promptly rather than waiting out a
@@ -30,8 +24,8 @@ import (
 )
 
 // TestRevisionFlap_StuckChildEvictedDespiteContentChurnThenRediscovered is
-// the permanent end-to-end regression test for Finding 1. It proves, in a
-// single scenario, every guarantee the fix depends on:
+// the end-to-end case. It proves, in a single scenario, every guarantee
+// this depends on:
 //
 //   - the parent's content revision changes on every discovery pass;
 //   - its child endpoint fails permanently;
@@ -43,16 +37,11 @@ import (
 //     recorded in the worklist);
 //   - the evicted child's checkpoint is compacted but never tombstoned;
 //   - the evicted child is later rediscovered once its parent reappears.
-//
-// Against the pre-fix code, the assertion after phase 1 fails outright
-// (Failures never climbs past 1, see the review's probe), so the whole
-// scenario never gets far enough to reach phase 2 or 3.
 func TestRevisionFlap_StuckChildEvictedDespiteContentChurnThenRediscovered(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 1
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
 
 	seq := 0
 	flapping := true // g1's parent content changes on every /groups poll while true
@@ -74,18 +63,20 @@ func TestRevisionFlap_StuckChildEvictedDespiteContentChurnThenRediscovered(t *te
 		g2Calls++
 		return reply(`{"data":[],"has_more":false}`, 200), nil
 	})
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 
 	runCycle := func(i int) {
 		var list worklist
-		_ = json.Unmarshal(rt.states[workKey], &list)
+		_ = json.Unmarshal(mustGet(t, rt, workKey), &list)
 		if list.Items != nil {
 			for k, it := range list.Items {
 				it.RetryAt = time.Time{}
 				list.Items[k] = it
 			}
 			if b, e := json.Marshal(list); e == nil {
-				rt.states[workKey] = b
+				if e := rt.Put(workKey, b); e != nil {
+					t.Fatal(e)
+				}
 			}
 		}
 		if _, e := p.Handle(t.Context(), rt); e != nil {
@@ -103,10 +94,10 @@ func TestRevisionFlap_StuckChildEvictedDespiteContentChurnThenRediscovered(t *te
 		t.Fatalf("test setup issue: parent revision did not actually change every cycle (seq=%d after %d cycles)", seq, maxChildFailures)
 	}
 	var afterPhase1 worklist
-	_ = json.Unmarshal(rt.states[workKey], &afterPhase1)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &afterPhase1)
 	g1 := afterPhase1.Items["group-members/group_id:g1"]
 	if g1.Failures < maxChildFailures {
-		t.Fatalf("Failures did not survive revision flapping: g1.Failures=%d after %d cycles of a changing parent revision, expected >= %d (Finding 1 regressed)", g1.Failures, maxChildFailures, maxChildFailures)
+		t.Fatalf("Failures did not survive revision flapping: g1.Failures=%d after %d cycles of a changing parent revision, expected >= %d", g1.Failures, maxChildFailures, maxChildFailures)
 	}
 	if !g1.Pending {
 		t.Fatal("test setup issue: g1 unexpectedly not Pending")
@@ -123,29 +114,28 @@ func TestRevisionFlap_StuckChildEvictedDespiteContentChurnThenRediscovered(t *te
 		t.Fatal(e)
 	}
 
-	// Phase 2: a genuinely new sibling (g2) appears. Against the pre-fix
-	// code this would be rejected by errPendingCapacity forever, because
-	// g1's Failures kept getting reset by the flapping revision and so
-	// never reached maxChildFailures. Against the fix, g1 is now eligible
-	// and gets evicted, and g2 is admitted -- and actually runs.
+	// Phase 2: a genuinely new sibling (g2) appears. Because g1's Failures
+	// survive the flapping revision it has reached maxChildFailures and is
+	// now eligible, so it is evicted and g2 is admitted -- and actually
+	// runs, rather than being rejected by errPendingCapacity forever.
 	phase = "g2"
 	admittedAtCycle := -1
 	for i := 0; i < 5; i++ {
 		runCycle(maxChildFailures + i)
 		var list worklist
-		_ = json.Unmarshal(rt.states[workKey], &list)
+		_ = json.Unmarshal(mustGet(t, rt, workKey), &list)
 		if _, ok := list.Items["group-members/group_id:g2"]; ok && admittedAtCycle == -1 {
 			admittedAtCycle = i
 		}
 	}
 	if admittedAtCycle == -1 {
-		t.Fatal("g2 was never admitted -- revision-flapping g1 wedged discovery forever (Finding 1 regressed)")
+		t.Fatal("g2 was never admitted -- revision-flapping g1 wedged discovery forever")
 	}
 	if g2Calls == 0 {
 		t.Fatal("g2 was admitted into the worklist but its endpoint was never actually called -- discovery did not genuinely resume")
 	}
 	var afterPhase2 worklist
-	_ = json.Unmarshal(rt.states[workKey], &afterPhase2)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &afterPhase2)
 	if _, stillPresent := afterPhase2.Items["group-members/group_id:g1"]; stillPresent {
 		t.Fatal("expected g1 to have been evicted to make room for g2")
 	}
@@ -153,10 +143,7 @@ func TestRevisionFlap_StuckChildEvictedDespiteContentChurnThenRediscovered(t *te
 	// The evicted child's checkpoint must be compacted, not tombstoned --
 	// eviction for capacity is unrelated to the parent's own validity and
 	// must never permanently suppress it.
-	var pruned state
-	if e := json.Unmarshal(rt.states[stateKey], &pruned); e != nil {
-		t.Fatal(e)
-	}
+	pruned := readCheckpoint(t, rt, stateKey)
 	if pruned.Retired != "" {
 		t.Fatal("stuck-pending eviction must not tombstone the checkpoint -- it would permanently suppress a still-valid parent")
 	}
@@ -168,19 +155,19 @@ func TestRevisionFlap_StuckChildEvictedDespiteContentChurnThenRediscovered(t *te
 	p.conf.Max_Pending = 2
 	runCycle(maxChildFailures + 5)
 	var afterPhase3 worklist
-	_ = json.Unmarshal(rt.states[workKey], &afterPhase3)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &afterPhase3)
 	if _, ok := afterPhase3.Items["group-members/group_id:g1"]; !ok {
 		t.Fatal("evicted child was never rediscovered once its parent reappeared and capacity freed")
 	}
 }
 
 // TestRevisionFlap_RevisionChangeResetsRetryAtButPreservesFailures proves
-// the two halves of the fix together. g1 starts Pending with Failures=5 and
+// both halves of the rule together. g1 starts Pending with Failures=5 and
 // RetryAt an hour in the future (mid-backoff). The parent's content then
-// changes. If RetryAt had not reset to allow prompt eligibility, g1 would
+// changes. If RetryAt did not reset to allow prompt eligibility, g1 would
 // not be attempted this cycle at all and Failures would stay at 5; if
-// Failures had been reset by the revision change (the pre-fix bug), a
-// failed attempt would land on 1, not 6. Observing Failures==6 after this
+// Failures were reset by the revision change, a failed attempt would land
+// on 1, not 6. Observing Failures==6 after this
 // single cycle is therefore only possible if RetryAt was reset (so the
 // attempt actually ran) *and* Failures was preserved and then incremented
 // by that attempt's failure (5 -> 6) rather than reset and incremented
@@ -190,8 +177,7 @@ func TestRevisionFlap_RevisionChangeResetsRetryAtButPreservesFailures(t *testing
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 1
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 
 	staleRetryAt := p.now().Add(time.Hour)
 	seeded := worklist{Items: map[string]work{
@@ -202,7 +188,9 @@ func TestRevisionFlap_RevisionChangeResetsRetryAtButPreservesFailures(t *testing
 		},
 	}}
 	b, _ := json.Marshal(seeded)
-	rt.states[workKey] = b
+	if e := rt.Put(workKey, b); e != nil {
+		t.Fatal(e)
+	}
 
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -215,7 +203,7 @@ func TestRevisionFlap_RevisionChangeResetsRetryAtButPreservesFailures(t *testing
 		t.Logf("Handle returned %v (expected -- g1's attempt fails)", e)
 	}
 	var after worklist
-	_ = json.Unmarshal(rt.states[workKey], &after)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &after)
 	g1 := after.Items["group-members/group_id:g1"]
 	if g1.Revision == "rev-old" {
 		t.Fatal("test setup issue: changed parent content did not produce a new revision")
@@ -229,7 +217,7 @@ func TestRevisionFlap_RevisionChangeResetsRetryAtButPreservesFailures(t *testing
 }
 
 // TestRevisionFlap_StaticParentPreservesRetryAtAndFailures proves the
-// unchanged-revision path still behaves exactly as before the fix. It
+// unchanged-revision path is unaffected. It
 // drives the same discover() carry-forward code path that
 // TestRevisionFlap_RevisionChangeResetsRetryAtButPreservesFailures
 // exercises for a *changed* revision, but via the hourly refresh trigger
@@ -241,8 +229,7 @@ func TestRevisionFlap_StaticParentPreservesRetryAtAndFailures(t *testing.T) {
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 1
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	oldNow := p.now()
 
 	const parentBody = `{"data":[{"id":"g1"}],"has_more":false}`
@@ -259,7 +246,7 @@ func TestRevisionFlap_StaticParentPreservesRetryAtAndFailures(t *testing.T) {
 		t.Fatal(e)
 	}
 	var seeded worklist
-	_ = json.Unmarshal(rt.states[workKey], &seeded)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &seeded)
 	g1 := seeded.Items["group-members/group_id:g1"]
 	if g1.Pending {
 		t.Fatal("test setup issue: expected g1 to have completed successfully")
@@ -272,7 +259,9 @@ func TestRevisionFlap_StaticParentPreservesRetryAtAndFailures(t *testing.T) {
 	g1.RetryAt = sentinelRetryAt
 	seeded.Items["group-members/group_id:g1"] = g1
 	b, _ := json.Marshal(seeded)
-	rt.states[workKey] = b
+	if e := rt.Put(workKey, b); e != nil {
+		t.Fatal(e)
+	}
 
 	// Same parent body (identical revision), but now more than an hour
 	// after LastCompleted, so the hourly refresh path runs the carry-forward
@@ -282,7 +271,7 @@ func TestRevisionFlap_StaticParentPreservesRetryAtAndFailures(t *testing.T) {
 		t.Fatal(e)
 	}
 	var after worklist
-	_ = json.Unmarshal(rt.states[workKey], &after)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &after)
 	g1After := after.Items["group-members/group_id:g1"]
 	if !g1After.RetryAt.Equal(sentinelRetryAt) {
 		t.Fatalf("expected RetryAt to be preserved when revision is unchanged, got %v want %v", g1After.RetryAt, sentinelRetryAt)
@@ -301,8 +290,7 @@ func TestRevisionFlap_SuccessfulChildRequestResetsFailures(t *testing.T) {
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 1
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	seeded := worklist{Items: map[string]work{
 		"group-members/group_id:g1": {
 			Dataset: "group-members", Parameter: []string{"group_id:g1"},
@@ -311,7 +299,9 @@ func TestRevisionFlap_SuccessfulChildRequestResetsFailures(t *testing.T) {
 		},
 	}}
 	b, _ := json.Marshal(seeded)
-	rt.states[workKey] = b
+	if e := rt.Put(workKey, b); e != nil {
+		t.Fatal(e)
+	}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
 			return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
@@ -322,7 +312,7 @@ func TestRevisionFlap_SuccessfulChildRequestResetsFailures(t *testing.T) {
 		t.Fatal(e)
 	}
 	var after worklist
-	_ = json.Unmarshal(rt.states[workKey], &after)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &after)
 	g1 := after.Items["group-members/group_id:g1"]
 	if g1.Failures != 0 {
 		t.Fatalf("expected a successful child request to reset Failures to 0, got %d", g1.Failures)
@@ -339,8 +329,7 @@ func TestRevisionFlap_NewlyDiscoveredChildStartsWithZeroFailures(t *testing.T) {
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 1
 	p.conf.Max_Children = 1
-	rt.states = map[string][]byte{}
-	workKey := p.conf.key() + "/child-work-v1"
+	workKey := p.conf.key() + "/children"
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
 			return reply(`{"data":[{"id":"g1"}],"has_more":false}`, 200), nil
@@ -351,7 +340,7 @@ func TestRevisionFlap_NewlyDiscoveredChildStartsWithZeroFailures(t *testing.T) {
 		t.Logf("Handle returned %v (expected -- g1's first attempt fails)", e)
 	}
 	var after worklist
-	_ = json.Unmarshal(rt.states[workKey], &after)
+	_ = json.Unmarshal(mustGet(t, rt, workKey), &after)
 	g1, ok := after.Items["group-members/group_id:g1"]
 	if !ok {
 		t.Fatal("expected g1 to be discovered")

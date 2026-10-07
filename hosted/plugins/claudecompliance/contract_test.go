@@ -1,8 +1,6 @@
 package claudecompliance
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -76,10 +74,7 @@ func TestWindowUpperBoundTrailsIndexingLag(t *testing.T) {
 	if want := p.now().Add(-time.Minute).Format(time.RFC3339Nano); lte != want {
 		t.Fatalf("upper bound %s, want %s", lte, want)
 	}
-	var st state
-	if e := json.Unmarshal(rt.saved, &st); e != nil {
-		t.Fatal(e)
-	}
+	st := rt.checkpoint(t, p)
 	// Even a one-second overlap resumes behind the lagged bound, so a
 	// record indexed up to a minute late is never skipped.
 	if want := p.now().Add(-time.Minute - time.Second); !st.Since.Equal(want) {
@@ -162,10 +157,7 @@ func TestWindowedManifestDropsIdentitiesBeforeNextWindow(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	var st state
-	if e := json.Unmarshal(rt.saved, &st); e != nil {
-		t.Fatal(e)
-	}
+	st := rt.checkpoint(t, p)
 	if _, ok := st.Manifest["id:old"]; ok {
 		t.Fatal("identity outside every later window was retained")
 	}
@@ -192,7 +184,6 @@ func TestFullInventoryManifestIsNotPrunedByTime(t *testing.T) {
 func TestChatsRootPollsIncrementallyWithDiscovery(t *testing.T) {
 	p, rt := setup(t, "chats")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/chats") {
 			q := r.URL.Query()
@@ -208,7 +199,7 @@ func TestChatsRootPollsIncrementallyWithDiscovery(t *testing.T) {
 }
 
 func TestDeletedProjectTombstonesEveryChild(t *testing.T) {
-	d, _ := lookup("projects")
+	d := Datasets["projects"]
 	raw := []byte(`{"id":"p1","deleted_at":"2026-09-07T00:00:00Z","updated_at":"2026-09-07T00:00:00Z"}`)
 	if rows, e := childWork(d, nil, raw); e != nil || len(rows) != 0 {
 		t.Fatal("deleted project scheduled child content")
@@ -230,7 +221,7 @@ func TestDeletedProjectTombstonesEveryChild(t *testing.T) {
 }
 
 func TestPendingRemoteSessionSchedulesNoTranscript(t *testing.T) {
-	d, _ := lookup("remote-sessions")
+	d := Datasets["remote-sessions"]
 	if rows, e := childWork(d, nil, []byte(`{"id":"cse_1","status":"pending"}`)); e != nil || len(rows) != 0 {
 		t.Fatal("pending remote session scheduled a transcript that 404s")
 	}
@@ -242,7 +233,6 @@ func TestPendingRemoteSessionSchedulesNoTranscript(t *testing.T) {
 func TestUnchangedLocalSessionIsNotReReadHourly(t *testing.T) {
 	p, rt := setup(t, "local-sessions")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	updated := "2026-09-07T20:00:00Z"
 	transcripts := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
@@ -287,7 +277,7 @@ func TestStableIdentityPerEndpoint(t *testing.T) {
 		{"activities", `{"id":"activity_1"}`, "id:activity_1"},
 	}
 	for _, c := range cases {
-		d, _ := lookup(c.dataset)
+		d, _ := Datasets[c.dataset]
 		if got := identity([]byte(c.raw), d.Identity, "digest"); got != c.want {
 			t.Errorf("%s identity %q, want %q", c.dataset, got, c.want)
 		}
@@ -307,10 +297,7 @@ func TestChangedMemberKeepsOneIdentity(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	var st state
-	if e := json.Unmarshal(rt.saved, &st); e != nil {
-		t.Fatal(e)
-	}
+	st := rt.checkpoint(t, p)
 	if len(rt.entries) != 2 || len(st.Manifest) != 1 {
 		t.Fatalf("member change: entries=%d manifest=%d", len(rt.entries), len(st.Manifest))
 	}
@@ -332,7 +319,7 @@ func TestSnapshotTimestampsUseChangeTimeOrCollectionTime(t *testing.T) {
 		{"remote-sessions", `{"id":"s","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-09-07T12:00:00Z"}`, time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)},
 	}
 	for _, c := range cases {
-		d, _ := lookup(c.dataset)
+		d, _ := Datasets[c.dataset]
 		if got := sourceTime([]byte(c.raw), d.Time, collected); !got.Equal(c.want) {
 			t.Errorf("%s %s: timestamp %s, want %s", c.dataset, c.raw, got, c.want)
 		}
@@ -340,23 +327,23 @@ func TestSnapshotTimestampsUseChangeTimeOrCollectionTime(t *testing.T) {
 }
 
 func TestEveryDatasetDeclaresTimeAndIdentityContract(t *testing.T) {
-	for _, d := range Catalog() {
-		if d.Identity == "" {
+	for _, d := range Datasets {
+		if len(d.Identity) == 0 {
 			t.Errorf("%s has no identity contract", d.Name)
 		}
 		if d.Window != "" && d.Rows == "" {
 			t.Errorf("%s windows a single-object endpoint", d.Name)
 		}
 	}
-	if len(Catalog()) != 26 {
-		t.Fatalf("catalog has %d operations, want 26", len(Catalog()))
+	if len(Datasets) != 26 {
+		t.Fatalf("catalog has %d operations, want 26", len(Datasets))
 	}
 }
 
-// Reproductions of the correctness findings on gravwell/gravwell#2783,
-// using the reviewer's own probe shapes.
+// Traversal, discovery, and framing behavior under the conditions that make
+// each one easy to get wrong.
 
-func TestPR2783Finding1BacklogOverMaxPagesIsNotReplayed(t *testing.T) {
+func TestBacklogOverMaxPagesIsNotReplayed(t *testing.T) {
 	p, rt := setup(t, "activities")
 	p.conf.Max_Pages = 3
 	n := 0
@@ -369,8 +356,7 @@ func TestPR2783Finding1BacklogOverMaxPagesIsNotReplayed(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	// Reviewer observed 3, 6, then 9 entries with no checkpoint.
-	if len(rt.entries) != 9 || rt.saved == nil {
+	if len(rt.entries) != 9 || rt.committed(p) == false {
 		t.Fatalf("backlog replayed or uncheckpointed: entries=%d", len(rt.entries))
 	}
 	seen := map[string]bool{}
@@ -382,12 +368,11 @@ func TestPR2783Finding1BacklogOverMaxPagesIsNotReplayed(t *testing.T) {
 	}
 }
 
-func TestPR2783Finding2ChildrenBeyondMaxPendingDoNotBrickRoot(t *testing.T) {
+func TestChildrenBeyondMaxPendingDoNotBrickRoot(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Pending = 2
 	p.conf.Max_Children = 2
-	rt.states = map[string][]byte{}
 	members := map[string]int{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
@@ -417,10 +402,9 @@ func TestPR2783Finding2ChildrenBeyondMaxPendingDoNotBrickRoot(t *testing.T) {
 	}
 }
 
-func TestPR2783Finding3ChildlessRecordsDoNotRewriteWorklist(t *testing.T) {
+func TestChildlessRecordsDoNotRewriteWorklist(t *testing.T) {
 	p, rt := setup(t, "activities")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	rt.putCounts = map[string]int{}
 	rows := make([]string, 500)
 	for i := range rows {
@@ -436,13 +420,14 @@ func TestPR2783Finding3ChildlessRecordsDoNotRewriteWorklist(t *testing.T) {
 	for _, n := range rt.putCounts {
 		total += n
 	}
-	// Reviewer measured 501 Puts; one dataset checkpoint is expected.
-	if total > 2 || len(rt.entries) != 500 {
+	// A completed traversal commits a small fixed set of discrete keys and
+	// nothing per record, so state writes must not scale with the page.
+	if total == 0 || total > 8 || len(rt.entries) != 500 {
 		t.Fatalf("state writes=%d entries=%d", total, len(rt.entries))
 	}
 }
 
-func TestPR2783Finding4LargeSessionEnvelopeDoesNotFailEntries(t *testing.T) {
+func TestLargeSessionEnvelopeDoesNotFailEntries(t *testing.T) {
 	p, rt := setup(t, "remote-session-messages")
 	blob := strings.Repeat("x", 70000)
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
@@ -451,7 +436,7 @@ func TestPR2783Finding4LargeSessionEnvelopeDoesNotFailEntries(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if len(rt.entries) != 1 || rt.saved == nil {
+	if len(rt.entries) != 1 || rt.committed(p) == false {
 		t.Fatal("70000-byte session envelope blocked the message")
 	}
 	if len(blob) <= entry.MaxEvDataLength {
@@ -459,10 +444,9 @@ func TestPR2783Finding4LargeSessionEnvelopeDoesNotFailEntries(t *testing.T) {
 	}
 }
 
-func TestPR2783Finding6MalformedParentIsSkippedNotBlocking(t *testing.T) {
+func TestMalformedParentIsSkippedNotBlocking(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	rt.states = map[string][]byte{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
 			return reply(`{"data":[{"id":"g1"},{"name":"no-id"},{"id":"g3"}],"has_more":false}`, 200), nil
@@ -483,8 +467,6 @@ func TestTransportFailureIsRetriedWithBackoff(t *testing.T) {
 	p, rt := setup(t, "activities")
 	p.conf.Max_Retries = 2
 	n := 0
-	var delays []time.Duration
-	p.wait = func(_ context.Context, d time.Duration) error { delays = append(delays, d); return nil }
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
 		n++
 		if n < 3 {
@@ -495,8 +477,8 @@ func TestTransportFailureIsRetriedWithBackoff(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if n != 3 || len(rt.entries) != 1 || len(delays) != 2 || delays[0] != time.Second || delays[1] != 2*time.Second {
-		t.Fatalf("transport retry: requests=%d entries=%d delays=%v", n, len(rt.entries), delays)
+	if n != 3 || len(rt.entries) != 1 || len(rt.sleeps) != 2 || rt.sleeps[0] != time.Second || rt.sleeps[1] != 2*time.Second {
+		t.Fatalf("transport retry: requests=%d entries=%d sleeps=%v", n, len(rt.entries), rt.sleeps)
 	}
 }
 
@@ -508,7 +490,7 @@ func TestTransportFailureExhaustsWithoutAdvancingState(t *testing.T) {
 		n++
 		return nil, errors.New("synthetic connection reset")
 	})
-	if _, e := p.Handle(t.Context(), rt); e == nil || rt.saved != nil {
+	if _, e := p.Handle(t.Context(), rt); e == nil || rt.committed(p) {
 		t.Fatal("exhausted transport retries advanced state")
 	}
 	if n != 2 {

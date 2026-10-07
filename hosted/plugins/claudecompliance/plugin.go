@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"golang.org/x/time/rate"
@@ -22,46 +21,83 @@ import (
 )
 
 type Plugin struct {
-	conf               *Config
-	http               *http.Client
-	now                func() time.Time
-	wait               func(context.Context, time.Duration) error
-	limiter            *rate.Limiter
-	onRecord           func(Dataset, []byte) error
-	flushRecords       func() error
+	conf    *Config
+	http    *http.Client
+	now     func() time.Time
+	limiter *rate.Limiter
+	// syncIngest is the muxer's ingest delivery barrier, bound at build time
+	// (see Synchronizer). No checkpoint advances until it returns.
 	syncIngest         func(context.Context, time.Duration) error
 	maxRecords         int
 	maxManifestEntries int
+	// maxEntryBytes bounds a single decoded record. It is not a user-facing
+	// option; it defaults to maxResponseBytes and exists so tests can drive
+	// the oversize path.
+	maxEntryBytes int
 }
 
-// New binds the muxer's existing synchronization capability at build time.
-// Runtime wrappers need not expose anything beyond hosted.Runtime.
+// entryBound reports the per-record ceiling for this plugin.
+func (p *Plugin) entryBound() int {
+	if p.maxEntryBytes > 0 {
+		return p.maxEntryBytes
+	}
+	return maxResponseBytes
+}
+
+// collector observes each decoded record of a traversal and is how child
+// discovery hooks into a scan. Passing it down the call chain keeps a scan's
+// behavior fixed for its whole lifetime, rather than depending on fields
+// mutated on the Plugin itself.
+type collector interface {
+	// record is called once per decoded record, before it is written.
+	record(Dataset, []byte) error
+	// flush is called at each response-page boundary.
+	flush() error
+}
+
+// Synchronizer is the ingest delivery barrier this plugin needs before it
+// may advance a checkpoint. The shared muxer already implements it; it is
+// named here so the requirement is an explicit, documented contract rather
+// than an undeclared assumption about what a caller happens to pass.
+type Synchronizer interface {
+	SyncContext(context.Context, time.Duration) error
+}
+
+// New builds the plugin. tn must also provide the ingest delivery barrier:
+// writing an entry only queues it, and a state-store sync is not proof of
+// delivery, so without a barrier a checkpoint could advance past records
+// that never reached a backend.
 func New(c *Config, tn hosted.TagNegotiator) (*Plugin, error) {
-	s, ok := tn.(interface {
-		SyncContext(context.Context, time.Duration) error
-	})
+	if c == nil {
+		return nil, errors.New("Compliance requires a configuration")
+	}
+	s, ok := tn.(Synchronizer)
 	if !ok {
-		return nil, errors.New("Compliance requires an ingest muxer with SyncContext")
+		return nil, errors.New("Compliance requires an ingest muxer providing SyncContext; a write alone is not a delivery barrier")
 	}
-	return &Plugin{conf: c, http: &http.Client{Timeout: 90 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, now: time.Now, wait: sleep, limiter: sharedLimiter(c.Scope_Identity, c.Requests_Per_Minute), syncIngest: s.SyncContext}, nil
-}
-func sleep(ctx context.Context, d time.Duration) error {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
+	p := &Plugin{
+		conf: c,
+		http: &http.Client{
+			Timeout:       90 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		now:        time.Now,
+		limiter:    requestLimiter(c.Requests_Per_Minute),
+		syncIngest: s.SyncContext,
 	}
+	return p, nil
 }
 
-type state struct {
-	Since           time.Time  `json:"since"`
-	Manifest        manifest   `json:"manifest"`
-	Traversal       *traversal `json:"traversal,omitempty"`
-	Retired         string     `json:"retired_revision,omitempty"`
-	HistoryComplete bool       `json:"history_complete,omitempty"`
+// requestLimiter returns the budget owned by one configured stanza. Every
+// dataset and discovered child handled by that stanza shares this limiter.
+// Rebuilding a stanza after configuration reload therefore applies both rate
+// decreases and rate increases without retaining a process-global setting
+// from a removed configuration.
+func requestLimiter(rpm int) *rate.Limiter {
+	if rpm < 1 {
+		rpm = 30
+	}
+	return rate.NewLimiter(rate.Every(time.Minute/time.Duration(rpm)), 1)
 }
 
 type traversal struct {
@@ -107,6 +143,10 @@ const defaultMaxManifestEntries = 100000
 // digestOf reports the retained digest for key, or "" if key is not tracked.
 func (m manifest) digestOf(key string) string { return m[key].Digest }
 
+// has reports whether key has been seen at all, which is all an immutable
+// Event needs to know.
+func (m manifest) has(key string) bool { _, ok := m[key]; return ok }
+
 // put records key's digest and vendor-reported seen time, evicting the
 // identity the vendor reports as least recently updated when the manifest is
 // already at limit. Eviction never removes the identity being inserted.
@@ -136,31 +176,6 @@ func (m manifest) evictOldest() {
 	}
 }
 
-// UnmarshalJSON accepts both the current {"key":{"d":"...","s":...}} shape
-// and the plain {"key":"digest"} shape written before this bound existed, so
-// checkpoints persisted by earlier builds keep loading.
-func (m *manifest) UnmarshalJSON(b []byte) error {
-	var raw map[string]json.RawMessage
-	if e := json.Unmarshal(b, &raw); e != nil {
-		return e
-	}
-	out := make(manifest, len(raw))
-	for k, v := range raw {
-		var legacy string
-		if e := json.Unmarshal(v, &legacy); e == nil {
-			out[k] = manifestEntry{Digest: legacy}
-			continue
-		}
-		var entry manifestEntry
-		if e := json.Unmarshal(v, &entry); e != nil {
-			return e
-		}
-		out[k] = entry
-	}
-	*m = out
-	return nil
-}
-
 // statusError reports a non-200 Compliance response by status code only;
 // the response body is never surfaced because it can echo request data.
 type statusError struct{ code int }
@@ -188,45 +203,35 @@ const (
 	maxTraversalAge = 23 * time.Hour
 )
 
-// fullParentScan reports whether a root inventory must be listed without its
-// time filter so that unchanged parents still requeue child work. Chats are
-// excluded: the vendor documents that order_by=updated_at returns a chat
-// again whenever it receives a new message, moves project, or is deleted.
+// fullParentScan reports whether a root inventory that does have a usable
+// time filter must nonetheless be listed without it, so an unchanged parent
+// still requeues child work. Chats are excluded: the vendor documents that
+// order_by=updated_at returns a chat again whenever it receives a new
+// message, moves project, or is deleted. An inventory with no documented
+// filter at all is already a full scan through its empty catalog Window and
+// needs no entry here.
 func fullParentScan(c *Config) bool {
-	d := c.dataset
-	return c.Follow_Children != "disabled" && (d.Name == "projects" || d.Name == "local-sessions")
+	return c.Follow_Children != "disabled" && c.dataset.Name == "local-sessions"
 }
 
-func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
-	if p.syncIngest == nil {
-		return nil, errors.New("Compliance ingest synchronization is not configured")
-	}
+func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime, col collector) (*hosted.Continuation, error) {
 	c := p.conf
-	token, e := credential(c.Credential_File)
+	token, e := c.credential()
 	if e != nil {
 		return nil, e
 	}
-	st := state{Manifest: manifest{}}
-	b, e := rt.Get(c.key())
-	if e == nil {
-		if e = json.Unmarshal(b, &st); e != nil {
-			return nil, errors.New("invalid Compliance state")
-		}
-	} else if !errors.Is(e, storage.ErrStorageNotFound) {
+	prefix := c.key()
+	st, e := loadCheckpoint(rt, prefix)
+	if e != nil {
 		return nil, e
-	}
-	if st.Manifest == nil {
-		st.Manifest = manifest{}
 	}
 	now := p.now().UTC()
 	d := c.dataset
+	// Resume from the stored checkpoint; with no stored state, start at
+	// Lookback rather than at the beginning of time.
 	since := st.Since
 	if since.IsZero() {
-		if c.Start_Time != "" {
-			since, _ = time.Parse(time.RFC3339, c.Start_Time)
-		} else {
-			since = now.Add(-time.Duration(c.Lookback) * time.Hour)
-		}
+		since = now.Add(-time.Duration(c.PollingConfig.Lookback) * time.Hour)
 	}
 	fullParents := fullParentScan(c)
 	scan := traversal{
@@ -254,11 +259,8 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		return old
 	}
 	resumed := false
-	if st.Traversal != nil {
-		scan = *st.Traversal
-		if scan.Cursor == "" || scan.Until.IsZero() {
-			return nil, errors.New("invalid Compliance traversal state")
-		}
+	if st.Walk != nil {
+		scan = *st.Walk
 		if scan.Manifest == nil {
 			scan.Manifest = manifest{}
 		}
@@ -269,7 +271,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			resumed = true
 		}
 	}
-	tag, e := rt.NegotiateTag(c.Tag_Name)
+	tag, e := rt.NegotiateTag(c.tag())
 	if e != nil {
 		return nil, e
 	}
@@ -294,7 +296,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			return nil, errors.New("Compliance returned a repeated cursor")
 		}
 		seen[requestKey] = true
-		body, e := p.request(ctx, token, q, limiter)
+		body, e := p.request(ctx, rt, token, q, limiter)
 		if e != nil {
 			// A rejected stored cursor (expired or no longer decodable) is
 			// permanent for that cursor; restart the walk once instead of
@@ -333,14 +335,24 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		plans := make([]entry.Entry, 0, len(rows))
 		for _, raw := range rows {
 			count++
-			compact, e := compactObject(raw, c.Max_Entry_Bytes)
+			compact, e := compactObject(raw, p.entryBound())
 			if e != nil {
 				return nil, e
 			}
 			h := sha256.Sum256(compact)
 			digest := hex.EncodeToString(h[:])
 			key := identity(compact, d.Identity, digest)
-			unchanged := st.Manifest.digestOf(key) == digest || scan.Manifest.digestOf(key) == digest
+			// An Event is immutable: having seen its identity at all is
+			// proof it has already been written, whatever bytes the vendor
+			// replays. A Record can legitimately change in place, so only an
+			// identical digest proves nothing new arrived.
+			var unchanged bool
+			switch d.Kind {
+			case Event:
+				unchanged = st.Manifest.has(key) || scan.Manifest.has(key)
+			default:
+				unchanged = st.Manifest.digestOf(key) == digest || scan.Manifest.digestOf(key) == digest
+			}
 			recordTime := sourceTime(compact, d.Time, now)
 			// seenTime orders manifest eviction and, for windowed datasets,
 			// decides when an identity can no longer be returned again.
@@ -358,20 +370,27 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			// manifestLimit -- keeps the combined retained-entry count
 			// bounded by manifestLimit as a single shared budget, instead
 			// of letting each manifest reach manifestLimit on its own
-			// while a traversal is in progress. The floor of 1 guarantees
-			// put can always insert the record currently being processed;
-			// it only matters while the primary manifest is still fully
-			// unvisited-and-stale (nothing yet compacted out of it), and
-			// self-corrects to the full manifestLimit bound as soon as any
-			// visited identity is compacted out of the primary manifest.
+			// while a traversal is in progress.
+			//
+			// A brand new identity frees nothing from the primary manifest,
+			// so when that manifest is already full the budget would be zero
+			// and there would be no room for the record being processed.
+			// Evict from the primary manifest until there is room, rather
+			// than overflowing the bound: the identity dropped is the one the
+			// vendor reports as least recently updated, and forgetting it can
+			// only cause that single record to be written once more if it is
+			// still returned -- never cause a changed record to be missed.
 			delete(st.Manifest, key)
+			for manifestLimit-len(st.Manifest) < 1 && len(st.Manifest) > 0 {
+				st.Manifest.evictOldest()
+			}
 			budget := manifestLimit - len(st.Manifest)
 			if budget < 1 {
 				budget = 1
 			}
 			scan.Manifest.put(key, digest, seenTime, budget)
-			if p.onRecord != nil {
-				if e = p.onRecord(d, compact); e != nil {
+			if col != nil {
+				if e = col.record(d, compact); e != nil {
 					return nil, e
 				}
 			}
@@ -379,7 +398,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 				continue
 			}
 			ent := entry.Entry{TS: entry.FromStandard(recordTime), Tag: tag, Data: compact}
-			for _, kv := range [][2]string{{"_vendor", "Anthropic"}, {"_product", "Claude Enterprise Compliance"}, {"_source", d.Name}, {"_recordType", d.Name}, {"_endpoint", "/v1/compliance" + d.Path}, {"_apiVersion", "2023-06-01"}, {"_parent", strings.Join(c.Parameter, ",")}} {
+			for _, kv := range [][2]string{{"_vendor", "Anthropic"}, {"_product", "Claude Enterprise Compliance"}, {"_source", d.Name}, {"_recordType", d.Name}, {"_endpoint", "/v1/compliance" + d.Path}, {"_apiVersion", apiVersion}, {"_parent", strings.Join(c.Parameter, ",")}} {
 				// Discovered parameter values are bounded well below this
 				// limit (see maxDiscoveredParameterLen), but a directly
 				// user-configured Parameter is not. Degrade the same way
@@ -396,7 +415,7 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			}
 			// Session/chat envelope context is retained intrinsically for each message.
 			if raw := envelope["session"]; d.Rows != "" && len(raw) > 0 && string(raw) != "null" {
-				v, e := compactObject(raw, c.Max_Response_Bytes)
+				v, e := compactObject(raw, p.entryBound())
 				if e != nil {
 					return nil, e
 				}
@@ -410,8 +429,8 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 			}
 			plans = append(plans, ent)
 		}
-		if p.flushRecords != nil {
-			if e = p.flushRecords(); e != nil {
+		if col != nil {
+			if e = col.flush(); e != nil {
 				return nil, e
 			}
 		}
@@ -422,42 +441,39 @@ func (p *Plugin) handleOne(ctx context.Context, rt hosted.Runtime) (*hosted.Cont
 		}
 		// SyncContext is the upstream muxer barrier, not proof that every
 		// cached entry has reached a backend. Keep cache and state together.
+		if p.syncIngest == nil {
+			return nil, errors.New("Compliance ingest synchronization is not configured")
+		}
 		if e = p.syncIngest(ctx, 2*time.Minute); e != nil {
 			return nil, fmt.Errorf("Compliance ingest synchronization: %w", e)
 		}
 		if e = ctx.Err(); e != nil {
 			return nil, e
 		}
-		checkpoint := state{Since: st.Since, Manifest: st.Manifest, HistoryComplete: st.HistoryComplete}
 		if more {
 			scan.Cursor = next
-			checkpoint.Traversal = &scan
-		} else {
-			checkpoint.Since = scan.Until.Add(-time.Duration(c.Overlap_Seconds) * time.Second)
-			checkpoint.Manifest = scan.Manifest
-			checkpoint.HistoryComplete = checkpoint.HistoryComplete || scan.FullHistory
-			// The next windowed walk starts at checkpoint.Since, so an
-			// identity last seen before it can never be returned again.
-			// Dropping it bounds a windowed dataset's manifest by the
-			// records inside one poll interval plus overlap.
-			if d.Window != "" && !fullParents {
-				for k, m := range checkpoint.Manifest {
-					if m.Seen < checkpoint.Since.Unix() {
-						delete(checkpoint.Manifest, k)
-					}
+			if e = commitPage(rt, prefix, st.Manifest, scan); e != nil {
+				return nil, e
+			}
+			continue
+		}
+		since := scan.Until.Add(-time.Duration(c.Overlap_Seconds) * time.Second)
+		committed := scan.Manifest
+		// The next windowed walk starts at since, so an identity last seen
+		// before it can never be returned again. Dropping it bounds a
+		// windowed dataset's manifest by the records inside one poll
+		// interval plus overlap.
+		if d.Window != "" && !fullParents {
+			for k, m := range committed {
+				if m.Seen < since.Unix() {
+					delete(committed, k)
 				}
 			}
 		}
-		b, e = json.Marshal(checkpoint)
-		if e != nil {
+		if e = commitDataset(rt, prefix, since, committed, st.HistoryComplete || scan.FullHistory); e != nil {
 			return nil, e
 		}
-		if e = rt.Put(c.key(), b); e != nil {
-			return nil, e
-		}
-		if !more {
-			return c.ContinueAfterInterval(), nil
-		}
+		return c.ContinueAfterInterval(), nil
 	}
 	return hosted.ContinueNow(), nil
 }
@@ -523,17 +539,17 @@ func continuation(env map[string]json.RawMessage, d Dataset) (string, bool, erro
 	}
 	return next, next != "", nil
 }
-func (p *Plugin) request(ctx context.Context, token string, q url.Values, limiter *rate.Limiter) ([]byte, error) {
+func (p *Plugin) request(ctx context.Context, rt hosted.Runtime, token string, q url.Values, limiter *rate.Limiter) ([]byte, error) {
 	for attempt := 0; attempt <= p.conf.Max_Retries; attempt++ {
 		if e := limiter.Wait(ctx); e != nil {
 			return nil, e
 		}
-		req, e := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.anthropic.com"+p.conf.path+"?"+q.Encode(), nil)
+		req, e := http.NewRequestWithContext(ctx, http.MethodGet, p.conf.Host+p.conf.path+"?"+q.Encode(), nil)
 		if e != nil {
 			return nil, errors.New("invalid Compliance request")
 		}
 		req.Header.Set("x-api-key", token)
-		req.Header.Set("anthropic-version", "2023-06-01")
+		req.Header.Set("anthropic-version", apiVersion)
 		req.Header.Set("Accept", "application/json")
 		// Documented backoff: start at one second, double, cap at 60.
 		delay := time.Duration(min(1<<attempt, 60)) * time.Second
@@ -547,12 +563,12 @@ func (p *Plugin) request(ctx context.Context, token string, q url.Values, limite
 			if attempt == p.conf.Max_Retries {
 				return nil, errors.New("Compliance transport failed")
 			}
-			if e = p.wait(ctx, delay); e != nil {
-				return nil, e
+			if rt.Sleep(delay) {
+				return nil, context.Canceled
 			}
 			continue
 		}
-		body, e := io.ReadAll(io.LimitReader(resp.Body, int64(p.conf.Max_Response_Bytes)+1))
+		body, e := io.ReadAll(io.LimitReader(resp.Body, int64(maxResponseBytes)+1))
 		resp.Body.Close()
 		if e != nil {
 			if ctx.Err() != nil {
@@ -561,12 +577,12 @@ func (p *Plugin) request(ctx context.Context, token string, q url.Values, limite
 			if attempt == p.conf.Max_Retries {
 				return nil, errors.New("incomplete Compliance response")
 			}
-			if e = p.wait(ctx, delay); e != nil {
-				return nil, e
+			if rt.Sleep(delay) {
+				return nil, context.Canceled
 			}
 			continue
 		}
-		if len(body) > p.conf.Max_Response_Bytes {
+		if len(body) > maxResponseBytes {
 			return nil, errors.New("Compliance response exceeds size limit")
 		}
 		if resp.StatusCode == 200 {
@@ -576,16 +592,51 @@ func (p *Plugin) request(ctx context.Context, token string, q url.Values, limite
 		if !retry || attempt == p.conf.Max_Retries {
 			return nil, &statusError{resp.StatusCode}
 		}
-		if seconds, e := strconv.ParseUint(resp.Header.Get("retry-after"), 10, 32); e == nil {
-			delay = max(delay, time.Duration(seconds)*time.Second)
-		} else if when, e := http.ParseTime(resp.Header.Get("retry-after")); e == nil {
-			delay = max(delay, time.Until(when))
+		retryAfter, overCeiling := boundedRetryAfter(resp.Header.Get("retry-after"), retryAfterCeiling(p.conf.Request_Interval))
+		if overCeiling {
+			return nil, &statusError{resp.StatusCode}
 		}
-		if e = p.wait(ctx, delay); e != nil {
-			return nil, e
+		delay = max(delay, retryAfter)
+		if rt.Sleep(delay) {
+			return nil, context.Canceled
 		}
 	}
 	return nil, errors.New("Compliance retries exhausted")
+}
+
+func retryAfterCeiling(seconds int) time.Duration {
+	if seconds <= 0 {
+		return 0
+	}
+	const maxSeconds = uint64((1<<63 - 1) / int64(time.Second))
+	if uint64(seconds) > maxSeconds {
+		return time.Duration(1<<63 - 1)
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+// boundedRetryAfter accepts both HTTP forms without allowing an untrusted
+// server header to delay this ingester beyond its configured poll interval.
+// Numeric values are checked before conversion to time.Duration.
+func boundedRetryAfter(value string, ceiling time.Duration) (time.Duration, bool) {
+	if ceiling < 0 {
+		ceiling = 0
+	}
+	if seconds, err := strconv.ParseUint(value, 10, 64); err == nil {
+		if seconds > uint64(ceiling/time.Second) {
+			return 0, true
+		}
+		return time.Duration(seconds) * time.Second, false
+	}
+	when, err := http.ParseTime(value)
+	if err != nil {
+		return 0, false
+	}
+	delay := time.Until(when)
+	if delay > ceiling {
+		return 0, true
+	}
+	return max(delay, 0), false
 }
 func compactObject(raw []byte, maxBytes int) ([]byte, error) {
 	s := bytes.TrimSpace(raw)

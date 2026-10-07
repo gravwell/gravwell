@@ -9,36 +9,22 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"golang.org/x/time/rate"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
-var budgets = struct {
-	sync.Mutex
-	m map[string]*rate.Limiter
-}{m: map[string]*rate.Limiter{}}
-
-func sharedLimiter(scope string, rpm int) *rate.Limiter {
-	if rpm < 1 {
-		rpm = 30
-	}
-	budgets.Lock()
-	defer budgets.Unlock()
-	limit := rate.Every(time.Minute / time.Duration(rpm))
-	if l := budgets.m[scope]; l != nil {
-		if limit < l.Limit() {
-			l.SetLimit(limit)
-		}
-		return l
-	}
-	l := rate.NewLimiter(limit, 1)
-	budgets.m[scope] = l
-	return l
+// collectorFuncs adapts a pair of closures to the collector interface, so a
+// scan is handed exactly the behavior it should have for its whole lifetime.
+type collectorFuncs struct {
+	recordFn func(Dataset, []byte) error
+	flushFn  func() error
 }
+
+func (c collectorFuncs) record(d Dataset, raw []byte) error { return c.recordFn(d, raw) }
+func (c collectorFuncs) flush() error                       { return c.flushFn() }
 
 type work struct {
 	Dataset       string
@@ -52,9 +38,8 @@ type work struct {
 	Failures      uint
 	// SeenThisScan and AbsentStreak support bounded retirement of child work
 	// whose parent kind has no vendor deletion signal (see
-	// absenceTrackedParents). Both are zero-valued (and therefore absent from
-	// the wire encoding) on any work item persisted before this existed, which
-	// is exactly the correct starting state: never yet confirmed absent.
+	// absenceTrackedParents). Their zero values -- never seen, never missed --
+	// are the correct starting state for a newly discovered item.
 	SeenThisScan bool `json:",omitempty"`
 	AbsentStreak uint `json:",omitempty"`
 }
@@ -73,6 +58,55 @@ var (
 // so a pathological or corrupted vendor id cannot make the derived "_parent"
 // enumerated value fail to encode.
 const maxDiscoveredParameterLen = 512
+
+// capacityVictim returns the deterministic work item that may be evicted to
+// honor Max-Pending. Completed work is preferred. A repeatedly failing
+// pending item is eligible only when no completed item is available. Healthy
+// pending work is never discarded because doing so could skip unread child
+// data.
+func capacityVictim(list worklist, protected map[string]struct{}) string {
+	victim := ""
+	for candidate, item := range list.Items {
+		if _, scheduled := protected[candidate]; scheduled {
+			continue
+		}
+		if !item.Pending && (victim == "" || item.LastCompleted.Before(list.Items[victim].LastCompleted) || (item.LastCompleted.Equal(list.Items[victim].LastCompleted) && candidate < victim)) {
+			victim = candidate
+		}
+	}
+	if victim != "" {
+		return victim
+	}
+	for candidate, item := range list.Items {
+		if _, scheduled := protected[candidate]; scheduled {
+			continue
+		}
+		if item.Pending && item.Failures >= maxChildFailures && (victim == "" || item.LastAttempt.Before(list.Items[victim].LastAttempt) || (item.LastAttempt.Equal(list.Items[victim].LastAttempt) && candidate < victim)) {
+			victim = candidate
+		}
+	}
+	return victim
+}
+
+// reconcileWorklistCapacity applies a newly lowered Max-Pending value to
+// already stored work. Safely evictable entries are removed immediately.
+// Healthy pending entries may temporarily remain above the new bound so they
+// can finish; discovery will admit no new work until the list is back within
+// capacity.
+func reconcileWorklistCapacity(rt hosted.Runtime, parent *Config, list *worklist, protected map[string]struct{}, dirty *bool) error {
+	for len(list.Items) > parent.Max_Pending {
+		victim := capacityVictim(*list, protected)
+		if victim == "" {
+			return nil
+		}
+		if err := pruneCheckpoint(rt, parent, list.Items[victim], false); err != nil {
+			return err
+		}
+		delete(list.Items, victim)
+		*dirty = true
+	}
+	return nil
+}
 
 // absentRetirementThreshold is the number of consecutive, complete,
 // unwindowed parent enumerations in which a child's parent must be observed
@@ -96,11 +130,10 @@ const maxChildFailures = 10
 // deleted_at). For these, and only these, absence from a complete,
 // unwindowed full listing -- observed on absentRetirementThreshold
 // consecutive such listings -- is treated as a safe proxy for deletion.
-// This list intentionally excludes "remote-sessions" (refreshed every poll
-// rather than hourly) and nested parents such as "organization-roles" (only
-// ever visited as a discovered child, never as the root scan whose
-// completion this package can observe): both are out of scope for this
-// repair.
+// It excludes "remote-sessions", which is refreshed every poll rather than
+// hourly, and nested parents such as "organization-roles", which are only
+// ever visited as a discovered child and never as the root scan whose
+// completion this package can observe.
 var absenceTrackedParents = map[string]bool{
 	"organizations":  true,
 	"groups":         true,
@@ -108,11 +141,43 @@ var absenceTrackedParents = map[string]bool{
 	"local-sessions": true,
 }
 
+// Handle runs one collection cycle for every dataset this stanza selects.
+// Each is collected against its own bound config and its own checkpoint, so
+// one stanza can cover a whole family without a config stanza per endpoint.
 func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
-	if p.conf.Follow_Children == "disabled" {
-		return p.handleOne(ctx, rt)
+	if len(p.conf.Dataset) == 1 {
+		return p.handleDataset(ctx, rt)
 	}
-	key := p.conf.key() + "/child-work-v1"
+	var errs []error
+	pending := false
+	for _, name := range p.conf.Dataset {
+		if e := ctx.Err(); e != nil {
+			return nil, e
+		}
+		bound, e := p.conf.bind(name)
+		if e != nil {
+			return nil, e
+		}
+		one := *p
+		one.conf = bound
+		cont, e := one.handleDataset(ctx, rt)
+		if e != nil {
+			errs = append(errs, fmt.Errorf("dataset %s: %w", name, e))
+			continue
+		}
+		pending = pending || (cont != nil && cont.Delay == 0)
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	return p.conf.PendingOrInterval(pending), nil
+}
+
+func (p *Plugin) handleDataset(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
+	if p.conf.Follow_Children == "disabled" {
+		return p.handleOne(ctx, rt, nil)
+	}
+	key := p.conf.key() + keyChildren
 	list := worklist{Items: map[string]work{}}
 	b, e := rt.Get(key)
 	if e == nil {
@@ -123,6 +188,11 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		return nil, e
 	}
 	dirty := false
+	// A child can discover grandchildren while this Handle call is consuming
+	// an already-sorted worklist. Protect the keys selected for this cycle so
+	// capacity eviction cannot invalidate the schedule or delete the item that
+	// the outer loop will later write back.
+	protected := map[string]struct{}{}
 	persist := func() error {
 		if !dirty {
 			return nil
@@ -140,8 +210,14 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		dirty = false
 		return nil
 	}
-	discover := func(parent *Config) func(Dataset, []byte) error {
-		return func(d Dataset, raw []byte) error {
+	if e = reconcileWorklistCapacity(rt, p.conf, &list, protected, &dirty); e != nil {
+		return nil, e
+	}
+	if e = persist(); e != nil {
+		return nil, e
+	}
+	discover := func(parent *Config) collector {
+		return collectorFuncs{flushFn: persist, recordFn: func(d Dataset, raw []byte) error {
 			if retiredItems, ok, e := deletedChildWork(d, parent.Parameter, raw); e != nil {
 				if errors.Is(e, errMissingParentID) {
 					rt.Warn("Compliance deleted parent is missing its child-discovery identity; child checkpoint cannot be compacted", log.KV("dataset", d.Name))
@@ -215,19 +291,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 					// being permanently occupied by a child that can never
 					// succeed, which would otherwise wedge discovery of
 					// every subsequent new child on this parent forever.
-					victim := ""
-					for candidate, item := range list.Items {
-						if !item.Pending && (victim == "" || item.LastCompleted.Before(list.Items[victim].LastCompleted) || (item.LastCompleted.Equal(list.Items[victim].LastCompleted) && candidate < victim)) {
-							victim = candidate
-						}
-					}
-					if victim == "" {
-						for candidate, item := range list.Items {
-							if item.Pending && item.Failures >= maxChildFailures && (victim == "" || item.LastAttempt.Before(list.Items[victim].LastAttempt) || (item.LastAttempt.Equal(list.Items[victim].LastAttempt) && candidate < victim)) {
-								victim = candidate
-							}
-						}
-					}
+					victim := capacityVictim(list, protected)
 					if victim == "" {
 						return errPendingCapacity
 					}
@@ -277,12 +341,9 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 				}
 			}
 			return nil
-		}
+		}}
 	}
-	p.onRecord = discover(p.conf)
-	p.flushRecords = persist
-	defer func() { p.onRecord, p.flushRecords = nil, nil }()
-	rootCont, rootErr := p.handleOne(ctx, rt)
+	rootCont, rootErr := p.handleOne(ctx, rt, discover(p.conf))
 	rootPending := rootCont != nil && rootCont.Delay == 0
 	if errors.Is(rootErr, errPendingCapacity) {
 		rootPending, rootErr = true, nil
@@ -290,10 +351,9 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	if e = persist(); e != nil {
 		return nil, e
 	}
-	// A work item persisted before the discovery-side oversized-identity guard
-	// existed (or one that otherwise slipped through) can never make progress:
-	// its "_parent" value will permanently fail to encode as an enumerated
-	// value. Retire it safely now instead of letting it cycle through
+	// A stored work item whose parameter is oversized can never make
+	// progress: its "_parent" value will permanently fail to encode as an
+	// enumerated value. Retire it safely instead of letting it cycle through
 	// RetryAt backoff forever.
 	for k, w := range list.Items {
 		name, n, bad := oversizedParameter(w)
@@ -332,12 +392,12 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 			keys = append(keys, k)
 		}
 	}
-	// Order the oldest-attempted work first. A zero LastAttempt is reserved
-	// for work items persisted before this fairness fix existed; treat it as
-	// the lowest priority (rather than the highest, which is what an
-	// unqualified time-zero comparison would do) so a legacy item is not
-	// stuck perpetually cutting ahead of everything else. Once such an item
-	// is actually attempted it gets a real LastAttempt and sorts normally.
+	// Order the oldest-attempted work first. Discovery seeds every new item
+	// with a real LastAttempt, but a stored item that somehow carries the
+	// zero time must not sort ahead of everything else forever, which is
+	// what an unqualified time comparison would do; treat it as the lowest
+	// priority instead. Once attempted it gets a real time and sorts
+	// normally.
 	sort.Slice(keys, func(i, j int) bool {
 		a, b := list.Items[keys[i]].LastAttempt, list.Items[keys[j]].LastAttempt
 		az, bz := a.IsZero(), b.IsZero()
@@ -352,6 +412,12 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 			return a.Before(b)
 		}
 	})
+	for i, k := range keys {
+		if i >= p.conf.Max_Children {
+			break
+		}
+		protected[k] = struct{}{}
+	}
 	var errs []error
 	if rootErr != nil {
 		errs = append(errs, rootErr)
@@ -363,7 +429,10 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		if e = ctx.Err(); e != nil {
 			return nil, e
 		}
-		w := list.Items[k]
+		w, exists := list.Items[k]
+		if !exists {
+			continue
+		}
 		childConf, ce := childConfig(p.conf, w)
 		if ce != nil {
 			return nil, ce
@@ -374,10 +443,8 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		}
 		child := *p
 		child.conf = &c
-		child.onRecord = discover(&c)
-		child.flushRecords = persist
 		w.LastAttempt = p.now().UTC()
-		childCont, childErr := child.handleOne(ctx, rt)
+		childCont, childErr := child.handleOne(ctx, rt, discover(&c))
 		if errors.Is(childErr, errPendingCapacity) {
 			childCont, childErr = hosted.ContinueNow(), nil
 		}
@@ -454,7 +521,7 @@ func deletedChildWork(d Dataset, inherited []string, raw []byte) ([]work, bool, 
 	h := sha256.Sum256(raw)
 	var result []work
 	for _, s := range childSpecs(d.Name) {
-		params := append(append([]string(nil), inherited...), s.param+":"+id)
+		params := slices.Concat(inherited, []string{s.param + ":" + id})
 		sort.Strings(params)
 		result = append(result, work{Dataset: s.name, Parameter: params, Revision: fmt.Sprintf("%x", h)})
 	}
@@ -472,40 +539,26 @@ func jsonString(raw []byte, field string) string {
 }
 
 func childConfig(parent *Config, w work) (*Config, error) {
-	c := *parent
-	c.Dataset = w.Dataset
-	c.Parameter = append([]string(nil), w.Parameter...)
-	c.Follow_Children = "disabled"
-	c.discovered = true
-	d, ok := lookup(c.Dataset)
+	d, ok := Datasets[w.Dataset]
 	if !ok {
 		return nil, errors.New("unknown Compliance child dataset")
 	}
 	if d.Tag != parent.dataset.Tag {
 		return nil, errors.New("Compliance cross-family discovery requires an explicit tag mapping")
 	}
-	if d.Limit > 0 {
-		c.Page_Size = min(c.Page_Size, d.Limit)
-	}
-	if e := c.Verify(); e != nil {
-		return nil, e
-	}
-	return &c, nil
+	c := *parent
+	c.Parameter = append([]string(nil), w.Parameter...)
+	c.Follow_Children = "disabled"
+	c.discovered = true
+	return c.bind(w.Dataset)
 }
 
-func retiredCheckpoint(rt hosted.Runtime, key, revision string) (bool, error) {
-	b, e := rt.Get(key)
-	if errors.Is(e, storage.ErrStorageNotFound) {
-		return false, nil
-	}
+func retiredCheckpoint(rt hosted.Runtime, prefix, revision string) (bool, error) {
+	retired, e := getString(rt, prefix+keyRetired)
 	if e != nil {
 		return false, e
 	}
-	var st state
-	if e = json.Unmarshal(b, &st); e != nil {
-		return false, errors.New("invalid Compliance child checkpoint")
-	}
-	return st.Retired != "" && st.Retired == revision, nil
+	return retired != "" && retired == revision, nil
 }
 
 // pruneCheckpoint always compacts a child's checkpoint (clearing Manifest
@@ -528,24 +581,11 @@ func pruneCheckpoint(rt hosted.Runtime, parent *Config, w work, tombstone bool) 
 		}
 		key = c.key()
 	}
-	st := state{Since: w.LastCompleted, Manifest: manifest{}}
-	if b, e := rt.Get(key); e == nil {
-		if e = json.Unmarshal(b, &st); e != nil {
-			return errors.New("invalid Compliance child checkpoint")
-		}
-	} else if !errors.Is(e, storage.ErrStorageNotFound) {
-		return e
-	}
-	st.Manifest = manifest{}
-	st.Traversal = nil
+	retired := ""
 	if tombstone {
-		st.Retired = w.Revision
+		retired = w.Revision
 	}
-	b, e := json.Marshal(st)
-	if e != nil {
-		return e
-	}
-	return rt.Put(key, b)
+	return compact(rt, key, retired)
 }
 
 // spec names a child dataset a parent record can spawn, and the parameter
@@ -610,7 +650,7 @@ func childWork(d Dataset, inherited []string, raw []byte) ([]work, error) {
 	var result []work
 	h := sha256.Sum256(raw)
 	for _, s := range specs {
-		params := append(append([]string(nil), inherited...), s.param+":"+id)
+		params := slices.Concat(inherited, []string{s.param + ":" + id})
 		sort.Strings(params)
 		result = append(result, work{Dataset: s.name, Parameter: params, Revision: fmt.Sprintf("%x", h), Pending: true})
 	}

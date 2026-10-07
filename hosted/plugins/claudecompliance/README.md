@@ -6,25 +6,30 @@ binary files, delete vendor content, or acknowledge vendor records.
 
 ## Configuration
 
-Start with `example.conf`. Supply a separate Compliance credential file and
-Gravwell ingest-secret file, readable only by the runner account. Replace both
-zero UUID placeholders with distinct persistent UUIDs. Use a unique instance
-UUID for every added `[ClaudeCompliance "name"]` stanza.
+Start with `example.conf`. Supply the Compliance API key either inline as
+`Credential` or, preferably, as a `Credential-File` readable only by the runner
+account. Use a unique persistent `Ingester-UUID` for every added
+`[ClaudeCompliance "name"]` stanza.
 
-`Scope-Identity` is a label you choose, not an Anthropic header, credential, or
-API permission. For example, `company-production-all-orgs` identifies one key's
-visible organization/scope boundary. Instances sharing that credential boundary
-should share the label: it keys the shared API rate limiter and participates in
-checkpoint identity. Different access boundaries need different labels. Keep
-the label stable across key rotation when the access boundary remains the same.
-Changing it deliberately starts a new checkpoint namespace and can replay data.
+A stanza lists as many `Dataset` selectors as you want. Each is collected
+against its own checkpoint and lands on its family's tag, so one stanza can
+cover a whole family without a config stanza per endpoint. `Page-Size` is
+clamped to each endpoint's documented maximum rather than forcing one value
+to fit them all.
 
-`Lookback=24`, `Lookback=24h`, and `Lookback=1d` all mean 24 hours on the first
-poll of a time-windowed dataset. Whole-day and whole-hour components may be
-combined, such as `Lookback=1d12h`; legacy bare integers remain hours. An
-existing checkpoint takes precedence;
-`Start-Time` (RFC3339 with
-offset) overrides lookback when that checkpoint is absent. Overlap defaults to
+`Host` defaults to `https://api.anthropic.com` and exists so the plugin can be
+pointed at a mock, a proxy, or a future region-specific endpoint. Each stanza
+owns one API rate limiter shared by all of its datasets and discovered children.
+When several stanzas use keys from the same parent organization, divide that
+organization's request budget among their `Requests-Per-Minute` values. Each
+stanza gets its own checkpoint namespace from the runner, so no scope label is
+needed.
+
+`Lookback` is the standard polling lookback in whole hours and applies on
+the first poll of a time-windowed dataset. An existing checkpoint always
+takes precedence, so a long-idle ingester resumes from its stored cursor
+rather than attempting to walk back to the beginning of time. Overlap
+defaults to
 300 seconds. A windowed request's upper bound trails the current time by one
 minute, the vendor's documented indexing delay, so a late-indexed record is not
 excluded whatever the overlap is. With `Follow-Children="enabled"`, the
@@ -40,9 +45,11 @@ checkpoint and overlap window.
 The named stanza owns all polling settings. Repeat settings in each stanza as
 needed. Defaults:
 lookback 24 hours, 60 requests/minute, 300-second poll interval, page size 100,
-1,000 pages, four retries, 16 MiB responses, 4 MiB entries, 100 children per
-cycle, and 10,000 remembered child work items. The example sets 30 requests/minute.
-The strictest configured rate is shared within a scope label. `Max-Pages` and
+1,000 pages, four retries, 100 children per cycle, and 10,000 remembered child
+work items. The example sets 30 requests/minute. Response and entry sizes are
+bounded internally rather than configured, so no operator choice can discard
+data the API actually returned.
+Configuration reloads apply both rate increases and decreases. `Max-Pages` and
 the 100,000-record per-call bound chunk large traversals into immediately
 rescheduled calls; a stored opaque cursor resumes the same frozen traversal.
 A stored walk older than 23 hours, or whose cursor the API rejects with HTTP
@@ -55,8 +62,10 @@ Pagination follows the documented contract: `after_id` endpoints continue while
 when `has_more` is false or, on session endpoints without `has_more`, when
 `next_page` is null. HTTP 429 and transient 5xx responses, and connection or
 read failures, are retried up to `Max-Retries` with one-second exponential
-backoff capped at 60 seconds and a longer `retry-after` honored;
-`x-should-retry: false` is never retried.
+backoff capped at 60 seconds and a longer `retry-after` honored up to the
+configured poll interval; a value beyond that bound ends the current cycle;
+`x-should-retry: false` is never retried. Waiting goes through `Runtime.Sleep`,
+so a shutdown interrupts a backoff immediately.
 
 ## Datasets and tags
 
@@ -69,8 +78,13 @@ backoff capped at 60 seconds and a longer `retry-after` honored;
 | `artifacts` | `artifact-metadata` |
 | `sessions` | `local-sessions`, `local-session`, `local-session-messages`, `remote-sessions`, `remote-session-messages` |
 
-The default prefix is `claude-compliance-`: exactly six semantic tags, not one
-tag per endpoint. Set `Tag-Name="claude"` in every stanza to combine all data.
+Tags use the standard `hosted.MultiTagConfig`: `Tag-Prefix` (default
+`claude-compliance`) yields exactly six semantic tags, one per family, not one
+tag per endpoint. Set `Tag-Name="claude"` in a stanza to pin a single tag.
+Because many datasets share one tag, the intrinsic `_source` field is what
+distinguishes them downstream: nine directory datasets land on
+`claude-compliance-directory`, and two of them can return byte-identical
+payloads.
 Discovered children inherit the parent's tag. Native JSON stays compact and
 unwrapped; `_source`, `_recordType`, and `_endpoint` intrinsic fields distinguish
 datasets. `_endpoint` is the endpoint template, such as
@@ -78,6 +92,14 @@ datasets. `_endpoint` is the endpoint template, such as
 `_parent`, and `_session` when provided. These are not JSON properties.
 If a response's session envelope exceeds Gravwell's enumerated-value limit, the
 native message is retained and `_session` is omitted with a warning.
+
+Each dataset declares a `Kind` in `catalog.go`, and the two kinds are
+collected on separate rules. An **Event** happens once and is never revised --
+the activity feed and every message endpoint -- so having seen its identity at
+all is proof it was already written, whatever bytes the vendor later replays.
+A **Record** describes something that exists and can be edited -- users,
+groups, projects, chats -- so it is re-listed on every scan and only an
+identical content digest proves nothing new arrived.
 
 Each dataset declares its timestamp and identity in `catalog.go`. Events and
 messages use their `created_at`; mutable objects use `updated_at`; snapshots
@@ -111,19 +133,46 @@ file/document ID discovery, a global artifact inventory, and the Claude Code
 Artifacts list (`GET /v1/compliance/apps/code/artifacts`) are not implemented.
 Only configure operations your Compliance access key is authorized to read.
 
-## State and delivery contract
+## State
 
-The builder obtains the existing muxer's `SyncContext` method through its
-standard `TagNegotiator` argument. No shared runtime, runner, storage, or ingest
-SDK extension is required. After every completed dataset traversal:
+Progress lives in the runtime's own key/value store, one typed key per
+independently meaningful value: `/since`, `/history`, `/retired`, and the page
+walk's `/walk/cursor`, `/walk/since`, `/walk/until`, `/walk/started`. Two
+values stay whole, as a single serialized value each: the dedup manifest and
+the child worklist. Both are maps that must be enumerated and selectively
+shrunk -- the manifest to evict its least recently updated identity when full,
+the worklist to order pending work by last attempt and pick a capacity victim.
+`hosted.Storage` offers only `Get`/`Put` on an exact key, with no delete, no
+prefix listing and no batch, so one key per element could be written but never
+enumerated, bounded or shrunk, and every evicted identity would leak a key
+forever.
+
+Because there is no batch, a commit is several writes. Their order is chosen
+so that every prefix of it is safe: a page commit writes its cursor last, so
+an interrupted write leaves no walk rather than half of one, and a dataset
+commit clears the walk, then writes the manifest, then the lower bound, then
+the history marker. No prefix of either can advance the lower bound past data
+that was not written, so a torn commit costs duplicates and never records.
+
+## Delivery contract
+
+The muxer handed to the plugin must provide an ingest delivery barrier --
+`SyncContext(context.Context, time.Duration) error`, which the shared muxer
+already implements. It is **required, not optional**: construction fails
+without it, because `Runtime.Write` only queues an entry and a state-store
+sync says nothing about whether that entry was delivered. A checkpoint that
+advanced on a queued-but-undelivered write would lose those records on
+restart. After every completed dataset traversal:
 
 1. A complete response page is validated before any record from that page is written.
 2. Every new record must be accepted by `Runtime.Write`.
-3. The existing muxer's `SyncContext` must return successfully, within two minutes.
+3. The muxer's `SyncContext` must return successfully within two minutes.
 4. Cancellation is checked, then the page cursor and partial manifest or final
    dataset checkpoint is stored.
-5. The standard `WrapJobWithSync` adapter synchronizes state after a successful
-   complete `Handle` cycle. `State.Sync=true` also flushes each state transaction.
+5. The standard `WrapJobWithSync` adapter additionally synchronizes *state*
+   after a successful complete `Handle` cycle, and `State.Sync=true` flushes
+   each state transaction. That is state durability, not an ingest barrier,
+   and it is never a substitute for step 3.
 
 A validation or discovery failure prevents that page from being written. A later
 page, synchronization, or state-write failure retains the last completed page
@@ -148,10 +197,10 @@ upstream Hosted Runner using its normal service configuration. No test in this
 directory contacts Claude or Gravwell; unit tests use synthetic responses.
 
 Success requires observing useful native records, correct intrinsic fields and
-tags, followed by a restart using the same UUIDs, scope label, cache, and state.
+tags, followed by a restart using the same UUIDs, cache, and state.
 An HTTP 200, compile, or nonempty tag alone is not proof of complete collection.
 If authentication fails, check key access and file permissions without printing
-the key; if writes or synchronization fail, repair connectivity/cache capacity,
+the key; if writes or synchronization fail, restore connectivity or cache capacity,
 then repeat the same test without deleting state. Preserve configuration, cache,
 and state together for persistence and a stopped-service backup. To disable
 collection, stop the runner and remove the added Claude configuration stanzas;
