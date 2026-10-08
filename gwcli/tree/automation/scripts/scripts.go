@@ -71,13 +71,11 @@ func listAction() action.Pair {
 				clilog.GetFlag(err)
 			} else if id != "" {
 				var opts client.GetOptions
-				if params.QueryOpts != nil {
-					opts.IncludeDeleted = params.QueryOpts.IncludeDeleted
-				}
+				opts.IncludeDeleted = params.QueryOptions.IncludeDeleted
 				s, err := connection.Client.GetScheduledScriptEx(id, opts)
 				return []types.ScheduledScript{s}, err
 			}
-			list, err := connection.Client.ListScheduledScripts(params.QueryOptions())
+			list, err := connection.Client.ListScheduledScripts(params.QueryOptions)
 			return list.Results, err
 		},
 		nil,
@@ -210,7 +208,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteScheduledScript(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledScripts(params.QueryOptions())
+			lr, err := connection.Client.ListScheduledScripts(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

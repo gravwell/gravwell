@@ -73,7 +73,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Resource{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.Resource, error) {
-			resp, err := connection.Client.ListResources(param.QueryOptions())
+			resp, err := connection.Client.ListResources(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -216,7 +216,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteResource(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListResources(params.QueryOptions())
+			lr, err := connection.Client.ListResources(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
