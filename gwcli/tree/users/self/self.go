@@ -167,12 +167,12 @@ func groups() action.Pair {
 
 func logoutAll() action.Pair {
 	return scaffold.NewBasicAction("logout-all", "logout all sessions", "Terminate all active sessions for your user.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			if err := connection.Client.LogoutAll(); err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			connection.End()
-			return "Successfully logged out all sessions", tea.Quit
+			return "Successfully logged out all sessions", tea.Quit, nil
 		}, scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Usage:   "logout-all",

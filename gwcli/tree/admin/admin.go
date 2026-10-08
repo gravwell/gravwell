@@ -110,7 +110,7 @@ func cleanup() action.Pair {
 			"Available targets:\n"+
 			"- all\n- "+
 			strings.Join(cleanupTargets, "\n- "),
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			// compact the list of items to clean so we don't make duplicate m
 			var (
 				m   = map[string]bool{}
@@ -130,7 +130,11 @@ func cleanup() action.Pair {
 					out = "\"all\" specified; other targets are redundant\n"
 				}
 
-				return out + strings.Join(runCleanup(cleanupTargets), "\n"), nil
+				msgs, failed := runCleanup(cleanupTargets)
+				if failed {
+					return "", nil, errors.New(out + strings.Join(msgs, "\n"))
+				}
+				return out + strings.Join(msgs, "\n"), nil, nil
 			}
 
 			// validate all cleanups before calling *any*
@@ -143,10 +147,14 @@ func cleanup() action.Pair {
 				}
 			}
 			if len(invalid) > 0 {
-				return "unknown cleanup targets: " + strings.Join(invalid, ", "), nil
+				return "", nil, fmt.Errorf("unknown cleanup targets: %s", strings.Join(invalid, ", "))
 			}
 
-			return strings.Join(runCleanup(requested), "\n"), nil
+			msgs, failed := runCleanup(requested)
+			if failed {
+				return "", nil, errors.New(strings.Join(msgs, "\n"))
+			}
+			return strings.Join(msgs, "\n"), nil, nil
 		},
 		scaffold.BasicOptions{
 			Aliases:      []string{"clean", "tidy", "purge", "burninate"},
@@ -164,15 +172,19 @@ func cleanup() action.Pair {
 
 // helper function for cleanup.
 // msgs can contain a mix of success and error messages
-func runCleanup(targetsToRun []string) (msgs []string) {
+// runCleanup runs each target and returns a message per target.
+// failed is true if any target was invalid or errored.
+func runCleanup(targetsToRun []string) (msgs []string, failed bool) {
 	for _, target := range targetsToRun {
 		f := getTarget(target)
 		if f == nil {
 			msgs = append(msgs, target+" is not a valid target")
+			failed = true
 			continue
 		}
 		if err := f(); err != nil {
 			msgs = append(msgs, "failed to clean up "+target+": "+err.Error())
+			failed = true
 			continue
 		}
 		msgs = append(msgs, "successfully purged "+target)
@@ -186,21 +198,21 @@ func logLevel() action.Pair {
 		"Display the current server log level."+
 			"Use --set to change it.\n"+
 			"Valid levels are typically: OFF, ERROR, WARN, INFO, WEB ACCESS",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			if level, err := fs.GetString("set"); err != nil {
 				clilog.GetFlag(err)
 			} else if level != "" { // set
 				if err := connection.Client.SetLogLevel(level); err != nil {
-					return err.Error(), nil
+					return "", nil, err
 				}
-				return "log level set to " + level, nil
+				return "log level set to " + level, nil, nil
 			}
 			// get
 			level, err := connection.Client.GetLogLevel()
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
-			return "current log level: " + level, nil
+			return "current log level: " + level, nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -218,24 +230,24 @@ func addIndexer() action.Pair {
 	return scaffold.NewBasicAction("add-indexer", "add an indexer to the system",
 		"Tells the webserver to connect to a new indexer. "+
 			"The indexer will be added to the list of indexers in the webserver's config file and persist in the future.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			dialstring := fs.Arg(0)
-			errors, err := connection.Client.AddIndexer(dialstring)
+			idxErrs, err := connection.Client.AddIndexer(dialstring)
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			var sb strings.Builder
-			for k, v := range errors {
+			for k, v := range idxErrs {
 				sb.WriteString(k)
 				sb.WriteString(": ")
 				sb.WriteString(v)
 				sb.WriteString("\n")
 			}
 			out := strings.TrimRight(sb.String(), "\n")
-			if out == "" {
-				return "indexer added successfully", nil
+			if out != "" {
+				return "", nil, errors.New(out)
 			}
-			return out, nil
+			return "indexer added successfully", nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -254,27 +266,27 @@ func addIndexer() action.Pair {
 func backup() action.Pair {
 	return scaffold.NewBasicAction("backup", "backup the system",
 		"Download a backup of the Gravwell system to a file.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			// ! failing to get ANY flag is fatal for this error; we don't want to screw up a user's backup.
 
 			out := fs.Arg(0)
 			f, err := os.Create(out)
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			defer f.Close()
 
 			ss, err := fs.GetBool("include-scheduled-searches")
 			if err != nil {
-				return clilog.GetFlag(err).Error(), nil
+				return "", nil, clilog.GetFlag(err)
 			}
 			omitSensitive, err := fs.GetBool("omit-sensitive")
 			if err != nil {
-				return clilog.GetFlag(err).Error(), nil
+				return "", nil, clilog.GetFlag(err)
 			}
 			pass, err := fs.GetString("encrypt")
 			if err != nil {
-				return clilog.GetFlag(err).Error(), nil
+				return "", nil, clilog.GetFlag(err)
 			}
 
 			cfg := types.BackupConfig{
@@ -292,10 +304,10 @@ func backup() action.Pair {
 				log.KV("encryption", logPass))
 
 			if err := connection.Client.BackupWithConfig(f, cfg); err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			f.Sync()
-			return fmt.Sprintf("backup written to %s", out), nil
+			return fmt.Sprintf("backup written to %s", out), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -321,17 +333,17 @@ func backup() action.Pair {
 func restore() action.Pair {
 	return scaffold.NewBasicAction("restore", "restore the system from a backup",
 		"Restore the Gravwell system from a backup file.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			path := fs.Arg(0)
 			f, err := os.Open(path)
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			defer f.Close()
 			if err := connection.Client.Restore(f); err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
-			return fmt.Sprintf("successfully restored from %s", path), nil
+			return fmt.Sprintf("successfully restored from %s", path), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -354,15 +366,15 @@ func restore() action.Pair {
 // NOTE: this action is provided to both the `admin` nav (as `status`) and the `self` nav. Hence the export.
 func Status(use string) action.Pair {
 	return scaffold.NewBasicAction(use, "display your admin status", "Displays whether or not you are an admin.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			isAdministrator, err := connection.Client.IsAdmin()
 			if err != nil {
-				return "failed to fetch administrator status: " + err.Error(), nil
+				return "", nil, fmt.Errorf("failed to fetch administrator status: %w", err)
 			}
 			if isAdministrator {
-				return "You are an administrator.\n", nil
+				return "You are an administrator.\n", nil, nil
 			}
-			return "You are not an administrator.\n", nil
+			return "You are not an administrator.\n", nil, nil
 		},
 		scaffold.BasicOptions{Usage: use})
 }
@@ -479,7 +491,7 @@ func massChown() action.Pair {
 	return scaffold.NewBasicAction("mass-chown", "transfer all items to another user",
 		"Mass transfer all items owned by one user to another user.\n"+
 			"Please note that tokens and kits do not current support owner reassignment and will be skipped.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd, _ error) {
 			from, _ := fs.GetInt32("from")
 			to, _ := fs.GetInt32("to")
 			noFail, _ := fs.GetBool("no-fail")
@@ -489,22 +501,27 @@ func massChown() action.Pair {
 				},
 			}
 
-			var sb strings.Builder
+			var (
+				sb     strings.Builder
+				failed bool // true if any chown or fetch failed (only reachable past the first failure with --no-fail)
+			)
 
 			// saved queries
 			if lr, err := connection.Client.ListAllSavedQueries(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get saved queries: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateSavedQuery(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown saved query %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown saved query %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -515,17 +532,19 @@ func massChown() action.Pair {
 			// dashboards
 			if lr, err := connection.Client.ListAllDashboards(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get dashboards: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateDashboard(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown dashboard %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown dashboard %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -539,17 +558,19 @@ func massChown() action.Pair {
 			// extractions
 			if lr, err := connection.Client.ListAllExtractions(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get extractions: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateExtraction(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown extraction %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown extraction %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -560,17 +581,19 @@ func massChown() action.Pair {
 			// actionables
 			if lr, err := connection.Client.ListAllActionables(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get actionables: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateActionable(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown actionable %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown actionable %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -581,17 +604,19 @@ func massChown() action.Pair {
 			// playbooks
 			if lr, err := connection.Client.ListAllPlaybooks(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get playbooks: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdatePlaybook(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown playbook %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown playbook %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -602,17 +627,19 @@ func massChown() action.Pair {
 			// scheduled searches
 			if lr, err := connection.Client.ListAllScheduledSearches(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get scheduled searches: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateScheduledSearch(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown scheduled search %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown scheduled search %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -623,17 +650,19 @@ func massChown() action.Pair {
 			// scheduled scripts
 			if lr, err := connection.Client.ListAllScheduledScripts(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get scheduled scripts: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateScheduledScript(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown scheduled script %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown scheduled script %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -644,17 +673,19 @@ func massChown() action.Pair {
 			// files
 			if lr, err := connection.Client.ListAllFiles(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get files: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateFileMetadata(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown file %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown file %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -665,17 +696,19 @@ func massChown() action.Pair {
 			// templates
 			if lr, err := connection.Client.ListAllTemplates(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get templates: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateTemplate(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown template %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown template %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -686,17 +719,19 @@ func massChown() action.Pair {
 			// resources
 			if lr, err := connection.Client.ListAllResources(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get resources: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateResourceMetadata(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown resource %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown resource %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -707,17 +742,19 @@ func massChown() action.Pair {
 			// macros
 			if lr, err := connection.Client.ListAllMacros(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get macros: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateMacro(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown macro %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown macro %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -728,17 +765,19 @@ func massChown() action.Pair {
 			// flows
 			if lr, err := connection.Client.ListAllFlows(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get flows: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateFlow(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown flow %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown flow %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -749,17 +788,19 @@ func massChown() action.Pair {
 			// alerts
 			if lr, err := connection.Client.ListAllAlerts(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get alerts: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateAlert(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown alert %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown alert %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -771,17 +812,19 @@ func massChown() action.Pair {
 			// secrets // TODO test
 			if lr, err := connection.Client.ListAllSecrets(qo); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get secrets: "+err.Error()+"\n")
+				failed = true
 				if !noFail {
-					return sb.String(), nil
+					return "", nil, sbErr(&sb)
 				}
 			} else {
 				var success uint
 				for _, res := range lr.Results {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateSecret(res.ID, res.ToPatch()); err != nil {
-						fmt.Fprintf(&sb, "failed to chown secret %s: %v", res.ID, err)
+						fmt.Fprintf(&sb, "failed to chown secret %s: %v\n", res.ID, err)
+						failed = true
 						if !noFail {
-							return sb.String(), nil
+							return "", nil, sbErr(&sb)
 						}
 					} else {
 						success += 1
@@ -792,7 +835,10 @@ func massChown() action.Pair {
 			// tokens
 			sb.WriteString(stylesheet.Italicize("NOTE: tokens do not support owner reassignment"))
 
-			return sb.String(), nil
+			if failed {
+				return "", nil, sbErr(&sb)
+			}
+			return sb.String(), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -833,6 +879,11 @@ func massChown() action.Pair {
 				return "", nil
 			},
 		})
+}
+
+// sbErr wraps the accumulated output of a multi-step operation as an error.
+func sbErr(sb *strings.Builder) error {
+	return errors.New(strings.TrimRight(sb.String(), "\n"))
 }
 
 func chownedString(out *strings.Builder, successes uint, noun string) {

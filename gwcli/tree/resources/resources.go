@@ -106,7 +106,7 @@ func download() action.Pair {
 		"1. Resources owned by the user always have highest priority\n"+
 		"2. Resources shared with a group to which the user belongs are next\n"+
 		"3. Global resources are the lowest priority.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			// arg length checked by the options
 			id := fs.Arg(0)
 			outPath, err := fs.GetString(ft.Output.Name())
@@ -116,22 +116,22 @@ func download() action.Pair {
 			clilog.Writer.Info("downloading resource", rfc5424.SDParam{Name: "resource_ID", Value: id})
 			data, err := connection.Client.GetResource(id)
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			// write to file or stdout
 			if outPath != "" {
 				out, err := os.Create(outPath)
 				if err != nil {
-					return err.Error(), nil
+					return "", nil, err
 				}
 				defer out.Close()
 				n, err := out.WriteString(string(data))
 				if err != nil {
-					return err.Error(), nil
+					return "", nil, err
 				}
-				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+				return phrases.SuccessfullyWroteToFile(n, outPath), nil, nil
 			}
-			return string(data), nil
+			return string(data), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{

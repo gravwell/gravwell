@@ -161,10 +161,10 @@ func licenseFeatures() action.Pair {
 		long  string = "Displays the comma-separated list of features enabled on the currently installed Gravwell license."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			li, err := connection.Client.GetLicenseInfo()
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			feats := li.Features()
 			checks := []struct {
@@ -187,9 +187,9 @@ func licenseFeatures() action.Pair {
 				}
 			}
 			if len(enabled) == 0 {
-				return "(none)", nil
+				return "(none)", nil, nil
 			}
-			return strings.Join(enabled, ", "), nil
+			return strings.Join(enabled, ", "), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -209,12 +209,12 @@ func licenseSKU() action.Pair {
 		long  string = "Displays the SKU string for the currently installed Gravwell license."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			sku, err := connection.Client.GetLicenseSKU()
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
-			return sku, nil
+			return sku, nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -234,12 +234,12 @@ func licenseSerial() action.Pair {
 		long  string = "Displays the serial number for the currently installed Gravwell license."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			serial, err := connection.Client.GetLicenseSerial()
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
-			return serial, nil
+			return serial, nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{

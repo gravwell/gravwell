@@ -74,9 +74,9 @@ func list() action.Pair {
 
 func download() action.Pair {
 	return scaffold.NewBasicAction("download", "download a file", "Download a file for use locally.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			if fs.NArg() != 1 {
-				return phrases.Exactly1ArgRequired("file ID"), nil
+				return "", nil, errors.New(phrases.Exactly1ArgRequired("file ID"))
 			}
 			id := fs.Arg(0)
 
@@ -87,22 +87,22 @@ func download() action.Pair {
 			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_id", Value: id})
 			b, err := connection.Client.GetFile(id)
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			// write to file or stdout
 			if outPath != "" {
 				out, err := os.Create(outPath)
 				if err != nil {
-					return err.Error(), nil
+					return "", nil, err
 				}
 				defer out.Close()
 				n, err := out.Write(b)
 				if err != nil {
-					return err.Error(), nil
+					return "", nil, err
 				}
-				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+				return phrases.SuccessfullyWroteToFile(n, outPath), nil, nil
 			}
-			return string(b), nil
+			return string(b), nil, nil
 		}, scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {

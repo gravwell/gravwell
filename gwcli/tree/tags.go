@@ -17,11 +17,11 @@ func showTags() action.Pair {
 		"Displays a list of all tags currently on the system."+
 			" Tags are the basic categorization scheme Gravwell uses to organize data."+
 			" See: https://docs.gravwell.io/ingesters/ingesters.html#tags",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd, _ error) {
 			tags, err := connection.Client.GetTags()
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
-			return strings.Join(tags, ", "), nil
+			return strings.Join(tags, ", "), nil, nil
 		}, scaffold.BasicOptions{})
 }

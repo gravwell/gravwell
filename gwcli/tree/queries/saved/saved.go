@@ -187,14 +187,14 @@ func delete() action.Pair {
 func show() action.Pair {
 	return scaffold.NewBasicAction("show", "display a saved query",
 		"Display the full details of a saved query by its ID.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			id := fs.Arg(0)
 			sq, err := connection.Client.GetSavedQuery(id)
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			return fmt.Sprintf("Name:        %s\nDescription: %s\nQuery:       %s",
-				sq.Name, sq.Description, sq.Query), nil
+				sq.Name, sq.Description, sq.Query), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{

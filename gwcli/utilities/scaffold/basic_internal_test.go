@@ -77,18 +77,18 @@ func TestNonInteractive(t *testing.T) {
 		}
 
 		t.Run("use", func(t *testing.T) {
-			fn("", "short", "long", func(fs *pflag.FlagSet) (string, tea.Cmd) {
-				return "", nil
+			fn("", "short", "long", func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
+				return "", nil, nil
 			})
 		})
 		t.Run("short", func(t *testing.T) {
-			fn("use", "", "long", func(fs *pflag.FlagSet) (string, tea.Cmd) {
-				return "", nil
+			fn("use", "", "long", func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
+				return "", nil, nil
 			})
 		})
 		t.Run("long", func(t *testing.T) {
-			fn("", "short", "", func(fs *pflag.FlagSet) (string, tea.Cmd) {
-				return "", nil
+			fn("", "short", "", func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
+				return "", nil, nil
 			})
 		})
 		t.Run("act", func(t *testing.T) {
@@ -99,8 +99,8 @@ func TestNonInteractive(t *testing.T) {
 	t.Run("no options", func(t *testing.T) {
 		expectedOutput := "Hello World"
 		ba := NewBasicAction("test", "short test", "long test",
-			func(fs *pflag.FlagSet) (string, tea.Cmd) {
-				return expectedOutput, tea.Println(expectedOutput) // basics typically should not return printlns, but we can use it for testing
+			func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
+				return expectedOutput, tea.Println(expectedOutput), nil // basics typically should not return printlns, but we can use it for testing
 			}, BasicOptions{})
 		var (
 			sbOut strings.Builder
@@ -119,6 +119,23 @@ func TestNonInteractive(t *testing.T) {
 		}
 		if strOut := strings.TrimSpace(sbOut.String()); strOut != expectedOutput {
 			t.Fatal(ExpectedActual(expectedOutput, strOut))
+		}
+	})
+	t.Run("act returns an error", func(t *testing.T) {
+		expectedErr := errors.New("the act failed")
+		ba := NewBasicAction("test", "short test", "long test",
+			func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
+				return "should not be printed", nil, expectedErr
+			}, BasicOptions{})
+		var sbOut strings.Builder
+		ba.Action.SetOut(&sbOut)
+		ba.Action.SetErr(&strings.Builder{})
+
+		if err := ba.Action.Execute(); !errors.Is(err, expectedErr) {
+			t.Fatal(ExpectedActual(expectedErr, err))
+		}
+		if strOut := strings.TrimSpace(sbOut.String()); strOut != "" {
+			t.Fatal("expected no stdout when act errors, got:", strOut)
 		}
 	})
 	t.Run("options set", func(t *testing.T) {
@@ -206,13 +223,13 @@ func TestNonInteractive(t *testing.T) {
 func TestModel(t *testing.T) {
 	t.Run("test that options were set properly; test that the action is safe to run back to back", func(t *testing.T) {
 		pair := NewBasicAction("test", "short test", "long test",
-			func(fs *pflag.FlagSet) (string, tea.Cmd) {
+			func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 				testbool, err := fs.GetBool("testbool")
 				if err != nil {
 					panic(err)
 				}
 				s := fmt.Sprintf("testbool: %v", testbool)
-				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
+				return s, tea.Println(s), nil // basics typically should not return printlns, but we can use it for testing
 			}, BasicOptions{
 				CommonOptions: CommonOptions{
 					Usage:   "The Regent",
@@ -394,7 +411,7 @@ func extractPrintLineMessageString(t *testing.T, cmd tea.Cmd) string {
 func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example string) {
 	aliases, example = []string{"alias1", "alias2"}, "example"
 	return NewBasicAction("test", "short test", "long test",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			// validate that the command has the expected values
 			/*if slices.Compare(cmd.Aliases, aliases) != 0 {
 				panic(ExpectedActual(aliases, cmd.Aliases))
@@ -406,7 +423,7 @@ func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example str
 				panic(err)
 			}
 			s := fmt.Sprintf("testbool: %v", testbool)
-			return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
+			return s, tea.Println(s), nil // basics typically should not return printlns, but we can use it for testing
 		}, BasicOptions{
 			CommonOptions: CommonOptions{
 				Example: example,

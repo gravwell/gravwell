@@ -39,7 +39,7 @@ func MyInfo() action.Pair {
 		long  string = "Displays your account's information and capabilities."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			// check for refresh
 			if refresh, err := fs.GetBool("refresh"); err != nil {
 				clilog.GetFlag(err)
@@ -67,7 +67,7 @@ func MyInfo() action.Pair {
 						"Locked",
 						"Groups",
 					},
-					weave.CSVOptions{}), nil
+					weave.CSVOptions{}), nil, nil
 			}
 
 			// output as segmented table
@@ -96,7 +96,7 @@ func MyInfo() action.Pair {
 			if err != nil {
 				clilog.Writer.Warnf("failed to generate segmented border: %v", err)
 			}
-			return res, nil
+			return res, nil, nil
 		}, scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: flags,

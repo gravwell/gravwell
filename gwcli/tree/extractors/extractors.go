@@ -293,12 +293,12 @@ func modules() action.Pair {
 		"Displays a list of autoextractor modules currently on the system."+
 			" Auto-extractors are simply definitions that can be applied to tags and describe how to correctly extract fields from the data in a given tag."+
 			" The “ax” module then automatically invokes the appropriate functionality of other modules.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd, _ error) {
 			engines, err := connection.Client.ExtractionSupportedEngines()
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
-			return strings.Join(engines, ", "), nil
+			return strings.Join(engines, ", "), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -429,14 +429,14 @@ func importUpload() action.Pair {
 	return scaffold.NewBasicAction("import", "import extractor from file",
 		"Uploads a TOML-formatted file containing one or more autoextractor definitions.\n"+
 			"Gravwell will parse these definitions and install or update autoextractors as appropriate.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd, _ error) {
 			b, err := os.ReadFile(fs.Arg(0))
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			warnings, err := connection.Client.UploadExtraction(b)
 			if err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
 			var sb strings.Builder
 			if len(warnings) > 0 {
@@ -453,7 +453,7 @@ func importUpload() action.Pair {
 				clilog.Writer.Warn("extractor update caused warnings", params...)
 			}
 			sb.WriteString(phrases.SuccessfullyLoadedFile(fs.Arg(0)))
-			return sb.String(), nil
+			return sb.String(), nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{

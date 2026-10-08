@@ -255,11 +255,11 @@ func configure() action.Pair {
 
 func deleteConfig() action.Pair {
 	return scaffold.NewBasicAction("delete", "remove email configuration", "Remove the current email/SMTP configuration for your user.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
 			if err := connection.Client.DeleteMailConfig(); err != nil {
-				return err.Error(), nil
+				return "", nil, err
 			}
-			return "email configuration removed", nil
+			return "email configuration removed", nil, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
