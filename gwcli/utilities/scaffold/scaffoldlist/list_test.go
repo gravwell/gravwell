@@ -816,7 +816,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{
+						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
 						},
@@ -831,7 +831,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{
+						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
 							Limit:          5,
@@ -846,7 +846,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--all cannot be set when omit.Everything",
@@ -857,7 +857,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 			}
@@ -908,7 +908,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					false, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{
+						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
 						},
@@ -922,7 +922,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--all cannot be set when omit.Everything",
@@ -933,7 +933,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--include-deleted cannot be set when omitted",
@@ -944,7 +944,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--include-deleted cannot be set when omit.Everything",
@@ -955,7 +955,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 			}

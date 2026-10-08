@@ -71,7 +71,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list skills", "List the agent skills available to your user.",
 		wrappedSkill{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedSkill, error) {
-			resp, err := connection.Client.ListAgentSkills(params.QueryOptions())
+			resp, err := connection.Client.ListAgentSkills(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -291,7 +291,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteAgentSkill(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgentSkills(params.QueryOptions())
+			lr, err := connection.Client.ListAgentSkills(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

@@ -112,7 +112,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		wrappedTemplate{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedTemplate, error) {
-			resp, err := connection.Client.ListTemplates(params.QueryOptions())
+			resp, err := connection.Client.ListTemplates(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -150,7 +150,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteTemplate(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTemplates(params.QueryOptions())
+			lr, err := connection.Client.ListTemplates(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
