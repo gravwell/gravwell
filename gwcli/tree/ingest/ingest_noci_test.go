@@ -111,19 +111,15 @@ func Test_autoingest(t *testing.T) {
 				fullPaths[i].tag = tt.args.pairs[i].tag
 			}
 
-			ch := make(chan struct {
-				string
-				error
-			})
-
 			// execute autoingest and await results on the channel
-			count := autoingest(ch, tt.args.flags, fullPaths)
-			if count != tt.wantCount {
-				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(count, tt.wantCount))
+			ch := autoingest(tt.args.flags, fullPaths)
+			if tt.wantCount == 0 {
+				return
 			}
 			// check each file
-			for range count {
-				res := <-ch
+			var count uint
+			for res := range ch {
+				count += 1
 
 				// strip the testing directory off the path
 				if after, found := strings.CutPrefix(res.string, dir+"/"); !found {
@@ -148,6 +144,9 @@ func Test_autoingest(t *testing.T) {
 				if !found {
 					t.Errorf("failed to find file %v in argument pairs", res.string)
 				}
+			}
+			if count != tt.wantCount {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(tt.wantCount, count))
 			}
 		})
 	}
@@ -187,24 +186,17 @@ func Test_autoingest(t *testing.T) {
 			t.Fatalf("failed to create file: %v", err)
 		}
 
-		ch := make(chan struct {
-			string
-			error
-		})
-
 		t.Run("shallow", func(t *testing.T) {
 			tag := "shallow" + randomdata.Alphanumeric(10)
 
 			// execute autoingest and await results on the channel
-			count := autoingest(ch, ingestFlags{noInteractive: true}, []pair{{path: dir, tag: tag}})
-			if count != 3 {
-				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(3, count))
-			}
+			ch := autoingest(ingestFlags{noInteractive: true}, []pair{{path: dir, tag: tag}})
 
 			// collect responses
 			// shallow should ONLY match filesA/B/C
-			for range count {
-				res := <-ch
+			var count uint
+			for res := range ch {
+				count += 1
 				switch path.Base(res.string) {
 				case "fileA", "fileB", "fileC":
 					if res.error != nil {
@@ -213,6 +205,14 @@ func Test_autoingest(t *testing.T) {
 				default: // a file that should not have been ingested was.
 					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
 				}
+			}
+
+			if count != 3 {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(3, count))
+			}
+
+			if count != 5 {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
 			}
 
 			if !verifyTagExists(t, tag) {
@@ -224,15 +224,13 @@ func Test_autoingest(t *testing.T) {
 			tag := "recursive" + randomdata.Alphanumeric(10)
 
 			// execute autoingest and await results on the channel
-			count := autoingest(ch, ingestFlags{noInteractive: true, recursive: true}, []pair{{path: dir, tag: tag}})
-			if count != 5 {
-				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
-			}
+			ch := autoingest(ingestFlags{noInteractive: true, recursive: true}, []pair{{path: dir, tag: tag}})
 
 			// collect responses
 			// shallow should match all five files
-			for range count {
-				res := <-ch
+			var count uint
+			for res := range ch {
+				count += 1
 				switch path.Base(res.string) {
 				case "fileA", "fileB", "fileC", "fileZ", "fileX":
 					if res.error != nil {
