@@ -303,7 +303,7 @@ func ingestFile(path, tag string, flags ingestFlags) error {
 func determineTag(pth, tag, defaultTag string) (string, error) {
 	if tag == "" {
 		{
-			// check if this is a GWJSON file by attempting to unmarshal it
+			// check if this is a GWJSON file by peaking the first entry
 			f, err := os.Open(pth)
 			if err != nil {
 				return "", err
@@ -311,7 +311,9 @@ func determineTag(pth, tag, defaultTag string) (string, error) {
 			dcdr := json.NewDecoder(f)
 			var ste types.StringTagEntry
 			// try to decode a single entry (\n delimited)
-			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
+			err = dcdr.Decode(&ste)
+			f.Close() // close the file no matter what happens
+			if err == nil && ste.Tag != "" {
 				// successfully decoded file and read tag; we can leave our tag empty
 				return "", nil
 			}
