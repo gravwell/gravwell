@@ -83,8 +83,15 @@ func main() {
 	// checks each dynamic configuration against the plugin that would have to run it, and
 	// names the runner it is reporting on using the kinds registered here, so registering
 	// first is what makes both of those work on the very first start.
+	//
+	// Fatal only when dynamic configuration is on.  With it off the registration lands in
+	// the NopManager and nothing reads it, so a plugin whose config cannot be described
+	// must not stop an ingester that never asked for it.
 	if err = registerDynamicPluginTypes(dyn); err != nil {
-		ib.Logger.FatalCode(0, "failed to load dynamic plugin config types", log.KVErr(err))
+		if cfg.Dynamic.Enabled() {
+			ib.Logger.FatalCode(0, "failed to load dynamic plugin config types", log.KVErr(err))
+		}
+		ib.Logger.Error("failed to load dynamic plugin config types, dynamic configuration is disabled", log.KVErr(err))
 	}
 
 	// A dynamic configuration that will not load is skipped and reported upstream rather

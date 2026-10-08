@@ -201,9 +201,12 @@ func (a *API) registerKinds(ctx context.Context, params json.RawMessage) (any, e
 	if err := json.Unmarshal(params, &req); err != nil {
 		return nil, fmt.Errorf("bad registration %w", err)
 	}
-	// the class comes from the session too, for the same reason the UUID does
-	class := req.Class
-	if sess, ok := rpc.SessionFrom(ctx); ok && sess.Class() != `` {
+	// the class comes from the session too, for the same reason the UUID does.  An
+	// empty session class is an answer, not an invitation to read the body instead: an
+	// ingester that authenticated with no class would otherwise be listed under any
+	// class it cared to name while never being able to receive that class's runners.
+	var class string
+	if sess, ok := rpc.SessionFrom(ctx); ok {
 		class = sess.Class()
 	}
 	if err := a.store.ReplaceKinds(id, class, req.Kinds); err != nil {

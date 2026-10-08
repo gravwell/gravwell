@@ -498,8 +498,16 @@ func (v Variable) emitIniLine(w io.Writer, prefix string) (err error) {
 	case typeSecret:
 		fallthrough // identical to a string
 	case typeString:
+		// a string member has to hold a string.  %s on anything else writes Go's
+		// %!s(...) placeholder into the file, which parses back as a perfectly good
+		// string and is never seen again.
+		str, ok := v.Value.(string)
+		if !ok {
+			err = v.typeMismatch()
+			return
+		}
 		var q string
-		if q, err = v.quote(fmt.Sprintf("%s", v.Value)); err != nil {
+		if q, err = v.quote(str); err != nil {
 			return
 		}
 		fmt.Fprintf(w, "%s%s=%s\n", prefix, v.Name, q)
@@ -1012,6 +1020,15 @@ func (c RunnerDefinition) INI() (r string, err error) {
 	} else if c.Name == `` {
 		err = errors.New("empty name")
 		return
+	}
+	// every variable has to be well formed before any of it is written.  A definition
+	// arrives over the wire and may never have been through Validate, and a value whose
+	// concrete type disagrees with its declared type renders as garbage rather than failing.
+	for _, v := range c.Variables {
+		if err = v.Validate(); err != nil {
+			err = fmt.Errorf("%s: %w", v.Name, err)
+			return
+		}
 	}
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "[%s %q]\n", c.Kind, c.Name)

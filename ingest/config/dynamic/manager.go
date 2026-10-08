@@ -373,13 +373,17 @@ func (n *NopManager) prepareRunnerLocked(name, kind string, guid uuid.UUID, v an
 }
 
 type DynamicConfigManager struct {
-	NopManager //TODO FIXME
-	Config     // embed the config
-	guid       uuid.UUID
-	lgr        *log.Logger
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
+	// NopManager supplies the kind registry, the validation path and the mutex that
+	// guards both lists.  Its Available and Configured members stay exported because the
+	// tests read them, but nothing outside this package should: a reader that does not
+	// hold the embedded mutex races the sync goroutine, use Kinds and Statuses instead.
+	NopManager
+	Config // embed the config
+	guid   uuid.UUID
+	lgr    *log.Logger
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 
 	// ch carries the reload signal to whoever is driving the ingester.  It is buffered
 	// by one, a burst of changes should be one reload.
@@ -594,7 +598,55 @@ func loadOne(v any, pth string) error {
 	if err = verifyLoaded(probe.Interface()); err != nil {
 		return err
 	}
-	return config.LoadConfigBytes(v, blob)
+	if err = config.LoadConfigBytes(v, blob); err != nil {
+		return err
+	}
+	// Verify is not a pure check, it is also where a plugin fills in its defaults: a
+	// request rate, a lookback, a trimmed host.  Those landed on the probe, and the parse
+	// above put the raw, un-defaulted values into v.  Most plugin constructors never call
+	// Verify themselves, so a runner built from v would divide by a zero request rate.
+	// Lay the verified entries over the raw ones so v carries what the plugin will run.
+	mergeVerified(derefValue(reflect.ValueOf(v)), probe.Elem(), 0)
+	return nil
+}
+
+// mergeVerified copies the plugin configurations held in src over the matching entries of
+// dst.  It walks the same shape verifyStructMembers does, so every map entry that was
+// verified is the one that ends up in the live configuration.
+func mergeVerified(dst, src reflect.Value, depth int) {
+	if depth > maxStructDepth || !dst.IsValid() || !src.IsValid() ||
+		dst.Kind() != reflect.Struct || src.Kind() != reflect.Struct || dst.Type() != src.Type() {
+		return
+	}
+	rt := dst.Type()
+	for i := range rt.NumField() {
+		f, dv, sv := rt.Field(i), dst.Field(i), src.Field(i)
+		if f.Anonymous && derefType(f.Type).Kind() == reflect.Struct {
+			mergeVerified(derefValue(dv), derefValue(sv), depth+1)
+			continue
+		}
+		if !f.IsExported() {
+			continue
+		}
+		switch dv.Kind() {
+		case reflect.Map:
+			if sv.Len() == 0 || !dv.CanSet() {
+				continue
+			}
+			if dv.IsNil() {
+				dv.Set(reflect.MakeMap(dv.Type()))
+			}
+			for _, k := range sv.MapKeys() {
+				dv.SetMapIndex(k, sv.MapIndex(k))
+			}
+		case reflect.Struct:
+			mergeVerified(dv, sv, depth+1)
+		case reflect.Pointer:
+			if !dv.IsNil() && !sv.IsNil() {
+				mergeVerified(dv.Elem(), sv.Elem(), depth+1)
+			}
+		}
+	}
 }
 
 // verifyLoaded runs the plugins' own Verify over everything a configuration introduced.

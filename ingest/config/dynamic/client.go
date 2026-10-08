@@ -295,6 +295,16 @@ func (dcm *DynamicConfigManager) reportStatus(sess *rpc.Session) (err error) {
 // written.  Callers still have to handle an error, a future failure that really is
 // wholesale has somewhere to go.
 func (dcm *DynamicConfigManager) Sync(remote []RunnerDefinition) error {
+	return dcm.sync(remote, true)
+}
+
+// sync is Sync with a say over the orphan sweep.  A poll carries the server's complete
+// set, so anything of the server's left on disk that it did not name is stale and the
+// sweep is right to remove it.  A push carries one definition folded into whatever this
+// process has seen so far, and before the first poll that is nothing at all: sweeping on
+// that would delete every other configuration on disk and stop the runners behind them,
+// only for the next poll to put them straight back.  The push leaves the sweep to the poll.
+func (dcm *DynamicConfigManager) sync(remote []RunnerDefinition, sweep bool) error {
 	dcm.mtx.Lock()
 	defer dcm.mtx.Unlock()
 
@@ -386,9 +396,17 @@ func (dcm *DynamicConfigManager) Sync(remote []RunnerDefinition) error {
 		updated++
 	}
 
-	// whatever is left in wanted is new
+	// whatever is left in wanted is new to this process.  It is not necessarily new to
+	// the disk: the list starts empty every time the process does, so on a restart every
+	// one of the server's configurations lands here with its file already in place.  A
+	// file that already holds exactly this is kept as it stands rather than rewritten,
+	// otherwise every restart rewrote every file and reloaded every runner for nothing.
 	for _, want := range wanted {
 		pth := dcm.runnerPath(want.rd)
+		if existing, rerr := os.ReadFile(pth); rerr == nil && string(existing) == markRemote(want.ini) {
+			kept = append(kept, configuredRunner{RunnerDefinition: want.rd, backingFile: pth, remote: true})
+			continue
+		}
 		if werr := writeConfFile(pth, markRemote(want.ini)); werr != nil {
 			dcm.lgr.Error("dynamic config failed to write a config",
 				log.KV("file", pth), log.KVErr(werr))
@@ -403,7 +421,9 @@ func (dcm *DynamicConfigManager) Sync(remote []RunnerDefinition) error {
 	// left over from a previous run: a configuration deleted or renamed while this
 	// ingester was down, which nothing in memory remembers because the list starts empty
 	// every time the process does.  Without this sweep those files are loaded forever.
-	removed += dcm.sweepOrphans(kept, rejected)
+	if sweep {
+		removed += dcm.sweepOrphans(kept, rejected)
+	}
 
 	// what the sync itself concluded.  Load failures are laid over the top when the set is
 	// read rather than baked in here, see Statuses: merging at the point of use is what
@@ -411,10 +431,14 @@ func (dcm *DynamicConfigManager) Sync(remote []RunnerDefinition) error {
 	// back and unpick an entry that was written into this slice earlier.
 	dcm.statuses = buildStatuses(kept, rejected)
 
+	// kept is the truth about the directory whether or not anything moved.  It has to be
+	// recorded even on a quiet sync, because on a restart the first sync finds every file
+	// already in place and nothing moves, and a list left empty then would mean the next
+	// push knew about none of them.
+	dcm.Configured = kept
 	if added == 0 && updated == 0 && removed == 0 {
 		return nil // nothing moved, do not wake the ingester
 	}
-	dcm.Configured = kept
 	dcm.lgr.Info("dynamic config changed", log.KV("added", added),
 		log.KV("updated", updated), log.KV("removed", removed))
 	dcm.bump()
@@ -679,7 +703,9 @@ func (dcm *DynamicConfigManager) applyConfig(ctx context.Context, params json.Ra
 	if !replaced {
 		current = append(current, rd)
 	}
-	if err := dcm.Sync(current); err != nil {
+	// no orphan sweep here, see sync: this set is only what we have seen so far, not
+	// the server's complete set
+	if err := dcm.sync(current, false); err != nil {
 		return nil, err
 	}
 	if sess, ok := rpc.SessionFrom(ctx); ok {
