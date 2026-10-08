@@ -211,10 +211,6 @@ func Test_autoingest(t *testing.T) {
 				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(3, count))
 			}
 
-			if count != 5 {
-				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
-			}
-
 			if !verifyTagExists(t, tag) {
 				t.Errorf("failed to find tag %v after ingesting files under it", tag)
 			}
@@ -234,12 +230,16 @@ func Test_autoingest(t *testing.T) {
 				switch path.Base(res.path) {
 				case "fileA", "fileB", "fileC", "fileZ", "fileX":
 					if res.err != nil {
-						t.Errorf("failed to ingest %v: %v", res.path, res.path)
+						t.Errorf("failed to ingest %v: %v", res.path, res.err)
 					}
 				default: // a file that should not have been ingested was.
 					t.Errorf("unexpected ingestion of file %v. Result: %v", res.path, res.err)
 				}
 
+			}
+
+			if count != 5 {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
 			}
 
 			if !verifyTagExists(t, tag) {
