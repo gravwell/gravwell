@@ -120,14 +120,14 @@ func runE(c *cobra.Command, args []string) error {
 	}
 
 	// fetch pairs from bare arguments
-	pairs, err := parsePairs(c.Flags().Args())
+	pathTagPairs, err := parsePairs(c.Flags().Args())
 	if err != nil {
 		return err
 	}
-	clilog.Writer.Debugf("ingest pairs: %v", pairs)
+	clilog.Writer.Debugf("ingest pairs: %v", pathTagPairs)
 
 	// if no files were given, launch mother or fail out
-	if len(pairs) == 0 {
+	if len(pathTagPairs) == 0 {
 		if flags.noInteractive {
 			return errNoFilesSpecified(true)
 		}
@@ -136,14 +136,9 @@ func runE(c *cobra.Command, args []string) error {
 
 	// attempt autoingestion
 
-	resultCh := make(chan struct {
-		string
-		error
-	})
-
-	count := autoingest(resultCh, flags, pairs)
-	if count == 0 { // should be impossible
-		return errors.New("autoingest returned a count of 0")
+	resultsCh := autoingest(flags, pathTagPairs)
+	if cap(resultsCh) == 0 {
+		return errNothingToIngest
 	}
 
 	// start up a spinner
