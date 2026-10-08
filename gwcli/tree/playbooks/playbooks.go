@@ -53,7 +53,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list playbooks", "List playbooks available to your user.",
 		types.Playbook{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Playbook, error) {
-			resp, err := connection.Client.ListPlaybooks(params.QueryOptions())
+			resp, err := connection.Client.ListPlaybooks(params.QueryOptions)
 			return resp.Results, err
 		},
 		nil,
@@ -203,7 +203,7 @@ func delete() action.Pair {
 			return connection.Client.DeletePlaybook(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListPlaybooks(params.QueryOptions())
+			lr, err := connection.Client.ListPlaybooks(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
