@@ -84,7 +84,8 @@ type resourceFields struct {
 	Readers  types.ACL `json:"Readers,omitzero"`
 	Writers  types.ACL `json:"Writers,omitzero"`
 	Labels   []string  `json:"Labels,omitzero"`
-	Kit      string    `json:"KitID,omitzero"`
+	// NOTE(rlandau): this cannot be a Nullable[string] as Nullables *always* marshal
+	KitID string `json:",omitzero"`
 }
 
 func resourceOf(a *types.Agent) resourceFields {
@@ -95,14 +96,17 @@ func resourceOf(a *types.Agent) resourceFields {
 		Readers:  a.Readers,
 		Writers:  a.Writers,
 		Labels:   a.Labels,
-		Kit:      a.KitID,
+		KitID:    a.KitID.Value(),
 	}
 }
 
 // applyTo copies the resource fields onto an agent.
 func (r resourceFields) applyTo(a *types.Agent) {
 	a.ID, a.ParentID, a.OwnerID = r.ID, r.ParentID, r.OwnerID
-	a.Readers, a.Writers, a.Labels, a.KitID = r.Readers, r.Writers, r.Labels, r.Kit
+	a.Readers, a.Writers, a.Labels = r.Readers, r.Writers, r.Labels
+	if r.KitID != "" {
+		a.KitID = types.NewNullable(r.KitID)
+	}
 }
 
 // nodeMetadata is a node's metadata.json: the whole NodeSpec, with the

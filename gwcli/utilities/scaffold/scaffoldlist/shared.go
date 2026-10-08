@@ -87,7 +87,7 @@ func listOutput[struct_t any](
 ) (string, error) {
 	params := DataParameters{}
 	if qob != nil {
-		params.QueryOpts = qob.QueryOptions(fs)
+		params.QueryOptions = qob.QueryOptions(fs)
 	}
 
 	// hand off control to pretty
