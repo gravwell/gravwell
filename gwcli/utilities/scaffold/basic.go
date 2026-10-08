@@ -43,6 +43,7 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -52,10 +53,7 @@ import (
 
 // ActFunc is the driver code for a basic action.
 // It is called whenever this action is invoked and runs exactly once per invocation.
-//
-// ! Do not use the flags inside of cmd. They are unused and their state is undefined.
-// Use fs instead.
-type ActFunc func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd)
+type ActFunc func(fs *pflag.FlagSet) (success string, addtlCmds tea.Cmd, _ error)
 
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
@@ -86,7 +84,10 @@ func NewBasicAction(use, short, long string,
 					return fmt.Errorf("invalid arguments: %s", inv)
 				}
 			}
-			s, _ := act(c.Flags())
+			s, _, err := act(c.Flags())
+			if err != nil {
+				return err
+			}
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 			return nil
 		},
@@ -131,7 +132,10 @@ var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(&ba.fs)
+	s, cmd, err := ba.fn(&ba.fs)
+	if err != nil {
+		return tea.Batch(stylesheet.ErrPrintf("%v", err.Error()), cmd)
+	}
 	if cmd != nil { // no point in sequencing with nil
 		return tea.Sequence(tea.Println(s), cmd)
 	}
