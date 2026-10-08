@@ -16,6 +16,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 
@@ -31,20 +32,16 @@ type ingestResult = struct {
 	error
 }
 
-// autoingest attempts to ingest the file(s) at each path, returning errors and successes on the returned channel.
-// Returns the number of files attempted and their results; caller can safely await exactly count results from the channel.
+// autoingest attempts to ingest the file(s) at each path, returning results on the returned channel.
+//
+// The channel is closed once every file has a result, so callers should read until it is closed.
+// It is buffered to hold every result, so goroutines never block (and thus never leak) should the caller stop reading.
+// Each file is ingested once, even if it is reachable by multiple pairs.
+// Any path that cannot be collected (eg, an unreadable directory) yields one failed result for that path.
+//
 // Performs ingestions in parallel.
-//
-// The channel is buffered to hold exactly count to prevent leaking should the caller not read the channel.
-// Each file is counted once, even if it is reachable by multiple pairs.
-// Any path that cannot be collected (eg, an unreadable directory) counts as one failed "file".
-//
-// If count is 0, there was nothing to ingest and the channel will be nil!
-func autoingest(flags ingestFlags, pairs []pair) (count uint, results <-chan ingestResult) {
-	if len(pairs) == 0 {
-		return 0, nil
-	}
-
+// Returns a nil channel if there is nothing to ingest.
+func autoingest(flags ingestFlags, pairs []pair) (results <-chan ingestResult) {
 	var (
 		paths    = make(map[string]string) // path -> tag
 		errPaths = make(map[string]error)  // path -> collection error
@@ -62,8 +59,10 @@ func autoingest(flags ingestFlags, pairs []pair) (count uint, results <-chan ing
 		}
 	}
 
-	count = uint(len(paths) + len(errPaths))
-	ch := make(chan ingestResult, count)
+	if len(paths)+len(errPaths) == 0 {
+		return nil
+	}
+	ch := make(chan ingestResult, len(paths)+len(errPaths))
 
 	// issue collect errors immediately
 	for path, err := range errPaths {
@@ -71,13 +70,19 @@ func autoingest(flags ingestFlags, pairs []pair) (count uint, results <-chan ing
 	}
 
 	// ingest files in parallel
+	var wg sync.WaitGroup
 	for path, tag := range paths {
-		go func(p, t string) {
-			ch <- ingestResult{p, ingestPath(flags, p, t)}
-		}(path, tag)
+		wg.Go(func() {
+			ch <- ingestResult{path, ingestPath(flags, path, tag)}
+		})
 	}
+	// close the channel once every ingestion has reported
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
 
-	return count, ch
+	return ch
 }
 
 // given a path, collectPathsForIngestion identifies the full paths for each file to be uploaded.
