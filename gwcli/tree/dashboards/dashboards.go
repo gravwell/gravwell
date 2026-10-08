@@ -49,7 +49,7 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list dashboards", "list dashboards available to you and the system",
 		types.Dashboard{}, func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Dashboard, error) {
-			r, err := connection.Client.ListDashboards(params.QueryOptions())
+			r, err := connection.Client.ListDashboards(params.QueryOptions)
 			return r.Results, err
 		},
 		nil,
@@ -77,7 +77,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteDashboard(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListDashboards(params.QueryOptions())
+			lr, err := connection.Client.ListDashboards(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

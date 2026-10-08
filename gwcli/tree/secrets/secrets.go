@@ -59,7 +59,7 @@ func listAction() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Secret{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Secret, error) {
-			resp, err := connection.Client.ListSecrets(params.QueryOptions())
+			resp, err := connection.Client.ListSecrets(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +132,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteSecret(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListSecrets(params.QueryOptions())
+			lr, err := connection.Client.ListSecrets(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

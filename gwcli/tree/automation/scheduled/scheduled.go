@@ -69,14 +69,10 @@ func listAction() action.Pair {
 			if id, err := fs.GetString("id"); err != nil {
 				clilog.GetFlag(err)
 			} else if id != "" {
-				var opts client.GetOptions
-				if params.QueryOpts != nil {
-					opts.IncludeDeleted = params.QueryOpts.IncludeDeleted
-				}
-				ss, err := connection.Client.GetScheduledSearchEx(id, opts)
+				ss, err := connection.Client.GetScheduledSearchEx(id, client.GetOptions{IncludeDeleted: params.QueryOptions.IncludeDeleted})
 				return []types.ScheduledSearch{ss}, err
 			}
-			list, err := connection.Client.ListScheduledSearches(params.QueryOptions())
+			list, err := connection.Client.ListScheduledSearches(params.QueryOptions)
 			return list.Results, err
 		},
 		nil,
@@ -169,7 +165,7 @@ func delete() action.Pair {
 
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledSearches(params.QueryOptions())
+			lr, err := connection.Client.ListScheduledSearches(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

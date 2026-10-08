@@ -63,7 +63,7 @@ func listAction() action.Pair {
 		"List actionables available to your user.",
 		types.Actionable{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Actionable, error) {
-			lr, err := connection.Client.ListActionables(params.QueryOptions())
+			lr, err := connection.Client.ListActionables(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -365,7 +365,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteActionable(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListActionables(param.QueryOptions())
+			lr, err := connection.Client.ListActionables(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
