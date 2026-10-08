@@ -181,7 +181,7 @@ func Test_autoingest_noBackend(t *testing.T) {
 				if !ok {
 					return got
 				}
-				got[res.string] = res.error
+				got[res.path] = res.err
 			case <-timeout:
 				t.Fatalf("timed out waiting for the channel to close; received %d results", len(got))
 			}

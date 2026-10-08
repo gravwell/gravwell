@@ -164,11 +164,11 @@ func runE(c *cobra.Command, args []string) error {
 	)
 	// prints a result to stdout/stderr
 	printResult := func(res ingestResult) {
-		if res.error != nil {
-			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+		if res.err != nil {
+			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.path, res.err))
 			errored += 1
 		} else {
-			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
+			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.path)
 		}
 	}
 	for res := range resultsCh {

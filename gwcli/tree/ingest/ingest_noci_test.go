@@ -122,27 +122,27 @@ func Test_autoingest(t *testing.T) {
 				count += 1
 
 				// strip the testing directory off the path
-				if after, found := strings.CutPrefix(res.string, dir+"/"); !found {
-					t.Fatalf("expected all paths to be prefixed by the temp directory. Actual: %v", res.string)
+				if after, found := strings.CutPrefix(res.path, dir+"/"); !found {
+					t.Fatalf("expected all paths to be prefixed by the temp directory. Actual: %v", res.path)
 				} else {
-					res.string = after
+					res.path = after
 				}
 
 				// find the outcome we are expecting
 				var found bool
 				for i := range tt.args.pairs {
 					// if we find a match, check the outcome
-					if res.string == tt.args.pairs[i].path {
+					if res.path == tt.args.pairs[i].path {
 						found = true
 						expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
-						if (res.error != nil) != expectingErr {
-							t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", tt.args.pairs[i].path, expectingErr, res.error)
+						if (res.err != nil) != expectingErr {
+							t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", tt.args.pairs[i].path, expectingErr, res.err)
 						}
 					}
 				}
 				// if we made it this far without finding a match, something has gone terribly wrong
 				if !found {
-					t.Errorf("failed to find file %v in argument pairs", res.string)
+					t.Errorf("failed to find file %v in argument pairs", res.path)
 				}
 			}
 			if count != tt.wantCount {
@@ -197,13 +197,13 @@ func Test_autoingest(t *testing.T) {
 			var count uint
 			for res := range ch {
 				count += 1
-				switch path.Base(res.string) {
+				switch path.Base(res.path) {
 				case "fileA", "fileB", "fileC":
-					if res.error != nil {
-						t.Errorf("failed to ingest %v: %v", res.string, res.error)
+					if res.err != nil {
+						t.Errorf("failed to ingest %v: %v", res.path, res.err)
 					}
 				default: // a file that should not have been ingested was.
-					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
+					t.Errorf("unexpected ingestion of file %v. Result: %v", res.path, res.err)
 				}
 			}
 
@@ -231,13 +231,13 @@ func Test_autoingest(t *testing.T) {
 			var count uint
 			for res := range ch {
 				count += 1
-				switch path.Base(res.string) {
+				switch path.Base(res.path) {
 				case "fileA", "fileB", "fileC", "fileZ", "fileX":
-					if res.error != nil {
-						t.Errorf("failed to ingest %v: %v", res.string, res.error)
+					if res.err != nil {
+						t.Errorf("failed to ingest %v: %v", res.path, res.path)
 					}
 				default: // a file that should not have been ingested was.
-					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
+					t.Errorf("unexpected ingestion of file %v. Result: %v", res.path, res.err)
 				}
 
 			}

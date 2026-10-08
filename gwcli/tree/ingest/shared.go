@@ -26,10 +26,11 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// ingestResult is the outcome of attempting to ingest a single file; the string is the file's path.
+// ingestResult is the outcome of attempting to ingest a single file.
+// Assume success if err == nil
 type ingestResult = struct {
-	string
-	error
+	path string
+	err  error
 }
 
 // autoingest attempts to ingest the file(s) at each path, returning results on the returned channel.
@@ -66,14 +67,14 @@ func autoingest(flags ingestFlags, pairs []pair) (results <-chan ingestResult) {
 
 	// issue collect errors immediately
 	for path, err := range errPaths {
-		ch <- ingestResult{path, err}
+		ch <- ingestResult{path: path, err: err}
 	}
 
 	// ingest files in parallel
 	var wg sync.WaitGroup
 	for path, tag := range paths {
 		wg.Go(func() {
-			ch <- ingestResult{path, ingestPath(flags, path, tag)}
+			ch <- ingestResult{path: path, err: ingestPath(flags, path, tag)}
 		})
 	}
 	// close the channel once every ingestion has reported
