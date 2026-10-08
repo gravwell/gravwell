@@ -51,7 +51,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.File{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.File, error) {
-			flr, err := connection.Client.ListFiles(param.QueryOptions())
+			flr, err := connection.Client.ListFiles(param.QueryOptions)
 			return flr.Results, err
 		},
 		map[string]string{"Size": "SizeBytes"},
@@ -247,7 +247,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteFile(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFiles(params.QueryOptions())
+			lr, err := connection.Client.ListFiles(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

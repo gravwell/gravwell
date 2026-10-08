@@ -111,7 +111,7 @@ func TestQueryOptions(t *testing.T) {
 			},
 			false,
 			scaffolddelete.DataParameters{
-				&types.QueryOptions{
+				types.QueryOptions{
 					IncludeDeleted: true,
 					All:            true,
 				},
@@ -126,7 +126,7 @@ func TestQueryOptions(t *testing.T) {
 			},
 			false,
 			scaffolddelete.DataParameters{
-				&types.QueryOptions{
+				types.QueryOptions{
 					IncludeDeleted: true,
 					All:            true,
 					Limit:          5,
@@ -141,7 +141,7 @@ func TestQueryOptions(t *testing.T) {
 			},
 			true,
 			scaffolddelete.DataParameters{
-				&types.QueryOptions{},
+				types.QueryOptions{},
 			},
 		},
 		{"--all cannot be set when omit.Everything",
@@ -152,7 +152,7 @@ func TestQueryOptions(t *testing.T) {
 			},
 			true,
 			scaffolddelete.DataParameters{
-				&types.QueryOptions{},
+				types.QueryOptions{},
 			},
 		},
 	}

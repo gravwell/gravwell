@@ -68,7 +68,7 @@ func listActions() action.Pair {
 	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
 		types.Flow{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Flow, error) {
-			baseList, err := connection.Client.ListFlows(params.QueryOptions())
+			baseList, err := connection.Client.ListFlows(params.QueryOptions)
 			return baseList.Results, err
 		},
 		nil,
@@ -246,7 +246,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteFlow(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFlows(params.QueryOptions())
+			lr, err := connection.Client.ListFlows(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

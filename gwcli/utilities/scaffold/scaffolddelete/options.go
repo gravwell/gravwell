@@ -23,14 +23,5 @@ type Options struct {
 // DataParameters is the set of information that a user may provide the action that is unhandled by scaffolddelete itself.
 // Follows the same logic as scaffoldlist.DataParameters and may be merged with it eventually.
 type DataParameters struct {
-	QueryOpts *types.QueryOptions
-}
-
-// QueryOptions returns the resolved query options by value, or the zero value
-// if none were configured for this action.
-func (p DataParameters) QueryOptions() types.QueryOptions {
-	if p.QueryOpts == nil {
-		return types.QueryOptions{}
-	}
-	return *p.QueryOpts
+	QueryOptions types.QueryOptions
 }

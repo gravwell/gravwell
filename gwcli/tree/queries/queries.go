@@ -70,7 +70,7 @@ func past() action.Pair {
 		"display search history", "display past searches made by your user",
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
-			resp, err := connection.Client.ListSearchHistory(params.QueryOptions())
+			resp, err := connection.Client.ListSearchHistory(params.QueryOptions)
 			if err != nil {
 				// check for explicit no records error
 				if strings.Contains(err.Error(), "No record") {
@@ -166,7 +166,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list active queries", "List all current queries.",
 		types.SearchInfo{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchInfo, error) {
-			if params.QueryOpts.All {
+			if params.QueryOptions.All {
 				resp, err := connection.Client.ListAllSearches(types.QueryOptions{})
 				return resp.Results, err
 			}

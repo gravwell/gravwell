@@ -115,7 +115,7 @@ func TestTreeRoundTrip(t *testing.T) {
 	a.Readers = types.ACL{GIDs: []int32{1, 2}, Global: true}
 	a.Writers = types.ACL{GIDs: []int32{2}}
 	a.Labels = []string{"triage"}
-	a.KitID = "io.gravwell.triage"
+	a.KitID = types.NewNullable("io.gravwell.triage")
 
 	dir := filepath.Join(t.TempDir(), "tree")
 	if err := WriteTree(dir, a); err != nil {
@@ -161,7 +161,7 @@ func TestEncodeOmitsUnsetFields(t *testing.T) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"ID", "ParentID", "OwnerID", "Readers", "Writers", "Labels", "Kit", "CreatedAt", "Owner", "Can", "Version", "Avatar"} {
+	for _, key := range []string{"ID", "ParentID", "OwnerID", "Readers", "Writers", "Labels", "KitID", "CreatedAt", "Owner", "Can", "Version", "Avatar"} {
 		if _, ok := m[key]; ok {
 			t.Errorf("encoded agent has unset %s: %s", key, b)
 		}
