@@ -25,62 +25,59 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// autoingest attempts to ingest the file at each path, returning errors and successes on the given channel (if non-nil).
-// Returns the number of files to be ingested; caller can safely await exactly count results from the channel (again, if non-nil).
-// Performs ingestions in parallel.
-func autoingest(res chan<- struct {
+// ingestResult is the outcome of attempting to ingest a single file; the string is the file's path.
+type ingestResult = struct {
 	string
 	error
-}, flags ingestFlags, pairs []pair) (count uint) {
+}
+
+// autoingest attempts to ingest the file(s) at each path, returning errors and successes on the returned channel.
+// Returns the number of files attempted and their results; caller can safely await exactly count results from the channel.
+// Performs ingestions in parallel.
+//
+// The channel is buffered to hold exactly count to prevent leaking should the caller not read the channel.
+// Each file is counted once, even if it is reachable by multiple pairs.
+// Any path that cannot be collected (eg, an unreadable directory) counts as one failed "file".
+//
+// If count is 0, there was nothing to ingest and the channel will be nil!
+func autoingest(flags ingestFlags, pairs []pair) (count uint, results <-chan ingestResult) {
 	if len(pairs) == 0 {
-		return 0
+		return 0, nil
 	}
 
 	var (
-		paths     = make(map[string]string) // path -> tag
-		errPaths  = make(map[string]error)  // path -> collection error
-		fileCount uint
+		paths    = make(map[string]string) // path -> tag
+		errPaths = make(map[string]error)  // path -> collection error
 	)
 	// determine the number of files we are going to ingest and build a list of full paths
 	for _, pair := range pairs {
 		toIng, err := collectPathsForIngestions(pair.path, flags.recursive)
+		if err != nil {
+			// set aside paths that error so we don't bother trying again
+			errPaths[pair.path] = err
+			continue
+		}
 		for path := range toIng {
-			// set aside paths that error so we can immediately return them as an error
-			if err != nil {
-				errPaths[path] = err
-			} else {
-				paths[path] = pair.tag
-			}
-			fileCount += 1
+			paths[path] = pair.tag
 		}
 	}
 
-	// spin off a goroutine per path to ingest each file
+	count = uint(len(paths) + len(errPaths))
+	ch := make(chan ingestResult, count)
+
+	// issue collect errors immediately
+	for path, err := range errPaths {
+		ch <- ingestResult{path, err}
+	}
+
+	// ingest files in parallel
 	for path, tag := range paths {
 		go func(p, t string) {
-			err := ingestPath(flags, p, t)
-			if res != nil {
-				res <- struct {
-					string
-					error
-				}{p, err}
-			}
+			ch <- ingestResult{p, ingestPath(flags, p, t)}
 		}(path, tag)
 	}
 
-	// spin off a single goroutine to pass errors from collect
-	go func() {
-		if res != nil {
-			for p, err := range errPaths {
-				res <- struct {
-					string
-					error
-				}{p, err}
-			}
-		}
-	}()
-
-	return fileCount
+	return count, ch
 }
 
 // given a path, collectPathsForIngestion identifies the full paths for each file to be uploaded.
