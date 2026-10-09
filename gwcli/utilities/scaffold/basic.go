@@ -11,9 +11,10 @@ Package scaffold contains packages for generating new actions from skeletons.
 See scaffoldlist, scaffolddelete, etc for more information.
 The bare scaffold package comes with a skeleton for basic actions.
 
-A basic action is the simplest action: it does its thing and returns a string to be printed to the terminal (plus any tea.Cmds to be run by Mother).
-Give it the function you want performed when the action is invoked and have it return whatever string value you want printed to the screen, if at all.
-Prefer printing via returning a string, rather than returning a tea.Printf cmd.
+A basic action is the simplest action: it does its thing and returns a collection of "Results" to be
+printed to the terminal (plus any tea.Cmds to be run by Mother (in interactive mode)).
+If the action does only one thing, it is fine to return a single Result.
+However, you should always return at least one.
 
 If this action is for retrieving data, consider making it a scaffoldlist instead.
 Scaffoldlist comes with csv/json/table formatting and file redirection out of the box.
@@ -30,10 +31,10 @@ Implementations will probably look a lot like:
 	)
 
 	func FooAction() action.Pair {
-		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) (string, tea.Cmd, error) {
+		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) ([]scaffold.Result, tea.Cmd) {
 			data := connection.Client.GetSomeData()
 			str := formatData(data)
-			return str, nil, nil
+			return []scaffold.Result{{Output:str, Success: true}}, nil, nil
 		}, nil)
 	}
 */
