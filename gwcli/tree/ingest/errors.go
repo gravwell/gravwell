@@ -21,6 +21,8 @@ var (
 	// tags cannot contain illegal characters.
 	// set by init
 	errInvalidTagCharacter error
+	// autoingest found no files to ingest (eg, an empty directory or a directory that contains only subdirectories without --recursive)
+	errNothingToIngest error = errors.New("no files were found to ingest at the given path(s)")
 	// failed to associate a tag to this file using any of the 3 methods (in-line, embedded, default)
 	errNoTagSpecified error = errors.New(
 		"every file must have a tag in at least one of the following positions (ordered by priority):\n" +
