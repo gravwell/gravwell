@@ -33,7 +33,7 @@ Implementations will probably look a lot like:
 		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) (string, tea.Cmd, error) {
 			data := connection.Client.GetSomeData()
 			str := formatData(data)
-			return str, nil
+			return str, nil, nil
 		}, nil)
 	}
 */
