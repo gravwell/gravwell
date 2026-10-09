@@ -67,8 +67,6 @@ func NewBasicAction(use, short, long string,
 	// validate options
 	if use == "" {
 		panic("use cannot be empty")
-	} else if short == "" {
-		panic("short cannot be empty")
 	} else if act == nil {
 		panic("act func cannot be nil")
 	}
