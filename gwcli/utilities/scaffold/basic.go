@@ -43,7 +43,6 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -53,7 +52,9 @@ import (
 
 // ActFunc is the driver code for a basic action.
 // It is called whenever this action is invoked and runs exactly once per invocation.
-type ActFunc func(fs *pflag.FlagSet) (success string, addtlCmds tea.Cmd, err error)
+//
+// Results will be printed in order. An error message will be appended if at least 1 returned !success.
+type ActFunc func(fs *pflag.FlagSet) (_ []Result, addtlCmds tea.Cmd)
 
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
@@ -84,12 +85,21 @@ func NewBasicAction(use, short, long string,
 					return fmt.Errorf("invalid arguments: %s", inv)
 				}
 			}
-			s, _, err := act(c.Flags())
-			if err != nil {
-				return err
+			results, _ := act(c.Flags())
+			if len(results) == 0 {
+				return nil // nothing else to be done
 			}
-			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
-			return nil
+			// print the results in order, tracking failures
+			var errorCount uint
+			for _, r := range results {
+				if !r.Success {
+					errorCount += 1
+					fmt.Fprintln(c.ErrOrStderr(), r.Output)
+					continue
+				}
+				fmt.Fprintln(c.OutOrStdout(), r.Output)
+			}
+			return ResultsError(errorCount, uint(len(results)))
 		},
 		treeutils.GenerateActionOptions{}, // actions are applied below
 	)
@@ -132,14 +142,17 @@ var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd, err := ba.fn(&ba.fs)
-	if err != nil {
-		return tea.Batch(stylesheet.ErrPrintf("%s", err.Error()), cmd)
+	results, cmd := ba.fn(&ba.fs)
+	// sequence the results, then the error message, then the cmd (if not nil)
+	if len(results) == 0 {
+		return cmd
 	}
-	if cmd != nil { // no point in sequencing with nil
-		return tea.Sequence(tea.Println(s), cmd)
+	// print the results in order, tracking failures
+	printCmds := TeaPrintlnResults(results)
+	if cmd != nil {
+		return tea.Sequence(printCmds, cmd)
 	}
-	return tea.Println(s)
+	return printCmds
 }
 
 func (*basicAction) View() string {
