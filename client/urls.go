@@ -202,6 +202,7 @@ const (
 	SECRETS_ID_FULL_URL                   = `/api/secrets/%s/full`
 	INFO_SETTINGS_URL                     = `/api/info/settings`
 	INGESTERS_TRACKING_URL                = `/api/ingesters/tracking`
+	INGESTERS_CONTROL_URL                 = `/api/ingesters/control`
 	ALERTS_URL                            = `/api/alerts`
 	LIST_ALERTS_URL                       = `/api/list/alerts`
 	ALERTS_ID_URL                         = `/api/alerts/%s`

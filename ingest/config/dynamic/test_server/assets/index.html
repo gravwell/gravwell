@@ -1,0 +1,341 @@
+{{define "page"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gravwell dynamic config test server</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/hx.js" defer></script>
+</head>
+<body>
+<header>
+	<h1>Gravwell dynamic config test server</h1>
+	<span class="sp"></span>
+	<span class="statuswrap">
+		<span id="status" hx-get="/ui/status" hx-trigger="load, every 3s"></span>
+		<div id="ingesters" class="dropdown" hidden></div>
+	</span>
+</header>
+<main>
+	<div>
+		<section class="panel">
+			<h2>Available runner kinds</h2>
+			<div class="body" id="kinds" hx-get="/ui/kinds" hx-trigger="load, every 5s"></div>
+		</section>
+		<section class="panel">
+			<h2>Configured runners</h2>
+			<div class="body" id="runners" hx-get="/ui/runners" hx-trigger="load, every 5s"></div>
+		</section>
+	</div>
+	<section class="panel">
+		<h2>Detail</h2>
+		<div id="detail">
+			<p class="empty">Pick a kind to configure a new runner, or a runner to edit it.</p>
+		</div>
+	</section>
+</main>
+</body>
+</html>{{end}}
+
+{{define "kinds"}}
+{{- if not . -}}
+<p class="empty">No ingester has registered a kind yet.</p>
+{{- else -}}
+{{- range . }}
+<button class="row" hx-get="/ui/new?kind={{.Kind}}" hx-target="#detail">
+	<span class="nm">
+		{{- if .HasIcon }}{{.Icon}}{{ end -}}
+		{{.Kind}}
+		{{- if .Version }} <span class="ver">v{{.Version}}</span>{{ end -}}
+	</span>
+	<span class="sub">{{.Vars}} setting{{if ne .Vars 1}}s{{end}}{{if .Singleton}} &middot; singleton{{end}}</span>
+	{{- if .Docs }}
+	<span class="sub docs">
+		{{- range .Docs }}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer">{{.Name}}</a>{{ end -}}
+	</span>
+	{{- end }}
+</button>
+{{- end }}
+{{- end }}
+{{end}}
+
+{{define "runners"}}
+{{- if not . -}}
+<p class="empty">Nothing configured yet.</p>
+{{- else -}}
+{{- range . }}
+{{- /* an unmanaged row is something an ingester reported that this server holds no
+       definition for, so it opens the reports rather than the edit form: there are no
+       fields to draw and nothing a Save could mean. */ -}}
+<button class="row{{if .Unmanaged}} unmanaged{{end}}"
+	hx-get="{{if .Unmanaged}}/ui/unmanaged{{else}}/ui/edit{{end}}?uuid={{.UUID}}" hx-target="#detail">
+	<span class="nm">
+		<span class="dot {{.State}}" title="{{.Detail}}"></span>
+		{{- if .HasIcon }}{{.Icon}}{{ end -}}
+		{{.Name}}
+		{{- if .Unmanaged }} <span class="tag">not configured here</span>{{ end -}}
+	</span>
+	<span class="sub">{{if .Kind}}{{.Kind}} &middot; {{end}}{{.UUID}}</span>
+	<span class="sub {{.State}}">{{.Detail}}</span>
+</button>
+{{- end }}
+{{- end }}
+{{end}}
+
+{{- /* The detail panel for a runner an ingester reported that this server does not hold.
+       It explains what it is looking at, because the answer is not "a runner you made" and
+       an operator who assumes it is will go looking for a delete button that cannot help
+       them: the file is on the ingester, not here. */ -}}
+{{define "unmanaged"}}
+<div class="kindhead">
+	<span class="kindname">{{.Name}}</span>
+	<span class="tag">not configured here</span>
+</div>
+<div>
+	<div class="assign">
+		<span class="lbl">What this is</span>
+		<span class="hint">An ingester has reported on a configuration this server holds no
+			record of. Nothing here created it, so there is nothing here to edit or delete.
+			The usual cause is a configuration file placed or edited by hand in the
+			ingester's storage directory — which is also the kind of file that will not
+			load.</span>
+		<span class="hint">Fix or remove the file on the ingester. The report clears itself
+			as soon as that ingester next reports without it.</span>
+	</div>
+	<div class="assign">
+		<span class="lbl">Identity</span>
+		<span class="hint mono">{{.UUID}}</span>
+		<span class="hint">Kind: {{if .Kind}}<span class="mono">{{.Kind}}</span>
+			{{- if not .Known}} <span class="bad">— no ingester has registered this kind</span>{{end}}
+			{{- else}}<span class="muted">not reported</span>{{end}}</span>
+	</div>
+	<div class="assign">
+		<span class="lbl">Reports</span>
+		<span class="hint">What each ingester that mentioned this last said about it.</span>
+		<div id="runnerstatus" hx-get="/ui/runnerstatus?uuid={{.UUID}}" hx-trigger="load, every 5s"></div>
+	</div>
+</div>
+{{end}}
+
+{{- /* A report that cleared itself while the operator was opening it.  This is the good
+       outcome, so it is said plainly rather than as an error. */ -}}
+{{define "gone"}}
+<p class="empty">Nothing is reporting on this any more. Whatever was wrong has been fixed or removed.</p>
+{{end}}
+
+{{define "runnerstatus"}}
+{{- if not . -}}
+<p class="empty">No registered ingester matches this runner's assignment, so nothing is tasked with running it.</p>
+{{- else -}}
+<table class="ing">
+	<thead><tr><th></th><th>Ingester</th><th>Class</th><th>Reported</th><th>In this state</th></tr></thead>
+	{{- /* a row with nothing reported is an ingester this runner is tasked to that has
+	       not spoken.  It comes from the stored registrations, so it is there whether or
+	       not anything is connected. */ -}}
+	<tbody>
+	{{- range . }}
+	<tr>
+		<td><span class="dot {{.State}}"
+			title="{{if not .Reported}}tasked, nothing reported{{else if .Error}}rejected{{else}}accepted{{end}}"></span></td>
+		<td class="mono">{{.Ingester}}{{if not .Connected}} <span class="muted">(offline)</span>{{end}}</td>
+		<td>{{if .Class}}<span class="chip">{{.Class}}</span>{{else}}<span class="muted">none</span>{{end}}</td>
+		<td class="muted">{{if .Reported}}{{.Updated}}{{else}}not reported{{end}}</td>
+		<td class="muted">{{.Since}}</td>
+	</tr>
+	{{- if .Error }}
+	<tr><td></td><td colspan="4" class="errtext">{{.Error}}</td></tr>
+	{{- end }}
+	{{- end }}
+	</tbody>
+</table>
+{{- end }}
+{{end}}
+
+{{define "status"}}
+{{- /* the chip is a button so it is reachable by keyboard, not just by mouse */ -}}
+<button class="chip {{if .Connected}}on{{else}}off{{end}}" data-toggle="#ingesters"
+	hx-get="/ui/ingesters" hx-target="#ingesters" title="Show every ingester the server knows about">
+	{{- if .Connected }}{{.Connected}} ingester{{if ne .Connected 1}}s{{end}} connected
+	{{- else }}no ingesters connected{{ end -}}
+</button>
+{{end}}
+
+{{define "ingesters"}}
+{{- if not . -}}
+<p class="empty">No ingester has ever registered with this server.</p>
+{{- else -}}
+<table class="ing">
+	<thead><tr><th></th><th>UUID</th><th>Class</th><th>Kinds</th><th>Runners</th><th>Last seen</th></tr></thead>
+	<tbody>
+	{{- range . }}
+	<tr>
+		<td><span class="dot {{if .Connected}}on{{else}}off{{end}}"
+			title="{{if .Connected}}connected{{else}}not connected{{end}}"></span></td>
+		<td class="mono idcell">{{template "ingestericon" .}}{{.UUID}}</td>
+		<td>{{if .Class}}<span class="chip">{{.Class}}</span>{{else}}<span class="muted">none</span>{{end}}</td>
+		<td class="muted">{{if .Kinds}}{{.Kinds}}{{else}}none{{end}}</td>
+		<td class="muted">{{if .Tasked}}{{.Tasked}}{{else}}none{{end}}</td>
+		<td class="muted">{{.LastSeen}}</td>
+	</tr>
+	{{- end }}
+	</tbody>
+</table>
+{{- end }}
+{{end}}
+
+{{define "form"}}
+{{- with .Note }}<div class="note {{.Class}}">{{.Text}}</div>{{ end }}
+<div class="kindhead">
+	{{- if .HasIcon }}{{.Icon}}{{ end }}
+	<span class="kindname">{{.Kind}}</span>
+	{{- if .Version }}<span class="ver">v{{.Version}}</span>{{ end }}
+	{{- if .Docs }}<span class="docs">
+		{{- range .Docs }}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer">{{.Name}}</a>{{ end -}}
+	</span>{{ end }}
+</div>
+<form hx-post="/ui/save" hx-target="#detail">
+	<input type="hidden" name="kind" value="{{.Kind}}">
+	<input type="hidden" name="uuid" value="{{.UUID}}">
+	<fieldset>
+		<label>
+			<span class="lbl">Name <span class="req">*</span></span>
+			<span class="hint">The config name, unique within {{.Kind}}.</span>
+			<input type="text" name="name" value="{{.Name}}" required>
+		</label>
+		<div class="assign">
+			<span class="lbl">Assignment</span>
+			<span class="hint">Leave both empty to send this configuration to every ingester that can
+				run {{.Kind}}. Each list that has anything selected becomes a filter, and an
+				ingester has to satisfy every filter to receive the configuration.</span>
+			<div class="two">
+				<label>
+					<span class="lbl">Ingesters</span>
+					<span class="hint">Only those that have registered {{.Kind}} are listed.</span>
+					{{- if .Targets }}
+					<select name="assign.uuid" multiple size="5">
+						{{- range .Targets }}
+						<option value="{{.UUID}}"{{if .Selected}} selected{{end}}>
+							{{.UUID}}{{if .Class}} &middot; {{.Class}}{{end}}{{if not .Known}} (has not registered this kind){{end}}
+						</option>
+						{{- end }}
+					</select>
+					{{- else }}
+					<span class="empty">No ingester has registered {{.Kind}} yet.</span>
+					{{- end }}
+				</label>
+				<label>
+					<span class="lbl">Classes</span>
+					<span class="hint">Every class an ingester has ever registered with, whether or not it is connected now.</span>
+					{{- if .Classes }}
+					<select name="assign.class" multiple size="5">
+						{{- range .Classes }}
+						<option value="{{.Name}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
+						{{- end }}
+					</select>
+					{{- else }}
+					<span class="empty">No ingester has reported a class yet.</span>
+					{{- end }}
+					<span class="hint">Other classes, comma separated.</span>
+					<input type="text" name="assign.otherclasses" value="{{.OtherClasses}}"
+						placeholder="a class no ingester is carrying yet">
+				</label>
+			</div>
+		</div>
+		{{- if .Existing }}
+		<div class="assign">
+			<span class="lbl">Status</span>
+			<span class="hint">What each ingester carrying this runner makes of it. An ingester
+				that rejects a configuration keeps running the last one that worked, so a
+				rejection here means this runner is not what you asked for yet.</span>
+			<div id="runnerstatus" hx-get="/ui/runnerstatus?uuid={{.UUID}}" hx-trigger="load, every 5s"></div>
+		</div>
+		{{- end }}
+		{{- range .Fields }}
+		<label>
+			<span class="lbl">{{.Name}}{{if .Required}} <span class="req">*</span>{{end}} <span class="ty">{{.Type}}</span></span>
+			{{- if .Description }}<span class="hint">{{.Description}}</span>{{ end }}
+			{{- if .RequiredWhen }}<span class="hint cond">{{.RequiredWhen}}</span>{{ end }}
+			{{- if eq .Control "select" }}
+			{{- /* the blank option is always there, required or not.  A select always has
+			       something selected, so without it a required one starts on its first
+			       value and the browser's own required check can never fire: the operator
+			       would be recorded as having chosen something they never looked at. */ -}}
+			<select name="var.{{.Name}}"{{if .Required}} required{{end}}>
+				<option value=""{{if not .Value}} selected{{end}}></option>
+				{{- range .Options }}
+				<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Value}}{{if .Unknown}} (no longer offered){{end}}</option>
+				{{- end }}
+			</select>
+			{{- else if eq .Control "multiselect" }}
+			<span class="hint">Hold ctrl or cmd to choose more than one.</span>
+			<select name="var.{{.Name}}" multiple size="{{if lt (len .Options) 8}}{{len .Options}}{{else}}8{{end}}"{{if .Required}} required{{end}}>
+				{{- range .Options }}
+				<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Value}}{{if .Unknown}} (no longer offered){{end}}</option>
+				{{- end }}
+			</select>
+			{{- else if eq .Control "secret" }}
+			{{- /* a required secret that is already set must not be marked required, the
+			       form never shows it and an empty box means "keep what is stored" */ -}}
+			<span class="secretwrap">
+				<input type="password" name="var.{{.Name}}" autocomplete="new-password"
+					{{if and .Required (not .HasValue)}}required {{end}}
+					placeholder="{{if .HasValue}}leave blank to keep the stored value{{else}}enter a value{{end}}">
+				<span class="secretstate{{if .HasValue}} set{{end}}"
+					title="whether a value is stored on the server">{{if .HasValue}}stored{{else}}none stored{{end}}</span>
+			</span>
+			{{- else if eq .Control "bool" }}
+			{{- /* never marked required, a required checkbox would mean "must be true" */ -}}
+			<input type="checkbox" name="var.{{.Name}}" value="true"{{if .Checked}} checked{{end}}>
+			{{- else if eq .Control "number" }}
+			<input type="number" step="any" name="var.{{.Name}}" value="{{.Value}}"{{if .Required}} required{{end}}>
+			{{- else if eq .Control "list" }}
+			{{- template "listcontrol" . }}
+			{{- else if eq .Control "json" }}
+			<span class="hint">Encoded as JSON, this type has no flat form control.</span>
+			<textarea name="var.{{.Name}}"{{if .Required}} required{{end}}>{{.Value}}</textarea>
+			{{- else }}
+			<input type="text" name="var.{{.Name}}" value="{{.Value}}"{{if .Required}} required{{end}}>
+			{{- end }}
+		</label>
+		{{- end }}
+	</fieldset>
+	<div class="actions">
+		<button class="go" type="submit">{{if .Existing}}Save changes{{else}}Create runner{{end}}</button>
+		{{- if .Existing }}
+		<button class="danger" type="button" hx-post="/ui/delete?uuid={{.UUID}}" hx-target="#detail"
+			hx-confirm="Delete {{.Name}}?">Delete</button>
+		{{- end }}
+	</div>
+</form>
+{{end}}
+
+{{- /* The glyph for an ingester itself, as opposed to the artwork a plugin ships.  This
+       one is ours and lives in the template, so unlike a plugin's icon it is trusted
+       markup and never goes near sanitizeIcon.  It picks up the connection state so the
+       row reads at a glance rather than only from the dot beside it. */ -}}
+{{define "ingestericon"}}<svg class="icon ing {{if .Connected}}on{{else}}off{{end}}" viewBox="0 0 24 24"
+	fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+	aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="7" rx="2"></rect><rect x="3" y="13" width="18" height="7" rx="2"></rect><path d="M7 7.5 h.01"></path><path d="M7 16.5 h.01"></path></svg>{{end}}
+
+{{define "note"}}<div class="note {{.Class}}">{{.Text}}</div>{{end}}
+
+{{define "listcontrol"}}
+{{- if .Required }}<span class="hint">At least one entry is required.</span>{{ end }}
+<div class="list" id="list-{{.Name}}">
+	{{- range .Values }}
+	<div class="listrow">
+		<input type="text" name="var.{{$.Name}}" value="{{.}}">
+		<button type="button" class="mini" data-remove=".listrow" title="Remove this entry">&minus;</button>
+	</div>
+	{{- end }}
+</div>
+<button type="button" class="mini add" title="Add another entry"
+	hx-get="/ui/listrow?name={{.Name}}" hx-target="#list-{{.Name}}" hx-swap="beforeend">&plus; add</button>
+{{end}}
+
+{{define "listrow"}}
+<div class="listrow">
+	<input type="text" name="var.{{.}}" value="">
+	<button type="button" class="mini" data-remove=".listrow" title="Remove this entry">&minus;</button>
+</div>
+{{end}}

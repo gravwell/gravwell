@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 // Package tester
 // A simple test plugin to ensure everything is connected and ingestion works
 package tester
@@ -48,8 +56,8 @@ func (c *Config) Verify() (err error) {
 	if err := c.BaseConfig.Verify(); err != nil {
 		return err
 	}
-
-	return nil
+	// last, so the tags checked are the ones this config will really write to
+	return hosted.VerifyTags(c)
 }
 
 func (c *Config) interval() time.Duration {

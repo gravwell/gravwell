@@ -17,9 +17,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"uuid"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/hosted/storage"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
@@ -82,7 +82,7 @@ func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, cfg any, i
 		err = errors.New("nil config")
 		return
 	}
-	if ingesterUUID == uuid.Nil {
+	if ingesterUUID == uuid.Nil() {
 		ingesterUUID = uuid.New()
 	}
 	r = &NativeRunner{

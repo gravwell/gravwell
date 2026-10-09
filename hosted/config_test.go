@@ -4,8 +4,7 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // TestBaseConfig_Verify_Valid catches that valid UUIDs pass validation.
@@ -79,16 +78,16 @@ func TestBaseConfig_ApplyDefaultIngesterUUID_Filled(t *testing.T) {
 	}
 }
 
-// TestBaseConfig_ApplyDefaultIngesterUUID_UUIDNil catches that uuid.Nil formatted string is preserved (it's non-empty).
+// TestBaseConfig_ApplyDefaultIngesterUUID_UUIDNil catches that uuid.Nil() formatted string is preserved (it's non-empty).
 func TestBaseConfig_ApplyDefaultIngesterUUID_UUIDNil(t *testing.T) {
 	t.Parallel()
-	existing := uuid.Nil.String() // "00000000-0000-0000-0000-000000000000"
+	existing := uuid.Nil().String() // "00000000-0000-0000-0000-000000000000"
 	b := BaseConfig{Ingester_UUID: existing}
 	b.ApplyDefaultIngesterUUID("d3667414-e373-4692-a1e2-3a18147e5aa6")
-	// uuid.Nil.String() is the string "00000000-0000-0000-0000-000000000000" which is non-empty,
+	// uuid.Nil().String() is the string "00000000-0000-0000-0000-000000000000" which is non-empty,
 	// so cmp.Or treats it as set and preserves it.
 	if b.Ingester_UUID != existing {
-		t.Errorf("Ingester_UUID = %q, want %q (uuid.Nil string is non-empty so preserved)", b.Ingester_UUID, existing)
+		t.Errorf("Ingester_UUID = %q, want %q (uuid.Nil() string is non-empty so preserved)", b.Ingester_UUID, existing)
 	}
 }
 
@@ -105,12 +104,12 @@ func TestBaseConfig_ApplyDefaultIngesterUUID_Whitespace(t *testing.T) {
 
 // TestParseUUID_Valid catches the bug in the current implementation where
 // the err != nil condition is inverted, causing valid UUIDs to always return
-// uuid.Nil. The correct condition is err == nil.
+// uuid.Nil(). The correct condition is err == nil.
 func TestParseUUID_Valid(t *testing.T) {
 	s := "550e8400-e29b-41d4-a716-446655440000"
 	got := ParseUUID(s)
-	if got == uuid.Nil {
-		t.Errorf("ParseUUID(%q) returned uuid.Nil; condition should be err == nil, not err != nil", s)
+	if got == uuid.Nil() {
+		t.Errorf("ParseUUID(%q) returned uuid.Nil(); condition should be err == nil, not err != nil", s)
 	}
 	if got.String() != s {
 		t.Errorf("expected %s, got %s", s, got.String())
@@ -118,27 +117,27 @@ func TestParseUUID_Valid(t *testing.T) {
 }
 
 func TestParseUUID_Empty(t *testing.T) {
-	if got := ParseUUID(""); got != uuid.Nil {
+	if got := ParseUUID(""); got != uuid.Nil() {
 		t.Errorf("expected Nil for empty string, got %v", got)
 	}
 }
 
 func TestParseUUID_Invalid(t *testing.T) {
-	if got := ParseUUID("not-a-uuid"); got != uuid.Nil {
+	if got := ParseUUID("not-a-uuid"); got != uuid.Nil() {
 		t.Errorf("expected Nil for invalid string, got %v", got)
 	}
 }
 
 func TestBaseConfig_UUID_Valid(t *testing.T) {
 	b := BaseConfig{Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000"}
-	if b.UUID() == uuid.Nil {
+	if b.UUID() == uuid.Nil() {
 		t.Error("expected non-Nil UUID")
 	}
 }
 
 func TestBaseConfig_UUID_Empty(t *testing.T) {
 	b := BaseConfig{}
-	if b.UUID() != uuid.Nil {
+	if b.UUID() != uuid.Nil() {
 		t.Error("expected Nil UUID for empty Ingester_UUID")
 	}
 }

@@ -27,12 +27,15 @@ const (
 type Config struct {
 	hosted.BaseConfig
 	hosted.SingleTagConfig
-	Queue_URL         string
-	Region            string
-	Endpoint          string
-	Credentials_Type  string
-	AKID              string
-	Secret            string `json:"-"` // DO NOT send this when marshalling
+	Queue_URL        string `dynamic:"required"`
+	Region           string `dynamic:"required"`
+	Endpoint         string
+	Credentials_Type string `dynamic:"enum=static|environment|ec2role"`
+	// AKID and Secret are only needed for static credentials.  An empty Credentials-Type
+	// means static, see sqs_common.GetCredentials, so the condition has to match that too
+	// or leaving the type alone would quietly drop the requirement.
+	AKID              string `dynamic:"requiredif=Credentials-Type:|static"`
+	Secret            string `json:"-" dynamic:"secret,requiredif=Credentials-Type:|static"` // DO NOT send this when marshalling
 	Ignore_Timestamps bool
 }
 
@@ -51,7 +54,8 @@ func (c *Config) Verify() error {
 	if err := c.BaseConfig.Verify(); err != nil {
 		return err
 	}
-	return nil
+	// last, so the tags checked are the ones this config will really write to
+	return hosted.VerifyTags(c)
 }
 
 func (c *Config) Tags() []string {

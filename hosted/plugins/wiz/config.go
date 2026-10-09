@@ -44,14 +44,14 @@ const (
 type Config struct {
 	hosted.BaseConfig
 	hosted.PollingConfig
-	Client_Id          string   `json:"-"` // DO NOT send this when marshalling
-	Client_Secret      string   `json:"-"` // DO NOT send this when marshalling
-	Endpoint           string   // GraphQL API endpoint, e.g. https://api.us1.app.wiz.io/graphql
+	Client_Id          string   `json:"-" dynamic:"secret,required"` // DO NOT send this when marshalling
+	Client_Secret      string   `json:"-" dynamic:"secret,required"` // DO NOT send this when marshalling
+	Endpoint           string   `dynamic:"required"`                 // GraphQL API endpoint, e.g. https://api.us1.app.wiz.io/graphql
 	Auth_URL           string   // optional override for the OAuth token endpoint
 	Audience           string   // optional override for the OAuth audience
 	Page_Size          int      // number of nodes requested per GraphQL page
 	Max_Pages_Per_Type int      // pages drained per event type per poll cycle
-	Tag_Name           string   // required; all events land here unless overridden
+	Tag_Name           string   `dynamic:"required"` // required; all events land here unless overridden
 	Tag_Override       []string // optional per-source routing, "source:tag"
 	Query_Override     []string // optional per-source query file, "source:/path/to/query.graphql"
 
@@ -130,7 +130,9 @@ func (c *Config) Verify() error {
 	if err := c.parseQueryOverrides(); err != nil {
 		return err
 	}
-	return nil
+	// the two checks above already cover Tag-Name and each override, this is the same
+	// rule applied from one place so a tag added here later is covered by default
+	return hosted.VerifyTags(c)
 }
 
 func (c *Config) verifyEndpoint() error {

@@ -13,8 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/hosted/plugins"
 	"github.com/gravwell/gravwell/v4/hosted/storage"

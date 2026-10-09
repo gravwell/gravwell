@@ -895,9 +895,15 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 				tagNext = v
 			}
 		}
-		// the count check above misses this: cached IDs are not dense, so the highest can
-		// be at the ceiling while the map is small, and one past it wraps to zero
-		if tagNext >= entry.MaxTagId {
+		// The ID we are about to hand out has to be a legal user tag.  The count check
+		// above misses this: cached IDs are not dense, so the highest can be at the
+		// ceiling while the map is small.
+		//
+		// MaxTagId is GravwellTagId, so handing it out is worse than a wrap: translate
+		// and hasTag both pass that ID straight through, and the caller's entries land
+		// silently in the gravwell well.  Widened to an int because tagNext+1 would wrap
+		// at the very top and pass the test.
+		if int(tagNext)+1 >= int(entry.MaxTagId) {
 			err = ErrTooManyTags
 			return
 		}
