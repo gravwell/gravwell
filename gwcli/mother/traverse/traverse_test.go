@@ -27,7 +27,7 @@ import (
 )
 
 func TestDeriveSuggestions(t *testing.T) {
-	dummyActionFunc := func(_ *pflag.FlagSet) (string, tea.Cmd, error) { return "", nil, nil } // actually functionality is irrelevant
+	dummyActionFunc := func(_ *pflag.FlagSet) ([]scaffold.Result, tea.Cmd) { return nil, nil } // actually functionality is irrelevant
 	/*
 		generate a command tree to test against:
 		root/

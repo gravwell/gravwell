@@ -322,8 +322,8 @@ func jsonAction() action.Pair {
 			"Node types are single, serial, parallel, loop and router; only a lone single node can hold a conversation in the chat GUI. "+
 			"A node with Inherit set uses its parent's tools; otherwise it gets exactly AllowedTools (none when left out). "+
 			"StateDiagram and Avatar are SVG documents and may be omitted.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd, _ error) {
-			return exampleDefinition, nil, nil
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
+			return []scaffold.Result{{Output: exampleDefinition, Success: true}}, nil
 		},
 		scaffold.BasicOptions{},
 	)

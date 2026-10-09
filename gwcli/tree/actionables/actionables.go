@@ -90,24 +90,24 @@ func get() action.Pair {
 	return scaffold.NewBasicAction("get", "view actionables as JSON",
 		"Display the JSON description of one or many actionables."+
 			"These descriptions can be used to export/import actionables via "+stylesheet.Cur.Action.Render("create")+".",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd, _ error) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			var sb strings.Builder
 			for _, ID := range fs.Args() {
 				a, err := connection.Client.GetActionable(ID)
 				if err != nil {
 					if phrases.IsNotFoundErr(err) {
-						return "", nil, phrases.ErrUnknownIdentifier(ID, "actionable ID")
+						return []scaffold.Result{{Output: (phrases.ErrUnknownIdentifier(ID, "actionable ID")).Error()}}, nil
 					}
-					return "", nil, err
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
 				b, err := json.Marshal(a.Contents)
 				if err != nil {
-					return "", nil, err
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
 				sb.WriteString(string(b))
 				sb.WriteString("\n")
 			}
-			return sb.String(), nil, nil
+			return []scaffold.Result{{Output: sb.String(), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -176,8 +176,8 @@ func create() action.Pair {
 func jsonAction() action.Pair {
 	return scaffold.NewBasicAction("json", "display actionable JSON schema",
 		"Print the JSON schema expected for creating Actionables via the cli.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd, _ error) {
-			return `{
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
+			return []scaffold.Result{{Success: true, Output: `{
   "MenuLabel": "My Actionable",
   "Actions": [
     {
@@ -211,7 +211,7 @@ func jsonAction() action.Pair {
       "Disabled": false
     }
   ]
-}`, nil, nil
+}`}}, nil
 		},
 		scaffold.BasicOptions{},
 	)

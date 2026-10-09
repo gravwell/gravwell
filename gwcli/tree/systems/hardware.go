@@ -43,7 +43,7 @@ func newHardwareAction() action.Pair {
 			"This action is intended for human consumption; most of this information is available in JSON/CSV via the indexer and ingester actions if you need better script support."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd, error) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			var sb strings.Builder
 
 			var (
@@ -63,7 +63,7 @@ func newHardwareAction() action.Pair {
 
 			metrics, err := connection.Client.GetSystemStats()
 			if err != nil {
-				return "", nil, err
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
 			{ // collect averages and accumulations
 				i := 0
@@ -116,14 +116,14 @@ func newHardwareAction() action.Pair {
 
 			hw, err := connection.Client.GetSystemDescriptions()
 			if err != nil {
-				return "", nil, err
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
 
 			s, llw := constructIndexers(hw, metrics)
 			sb.WriteString(s)
 
 			sb.WriteString(constructOverview(o, llw))
-			return sb.String(), nil, nil
+			return []scaffold.Result{{Output: sb.String(), Success: true}}, nil
 		}, scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"hw"},
