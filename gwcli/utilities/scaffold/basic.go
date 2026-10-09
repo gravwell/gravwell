@@ -30,7 +30,7 @@ Implementations will probably look a lot like:
 	)
 
 	func FooAction() action.Pair {
-		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) (string, tea.Cmd) {
+		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) (string, tea.Cmd, error) {
 			data := connection.Client.GetSomeData()
 			str := formatData(data)
 			return str, nil
