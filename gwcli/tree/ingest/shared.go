@@ -16,6 +16,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 
@@ -25,62 +26,64 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// autoingest attempts to ingest the file at each path, returning errors and successes on the given channel (if non-nil).
-// Returns the number of files to be ingested; caller can safely await exactly count results from the channel (again, if non-nil).
-// Performs ingestions in parallel.
-func autoingest(res chan<- struct {
-	string
-	error
-}, flags ingestFlags, pairs []pair) (count uint) {
-	if len(pairs) == 0 {
-		return 0
-	}
+// ingestResult is the outcome of attempting to ingest a single file.
+// Assume success if err == nil
+type ingestResult = struct {
+	path string
+	err  error
+}
 
+// autoingest attempts to ingest the file(s) at each path, returning results on the returned channel.
+//
+// The channel is closed once every file has a result, so callers should read until it is closed.
+// It is buffered to hold every result, so goroutines never block (and thus never leak) should the caller stop reading.
+// Each file is ingested once, even if it is reachable by multiple pairs.
+// Any path that cannot be collected (eg, an unreadable directory) yields one failed result for that path.
+//
+// Performs ingestions in parallel.
+// Returns a nil channel if there is nothing to ingest.
+func autoingest(flags ingestFlags, pairs []pair) (results <-chan ingestResult) {
 	var (
-		paths     = make(map[string]string) // path -> tag
-		errPaths  = make(map[string]error)  // path -> collection error
-		fileCount uint
+		paths    = make(map[string]string) // path -> tag
+		errPaths = make(map[string]error)  // path -> collection error
 	)
 	// determine the number of files we are going to ingest and build a list of full paths
 	for _, pair := range pairs {
 		toIng, err := collectPathsForIngestions(pair.path, flags.recursive)
+		if err != nil {
+			// set aside paths that error so we don't bother trying again
+			errPaths[pair.path] = err
+			continue
+		}
 		for path := range toIng {
-			// set aside paths that error so we can immediately return them as an error
-			if err != nil {
-				errPaths[path] = err
-			} else {
-				paths[path] = pair.tag
-			}
-			fileCount += 1
+			paths[path] = pair.tag
 		}
 	}
 
-	// spin off a goroutine per path to ingest each file
+	if len(paths)+len(errPaths) == 0 {
+		return nil
+	}
+	ch := make(chan ingestResult, len(paths)+len(errPaths))
+
+	// issue collect errors immediately
+	for path, err := range errPaths {
+		ch <- ingestResult{path: path, err: err}
+	}
+
+	// ingest files in parallel
+	var wg sync.WaitGroup
 	for path, tag := range paths {
-		go func(p, t string) {
-			err := ingestPath(flags, p, t)
-			if res != nil {
-				res <- struct {
-					string
-					error
-				}{p, err}
-			}
-		}(path, tag)
+		wg.Go(func() {
+			ch <- ingestResult{path: path, err: ingestPath(flags, path, tag)}
+		})
 	}
-
-	// spin off a single goroutine to pass errors from collect
+	// close the channel once every ingestion has reported
 	go func() {
-		if res != nil {
-			for p, err := range errPaths {
-				res <- struct {
-					string
-					error
-				}{p, err}
-			}
-		}
+		wg.Wait()
+		close(ch)
 	}()
 
-	return fileCount
+	return ch
 }
 
 // given a path, collectPathsForIngestion identifies the full paths for each file to be uploaded.
@@ -306,7 +309,7 @@ func ingestFile(path, tag string, flags ingestFlags) error {
 func determineTag(pth, tag, defaultTag string) (string, error) {
 	if tag == "" {
 		{
-			// check if this is a GWJSON file by attempting to unmarshal it
+			// check if this is a GWJSON file by peaking the first entry
 			f, err := os.Open(pth)
 			if err != nil {
 				return "", err
@@ -314,7 +317,9 @@ func determineTag(pth, tag, defaultTag string) (string, error) {
 			dcdr := json.NewDecoder(f)
 			var ste types.StringTagEntry
 			// try to decode a single entry (\n delimited)
-			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
+			err = dcdr.Decode(&ste)
+			f.Close() // close the file no matter what happens
+			if err == nil && ste.Tag != "" {
 				// successfully decoded file and read tag; we can leave our tag empty
 				return "", nil
 			}
