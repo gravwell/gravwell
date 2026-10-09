@@ -374,8 +374,8 @@ func create() action.Pair {
 func jsonAction() action.Pair {
 	return scaffold.NewBasicAction("json", "display template JSON schema",
 		"Print the JSON schema expected for creating templates via the cli.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
-			return `{
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
+			return []scaffold.Result{{Success: true, Output: `{
   "Query": "my example query",
   "Variables": [
     {
@@ -395,7 +395,7 @@ func jsonAction() action.Pair {
       "PreviewValue": "preview"
     }
   ]
-}`, nil
+}`}}, nil
 		},
 		scaffold.BasicOptions{},
 	)

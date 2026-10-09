@@ -1,6 +1,7 @@
 package scaffold
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"runtime"
@@ -8,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"golang.org/x/exp/constraints"
 )
 
@@ -124,4 +127,39 @@ func IdentifyCaller() rfc5424.SDParam {
 type Result struct {
 	Output  string // the actual, text result.
 	Success bool   // dictates (stdout or stderr) and/or text color
+}
+
+// TeaPrintlnResults returns a tea.Cmd that sequences the results (color-coded) and suffixes finalError
+func TeaPrintlnResults(results []Result) tea.Cmd {
+	if len(results) == 0 {
+		return nil
+	}
+	cmds := make([]tea.Cmd, len(results))
+	var numErrors uint
+	for i, res := range results {
+		if !res.Success {
+			numErrors += 1
+			cmds[i] = tea.Println(stylesheet.Cur.ErrorText.Render(res.Output))
+			continue
+		}
+		cmds[i] = tea.Println(res.Output)
+	}
+	if err := ResultsError(numErrors, uint(len(cmds))); err != nil {
+		cmds = append(cmds, stylesheet.ErrPrintf("%v", err))
+	}
+	if len(cmds) > 1 {
+		return tea.Sequence(cmds...)
+	}
+	return cmds[0]
+}
+
+// ResultsError returns the error that should follow []Result printing.
+// Returns nil if numErrors == 0.
+func ResultsError(numErrors, numElements uint) error {
+	if numErrors == 0 {
+		return nil
+	} else if numErrors < numElements {
+		return errors.New("some operations failed")
+	}
+	return errors.New("all operations failed")
 }

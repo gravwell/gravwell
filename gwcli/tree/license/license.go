@@ -161,10 +161,10 @@ func licenseFeatures() action.Pair {
 		long  string = "Displays the comma-separated list of features enabled on the currently installed Gravwell license."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			li, err := connection.Client.GetLicenseInfo()
 			if err != nil {
-				return err.Error(), nil
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
 			feats := li.Features()
 			checks := []struct {
@@ -187,9 +187,9 @@ func licenseFeatures() action.Pair {
 				}
 			}
 			if len(enabled) == 0 {
-				return "(none)", nil
+				return []scaffold.Result{{Output: "(none)", Success: true}}, nil
 			}
-			return strings.Join(enabled, ", "), nil
+			return []scaffold.Result{{Output: strings.Join(enabled, ", "), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -209,12 +209,12 @@ func licenseSKU() action.Pair {
 		long  string = "Displays the SKU string for the currently installed Gravwell license."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			sku, err := connection.Client.GetLicenseSKU()
 			if err != nil {
-				return err.Error(), nil
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
-			return sku, nil
+			return []scaffold.Result{{Output: sku, Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -234,12 +234,12 @@ func licenseSerial() action.Pair {
 		long  string = "Displays the serial number for the currently installed Gravwell license."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			serial, err := connection.Client.GetLicenseSerial()
 			if err != nil {
-				return err.Error(), nil
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
-			return serial, nil
+			return []scaffold.Result{{Output: serial, Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{

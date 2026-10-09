@@ -191,10 +191,10 @@ func download() action.Pair {
 	return scaffold.NewBasicAction("download", "download the JSON representation of a flow",
 		"Download a flow as JSON so it can be re-imported later. Flows can be specified by ID or GUID.\n"+
 			"Prints to STDOUT unless -o is specified.",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			flow, err := connection.Client.GetFlow(fs.Arg(0))
 			if err != nil {
-				return err.Error(), nil
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
 			// check for output
 			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
@@ -203,17 +203,17 @@ func download() action.Pair {
 				out, err := os.Create(outPath)
 				if err != nil {
 					clilog.Writer.Warnf("failed to open %v for writing: %v", outPath, err)
-					return
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
 				defer out.Close()
 				n, err := out.WriteString(flow.Flow)
 				if err != nil {
-					return err.Error(), nil
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
-				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+				return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, outPath), Success: true}}, nil
 			}
 			// spit to terminal
-			return flow.Flow, nil
+			return []scaffold.Result{{Output: flow.Flow, Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -435,10 +435,10 @@ func parse() action.Pair {
 	return scaffold.NewBasicAction("parse",
 		"check the validity of a given flow",
 		"Parses a flow string to check it for errors and malformations",
-		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			res, err := connection.Client.ParseFlow(parseFileContent)
 			if err != nil {
-				return err.Error(), nil
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
 			if !res.OK {
 				var sb strings.Builder
@@ -448,9 +448,9 @@ func parse() action.Pair {
 						fmt.Fprintf(&sb, "\t[%d]: %s\n", i, err)
 					}
 				}
-				return sb.String(), nil
+				return []scaffold.Result{{Output: strings.TrimRight(sb.String(), "\n")}}, nil
 			}
-			return "successfully parsed flow", nil
+			return []scaffold.Result{{Output: "successfully parsed flow", Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{

@@ -74,9 +74,9 @@ func list() action.Pair {
 
 func download() action.Pair {
 	return scaffold.NewBasicAction("download", "download a file", "Download a file for use locally.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			if fs.NArg() != 1 {
-				return phrases.Exactly1ArgRequired("file ID"), nil
+				return []scaffold.Result{{Output: phrases.Exactly1ArgRequired("file ID")}}, nil
 			}
 			id := fs.Arg(0)
 
@@ -87,22 +87,22 @@ func download() action.Pair {
 			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_id", Value: id})
 			b, err := connection.Client.GetFile(id)
 			if err != nil {
-				return err.Error(), nil
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
 			// write to file or stdout
 			if outPath != "" {
 				out, err := os.Create(outPath)
 				if err != nil {
-					return err.Error(), nil
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
 				defer out.Close()
 				n, err := out.Write(b)
 				if err != nil {
-					return err.Error(), nil
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
-				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+				return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, outPath), Success: true}}, nil
 			}
-			return string(b), nil
+			return []scaffold.Result{{Output: string(b), Success: true}}, nil
 		}, scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
