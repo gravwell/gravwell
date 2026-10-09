@@ -40,21 +40,35 @@ const (
 	done      mode = "done"
 )
 
+// ingestResultMsg carries a single result from the ingestion identified by ch.
+// If done, ch has been closed: every result has been delivered.
+type ingestResultMsg struct {
+	ch   <-chan ingestResult // carried so we don't leak results between sessions
+	res  ingestResult
+	done bool
+}
+
+// waitForResult blocks until a result is available on ch (or ch is closed) and delivers it as an ingestResultMsg.
+func waitForResult(ch <-chan ingestResult) tea.Cmd {
+	return func() tea.Msg {
+		res, ok := <-ch
+		return ingestResultMsg{ch: ch, res: res, done: !ok}
+	}
+}
+
 // ensure we satisfy the action interface
 var _ action.Model = Initial()
 
 type ingest struct {
 	boxWidth int // width of the filepicker view, inside of its box
 
-	width       int // current known maximum width of the terminal
-	height      int // current known maximum height of the terminal
-	mode        mode
-	err         error // error displayed under file picker; cleared on key entry
-	ingestResCh chan struct {
-		string
-		error
-	}
-	ingestCount int // the number of files to wait for in ingesting mode (from ingestResCh)
+	width  int // current known maximum width of the terminal
+	height int // current known maximum height of the terminal
+	mode   mode
+	err    error // error displayed under file picker; cleared on key entry
+	// results of the current ingestion; nil unless in ingesting mode.
+	// Closed when all results are in.
+	ingestResultsCh <-chan ingestResult
 
 	mod mod // modifier pane
 
@@ -69,10 +83,6 @@ func Initial() *ingest {
 	i := &ingest{
 		fg:   filegrabber.New(true, false),
 		mode: picking,
-		ingestResCh: make(chan struct {
-			string
-			error
-		}),
 
 		mod: NewMod(),
 	}
@@ -88,26 +98,32 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 	case done: // wait for mother to take over
 		return nil
 	case ingesting: // wait for results
-		var resultCmd tea.Cmd
-		select { // check for a result
-		case res := <-i.ingestResCh:
+		switch msg := msg.(type) {
+		case spinner.TickMsg:
+			var cmd tea.Cmd
+			i.spinner, cmd = i.spinner.Update(msg)
+			return cmd
+		case ingestResultMsg:
+			if msg.ch != i.ingestResultsCh { // a straggler from a different session
+				return nil
+			}
+			if !msg.done { // channel closed; all results are in
+				i.mode = done
+				return nil
+			}
+			var resultCmd tea.Cmd
 			// spit the result above the current TUI
-			if res.error == nil {
-				resultCmd = tea.Printf("successfully ingested file %v", res.string)
+			if msg.res.err == nil {
+				resultCmd = tea.Printf("successfully ingested file %v", msg.res.path)
 			} else {
-				s := fmt.Sprintf("failed to ingest file %v: %v", res.string, res.error)
+				s := fmt.Sprintf("failed to ingest file %v: %v", msg.res.path, msg.res.err)
 				clilog.Writer.Warn(s)
 				resultCmd = tea.Println(stylesheet.Cur.ErrorText.Render(s))
 			}
 
-			i.ingestCount -= 1
-			if i.ingestCount <= 0 { // all done
-				i.mode = done
-			}
-			return resultCmd
-		default: // no results ready, just spin
-			return i.spinner.Tick
+			return tea.Batch(resultCmd, waitForResult(i.ingestResultsCh))
 		}
+		return nil
 	default: //case picking:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			i.err = nil
@@ -182,23 +198,28 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 					return cmd
 				}
 
-				i.ingestCount = 1
 				i.mode = ingesting
 
 				// spin ingestion off into goroutine
 				clilog.Writer.Infof("ingesting file %v with parameters: tag='%v' src='%v' ignore=%v local=%v",
 					path, tag, src, i.mod.ignoreTS, i.mod.localTime)
+				// copy everything the goroutine needs; the model may move on before it runs.
+				// The channel is buffered so the goroutine can always finish, even if we are reset.
+				var (
+					ignoreTS  = i.mod.ignoreTS
+					localTime = i.mod.localTime
+					ch        = make(chan ingestResult, 1)
+				)
+				i.ingestResultsCh = ch
 				go func() {
-					_, err := connection.Client.IngestFile(path, tag, src, i.mod.ignoreTS, i.mod.localTime)
-					i.ingestResCh <- struct {
-						string
-						error
-					}{path, err}
+					_, err := connection.Client.IngestFile(path, tag, src, ignoreTS, localTime)
+					ch <- ingestResult{path, err}
+					close(ch)
 				}()
 
 				// start a spinner and wait
 				i.spinner = stylesheet.NewSpinner()
-				return tea.Batch(cmd, i.spinner.Tick)
+				return tea.Batch(cmd, i.spinner.Tick, waitForResult(ch))
 			}
 
 			// Did the user select a disabled file?
@@ -301,6 +322,7 @@ func (i *ingest) Done() bool {
 func (i *ingest) Reset() error {
 	i.mode = picking
 	i.err = nil
+	i.ingestResultsCh = nil
 
 	i.mod = i.mod.reset()
 
@@ -338,14 +360,14 @@ func (i *ingest) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) 
 
 	// if one+ files were given, try to ingest immediately
 	if len(pairs) > 0 {
-		count := autoingest(i.ingestResCh, flags, pairs)
-		if count == 0 {
-			// should be impossible
-			panic("autoingest returned a count of 0")
+		ch := autoingest(flags, pairs)
+		if cap(ch) == 0 {
+			return errNothingToIngest.Error(), nil, nil
 		}
-		i.ingestCount = len(pairs)
+		i.ingestResultsCh = ch
 		i.mode = ingesting
-		return "", i.spinner.Tick, nil
+		i.spinner = stylesheet.NewSpinner()
+		return "", tea.Batch(i.spinner.Tick, waitForResult(ch)), nil
 	}
 
 	// prepare the interactive action

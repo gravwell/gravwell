@@ -11,7 +11,6 @@
 package ingest
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -120,14 +119,14 @@ func runE(c *cobra.Command, args []string) error {
 	}
 
 	// fetch pairs from bare arguments
-	pairs, err := parsePairs(c.Flags().Args())
+	pathTagPairs, err := parsePairs(c.Flags().Args())
 	if err != nil {
 		return err
 	}
-	clilog.Writer.Debugf("ingest pairs: %v", pairs)
+	clilog.Writer.Debugf("ingest pairs: %v", pathTagPairs)
 
 	// if no files were given, launch mother or fail out
-	if len(pairs) == 0 {
+	if len(pathTagPairs) == 0 {
 		if flags.noInteractive {
 			return errNoFilesSpecified(true)
 		}
@@ -136,40 +135,56 @@ func runE(c *cobra.Command, args []string) error {
 
 	// attempt autoingestion
 
-	resultCh := make(chan struct {
-		string
-		error
-	})
-
-	count := autoingest(resultCh, flags, pairs)
-	if count == 0 { // should be impossible
-		return errors.New("autoingest returned a count of 0")
+	resultsCh := autoingest(flags, pathTagPairs)
+	if cap(resultsCh) == 0 {
+		return errNothingToIngest
 	}
 
 	// start up a spinner
-	var spinner *tea.Program
+	var (
+		spinner     *tea.Program
+		spinnerDone = make(chan struct{})
+	)
 	if !flags.noInteractive {
 		var s = "ingesting file"
-		if len(pairs) > 1 {
+		if cap(resultsCh) > 1 {
 			s += "s"
 		}
 		spinner = stylesheet.CobraSpinner(s)
-		go func() { spinner.Run() }()
+		go func() {
+			defer close(spinnerDone)
+			spinner.Run()
+		}()
 	}
-	// print each result to stdout/stderr
-	var errored uint
-	for range count {
-		res := <-resultCh
-		if res.error != nil {
-			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+
+	var (
+		errored uint
+		// results are held until the spinner has stopped, as printing underneath a live spinner garbles both
+		results []ingestResult
+	)
+	// prints a result to stdout/stderr
+	printResult := func(res ingestResult) {
+		if res.err != nil {
+			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.path, res.err))
 			errored += 1
 		} else {
-			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
+			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.path)
 		}
 	}
-	// kill the spinner
+	for res := range resultsCh {
+		if spinner != nil {
+			results = append(results, res)
+		} else {
+			printResult(res)
+		}
+	}
+	// stop the spinner and wait for it to clear itself before printing anything
 	if spinner != nil {
-		spinner.Kill()
+		spinner.Quit()
+		<-spinnerDone
+		for _, res := range results {
+			printResult(res)
+		}
 	}
 	if errored > 0 {
 		return fmt.Errorf("%d files failed", errored)
