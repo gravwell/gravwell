@@ -53,7 +53,7 @@ import (
 
 // ActFunc is the driver code for a basic action.
 // It is called whenever this action is invoked and runs exactly once per invocation.
-type ActFunc func(fs *pflag.FlagSet) (success string, addtlCmds tea.Cmd, _ error)
+type ActFunc func(fs *pflag.FlagSet) (success string, addtlCmds tea.Cmd, err error)
 
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
