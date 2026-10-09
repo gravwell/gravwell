@@ -134,7 +134,7 @@ func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
 	s, cmd, err := ba.fn(&ba.fs)
 	if err != nil {
-		return tea.Batch(stylesheet.ErrPrintf("%v", err.Error()), cmd)
+		return tea.Batch(stylesheet.ErrPrintf("%s", err.Error()), cmd)
 	}
 	if cmd != nil { // no point in sequencing with nil
 		return tea.Sequence(tea.Println(s), cmd)
