@@ -129,7 +129,7 @@ type Result struct {
 	Success bool   // dictates (stdout or stderr) and/or text color
 }
 
-// teaPrintlnResults returns a tea.Cmd that sequences the results (color-coded) and suffixes finalError
+// TeaPrintlnResults returns a tea.Cmd that sequences the results (color-coded) and suffixes finalError
 func TeaPrintlnResults(results []Result) tea.Cmd {
 	if len(results) == 0 {
 		return nil
@@ -147,11 +147,14 @@ func TeaPrintlnResults(results []Result) tea.Cmd {
 	if err := ResultsError(numErrors, uint(len(cmds))); err != nil {
 		cmds = append(cmds, stylesheet.ErrPrintf("%v", err))
 	}
-	return tea.Sequence(cmds...)
+	if len(cmds) > 1 {
+		return tea.Sequence(cmds...)
+	}
+	return cmds[0]
 }
 
-// TODO
-// Returns nil if numErrors == 0
+// ResultsError returns the error that should follow []Result printing.
+// Returns nil if numErrors == 0.
 func ResultsError(numErrors, numElements uint) error {
 	if numErrors == 0 {
 		return nil
