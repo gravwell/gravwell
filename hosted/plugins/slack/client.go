@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -28,7 +29,7 @@ const (
 	auditPath              = "/audit/v1/logs"
 	pageSize               = 1000
 	httpTimeout            = 30 * time.Second
-	maximumRetryDelay      = 5 * time.Minute
+	maximumRetrySleep      = 5 * time.Minute
 	defaultRetryDelay      = 30 * time.Second
 	maximumAuditRecordSize = 8 << 20
 	maximumAuditPageSize   = 16 << 20
@@ -170,22 +171,31 @@ func (c *client) fetch(ctx context.Context, oldest, latest int64, cursor string)
 }
 
 func retryDelay(raw string, now time.Time) time.Duration {
+	maximumDelay := maximumPersistableRetryDelay(now)
 	trimmed := strings.TrimSpace(raw)
 	if seconds, err := strconv.ParseUint(trimmed, 10, 64); err == nil {
-		if seconds > uint64(maximumRetryDelay/time.Second) {
-			return maximumRetryDelay
-		}
 		if seconds == 0 {
-			return defaultRetryDelay
+			return min(defaultRetryDelay, maximumDelay)
+		}
+		if seconds > uint64(maximumDelay/time.Second) {
+			return maximumDelay
 		}
 		return time.Duration(seconds) * time.Second
 	}
 	if when, err := http.ParseTime(trimmed); err == nil {
 		delay := when.Sub(now)
 		if delay <= 0 {
-			return defaultRetryDelay
+			return min(defaultRetryDelay, maximumDelay)
 		}
-		return min(delay, maximumRetryDelay)
+		return min(delay, maximumDelay)
 	}
-	return defaultRetryDelay
+	return min(defaultRetryDelay, maximumDelay)
+}
+
+func maximumPersistableRetryDelay(now time.Time) time.Duration {
+	maximumRetryAt := time.Unix(0, math.MaxInt64).UTC()
+	if !now.Before(maximumRetryAt) {
+		return 0
+	}
+	return maximumRetryAt.Sub(now)
 }

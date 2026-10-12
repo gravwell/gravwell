@@ -234,6 +234,37 @@ func TestAcknowledgementFailureRetriesWithoutDuplicatingPriorRecords(t *testing.
 	}
 }
 
+func TestConfiguredEntryLimitSkipsOversizedRecordAndCompletes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintf(w, `{"ok":true,"entries":[{"id":"too-large","date_create":1700000000,"blob":%q},{"id":"valid","date_create":1700000001}],"response_metadata":{"next_cursor":""}}`, strings.Repeat("x", 256))
+	}))
+	defer server.Close()
+
+	runtime := newTestRuntime()
+	runtime.ackMaxSize = 128
+	runtime.ackFailAt = 2
+	plugin := newTestPlugin(t, validConfig(server.URL), fixedNow, server.Client())
+	if _, err := plugin.Handle(t.Context(), runtime); err == nil {
+		t.Fatal("expected the valid record's first acknowledgement to fail")
+	}
+	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Active || runtime.ackCalls != 3 || len(runtime.entries) != 1 {
+		t.Fatalf("state=%+v acknowledgement calls=%d entries=%d", state, runtime.ackCalls, len(runtime.entries))
+	}
+	if !bytes.Contains(runtime.entries[0].Data, []byte(`"id":"valid"`)) {
+		t.Fatalf("unexpected delivered entry: %s", runtime.entries[0].Data)
+	}
+	if len(runtime.warnings) != 1 || !strings.Contains(runtime.warnings[0], "configured ingest entry size") {
+		t.Fatalf("warnings=%v", runtime.warnings)
+	}
+}
+
 func TestReceiptHeadFailureRecoversOrphanWithoutDuplicate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `{"ok":true,"entries":[{"id":"one","date_create":1700000000}],"response_metadata":{"next_cursor":""}}`)
@@ -335,6 +366,40 @@ func TestRetryAfterPersistsAcrossRestart(t *testing.T) {
 	}
 
 	plugin = newTestPlugin(t, config, fixedNow.Add(5*time.Minute), server.Client())
+	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("eligible requests=%d", requests.Load())
+	}
+}
+
+func TestRetryAfterLongDelayDoesNotRequestEarly(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if requests.Add(1) == 1 {
+			w.Header().Set("Retry-After", "600")
+			http.Error(w, "retry", http.StatusTooManyRequests)
+			return
+		}
+		fmt.Fprint(w, `{"ok":true,"entries":[],"response_metadata":{"next_cursor":""}}`)
+	}))
+	defer server.Close()
+	config := validConfig(server.URL)
+	runtime := newTestRuntime()
+	plugin := newTestPlugin(t, config, fixedNow, server.Client())
+	continuation, err := plugin.Handle(t.Context(), runtime)
+	if err != nil || continuation.Delay != 10*time.Minute {
+		t.Fatalf("first continuation=%v error=%v", continuation, err)
+	}
+
+	plugin = newTestPlugin(t, config, fixedNow.Add(5*time.Minute), server.Client())
+	continuation, err = plugin.Handle(t.Context(), runtime)
+	if err != nil || continuation.Delay != 5*time.Minute || requests.Load() != 1 {
+		t.Fatalf("early continuation=%v error=%v requests=%d", continuation, err, requests.Load())
+	}
+
+	plugin = newTestPlugin(t, config, fixedNow.Add(10*time.Minute), server.Client())
 	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
 		t.Fatal(err)
 	}
@@ -538,7 +603,7 @@ func TestCrashBetweenCursorMarkerAndCursorDoesNotFalselyDetectALoop(t *testing.T
 	}
 }
 
-func TestCursorMarkerCapacityErrorPersistsForwardProgress(t *testing.T) {
+func TestCursorMarkerCapacityStopsBeforeFurtherVendorRequests(t *testing.T) {
 	runtime := newTestRuntime()
 	state := newPollState()
 	if err := beginPollState(runtime, &state, 10, 20); err != nil {
@@ -557,42 +622,32 @@ func TestCursorMarkerCapacityErrorPersistsForwardProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var requested []string
+	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cursor := r.URL.Query().Get("cursor")
-		requested = append(requested, cursor)
-		switch cursor {
-		case "current":
-			fmt.Fprint(w, `{"ok":true,"entries":[{"id":"one","date_create":1}],"response_metadata":{"next_cursor":"A"}}`)
-		case "A":
-			fmt.Fprint(w, `{"ok":true,"entries":[{"id":"two","date_create":2}],"response_metadata":{"next_cursor":""}}`)
-		default:
-			t.Fatalf("unexpected cursor %q", cursor)
+		call := requests.Add(1)
+		next := "A"
+		if call%2 == 0 {
+			next = "B"
 		}
+		fmt.Fprintf(w, `{"ok":true,"entries":[],"response_metadata":{"next_cursor":%q}}`, next)
 	}))
 	defer server.Close()
 
 	plugin := newTestPlugin(t, validConfig(server.URL), fixedNow, server.Client())
-	if _, err := plugin.Handle(t.Context(), runtime); err == nil || !strings.Contains(err.Error(), "cursor marker capacity") {
-		t.Fatalf("capacity error=%v", err)
+	for attempt := range 2 {
+		if _, err := plugin.Handle(t.Context(), runtime); err == nil || !strings.Contains(err.Error(), "cursor marker capacity") {
+			t.Fatalf("attempt %d capacity error=%v", attempt+1, err)
+		}
 	}
 	state, err = loadPollState(runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !state.Active || state.Cursor != "A" || state.CursorPageCount != cursorMarkerCapacity {
+	if !state.Active || state.Cursor != "current" || state.CursorPageCount != cursorMarkerCapacity || state.CursorCycle != 1 {
 		t.Fatalf("state after capacity error=%+v", state)
 	}
-
-	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
-		t.Fatal(err)
-	}
-	state, err = loadPollState(runtime)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state.Active || strings.Join(requested, ",") != "current,A" || len(runtime.entries) != 2 {
-		t.Fatalf("state=%+v requested=%v entries=%d", state, requested, len(runtime.entries))
+	if requests.Load() != 0 || len(runtime.entries) != 0 {
+		t.Fatalf("vendor requests=%d entries=%d", requests.Load(), len(runtime.entries))
 	}
 }
 

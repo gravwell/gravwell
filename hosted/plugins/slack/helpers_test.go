@@ -11,6 +11,7 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"golang.org/x/time/rate"
 )
@@ -28,6 +29,7 @@ type testRuntime struct {
 	ackCalls          int
 	ackFailAt         int
 	ackErr            error
+	ackMaxSize        int
 	failStateAfterAck bool
 	putCalls          map[string]int
 	putSizes          map[string][]int
@@ -127,6 +129,9 @@ func (r *testRuntime) WriteAcknowledged(ctx context.Context, ent entry.Entry) er
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.ackCalls++
+	if r.ackMaxSize > 0 && len(ent.Data) > r.ackMaxSize {
+		return ingest.ErrOversizedEntry
+	}
 	if r.ackFailAt > 0 && r.ackCalls == r.ackFailAt {
 		if r.ackErr != nil {
 			return r.ackErr

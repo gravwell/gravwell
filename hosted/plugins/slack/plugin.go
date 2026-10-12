@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
@@ -114,7 +115,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	if state.RetryAt != 0 {
 		retryAt := time.Unix(0, state.RetryAt).UTC()
 		if now.Before(retryAt) {
-			return hosted.ContinueAfter(min(retryAt.Sub(now), maximumRetryDelay)), nil
+			return hosted.ContinueAfter(min(retryAt.Sub(now), maximumRetrySleep)), nil
 		}
 		if err := persistRetryAtState(rt, &state, 0); err != nil {
 			return nil, err
@@ -128,6 +129,9 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	cursors, err := p.cursorLedger(rt, state)
 	if err != nil {
 		return nil, err
+	}
+	if cursors.full() {
+		return nil, errors.New("Slack pagination reached the cursor marker capacity; active window halted before another vendor request")
 	}
 	// A prior acknowledged entry may have reached an indexer even if its
 	// following receipt write failed. Prove core, receipt, overlap, and cursor
@@ -193,13 +197,21 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		if ledger.contains(digest) || overlapLedger.contains(digest) {
 			continue
 		}
-		ent := entry.Entry{TS: entry.FromStandard(timestamp), Tag: tag, Data: compact}
-		if err := writer.WriteAcknowledged(ctx, ent); err != nil {
-			return nil, err
-		}
 		targetLedger := ledger
 		if timestamp.Unix() >= state.Latest-int64(lateVisibilityOverlap/time.Second) {
 			targetLedger = overlapLedger
+		}
+		ent := entry.Entry{TS: entry.FromStandard(timestamp), Tag: tag, Data: compact}
+		if err := writer.WriteAcknowledged(ctx, ent); err != nil {
+			if errors.Is(err, ingest.ErrOversizedEntry) {
+				if rememberErr := targetLedger.remember(rt, digest); rememberErr != nil {
+					p.clearReceipts()
+					return nil, rememberErr
+				}
+				rt.Warn("skipping Slack Audit record above the configured ingest entry size", log.KV("bytes", len(compact)))
+				continue
+			}
+			return nil, err
 		}
 		if err := targetLedger.remember(rt, digest); err != nil {
 			p.clearReceipts()

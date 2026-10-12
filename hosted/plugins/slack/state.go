@@ -553,6 +553,10 @@ func (ledger *cursorLedger) contains(cursor string) bool {
 	return ok
 }
 
+func (ledger *cursorLedger) full() bool {
+	return ledger != nil && ledger.next >= cursorMarkerCapacity
+}
+
 func (ledger *cursorLedger) remember(store hosted.Storage, state *pollState, cursor string) error {
 	if ledger == nil || state == nil || !state.Active || ledger.generation != state.Generation || ledger.cycle != state.CursorCycle || ledger.next != state.CursorPageCount {
 		return errors.New("Slack cursor marker ledger is not initialized")

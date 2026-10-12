@@ -40,11 +40,14 @@ separate persisted cursor-marker ledger, so record volume cannot hide a cursor
 loop. Each request asks Slack for 1,000 records. The 10,000-marker ledger
 therefore covers approximately 10 million requested records in one traversal;
 Slack may return additional records that share a timestamp. Past that marker
-bound, the next cursor is still persisted before the visible capacity error, so
-the runner resumes forward progress after its error delay instead of wedging on
-one page. A window receives at most three cursor traversal cycles; another
-repeated or invalid cursor returns an error so the runner reports the stall and
-applies its error delay.
+bound, the runner returns a visible terminal capacity error before making
+another Slack request. An operator must select a shorter initial lookback and
+reset that plugin instance's active state before collection can resume. A
+window receives at most three cursor traversal cycles; another repeated or
+invalid cursor returns an error so the runner reports the stall and applies its
+error delay. Records rejected by the configured global ingest entry-size limit
+are warned, receipted, and skipped so one record cannot permanently block the
+window.
 
 Slack collection remains at-least-once if a process or state device fails
 between backend acknowledgement and receipt persistence. More than 10,000

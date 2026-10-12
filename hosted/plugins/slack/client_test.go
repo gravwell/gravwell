@@ -3,6 +3,7 @@ package slack
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -87,7 +88,7 @@ func TestClientClassifiesInvalidCursorAndRetryAfter(t *testing.T) {
 		client.limiter.SetLimit(rate.Inf)
 		_, err := client.fetch(t.Context(), 1, 2, "")
 		var deferred *retryDeferral
-		if !errors.As(err, &deferred) || deferred.delay != maximumRetryDelay || deferred.retryAt.IsZero() {
+		if !errors.As(err, &deferred) || deferred.delay != 10*time.Minute || deferred.retryAt.IsZero() {
 			t.Fatalf("error=%v deferral=%+v", err, deferred)
 		}
 	})
@@ -136,8 +137,8 @@ func TestRetryDelayBounds(t *testing.T) {
 		want time.Duration
 	}{
 		{"120", 120 * time.Second},
-		{"600", maximumRetryDelay},
-		{"18446744073709551615", maximumRetryDelay},
+		{"600", 10 * time.Minute},
+		{"18446744073709551615", time.Duration(math.MaxInt64 - now.UnixNano())},
 		{now.Add(2 * time.Minute).Format(http.TimeFormat), 2 * time.Minute},
 		{"0", defaultRetryDelay},
 		{"invalid", defaultRetryDelay},
