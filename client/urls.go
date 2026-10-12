@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"strings"
 )
 
 const (
@@ -563,16 +564,28 @@ func actionablesIdUrl(id string) string {
 }
 
 func tablesIdUrl(id string) string {
-	return fmt.Sprintf(TABLES_ID_URL, id)
+	return fmt.Sprintf(TABLES_ID_URL, pathSegment(id))
 }
 
 func tablesIdRowsUrl(id string) string {
-	return fmt.Sprintf(TABLES_ID_ROWS_URL, id)
+	return fmt.Sprintf(TABLES_ID_ROWS_URL, pathSegment(id))
 }
 
-// tablesIdRowsKeyUrl escapes key, which may contain "/" and other reserved characters.
+// tablesIdRowsKeyUrl escapes id and key. A key can be any string, including
+// "/", "." and "..".
 func tablesIdRowsKeyUrl(id, key string) string {
-	return fmt.Sprintf(TABLES_ID_ROWS_KEY_URL, id, url.PathEscape(key))
+	return fmt.Sprintf(TABLES_ID_ROWS_KEY_URL, pathSegment(id), pathSegment(key))
+}
+
+// pathSegment escapes s for use as one segment of a URL path. Beyond what
+// url.PathEscape does, it escapes the dots of a "." or ".." segment, which
+// servers otherwise resolve as a relative path: a DELETE of row ".." would
+// become a DELETE of the table.
+func pathSegment(s string) string {
+	if s == "." || s == ".." {
+		return strings.ReplaceAll(s, ".", "%2E")
+	}
+	return url.PathEscape(s)
 }
 
 func filesUrl() string {

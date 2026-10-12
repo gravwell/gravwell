@@ -24,23 +24,41 @@ func TestDataTableRowKeyEscaping(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/tables/{id}/rows/{key}", func(w http.ResponseWriter, r *http.Request) {
 		gotMethod, gotID, gotKey = r.Method, r.PathValue("id"), r.PathValue("key")
-		w.Write([]byte(`{"Values":{"host":"a/b c?d"},"Version":1}`))
+		w.Write([]byte(`{"Values":{"host":"k"},"Version":1}`))
 	})
+	// A key that escapes its path segment lands on one of these instead.
+	for _, p := range []string{"/api/tables/{id}", "/api/tables/{id}/rows"} {
+		mux.HandleFunc(p, func(w http.ResponseWriter, r *http.Request) {
+			t.Errorf("%s %s reached %s", r.Method, r.URL.EscapedPath(), p)
+		})
+	}
 	c := newTestClient(t, mux)
 
-	const key = "a/b c?d"
-	row, err := c.PutDataTableRow("tbl", key, types.DataTableRowWrite{})
-	if err != nil {
-		t.Fatal(err)
+	calls := map[string]func(id, key string) error{
+		http.MethodGet: func(id, key string) error { _, err := c.GetDataTableRow(id, key); return err },
+		http.MethodPut: func(id, key string) error {
+			_, err := c.PutDataTableRow(id, key, types.DataTableRowWrite{})
+			return err
+		},
+		http.MethodPatch: func(id, key string) error {
+			_, err := c.UpdateDataTableRow(id, key, types.DataTableRowPatch{Clear: []string{"ip"}})
+			return err
+		},
+		http.MethodDelete: func(id, key string) error { return c.DeleteDataTableRow(id, key) },
 	}
-	if gotMethod != http.MethodPut {
-		t.Errorf("method = %q, want PUT", gotMethod)
-	}
-	if gotID != "tbl" || gotKey != key {
-		t.Errorf("server saw id %q key %q, want %q %q", gotID, gotKey, "tbl", key)
-	}
-	if string(row.Values["host"]) != `"a/b c?d"` || row.Version != 1 {
-		t.Errorf("unexpected row %+v", row)
+	ids := []string{"tbl", "t/1", ".."}
+	keys := []string{"a/b c?d", "..", ".", "...", "../x", "%2E", "10.0.0.1"}
+	for method, call := range calls {
+		for _, id := range ids {
+			for _, key := range keys {
+				gotMethod, gotID, gotKey = "", "", ""
+				if err := call(id, key); err != nil {
+					t.Errorf("%s id %q key %q: %v", method, id, key, err)
+				} else if gotMethod != method || gotID != id || gotKey != key {
+					t.Errorf("%s id %q key %q: server saw %s id %q key %q", method, id, key, gotMethod, gotID, gotKey)
+				}
+			}
+		}
 	}
 }
 
