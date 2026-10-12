@@ -12,9 +12,9 @@ package hosted
 import (
 	"context"
 	"time"
+	"uuid"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )

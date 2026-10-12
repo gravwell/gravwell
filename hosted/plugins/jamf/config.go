@@ -49,9 +49,9 @@ type Config struct {
 	hosted.MultiTagConfig
 	hosted.PollingConfig
 
-	Host          string
-	Client_Id     string
-	Client_Secret string `json:"-"` // DO NOT send this when marshalling
+	Host          string `dynamic:"required"`
+	Client_Id     string `dynamic:"required"`
+	Client_Secret string `json:"-" dynamic:"secret,required"` // DO NOT send this when marshalling
 	Page_Size     int
 	Sections      []string
 
@@ -119,7 +119,12 @@ func (c *Config) Verify() error {
 
 	c.PollingConfig.ApplyDefaults(defaultLookback, defaultRequestsPerMinute, defaultInterval)
 
-	return nil
+	if err := c.BaseConfig.Verify(); err != nil {
+		return err
+	}
+
+	// last, so the tags checked are the ones this config will really write to
+	return hosted.VerifyTags(c)
 }
 
 func firstDuplicate(vals []string) string {
