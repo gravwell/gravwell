@@ -99,7 +99,7 @@ type CommonFields struct {
 	Version     int
 
 	// If set, associates the asset with a kit of the specified ID
-	Kit string
+	KitID Nullable[string]
 
 	// Auto-generated for the requesting user based on permissions of this object.
 	Can Actions

@@ -107,7 +107,7 @@ func buildFlagSet(prettyDefined bool, defaultColumnsAliased []string, qob scaffo
 	return &fs
 }
 
-// fetches values from the flagset that scaffoldlist uses directly (as opposed to getQueryOptions()).
+// fetches values from the flagset that scaffoldlist uses directly
 func getFlags(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string, prettyDefined bool) (
 	showColumns bool, columns []string, outFile *os.File, format outputFormat, invalid string,
 ) {
@@ -172,14 +172,5 @@ func getColumns(fs *pflag.FlagSet, DQToAlias, AliasToDQ map[string]string) (_ []
 // For example, --show-columns will not be included as it is handled automatically,
 // but --all will be as it must be handled by the ListDataFunc itself.
 type DataParameters struct {
-	QueryOpts *types.QueryOptions
-}
-
-// QueryOptions returns the resolved query options by value, or the zero value
-// if none were configured for this action.
-func (p DataParameters) QueryOptions() types.QueryOptions {
-	if p.QueryOpts == nil {
-		return types.QueryOptions{}
-	}
-	return *p.QueryOpts
+	QueryOptions types.QueryOptions
 }

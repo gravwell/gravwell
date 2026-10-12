@@ -48,7 +48,7 @@ func TestQOBuilder(t *testing.T) {
 			tt.builder.Install(fs)
 			setFlags(fs)
 			qo := tt.builder.QueryOptions(fs)
-			require.EqualExportedValues(t, tt.expectedQO, *qo)
+			require.EqualExportedValues(t, tt.expectedQO, qo)
 		})
 	}
 }

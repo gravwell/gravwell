@@ -96,7 +96,7 @@ func list() action.Pair {
 				return []types.AX{d}, err
 			}
 
-			lr, err := connection.Client.ListExtractions(param.QueryOptions())
+			lr, err := connection.Client.ListExtractions(param.QueryOptions)
 			return lr.Results, err
 
 		},
@@ -270,7 +270,7 @@ func delete() action.Pair {
 			return nil
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(params.QueryOptions())
+			lr, err := connection.Client.ListExtractions(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

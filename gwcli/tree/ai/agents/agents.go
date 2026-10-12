@@ -84,7 +84,7 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list agents", "List the agents available to your user.",
 		wrappedAgent{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedAgent, error) {
-			resp, err := connection.Client.ListAgents(params.QueryOptions())
+			resp, err := connection.Client.ListAgents(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -300,7 +300,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteAgent(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(params.QueryOptions())
+			lr, err := connection.Client.ListAgents(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

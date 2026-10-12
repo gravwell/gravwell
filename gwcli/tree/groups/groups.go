@@ -61,7 +61,7 @@ func listGroups() action.Pair {
 	return scaffoldlist.NewListAction("list groups", "Retrieves the list of groups available on the system",
 		types.Group{},
 		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Group, error) {
-			resp, err := connection.Client.ListGroups(params.QueryOptions())
+			resp, err := connection.Client.ListGroups(params.QueryOptions)
 			return resp.Results, err
 		},
 		nil,
@@ -106,7 +106,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteGroup(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListGroups(param.QueryOptions())
+			lr, err := connection.Client.ListGroups(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

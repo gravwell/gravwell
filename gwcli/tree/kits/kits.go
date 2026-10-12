@@ -67,7 +67,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction(
 		"list installed and staged kits", "Lists system kits visible to you or, if you are an admin, available on this system.",
 		types.KitState{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.KitState, error) {
-			kits, err := connection.Client.ListKits(param.QueryOptions())
+			kits, err := connection.Client.ListKits(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -109,7 +109,7 @@ func uninstall() action.Pair {
 			return connection.Client.DeleteKit(ID)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			pkgs, err := connection.Client.ListKits(params.QueryOptions())
+			pkgs, err := connection.Client.ListKits(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -1037,7 +1037,7 @@ func buildRequests() action.Pair {
 			"Note that only the most recent build request is stored for each unique kit ID (e.g. \"io.gravwell.foo\").",
 		types.KitBuildRequest{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitBuildRequest, error) {
-			lr, err := connection.Client.ListKitBuildHistory(params.QueryOptions())
+			lr, err := connection.Client.ListKitBuildHistory(params.QueryOptions)
 			return lr.Results, err
 		},
 		nil,
@@ -1059,7 +1059,7 @@ func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
 		types.KitMetadata{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitMetadata, error) {
-			lr, err := connection.Client.ListRemoteKits(params.QueryOpts.All)
+			lr, err := connection.Client.ListRemoteKits(params.QueryOptions.All)
 			return lr.Results, err
 		},
 		nil,
