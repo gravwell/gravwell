@@ -215,9 +215,14 @@ func (ic *IngestConfig) Verify() error {
 		if len(ic.Ingest_Secret_File) == 0 {
 			return ErrMissingIngestSecret
 		} else {
-			if err := loadStringFromFile(ic.Ingest_Secret_File, &ic.Ingest_Secret); err != nil {
+			var fileSecret string
+			if err := loadStringFromFile(ic.Ingest_Secret_File, &fileSecret); err != nil {
 				return fmt.Errorf("Failed to load Ingest-Secret from Ingest-Secret-File %q %w", ic.Ingest_Secret_File, err)
 			}
+			if strings.TrimSpace(fileSecret) == `` {
+				return fmt.Errorf("Ingest-Secret-File %q contains no usable secret: %w", ic.Ingest_Secret_File, ErrMissingIngestSecret)
+			}
+			ic.Ingest_Secret = fileSecret
 		}
 	}
 	//ensure there is at least one target

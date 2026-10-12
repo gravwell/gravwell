@@ -1,80 +1,77 @@
 package plugins
 
 import (
-	"errors"
-	"github.com/gravwell/gcfg"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/slack"
+	ingestconfig "github.com/gravwell/gravwell/v3/ingest/config"
 )
 
-type slackTags struct {
-	reject bool
-	seen   []string
+func TestSlackPluginRegistration(t *testing.T) {
+	config := &slack.Config{API_Token: "synthetic-token", MultiTagConfig: hosted.MultiTagConfig{Tag_Name: "slack-audit"}}
+	configs := Configs{Slack: map[string]*slack.Config{"primary": config}}
+	if err := configs.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	if configs.IngesterCount() != 1 {
+		t.Fatalf("count=%d", configs.IngesterCount())
+	}
+	if tags, err := configs.Tags(); err != nil || len(tags) != 1 || tags[0] != "slack-audit" {
+		t.Fatalf("tags=%v error=%v", tags, err)
+	}
+	builders := 0
+	for name, builder := range configs.Builders() {
+		builders++
+		if name != "primary" || builder.Kind() != slack.Name || builder.ID() != slack.ID || builder.Version() != slack.Version {
+			t.Fatalf("builder name=%q kind=%q id=%q version=%q", name, builder.Kind(), builder.ID(), builder.Version())
+		}
+		if _, ok := builder.(*SlackBuilder); !ok {
+			t.Fatalf("builder type=%T", builder)
+		}
+		if ingester, err := builder.Build(nil, func() error { return nil }); err != nil || ingester == nil {
+			t.Fatalf("build ingester=%T error=%v", ingester, err)
+		}
+	}
+	if builders != 1 {
+		t.Fatalf("builders=%d", builders)
+	}
 }
 
-func (n *slackTags) NegotiateTag(s string) (entry.EntryTag, error) {
-	if n.reject {
-		return 0, errors.New("synthetic tag rejection")
+func TestSlackPluginStanzaLoadsThroughStandardConfigLoader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "slack.conf")
+	body := []byte(`[Slack "primary"]
+Ingester-UUID="5cbb0f50-8de8-4f62-9daf-f1d0f7063030"
+Host="https://api.slack.com"
+API-Token="synthetic-token"
+Tag-Name="slack-audit"
+Lookback=168
+Request-Interval=300
+Requests-Per-Minute=30
+`)
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
 	}
-	n.seen = append(n.seen, s)
-	return 7, nil
+	var parsed struct {
+		Slack map[string]*slack.Config
+	}
+	if err := ingestconfig.LoadConfigFile(&parsed, path); err != nil {
+		t.Fatal(err)
+	}
+	config := parsed.Slack["primary"]
+	if config == nil || config.API_Token != "synthetic-token" || config.Lookback != 168 {
+		t.Fatalf("parsed config=%+v", config)
+	}
+	if err := config.Verify(); err != nil {
+		t.Fatal(err)
+	}
 }
-func TestSlackRealRegistrationAndTagNegotiation(t *testing.T) {
-	d := t.TempDir()
-	secret := filepath.Join(d, "credential")
-	if e := os.WriteFile(secret, []byte("synthetic-only"), 0600); e != nil {
-		t.Fatal(e)
-	}
-	query := filepath.Join(d, "query.sql")
-	if e := os.WriteFile(query, []byte("SELECT id FROM customer ORDER BY id"), 0600); e != nil {
-		t.Fatal(e)
-	}
-	b, e := os.ReadFile("slack/example.conf")
-	if e != nil {
-		t.Fatal(e)
-	}
-	s := string(b)
-	a := strings.Index(s, "[Slack ")
-	if a < 0 {
-		t.Fatal("missing named source stanza")
-	}
-	s = s[a:]
-	s = strings.ReplaceAll(s, "REPLACE_WITH_DISTINCT_PERSISTENT_UUID", "291e5806-07f4-4533-a979-3296263389bf")
-	s = strings.ReplaceAll(s, "/opt/gravwell/secrets/slack-token", secret)
-	s = strings.ReplaceAll(s, "/opt/gravwell/etc/netsuite/read-only-query.sql", query)
-	var cfg Configs
-	if e = gcfg.ReadStringInto(&cfg, s); e != nil {
-		t.Fatal(e)
-	}
-	if e = cfg.Verify(); e != nil {
-		t.Fatal(e)
-	}
-	if cfg.IngesterCount() != 1 {
-		t.Fatal("registration lost source")
-	}
-	tags, e := cfg.Tags()
-	if e != nil || len(tags) != 1 || tags[0] != "slack-audit" {
-		t.Fatalf("tags %v %v", tags, e)
-	}
-	count := 0
-	for name, b := range cfg.Builders() {
-		count++
-		if name != "primary" {
-			t.Fatal(name)
-		}
-		n := &slackTags{}
-		job, e := b.Build(n, func() error { return nil })
-		if e != nil || job == nil || len(n.seen) != 1 {
-			t.Fatalf("builder failed %v", e)
-		}
-		if _, e = b.Build(&slackTags{reject: true}, nil); e == nil {
-			t.Fatal("tag rejection ignored")
-		}
-	}
-	if count != 1 {
-		t.Fatal("builder missing")
+
+func TestSlackPluginRegistrationRejectsNilConfig(t *testing.T) {
+	configs := Configs{Slack: map[string]*slack.Config{"primary": nil}}
+	if err := configs.Verify(); err == nil {
+		t.Fatal("nil Slack config accepted")
 	}
 }

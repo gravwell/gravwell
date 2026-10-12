@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/gravwell/gravwell/v3/hosted/configload"
 	"github.com/gravwell/gravwell/v3/hosted/plugins"
 	"github.com/gravwell/gravwell/v3/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -22,21 +21,21 @@ import (
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var cr cfgReadType
-	if err := configload.LoadFile(&cr, path); err != nil {
+	if err := config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
-	} else if err = configload.LoadOverlays(&cr, overlayPath); err != nil {
+	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
-	cfg := &cfgType{
+	if err := cr.Verify(); err != nil {
+		return nil, err
+	}
+
+	return &cfgType{
 		IngestConfig: cr.Global,
 		Attach:       cr.Attach,
 		State:        cr.State,
 		Configs:      cr.Configs,
-	}
-	if err := cfg.Verify(); err != nil {
-		return nil, err
-	}
-	return cfg, nil
+	}, nil
 }
 
 type cfgReadType struct {
@@ -68,6 +67,8 @@ func (c *cfgType) Verify() (err error) {
 	} else if err = c.State.Verify(); err != nil {
 		return
 	} else if err = c.Configs.Verify(); err != nil {
+		return
+	} else if _, err = c.Tags(); err != nil {
 		return
 	}
 

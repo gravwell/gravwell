@@ -1,34 +1,61 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package hosted
 
 import (
 	"context"
-	"errors"
-	"time"
+	"fmt"
+
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
-// SyncDelivered is an optional runtime capability for destructive source acks.
-// Bucket state synchronization is separate and cannot substitute for this.
-func (nr *NativeRuntime) SyncDelivered(ctx context.Context, timeout time.Duration) error {
+var _ AcknowledgedWriter = (*NativeRuntime)(nil)
+var _ AcknowledgedWriter = (*scopedRuntime)(nil)
+
+// WriteAcknowledged writes one entry through the native per-block
+// acknowledgement path. It returns only after an indexer confirms that this
+// entry is on disk; unrelated entries in the shared muxer do not participate.
+func (nr *NativeRuntime) WriteAcknowledged(ctx context.Context, ent entry.Entry) error {
 	if nr == nil || nr.igst == nil {
-		return ErrNotReady
+		return fmt.Errorf("%w, ingest writer not available", ErrNotReady)
 	}
-	return nr.igst.SyncDelivered(ctx, timeout)
+	localEnt := ent.DeepCopy()
+	if err := nr.igst.WriteEntryAcknowledgedContext(ctx, &localEnt); err != nil {
+		return err
+	}
+	nr.entries.Add(1)
+	nr.size.Add(localEnt.Size())
+	nr.trackTag(localEnt.Tag)
+	return nil
 }
-func (sr *scopedRuntime) SyncDelivered(ctx context.Context, timeout time.Duration) error {
-	if e := sr.ctx.Err(); e != nil {
-		return e
+
+func (sr *scopedRuntime) WriteAcknowledged(ctx context.Context, ent entry.Entry) error {
+	if err := sr.ctx.Err(); err != nil {
+		return err
 	}
-	barrier, ok := sr.Runtime.(interface {
-		SyncDelivered(context.Context, time.Duration) error
-	})
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	writer, ok := sr.Runtime.(AcknowledgedWriter)
 	if !ok {
-		return errors.New("runtime does not provide acknowledged delivery")
+		return fmt.Errorf("%w, runtime does not provide acknowledged writes", ErrNotReady)
 	}
-	if e := barrier.SyncDelivered(ctx, timeout); e != nil {
-		return e
+	writeCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(sr.ctx, cancel)
+	defer func() {
+		stop()
+		cancel()
+	}()
+	if err := writer.WriteAcknowledged(writeCtx, ent); err != nil {
+		return err
 	}
-	if e := ctx.Err(); e != nil {
-		return e
-	}
-	return sr.ctx.Err()
+	// Once the underlying writer acknowledges the entry, late cancellation
+	// cannot turn that durable success into a retry and duplicate delivery.
+	return nil
 }

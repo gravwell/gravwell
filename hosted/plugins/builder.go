@@ -175,22 +175,6 @@ func NewMSGraphBuilder(cfg *msgraph.Config, kind, id, version string) *MSGraphBu
 	}
 }
 
-type SlackBuilder struct{ Builder[*slack.Config] }
-
-func (b *SlackBuilder) Build(t hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
-	if t != nil {
-		for _, tag := range b.config.Tags() {
-			if _, e := t.NegotiateTag(tag); e != nil {
-				return nil, e
-			}
-		}
-	}
-	return hosted.WrapJobWithSync(slack.New(b.config), syncFn), nil
-}
-func NewSlackBuilder(c *slack.Config, kind, id, version string) *SlackBuilder {
-	return &SlackBuilder{Builder[*slack.Config]{config: c, kind: kind, id: id, version: version}}
-}
-
 type SQSBuilder struct {
 	Builder[*sqs.Config]
 }
@@ -206,6 +190,29 @@ func (sb *SQSBuilder) Build(_ hosted.TagNegotiator, _ func() error) (hosted.Inge
 func NewSQSBuilder(config *sqs.Config, kind, id, version string) *SQSBuilder {
 	return &SQSBuilder{
 		Builder[*sqs.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type SlackBuilder struct {
+	Builder[*slack.Config]
+}
+
+func (sb *SlackBuilder) Build(_ hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	plugin, err := slack.New(sb.config)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJobWithSync(plugin, syncFn), nil
+}
+
+func NewSlackBuilder(config *slack.Config, kind, id, version string) *SlackBuilder {
+	return &SlackBuilder{
+		Builder[*slack.Config]{
 			config:  config,
 			kind:    kind,
 			id:      id,
