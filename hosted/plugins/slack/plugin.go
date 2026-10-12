@@ -93,7 +93,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	p.api.token = token
 	if !state.Active {
 		latest := now.Add(-pollBuffer).Unix()
-		oldest := now.Add(-pollBuffer - p.conf.LookbackDuration()).Unix()
+		oldest := max(int64(0), now.Add(-pollBuffer-p.conf.LookbackDuration()).Unix())
 		if state.CompletedThrough > 0 {
 			// Lookback bounds only the initial history request. Later windows start
 			// shortly before the durable checkpoint so late-visible events get one

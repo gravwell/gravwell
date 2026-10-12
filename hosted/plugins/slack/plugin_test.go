@@ -149,6 +149,39 @@ func TestLookbackReplayBridgesTraversalLongerThanHorizon(t *testing.T) {
 	}
 }
 
+func TestInitialLookbackBeforeUnixEpochClampsOldestToZero(t *testing.T) {
+	var requests atomic.Int32
+	var oldest string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		oldest = r.URL.Query().Get("oldest")
+		fmt.Fprint(w, `{"ok":true,"entries":[],"response_metadata":{"next_cursor":""}}`)
+	}))
+	defer server.Close()
+
+	config := validConfig(server.URL)
+	config.Lookback = 500000
+	runtime := newTestRuntime()
+	plugin := newTestPlugin(t, config, fixedNow, server.Client())
+	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+
+	if requests.Load() != 1 {
+		t.Fatalf("requests=%d want=1", requests.Load())
+	}
+	if oldest != "0" {
+		t.Fatalf("oldest=%q want=0", oldest)
+	}
+	state, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Active || state.CompletedThrough != fixedNow.Add(-pollBuffer).Unix() {
+		t.Fatalf("completed state=%+v", state)
+	}
+}
+
 func TestCompletedCycleDoesNotReplayBeyondReceiptCapacity(t *testing.T) {
 	const totalRecords = receiptCapacity + 1
 	const pages = (totalRecords + int64(pageSize) - 1) / int64(pageSize)
