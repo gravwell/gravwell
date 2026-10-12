@@ -54,6 +54,17 @@ const (
 )
 
 const (
+	// commandResponseTimeout bounds how long readCommandsUntil will wait for
+	// the indexer to answer a command.  The indexer keepalive (PONG_MAGIC)
+	// arrives every second which is faster than the per read deadline, so
+	// without an overall budget a wedged but alive indexer can keep a client
+	// spinning forever.  The clock resets on any substantive response
+	// (entry confirmations and throttle requests), only keepalives count
+	// against it.
+	commandResponseTimeout time.Duration = 10 * time.Second
+)
+
+const (
 	//ingester commands
 	INVALID_MAGIC                IngestCommand = 0x00000000
 	NEW_ENTRY_MAGIC              IngestCommand = 0xC7C95ACB
@@ -819,39 +830,9 @@ func (ew *EntryWriter) SendIngesterAPIVersion() (err error) {
 		return
 	}
 
-	// read back the ack
-	var ac ackCommand
-	var ok bool
-verCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !ok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-
-		switch ac.cmd {
-		case CONFIRM_API_VER_MAGIC:
-			// success
-			break verCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-		default:
-			err = fmt.Errorf("Unexpected response to API version message: %#v", ac)
-			break verCmdLoop
-		}
-	}
-	if err == nil {
-		err = ew.conn.ClearReadTimeout()
-	} else {
-		ew.conn.ClearReadTimeout()
-	}
-
+	// read back the ack, readCommandsUntil bounds the exchange so an indexer
+	// that keepalives but never answers cannot pin us here
+	_, err = ew.readCommandsUntil(CONFIRM_API_VER_MAGIC)
 	return
 }
 
@@ -959,6 +940,9 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	var ok bool
 tagCmdLoop:
 	for {
+		if err = ew.ctx.Err(); err != nil {
+			break
+		}
 		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
 			break
 		}
@@ -1113,12 +1097,23 @@ loop:
 }
 
 // readCommandsUntil pulls out all of the responses and services them,
-// we block until we hit the command we want
+// we block until we hit the command we want.
+//
+// The per read deadline only guarantees the indexer is alive, the indexer
+// keepalive fires faster than the deadline so it can never trip on a
+// connection that is up.  The exchange as a whole is bounded by
+// commandResponseTimeout measured from the last substantive response, and we
+// also leave if our context is cancelled so that a muxer shutdown can pull a
+// connection out of setup rather than wait on a socket read forever.
 func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err error) {
 	var ok bool
 	var dur time.Duration
 	defer ew.conn.ClearReadTimeout()
+	last := time.Now() //last substantive response from the indexer
 	for {
+		if err = ew.ctx.Err(); err != nil {
+			return
+		}
 		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
 			return
 		}
@@ -1127,6 +1122,9 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err 
 			return
 		} else if !ok {
 			err = errFailedToReadCommand
+			return
+		}
+		if ac.cmd == cmd {
 			return
 		}
 		switch ac.cmd {
@@ -1138,6 +1136,9 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err 
 				if err != errEntryNotFound {
 					return
 				}
+				err = nil
+			} else {
+				last = time.Now()
 			}
 		case THROTTLE_MAGIC:
 			if dur = time.Duration(ac.val); dur > maxThrottleDur || dur < 0 {
@@ -1146,14 +1147,21 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err 
 			if err = ew.throttle(dur); err != nil {
 				return
 			}
+			last = time.Now()
 		case PONG_MAGIC:
-			// Do nothing
-		}
-		if ac.cmd == cmd {
-			break
+			// unsolicited keepalive, it proves the connection is up but it is
+			// not an answer, so it does not reset the budget
+			if time.Since(last) > commandResponseTimeout {
+				err = fmt.Errorf("indexer did not respond to %v within %v: %w", cmd, commandResponseTimeout, ErrTimeout)
+				return
+			}
+		default:
+			// anything else means the stream is out of step, fail now rather
+			// than wait out the budget and blame a timeout
+			err = fmt.Errorf("unexpected response %v while waiting for %v", ac.cmd, cmd)
+			return
 		}
 	}
-	return
 }
 
 func (ew *EntryWriter) throttle(dur time.Duration) (err error) {

@@ -2114,6 +2114,7 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
+			ig.Close() //do not leak the half setup connection across the retry
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {
@@ -2126,7 +2127,9 @@ loop:
 		for {
 			select {
 			case <-im.ctx.Done():
-				return
+				//told to exit, do not hand back a connection that never got the ingest OK
+				ig.Close()
+				return nil, nil, errors.New("Muxer closing")
 			default:
 			}
 			ok, lerr := ig.IngestOK()

@@ -40,6 +40,7 @@ type testIndexer struct {
 	entries    uint64 // total entries consumed
 	conns      int64  // ingest connections currently attached
 	accepted   int64  // cumulative count of connections ever accepted
+	stalled    int32  // non zero means stall every connection after auth
 
 	lst    net.Listener
 	secret string
@@ -119,6 +120,14 @@ func (ti *testIndexer) throttle(d time.Duration) {
 	atomic.StoreInt64(&ti.throttleNS, int64(d))
 }
 
+// stallAfterAuth makes every new connection complete authentication and then
+// wedge: the indexer drains whatever the client sends and keeps the keepalive
+// flowing but never answers another command.  This is what a real indexer
+// looks like when its ack routine is alive but nothing is servicing reads.
+func (ti *testIndexer) stallAfterAuth() {
+	atomic.StoreInt32(&ti.stalled, 1)
+}
+
 func (ti *testIndexer) Close() error {
 	select {
 	case <-ti.done:
@@ -183,6 +192,11 @@ func (ti *testIndexer) handleConn(conn net.Conn) error {
 	if err := ti.authenticate(conn); err != nil {
 		return fmt.Errorf("authentication failed %w", err)
 	}
+	if atomic.LoadInt32(&ti.stalled) != 0 {
+		atomic.AddInt64(&ti.conns, 1)
+		defer atomic.AddInt64(&ti.conns, -1)
+		return ti.stall(conn)
+	}
 
 	rdr, err := NewEntryReaderEx(EntryReaderWriterConfig{
 		Conn:                  conn,
@@ -231,6 +245,32 @@ func (ti *testIndexer) handleConn(conn net.Conn) error {
 		atomic.AddUint64(&ti.entries, 1)
 		if d := atomic.LoadInt64(&ti.throttleNS); d > 0 {
 			time.Sleep(time.Duration(d))
+		}
+	}
+}
+
+// stall wedges the connection until the indexer is closed or the client goes
+// away.
+func (ti *testIndexer) stall(conn net.Conn) error {
+	keepaliveUntil(conn, ti.done)
+	return nil
+}
+
+// keepaliveUntil plays a wedged indexer: it consumes everything the client
+// sends and emits a keepalive at the real indexer cadence, but never answers
+// anything.  It returns when done is closed or the client hangs up.
+func keepaliveUntil(conn net.Conn, done <-chan struct{}) {
+	go io.Copy(io.Discard, conn)
+	tkr := time.NewTicker(keepAliveInterval)
+	defer tkr.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-tkr.C:
+			if _, err := conn.Write(PONG_MAGIC.Buff()); err != nil {
+				return
+			}
 		}
 	}
 }
