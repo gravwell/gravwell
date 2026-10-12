@@ -166,7 +166,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list active queries", "List all current queries.",
 		types.SearchInfo{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchInfo, error) {
-			if params.QueryOpts.AdminMode {
+			if params.QueryOpts.All {
 				resp, err := connection.Client.ListAllSearches(types.QueryOptions{})
 				return resp.Results, err
 			}

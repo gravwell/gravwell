@@ -28,7 +28,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/listitem"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/state"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
@@ -75,9 +74,7 @@ var cleanupTargets = []string{
 	"macros",
 	"resources",
 	"search_history",
-	"secrets",
 	"templates",
-	"tokens",
 	"user_preferences",
 }
 
@@ -94,12 +91,8 @@ func getTarget(target string) func() error {
 		return connection.Client.CleanupResources
 	case "search_history":
 		return connection.Client.CleanupSearchHistory
-	case "secrets":
-		return connection.Client.CleanupSecrets
 	case "templates":
 		return connection.Client.CleanupTemplates
-	case "tokens":
-		return connection.Client.CleanupTokens
 	case "user_preferences":
 		return connection.Client.CleanupUserPreferences
 	default:
@@ -156,12 +149,10 @@ func cleanup() action.Pair {
 			return strings.Join(runCleanup(requested), "\n"), nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases:      []string{"clean", "tidy", "purge", "burninate"},
-				Usage:        "cleanup " + ft.VariadicArgs("target", true),
-				Example:      "cleanup macros secrets",
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Aliases:      []string{"clean", "tidy", "purge", "burninate"},
+			Usage:        "cleanup " + ft.VariadicArgs("target", true),
+			Example:      "cleanup macros templates",
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
 					return "you must specify at least one item to clean up or \"all\"", nil
@@ -359,74 +350,21 @@ func restore() action.Pair {
 		})
 }
 
-// Status displays if your account is an administrator and if you are currently in admin mode.
+// Status displays if your account is an administrator.
 // NOTE: this action is provided to both the `admin` nav (as `status`) and the `self` nav. Hence the export.
 func Status(use string) action.Pair {
-	return scaffold.NewBasicAction(use, "display your admin status or toggle admin mode", "Displays whether or not you are an admin.\n"+
-		"In interactive mode, -t can be used to toggle "+stylesheet.Cur.ErrorText.Render("admin mode")+" which will attach admin=true to future request.\n"+
-		"For the most part, this just implies --all in calls that support it, resulting in lists displaying results from all users.\n"+
-		"\n"+
-		"Exercise caution in admin mode, as it gives access to objects belonging to other users and makes it easy to break things.\n"+
-		"Admin mode does not persist between sessions and has no effect if invoked non-interactively.",
+	return scaffold.NewBasicAction(use, "display your admin status", "Displays whether or not you are an admin.",
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			isAdministrator, err := connection.Client.IsAdmin()
 			if err != nil {
 				return "failed to fetch administrator status: " + err.Error(), nil
 			}
-			var statusSB strings.Builder
 			if isAdministrator {
-				statusSB.WriteString("You are an administrator.\n")
-			} else {
-				statusSB.WriteString("You are not an administrator.\n")
+				return "You are an administrator.\n", nil
 			}
-			// if we are not spinning up a full, interactive shell, admin mode doesn't matter.
-			if !state.Interactive() && !state.DirectInvoked() {
-				return statusSB.String(), nil
-			}
-
-			{ // branch on toggle flag
-				t, err := fs.GetBool("toggle")
-				clilog.GetFlag(err)
-				if t {
-					return toggle(isAdministrator)
-				}
-			}
-
-			// attach admin mode to the output string
-			if inAdminMode := connection.AdminMode(); inAdminMode {
-				statusSB.WriteString("You are in admin mode.\n")
-				if isAdministrator {
-					statusSB.WriteString("Yet, you are somehow in admin mode.\n" +
-						"Admin mode will be ineffectual.\n")
-				}
-			} else {
-				statusSB.WriteString("You are not in admin mode.\n")
-			}
-			return statusSB.String(), nil
+			return "You are not an administrator.\n", nil
 		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: use + " " + ft.Optional("--toggle"),
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.BoolP("toggle", "t", false, ft.InteractiveOnly()+" Toggle admin mode for this session.")
-					return fs
-				},
-			},
-		})
-}
-
-func toggle(isAdministrator bool) (string, tea.Cmd) {
-	if !isAdministrator {
-		return "Only administrators can toggle admin mode", nil
-	}
-	if !connection.Client.AdminMode() {
-		connection.Client.SetAdminMode()
-		return "You are now in admin mode", nil
-	}
-	connection.Client.ClearAdminMode()
-	return "You are no longer in admin mode", nil
-
+		scaffold.BasicOptions{Usage: use})
 }
 
 type userSearchStorage struct {
@@ -489,10 +427,8 @@ func listUserSearchStorage() action.Pair {
 			return storage, nil
 		},
 		nil, scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:          "search-storage",
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Use:            "search-storage",
+			Requirements:   annotations.Requirements{UserIsAdmin: true},
 			DefaultColumns: []string{"Username", "UID", "Stored"},
 			EmptyMessage:   "There are no active searches currently storing data."},
 	)
@@ -547,11 +483,6 @@ func massChown() action.Pair {
 			from, _ := fs.GetInt32("from")
 			to, _ := fs.GetInt32("to")
 			noFail, _ := fs.GetBool("no-fail")
-			// ensure we are in admin mode to ensure we get all data
-			if !connection.Client.AdminMode() {
-				connection.Client.SetAdminMode()
-				defer connection.Client.ClearAdminMode()
-			}
 			qo := types.QueryOptions{
 				Filters: []types.Filter{
 					{Key: "OwnerID", Operation: "=", Values: []any{from}},
@@ -922,11 +853,6 @@ func chown() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			from, _ := addtlFlags.GetInt32("from")
 
-			// ensure we are in admin mode to ensure we get all data
-			if !connection.Client.AdminMode() {
-				connection.Client.SetAdminMode()
-				defer connection.Client.ClearAdminMode()
-			}
 			// fetch ALL items owned by the FROM user
 			data := make([]multiselectlist.SelectableItem[string], 0)
 			qo := types.QueryOptions{

@@ -329,7 +329,7 @@ func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID 
 	}
 
 	var u *url.URL
-	if u, err = url.Parse(searchCtrlDownloadUrl(searchID)); err != nil {
+	if u, err = url.Parse(searchesIdDownloadsUrl(searchID)); err != nil {
 		return
 	}
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, u.String())
@@ -444,7 +444,7 @@ func (c *Client) methodParamRequestURL(method, uri string, params map[string]str
 // for all active indexers and the webserver.
 func (c *Client) GetSystemDescriptions() (map[string]types.SysInfo, error) {
 	desc := make(map[string]types.SysInfo, 1)
-	if err := c.getStaticURL(DESC_URL, &desc); err != nil {
+	if err := c.getStaticURL(STATS_SYSTEM_DESCRIPTION_URL, &desc); err != nil {
 		return nil, err
 	}
 	return desc, nil
@@ -453,7 +453,7 @@ func (c *Client) GetSystemDescriptions() (map[string]types.SysInfo, error) {
 // GetPingStates gets the connected/disconnected state of each indexer.
 func (c *Client) GetPingStates() (map[string]string, error) {
 	states := make(map[string]string, 1)
-	if err := c.getStaticURL(STATE_URL, &states); err != nil {
+	if err := c.getStaticURL(STATS_PING_URL, &states); err != nil {
 		return nil, err
 	}
 	return states, nil
@@ -462,7 +462,7 @@ func (c *Client) GetPingStates() (map[string]string, error) {
 // GetSystemStats gets the system statistics from each active indexer.
 func (c *Client) GetSystemStats() (map[string]types.SysStats, error) {
 	stats := make(map[string]types.SysStats, 1)
-	if err := c.getStaticURL(STATS_URL, &stats); err != nil {
+	if err := c.getStaticURL(STATS_SYSTEM_URL, &stats); err != nil {
 		return nil, err
 	}
 	return stats, nil
@@ -471,7 +471,7 @@ func (c *Client) GetSystemStats() (map[string]types.SysStats, error) {
 // GetIndexStats gets statistics for all the indexes on all connected indexers.
 func (c *Client) GetIndexStats() (map[string]types.IdxStats, error) {
 	stats := make(map[string]types.IdxStats, 1)
-	if err := c.getStaticURL(IDX_URL, &stats); err != nil {
+	if err := c.getStaticURL(STATS_INDEXERS_URL, &stats); err != nil {
 		return nil, err
 	}
 	return stats, nil
@@ -480,14 +480,14 @@ func (c *Client) GetIndexStats() (map[string]types.IdxStats, error) {
 // GetIngesterStats gets statistics for all ingesters tied to each indexer.
 func (c *Client) GetIngesterStats() (map[string]types.IngestStats, error) {
 	stats := map[string]types.IngestStats{}
-	if err := c.getStaticURL(INGESTER_URL, &stats); err != nil {
+	if err := c.getStaticURL(STATS_INGESTERS_URL, &stats); err != nil {
 		return nil, err
 	}
 	return stats, nil
 }
 
 func (c *Client) GetIngesterTailStats() (tail types.IngestTailStats, _ error) {
-	if err := c.getStaticURL(INGESTER_TAIL_URL, &tail); err != nil {
+	if err := c.getStaticURL(STATS_INGESTER_TAIL_URL, &tail); err != nil {
 		return types.IngestTailStats{}, err
 	}
 	return tail, nil
@@ -496,7 +496,7 @@ func (c *Client) GetIngesterTailStats() (tail types.IngestTailStats, _ error) {
 // GetStorageStats gets storage statistics for all indexers.
 func (c *Client) GetStorageStats() (map[string]types.StorageStats, error) {
 	stats := map[string]types.StorageStats{}
-	if err := c.getStaticURL(STORAGE_URL, &stats); err != nil {
+	if err := c.getStaticURL(STATS_INDEXER_STORAGE_URL, &stats); err != nil {
 		return nil, err
 	}
 	return stats, nil
@@ -505,7 +505,7 @@ func (c *Client) GetStorageStats() (map[string]types.StorageStats, error) {
 // GetIndexerStorageStats gets storage statistics for the given indexer..
 func (c *Client) GetIndexerStorageStats(indexer uuid.UUID) (map[string]types.PerWellStorageStats, error) {
 	stats := map[string]types.PerWellStorageStats{}
-	url := fmt.Sprintf(STORAGE_INDEXER_URL, indexer.String())
+	url := fmt.Sprintf(INDEXERS_ID_WELLS_URL, indexer.String())
 	if err := c.getStaticURL(url, &stats); err != nil {
 		return nil, err
 	}
@@ -522,7 +522,7 @@ func (c *Client) GetCalendarStats(start, end time.Time, wells []string) ([]types
 		Wells: wells,
 	}
 
-	err := c.postStaticURL(CALENDAR_URL, obj, &stats)
+	err := c.postStaticURL(STATS_STORAGE_CALENDAR_URL, obj, &stats)
 	return stats, err
 }
 
@@ -534,7 +534,7 @@ func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time
 		End:   end,
 		Wells: wells,
 	}
-	url := fmt.Sprintf(CALENDAR_INDEXER_URL, indexer.String())
+	url := fmt.Sprintf(INDEXERS_ID_STORAGE_CALENDAR_URL, indexer.String())
 	err := c.postStaticURL(url, obj, &stats)
 	return stats, err
 }

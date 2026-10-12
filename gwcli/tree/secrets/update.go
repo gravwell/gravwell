@@ -21,6 +21,7 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
@@ -85,6 +86,7 @@ func updateValueFlags() *pflag.FlagSet {
 	fs.String("value", "", "new value for the secret. Use --file if you are concerned about the value being in history")
 	fs.String("file", "", "path to a file containing the new value for the secret. Takes the entire file contents as the secret value")
 	fs.Bool("no-length", false, "do not print the length of the secret for confirmation")
+	fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
 	return fs
 }
 
@@ -183,7 +185,9 @@ func (m *updateModel) SetArgs(_ *pflag.FlagSet, args []string, width, height int
 	}
 
 	if m.stage == selecting {
-		lr, err := connection.Client.ListSecrets(types.QueryOptions{AdminMode: connection.AdminMode()})
+		all, err := fs.GetBool(scaffold.FlagNameAllData)
+		clilog.GetFlag(err)
+		lr, err := connection.Client.ListSecrets(types.QueryOptions{All: all})
 		if err != nil {
 			return "", nil, err
 		}

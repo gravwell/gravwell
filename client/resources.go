@@ -31,14 +31,14 @@ func (c *Client) CreateResource(r types.Resource) (types.Resource, error) {
 
 // ListResources returns information about all resources the user can access.
 func (c *Client) ListResources(opts types.QueryOptions) (rm types.ResourceListResponse, err error) {
-	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, &opts)
+	return c.post[types.QueryOptions, types.ResourceListResponse](LIST_RESOURCES_URL, &opts)
 }
 
 // ListAllResources is an admin-only API to pull back the entire resource list.
 // Non-administrators will receive the same list as returned by ListResources.
 func (c *Client) ListAllResources(opts types.QueryOptions) (rm types.ResourceListResponse, err error) {
-	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
-	return c.post[types.QueryOptions, types.ResourceListResponse](RESOURCES_LIST_URL, &opts)
+	opts.All = true // we'll reject this if the user isn't actually an admin
+	return c.post[types.QueryOptions, types.ResourceListResponse](LIST_RESOURCES_URL, &opts)
 }
 
 // PopulateResource sets the content of the specified resource to the given data.
@@ -124,7 +124,7 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 		}
 	}()
 
-	resp, err = c.methodRequestURL(http.MethodPut, resourcesIdRawUrl(id), contentType, rdr)
+	resp, err = c.methodRequestURL(http.MethodPut, resourcesIdContentUrl(id), contentType, rdr)
 	if err != nil {
 		return types.Resource{}, err
 	} else if err := aliasResponseError(c, resp); err != nil {
@@ -143,17 +143,17 @@ func (c *Client) PopulateResourceFromReader(id string, extension string, data io
 
 // DeleteResource removes a resource by ID by marking it deleted in the database.
 func (c *Client) DeleteResource(id string) error {
-	return c.delete(resourcesIdUrl(id), false)
+	return c.delete(resourcesIdUrl(id))
 }
 
 // PurgeResource removes a resource by ID entirely.
 func (c *Client) PurgeResource(id string) error {
-	return c.delete(resourcesIdUrl(id), true)
+	return c.delete(resourcesIdUrl(id), DeleteOptions{Purge: true}.params()...)
 }
 
 // CleanupResources (admin-only) purges all deleted resources for all users.
 func (c *Client) CleanupResources() error {
-	return c.delete(RESOURCES_URL, false)
+	return c.delete(RESOURCES_URL)
 }
 
 // UpdateResourceMetadata modifies an existing resource's metadata and returns the complete, updated struct.
@@ -197,12 +197,12 @@ func (o DownloadResourceOptions) params() []urlParam {
 // GetResourceEx returns the contents of the resource with the specified name, conforming to
 // the given options. Follows the name/ID logic of GetResource.
 func (c *Client) GetResourceEx(name string, opts DownloadResourceOptions) ([]byte, error) {
-	meta, err := c.get[types.Resource](resourcesLookupUrl(name), opts.GetOptions.params()...)
+	meta, err := c.get[types.Resource](lookupResourcesNameUrl(name), opts.GetOptions.params()...)
 	if err != nil {
 		return nil, err
 	}
 
-	rc, err := c.getDownload(resourcesIdRawUrl(meta.ID), opts.params()...)
+	rc, err := c.getDownload(resourcesIdContentUrl(meta.ID), opts.params()...)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (c *Client) GetResourceEx(name string, opts DownloadResourceOptions) ([]byt
 // LookupResource attempts to resolve the resource with the specified
 // user-friendly name. It follows precedence as defined on the GetResource method.
 func (c *Client) LookupResource(name string) (types.Resource, error) {
-	return c.get[types.Resource](resourcesLookupUrl(name))
+	return c.get[types.Resource](lookupResourcesNameUrl(name))
 }
 
 // CloneResource creates a copy of an existing resource (specified by ID) with the
@@ -222,5 +222,5 @@ func (c *Client) CloneResource(id string, newName string) (types.Resource, error
 	spec := struct{ Name string }{
 		Name: newName,
 	}
-	return c.post[struct{ Name string }, types.Resource](resourcesCloneUrl(id), &spec)
+	return c.post[struct{ Name string }, types.Resource](resourcesIdCloneUrl(id), &spec)
 }

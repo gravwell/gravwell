@@ -13,7 +13,6 @@ cloud.google.com/go/pubsub/v2 v2.5.1 h1:+TwXJr78P9RrMV3S8lKHIhJo2E99jI7ta65e+ujJ
 cloud.google.com/go/pubsub/v2 v2.5.1/go.mod h1:Pd+qeabMX+576vQJhTN7TelE4k6kJh15dLU/ptOQ/UA=
 collectd.org v0.5.0 h1:y4uFSAuOmeVhG3GCRa3/oH+ysePfO/+eGJNfd0Qa3d8=
 collectd.org v0.5.0/go.mod h1:A/8DzQBkF6abtvrT2j/AU/4tiBgJWYyh0y/oB/4MlWE=
-github.com/Azure/azure-sdk-for-go v51.1.0+incompatible h1:7uk6GWtUqKg6weLv2dbKnzwb0ml1Qn70AdtRccZ543w=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1 h1:zvXfGJCWvywnCA814d8ZiVyt+fm9nnTE8xSb99zRyfo=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1/go.mod h1:iptorS+VYKFL2N6PnebpS91dubG35eAOEERnT4PJbQU=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 h1:Hk5QBxZQC1jb2Fwj6mpzme37xbCDdNTxU7O9eb5+LB4=
@@ -128,7 +127,6 @@ github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2/go.mod h1:qwXFYgsP6T7X
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
-github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/crewjam/rfc5424 v0.1.0 h1:MSeXJm22oKovLzWj44AHwaItjIMUMugYGkEzfa831H8=
 github.com/crewjam/rfc5424 v0.1.0/go.mod h1:RCi9M3xHVOeerf6ULZzqv2xOGRO/zYaVUeRyPnBW3gQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -239,8 +237,8 @@ github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 h1:WY4eTW+ErqI0rbV
 github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66/go.mod h1:RUZts//u8V+P37LqSghbTYaMGDdTOJooQGHzbjfSIZA=
 github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d h1:igftIwuKhYlFW5Tviy/z2SDYVX/4jPkOZ721kdK/Wbc=
 github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
-github.com/gravwell/gravwell/v3 v3.8.82 h1:J6CbVtxxx5iqXNrRD427nZmDoLUpD3KcT8B69mfoqBI=
-github.com/gravwell/gravwell/v3 v3.8.82/go.mod h1:pnujnfdX7pDN0DaLRV7v3egRh5nLkPuoXd+9NkgY7+8=
+github.com/gravwell/gravwell/v3 v3.8.85 h1:26OscbPikLCNhNlfPsR7rZLORo3i9DOE/Oh/SsTY26A=
+github.com/gravwell/gravwell/v3 v3.8.85/go.mod h1:UqcKTuKxF747CkQjX/SwAu1LcUTcHxW3ZCKBDc4a2So=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37 h1:e4PALq0O9WtWnnVReBr9DR8aMeyk/+EtszqaxX9sm5c=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e h1:VehL0WBsjIFCQZ8k9Cp0YwLqzlfJsPjOYiGOdt5/lMs=

@@ -28,12 +28,6 @@ var (
 	ErrMaxBodyDrained = errors.New("too many response bytes in body, closing")
 )
 
-var (
-	adminParams = []urlParam{
-		{key: `admin`, value: `true`},
-	}
-)
-
 // drainResponse will drain up to 4MB of data then close the response Body.
 // We do this so that http requests can re-use connects as per docs.
 func drainResponse(resp *http.Response) {

@@ -223,7 +223,9 @@ func replace() action.Pair {
 		"Replace the JSON content (viewable via "+stylesheet.Cur.Action.Render("get")+") of an actionable, changing its operation/definition",
 		"actionable ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListActionables(types.QueryOptions{AdminMode: connection.AdminMode()})
+			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
+			clilog.GetFlag(err)
+			lr, err := connection.Client.ListActionables(types.QueryOptions{All: all})
 			if err != nil {
 				return nil, err
 			}
@@ -267,16 +269,15 @@ func replace() action.Pair {
 			}, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "replace",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "local file to replace the remote file")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
-				},
+			Use: "replace",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Path.Register(fs, "", "local file to replace the remote file")
+				fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				pth, err := fs.GetString(ft.Path.Name())
@@ -301,8 +302,11 @@ func edit() action.Pair {
 		SelectSub: func(ID string) (types.Actionable, error) {
 			return connection.Client.GetActionable(ID)
 		},
+		// scaffoldedit's FetchSub has no access to per-invocation flags, so this always fetches the
+		// caller's own actionables. An admin can still edit another user's actionable directly by
+		// ID; GetActionable (via SelectSub) is not scoped to the caller.
 		FetchSub: func() ([]types.Actionable, error) {
-			lr, err := connection.Client.ListActionables(types.QueryOptions{AdminMode: connection.AdminMode()})
+			lr, err := connection.Client.ListActionables(types.QueryOptions{})
 			if err != nil {
 				return nil, err
 			}

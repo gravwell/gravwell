@@ -78,10 +78,15 @@ const (
 	AlertRead   Capability = 49
 	AlertWrite  Capability = 50
 	LogbotAI    Capability = 51
-	KVRead      Capability = 52
-	KVWrite     Capability = 53
-	KVCreate    Capability = 54
-	_maxCap     Capability = 55 //REMINDER - when adding capabilities, make sure to expand this number
+
+	AgentSkillRead  Capability = 52
+	AgentSkillWrite Capability = 53
+	AgentRead       Capability = 54
+	AgentWrite      Capability = 55
+	TableRead       Capability = 56
+	TableWrite      Capability = 57
+	TableCreate     Capability = 58
+	_maxCap         Capability = 59 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 type CapabilityCategory string
@@ -106,7 +111,8 @@ const (
 	SystemAndStatsCat = `System and Stats`
 	SecretsCat        = `Secrets`
 	LogbotAICat       = `Logbot AI`
-	KVCat             = `KV`
+	AgentsCat         = `Agents`
+	TablesCat         = `Tables`
 )
 
 const (
@@ -362,12 +368,20 @@ func (c Capability) Name() string {
 		return `AlertWrite`
 	case LogbotAI:
 		return `LogbotAI`
-	case KVRead:
-		return `KVRead`
-	case KVWrite:
-		return `KVWrite`
-	case KVCreate:
-		return `KVCreate`
+	case AgentSkillRead:
+		return `AgentSkillRead`
+	case AgentSkillWrite:
+		return `AgentSkillWrite`
+	case AgentRead:
+		return `AgentRead`
+	case AgentWrite:
+		return `AgentWrite`
+	case TableRead:
+		return `TableRead`
+	case TableWrite:
+		return `TableWrite`
+	case TableCreate:
+		return `TableCreate`
 	}
 	return `UNKNOWN`
 }
@@ -495,12 +509,20 @@ func (c Capability) Category() CapabilityCategory {
 	case LogbotAI:
 		return LogbotAICat
 
-	case KVRead:
-		return KVCat
-	case KVWrite:
-		return KVCat
-	case KVCreate:
-		return KVCat
+	case AgentSkillRead:
+		return AgentsCat
+	case AgentSkillWrite:
+		return AgentsCat
+	case AgentRead:
+		return AgentsCat
+	case AgentWrite:
+		return AgentsCat
+	case TableRead:
+		return TablesCat
+	case TableWrite:
+		return TablesCat
+	case TableCreate:
+		return TablesCat
 	}
 	return `UNKNOWN`
 }
@@ -616,12 +638,20 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertWrite
 	case `logbotai`:
 		*c = LogbotAI
-	case `kvread`:
-		*c = KVRead
-	case `kvwrite`:
-		*c = KVWrite
-	case `kvcreate`:
-		*c = KVCreate
+	case `agentskillread`:
+		*c = AgentSkillRead
+	case `agentskillwrite`:
+		*c = AgentSkillWrite
+	case `agentread`:
+		*c = AgentRead
+	case `agentwrite`:
+		*c = AgentWrite
+	case `tableread`:
+		*c = TableRead
+	case `tablewrite`:
+		*c = TableWrite
+	case `tablecreate`:
+		*c = TableCreate
 	default:
 		err = ErrUnknownCapability
 	}
@@ -733,12 +763,20 @@ func (c Capability) String() string {
 		return `Write and Delete Alerts`
 	case LogbotAI:
 		return `Logbot AI`
-	case KVRead:
-		return `Read KV Tables`
-	case KVWrite:
-		return `Write KV Tables`
-	case KVCreate:
-		return `Create and Delete KV Tables`
+	case AgentSkillRead:
+		return `Read Agent Skills`
+	case AgentSkillWrite:
+		return `Write and Delete Agent Skills`
+	case AgentRead:
+		return `Read Agents`
+	case AgentWrite:
+		return `Write and Delete Agents`
+	case TableRead:
+		return `Read Tables`
+	case TableWrite:
+		return `Write Tables`
+	case TableCreate:
+		return `Create and Delete Tables`
 	}
 	return `UNKNOWN`
 }
@@ -848,12 +886,20 @@ func (c Capability) Description() string {
 		return `User can create, update, and delete alerts`
 	case LogbotAI:
 		return `User can use the AI completions and MCP services`
-	case KVRead:
-		return `User can read kv table definitions and rows`
-	case KVWrite:
-		return `User can write kv table rows and modify kv table definitions`
-	case KVCreate:
-		return `User can create and delete kv tables`
+	case AgentSkillRead:
+		return `User can read and access agent skills`
+	case AgentSkillWrite:
+		return `User can create, update, and delete agent skills`
+	case AgentRead:
+		return `User can read and access agents`
+	case AgentWrite:
+		return `User can create, update, and delete agents`
+	case TableRead:
+		return `User can read table definitions and rows`
+	case TableWrite:
+		return `User can write table rows and modify table definitions`
+	case TableCreate:
+		return `User can create and delete tables`
 	}
 	return `UNKNOWN`
 }

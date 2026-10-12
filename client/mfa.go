@@ -34,7 +34,7 @@ func (c *Client) GetTOTPSetupEx(user, pass string, authtype types.AuthType, code
 		AuthCode: code,
 	}
 	var resp types.MFATOTPSetupResponse
-	err := c.postStaticURL(totpSetupUrl(), rq, &resp)
+	err := c.postStaticURL(mfaTotpSetupUrl(), rq, &resp)
 	return resp, err
 }
 
@@ -52,7 +52,7 @@ func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstall
 		AuthCode: code,
 	}
 	var resp types.MFATOTPInstallResponse
-	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp, nil, nil)
+	err := c.methodStaticPushURL(http.MethodPut, mfaTotpSetupUrl(), rq, &resp, nil, nil)
 	if err == nil {
 		c.state = STATE_LOGGED_OFF // the backend boots our session; reflect that locally
 	}
@@ -73,7 +73,7 @@ func (c *Client) ClearTOTP(user, pass string, authtype types.AuthType, code stri
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil, nil, nil)
+	err := c.methodStaticPushURL(http.MethodPost, mfaTotpClearUrl(), rq, nil, nil, nil)
 	return err
 }
 
@@ -92,14 +92,14 @@ func (c *Client) ClearMFA(user, pass string, authtype types.AuthType, code strin
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil, nil, nil)
+	return c.methodStaticPushURL(http.MethodPost, mfaClearUrl(), rq, nil, nil, nil)
 }
 
 // AdminClearMFA completely clears the specified user's MFA
 // configuration. They will have to re-configure MFA on their next
 // login.
 func (c *Client) AdminClearMFA(uid int32) error {
-	return c.methodStaticParamURL(http.MethodDelete, clearUserMFAUrl(uid), nil, nil)
+	return c.methodStaticParamURL(http.MethodDelete, usersIdMfaClearUrl(uid), nil, nil)
 }
 
 // GenerateRecoveryCodes regenerates the user's recovery codes.
@@ -119,7 +119,7 @@ func (c *Client) GenerateRecoveryCodes(user, pass string, authtype types.AuthTyp
 		Remaining int
 		Generated time.Time
 	}
-	if err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp, nil, nil); err == nil {
+	if err = c.methodStaticPushURL(http.MethodPost, mfaRecoveryCodesGenerateUrl(), rq, &resp, nil, nil); err == nil {
 		codes = types.RecoveryCodes{
 			Enabled:   resp.Enabled,
 			Codes:     resp.Codes,
