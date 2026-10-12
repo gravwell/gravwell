@@ -32,6 +32,7 @@ const (
 	AssetSearchInfo             AssetType = "search_info"
 	AssetAgent                  AssetType = "agent"
 	AssetAgentSkill             AssetType = "agent_skill"
+	AssetDataTable              AssetType = "table"
 )
 
 // AssetTypeMap maps the string value of each AssetType constant to its AssetType value.
@@ -60,6 +61,7 @@ var AssetTypeMap = map[string]AssetType{
 	string(AssetSearchInfo):             AssetSearchInfo,
 	string(AssetAgent):                  AssetAgent,
 	string(AssetAgentSkill):             AssetAgentSkill,
+	string(AssetDataTable):              AssetDataTable,
 }
 
 // ValidateAssetType returns true if s corresponds to a known AssetType.
