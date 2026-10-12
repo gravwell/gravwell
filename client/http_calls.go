@@ -38,6 +38,25 @@ func (c *Client) post[RequestT, ResponseT any](url string, in *RequestT) (respon
 	return response, nil
 }
 
+// put submits a PUT request against the given url and expects ResponseT in return.
+func (c *Client) put[RequestT, ResponseT any](url string, in *RequestT) (response ResponseT, _ error) {
+	body, err := json.Marshal(in, jsoncompat.Opts)
+	if err != nil {
+		return response, err
+	}
+	resp, err := c.reqDriver(http.MethodPut, url, body, nil)
+	defer drainResponse(resp)
+	if err != nil {
+		return response, err
+	}
+	if err := json.UnmarshalRead(resp.Body, &response, jsoncompat.Opts); err != nil {
+		return response, err
+	}
+
+	c.objLog.Log("WEB RECV", url, response)
+	return response, nil
+}
+
 // patch submits a PATCH request against the given url.
 func (c *Client) patch[PatchT any, ResponseT any](url string, data PatchT) (patched ResponseT, _ error) {
 	body, err := json.Marshal(data, jsoncompat.Opts)
