@@ -34,10 +34,10 @@ jobs:
       run: go mod verify
 
     - name: Install govulncheck
-      run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
     - name: Install staticcheck
-      run: go install honnef.co/go/tools/cmd/staticcheck@latest
+      run: go install honnef.co/go/tools/cmd/staticcheck@2026.2.2
 
     - name: Run govulncheck
       run: |
