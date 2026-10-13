@@ -28,9 +28,9 @@ type Config struct {
 	hosted.BaseConfig
 	hosted.MultiTagConfig
 	hosted.PollingConfig
-	Client_Id     string `json:"-"` // DO NOT send this when marshalling
-	Client_Secret string `json:"-"` // DO NOT send this when marshalling
-	Api           []Api
+	Client_Id     string `json:"-" dynamic:"secret,required"` // DO NOT send this when marshalling
+	Client_Secret string `json:"-" dynamic:"secret,required"` // DO NOT send this when marshalling
+	Api           []Api  `dynamic:"enum=audit|mta-delivery|mta-receipt|mta-process|mta-av|mta-spam|mta-internal|mta-impersonation|mta-url|mta-attachment|mta-journal"`
 	Host          string
 	Preprocessor  []string
 }
@@ -85,7 +85,9 @@ func (c *Config) Verify() error {
 		return err
 	}
 
-	return nil
+	// last, so the tags checked are the ones this config will really write to, which for
+	// a prefixed multi API config is one resolved tag per API rather than the prefix
+	return hosted.VerifyTags(c)
 }
 
 func (c *Config) Tags() (tags []string) {
