@@ -91,7 +91,7 @@ type resourceFields struct {
 func resourceOf(a *types.Agent) resourceFields {
 	return resourceFields{
 		ID:       a.ID,
-		ParentID: a.ParentID,
+		ParentID: a.ParentID.Value(),
 		OwnerID:  a.OwnerID,
 		Readers:  a.Readers,
 		Writers:  a.Writers,
@@ -102,10 +102,13 @@ func resourceOf(a *types.Agent) resourceFields {
 
 // applyTo copies the resource fields onto an agent.
 func (r resourceFields) applyTo(a *types.Agent) {
-	a.ID, a.ParentID, a.OwnerID = r.ID, r.ParentID, r.OwnerID
+	a.ID, a.OwnerID = r.ID, r.OwnerID
 	a.Readers, a.Writers, a.Labels = r.Readers, r.Writers, r.Labels
 	if r.KitID != "" {
 		a.KitID = types.NewNullable(r.KitID)
+	}
+	if r.ParentID != "" {
+		a.ParentID = types.NewNullable(r.ParentID)
 	}
 }
 
