@@ -103,6 +103,15 @@ type Writer interface {
 	NegotiateTag(name string) (entry.EntryTag, error) // try to negotiate a tag
 }
 
+// AcknowledgedWriter is the optional durable-delivery contract for hosted
+// ingesters that must not advance a checkpoint until an individual entry is
+// confirmed on disk by an indexer. NativeRuntime implements this interface.
+// State-store Sync is intentionally separate and does not acknowledge ingest
+// delivery.
+type AcknowledgedWriter interface {
+	WriteAcknowledged(context.Context, entry.Entry) error
+}
+
 // TagNegotiator is just a limited version of the writer so that a hosted ingester can check tag negotiation at startup
 type TagNegotiator interface {
 	NegotiateTag(name string) (entry.EntryTag, error)
