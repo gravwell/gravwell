@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/gob"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
@@ -148,4 +149,9 @@ func (n *Nullable[T]) GobDecode(data []byte) error {
 	}
 	n.value, n.valid = g.Value, g.Valid
 	return nil
+}
+
+// ToSQLNullString does as it says on the tin.
+func (n *Nullable[T]) ToSQLNullString() sql.NullString {
+	return sql.NullString{String: n.String(), Valid: !n.IsNull()}
 }
