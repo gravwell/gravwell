@@ -152,6 +152,6 @@ func (n *Nullable[T]) GobDecode(data []byte) error {
 }
 
 // ToSQLNullString does as it says on the tin.
-func (n *Nullable[T]) ToSQLNullString() sql.NullString {
-	return sql.NullString{String: n.String(), Valid: !n.IsNull()}
+func (n *Nullable[string]) ToSQLNullString() sql.NullString {
+	return sql.NullString{String: fmt.Sprint(n.Value()), Valid: !n.IsNull()}
 }
