@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -108,33 +108,36 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 		// 1. They cannot be required as what would the point be?
 		// 2. Bool flags must be handled as standalones; they must not interfere with other flags.
 		_, isBoolProvider := fields[key].Provider.(*BoolProvider)
-		// if this value is required, but unset, add it to the list and move on.
-		//
-		// NOTE(rlandau): this uses fs.Changed(), which will fail default values.
-		// I am assuming that if you need a value, a default is irrelevant.
-		if fields[key].Required && !isBoolProvider && !changed {
-			missingRequireds = append(missingRequireds, fields[key].Flag.Name)
-			continue
-		}
 
-		var v string
-		if isBoolProvider { // get as bool
-			if changed { // only bother with changed flags so we don't clobber initial values unnecessarily
+		// Run per-invocation setup/prepop for every field, regardless of whether or not the flag
+		// is supplied. Some providers (ex: kits build --rebuild) populate required fields entirely
+		// through SetArgs without the caller ever passing the corresponding flag. That population
+		// must happen before we decide whether a required field is actually missing.
+		fields[key].Provider.SetArgs(80, 60)
+
+		// An explicit flag should always take priority over whatever SetArgs populated.
+		if changed {
+			var v string
+			if isBoolProvider {
 				b, err := fs.GetBool(flagName)
 				if err != nil {
 					return nil, err
 				}
 				v = strconv.FormatBool(b)
+			} else if v, err = fs.GetString(flagName); err != nil {
+				return nil, err
 			}
-		} else if v, err = fs.GetString(flagName); err != nil { // get everything else as string
-			return nil, err
+
+			if invalid := fields[key].Provider.Set(v); invalid != "" {
+				return nil, fmt.Errorf("%s is not a valid input to --%s: %s", v, fields[key].Flag.Name, invalid)
+			}
 		}
 
-		// ensure SetArgs has been called here in case we need to late-populate
-		// This is a hack while we await mono#2448.
-		fields[key].Provider.SetArgs(80, 60)
-		if invalid := fields[key].Provider.Set(v); invalid != "" {
-			return nil, fmt.Errorf("%s is not a valid input to --%s: %s", v, fields[key].Flag.Name, invalid)
+		// NOTE(rlandau): checked via Get(), not fs.Changed(), so a field satisfied by
+		// SetArgs-driven prepopulation (rather than an explicit flag) is not misreported
+		// as missing.
+		if fields[key].Required && !isBoolProvider && fields[key].Provider.Get() == "" {
+			missingRequireds = append(missingRequireds, fields[key].Flag.Name)
 		}
 	}
 	return missingRequireds, nil
