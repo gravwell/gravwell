@@ -226,9 +226,14 @@ func TestStderrRelay(t *testing.T) {
 		t.Errorf("emitted %d lines, want 3:\n%s", c, out.String())
 	}
 
-	// a line with no newline is not buffered without bound
+	// a line with no newline is not buffered without bound, and none of it is lost:
+	// a write much larger than maxStderrLine must still be emitted in full, not just
+	// its first maxStderrLine bytes
 	w.Write(bytes.Repeat([]byte("x"), maxStderrLine*2))
 	if len(w.buf) != 0 {
 		t.Errorf("stderr relay is holding %d bytes", len(w.buf))
+	}
+	if c := strings.Count(out.String(), strings.Repeat("x", maxStderrLine)); c != 2 {
+		t.Errorf("expected 2 full %d-byte chunks relayed, found %d:\n%s", maxStderrLine, c, out.String())
 	}
 }
