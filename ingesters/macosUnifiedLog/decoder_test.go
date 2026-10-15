@@ -171,6 +171,88 @@ func TestDecodeGarbage(t *testing.T) {
 	checkEvents(t, events, sampleEvents[:1])
 }
 
+const realWorldSample = `[{
+  "timezoneName" : "",
+  "eventType" : "activityCreateEvent",
+  "formatString" : "",
+  "userID" : 0,
+  "activityIdentifier" : 4267499,
+  "subsystem" : "",
+  "category" : "",
+  "threadID" : 1801340,
+  "senderImageUUID" : "97898286-081F-30D5-B1EB-65EADA074AE2",
+  "backtrace" : {
+    "frames" : [
+      {
+        "imageOffset" : 175268,
+        "imageUUID" : "97898286-081F-30D5-B1EB-65EADA074AE2"
+      }
+    ]
+  },
+  "bootUUID" : "",
+  "processImagePath" : "\/usr\/libexec\/runningboardd",
+  "senderImagePath" : "\/System\/Library\/PrivateFrameworks\/RunningBoard.framework\/Versions\/A\/RunningBoard",
+  "timestamp" : "2026-10-15 12:56:43.643291-0400",
+  "creatorActivityID" : 0,
+  "machTimestamp" : 4385161091565,
+  "eventMessage" : "acquireAssertionWithDescriptor",
+  "processImageUUID" : "EF79FF99-784F-3477-9AD6-DFF7F007EFF2",
+  "traceID" : 4703001829209014530,
+  "processID" : 410,
+  "senderProgramCounter" : 175268,
+  "parentActivityIdentifier" : 0
+},{
+  "timezoneName" : "",
+  "eventType" : "activityCreateEvent",
+  "formatString" : "",
+  "userID" : 0,
+  "activityIdentifier" : 4267500,
+  "subsystem" : "",
+  "category" : "",
+  "threadID" : 1801339,
+  "senderImageUUID" : "97898286-081F-30D5-B1EB-65EADA074AE2",
+  "backtrace" : {
+    "frames" : [
+      {
+        "imageOffset" : 56184,
+        "imageUUID" : "97898286-081F-30D5-B1EB-65EADA074AE2"
+      }
+    ]
+  },
+  "bootUUID" : "",
+  "processImagePath" : "\/usr\/libexec\/runningboardd",
+  "senderImagePath" : "\/System\/Library\/PrivateFrameworks\/RunningBoard.framework\/Versions\/A\/RunningBoard",
+  "timestamp" : "2026-10-15 12:56:43.647892-0400",
+  "creatorActivityID" : 0,
+  "machTimestamp" : 4385161201984,
+  "eventMessage" : "state update",
+  "processImageUUID" : "EF79FF99-784F-3477-9AD6-DFF7F007EFF2",
+  "traceID" : 4702937735446724866,
+  "processID" : 410,
+  "senderProgramCounter" : 56184,
+  "parentActivityIdentifier" : 4267499
+}
+`
+
+var realWorldEvents = []string{
+	`{"timezoneName":"","eventType":"activityCreateEvent","formatString":"","userID":0,"activityIdentifier":4267499,"subsystem":"","category":"","threadID":1801340,"senderImageUUID":"97898286-081F-30D5-B1EB-65EADA074AE2","backtrace":{"frames":[{"imageOffset":175268,"imageUUID":"97898286-081F-30D5-B1EB-65EADA074AE2"}]},"bootUUID":"","processImagePath":"\/usr\/libexec\/runningboardd","senderImagePath":"\/System\/Library\/PrivateFrameworks\/RunningBoard.framework\/Versions\/A\/RunningBoard","timestamp":"2026-10-15 12:56:43.643291-0400","creatorActivityID":0,"machTimestamp":4385161091565,"eventMessage":"acquireAssertionWithDescriptor","processImageUUID":"EF79FF99-784F-3477-9AD6-DFF7F007EFF2","traceID":4703001829209014530,"processID":410,"senderProgramCounter":175268,"parentActivityIdentifier":0}`,
+	`{"timezoneName":"","eventType":"activityCreateEvent","formatString":"","userID":0,"activityIdentifier":4267500,"subsystem":"","category":"","threadID":1801339,"senderImageUUID":"97898286-081F-30D5-B1EB-65EADA074AE2","backtrace":{"frames":[{"imageOffset":56184,"imageUUID":"97898286-081F-30D5-B1EB-65EADA074AE2"}]},"bootUUID":"","processImagePath":"\/usr\/libexec\/runningboardd","senderImagePath":"\/System\/Library\/PrivateFrameworks\/RunningBoard.framework\/Versions\/A\/RunningBoard","timestamp":"2026-10-15 12:56:43.647892-0400","creatorActivityID":0,"machTimestamp":4385161201984,"eventMessage":"state update","processImageUUID":"EF79FF99-784F-3477-9AD6-DFF7F007EFF2","traceID":4702937735446724866,"processID":410,"senderProgramCounter":56184,"parentActivityIdentifier":4267499}`,
+}
+
+func TestDecodeRealWorldSample(t *testing.T) {
+	events, _, err := decodeAll(t, realWorldSample, maxEventSize)
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
+	}
+	checkEvents(t, events, realWorldEvents)
+
+	for i, raw := range events {
+		if _, err := eventTimestamp([]byte(raw)); err != nil {
+			t.Errorf("event %d: failed to parse timestamp: %v", i, err)
+		}
+	}
+}
+
 func TestEventTimestamp(t *testing.T) {
 	want := time.Date(2026, 9, 30, 16, 2, 12, 345678000, time.UTC)
 	ts, err := eventTimestamp([]byte(sampleEvents[0]))
