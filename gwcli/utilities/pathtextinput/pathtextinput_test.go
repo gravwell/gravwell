@@ -266,6 +266,114 @@ func TestView(t *testing.T) {
 	}
 }
 
+func TestExpandTilde(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"empty input is untouched", "", ""},
+		{"relative path is untouched", "foo", "foo"},
+		{"absolute path is untouched", "/abs/path", "/abs/path"},
+		{"bare tilde expands to home", "~", home},
+		{"tilde-slash expands to home", "~/", home},
+		{"tilde path expands into home", "~/foo", path.Join(home, "foo")},
+		{"~foo is not mistaken for a tilde path", "~foo/bar.json", "~foo/bar.json"},
+		{"~user is not expanded", "~user", "~user"},
+		{"~~ is not expanded", "~~", "~~"},
+		{"~$ is not expanded", "~$report.docx", "~$report.docx"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pathtextinput.ExpandTilde(tt.input); got != tt.want {
+				t.Fatal(testsupport.ExpectedActual(tt.want, got))
+			}
+		})
+	}
+}
+
+func TestExpandTildeNoHome(t *testing.T) {
+	t.Setenv("HOME", "")
+	if got := pathtextinput.ExpandTilde("~/foo"); got != "~/foo" {
+		t.Fatal(testsupport.ExpectedActual("~/foo", got))
+	}
+}
+
+// "bare tilde" reproduces the original bug report: entering an interactive path field
+// (e.g. `flows import`) and typing a lone "~" produced no suggestions at all.
+func TestTildeSuggestions(t *testing.T) {
+	home := generateDirectories(t)
+	t.Setenv("HOME", home)
+
+	t.Run("bare tilde lists the home directory itself, not its parent", func(t *testing.T) {
+		pti := pathtextinput.New(pathtextinput.Options{})
+		pti.Focus()
+		pti.SetValue("~")
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+
+		want := []string{"~/dir1", "~/dir2", "~/file1", "~/file2", "~/file3"}
+		actual := pti.AvailableSuggestions()
+		if !testsupport.SlicesUnorderedEqual(actual, want) {
+			t.Fatal("incorrect available suggestions", testsupport.ExpectedActual(want, actual))
+		}
+	})
+
+	t.Run("tilde slash lists the home directory, suggestions keep the literal tilde form", func(t *testing.T) {
+		pti := pathtextinput.New(pathtextinput.Options{})
+		pti.Focus()
+		pti.SetValue("~/")
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+
+		want := []string{"~/dir1", "~/dir2", "~/file1", "~/file2", "~/file3"}
+		actual := pti.AvailableSuggestions()
+		if !testsupport.SlicesUnorderedEqual(actual, want) {
+			t.Fatal("incorrect available suggestions", testsupport.ExpectedActual(want, actual))
+		}
+	})
+
+	t.Run("tilde slash partial filename", func(t *testing.T) {
+		pti := pathtextinput.New(pathtextinput.Options{})
+		pti.Focus()
+		pti.SetValue("~/fi")
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+
+		want := []string{"~/file1", "~/file2", "~/file3"}
+		actual := pti.AvailableSuggestions()
+		if !testsupport.SlicesUnorderedEqual(actual, want) {
+			t.Fatal("incorrect available suggestions", testsupport.ExpectedActual(want, actual))
+		}
+	})
+
+	t.Run("tilde path into a subdirectory", func(t *testing.T) {
+		pti := pathtextinput.New(pathtextinput.Options{})
+		pti.Focus()
+		pti.SetValue("~/dir2/file")
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+
+		want := []string{"~/dir2/file1", "~/dir2/fileA"}
+		actual := pti.AvailableSuggestions()
+		if !testsupport.SlicesUnorderedEqual(actual, want) {
+			t.Fatal("incorrect available suggestions", testsupport.ExpectedActual(want, actual))
+		}
+	})
+
+	t.Run("tab completion preserves the literal tilde form", func(t *testing.T) {
+		pti := pathtextinput.New(pathtextinput.Options{})
+		pti.Focus()
+		pti.SetValue("~/")
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+
+		want := "~/dir1"
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+		if pti.Value() != want {
+			t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
+		}
+	})
+}
+
 //#region helper functions
 
 /*

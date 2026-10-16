@@ -223,6 +223,30 @@ func TestPathProvider(t *testing.T) {
 	})
 }
 
+func TestPathProviderTildeExpansion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if f, err := os.Create(path.Join(home, "somefile")); err != nil {
+		t.Fatal(err)
+	} else {
+		f.Close()
+	}
+
+	provider := &scaffoldcreate.PathProvider{}
+	provider.Initialize("", false)
+
+	provider.Set("~/somefile")
+	want := path.Join(home, "somefile")
+	if got := provider.Get(); got != want {
+		t.Fatal("tilde value was not expanded", testsupport.ExpectedActual(want, got))
+	}
+
+	provider.Set("~weird")
+	if got := provider.Get(); got != "~weird" {
+		t.Fatal("unsupported tilde form should be returned unchanged", testsupport.ExpectedActual("~weird", got))
+	}
+}
+
 func TestMSLProvider(t *testing.T) {
 	// Spin up an MSL as a Field and test that it can:
 	// 1. enter takeover mode
