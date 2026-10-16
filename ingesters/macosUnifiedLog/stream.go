@@ -197,9 +197,7 @@ type stderrRelay struct {
 	lg  *log.KVLogger
 	buf []byte
 
-	// midLine is true once the leading edge of the current logical line has
-	// already been emitted, so later chunks of that same line must not have
-	// their leading edge trimmed again.
+	// midLine tracks whether we're mid-line, so later chunks aren't re-trimmed
 	midLine bool
 }
 

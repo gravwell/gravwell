@@ -153,8 +153,7 @@ func (s *streamConfig) args() []string {
 	return args
 }
 
-// resolveSource returns the source IP to stamp on s's entries: s's own
-// Source-Override if it set one, otherwise the ingester-wide global fallback.
+// resolveSource returns s's Source-Override if set, else the global fallback.
 func resolveSource(s *streamConfig, global net.IP) net.IP {
 	if s.src != nil {
 		return s.src
