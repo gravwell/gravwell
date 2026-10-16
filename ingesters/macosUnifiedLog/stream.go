@@ -52,6 +52,7 @@ type streamer struct {
 	args     []string
 	tag      entry.EntryTag
 	src      net.IP
+	host     string
 	ignoreTS bool
 	proc     entryHandler
 	lg       *log.KVLogger
@@ -62,12 +63,13 @@ type streamer struct {
 	warnedTS bool
 }
 
-func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, globalSrc net.IP, proc *processors.ProcessorSet, lg *log.Logger) *streamer {
+func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, globalSrc net.IP, host string, proc *processors.ProcessorSet, lg *log.Logger) *streamer {
 	return &streamer{
 		name:     name,
 		args:     sc.args(),
 		tag:      tag,
 		src:      resolveSource(sc, globalSrc),
+		host:     host,
 		ignoreTS: sc.Ignore_Timestamps,
 		proc:     proc,
 		lg:       log.NewLoggerWithKV(lg, log.KV("stream", name)),
@@ -183,12 +185,16 @@ func (s *streamer) newEntry(data []byte) *entry.Entry {
 			s.lg.Warn("failed to read event timestamp, using the current time", log.KVErr(err))
 		}
 	}
-	return &entry.Entry{
+	ent := &entry.Entry{
 		TS:   ts,
 		SRC:  s.src,
 		Tag:  s.tag,
 		Data: data,
 	}
+	if s.host != `` {
+		ent.AddEnumeratedValues([]entry.EnumeratedValue{{Name: `host`, Value: entry.StringEnumData(s.host)}})
+	}
+	return ent
 }
 
 // stderrRelay forwards each line the log process writes to stderr into the ingester log,

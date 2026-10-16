@@ -97,6 +97,30 @@ func TestGetConfigNoStreams(t *testing.T) {
 	}
 }
 
+func TestDisableHostnameAttach(t *testing.T) {
+	cfg, err := GetConfig(writeConfig(t, `
+[Stream "system"]
+`), ``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Global.Disable_Hostname_Attach {
+		t.Error("Disable-Hostname-Attach should default to false")
+	}
+
+	cfg2, err := GetConfig(writeConfig(t, `
+Disable-Hostname-Attach=true
+
+[Stream "system"]
+`), ``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg2.Global.Disable_Hostname_Attach {
+		t.Error("Disable-Hostname-Attach=true did not parse")
+	}
+}
+
 func TestGetConfigOverlay(t *testing.T) {
 	base := writeConfig(t, `
 [Stream "auth"]

@@ -69,6 +69,14 @@ func main() {
 		globalSrc = net.ParseIP(cfg.Global.Source_Override)
 	}
 
+	var hostname string
+	if !cfg.Global.Disable_Hostname_Attach {
+		var err error
+		if hostname, err = os.Hostname(); err != nil {
+			lg.Warn("failed to resolve hostname, entries will not include a host field", log.KVErr(err))
+		}
+	}
+
 	igst, err := ib.GetMuxer()
 	if err != nil {
 		lg.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
@@ -90,7 +98,7 @@ func main() {
 		}
 		procs = append(procs, proc)
 
-		s := newStreamer(name, sc, tag, globalSrc, proc, lg)
+		s := newStreamer(name, sc, tag, globalSrc, hostname, proc, lg)
 		wg.Go(func() { s.run(ctx) })
 	}
 

@@ -46,8 +46,14 @@ type streamConfig struct {
 	src net.IP // parsed Source_Override
 }
 
+// global wraps the standard ingest config with options specific to this ingester.
+type global struct {
+	config.IngestConfig
+	Disable_Hostname_Attach bool // when true, entries are not stamped with a "host" field by default
+}
+
 type cfgType struct {
-	Global       config.IngestConfig
+	Global       global
 	Attach       attach.AttachConfig
 	Stream       map[string]*streamConfig
 	Preprocessor processors.ProcessorConfig
@@ -67,7 +73,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 }
 
 func (c *cfgType) Verify() error {
-	if err := c.Global.Verify(); err != nil {
+	if err := c.Global.IngestConfig.Verify(); err != nil {
 		return err
 	} else if err = c.Attach.Verify(); err != nil {
 		return err
@@ -179,7 +185,7 @@ func (c *cfgType) Tags() ([]string, error) {
 }
 
 func (c *cfgType) IngestBaseConfig() config.IngestConfig {
-	return c.Global
+	return c.Global.IngestConfig
 }
 
 func (c *cfgType) AttachConfig() attach.AttachConfig {

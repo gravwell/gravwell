@@ -553,7 +553,7 @@ func TestNewStreamer(t *testing.T) {
 		t.Fatal(err)
 	}
 	// a global distinct from the override, so the assertion can't pass vacuously
-	s := newStreamer("auth", sc, tag, net.ParseIP("10.9.9.9"), nil, lg)
+	s := newStreamer("auth", sc, tag, net.ParseIP("10.9.9.9"), "", nil, lg)
 	if s.name != "auth" {
 		t.Errorf("name = %q, want %q", s.name, "auth")
 	}
@@ -582,9 +582,33 @@ func TestNewStreamer(t *testing.T) {
 	if err := sc2.validate(); err != nil {
 		t.Fatal(err)
 	}
-	s2 := newStreamer("default", sc2, tag, global, nil, lg)
+	s2 := newStreamer("default", sc2, tag, global, "", nil, lg)
 	if s2.src == nil || !s2.src.Equal(global) {
 		t.Errorf("src = %v, want the global fallback %v", s2.src, global)
+	}
+}
+
+// TestNewEntryHost checks that a non-empty host is stamped as a "host"
+// enumerated value, and that an empty host (Disable-Hostname-Attach, or a
+// failed os.Hostname lookup) leaves the entry without one.
+func TestNewEntryHost(t *testing.T) {
+	sc := &streamConfig{}
+	if err := sc.validate(); err != nil {
+		t.Fatal(err)
+	}
+	lg := log.New(&syncBuffer{})
+
+	s := newStreamer("system", sc, entry.EntryTag(1), nil, "mac.local", nil, lg)
+	ent := s.newEntry([]byte(`{"timestamp":"2026-09-30 10:02:12.345678-0600"}`))
+	ev, ok := ent.EVB.Get("host")
+	if !ok || ev.Value.String() != "mac.local" {
+		t.Fatalf("host enumerated value not wired through, got %v (ok=%v)", ev, ok)
+	}
+
+	s2 := newStreamer("system", sc, entry.EntryTag(1), nil, "", nil, lg)
+	ent2 := s2.newEntry([]byte(`{"timestamp":"2026-09-30 10:02:12.345678-0600"}`))
+	if ent2.EVB.Populated() {
+		t.Fatalf("expected no enumerated values with an empty host, got %v", ent2.EVB.Values())
 	}
 }
 

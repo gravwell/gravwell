@@ -23,11 +23,15 @@ Each `[Stream "name"]` stanza runs its own `log stream` process. Use several sta
 | `Level` | `default`, `info`, or `debug`, passed as `--level`. Each level includes the ones before it, and `info` and `debug` are much more verbose. |
 | `Predicate` | An [NSPredicate](https://developer.apple.com/documentation/foundation/nspredicate) filter, passed as `--predicate`. The value goes straight to `log` without a shell, so it needs no extra quoting. |
 | `Process` | A process name or PID, passed as `--process`. Can be repeated. |
-| `Type` | `activity`, `log`, or `trace`, passed as `--type`. Can be repeated. |
+| `Type` | `activity`, `log`, or `trace`, passed as `--type`. Can be repeated. `activity` and `trace` are high-volume OS instrumentation events (activity-tracing spans and signposts), not ordinary log messages; the shipped example restricts to `Type=log` for that reason. |
 | `Include-Source` | Include symbol names and source line numbers where available (`--source`). |
 | `Ignore-Timestamps` | Use the time an event is read instead of its own `timestamp` field. |
 | `Source-Override` | Override the entry source IP for this stream. |
 | `Preprocessor` | Preprocessors to apply to this stream's entries. Can be repeated. |
+
+`[Global]` also accepts `Disable-Hostname-Attach` (default `false`): unless set, every entry is stamped
+with a `host` enumerated value containing this machine's hostname, so events from multiple Macs reporting
+into the same Gravwell instance can be told apart without a separate `attach` preprocessor.
 
 ```
 [Stream "auth"]
