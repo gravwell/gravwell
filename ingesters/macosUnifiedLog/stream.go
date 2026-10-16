@@ -204,11 +204,16 @@ func (w *stderrRelay) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
-		w.emit(w.buf[:i])
+		line := w.buf[:i]
 		w.buf = w.buf[i+1:]
+		for len(line) > maxStderrLine {
+			w.emit(line[:maxStderrLine], false)
+			line = line[maxStderrLine:]
+		}
+		w.emit(line, true)
 	}
 	for len(w.buf) >= maxStderrLine {
-		w.emit(w.buf[:maxStderrLine])
+		w.emit(w.buf[:maxStderrLine], false)
 		w.buf = w.buf[maxStderrLine:]
 	}
 	w.buf = append([]byte(nil), w.buf...) // drop the consumed prefix
