@@ -86,6 +86,8 @@ var _ FieldProvider = &TextAreaProvider{}
 type TextProvider struct {
 	ti textinput.Model
 
+	defaultValue string
+
 	// Function to use to create the base textinput instead of stylesheet.NewTI().
 	// Useful for setting validator func that do not rely on external data.
 	CustomInit func() textinput.Model
@@ -97,6 +99,8 @@ type TextProvider struct {
 }
 
 func (p *TextProvider) Initialize(defaultValue string, required bool) {
+	p.defaultValue = defaultValue
+
 	if p.CustomInit != nil {
 		p.ti = p.CustomInit()
 		// set default value
@@ -113,6 +117,7 @@ func (p *TextProvider) Reset() {
 		return
 	}
 	p.ti.Reset()
+	p.ti.SetValue(p.defaultValue)
 }
 
 func (p *TextProvider) SetArgs(_, _ int) {
@@ -158,12 +163,16 @@ func (p *TextProvider) ToggleFocus(focus bool) {
 }
 
 type PathProvider struct {
+	defaultValue string
+
 	pti pathtextinput.Model
 
 	Options pathtextinput.Options
 }
 
 func (p *PathProvider) Initialize(defaultValue string, required bool) {
+	p.defaultValue = defaultValue
+
 	if p.Options.CustomTI == nil {
 		p.Options.CustomTI = func() textinput.Model {
 			ti := stylesheet.NewTI(defaultValue, !required)
@@ -177,6 +186,7 @@ func (p *PathProvider) Initialize(defaultValue string, required bool) {
 
 func (p *PathProvider) Reset() {
 	p.pti.Reset()
+	p.pti.SetValue(p.defaultValue)
 }
 
 func (p *PathProvider) SetArgs(_, _ int) {}
@@ -580,6 +590,8 @@ func DefaultTextAreaUnselectedText(hovered bool) (titleLine, secondLine string) 
 type TextAreaProvider struct {
 	ta textarea.Model
 
+	defaultValue string
+
 	// are we in takeover mode?
 	takeover bool
 
@@ -609,6 +621,8 @@ type TextAreaProvider struct {
 }
 
 func (p *TextAreaProvider) Initialize(defaultValue string, required bool) {
+	p.defaultValue = defaultValue
+
 	if p.CustomInit != nil {
 		p.ta = p.CustomInit(defaultValue, required)
 	} else {
@@ -627,6 +641,7 @@ func (p *TextAreaProvider) Reset() {
 		return
 	}
 	p.ta.Reset()
+	p.ta.SetValue(p.defaultValue)
 }
 
 func (p *TextAreaProvider) SetArgs(width, height int) {
