@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -195,6 +196,11 @@ func (s *streamer) newEntry(data []byte) *entry.Entry {
 type stderrRelay struct {
 	lg  *log.KVLogger
 	buf []byte
+
+	// midLine is true once the leading edge of the current logical line has
+	// already been emitted, so later chunks of that same line must not have
+	// their leading edge trimmed again.
+	midLine bool
 }
 
 func (w *stderrRelay) Write(p []byte) (int, error) {
@@ -221,12 +227,23 @@ func (w *stderrRelay) Write(p []byte) (int, error) {
 }
 
 func (w *stderrRelay) flush() {
-	w.emit(w.buf)
+	w.emit(w.buf, true)
 	w.buf = nil
 }
 
-func (w *stderrRelay) emit(line []byte) {
-	if line = bytes.TrimSpace(line); len(line) > 0 {
-		w.lg.Warn("log stream stderr", log.KV("output", string(line[:min(len(line), maxStderrLine)])))
+// emit logs chunk as one record; chunk must be at most maxStderrLine bytes.
+// A long line gets split across several emit calls, with final set on the
+// last one. Trimming only touches the line's outer edges, not every chunk,
+// so whitespace sitting on a chunk boundary survives.
+func (w *stderrRelay) emit(chunk []byte, final bool) {
+	if !w.midLine {
+		chunk = bytes.TrimLeftFunc(chunk, unicode.IsSpace)
+	}
+	w.midLine = !final
+	if final {
+		chunk = bytes.TrimRightFunc(chunk, unicode.IsSpace)
+	}
+	if len(chunk) > 0 {
+		w.lg.Warn("log stream stderr", log.KV("output", string(chunk)))
 	}
 }
