@@ -62,12 +62,12 @@ type streamer struct {
 	warnedTS bool
 }
 
-func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, src net.IP, proc *processors.ProcessorSet, lg *log.Logger) *streamer {
+func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, globalSrc net.IP, proc *processors.ProcessorSet, lg *log.Logger) *streamer {
 	return &streamer{
 		name:     name,
 		args:     sc.args(),
 		tag:      tag,
-		src:      src,
+		src:      resolveSource(sc, globalSrc),
 		ignoreTS: sc.Ignore_Timestamps,
 		proc:     proc,
 		lg:       log.NewLoggerWithKV(lg, log.KV("stream", name)),

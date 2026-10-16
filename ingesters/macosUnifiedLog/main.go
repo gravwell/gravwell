@@ -90,11 +90,7 @@ func main() {
 		}
 		procs = append(procs, proc)
 
-		src := sc.src
-		if src == nil {
-			src = globalSrc
-		}
-		s := newStreamer(name, sc, tag, src, proc, lg)
+		s := newStreamer(name, sc, tag, globalSrc, proc, lg)
 		wg.Go(func() { s.run(ctx) })
 	}
 
