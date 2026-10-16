@@ -13,13 +13,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
@@ -64,6 +69,84 @@ func (s *syncBuffer) String() string {
 	s.Lock()
 	defer s.Unlock()
 	return s.b.String()
+}
+
+// failNthHandler succeeds for every entry except the nth (1-indexed), which it fails once.
+type failNthHandler struct {
+	sync.Mutex
+	n       int
+	attempt int
+	ents    []*entry.Entry
+}
+
+func (h *failNthHandler) ProcessContext(ent *entry.Entry, ctx context.Context) error {
+	h.Lock()
+	defer h.Unlock()
+	h.attempt++
+	if h.attempt == h.n {
+		return errors.New("simulated entry failure")
+	}
+	h.ents = append(h.ents, ent)
+	return nil
+}
+
+func (h *failNthHandler) count() int {
+	h.Lock()
+	defer h.Unlock()
+	return len(h.ents)
+}
+
+// cancelingHandler cancels ctx, then fails, simulating a send that races shutdown.
+type cancelingHandler struct {
+	cancel context.CancelFunc
+	calls  int
+}
+
+func (h *cancelingHandler) ProcessContext(ent *entry.Entry, ctx context.Context) error {
+	h.calls++
+	h.cancel()
+	return errors.New("simulated send failure")
+}
+
+// parseLogLines parses structured log output in s. It splits on '\n', so a
+// value containing a newline will misparse.
+func parseLogLines(t *testing.T, s string) []rfc5424.Message {
+	t.Helper()
+	var msgs []rfc5424.Message
+	for _, line := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		var m rfc5424.Message
+		if err := m.UnmarshalBinary([]byte(line)); err != nil {
+			t.Fatalf("failed to parse log line %q: %v", line, err)
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs
+}
+
+// sdValue returns the value of the named structured-data parameter on m, if any.
+func sdValue(m rfc5424.Message, name string) (string, bool) {
+	for _, sd := range m.StructuredData {
+		for _, p := range sd.Parameters {
+			if p.Name == name {
+				return p.Value, true
+			}
+		}
+	}
+	return "", false
+}
+
+// splitIntoChunks splits s into pieces of the given sizes, repeating the list as needed.
+func splitIntoChunks(s string, sizes ...int) []string {
+	var chunks []string
+	for i := 0; len(s) > 0; i = (i + 1) % len(sizes) {
+		n := min(sizes[i], len(s))
+		chunks = append(chunks, s[:n])
+		s = s[n:]
+	}
+	return chunks
 }
 
 // shellStreamer returns a streamer that runs script with /bin/sh in place of log,
@@ -226,14 +309,373 @@ func TestStderrRelay(t *testing.T) {
 		t.Errorf("emitted %d lines, want 3:\n%s", c, out.String())
 	}
 
-	// a line with no newline is not buffered without bound, and none of it is lost:
-	// a write much larger than maxStderrLine must still be emitted in full, not just
-	// its first maxStderrLine bytes
+	// a write with no newline still gets chunked and fully emitted, not just truncated
 	w.Write(bytes.Repeat([]byte("x"), maxStderrLine*2))
 	if len(w.buf) != 0 {
 		t.Errorf("stderr relay is holding %d bytes", len(w.buf))
 	}
 	if c := strings.Count(out.String(), strings.Repeat("x", maxStderrLine)); c != 2 {
 		t.Errorf("expected 2 full %d-byte chunks relayed, found %d:\n%s", maxStderrLine, c, out.String())
+	}
+}
+
+// TestStderrRelayLongLine checks a long newline-terminated line is fully
+// relayed, chunked into maxStderrLine-sized records.
+func TestStderrRelayLongLine(t *testing.T) {
+	out := &syncBuffer{}
+	w := &stderrRelay{lg: log.NewLoggerWithKV(log.New(out))}
+	line := bytes.Repeat([]byte("y"), 6000)
+	w.Write(append(append([]byte{}, line...), '\n'))
+
+	var got strings.Builder
+	for _, m := range parseLogLines(t, out.String()) {
+		if v, ok := sdValue(m, "output"); ok {
+			got.WriteString(v)
+		}
+	}
+	if got.String() != string(line) {
+		t.Fatalf("relayed %d of %d bytes from a single long line", got.Len(), len(line))
+	}
+}
+
+// TestStderrRelayNoNewlineChunking checks tail-chunking at the maxStderrLine
+// boundary, then flush, for writes that never see a newline.
+func TestStderrRelayNoNewlineChunking(t *testing.T) {
+	tests := []struct {
+		size        int
+		wantRecords int
+		wantBufLen  int
+	}{
+		{maxStderrLine - 1, 0, maxStderrLine - 1},
+		{maxStderrLine, 1, 0},
+		{maxStderrLine + 1, 1, 1},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("size=%d", tt.size), func(t *testing.T) {
+			out := &syncBuffer{}
+			w := &stderrRelay{lg: log.NewLoggerWithKV(log.New(out))}
+			w.Write(bytes.Repeat([]byte("z"), tt.size))
+			if len(w.buf) != tt.wantBufLen {
+				t.Errorf("buf len = %d, want %d", len(w.buf), tt.wantBufLen)
+			}
+			if n := strings.Count(out.String(), "log stream stderr"); n != tt.wantRecords {
+				t.Errorf("emitted %d records, want %d", n, tt.wantRecords)
+			}
+
+			w.flush()
+			var got strings.Builder
+			for _, m := range parseLogLines(t, out.String()) {
+				if v, ok := sdValue(m, "output"); ok {
+					got.WriteString(v)
+				}
+			}
+			if want := strings.Repeat("z", tt.size); got.String() != want {
+				t.Errorf("after flush, relayed %d of %d bytes", got.Len(), tt.size)
+			}
+		})
+	}
+}
+
+// TestStderrRelayNewlineChunkBoundary checks a line of exactly 2*maxStderrLine
+// bytes emits exactly 2 records, not a phantom empty one.
+func TestStderrRelayNewlineChunkBoundary(t *testing.T) {
+	out := &syncBuffer{}
+	w := &stderrRelay{lg: log.NewLoggerWithKV(log.New(out))}
+	line := bytes.Repeat([]byte("q"), 2*maxStderrLine)
+	w.Write(append(append([]byte{}, line...), '\n'))
+
+	var got strings.Builder
+	msgs := parseLogLines(t, out.String())
+	for _, m := range msgs {
+		if v, ok := sdValue(m, "output"); ok {
+			got.WriteString(v)
+		}
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("emitted %d records for a %d-byte line, want 2", len(msgs), len(line))
+	}
+	if got.String() != string(line) {
+		t.Fatalf("relayed %d of %d bytes", got.Len(), len(line))
+	}
+}
+
+// TestStderrRelayChunkBoundaryWhitespace checks a space landing exactly on a
+// chunk boundary survives.
+func TestStderrRelayChunkBoundaryWhitespace(t *testing.T) {
+	line := bytes.Repeat([]byte("a"), 2*maxStderrLine+10)
+	line[maxStderrLine] = ' '
+
+	out := &syncBuffer{}
+	w := &stderrRelay{lg: log.NewLoggerWithKV(log.New(out))}
+	w.Write(append(append([]byte{}, line...), '\n'))
+
+	var got strings.Builder
+	for _, m := range parseLogLines(t, out.String()) {
+		if v, ok := sdValue(m, "output"); ok {
+			got.WriteString(v)
+		}
+	}
+	if got.String() != string(line) {
+		t.Fatalf("relayed content lost the boundary whitespace:\n got %q\nwant %q", got.String(), line)
+	}
+}
+
+// TestStderrRelayPreservesOrder checks relayed content and ordering, not
+// just a substring count.
+func TestStderrRelayPreservesOrder(t *testing.T) {
+	var sb strings.Builder
+	lineLens := []int{10, maxStderrLine, maxStderrLine + 1, 2*maxStderrLine + 37, 1}
+	for i, n := range lineLens {
+		for j := 0; j < n; j++ {
+			sb.WriteByte(byte('a' + (i+j)%26))
+		}
+		if i < len(lineLens)-1 {
+			sb.WriteByte('\n')
+		}
+	}
+	input := sb.String()
+
+	out := &syncBuffer{}
+	w := &stderrRelay{lg: log.NewLoggerWithKV(log.New(out))}
+	for _, chunk := range splitIntoChunks(input, 37, 4096, 1, 9001) {
+		w.Write([]byte(chunk))
+	}
+	w.flush()
+
+	var got strings.Builder
+	for _, m := range parseLogLines(t, out.String()) {
+		if v, ok := sdValue(m, "output"); ok {
+			got.WriteString(v)
+		}
+	}
+	want := strings.ReplaceAll(input, "\n", "")
+	if got.String() != want {
+		t.Fatalf("relayed content mismatch: got %d bytes, want %d bytes", got.Len(), len(want))
+	}
+}
+
+func TestConsumeEntryError(t *testing.T) {
+	const failAt = 2 // 1-indexed: fail the second entry only
+	h := &failNthHandler{n: failAt}
+	out := &syncBuffer{}
+	s := &streamer{
+		tag:  7,
+		proc: h,
+		lg:   log.NewLoggerWithKV(log.New(out), log.KV("stream", "test")),
+	}
+	input := sampleEvents[0] + "\n" + sampleEvents[1] + "\n" + sampleEvents[0] + "\n"
+	n, err := s.consume(context.Background(), strings.NewReader(input))
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("got %d successful entries, want 2", n)
+	}
+	if got := h.count(); got != 2 {
+		t.Fatalf("handler recorded %d entries, want 2 (the failed one should not be recorded)", got)
+	}
+	if c := strings.Count(out.String(), "failed to send entry"); c != 1 {
+		t.Fatalf("logged %d entry failures, want 1:\n%s", c, out.String())
+	}
+}
+
+// TestConsumeContextCanceled checks consume treats a cancellation-triggered
+// error as shutdown, not a per-entry failure.
+func TestConsumeContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	h := &cancelingHandler{cancel: cancel}
+	out := &syncBuffer{}
+	s := &streamer{
+		tag:  7,
+		proc: h,
+		lg:   log.NewLoggerWithKV(log.New(out), log.KV("stream", "test")),
+	}
+	input := sampleEvents[0] + "\n" + sampleEvents[1] + "\n"
+	n, err := s.consume(ctx, strings.NewReader(input))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("got %d successful entries, want 0", n)
+	}
+	if h.calls != 1 {
+		t.Fatalf("handler called %d times, want 1 (consume should stop as soon as the context is canceled)", h.calls)
+	}
+	if strings.Contains(out.String(), "failed to send entry") {
+		t.Errorf("a context cancellation should not be logged like a per-entry failure:\n%s", out.String())
+	}
+}
+
+func TestRunOnceEventTooLarge(t *testing.T) {
+	// generates an unterminated event over maxEventSize; the shell blocks until killed
+	script := fmt.Sprintf(`printf '[{"eventMessage":"'; head -c %d /dev/zero | tr '\0' A`, maxEventSize+100)
+	s, _, _ := shellStreamer(t, script, "sh")
+	start := time.Now()
+	n, err := s.runOnce(context.Background())
+	if !errors.Is(err, errEventTooLarge) {
+		t.Fatalf("expected errEventTooLarge, got %v", err)
+	}
+	if want := fmt.Sprintf("(%d bytes)", maxEventSize); !strings.Contains(err.Error(), want) {
+		t.Errorf("error %q does not include %q", err, want)
+	}
+	if n != 0 {
+		t.Errorf("ingested %d events, want 0", n)
+	}
+	if elapsed := time.Since(start); elapsed >= exitWaitDelay {
+		t.Fatalf("took %v to stop a process after an oversized event", elapsed)
+	}
+}
+
+func TestRunOnceStartFailure(t *testing.T) {
+	orig := logCommand
+	logCommand = filepath.Join(t.TempDir(), "does-not-exist")
+	t.Cleanup(func() { logCommand = orig })
+
+	s := &streamer{lg: log.NewLoggerWithKV(log.New(&syncBuffer{}))}
+	if _, err := s.runOnce(context.Background()); err == nil || !strings.Contains(err.Error(), "failed to start") {
+		t.Fatalf("expected a failed-to-start error, got %v", err)
+	}
+}
+
+// TestNewStreamer checks newStreamer wires every constructor field,
+// including source resolution.
+func TestNewStreamer(t *testing.T) {
+	tag := entry.EntryTag(9)
+	lg := log.New(&syncBuffer{})
+
+	sc := &streamConfig{
+		Tag_Name:          "macos-auth",
+		Predicate:         "process == \"sudo\"",
+		Source_Override:   "10.1.2.3",
+		Ignore_Timestamps: true,
+	}
+	if err := sc.validate(); err != nil {
+		t.Fatal(err)
+	}
+	// a global distinct from the override, so the assertion can't pass vacuously
+	s := newStreamer("auth", sc, tag, net.ParseIP("10.9.9.9"), nil, lg)
+	if s.name != "auth" {
+		t.Errorf("name = %q, want %q", s.name, "auth")
+	}
+	if !slices.Equal(s.args, sc.args()) {
+		t.Errorf("args = %q, want %q", s.args, sc.args())
+	}
+	if s.tag != tag {
+		t.Errorf("tag = %d, want %d", s.tag, tag)
+	}
+	if s.src == nil || !s.src.Equal(net.ParseIP("10.1.2.3")) {
+		t.Errorf("src = %v, want the per-stream override 10.1.2.3", s.src)
+	}
+	if !s.ignoreTS {
+		t.Errorf("ignoreTS not wired through")
+	}
+	if s.minDelay != minRestartDelay || s.maxDelay != maxRestartDelay {
+		t.Errorf("minDelay = %v, maxDelay = %v, want %v and %v (these bound the restart backoff, so a missed wiring would hot-loop a production streamer)", s.minDelay, s.maxDelay, minRestartDelay, maxRestartDelay)
+	}
+	if s.lg == nil {
+		t.Errorf("lg not wired through")
+	}
+
+	// a nil per-stream override falls back to the global value it is handed
+	global := net.ParseIP("10.9.9.9")
+	sc2 := &streamConfig{}
+	if err := sc2.validate(); err != nil {
+		t.Fatal(err)
+	}
+	s2 := newStreamer("default", sc2, tag, global, nil, lg)
+	if s2.src == nil || !s2.src.Equal(global) {
+		t.Errorf("src = %v, want the global fallback %v", s2.src, global)
+	}
+}
+
+// TestRunBackoff checks the restart delay doubles, caps at maxDelay, and
+// resets after a run that ingests an event. It reads the logged delay value
+// rather than timing wall-clock, since the delay itself is what matters.
+func TestRunBackoff(t *testing.T) {
+	ctr := filepath.Join(t.TempDir(), "n")
+	// first 4 runs produce nothing, the 5th+ produce one event; kept on one line so
+	// it doesn't itself introduce newlines that break the log parsing below
+	script := fmt.Sprintf(`n=$(cat %[1]q 2>/dev/null || echo 0); n=$((n+1)); echo "$n" >%[1]q; if [ "$n" -gt 4 ]; then printf '%%s' "$0"; fi`, ctr)
+	s, h, out := shellStreamer(t, script, sampleEvents[0])
+	s.minDelay = 2 * time.Millisecond
+	s.maxDelay = 8 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.onEntry = func(total int) {
+		if total == 2 {
+			cancel()
+		}
+	}
+	done := make(chan struct{})
+	go func() {
+		s.run(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		cancel()
+		t.Fatal("run did not stop")
+	}
+
+	var restarts []rfc5424.Message
+	for _, m := range parseLogLines(t, out.String()) {
+		if string(m.Message) == "log stream stopped, restarting" {
+			restarts = append(restarts, m)
+		}
+	}
+	want := []struct{ events, delay string }{
+		{"0", "2ms"}, // minDelay
+		{"0", "4ms"}, // doubled
+		{"0", "8ms"}, // doubled again, now at maxDelay
+		{"0", "8ms"}, // capped: would be 16ms uncapped
+		{"1", "2ms"}, // reset to minDelay after a run that ingested an event
+	}
+	if len(restarts) < len(want) {
+		t.Fatalf("got %d restarts, want at least %d:\n%s", len(restarts), len(want), out.String())
+	}
+	for i, w := range want {
+		events, _ := sdValue(restarts[i], "events")
+		delay, _ := sdValue(restarts[i], "delay")
+		if events != w.events || delay != w.delay {
+			t.Errorf("restart %d: events=%s delay=%s, want events=%s delay=%s", i, events, delay, w.events, w.delay)
+		}
+	}
+}
+
+// TestRunBackoffCancel checks canceling during the restart backoff sleep
+// returns immediately, not after the full delay.
+func TestRunBackoffCancel(t *testing.T) {
+	s, _, out := shellStreamer(t, ``, ``)
+	s.minDelay = 5 * time.Second
+	s.maxDelay = 10 * time.Second
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		s.run(ctx)
+		close(done)
+	}()
+
+	waitUntil := time.After(2 * time.Second)
+	for !strings.Contains(out.String(), "restarting") {
+		select {
+		case <-waitUntil:
+			t.Fatal("run never logged a restart")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	start := time.Now()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("run did not return promptly after cancel during the backoff sleep")
+	}
+	if elapsed := time.Since(start); elapsed >= s.minDelay {
+		t.Fatalf("run took %v to return after cancel, want well under minDelay %v", elapsed, s.minDelay)
 	}
 }

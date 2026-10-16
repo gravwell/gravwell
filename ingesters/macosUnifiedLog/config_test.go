@@ -9,9 +9,11 @@
 package main
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -93,6 +95,106 @@ func TestGetConfigNoStreams(t *testing.T) {
 	if _, err := GetConfig(writeConfig(t, ``), ``); err == nil {
 		t.Fatal("expected an error for a config without streams")
 	}
+}
+
+func TestGetConfigOverlay(t *testing.T) {
+	base := writeConfig(t, `
+[Stream "auth"]
+	Tag-Name=macos-auth
+	Level=info
+	Predicate=foo
+`)
+	overlayDir := t.TempDir()
+	overlay := `
+[Stream "auth"]
+	Level=debug
+
+[Stream "extra"]
+	Tag-Name=macos-extra
+`
+	if err := os.WriteFile(filepath.Join(overlayDir, "overlay.conf"), []byte(overlay), 0640); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := GetConfig(base, overlayDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Stream) != 2 {
+		t.Fatalf("got %d streams, want 2", len(cfg.Stream))
+	}
+
+	auth := cfg.Stream["auth"]
+	if auth == nil {
+		t.Fatal("overlay lost the existing \"auth\" stream")
+	}
+	if auth.Level != "debug" {
+		t.Errorf("overlay did not override Level, got %q", auth.Level)
+	}
+	if auth.Predicate != "foo" {
+		t.Errorf("overlay clobbered an untouched field, Predicate = %q", auth.Predicate)
+	}
+	if auth.Tag_Name != "macos-auth" {
+		t.Errorf("overlay clobbered Tag-Name, got %q", auth.Tag_Name)
+	}
+
+	extra := cfg.Stream["extra"]
+	if extra == nil || extra.Tag_Name != "macos-extra" {
+		t.Fatalf("overlay did not add the new stream, got %+v", extra)
+	}
+}
+
+func TestGetConfigPreprocessorInvalid(t *testing.T) {
+	p := writeConfig(t, `
+[Stream "auth"]
+	Preprocessor=does-not-exist
+`)
+	_, err := GetConfig(p, ``)
+	if err == nil || !strings.Contains(err.Error(), `stream "auth" preprocessor invalid`) {
+		t.Fatalf("expected an error naming the offending stream, got %v", err)
+	}
+}
+
+// TestGetConfigStreamValidateInvalid checks a validate() error surfaced
+// through GetConfig names the offending stream.
+func TestGetConfigStreamValidateInvalid(t *testing.T) {
+	p := writeConfig(t, `
+[Stream "auth"]
+	Level=verbose
+`)
+	_, err := GetConfig(p, ``)
+	if err == nil || !strings.Contains(err.Error(), `stream "auth"`) {
+		t.Fatalf("expected an error naming the offending stream, got %v", err)
+	}
+}
+
+func TestResolveSource(t *testing.T) {
+	override := net.ParseIP("10.1.2.3")
+	global := net.ParseIP("10.9.9.9")
+	tests := []struct {
+		name string
+		src  net.IP // streamConfig.src, as populated by validate()
+		want net.IP
+	}{
+		{"override wins", override, override},
+		{"nil falls back to global", nil, global},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sc := &streamConfig{src: tt.src}
+			if got := resolveSource(sc, global); !got.Equal(tt.want) {
+				t.Errorf("resolveSource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	// can't fold this into the table above: net.IP(nil).Equal(nil) is true,
+	// so a got.Equal(want) check wouldn't catch resolveSource returning non-nil
+	t.Run("both nil", func(t *testing.T) {
+		if got := resolveSource(&streamConfig{}, nil); got != nil {
+			t.Errorf("resolveSource() = %v, want nil", got)
+		}
+	})
 }
 
 func TestStreamValidateErrors(t *testing.T) {

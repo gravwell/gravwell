@@ -13,6 +13,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 )
 
@@ -50,7 +51,12 @@ var sampleEvents = []string{
 
 func decodeAll(t *testing.T, input string, maxSize int64) (events []string, preamble []string, err error) {
 	t.Helper()
-	dec := newEventDecoder(strings.NewReader(input), maxSize, func(line string) {
+	return decodeAllReader(t, strings.NewReader(input), maxSize)
+}
+
+func decodeAllReader(t *testing.T, r io.Reader, maxSize int64) (events []string, preamble []string, err error) {
+	t.Helper()
+	dec := newEventDecoder(r, maxSize, func(line string) {
 		preamble = append(preamble, line)
 	})
 	for {
@@ -60,6 +66,14 @@ func decodeAll(t *testing.T, input string, maxSize int64) (events []string, prea
 		}
 		events = append(events, string(b))
 	}
+}
+
+// jsonEventOfSize builds a valid, already-compact JSON object whose encoded
+// length is exactly n bytes.
+func jsonEventOfSize(n int) string {
+	const prefix, suffix = `{"eventMessage":"`, `"}`
+	pad := n - len(prefix) - len(suffix)
+	return prefix + strings.Repeat("A", pad) + suffix
 }
 
 func checkEvents(t *testing.T, got, want []string) {
@@ -158,6 +172,31 @@ func TestDecodeOversizedPreamble(t *testing.T) {
 	input = strings.Repeat("x", maxPreambleSize*2)
 	if _, _, err := decodeAll(t, input, maxEventSize); !errors.Is(err, errPreambleTooLarge) {
 		t.Fatalf("expected errPreambleTooLarge, got %v", err)
+	}
+}
+
+// TestDecodeReaderError checks a reader error reaches the caller as itself,
+// not misreported as a clean io.EOF.
+func TestDecodeReaderError(t *testing.T) {
+	errBoom := errors.New("boom")
+	tests := []struct {
+		name string
+		r    io.Reader
+	}{
+		{"immediate", iotest.ErrReader(errBoom)},
+		{"after-open-bracket", io.MultiReader(strings.NewReader("["), iotest.ErrReader(errBoom))},
+		{"mid-preamble", io.MultiReader(strings.NewReader("Filtering the log data"), iotest.ErrReader(errBoom))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := decodeAllReader(t, tt.r, maxEventSize)
+			if !errors.Is(err, errBoom) {
+				t.Fatalf("got %v, want errBoom", err)
+			}
+			if errors.Is(err, io.EOF) {
+				t.Fatalf("a reader error was reported as a clean io.EOF")
+			}
+		})
 	}
 }
 
@@ -281,5 +320,104 @@ func TestEventTimestamp(t *testing.T) {
 		if _, err := eventTimestamp([]byte(v)); err == nil {
 			t.Errorf("%s: expected an error", v)
 		}
+	}
+}
+
+// TestDecodeRealtime checks the decoder returns an event as soon as it's
+// complete, without waiting on a separator or the next event.
+func TestDecodeRealtime(t *testing.T) {
+	pr, pw := io.Pipe()
+	defer pr.Close()
+	go func() {
+		pw.Write([]byte("[" + sampleEvents[0]))
+	}()
+
+	dec := newEventDecoder(pr, maxEventSize, nil)
+	type result struct {
+		data []byte
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		data, err := dec.Next()
+		done <- result{data, err}
+	}()
+
+	select {
+	case r := <-done:
+		if r.err != nil {
+			t.Fatalf("Next returned an error before a second event was written: %v", r.err)
+		}
+		if string(r.data) != sampleEvents[0] {
+			t.Fatalf("got %s, want %s", r.data, sampleEvents[0])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Next did not return the first event without a following separator")
+	}
+}
+
+func TestDecodeOneByteReader(t *testing.T) {
+	events, _, err := decodeAllReader(t, iotest.OneByteReader(strings.NewReader(sampleStream)), maxEventSize)
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
+	}
+	checkEvents(t, events, sampleEvents)
+}
+
+// TestDecodeSplitReads checks decoding survives a read split at awkward
+// offsets: mid-preamble, mid-string-literal, and right after '['.
+func TestDecodeSplitReads(t *testing.T) {
+	offsets := map[string]int{
+		"mid-preamble":       strings.Index(sampleStream, "data using") + 5,
+		"mid-string-literal": strings.Index(sampleStream, "},{ and [ ]") + 4,
+		"after-open-bracket": strings.Index(sampleStream, "[") + 1,
+	}
+	for name, off := range offsets {
+		t.Run(name, func(t *testing.T) {
+			r := io.MultiReader(strings.NewReader(sampleStream[:off]), strings.NewReader(sampleStream[off:]))
+			events, _, err := decodeAllReader(t, r, maxEventSize)
+			if err != io.EOF {
+				t.Fatalf("expected io.EOF, got %v", err)
+			}
+			checkEvents(t, events, sampleEvents)
+		})
+	}
+}
+
+// TestDecodeEventSizeBoundary checks the maxEventSize limit at its edge: one
+// byte under passes, one byte over fails, and the limit applies per event.
+func TestDecodeEventSizeBoundary(t *testing.T) {
+	const maxSize = 200
+	under := jsonEventOfSize(maxSize - 1)
+	over := jsonEventOfSize(maxSize + 1)
+
+	// two events each just under the limit both decode: the limit resets per event
+	input := "[" + under + "," + under + "]"
+	events, _, err := decodeAllReader(t, iotest.OneByteReader(strings.NewReader(input)), maxSize)
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
+	}
+	checkEvents(t, events, []string{under, under})
+
+	// one byte over the limit is rejected
+	_, _, err = decodeAllReader(t, iotest.OneByteReader(strings.NewReader("["+over)), maxSize)
+	if !errors.Is(err, errEventTooLarge) {
+		t.Fatalf("expected errEventTooLarge, got %v", err)
+	}
+
+	// a fresh decoder still handles a normal event: the limit isn't global
+	events, _, err = decodeAllReader(t, iotest.OneByteReader(strings.NewReader("["+under+"]")), maxSize)
+	if err != io.EOF {
+		t.Fatalf("expected io.EOF, got %v", err)
+	}
+	checkEvents(t, events, []string{under})
+
+	// once failed with errEventTooLarge, the decoder stays failed
+	dec := newEventDecoder(iotest.OneByteReader(strings.NewReader("["+over)), maxSize, nil)
+	if _, err = dec.Next(); !errors.Is(err, errEventTooLarge) {
+		t.Fatalf("expected errEventTooLarge, got %v", err)
+	}
+	if _, err = dec.Next(); err == nil {
+		t.Fatal("decoder resumed after errEventTooLarge instead of staying failed")
 	}
 }
