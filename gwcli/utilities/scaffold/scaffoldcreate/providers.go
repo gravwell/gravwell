@@ -252,7 +252,7 @@ func (p *PathProvider) Set(val string) (invalid string) {
 }
 
 func (p *PathProvider) Get() string {
-	return p.pti.Value()
+	return pathtextinput.ExpandTilde(p.pti.Value())
 }
 
 func (p *PathProvider) ToggleFocus(focus bool) {
