@@ -144,7 +144,7 @@ jobs:
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
         go test -v ./ingesters/llm_ingester
-        go test -v ./ingesters/macosUnifiedLog
+        go test -v -race ./ingesters/macosUnifiedLog
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...
