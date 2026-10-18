@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 const (
@@ -243,7 +245,10 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	var err error
 
 	if sendObj != nil {
-		jsonBytes, err = json.Marshal(sendObj)
+		// json/v2 with the shared options, like the generic request helpers:
+		// nil slices and maps go out as [] and {}, never null (the API
+		// rejects null for non-nullable properties).
+		jsonBytes, err = jsonv2.Marshal(sendObj, jsoncompat.Opts)
 		if err != nil {
 			return err
 		}
@@ -324,7 +329,7 @@ func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadReques
 func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (res types.SearchDownloadResponse, err error) {
 	var data []byte
 	var req *http.Request
-	if data, err = json.Marshal(sdr); err != nil {
+	if data, err = jsonv2.Marshal(sdr, jsoncompat.Opts); err != nil {
 		return
 	}
 
