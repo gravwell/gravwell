@@ -171,7 +171,7 @@ func (c *cfgType) Tags() ([]string, error) {
 	var tags []string
 	tagMp := make(map[string]bool, len(c.Stream))
 	for _, v := range c.Stream {
-		if v.Tag_Name == `` || tagMp[v.Tag_Name] {
+		if v == nil || v.Tag_Name == `` || tagMp[v.Tag_Name] {
 			continue
 		}
 		tags = append(tags, v.Tag_Name)

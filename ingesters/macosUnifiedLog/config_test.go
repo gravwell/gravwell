@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bytes"
 	"net"
 	"os"
 	"path/filepath"
@@ -94,6 +95,34 @@ func TestGetConfig(t *testing.T) {
 func TestGetConfigNoStreams(t *testing.T) {
 	if _, err := GetConfig(writeConfig(t, ``), ``); err == nil {
 		t.Fatal("expected an error for a config without streams")
+	}
+}
+
+// TestVerifyNilStreamValue covers the nil-map-value check in Verify(). gcfg
+// never actually leaves a nil *streamConfig behind a parsed section, so this
+// constructs one directly rather than going through GetConfig.
+func TestVerifyNilStreamValue(t *testing.T) {
+	cfg, err := GetConfig(writeConfig(t, `
+[Stream "system"]
+`), ``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Stream["broken"] = nil
+	err = cfg.Verify()
+	if err == nil || !strings.Contains(err.Error(), `stream "broken" is empty`) {
+		t.Fatalf("expected the nil-stream-value error, got %v", err)
+	}
+}
+
+// TestTagsNoTags covers the "no tags specified" check in Tags(). In
+// production this can't happen once Verify() has run, since validate()
+// always defaults an empty Tag-Name, so this calls Tags() directly on a
+// streamConfig that was never validated.
+func TestTagsNoTags(t *testing.T) {
+	c := &cfgType{Stream: map[string]*streamConfig{"a": {}}}
+	if _, err := c.Tags(); err == nil || err.Error() != "no tags specified" {
+		t.Fatalf("expected \"no tags specified\", got %v", err)
 	}
 }
 
@@ -238,5 +267,42 @@ func TestStreamValidateErrors(t *testing.T) {
 				t.Errorf("expected an error")
 			}
 		})
+	}
+}
+
+// TestShippedExampleConfig checks the config operators actually copy from
+// parses, and that the inline "# ..." comment trailing Type=log is stripped
+// rather than becoming part of the value.
+func TestShippedExampleConfig(t *testing.T) {
+	const exampleConf = "macos_unified_log.conf"
+	raw, err := os.ReadFile(exampleConf)
+	if err != nil {
+		t.Fatalf("read %s: %v", exampleConf, err)
+	}
+	dir := t.TempDir()
+	loadable := bytes.ReplaceAll(raw, []byte("/opt/gravwell"), []byte(dir))
+	path := filepath.Join(dir, exampleConf)
+	if err := os.WriteFile(path, loadable, 0600); err != nil {
+		t.Fatalf("write temp config: %v", err)
+	}
+
+	cfg, err := GetConfig(path, "")
+	if err != nil {
+		t.Fatalf("GetConfig: %v", err)
+	}
+
+	sys := cfg.Stream["system"]
+	if sys == nil {
+		t.Fatal(`example config has no "system" stream`)
+	}
+	if sys.Tag_Name != "macos" {
+		t.Errorf("Tag-Name = %q, want %q", sys.Tag_Name, "macos")
+	}
+	want := []string{"stream", "--style", "json", "--type", "log"}
+	if args := sys.args(); !slices.Equal(args, want) {
+		t.Errorf("args mismatch (the inline comment after Type=log may not have been stripped)\n got %q\nwant %q", args, want)
+	}
+	if cfg.Global.Disable_Hostname_Attach {
+		t.Error("Disable-Hostname-Attach should default to false")
 	}
 }
