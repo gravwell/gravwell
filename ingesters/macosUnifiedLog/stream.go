@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
 const (
@@ -52,6 +51,14 @@ type entryHandler interface {
 	ProcessContext(*entry.Entry, context.Context) error
 }
 
+// processorCloser is satisfied by *processors.ProcessorSet. It's declared as an
+// interface, rather than runStreams using the concrete type directly, so tests can
+// substitute a stub to observe Close calls without building real preprocessors.
+type processorCloser interface {
+	entryHandler
+	Close() error
+}
+
 // streamer runs a `log stream` process, ingesting each event it emits and
 // restarting the process with a backoff whenever it exits.
 type streamer struct {
@@ -67,11 +74,12 @@ type streamer struct {
 	minDelay   time.Duration
 	maxDelay   time.Duration
 	minHealthy time.Duration
+	exitDelay  time.Duration
 
 	warnedTS bool
 }
 
-func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, globalSrc net.IP, host string, proc *processors.ProcessorSet, lg *log.Logger) *streamer {
+func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, globalSrc net.IP, host string, proc processorCloser, lg *log.Logger) *streamer {
 	return &streamer{
 		name:       name,
 		args:       sc.args(),
@@ -84,6 +92,7 @@ func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, globalSrc ne
 		minDelay:   minRestartDelay,
 		maxDelay:   maxRestartDelay,
 		minHealthy: minHealthyRuntime,
+		exitDelay:  exitWaitDelay,
 	}
 }
 
@@ -97,7 +106,7 @@ func (s *streamer) run(ctx context.Context) {
 			return
 		}
 		ran := time.Since(start)
-		if ran >= s.minHealthy {
+		if healthyRun(ran, s.minHealthy) {
 			// the process ran long enough to call it healthy, so don't carry a
 			// backoff earned by an earlier, struggling run into this restart
 			delay = s.minDelay
@@ -117,13 +126,20 @@ func (s *streamer) run(ctx context.Context) {
 	}
 }
 
+// healthyRun reports whether a run that lasted ran counts as healthy, i.e. long
+// enough that an exit shouldn't carry its restart backoff forward. A run that
+// lasts exactly minHealthy counts as healthy.
+func healthyRun(ran, minHealthy time.Duration) bool {
+	return ran >= minHealthy
+}
+
 // runOnce runs a single log process to completion, returning the number of
 // events ingested and why the process stopped.
 func (s *streamer) runOnce(ctx context.Context) (n uint64, err error) {
 	stderr := &stderrRelay{lg: s.lg}
 	cmd := exec.CommandContext(ctx, logCommand, s.args...)
 	cmd.Stderr = stderr
-	cmd.WaitDelay = exitWaitDelay
+	cmd.WaitDelay = s.exitDelay
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return 0, err
@@ -140,7 +156,7 @@ func (s *streamer) runOnce(ctx context.Context) (n uint64, err error) {
 	outputEnded := errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 	var werr error
 	if outputEnded {
-		t := time.AfterFunc(exitWaitDelay, func() { s.killProcess(cmd) })
+		t := time.AfterFunc(s.exitDelay, func() { s.killProcess(cmd) })
 		werr = cmd.Wait()
 		t.Stop()
 	} else {

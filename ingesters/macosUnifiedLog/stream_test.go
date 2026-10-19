@@ -175,6 +175,7 @@ func shellStreamer(t *testing.T, script, arg0 string) (*streamer, *captureHandle
 		// large enough that a test script's near-instant exit never counts as a
 		// healthy run by accident; tests that exercise the backoff reset set their own
 		minHealthy: time.Hour,
+		exitDelay:  exitWaitDelay,
 	}
 	return s, h, out
 }
@@ -576,6 +577,57 @@ func TestRunOnceEventTooLarge(t *testing.T) {
 	}
 }
 
+// TestRunOnceKillsAfterExitWaitDelay checks the outputEnded branch of runOnce:
+// when the log process's stdout closes but the process itself keeps running
+// past exitDelay, the time.AfterFunc timer fires and kills it rather than
+// runOnce blocking on cmd.Wait() forever.
+func TestRunOnceKillsAfterExitWaitDelay(t *testing.T) {
+	// emits one event, then closes its own stdout (ending our read side) while
+	// staying alive well past exitDelay, so only the AfterFunc timer can end it
+	script := `printf '%s' "$0"; exec 1>/dev/null; exec sleep 60`
+	s, h, _ := shellStreamer(t, script, sampleEvents[0])
+	s.exitDelay = 50 * time.Millisecond
+
+	start := time.Now()
+	n, err := s.runOnce(context.Background())
+	elapsed := time.Since(start)
+
+	if n != 1 || h.count() != 1 {
+		t.Fatalf("ingested %d events (%d handled), want 1", n, h.count())
+	}
+	if err == nil || !strings.Contains(err.Error(), "signal: killed") {
+		t.Fatalf("expected the process to be reported killed, got %v", err)
+	}
+	if elapsed < s.exitDelay {
+		t.Errorf("runOnce returned after %v, before exitDelay (%v) could have fired", elapsed, s.exitDelay)
+	}
+	if elapsed > 5*time.Second {
+		t.Errorf("runOnce took %v to return after exitDelay (%v), want it bounded by the AfterFunc kill", elapsed, s.exitDelay)
+	}
+}
+
+// TestHealthyRun pins healthyRun's comparison: a run that lasts exactly
+// minHealthy counts as healthy, matching the ">=" in its implementation.
+func TestHealthyRun(t *testing.T) {
+	tests := []struct {
+		name       string
+		ran        time.Duration
+		minHealthy time.Duration
+		want       bool
+	}{
+		{"just under", 29 * time.Millisecond, 30 * time.Millisecond, false},
+		{"exactly at the boundary", 30 * time.Millisecond, 30 * time.Millisecond, true},
+		{"just over", 31 * time.Millisecond, 30 * time.Millisecond, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := healthyRun(tt.ran, tt.minHealthy); got != tt.want {
+				t.Errorf("healthyRun(%v, %v) = %v, want %v", tt.ran, tt.minHealthy, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRunOnceStartFailure(t *testing.T) {
 	orig := logCommand
 	logCommand = filepath.Join(t.TempDir(), "does-not-exist")
@@ -674,11 +726,14 @@ func TestRunBackoff(t *testing.T) {
 	// first 4 runs produce nothing and exit immediately, the 5th+ sleeps long enough
 	// to count as a healthy run before producing one event; kept on one line so it
 	// doesn't itself introduce newlines that break the log parsing below
-	script := fmt.Sprintf(`n=$(cat %[1]q 2>/dev/null || echo 0); n=$((n+1)); echo "$n" >%[1]q; if [ "$n" -gt 4 ]; then sleep 0.1; printf '%%s' "$0"; fi`, ctr)
+	script := fmt.Sprintf(`n=$(cat %[1]q 2>/dev/null || echo 0); n=$((n+1)); echo "$n" >%[1]q; if [ "$n" -gt 4 ]; then sleep 1; printf '%%s' "$0"; fi`, ctr)
 	s, h, out := shellStreamer(t, script, sampleEvents[0])
 	s.minDelay = 2 * time.Millisecond
 	s.maxDelay = 8 * time.Millisecond
-	s.minHealthy = 30 * time.Millisecond
+	// wide margin above the sub-millisecond runs 2-4 take, so a loaded CI runner
+	// (especially under -race) can't push one of them over the threshold and
+	// break the asserted backoff sequence below
+	s.minHealthy = 500 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
