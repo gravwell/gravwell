@@ -17,6 +17,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -171,6 +172,9 @@ func shellStreamer(t *testing.T, script, arg0 string) (*streamer, *captureHandle
 		lg:       log.NewLoggerWithKV(log.New(out), log.KV("stream", "test")),
 		minDelay: 10 * time.Millisecond,
 		maxDelay: 20 * time.Millisecond,
+		// large enough that a test script's near-instant exit never counts as a
+		// healthy run by accident; tests that exercise the backoff reset set their own
+		minHealthy: time.Hour,
 	}
 	return s, h, out
 }
@@ -202,6 +206,24 @@ func TestRunOnceExitStatus(t *testing.T) {
 	want := time.Date(2026, 9, 30, 16, 2, 12, 345678000, time.UTC)
 	if got := h.ents[0].TS.StandardTime(); !got.Equal(want) {
 		t.Errorf("timestamp %v, want %v", got, want)
+	}
+}
+
+// TestRunOnceCleanExit checks the branch where the log process produces
+// output and then exits cleanly (status 0): the error is exactly "log
+// exited", not wrapped around a nil *exec.ExitError.
+func TestRunOnceCleanExit(t *testing.T) {
+	s, h, _ := shellStreamer(t, `printf '%s' "$0"`, sampleStream)
+	n, err := s.runOnce(context.Background())
+	if n != 2 || h.count() != 2 {
+		t.Fatalf("ingested %d events (%d handled), want 2", n, h.count())
+	}
+	if err == nil || err.Error() != "log exited" {
+		t.Fatalf("got %v, want exactly \"log exited\"", err)
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		t.Fatalf("error unexpectedly wraps an *exec.ExitError: %v", err)
 	}
 }
 
@@ -242,6 +264,34 @@ func TestRunOnceCancel(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed >= exitWaitDelay {
 		t.Fatalf("took %v to stop after cancel", elapsed)
+	}
+}
+
+// TestRunAlreadyCanceled checks that run never spawns a log process at all
+// when handed a context that is already canceled.
+func TestRunAlreadyCanceled(t *testing.T) {
+	sentinel := filepath.Join(t.TempDir(), "touched")
+	s, h, _ := shellStreamer(t, fmt.Sprintf(`touch %q`, sentinel), "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		s.run(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("run did not return promptly for an already-canceled context")
+	}
+
+	if h.count() != 0 {
+		t.Fatalf("ingested %d events, want 0", h.count())
+	}
+	if _, err := os.Stat(sentinel); !os.IsNotExist(err) {
+		t.Fatalf("a log process was started despite the context already being canceled")
 	}
 }
 
@@ -572,6 +622,9 @@ func TestNewStreamer(t *testing.T) {
 	if s.minDelay != minRestartDelay || s.maxDelay != maxRestartDelay {
 		t.Errorf("minDelay = %v, maxDelay = %v, want %v and %v (these bound the restart backoff, so a missed wiring would hot-loop a production streamer)", s.minDelay, s.maxDelay, minRestartDelay, maxRestartDelay)
 	}
+	if s.minHealthy != minHealthyRuntime {
+		t.Errorf("minHealthy = %v, want %v", s.minHealthy, minHealthyRuntime)
+	}
 	if s.lg == nil {
 		t.Errorf("lg not wired through")
 	}
@@ -613,16 +666,19 @@ func TestNewEntryHost(t *testing.T) {
 }
 
 // TestRunBackoff checks the restart delay doubles, caps at maxDelay, and
-// resets after a run that ingests an event. It reads the logged delay value
-// rather than timing wall-clock, since the delay itself is what matters.
+// resets after a run that both ingests an event and runs long enough to
+// count as healthy. It reads the logged delay value rather than timing
+// wall-clock, since the delay itself is what matters.
 func TestRunBackoff(t *testing.T) {
 	ctr := filepath.Join(t.TempDir(), "n")
-	// first 4 runs produce nothing, the 5th+ produce one event; kept on one line so
-	// it doesn't itself introduce newlines that break the log parsing below
-	script := fmt.Sprintf(`n=$(cat %[1]q 2>/dev/null || echo 0); n=$((n+1)); echo "$n" >%[1]q; if [ "$n" -gt 4 ]; then printf '%%s' "$0"; fi`, ctr)
+	// first 4 runs produce nothing and exit immediately, the 5th+ sleeps long enough
+	// to count as a healthy run before producing one event; kept on one line so it
+	// doesn't itself introduce newlines that break the log parsing below
+	script := fmt.Sprintf(`n=$(cat %[1]q 2>/dev/null || echo 0); n=$((n+1)); echo "$n" >%[1]q; if [ "$n" -gt 4 ]; then sleep 0.1; printf '%%s' "$0"; fi`, ctr)
 	s, h, out := shellStreamer(t, script, sampleEvents[0])
 	s.minDelay = 2 * time.Millisecond
 	s.maxDelay = 8 * time.Millisecond
+	s.minHealthy = 30 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -654,7 +710,7 @@ func TestRunBackoff(t *testing.T) {
 		{"0", "4ms"}, // doubled
 		{"0", "8ms"}, // doubled again, now at maxDelay
 		{"0", "8ms"}, // capped: would be 16ms uncapped
-		{"1", "2ms"}, // reset to minDelay after a run that ingested an event
+		{"1", "2ms"}, // reset to minDelay after a run that ingested an event and ran long enough to count as healthy
 	}
 	if len(restarts) < len(want) {
 		t.Fatalf("got %d restarts, want at least %d:\n%s", len(restarts), len(want), out.String())
@@ -664,6 +720,58 @@ func TestRunBackoff(t *testing.T) {
 		delay, _ := sdValue(restarts[i], "delay")
 		if events != w.events || delay != w.delay {
 			t.Errorf("restart %d: events=%s delay=%s, want events=%s delay=%s", i, events, delay, w.events, w.delay)
+		}
+	}
+}
+
+// TestRunBackoffPoisonEvent is a regression test: a process that ingests an
+// event every run but keeps exiting again almost immediately (e.g. a poison
+// event the preprocessor keeps rejecting) must keep backing off instead of
+// resetting to minDelay on every cycle, the way gating the reset on "ingested
+// >=1 event" used to allow.
+func TestRunBackoffPoisonEvent(t *testing.T) {
+	s, h, out := shellStreamer(t, `printf '%s' "$0"`, sampleEvents[0])
+	s.minDelay = 2 * time.Millisecond
+	s.maxDelay = 8 * time.Millisecond
+	s.minHealthy = time.Second // every run below finishes in well under this
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.onEntry = func(total int) {
+		// cancel during the 5th event so its restart message (which would
+		// otherwise be suppressed by the cancellation anyway) is never logged,
+		// leaving exactly the 4 restarts asserted below
+		if total == 5 {
+			cancel()
+		}
+	}
+	done := make(chan struct{})
+	go func() {
+		s.run(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		cancel()
+		t.Fatal("run did not stop")
+	}
+
+	var restarts []rfc5424.Message
+	for _, m := range parseLogLines(t, out.String()) {
+		if string(m.Message) == "log stream stopped, restarting" {
+			restarts = append(restarts, m)
+		}
+	}
+	if len(restarts) < 4 {
+		t.Fatalf("got %d restarts, want at least 4:\n%s", len(restarts), out.String())
+	}
+	want := []string{"2ms", "4ms", "8ms", "8ms"} // never resets, even though every run ingests an event
+	for i, w := range want {
+		events, _ := sdValue(restarts[i], "events")
+		delay, _ := sdValue(restarts[i], "delay")
+		if events != "1" || delay != w {
+			t.Errorf("restart %d: events=%s delay=%s, want events=1 delay=%s", i, events, delay, w)
 		}
 	}
 }

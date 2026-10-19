@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -30,6 +31,12 @@ const (
 
 	minRestartDelay = time.Second
 	maxRestartDelay = 30 * time.Second
+	// how long a log process must run before an exit is treated as healthy and the
+	// restart backoff resets to minDelay, rather than carrying the backoff forward.
+	// A process that ingests an event but exits again moments later (e.g. a poison
+	// event that keeps hitting errEventTooLarge, or malformed JSON following a few
+	// good events) should keep backing off instead of resetting every cycle.
+	minHealthyRuntime = 30 * time.Second
 	// how long to wait for log to exit once its output has ended or it has been told to stop
 	exitWaitDelay = 5 * time.Second
 	// largest single event accepted, measured as pretty-printed by log
@@ -57,24 +64,26 @@ type streamer struct {
 	proc     entryHandler
 	lg       *log.KVLogger
 
-	minDelay time.Duration
-	maxDelay time.Duration
+	minDelay   time.Duration
+	maxDelay   time.Duration
+	minHealthy time.Duration
 
 	warnedTS bool
 }
 
 func newStreamer(name string, sc *streamConfig, tag entry.EntryTag, globalSrc net.IP, host string, proc *processors.ProcessorSet, lg *log.Logger) *streamer {
 	return &streamer{
-		name:     name,
-		args:     sc.args(),
-		tag:      tag,
-		src:      resolveSource(sc, globalSrc),
-		host:     host,
-		ignoreTS: sc.Ignore_Timestamps,
-		proc:     proc,
-		lg:       log.NewLoggerWithKV(lg, log.KV("stream", name)),
-		minDelay: minRestartDelay,
-		maxDelay: maxRestartDelay,
+		name:       name,
+		args:       sc.args(),
+		tag:        tag,
+		src:        resolveSource(sc, globalSrc),
+		host:       host,
+		ignoreTS:   sc.Ignore_Timestamps,
+		proc:       proc,
+		lg:         log.NewLoggerWithKV(lg, log.KV("stream", name)),
+		minDelay:   minRestartDelay,
+		maxDelay:   maxRestartDelay,
+		minHealthy: minHealthyRuntime,
 	}
 }
 
@@ -87,12 +96,14 @@ func (s *streamer) run(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		if n > 0 {
-			// the process was doing useful work, so bring it straight back
+		ran := time.Since(start)
+		if ran >= s.minHealthy {
+			// the process ran long enough to call it healthy, so don't carry a
+			// backoff earned by an earlier, struggling run into this restart
 			delay = s.minDelay
 		}
 		s.lg.Error("log stream stopped, restarting",
-			log.KV("events", n), log.KV("runtime", time.Since(start).Round(time.Millisecond)),
+			log.KV("events", n), log.KV("runtime", ran.Round(time.Millisecond)),
 			log.KV("delay", delay), log.KVErr(err))
 
 		t := time.NewTimer(delay)
@@ -129,11 +140,11 @@ func (s *streamer) runOnce(ctx context.Context) (n uint64, err error) {
 	outputEnded := errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 	var werr error
 	if outputEnded {
-		t := time.AfterFunc(exitWaitDelay, func() { cmd.Process.Kill() })
+		t := time.AfterFunc(exitWaitDelay, func() { s.killProcess(cmd) })
 		werr = cmd.Wait()
 		t.Stop()
 	} else {
-		cmd.Process.Kill()
+		s.killProcess(cmd)
 		werr = cmd.Wait()
 	}
 	stderr.flush()
@@ -147,6 +158,14 @@ func (s *streamer) runOnce(ctx context.Context) (n uint64, err error) {
 		return n, errors.New("log exited")
 	}
 	return n, err
+}
+
+// killProcess kills cmd's process, logging a warning if that fails for any
+// reason other than the process already having exited.
+func (s *streamer) killProcess(cmd *exec.Cmd) {
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		s.lg.Warn("failed to kill log process", log.KV("pid", cmd.Process.Pid), log.KVErr(err))
+	}
 }
 
 // consume ingests events from r until it ends, fails to decode, or ctx is canceled.
