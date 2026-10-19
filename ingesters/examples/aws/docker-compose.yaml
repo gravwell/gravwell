@@ -1,6 +1,6 @@
 services:
   gravwell:
-    image: gravwell/gravwell:latest
+    image: gravwell/beta
     container_name: gravwell
     ports:
       - "8080:80"
