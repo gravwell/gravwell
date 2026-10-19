@@ -119,14 +119,18 @@ func (d *eventDecoder) start() error {
 			return err
 		}
 		line, n, err := readLine(d.br, maxPreambleSize-skipped)
+		skipped += n
+		// report whatever was captured even if the line ends in an error (such as
+		// io.EOF on a process that exits mid-line) or gets cut off at the preamble
+		// size limit, since that's often the only diagnostic the caller ever sees
+		if trimmed := strings.TrimSpace(line); trimmed != `` && d.preamble != nil {
+			d.preamble(trimmed)
+		}
 		if err != nil {
 			return err
 		}
-		if skipped += n; skipped >= maxPreambleSize {
+		if skipped >= maxPreambleSize {
 			return errPreambleTooLarge
-		}
-		if line = strings.TrimSpace(line); line != `` && d.preamble != nil {
-			d.preamble(line)
 		}
 	}
 }
@@ -145,7 +149,9 @@ func readLine(br *bufio.Reader, max int) (string, int, error) {
 		if err == nil {
 			break
 		} else if err != bufio.ErrBufferFull {
-			return ``, n, err
+			// return what was accumulated so far too: a process that exits mid-line
+			// (no trailing newline) still has a line worth reporting
+			return sb.String(), n, err
 		}
 	}
 	return sb.String(), n, nil

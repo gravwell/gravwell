@@ -11,6 +11,7 @@ package main
 import (
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -168,10 +169,50 @@ func TestDecodeOversizedPreamble(t *testing.T) {
 	if _, _, err := decodeAll(t, input, maxEventSize); !errors.Is(err, errPreambleTooLarge) {
 		t.Fatalf("expected errPreambleTooLarge, got %v", err)
 	}
-	// a single enormous line without a newline hits the same limit
+	// a single enormous line without a newline hits the same limit, and what was
+	// captured before the limit kicked in should still reach the preamble callback
 	input = strings.Repeat("x", maxPreambleSize*2)
-	if _, _, err := decodeAll(t, input, maxEventSize); !errors.Is(err, errPreambleTooLarge) {
+	_, preamble, err := decodeAll(t, input, maxEventSize)
+	if !errors.Is(err, errPreambleTooLarge) {
 		t.Fatalf("expected errPreambleTooLarge, got %v", err)
+	}
+	if len(preamble) != 1 || preamble[0] != strings.Repeat("x", maxPreambleSize) {
+		t.Errorf("truncated preamble was not reported, got %d entries", len(preamble))
+	}
+}
+
+// TestDecodePreambleWithoutTrailingNewline is a regression test: a line
+// consumed by a read error (such as the process exiting mid-line without a
+// final newline) must still reach the preamble callback rather than being
+// silently discarded along with the error.
+func TestDecodePreambleWithoutTrailingNewline(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "no trailing newline at all",
+			input: `log: Invalid predicate blah`,
+			want:  []string{`log: Invalid predicate blah`},
+		},
+		{
+			name:  "a complete line followed by a partial one",
+			input: "first line\nsecond partial",
+			want:  []string{"first line", "second partial"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events, preamble, err := decodeAll(t, tt.input, maxEventSize)
+			if err != io.EOF {
+				t.Fatalf("expected io.EOF, got %v", err)
+			}
+			checkEvents(t, events, nil)
+			if !slices.Equal(preamble, tt.want) {
+				t.Fatalf("preamble = %q, want %q", preamble, tt.want)
+			}
+		})
 	}
 }
 
