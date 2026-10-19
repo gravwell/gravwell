@@ -96,6 +96,10 @@ func generateFlagSetFromFields(fields map[string]Field) pflag.FlagSet {
 
 // Attempts to set flag values into their respective fields.
 // Returns a list of required fields that did not recieve values and the first Set error that occurred (if one did).
+//
+// The caller must invoke Provider.SetArgs on every field before calling setValuesFromFlags, since
+// a required field may be satisfied entirely by SetArgs-driven prepopulation rather than an
+// explicit flag.
 func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequireds []string, err error) {
 	if !fs.Parsed() {
 		clilog.Writer.Errorf("attempted to set values from unparsed flagset")
@@ -108,12 +112,6 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 		// 1. They cannot be required as what would the point be?
 		// 2. Bool flags must be handled as standalones; they must not interfere with other flags.
 		_, isBoolProvider := fields[key].Provider.(*BoolProvider)
-
-		// Run per-invocation setup/prepop for every field, regardless of whether or not the flag
-		// is supplied. Some providers (ex: kits build --rebuild) populate required fields entirely
-		// through SetArgs without the caller ever passing the corresponding flag. That population
-		// must happen before we decide whether a required field is actually missing.
-		fields[key].Provider.SetArgs(80, 60)
 
 		// An explicit flag should always take priority over whatever SetArgs populated.
 		if changed {
@@ -133,10 +131,12 @@ func setValuesFromFlags(fs *pflag.FlagSet, fields map[string]Field) (missingRequ
 			}
 		}
 
-		// NOTE(rlandau): checked via Get(), not fs.Changed(), so a field satisfied by
-		// SetArgs-driven prepopulation (rather than an explicit flag) is not misreported
-		// as missing.
-		if fields[key].Required && !isBoolProvider && fields[key].Provider.Get() == "" {
+		// A required field is missing if it has no value and/or Satisfied() reports a problem.
+		// Checking Satisfied() (not just Get()) ensures a field satisfied by SetArgs-driven
+		// prepopulation (rather than an explicit flag) is not misreported as missing. This
+		// mirrors createModel.checkSatisfaction's required check.
+		if fields[key].Required && !isBoolProvider &&
+			(fields[key].Provider.Get() == "" || fields[key].Provider.Satisfied() != "") {
 			missingRequireds = append(missingRequireds, fields[key].Flag.Name)
 		}
 	}

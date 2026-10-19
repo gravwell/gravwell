@@ -108,6 +108,14 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 				}
 			}
 
+			// Run per-invocation setup/prepop for every field, mirroring createModel.SetArgs's
+			// own per-field SetArgs loop. Some providers (ex: kits build --rebuild) populate
+			// required fields entirely through SetArgs without the caller ever passing the
+			// corresponding flag, so this must run before setValuesFromFlags decides what's missing.
+			for key := range fields {
+				fields[key].Provider.SetArgs(defaultWidth, defaultHeight)
+			}
+
 			// check and set flags; spool up mother to prompt for missing required flags if !non-interactive
 			if mr, err := setValuesFromFlags(c.Flags(), fields); err != nil {
 				return err
@@ -149,7 +157,10 @@ func NewCreateAction(singular string, fields map[string]Field, createFunc Create
 
 //#region interactive mode (model) implementation
 
-const defaultWidth = 80 // default wrap width, used before initial WinMsgSz arrives
+const (
+	defaultWidth  = 80 // default wrap width, used before initial WinMsgSz arrives
+	defaultHeight = 60 // default wrap height, used for non-interactive SetArgs invocations
+)
 
 type mode uint // state of the interactive application
 

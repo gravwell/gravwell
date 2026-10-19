@@ -407,6 +407,10 @@ func Test_setValuesFromFlags_RequiredViaSetArgs(t *testing.T) {
 				t.Fatalf("failed to parse flags: %v", err)
 			}
 
+			// setValuesFromFlags no longer calls SetArgs itself; the caller (here standing in for
+			// create.go's non-interactive RunE or createModel.SetArgs) must do so first.
+			fields["val"].Provider.SetArgs(defaultWidth, defaultHeight)
+
 			missing, err := setValuesFromFlags(&fs, fields)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -418,6 +422,68 @@ func Test_setValuesFromFlags_RequiredViaSetArgs(t *testing.T) {
 				t.Error(ExpectedActual(tc.wantValue, got))
 			}
 		})
+	}
+}
+
+// Guards against setValuesFromFlags reclaiming responsibility for calling Provider.SetArgs
+// itself: doing so previously clobbered dimensions set by the interactive Mother cycle (see
+// Test_createModel_SetArgs_DoesNotClobberDimensions). Callers must call SetArgs themselves.
+func Test_setValuesFromFlags_DoesNotCallSetArgsItself(t *testing.T) {
+	provider := &TextProvider{CustomSetArgs: func(m textinput.Model) textinput.Model {
+		m.SetValue("prepopulated")
+		return m
+	}}
+	fields := map[string]Field{
+		"val": {Required: true, Flag: FlagConfig{Name: "val"}, Provider: provider},
+	}
+	fields["val"].Provider.Initialize("", true)
+
+	fs := generateFlagSetFromFields(fields)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatalf("failed to parse flags: %v", err)
+	}
+
+	// deliberately do NOT call Provider.SetArgs before invoking setValuesFromFlags.
+	missing, err := setValuesFromFlags(&fs, fields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(missing) == 0 {
+		t.Fatal("expected field to be reported missing because SetArgs was never invoked, but it was not")
+	}
+}
+
+// Guards against a regression where setValuesFromFlags called Provider.SetArgs(80, 60)
+// unconditionally, clobbering the real width/height that createModel.SetArgs had just set on
+// every field one line earlier. TextAreaProvider sizes itself off of SetArgs's width/height
+// arguments, so this is directly observable.
+func Test_createModel_SetArgs_DoesNotClobberDimensions(t *testing.T) {
+	const width, height = 120, 90
+
+	ta := &TextAreaProvider{}
+	fields := map[string]Field{
+		"body": {Title: "Body", Flag: FlagConfig{Name: "body"}, Provider: ta},
+	}
+
+	cm := newCreateModelInitialize(fields, func(map[string]Field, *pflag.FlagSet) (any, string, error) {
+		return 0, "", nil
+	}, Options{})
+
+	if _, _, err := cm.SetArgs(nil, nil, width, height); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// textarea.SetWidth/SetHeight reserve some internal space (ex: for line numbers), so compare
+	// against a reference model built the same way rather than asserting an exact passthrough.
+	want := stylesheet.NewTA()
+	want.SetWidth(width)
+	want.SetHeight(height - 4)
+
+	if got := ta.ta.Width(); got != want.Width() {
+		t.Error("textarea width was clobbered", ExpectedActual(want.Width(), got))
+	}
+	if got := ta.ta.Height(); got != want.Height() {
+		t.Error("textarea height was clobbered", ExpectedActual(want.Height(), got))
 	}
 }
 
