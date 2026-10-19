@@ -218,7 +218,7 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 			clilog.GetFlag(err)
 		}
 		if len(dispatchers) > 0 {
-			vals.dispatcherIDs = make([]string, len(dispatchers))
+			vals.dispatcherIDs = dispatchers
 			for i, dsp := range dispatchers {
 				if dsp == "" {
 					return vals, fmt.Sprintf("dispatcher %d is an empty ID string", i)
@@ -233,7 +233,7 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 			clilog.GetFlag(err)
 		}
 		if len(consumers) > 0 {
-			vals.consumerIDs = make([]string, len(consumers))
+			vals.consumerIDs = consumers
 			for i, cns := range consumers {
 				if cns == "" {
 					return vals, fmt.Sprintf("consumer %d is an empty ID string", i)

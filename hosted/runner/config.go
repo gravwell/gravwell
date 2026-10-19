@@ -17,6 +17,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/config/dynamic"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -34,13 +36,16 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		IngestConfig: cr.Global,
 		Attach:       cr.Attach,
 		State:        cr.State,
+		Dynamic:      cr.Dynamic,
 		Configs:      cr.Configs,
 	}, nil
 }
 
 type cfgReadType struct {
-	Global config.IngestConfig
-	Attach attach.AttachConfig
+	Global  config.IngestConfig
+	Attach  attach.AttachConfig
+	Dynamic dynamic.Config
+
 	// State is not as abstract as it should be, but making that change should have minimal impact on end users.
 	// Given the size of storage.BoltConfig we only need to share a few keys on any new implementation.
 	State           storage.BoltConfig
@@ -52,14 +57,24 @@ type cfgReadType struct {
 // ingesters states, so we have a type that we can read and one that we actually use
 type cfgType struct {
 	config.IngestConfig
-	Attach attach.AttachConfig
+	Attach  attach.AttachConfig
+	Dynamic dynamic.Config
 	// State is not as abstract as it should be, but making that change should have minimal impact on end users.
 	// Given the size of storage.BoltConfig we only need to share a few keys on any new implementation.
 	State           storage.BoltConfig
 	plugins.Configs // embed the type so we can abstract the startup more easily
 }
 
-func (c cfgType) Verify() (err error) {
+// Verify validates the whole configuration.
+//
+// The receiver is a POINTER, and that is load bearing.  IngestConfig.Verify and
+// dynamic.Config.Verify both take pointers and both MUTATE what they verify: they fill in
+// secrets from the environment, normalize webserver URLs and apply defaults.  On a value
+// receiver every one of those writes lands in a copy that is discarded the moment this
+// returns, so the ingest secret and the dynamic Auth-Token silently stay empty and the
+// ingester fails later with "Ingest key is empty" or an authentication error, neither of
+// which points back here.
+func (c *cfgType) Verify() (err error) {
 	if err = c.IngestConfig.Verify(); err != nil {
 		return
 	} else if err = c.Attach.Verify(); err != nil {
@@ -67,6 +82,8 @@ func (c cfgType) Verify() (err error) {
 	} else if err = c.State.Verify(); err != nil {
 		return
 	} else if err = c.Configs.Verify(); err != nil {
+		return
+	} else if err = c.Dynamic.Verify(); err != nil {
 		return
 	}
 
@@ -105,6 +122,9 @@ func (c cfgType) Tags() (tags []string, err error) {
 	}
 	if len(tags) > 0 {
 		sort.Strings(tags)
+	} else {
+		// we can't negotiate NOTHING, so we negotiate the gravwell tag
+		tags = []string{entry.GravwellTagName}
 	}
 	return
 }

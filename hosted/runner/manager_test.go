@@ -11,8 +11,8 @@ package main
 import (
 	"context"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/ingest"
 )

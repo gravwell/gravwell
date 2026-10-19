@@ -60,6 +60,7 @@ var (
 	ErrEmptyPatch  = errors.New("empty PATCHs are ineffectual")
 	ErrNilResponse = errors.New("nil response")
 	ErrEmptyID     = errors.New("ID must be set")
+	ErrEmptyKey    = errors.New("table row key must be set")
 )
 
 // Client handles interaction with the server's REST APIs and websockets.

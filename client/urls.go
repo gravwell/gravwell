@@ -10,7 +10,9 @@ package client
 
 import (
 	"fmt"
+	"net/url"
 	"path"
+	"strings"
 )
 
 const (
@@ -182,6 +184,12 @@ const (
 	PLAYBOOKS_URL                         = `/api/playbooks`
 	LIST_PLAYBOOKS_URL                    = `/api/list/playbooks`
 	PLAYBOOKS_ID_URL                      = `/api/playbooks/%s`
+	AGENTS_URL                            = `/api/agents`
+	LIST_AGENTS_URL                       = `/api/list/agents`
+	AGENTS_ID_URL                         = `/api/agents/%s`
+	AGENT_SKILLS_URL                      = `/api/agent-skills`
+	LIST_AGENT_SKILLS_URL                 = `/api/list/agent-skills`
+	AGENT_SKILLS_ID_URL                   = `/api/agent-skills/%s`
 	BACKUP_URL                            = `/api/backup`
 	INFO_DEPLOYMENT_URL                   = `/api/info/deployment`
 	TOKENS_URL                            = `/api/tokens`
@@ -196,6 +204,7 @@ const (
 	SECRETS_ID_FULL_URL                   = `/api/secrets/%s/full`
 	INFO_SETTINGS_URL                     = `/api/info/settings`
 	INGESTERS_TRACKING_URL                = `/api/ingesters/tracking`
+	INGESTERS_CONTROL_URL                 = `/api/ingesters/control`
 	ALERTS_URL                            = `/api/alerts`
 	LIST_ALERTS_URL                       = `/api/list/alerts`
 	ALERTS_ID_URL                         = `/api/alerts/%s`
@@ -206,6 +215,12 @@ const (
 	LIST_USER_PREFERENCES_URL             = `/api/list/user-preferences`
 	USER_PREFERENCES_ID_URL               = `/api/user-preferences/%s`
 	LIST_ASSETS_URL                       = `/api/list/assets`
+	TABLES_URL                            = `/api/tables`
+	LIST_TABLES_URL                       = `/api/list/tables`
+	TABLES_ID_URL                         = `/api/tables/%s`
+	TABLES_ID_ROWS_URL                    = `/api/tables/%s/rows`
+	TABLES_ID_ROWS_KEY_URL                = `/api/tables/%s/rows/%s`
+	LIST_TABLE_ROWS_URL                   = `/api/list/table-rows`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -462,6 +477,14 @@ func playbooksIdUrl(id string) string {
 	return fmt.Sprintf(PLAYBOOKS_ID_URL, id)
 }
 
+func agentsIdUrl(id string) string {
+	return fmt.Sprintf(AGENTS_ID_URL, id)
+}
+
+func agentSkillsIdUrl(id string) string {
+	return fmt.Sprintf(AGENT_SKILLS_ID_URL, id)
+}
+
 func kitsUrl() string {
 	return KITS_URL
 }
@@ -539,6 +562,31 @@ func templatesIdUrl(id string) string {
 
 func actionablesIdUrl(id string) string {
 	return fmt.Sprintf(ACTIONABLES_ID_URL, id)
+}
+
+func tablesIdUrl(id string) string {
+	return fmt.Sprintf(TABLES_ID_URL, pathSegment(id))
+}
+
+func tablesIdRowsUrl(id string) string {
+	return fmt.Sprintf(TABLES_ID_ROWS_URL, pathSegment(id))
+}
+
+// tablesIdRowsKeyUrl escapes id and key. A key can be any string, including
+// "/", "." and "..".
+func tablesIdRowsKeyUrl(id, key string) string {
+	return fmt.Sprintf(TABLES_ID_ROWS_KEY_URL, pathSegment(id), pathSegment(key))
+}
+
+// pathSegment escapes s for use as one segment of a URL path. Beyond what
+// url.PathEscape does, it escapes the dots of a "." or ".." segment, which
+// servers otherwise resolve as a relative path: a DELETE of row ".." would
+// become a DELETE of the table.
+func pathSegment(s string) string {
+	if s == "." || s == ".." {
+		return strings.ReplaceAll(s, ".", "%2E")
+	}
+	return url.PathEscape(s)
 }
 
 func filesUrl() string {

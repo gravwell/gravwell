@@ -82,6 +82,13 @@ var (
 		AlertRead.CapabilityDesc(),
 		AlertWrite.CapabilityDesc(),
 		LogbotAI.CapabilityDesc(),
+		AgentSkillRead.CapabilityDesc(),
+		AgentSkillWrite.CapabilityDesc(),
+		AgentRead.CapabilityDesc(),
+		AgentWrite.CapabilityDesc(),
+		TableRead.CapabilityDesc(),
+		TableWrite.CapabilityDesc(),
+		TableCreate.CapabilityDesc(),
 	}
 	readOnlyCapList = []Capability{
 		Search,
@@ -109,6 +116,9 @@ var (
 		SecretRead,
 		AlertRead,
 		LogbotAI,
+		AgentSkillRead,
+		AgentRead,
+		TableRead,
 	}
 	adminOnlyCapList = []Capability{
 		KitWrite,

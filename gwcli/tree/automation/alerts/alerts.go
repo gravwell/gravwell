@@ -67,25 +67,25 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list your alerts", "Lists alerts associated to your user.", types.Alert{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Alert, error) {
 			if listConsumerID != "" {
-				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+				params.QueryOptions.Filters = append(params.QueryOptions.Filters, types.Filter{
 					Key:       "Consumers.ID",
 					Operation: "=",
 					Values:    []any{listConsumerID},
 				})
-				resp, err := connection.Client.ListAlerts(params.QueryOptions())
+				resp, err := connection.Client.ListAlerts(params.QueryOptions)
 				return resp.Results, err
 
 			} else if listDispatcherID != "" {
-				params.QueryOpts.Filters = append(params.QueryOpts.Filters, types.Filter{
+				params.QueryOptions.Filters = append(params.QueryOptions.Filters, types.Filter{
 					Key:       "Dispatchers.ID",
 					Operation: "=",
 					Values:    []any{listDispatcherID},
 				})
-				resp, err := connection.Client.ListAlerts(params.QueryOptions())
+				resp, err := connection.Client.ListAlerts(params.QueryOptions)
 				return resp.Results, err
 			}
 
-			resp, err := connection.Client.ListAlerts(params.QueryOptions())
+			resp, err := connection.Client.ListAlerts(params.QueryOptions)
 			return resp.Results, err
 		},
 		nil,
@@ -140,7 +140,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteAlert(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(param.QueryOptions())
+			lr, err := connection.Client.ListAlerts(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

@@ -108,7 +108,7 @@ type QOBuilder interface {
 	// Install flags into the given set based on what options should be available to the user for this action.
 	Install(fs *pflag.FlagSet)
 	// QueryOptions composes a QO from the flagset
-	QueryOptions(fs *pflag.FlagSet) *types.QueryOptions
+	QueryOptions(fs *pflag.FlagSet) types.QueryOptions
 }
 
 var _ QOBuilder = QOOmit{}
@@ -133,9 +133,9 @@ func (o QOInclude) Install(fs *pflag.FlagSet) {
 	}
 }
 
-func (o QOInclude) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
+func (o QOInclude) QueryOptions(fs *pflag.FlagSet) types.QueryOptions {
 	var err error
-	var qo = &types.QueryOptions{}
+	var qo = types.QueryOptions{}
 
 	if o.Everything || o.IncludeDeleted {
 		qo.IncludeDeleted, err = fs.GetBool(ft.IncludeDeleted.Name())
@@ -183,9 +183,9 @@ func (o QOOmit) Install(fs *pflag.FlagSet) {
 	}
 }
 
-func (o QOOmit) QueryOptions(fs *pflag.FlagSet) *types.QueryOptions {
+func (o QOOmit) QueryOptions(fs *pflag.FlagSet) types.QueryOptions {
 	var err error
-	var qo = &types.QueryOptions{}
+	var qo = types.QueryOptions{}
 	if o.Everything {
 		return qo
 	}

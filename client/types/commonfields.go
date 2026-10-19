@@ -30,6 +30,9 @@ const (
 	AssetActionable             AssetType = "actionable"
 	AssetKitBuildRequest        AssetType = "kit_build_request"
 	AssetSearchInfo             AssetType = "search_info"
+	AssetAgent                  AssetType = "agent"
+	AssetAgentSkill             AssetType = "agent_skill"
+	AssetDataTable              AssetType = "table"
 )
 
 // AssetTypeMap maps the string value of each AssetType constant to its AssetType value.
@@ -56,6 +59,9 @@ var AssetTypeMap = map[string]AssetType{
 	string(AssetActionable):             AssetActionable,
 	string(AssetKitBuildRequest):        AssetKitBuildRequest,
 	string(AssetSearchInfo):             AssetSearchInfo,
+	string(AssetAgent):                  AssetAgent,
+	string(AssetAgentSkill):             AssetAgentSkill,
+	string(AssetDataTable):              AssetDataTable,
 }
 
 // ValidateAssetType returns true if s corresponds to a known AssetType.
@@ -74,7 +80,7 @@ type CommonFields struct {
 	ID        string
 	// the parent object this was cloned from.
 	// Not user settable.
-	ParentID string
+	ParentID Nullable[string]
 
 	OwnerID int32
 	Owner   User
@@ -93,7 +99,7 @@ type CommonFields struct {
 	Version     int
 
 	// If set, associates the asset with a kit of the specified ID
-	Kit string
+	KitID Nullable[string]
 
 	// Auto-generated for the requesting user based on permissions of this object.
 	Can Actions

@@ -83,16 +83,29 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 // Returns the set of files available at the given path that prefix-match the last element.
 // If an error occurs, it is swallowed and no completions are returned.
 func deriveCompletions(root, input string) (completions []string) {
-	var pth = input
-	if !path.IsAbs(input) {
-		pth = root + input
+	var fullPath string
+	switch expanded := ExpandTilde(input); {
+	case expanded != input:
+		fullPath = expanded
+	case path.IsAbs(input):
+		fullPath = input
+	default:
+		fullPath = root + input
 	}
+
+	// echo "~/" instead of "~" so suggestions read "~/dir1", not "~dir1"
+	prefix := input
+	if input == "~" {
+		prefix = "~/"
+	}
+
 	// if path ends with a slash, use the whole thing as the directory
+	// (bare "~" counts too - there's nothing left to split off)
 	var dir, fn string
-	if input == "" || strings.HasSuffix(input, "/") {
-		dir = pth
+	if input == "" || input == "~" || strings.HasSuffix(input, "/") {
+		dir = fullPath
 	} else {
-		dir, fn = path.Split(pth)
+		dir, fn = path.Split(fullPath)
 	}
 	des, err := os.ReadDir(dir)
 	if err != nil {
@@ -100,11 +113,27 @@ func deriveCompletions(root, input string) (completions []string) {
 	}
 	for _, de := range des {
 		if unmatchedRunes, found := strings.CutPrefix(de.Name(), fn); found {
-			// to actually match and tab-complete, we need to ensure input is included
-			completions = append(completions, input+unmatchedRunes)
+			// to actually match and tab-complete, we need to ensure prefix is included
+			completions = append(completions, prefix+unmatchedRunes)
 		}
 	}
 	return completions
+}
+
+// ExpandTilde expands a bare "~" or "~/..." to the user's home directory, like bash does.
+// Anything else starting with "~" (e.g. "~user") is left alone, as is everything if the
+// home directory can't be determined.
+func ExpandTilde(input string) string {
+	if input != "~" && !strings.HasPrefix(input, "~/") {
+		return input
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return input
+	}
+
+	return path.Join(home, strings.TrimPrefix(input, "~"))
 }
 
 // PWD returns the directory that this pti is operating (and basing all paths) out of.

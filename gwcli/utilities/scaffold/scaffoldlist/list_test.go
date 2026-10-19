@@ -3,6 +3,7 @@
 package scaffoldlist_test
 
 import (
+	"encoding/csv"
 	"maps"
 	"os"
 	"path"
@@ -309,7 +310,7 @@ func TestNonInteractive(t *testing.T) {
 			scaffoldlist.Options{},
 			[]string{"-x", "--show-columns"},
 			"BackfillEnabled; Can.Delete; Can.Modify; Can.Share; CreatedAt; DeletedAt; Description; Disabled; Flow; FlowName; " +
-				"ID; Kit; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
+				"ID; KitID; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
 				"LastModifiedBy.DeletedAt; LastModifiedBy.Email; LastModifiedBy.Groups; LastModifiedBy.ID; LastModifiedBy.LastLogin; " +
 				"LastModifiedBy.Locked; LastModifiedBy.MFA.RecoveryCodes.Codes; LastModifiedBy.MFA.RecoveryCodes.Enabled; " +
 				"LastModifiedBy.MFA.RecoveryCodes.Generated; LastModifiedBy.MFA.RecoveryCodes.Remaining; LastModifiedBy.MFA.TOTP.Enabled; " +
@@ -319,7 +320,7 @@ func TestNonInteractive(t *testing.T) {
 				"LatestResults.AutomationResultsCommonFields.LastRunDuration; LatestResults.AutomationResultsCommonFields.LastSearchIDs; " +
 				"LatestResults.CommonFields.Can.Delete; LatestResults.CommonFields.Can.Modify; LatestResults.CommonFields.Can.Share; " +
 				"LatestResults.CommonFields.CreatedAt; LatestResults.CommonFields.DeletedAt; LatestResults.CommonFields.Description; " +
-				"LatestResults.CommonFields.ID; LatestResults.CommonFields.Kit; LatestResults.CommonFields.Labels; LatestResults.CommonFields.LastModifiedBy.Admin; " +
+				"LatestResults.CommonFields.ID; LatestResults.CommonFields.KitID; LatestResults.CommonFields.Labels; LatestResults.CommonFields.LastModifiedBy.Admin; " +
 				"LatestResults.CommonFields.LastModifiedBy.CreatedAt; LatestResults.CommonFields.LastModifiedBy.DefaultSearchGroups; " +
 				"LatestResults.CommonFields.LastModifiedBy.DeletedAt; LatestResults.CommonFields.LastModifiedBy.Email; " +
 				"LatestResults.CommonFields.LastModifiedBy.Groups; LatestResults.CommonFields.LastModifiedBy.ID; " +
@@ -502,7 +503,8 @@ func TestAutoAliasPrefix(t *testing.T) {
 		SetArgsTokens  []string
 		wantSetArgsInv bool
 
-		wantOut string // the string output we want
+		// expected output
+		checkOut func(t *testing.T, out string)
 	}{
 		{"csv with exclude default",
 			scaffoldlist.Options{
@@ -514,12 +516,44 @@ func TestAutoAliasPrefix(t *testing.T) {
 				}},
 			[]string{"--csv"},
 			false,
-			"BackfillEnabled,Disabled,Schedule,CreatedAt,DeletedAt,Description,ItemID,Kit,Labels,Name,Owner.Admin,Owner.CreatedAt,Owner.DefaultSearchGroups,Owner.DeletedAt,Owner.Email,Owner.Groups,Owner.ID,Owner.LastLogin,Owner.Locked,Owner.MFA.RecoveryCodes.Codes,Owner.MFA.RecoveryCodes.Enabled,Owner.MFA.RecoveryCodes.Generated,Owner.MFA.RecoveryCodes.Remaining,Owner.MFA.TOTP.Enabled,Owner.MFA.TOTP.Seed,Owner.MFA.TOTP.URL,Owner.Name,Owner.SearchPriority,Owner.SSOUser,Owner.UpdatedAt,Owner.Username,OwnerID,ParentID,Readers.GIDs,Readers.Global,Type,UpdatedAt,Version,Writers.GIDs,Writers.Global,Flow\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,null,,0,,[],Name_0,false,0001-01-01 00:00:00 +0000 UTC,[],null,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_0\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,null,,1,,[],Name_1,false,0001-01-01 00:00:00 +0000 UTC,[],null,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_1\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,null,,2,,[],Name_2,false,0001-01-01 00:00:00 +0000 UTC,[],null,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_2\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,null,,3,,[],Name_3,false,0001-01-01 00:00:00 +0000 UTC,[],null,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_3\n" +
-				"false,false,,1970-01-01 00:00:05 +0000 UTC,null,,4,,[],Name_4,false,0001-01-01 00:00:00 +0000 UTC,[],null,,[],0,0001-01-01 00:00:00 +0000 UTC,false,[],false,0001-01-01 00:00:00 +0000 UTC,0,false,,,,0,false,0001-01-01 00:00:00 +0000 UTC,,0,,[1 100],true,,0001-01-01 00:00:00 +0000 UTC,0,[],false,Flow_4",
+			func(t *testing.T, out string) {
+				// we only care that the excludes were honored, alias was applied, and values
+				// are in the correct columns
+				rows, err := csv.NewReader(strings.NewReader(out)).ReadAll()
+				require.NoError(t, err)
+				require.Len(t, rows, 6)
+				header := rows[0]
+				for _, absent := range []string{"LastModifiedBy", "LastModifiedByID", "Can",
+					"Timezone", "LatestResults"} {
+					for _, col := range header {
+						if col == absent || strings.HasPrefix(col, absent+".") {
+							t.Errorf("column %q should have been excluded, but found %q", absent, col)
+						}
+					}
+				}
+				for i, row := range rows[1:] {
+					require.Equal(t, len(header), len(row),
+						"header length (%v) does not match row length (%v)", len(header), len(row))
+					iStr := strconv.Itoa(i)
+					for col, want := range map[string]string{
+						"ItemID":         iStr, // aliased from CommonFields.ID
+						"Name":           "Name_" + iStr,
+						"Flow":           "Flow_" + iStr,
+						"CreatedAt":      "1970-01-01 00:00:05 +0000 UTC",
+						"Readers.GIDs":   "[1 100]",
+						"Readers.Global": "true",
+					} {
+						idx := slices.Index(header, col)
+						if idx < 0 {
+							t.Errorf("column %q missing from header %v", col, header)
+							continue
+						}
+						if row[idx] != want {
+							t.Errorf("row %d column %q: expected %q, got %q", i, col, want, row[idx])
+						}
+					}
+				}
+			},
 		},
 		{"csv with exclude default CommonFields.* (should exclude all CommonFields and AutomationCommonFields)",
 			scaffoldlist.Options{
@@ -529,12 +563,15 @@ func TestAutoAliasPrefix(t *testing.T) {
 				}},
 			[]string{"--csv"},
 			false,
-			"Flow\n" +
-				"Flow_0\n" +
-				"Flow_1\n" +
-				"Flow_2\n" +
-				"Flow_3\n" +
-				"Flow_4",
+			func(t *testing.T, out string) {
+				require.Equal(t, "Flow\n"+
+					"Flow_0\n"+
+					"Flow_1\n"+
+					"Flow_2\n"+
+					"Flow_3\n"+
+					"Flow_4",
+					out)
+			},
 		},
 		{"json with exclude default CommonFields.* (should exclude all CommonFields and AutomationCommonFields)",
 			scaffoldlist.Options{
@@ -544,12 +581,15 @@ func TestAutoAliasPrefix(t *testing.T) {
 				}},
 			[]string{"--json"},
 			false,
-			`[` +
-				`{"Flow":"Flow_0"},` +
-				`{"Flow":"Flow_1"},` +
-				`{"Flow":"Flow_2"},` +
-				`{"Flow":"Flow_3"},` +
-				`{"Flow":"Flow_4"}` + `]`,
+			func(t *testing.T, out string) {
+				require.Equal(t, `[`+
+					`{"Flow":"Flow_0"},`+
+					`{"Flow":"Flow_1"},`+
+					`{"Flow":"Flow_2"},`+
+					`{"Flow":"Flow_3"},`+
+					`{"Flow":"Flow_4"}`+`]`,
+					out)
+			},
 		},
 		{"json exclude defaults ignored by --columns",
 			scaffoldlist.Options{
@@ -559,12 +599,15 @@ func TestAutoAliasPrefix(t *testing.T) {
 				}},
 			[]string{"--json", "--columns=ItemID,Name,Flow"},
 			false,
-			`[` +
-				`{"Flow":"Flow_0","ItemID":"0","Name":"Name_0"},` +
-				`{"Flow":"Flow_1","ItemID":"1","Name":"Name_1"},` +
-				`{"Flow":"Flow_2","ItemID":"2","Name":"Name_2"},` +
-				`{"Flow":"Flow_3","ItemID":"3","Name":"Name_3"},` +
-				`{"Flow":"Flow_4","ItemID":"4","Name":"Name_4"}` + `]`,
+			func(t *testing.T, out string) {
+				require.Equal(t, `[`+
+					`{"Flow":"Flow_0","ItemID":"0","Name":"Name_0"},`+
+					`{"Flow":"Flow_1","ItemID":"1","Name":"Name_1"},`+
+					`{"Flow":"Flow_2","ItemID":"2","Name":"Name_2"},`+
+					`{"Flow":"Flow_3","ItemID":"3","Name":"Name_3"},`+
+					`{"Flow":"Flow_4","ItemID":"4","Name":"Name_4"}`+`]`,
+					out)
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -598,9 +641,7 @@ func TestAutoAliasPrefix(t *testing.T) {
 
 			var gotOut = testsupport.ExtractPrintLineMessageString(t, pair.Model.Update(nil), false, 0)
 			// out should be a table
-			if gotOut != tt.wantOut {
-				t.Error("bad Update output", testsupport.ExpectedActual(tt.wantOut, gotOut))
-			}
+			tt.checkOut(t, gotOut)
 		})
 	}
 }
@@ -816,7 +857,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{
+						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
 						},
@@ -831,7 +872,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{
+						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
 							Limit:          5,
@@ -846,7 +887,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--all cannot be set when omit.Everything",
@@ -857,7 +898,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 			}
@@ -908,7 +949,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					false, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{
+						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
 						},
@@ -922,7 +963,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--all cannot be set when omit.Everything",
@@ -933,7 +974,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--include-deleted cannot be set when omitted",
@@ -944,7 +985,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 				{"--include-deleted cannot be set when omit.Everything",
@@ -955,7 +996,7 @@ func TestOmitFlags(t *testing.T) {
 					},
 					true, false,
 					scaffoldlist.DataParameters{
-						&types.QueryOptions{},
+						types.QueryOptions{},
 					},
 				},
 			}

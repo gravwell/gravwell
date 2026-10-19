@@ -73,7 +73,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Resource{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.Resource, error) {
-			resp, err := connection.Client.ListResources(param.QueryOptions())
+			resp, err := connection.Client.ListResources(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -106,7 +106,7 @@ func download() action.Pair {
 		"1. Resources owned by the user always have highest priority\n"+
 		"2. Resources shared with a group to which the user belongs are next\n"+
 		"3. Global resources are the lowest priority.",
-		func(fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			// arg length checked by the options
 			id := fs.Arg(0)
 			outPath, err := fs.GetString(ft.Output.Name())
@@ -116,22 +116,22 @@ func download() action.Pair {
 			clilog.Writer.Info("downloading resource", rfc5424.SDParam{Name: "resource_ID", Value: id})
 			data, err := connection.Client.GetResource(id)
 			if err != nil {
-				return err.Error(), nil
+				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
 			// write to file or stdout
 			if outPath != "" {
 				out, err := os.Create(outPath)
 				if err != nil {
-					return err.Error(), nil
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
 				defer out.Close()
 				n, err := out.WriteString(string(data))
 				if err != nil {
-					return err.Error(), nil
+					return []scaffold.Result{{Output: err.Error()}}, nil
 				}
-				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+				return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, outPath), Success: true}}, nil
 			}
-			return string(data), nil
+			return []scaffold.Result{{Output: string(data), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
@@ -216,7 +216,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteResource(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListResources(params.QueryOptions())
+			lr, err := connection.Client.ListResources(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

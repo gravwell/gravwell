@@ -267,7 +267,7 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string, width, heigh
 	// fetch deleteable items
 	params := DataParameters{}
 	if d.options.QueryOptionsFlags != nil {
-		params.QueryOpts = d.options.QueryOptionsFlags.QueryOptions(&d.flagset)
+		params.QueryOptions = d.options.QueryOptionsFlags.QueryOptions(&d.flagset)
 	}
 	itms, err := d.fch(params)
 	if err != nil {

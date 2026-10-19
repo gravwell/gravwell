@@ -17,6 +17,7 @@ import (
 
 	"encoding/hex"
 
+	"github.com/gravwell/gravwell/v4/client/agentpack"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/client/types/kits"
 )
@@ -322,6 +323,77 @@ func readTemplate(dir, id string) (x kits.PackedUserTemplate, err error) {
 	bts, err = os.ReadFile(queryPath)
 	if err == nil {
 		x.Query = string(bts)
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+	return
+}
+
+/**************************************************************************
+ * Agents
+ **************************************************************************/
+
+// Agents are unpacked as a directory tree per agent under agent/<id>/: the
+// metadata, each node and its prompt, and the images all in their own files
+// (see agentpack for the layout), so a kit's agents can be edited and diffed
+// piece by piece. gaftool reads and writes the same tree.
+func writeAgent(dir string, id string, x kits.PackedAgent) error {
+	a := x.Unpackage(0, nil)
+	a.ID = id
+	return agentpack.WriteTree(filepath.Join(dir, "agent", id), &a)
+}
+
+func readAgent(dir, id string) (x kits.PackedAgent, err error) {
+	a, err := agentpack.ReadTree(filepath.Join(dir, "agent", id), false)
+	if err != nil {
+		return
+	}
+	if err = agentpack.CheckAgent(a); err != nil {
+		return
+	}
+	x = kits.PackAgent(*a)
+	x.ID = id
+	return
+}
+
+/**************************************************************************
+ * Agent Skills
+ **************************************************************************/
+
+// Skills split like playbooks: the markdown body in its own file next to the
+// metadata, so it can be edited as markdown.
+func writeAgentSkill(dir string, id string, x kits.PackedAgentSkill) error {
+	p := filepath.Join(dir, "skill")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	if err := os.WriteFile(bodyPath, []byte(x.Body), 0644); err != nil {
+		return err
+	}
+	x.Body = ``
+	mb, err := json.MarshalIndent(x, "", "	")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(metaPath, mb, 0644)
+}
+
+func readAgentSkill(dir, id string) (x kits.PackedAgentSkill, err error) {
+	p := filepath.Join(dir, "skill")
+	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", id))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", id))
+	var bts []byte
+	if bts, err = os.ReadFile(metaPath); err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	bts, err = os.ReadFile(bodyPath)
+	if err == nil {
+		x.Body = string(bts)
 	} else if os.IsNotExist(err) {
 		err = nil
 	}

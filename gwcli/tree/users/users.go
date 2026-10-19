@@ -55,7 +55,7 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.User, error) {
-			resp, err := connection.Client.ListUsers(param.QueryOptions())
+			resp, err := connection.Client.ListUsers(param.QueryOptions)
 			return resp.Results, err
 		}, nil,
 		scaffoldlist.Options{
@@ -164,7 +164,7 @@ func delete() action.Pair {
 			return connection.Client.DeleteUser(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListUsers(param.QueryOptions())
+			lr, err := connection.Client.ListUsers(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}

@@ -67,7 +67,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction(
 		"list installed and staged kits", "Lists system kits visible to you or, if you are an admin, available on this system.",
 		types.KitState{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.KitState, error) {
-			kits, err := connection.Client.ListKits(param.QueryOptions())
+			kits, err := connection.Client.ListKits(param.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -109,7 +109,7 @@ func uninstall() action.Pair {
 			return connection.Client.DeleteKit(ID)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			pkgs, err := connection.Client.ListKits(params.QueryOptions())
+			pkgs, err := connection.Client.ListKits(params.QueryOptions)
 			if err != nil {
 				return nil, err
 			}
@@ -577,6 +577,52 @@ func build() action.Pair {
 				},
 				},
 			},
+			"agents": {
+				Title:    "Agents",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "agents", Usage: "Comma-separated list of AI agent IDs to include in the kit."},
+				Order:    295,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.Agents {
+								preselections[x] = true
+							}
+						}
+						lr, err := connection.Client.ListAgents(types.QueryOptions{All: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch agents", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapAssets(lr.Results, preselections)
+					},
+				},
+				},
+			},
+			"agent skills": {
+				Title:    "Agent Skills",
+				Required: false,
+				Flag:     scaffoldcreate.FlagConfig{Name: "agent-skills", Usage: "Comma-separated list of agent skill IDs to include in the kit."},
+				Order:    285,
+				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
+					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
+						var preselections = map[string]bool{}
+						if priorKBR != nil { // build preselections
+							for _, x := range priorKBR.AgentSkills {
+								preselections[x] = true
+							}
+						}
+						lr, err := connection.Client.ListAgentSkills(types.QueryOptions{All: true})
+						if err != nil {
+							clilog.Writer.Warn("failed to fetch agent skills", scaffold.IdentifyCaller(), log.KVErr(err))
+							return nil
+						}
+						return listitem.WrapAssets(lr.Results, preselections)
+					},
+				},
+				},
+			},
 			"saved queries": {
 				Title:    "Saved Queries",
 				Required: false,
@@ -733,6 +779,8 @@ func build() action.Pair {
 				Playbooks:         getSliceOrNil(fields["playbooks"].Provider.Get()),
 				SavedQueries:      getSliceOrNil(fields["saved queries"].Provider.Get()),
 				Alerts:            getSliceOrNil(fields["alerts"].Provider.Get()),
+				Agents:            getSliceOrNil(fields["agents"].Provider.Get()),
+				AgentSkills:       getSliceOrNil(fields["agent skills"].Provider.Get()),
 				EmbeddedItems:     embed,
 				Icon:              iconID,
 			}
@@ -910,6 +958,10 @@ func build() action.Pair {
 							priorKBR.Playbooks = append(priorKBR.Playbooks, item.ID)
 						case types.KitAssetAlert:
 							priorKBR.Alerts = append(priorKBR.Alerts, item.ID)
+						case types.KitAssetAgent:
+							priorKBR.Agents = append(priorKBR.Agents, item.ID)
+						case types.KitAssetAgentSkill:
+							priorKBR.AgentSkills = append(priorKBR.AgentSkills, item.ID)
 						/*case types.KitAssetExternal: // external is unused
 						priorKBR.EmbeddedItems = append(priorKBR.EmbeddedItems, types.KitEmbeddedItem{})*/
 						case types.KitAssetLicense:
@@ -985,7 +1037,7 @@ func buildRequests() action.Pair {
 			"Note that only the most recent build request is stored for each unique kit ID (e.g. \"io.gravwell.foo\").",
 		types.KitBuildRequest{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitBuildRequest, error) {
-			lr, err := connection.Client.ListKitBuildHistory(params.QueryOptions())
+			lr, err := connection.Client.ListKitBuildHistory(params.QueryOptions)
 			return lr.Results, err
 		},
 		nil,
@@ -1007,7 +1059,7 @@ func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
 		types.KitMetadata{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitMetadata, error) {
-			lr, err := connection.Client.ListRemoteKits(params.QueryOpts.All)
+			lr, err := connection.Client.ListRemoteKits(params.QueryOptions.All)
 			return lr.Results, err
 		},
 		nil,
