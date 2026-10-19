@@ -304,16 +304,22 @@ func completePollState(store hosted.Storage, state *pollState) error {
 	if state == nil || !state.Active {
 		return errors.New("cannot complete inactive Slack state")
 	}
+	// The checkpoint is monotonic. A wall-clock rollback smaller than the
+	// late-visibility overlap still produces a valid window, and completing it
+	// must not move the durable checkpoint backwards: that would re-request
+	// history already collected and, once the clock recovered, leave a gap in
+	// what the checkpoint claims.
+	completedThrough := max(state.CompletedThrough, state.Latest)
 	// The durable checkpoint is committed before Active is cleared. A crash
 	// between them can only replay the active page through the receipt ledger;
 	// it cannot advance past unacknowledged records.
-	if err := store.PutInt64(stateCompletedThroughKey, state.Latest); err != nil {
+	if err := store.PutInt64(stateCompletedThroughKey, completedThrough); err != nil {
 		return fmt.Errorf("persist Slack completed-through checkpoint: %w", err)
 	}
 	if err := store.PutInt64(stateActiveKey, 0); err != nil {
 		return fmt.Errorf("deactivate Slack state: %w", err)
 	}
-	state.CompletedThrough = state.Latest
+	state.CompletedThrough = completedThrough
 	state.Active = false
 	state.Oldest = 0
 	state.Latest = 0

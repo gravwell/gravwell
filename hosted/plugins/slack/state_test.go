@@ -246,6 +246,54 @@ func TestCompletePollStateCheckpointsBeforeDeactivation(t *testing.T) {
 	}
 }
 
+// TestCompletePollStateKeepsTheCheckpointMonotonic covers a backward clock: the
+// window is valid, but completing it must retain the existing checkpoint rather
+// than persist a lower one.
+func TestCompletePollStateKeepsTheCheckpointMonotonic(t *testing.T) {
+	runtime := newTestRuntime()
+	if err := runtime.PutInt64(stateCompletedThroughKey, 1000); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := beginPollState(runtime, &state, 700, 900); err != nil {
+		t.Fatal(err)
+	}
+	if err := completePollState(runtime, &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.CompletedThrough != 1000 {
+		t.Fatalf("in-memory checkpoint=%d want=1000", state.CompletedThrough)
+	}
+	persisted, err := runtime.GetInt64(stateCompletedThroughKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted != 1000 {
+		t.Fatalf("persisted checkpoint=%d want=1000", persisted)
+	}
+
+	// A window that really does move forward still advances it.
+	loaded, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := beginPollState(runtime, &loaded, 1000, 1200); err != nil {
+		t.Fatal(err)
+	}
+	if err := completePollState(runtime, &loaded); err != nil {
+		t.Fatal(err)
+	}
+	if loaded.CompletedThrough != 1200 {
+		t.Fatalf("forward checkpoint=%d want=1200", loaded.CompletedThrough)
+	}
+	if persisted, err := runtime.GetInt64(stateCompletedThroughKey); err != nil || persisted != 1200 {
+		t.Fatalf("persisted forward checkpoint=%d error=%v", persisted, err)
+	}
+}
+
 func TestResetCursorStateAdvancesCycleBeforeClearingTraversal(t *testing.T) {
 	runtime := newTestRuntime()
 	state := newPollState()

@@ -108,8 +108,22 @@ type Writer interface {
 // confirmed on disk by an indexer. NativeRuntime implements this interface.
 // State-store Sync is intentionally separate and does not acknowledge ingest
 // delivery.
+//
+// Plugins must resolve this capability with AcknowledgedWriterFor rather than a
+// bare type assertion, see that function for why.
 type AcknowledgedWriter interface {
 	WriteAcknowledged(context.Context, entry.Entry) error
+}
+
+// AcknowledgedWriterUnwrapper is implemented by Runtime wrappers that provide
+// acknowledged writes only when the Runtime they wrap does. A wrapper has to
+// declare WriteAcknowledged to be able to forward it, which makes a type
+// assertion for AcknowledgedWriter against the wrapper succeed no matter what is
+// underneath, so the wrapper answers for the runtime it wraps instead. A
+// wrapper returns itself when the capability is really available, so scoping and
+// any other wrapper behavior is retained, and nil when it is not.
+type AcknowledgedWriterUnwrapper interface {
+	AcknowledgedWriter() AcknowledgedWriter
 }
 
 // TagNegotiator is just a limited version of the writer so that a hosted ingester can check tag negotiation at startup

@@ -3,17 +3,21 @@ package slack
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 var fixedNow = time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
@@ -407,7 +411,10 @@ func TestRetryAfterPersistsAcrossRestart(t *testing.T) {
 	}
 }
 
-func TestRetryAfterLongDelayDoesNotRequestEarly(t *testing.T) {
+// TestRetryAfterAboveTheCeilingClampsTheDeferral pins the persisted deadline of
+// a vendor-supplied delay above the operational ceiling. A longer deadline would
+// be re-examined on the same five-minute cadence and never cleared.
+func TestRetryAfterAboveTheCeilingClampsTheDeferral(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if requests.Add(1) == 1 {
@@ -422,22 +429,319 @@ func TestRetryAfterLongDelayDoesNotRequestEarly(t *testing.T) {
 	runtime := newTestRuntime()
 	plugin := newTestPlugin(t, config, fixedNow, server.Client())
 	continuation, err := plugin.Handle(t.Context(), runtime)
-	if err != nil || continuation.Delay != 10*time.Minute {
-		t.Fatalf("first continuation=%v error=%v", continuation, err)
+	if err != nil || continuation.Delay != maximumRetrySleep {
+		t.Fatalf("first continuation=%v error=%v want delay=%v", continuation, err, maximumRetrySleep)
+	}
+	state, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := fixedNow.Add(maximumRetrySleep).UnixNano(); state.RetryAt != want {
+		t.Fatalf("retry at=%d want=%d", state.RetryAt, want)
 	}
 
-	plugin = newTestPlugin(t, config, fixedNow.Add(5*time.Minute), server.Client())
+	plugin = newTestPlugin(t, config, fixedNow.Add(2*time.Minute), server.Client())
 	continuation, err = plugin.Handle(t.Context(), runtime)
-	if err != nil || continuation.Delay != 5*time.Minute || requests.Load() != 1 {
+	if err != nil || continuation.Delay != 3*time.Minute || requests.Load() != 1 {
 		t.Fatalf("early continuation=%v error=%v requests=%d", continuation, err, requests.Load())
 	}
 
-	plugin = newTestPlugin(t, config, fixedNow.Add(10*time.Minute), server.Client())
+	plugin = newTestPlugin(t, config, fixedNow.Add(maximumRetrySleep), server.Client())
 	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
 		t.Fatal(err)
 	}
 	if requests.Load() != 2 {
 		t.Fatalf("eligible requests=%d", requests.Load())
+	}
+}
+
+// TestAcknowledgedWriteTimeoutLeavesProgressUnadvanced proves every acknowledged
+// record write is bounded. A relay that never accepts the handoff must not hold
+// the poll loop open, and the timeout is an at-least-once outcome: no receipt,
+// no cursor progress, and no checkpoint.
+func TestAcknowledgedWriteTimeoutLeavesProgressUnadvanced(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		fmt.Fprint(w, `{"ok":true,"entries":[{"id":"one","date_create":1700000000},{"id":"two","date_create":1700000001}],"response_metadata":{"next_cursor":"next"}}`)
+	}))
+	defer server.Close()
+
+	runtime := newTestRuntime()
+	runtime.ackBlock = true
+	plugin := newTestPlugin(t, validConfig(server.URL), fixedNow, server.Client())
+	plugin.writeDeadline = 50 * time.Millisecond
+	headBefore, err := loadOptionalInt64(runtime, receiptHeadKey, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, handleErr := plugin.Handle(t.Context(), runtime)
+		done <- handleErr
+	}()
+	select {
+	case err = <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("acknowledged write was not bounded: Handle never returned")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error=%v want the bounded-write deadline", err)
+	}
+	if errors.Is(err, context.Canceled) {
+		t.Fatal("a bounded-write timeout must not look like shutdown cancellation")
+	}
+	if !strings.Contains(err.Error(), "acknowledged write exceeded") {
+		t.Fatalf("error=%v is not reported as a bounded acknowledged write", err)
+	}
+	if runtime.ackCalls != 1 || len(runtime.entries) != 0 {
+		t.Fatalf("acknowledgement calls=%d delivered entries=%d", runtime.ackCalls, len(runtime.entries))
+	}
+
+	headAfter, err := loadOptionalInt64(runtime, receiptHeadKey, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if headAfter != headBefore {
+		t.Fatalf("receipt head advanced from %d to %d on an unconfirmed write", headBefore, headAfter)
+	}
+	state, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.CompletedThrough != 0 || state.Cursor != "" {
+		t.Fatalf("timeout advanced progress: state=%+v", state)
+	}
+
+	// The record is simply retried once delivery works again.
+	runtime.ackBlock = false
+	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.entries) != 2 || requests.Load() != 2 {
+		t.Fatalf("retry entries=%d requests=%d", len(runtime.entries), requests.Load())
+	}
+}
+
+func TestAcknowledgedWriteBoundHasADocumentedDefault(t *testing.T) {
+	plugin := newTestPlugin(t, validConfig("https://api.slack.com"), fixedNow, http.DefaultClient)
+	if plugin.writeDeadline != acknowledgedWriteDeadline {
+		t.Fatalf("write deadline=%v want=%v", plugin.writeDeadline, acknowledgedWriteDeadline)
+	}
+	if acknowledgedWriteDeadline <= 0 {
+		t.Fatalf("acknowledged writes are unbounded: %v", acknowledgedWriteDeadline)
+	}
+}
+
+// TestUnsupportedWrappedRuntimeIsRejectedWithoutSideEffects proves the
+// acknowledged-delivery capability is resolved against the runtime that would
+// actually perform the write, before a tag, plugin state, or Slack is touched.
+func TestUnsupportedWrappedRuntimeIsRejectedWithoutSideEffects(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		fmt.Fprint(w, `{"ok":true,"entries":[{"id":"one","date_create":1700000000}],"response_metadata":{"next_cursor":""}}`)
+	}))
+	defer server.Close()
+
+	base := newTestRuntime()
+	wrapped := &scopedTestRuntime{Runtime: &unacknowledgedRuntime{Runtime: base}}
+	// The wrapper forwards acknowledged writes, so the bare assertion the
+	// capability check must not use would succeed here.
+	if _, ok := any(wrapped).(hosted.AcknowledgedWriter); !ok {
+		t.Fatal("test wrapper does not reproduce the vacuous assertion")
+	}
+
+	plugin := newTestPlugin(t, validConfig(server.URL), fixedNow, server.Client())
+	if _, err := plugin.Handle(t.Context(), wrapped); err == nil || !strings.Contains(err.Error(), "acknowledged runtime writes") {
+		t.Fatalf("error=%v want the acknowledged-capability rejection", err)
+	}
+	if len(base.tags) != 0 {
+		t.Fatalf("tag negotiated before the capability check: %v", base.tags)
+	}
+	if base.putTotal != 0 || len(base.store) != 0 {
+		t.Fatalf("plugin state written before the capability check: writes=%d keys=%d", base.putTotal, len(base.store))
+	}
+	if requests.Load() != 0 || base.ackCalls != 0 || len(base.entries) != 0 {
+		t.Fatalf("vendor requests=%d acknowledgements=%d entries=%d", requests.Load(), base.ackCalls, len(base.entries))
+	}
+}
+
+func TestWrappedRuntimeWithAcknowledgedBaseStillDelivers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"ok":true,"entries":[{"id":"one","date_create":1700000000}],"response_metadata":{"next_cursor":""}}`)
+	}))
+	defer server.Close()
+
+	base := newTestRuntime()
+	plugin := newTestPlugin(t, validConfig(server.URL), fixedNow, server.Client())
+	if _, err := plugin.Handle(t.Context(), &scopedTestRuntime{Runtime: base}); err != nil {
+		t.Fatal(err)
+	}
+	if base.ackCalls != 1 || len(base.entries) != 1 {
+		t.Fatalf("acknowledgements=%d entries=%d", base.ackCalls, len(base.entries))
+	}
+	state, err := loadPollState(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Active || state.CompletedThrough != fixedNow.Add(-pollBuffer).Unix() {
+		t.Fatalf("state=%+v", state)
+	}
+}
+
+// TestBackwardClockDoesNotRegressCheckpoint proves a wall-clock rollback smaller
+// than the late-visibility overlap still produces a valid window, and completing
+// it retains the durable checkpoint instead of moving it backwards.
+func TestBackwardClockDoesNotRegressCheckpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"ok":true,"entries":[{"id":"one","date_create":1700000000}],"response_metadata":{"next_cursor":""}}`)
+	}))
+	defer server.Close()
+
+	runtime := newTestRuntime()
+	plugin := newTestPlugin(t, validConfig(server.URL), fixedNow, server.Client())
+	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+	forward, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if forward.CompletedThrough != fixedNow.Add(-pollBuffer).Unix() {
+		t.Fatalf("forward checkpoint=%+v", forward)
+	}
+
+	rolledBack := fixedNow.Add(-2 * time.Minute)
+	plugin = newTestPlugin(t, validConfig(server.URL), rolledBack, server.Client())
+	if _, err := plugin.Handle(t.Context(), runtime); err != nil {
+		t.Fatal(err)
+	}
+	after, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.CompletedThrough != forward.CompletedThrough {
+		t.Fatalf("checkpoint regressed from %d to %d", forward.CompletedThrough, after.CompletedThrough)
+	}
+	if after.Active {
+		t.Fatalf("backward-clock window did not complete: %+v", after)
+	}
+}
+
+// TestOversizedPageReducesRequestSizeWithoutSkippingOrDuplicating proves an
+// oversized successful page is resolved by asking for fewer records at the same
+// cursor, and that the traversal then makes forward cursor progress delivering
+// each record exactly once.
+func TestOversizedPageReducesRequestSizeWithoutSkippingOrDuplicating(t *testing.T) {
+	const fitsAt = 100
+	pages := map[string]struct {
+		records []string
+		next    string
+	}{
+		"":   {records: []string{"r0", "r1"}, next: "c1"},
+		"c1": {records: []string{"r2", "r3"}, next: "c2"},
+		"c2": {records: []string{"r4"}, next: ""},
+	}
+	var requestedLimits []int
+	var requestedCursors []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil {
+			t.Fatalf("limit=%q error=%v", r.URL.Query().Get("limit"), err)
+		}
+		cursor := r.URL.Query().Get("cursor")
+		requestedLimits = append(requestedLimits, limit)
+		requestedCursors = append(requestedCursors, cursor)
+		if limit > fitsAt {
+			fmt.Fprintf(w, `{"ok":true,"entries":[{"blob":%q}],"response_metadata":{}}`, strings.Repeat("x", maximumAuditPageSize))
+			return
+		}
+		current, ok := pages[cursor]
+		if !ok {
+			t.Fatalf("unexpected cursor %q", cursor)
+		}
+		var body bytes.Buffer
+		body.WriteString(`{"ok":true,"entries":[`)
+		for index, id := range current.records {
+			if index > 0 {
+				body.WriteByte(',')
+			}
+			fmt.Fprintf(&body, `{"id":%q,"date_create":%d}`, id, 1700000000+index)
+		}
+		fmt.Fprintf(&body, `],"response_metadata":{"next_cursor":%q}}`, current.next)
+		_, _ = w.Write(body.Bytes())
+	}))
+	defer server.Close()
+
+	runtime := newTestRuntime()
+	plugin := newTestPlugin(t, validConfig(server.URL), fixedNow, server.Client())
+	for attempt := 0; ; attempt++ {
+		if attempt > 10 {
+			t.Fatal("traversal did not complete")
+		}
+		continuation, err := plugin.Handle(t.Context(), runtime)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if continuation == nil || continuation.Delay != 0 {
+			break
+		}
+	}
+
+	delivered := make([]string, 0, len(runtime.entries))
+	seen := make(map[string]int)
+	for _, ent := range runtime.entries {
+		var record struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(ent.Data, &record); err != nil {
+			t.Fatal(err)
+		}
+		delivered = append(delivered, record.ID)
+		seen[record.ID]++
+	}
+	want := []string{"r0", "r1", "r2", "r3", "r4"}
+	if !slices.Equal(delivered, want) {
+		t.Fatalf("delivered=%v want=%v", delivered, want)
+	}
+	for id, count := range seen {
+		if count != 1 {
+			t.Fatalf("record %q delivered %d times", id, count)
+		}
+	}
+
+	// The reduction walks downward at the first cursor, then every later page is
+	// requested once at the retained size with a forward cursor.
+	if len(requestedLimits) < 2 || requestedLimits[0] != pageSize {
+		t.Fatalf("requested limits=%v", requestedLimits)
+	}
+	reductions := 0
+	for _, limit := range requestedLimits {
+		if limit > fitsAt {
+			reductions++
+		}
+		if limit < minimumPageSize || limit > pageSize {
+			t.Fatalf("requested limit %d outside [%d,%d]", limit, minimumPageSize, pageSize)
+		}
+	}
+	if got := requestedCursors[:reductions+1]; !slices.Equal(got, make([]string, reductions+1)) {
+		t.Fatalf("reduction left the first cursor: %v", got)
+	}
+	if got, want := requestedCursors[reductions+1:], []string{"c1", "c2"}; !slices.Equal(got, want) {
+		t.Fatalf("cursor progress=%v want=%v", got, want)
+	}
+	if plugin.api.limit > fitsAt {
+		t.Fatalf("retained request limit=%d did not shrink below %d", plugin.api.limit, fitsAt)
+	}
+
+	state, err := loadPollState(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Active || state.CompletedThrough != fixedNow.Add(-pollBuffer).Unix() {
+		t.Fatalf("state after reduction=%+v", state)
 	}
 }
 

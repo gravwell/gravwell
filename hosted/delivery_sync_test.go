@@ -67,6 +67,61 @@ func TestScopedRuntimeRejectsMissingAcknowledgedContract(t *testing.T) {
 	}
 }
 
+// TestAcknowledgedWriterForResolvesTheWrappedRuntime proves capability
+// resolution inspects what will actually perform the write. The scoped runtime
+// declares WriteAcknowledged unconditionally, so a bare type assertion against
+// it always succeeds and the failure would only surface from the first write,
+// after a plugin had negotiated a tag and touched its state.
+func TestAcknowledgedWriterForResolvesTheWrappedRuntime(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	unsupported := newTestRuntime(ctx, cancel)
+	scopedUnsupported := &scopedRuntime{Runtime: unsupported, ctx: ctx}
+	if _, ok := any(scopedUnsupported).(AcknowledgedWriter); !ok {
+		t.Fatal("scoped runtime no longer reproduces the vacuous assertion")
+	}
+	if writer, ok := AcknowledgedWriterFor(scopedUnsupported); ok || writer != nil {
+		t.Fatalf("unsupported wrapped runtime resolved writer=%v ok=%v", writer, ok)
+	}
+
+	base := &acknowledgedTestRuntime{Runtime: newTestRuntime(ctx, cancel)}
+	scopedSupported := &scopedRuntime{Runtime: base, ctx: ctx}
+	writer, ok := AcknowledgedWriterFor(scopedSupported)
+	if !ok || writer == nil {
+		t.Fatalf("supported wrapped runtime resolved writer=%v ok=%v", writer, ok)
+	}
+	// Resolution hands back the wrapper, so scoped cancellation still applies.
+	if writer != AcknowledgedWriter(scopedSupported) {
+		t.Fatalf("resolved writer=%T want the scoped runtime", writer)
+	}
+	if err := writer.WriteAcknowledged(ctx, entry.Entry{Data: []byte("test")}); err != nil {
+		t.Fatal(err)
+	}
+	if base.calls != 1 {
+		t.Fatalf("calls=%d want=1", base.calls)
+	}
+
+	// A runtime that implements the contract directly needs no unwrapping.
+	if writer, ok := AcknowledgedWriterFor(base); !ok || writer == nil {
+		t.Fatalf("direct runtime resolved writer=%v ok=%v", writer, ok)
+	}
+	// A runtime that neither wraps nor implements it is rejected.
+	if writer, ok := AcknowledgedWriterFor(unsupported); ok || writer != nil {
+		t.Fatalf("unsupported runtime resolved writer=%v ok=%v", writer, ok)
+	}
+
+	// Nesting does not reintroduce the vacuous answer.
+	nestedUnsupported := &scopedRuntime{Runtime: scopedUnsupported, ctx: ctx}
+	if writer, ok := AcknowledgedWriterFor(nestedUnsupported); ok || writer != nil {
+		t.Fatalf("nested unsupported runtime resolved writer=%v ok=%v", writer, ok)
+	}
+	nestedSupported := &scopedRuntime{Runtime: scopedSupported, ctx: ctx}
+	if writer, ok := AcknowledgedWriterFor(nestedSupported); !ok || writer != AcknowledgedWriter(nestedSupported) {
+		t.Fatalf("nested supported runtime resolved writer=%v ok=%v", writer, ok)
+	}
+}
+
 func TestScopedRuntimeHonorsCallerCancellationBeforeAcknowledgedWrite(t *testing.T) {
 	runnerCtx, cancelRunner := context.WithCancel(context.Background())
 	defer cancelRunner()

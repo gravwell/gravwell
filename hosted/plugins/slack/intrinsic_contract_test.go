@@ -2,8 +2,12 @@ package slack
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 )
 
 // intrinsicDecisions is the code-side half of the frozen producer/consumer
@@ -68,6 +72,88 @@ func TestCurrentKitIntrinsicContractOmitsEveryUnusedCandidate(t *testing.T) {
 	}
 	if err := validateIntrinsicDecisions(intrinsicDecisions); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// readPublicReadme returns the shipped operator documentation with its line
+// wrapping collapsed, so a statement is pinned to its words rather than to where
+// the paragraph happens to break.
+func readPublicReadme(t *testing.T) string {
+	t.Helper()
+	body, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Join(strings.Fields(string(body)), " ")
+}
+
+// TestPublicReadmeDocumentsEveryPermanentSkipClass reads the shipped operator
+// documentation and pins it to the skip behavior the plugin actually implements.
+// A record in one of these classes is warned, receipted, and never delivered, so
+// an operator cannot be left to discover a silent permanent drop.
+func TestPublicReadmeDocumentsEveryPermanentSkipClass(t *testing.T) {
+	readme := readPublicReadme(t)
+
+	// Every permanent skip class in Plugin.Handle, with its exact limit.
+	for name, statements := range map[string][]string{
+		"raw record over the Slack raw-record limit": {
+			fmt.Sprintf("%d MiB", maximumAuditRecordSize>>20),
+			"raw Slack record larger than",
+			"raw-record limit",
+		},
+		"normalization failure": {
+			"fails normalization",
+			"date_create",
+		},
+		"configured global ingest entry limit": {
+			"configured global ingest entry-size limit",
+			"Max-Entry-Size",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, statement := range statements {
+				if !strings.Contains(readme, statement) {
+					t.Fatalf("README does not state %q for the %s skip class", statement, name)
+				}
+			}
+		})
+	}
+
+	// The at-least-once boundary must be exact in both directions.
+	for _, statement := range []string{
+		"warned, receipted, and permanently skipped",
+		"never delivered and is never retried",
+		"delivered at least once and may be delivered more than once",
+		"every record inside them is delivered zero times",
+	} {
+		if !strings.Contains(readme, statement) {
+			t.Fatalf("README does not state the at-least-once boundary %q", statement)
+		}
+	}
+
+	// A skip class named in the documentation but not implemented would be just
+	// as wrong, so the stated count is pinned to the three implemented classes.
+	if got, want := strings.Count(readme, "Three classes of record"), 1; got != want {
+		t.Fatalf("README skip-class count statements=%d want=%d", got, want)
+	}
+}
+
+// TestPublicReadmeDocumentsBoundedDeliveryAndPageReduction keeps the rest of the
+// operator-visible delivery contract pinned to the implementation.
+func TestPublicReadmeDocumentsBoundedDeliveryAndPageReduction(t *testing.T) {
+	readme := readPublicReadme(t)
+	for _, statement := range []string{
+		"waits at most two minutes",
+		fmt.Sprintf("%d MiB", maximumAuditPageSize>>20),
+		"progressively fewer requested records",
+		"never moves backwards",
+	} {
+		if !strings.Contains(readme, statement) {
+			t.Fatalf("README does not state %q", statement)
+		}
+	}
+	if acknowledgedWriteDeadline != 2*time.Minute {
+		t.Fatalf("acknowledged write bound=%v but the README documents two minutes", acknowledgedWriteDeadline)
 	}
 }
 

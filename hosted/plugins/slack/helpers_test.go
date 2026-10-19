@@ -30,6 +30,7 @@ type testRuntime struct {
 	ackFailAt         int
 	ackErr            error
 	ackMaxSize        int
+	ackBlock          bool
 	failStateAfterAck bool
 	putCalls          map[string]int
 	putSizes          map[string][]int
@@ -127,6 +128,20 @@ func (r *testRuntime) WriteAcknowledged(ctx context.Context, ent entry.Entry) er
 		return err
 	}
 	r.mu.Lock()
+	block := r.ackBlock
+	if block {
+		r.ackCalls++
+	}
+	r.mu.Unlock()
+	if block {
+		// Stand in for a relay that never accepts the handoff: the write only
+		// ends when the caller's bounded context expires. The lock is released
+		// first so a missing bound shows up as a hung poll rather than as a
+		// deadlock on the runtime itself.
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.ackCalls++
 	if r.ackMaxSize > 0 && len(ent.Data) > r.ackMaxSize {
@@ -167,6 +182,40 @@ func (r *testRuntime) Warn(message string, _ ...rfc5424.SDParam) {
 }
 func (*testRuntime) Error(string, ...rfc5424.SDParam)    {}
 func (*testRuntime) Critical(string, ...rfc5424.SDParam) {}
+
+// unacknowledgedRuntime hides the acknowledged-write contract of the runtime it
+// wraps. Embedding the Runtime interface promotes only Runtime's methods, which
+// is exactly how a Hosted Runner runtime without optional acknowledged delivery
+// presents itself.
+type unacknowledgedRuntime struct {
+	hosted.Runtime
+}
+
+// scopedTestRuntime mirrors the Hosted Runner's scoped runtime: it declares
+// WriteAcknowledged so it can forward one, which makes a bare type assertion for
+// hosted.AcknowledgedWriter succeed no matter what it wraps, and answers for the
+// wrapped runtime through hosted.AcknowledgedWriterUnwrapper.
+type scopedTestRuntime struct {
+	hosted.Runtime
+}
+
+func (r *scopedTestRuntime) WriteAcknowledged(ctx context.Context, ent entry.Entry) error {
+	writer, ok := r.Runtime.(hosted.AcknowledgedWriter)
+	if !ok {
+		return errors.New("runtime does not provide acknowledged writes")
+	}
+	return writer.WriteAcknowledged(ctx, ent)
+}
+
+func (r *scopedTestRuntime) AcknowledgedWriter() hosted.AcknowledgedWriter {
+	if _, ok := r.Runtime.(hosted.AcknowledgedWriter); !ok {
+		return nil
+	}
+	return r
+}
+
+var _ hosted.AcknowledgedWriter = (*scopedTestRuntime)(nil)
+var _ hosted.AcknowledgedWriterUnwrapper = (*scopedTestRuntime)(nil)
 
 func validConfig(host string) *Config {
 	return &Config{

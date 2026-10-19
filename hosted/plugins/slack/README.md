@@ -45,18 +45,52 @@ another Slack request. An operator must select a shorter initial lookback and
 reset that plugin instance's active state before collection can resume. A
 window receives at most three cursor traversal cycles; another repeated or
 invalid cursor returns an error so the runner reports the stall and applies its
-error delay. Records rejected by the configured global ingest entry-size limit
-are warned, receipted, and skipped so one record cannot permanently block the
-window.
+error delay.
 
-Slack collection remains at-least-once if a process or state device fails
-between backend acknowledgement and receipt persistence. More than 10,000
-distinct records inside one five-minute overlap can exceed the overlap receipt
-capacity and allow repeats. Separately, if one active traversal delivers more
-than 10,000 distinct non-overlap records and its cursor must reset, records
-evicted from the traversal receipt ring may repeat during that reset. Events
-that become visible more than five minutes after their timestamp are outside
-the bounded late-visibility replay contract.
+Each acknowledged entry write waits at most two minutes for an indexer to
+confirm it on disk. Exceeding that bound is reported as a poll error, not as a
+rejection: the entry may still commit, no checkpoint advances, and the record is
+offered again on the next poll.
+
+A single Slack response body is read up to 16 MiB. A larger successful response
+is retried at the same cursor with progressively fewer requested records, down
+to one record per request, so an unusually large page makes forward progress
+instead of repeating. That reduction persists for the rest of the process run,
+which lowers the records-per-request figure above and therefore how much of a
+traversal the marker ledger covers. A single record that is still over 16 MiB on
+its own returns a visible error rather than being skipped.
+
+## Permanently skipped records
+
+Three classes of record are warned, receipted, and permanently skipped so that
+one record cannot block a window forever. A permanently skipped record is never
+delivered and is never retried:
+
+- A raw Slack record larger than 8 MiB, the Slack raw-record limit this plugin
+  accepts.
+- A record that fails normalization, meaning it is not a JSON object or its
+  `date_create` is missing or unusable.
+- A record rejected by the configured global ingest entry-size limit
+  (`Max-Entry-Size` in the Hosted Runner ingest configuration), which is checked
+  against the normalized entry and is independent of the 8 MiB raw-record limit.
+
+That is the exact at-least-once boundary: every record outside those three
+classes is delivered at least once and may be delivered more than once, and
+every record inside them is delivered zero times.
+
+Duplicates come from a bounded set of cases. Slack collection remains
+at-least-once if a process or state device fails between backend acknowledgement
+and receipt persistence, or when an acknowledged write exceeds its two-minute
+bound after the entry has reached an indexer. More than 10,000 distinct records
+inside one five-minute overlap can exceed the overlap receipt capacity and allow
+repeats. Separately, if one active traversal delivers more than 10,000 distinct
+non-overlap records and its cursor must reset, records evicted from the
+traversal receipt ring may repeat during that reset. Events that become visible
+more than five minutes after their timestamp are outside the bounded
+late-visibility replay contract.
+
+The completed-through checkpoint never moves backwards, so a wall-clock rollback
+re-collects an already completed window rather than reopening a gap.
 
 ## References
 

@@ -260,11 +260,54 @@ func TestDittoWriteContextValidatesBatchBeforeRelayHandoff(t *testing.T) {
 	if err := muxer.DittoWriteContext(context.Background(), nil); err != nil {
 		t.Fatalf("empty batch error=%v", err)
 	}
-	if err := muxer.DittoWriteContext(context.Background(), []entry.Entry{{Tag: entry.GravwellTagId, Data: []byte("12345")}}); !errors.Is(err, ErrOversizedEntry) {
-		t.Fatalf("error=%v want ErrOversizedEntry", err)
+	// An unknown tag is still rejected before a relay can take the block.
+	if err := muxer.DittoWriteContext(context.Background(), []entry.Entry{{Tag: 7, Data: []byte("x")}}); !errors.Is(err, ErrUnknownTag) {
+		t.Fatalf("error=%v want ErrUnknownTag", err)
 	}
 	if len(delivered) != 0 {
 		t.Fatal("invalid block was handed to relay")
+	}
+}
+
+// TestDittoWriteContextDoesNotApplyTheConfiguredEntrySizeBound pins the shared
+// Ditto API to tag-only validation. Ditto replicates blocks another indexer has
+// already accepted, so this process's configured entry bound is not the
+// authority on them, and narrowing the exported API would reject replication
+// traffic that used to succeed.
+func TestDittoWriteContextDoesNotApplyTheConfiguredEntrySizeBound(t *testing.T) {
+	delivered := make(chan dittoBlock)
+	muxer := &IngestMuxer{
+		mtx:          &sync.RWMutex{},
+		dittoChan:    delivered,
+		writeBarrier: make(chan bool),
+		maxEntrySize: 4,
+		state:        running,
+	}
+	oversized := entry.Entry{Tag: entry.GravwellTagId, Data: []byte("12345")}
+
+	result := make(chan error, 1)
+	go func() {
+		result <- muxer.DittoWriteContext(context.Background(), []entry.Entry{oversized})
+	}()
+	block := <-delivered
+	if len(block.ents) != 1 || !bytes.Equal(block.ents[0].Data, oversized.Data) {
+		t.Fatalf("delivered block=%+v want the oversized entry", block.ents)
+	}
+	block.cb(nil)
+	if err := <-result; err != nil {
+		t.Fatalf("direct Ditto delivery of an oversized entry error=%v", err)
+	}
+
+	// The acknowledged entry API is where the configured bound is enforced, and
+	// it still rejects the same payload before any relay handoff.
+	ent := oversized
+	if err := muxer.WriteEntryAcknowledgedContext(context.Background(), &ent); !errors.Is(err, ErrOversizedEntry) {
+		t.Fatalf("acknowledged write error=%v want ErrOversizedEntry", err)
+	}
+	select {
+	case block := <-delivered:
+		t.Fatalf("rejected entry reached a relay: %+v", block.ents)
+	default:
 	}
 }
 

@@ -31,12 +31,25 @@ const (
 	pollBuffer            = time.Minute
 	lateVisibilityOverlap = 5 * time.Minute
 	maximumCursorCycles   = 3
+
+	// acknowledgedWriteDeadline bounds how long one acknowledged entry write may
+	// wait for an indexer to confirm it on disk. The Hosted Runner's health
+	// signal does not prove a relay is available, and the native path blocks on
+	// an unbuffered relay handoff plus that disk acknowledgement, so without a
+	// deadline one entry could hold the poll loop indefinitely and keep the
+	// plugin from reporting a stall. Exceeding it is an explicit at-least-once
+	// outcome: the entry may still commit, so no receipt and no checkpoint
+	// advance and the record is retried.
+	acknowledgedWriteDeadline = 2 * time.Minute
 )
 
 type Plugin struct {
 	conf *Config
 	api  *client
 	now  func() time.Time
+
+	// writeDeadline is acknowledgedWriteDeadline; tests shorten it.
+	writeDeadline time.Duration
 
 	tagMu sync.Mutex
 	tag   entry.EntryTag
@@ -66,14 +79,17 @@ func New(conf *Config) (*Plugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Plugin{conf: conf, api: api, now: time.Now}, nil
+	return &Plugin{conf: conf, api: api, now: time.Now, writeDeadline: acknowledgedWriteDeadline}, nil
 }
 
 func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	writer, ok := rt.(hosted.AcknowledgedWriter)
+	// Resolve acknowledged delivery against the runtime that actually provides
+	// it before negotiating a tag, touching state, or contacting Slack, so an
+	// unsupported runtime cannot be discovered part way through a page.
+	writer, ok := hosted.AcknowledgedWriterFor(rt)
 	if !ok {
 		return nil, errors.New("Slack Audit requires acknowledged runtime writes")
 	}
@@ -202,7 +218,7 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 			targetLedger = overlapLedger
 		}
 		ent := entry.Entry{TS: entry.FromStandard(timestamp), Tag: tag, Data: compact}
-		if err := writer.WriteAcknowledged(ctx, ent); err != nil {
+		if err := p.writeAcknowledged(ctx, writer, ent); err != nil {
 			if errors.Is(err, ingest.ErrOversizedEntry) {
 				if rememberErr := targetLedger.remember(rt, digest); rememberErr != nil {
 					p.clearReceipts()
@@ -244,14 +260,35 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		return hosted.ContinueNow(), nil
 	}
 
-	completedThrough := state.Latest
 	if err := completePollState(rt, &state); err != nil {
 		return nil, err
 	}
 	p.clearReceipts()
 	p.clearCursorLedger()
-	rt.Info("completed Slack Audit window", log.KV("through", completedThrough), log.KV("records", len(result.records)), log.KV("written", written))
+	// Report the checkpoint that was persisted. A monotonic completion can retain
+	// an earlier checkpoint, and the log must not claim otherwise.
+	rt.Info("completed Slack Audit window", log.KV("through", state.CompletedThrough), log.KV("records", len(result.records)), log.KV("written", written))
 	return p.conf.ContinueAfterInterval(), nil
+}
+
+// writeAcknowledged delivers one entry under a bounded wait. Exceeding the
+// deadline is an at-least-once outcome rather than a rejection, so it is
+// returned as an ordinary error: the caller persists no receipt, the checkpoint
+// does not advance, and the record is retried on the next poll. The deadline
+// error is distinct from context.Canceled, which the job adapter treats as
+// shutdown.
+func (p *Plugin) writeAcknowledged(ctx context.Context, writer hosted.AcknowledgedWriter, ent entry.Entry) error {
+	deadline := p.writeDeadline
+	if deadline <= 0 {
+		deadline = acknowledgedWriteDeadline
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, deadline)
+	defer cancel()
+	err := writer.WriteAcknowledged(writeCtx, ent)
+	if err != nil && ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("Slack Audit acknowledged write exceeded its %s bound and remains unconfirmed: %w", deadline, err)
+	}
+	return err
 }
 
 func (p *Plugin) negotiateTag(rt hosted.Runtime) (entry.EntryTag, error) {

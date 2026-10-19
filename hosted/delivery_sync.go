@@ -17,6 +17,42 @@ import (
 
 var _ AcknowledgedWriter = (*NativeRuntime)(nil)
 var _ AcknowledgedWriter = (*scopedRuntime)(nil)
+var _ AcknowledgedWriterUnwrapper = (*scopedRuntime)(nil)
+
+// AcknowledgedWriterFor resolves the acknowledged-delivery capability of a
+// Runtime. A plugin that requires durable per-entry delivery calls this before
+// it negotiates a tag, reads or writes plugin state, or contacts a vendor, so an
+// unsupported runtime is rejected without side effects.
+//
+// A direct type assertion is not enough. Runtime wrappers embed the Runtime
+// interface and declare WriteAcknowledged so they can forward it, which makes
+// the assertion succeed even when the wrapped runtime provides nothing and the
+// failure only surfaces from the first write. Wrappers implement
+// AcknowledgedWriterUnwrapper to answer for what they wrap, and hand back
+// themselves so their scoping still applies to every write.
+func AcknowledgedWriterFor(rt Runtime) (AcknowledgedWriter, bool) {
+	if u, ok := rt.(AcknowledgedWriterUnwrapper); ok {
+		writer := u.AcknowledgedWriter()
+		return writer, writer != nil
+	}
+	writer, ok := rt.(AcknowledgedWriter)
+	return writer, ok
+}
+
+// AcknowledgedWriter implements AcknowledgedWriterUnwrapper. The scoped runtime
+// can only acknowledge a write when the runtime it wraps can, and callers write
+// through the scoped runtime so the runner's own context keeps bounding them.
+// Resolution recurses, so a wrapper around a wrapper still answers for whatever
+// is actually at the bottom.
+func (sr *scopedRuntime) AcknowledgedWriter() AcknowledgedWriter {
+	if sr == nil {
+		return nil
+	}
+	if _, ok := AcknowledgedWriterFor(sr.Runtime); !ok {
+		return nil
+	}
+	return sr
+}
 
 // WriteAcknowledged writes one entry through the native per-block
 // acknowledgement path. It returns only after an indexer confirms that this

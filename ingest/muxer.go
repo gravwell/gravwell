@@ -1458,14 +1458,17 @@ func (im *IngestMuxer) WriteEntryAcknowledgedContext(ctx context.Context, e *ent
 // are on disk unless the caller's context expires or the muxer shuts down.
 // Cancellation after relay handoff is an indeterminate at-least-once result:
 // the block may still commit even though its acknowledgement was not observed.
+//
+// Validation here is deliberately tag-only. Ditto replicates blocks that another
+// indexer already accepted, so the configured entry-size bound of this process
+// is not the authority on them; callers that must honor that bound, such as
+// WriteEntryAcknowledgedContext, enforce it before they get here.
 func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) error {
 	if len(b) == 0 {
 		return nil
 	}
 	for i := range b {
-		if len(b[i].Data) > im.maxEntrySize {
-			return ErrOversizedEntry
-		} else if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
+		if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
 			return ErrUnknownTag
 		}
 	}
