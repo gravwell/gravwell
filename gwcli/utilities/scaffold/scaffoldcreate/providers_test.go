@@ -131,6 +131,21 @@ func TestTextProvider(t *testing.T) {
 	})
 }
 
+func TestTextProvider_RequiredSatisfaction(t *testing.T) {
+	t.Run("required and empty is unsatisfied", func(t *testing.T) {
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.TextProvider{})
+		p.Provider.Initialize("", true)
+		assert.NotEmpty(t, p.Provider.Satisfied())
+		assert.Empty(t, p.Provider.Set("something"))
+		assert.Empty(t, p.Provider.Satisfied())
+	})
+	t.Run("required with a default is satisfied immediately", func(t *testing.T) {
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.TextProvider{})
+		p.Provider.Initialize("the-default", true)
+		assert.Empty(t, p.Provider.Satisfied())
+	})
+}
+
 func TestPathProvider(t *testing.T) {
 	t.Run("accept completion", func(t *testing.T) {
 		// set PWD and create some files to test path completion against
@@ -245,6 +260,21 @@ func TestPathProviderTildeExpansion(t *testing.T) {
 	if got := provider.Get(); got != "~weird" {
 		t.Fatal("unsupported tilde form should be returned unchanged", testsupport.ExpectedActual("~weird", got))
 	}
+}
+
+func TestPathProvider_RequiredSatisfaction(t *testing.T) {
+	t.Run("required and empty is unsatisfied", func(t *testing.T) {
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.PathProvider{})
+		p.Provider.Initialize("", true)
+		assert.NotEmpty(t, p.Provider.Satisfied())
+		assert.Empty(t, p.Provider.Set("/some/path"))
+		assert.Empty(t, p.Provider.Satisfied())
+	})
+	t.Run("required with a default is satisfied immediately", func(t *testing.T) {
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.PathProvider{})
+		p.Provider.Initialize("/the/default", true)
+		assert.Empty(t, p.Provider.Satisfied())
+	})
 }
 
 func TestMSLProvider(t *testing.T) {
@@ -634,6 +664,22 @@ func TestNumberProvider(t *testing.T) {
 		f.Provider.Reset()
 		assert.Equal(t, "-15", f.Provider.Get(), "provider was not reset to initial value")
 	})
+	t.Run("required and empty is unsatisfied", func(t *testing.T) {
+		t.Parallel()
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.NumberProvider{})
+		p.Provider.Initialize("", true)
+		assert.NotEmpty(t, p.Provider.Satisfied(), "a required field with no default should not be satisfied by its 0 fallback")
+		assert.Equal(t, "0", p.Provider.Get())
+
+		assert.Empty(t, p.Provider.Set("42"))
+		assert.Empty(t, p.Provider.Satisfied())
+	})
+	t.Run("non-numeric input is still rejected regardless of required", func(t *testing.T) {
+		t.Parallel()
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.NumberProvider{})
+		p.Provider.Initialize("", true)
+		assert.NotEmpty(t, p.Provider.Set("not-a-number"))
+	})
 }
 
 func TestTextAreaProvider(t *testing.T) {
@@ -713,6 +759,21 @@ func TestTextAreaProvider(t *testing.T) {
 				assert.Equal(t, []string{"my second value", "a multiline", "sentence"}, lines)
 			}
 		})
+	})
+}
+
+func TestTextAreaProvider_RequiredSatisfaction(t *testing.T) {
+	t.Run("required and empty is unsatisfied", func(t *testing.T) {
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.TextAreaProvider{})
+		p.Provider.Initialize("", true)
+		assert.NotEmpty(t, p.Provider.Satisfied())
+		assert.Empty(t, p.Provider.Set("content"))
+		assert.Empty(t, p.Provider.Satisfied())
+	})
+	t.Run("required with a default is satisfied immediately", func(t *testing.T) {
+		p := scaffoldcreate.NewField("", true, &scaffoldcreate.TextAreaProvider{})
+		p.Provider.Initialize("the default body", true)
+		assert.Empty(t, p.Provider.Satisfied())
 	})
 }
 
