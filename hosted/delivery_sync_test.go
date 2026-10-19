@@ -3,10 +3,27 @@ package hosted
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
+
+func TestReadmeRequiresSafeAcknowledgedWriterCapabilityResolution(t *testing.T) {
+	readme, err := os.ReadFile(filepath.Join("README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Join(strings.Fields(string(readme)), " ")
+	if !strings.Contains(text, "hosted.AcknowledgedWriterFor(rt)") {
+		t.Fatal("README does not name the required acknowledged-writer resolver")
+	}
+	if strings.Contains(text, "type-assert `hosted.AcknowledgedWriter`") {
+		t.Fatal("README still recommends the unsafe bare capability assertion")
+	}
+}
 
 type acknowledgedTestRuntime struct {
 	Runtime
