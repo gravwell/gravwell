@@ -36,11 +36,19 @@ const (
 	defaultConfigDLoc = `/opt/gravwell/etc/macos_unified_log.conf.d`
 	ingesterName      = `macOS Unified Log`
 	appName           = `macosunifiedlog`
-
-	// how long runStreams waits for every streamer goroutine to exit after ctx is
-	// canceled, so a preprocessor that ignores cancellation can't hang shutdown forever
-	wgWaitTimeout = 30 * time.Second
 )
+
+// wgWaitTimeout bounds how long runStreams waits for every streamer goroutine to
+// exit after ctx is canceled, so a preprocessor that ignores cancellation can't
+// hang shutdown forever. It's a var, rather than a const, so tests can shorten it.
+var wgWaitTimeout = 30 * time.Second
+
+// buildProcessorSet constructs the ProcessorSet for a stream's preprocessor list.
+// It's a package-level var, like logCommand, so tests can substitute a stub
+// without needing a real preprocessor configuration.
+var buildProcessorSet = func(pc processors.ProcessorConfig, igst *ingest.IngestMuxer, names []string) (processorCloser, error) {
+	return pc.ProcessorSet(igst, names)
+}
 
 func main() {
 	go debug.HandleDebugSignals(appName)
@@ -114,8 +122,10 @@ func main() {
 //
 // Once every stream is known to be startable, runStreams starts them all and
 // blocks until ctx is canceled, then waits (with a timeout, in case a
-// preprocessor ignores cancellation) for every streamer to stop and closes
-// their preprocessors before returning.
+// preprocessor ignores cancellation) for every streamer to stop before closing
+// their preprocessors. If the timeout fires, a streamer goroutine is presumably
+// still inside a preprocessor call, so the processor sets are left unclosed
+// rather than racing that call with a concurrent Close.
 func runStreams(ctx context.Context, cfg *cfgType, igst *ingest.IngestMuxer, hostname string, lg *log.Logger) error {
 	var globalSrc net.IP
 	if cfg.Global.Source_Override != `` {
@@ -127,7 +137,7 @@ func runStreams(ctx context.Context, cfg *cfgType, igst *ingest.IngestMuxer, hos
 		name string
 		sc   *streamConfig
 		tag  entry.EntryTag
-		proc *processors.ProcessorSet
+		proc processorCloser
 	}
 	var setups []streamSetup
 	closeSetups := func() {
@@ -143,8 +153,16 @@ func runStreams(ctx context.Context, cfg *cfgType, igst *ingest.IngestMuxer, hos
 			closeSetups()
 			return fmt.Errorf("stream %q: failed to resolve tag %q: %w", name, sc.Tag_Name, err)
 		}
-		proc, err := cfg.Preprocessor.ProcessorSet(igst, sc.Preprocessor)
+		proc, err := buildProcessorSet(cfg.Preprocessor, igst, sc.Preprocessor)
 		if err != nil {
+			// ProcessorSet can return a non-nil, partially-built set alongside
+			// its error (e.g. the second of two preprocessors failed), so close
+			// whatever it did manage to build rather than leaking it.
+			if proc != nil {
+				if cerr := proc.Close(); cerr != nil {
+					lg.Error("failed to close preprocessors", log.KV("stream", name), log.KVErr(cerr))
+				}
+			}
 			closeSetups()
 			return fmt.Errorf("stream %q: preprocessor construction error: %w", name, err)
 		}
@@ -166,10 +184,17 @@ func runStreams(ctx context.Context, cfg *cfgType, igst *ingest.IngestMuxer, hos
 	}()
 	select {
 	case <-done:
+		// every streamer goroutine has returned, so nothing is still inside
+		// ProcessContext and it's safe to flush and close the processor sets
+		closeSetups()
 	case <-time.After(wgWaitTimeout):
+		// a streamer goroutine is still live, almost certainly stuck inside a
+		// preprocessor's ProcessContext despite ctx being canceled. ProcessorSet
+		// locks that call, so closing the processor sets now would race it.
+		// Skipping the flush is strictly better than corrupting a processor's
+		// state or panicking on the way out.
 		lg.Error("timed out waiting for streamers to stop", log.KV("timeout", wgWaitTimeout))
 	}
 
-	closeSetups()
 	return nil
 }
