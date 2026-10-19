@@ -32,6 +32,9 @@ type DashboardTimeframe struct {
 	Kind  string
 	Start string `json:",omitempty"`
 	End   string `json:",omitempty"`
+	// Timezone is the IANA time zone used to evaluate Start and End for a "range"
+	// timeframe, like America/Denver. Nil means each viewer's own zone is used.
+	Timezone *string `json:",omitempty"`
 }
 
 // DashboardGrid describes top-level grid layout options for a Dashboard.
@@ -124,4 +127,44 @@ func (d Dashboard) ToPatch() DashboardPatch {
 type DashboardListResponse struct {
 	BaseListResponse
 	Results []Dashboard
+}
+
+// DashboardSearchLaunchRequest describes options for launching the searches of a dashboard.
+// Every field is optional: the zero value launches every Searchable over the dashboard's
+// stored Timeframe.
+type DashboardSearchLaunchRequest struct {
+	// Timeframe applies to every Searchable that does not carry its own TimeframeOverride.
+	// Nil falls back to the dashboard's stored Timeframe.
+	Timeframe *DashboardTimeframe `json:",omitempty"`
+	// Variables supplies values for template variables, keyed by the full variable name
+	// including the %% prefix and postfix (e.g. "%%IP%%"). Values apply dashboard-wide.
+	Variables map[string]string `json:",omitempty"`
+}
+
+// DashboardSearchLaunchResponse is the outcome of launching the searches of a dashboard.
+// Results maps each key of the dashboard's Searches to the result of launching that Searchable.
+type DashboardSearchLaunchResponse struct {
+	Results map[string]DashboardSearchLaunchResult
+}
+
+// DashboardSearchLaunchStatus is the discriminator for DashboardSearchLaunchResult.
+type DashboardSearchLaunchStatus string
+
+const (
+	DashboardSearchLaunchStatusLaunched DashboardSearchLaunchStatus = "launched"
+	DashboardSearchLaunchStatusFailed   DashboardSearchLaunchStatus = "failed"
+)
+
+// DashboardSearchLaunchResult is the result of launching a single Searchable of a dashboard.
+// It is a flattened representation of the API's discriminated union: Launch is set when
+// Status is "launched", Error is set when Status is "failed".
+type DashboardSearchLaunchResult struct {
+	Status DashboardSearchLaunchStatus
+	Launch *LaunchResponse `json:",omitempty"`
+	Error  string          `json:",omitempty"`
+}
+
+// Launched reports whether the Searchable was resolved and its search started.
+func (r DashboardSearchLaunchResult) Launched() bool {
+	return r.Status == DashboardSearchLaunchStatusLaunched && r.Launch != nil
 }

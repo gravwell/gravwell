@@ -178,6 +178,12 @@ func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error
 	if err = c.postStaticURL(searchesUrl(), sr, &resp); err != nil {
 		return
 	}
+	return c.SearchFromLaunch(resp), nil
+}
+
+// SearchFromLaunch builds a Search from a LaunchResponse returned by the server, such as
+// one carried by a launched DashboardSearchLaunchResult.
+func (c *Client) SearchFromLaunch(resp types.LaunchResponse) (s Search) {
 	//populate the time range in the search object from the search, we use what the server says, not what we handed in
 	s.start, s.end = resp.Info.StartRange, resp.Info.EndRange
 
@@ -229,22 +235,7 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 	if err = c.getStaticURL(searchesIdAttachUrl(id), &resp); err != nil {
 		return
 	}
-	//populate the time range in the search object from the search, we use what the server says, not what we handed in
-	s.start, s.end = resp.Info.StartRange, resp.Info.EndRange
-
-	s.ID = resp.SearchID
-	s.RenderMod = resp.RenderModule
-	if s.interval = time.Duration(resp.RefreshInterval) * time.Second; s.interval == 0 {
-		s.interval = defaultInterval
-	}
-	s.session = resp.SearchSessionID
-	s.cli = c
-	s.SearchInfo = resp.Info
-
-	//kick off our renderer
-	s.RenderMod = resp.RenderModule
-	s.start, s.end = resp.Info.StartRange, resp.Info.EndRange
-	return s, nil
+	return c.SearchFromLaunch(resp), nil
 }
 
 // GetAvailableEntryCount returns the number of output entries for the specified
