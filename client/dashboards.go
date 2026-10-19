@@ -56,6 +56,17 @@ func (c *Client) UpdateDashboard(ID string, p types.DashboardPatch) (updated typ
 	return c.patch[types.DashboardPatch, types.Dashboard](dashboardsIdUrl(ID), p)
 }
 
+// LaunchDashboardSearches launches every search described by a dashboard's Searches in a
+// single request. Searches are launched independently, so a nil error does not mean every
+// search started: inspect each result's Status. Use SearchFromLaunch to turn a launched
+// result into a Search.
+func (c *Client) LaunchDashboardSearches(id string, req types.DashboardSearchLaunchRequest) (types.DashboardSearchLaunchResponse, error) {
+	if id == "" {
+		return types.DashboardSearchLaunchResponse{}, ErrEmptyID
+	}
+	return c.post[types.DashboardSearchLaunchRequest, types.DashboardSearchLaunchResponse](dashboardsIdLaunchUrl(id), &req)
+}
+
 // CleanupDashboards (admin-only) purges all deleted dashboards for all users.
 func (c *Client) CleanupDashboards() error {
 	return c.delete(DASHBOARDS_URL)
