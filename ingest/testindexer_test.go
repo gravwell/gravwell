@@ -65,6 +65,16 @@ func newTestIndexer(secret string) (*testIndexer, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newTestIndexerOn(lst, secret), nil
+}
+
+// newMemTestIndexer starts a test indexer on an in-memory listener, see
+// memListener.  Pair it with installMemDialer so a muxer can reach it.
+func newMemTestIndexer(secret string) *testIndexer {
+	return newTestIndexerOn(newMemListener(), secret)
+}
+
+func newTestIndexerOn(lst net.Listener, secret string) *testIndexer {
 	ti := &testIndexer{
 		lst:    lst,
 		secret: secret,
@@ -77,7 +87,7 @@ func newTestIndexer(secret string) (*testIndexer, error) {
 
 	ti.wg.Add(1)
 	go ti.acceptRoutine()
-	return ti, nil
+	return ti
 }
 
 // Destination is the muxer destination string pointing at this indexer.

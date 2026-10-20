@@ -266,6 +266,26 @@ func newSyncTestMuxer(t *testing.T) (*testIndexer, *IngestMuxer, entry.EntryTag)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return newSyncTestMuxerFor(t, ti)
+}
+
+// newMemSyncTestMuxer is newSyncTestMuxer over an in-memory transport, for
+// tests that run inside a synctest bubble on a fake clock.
+//
+// One rule for tests built on it: the fake clock only advances while every
+// goroutine in the bubble is durably blocked, and a sync.Mutex wait does not
+// count.  So never let the test goroutine contend for a lock (Close, Sync and
+// WriteEntry all take the EntryWriter's) while the holder is waiting on a
+// timer, for example a relay routine writing to an indexer that is asleep on
+// its throttle.  Clear the throttle and let things drain first.
+func newMemSyncTestMuxer(t *testing.T) (*testIndexer, *IngestMuxer, entry.EntryTag) {
+	t.Helper()
+	installMemDialer(t)
+	return newSyncTestMuxerFor(t, newMemTestIndexer(syncTestSecret))
+}
+
+func newSyncTestMuxerFor(t *testing.T, ti *testIndexer) (*testIndexer, *IngestMuxer, entry.EntryTag) {
+	t.Helper()
 	mxr, err := NewUniformMuxer(UniformMuxerConfig{
 		Destinations:    []string{ti.Destination()},
 		Tags:            []string{syncTestTag},

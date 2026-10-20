@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -402,64 +403,64 @@ func TestNegotiateTagOnEmptyMuxerGoesHot(t *testing.T) {
 // exchange itself to be bounded and to honor the muxer context.
 //
 // This runs with the real timeouts on purpose: Close has to get out through
-// context cancellation, well before the command budget expires.
+// context cancellation, well before the command budget expires.  The muxer
+// talks to the indexer over an in-memory transport inside a synctest bubble,
+// so those timeouts elapse on a fake clock.
 func TestCloseWithStalledIndexer(t *testing.T) {
-	// real wall clock bounds for this test, the indexer is a real socket so
-	// nothing here runs on a fake clock
-	const (
-		attachDeadline = 10 * time.Second
-		closeDeadline  = 15 * time.Second
-	)
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			attachDeadline = 10 * time.Second
+			closeDeadline  = 15 * time.Second
+		)
 
-	ti, err := newTestIndexer(syncTestSecret)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ti.Close()
-	ti.stallAfterAuth()
+		installMemDialer(t)
+		ti := newMemTestIndexer(syncTestSecret)
+		defer ti.Close()
+		ti.stallAfterAuth()
 
-	mxr, err := NewUniformMuxer(UniformMuxerConfig{
-		Destinations:    []string{ti.Destination()},
-		Tags:            []string{syncTestTag},
-		Auth:            syncTestSecret,
-		CacheDepth:      syncTestDepth,
-		IngesterName:    `closetest`,
-		IngesterVersion: `test`,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = mxr.Start(); err != nil {
-		t.Fatal(err)
-	}
-
-	//make sure we are actually attached and stalled rather than failing to connect at all
-	if err = waitForConns(ti, 1, attachDeadline); err != nil {
-		t.Fatal(err)
-	}
-	//the indexer is wedged, so we must not go hot
-	if err = mxr.WaitForHot(time.Second); err == nil {
-		t.Fatal("muxer went hot against an indexer that never finished setup")
-	}
-
-	//Close used to block forever here on im.wg.Wait()
-	start := time.Now()
-	errCh := make(chan error, 1)
-	go func() { errCh <- mxr.Close() }()
-	select {
-	case err = <-errCh:
+		mxr, err := NewUniformMuxer(UniformMuxerConfig{
+			Destinations:    []string{ti.Destination()},
+			Tags:            []string{syncTestTag},
+			Auth:            syncTestSecret,
+			CacheDepth:      syncTestDepth,
+			IngesterName:    `closetest`,
+			IngesterVersion: `test`,
+		})
 		if err != nil {
-			t.Fatalf("Close failed: %v", err)
+			t.Fatal(err)
 		}
-	case <-time.After(closeDeadline):
-		t.Fatalf("Close did not return within %v with a stalled indexer", closeDeadline)
-	}
-	t.Logf("Close returned in %v", time.Since(start))
+		if err = mxr.Start(); err != nil {
+			t.Fatal(err)
+		}
 
-	//and the half set up connection must actually have been torn down, not leaked
-	if err = waitForConns(ti, 0, closeDeadline); err != nil {
-		t.Fatal(err)
-	}
+		//make sure we are actually attached and stalled rather than failing to connect at all
+		if err = waitForConns(ti, 1, attachDeadline); err != nil {
+			t.Fatal(err)
+		}
+		//the indexer is wedged, so we must not go hot
+		if err = mxr.WaitForHot(time.Second); err == nil {
+			t.Fatal("muxer went hot against an indexer that never finished setup")
+		}
+
+		//Close used to block forever here on im.wg.Wait()
+		start := time.Now()
+		errCh := make(chan error, 1)
+		go func() { errCh <- mxr.Close() }()
+		select {
+		case err = <-errCh:
+			if err != nil {
+				t.Fatalf("Close failed: %v", err)
+			}
+		case <-time.After(closeDeadline):
+			t.Fatalf("Close did not return within %v with a stalled indexer", closeDeadline)
+		}
+		t.Logf("Close returned in %v", time.Since(start))
+
+		//and the half set up connection must actually have been torn down, not leaked
+		if err = waitForConns(ti, 0, closeDeadline); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 // waitForConns polls the indexer until it has exactly want connections

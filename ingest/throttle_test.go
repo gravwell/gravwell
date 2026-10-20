@@ -14,52 +14,25 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
-// dialLoopback sets up a real TCP loopback connection. It attempts to shrink
-// the OS send/receive buffers, but that has proven unreliable to depend on
-// precisely (observed: a 256KB write against an unread socket completed
-// instantly even after requesting 4KB buffers, likely because the resize
-// either lost a race with the first write or was clamped/ignored by the OS).
-// Tests MUST size payloads generously (multiple MB) so they reliably exceed
-// even an unshrunk, possibly-autotuned buffer, rather than relying on this
-// resize taking effect. This stands in for gravwell/issues#2820's indexer
-// that has stopped (or slowed to a crawl) draining its socket.
+// dialLoopback hands back the two ends of an in-memory connection.  It used
+// to be a real TCP loopback socket, but kernel send and receive buffers
+// silently absorb anything smaller than a few MB, which made "the peer is not
+// reading" very hard to stage reliably.  net.Pipe has no buffer at all: a
+// write completes only when the peer reads it, so a stalled peer stalls the
+// very first byte.  It also blocks on channels and implements its deadlines
+// with timers, which is what lets these tests run inside a synctest bubble on
+// a fake clock.  This stands in for gravwell/issues#2820's indexer that has
+// stopped (or slowed to a crawl) draining its socket.
 func dialLoopback(t *testing.T) (cli, srv net.Conn, cleanup func()) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to listen: %v", err)
-	}
-
-	accepted := make(chan net.Conn, 1)
-	go func() {
-		c, aerr := ln.Accept()
-		if aerr != nil {
-			return
-		}
-		if tc, ok := c.(*net.TCPConn); ok {
-			tc.SetReadBuffer(4096)
-		}
-		accepted <- c
-	}()
-
-	cli, err = net.Dial("tcp", ln.Addr().String())
-	if err != nil {
-		ln.Close()
-		t.Fatalf("failed to dial: %v", err)
-	}
-	if tc, ok := cli.(*net.TCPConn); ok {
-		tc.SetWriteBuffer(4096)
-	}
-
-	srv = <-accepted
-
+	cli, srv = net.Pipe()
 	cleanup = func() {
 		cli.Close()
 		srv.Close()
-		ln.Close()
 	}
 	return cli, srv, cleanup
 }
@@ -87,56 +60,58 @@ func writeWithWatchdog(t *testing.T, budget time.Duration, fn func() (int, error
 	}
 }
 
-// stalledPeerPayloadSize is deliberately far larger than any plausible
-// combined OS send+receive buffer capacity (default ~128KB each side on
-// macOS, autotuning up to ~4MB each per observed sysctls), so a write
-// against a peer that never reads is guaranteed to genuinely block rather
-// than being silently absorbed by kernel buffering.
-const stalledPeerPayloadSize = 16 * 1024 * 1024
+// stalledPeerPayloadSize is what the stalled peer tests try to push.  With
+// net.Pipe there is no kernel buffer to fill first, the first block already
+// blocks, so this only needs to span a few blocks.
+const stalledPeerPayloadSize = 64 * 1024
 
 // ---------------------------------------------------------------------
 // A fully stalled peer must be caught, not blocked on forever.
 // ---------------------------------------------------------------------
 
 func TestFullSpeedWriteTimesOutOnStalledPeer(t *testing.T) {
-	cli, _, cleanup := dialLoopback(t)
-	defer cleanup()
+	synctest.Test(t, func(t *testing.T) {
+		cli, _, cleanup := dialLoopback(t)
+		defer cleanup()
 
-	const writeTimeout = 150 * time.Millisecond
-	fs := newUnthrottledConn(cli, writeTimeout, 4096)
-	payload := make([]byte, stalledPeerPayloadSize)
+		const writeTimeout = 150 * time.Millisecond
+		fs := newUnthrottledConn(cli, writeTimeout, 4096)
+		payload := make([]byte, stalledPeerPayloadSize)
 
-	n, err := writeWithWatchdog(t, writeTimeout+10*time.Second, func() (int, error) {
-		return fs.Write(payload)
+		n, err := writeWithWatchdog(t, writeTimeout+10*time.Second, func() (int, error) {
+			return fs.Write(payload)
+		})
+		if err == nil {
+			t.Fatalf("expected a write timeout error against a peer that never reads, got n=%d err=nil", n)
+		}
+		if !isTimeout(err) {
+			t.Fatalf("expected a timeout error, got: %v", err)
+		}
+		t.Logf("fullSpeed.Write correctly returned after a bounded timeout: n=%d err=%v", n, err)
 	})
-	if err == nil {
-		t.Fatalf("expected a write timeout error against a peer that never reads, got n=%d err=nil", n)
-	}
-	if !isTimeout(err) {
-		t.Fatalf("expected a timeout error, got: %v", err)
-	}
-	t.Logf("fullSpeed.Write correctly returned after a bounded timeout: n=%d err=%v", n, err)
 }
 
 func TestThrottleConnWriteTimesOutOnStalledPeer(t *testing.T) {
-	cli, _, cleanup := dialLoopback(t)
-	defer cleanup()
+	synctest.Test(t, func(t *testing.T) {
+		cli, _, cleanup := dialLoopback(t)
+		defer cleanup()
 
-	const writeTimeout = 150 * time.Millisecond
-	p := newParent(100*1024*1024, 1) // huge burst: a single chunk would span the whole payload pre-blockSize-cap
-	tc := p.newThrottleConn(cli, writeTimeout, 4096)
-	payload := make([]byte, stalledPeerPayloadSize)
+		const writeTimeout = 150 * time.Millisecond
+		p := newParent(100*1024*1024, 1) // huge burst: a single chunk would span the whole payload pre-blockSize-cap
+		tc := p.newThrottleConn(cli, writeTimeout, 4096)
+		payload := make([]byte, stalledPeerPayloadSize)
 
-	n, err := writeWithWatchdog(t, writeTimeout+10*time.Second, func() (int, error) {
-		return tc.Write(payload)
+		n, err := writeWithWatchdog(t, writeTimeout+10*time.Second, func() (int, error) {
+			return tc.Write(payload)
+		})
+		if err == nil {
+			t.Fatalf("expected a write timeout error against a peer that never reads, got n=%d err=nil", n)
+		}
+		if !isTimeout(err) {
+			t.Fatalf("expected a timeout error, got: %v", err)
+		}
+		t.Logf("throttleConn.Write correctly returned after a bounded timeout: n=%d err=%v", n, err)
 	})
-	if err == nil {
-		t.Fatalf("expected a write timeout error against a peer that never reads, got n=%d err=nil", n)
-	}
-	if !isTimeout(err) {
-		t.Fatalf("expected a timeout error, got: %v", err)
-	}
-	t.Logf("throttleConn.Write correctly returned after a bounded timeout: n=%d err=%v", n, err)
 }
 
 // ---------------------------------------------------------------------
@@ -146,56 +121,34 @@ func TestThrottleConnWriteTimesOutOnStalledPeer(t *testing.T) {
 // fail the write, not "total transfer time exceeds writeTimeout".
 // ---------------------------------------------------------------------
 
-// slowReader reads from c in chunks with a fixed delay between reads,
-// forever (until c is closed or errors). Used to simulate a peer that is
-// alive and making progress, just slowly -- e.g. a real but
-// bandwidth-constrained link, not a dead one.
-func slowReader(c net.Conn, chunk int, delay time.Duration) {
+// slowReader reads from c in chunks with a fixed delay between reads, until
+// c is closed or stop is closed. Used to simulate a peer that is alive and
+// making progress, just slowly -- e.g. a real but bandwidth-constrained link,
+// not a dead one.  The stop channel matters inside a synctest bubble: once
+// the test body returns the fake clock stops, so a reader parked in a sleep
+// would never wake up to notice its connection went away.
+func slowReader(c net.Conn, chunk int, delay time.Duration, stop <-chan struct{}) {
 	buf := make([]byte, chunk)
+	tmr := time.NewTimer(delay)
+	defer tmr.Stop()
 	for {
-		time.Sleep(delay)
+		select {
+		case <-stop:
+			return
+		case <-tmr.C:
+		}
 		if _, err := c.Read(buf); err != nil {
 			return
 		}
+		tmr.Reset(delay)
 	}
 }
 
-// Parameters below were arrived at empirically across three rounds of CI
-// failures (see conversation history / gravwell/gravwell#2756), not just
-// derived on paper.
-//
-// Round 1: an 800ms writeTimeout reliably passed locally but flaked in CI
-// (actions run 34393112885) because a loaded/shared runner's goroutine
-// scheduling latency alone can eat several hundred ms before the reader's
-// first wakeup -- nothing to do with the code under test. Fixed by widening
-// slowPeerWriteTimeout to a large (15x+) margin over slowPeerReadDelay. This
-// is a ceiling, not something writes normally wait out, so it doesn't slow
-// the test down when things work.
-//
-// Round 2: a small blockSize (4096) then caused a genuine 30s+ hang on the
-// actual GitHub Actions Linux runner (actions run 34494493307), while staying
-// fast (~5s) locally. Misdiagnosed the cause as "too many blocks" and fixed
-// it by growing blockSize to 256KB -- which promptly made every block time
-// out at exactly 5s on the next CI run (actions run 34496306372, "expected
-// the slow but alive peer's write to succeed ... after 5.000759676s").
-//
-// The real mechanism, understood after that: what actually gates how much
-// gets through per read cycle is the KERNEL's receive buffer (set via
-// dialLoopback's SetReadBuffer(4096) on the accepting side), not slowReader's
-// own per-call read size (slowPeerReadChunk). On Linux that request is
-// apparently honored close to literally, so each read only frees roughly
-// 4KB of window regardless of how big slowReader's own buffer is. A bigger
-// blockSize doesn't reduce read cycles needed -- it means each individual
-// block needs MORE of them, making it MORE likely to blow its own per-block
-// writeTimeout, not less. Round 2 had it backwards.
-//
-// Fixed for real by going back to a small blockSize (so each block completes
-// in the 1-2 read cycles its size actually requires against a ~4KB kernel
-// buffer, comfortably inside writeTimeout) and shrinking the total payload
-// instead, to bound the cumulative time across the resulting larger block
-// count: 256KB / 4096 = 64 blocks, at most ~200ms of real waiting each in the
-// worst case = ~12.8s worst-case total, comfortably inside both writeTimeout
-// per block and the outer per-test watchdog below.
+// These used to be tuned around real kernel socket buffers (see the history
+// of gravwell/gravwell#2756 for three rounds of CI flakes).  Over net.Pipe on
+// a fake clock none of that applies: every block is handed to the reader
+// directly, the reader's delay is the only thing pacing the transfer, and the
+// elapsed times below are simulated.
 const (
 	slowPeerWriteTimeout = 5 * time.Second
 	slowPeerBlockSize    = 4096
@@ -213,65 +166,73 @@ const (
 )
 
 func TestFullSpeedWriteSurvivesSlowButAlivePeer(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
 
-	go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay)
+		stop := make(chan struct{})
+		defer close(stop)
+		go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay, stop)
 
-	fs := newUnthrottledConn(cli, slowPeerWriteTimeout, slowPeerBlockSize)
-	payload := make([]byte, slowPeerPayloadSize)
+		fs := newUnthrottledConn(cli, slowPeerWriteTimeout, slowPeerBlockSize)
+		payload := make([]byte, slowPeerPayloadSize)
 
-	start := time.Now()
-	n, err := writeWithWatchdog(t, 60*time.Second, func() (int, error) {
-		return fs.Write(payload)
+		start := time.Now()
+		n, err := writeWithWatchdog(t, 60*time.Second, func() (int, error) {
+			return fs.Write(payload)
+		})
+		elapsed := time.Since(start)
+
+		if err != nil {
+			t.Fatalf("expected the slow but alive peer's write to succeed, got err=%v after %v", err, elapsed)
+		}
+		if n != slowPeerPayloadSize {
+			t.Fatalf("expected to write all %d bytes, wrote %d", slowPeerPayloadSize, n)
+		}
+		// The read-cadence-driven transfer time is a hard floor regardless of how
+		// generous writeTimeout is -- if this finishes suspiciously fast, the
+		// reader's pacing didn't actually create real backpressure, so it isn't
+		// proving anything either way.
+		if elapsed < slowPeerMinRealisticDuration {
+			t.Fatalf("write finished in %v, expected at least %v -- "+
+				"test may not be exercising real backpressure, so it isn't proving anything", elapsed, slowPeerMinRealisticDuration)
+		}
+		t.Logf("write of %d bytes succeeded in %v against a peer slower than a single writeTimeout (%v) -- "+
+			"proves the per-block deadline doesn't kill a legitimately slow transfer", slowPeerPayloadSize, elapsed, slowPeerWriteTimeout)
 	})
-	elapsed := time.Since(start)
-
-	if err != nil {
-		t.Fatalf("expected the slow but alive peer's write to succeed, got err=%v after %v", err, elapsed)
-	}
-	if n != slowPeerPayloadSize {
-		t.Fatalf("expected to write all %d bytes, wrote %d", slowPeerPayloadSize, n)
-	}
-	// The read-cadence-driven transfer time is a hard floor regardless of how
-	// generous writeTimeout is -- if this finishes suspiciously fast, the
-	// reader's pacing didn't actually create real backpressure, so it isn't
-	// proving anything either way.
-	if elapsed < slowPeerMinRealisticDuration {
-		t.Fatalf("write finished in %v, expected at least %v -- "+
-			"test may not be exercising real backpressure, so it isn't proving anything", elapsed, slowPeerMinRealisticDuration)
-	}
-	t.Logf("write of %d bytes succeeded in %v against a peer slower than a single writeTimeout (%v) -- "+
-		"proves the per-block deadline doesn't kill a legitimately slow transfer", slowPeerPayloadSize, elapsed, slowPeerWriteTimeout)
 }
 
 func TestThrottleConnWriteSurvivesSlowButAlivePeer(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
 
-	go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay)
+		stop := make(chan struct{})
+		defer close(stop)
+		go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay, stop)
 
-	p := newParent(100*1024*1024, 1)
-	tc := p.newThrottleConn(cli, slowPeerWriteTimeout, slowPeerBlockSize)
-	payload := make([]byte, slowPeerPayloadSize)
+		p := newParent(100*1024*1024, 1)
+		tc := p.newThrottleConn(cli, slowPeerWriteTimeout, slowPeerBlockSize)
+		payload := make([]byte, slowPeerPayloadSize)
 
-	start := time.Now()
-	n, err := writeWithWatchdog(t, 60*time.Second, func() (int, error) {
-		return tc.Write(payload)
+		start := time.Now()
+		n, err := writeWithWatchdog(t, 60*time.Second, func() (int, error) {
+			return tc.Write(payload)
+		})
+		elapsed := time.Since(start)
+
+		if err != nil {
+			t.Fatalf("expected the slow but alive peer's write to succeed, got err=%v after %v", err, elapsed)
+		}
+		if n != slowPeerPayloadSize {
+			t.Fatalf("expected to write all %d bytes, wrote %d", slowPeerPayloadSize, n)
+		}
+		if elapsed < slowPeerMinRealisticDuration {
+			t.Fatalf("write finished in %v, expected at least %v -- "+
+				"test may not be exercising real backpressure", elapsed, slowPeerMinRealisticDuration)
+		}
+		t.Logf("write of %d bytes succeeded in %v against a peer slower than a single writeTimeout (%v)", slowPeerPayloadSize, elapsed, slowPeerWriteTimeout)
 	})
-	elapsed := time.Since(start)
-
-	if err != nil {
-		t.Fatalf("expected the slow but alive peer's write to succeed, got err=%v after %v", err, elapsed)
-	}
-	if n != slowPeerPayloadSize {
-		t.Fatalf("expected to write all %d bytes, wrote %d", slowPeerPayloadSize, n)
-	}
-	if elapsed < slowPeerMinRealisticDuration {
-		t.Fatalf("write finished in %v, expected at least %v -- "+
-			"test may not be exercising real backpressure", elapsed, slowPeerMinRealisticDuration)
-	}
-	t.Logf("write of %d bytes succeeded in %v against a peer slower than a single writeTimeout (%v)", slowPeerPayloadSize, elapsed, slowPeerWriteTimeout)
 }
 
 // ---------------------------------------------------------------------
@@ -282,46 +243,48 @@ func TestThrottleConnWriteSurvivesSlowButAlivePeer(t *testing.T) {
 // ---------------------------------------------------------------------
 
 func TestFullSpeedWriteDetectsPeerGoingSilentMidTransfer(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
 
-	const (
-		writeTimeout     = 300 * time.Millisecond
-		blockSize        = 256 * 1024
-		payloadSize      = 16 * 1024 * 1024 // large enough that most of it is still unsent when the peer dies
-		readsBeforeDeath = 3
-	)
+		const (
+			writeTimeout     = 300 * time.Millisecond
+			blockSize        = 256 * 1024
+			payloadSize      = 16 * 1024 * 1024 // large enough that most of it is still unsent when the peer dies
+			readsBeforeDeath = 3
+		)
 
-	go func() {
-		buf := make([]byte, blockSize)
-		for range readsBeforeDeath {
-			if _, err := srv.Read(buf); err != nil {
-				return
+		go func() {
+			buf := make([]byte, blockSize)
+			for range readsBeforeDeath {
+				if _, err := srv.Read(buf); err != nil {
+					return
+				}
 			}
+			// go silent forever -- simulates a peer that was fine, then stalled
+		}()
+
+		fs := newUnthrottledConn(cli, writeTimeout, blockSize)
+		payload := make([]byte, payloadSize)
+
+		start := time.Now()
+		_, err := writeWithWatchdog(t, 30*time.Second, func() (int, error) {
+			return fs.Write(payload)
+		})
+		elapsed := time.Since(start)
+
+		if err == nil {
+			t.Fatalf("expected a timeout once the peer went silent mid-transfer, got no error after %v", elapsed)
 		}
-		// go silent forever -- simulates a peer that was fine, then stalled
-	}()
-
-	fs := newUnthrottledConn(cli, writeTimeout, blockSize)
-	payload := make([]byte, payloadSize)
-
-	start := time.Now()
-	_, err := writeWithWatchdog(t, 30*time.Second, func() (int, error) {
-		return fs.Write(payload)
+		if !isTimeout(err) {
+			t.Fatalf("expected a timeout error, got: %v", err)
+		}
+		if elapsed > writeTimeout*10 {
+			t.Fatalf("took %v to detect a peer that went silent, expected roughly one writeTimeout (%v) -- "+
+				"detection latency should be bounded by a single block, not the remaining payload size", elapsed, writeTimeout)
+		}
+		t.Logf("detected a peer going silent mid-transfer within %v of a %v writeTimeout", elapsed, writeTimeout)
 	})
-	elapsed := time.Since(start)
-
-	if err == nil {
-		t.Fatalf("expected a timeout once the peer went silent mid-transfer, got no error after %v", elapsed)
-	}
-	if !isTimeout(err) {
-		t.Fatalf("expected a timeout error, got: %v", err)
-	}
-	if elapsed > writeTimeout*10 {
-		t.Fatalf("took %v to detect a peer that went silent, expected roughly one writeTimeout (%v) -- "+
-			"detection latency should be bounded by a single block, not the remaining payload size", elapsed, writeTimeout)
-	}
-	t.Logf("detected a peer going silent mid-transfer within %v of a %v writeTimeout", elapsed, writeTimeout)
 }
 
 // ---------------------------------------------------------------------
@@ -341,104 +304,112 @@ func TestFullSpeedWriteDetectsPeerGoingSilentMidTransfer(t *testing.T) {
 // ---------------------------------------------------------------------
 
 func TestFullSpeedWriteDoesNotSpinWithZeroBlockSize(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
-	go io.Copy(io.Discard, srv) // always draining, never stalls
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
+		go io.Copy(io.Discard, srv) // always draining, never stalls
 
-	fs := fullSpeed{Conn: cli, writeTimeout: 10 * time.Second} // blockSize deliberately left zero
-	payload := make([]byte, 64*1024)
+		fs := fullSpeed{Conn: cli, writeTimeout: 10 * time.Second} // blockSize deliberately left zero
+		payload := make([]byte, 64*1024)
 
-	done := make(chan error, 1)
-	go func() {
-		_, err := fs.Write(payload)
-		done <- err
-	}()
+		done := make(chan error, 1)
+		go func() {
+			_, err := fs.Write(payload)
+			done <- err
+		}()
 
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("expected a zero blockSize to fall back to a sane default and succeed, got: %v", err)
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("expected a zero blockSize to fall back to a sane default and succeed, got: %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("Write spun/hung with a zero blockSize instead of falling back to a sane default")
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("Write spun/hung with a zero blockSize instead of falling back to a sane default")
-	}
+	})
 }
 
 func TestFullSpeedWriteDoesNotFailWithZeroWriteTimeout(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
-	go io.Copy(io.Discard, srv) // always draining, never stalls
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
+		go io.Copy(io.Discard, srv) // always draining, never stalls
 
-	fs := fullSpeed{Conn: cli, blockSize: 4096} // writeTimeout deliberately left zero
-	payload := make([]byte, 64*1024)
+		fs := fullSpeed{Conn: cli, blockSize: 4096} // writeTimeout deliberately left zero
+		payload := make([]byte, 64*1024)
 
-	done := make(chan error, 1)
-	go func() {
-		_, err := fs.Write(payload)
-		done <- err
-	}()
+		done := make(chan error, 1)
+		go func() {
+			_, err := fs.Write(payload)
+			done <- err
+		}()
 
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("expected a zero writeTimeout to fall back to a sane default and succeed, got: %v "+
-				"(a zero timeout sets an already-past deadline, so every write fails immediately)", err)
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("expected a zero writeTimeout to fall back to a sane default and succeed, got: %v "+
+					"(a zero timeout sets an already-past deadline, so every write fails immediately)", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("Write hung with a zero writeTimeout instead of falling back to a sane default")
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("Write hung with a zero writeTimeout instead of falling back to a sane default")
-	}
+	})
 }
 
 func TestThrottleConnWriteDoesNotSpinWithZeroBlockSize(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
-	go io.Copy(io.Discard, srv)
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
+		go io.Copy(io.Discard, srv)
 
-	p := newParent(100*1024*1024, 1)
-	tc := p.newThrottleConn(cli, 0, 0) // writeTimeout set by newThrottleConn...
-	tc.blockSize = 0                   // ...but deliberately zeroed out here to simulate a caller that skipped it
-	payload := make([]byte, 64*1024)
+		p := newParent(100*1024*1024, 1)
+		tc := p.newThrottleConn(cli, 0, 0) // writeTimeout set by newThrottleConn...
+		tc.blockSize = 0                   // ...but deliberately zeroed out here to simulate a caller that skipped it
+		payload := make([]byte, 64*1024)
 
-	done := make(chan error, 1)
-	go func() {
-		_, err := tc.Write(payload)
-		done <- err
-	}()
+		done := make(chan error, 1)
+		go func() {
+			_, err := tc.Write(payload)
+			done <- err
+		}()
 
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("expected a zero blockSize to fall back to a sane default and succeed, got: %v", err)
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("expected a zero blockSize to fall back to a sane default and succeed, got: %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("Write spun/hung with a zero blockSize instead of falling back to a sane default")
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("Write spun/hung with a zero blockSize instead of falling back to a sane default")
-	}
+	})
 }
 
 func TestThrottleConnWriteDoesNotFailWithZeroWriteTimeout(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
-	go io.Copy(io.Discard, srv)
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
+		go io.Copy(io.Discard, srv)
 
-	p := newParent(100*1024*1024, 1)
-	tc := p.newThrottleConn(cli, 0, 0)
-	tc.writeTimeout = 0 // deliberately zeroed out to simulate a caller that skipped it
-	payload := make([]byte, 64*1024)
+		p := newParent(100*1024*1024, 1)
+		tc := p.newThrottleConn(cli, 0, 0)
+		tc.writeTimeout = 0 // deliberately zeroed out to simulate a caller that skipped it
+		payload := make([]byte, 64*1024)
 
-	done := make(chan error, 1)
-	go func() {
-		_, err := tc.Write(payload)
-		done <- err
-	}()
+		done := make(chan error, 1)
+		go func() {
+			_, err := tc.Write(payload)
+			done <- err
+		}()
 
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("expected a zero writeTimeout to fall back to a sane default and succeed, got: %v", err)
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("expected a zero writeTimeout to fall back to a sane default and succeed, got: %v", err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("Write hung with a zero writeTimeout instead of falling back to a sane default")
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("Write hung with a zero writeTimeout instead of falling back to a sane default")
-	}
+	})
 }
 
 // ---------------------------------------------------------------------
@@ -532,20 +503,22 @@ func TestThrottleConnWriteDoesNotSpinWithZeroBurst(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cli, srv, cleanup := dialLoopback(t)
-			defer cleanup()
-			go io.Copy(io.Discard, srv)
+			synctest.Test(t, func(t *testing.T) {
+				cli, srv, cleanup := dialLoopback(t)
+				defer cleanup()
+				go io.Copy(io.Discard, srv)
 
-			tc := tt.conn(cli)
-			payload := make([]byte, 64*1024)
-			n, err := writeWithWatchdog(t, 3*time.Second, func() (int, error) { return tc.Write(payload) })
-			if err != nil {
-				t.Fatalf("expected an unusable rate limit to be skipped entirely, got: %v (after %d of %d "+
-					"bytes had already gone out on the wire)", err, n, len(payload))
-			}
-			if n != len(payload) {
-				t.Fatalf("wrote %d bytes, want %d", n, len(payload))
-			}
+				tc := tt.conn(cli)
+				payload := make([]byte, 64*1024)
+				n, err := writeWithWatchdog(t, 3*time.Second, func() (int, error) { return tc.Write(payload) })
+				if err != nil {
+					t.Fatalf("expected an unusable rate limit to be skipped entirely, got: %v (after %d of %d "+
+						"bytes had already gone out on the wire)", err, n, len(payload))
+				}
+				if n != len(payload) {
+					t.Fatalf("wrote %d bytes, want %d", n, len(payload))
+				}
+			})
 		})
 	}
 }
