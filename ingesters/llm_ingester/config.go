@@ -98,11 +98,11 @@ type listener struct {
 	// Client_Authorization, when set, is the bare token inbound clients must
 	// present in the auth header (see Auth_Style); mismatches get a 401. Empty
 	// requires no client authentication.
-	Client_Authorization string
+	Client_Authorization string `json:"-"`
 	// Upstream_Authorization, when set, is the bare token injected as the
 	// upstream auth header (see Auth_Style), replacing whatever the client sent.
 	// Empty passes the client's own auth header through unchanged.
-	Upstream_Authorization string
+	Upstream_Authorization string `json:"-"`
 	// Session_ID_Header names a request header carrying the client's own
 	// conversation identifier. When set and present on a request, that value
 	// identifies the session instead of the derived prefix match; unset uses
@@ -113,7 +113,7 @@ type listener struct {
 	// protocol the listener speaks. Claude Code's "x-claude-code-session-id" is
 	// the worked example because it is the one we ship a config for, not
 	// because the mechanism is Anthropic-specific.
-	Session_ID_Header string
+	Session_ID_Header string `json:"-"`
 	// Allow_Unknown_Paths, when true, proxies any path to the upstream instead
 	// of answering 404 for the ones neither parsed nor declared as a
 	// passthrough by the protocol module.
