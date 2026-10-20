@@ -18,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -341,6 +342,72 @@ func TestOptions(t *testing.T) {
 			scaffoldcreate.Options{})
 		assert.Equal(t, []string{}, pair.Action.Aliases)
 		assert.Len(t, pair.Action.Annotations, 0)
+	})
+}
+
+// TestNonInteractiveSetArgsPrepopulation guards against a regression where invoking an action
+// directly -- as --no-interactive/-x does, via Action.Execute() -- skipped every field's SetArgs
+// hook. That meant a Required field populated only through SetArgs (ex: kits build --rebuild
+// prepopulating name/kit-id from a prior build request, without the caller ever passing
+// --name/--kit-id) was incorrectly reported as a missing required flag.
+func TestNonInteractiveSetArgsPrepopulation(t *testing.T) {
+	var gotName string
+
+	generatePair := func(prepopulate bool) action.Pair {
+		return scaffoldcreate.NewCreateAction("test",
+			map[string]scaffoldcreate.Field{
+				"name": {
+					Required: true,
+					Title:    "Name",
+					Flag:     scaffoldcreate.FlagConfig{Name: "name"},
+					Provider: &scaffoldcreate.TextProvider{
+						CustomSetArgs: func(m textinput.Model) textinput.Model {
+							if prepopulate {
+								m.SetValue("prepopulated")
+							}
+							return m
+						},
+					},
+				},
+			},
+			func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
+				gotName = fields["name"].Provider.Get()
+				return 1, "", nil
+			},
+			scaffoldcreate.Options{})
+	}
+
+	t.Run("field prepopulated by SetArgs is not reported missing", func(t *testing.T) {
+		gotName = ""
+		pair := generatePair(true)
+		var sbOut, sbErr strings.Builder
+		pair.Action.SetOut(&sbOut)
+		pair.Action.SetErr(&sbErr)
+		pair.Action.SetArgs(nil) // --name is never passed
+		assert.NoError(t, pair.Action.Execute())
+		assert.Equal(t, "prepopulated", gotName)
+	})
+
+	t.Run("field left empty by SetArgs is still reported missing", func(t *testing.T) {
+		gotName = ""
+		pair := generatePair(false)
+		var sbOut, sbErr strings.Builder
+		pair.Action.SetOut(&sbOut)
+		pair.Action.SetErr(&sbErr)
+		pair.Action.SetArgs(nil)
+		assert.Error(t, pair.Action.Execute())
+		assert.Empty(t, gotName) // createFunc must never have been called
+	})
+
+	t.Run("explicit flag wins over SetArgs prepopulation", func(t *testing.T) {
+		gotName = ""
+		pair := generatePair(true)
+		var sbOut, sbErr strings.Builder
+		pair.Action.SetOut(&sbOut)
+		pair.Action.SetErr(&sbErr)
+		pair.Action.SetArgs([]string{"--name=explicit"})
+		assert.NoError(t, pair.Action.Execute())
+		assert.Equal(t, "explicit", gotName)
 	})
 }
 
