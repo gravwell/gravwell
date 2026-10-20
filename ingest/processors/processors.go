@@ -81,6 +81,7 @@ func CheckProcessor(id string) error {
 	case TagSrcRouterProcessor:
 	case RegexReplaceProcessor:
 	case RegexDropProcessor:
+	case JsonNormalizeProcessor:
 	case AttachProcessor:
 	case VectorProcessor:
 	default:
@@ -156,6 +157,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexReplaceLoadConfig(vc)
 	case RegexDropProcessor:
 		cfg, err = RegexDropLoadConfig(vc)
+	case JsonNormalizeProcessor:
+		cfg, err = JsonNormalizeLoadConfig(vc)
 	case AttachProcessor:
 		cfg, err = AttachLoadConfig(vc)
 	case VectorProcessor:
@@ -341,6 +344,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewRegexDropper(cfg)
+	case JsonNormalizeProcessor:
+		var cfg JsonNormalizeConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewJsonNormalize(cfg)
 	case AttachProcessor:
 		var cfg attach.AttachConfig
 		if cfg, err = AttachLoadConfig(vc); err != nil {
