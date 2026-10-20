@@ -84,6 +84,7 @@ const (
 
 	connectionShutdownSyncTimeout     = 10 * time.Second
 	connectionTimerSyncTimeout        = 60 * time.Second //sometimes disks are stupid, give indexers a long time
+	setupCloseTimeout                 = time.Second      //closing a connection that never finished setup has nothing to flush
 	connectionTimerSyncTimeoutBackoff = 60 * time.Second // if we couldn't flush within 60s give the indexer 60s to collect itself
 )
 
@@ -2149,7 +2150,10 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
-			ig.Close() //do not leak the half setup connection across the retry
+			//do not leak the half setup connection across the retry, nothing is
+			//outstanding yet so give the close a short budget rather than the
+			//full closeTimeout against a peer that may have stopped reading
+			ig.closeTimeout(setupCloseTimeout)
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {
@@ -2163,7 +2167,7 @@ loop:
 			select {
 			case <-im.ctx.Done():
 				//told to exit, do not hand back a connection that never got the ingest OK
-				ig.Close()
+				ig.closeTimeout(setupCloseTimeout)
 				return nil, nil, errors.New("Muxer closing")
 			default:
 			}

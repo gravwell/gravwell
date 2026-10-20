@@ -57,8 +57,6 @@ func TestMuxerReconnectsWhileIndexerStaysDown(t *testing.T) {
 		)
 
 		ti, mxr, tg := newMemSyncTestMuxer(t)
-		defer ti.Close()
-		defer mxr.Close()
 
 		ti.hold()
 
@@ -127,8 +125,6 @@ func TestMuxerSurvivesSlowButAliveIndexer(t *testing.T) {
 		)
 
 		ti, mxr, tg := newMemSyncTestMuxer(t)
-		defer ti.Close()
-		defer mxr.Close()
 
 		ti.throttle(perEntryDelay)
 
@@ -149,13 +145,6 @@ func TestMuxerSurvivesSlowButAliveIndexer(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 		}
 		elapsed := time.Since(start)
-
-		// Let the indexer drain whatever is still in flight at full speed before
-		// the deferred Close runs.  Inside the bubble a reader asleep on its
-		// throttle while Close contends for the writer's lock would stall the
-		// fake clock, see the note on newMemSyncTestMuxer.
-		ti.throttle(0)
-		time.Sleep(perEntryDelay)
 
 		if got := ti.Entries(); got < numEntries {
 			t.Fatalf("indexer only received %d/%d entries within %v -- delivery stalled against a merely slow indexer",

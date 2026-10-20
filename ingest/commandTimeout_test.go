@@ -101,18 +101,18 @@ func writeAck(w io.Writer, ac ackCommand) error {
 // runBounded runs op and reports how long it took, failing the test if it has
 // not returned by the limit.  A hung command is reported rather than waited
 // on so a regression shows up as a failure instead of a deadlocked bubble.
-func runBounded(t *testing.T, limit time.Duration, op func() error) (error, time.Duration) {
+func runBounded(t *testing.T, limit time.Duration, op func() error) (time.Duration, error) {
 	t.Helper()
 	start := time.Now()
 	errCh := make(chan error, 1)
 	go func() { errCh <- op() }()
 	select {
 	case err := <-errCh:
-		return err, time.Since(start)
+		return time.Since(start), err
 	case <-time.After(limit):
 		t.Fatalf("command did not return within %v, it is hung", limit)
 	}
-	return nil, 0
+	return 0, nil
 }
 
 // TestCommandTimeoutWithKeepalives is the defect from the issue: an indexer
@@ -124,7 +124,7 @@ func TestCommandTimeoutWithKeepalives(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				ew, _ := keepaliveOnlyWriter(t, context.Background())
 
-				err, dur := runBounded(t, commandResponseTimeout+commandTimeoutSlack, func() error { return tc.op(ew) })
+				dur, err := runBounded(t, commandResponseTimeout+commandTimeoutSlack, func() error { return tc.op(ew) })
 				if err == nil {
 					t.Fatalf("%s returned success from an indexer that never answered", tc.name)
 				}
@@ -153,7 +153,7 @@ func TestCommandCancelledByContext(t *testing.T) {
 				time.AfterFunc(keepAliveInterval/2, cf)
 				//the loop re-checks the context on every keepalive, and in the worst
 				//case on the two second read deadline
-				err, dur := runBounded(t, commandResponseTimeout, func() error { return tc.op(ew) })
+				dur, err := runBounded(t, commandResponseTimeout, func() error { return tc.op(ew) })
 				if err == nil {
 					t.Fatalf("%s returned success after its context was cancelled", tc.name)
 				}
@@ -190,7 +190,7 @@ func TestCommandSucceedsThroughKeepalives(t *testing.T) {
 					writeAck(srv, tc.ack)
 				})
 				defer tmr.Stop()
-				err, dur := runBounded(t, commandResponseTimeout+commandTimeoutSlack, func() error { return tc.op(ew) })
+				dur, err := runBounded(t, commandResponseTimeout+commandTimeoutSlack, func() error { return tc.op(ew) })
 				if err != nil {
 					t.Fatalf("%s failed on a slow but live indexer: %v", tc.name, err)
 				}

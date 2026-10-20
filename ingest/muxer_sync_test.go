@@ -11,6 +11,7 @@ package ingest
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,8 +52,6 @@ func TestSyncWithBacklog(t *testing.T) {
 	)
 
 	ti, mxr, tg := newSyncTestMuxer(t)
-	defer ti.Close()
-	defer mxr.Close()
 
 	// Hold the indexer so nothing is consumed, then fill the pipeline.  Once
 	// the muxer channel is full we know we have a backlog to work with.
@@ -118,8 +117,6 @@ func TestSyncDoesNotHoldLockDuringAck(t *testing.T) {
 	const entryCount = 100
 
 	ti, mxr, tg := newSyncTestMuxer(t)
-	defer ti.Close()
-	defer mxr.Close()
 
 	// Stop the indexer acking, then push a small number of entries.  They are
 	// few enough that the relay routine moves them all out to the socket, so
@@ -204,8 +201,6 @@ func noTestMuxerLockStarvesRelayRoutine(t *testing.T) {
 	const holdFor = 6 * time.Second
 
 	ti, mxr, tg := newSyncTestMuxer(t)
-	defer ti.Close()
-	defer mxr.Close()
 
 	// build a backlog that would take a couple of seconds to drain
 	ti.hold()
@@ -277,15 +272,22 @@ func newSyncTestMuxer(t *testing.T) (*testIndexer, *IngestMuxer, entry.EntryTag)
 // count.  So never let the test goroutine contend for a lock (Close, Sync and
 // WriteEntry all take the EntryWriter's) while the holder is waiting on a
 // timer, for example a relay routine writing to an indexer that is asleep on
-// its throttle.  Clear the throttle and let things drain first.
+// its throttle.  Teardown is owned by newSyncTestMuxerFor so that it always
+// wakes the indexer and lets it drain before closing anything.
 func newMemSyncTestMuxer(t *testing.T) (*testIndexer, *IngestMuxer, entry.EntryTag) {
 	t.Helper()
 	installMemDialer(t)
 	return newSyncTestMuxerFor(t, newMemTestIndexer(syncTestSecret))
 }
 
+// newSyncTestMuxerFor wires a muxer to ti and owns the teardown of both.  The
+// order matters: the indexer is released and un-throttled first and given one
+// throttle interval to wake up, then the muxer closes, then the indexer.  A
+// muxer closed against a reader that is asleep on its throttle stalls a
+// synctest bubble, see newMemSyncTestMuxer.
 func newSyncTestMuxerFor(t *testing.T, ti *testIndexer) (*testIndexer, *IngestMuxer, entry.EntryTag) {
 	t.Helper()
+	t.Cleanup(func() { ti.Close() })
 	mxr, err := NewUniformMuxer(UniformMuxerConfig{
 		Destinations:    []string{ti.Destination()},
 		Tags:            []string{syncTestTag},
@@ -299,18 +301,20 @@ func newSyncTestMuxerFor(t *testing.T, ti *testIndexer) (*testIndexer, *IngestMu
 		t.Fatal(err)
 	}
 	if err = mxr.Start(); err != nil {
-		ti.Close()
 		t.Fatal(err)
 	}
-	if err = mxr.WaitForHot(10 * time.Second); err != nil {
+	t.Cleanup(func() {
+		if d := time.Duration(atomic.SwapInt64(&ti.throttleNS, 0)); d > 0 {
+			time.Sleep(d)
+		}
+		ti.release()
 		mxr.Close()
-		ti.Close()
+	})
+	if err = mxr.WaitForHot(10 * time.Second); err != nil {
 		t.Fatal(err)
 	}
 	tg, err := mxr.GetTag(syncTestTag)
 	if err != nil {
-		mxr.Close()
-		ti.Close()
 		t.Fatal(err)
 	}
 	return ti, mxr, tg
@@ -341,16 +345,26 @@ func writeUntil(mxr *IngestMuxer, tg entry.EntryTag, stop <-chan struct{}) {
 	}
 }
 
+// waitFor polls cond every 10ms until it holds or the deadline passes, and
+// reports whether it held.
+func waitFor(to time.Duration, cond func() bool) bool {
+	deadline := time.Now().Add(to)
+	for {
+		if cond() {
+			return true
+		} else if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // waitForFullChannel blocks until the muxer output channel is full, which
 // means we have a backlog of syncTestDepth entries plus whatever is already
 // outstanding on the wire.
 func waitForFullChannel(mxr *IngestMuxer, to time.Duration) error {
-	deadline := time.Now().Add(to)
-	for time.Now().Before(deadline) {
-		if len(mxr.eChanOut) >= cap(mxr.eChanOut) {
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
+	if waitFor(to, func() bool { return len(mxr.eChanOut) >= cap(mxr.eChanOut) }) {
+		return nil
 	}
 	return fmt.Errorf("timed out waiting for the muxer pipeline to fill, got %d of %d",
 		len(mxr.eChanOut), cap(mxr.eChanOut))
@@ -360,12 +374,8 @@ func waitForFullChannel(mxr *IngestMuxer, to time.Duration) error {
 // of the muxer channels, which is the point where a Sync stops draining and
 // starts waiting on acks.
 func waitForEmptyChannel(mxr *IngestMuxer, to time.Duration) error {
-	deadline := time.Now().Add(to)
-	for time.Now().Before(deadline) {
-		if len(mxr.eChanOut) == 0 && len(mxr.bChanOut) == 0 {
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
+	if waitFor(to, func() bool { return len(mxr.eChanOut) == 0 && len(mxr.bChanOut) == 0 }) {
+		return nil
 	}
 	return fmt.Errorf("timed out waiting for the muxer pipeline to empty, %d entries left",
 		len(mxr.eChanOut))

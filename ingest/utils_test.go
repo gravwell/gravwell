@@ -10,6 +10,7 @@ package ingest
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -104,11 +105,11 @@ func (l *memListener) Accept() (net.Conn, error) {
 	}
 }
 
+// Close stops accepting.  The listener stays registered so a late dial from
+// a muxer still in its reconnect loop gets connection refused from dial
+// rather than falling off the end of the registry.
 func (l *memListener) Close() error {
-	l.once.Do(func() {
-		close(l.done)
-		memListeners.Delete(l.addr.String())
-	})
+	l.once.Do(func() { close(l.done) })
 	return nil
 }
 
@@ -140,9 +141,11 @@ func (c *addrConn) LocalAddr() net.Addr  { return c.local }
 func (c *addrConn) RemoteAddr() net.Addr { return c.remote }
 
 // installMemDialer routes tcpDial through the in-memory listeners for the
-// rest of the test, falling back to a real dial for anything not registered.
-// It swaps a package variable, so tests that call it must not run in parallel
-// with other muxer tests.
+// rest of the test.  Anything not registered is refused rather than dialed
+// for real: a socket is invisible to a synctest bubble's clock, and a stray
+// loopback port might have something listening on it.  It swaps a package
+// variable, so tests that call it must not run in parallel with other muxer
+// tests.
 func installMemDialer(t *testing.T) {
 	t.Helper()
 	orig := tcpDial
@@ -150,7 +153,7 @@ func installMemDialer(t *testing.T) {
 		if v, ok := memListeners.Load(dst); ok {
 			return v.(*memListener).dial()
 		}
-		return orig(dst)
+		return nil, fmt.Errorf("no in-memory listener registered for %s", dst)
 	}
 	t.Cleanup(func() { tcpDial = orig })
 }

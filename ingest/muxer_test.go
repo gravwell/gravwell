@@ -468,15 +468,10 @@ func TestCloseWithStalledIndexer(t *testing.T) {
 // waitForConns polls the indexer until it has exactly want connections
 // attached, or the deadline passes.
 func waitForConns(ti *testIndexer, want int64, to time.Duration) error {
-	deadline := time.Now().Add(to)
-	for {
-		if n := ti.Conns(); n == want {
-			return nil
-		} else if time.Now().After(deadline) {
-			return fmt.Errorf("expected %d connections, have %d after %v", want, n, to)
-		}
-		time.Sleep(10 * time.Millisecond)
+	if waitFor(to, func() bool { return ti.Conns() == want }) {
+		return nil
 	}
+	return fmt.Errorf("expected %d connections, have %d after %v", want, ti.Conns(), to)
 }
 
 // seedCacheFile drops a non-empty cache file so the muxer sees data on disk.

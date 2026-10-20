@@ -155,14 +155,13 @@ const (
 	slowPeerPayloadSize  = 256 * 1024
 	slowPeerReadChunk    = 65536
 	slowPeerReadDelay    = 200 * time.Millisecond // well under writeTimeout: no single gap should ever trip the deadline
-	// slowPeerMinRealisticDuration is the "this wasn't just buffered instantly"
-	// sanity floor for the survives-a-slow-peer tests. Kept deliberately lenient
-	// (not derived from slowPeerWriteTimeout or slowPeerReadDelay) because how
-	// much of slowPeerPayloadSize gets buffered "for free" before any real
-	// waiting is needed varies a lot by platform (observed ~306ms end-to-end
-	// for the full payload on macOS/OrbStack, where kernel buffers run larger
-	// than requested) -- this just needs to rule out a literal no-op write.
-	slowPeerMinRealisticDuration = 100 * time.Millisecond
+	// slowPeerMinRealisticDuration is the floor the reader's pacing implies:
+	// the pipe hands over one block per read and the reader waits
+	// slowPeerReadDelay before each one.  A transfer that finishes faster than
+	// this means the reader was not actually pacing it, so the test would be
+	// proving nothing.  One block of slack covers the first read racing the
+	// timer.
+	slowPeerMinRealisticDuration = (slowPeerPayloadSize/slowPeerBlockSize - 1) * slowPeerReadDelay
 )
 
 func TestFullSpeedWriteSurvivesSlowButAlivePeer(t *testing.T) {
@@ -250,7 +249,7 @@ func TestFullSpeedWriteDetectsPeerGoingSilentMidTransfer(t *testing.T) {
 		const (
 			writeTimeout     = 300 * time.Millisecond
 			blockSize        = 256 * 1024
-			payloadSize      = 16 * 1024 * 1024 // large enough that most of it is still unsent when the peer dies
+			payloadSize      = 8 * blockSize // more than the peer will ever read, so plenty is still unsent when it dies
 			readsBeforeDeath = 3
 		)
 
