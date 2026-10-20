@@ -9,7 +9,6 @@
 package scaffoldcreate
 
 import (
-	"errors"
 	"fmt"
 	"path"
 	"strconv"
@@ -86,6 +85,9 @@ var _ FieldProvider = &TextAreaProvider{}
 type TextProvider struct {
 	ti textinput.Model
 
+	defaultValue string
+	required     bool
+
 	// Function to use to create the base textinput instead of stylesheet.NewTI().
 	// Useful for setting validator func that do not rely on external data.
 	CustomInit func() textinput.Model
@@ -97,6 +99,9 @@ type TextProvider struct {
 }
 
 func (p *TextProvider) Initialize(defaultValue string, required bool) {
+	p.defaultValue = defaultValue
+	p.required = required
+
 	if p.CustomInit != nil {
 		p.ti = p.CustomInit()
 		// set default value
@@ -113,6 +118,7 @@ func (p *TextProvider) Reset() {
 		return
 	}
 	p.ti.Reset()
+	p.ti.SetValue(p.defaultValue)
 }
 
 func (p *TextProvider) SetArgs(_, _ int) {
@@ -133,6 +139,9 @@ func (p *TextProvider) View(_ bool, _ int) (_ ViewKind, value, _ string) {
 func (p *TextProvider) Satisfied() (invalid string) {
 	if p.ti.Err != nil {
 		return p.ti.Err.Error()
+	}
+	if p.required && strings.TrimSpace(p.ti.Value()) == "" {
+		return "field is required"
 	}
 	return ""
 }
@@ -158,12 +167,18 @@ func (p *TextProvider) ToggleFocus(focus bool) {
 }
 
 type PathProvider struct {
+	defaultValue string
+	required     bool
+
 	pti pathtextinput.Model
 
 	Options pathtextinput.Options
 }
 
 func (p *PathProvider) Initialize(defaultValue string, required bool) {
+	p.defaultValue = defaultValue
+	p.required = required
+
 	if p.Options.CustomTI == nil {
 		p.Options.CustomTI = func() textinput.Model {
 			ti := stylesheet.NewTI(defaultValue, !required)
@@ -177,6 +192,7 @@ func (p *PathProvider) Initialize(defaultValue string, required bool) {
 
 func (p *PathProvider) Reset() {
 	p.pti.Reset()
+	p.pti.SetValue(p.defaultValue)
 }
 
 func (p *PathProvider) SetArgs(_, _ int) {}
@@ -229,6 +245,9 @@ func TrimSuggestsToFile(availSgts []string, input string) (filenames []string) {
 func (p *PathProvider) Satisfied() (invalid string) {
 	if p.pti.Err != nil {
 		return p.pti.Err.Error()
+	}
+	if p.required && strings.TrimSpace(p.pti.Value()) == "" {
+		return "field is required"
 	}
 	return ""
 }
@@ -480,7 +499,8 @@ func (p *BoolProvider) ToggleFocus(focus bool) {}
 //#region number provider
 
 type NumberProvider struct {
-	initial int64
+	initial  int64
+	required bool
 
 	ti textinput.Model
 
@@ -493,12 +513,10 @@ type NumberProvider struct {
 
 // Initialize sets value to default value iff it passes ParseInt.
 func (p *NumberProvider) Initialize(def string, required bool) {
+	p.required = required
 	p.ti = stylesheet.NewTI("", !required)
 	p.ti.Validate = func(s string) error {
 		s = strings.TrimSpace(s)
-		if required && (s == "" || s == "0") {
-			return errors.New("field is required")
-		}
 		if len(s) > 0 && s[0] == '-' { // do not numeric-test a minus sign
 			s = s[1:]
 		}
@@ -540,6 +558,11 @@ func (p *NumberProvider) Satisfied() (invalid string) {
 	if p.ti.Err != nil {
 		return p.ti.Err.Error()
 	}
+	if p.required {
+		if s := strings.TrimSpace(p.ti.Value()); s == "" || s == "0" {
+			return "field is required"
+		}
+	}
 	return ""
 }
 
@@ -580,6 +603,9 @@ func DefaultTextAreaUnselectedText(hovered bool) (titleLine, secondLine string) 
 type TextAreaProvider struct {
 	ta textarea.Model
 
+	defaultValue string
+	required     bool
+
 	// are we in takeover mode?
 	takeover bool
 
@@ -609,6 +635,9 @@ type TextAreaProvider struct {
 }
 
 func (p *TextAreaProvider) Initialize(defaultValue string, required bool) {
+	p.defaultValue = defaultValue
+	p.required = required
+
 	if p.CustomInit != nil {
 		p.ta = p.CustomInit(defaultValue, required)
 	} else {
@@ -627,6 +656,7 @@ func (p *TextAreaProvider) Reset() {
 		return
 	}
 	p.ta.Reset()
+	p.ta.SetValue(p.defaultValue)
 }
 
 func (p *TextAreaProvider) SetArgs(width, height int) {
@@ -716,6 +746,9 @@ func (p *TextAreaProvider) View(selected bool, _ int) (_ ViewKind, value, second
 func (p *TextAreaProvider) Satisfied() (invalid string) {
 	if p.ta.Err != nil {
 		return p.ta.Err.Error()
+	}
+	if p.required && strings.TrimSpace(p.ta.Value()) == "" {
+		return "field is required"
 	}
 	return ""
 }
