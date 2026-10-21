@@ -58,6 +58,7 @@ var (
 	ErrTooManyTags           = errors.New("All tag IDs exhausted, too many tags")
 	ErrUnknownTag            = errors.New("Invalid tag value")
 	ErrInvalidMaxEntrySize   = errors.New("Invalid Max-Entry-Size, max 1GB")
+	ErrCacheMissingTagMap    = errors.New("Cache contains entries but the tagcache file is missing or empty")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -328,12 +329,33 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		c.Logger = log.NewDiscardLogger()
 	}
 
+	// Cached entries only carry local tag IDs, the tagcache file is the only
+	// record of what those IDs mean. If the cache holds data but the tag map
+	// is gone we cannot safely replay it, so refuse to start rather than drop
+	// entries or ingest them under the wrong tag. This must happen before the
+	// chancachers are created, they begin draining from disk immediately.
+	var tagMap map[string]entry.EntryTag
+	var err error
+	if c.CachePath != "" {
+		if tagMap, err = readTagCache(c.CachePath); err != nil {
+			return nil, err
+		}
+		if len(tagMap) == 0 {
+			if hasData, err := cacheHasData(c.CachePath); err != nil {
+				return nil, err
+			} else if hasData {
+				return nil, fmt.Errorf("%w, refusing to replay cache in %q; move the cache directory aside to start without it", ErrCacheMissingTagMap, c.CachePath)
+			}
+		}
+	} else {
+		tagMap = make(map[string]entry.EntryTag)
+	}
+
 	// connect up the chancacher
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 	var eIn, eOut, bIn, bOut chan interface{}
 
-	var err error
 	if c.CachePath != "" {
 		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize, c.Logger)
 		if err != nil {
@@ -383,15 +405,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// that's recovering. The cache has tag IDs from the /previous/ run, so
 	// we read the old translations (that were previously saved) and then
 	// add our tags to them. If the old tag map doesn't exist, then it's
-	// anyone's guess where those entries might end up. Those are the
-	// breaks.
-	tagMap := make(map[string]entry.EntryTag)
-	if c.CachePath != "" {
-		tagMap, err = readTagCache(c.CachePath)
-		if err != nil {
-			return nil, err
-		}
-	}
+	// anyone's guess where those entries might end up, so we refuse to
+	// start in that case (see the tagcache check above).
 
 	var taglist []string
 
@@ -527,6 +542,26 @@ func readTagCache(p string) (map[string]entry.EntryTag, error) {
 	}
 
 	return ret, nil
+}
+
+// cacheHasData reports whether either of the entry or block caches under p
+// have data committed to disk.
+func cacheHasData(p string) (bool, error) {
+	for _, sub := range []string{"e", "b"} {
+		for _, f := range []string{"cache_a", "cache_b"} {
+			fi, err := os.Stat(filepath.Join(p, sub, f))
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return false, err
+			}
+			if fi.Size() > 0 {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func writeTagCache(t map[string]entry.EntryTag, p string) error {
