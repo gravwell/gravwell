@@ -413,6 +413,25 @@ type RemoteKitListResponse struct {
 	Results []KitMetadata
 }
 
+// RemoteKitFilterInstalled is the only Filter Key supported by RemoteKitListQueryOptions.
+// It accepts "true" and "false".
+const RemoteKitFilterInstalled = "Installed"
+
+// RemoteKitListQueryOptions is the subset of QueryOptions supported by /api/list/remote-kits.
+//
+// Remote kits are not stored in the local registry, so these options are evaluated by the kit
+// server rather than the database. Their behavior mirrors QueryOptions as closely as is practical.
+type RemoteKitListQueryOptions struct {
+	// Filters on fields of remote kits.
+	// Only {"Installed" "=" "true"||"false"} is supported.
+	Filters []Filter
+
+	Limit int32 // Max number of kits to return. The kit server will pick a default if unset.
+
+	// Search filters on Name and Description for a case-insensitive substring match.
+	Search string
+}
+
 type InstallStatus struct {
 	Owner       int32
 	Done        bool
