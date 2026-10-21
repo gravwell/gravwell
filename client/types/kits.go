@@ -369,25 +369,27 @@ type KitDependency struct {
 
 // KitMetadata is a struct that is primarily served by the
 // kit server, we use this to record info about a kit so the GUI
-// and hint to users what kits they shoudld install.
+// and hint to users what kits they should install.
 type KitMetadata struct {
-	KitID        string // e.g. "io.gravwell.foo"
-	Name         string
-	Description  string
-	ID           string // Identifies a specific build of the kit, makes it easy to download
-	Version      int
-	Readme       string
-	Signed       bool
-	MinVersion   CanonicalVersion
-	MaxVersion   CanonicalVersion
-	Size         int64
-	Created      time.Time
-	Ingesters    []string //ingesters associated with the kit
-	Tags         []string //tags associated with the kit
-	Assets       []KitMetadataAsset
-	Dependencies []KitDependency
-	Items        []KitItem
-	ConfigMacros []KitConfigMacro
+	KitID       string // e.g. "io.gravwell.foo"
+	Name        string
+	Description string
+	ID          string // Identifies a specific build of the kit, makes it easy to download
+	Version     int
+	Readme      string
+	Signed      bool
+	MinVersion  CanonicalVersion
+	MaxVersion  CanonicalVersion
+	Size        int64
+	Created     time.Time
+	Ingesters   []string //ingesters associated with the kit
+	// What version of this kit is currently installed. Null if the kit is not installed.
+	InstalledVersion Nullable[int32]
+	Tags             []string //tags associated with the kit
+	Assets           []KitMetadataAsset
+	Dependencies     []KitDependency
+	Items            []KitItem
+	ConfigMacros     []KitConfigMacro
 }
 
 // KitMetadataAsset stores items that might be associated with kits when hosting them
