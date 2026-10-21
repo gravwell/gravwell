@@ -84,7 +84,6 @@ var (
 		LogbotAI.CapabilityDesc(),
 		AgentSkillRead.CapabilityDesc(),
 		AgentSkillWrite.CapabilityDesc(),
-		AgentRead.CapabilityDesc(),
 		AgentWrite.CapabilityDesc(),
 		TableRead.CapabilityDesc(),
 		TableWrite.CapabilityDesc(),
@@ -117,7 +116,6 @@ var (
 		AlertRead,
 		LogbotAI,
 		AgentSkillRead,
-		AgentRead,
 		TableRead,
 	}
 	adminOnlyCapList = []Capability{
