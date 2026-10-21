@@ -1,6 +1,6 @@
 module mimecast
 
-go 1.26.8
+go 1.26.10
 
 require github.com/gravwell/gravwell/v3 v3.0.0-00010101000000-000000000000
 
@@ -32,13 +32,13 @@ require (
 	github.com/shirou/gopsutil v2.20.9+incompatible // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
-	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/mod v0.42.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	golang.org/x/tools v0.50.0 // indirect
+	golang.org/x/tools v0.52.0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
