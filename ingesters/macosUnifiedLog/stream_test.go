@@ -11,7 +11,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
@@ -233,7 +233,7 @@ func TestRunOnceKillsOnDecodeError(t *testing.T) {
 	s, h, _ := shellStreamer(t, `printf '[{"a":1},oops'; exec sleep 60`, "sh")
 	start := time.Now()
 	n, err := s.runOnce(context.Background())
-	var serr *json.SyntaxError
+	var serr *jsontext.SyntacticError
 	if !errors.As(err, &serr) {
 		t.Fatalf("expected a JSON syntax error, got %v", err)
 	}
