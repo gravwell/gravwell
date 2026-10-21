@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/hosted/storage"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
 )
 
 // GetTimeOrDefault loads a time from s.

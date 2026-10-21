@@ -8,48 +8,47 @@
 
 package types
 
-import (
-	"encoding/json"
-	"time"
-
-	"github.com/google/uuid"
-)
-
 // Playbook configuration, including ownership, description, etc., as well as
 // the playbook content.
 type Playbook struct {
-	UUID        uuid.UUID
-	GUID        uuid.UUID // global identifier, used to uniquely identify a playbook rather than as a key in the webstore. Sorry.
-	UID         int32
-	GIDs        []int32
-	Global      bool
-	WriteAccess Access
-	Name        string
-	Desc        string
-	Body        []byte `json:",omitempty"`
-	Metadata    []byte `json:",omitempty"`
-	Labels      []string
-	LastUpdated time.Time
-	Author      AuthorInfo
-	Synced      bool
+	CommonFields
+	Body string
+	// Cover and Banner are IDs of files
+	Cover         string
+	Banner        string
+	AuthorName    string
+	AuthorEmail   string
+	AuthorCompany string
+	AuthorURL     string
 }
 
-type AuthorInfo struct {
-	Name    string
-	Email   string
-	Company string
-	URL     string
+// PlaybookPatch is the type used to request an update to an existing Playbook.
+type PlaybookPatch struct {
+	CommonFieldsPatch
+	AuthorCompany Optional[string] `json:",omitzero"`
+	AuthorEmail   Optional[string] `json:",omitzero"`
+	AuthorName    Optional[string] `json:",omitzero"`
+	AuthorURL     Optional[string] `json:",omitzero"`
+	Banner        Optional[string] `json:",omitzero"`
+	Body          Optional[string] `json:",omitzero"`
+	Cover         Optional[string] `json:",omitzero"`
 }
 
-func (pb Playbook) JSONMetadata() (json.RawMessage, error) {
-	b, err := json.Marshal(&struct {
-		UUID        string
-		Name        string
-		Description string
-	}{
-		UUID:        pb.GUID.String(),
-		Name:        pb.Name,
-		Description: pb.Desc,
-	})
-	return json.RawMessage(b), err
+// ToPatch converts pb into a PlaybookPatch with every field set.
+func (pb Playbook) ToPatch() PlaybookPatch {
+	return PlaybookPatch{
+		CommonFieldsPatch: pb.CommonFields.ToPatch(),
+		AuthorCompany:     NewOptional(pb.AuthorCompany),
+		AuthorEmail:       NewOptional(pb.AuthorEmail),
+		AuthorName:        NewOptional(pb.AuthorName),
+		AuthorURL:         NewOptional(pb.AuthorURL),
+		Banner:            NewOptional(pb.Banner),
+		Body:              NewOptional(pb.Body),
+		Cover:             NewOptional(pb.Cover),
+	}
+}
+
+type PlaybookListResponse struct {
+	BaseListResponse
+	Results []Playbook
 }

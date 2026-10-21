@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/stretchr/testify/assert"
 )
 
