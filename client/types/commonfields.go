@@ -32,7 +32,7 @@ const (
 	AssetSearchInfo             AssetType = "search_info"
 	AssetAgent                  AssetType = "agent"
 	AssetAgentSkill             AssetType = "agent_skill"
-	AssetDataTable              AssetType = "table"
+	AssetDataTable              AssetType = "data_table"
 )
 
 // AssetTypeMap maps the string value of each AssetType constant to its AssetType value.
