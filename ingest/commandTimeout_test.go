@@ -13,6 +13,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -35,33 +36,86 @@ import (
 // command is declared hung.  It is fake time, so it costs nothing.
 const commandTimeoutSlack = 5 * time.Second
 
-// setupCommands are the exchanges that go through readCommandsUntil (plus
-// SendIngesterAPIVersion, which used to have its own copy of the loop).  Ping
-// is the one caller left out on purpose: it waits for PONG_MAGIC, so a
-// keepalive is a valid answer and it cannot be stalled this way.
+// bogusEntryID is an entry ID the writer never issued, so a confirmation for
+// it is filler the indexer should not be sending.
+const bogusEntryID = 0xBAD
+
+// setupCommands are the exchanges that wait on an indexer response, every
+// caller of readCommandsUntil and readCommandsUntilAny.  Ping is the one
+// caller left out on purpose: it waits for
+// PONG_MAGIC, so a keepalive is a valid answer and it cannot be stalled.
+//
+// ack is the response that satisfies the command, bad is one the command's
+// loop has no handler for and must reject, budget is how long the loop is
+// allowed to wait before giving up.
 var setupCommands = []struct {
-	name string
-	op   func(ew *EntryWriter) error
-	ack  ackCommand //the response that satisfies the command
+	name   string
+	op     func(ew *EntryWriter) error
+	ack    ackCommand
+	bad    ackCommand
+	budget time.Duration
 }{
-	{`SendIngesterAPIVersion`, func(ew *EntryWriter) error { return ew.SendIngesterAPIVersion() }, ackCommand{cmd: CONFIRM_API_VER_MAGIC}},
-	{`IdentifyIngester`, func(ew *EntryWriter) error { return ew.IdentifyIngester(`test`, `v0`, `uuid`) }, ackCommand{cmd: CONFIRM_ID_MAGIC}},
-	{`IngestOK`, func(ew *EntryWriter) error {
-		ok, err := ew.IngestOK()
-		if err == nil && !ok {
-			err = errors.New("ingest not ok")
-		}
-		return err
-	}, ackCommand{cmd: CONFIRM_INGEST_OK_MAGIC, val: 1}},
-	{`SendIngesterState`, func(ew *EntryWriter) error { return ew.SendIngesterState(IngesterState{Name: `test`}) }, ackCommand{cmd: CONFIRM_INGESTER_STATE_MAGIC}},
-	{`WriteDittoBlock`, func(ew *EntryWriter) error { return ew.WriteDittoBlock([]entry.Entry{*makeEntry()}) }, ackCommand{cmd: CONFIRM_DITTO_BLOCK_MAGIC}},
+	{
+		name:   `SendIngesterAPIVersion`,
+		op:     func(ew *EntryWriter) error { return ew.SendIngesterAPIVersion() },
+		ack:    ackCommand{cmd: CONFIRM_API_VER_MAGIC},
+		bad:    ackCommand{cmd: CONFIRM_TAG_MAGIC},
+		budget: commandResponseTimeout,
+	},
+	{
+		name:   `IdentifyIngester`,
+		op:     func(ew *EntryWriter) error { return ew.IdentifyIngester(`test`, `v0`, `uuid`) },
+		ack:    ackCommand{cmd: CONFIRM_ID_MAGIC},
+		bad:    ackCommand{cmd: CONFIRM_TAG_MAGIC},
+		budget: commandResponseTimeout,
+	},
+	{
+		name: `IngestOK`,
+		op: func(ew *EntryWriter) error {
+			ok, err := ew.IngestOK()
+			if err == nil && !ok {
+				err = errors.New("ingest not ok")
+			}
+			return err
+		},
+		ack:    ackCommand{cmd: CONFIRM_INGEST_OK_MAGIC, val: 1},
+		bad:    ackCommand{cmd: CONFIRM_TAG_MAGIC},
+		budget: commandResponseTimeout,
+	},
+	{
+		name:   `SendIngesterState`,
+		op:     func(ew *EntryWriter) error { return ew.SendIngesterState(IngesterState{Name: `test`}) },
+		ack:    ackCommand{cmd: CONFIRM_INGESTER_STATE_MAGIC},
+		bad:    ackCommand{cmd: CONFIRM_TAG_MAGIC},
+		budget: commandResponseTimeout,
+	},
+	{
+		name:   `WriteDittoBlock`,
+		op:     func(ew *EntryWriter) error { return ew.WriteDittoBlock([]entry.Entry{*makeEntry()}) },
+		ack:    ackCommand{cmd: CONFIRM_DITTO_BLOCK_MAGIC},
+		bad:    ackCommand{cmd: CONFIRM_TAG_MAGIC},
+		budget: commandResponseTimeout,
+	},
+	{
+		name: `NegotiateTag`,
+		op: func(ew *EntryWriter) error {
+			_, err := ew.NegotiateTag(`newtag`)
+			return err
+		},
+		ack:    ackCommand{cmd: CONFIRM_TAG_MAGIC, val: 7},
+		bad:    ackCommand{cmd: CONFIRM_ID_MAGIC},
+		budget: commandResponseTimeout,
+	},
 }
 
-// keepaliveOnlyWriter hands back an EntryWriter whose peer drains everything it is
-// sent and keepalives at the real indexer cadence but never answers.  The
-// peer side of the pipe is returned so a test can inject an answer.  The fake
-// indexer is torn down by a cleanup so every goroutine leaves the bubble.
-func keepaliveOnlyWriter(t *testing.T, ctx context.Context) (*EntryWriter, net.Conn) {
+// chatteringWriter hands back an EntryWriter whose peer drains everything it
+// is sent and writes ac every interval, forever, but never answers.  With a
+// PONG_MAGIC that is a wedged indexer whose ack routine is still alive, with
+// a bogus CONFIRM_ENTRY_MAGIC it is one spraying acks for entries it was never
+// sent.  The peer side of the pipe is returned so a test can inject an
+// answer, the fake indexer is torn down by a cleanup so every goroutine
+// leaves the bubble.
+func chatteringWriter(t *testing.T, ctx context.Context, every time.Duration, ac ackCommand) (*EntryWriter, net.Conn) {
 	t.Helper()
 	cli, srv := net.Pipe()
 	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
@@ -78,13 +132,19 @@ func keepaliveOnlyWriter(t *testing.T, ctx context.Context) (*EntryWriter, net.C
 	ew.serverVersion = VERSION
 
 	done := make(chan struct{})
-	go keepaliveUntil(srv, done)
+	go chatterUntil(srv, done, every, ac)
 	t.Cleanup(func() {
 		close(done)
 		cli.Close()
 		srv.Close()
 	})
 	return ew, srv
+}
+
+// keepaliveOnlyWriter is chatteringWriter with the real indexer keepalive.
+func keepaliveOnlyWriter(t *testing.T, ctx context.Context) (*EntryWriter, net.Conn) {
+	t.Helper()
+	return chatteringWriter(t, ctx, keepAliveInterval, ackCommand{cmd: PONG_MAGIC})
 }
 
 // writeAck encodes a single indexer response onto w.
@@ -117,25 +177,47 @@ func runBounded(t *testing.T, limit time.Duration, op func() error) (time.Durati
 
 // TestCommandTimeoutWithKeepalives is the defect from the issue: an indexer
 // that keeps sending PONG_MAGIC but never answers a command must cause the
-// command to fail within commandResponseTimeout rather than hang.
+// command to fail within its budget rather than hang.
 func TestCommandTimeoutWithKeepalives(t *testing.T) {
 	for _, tc := range setupCommands {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				ew, _ := keepaliveOnlyWriter(t, context.Background())
-
-				dur, err := runBounded(t, commandResponseTimeout+commandTimeoutSlack, func() error { return tc.op(ew) })
-				if err == nil {
-					t.Fatalf("%s returned success from an indexer that never answered", tc.name)
-				}
-				if !errors.Is(err, ErrTimeout) {
-					t.Fatalf("%s returned %v, want a timeout", tc.name, err)
-				}
-				if dur < commandResponseTimeout {
-					t.Fatalf("%s gave up after %v, before the %v budget", tc.name, dur, commandResponseTimeout)
-				}
+				assertTimesOut(t, tc.name, tc.budget, func() error { return tc.op(ew) })
 			})
 		})
+	}
+}
+
+// TestCommandTimeoutWithBogusConfirms is the same defect with different
+// filler: confirmations for entries that were never sent are ignored, but
+// they must not count as progress either, or an indexer spraying them keeps
+// the exchange alive exactly the way keepalives did.
+func TestCommandTimeoutWithBogusConfirms(t *testing.T) {
+	for _, tc := range setupCommands {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ew, _ := chatteringWriter(t, context.Background(), 500*time.Millisecond,
+					ackCommand{cmd: CONFIRM_ENTRY_MAGIC, val: bogusEntryID})
+				assertTimesOut(t, tc.name, tc.budget, func() error { return tc.op(ew) })
+			})
+		})
+	}
+}
+
+// assertTimesOut runs op against a peer that never answers and checks it
+// gives up with a timeout, no sooner than its budget.
+func assertTimesOut(t *testing.T, name string, budget time.Duration, op func() error) {
+	t.Helper()
+	dur, err := runBounded(t, budget+commandTimeoutSlack, op)
+	if err == nil {
+		t.Fatalf("%s returned success from an indexer that never answered", name)
+	}
+	if !errors.Is(err, ErrTimeout) {
+		t.Fatalf("%s returned %v, want a timeout", name, err)
+	}
+	if dur < budget {
+		t.Fatalf("%s gave up after %v, before the %v budget", name, dur, budget)
 	}
 }
 
@@ -153,7 +235,7 @@ func TestCommandCancelledByContext(t *testing.T) {
 				time.AfterFunc(keepAliveInterval/2, cf)
 				//the loop re-checks the context on every keepalive, and in the worst
 				//case on the two second read deadline
-				dur, err := runBounded(t, commandResponseTimeout, func() error { return tc.op(ew) })
+				dur, err := runBounded(t, tc.budget, func() error { return tc.op(ew) })
 				if err == nil {
 					t.Fatalf("%s returned success after its context was cancelled", tc.name)
 				}
@@ -168,36 +250,89 @@ func TestCommandCancelledByContext(t *testing.T) {
 	}
 }
 
-// TestCommandSucceedsThroughKeepalives makes sure the budget does not break
-// the normal case: an indexer that is slow but does answer, with several
-// keepalives arriving first, must still succeed.
-func TestCommandSucceedsThroughKeepalives(t *testing.T) {
-	// long enough that the two second per read deadline would have fired
-	// several times over if keepalives were not holding it off, but inside
-	// the budget
-	const answerAfter = commandResponseTimeout / 2
-
+// TestCommandFailsFastOnUnexpectedResponse pins the fail fast arm: a response
+// the loop has no handler for means the stream is out of step, and that has
+// to surface immediately with the real cause, not as a timeout after the
+// whole budget has been burned.
+func TestCommandFailsFastOnUnexpectedResponse(t *testing.T) {
 	for _, tc := range setupCommands {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				ew, srv := keepaliveOnlyWriter(t, context.Background())
 
-				//the stalled peer only keepalives, so we answer from the side by
-				//writing the confirmation into the same pipe after a delay
-				tmr := time.AfterFunc(answerAfter, func() {
-					//a write error here means the test already tore down the pipe,
-					//which the command result below will report on its own
-					writeAck(srv, tc.ack)
-				})
+				badAfter := keepAliveInterval / 2
+				tmr := time.AfterFunc(badAfter, func() { writeAck(srv, tc.bad) })
 				defer tmr.Stop()
-				dur, err := runBounded(t, commandResponseTimeout+commandTimeoutSlack, func() error { return tc.op(ew) })
-				if err != nil {
-					t.Fatalf("%s failed on a slow but live indexer: %v", tc.name, err)
+				dur, err := runBounded(t, tc.budget+commandTimeoutSlack, func() error { return tc.op(ew) })
+				if err == nil {
+					t.Fatalf("%s accepted a %v it has no business accepting", tc.name, tc.bad.cmd)
 				}
-				if dur < answerAfter {
-					t.Fatalf("%s returned after %v, before the indexer answered", tc.name, dur)
+				if errors.Is(err, ErrTimeout) {
+					t.Fatalf("%s reported a timeout for an out of step stream, hiding the cause: %v", tc.name, err)
+				}
+				if !strings.Contains(err.Error(), tc.bad.cmd.String()) {
+					t.Fatalf("%s rejected the stream without naming the %v that caused it: %v", tc.name, tc.bad.cmd, err)
+				}
+				if dur > badAfter+keepAliveInterval {
+					t.Fatalf("%s took %v to reject an unexpected %v, want immediate", tc.name, dur, tc.bad.cmd)
 				}
 			})
 		})
+	}
+}
+
+// TestCommandSucceedsThroughKeepalives makes sure the budget does not break
+// the normal case: an indexer that is slow but does answer, with several
+// keepalives arriving first, must still succeed.
+func TestCommandSucceedsThroughKeepalives(t *testing.T) {
+	for _, tc := range setupCommands {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				// long enough that the two second per read deadline would have
+				// fired several times over if keepalives were not holding it
+				// off, but inside the budget
+				answerAfter := tc.budget / 2
+				assertSucceedsAfter(t, tc.name, tc.budget, answerAfter, func(srv net.Conn) {
+					time.AfterFunc(answerAfter, func() { writeAck(srv, tc.ack) })
+				}, tc.op)
+			})
+		})
+	}
+}
+
+// TestCommandIgnoresStrayEntryConfirm covers the errEntryNotFound path: a
+// confirmation for an entry the writer does not know about is dropped, it
+// must neither fail the command nor stop the real answer from being seen.
+func TestCommandIgnoresStrayEntryConfirm(t *testing.T) {
+	for _, tc := range setupCommands {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				answerAfter := 2 * keepAliveInterval
+				assertSucceedsAfter(t, tc.name, tc.budget, answerAfter, func(srv net.Conn) {
+					time.AfterFunc(keepAliveInterval, func() {
+						writeAck(srv, ackCommand{cmd: CONFIRM_ENTRY_MAGIC, val: bogusEntryID})
+					})
+					time.AfterFunc(answerAfter, func() { writeAck(srv, tc.ack) })
+				}, tc.op)
+			})
+		})
+	}
+}
+
+// assertSucceedsAfter runs op against a keepaliving peer, lets inject
+// schedule whatever the peer should send, and checks op succeeds and did not
+// return before the answer was due.  A write error inside the injected
+// timers means the test already tore down the pipe, which op's own result
+// reports.
+func assertSucceedsAfter(t *testing.T, name string, budget, answerAfter time.Duration, inject func(srv net.Conn), op func(ew *EntryWriter) error) {
+	t.Helper()
+	ew, srv := keepaliveOnlyWriter(t, context.Background())
+	inject(srv)
+	dur, err := runBounded(t, budget+commandTimeoutSlack, func() error { return op(ew) })
+	if err != nil {
+		t.Fatalf("%s failed on a slow but live indexer: %v", name, err)
+	}
+	if dur < answerAfter {
+		t.Fatalf("%s returned after %v, before the indexer answered", name, dur)
 	}
 }

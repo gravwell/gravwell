@@ -465,6 +465,59 @@ func TestCloseWithStalledIndexer(t *testing.T) {
 	})
 }
 
+// TestStalledIndexerRetriesWithoutLeaking covers the teardown on the identify
+// failure path in getConnection: every attempt against an indexer that
+// keepalives but never finishes setup must close its connection before the
+// backoff, so the indexer sees the attempts stack up in Accepted while Conns
+// never climbs past the one in flight.
+func TestStalledIndexerRetriesWithoutLeaking(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			attempts = 3
+			// each attempt burns commandResponseTimeout, then the retry
+			// backoff doubles from defaultRetryTime, so three attempts land
+			// well inside this
+			within = attempts * (commandResponseTimeout + 2*defaultRetryTime)
+		)
+
+		installMemDialer(t)
+		ti := newMemTestIndexer(syncTestSecret)
+		defer ti.Close()
+		ti.stallAfterAuth()
+
+		mxr, err := NewUniformMuxer(UniformMuxerConfig{
+			Destinations:    []string{ti.Destination()},
+			Tags:            []string{syncTestTag},
+			Auth:            syncTestSecret,
+			CacheDepth:      syncTestDepth,
+			IngesterName:    `leaktest`,
+			IngesterVersion: `test`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = mxr.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer mxr.Close()
+
+		var peak int64
+		if !waitFor(within, func() bool {
+			if n := ti.Conns(); n > peak {
+				peak = n
+			}
+			return ti.Accepted() >= attempts
+		}) {
+			t.Fatalf("only %d connection attempts in %v, want at least %d", ti.Accepted(), within, attempts)
+		}
+		if peak > 1 {
+			t.Fatalf("%d connections attached at once across %d attempts, the failed setup connections are being leaked",
+				peak, ti.Accepted())
+		}
+		t.Logf("%d attempts against a stalled indexer with at most %d connection attached", ti.Accepted(), peak)
+	})
+}
+
 // waitForConns polls the indexer until it has exactly want connections
 // attached, or the deadline passes.
 func waitForConns(ti *testIndexer, want int64, to time.Duration) error {

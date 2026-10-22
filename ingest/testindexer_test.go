@@ -270,15 +270,22 @@ func (ti *testIndexer) stall(conn net.Conn) error {
 // sends and emits a keepalive at the real indexer cadence, but never answers
 // anything.  It returns when done is closed or the client hangs up.
 func keepaliveUntil(conn net.Conn, done <-chan struct{}) {
+	chatterUntil(conn, done, keepAliveInterval, ackCommand{cmd: PONG_MAGIC})
+}
+
+// chatterUntil is keepaliveUntil with a choice of filler: it drains the
+// client and writes ac every interval until done is closed or the client
+// hangs up.
+func chatterUntil(conn net.Conn, done <-chan struct{}, every time.Duration, ac ackCommand) {
 	go io.Copy(io.Discard, conn)
-	tkr := time.NewTicker(keepAliveInterval)
+	tkr := time.NewTicker(every)
 	defer tkr.Stop()
 	for {
 		select {
 		case <-done:
 			return
 		case <-tkr.C:
-			if _, err := conn.Write(PONG_MAGIC.Buff()); err != nil {
+			if err := writeAck(conn, ac); err != nil {
 				return
 			}
 		}

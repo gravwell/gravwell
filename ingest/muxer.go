@@ -2122,10 +2122,10 @@ loop:
 		//no error, attempt to do a tag translation
 		//we have a good connection, build our tag map
 		if tt, err = im.newTagTrans(ig); err != nil {
-			ig.Close()
+			im.mtx.RUnlock()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			ig = nil
 			tt = nil
-			im.mtx.RUnlock()
 			im.Error("fatal connection error, failed to get get tag translation map",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
@@ -2144,6 +2144,11 @@ loop:
 
 		// set the info
 		if lerr := ig.IdentifyIngester(im.name, im.version, im.uuid); lerr != nil {
+			if im.ctx.Err() != nil {
+				//a Close raced the reconnect, that is not an indexer failure
+				ig.closeTimeout(setupCloseTimeout)
+				return nil, nil, errors.New("Muxer closing")
+			}
 			im.Error("Failed to identify ingester",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
@@ -2173,13 +2178,18 @@ loop:
 			}
 			ok, lerr := ig.IngestOK()
 			if lerr != nil {
+				if im.ctx.Err() != nil {
+					//a Close raced the reconnect, that is not an indexer failure
+					ig.closeTimeout(setupCloseTimeout)
+					return nil, nil, errors.New("Muxer closing")
+				}
 				im.Error("IngestOK query failed",
 					log.KV("indexer", tgt.Address),
 					log.KV("ingester", im.name),
 					log.KV("version", version.GetVersion()),
 					log.KV("ingesteruuid", im.uuid),
 					log.KVErr(lerr))
-				ig.Close()
+				ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 				//non-fatal, sleep and continue
 				retryDuration = backoff(retryDuration, maxRetryTime)
 				if im.quitableSleep(retryDuration) {
@@ -2206,7 +2216,7 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
-			ig.Close()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {

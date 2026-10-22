@@ -83,12 +83,19 @@ type memListener struct {
 
 var (
 	memListeners sync.Map // address string -> *memListener
-	memNextPort  int32    = 40000
+	memNextLst   uint32   // listener ports, see memPort
+	memNextCli   uint32   // client side ports, see memPort
 )
+
+// memPort hands out ports from a counter, wrapping inside [lo, hi) so a long
+// run never walks past 65535 and the addresses keep looking real.
+func memPort(ctr *uint32, lo, hi uint32) int {
+	return int(lo + atomic.AddUint32(ctr, 1)%(hi-lo))
+}
 
 func newMemListener() *memListener {
 	l := &memListener{
-		addr:  &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(atomic.AddInt32(&memNextPort, 1))},
+		addr:  &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: memPort(&memNextLst, 40000, 65536)},
 		conns: make(chan net.Conn),
 		done:  make(chan struct{}),
 	}
@@ -105,11 +112,13 @@ func (l *memListener) Accept() (net.Conn, error) {
 	}
 }
 
-// Close stops accepting.  The listener stays registered so a late dial from
-// a muxer still in its reconnect loop gets connection refused from dial
-// rather than falling off the end of the registry.
+// Close stops accepting and deregisters the address.  A late dial from a
+// muxer still in its reconnect loop is refused by installMemDialer's lookup.
 func (l *memListener) Close() error {
-	l.once.Do(func() { close(l.done) })
+	l.once.Do(func() {
+		close(l.done)
+		memListeners.Delete(l.addr.String())
+	})
 	return nil
 }
 
@@ -119,7 +128,7 @@ func (l *memListener) Addr() net.Addr { return l.addr }
 // connection the way a real dial waits on the kernel backlog.
 func (l *memListener) dial() (net.Conn, error) {
 	cli, srv := net.Pipe()
-	local := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(atomic.AddInt32(&memNextPort, 1))}
+	local := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: memPort(&memNextCli, 10000, 40000)}
 	select {
 	case l.conns <- &addrConn{Conn: srv, local: l.addr, remote: local}:
 		return &addrConn{Conn: cli, local: local, remote: l.addr}, nil
