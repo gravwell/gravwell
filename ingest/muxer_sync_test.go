@@ -297,12 +297,10 @@ func newSyncTestMuxerFor(t *testing.T, ti *testIndexer) (*testIndexer, *IngestMu
 		IngesterVersion: `test`,
 	})
 	if err != nil {
-		ti.Close()
 		t.Fatal(err)
 	}
-	if err = mxr.Start(); err != nil {
-		t.Fatal(err)
-	}
+	// registered before Start so a muxer that fails to start is still torn
+	// down, and after the indexer's cleanup so it runs first
 	t.Cleanup(func() {
 		if d := time.Duration(atomic.SwapInt64(&ti.throttleNS, 0)); d > 0 {
 			time.Sleep(d)
@@ -310,6 +308,9 @@ func newSyncTestMuxerFor(t *testing.T, ti *testIndexer) (*testIndexer, *IngestMu
 		ti.release()
 		mxr.Close()
 	})
+	if err = mxr.Start(); err != nil {
+		t.Fatal(err)
+	}
 	if err = mxr.WaitForHot(10 * time.Second); err != nil {
 		t.Fatal(err)
 	}

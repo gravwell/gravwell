@@ -273,6 +273,17 @@ func keepaliveUntil(conn net.Conn, done <-chan struct{}) {
 	chatterUntil(conn, done, keepAliveInterval, ackCommand{cmd: PONG_MAGIC})
 }
 
+// writeAck encodes a single indexer response onto w.
+func writeAck(w io.Writer, ac ackCommand) error {
+	buff := make([]byte, 16)
+	n, _, err := ac.encode(buff)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(buff[:n])
+	return err
+}
+
 // chatterUntil is keepaliveUntil with a choice of filler: it drains the
 // client and writes ac every interval until done is closed or the client
 // hangs up.

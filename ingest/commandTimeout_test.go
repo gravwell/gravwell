@@ -11,7 +11,6 @@ package ingest
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
 	"strings"
 	"testing"
@@ -145,17 +144,6 @@ func chatteringWriter(t *testing.T, ctx context.Context, every time.Duration, ac
 func keepaliveOnlyWriter(t *testing.T, ctx context.Context) (*EntryWriter, net.Conn) {
 	t.Helper()
 	return chatteringWriter(t, ctx, keepAliveInterval, ackCommand{cmd: PONG_MAGIC})
-}
-
-// writeAck encodes a single indexer response onto w.
-func writeAck(w io.Writer, ac ackCommand) error {
-	buff := make([]byte, 16)
-	n, _, err := ac.encode(buff)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(buff[:n])
-	return err
 }
 
 // runBounded runs op and reports how long it took, failing the test if it has
