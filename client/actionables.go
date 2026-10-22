@@ -23,6 +23,21 @@ func (c *Client) ListAllActionables(opts types.QueryOptions) (ret types.Actionab
 	return c.post[types.QueryOptions, types.ActionableListResponse](LIST_ACTIONABLES_URL, &opts)
 }
 
+// ListActionableTriggers returns the triggers of every actionable the current
+// user can read, deduplicated by pattern, with the actions of the actionables
+// that share a pattern merged and grouped by the label they are shown under.
+//
+// A client that renders text uses this rather than ListActionables so that it
+// compiles and runs each distinct pattern once. Each group carries an estimate
+// of what its pattern costs to evaluate, so that an expensive one can be left
+// switched off.
+//
+// Options are narrower here than for other listings; see
+// ActionableTriggerListOptions.
+func (c *Client) ListActionableTriggers(opts types.ActionableTriggerListOptions) (ret types.ActionableTriggerListResponse, err error) {
+	return c.post[types.ActionableTriggerListOptions, types.ActionableTriggerListResponse](LIST_ACTIONABLE_TRIGGERS_URL, &opts)
+}
+
 // GetActionable returns a particular actionable by ID.
 func (c *Client) GetActionable(id string) (types.Actionable, error) {
 	return c.GetActionableEx(id, GetOptions{})

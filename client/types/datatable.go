@@ -108,10 +108,17 @@ type DataTableColumn struct {
 	Description string `json:",omitempty"`
 }
 
+// DataTableIDFilter is the filter key that names the table when listing its
+// rows. The listing's other filter keys are column names, so no column can
+// have this name, in any case.
+const DataTableIDFilter = "TableID"
+
 // Validate checks c's name and type. It doesn't check for duplicates; see ValidateDataTableColumns.
 func (c DataTableColumn) Validate() error {
 	if len(c.Name) > DataTableMaxColumnNameLength || !dataTableColumnNameRe.MatchString(c.Name) {
 		return fmt.Errorf("%w %q", ErrDataTableColumnName, c.Name)
+	} else if strings.EqualFold(c.Name, DataTableIDFilter) {
+		return fmt.Errorf("%w %q: the name is reserved", ErrDataTableColumnName, c.Name)
 	}
 	if !c.Type.Valid() {
 		return fmt.Errorf("%w %q for column %q", ErrDataTableColumnType, c.Type, c.Name)
