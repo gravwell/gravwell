@@ -369,25 +369,27 @@ type KitDependency struct {
 
 // KitMetadata is a struct that is primarily served by the
 // kit server, we use this to record info about a kit so the GUI
-// and hint to users what kits they shoudld install.
+// and hint to users what kits they should install.
 type KitMetadata struct {
-	KitID        string // e.g. "io.gravwell.foo"
-	Name         string
-	Description  string
-	ID           string // Identifies a specific build of the kit, makes it easy to download
-	Version      int
-	Readme       string
-	Signed       bool
-	MinVersion   CanonicalVersion
-	MaxVersion   CanonicalVersion
-	Size         int64
-	Created      time.Time
-	Ingesters    []string //ingesters associated with the kit
-	Tags         []string //tags associated with the kit
-	Assets       []KitMetadataAsset
-	Dependencies []KitDependency
-	Items        []KitItem
-	ConfigMacros []KitConfigMacro
+	KitID       string // e.g. "io.gravwell.foo"
+	Name        string
+	Description string
+	ID          string // Identifies a specific build of the kit, makes it easy to download
+	Version     int
+	Readme      string
+	Signed      bool
+	MinVersion  CanonicalVersion
+	MaxVersion  CanonicalVersion
+	Size        int64
+	Created     time.Time
+	Ingesters   []string //ingesters associated with the kit
+	// What version of this kit is currently installed. Null if the kit is not installed.
+	InstalledVersion Nullable[int32]
+	Tags             []string //tags associated with the kit
+	Assets           []KitMetadataAsset
+	Dependencies     []KitDependency
+	Items            []KitItem
+	ConfigMacros     []KitConfigMacro
 }
 
 // KitMetadataAsset stores items that might be associated with kits when hosting them
@@ -411,6 +413,25 @@ func (kma KitMetadataAsset) String() (s string) {
 type RemoteKitListResponse struct {
 	BaseListResponse
 	Results []KitMetadata
+}
+
+// RemoteKitFilterInstalled is the only Filter Key supported by RemoteKitListQueryOptions.
+// It accepts "true" and "false".
+const RemoteKitFilterInstalled = "Installed"
+
+// RemoteKitListQueryOptions is the subset of QueryOptions supported by /api/list/remote-kits.
+//
+// Remote kits are not stored in the local registry, so these options are evaluated by the kit
+// server rather than the database. Their behavior mirrors QueryOptions as closely as is practical.
+type RemoteKitListQueryOptions struct {
+	// Filters on fields of remote kits.
+	// Only {"Installed" "=" "true"||"false"} is supported.
+	Filters []Filter
+
+	Limit int32 // Max number of kits to return. The kit server will pick a default if unset.
+
+	// Search filters on Name and Description for a case-insensitive substring match.
+	Search string
 }
 
 type InstallStatus struct {

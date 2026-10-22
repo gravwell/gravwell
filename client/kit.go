@@ -113,8 +113,20 @@ func (c *Client) PullKit(id string) (pc types.KitState, err error) {
 }
 
 // ListRemoteKits returns a list of kits available on the kit server.
-func (c *Client) ListRemoteKits(all bool) (mds types.RemoteKitListResponse, err error) {
-	return c.get[types.RemoteKitListResponse](listRemoteKitsUrl(all))
+// If allVersions is set, every version of each kit is returned, not just the latest.
+//
+// allVersions has direct interactions with the Installed filter:
+//
+// allVersions+installed=true: returns every version of each installed kit.
+//
+// allVersions+installed=false returns every version of every *not* installed kit.
+//
+// !all_version+installed=true returns the latest version of each installed kit
+// (irrelevant of the installed version of the kit).
+//
+// !all_version&&installed=false returns the latest version of every *not* installed kit.
+func (c *Client) ListRemoteKits(allVersions bool, opts types.RemoteKitListQueryOptions) (mds types.RemoteKitListResponse, err error) {
+	return c.post[types.RemoteKitListQueryOptions, types.RemoteKitListResponse](listRemoteKitsUrl(allVersions), &opts)
 }
 
 // ListKits returns a list of all installed and staged kits.
