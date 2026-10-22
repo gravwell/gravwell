@@ -107,3 +107,89 @@ type ActionableListResponse struct {
 	BaseListResponse
 	Results []Actionable
 }
+
+// Valid values for ActionableTriggerComplexity.Severity.
+const (
+	ACTIONABLE_TRIGGER_SEVERITY_LOW    ActionableTriggerSeverity = "low"
+	ACTIONABLE_TRIGGER_SEVERITY_MEDIUM ActionableTriggerSeverity = "medium"
+	ACTIONABLE_TRIGGER_SEVERITY_HIGH   ActionableTriggerSeverity = "high"
+)
+
+// ActionableTriggerSeverity is how expensive a trigger pattern is to evaluate.
+type ActionableTriggerSeverity string
+
+// ActionableTriggerGroup is every action reachable through one unique trigger.
+// Actionables that declare the same pattern with the same activation arrive as
+// one group, so that a client compiles and runs the pattern once instead of
+// once per actionable that happened to declare it.
+type ActionableTriggerGroup struct {
+	// Pattern is a JS regex to match against.
+	Pattern string
+	// ActivatesOn is either "always" or "selection", as on ActionableTrigger.
+	ActivatesOn string
+	// Complexity estimates what the pattern costs to run.
+	Complexity ActionableTriggerComplexity
+	// Menus holds the actions the group offers, grouped by the label they are
+	// shown under and ordered by that label.
+	Menus []ActionableTriggerMenu
+}
+
+// ActionableTriggerComplexity is what one pattern costs to evaluate, so that a
+// client can skip, or turn off by default, the patterns that are expensive to
+// run over everything it renders. It is a heuristic: a low severity is not a
+// proof that a pattern is cheap.
+type ActionableTriggerComplexity struct {
+	// Severity is the overall estimate: "low", "medium" or "high".
+	Severity ActionableTriggerSeverity
+	// Backtracking reports whether the pattern uses a construct only a
+	// backtracking engine can run, such as a lookaround or a backreference.
+	Backtracking bool
+	// Reasons describes each finding, one sentence apiece. It is empty when
+	// nothing was found.
+	Reasons []string
+}
+
+// ActionableTriggerMenu is the actions one menu label offers for a trigger,
+// merged from every actionable that declared that trigger under that label.
+type ActionableTriggerMenu struct {
+	// MenuLabel is the label the actions are shown under. An actionable with no
+	// menu label of its own contributes under its name.
+	MenuLabel string
+	// ActionableIDs names every actionable that contributed to this menu, in
+	// the order they first contributed. An actionable appears here whenever it
+	// declared the trigger under this label, including when every action it
+	// offers was already present from another one, so these do not pair up
+	// one-to-one with Actions.
+	ActionableIDs []string
+	// Actions is every action the contributing actionables offer, deduplicated.
+	Actions []ActionableAction
+}
+
+// ActionableTriggerListOptions is what the deduplicated trigger listing takes.
+// It is deliberately narrower than QueryOptions: a trigger group is not an
+// asset, so there is no All to widen to and no Version to pin, and the endpoint
+// rejects a request that carries either. Filters, Search, OrderBy,
+// OrderDirection and IncludeDeleted are accepted and ignored, since the order
+// is fixed and a group is not an asset to filter on.
+type ActionableTriggerListOptions struct {
+	// CursorID names the first group of the page being asked for, as a
+	// CursorNext or CursorPrev from an earlier response.
+	CursorID string
+	// Limit is the most groups to return. 0 and -1 both mean no limit, as
+	// everywhere else.
+	Limit int32
+
+	// Taken and ignored, so that a caller can hand over the same options it
+	// would give any other listing.
+	Filters        []Filter
+	IncludeDeleted bool
+	OrderBy        string
+	OrderDirection string
+	Search         string
+}
+
+// ActionableTriggerListResponse is a page of deduplicated triggers.
+type ActionableTriggerListResponse struct {
+	BaseListResponse
+	Results []ActionableTriggerGroup
+}

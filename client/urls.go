@@ -166,6 +166,7 @@ const (
 	TEMPLATES_ID_DETAILS_URL              = "/api/templates/%s/details"
 	ACTIONABLES_URL                       = "/api/actionables"
 	LIST_ACTIONABLES_URL                  = "/api/list/actionables"
+	LIST_ACTIONABLE_TRIGGERS_URL          = "/api/list/actionable-triggers"
 	ACTIONABLES_ID_URL                    = "/api/actionables/%s"
 	FILES_URL                             = "/api/files"
 	LIST_FILES_URL                        = "/api/list/files"
