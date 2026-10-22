@@ -410,10 +410,23 @@ func (kma KitMetadataAsset) String() (s string) {
 	return
 }
 
+// RemoteKitListResponse is the response to /api/list/remote-kits.
+//
+// TotalCount is the exact number of kits that matched, before Limit was applied.
+// Paging is not supported (Cursor* and Offset are unused);
+// if len(Results) < TotalCount, refine the query.
+//
+// InstalledVersion is set on every installed kit in Results, regardless of Filters.
 type RemoteKitListResponse struct {
 	BaseListResponse
 	Results []KitMetadata
 }
+
+// Limits on RemoteKitListQueryOptions.Limit.
+const (
+	RemoteKitListLimitDefault = 100  // used if Limit is unset
+	RemoteKitListLimitMax     = 1000 // Limit may not exceed this
+)
 
 // RemoteKitFilterInstalled is the only Filter Key supported by RemoteKitListQueryOptions.
 // It accepts "true" and "false".
@@ -421,14 +434,15 @@ const RemoteKitFilterInstalled = "Installed"
 
 // RemoteKitListQueryOptions is the subset of QueryOptions supported by /api/list/remote-kits.
 //
-// Remote kits are not stored in the local registry, so these options are evaluated by the kit
-// server rather than the database. Their behavior mirrors QueryOptions as closely as is practical.
+// Their behavior mirrors QueryOptions as closely as is practical.
 type RemoteKitListQueryOptions struct {
 	// Filters on fields of remote kits.
 	// Only {"Installed" "=" "true"||"false"} is supported.
 	Filters []Filter
 
-	Limit int32 // Max number of kits to return. The kit server will pick a default if unset.
+	// Limit is the max number of kits to return.
+	// Defaults to RemoteKitListLimitDefault if unset; may not exceed RemoteKitListLimitMax.
+	Limit int32
 
 	// Search filters on Name and Description for a case-insensitive substring match.
 	Search string
