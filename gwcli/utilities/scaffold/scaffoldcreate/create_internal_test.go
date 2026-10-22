@@ -18,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -340,4 +341,188 @@ func newCreateModelInitialize(
 	}
 
 	return newCreateModel(fields, "test", createFunc, options)
+}
+
+// Guards against a regression in setValuesFromFlags where:
+//  1. a Required field's SetArgs hook never ran before the field was judged missing, so a field
+//     prepopulated only via SetArgs (ex: kits build --rebuild prepopulating name/kit-id from a
+//     prior build request, without the caller ever passing --name/--kit-id) was incorrectly
+//     reported missing; and
+//  2. the missing-required check was inverted (checking Get() != "" instead of == ""), which
+//     reported satisfied fields as missing and let truly-empty required fields through.
+func Test_setValuesFromFlags_RequiredViaSetArgs(t *testing.T) {
+	newField := func(required bool, customSetArgs func(textinput.Model) textinput.Model) Field {
+		f := Field{
+			Required: required,
+			Flag:     FlagConfig{Name: "val"},
+			Provider: &TextProvider{CustomSetArgs: customSetArgs},
+		}
+		f.Provider.Initialize("", required)
+		return f
+	}
+	prepopulate := func(m textinput.Model) textinput.Model {
+		m.SetValue("prepopulated")
+		return m
+	}
+
+	tt := []struct {
+		name        string
+		field       Field
+		flagArgs    []string // tokens parsed into the flagset before calling setValuesFromFlags
+		wantMissing bool
+		wantValue   string
+	}{
+		{
+			name:        "required field satisfied purely by SetArgs prepopulation",
+			field:       newField(true, prepopulate),
+			wantMissing: false,
+			wantValue:   "prepopulated",
+		},
+		{
+			name:        "required field left empty is still reported missing",
+			field:       newField(true, nil),
+			wantMissing: true,
+			wantValue:   "",
+		},
+		{
+			name:        "explicit flag wins over SetArgs prepopulation",
+			field:       newField(true, prepopulate),
+			flagArgs:    []string{"--val=explicit"},
+			wantMissing: false,
+			wantValue:   "explicit",
+		},
+		{
+			name:        "optional field is populated by SetArgs without a flag and is not clobbered",
+			field:       newField(false, prepopulate),
+			wantMissing: false,
+			wantValue:   "prepopulated",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			fields := map[string]Field{"val": tc.field}
+			fs := generateFlagSetFromFields(fields)
+			if err := fs.Parse(tc.flagArgs); err != nil {
+				t.Fatalf("failed to parse flags: %v", err)
+			}
+
+			// setValuesFromFlags no longer calls SetArgs itself; the caller (here standing in for
+			// create.go's non-interactive RunE or createModel.SetArgs) must do so first.
+			fields["val"].Provider.SetArgs(defaultWidth, defaultHeight)
+
+			missing, err := setValuesFromFlags(&fs, fields)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gotMissing := len(missing) > 0; gotMissing != tc.wantMissing {
+				t.Error("missingRequireds", ExpectedActual(tc.wantMissing, missing))
+			}
+			if got := fields["val"].Provider.Get(); got != tc.wantValue {
+				t.Error(ExpectedActual(tc.wantValue, got))
+			}
+		})
+	}
+}
+
+// Guards against setValuesFromFlags reclaiming responsibility for calling Provider.SetArgs
+// itself: doing so previously clobbered dimensions set by the interactive Mother cycle (see
+// Test_createModel_SetArgs_DoesNotClobberDimensions). Callers must call SetArgs themselves.
+func Test_setValuesFromFlags_DoesNotCallSetArgsItself(t *testing.T) {
+	provider := &TextProvider{CustomSetArgs: func(m textinput.Model) textinput.Model {
+		m.SetValue("prepopulated")
+		return m
+	}}
+	fields := map[string]Field{
+		"val": {Required: true, Flag: FlagConfig{Name: "val"}, Provider: provider},
+	}
+	fields["val"].Provider.Initialize("", true)
+
+	fs := generateFlagSetFromFields(fields)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatalf("failed to parse flags: %v", err)
+	}
+
+	// deliberately do NOT call Provider.SetArgs before invoking setValuesFromFlags.
+	missing, err := setValuesFromFlags(&fs, fields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(missing) == 0 {
+		t.Fatal("expected field to be reported missing because SetArgs was never invoked, but it was not")
+	}
+}
+
+// Guards against a regression where setValuesFromFlags called Provider.SetArgs(80, 60)
+// unconditionally, clobbering the real width/height that createModel.SetArgs had just set on
+// every field one line earlier. TextAreaProvider sizes itself off of SetArgs's width/height
+// arguments, so this is directly observable.
+func Test_createModel_SetArgs_DoesNotClobberDimensions(t *testing.T) {
+	const width, height = 120, 90
+
+	ta := &TextAreaProvider{}
+	fields := map[string]Field{
+		"body": {Title: "Body", Flag: FlagConfig{Name: "body"}, Provider: ta},
+	}
+
+	cm := newCreateModelInitialize(fields, func(map[string]Field, *pflag.FlagSet) (any, string, error) {
+		return 0, "", nil
+	}, Options{})
+
+	if _, _, err := cm.SetArgs(nil, nil, width, height); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// textarea.SetWidth/SetHeight reserve some internal space (ex: for line numbers), so compare
+	// against a reference model built the same way rather than asserting an exact passthrough.
+	want := stylesheet.NewTA()
+	want.SetWidth(width)
+	want.SetHeight(height - 4)
+
+	if got := ta.ta.Width(); got != want.Width() {
+		t.Error("textarea width was clobbered", ExpectedActual(want.Width(), got))
+	}
+	if got := ta.ta.Height(); got != want.Height() {
+		t.Error("textarea height was clobbered", ExpectedActual(want.Height(), got))
+	}
+}
+
+// Guards against a regression where Reset() wiped a text-based provider back to empty instead of
+// restoring Field.DefaultValue. setValuesFromFlags used to paper over this by unconditionally
+// re-Set()ing the flag's default value on every invocation -- a workaround that also clobbered
+// SetArgs-driven prepopulation on fields whose flag was never passed.
+func Test_Provider_DefaultValueSurvivesReset(t *testing.T) {
+	const defaultValue = "the-default"
+	const changedValue = "something-else"
+
+	tt := []struct {
+		name        string
+		newProvider func() FieldProvider
+	}{
+		{"TextProvider", func() FieldProvider { return &TextProvider{} }},
+		{"PathProvider", func() FieldProvider { return &PathProvider{} }},
+		{"TextAreaProvider", func() FieldProvider { return &TextAreaProvider{} }},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			p := tc.newProvider()
+			p.Initialize(defaultValue, false)
+			if got := p.Get(); got != defaultValue {
+				t.Fatalf("Initialize did not set the default value.%s", ExpectedActual(defaultValue, got))
+			}
+
+			if invalid := p.Set(changedValue); invalid != "" {
+				t.Fatalf("Set returned unexpected invalid reason: %v", invalid)
+			}
+			if got := p.Get(); got != changedValue {
+				t.Fatalf("Set did not take effect.%s", ExpectedActual(changedValue, got))
+			}
+
+			p.Reset()
+			if got := p.Get(); got != defaultValue {
+				t.Errorf("Reset() did not restore the default value.%s", ExpectedActual(defaultValue, got))
+			}
+		})
+	}
 }

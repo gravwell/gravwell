@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -279,19 +281,47 @@ func assertDenseTagIDs(t *testing.T, tagMap map[string]entry.EntryTag) {
 
 // TestNegotiateTagRefusesAtTheCeiling covers the wrap the count check misses: cached IDs
 // are not dense, so the highest can sit at the ceiling while the map is small.
+//
+// MaxTagId-1 is the case to watch.  One past it is MaxTagId, which is GravwellTagId, and
+// handing that to a caller is worse than a wrap: translate and hasTag both pass that ID
+// straight through, so every entry written under it lands in the gravwell well instead of
+// the caller's tag, and nothing reports an error.
 func TestNegotiateTagRefusesAtTheCeiling(t *testing.T) {
-	im := muxerForTags(map[string]entry.EntryTag{`ceiling`: entry.MaxTagId})
-	if _, err := im.NegotiateTag(`newtag`); !errors.Is(err, ErrTooManyTags) {
-		t.Errorf("negotiating past the highest ID gave %v, want ErrTooManyTags", err)
+	for _, highest := range []entry.EntryTag{entry.MaxTagId, entry.MaxTagId - 1} {
+		t.Run(fmt.Sprintf("highest ID %#04x", highest), func(t *testing.T) {
+			im := muxerForTags(map[string]entry.EntryTag{`ceiling`: highest})
+			tg, err := im.NegotiateTag(`newtag`)
+			if !errors.Is(err, ErrTooManyTags) {
+				t.Errorf("negotiating past the highest ID gave %v, want ErrTooManyTags", err)
+			}
+			if tg == entry.GravwellTagId {
+				t.Errorf("an ordinary tag was handed the gravwell ID %#04x, its entries would "+
+					"be routed to the gravwell well", tg)
+			}
+			// a refusal must not leave the name behind in the tag list with no ID of its own
+			if _, ok := im.tagMap[`newtag`]; ok {
+				t.Error("a refused tag was still added to the map")
+			}
+			for _, name := range im.tags {
+				if name == `newtag` {
+					t.Error("a refused tag was left in the tag list, so the list and the map disagree")
+				}
+			}
+		})
 	}
-	// a refusal must not leave the name behind in the tag list with no ID of its own
-	if _, ok := im.tagMap[`newtag`]; ok {
-		t.Error("a refused tag was still added to the map")
+}
+
+// TestNegotiateTagHighestUsableID pins the other side of that boundary: MaxTagId-1 is a
+// legal user tag and has to stay negotiable, so the guard above refuses one ID rather than
+// two.
+func TestNegotiateTagHighestUsableID(t *testing.T) {
+	im := muxerForTags(map[string]entry.EntryTag{`ceiling`: entry.MaxTagId - 2})
+	tg, err := im.NegotiateTag(`newtag`)
+	if err != nil {
+		t.Fatalf("the highest usable ID was refused: %v", err)
 	}
-	for _, name := range im.tags {
-		if name == `newtag` {
-			t.Error("a refused tag was left in the tag list, so the list and the map disagree")
-		}
+	if want := entry.MaxTagId - 1; tg != want {
+		t.Errorf("negotiated %#04x, want %#04x", tg, want)
 	}
 }
 
@@ -391,5 +421,65 @@ func TestNegotiateTagOnEmptyMuxerGoesHot(t *testing.T) {
 	}
 	for _, err := range ti.Errors() {
 		t.Errorf("the indexer reported an error: %v", err)
+	}
+}
+
+// seedCacheFile drops a non-empty cache file so the muxer sees data on disk.
+func seedCacheFile(t *testing.T, dir, sub string) {
+	t.Helper()
+	p := filepath.Join(dir, sub)
+	if err := os.MkdirAll(p, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p, "cache_a"), []byte("not empty"), 0640); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func tagCacheMuxerConfig(dir string) MuxerConfig {
+	return MuxerConfig{
+		Tags:      []string{"foo", "bar"},
+		CachePath: dir,
+		CacheMode: CacheModeFail,
+	}
+}
+
+func TestMuxerRefusesCacheWithoutTagMap(t *testing.T) {
+	for _, sub := range []string{"e", "b"} {
+		t.Run(sub, func(t *testing.T) {
+			dir := t.TempDir()
+			seedCacheFile(t, dir, sub)
+			if _, err := newIngestMuxer(tagCacheMuxerConfig(dir)); !errors.Is(err, ErrCacheMissingTagMap) {
+				t.Fatalf("expected ErrCacheMissingTagMap, got %v", err)
+			}
+			// an empty tagcache file is treated the same as a missing one
+			if err := os.WriteFile(filepath.Join(dir, "tagcache"), nil, 0660); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := newIngestMuxer(tagCacheMuxerConfig(dir)); !errors.Is(err, ErrCacheMissingTagMap) {
+				t.Fatalf("expected ErrCacheMissingTagMap with empty tagcache, got %v", err)
+			}
+		})
+	}
+}
+
+func TestMuxerAcceptsCacheWithTagMap(t *testing.T) {
+	dir := t.TempDir()
+	if err := writeTagCache(map[string]entry.EntryTag{"foo": 0, "bar": 1}, dir); err != nil {
+		t.Fatal(err)
+	}
+	seedCacheFile(t, dir, "e")
+	if _, err := newIngestMuxer(tagCacheMuxerConfig(dir)); err != nil {
+		t.Fatalf("cache with a valid tag map should be accepted: %v", err)
+	}
+}
+
+func TestMuxerAcceptsEmptyCacheWithoutTagMap(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := newIngestMuxer(tagCacheMuxerConfig(dir)); err != nil {
+		t.Fatalf("fresh cache dir should be fine: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "tagcache")); err != nil {
+		t.Fatalf("expected tagcache to be written: %v", err)
 	}
 }

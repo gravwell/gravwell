@@ -80,7 +80,7 @@ type CommonFields struct {
 	ID        string
 	// the parent object this was cloned from.
 	// Not user settable.
-	ParentID string
+	ParentID Nullable[string]
 
 	OwnerID int32
 	Owner   User

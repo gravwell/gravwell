@@ -100,17 +100,16 @@ func NewSelectAction[ID_t scaffold.Id_t](short, long string,
 		if err != nil {
 			return err
 		}
-		var numSuccesses, numErrors uint
+		var numErrors uint
 		for _, res := range results {
 			if res.Success {
-				numSuccesses += 1
 				fmt.Fprintln(cmd.OutOrStdout(), res.Output)
 			} else {
 				numErrors += 1
 				fmt.Fprintln(cmd.ErrOrStderr(), res.Output)
 			}
 		}
-		return finalError(numSuccesses, numErrors)
+		return scaffold.ResultsError(numErrors, uint(len(results)))
 	}
 
 	// generate usage based on given options
@@ -167,18 +166,6 @@ func autonomous[ID_t scaffold.Id_t](fs *pflag.FlagSet, op OperateFunc[ID_t], sin
 	return slices.Clip(results), nil
 }
 
-// finalError returns an error based on the number of errors.
-// Returns nil if numErrors == 0.
-func finalError(numSuccesses, numErrors uint) error {
-	if numErrors > 0 {
-		if numSuccesses == 0 {
-			return errors.New("all operations failed")
-		}
-		return errors.New("some operations failed")
-	}
-	return nil
-}
-
 //#region interactive
 
 type selectModel[ID_t scaffold.Id_t] struct {
@@ -223,7 +210,7 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 		}
 
 		m.done = true
-		return "", teaPrintlnResults(results), nil
+		return "", scaffold.TeaPrintlnResults(results), nil
 	}
 
 	// we were not given any arguments; spool up the selection list
@@ -253,28 +240,6 @@ func (m *selectModel[ID_t]) SetArgs(_ *pflag.FlagSet, args []string, width, heig
 	return "", nil, nil
 }
 
-// teaPrintlnResults returns a set of tea Cmds to print the results (color-coded) and suffixes finalError
-func teaPrintlnResults(results []scaffold.Result) tea.Cmd {
-	if len(results) == 0 {
-		return nil
-	}
-	cmds := make([]tea.Cmd, len(results))
-	var numSuccesses, numErrors uint
-	for i, res := range results {
-		if res.Success {
-			numSuccesses += 1
-			cmds[i] = tea.Println(res.Output)
-		} else {
-			numErrors += 1
-			cmds[i] = tea.Println(stylesheet.Cur.ErrorText.Render(res.Output))
-		}
-	}
-	if err := finalError(numSuccesses, numErrors); err != nil {
-		cmds = append(cmds, tea.Println(err.Error()))
-	}
-	return tea.Sequence(cmds...)
-}
-
 func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	if m.options.Exactly1 {
@@ -295,7 +260,7 @@ func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 			if err != nil {
 				return tea.Println(err.Error())
 			}
-			return teaPrintlnResults(results)
+			return scaffold.TeaPrintlnResults(results)
 		}
 
 		m.l, cmd = m.l.Update(msg)
@@ -324,7 +289,7 @@ func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 	if err != nil {
 		return tea.Println(stylesheet.Cur.ErrorText.Render(err.Error()))
 	}
-	return teaPrintlnResults(results)
+	return scaffold.TeaPrintlnResults(results)
 }
 
 func (m *selectModel[ID_t]) View() string {

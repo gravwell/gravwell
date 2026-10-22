@@ -93,7 +93,8 @@ const (
 	LOGGING_URL                           = `/api/logging`
 	TEST_URL                              = `/api/test`
 	TEST_AUTHENTICATION_URL               = `/api/test/authentication`
-	DASHBOARDS_ID_URL                     = `/api/dashboards/%v`
+	DASHBOARDS_ID_URL                     = `/api/dashboards/%s`
+	DASHBOARDS_ID_LAUNCH_URL              = `/api/dashboards/%s/launch`
 	DASHBOARDS_URL                        = `/api/dashboards`
 	LIST_DASHBOARDS_URL                   = `/api/list/dashboards`
 	MACROS_URL                            = `/api/macros`
@@ -204,6 +205,7 @@ const (
 	SECRETS_ID_FULL_URL                   = `/api/secrets/%s/full`
 	INFO_SETTINGS_URL                     = `/api/info/settings`
 	INGESTERS_TRACKING_URL                = `/api/ingesters/tracking`
+	INGESTERS_CONTROL_URL                 = `/api/ingesters/control`
 	ALERTS_URL                            = `/api/alerts`
 	LIST_ALERTS_URL                       = `/api/list/alerts`
 	ALERTS_ID_URL                         = `/api/alerts/%s`
@@ -279,6 +281,10 @@ func groupsIdMembersUrl(gid int32) string {
 
 func dashboardsIdUrl(id string) string {
 	return fmt.Sprintf(DASHBOARDS_ID_URL, id)
+}
+
+func dashboardsIdLaunchUrl(id string) string {
+	return fmt.Sprintf(DASHBOARDS_ID_LAUNCH_URL, id)
 }
 
 func usersUrl() string {

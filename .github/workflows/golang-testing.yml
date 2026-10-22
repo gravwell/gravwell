@@ -117,6 +117,8 @@ jobs:
         GOOS=windows go build -o /dev/null ./generators/windowsEventGenerator
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
+        GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/macosUnifiedLog
+        GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/macosUnifiedLog
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
 
     - name: Performing a test build and check with config
@@ -138,6 +140,7 @@ jobs:
         /bin/bash ./ingesters/test/build.sh ./ingesters/O365Ingester ingesters/test/configs/o365_ingest.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/PacketFleet ingesters/test/configs/packet_fleet.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/llm_ingester ingesters/test/configs/llm_ingester.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/macosUnifiedLog ingesters/test/configs/macos_unified_log.conf
         CGO_ENABLED=1 /bin/bash ./ingesters/test/build.sh ./ingesters/networkLog ingesters/test/configs/network_capture.conf
 
     - name: Final status
@@ -174,4 +177,3 @@ jobs:
         path: e2e/_artifacts/
         if-no-files-found: ignore
         retention-days: 7
-

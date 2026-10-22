@@ -28,7 +28,7 @@ func NewAction() action.Pair {
 			" login to request credentials."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(*pflag.FlagSet) (string, tea.Cmd) {
+		func(*pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
 			if err := connection.Client.Logout(); err != nil {
 				clilog.Writer.Warnf("failed to log out: %v", err)
 			}
@@ -40,7 +40,7 @@ func NewAction() action.Pair {
 				clilog.Writer.Warnf("failed to remove cached token file: %v", err)
 			}
 
-			return "Successfully logged out", tea.Quit
+			return []scaffold.Result{{Output: "Successfully logged out", Success: true}}, tea.Quit
 		},
 		scaffold.BasicOptions{})
 }
