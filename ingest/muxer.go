@@ -2775,7 +2775,7 @@ func (tt *tagTrans) negotiationsPending() (ok bool) {
 
 // peekToNegotiate hands back the next tag awaiting negotiation without removing
 // it, the entry is only dropped via clearToNegotiate once it has actually been
-// registered.  Callers must hold negMtx.
+// registered.
 func (tt *tagTrans) peekToNegotiate() (v unNegotiatedTag, ok bool) {
 	tt.mtx.RLock()
 	if len(tt.toNegotiate) > 0 {
