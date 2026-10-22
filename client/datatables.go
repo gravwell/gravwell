@@ -133,7 +133,7 @@ func (c *Client) ListDataTableRows(tableID string, opts types.QueryOptions) (typ
 	if tableID == "" {
 		return types.DataTableRowListResponse{}, ErrEmptyID
 	}
-	opts.Filters = append(slices.Clone(opts.Filters), types.Filter{Key: "TableID", Operation: "=", Values: []any{tableID}})
+	opts.Filters = append(slices.Clone(opts.Filters), types.Filter{Key: types.DataTableIDFilter, Operation: "=", Values: []any{tableID}})
 	return c.post[types.QueryOptions, types.DataTableRowListResponse](LIST_TABLE_ROWS_URL, &opts)
 }
 
