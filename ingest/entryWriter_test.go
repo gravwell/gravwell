@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
@@ -1209,42 +1210,46 @@ func TestOverrideAckTimeoutRejectsInvalidWithoutMutating(t *testing.T) {
 // must not fail the write just because the total transfer outlasts a single
 // FlushTimeout window. Reuses dialLoopback/slowReader from throttle_test.go.
 func TestEntryWriterWriteSurvivesSlowButAlivePeer(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
 
-	go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay)
+		stop := make(chan struct{})
+		defer close(stop)
+		go slowReader(srv, slowPeerReadChunk, slowPeerReadDelay, stop)
 
-	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
-		Conn:                  cli,
-		OutstandingEntryCount: 16,
-		BufferSize:            minBufferSize,
-		FlushTimeout:          slowPeerWriteTimeout,
-		WriteBlockSize:        slowPeerBlockSize,
-	})
-	if err != nil {
-		t.Fatalf("failed to build EntryWriter: %v", err)
-	}
-
-	ent := &entry.Entry{TS: entry.Now(), Tag: 0, Data: make([]byte, slowPeerPayloadSize)}
-
-	start := time.Now()
-	done := make(chan error, 1)
-	go func() { done <- ew.Write(ent) }()
-
-	select {
-	case err := <-done:
+		ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+			Conn:                  cli,
+			OutstandingEntryCount: 16,
+			BufferSize:            minBufferSize,
+			FlushTimeout:          slowPeerWriteTimeout,
+			WriteBlockSize:        slowPeerBlockSize,
+		})
 		if err != nil {
-			t.Fatalf("expected Write to succeed against a slow but alive peer, got: %v", err)
+			t.Fatalf("failed to build EntryWriter: %v", err)
 		}
-	case <-time.After(60 * time.Second):
-		t.Fatal("EntryWriter.Write hung against a slow but alive peer")
-	}
-	elapsed := time.Since(start)
-	if elapsed < slowPeerMinRealisticDuration {
-		t.Fatalf("Write finished in %v, expected at least %v -- "+
-			"test may not be exercising real backpressure", elapsed, slowPeerMinRealisticDuration)
-	}
-	t.Logf("EntryWriter.Write succeeded in %v against a peer slower than FlushTimeout (%v)", elapsed, slowPeerWriteTimeout)
+
+		ent := &entry.Entry{TS: entry.Now(), Tag: 0, Data: make([]byte, slowPeerPayloadSize)}
+
+		start := time.Now()
+		done := make(chan error, 1)
+		go func() { done <- ew.Write(ent) }()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("expected Write to succeed against a slow but alive peer, got: %v", err)
+			}
+		case <-time.After(60 * time.Second):
+			t.Fatal("EntryWriter.Write hung against a slow but alive peer")
+		}
+		elapsed := time.Since(start)
+		if elapsed < slowPeerMinRealisticDuration {
+			t.Fatalf("Write finished in %v, expected at least %v -- "+
+				"test may not be exercising real backpressure", elapsed, slowPeerMinRealisticDuration)
+		}
+		t.Logf("EntryWriter.Write succeeded in %v against a peer slower than FlushTimeout (%v)", elapsed, slowPeerWriteTimeout)
+	})
 }
 
 // ---------------------------------------------------------------------
@@ -1278,33 +1283,35 @@ func (c *closeWritesCloser) Close() error {
 }
 
 func TestEntryWriterCloseDoesNotStallForever(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
-	_ = srv // never read from -- a stalled peer, see dialLoopback's doc comment
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
+		_ = srv // never read from -- a stalled peer, see dialLoopback's doc comment
 
-	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
-		Conn:           &closeWritesCloser{Conn: cli},
-		BufferSize:     minBufferSize,
-		FlushTimeout:   300 * time.Millisecond,
-		WriteBlockSize: minBufferSize,
+		ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+			Conn:           &closeWritesCloser{Conn: cli},
+			BufferSize:     minBufferSize,
+			FlushTimeout:   300 * time.Millisecond,
+			WriteBlockSize: minBufferSize,
+		})
+		if err != nil {
+			t.Fatalf("failed to build EntryWriter: %v", err)
+		}
+
+		const closeBudget = 500 * time.Millisecond
+		done := make(chan error, 1)
+		go func() { done <- ew.closeTimeout(closeBudget) }()
+
+		select {
+		case <-done:
+			// closeTimeout returned within its own budget (give or take the
+			// watchdog's margin below) -- the reinstated deadline bounded the
+			// stalled write inside conn.Close(), as expected.
+		case <-time.After(closeBudget + 5*time.Second):
+			t.Fatal("EntryWriter.closeTimeout stalled forever -- the deadline it set up front was cleared by an " +
+				"intervening flush before conn.Close ran, leaving conn.Close's own write unbounded")
+		}
 	})
-	if err != nil {
-		t.Fatalf("failed to build EntryWriter: %v", err)
-	}
-
-	const closeBudget = 500 * time.Millisecond
-	done := make(chan error, 1)
-	go func() { done <- ew.closeTimeout(closeBudget) }()
-
-	select {
-	case <-done:
-		// closeTimeout returned within its own budget (give or take the
-		// watchdog's margin below) -- the reinstated deadline bounded the
-		// stalled write inside conn.Close(), as expected.
-	case <-time.After(closeBudget + 5*time.Second):
-		t.Fatal("EntryWriter.closeTimeout stalled forever -- the deadline it set up front was cleared by an " +
-			"intervening flush before conn.Close ran, leaving conn.Close's own write unbounded")
-	}
 }
 
 // ---------------------------------------------------------------------
@@ -1322,59 +1329,59 @@ func TestEntryWriterCloseDoesNotStallForever(t *testing.T) {
 // flushTimeout worth of rate limited waiting failed against a peer that was
 // draining perfectly happily.
 func TestFlushSurvivesRateLimitSlowerThanFlushTimeout(t *testing.T) {
-	cli, srv, cleanup := dialLoopback(t)
-	defer cleanup()
-	go io.Copy(io.Discard, srv) // always draining, never stalls
+	synctest.Test(t, func(t *testing.T) {
+		cli, srv, cleanup := dialLoopback(t)
+		defer cleanup()
+		go io.Copy(io.Discard, srv) // always draining, never stalls
 
-	const (
-		bps          = 64 * 1024       // so burst is 64KB
-		blockSize    = 16 * 1024       // one block waits ~250ms, well inside flushTimeout
-		payload      = 256 * 1024      // ~3s of rate limited waiting in total
-		flushTimeout = 2 * time.Second // shorter than that total, longer than any single block
-		minExpected  = 2500 * time.Millisecond
-	)
+		const (
+			bps          = 64 * 1024       // so burst is 64KB
+			blockSize    = 16 * 1024       // one block waits ~250ms, well inside flushTimeout
+			payload      = 256 * 1024      // ~3s of rate limited waiting in total
+			flushTimeout = 2 * time.Second // shorter than that total, longer than any single block
+			minExpected  = 2500 * time.Millisecond
+		)
 
-	ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
-		Conn:                  cli,
-		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
-		BufferSize:            WRITE_BUFFER_SIZE,
-		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
-		FlushTimeout:          flushTimeout,
-		WriteBlockSize:        blockSize,
+		ew, err := NewEntryWriterEx(EntryReaderWriterConfig{
+			Conn:                  cli,
+			OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
+			BufferSize:            WRITE_BUFFER_SIZE,
+			Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
+			FlushTimeout:          flushTimeout,
+			WriteBlockSize:        blockSize,
+		})
+		if err != nil {
+			t.Fatalf("failed to build EntryWriter: %v", err)
+		}
+		//exactly what muxer.go does once a THROTTLE command arrives mid-stream
+		ew.setConn(newParent(bps, 0).newThrottleConn(ew.conn, ew.flushTimeout, ew.writeBlockSize))
+
+		ew.mtx.Lock()
+		defer ew.mtx.Unlock()
+		if err = ew.writeAll(make([]byte, payload)); err != nil {
+			t.Fatalf("failed to buffer test payload: %v", err)
+		}
+
+		start := time.Now()
+		err = ew.flush()
+		elapsed := time.Since(start)
+
+		if err != nil {
+			t.Fatalf("flush of %d bytes at %d bytes/sec failed after %v against an always draining peer: %v -- "+
+				"the rate limiter wait is bounded per call instead of per block, so it still enforces a total "+
+				"transfer time limit", payload, bps, elapsed, err)
+		}
+		if elapsed < minExpected {
+			t.Fatalf("flush finished in %v, expected at least %v -- the rate limit was not actually applied, "+
+				"so this proves nothing", elapsed, minExpected)
+		}
 	})
-	if err != nil {
-		t.Fatalf("failed to build EntryWriter: %v", err)
-	}
-	//exactly what muxer.go does once a THROTTLE command arrives mid-stream
-	ew.setConn(newParent(bps, 0).newThrottleConn(ew.conn, ew.flushTimeout, ew.writeBlockSize))
-
-	ew.mtx.Lock()
-	defer ew.mtx.Unlock()
-	if err = ew.writeAll(make([]byte, payload)); err != nil {
-		t.Fatalf("failed to buffer test payload: %v", err)
-	}
-
-	start := time.Now()
-	err = ew.flush()
-	elapsed := time.Since(start)
-
-	if err != nil {
-		t.Fatalf("flush of %d bytes at %d bytes/sec failed after %v against an always draining peer: %v -- "+
-			"the rate limiter wait is bounded per call instead of per block, so it still enforces a total "+
-			"transfer time limit", payload, bps, elapsed, err)
-	}
-	if elapsed < minExpected {
-		t.Fatalf("flush finished in %v, expected at least %v -- the rate limit was not actually applied, "+
-			"so this proves nothing", elapsed, minExpected)
-	}
 }
 
 // stalledWriter builds an EntryWriter over a peer that never reads, with
 // stalledPeerPayloadSize bytes parked in the bufio buffer so the next flush has
-// something big enough to genuinely block on. Anything smaller (512KB, say) is
-// silently absorbed by kernel socket buffering and the flush just succeeds,
-// which would make the budget assertions below vacuous -- see dialLoopback's
-// doc comment in throttle_test.go.
+// something to block on.  The peer is one end of a net.Pipe (see dialLoopback
+// in throttle_test.go), so the first block already blocks.
 func stalledWriter(t *testing.T, flushTimeout time.Duration) *EntryWriter {
 	t.Helper()
 	cli, srv, cleanup := dialLoopback(t)
@@ -1408,28 +1415,30 @@ func stalledWriter(t *testing.T, flushTimeout time.Duration) *EntryWriter {
 // to hold shutdown open for a full flushTimeout (30s with the production
 // default) no matter how short a budget the caller asked for.
 func TestCloseTimeoutHonorsBudgetAgainstStalledPeer(t *testing.T) {
-	const (
-		flushTimeout = 10 * time.Second
-		closeBudget  = time.Second
-	)
-	ew := stalledWriter(t, flushTimeout)
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			flushTimeout = 10 * time.Second
+			closeBudget  = time.Second
+		)
+		ew := stalledWriter(t, flushTimeout)
 
-	start := time.Now()
-	done := make(chan struct{})
-	go func() {
-		ew.closeTimeout(closeBudget)
-		close(done)
-	}()
+		start := time.Now()
+		done := make(chan struct{})
+		go func() {
+			ew.closeTimeout(closeBudget)
+			close(done)
+		}()
 
-	select {
-	case <-done:
-	case <-time.After(flushTimeout):
-		t.Fatalf("closeTimeout(%v) ran for at least %v -- flush() re-armed the write deadline from "+
-			"flushTimeout (%v) and escaped the close budget", closeBudget, flushTimeout, flushTimeout)
-	}
-	if elapsed := time.Since(start); elapsed > closeBudget+2*time.Second {
-		t.Fatalf("closeTimeout(%v) took %v", closeBudget, elapsed)
-	}
+		select {
+		case <-done:
+		case <-time.After(flushTimeout):
+			t.Fatalf("closeTimeout(%v) ran for at least %v -- flush() re-armed the write deadline from "+
+				"flushTimeout (%v) and escaped the close budget", closeBudget, flushTimeout, flushTimeout)
+		}
+		if elapsed := time.Since(start); elapsed > closeBudget+2*time.Second {
+			t.Fatalf("closeTimeout(%v) took %v", closeBudget, elapsed)
+		}
+	})
 }
 
 // TestForceAckCtxHonorsBudgetAgainstStalledPeer is the same invariant one layer
@@ -1439,31 +1448,33 @@ func TestCloseTimeoutHonorsBudgetAgainstStalledPeer(t *testing.T) {
 // without clamping flush() too, the sync leg burns a whole flushTimeout against
 // a stalled indexer before the close leg even starts.
 func TestForceAckCtxHonorsBudgetAgainstStalledPeer(t *testing.T) {
-	const (
-		flushTimeout = 10 * time.Second
-		syncBudget   = time.Second
-	)
-	ew := stalledWriter(t, flushTimeout)
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			flushTimeout = 10 * time.Second
+			syncBudget   = time.Second
+		)
+		ew := stalledWriter(t, flushTimeout)
 
-	ctx, cf := context.WithTimeout(context.Background(), syncBudget)
-	defer cf()
+		ctx, cf := context.WithTimeout(context.Background(), syncBudget)
+		defer cf()
 
-	start := time.Now()
-	done := make(chan error, 1)
-	go func() { done <- ew.forceAckCtx(ctx) }()
+		start := time.Now()
+		done := make(chan error, 1)
+		go func() { done <- ew.forceAckCtx(ctx) }()
 
-	select {
-	case err := <-done:
-		if err == nil {
-			t.Fatal("expected forceAckCtx against a stalled peer to fail")
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatal("expected forceAckCtx against a stalled peer to fail")
+			}
+		case <-time.After(flushTimeout):
+			t.Fatalf("forceAckCtx blew past its %v context budget and ran for at least %v -- flush() re-armed "+
+				"the write deadline from flushTimeout (%v)", syncBudget, flushTimeout, flushTimeout)
 		}
-	case <-time.After(flushTimeout):
-		t.Fatalf("forceAckCtx blew past its %v context budget and ran for at least %v -- flush() re-armed "+
-			"the write deadline from flushTimeout (%v)", syncBudget, flushTimeout, flushTimeout)
-	}
-	if elapsed := time.Since(start); elapsed > syncBudget+2*time.Second {
-		t.Fatalf("forceAckCtx with a %v budget took %v", syncBudget, elapsed)
-	}
+		if elapsed := time.Since(start); elapsed > syncBudget+2*time.Second {
+			t.Fatalf("forceAckCtx with a %v budget took %v", syncBudget, elapsed)
+		}
+	})
 }
 
 // TestOverrideFlushTimeoutReachesNestedConn covers the throttled half of
