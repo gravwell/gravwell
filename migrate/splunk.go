@@ -44,7 +44,7 @@ var (
 type splunk struct {
 	Server                   string   // the Splunk server, e.g. splunk.example.com
 	Insecure_Skip_TLS_Verify bool     // don't verify the *splunk* certs
-	Token                    string   // a Splunk auth token
+	Token                    string   `json:"-"` // a Splunk auth token
 	Max_Chunk                int      // maximum number of entries to try and grab at once. Defaults to a conservative 500,000
 	Ingest_From_Unix_Time    int      // a timestamp to use as the default start time for this Splunk server (default 1)
 	Ingest_To_Unix_Time      int      // a timestamp to use as the end time for this Splunk server (default 0, meaning "now")
