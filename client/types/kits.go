@@ -369,25 +369,27 @@ type KitDependency struct {
 
 // KitMetadata is a struct that is primarily served by the
 // kit server, we use this to record info about a kit so the GUI
-// and hint to users what kits they shoudld install.
+// and hint to users what kits they should install.
 type KitMetadata struct {
-	KitID        string // e.g. "io.gravwell.foo"
-	Name         string
-	Description  string
-	ID           string // Identifies a specific build of the kit, makes it easy to download
-	Version      int
-	Readme       string
-	Signed       bool
-	MinVersion   CanonicalVersion
-	MaxVersion   CanonicalVersion
-	Size         int64
-	Created      time.Time
-	Ingesters    []string //ingesters associated with the kit
-	Tags         []string //tags associated with the kit
-	Assets       []KitMetadataAsset
-	Dependencies []KitDependency
-	Items        []KitItem
-	ConfigMacros []KitConfigMacro
+	KitID       string // e.g. "io.gravwell.foo"
+	Name        string
+	Description string
+	ID          string // Identifies a specific build of the kit, makes it easy to download
+	Version     int
+	Readme      string
+	Signed      bool
+	MinVersion  CanonicalVersion
+	MaxVersion  CanonicalVersion
+	Size        int64
+	Created     time.Time
+	Ingesters   []string //ingesters associated with the kit
+	// What version of this kit is currently installed. Null if the kit is not installed.
+	InstalledVersion Nullable[int32]
+	Tags             []string //tags associated with the kit
+	Assets           []KitMetadataAsset
+	Dependencies     []KitDependency
+	Items            []KitItem
+	ConfigMacros     []KitConfigMacro
 }
 
 // KitMetadataAsset stores items that might be associated with kits when hosting them
@@ -408,9 +410,42 @@ func (kma KitMetadataAsset) String() (s string) {
 	return
 }
 
+// RemoteKitListResponse is the response to /api/list/remote-kits.
+//
+// TotalCount is the exact number of kits that matched, before Limit was applied.
+// Paging is not supported (Cursor* and Offset are unused);
+// if len(Results) < TotalCount, refine the query.
+//
+// InstalledVersion is set on every installed kit in Results, regardless of Filters.
 type RemoteKitListResponse struct {
 	BaseListResponse
 	Results []KitMetadata
+}
+
+// Limits on RemoteKitListQueryOptions.Limit.
+const (
+	RemoteKitListLimitDefault = 100  // used if Limit is unset
+	RemoteKitListLimitMax     = 1000 // Limit may not exceed this
+)
+
+// RemoteKitFilterInstalled is the only Filter Key supported by RemoteKitListQueryOptions.
+// It accepts "true" and "false".
+const RemoteKitFilterInstalled = "Installed"
+
+// RemoteKitListQueryOptions is the subset of QueryOptions supported by /api/list/remote-kits.
+//
+// Their behavior mirrors QueryOptions as closely as is practical.
+type RemoteKitListQueryOptions struct {
+	// Filters on fields of remote kits.
+	// Only {"Installed" "=" "true"||"false"} is supported.
+	Filters []Filter
+
+	// Limit is the max number of kits to return.
+	// Defaults to RemoteKitListLimitDefault if unset; may not exceed RemoteKitListLimitMax.
+	Limit int32
+
+	// Search filters on Name and Description for a case-insensitive substring match.
+	Search string
 }
 
 type InstallStatus struct {
