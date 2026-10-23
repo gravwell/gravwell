@@ -15,16 +15,15 @@ func TestNewSQSS3Listener_Endpoint(t *testing.T) {
 		Queue:            "http://localhost:9324/q",
 		Endpoint:         "http://localhost:9324",
 		Credentials_Type: "static",
-		ID:               "akid",
-		Secret:           "secret",
+		ID:               "test-access-key-id",
+		Secret:           "test-secret-key",
 		Reader:           "line",
 		TagName:          "default",
 	}
 
-	l, err := NewSQSS3Listener(cfg)
+	l, err := NewSQSS3Listener(t.Context(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, l)
 
 	assert.Equal(t, cfg.Endpoint, l.sqs.Endpoint())
-	assert.Equal(t, cfg.Endpoint, *l.session.Config.Endpoint)
 }

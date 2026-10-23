@@ -73,9 +73,8 @@ func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error)
 func (c *CiscoISEConfig) validate() (err error) {
 	if c.Max_Multipart_Latency != `` {
 		if c.maxLatency, err = time.ParseDuration(c.Max_Multipart_Latency); err != nil {
-			if err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err); err != nil {
-				return
-			}
+			err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err)
+			return
 		}
 	}
 
@@ -419,7 +418,7 @@ func (ms *messageSequence) finalize() (msr messageSequenceResult) {
 
 var (
 	//setup remote header extraction RX (see https://www.cisco.com/c/en/us/td/docs/security/ise/syslog/Cisco_ISE_Syslogs/m_IntrotoSyslogs.pdf page 4)
-	remoteHeaderRx          = regexp.MustCompile(`^(?P<ts>\S+\s\d+\s\d+\:\d+\:\d+)(\s[-+]?\d+:\d+)?\s(?P<host>\S+)\s(?P<cat>\S+)\s(?P<msgid>\d+)\s(?P<total>\d+)\s(?P<seq>\d+)\s(?P<body>.+)$`)
+	remoteHeaderRx          = regexp.MustCompile(`^(?P<ts>\S+\s{1,2}\d+\s\d+\:\d+\:\d+)(\s[-+]?\d+:\d+)?\s(?P<host>\S+)\s(?P<cat>\S+)\s(?P<msgid>\d+)\s(?P<total>\d+)\s(?P<seq>\d+)\s(?P<body>.+)$`)
 	remoteHeaderRxParts int = 9
 )
 

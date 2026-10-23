@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -52,6 +53,7 @@ func TestConfig_Verify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.config.Verify()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Config.Verify() error = %v, wantErr %v", err, tt.wantErr)
@@ -61,9 +63,13 @@ func TestConfig_Verify(t *testing.T) {
 }
 
 func TestConfig_Verify_GeneratesUUID(t *testing.T) {
+	t.Parallel()
 	cfg := Config{}
 	if err := cfg.Verify(); err != nil {
 		t.Fatalf("Config.Verify() unexpected error: %v", err)
+	}
+	if cfg.Ingester_UUID != defaultIngesterUUIDStr {
+		t.Errorf("Ingester_UUID = %q, want %q", cfg.Ingester_UUID, defaultIngesterUUIDStr)
 	}
 	if cfg.Ingester_UUID == "" {
 		t.Error("Config.Verify() did not generate UUID when empty")
@@ -181,4 +187,36 @@ func TestConfig_UUID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTesterIngester_Handle(t *testing.T) {
+	t.Run("is silent", func(t *testing.T) {
+		tester := &TesterIngester{
+			Config: Config{
+				Silent: true,
+			},
+		}
+		rt := &hosted.NativeRuntime{} // wacky, but nothing should be called...
+
+		res, err := tester.Handle(t.Context(), rt)
+		if err != nil {
+			t.Fatalf("TesterIngester.Handle() unexpected error: %v", err)
+		}
+		if res == nil {
+			t.Fatalf("TesterIngester.Handle() returned nil response")
+		}
+		if res.Delay != defaultInterval {
+			t.Fatalf("TesterIngester.Handle() returned wrong delay")
+		}
+	})
+}
+
+func TestConfigEqual(t *testing.T) {
+	configtest.CheckEqual(t, Config{
+		BaseConfig:      hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		SingleTagConfig: hosted.SingleTagConfig{Tag_Name: Tag},
+		Interval:        "10s",
+		Silent:          true,
+		Test_Errors:     true,
+	})
 }

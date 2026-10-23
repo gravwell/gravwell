@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -19,9 +20,8 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/Azure/azure-amqp-common-go/v3/sas"
-	eventhubs "github.com/Azure/azure-event-hubs-go/v3"
-	"github.com/Azure/azure-event-hubs-go/v3/persist"
+	eventhubs "github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2"
+
 	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -75,87 +75,36 @@ func main() {
 
 	debugout("Started ingester muxer\n")
 
-	// Here's where we start setting up Event Hubs stuff.
-	// Create our context
+	// This context governs every hub's Processor and partition worker. Cancelling
+	// it tells every Processor.Run loop (and thus every partition receive loop) to
+	// stop, and each partition worker writes one last checkpoint on its way out.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Set up the disk persistence object
-	diskPersist, err := persist.NewFilePersister(cfg.Global.State_Store_Location)
+	// Checkpoints are stored locally on disk, one JSON file per partition, so
+	// no external storage account is required. Because this is local state, if
+	// you run more than one instance of this ingester against the same hub +
+	// consumer group they will not coordinate with each other (see
+	// fileCheckpointStore's doc comment).
+	checkpointStore, err := newFileCheckpointStore(cfg.Global.State_Store_Location)
 	if err != nil {
-		lg.FatalCode(0, "failed to set up state persistence", log.KVErr(err))
+		lg.FatalCode(0, "failed to create checkpoint store", log.KVErr(err))
 	}
-	// Just to make sure: chmod the directory, because the code wants to set it 777 (ugh)
-	if err := os.Chmod(cfg.Global.State_Store_Location, 0700); err != nil {
-		lg.FatalCode(0, "failed to set permissions on state directory", log.KVErr(err))
-	}
-	// Now set up the *memory* persister which we'll actually hand in to the hub object.
-	// This saves on disk writes and keeps performance up.
-	memPersist := persist.NewMemoryPersister()
 
-	// These are the handlers listening to each individual partition
-	var listeners []*eventhubs.ListenerHandle
-	// this is where we keep track of what we're receiving on
-	var readers []readerInfo
-	// protect concurrent appends (Lock) and iterations (RLock) across goroutines
-	var listenerMtx sync.RWMutex
-
-	// This little goroutine tries to keep persistence updated in case of catastrophic
-	// failure, without totally smashing the disk like it would if we allowed an update
-	// on every entry read.
-	quitSig := make(chan bool)
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		last := make(map[string]persist.Checkpoint)
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-quitSig:
-				return
-			case <-ticker.C:
-				listenerMtx.RLock()
-				snapshot := make([]readerInfo, len(readers))
-				copy(snapshot, readers)
-				listenerMtx.RUnlock()
-				for _, r := range snapshot {
-					// read it from the memory persister
-					checkpoint, err := memPersist.Read(r.namespace, r.hub, r.consumerGroup, r.partitionID)
-					if err != nil {
-						lg.Error("Failed to read checkpoint", log.KVErr(err))
-						continue
-					}
-					// See if it's any different
-					if prev, ok := last[r.key()]; ok {
-						if prev.Offset == checkpoint.Offset {
-							// no change, skip
-							continue
-						}
-					}
-					last[r.key()] = checkpoint
-					// and write it to disk
-					if err := diskPersist.Write(r.namespace, r.hub, r.consumerGroup, r.partitionID, checkpoint); err != nil {
-						lg.Error("Failed to write checkpoint to disk", log.KVErr(err))
-					}
-				}
-			}
-		}
-	}()
 
 	for k, def := range cfg.EventHub {
 		// We can parallelize the connections to the individual hubs.
 		wg.Add(1)
 		go func(hubname string, hubDef eventHubConf) {
 			defer wg.Done()
+
 			// Shadow the logger with one that always appends the hub info
 			lg := log.NewLoggerWithKV(lg,
 				log.KV("hub", hubname),
 				log.KV("tag", hubDef.Tag_Name),
 			)
+
 			tagid, err := igst.GetTag(hubDef.Tag_Name)
 			if err != nil {
 				lg.Fatal("failed to resolve tag", log.KVErr(err))
@@ -167,24 +116,24 @@ func main() {
 			}
 			defer procset.Close()
 
-			// Set up authentication
-			provider, err := sas.NewTokenProvider(sas.TokenProviderWithKey(hubDef.Token_Name, hubDef.Token_Key))
-			if err != nil {
-				lg.Fatal("failed to get token provider", log.KVErr(err))
-			}
+			// The new SDK authenticates with a connection string or an
+			// azcore.TokenCredential rather than the old sas.TokenProvider, so we
+			// build a connection string from the same SAS policy name/key the
+			// config already supplies.
+			connStr := buildEventHubConnectionString(hubDef)
 
-			// Connect to the hub. We do this synchronously so we can bail out easier if one is misconfigured.
-			hub, err := eventhubs.NewHub(hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, provider, eventhubs.HubWithOffsetPersistence(memPersist))
+			consumerClient, err := eventhubs.NewConsumerClientFromConnectionString(connStr, hubDef.Event_Hub, hubDef.Consumer_Group, nil)
 			if err != nil {
 				lg.Fatal("failed to connect to hub", log.KVErr(err))
 			}
 			defer func() {
-				cctx, cf := context.WithTimeout(ctx, 2*time.Second)
-				if err := hub.Close(cctx); err != nil {
-					lg.Error("failed to close event hub", log.KVErr(err))
+				cctx, cf := context.WithTimeout(context.Background(), 2*time.Second)
+				if err := consumerClient.Close(cctx); err != nil {
+					lg.Error("failed to close event hub client", log.KVErr(err))
 				}
 				cf()
 			}()
+
 			lg.Info("connected to event hub")
 
 			// stats stuff
@@ -243,139 +192,203 @@ func main() {
 				}
 			}
 
-			// This function gets called whenever an entry is received from an Events Hub partition.
+			// This function gets called whenever an entry is received from an Event Hub partition.
 			// It packages the entry, extracts an appropriate timestamp, and sends it to the indexer.
-			callback := func(ctx context.Context, msg *eventhubs.Event) error {
+			processEvent := func(msg *eventhubs.ReceivedEventData) {
 				ent := &entry.Entry{
-					Data: msg.Data,
+					Data: msg.Body,
 					Tag:  tagid,
 					SRC:  src,
 				}
-				size += uint64(len(msg.Data))
-				if !hubDef.Parse_Time {
-					if msg.SystemProperties != nil && msg.SystemProperties.EnqueuedTime != nil {
-						ent.TS = entry.FromStandard(*msg.SystemProperties.EnqueuedTime)
-					} else {
-						ent.TS = entry.Now()
-					}
-				} else {
-					ts, ok, err := tg.Extract(msg.Data)
-					if !ok || err != nil {
-						//  failed to extract, use the publishtime
-						hubDef.Parse_Time = false
-						if msg.SystemProperties != nil && msg.SystemProperties.EnqueuedTime != nil {
-							ent.TS = entry.FromStandard(*msg.SystemProperties.EnqueuedTime)
-						} else {
-							ent.TS = entry.Now()
-						}
-					} else {
-						ent.TS = entry.FromStandard(ts)
-					}
-				}
+				size += uint64(len(msg.Body))
+				ent.TS = entryTimestamp(&hubDef, tg, msg.Body, msg.EnqueuedTime)
+
 				if err := procset.ProcessContext(ent, exitCtx); err != nil {
 					lg.Error("failed to process entry", log.KVErr(err))
 				}
 				count++
-				return nil
 			}
 
-			// get info about partitions in the hub
-			info, err := hub.GetRuntimeInformation(ctx)
+			// Where to start a partition that has no existing checkpoint yet.
+			startPosition := startPositionFor(hubDef.Initial_Checkpoint)
+
+			// One-time, idempotent migration of any checkpoint left behind by
+			// the old persist.FilePersister from before the SDK migration.
+			// This must happen before NewProcessor/.Run as the Processor
+			// resolves each partition's start position from checkpointStore
+			// as soon as it starts.
+			if props, err := consumerClient.GetEventHubProperties(ctx, nil); err != nil {
+				lg.Error("failed to fetch event hub properties, skipping legacy checkpoint migration", log.KVErr(err))
+			} else {
+				migrateLegacyCheckpoints(ctx, cfg.Global.State_Store_Location, hubDef, props.PartitionIDs, checkpointStore, lg)
+			}
+
+			processor, err := eventhubs.NewProcessor(consumerClient, checkpointStore, &eventhubs.ProcessorOptions{
+				StartPositions: eventhubs.StartPositions{Default: startPosition},
+			})
 			if err != nil {
-				lg.Fatal("failed to get runtime info", log.KVErr(err))
+				lg.Fatal("failed to create processor", log.KVErr(err))
 			}
 
-			// Launch a listener for each partition in the hub
-			// Calling Receive takes a while, but we can't really parallelize it because the first thing
-			// Receive does is lock a mutex in the Hub -- one way or another, it's basically serial.
-			for _, partitionID := range info.PartitionIDs {
-				// ask where to start from
-				checkpoint, err := diskPersist.Read(hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, hubDef.Consumer_Group, partitionID)
-				if err != nil {
-					// set a default, we will check user setting next
-					checkpoint = persist.NewCheckpointFromStartOfStream()
+			// Launch a worker for each partition the Processor hands us. The Processor
+			// itself handles partition load-balancing/ownership via the checkpoint store.
+			var partWg sync.WaitGroup
+			go func() {
+				for {
+					partClient := processor.NextPartitionClient(ctx)
+					if partClient == nil {
+						// Processor has stopped.
+						return
+					}
+					partWg.Add(1)
+					go func(pc *eventhubs.ProcessorPartitionClient) {
+						defer partWg.Done()
+						defer pc.Close(context.Background())
+						runPartition(ctx, pc, processEvent, lg)
+					}(partClient)
 				}
-				if checkpoint.Offset == persist.StartOfStream && hubDef.Initial_Checkpoint == "end" {
-					checkpoint = persist.NewCheckpointFromEndOfStream()
-				}
-				// config SHOULD have set this, but double check because it's cheap
-				cg := hubDef.Consumer_Group
-				if cg == `` {
-					cg = eventhubs.DefaultConsumerGroup
-				}
-				handle, err := hub.Receive(
-					ctx,
-					partitionID,
-					callback,
-					eventhubs.ReceiveWithStartingOffset(checkpoint.Offset),
-					eventhubs.ReceiveWithConsumerGroup(cg),
-				)
-				if err != nil {
-					lg.Error("failed to start event hub partition receiver", log.KVErr(err))
-					return
-				}
-				listenerMtx.Lock()
-				listeners = append(listeners, handle)
-				readers = append(readers, readerInfo{hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, cg, partitionID})
-				listenerMtx.Unlock()
-				lg.Info("started receiver for partition", log.KV("consumer-group", cg), log.KV("partition", partitionID))
+			}()
+
+			lg.Info("started processor")
+			if err := processor.Run(ctx); err != nil {
+				lg.Error("processor exited with error", log.KVErr(err))
 			}
-			<-quitSig
+			partWg.Wait()
 		}(k, *def)
 	}
 
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
-
 	exitFn()
 
-	// Tell every event handler to close
-	listenerMtx.RLock()
-	listenerSnapshot := make([]*eventhubs.ListenerHandle, len(listeners))
-	copy(listenerSnapshot, listeners)
-	listenerMtx.RUnlock()
-	for _, h := range listenerSnapshot {
-		cctx, cf := context.WithTimeout(ctx, 2*time.Second)
-		h.Close(cctx)
-		cf()
-	}
-
-	// Tell our goroutines to bail out
-	close(quitSig)
-
+	// Tell every hub's Processor (and its partition workers) to shut down; each
+	// partition worker writes a final checkpoint before it returns.
+	cancel()
 	wg.Wait()
-	lg.Info("all goroutines done")
 
-	// Write out persistence info one last time by hand.
-	for _, r := range readers {
-		// read it from the memory persister
-		checkpoint, err := memPersist.Read(r.namespace, r.hub, r.consumerGroup, r.partitionID)
-		if err != nil {
-			lg.Error("Failed to read checkpoint", log.KVErr(err))
-			continue
-		}
-		// and write it to disk
-		if err := diskPersist.Write(r.namespace, r.hub, r.consumerGroup, r.partitionID, checkpoint); err != nil {
-			lg.Error("Failed to write checkpoint to disk", log.KVErr(err))
-		}
-	}
-	lg.Info("state saved, exiting")
+	lg.Info("all goroutines done")
 }
 
-func debugout(format string, args ...interface{}) {
+// runPartition receives events from a single partition and periodically checkpoints
+// progress, rather than checkpointing on every single entry.
+func runPartition(ctx context.Context, pc *eventhubs.ProcessorPartitionClient, processEvent func(*eventhubs.ReceivedEventData), lg *log.KVLogger) {
+	var lastEvent *eventhubs.ReceivedEventData
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	writeCheckpoint := func(ctx context.Context) {
+		if lastEvent == nil {
+			return
+		}
+		if err := pc.UpdateCheckpoint(ctx, lastEvent, nil); err != nil {
+			lg.Error("failed to update checkpoint", log.KVErr(err))
+			return
+		}
+		lastEvent = nil
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			cctx, cf := context.WithTimeout(context.Background(), 2*time.Second)
+			writeCheckpoint(cctx)
+			cf()
+			return
+		case <-ticker.C:
+			writeCheckpoint(ctx)
+		default:
+		}
+
+		recvCtx, recvCancel := context.WithTimeout(ctx, 5*time.Second)
+		events, err := pc.ReceiveEvents(recvCtx, 100, nil)
+		recvCancel()
+
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+			var ehErr *eventhubs.Error
+			if errors.As(err, &ehErr) && ehErr.Code == eventhubs.ErrorCodeOwnershipLost {
+				return
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			lg.Error("failed to receive events from partition", log.KV("partition", pc.PartitionID()), log.KVErr(err))
+			// Back off before retrying so a persistent failure (ex: bad credentials, etc.)
+			// doesn't spam logs or hammer the service.
+			if utils.QuitableSleep(ctx, time.Second) {
+				return
+			}
+			continue
+		}
+
+		for _, evt := range events {
+			processEvent(evt)
+			lastEvent = evt
+		}
+	}
+}
+
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }
 
-type readerInfo struct {
-	namespace     string
-	hub           string
-	consumerGroup string
-	partitionID   string
+// buildEventHubConnectionString builds a SAS connection string for the new SDK
+// from the same Event-Hubs-Namespace/Token-Name/Token-Key config values used
+// by the old SDK's sas.TokenProvider. The entity path (event hub name) is
+// deliberately left out of the string and passed to
+// NewConsumerClientFromConnectionString instead, since it's mutually
+// exclusive with EntityPath in the connection string and the caller always
+// has the event hub name in hand.
+//
+// If Event-Hubs-Endpoint is set, the connection string instead targets a
+// local Event Hubs emulator (see
+// https://learn.microsoft.com/en-us/azure/event-hubs/overview-emulator)
+// using UseDevelopmentEmulator=true rather than a real Azure namespace.
+func buildEventHubConnectionString(hubDef eventHubConf) string {
+	if hubDef.Event_Hubs_Endpoint != "" {
+		return fmt.Sprintf(
+			"Endpoint=sb://%s;SharedAccessKeyName=%s;SharedAccessKey=%s;UseDevelopmentEmulator=true;",
+			hubDef.Event_Hubs_Endpoint, hubDef.Token_Name, hubDef.Token_Key,
+		)
+	}
+	return fmt.Sprintf(
+		"Endpoint=sb://%s.servicebus.windows.net/;SharedAccessKeyName=%s;SharedAccessKey=%s",
+		hubDef.Event_Hubs_Namespace, hubDef.Token_Name, hubDef.Token_Key,
+	)
 }
 
-func (r readerInfo) key() string {
-	return fmt.Sprintf("%s|%s|%s|%s", r.namespace, r.hub, r.consumerGroup, r.partitionID)
+// startPositionFor returns the position a partition with no existing checkpoint
+// should start reading from, based on the config's Initial-Checkpoint setting.
+func startPositionFor(initialCheckpoint string) eventhubs.StartPosition {
+	if initialCheckpoint == "end" {
+		return eventhubs.StartPosition{Latest: new(true)}
+	}
+	return eventhubs.StartPosition{Earliest: new(true)}
+}
+
+// entryTimestamp picks the timestamp for a received event: if time parsing is
+// enabled it tries to extract a timestamp from the event body, falling back to
+// the event's enqueued time (and disabling parsing for subsequent events on this
+// hub) if extraction fails, and finally to the current time if no enqueued time
+// is available at all.
+func entryTimestamp(hubDef *eventHubConf, tg *timegrinder.TimeGrinder, data []byte, enqueued *time.Time) entry.Timestamp {
+	if !hubDef.Parse_Time {
+		return fallbackTimestamp(enqueued)
+	}
+	ts, ok, err := tg.Extract(data)
+	if !ok || err != nil {
+		// failed to extract, use the enqueued time from here on out
+		hubDef.Parse_Time = false
+		return fallbackTimestamp(enqueued)
+	}
+	return entry.FromStandard(ts)
+}
+
+func fallbackTimestamp(enqueued *time.Time) entry.Timestamp {
+	if enqueued != nil {
+		return entry.FromStandard(*enqueued)
+	}
+	return entry.Now()
 }

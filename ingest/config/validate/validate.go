@@ -33,17 +33,17 @@ var (
 // The first value is an opaque object (hence the reflect voodoo).  The second value is an error object
 // the point of this function is to make it easy for ingester writers to just hand in their GetConfig function
 // and the two paths and get a "go/no go" on the configurations.
-func ValidateConfig(fnc interface{}, pth, confdPath string) {
+func ValidateConfig(fnc any, pth, confdPath string) {
 	validateConfig(fnc, pth, confdPath, false) // this is used by NOT ingesters
 }
 
 // ValidateIngesterConfig behaves same as ValidateConfig but also asserts that the provided config
 // can return an IngestBaseConfig object.
-func ValidateIngesterConfig(fnc interface{}, pth, confdPath string) {
+func ValidateIngesterConfig(fnc any, pth, confdPath string) {
 	validateConfig(fnc, pth, confdPath, true) // this is used by ingesters
 }
 
-func validateConfig(fnc interface{}, pth, confdPath string, assertIngester bool) {
+func validateConfig(fnc any, pth, confdPath string, assertIngester bool) {
 	if !*vflag {
 		return
 	}
@@ -109,6 +109,11 @@ func validateConfig(fnc interface{}, pth, confdPath string, assertIngester bool)
 	os.Exit(0) //all good
 }
 
+// validator is implemented by config types passed to ValidateConfig/ValidateIngesterConfig.
+// Verify() must apply the same validation rules the config is subject to under its actual
+// runtime load path/flags/mode.
+// Implementations must not hardcode or assume a specific load mode that differs from how
+// the config was actually obtained.
 type validator interface {
 	Verify() error
 }
@@ -117,7 +122,7 @@ type igstConfig interface {
 	IngestBaseConfig() config.IngestConfig
 }
 
-func callVerifyFunc(obj interface{}) (err error) {
+func callVerifyFunc(obj any) (err error) {
 	var ok bool
 	var vv validator
 	if obj == nil {

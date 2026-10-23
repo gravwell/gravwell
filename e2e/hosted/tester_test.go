@@ -52,4 +52,10 @@ func TestTesterPlugin(t *testing.T) {
 		}
 		t.Fatal("failed to find testing errors in log file")
 	})
+	t.Run("Default UUID", func(t *testing.T) {
+		e2e.WaitForEntries(t, c, "tag=default-uuid", time.Hour, 1, 30*time.Second)
+	})
+	t.Run("Check Tags", func(t *testing.T) {
+		e2e.WaitForEntries(t, c, "tag=tag-test", time.Hour, 1, 30*time.Second)
+	})
 }

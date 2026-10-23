@@ -58,6 +58,7 @@ var (
 	ErrTooManyTags           = errors.New("All tag IDs exhausted, too many tags")
 	ErrUnknownTag            = errors.New("Invalid tag value")
 	ErrInvalidMaxEntrySize   = errors.New("Invalid Max-Entry-Size, max 1GB")
+	ErrCacheMissingTagMap    = errors.New("Cache contains entries but the tagcache file is missing or empty")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -83,6 +84,7 @@ const (
 
 	connectionShutdownSyncTimeout     = 10 * time.Second
 	connectionTimerSyncTimeout        = 60 * time.Second //sometimes disks are stupid, give indexers a long time
+	setupCloseTimeout                 = time.Second      //closing a connection that never finished setup has nothing to flush
 	connectionTimerSyncTimeoutBackoff = 60 * time.Second // if we couldn't flush within 60s give the indexer 60s to collect itself
 )
 
@@ -115,8 +117,17 @@ type IngestMuxer struct {
 	//connHot, and connDead have atomic operations
 	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
-	connHot              int32 //how many connections are functioning
-	connDead             int32 //how many connections are dead
+	connHot  int32 //how many connections are functioning
+	connDead int32 //how many connections are dead
+	// entryCount/byteCount are the source of truth for how many entries/bytes
+	// have been written. They're bumped from every WriteEntry*/WriteBatch*/
+	// DittoWriteContext caller, which never holds mtx, so a plain field would
+	// race with ingesterState.Entries/.Size being read (ex: getIngesterState's
+	// dirty check) or snapshotted (ex: its Copy() for the API/child push)
+	// elsewhere. ingesterState.Entries/.Size are only ever written from these,
+	// under mtx, when a snapshot is taken -- see getIngesterState.
+	entryCount           atomic.Uint64
+	byteCount            atomic.Uint64
 	mtx                  *sync.RWMutex
 	sig                  *sync.Cond
 	igst                 []*IngestConnection
@@ -319,12 +330,33 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		c.Logger = log.NewDiscardLogger()
 	}
 
+	// Cached entries only carry local tag IDs, the tagcache file is the only
+	// record of what those IDs mean. If the cache holds data but the tag map
+	// is gone we cannot safely replay it, so refuse to start rather than drop
+	// entries or ingest them under the wrong tag. This must happen before the
+	// chancachers are created, they begin draining from disk immediately.
+	var tagMap map[string]entry.EntryTag
+	var err error
+	if c.CachePath != "" {
+		if tagMap, err = readTagCache(c.CachePath); err != nil {
+			return nil, err
+		}
+		if len(tagMap) == 0 {
+			if hasData, err := cacheHasData(c.CachePath); err != nil {
+				return nil, err
+			} else if hasData {
+				return nil, fmt.Errorf("%w, refusing to replay cache in %q; move the cache directory aside to start without it", ErrCacheMissingTagMap, c.CachePath)
+			}
+		}
+	} else {
+		tagMap = make(map[string]entry.EntryTag)
+	}
+
 	// connect up the chancacher
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 	var eIn, eOut, bIn, bOut chan interface{}
 
-	var err error
 	if c.CachePath != "" {
 		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
 		if err != nil {
@@ -372,15 +404,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// that's recovering. The cache has tag IDs from the /previous/ run, so
 	// we read the old translations (that were previously saved) and then
 	// add our tags to them. If the old tag map doesn't exist, then it's
-	// anyone's guess where those entries might end up. Those are the
-	// breaks.
-	tagMap := make(map[string]entry.EntryTag)
-	if c.CachePath != "" {
-		tagMap, err = readTagCache(c.CachePath)
-		if err != nil {
-			return nil, err
-		}
-	}
+	// anyone's guess where those entries might end up, so we refuse to
+	// start in that case (see the tagcache check above).
 
 	var taglist []string
 
@@ -518,6 +543,26 @@ func readTagCache(p string) (map[string]entry.EntryTag, error) {
 	return ret, nil
 }
 
+// cacheHasData reports whether either of the entry or block caches under p
+// have data committed to disk.
+func cacheHasData(p string) (bool, error) {
+	for _, sub := range []string{"e", "b"} {
+		for _, f := range []string{"cache_a", "cache_b"} {
+			fi, err := os.Stat(filepath.Join(p, sub, f))
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return false, err
+			}
+			if fi.Size() > 0 {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 func writeTagCache(t map[string]entry.EntryTag, p string) error {
 	path := filepath.Join(p, "tagcache")
 
@@ -550,7 +595,7 @@ func (im *IngestMuxer) Start() error {
 	im.igst = make([]*IngestConnection, len(im.dests))
 	im.tagTranslators = make([]*tagTrans, len(im.dests))
 	im.wg.Add(len(im.dests))
-	im.connDead = int32(len(im.dests))
+	atomic.StoreInt32(&im.connDead, int32(len(im.dests)))
 	for i := 0; i < len(im.dests); i++ {
 		go im.connRoutine(i)
 	}
@@ -645,7 +690,7 @@ func (im *IngestMuxer) ingesterStateDirty() (dirty bool) {
 func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint64) (s IngesterState, shouldPush bool) {
 	gap := time.Since(lastPush)
 	//check if it has been long enough that we push no matter what or the state is dirty and we need push
-	if gap > maxIngesterStateUpdateInterval || im.ingesterStateDirty() || (im.ingesterState.Entries != lastEntryCount && gap > ingesterStateUpdateInterval) {
+	if gap > maxIngesterStateUpdateInterval || im.ingesterStateDirty() || (im.entryCount.Load() != lastEntryCount && gap > ingesterStateUpdateInterval) {
 		shouldPush = true
 	} else {
 		return //nothing new in the ingester state, just return
@@ -659,6 +704,11 @@ func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint6
 	}
 	im.ingesterState.Uptime = time.Since(im.start)
 	im.ingesterState.Tags = im.tags
+	// Entries/Size are only ever written here, under mtx -- see the field
+	// comments on entryCount/byteCount for why the counters themselves are
+	// atomic rather than plain fields on ingesterState.
+	im.ingesterState.Entries = im.entryCount.Load()
+	im.ingesterState.Size = im.byteCount.Load()
 
 	// The ingesterState object is of type ingest.IngesterState which contains a map of children.
 	// You must make a deep copy (which is what Copy does) if you are going to concurrently read and write it.
@@ -697,31 +747,57 @@ func (im *IngestMuxer) stateReportRoutine() {
 
 func (im *IngestMuxer) getTrimmedState(lastPush time.Time, lastEntryCount uint64) (s IngesterState, shouldPush bool, err error) {
 	//check if we should push an ingester state out either due to max time duration or because it was updated
-	if s, shouldPush = im.getIngesterState(lastPush, lastEntryCount); shouldPush {
-		//SendIngesterState throws a full sync and then pushes a potentially very large
-		//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
-		//or you will most likely starve the ingest muxer.
-		var sz uint32
-		if sz, err = s.EncodedSize(); err != nil {
-			return
-		} else if sz > maxIngestStateSize {
-			ogSize := sz
-			s.trimChildConfigs()
-			if sz, err = s.EncodedSize(); err != nil {
-				return
-			} else if sz > maxIngestStateSize {
-				s.trimChildren(64)
-				if sz, err = s.EncodedSize(); err != nil {
-					return
-				} else if sz > maxIngestStateSize {
-					//log an error stating that we could not make it work
-					im.Error("Failed to send ingester state, too large",
-						log.KV("original-size", ogSize), log.KV("post-trim-size", sz))
-					err = fmt.Errorf("failed to send ingester state, too large: post trim %d > %d", sz, maxIngestStateSize)
-				}
-			}
-		}
+	if s, shouldPush = im.getIngesterState(lastPush, lastEntryCount); !shouldPush {
+		return
 	}
+	//SendIngesterState throws a full sync and then pushes a potentially very large
+	//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
+	//or you will most likely starve the ingest muxer.
+	var sz uint32
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return //either an error, or it already fits, either way we are done
+	}
+	ogSize := sz
+
+	// The state is too large to ship.  The configuration and metadata blocks are
+	// only used for reporting, so progressively discard the least useful data
+	// until the state fits or we run out of things to trim.
+
+	// drop the configuration/metadata blocks carried by our children
+	s.trimChildConfigs()
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// drop our own configuration and metadata blocks
+	s.Configuration = nil
+	s.Metadata = nil
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// trim the number of children we report
+	s.trimChildren(64)
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// trim them again
+	s.trimChildren(8)
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	// give up on reporting children entirely
+	s.Children = nil
+	if sz, err = s.EncodedSize(); err != nil || sz <= maxIngestStateSize {
+		return
+	}
+
+	//log an error stating that we could not make it work, this really shouldn't be possible but handle the error anyway
+	im.Error("Failed to send ingester state, too large",
+		log.KV("original-size", ogSize), log.KV("post-trim-size", sz))
+	err = fmt.Errorf("failed to send ingester state, too large: post trim %d > %d", sz, maxIngestStateSize)
 	return
 }
 
@@ -838,18 +914,35 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		return
 	}
 
+	// Pick the ID first, so a refusal below cannot leave the name in im.tags with no
+	// entry in im.tagMap.
+	//
+	// The next ID is one past the highest in use, which is what NewIngestMuxer does.
+	// The empty check matters: tagNext starts at zero, so without it an empty map looks
+	// like one whose highest ID is zero and the first tag gets ID 1, leaving nothing at
+	// ID 0.  newTagTrans sizes its table by tag count and indexes it by ID, so that hole
+	// panics on the first connection.
+	if len(im.tagMap) != 0 {
+		var tagNext entry.EntryTag
+		for _, v := range im.tagMap {
+			if v > tagNext {
+				tagNext = v
+			}
+		}
+		// the count check above misses this: cached IDs are not dense, so the highest can
+		// be at the ceiling while the map is small, and one past it wraps to zero
+		if tagNext >= entry.MaxTagId {
+			err = ErrTooManyTags
+			return
+		}
+		tg = tagNext + 1
+	}
+
 	// update the tag list and map
 	im.tags = append(im.tags, name)
 	im.ingesterState.Tags = im.tags
 	im.ingesterStateUpdated = true
 
-	var tagNext entry.EntryTag
-	for _, v := range im.tagMap {
-		if v > tagNext {
-			tagNext = v
-		}
-	}
-	tg = entry.EntryTag(tagNext + 1)
 	im.tagMap[name] = tg
 	im.tc.add(tg)
 
@@ -886,8 +979,9 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 		return ErrAllConnsDown
 	}
 	ts := time.Now()
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	// DO NOT hold im.mtx while waiting for the pipelines to drain.  The write relay
+	// routines are what drain those channels and they need this lock on their state
+	// push timer, holding it here deadlocks them and guarantees we burn the timeout.
 	// always sleep for 10ms so that we give the chancacher a chance to pull from one and put it on the other
 	// a SyncContext is ALWAYS going to sleep for at least 10ms, this is NOT a free operation
 	// this sleep is crucial because we need the runtime to basically break out and schedule the chancacher
@@ -902,7 +996,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 			// all pipelines are empty
 			break
 		}
-		if im.connHot == 0 {
+		if atomic.LoadInt32(&im.connHot) == 0 {
 			return ErrAllConnsDown
 		}
 		//only check for a timeout if to is greater than zero.  A zero value or negative value means no timeout
@@ -918,10 +1012,26 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 		}
 	}
 
+	// Snapshot the connection set under the lock and then release it.  A
+	// syncTimeout blocks until the indexer acks everything outstanding, which
+	// callers routinely allow to run for minutes.  The write relay routines and
+	// the connection routines both need this lock to do their jobs, so holding
+	// it across the ack wait starves the pipeline and blocks a connection that
+	// dies mid sync from ever being reaped.
+	// The igst slice itself is allocated once in Start and never resized, only
+	// its elements are swapped, and always under this lock.  Copying it here is
+	// therefore enough to get a consistent view.  A connection that gets closed
+	// out from under us afterwards is handled by IngestConnection, syncTimeout
+	// checks the running flag and hands back ErrNotRunning.
+	im.mtx.Lock()
+	igst := make([]*IngestConnection, len(im.igst))
+	copy(igst, im.igst)
+	im.mtx.Unlock()
+
 	//check for the simple case of a single indexer
-	if len(im.igst) == 1 {
+	if len(igst) == 1 {
 		var err error
-		if ig := im.igst[0]; ig != nil {
+		if ig := igst[0]; ig != nil {
 			err = ig.syncTimeout(timeLeft)
 		} else {
 			err = ErrAllConnsDown
@@ -930,7 +1040,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	}
 
 	//DO NOT CLOSE the channel unless we get all of them back
-	total := len(im.igst)
+	total := len(igst)
 	ch := make(chan error, total)
 	var tch <-chan time.Time
 	if timeLeft > 0 {
@@ -942,7 +1052,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 
 	// do a parallel sync
 	var count int
-	for _, v := range im.igst {
+	for _, v := range igst {
 		go func(ig *IngestConnection, ech chan error) {
 			if ig == nil {
 				ech <- nil
@@ -1111,7 +1221,7 @@ func (im *IngestMuxer) Dead() (int, error) {
 	if im.state != running {
 		return -1, ErrNotRunning
 	}
-	return int(im.connDead), nil
+	return int(atomic.LoadInt32(&im.connDead)), nil
 }
 
 // Size returns the total number of specified connections, hot or dead
@@ -1137,6 +1247,14 @@ func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
 	return
 }
 
+// recordWritten bumps the atomic entry/byte counters that back
+// ingesterState.Entries/.Size. See the field comments on IngestMuxer for why
+// these can't just be plain fields updated in place.
+func (im *IngestMuxer) recordWritten(entries, size uint64) {
+	im.entryCount.Add(entries)
+	im.byteCount.Add(size)
+}
+
 // WriteEntry puts an entry into the queue to be sent out by the first available
 // entry writer routine, if all routines are dead, THIS WILL BLOCK once the
 // channel fills up.  We figure this is a natural "wait" mechanism
@@ -1159,8 +1277,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
-	im.ingesterState.Entries++
-	im.ingesterState.Size += uint64(len(e.Data))
+	im.recordWritten(1, e.Size())
 	return nil
 }
 
@@ -1184,8 +1301,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	}
 	select {
 	case im.eChan <- e:
-		im.ingesterState.Entries++
-		im.ingesterState.Size += uint64(len(e.Data))
+		im.recordWritten(1, e.Size())
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-im.writeBarrier:
@@ -1215,8 +1331,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	tmr := time.NewTimer(d)
 	select {
 	case im.eChan <- e:
-		im.ingesterState.Entries++
-		im.ingesterState.Size += uint64(len(e.Data))
+		im.recordWritten(1, e.Size())
 	case <-tmr.C:
 		err = ErrWriteTimeout
 	case <-im.writeBarrier:
@@ -1258,10 +1373,11 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
-	im.ingesterState.Entries += uint64(len(b))
+	var sz uint64
 	for i := range b {
-		im.ingesterState.Size += uint64(len(b[i].Data))
+		sz += b[i].Size()
 	}
+	im.recordWritten(uint64(len(b)), sz)
 	return nil
 }
 
@@ -1298,10 +1414,11 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	}
 	select {
 	case im.bChan <- b:
-		im.ingesterState.Entries += uint64(len(b))
+		var sz uint64
 		for i := range b {
-			im.ingesterState.Size += uint64(len(b[i].Data))
+			sz += b[i].Size()
 		}
+		im.recordWritten(uint64(len(b)), sz)
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-im.writeBarrier:
@@ -1373,10 +1490,11 @@ func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) e
 		// Now wait for the callback to be called
 		wg.Wait()
 		// Success, update stats
-		im.ingesterState.Entries += uint64(len(b))
+		var sz uint64
 		for i := range b {
-			im.ingesterState.Size += uint64(len(b[i].Data))
+			sz += b[i].Size()
 		}
+		im.recordWritten(uint64(len(b)), sz)
 
 	case <-ctx.Done():
 		return ctx.Err()
@@ -1621,7 +1739,9 @@ inputLoop:
 							b[i] = nil //this is safe, we check for this everywhere
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
-								b[j].Tag = nc.tt.reverse(b[j].Tag)
+								if b[j] != nil {
+									b[j].Tag = nc.tt.reverse(b[j].Tag)
+								}
 							}
 							im.recycleEntryBatch(b) //recycle and save what we can
 						} else {
@@ -1637,7 +1757,9 @@ inputLoop:
 
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
-								b[j].Tag = nc.tt.reverse(b[j].Tag)
+								if b[j] != nil {
+									b[j].Tag = nc.tt.reverse(b[j].Tag)
+								}
 							}
 							im.recycleEntryBatch(b)
 						}
@@ -1657,7 +1779,9 @@ inputLoop:
 			var n int
 			if n, err = nc.ig.writeBatchEntry(b); err != nil {
 				for i := n; i < len(b); i++ {
-					b[i].Tag = nc.tt.reverse(b[i].Tag)
+					if b[i] != nil {
+						b[i].Tag = nc.tt.reverse(b[i].Tag)
+					}
 				}
 				im.recycleEntryBatch(b[n:])
 				im.syncAndCloseConnection(nc)
@@ -1992,16 +2116,16 @@ loop:
 			log.KV("version", version.GetVersion()),
 			log.KV("ingesteruuid", im.uuid))
 		if im.rateParent != nil {
-			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
+			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn, ig.ew.flushTimeout, ig.ew.writeBlockSize))
 		}
 
 		//no error, attempt to do a tag translation
 		//we have a good connection, build our tag map
 		if tt, err = im.newTagTrans(ig); err != nil {
-			ig.Close()
+			im.mtx.RUnlock()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			ig = nil
 			tt = nil
-			im.mtx.RUnlock()
 			im.Error("fatal connection error, failed to get get tag translation map",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
@@ -2020,12 +2144,21 @@ loop:
 
 		// set the info
 		if lerr := ig.IdentifyIngester(im.name, im.version, im.uuid); lerr != nil {
+			if im.ctx.Err() != nil {
+				//a Close raced the reconnect, that is not an indexer failure
+				ig.closeTimeout(setupCloseTimeout)
+				return nil, nil, errors.New("Muxer closing")
+			}
 			im.Error("Failed to identify ingester",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
+			//do not leak the half setup connection across the retry, nothing is
+			//outstanding yet so give the close a short budget rather than the
+			//full closeTimeout against a peer that may have stopped reading
+			ig.closeTimeout(setupCloseTimeout)
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {
@@ -2038,18 +2171,25 @@ loop:
 		for {
 			select {
 			case <-im.ctx.Done():
-				return
+				//told to exit, do not hand back a connection that never got the ingest OK
+				ig.closeTimeout(setupCloseTimeout)
+				return nil, nil, errors.New("Muxer closing")
 			default:
 			}
 			ok, lerr := ig.IngestOK()
 			if lerr != nil {
+				if im.ctx.Err() != nil {
+					//a Close raced the reconnect, that is not an indexer failure
+					ig.closeTimeout(setupCloseTimeout)
+					return nil, nil, errors.New("Muxer closing")
+				}
 				im.Error("IngestOK query failed",
 					log.KV("indexer", tgt.Address),
 					log.KV("ingester", im.name),
 					log.KV("version", version.GetVersion()),
 					log.KV("ingesteruuid", im.uuid),
 					log.KVErr(lerr))
-				ig.Close()
+				ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 				//non-fatal, sleep and continue
 				retryDuration = backoff(retryDuration, maxRetryTime)
 				if im.quitableSleep(retryDuration) {
@@ -2076,7 +2216,7 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
-			ig.Close()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {
@@ -2104,7 +2244,9 @@ func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (*tagTrans, error) {
 		return nil, ErrTagMapInvalid
 	}
 	for k, v := range im.tagMap {
-		if int(v) > len(tt.active) {
+		// >= because active is indexed by tag ID, so the last valid index is len-1.
+		// As > an ID equal to the length got through and the assignment below panicked.
+		if int(v) >= len(tt.active) {
 			return nil, ErrTagMapInvalid
 		}
 		tg, ok := igst.GetTag(k)
@@ -2121,7 +2263,7 @@ func (im *IngestMuxer) SourceIP() (net.IP, error) {
 	var ip net.IP
 	im.mtx.RLock()
 	defer im.mtx.RUnlock()
-	if im.connHot == 0 || len(im.igst) == 0 {
+	if atomic.LoadInt32(&im.connHot) == 0 || len(im.igst) == 0 {
 		return ip, errors.New("No active connections")
 	}
 	var set bool
@@ -2263,7 +2405,9 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 						// could not translate, push it back on the queue and bail
 						// first we need to reverse the ones we have already translated, ugh
 						for j := 0; j < i; j++ {
-							blk[j].Tag = tt.reverse(blk[j].Tag)
+							if blk[j] != nil {
+								blk[j].Tag = tt.reverse(blk[j].Tag)
+							}
 						}
 						eq.push(e, blk)
 						return

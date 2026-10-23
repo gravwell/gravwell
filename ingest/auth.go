@@ -18,6 +18,7 @@ import (
 	"errors"
 	"io"
 	"math/rand"
+	"sync"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
@@ -65,6 +66,11 @@ var (
 	ErrNilChallengeResponse    = errors.New("Got a nil challenge response")
 	ErrTenantAuthUnsupported   = errors.New("authentication endpoint does not support tenants")
 
+	// prng is shared by every caller of NewChallenge.  An indexer generates a
+	// challenge per inbound ingester connection, each from its own goroutine, and
+	// math/rand.Rand is not safe for concurrent use, so prngMtx guards both the
+	// generator and its reseed counter.
+	prngMtx     sync.Mutex
 	prng        *rand.Rand
 	prngCounter int
 )
@@ -180,7 +186,9 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 	return nil
 }
 
-func checkAndReseedPRNG() {
+// checkAndReseedPRNGNoLock rolls the reseed counter and pulls a fresh cryptographic
+// seed when it runs out.  Caller must hold prngMtx.
+func checkAndReseedPRNGNoLock() {
 	prngCounter -= 1
 	if prngCounter <= 0 {
 		if seed, err := SecureSeed(); err == nil {
@@ -193,11 +201,15 @@ func checkAndReseedPRNG() {
 // NewChallenge generates a random hash string and a random iteration count
 func NewChallenge(auth AuthHash) (Challenge, error) {
 	var chal [32]byte
-	checkAndReseedPRNG()
+
+	prngMtx.Lock()
+	checkAndReseedPRNGNoLock()
 	iter := uint16(10000 + prng.Intn(10000))
 	for i := 0; i < len(chal); i++ {
 		chal[i] = byte(prng.Intn(0xff))
 	}
+	prngMtx.Unlock()
+
 	return Challenge{
 		Iterate:       iter,
 		RandChallenge: chal,

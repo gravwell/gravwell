@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -46,8 +47,21 @@ const (
 
 	maxThrottleDur time.Duration = 5 * time.Second
 
-	flushTimeout        time.Duration = 10 * time.Second
-	negotiateTagTimeout time.Duration = 10 * time.Second
+	// defaultFlushTimeout is the per-block write deadline fullSpeed.Write/
+	// throttleConn.Write reset before every defaultWriteBlockSize chunk (see
+	// throttle.go), not a deadline over an entire flush/entry.
+	defaultFlushTimeout time.Duration = 30 * time.Second
+)
+
+const (
+	// commandResponseTimeout bounds how long readCommandsUntil will wait for
+	// the indexer to answer a command.  The indexer keepalive (PONG_MAGIC)
+	// arrives every second which is faster than the per read deadline, so
+	// without an overall budget a wedged but alive indexer can keep a client
+	// spinning forever.  The clock resets on any substantive response
+	// (entry confirmations and throttle requests), only keepalives count
+	// against it.
+	commandResponseTimeout time.Duration = 10 * time.Second
 )
 
 const (
@@ -74,6 +88,10 @@ const (
 	CONFIRM_DITTO_BLOCK_MAGIC    IngestCommand = 0x55667788
 )
 
+var (
+	ErrInvalidDuration = errors.New("invalid duration")
+)
+
 type IngestCommand uint32
 type entrySendID uint64
 
@@ -83,19 +101,20 @@ type flusher interface {
 }
 
 type EntryWriter struct {
-	conn          conn
-	flshr         flusher
-	bIO           *bufio.Writer
-	bAckReader    *bufio.Reader
-	errCount      uint32
-	mtx           *sync.Mutex
-	ecb           entryConfBuffer
-	hot           bool
-	buff          []byte
-	id            entrySendID
-	ackTimeout    time.Duration
-	serverVersion uint16
-	ctx           context.Context
+	conn           conn
+	flshr          flusher
+	bIO            *bufio.Writer
+	bAckReader     *bufio.Reader
+	mtx            *sync.Mutex
+	ecb            entryConfBuffer
+	hot            bool
+	buff           []byte
+	id             entrySendID
+	ackTimeout     time.Duration
+	flushTimeout   time.Duration
+	writeBlockSize int
+	serverVersion  uint16
+	ctx            context.Context
 }
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
@@ -128,6 +147,20 @@ type EntryReaderWriterConfig struct {
 	Timeout               time.Duration
 	TagMan                TagManager
 	CTX                   context.Context
+	// FlushTimeout/WriteBlockSize are writer-only, meaning that
+	// NewEntryReaderEx will ignore them. They configure EntryWriter's
+	// own flush() deadline and, further down, fullSpeed's per-block
+	// write deadline (see throttle.go). EntryWriter also holds onto them
+	// (see flushTimeout/writeBlockSize fields) so a later switch to a
+	// rate-limited throttleConn -- ex: muxer.go's mid-stream newThrottleConn
+	// call once a THROTTLE command arrives -- carries the same configured
+	// values forward instead of silently reverting to package defaults.
+	// If left zeroed out, validate() will populate them with the same
+	// defaults production has always used before these were made
+	// configurable. Mainly so tests can shrink them without waiting out
+	// the real values.
+	FlushTimeout   time.Duration
+	WriteBlockSize int
 }
 
 func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
@@ -135,7 +168,7 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	utc := newUnthrottledConn(cfg.Conn)
+	utc := newUnthrottledConn(cfg.Conn, cfg.FlushTimeout, cfg.WriteBlockSize)
 	if cfg.CTX == nil {
 		cfg.CTX = context.Background()
 	}
@@ -151,20 +184,67 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 		id:         1,
 		ackTimeout: cfg.Timeout,
 		ctx:        cfg.CTX,
+		// take the normalized values back off the conn rather than the raw
+		// config. NewEntryWriterEx is exported and does NOT run validate().
+		// cfg may still hold zero values that newUnthrottledConn just defaulted.
+		flushTimeout:   utc.writeTimeout,
+		writeBlockSize: utc.blockSize,
 	}, nil
 }
 
 func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
-	ew.ackTimeout = t
+
 	if t <= 0 {
-		return errors.New("invalid duration")
+		return ErrInvalidDuration
 	}
+	ew.ackTimeout = t
+
 	return nil
 }
 
-type connWrapper func(conn) conn
+// OverrideFlushTimeout lets a caller (namely tests) shrink the deadline
+// EntryWriter.flush() sets before flushing, instead of constructing a whole
+// new EntryWriter just to change it.
+func (ew *EntryWriter) OverrideFlushTimeout(ft time.Duration) error {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ft <= 0 {
+		return ErrInvalidDuration
+	}
+	ew.flushTimeout = ft
+
+	// ew.flushTimeout alone only governs flush()'s own deadline.
+	// The conn's Write() loop resets the deadline from its own copy
+	// before every block, so that copy has to be updated too or the
+	// override is a no-op.
+	ew.conn.SetFlushTimeout(ft)
+
+	return nil
+}
+
+// clampFlushTimeout temporarily lowers the per-block write deadline to dur and
+// returns a func that restores the previous value. Callers working against a
+// bounded budget need this. flush() and the conn's own Write loop re-arm the
+// deadline from flushTimeout before every block, which otherwise blows straight
+// through any shorter budget the caller was given. The caller MUST hold the lock.
+func (ew *EntryWriter) clampFlushTimeout(dur time.Duration) func() {
+	prev := ew.flushTimeout
+	if dur <= 0 || (prev > 0 && prev <= dur) {
+		// There's nothing to clamp.
+		return func() {}
+	}
+
+	ew.flushTimeout = dur
+	ew.conn.SetFlushTimeout(dur)
+
+	return func() {
+		ew.flushTimeout = prev
+		ew.conn.SetFlushTimeout(prev)
+	}
+}
 
 // wrapConn passes in a function that can wrap a reader/writer
 // when called we reset the write buffer, caller should make sure there isn't anything buffered
@@ -172,6 +252,9 @@ func (ew *EntryWriter) setConn(c conn) {
 	ew.mtx.Lock()
 	ew.conn = c
 	ew.bIO.Reset(c)
+	// A conn built elsewhere does not know about an override.
+	// Tell it before anything can be written through it.
+	c.SetFlushTimeout(ew.flushTimeout)
 	ew.mtx.Unlock()
 }
 
@@ -186,8 +269,16 @@ func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 	//try to set a deadline on the connection, we are exiting so everything BETTER wrap up within our closeTimeout
-	ew.conn.SetDeadline(time.Now().Add(to))
+	deadline := time.Now().Add(to)
+	ew.conn.SetDeadline(deadline)
 	defer ew.conn.SetDeadline(nilTime)
+
+	// A connection deadline alone is not enough. Every flush below re-arms the
+	// write deadline from flushTimeout (30s by default), which is longer than
+	// the close budget and lets a stalled peer hold shutdown open for a full
+	// flushTimeout instead of honoring `to`.
+	defer ew.clampFlushTimeout(to)()
+
 	ctx, cf := context.WithTimeout(ew.ctx, to)
 	defer cf()
 	if err = ew.forceAckNoLock(ctx); err == nil {
@@ -203,6 +294,20 @@ func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
 	}
 
 	ew.hot = false
+
+	// forceAckNoLock above flushes at least once (throwAckSync), and
+	// flush()/the conn's own Write() always clear the write deadline on their
+	// way out, success or not. That erases the deadline set at the top of this
+	// function, so reinstate it before the close path.
+	//
+	// This is belt and suspenders for a caller-supplied net.Conn whose Close()
+	// writes straight to the wire, bypassing our per-block Write loop. Neither
+	// conn we build ourselves needs it: snappy's Close() is just Flush() with
+	// no trailer, and it latches its error so it is a no-op after a failed
+	// flush; and crypto/tls overwrites this deadline with its own 5s one inside
+	// closeNotify(). What actually keeps this function inside `to` is the
+	// clampFlushTimeout above.
+	ew.conn.SetDeadline(deadline)
 	if ew.flshr != nil {
 		ew.flshr.Close() // close our flusher if we need to
 	}
@@ -221,15 +326,17 @@ func (ew *EntryWriter) ForceAck() error {
 func (ew *EntryWriter) forceAckCtx(ctx context.Context) error {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
-	return ew.forceAckNoLock(ctx)
-}
 
-// outstandingEntries gives you a list of entries that have not been confirmed yet
-// the list IS NOT CLEARED, if you call it over and over you will get them all over and over
-func (ew *EntryWriter) outstandingEntries() []*entry.Entry {
-	ew.mtx.Lock()
-	defer ew.mtx.Unlock()
-	return ew.ecb.outstandingEntries()
+	// forceAckNoLock only consults ctx between ack service rounds. The flush it
+	// leads with is bounded by the write deadline instead. Hand the caller's
+	// budget to the write path too, otherwise IngestMuxer.syncAndCloseConnection
+	// asks for connectionShutdownSyncTimeout and then waits a full flushTimeout
+	// against a stalled indexer.
+	if dl, ok := ctx.Deadline(); ok {
+		defer ew.clampFlushTimeout(time.Until(dl))()
+	}
+
+	return ew.forceAckNoLock(ctx)
 }
 
 // ejectOutstandingEntries is almost identical to outstandingEntries, but it also resets the confirmation buffer
@@ -535,20 +642,26 @@ func (ew *EntryWriter) WriteDittoBlock(ents []entry.Entry) error {
 // if the timeout expires we attempt to service acks and go back to attempting to flush
 func (ew *EntryWriter) flush() (err error) {
 	//set the write timeout
-	if err = ew.conn.SetWriteTimeout(flushTimeout); err != nil {
+	if err = ew.conn.SetWriteTimeout(ew.flushTimeout); err != nil {
 		return
 	}
 
+	// Clear it unconditionally on the way out, not just on success.
+	// It sticks with the connection otherwise, even past the point
+	// this flush is done or has failed.
+	defer ew.conn.ClearWriteTimeout()
+
 	//issue the flush with timeout
-	if err = ew.bIO.Flush(); err == nil {
-		//check if we can cast to a flusher and flush
-		if ew.flshr != nil {
-			if err = ew.flshr.Flush(); err != nil {
-				return
-			}
-		}
-		err = ew.conn.ClearWriteTimeout()
+	if err = ew.bIO.Flush(); err != nil {
+		return
 	}
+	//check if we can cast to a flusher and flush
+	if ew.flshr != nil {
+		if err = ew.flshr.Flush(); err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -717,39 +830,9 @@ func (ew *EntryWriter) SendIngesterAPIVersion() (err error) {
 		return
 	}
 
-	// read back the ack
-	var ac ackCommand
-	var ok bool
-verCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !ok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-
-		switch ac.cmd {
-		case CONFIRM_API_VER_MAGIC:
-			// success
-			break verCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-		default:
-			err = fmt.Errorf("Unexpected response to API version message: %#v", ac)
-			break verCmdLoop
-		}
-	}
-	if err == nil {
-		err = ew.conn.ClearReadTimeout()
-	} else {
-		ew.conn.ClearReadTimeout()
-	}
-
+	// read back the ack, readCommandsUntil bounds the exchange so an indexer
+	// that keepalives but never answers cannot pin us here
+	_, err = ew.readCommandsUntil(CONFIRM_API_VER_MAGIC)
 	return
 }
 
@@ -815,7 +898,6 @@ func (ew *EntryWriter) IdentifyIngester(name string, version string, id string) 
 }
 
 func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) {
-	ts := time.Now()
 	if err = CheckTag(name); err != nil {
 		return
 	}
@@ -851,56 +933,16 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		return
 	}
 
-	// There are actually two possible responses here so we're gonna have to do this
-	// ourselves rather than call readCommandsUntil
+	// two answers are possible here, let the shared loop wait for either
 	var ac ackCommand
-	var ok bool
-tagCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !ok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-
-		switch ac.cmd {
-		case CONFIRM_ENTRY_MAGIC:
-			//check if the ID is the head, if not pop the head and resend
-			//TODO: if we get an ID we don't know about we just ignore it
-			//      is this the best course of action?
-			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
-				if err != errEntryNotFound {
-					return
-				}
-			}
-		case CONFIRM_TAG_MAGIC:
-			tg = entry.EntryTag(ac.val)
-			break tagCmdLoop
-		case ERROR_TAG_MAGIC:
-			err = errors.New("Failed to negotiate tag")
-			break tagCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-			if time.Since(ts) > negotiateTagTimeout {
-				err = ErrTimeout
-				break tagCmdLoop
-			}
-		default:
-			err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
-			break tagCmdLoop
-		}
+	if ac, err = ew.readCommandsUntilAny(CONFIRM_TAG_MAGIC, ERROR_TAG_MAGIC); err != nil {
+		return
 	}
-	if err == nil {
-		err = ew.conn.ClearReadTimeout()
-	} else {
-		ew.conn.ClearReadTimeout()
+	if ac.cmd == ERROR_TAG_MAGIC {
+		err = errors.New("Failed to negotiate tag")
+		return
 	}
-
+	tg = entry.EntryTag(ac.val)
 	return
 }
 
@@ -1010,13 +1052,46 @@ loop:
 	return
 }
 
+// isStrayConfirm reports whether an entry confirmation failed only because we
+// have nothing matching it: either the ID is unknown or nothing is outstanding
+// at all.  The command loops ignore those, a confirmation for an entry we are
+// not waiting on cannot be acted on, and it is not an answer to the command
+// either so it does not count as progress.
+func isStrayConfirm(err error) bool {
+	return err == errEntryNotFound || err == errEmptyConfBuff
+}
+
 // readCommandsUntil pulls out all of the responses and services them,
-// we block until we hit the command we want
-func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err error) {
+// we block until we hit the command we want.
+//
+// The per read deadline only guarantees the indexer is alive, the indexer
+// keepalive fires faster than the deadline so it can never trip on a
+// connection that is up.  The exchange as a whole is bounded by
+// commandResponseTimeout measured from the last substantive response, and we
+// also leave if our context is cancelled so that a muxer shutdown can pull a
+// connection out of setup rather than wait on a socket read forever.
+func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ackCommand, error) {
+	return ew.readCommandsUntilAny(cmd)
+}
+
+// readCommandsUntilAny is readCommandsUntil for an exchange with more than one
+// possible answer, it returns on the first command in cmds to arrive.
+func (ew *EntryWriter) readCommandsUntilAny(cmds ...IngestCommand) (ac ackCommand, err error) {
 	var ok bool
 	var dur time.Duration
 	defer ew.conn.ClearReadTimeout()
+	last := time.Now() //last substantive response from the indexer
 	for {
+		if err = ew.ctx.Err(); err != nil {
+			return
+		}
+		// the budget is checked here rather than on any one command so that
+		// whatever filler the indexer sends, keepalives or confirms for
+		// entries we never sent, counts against it
+		if time.Since(last) > commandResponseTimeout {
+			err = fmt.Errorf("indexer did not respond to %v within %v: %w", cmds, commandResponseTimeout, ErrTimeout)
+			return
+		}
 		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
 			return
 		}
@@ -1027,15 +1102,21 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err 
 			err = errFailedToReadCommand
 			return
 		}
+		if slices.Contains(cmds, ac.cmd) {
+			return
+		}
 		switch ac.cmd {
 		case CONFIRM_ENTRY_MAGIC:
 			//check if the ID is the head, if not pop the head and resend
 			//TODO: if we get an ID we don't know about we just ignore it
 			//      is this the best course of action?
 			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
-				if err != errEntryNotFound {
+				if !isStrayConfirm(err) {
 					return
 				}
+				err = nil
+			} else {
+				last = time.Now()
 			}
 		case THROTTLE_MAGIC:
 			if dur = time.Duration(ac.val); dur > maxThrottleDur || dur < 0 {
@@ -1044,14 +1125,17 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err 
 			if err = ew.throttle(dur); err != nil {
 				return
 			}
+			last = time.Now()
 		case PONG_MAGIC:
-			// Do nothing
-		}
-		if ac.cmd == cmd {
-			break
+			// unsolicited keepalive, it proves the connection is up but it is
+			// not an answer, so it does not reset the budget
+		default:
+			// anything else means the stream is out of step, fail now rather
+			// than wait out the budget and blame a timeout
+			err = fmt.Errorf("unexpected response %v while waiting for %v", ac.cmd, cmds)
+			return
 		}
 	}
-	return
 }
 
 func (ew *EntryWriter) throttle(dur time.Duration) (err error) {
@@ -1155,5 +1239,13 @@ func (erwc *EntryReaderWriterConfig) validate() error {
 	if erwc.OutstandingEntryCount <= 0 {
 		erwc.OutstandingEntryCount = MAX_UNCONFIRMED_COUNT
 	}
+
+	if erwc.FlushTimeout <= 0 {
+		erwc.FlushTimeout = defaultFlushTimeout
+	}
+	if erwc.WriteBlockSize <= 0 {
+		erwc.WriteBlockSize = defaultWriteBlockSize
+	}
+
 	return nil
 }

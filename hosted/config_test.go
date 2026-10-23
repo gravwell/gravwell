@@ -1,11 +1,107 @@
 package hosted
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// TestBaseConfig_Verify_Valid catches that valid UUIDs pass validation.
+func TestBaseConfig_Verify_Valid(t *testing.T) {
+	t.Parallel()
+	b := BaseConfig{Ingester_UUID: "550e8400-e29b-41d4-a716-446655440000"}
+	if err := b.Verify(); err != nil {
+		t.Errorf("Verify() = %v, want nil", err)
+	}
+}
+
+// TestBaseConfig_Verify_Invalid catches that invalid UUIDs return ErrInvalidConfigValue.
+func TestBaseConfig_Verify_Invalid(t *testing.T) {
+	t.Parallel()
+	b := BaseConfig{Ingester_UUID: "not-a-uuid"}
+	err := b.Verify()
+	if err == nil {
+		t.Fatal("Verify() = nil, want error")
+	}
+	if !errors.Is(err, ErrInvalidConfigValue) {
+		t.Errorf("Verify() error = %v, want wrapped %v", err, ErrInvalidConfigValue)
+	}
+}
+
+// TestBaseConfig_Verify_Empty catches that empty UUID is rejected by validation.
+func TestBaseConfig_Verify_Empty(t *testing.T) {
+	t.Parallel()
+	b := BaseConfig{Ingester_UUID: ""}
+	err := b.Verify()
+	if err == nil {
+		t.Errorf("Verify() = nil, want error for empty string")
+	}
+	if !errors.Is(err, ErrInvalidConfigValue) {
+		t.Errorf("Verify() error = %v, want wrapped %v", err, ErrInvalidConfigValue)
+	}
+}
+
+// TestBaseConfig_Verify_Malformed catches that shorter UUID strings are rejected.
+func TestBaseConfig_Verify_Malformed(t *testing.T) {
+	t.Parallel()
+	b := BaseConfig{Ingester_UUID: "550e8400-e29b-41d4"}
+	err := b.Verify()
+	if err == nil {
+		t.Fatal("Verify() = nil, want error for malformed UUID")
+	}
+	if !errors.Is(err, ErrInvalidConfigValue) {
+		t.Errorf("Verify() error = %v, want wrapped %v", err, ErrInvalidConfigValue)
+	}
+}
+
+// TestBaseConfig_ApplyDefaultIngesterUUID_Empty catches that empty UUID gets defaulted.
+func TestBaseConfig_ApplyDefaultIngesterUUID_Empty(t *testing.T) {
+	t.Parallel()
+	want := "d3667414-e373-4692-a1e2-3a18147e5aa6"
+	b := BaseConfig{}
+	b.ApplyDefaultIngesterUUID(want)
+	if b.Ingester_UUID != want {
+		t.Errorf("Ingester_UUID = %q, want %q", b.Ingester_UUID, want)
+	}
+}
+
+// TestBaseConfig_ApplyDefaultIngesterUUID_Filled catches that non-empty UUID is preserved.
+func TestBaseConfig_ApplyDefaultIngesterUUID_Filled(t *testing.T) {
+	t.Parallel()
+	existing := "550e8400-e29b-41d4-a716-446655440000"
+	defaultUUID := "d3667414-e373-4692-a1e2-3a18147e5aa6"
+	b := BaseConfig{Ingester_UUID: existing}
+	b.ApplyDefaultIngesterUUID(defaultUUID)
+	if b.Ingester_UUID != existing {
+		t.Errorf("Ingester_UUID = %q, want %q (should not change)", b.Ingester_UUID, existing)
+	}
+}
+
+// TestBaseConfig_ApplyDefaultIngesterUUID_UUIDNil catches that uuid.Nil formatted string is preserved (it's non-empty).
+func TestBaseConfig_ApplyDefaultIngesterUUID_UUIDNil(t *testing.T) {
+	t.Parallel()
+	existing := uuid.Nil.String() // "00000000-0000-0000-0000-000000000000"
+	b := BaseConfig{Ingester_UUID: existing}
+	b.ApplyDefaultIngesterUUID("d3667414-e373-4692-a1e2-3a18147e5aa6")
+	// uuid.Nil.String() is the string "00000000-0000-0000-0000-000000000000" which is non-empty,
+	// so cmp.Or treats it as set and preserves it.
+	if b.Ingester_UUID != existing {
+		t.Errorf("Ingester_UUID = %q, want %q (uuid.Nil string is non-empty so preserved)", b.Ingester_UUID, existing)
+	}
+}
+
+// TestBaseConfig_ApplyDefaultIngesterUUID_Whitespace catches that whitespace-only UUID is preserved.
+func TestBaseConfig_ApplyDefaultIngesterUUID_Whitespace(t *testing.T) {
+	t.Parallel()
+	whitespace := "   "
+	b := BaseConfig{Ingester_UUID: whitespace}
+	b.ApplyDefaultIngesterUUID("d3667414-e373-4692-a1e2-3a18147e5aa6")
+	if b.Ingester_UUID != whitespace {
+		t.Errorf("Ingester_UUID = %q, want %q (whitespace is non-empty)", b.Ingester_UUID, whitespace)
+	}
+}
 
 // TestParseUUID_Valid catches the bug in the current implementation where
 // the err != nil condition is inverted, causing valid UUIDs to always return

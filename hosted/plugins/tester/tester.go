@@ -7,17 +7,17 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 const (
-	Tag     string = `test`
-	Name    string = `tester`
-	ID      string = `tester.ingesters.gravwell.io`
-	Version string = `1.0.0` // must be canonical version string with only major.minor.point
+	Tag                    string = `test`
+	Name                   string = `tester`
+	ID                     string = `tester.ingesters.gravwell.io`
+	Version                string = `1.0.0` // must be canonical version string with only major.minor.point
+	defaultIngesterUUIDStr string = "4f1c35f6-6af6-4103-8fdc-df2c63026f0d"
 )
 
 const (
@@ -26,19 +26,29 @@ const (
 
 type Config struct {
 	hosted.BaseConfig
+	hosted.SingleTagConfig
 	Interval    string // how often to send an entry; must be parsable by time.ParseDuration
+	Silent      bool
 	Test_Errors bool
 }
 
+var (
+	_ hosted.Config          = (*Config)(nil) // compile time interface check
+	_ hosted.ConfigSanitizer = (*Config)(nil) // this config is safe to report
+)
+
 func (c *Config) Verify() (err error) {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Interval != `` {
 		if _, err := time.ParseDuration(c.Interval); err != nil {
 			return err
 		}
 	}
-	if c.Ingester_UUID == `` {
-		c.Ingester_UUID = uuid.New().String()
+	if err := c.BaseConfig.Verify(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -48,6 +58,34 @@ func (c *Config) interval() time.Duration {
 		return defaultInterval
 	}
 	return dur
+}
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig && c.SingleTagConfig == nc.SingleTagConfig &&
+		c.Interval == nc.Interval && c.Silent == nc.Silent && c.Test_Errors == nc.Test_Errors
+}
+
+// SanitizedConfig implements the optional hosted.ConfigSanitizer interface so that this
+// ingester's configuration is reported with its child state.  This ingester does not contain any secrets
+// so we can just hand back the actual config
+func (c *Config) SanitizedConfig() (x any) {
+	if c != nil {
+		x = *c
+	}
+	return
+}
+
+func (c *Config) Tags() []string {
+	if c != nil && c.Tag_Name != `` {
+		return []string{c.Tag_Name}
+	}
+	return []string{Tag} // use the default if none provided
 }
 
 type TesterIngester struct {
@@ -62,13 +100,17 @@ func NewTesterIngester(cfg Config, tn hosted.TagNegotiator) (tt *TesterIngester,
 	tt = &TesterIngester{
 		Config: cfg,
 	}
-	if tt.tag, err = tn.NegotiateTag(Tag); err != nil {
+	if tt.tag, err = tn.NegotiateTag(cfg.ResolveTag(Tag)); err != nil {
 		return
 	}
 	return
 }
 
 func (tt *TesterIngester) Handle(_ context.Context, rt hosted.Runtime) (*hosted.Continuation, error) {
+	if tt.Silent {
+		return hosted.ContinueAfter(tt.interval()), nil
+	}
+
 	if err := rt.Write(entry.Entry{
 		TS:   entry.Now(),
 		Tag:  tt.tag,

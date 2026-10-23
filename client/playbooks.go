@@ -59,11 +59,13 @@ func (c *Client) GetAllPlaybooks() (pbs []types.Playbook, err error) {
 	if !c.userDetails.Admin {
 		err = ErrNotAdmin
 	} else {
-		c.SetAdminMode()
+		if !c.AdminMode() {
+			c.SetAdminMode()
+			defer c.ClearAdminMode()
+		}
 		if err = c.getStaticURL(PLAYBOOKS_URL, &pbs); err != nil {
 			pbs = nil
 		}
-		c.ClearAdminMode()
 	}
 	return
 }

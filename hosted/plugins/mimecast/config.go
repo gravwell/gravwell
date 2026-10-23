@@ -11,15 +11,17 @@ package mimecast
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/gravwell/gravwell/v3/hosted"
 )
 
 const (
-	defaultHost              = "https://api.services.mimecast.com"
-	defaultLookback          = 24
-	defaultRequestsPerMinute = 5
-	defaultInterval          = 300
+	defaultHost                     = "https://api.services.mimecast.com"
+	defaultLookback                 = 24
+	defaultRequestsPerMinute        = 5
+	defaultInterval                 = 300
+	defaultIngesterUUIDStr   string = "e528af50-3ccf-41be-b930-78ae9e10648d"
 )
 
 type Config struct {
@@ -33,7 +35,28 @@ type Config struct {
 	Preprocessor  []string
 }
 
+var _ hosted.Config = (*Config)(nil) // compile time interface check
+
+// Equal implements hosted.Config so the runner can decide whether a config reload
+// actually changed anything for this ingester.
+func (c *Config) Equal(ncp any) bool {
+	nc, ok := hosted.EqualTarget[Config](ncp)
+	if c == nil || !ok {
+		return false
+	}
+	return c.BaseConfig == nc.BaseConfig &&
+		c.MultiTagConfig == nc.MultiTagConfig &&
+		c.PollingConfig == nc.PollingConfig &&
+		c.Client_Id == nc.Client_Id &&
+		c.Client_Secret == nc.Client_Secret &&
+		c.Host == nc.Host &&
+		slices.Equal(c.Api, nc.Api) &&
+		slices.Equal(c.Preprocessor, nc.Preprocessor)
+}
+
 func (c *Config) Verify() error {
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
+
 	if c.Host == "" {
 		c.Host = defaultHost
 	}
@@ -57,6 +80,11 @@ func (c *Config) Verify() error {
 	if err := c.MultiTagConfig.ValidateTags(); err != nil {
 		return err
 	}
+
+	if err := c.BaseConfig.Verify(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

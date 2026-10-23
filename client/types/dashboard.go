@@ -64,12 +64,24 @@ type DashboardContents struct {
 	LastDataUpdate     time.Time          `json:"lastDataUpdate,omitempty"`
 }
 
+// DashboardTimeframe specifies a timeframe over which search(es) should run.
+// Based on the the value of the Timeframe field, the other fields have various meanings:
+//
+// If it's one of the following, the GUI will calculate appropriate start/end times to apply to the search: preview ,   today , yesterday , lastHour ,  last24Hours ,   last7Days , lastMonth , last3Months ,   last6Months ,   last9Months ,   last12Months ,  thisHour ,  thisWeek ,  thisMonth , thisYear ,  thisQuarter
+//
+// If it's "dates", Start and End are ISO8601 dates.
+//
+// If it's "timestamps", Start and End are ISO8601 dates but the UI will show them as Unix timestamps for the user to edit.
+//
+// If it's "manual", DurationString is an ISO8601 string, but the UI shows a "seconds, minutes, hours" form for editing.
+//
+// If it's "iso", DurationString is an ISO8601 duration string entered directly by the user.
 type DashboardTimeframe struct {
-	DurationString string    `json:"durationString"`
-	Timeframe      string    `json:"timeframe"`
-	Timezone       string    `json:"timezone"`
-	Start          time.Time `json:"start"`
-	End            time.Time `json:"end"`
+	DurationString string `json:"durationString"`
+	Timeframe      string `json:"timeframe"`
+	Timezone       string `json:"timezone"`
+	Start          string `json:"start"`
+	End            string `json:"end"`
 }
 
 type DashboardGrid struct {

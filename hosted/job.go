@@ -13,6 +13,9 @@ const (
 	JobErrorDelay = 30 * time.Second
 	// JobAliveDelay is the time the adapter waits before retrying after detecting the ingester is unhealthy.
 	JobAliveDelay = 10 * time.Second
+
+	// jobAliveWarning is reported both to the log and to the ingester status while backing off
+	jobAliveWarning = `ingest connection is unhealthy, backing off`
 )
 
 // Job is implemented by poll-based plugins.
@@ -93,13 +96,15 @@ func (j *jobIngesterAdapter) Run(ctx context.Context, rt Runtime) error {
 		// The cache is full and the indexer is unreachable.
 		// Back off and wait for the connection to recover.
 		if !rt.Alive() {
-			rt.Warn("ingest connection is unhealthy, backing off")
+			rt.Warn(jobAliveWarning)
+			rt.SetWarn(jobAliveWarning)
 			for !rt.Alive() {
 				if rt.Sleep(JobAliveDelay) {
 					return nil
 				}
 			}
 			rt.Info("ingest connection recovered, continuing")
+			rt.ClearWarn()
 			continue
 		}
 
@@ -109,13 +114,17 @@ func (j *jobIngesterAdapter) Run(ctx context.Context, rt Runtime) error {
 				return nil
 			}
 
+			// the job is not dead, we are going to poll it again after a delay, so flag the
+			// error condition rather than letting it live only in the logs
 			rt.Error("handle failed", log.KVErr(err))
+			rt.SetError(err)
 			if rt.Sleep(JobErrorDelay) {
 				return nil
 			}
 
 			continue
 		}
+		rt.ClearError() // a clean poll clears whatever the last one tripped
 
 		// Sync state to disk before sleeping. This narrows the duplicate
 		// window to only entries still in the muxer's in-memory channel.

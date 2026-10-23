@@ -82,6 +82,7 @@ func CheckProcessor(id string) error {
 	case RegexReplaceProcessor:
 	case RegexDropProcessor:
 	case AttachProcessor:
+	case VectorProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -157,6 +158,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexDropLoadConfig(vc)
 	case AttachProcessor:
 		cfg, err = AttachLoadConfig(vc)
+	case VectorProcessor:
+		cfg, err = VectorLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -344,6 +347,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewAttachProcessor(cfg)
+	case VectorProcessor:
+		var cfg VectorConfig
+		if cfg, err = VectorLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewVectorProcessor(cfg)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}

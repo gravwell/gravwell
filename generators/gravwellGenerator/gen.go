@@ -21,32 +21,40 @@ import (
 var (
 	//prepopulate with our supported ones
 	dataTypes = map[string]base.DataGen{
-		"binary":   genDataBinary,
-		"bind":     genDataBind,
-		"csv":      genDataCSV,
-		"dnsmasq":  genDataDnsmasq,
-		"fields":   genDataFields,
-		"json":     genDataJSON,
-		"xml":      genDataXML,
-		"regex":    genDataRegex,
-		"syslog":   genDataSyslog,
-		"zeekconn": genDataZeekConn,
-		"evs":      genDataEnumeratedValue,
-		"megajson": genDataMegaJSON,
+		"binary":    genDataBinary,
+		"bind":      genDataBind,
+		"cef":       genDataCEF,
+		"csv":       genDataCSV,
+		"dnsmasq":   genDataDnsmasq,
+		"fields":    genDataFields,
+		"ipfix":     genDataIPFIX,
+		"json":      genDataJSON,
+		"netflowv5": genDataNetflowV5,
+		"netflowv9": genDataNetflowV9,
+		"xml":       genDataXML,
+		"regex":     genDataRegex,
+		"syslog":    genDataSyslog,
+		"zeekconn":  genDataZeekConn,
+		"evs":       genDataEnumeratedValue,
+		"megajson":  genDataMegaJSON,
 	}
 	finalizers = map[string]base.Finalizer{
-		"evs":      finEnumeratedValue,
-		"binary":   fin("binary"),
-		"bind":     fin("bind"),
-		"csv":      fin("csv"),
-		"dnsmasq":  fin("dnsmasq"),
-		"fields":   fin("fields"),
-		"json":     fin("JSON"),
-		"xml":      fin("XML"),
-		"regex":    fin("regex"),
-		"syslog":   fin("syslog"),
-		"zeekconn": fin("zeek conn"),
-		"megajson": fin("mega JSON"),
+		"evs":       finEnumeratedValue,
+		"binary":    fin("binary"),
+		"bind":      fin("bind"),
+		"cef":       fin("CEF"),
+		"csv":       fin("csv"),
+		"dnsmasq":   fin("dnsmasq"),
+		"fields":    fin("fields"),
+		"ipfix":     fin("ipfix"),
+		"json":      fin("JSON"),
+		"netflowv5": fin("netflow v5"),
+		"netflowv9": fin("netflow v9"),
+		"xml":       fin("XML"),
+		"regex":     fin("regex"),
+		"syslog":    fin("syslog"),
+		"zeekconn":  fin("zeek conn"),
+		"megajson":  fin("mega JSON"),
 	}
 
 	mtx sync.Mutex
@@ -125,7 +133,7 @@ func getDomain(min, max int) string {
 	}
 
 	var ret string
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		if i == 0 {
 			ret = fake.Lorem().Word()
 		} else {

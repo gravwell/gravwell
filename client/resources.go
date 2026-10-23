@@ -31,11 +31,13 @@ func (c *Client) GetResourceList() (rm []types.ResourceMetadata, err error) {
 // GetAllResourceList is an admin-only API to pull back the entire resource list.
 // Non-administrators will receive the same list as returned by GetResourceList.
 func (c *Client) GetAllResourceList() (rm []types.ResourceMetadata, err error) {
-	c.SetAdminMode()
+	if !c.AdminMode() {
+		c.SetAdminMode()
+		defer c.ClearAdminMode()
+	}
 	if err = c.getStaticURL(resourcesUrl(), &rm); err != nil {
 		rm = nil
 	}
-	c.ClearAdminMode()
 
 	return
 }

@@ -75,12 +75,12 @@ type SIEMBatchEventResponse struct {
 
 type SIEMBatchEvent struct {
 	URL    string    `json:"url"`
-	Expiry time.Time `json:"expiry,omitempty"`
+	Expiry time.Time `json:"expiry"`
 	Size   int       `json:"size"`
 }
 
 type SIEMErrorResponse struct {
-	Error Error `json:"error,omitempty"`
+	Error Error `json:"error"`
 }
 
 type Error struct {

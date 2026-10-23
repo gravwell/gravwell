@@ -77,6 +77,9 @@ func main() {
 	defer igst.Close()
 	ib.AnnounceStartup()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	//build up our list of bucket readers
 	var brs []*BucketReader
 	for k, v := range cfg.Bucket {
@@ -111,7 +114,7 @@ func main() {
 			}
 		}
 
-		if b, err := NewBucketReader(bcfg); err != nil {
+		if b, err := NewBucketReader(ctx, bcfg); err != nil {
 			ib.Logger.FatalCode(0, "failed to create bucket reader", log.KVErr(err))
 		} else {
 			brs = append(brs, b)
@@ -154,7 +157,7 @@ func main() {
 			}
 		}
 
-		if b, err := NewSQSS3Listener(scfg); err != nil {
+		if b, err := NewSQSS3Listener(ctx, scfg); err != nil {
 			ib.Logger.FatalCode(0, "failed to create SQS S3 Listener", log.KVErr(err))
 		} else {
 			sqsS3 = append(sqsS3, b)
@@ -172,8 +175,6 @@ func main() {
 			os.Exit(0)
 		}
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-
 	var wg sync.WaitGroup
 	ib.Debug("Running\n")
 
