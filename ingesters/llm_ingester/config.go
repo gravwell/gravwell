@@ -113,7 +113,7 @@ type listener struct {
 	// protocol the listener speaks. Claude Code's "x-claude-code-session-id" is
 	// the worked example because it is the one we ship a config for, not
 	// because the mechanism is Anthropic-specific.
-	Session_ID_Header string `json:"-"`
+	Session_ID_Header string
 	// Allow_Unknown_Paths, when true, proxies any path to the upstream instead
 	// of answering 404 for the ones neither parsed nor declared as a
 	// passthrough by the protocol module.
