@@ -29,10 +29,17 @@ type VpcConfig struct {
 	Min_Buff_MB  uint
 	Max_Buff_MB  uint
 	Extract_JSON bool
+
+	// Optional bounds on log event timestamps, events outside the bounds keep the timestamp of the source entry
+	Timestamp_Max_Past_Delta   string
+	Timestamp_Max_Future_Delta string
 }
 
 func VpcLoadConfig(vc *config.VariableConfig) (c VpcConfig, err error) {
-	err = vc.MapTo(&c)
+	if err = vc.MapTo(&c); err != nil {
+		return
+	}
+	_, err = newTSBounds(c.Timestamp_Max_Past_Delta, c.Timestamp_Max_Future_Delta)
 	return
 }
 
@@ -53,9 +60,14 @@ func (gdc VpcConfig) BufferSizes() (base, max int) {
 }
 
 func NewVpcProcessor(cfg VpcConfig) (*Vpc, error) {
+	bounds, err := newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta)
+	if err != nil {
+		return nil, err
+	}
 	base, max := cfg.BufferSizes()
 	return &Vpc{
 		VpcConfig: cfg,
+		bounds:    bounds,
 		rdr:       bytes.NewReader(nil),
 		zrdr:      new(gzip.Reader),
 		bb:        bytes.NewBuffer(make([]byte, base)),
@@ -66,6 +78,7 @@ func NewVpcProcessor(cfg VpcConfig) (*Vpc, error) {
 
 type Vpc struct {
 	VpcConfig
+	bounds   tsBounds
 	rdr      *bytes.Reader
 	zrdr     *gzip.Reader
 	bb       *bytes.Buffer
@@ -77,7 +90,9 @@ func (p *Vpc) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(VpcConfig); ok {
-		p.VpcConfig = cfg
+		if p.bounds, err = newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta); err == nil {
+			p.VpcConfig = cfg
+		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -163,7 +178,10 @@ func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 			Tag:  ent.Tag,
 			SRC:  ent.SRC,
 			Data: v,
-			TS:   entry.UnixTime(ts, 0),
+			TS:   ent.TS,
+		}
+		if p.bounds.validUnix(ts) {
+			r.TS = entry.UnixTime(ts, 0)
 		}
 		r.CopyEnumeratedBlock(ent)
 		rset = append(rset, r)
