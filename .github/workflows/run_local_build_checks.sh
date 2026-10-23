@@ -14,6 +14,7 @@ echo "Running go vet"
 	go vet ./generators/ipgen
         go vet ./chancacher
         go vet ./ingest
+        go vet -tags realsocket ./ingest
         go vet ./ingest/entry
         go vet ./ingest/processors
         go vet ./ingest/processors/plugin
