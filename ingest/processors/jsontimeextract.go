@@ -32,6 +32,10 @@ type JsonTimestampConfig struct {
 
 	// Required path used to go find the timesatmp in the JSON blob
 	Path string
+
+	// Optional bounds on extracted timestamps, timestamps outside the bounds are ignored
+	Timestamp_Max_Past_Delta   string
+	Timestamp_Max_Future_Delta string
 }
 
 func JsonTimestampLoadConfig(vc *config.VariableConfig) (c JsonTimestampConfig, err error) {
@@ -44,8 +48,9 @@ func JsonTimestampLoadConfig(vc *config.VariableConfig) (c JsonTimestampConfig, 
 type JsonTimestamp struct {
 	nocloser
 	JsonTimestampConfig
-	keys []string
-	tg   *timegrinder.TimeGrinder
+	keys   []string
+	tg     *timegrinder.TimeGrinder
+	bounds tsBounds
 }
 
 // NewJsonTimestamp instantiates a JsonTimestamp preprocessor. It will attempt
@@ -62,10 +67,15 @@ func NewJsonTimestamp(cfg JsonTimestampConfig) (*JsonTimestamp, error) {
 	if cfg.Assume_Local_Timezone {
 		tg.SetLocalTime()
 	}
+	bounds, err := newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta)
+	if err != nil {
+		return nil, err
+	}
 	return &JsonTimestamp{
 		JsonTimestampConfig: cfg,
 		keys:                cfg.keys(),
 		tg:                  tg,
+		bounds:              bounds,
 	}, nil
 }
 
@@ -73,7 +83,9 @@ func (j *JsonTimestamp) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonTimestampConfig); ok {
-		j.JsonTimestampConfig = cfg
+		if j.bounds, err = newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta); err == nil {
+			j.JsonTimestampConfig = cfg
+		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -90,7 +102,7 @@ func (j *JsonTimestamp) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 		}
 		if v, _, _, err := jsonparser.Get(ents[i].Data, j.keys...); err == nil {
 			if ts, ok, err := j.tg.Extract(v); err == nil && ok {
-				ents[i].TS = entry.FromStandard(ts)
+				j.bounds.apply(ents[i], ts)
 			}
 		}
 	}
@@ -102,6 +114,9 @@ func (jtc JsonTimestampConfig) validate() (err error) {
 		err = errors.New("missing jsontimestamp extraction key")
 	} else if ov := strings.TrimSpace(jtc.Timestamp_Override); ov != `` {
 		err = timegrinder.ValidateFormatOverride(ov)
+	}
+	if err == nil {
+		_, err = newTSBounds(jtc.Timestamp_Max_Past_Delta, jtc.Timestamp_Max_Future_Delta)
 	}
 	return
 }
