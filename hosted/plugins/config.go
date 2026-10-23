@@ -19,6 +19,7 @@ import (
 
 	// include all the native hosted ingesters
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/microsoft"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
@@ -28,17 +29,28 @@ import (
 )
 
 type Configs struct {
-	Okta     map[string]*okta.Config
-	Mimecast map[string]*mimecast.Config
-	MSGraph  map[string]*msgraph.Config
-	Tester   map[string]*tester.Config
-	Jamf     map[string]*jamf.Config
-	Wiz      map[string]*wiz.Config
-	SQS      map[string]*sqs.Config
+	Microsoft map[string]*microsoft.Config
+	Okta      map[string]*okta.Config
+	Mimecast  map[string]*mimecast.Config
+	MSGraph   map[string]*msgraph.Config
+	Tester    map[string]*tester.Config
+	Jamf      map[string]*jamf.Config
+	Wiz       map[string]*wiz.Config
+	SQS       map[string]*sqs.Config
 }
 
 // Verify ensures that the plugin configs are valid
 func (c Configs) Verify() (err error) {
+	for name, cfg := range c.Microsoft {
+		if cfg == nil {
+			return fmt.Errorf("Microsoft config %q is nil", name)
+		}
+		if err = cfg.Verify(); err != nil {
+			err = fmt.Errorf("Microsoft config %q failed validation: %w", name, err)
+			return
+		}
+	}
+
 	for k, v := range c.Okta {
 		if v == nil {
 			err = fmt.Errorf("Okta config %q is nil", k)
@@ -114,6 +126,9 @@ func (c Configs) Verify() (err error) {
 
 // Tags implements the required interface for base.cfgHelper which is used during startup
 func (c Configs) Tags() (tags []string, err error) {
+	for _, cfg := range c.Microsoft {
+		tags = append(tags, cfg.Tags()...)
+	}
 	if len(c.Okta) > 0 {
 		tags = append(tags, okta.Tags...)
 	}
@@ -140,7 +155,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
+	count += len(c.Microsoft) + len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
 	return
 }
 
@@ -158,6 +173,11 @@ type IngesterBuilder interface {
 // Any new plugins MUST add another loop here returning an IngesterBuilder for each config entry.
 func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 	return func(yield func(string, IngesterBuilder) bool) {
+		for name, cfg := range c.Microsoft {
+			if !yield(name, microsoft.NewBuilder(name, cfg)) {
+				return
+			}
+		}
 		for name, config := range c.Tester {
 			if !yield(name, NewTesterBuilder(config, tester.Name, tester.ID, tester.Version)) {
 				return

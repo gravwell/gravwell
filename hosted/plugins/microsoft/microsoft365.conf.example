@@ -1,0 +1,285 @@
+# Microsoft 365 exact-tag profile for the extended Microsoft Hosted Runner.
+# One selector per stanza isolates permissions, state, failures, and tags. The
+# bounded defaults cap each API at 1,000 records per poll and keep normalization
+# disabled. Replace every zero UUID and placeholder before deployment.
+
+[Global]
+Label="Microsoft 365 Extended API"
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+# Ingest-Secret="REPLACE_ME"
+# Ingest-Secret-File="/opt/gravwell/secrets/gravwell-ingest.secret"
+# Cleartext-Backend-Target="127.0.0.1:4023"
+# Encrypted-Backend-Target="127.0.0.1:4024"
+# Pipe-Backend-Target="/opt/gravwell/comms/pipe"
+Connection-Timeout=30s
+Enable-Compression=false
+Insecure-Skip-TLS-Verify=false
+# Ingest-Cache-Path="/opt/gravwell/cache/microsoft365-hosted-runner.cache"
+# Max-Ingest-Cache=1024
+# Cache-Depth=256
+# Cache-Mode="always"
+# Log-Level="INFO"
+# Log-File="/opt/gravwell/log/microsoft365-hosted-runner.log"
+
+[State]
+Path="/opt/gravwell/state/microsoft365-hosted-runner.state"
+Sync=false
+
+# Snapshot/inventory datasets use a six-hour interval. Append/lifecycle
+# datasets use a fifteen-minute interval. All stanzas share the same documented
+# confidential-client authentication mechanism but retain independent UUIDs.
+
+[Microsoft "applications"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-applications"
+Tag-Name="m365-applications"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "conditional-access"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-conditional-access-policies"
+Tag-Name="m365-conditional-access"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "defender-alerts"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="defender-xdr-alerts"
+Tag-Name="m365-defender-alerts"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=900
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "defender-incidents"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="defender-xdr-incidents"
+Tag-Name="m365-defender-incidents"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=900
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "devices"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-devices"
+Tag-Name="m365-devices"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "directory-audit"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-directory-audits"
+Tag-Name="m365-directory-audit"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=900
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "exchange-mailboxes"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="microsoft365-exchange-mailboxes"
+Tag-Name="m365-exchange-mailboxes"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "groups"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-groups"
+Tag-Name="m365-groups"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "license-assignments"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="microsoft365-license-assignments"
+Tag-Name="m365-license-assignment"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "risk-detections"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-risk-detections"
+Tag-Name="m365-risk-detections"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=900
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "risky-users"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-risky-users"
+Tag-Name="m365-risky-users"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=900
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "roles"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-role-assignments"
+Tag-Name="m365-roles"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "service-principals"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-service-principals"
+Tag-Name="m365-service-principals"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "signins"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-signins"
+Tag-Name="m365-signins"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=900
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
+
+[Microsoft "users"]
+Ingester-UUID="00000000-0000-0000-0000-000000000000"
+Tenant-ID="00000000-0000-0000-0000-000000000000"
+Client-ID="00000000-0000-0000-0000-000000000000"
+Client-Secret-File="/opt/gravwell/secrets/microsoft-reader.token"
+Api="entra-users"
+Tag-Name="m365-users"
+Lookback="24h"
+Requests-Per-Minute=12
+Request-Interval=21600
+Page-Size=100
+Max-Pages=10
+Overlap=900
+Max-Retries=5
+Ingest-Unchanged=false
+Normalization="disabled"
