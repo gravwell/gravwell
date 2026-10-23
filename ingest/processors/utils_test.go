@@ -163,3 +163,87 @@ func TestVpcStartOverflow(t *testing.T) {
 		}
 	}
 }
+
+func TestCiscoISEOutOfRange(t *testing.T) {
+	const hdr = `2020-11-23 12:50:16.963 -05:00`
+	body := strayMerged[len(hdr):]
+	good := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
+	tests := []struct {
+		ts    string
+		valid bool
+	}{
+		{`9999-12-31 23:59:59 +00:00`, false},
+		{`0000-01-01 00:00:00 +00:00`, false},
+		{`1969-12-31 23:59:59 +00:00`, false},
+		{time.Now().Add(48 * time.Hour).UTC().Format(iseTimestampFormat), false},
+		{time.Now().Add(-2 * 365 * 24 * time.Hour).UTC().Format(iseTimestampFormat), false},
+		{good.Format(iseTimestampFormat), true},
+	}
+	for _, format := range []string{outputCEF, outputJSON} {
+		p, err := NewCiscoISEProcessor(CiscoISEConfig{Output_Format: format, Drop_Misses: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tst := range tests {
+			ent := &entry.Entry{TS: origTS, Data: []byte(tst.ts + body)}
+			if ents, err := p.Process([]*entry.Entry{ent}); err != nil {
+				t.Fatal(err)
+			} else if len(ents) != 1 {
+				t.Fatalf("%s %s: bad entry count %d", format, tst.ts, len(ents))
+			}
+			if ent.TS.Sec < 0 {
+				t.Fatalf("%s %s produced negative TS %d", format, tst.ts, ent.TS.Sec)
+			} else if tst.valid && !ent.TS.StandardTime().Equal(good) {
+				t.Fatalf("%s %s was not applied: %v", format, tst.ts, ent.TS)
+			} else if !tst.valid && ent.TS != origTS {
+				t.Fatalf("%s %s was applied: %v", format, tst.ts, ent.TS)
+			}
+		}
+	}
+
+	// multipart reassembly goes through the same bounds, the 2020 test data is outside the default window
+	for _, tst := range []struct {
+		maxPast string
+		valid   bool
+	}{{``, false}, {`175200h`, true}} {
+		p, err := NewCiscoISEProcessor(CiscoISEConfig{
+			Output_Format:               outputJSON,
+			Enable_Multipart_Reassembly: true,
+			Drop_Misses:                 true,
+			Timestamp_Max_Past_Delta:    tst.maxPast,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []*entry.Entry
+		for _, d := range testdata {
+			ents, err := p.Process([]*entry.Entry{{TS: origTS, Data: []byte(d)}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, ents...)
+		}
+		if len(out) != 1 {
+			t.Fatalf("bad reassembled entry count %d", len(out))
+		} else if tst.valid && out[0].TS == origTS {
+			t.Fatalf("in window multipart timestamp was not applied with Timestamp-Max-Past-Delta %q", tst.maxPast)
+		} else if !tst.valid && out[0].TS != origTS {
+			t.Fatalf("out of window multipart timestamp was applied: %v", out[0].TS)
+		}
+	}
+
+	// bad deltas are config errors on load and on Config
+	if _, err := NewCiscoISEProcessor(CiscoISEConfig{Timestamp_Max_Future_Delta: `bad`}); err == nil {
+		t.Fatal("failed to catch bad cisco_ise delta")
+	}
+	p, err := NewCiscoISEProcessor(CiscoISEConfig{Output_Format: outputCEF})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = p.Config(CiscoISEConfig{Output_Format: outputCEF, Timestamp_Max_Past_Delta: `0`}); err == nil {
+		t.Fatal("failed to catch bad cisco_ise delta on Config")
+	} else if err = p.Config(CiscoISEConfig{Output_Format: outputCEF, Timestamp_Max_Past_Delta: `48h`}); err != nil {
+		t.Fatal(err)
+	} else if p.bounds.window.MaxPastDelta != 48*time.Hour {
+		t.Fatalf("Config did not rebuild bounds: %+v", p.bounds.window)
+	}
+}
