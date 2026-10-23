@@ -125,6 +125,9 @@ func (c *Client) PullKit(id string) (pc types.KitState, err error) {
 // (irrelevant of the installed version of the kit).
 //
 // !all_version&&installed=false returns the latest version of every *not* installed kit.
+//
+// Results are capped by opts.Limit; mds.TotalCount is the number of matches before the cap.
+// Paging is not supported, so if len(mds.Results) < mds.TotalCount, refine your filters.
 func (c *Client) ListRemoteKits(allVersions bool, opts types.RemoteKitListQueryOptions) (mds types.RemoteKitListResponse, err error) {
 	return c.post[types.RemoteKitListQueryOptions, types.RemoteKitListResponse](listRemoteKitsUrl(allVersions), &opts)
 }
