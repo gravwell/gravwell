@@ -121,7 +121,10 @@ func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	//check for the gzip header
 	if len(ent.Data) > 2 && binary.LittleEndian.Uint16(ent.Data) == gzipMagic {
 		p.rdr.Reset(ent.Data)
-		p.zrdr.Reset(p.rdr)
+		if err = p.zrdr.Reset(p.rdr); err != nil {
+			// a truncated or malformed header leaves the reader without a decompressor
+			return
+		}
 		p.bb.Reset()
 
 		//ok we we have gzip, go ahead and do the things
