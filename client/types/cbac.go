@@ -81,12 +81,11 @@ const (
 
 	AgentSkillRead  Capability = 52
 	AgentSkillWrite Capability = 53
-	AgentRead       Capability = 54
-	AgentWrite      Capability = 55
-	TableRead       Capability = 56
-	TableWrite      Capability = 57
-	TableCreate     Capability = 58
-	_maxCap         Capability = 59 //REMINDER - when adding capabilities, make sure to expand this number
+	AgentWrite      Capability = 54
+	TableRead       Capability = 55
+	TableWrite      Capability = 56
+	TableCreate     Capability = 57
+	_maxCap         Capability = 58 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 type CapabilityCategory string
@@ -372,8 +371,6 @@ func (c Capability) Name() string {
 		return `AgentSkillRead`
 	case AgentSkillWrite:
 		return `AgentSkillWrite`
-	case AgentRead:
-		return `AgentRead`
 	case AgentWrite:
 		return `AgentWrite`
 	case TableRead:
@@ -513,8 +510,6 @@ func (c Capability) Category() CapabilityCategory {
 		return AgentsCat
 	case AgentSkillWrite:
 		return AgentsCat
-	case AgentRead:
-		return AgentsCat
 	case AgentWrite:
 		return AgentsCat
 	case TableRead:
@@ -642,8 +637,6 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AgentSkillRead
 	case `agentskillwrite`:
 		*c = AgentSkillWrite
-	case `agentread`:
-		*c = AgentRead
 	case `agentwrite`:
 		*c = AgentWrite
 	case `tableread`:
@@ -767,8 +760,6 @@ func (c Capability) String() string {
 		return `Read Agent Skills`
 	case AgentSkillWrite:
 		return `Write and Delete Agent Skills`
-	case AgentRead:
-		return `Read Agents`
 	case AgentWrite:
 		return `Write and Delete Agents`
 	case TableRead:
@@ -885,13 +876,11 @@ func (c Capability) Description() string {
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
 	case LogbotAI:
-		return `User can use the AI completions and MCP services`
+		return `User can use the AI completions and MCP services, and read and access agents`
 	case AgentSkillRead:
 		return `User can read and access agent skills`
 	case AgentSkillWrite:
 		return `User can create, update, and delete agent skills`
-	case AgentRead:
-		return `User can read and access agents`
 	case AgentWrite:
 		return `User can create, update, and delete agents`
 	case TableRead:
