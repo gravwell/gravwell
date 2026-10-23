@@ -84,6 +84,7 @@ const (
 
 	connectionShutdownSyncTimeout     = 10 * time.Second
 	connectionTimerSyncTimeout        = 60 * time.Second //sometimes disks are stupid, give indexers a long time
+	setupCloseTimeout                 = time.Second      //closing a connection that never finished setup has nothing to flush
 	connectionTimerSyncTimeoutBackoff = 60 * time.Second // if we couldn't flush within 60s give the indexer 60s to collect itself
 )
 
@@ -2121,10 +2122,10 @@ loop:
 		//no error, attempt to do a tag translation
 		//we have a good connection, build our tag map
 		if tt, err = im.newTagTrans(ig); err != nil {
-			ig.Close()
+			im.mtx.RUnlock()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			ig = nil
 			tt = nil
-			im.mtx.RUnlock()
 			im.Error("fatal connection error, failed to get get tag translation map",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
@@ -2143,12 +2144,21 @@ loop:
 
 		// set the info
 		if lerr := ig.IdentifyIngester(im.name, im.version, im.uuid); lerr != nil {
+			if im.ctx.Err() != nil {
+				//a Close raced the reconnect, that is not an indexer failure
+				ig.closeTimeout(setupCloseTimeout)
+				return nil, nil, errors.New("Muxer closing")
+			}
 			im.Error("Failed to identify ingester",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
+			//do not leak the half setup connection across the retry, nothing is
+			//outstanding yet so give the close a short budget rather than the
+			//full closeTimeout against a peer that may have stopped reading
+			ig.closeTimeout(setupCloseTimeout)
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {
@@ -2161,18 +2171,25 @@ loop:
 		for {
 			select {
 			case <-im.ctx.Done():
-				return
+				//told to exit, do not hand back a connection that never got the ingest OK
+				ig.closeTimeout(setupCloseTimeout)
+				return nil, nil, errors.New("Muxer closing")
 			default:
 			}
 			ok, lerr := ig.IngestOK()
 			if lerr != nil {
+				if im.ctx.Err() != nil {
+					//a Close raced the reconnect, that is not an indexer failure
+					ig.closeTimeout(setupCloseTimeout)
+					return nil, nil, errors.New("Muxer closing")
+				}
 				im.Error("IngestOK query failed",
 					log.KV("indexer", tgt.Address),
 					log.KV("ingester", im.name),
 					log.KV("version", version.GetVersion()),
 					log.KV("ingesteruuid", im.uuid),
 					log.KVErr(lerr))
-				ig.Close()
+				ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 				//non-fatal, sleep and continue
 				retryDuration = backoff(retryDuration, maxRetryTime)
 				if im.quitableSleep(retryDuration) {
@@ -2199,7 +2216,7 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
-			ig.Close()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {

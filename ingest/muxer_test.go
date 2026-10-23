@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -394,6 +395,136 @@ func TestNegotiateTagOnEmptyMuxerGoesHot(t *testing.T) {
 	for _, err := range ti.Errors() {
 		t.Errorf("the indexer reported an error: %v", err)
 	}
+}
+
+// TestCloseWithStalledIndexer reproduces issue 2923 at the muxer level.  The
+// indexer authenticates, keeps its keepalive flowing, and then never answers
+// the first post-auth setup command.  WaitForHot is expected to time out, and
+// Close must still return: the connection routine is parked in the setup
+// exchange and nothing is in im.igst yet, so the only way out is for the
+// exchange itself to be bounded and to honor the muxer context.
+//
+// This runs with the real timeouts on purpose: Close has to get out through
+// context cancellation, well before the command budget expires.  The muxer
+// talks to the indexer over an in-memory transport inside a synctest bubble,
+// so those timeouts elapse on a fake clock.
+func TestCloseWithStalledIndexer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			attachDeadline = 10 * time.Second
+			closeDeadline  = 15 * time.Second
+		)
+
+		installMemDialer(t)
+		ti := newMemTestIndexer(syncTestSecret)
+		defer ti.Close()
+		ti.stallAfterAuth()
+
+		mxr, err := NewUniformMuxer(UniformMuxerConfig{
+			Destinations:    []string{ti.Destination()},
+			Tags:            []string{syncTestTag},
+			Auth:            syncTestSecret,
+			CacheDepth:      syncTestDepth,
+			IngesterName:    `closetest`,
+			IngesterVersion: `test`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = mxr.Start(); err != nil {
+			t.Fatal(err)
+		}
+
+		//make sure we are actually attached and stalled rather than failing to connect at all
+		if err = waitForConns(ti, 1, attachDeadline); err != nil {
+			t.Fatal(err)
+		}
+		//the indexer is wedged, so we must not go hot
+		if err = mxr.WaitForHot(time.Second); err == nil {
+			t.Fatal("muxer went hot against an indexer that never finished setup")
+		}
+
+		//Close used to block forever here on im.wg.Wait()
+		start := time.Now()
+		errCh := make(chan error, 1)
+		go func() { errCh <- mxr.Close() }()
+		select {
+		case err = <-errCh:
+			if err != nil {
+				t.Fatalf("Close failed: %v", err)
+			}
+		case <-time.After(closeDeadline):
+			t.Fatalf("Close did not return within %v with a stalled indexer", closeDeadline)
+		}
+		t.Logf("Close returned in %v", time.Since(start))
+
+		//and the half set up connection must actually have been torn down, not leaked
+		if err = waitForConns(ti, 0, closeDeadline); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// TestStalledIndexerRetriesWithoutLeaking covers the teardown on the identify
+// failure path in getConnection: every attempt against an indexer that
+// keepalives but never finishes setup must close its connection before the
+// backoff, so the indexer sees the attempts stack up in Accepted while Conns
+// never climbs past the one in flight.
+func TestStalledIndexerRetriesWithoutLeaking(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			attempts = 3
+			// each attempt burns commandResponseTimeout, then the retry
+			// backoff doubles from defaultRetryTime, so three attempts land
+			// well inside this
+			within = attempts * (commandResponseTimeout + 2*defaultRetryTime)
+		)
+
+		installMemDialer(t)
+		ti := newMemTestIndexer(syncTestSecret)
+		defer ti.Close()
+		ti.stallAfterAuth()
+
+		mxr, err := NewUniformMuxer(UniformMuxerConfig{
+			Destinations:    []string{ti.Destination()},
+			Tags:            []string{syncTestTag},
+			Auth:            syncTestSecret,
+			CacheDepth:      syncTestDepth,
+			IngesterName:    `leaktest`,
+			IngesterVersion: `test`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = mxr.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer mxr.Close()
+
+		var peak int64
+		if !waitFor(within, func() bool {
+			if n := ti.Conns(); n > peak {
+				peak = n
+			}
+			return ti.Accepted() >= attempts
+		}) {
+			t.Fatalf("only %d connection attempts in %v, want at least %d", ti.Accepted(), within, attempts)
+		}
+		if peak > 1 {
+			t.Fatalf("%d connections attached at once across %d attempts, the failed setup connections are being leaked",
+				peak, ti.Accepted())
+		}
+		t.Logf("%d attempts against a stalled indexer with at most %d connection attached", ti.Accepted(), peak)
+	})
+}
+
+// waitForConns polls the indexer until it has exactly want connections
+// attached, or the deadline passes.
+func waitForConns(ti *testIndexer, want int64, to time.Duration) error {
+	if waitFor(to, func() bool { return ti.Conns() == want }) {
+		return nil
+	}
+	return fmt.Errorf("expected %d connections, have %d after %v", want, ti.Conns(), to)
 }
 
 // seedCacheFile drops a non-empty cache file so the muxer sees data on disk.
