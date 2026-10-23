@@ -94,8 +94,8 @@ func list() action.Pair {
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentRead},
-					XPermissions: []types.Capability{types.AgentRead},
+					IPermissions: []types.Capability{types.LogbotAI},
+					XPermissions: []types.Capability{types.LogbotAI},
 				},
 			},
 			DefaultColumns: []string{
@@ -216,8 +216,8 @@ func replace() action.Pair {
 					return fs
 				},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentRead, types.AgentWrite},
-					XPermissions: []types.Capability{types.AgentRead, types.AgentWrite},
+					IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
+					XPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
 				},
 			},
 			Exactly1: true,
@@ -282,8 +282,8 @@ func download() action.Pair {
 					return fs
 				},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentRead},
-					XPermissions: []types.Capability{types.AgentRead},
+					IPermissions: []types.Capability{types.LogbotAI},
+					XPermissions: []types.Capability{types.LogbotAI},
 				},
 			},
 			Exactly1: true,
@@ -308,7 +308,7 @@ func delete() action.Pair {
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentRead, types.AgentWrite},
+					IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
 					XPermissions: []types.Capability{types.AgentWrite},
 				},
 			},

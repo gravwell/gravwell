@@ -30,6 +30,7 @@ func TestValidateDataTableColumns(t *testing.T) {
 		{"leading digit", []DataTableColumn{str("2x")}, "2x", ErrDataTableColumnName},
 		{"dash", []DataTableColumn{str("a-b")}, "a-b", ErrDataTableColumnName},
 		{"empty name", []DataTableColumn{str("")}, "", ErrDataTableColumnName},
+		{"reserved name", []DataTableColumn{str("host"), str("tableID")}, "host", ErrDataTableColumnName},
 		{"too long", []DataTableColumn{str("a" + strings.Repeat("b", DataTableMaxColumnNameLength))}, "a", ErrDataTableColumnName},
 		{"max length", []DataTableColumn{str(strings.Repeat("a", DataTableMaxColumnNameLength))}, strings.Repeat("a", DataTableMaxColumnNameLength), nil},
 		{"key is an ordinary name", []DataTableColumn{str("Key")}, "Key", nil},
