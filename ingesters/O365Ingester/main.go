@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -115,7 +117,7 @@ func main() {
 	// Make sure there are subscriptions for all our requested content types
 	err = o.EnableSubscriptions()
 	if err != nil {
-		lg.FatalCode(0, "Failed to enable subscriptions", log.KVErr(err))
+		lg.FatalCode(0, "Failed to enable subscriptions", log.KVErr(scrubO365Error(err)))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -176,7 +178,7 @@ func main() {
 
 				content, err := o.ListAvailableContent(ct.Content_Type, start, end)
 				if err != nil {
-					lg.Error("failed to list content type", log.KV("contenttype", ct.Content_Type), log.KVErr(err))
+					lg.Error("failed to list content type", log.KV("contenttype", ct.Content_Type), log.KVErr(scrubO365Error(err)))
 					time.Sleep(10 * time.Second)
 					continue
 				}
@@ -272,6 +274,35 @@ func main() {
 
 	// Write the final state info
 	tracker.Close()
+}
+
+var (
+	authHeaderRe  = regexp.MustCompile(`(?i)(authorization:\[)[^\]]*`)
+	bearerTokenRe = regexp.MustCompile(`(?i)(bearer\s+)[^\s\]"]+`)
+)
+
+// scrubO365Error removes the request and response dumps that the o365 library
+// puts in its non-200 errors, which include the Authorization header, and
+// redacts any bearer token left in the message.
+func scrubO365Error(err error) error {
+	if err == nil {
+		return nil
+	}
+	s := err.Error()
+	if i := strings.Index(s, "\n\treq: "); i >= 0 {
+		rest := s[i:]
+		s = s[:i]
+		if j := strings.Index(rest, "\n\tres: "); j >= 0 {
+			rest = rest[j+len("\n\tres: "):]
+			// the response body, if any, follows on the next line
+			if k := strings.Index(rest, "\n\t"); k >= 0 {
+				s += rest[k:]
+			}
+		}
+	}
+	s = authHeaderRe.ReplaceAllString(s, "${1}REDACTED")
+	s = bearerTokenRe.ReplaceAllString(s, "${1}REDACTED")
+	return errors.New(s)
 }
 
 func debugout(format string, args ...interface{}) {
