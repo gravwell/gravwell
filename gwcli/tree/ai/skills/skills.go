@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -46,6 +47,7 @@ func NewNav() *cobra.Command {
 		[]action.Pair{
 			list(),
 			upload(),
+			edit(),
 			replace(),
 			download(),
 			delete(),
@@ -79,11 +81,9 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentSkillRead},
-					XPermissions: []types.Capability{types.AgentSkillRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AgentSkillRead},
+				XPermissions: []types.Capability{types.AgentSkillRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -125,12 +125,10 @@ func upload() action.Pair {
 				sf.Description = desc
 			}
 			created, err := connection.Client.CreateAgentSkill(types.AgentSkill{
-				CommonFields: types.CommonFields{
-					Name:        sf.Name,
-					Description: sf.Description,
-					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
-				},
-				Body: sf.Body,
+				Name:        sf.Name,
+				Description: sf.Description,
+				Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
+				Body:        sf.Body,
 			})
 			if err != nil {
 				return nil, "", err
@@ -138,15 +136,56 @@ func upload() action.Pair {
 			return phrases.SuccessfullyCreatedItem(singular, created.ID), "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:  "upload",
-				Long: "Upload a markdown file as a new agent skill.",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentSkillWrite},
-					XPermissions: []types.Capability{types.AgentSkillWrite},
-				},
+			Use:  "upload",
+			Long: "Upload a markdown file as a new agent skill.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AgentSkillWrite},
+				XPermissions: []types.Capability{types.AgentSkillWrite},
 			},
 			IDIsSuccessMessage: true,
+		})
+}
+
+// edit changes a skill's name, description and labels. The body is changed
+// with replace.
+func edit() action.Pair {
+	return scaffoldedit.NewEditAction(singular, "skills", scaffoldedit.Config{
+		"name":   scaffoldedit.FieldName(singular),
+		"desc":   scaffoldedit.FieldDescription(singular),
+		"labels": scaffoldedit.FieldLabels(),
+	}, scaffoldedit.SubroutineSet[string, types.AgentSkill]{
+		SelectSub: func(id string) (types.AgentSkill, error) {
+			return connection.Client.GetAgentSkill(id)
+		},
+		FetchSub: func() ([]types.AgentSkill, error) {
+			resp, err := connection.Client.ListAgentSkills(types.QueryOptions{})
+			return resp.Results, err
+		},
+		GetFieldSub: func(item types.AgentSkill, fieldKey string) (string, error) {
+			return getCommonField(item.CommonFields, fieldKey)
+		},
+		SetFieldSub: func(item *types.AgentSkill, fieldKey, val string) (string, error) {
+			if item == nil {
+				return "", errors.New("cannot set nil item")
+			}
+			return setCommonField(&item.CommonFields, fieldKey, val)
+		},
+		GetTitleSub:       func(item types.AgentSkill) string { return item.Name },
+		GetDescriptionSub: func(item types.AgentSkill) string { return item.Description },
+		UpdateSub: func(data *types.AgentSkill) (string, error) {
+			if data == nil {
+				return "", errors.New("cannot update nil item")
+			}
+			_, err := connection.Client.UpdateAgentSkill(data.ID, types.AgentSkillPatch{CommonFieldsPatch: metadataPatch(data.CommonFields)})
+			return data.Name, err
+		},
+	},
+		scaffoldedit.Options{
+			Long: "Edit the name, description or labels of an agent skill. Call replace to change its body.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
+				XPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
+			},
 		})
 }
 
@@ -203,17 +242,15 @@ func replace() action.Pair {
 			}}, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "replace",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "markdown file")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
-					XPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
-				},
+			Use: "replace",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Path.Register(fs, "", "markdown file")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
+				XPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
 			},
 			Exactly1: true,
 		})
@@ -265,17 +302,15 @@ func download() action.Pair {
 			return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, f.Name()), Success: true}}, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "download",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Output.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentSkillRead},
-					XPermissions: []types.Capability{types.AgentSkillRead},
-				},
+			Use: "download",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Output.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AgentSkillRead},
+				XPermissions: []types.Capability{types.AgentSkillRead},
 			},
 			Exactly1: true,
 		})
@@ -297,11 +332,9 @@ func delete() action.Pair {
 			}
 			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
-					XPermissions: []types.Capability{types.AgentSkillWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
+				XPermissions: []types.Capability{types.AgentSkillWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})

@@ -109,3 +109,19 @@ func TestWrap(t *testing.T) {
 		t.Errorf("example lost its serial entrypoint")
 	}
 }
+
+func TestRenderGraph(t *testing.T) {
+	a, err := decodeAgent([]byte(exampleDefinition))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.ID = "abc"
+	want := "triage (abc)\n" +
+		"Looks at an alert and says what to do about it.\n" +
+		"- serial triage [inherits tools]\n" +
+		"  - single investigate [tools: run_query, list_tags; max iterations: 20; prompt: 67 bytes]\n" +
+		"  - single report [no tools; prompt: 70 bytes]"
+	if got := renderGraph(a); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
