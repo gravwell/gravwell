@@ -520,17 +520,8 @@ func (p UserPreference) ToPatch() UserPreferencePatch {
 	}
 }
 
-type UserPreferenceResponse struct {
-	BaseListResponse
-	Results []UserPreference
-}
+type UserPreferenceResponse = ListResponse[UserPreference]
 
-type UserListResponse struct {
-	BaseListResponse
-	Results []User
-}
+type UserListResponse = ListResponse[User]
 
-type GroupListResponse struct {
-	BaseListResponse
-	Results []Group
-}
+type GroupListResponse = ListResponse[Group]

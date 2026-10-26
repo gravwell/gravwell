@@ -41,7 +41,4 @@ func (t Template) ToPatch() TemplatePatch {
 	}
 }
 
-type TemplateListResponse struct {
-	BaseListResponse
-	Results []Template
-}
+type TemplateListResponse = ListResponse[Template]

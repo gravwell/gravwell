@@ -23,12 +23,12 @@ func (c *Client) ListGroups(opts types.QueryOptions) (ret types.GroupListRespons
 // the system. This calls ListGroups under the hood, so the user must
 // have the ListGroups capability enabled.
 func (c *Client) GetGroupMap() (map[int32]string, error) {
-	groups, err := c.ListGroups(types.QueryOptions{})
+	groups, err := Collect(types.QueryOptions{}, c.ListGroups, -1)
 	if err != nil {
 		return nil, err
 	}
-	m := make(map[int32]string, len(groups.Results))
-	for _, g := range groups.Results {
+	m := make(map[int32]string, len(groups))
+	for _, g := range groups {
 		m[g.ID] = g.Name
 	}
 	return m, nil
@@ -72,17 +72,15 @@ func (c *Client) CleanupGroups() error {
 // ListGroups under the hood, so the user must have the ListGroups
 // capability enabled.
 func (c *Client) LookupGroup(groupname string) (gd types.Group, err error) {
-	var lst types.GroupListResponse
-	if lst, err = c.ListGroups(types.QueryOptions{}); err != nil {
-		return
-	}
-	for _, l := range lst.Results {
-		if l.Name == groupname {
-			gd = l
-			return
+	for page, err := range Pages(types.QueryOptions{Limit: types.QueryOptionsMaxLimit}, c.ListGroups) {
+		if err != nil {
+			return gd, err
+		}
+		for _, l := range page.Results {
+			if l.Name == groupname {
+				return l, nil
+			}
 		}
 	}
-
-	err = ErrNotFound
-	return
+	return gd, ErrNotFound
 }

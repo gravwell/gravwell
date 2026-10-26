@@ -290,10 +290,7 @@ type SearchInfo struct {
 	StoredData      int64       // StoreSize + IndexSize, combined for convenience
 }
 
-type SearchInfoListResponse struct {
-	BaseListResponse
-	Results []SearchInfo
-}
+type SearchInfoListResponse = ListResponse[SearchInfo]
 
 type SearchLaunchInfo struct {
 	//what launched the search, manual, directquery, scheduledsearch, etc...
@@ -694,10 +691,7 @@ func (m Macro) ToPatch() MacroPatch {
 
 // MacroListResponse is what gets returned when you query a list of
 // macros.
-type MacroListResponse struct {
-	BaseListResponse
-	Results []Macro
-}
+type MacroListResponse = ListResponse[Macro]
 
 func CheckMacroName(name string) error {
 	for _, char := range name {

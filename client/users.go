@@ -23,12 +23,12 @@ func (c *Client) ListUsers(opts types.QueryOptions) (ret types.UserListResponse,
 
 // GetUserMap returns a map of UID to username for every user on the system. This calls ListUsers under the hood, so the user must have the ListUsers capability enabled.
 func (c *Client) GetUserMap() (map[int32]string, error) {
-	users, err := c.ListUsers(types.QueryOptions{})
+	users, err := Collect(types.QueryOptions{}, c.ListUsers, -1)
 	if err != nil {
 		return nil, err
 	}
-	m := make(map[int32]string, len(users.Results))
-	for _, u := range users.Results {
+	m := make(map[int32]string, len(users))
+	for _, u := range users {
 		m[u.ID] = u.Username
 	}
 	return m, nil
@@ -96,17 +96,15 @@ func (c *Client) CleanupUsers() error {
 // ListUsers under the hood, so the user must have the ListUsers
 // capability enabled.
 func (c *Client) LookupUser(username string) (ud types.User, err error) {
-	var lst types.UserListResponse
-	if lst, err = c.ListUsers(types.QueryOptions{}); err != nil {
-		return
-	}
-	for _, l := range lst.Results {
-		if l.Username == username {
-			ud = l
-			return
+	for page, err := range Pages(types.QueryOptions{Limit: types.QueryOptionsMaxLimit}, c.ListUsers) {
+		if err != nil {
+			return ud, err
+		}
+		for _, l := range page.Results {
+			if l.Username == username {
+				return l, nil
+			}
 		}
 	}
-
-	err = ErrNotFound
-	return
+	return ud, ErrNotFound
 }
