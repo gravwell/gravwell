@@ -335,13 +335,11 @@ func getGroupsFromList(cli *client.Client, kitGroups string) (groups []int32, er
 		return
 	}
 	// go grab the group list from the remote server
-	var remoteGroupsResp types.GroupListResponse
-	if remoteGroupsResp, err = cli.ListGroups(types.QueryOptions{}); err != nil {
+	var remoteGroups []types.Group
+	if remoteGroups, err = client.Collect(types.QueryOptions{}, cli.ListGroups, -1); err != nil {
 		err = fmt.Errorf("error getting remote group list: %w", err)
 		return
 	}
-	remoteGroups := remoteGroupsResp.Results
-
 	// swing through our set of groups and lookup the gid for each group
 	for _, gname := range strs {
 		var gid int32
