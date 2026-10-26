@@ -250,7 +250,7 @@ func pull() action.Pair {
 		"Pull a remote kit and stage it for installation in the local system.",
 		"kit",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListRemoteKits(false)
+			lr, err := connection.Client.ListRemoteKits(false, types.RemoteKitListQueryOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -1059,7 +1059,7 @@ func remote() action.Pair {
 	return scaffoldlist.NewListAction("list remote kits", "List kits available in the configured remote repository.",
 		types.KitMetadata{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitMetadata, error) {
-			lr, err := connection.Client.ListRemoteKits(params.QueryOptions.All)
+			lr, err := connection.Client.ListRemoteKits(params.QueryOptions.All, types.RemoteKitListQueryOptions{})
 			return lr.Results, err
 		},
 		nil,
@@ -1091,7 +1091,7 @@ func download() action.Pair {
 			if err != nil {
 				clilog.Writer.Warn("failed to list local kits", log.KVErr(err))
 			}
-			lrRemote, err := connection.Client.ListRemoteKits(false)
+			lrRemote, err := connection.Client.ListRemoteKits(false, types.RemoteKitListQueryOptions{})
 			if err != nil {
 				clilog.Writer.Warn("failed to list remote kits", log.KVErr(err))
 			}
