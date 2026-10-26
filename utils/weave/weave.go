@@ -240,14 +240,18 @@ func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 		var sb strings.Builder
 		for _, col := range columns {
 			if alias, found := options.Aliases[col]; found {
-				sb.WriteString(alias + ",")
+				sb.WriteString(csvField(alias) + ",")
 			} else {
-				sb.WriteString(col + ",")
+				sb.WriteString(csvField(col) + ",")
 			}
 		}
 		hdr = sb.String()[:sb.Len()-1]
 	} else {
-		hdr = strings.Join(columns, ",")
+		quoted := make([]string, len(columns))
+		for i, col := range columns {
+			quoted[i] = csvField(col)
+		}
+		hdr = strings.Join(quoted, ",")
 	}
 
 	// test that there is actually data and that (at least the first) is a struct.
@@ -284,12 +288,22 @@ func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) str
 		} else {
 			// walk the indices to find value
 			// NOTE(rlandau): do NOT use FieldByIndex, as it panics if the indices walk a nil.
-			row.WriteString(valueToString(fieldByIndexNoPanic(structVals, findices)))
+			row.WriteString(csvField(valueToString(fieldByIndexNoPanic(structVals, findices))))
 		}
 		row.WriteString(",") // append comma to token
 	}
 
 	return strings.TrimSuffix(row.String(), ",")
+}
+
+// csvField returns field as a CSV token, quoted (with interior quotes doubled) if it would
+// otherwise be misread: if it contains a comma, quote, or line break, or begins with whitespace
+// (as encoding/csv's Writer does).
+func csvField(field string) string {
+	if field == "" || (!strings.ContainsAny(field, ",\"\r\n") && field[0] != ' ' && field[0] != '\t') {
+		return field
+	}
+	return `"` + strings.ReplaceAll(field, `"`, `""`) + `"`
 }
 
 // a custom version of reflect.Value.FieldByIndex that halts traversal on nil, rather than panicking.
