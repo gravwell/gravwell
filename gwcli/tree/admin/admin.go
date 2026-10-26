@@ -71,6 +71,8 @@ func NewNav() *cobra.Command {
 
 // does not include "all"
 var cleanupTargets = []string{
+	"agent_skills",
+	"agents",
 	"macros",
 	"resources",
 	"search_history",
@@ -85,6 +87,10 @@ var cleanupTargets = []string{
 // Returns nil if the target is unknown
 func getTarget(target string) func() error {
 	switch target {
+	case "agent_skills":
+		return connection.Client.CleanupAgentSkills
+	case "agents":
+		return connection.Client.CleanupAgents
 	case "macros":
 		return connection.Client.CleanupMacros
 	case "resources":
