@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/agentpack"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -42,13 +44,11 @@ func decodeAgent(b []byte) (types.Agent, error) {
 		return types.Agent{}, fmt.Errorf("the file is not an agent definition: %w", err)
 	}
 	return types.Agent{
-		CommonFields: types.CommonFields{
-			Name:        in.Name,
-			Description: in.Description,
-			Labels:      in.Labels,
-			Readers:     in.Readers,
-			Writers:     in.Writers,
-		},
+		Name:         in.Name,
+		Description:  in.Description,
+		Labels:       in.Labels,
+		Readers:      in.Readers,
+		Writers:      in.Writers,
 		Entrypoint:   in.Entrypoint,
 		StateDiagram: in.StateDiagram,
 		Avatar:       in.Avatar,
@@ -85,6 +85,47 @@ func countNodes(n *types.NodeSpec) int {
 		count += countNodes(c)
 	}
 	return count
+}
+
+// renderGraph describes an agent for the show action: its identity, then
+// one line per node, indented by depth.
+func renderGraph(a types.Agent) string {
+	var sb strings.Builder
+	sb.WriteString(a.Name + " (" + a.ID + ")\n")
+	if a.Description != "" {
+		sb.WriteString(a.Description + "\n")
+	}
+	writeNode(&sb, &a.Entrypoint, 0)
+	return strings.TrimSuffix(sb.String(), "\n")
+}
+
+func writeNode(sb *strings.Builder, n *types.NodeSpec, depth int) {
+	if n == nil {
+		return
+	}
+	sb.WriteString(strings.Repeat("  ", depth) + "- " + string(n.Type) + " " + n.Name)
+	var attrs []string
+	if n.Inherit {
+		attrs = append(attrs, "inherits tools")
+	} else if len(n.AllowedTools) == 0 {
+		attrs = append(attrs, "no tools")
+	}
+	if len(n.AllowedTools) > 0 {
+		attrs = append(attrs, "tools: "+strings.Join(n.AllowedTools, ", "))
+	}
+	if n.MaxIterations > 0 {
+		attrs = append(attrs, "max iterations: "+strconv.Itoa(n.MaxIterations))
+	}
+	if n.Prompt != "" {
+		attrs = append(attrs, "prompt: "+strconv.Itoa(len(n.Prompt))+" bytes")
+	}
+	if len(attrs) > 0 {
+		sb.WriteString(" [" + strings.Join(attrs, "; ") + "]")
+	}
+	sb.WriteString("\n")
+	for _, c := range n.Children {
+		writeNode(sb, c, depth+1)
+	}
 }
 
 // exampleDefinition is a small but complete agent definition, shown by the

@@ -13,6 +13,7 @@
 package agents
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldselect"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -51,7 +53,9 @@ func NewNav() *cobra.Command {
 		nil,
 		[]action.Pair{
 			list(),
+			show(),
 			upload(),
+			edit(),
 			replace(),
 			download(),
 			delete(),
@@ -92,11 +96,9 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LogbotAI},
-					XPermissions: []types.Capability{types.LogbotAI},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LogbotAI},
+				XPermissions: []types.Capability{types.LogbotAI},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -151,16 +153,114 @@ func upload() action.Pair {
 			return phrases.SuccessfullyCreatedItem(singular, created.ID), "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "upload",
-				Long: "Upload an agent definition from a JSON file, creating a new agent.\n" +
-					"Call " + stylesheet.Path(true, "~", "ai", "agents", "json") + " to see the format of the file; gaftool builds and packs them.",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AgentWrite},
-					XPermissions: []types.Capability{types.AgentWrite},
-				},
+			Use: "upload",
+			Long: "Upload an agent definition from a JSON file, creating a new agent.\n" +
+				"Call " + stylesheet.Path(true, "~", "ai", "agents", "json") + " to see the format of the file; gaftool builds and packs them.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AgentWrite},
+				XPermissions: []types.Capability{types.AgentWrite},
 			},
 			IDIsSuccessMessage: true,
+		})
+}
+
+// show prints the node graph of one or more agents.
+func show() action.Pair {
+	return scaffoldselect.NewSelectAction("display an agent's node graph",
+		"Display the node graph of one or more agents: each node's type and name, whether it inherits its parent's tools, "+
+			"the tools it is allowed and its iteration cap. --json prints the graph (the definition's Entrypoint) instead. "+
+			"Use download for the full definition.",
+		singular,
+		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
+			lr, err := connection.Client.ListAgents(types.QueryOptions{})
+			if err != nil {
+				return nil, err
+			}
+			return listitem.WrapAssets(lr.Results), nil
+		},
+		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
+			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())
+			clilog.GetFlag(err)
+
+			results = make([]scaffold.Result, len(IDs))
+			for i, ID := range IDs {
+				a, err := connection.Client.GetAgent(ID)
+				if phrases.IsNotFoundErr(err) {
+					results[i] = scaffold.Result{Output: phrases.ErrUnknownIdentifier(ID, "agent ID").Error()}
+					continue
+				} else if err != nil {
+					clilog.Writer.Warn("failed to get agent", log.KV("ID", ID), log.KVErr(err))
+					results[i] = scaffold.Result{Output: err.Error()}
+					continue
+				}
+				if asJSON {
+					b, err := json.Marshal(a.Entrypoint)
+					if err != nil {
+						clilog.Writer.Error("failed to marshal entrypoint", log.KV("ID", ID), log.KVErr(err))
+						results[i] = scaffold.Result{Output: "failed to marshal entrypoint: " + err.Error()}
+						continue
+					}
+					results[i] = scaffold.Result{Success: true, Output: string(b)}
+					continue
+				}
+				results[i] = scaffold.Result{Success: true, Output: renderGraph(a)}
+			}
+			return results, nil
+		},
+		scaffoldselect.Options{
+			Use: "show",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.JSON.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LogbotAI},
+				XPermissions: []types.Capability{types.LogbotAI},
+			},
+		})
+}
+
+// edit changes an agent's name, description and labels. The node graph and
+// images are changed with replace.
+func edit() action.Pair {
+	return scaffoldedit.NewEditAction(singular, "agents", scaffoldedit.Config{
+		"name":   scaffoldedit.FieldName(singular),
+		"desc":   scaffoldedit.FieldDescription(singular),
+		"labels": scaffoldedit.FieldLabels(),
+	}, scaffoldedit.SubroutineSet[string, types.Agent]{
+		SelectSub: func(id string) (types.Agent, error) {
+			return connection.Client.GetAgent(id)
+		},
+		FetchSub: func() ([]types.Agent, error) {
+			resp, err := connection.Client.ListAgents(types.QueryOptions{})
+			return resp.Results, err
+		},
+		GetFieldSub: func(item types.Agent, fieldKey string) (string, error) {
+			return getCommonField(item.CommonFields, fieldKey)
+		},
+		SetFieldSub: func(item *types.Agent, fieldKey, val string) (string, error) {
+			if item == nil {
+				return "", errors.New("cannot set nil item")
+			}
+			return setCommonField(&item.CommonFields, fieldKey, val)
+		},
+		GetTitleSub:       func(item types.Agent) string { return item.Name },
+		GetDescriptionSub: func(item types.Agent) string { return item.Description },
+		UpdateSub: func(data *types.Agent) (string, error) {
+			if data == nil {
+				return "", errors.New("cannot update nil item")
+			}
+			_, err := connection.Client.UpdateAgent(data.ID, types.AgentPatch{CommonFieldsPatch: metadataPatch(data.CommonFields)})
+			return data.Name, err
+		},
+	},
+		scaffoldedit.Options{
+			Long: "Edit the name, description or labels of an agent. Call replace to change its node graph.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
+				XPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
+			},
 		})
 }
 
@@ -208,17 +308,15 @@ func replace() action.Pair {
 			}}, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "replace",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "agent definition (JSON) file")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
-					XPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
-				},
+			Use: "replace",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Path.Register(fs, "", "agent definition (JSON) file")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
+				XPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
 			},
 			Exactly1: true,
 		})
@@ -274,17 +372,15 @@ func download() action.Pair {
 			return []scaffold.Result{{Output: phrases.SuccessfullyWroteToFile(n, f.Name()), Success: true}}, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "download",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Output.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LogbotAI},
-					XPermissions: []types.Capability{types.LogbotAI},
-				},
+			Use: "download",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Output.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LogbotAI},
+				XPermissions: []types.Capability{types.LogbotAI},
 			},
 			Exactly1: true,
 		})
@@ -306,11 +402,9 @@ func delete() action.Pair {
 			}
 			return listitem.WrapAssets(lr.Results), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
-					XPermissions: []types.Capability{types.AgentWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},
+				XPermissions: []types.Capability{types.AgentWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
