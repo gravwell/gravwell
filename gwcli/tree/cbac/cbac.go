@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -484,15 +485,15 @@ func set() action.Pair {
 				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
 					ListOptions: multiselectlist.Options{},
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListUsers(types.QueryOptions{})
+						lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
 						if err != nil {
 							clilog.Writer.Error("failed to get user list", log.KVErr(err))
-						} else if len(lr.Results) < 1 {
+						} else if len(lr) < 1 {
 							return nil
 						}
-						data := make([]multiselectlist.SelectableItem[string], len(lr.Results))
+						data := make([]multiselectlist.SelectableItem[string], len(lr))
 						var sb strings.Builder
-						for i, u := range lr.Results {
+						for i, u := range lr {
 							sb.Reset()
 							if u.Admin {
 								sb.WriteString("(admin) ")
@@ -519,14 +520,14 @@ func set() action.Pair {
 				Provider: scaffoldcreate.NewMSLProvider(nil, scaffoldcreate.MSLOptions{
 					ListOptions: multiselectlist.Options{},
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListGroups(types.QueryOptions{})
+						lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListGroups, -1)
 						if err != nil {
 							clilog.Writer.Error("failed to get group list", log.KVErr(err))
-						} else if len(lr.Results) < 1 {
+						} else if len(lr) < 1 {
 							return nil
 						}
-						data := make([]multiselectlist.SelectableItem[string], len(lr.Results))
-						for i, g := range lr.Results {
+						data := make([]multiselectlist.SelectableItem[string], len(lr))
+						for i, g := range lr {
 							data[i] = &listitem.Generic{
 								ID_:        strconv.FormatInt(int64(g.ID), 10),
 								Name:       fmt.Sprintf("(%d) %s", g.ID, g.Name),

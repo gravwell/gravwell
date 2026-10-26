@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dustin/go-humanize/english"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -68,8 +69,8 @@ func listActions() action.Pair {
 	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
 		types.Flow{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Flow, error) {
-			baseList, err := connection.Client.ListFlows(params.QueryOptions)
-			return baseList.Results, err
+			baseList, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListFlows)
+			return baseList, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -246,11 +247,11 @@ func delete() action.Pair {
 			return connection.Client.DeleteFlow(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFlows(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListFlows)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 			CommonOptions: scaffold.CommonOptions{
@@ -263,11 +264,11 @@ func delete() action.Pair {
 }
 
 func listFlowItems() ([]multiselectlist.SelectableItem[string], error) {
-	lr, err := connection.Client.ListFlows(types.QueryOptions{})
+	lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListFlows, -1)
 	if err != nil {
 		return nil, err
 	}
-	return listitem.WrapAssets(lr.Results), nil
+	return listitem.WrapAssets(lr), nil
 }
 
 func getBackfillFlags(fs *pflag.FlagSet) (enable, disable bool, err error) {
@@ -330,12 +331,12 @@ func backfillToggle() action.Pair {
 				return nil, err
 			}
 
-			baseList, err := connection.Client.ListFlows(types.QueryOptions{})
+			baseList, err := client.Collect(types.QueryOptions{}, connection.Client.ListFlows, -1)
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]types.Flow, 0, len(baseList.Results))
-			for _, f := range baseList.Results {
+			itms := make([]types.Flow, 0, len(baseList))
+			for _, f := range baseList {
 				if enable && f.BackfillEnabled {
 					continue
 				} else if disable && !f.BackfillEnabled {

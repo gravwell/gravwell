@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -96,8 +97,8 @@ func list() action.Pair {
 				return []types.AX{d}, err
 			}
 
-			lr, err := connection.Client.ListExtractions(param.QueryOptions)
-			return lr.Results, err
+			lr, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListExtractions)
+			return lr, err
 
 		},
 		nil,
@@ -270,12 +271,12 @@ func delete() action.Pair {
 			return nil
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListExtractions(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListExtractions)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
@@ -355,11 +356,11 @@ func edit() action.Pair {
 				return connection.Client.GetExtraction(id)
 			},
 			FetchSub: func() (items []types.AX, err error) {
-				resp, err := connection.Client.ListExtractions(types.QueryOptions{})
+				resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListExtractions, -1)
 				if err != nil {
 					return nil, err
 				}
-				return resp.Results, nil
+				return resp, nil
 			},
 			GetFieldSub: func(item types.AX, fieldKey string) (value string, err error) {
 				switch fieldKey {
@@ -529,13 +530,13 @@ func clear() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
 			clilog.GetFlag(err)
-			lr, err := connection.Client.ListExtractions(types.QueryOptions{All: all})
+			lr, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListExtractions, -1)
 			if err != nil {
 				return nil, err
 			}
 			// make a list of tags that have extractors
 			tags := map[string]types.AX{}
-			for _, ax := range lr.Results {
+			for _, ax := range lr {
 				for _, t := range ax.Tags {
 					tags[t] = ax
 				}

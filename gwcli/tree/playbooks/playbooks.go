@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -53,8 +54,8 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list playbooks", "List playbooks available to your user.",
 		types.Playbook{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Playbook, error) {
-			resp, err := connection.Client.ListPlaybooks(params.QueryOptions)
-			return resp.Results, err
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListPlaybooks)
+			return resp, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -74,12 +75,12 @@ func download() action.Pair {
 	return scaffoldselect.NewSelectAction("download the content of a playbook",
 		"Download the markdown body of a playbook for use locally.",
 		"playbook", func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListPlaybooks(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListPlaybooks, -1)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			// check for output
@@ -203,12 +204,12 @@ func delete() action.Pair {
 			return connection.Client.DeletePlaybook(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListPlaybooks(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListPlaybooks)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
@@ -237,8 +238,8 @@ func edit() action.Pair {
 			return connection.Client.GetPlaybook(id)
 		},
 		FetchSub: func() ([]types.Playbook, error) {
-			resp, err := connection.Client.ListPlaybooks(types.QueryOptions{})
-			return resp.Results, err
+			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListPlaybooks, -1)
+			return resp, err
 		},
 		GetFieldSub: func(item types.Playbook, fieldKey string) (string, error) {
 			switch fieldKey {

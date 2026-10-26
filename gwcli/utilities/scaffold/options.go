@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/annotations"
@@ -101,7 +102,8 @@ const (
 	FlagNameAllData  string = "all" // fetch data from all users instead of just the current user
 	FlagUsageAllData string = "Requests that results include data from all users and groups instead of just yours.\n" +
 		"Ignored if you are not an admin."
-	FlagNameLimit string = "limit" // limit the number of elements returned
+	FlagNameLimit  string = "limit" // limit the number of elements returned
+	FlagUsageLimit string = "Limit the number of items to return. 0 returns everything."
 )
 
 type QOBuilder interface {
@@ -129,7 +131,7 @@ func (o QOInclude) Install(fs *pflag.FlagSet) {
 		ft.IncludeDeleted.Register(fs)
 	}
 	if o.Everything || o.Limit {
-		fs.Int32(FlagNameLimit, 0, "Limit the number of items to return")
+		fs.Int32(FlagNameLimit, 0, FlagUsageLimit)
 	}
 }
 
@@ -179,7 +181,7 @@ func (o QOOmit) Install(fs *pflag.FlagSet) {
 		ft.IncludeDeleted.Register(fs)
 	}
 	if !o.Limit {
-		fs.Int32(FlagNameLimit, 0, "Limit the number of items to return")
+		fs.Int32(FlagNameLimit, 0, FlagUsageLimit)
 	}
 }
 
@@ -207,4 +209,17 @@ func (o QOOmit) QueryOptions(fs *pflag.FlagSet) types.QueryOptions {
 	}
 
 	return qo
+}
+
+// CollectToLimit collects every page of list, stopping once qo.Limit items have been gathered.
+// QOBuilders set qo.Limit from --limit, which is the total number of items the user wants,
+// whereas the backend treats it as the page size (and caps it at types.QueryOptionsMaxLimit).
+// A Limit of 0 collects everything.
+func CollectToLimit[R interface {
+	GetNextCursor() string
+	Items() []T
+}, T any](qo types.QueryOptions, list func(types.QueryOptions) (R, error)) ([]T, error) {
+	maxCount := int(qo.Limit)
+	qo.Limit = min(qo.Limit, types.QueryOptionsMaxLimit)
+	return client.Collect(qo, list, maxCount)
 }

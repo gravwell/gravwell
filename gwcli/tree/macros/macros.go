@@ -34,6 +34,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
 )
@@ -64,20 +65,20 @@ func list() action.Pair {
 			clilog.GetFlag(err)
 			if gid != 0 { // fetch all macros our group ID can read
 				// TODO inject the group ID filter here rather than manually filtering after the fact
-				macros, err := connection.Client.ListAllMacros(params.QueryOptions)
+				macros, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAllMacros)
 				if err != nil {
 					return nil, err
 				}
 				var macroResults []types.Macro
-				for _, m := range macros.Results {
+				for _, m := range macros {
 					if m.GroupCanRead(gid) {
 						macroResults = append(macroResults, m)
 					}
 				}
 				return macroResults, nil
 			}
-			r, err := connection.Client.ListMacros(params.QueryOptions)
-			return r.Results, err
+			r, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListMacros)
+			return r, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -185,8 +186,8 @@ func edit() action.Pair {
 			return connection.Client.GetMacro(id)
 		},
 		FetchSub: func() ([]types.Macro, error) {
-			r, err := connection.Client.ListMacros(types.QueryOptions{})
-			return r.Results, err
+			r, err := client.Collect(types.QueryOptions{}, connection.Client.ListMacros, -1)
+			return r, err
 		},
 		GetFieldSub: func(item types.Macro, fieldKey string) (string, error) {
 			switch fieldKey {
@@ -250,12 +251,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteMacro(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListMacros(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListMacros)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{

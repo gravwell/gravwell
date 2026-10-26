@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -55,8 +56,8 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.User, error) {
-			resp, err := connection.Client.ListUsers(param.QueryOptions)
-			return resp.Results, err
+			resp, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListUsers)
+			return resp, err
 		}, nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -164,12 +165,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteUser(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListUsers(param.QueryOptions)
+			lr, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListUsers)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[int32], len(lr.Results))
-			for i, u := range lr.Results {
+			var items = make([]multiselectlist.SelectableItem[int32], len(lr))
+			for i, u := range lr {
 				items[i] = listitem.NewUserItem(u, false)
 			}
 
@@ -212,8 +213,8 @@ func edit() action.Pair {
 				return userCBAC.User, nil
 			},
 			FetchSub: func() (items []types.User, err error) {
-				resp, err := connection.Client.ListUsers(types.QueryOptions{})
-				return resp.Results, err
+				resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
+				return resp, err
 			},
 			GetFieldSub: func(item types.User, fieldKey string) (value string, err error) {
 				switch fieldKey {
@@ -418,12 +419,12 @@ func lock() action.Pair {
 			"The user will be unable to log in until unlocked, and all existing sessions will be terminated.",
 		"account",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
-			ulr, err := connection.Client.ListUsers(types.QueryOptions{})
+			ulr, err := client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr.Results))
-			for _, user := range ulr.Results {
+			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr))
+			for _, user := range ulr {
 				if user.ID == connection.CurrentUser().ID || user.Locked {
 					continue
 				}
@@ -455,12 +456,12 @@ func lock() action.Pair {
 func unlock() action.Pair {
 	return scaffoldselect.NewSelectAction("unlock user accounts", "Unlock one or several user accounts.", "account",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[int32], error) {
-			ulr, err := connection.Client.ListUsers(types.QueryOptions{})
+			ulr, err := client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
 			if err != nil {
 				return nil, err
 			}
-			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr.Results))
-			for _, user := range ulr.Results {
+			items := make([]multiselectlist.SelectableItem[int32], 0, len(ulr))
+			for _, user := range ulr {
 				if user.ID == connection.CurrentUser().ID || !user.Locked {
 					continue
 				}

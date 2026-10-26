@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize/english"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -72,8 +73,8 @@ func listAction() action.Pair {
 					Operation: "=",
 					Values:    []any{listConsumerID},
 				})
-				resp, err := connection.Client.ListAlerts(params.QueryOptions)
-				return resp.Results, err
+				resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
+				return resp, err
 
 			} else if listDispatcherID != "" {
 				params.QueryOptions.Filters = append(params.QueryOptions.Filters, types.Filter{
@@ -81,12 +82,12 @@ func listAction() action.Pair {
 					Operation: "=",
 					Values:    []any{listDispatcherID},
 				})
-				resp, err := connection.Client.ListAlerts(params.QueryOptions)
-				return resp.Results, err
+				resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
+				return resp, err
 			}
 
-			resp, err := connection.Client.ListAlerts(params.QueryOptions)
-			return resp.Results, err
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
+			return resp, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -140,11 +141,11 @@ func delete() action.Pair {
 			return connection.Client.DeleteAlert(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(param.QueryOptions)
+			lr, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListAlerts)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -164,7 +165,7 @@ func toggle() action.Pair {
 		"Toggle the enabled state of an alert. Optionally use --enable or --disable to set explicitly.",
 		"alert",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAlerts(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListAlerts, -1)
 			if err != nil {
 				return nil, err
 			}
@@ -178,8 +179,8 @@ func toggle() action.Pair {
 				clilog.GetFlag(err)
 			}
 
-			items := make([]multiselectlist.SelectableItem[string], 0, len(lr.Results))
-			for _, alert := range lr.Results {
+			items := make([]multiselectlist.SelectableItem[string], 0, len(lr))
+			for _, alert := range lr {
 				if enable && !alert.Disabled {
 					continue
 				} else if disable && alert.Disabled {
@@ -277,11 +278,11 @@ func dispatchers() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
 			clilog.GetFlag(err)
-			lr, err := connection.Client.ListAlerts(types.QueryOptions{All: all})
+			lr, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListAlerts, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {
@@ -376,13 +377,13 @@ func dispatchers() action.Pair {
 					// ensure each dispatcher ID is valid
 					all, err := fs.GetBool(scaffold.FlagNameAllData)
 					clilog.GetFlag(err)
-					lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{All: all})
+					lr, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListScheduledSearches, -1)
 					if err != nil {
 						return "", err
 					}
 
 					for _, dID := range dIDs {
-						if !slices.ContainsFunc(lr.Results, func(ss types.ScheduledSearch) bool { return ss.ID == dID }) {
+						if !slices.ContainsFunc(lr, func(ss types.ScheduledSearch) bool { return ss.ID == dID }) {
 							return phrases.ErrUnknownIdentifier(dID, "scheduled search ID").Error(), nil
 						}
 					}
@@ -412,11 +413,11 @@ func save() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
 			clilog.GetFlag(err)
-			lr, err := connection.Client.ListAlerts(types.QueryOptions{All: all})
+			lr, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListAlerts, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 
 		},
 		func(IDs []string, fs *pflag.FlagSet) (results []scaffold.Result, _ error) {

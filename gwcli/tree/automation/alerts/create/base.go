@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -82,27 +83,27 @@ func Action() action.Pair {
 //
 // Returns the list of dispatchers and consumers so we don't have to hit the backend again.
 func prerequisites() (availDispatchers map[string]types.ScheduledSearch, availConsumers map[string]types.Flow, inv string, _ error) {
-	dispatchers, err := connection.Client.ListScheduledSearches(types.QueryOptions{})
+	dispatchers, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledSearches, -1)
 	if err != nil {
 		return nil, nil, "", err
-	} else if len(dispatchers.Results) < 1 {
+	} else if len(dispatchers) < 1 {
 		return nil, nil, "No dispatchers available. Dispatchers may be scheduled searches. Please create one before creating an alert.", nil
 	}
 
-	consumers, err := connection.Client.ListFlows(types.QueryOptions{})
+	consumers, err := client.Collect(types.QueryOptions{}, connection.Client.ListFlows, -1)
 	if err != nil {
 		return nil, nil, "", err
-	} else if len(consumers.Results) < 1 {
+	} else if len(consumers) < 1 {
 		return nil, nil, "No consumers available. Consumers may be flows. Please create one before creating an alert.", nil
 	}
 
 	// transmute dispatchers and consumers to maps to improve lookup time
-	availDispatchers = make(map[string]types.ScheduledSearch, len(dispatchers.Results))
-	for _, dsp := range dispatchers.Results {
+	availDispatchers = make(map[string]types.ScheduledSearch, len(dispatchers))
+	for _, dsp := range dispatchers {
 		availDispatchers[dsp.ID] = dsp
 	}
-	availConsumers = make(map[string]types.Flow, len(consumers.Results))
-	for _, cns := range consumers.Results {
+	availConsumers = make(map[string]types.Flow, len(consumers))
+	for _, cns := range consumers {
 		availConsumers[cns.ID] = cns
 	}
 

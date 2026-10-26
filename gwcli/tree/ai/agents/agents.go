@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/agentpack"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -88,11 +89,11 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list agents", "List the agents available to your user.",
 		wrappedAgent{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedAgent, error) {
-			resp, err := connection.Client.ListAgents(params.QueryOptions)
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAgents)
 			if err != nil {
 				return nil, err
 			}
-			return wrap(resp.Results), nil
+			return wrap(resp), nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -172,11 +173,11 @@ func show() action.Pair {
 			"Use download for the full definition.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgents, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())
@@ -233,8 +234,8 @@ func edit() action.Pair {
 			return connection.Client.GetAgent(id)
 		},
 		FetchSub: func() ([]types.Agent, error) {
-			resp, err := connection.Client.ListAgents(types.QueryOptions{})
-			return resp.Results, err
+			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgents, -1)
+			return resp, err
 		},
 		GetFieldSub: func(item types.Agent, fieldKey string) (string, error) {
 			return getCommonField(item.CommonFields, fieldKey)
@@ -272,11 +273,11 @@ func replace() action.Pair {
 			"Ownership and sharing are untouched.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgents, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) ([]scaffold.Result, error) {
 			if len(IDs) != 1 {
@@ -330,11 +331,11 @@ func download() action.Pair {
 		"Download the definition of an agent as JSON, for use with gaftool or to upload elsewhere.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgents, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) ([]scaffold.Result, error) {
 			if len(IDs) != 1 {
@@ -396,11 +397,11 @@ func delete() action.Pair {
 			return connection.Client.DeleteAgent(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgents(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAgents)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.LogbotAI, types.AgentWrite},

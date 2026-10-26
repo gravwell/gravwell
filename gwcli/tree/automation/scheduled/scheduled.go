@@ -72,8 +72,8 @@ func listAction() action.Pair {
 				ss, err := connection.Client.GetScheduledSearchEx(id, client.GetOptions{IncludeDeleted: params.QueryOptions.IncludeDeleted})
 				return []types.ScheduledSearch{ss}, err
 			}
-			list, err := connection.Client.ListScheduledSearches(params.QueryOptions)
-			return list.Results, err
+			list, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledSearches)
+			return list, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -165,11 +165,11 @@ func delete() action.Pair {
 
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledSearches(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledSearches)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 			CommonOptions: scaffold.CommonOptions{
@@ -261,8 +261,8 @@ func edit() action.Pair {
 				return connection.Client.GetScheduledSearch(id)
 			},
 			FetchSub: func() (items []types.ScheduledSearch, err error) {
-				list, err := connection.Client.ListScheduledSearches(types.QueryOptions{})
-				return list.Results, err
+				list, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledSearches, -1)
+				return list, err
 			},
 			GetFieldSub: func(item types.ScheduledSearch, fieldKey string) (value string, err error) {
 				switch fieldKey {
@@ -375,11 +375,11 @@ func cancel() action.Pair {
 		"Cancel one or several currently-executing scheduled searches by ID.",
 		"scheduled search",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledSearches, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -414,12 +414,12 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			l, err := connection.Client.ListScheduledSearches(types.QueryOptions{})
+			l, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledSearches, -1)
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]types.ScheduledSearch, 0, len(l.Results))
-			for _, ss := range l.Results {
+			itms := make([]types.ScheduledSearch, 0, len(l))
+			for _, ss := range l {
 				if enable && ss.BackfillEnabled {
 					continue
 				} else if disable && !ss.BackfillEnabled {
@@ -489,11 +489,11 @@ func clear() action.Pair {
 		"Clear the execution results (including errors and state) for one or several scheduled searches.",
 		"scheduled search",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledSearches, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

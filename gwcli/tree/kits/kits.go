@@ -22,6 +22,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -67,11 +68,11 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction(
 		"list installed and staged kits", "Lists system kits visible to you or, if you are an admin, available on this system.",
 		types.KitState{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.KitState, error) {
-			kits, err := connection.Client.ListKits(param.QueryOptions)
+			kits, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListKits)
 			if err != nil {
 				return nil, err
 			}
-			return kits.Results, nil
+			return kits, nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -109,12 +110,12 @@ func uninstall() action.Pair {
 			return connection.Client.DeleteKit(ID)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			pkgs, err := connection.Client.ListKits(params.QueryOptions)
+			pkgs, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListKits)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(pkgs.Results))
-			for i, kit := range pkgs.Results {
+			var items = make([]multiselectlist.SelectableItem[string], len(pkgs))
+			for i, kit := range pkgs {
 				items[i] = &listitem.Generic{
 					Selected_:  false,
 					ID_:        kit.ID,
@@ -148,12 +149,12 @@ func install() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
 			clilog.GetFlag(err)
-			ks, err := connection.Client.ListKits(types.QueryOptions{All: all})
+			ks, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListKits, -1)
 			if err != nil {
 				return nil, err
 			}
 			items := []multiselectlist.SelectableItem[string]{}
-			for _, kit := range ks.Results {
+			for _, kit := range ks {
 				if kit.Installed {
 					continue
 				}
@@ -371,13 +372,13 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListDashboards(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListDashboards, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch dashboards", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
 
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -395,12 +396,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListTemplates(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListTemplates, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch templates", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -412,12 +413,12 @@ func build() action.Pair {
 				Order:    500,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListActionables(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListActionables, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch actionables", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr)
 					},
 				},
 				},
@@ -429,12 +430,12 @@ func build() action.Pair {
 				Order:    480,
 				Provider: &scaffoldcreate.MSLProvider{Options: scaffoldcreate.MSLOptions{
 					SetArgsInsertItems: func(currentItems []multiselectlist.SelectableItem[string]) (_ []multiselectlist.SelectableItem[string]) {
-						lr, err := connection.Client.ListFlows(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListFlows, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch flows", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results)
+						return listitem.WrapAssets(lr)
 					},
 				},
 				},
@@ -452,12 +453,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListScheduledSearches(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListScheduledSearches, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch scheduled searches", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -475,12 +476,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListResources(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListResources, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch resources", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -498,12 +499,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListMacros(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListMacros, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch macros", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -521,12 +522,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListExtractions(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListExtractions, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch extractors", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -544,12 +545,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListFiles(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListFiles, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch files", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -567,12 +568,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListPlaybooks(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListPlaybooks, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch playbooks", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -590,12 +591,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListAgents(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListAgents, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch agents", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -613,12 +614,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListAgentSkills(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListAgentSkills, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch agent skills", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -636,12 +637,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListSavedQueries(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListSavedQueries, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch saved queries", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -659,12 +660,12 @@ func build() action.Pair {
 								preselections[x] = true
 							}
 						}
-						lr, err := connection.Client.ListAlerts(types.QueryOptions{All: true})
+						lr, err := client.Collect(types.QueryOptions{All: true}, connection.Client.ListAlerts, -1)
 						if err != nil {
 							clilog.Writer.Warn("failed to fetch alert", scaffold.IdentifyCaller(), log.KVErr(err))
 							return nil
 						}
-						return listitem.WrapAssets(lr.Results, preselections)
+						return listitem.WrapAssets(lr, preselections)
 					},
 				},
 				},
@@ -891,31 +892,31 @@ func build() action.Pair {
 				if rebuild != "" && repack != "" {
 					return ft.MutuallyExclusive("--"+buildFlagRebuild, "--"+buildFlagRepack), nil
 				} else if rebuild != "" {
-					lr, err := connection.Client.ListKitBuildHistory(types.QueryOptions{
+					lr, err := client.Collect(types.QueryOptions{
 						Filters: []types.Filter{{Key: "KitID", Operation: "=", Values: []any{rebuild}}},
-					})
+					}, connection.Client.ListKitBuildHistory, -1)
 					if err != nil {
 						return "", err
 					}
-					if len(lr.Results) < 1 {
+					if len(lr) < 1 {
 						return "failed to find any build requests for kitID '" + rebuild + "'", nil
-					} else if len(lr.Results) > 1 {
+					} else if len(lr) > 1 {
 						clilog.Writer.Warn("found multiple build requests", log.KV("KitID", rebuild))
 					}
-					priorKBR = &lr.Results[0]
+					priorKBR = &lr[0]
 				} else if repack != "" {
-					lr, err := connection.Client.ListKits(types.QueryOptions{
+					lr, err := client.Collect(types.QueryOptions{
 						Filters: []types.Filter{{Key: "ID", Operation: "=", Values: []any{repack}}},
-					})
+					}, connection.Client.ListKits, -1)
 					if err != nil {
 						return "", err
 					}
-					if len(lr.Results) < 1 {
+					if len(lr) < 1 {
 						return "failed to find any build requests for kitID '" + repack + "'", nil
-					} else if len(lr.Results) > 1 {
+					} else if len(lr) > 1 {
 						clilog.Writer.Warn("found multiple build requests", log.KV("KitID", repack))
 					}
-					from := lr.Results[0]
+					from := lr[0]
 					// generate a build request from the named kit
 					priorKBR = &types.KitBuildRequest{
 						CommonFields: from.CommonFields,
@@ -1037,8 +1038,8 @@ func buildRequests() action.Pair {
 			"Note that only the most recent build request is stored for each unique kit ID (e.g. \"io.gravwell.foo\").",
 		types.KitBuildRequest{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitBuildRequest, error) {
-			lr, err := connection.Client.ListKitBuildHistory(params.QueryOptions)
-			return lr.Results, err
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListKitBuildHistory)
+			return lr, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -1087,7 +1088,7 @@ func download() action.Pair {
 		"Download a kit, remote or on the connected Gravwell system, into a local directory",
 		"kit ID",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lrLocal, err := connection.Client.ListKits(types.QueryOptions{})
+			lrLocal, err := client.Collect(types.QueryOptions{}, connection.Client.ListKits, -1)
 			if err != nil {
 				clilog.Writer.Warn("failed to list local kits", log.KVErr(err))
 			}
@@ -1095,11 +1096,11 @@ func download() action.Pair {
 			if err != nil {
 				clilog.Writer.Warn("failed to list remote kits", log.KVErr(err))
 			}
-			if len(lrLocal.Results) < 1 && len(lrRemote.Results) < 1 {
+			if len(lrLocal) < 1 && len(lrRemote.Results) < 1 {
 				return nil, errors.New("both local and remote kits failed to return any results")
 			}
-			items := make([]multiselectlist.SelectableItem[string], len(lrLocal.Results)+len(lrRemote.Results))
-			for i, k := range lrLocal.Results {
+			items := make([]multiselectlist.SelectableItem[string], len(lrLocal)+len(lrRemote.Results))
+			for i, k := range lrLocal {
 				items[i] = &listitem.Generic{
 					ID_:        k.ID,
 					Name:       k.Name,
@@ -1107,7 +1108,7 @@ func download() action.Pair {
 				}
 			}
 			for i, k := range lrRemote.Results {
-				items[i+len(lrLocal.Results)] = &listitem.Generic{
+				items[i+len(lrLocal)] = &listitem.Generic{
 					ID_:        k.ID,
 					Name:       k.Name,
 					SecondLine: "(remote) " + k.Description,

@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -46,8 +47,8 @@ func NewSavedNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list your saved queries", "Lists all saved queries associated to your user",
 		types.SavedQuery{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.SavedQuery, error) {
-			r, err := connection.Client.ListSavedQueries(param.QueryOptions)
-			return r.Results, err
+			r, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListSavedQueries)
+			return r, err
 		},
 		nil,
 		scaffoldlist.Options{
@@ -109,8 +110,8 @@ func edit() action.Pair {
 			return connection.Client.GetSavedQuery(id)
 		},
 		FetchSub: func() ([]types.SavedQuery, error) {
-			r, err := connection.Client.ListSavedQueries(types.QueryOptions{})
-			return r.Results, err
+			r, err := client.Collect(types.QueryOptions{}, connection.Client.ListSavedQueries, -1)
+			return r, err
 		},
 		GetFieldSub: func(item types.SavedQuery, fieldKey string) (string, error) {
 			switch fieldKey {
@@ -167,12 +168,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteSavedQuery(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListSavedQueries(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListSavedQueries)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 			CommonOptions: scaffold.CommonOptions{

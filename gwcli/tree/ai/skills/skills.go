@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -73,11 +74,11 @@ func list() action.Pair {
 	return scaffoldlist.NewListAction("list skills", "List the agent skills available to your user.",
 		wrappedSkill{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedSkill, error) {
-			resp, err := connection.Client.ListAgentSkills(params.QueryOptions)
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAgentSkills)
 			if err != nil {
 				return nil, err
 			}
-			return wrap(resp.Results), nil
+			return wrap(resp), nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -158,8 +159,8 @@ func edit() action.Pair {
 			return connection.Client.GetAgentSkill(id)
 		},
 		FetchSub: func() ([]types.AgentSkill, error) {
-			resp, err := connection.Client.ListAgentSkills(types.QueryOptions{})
-			return resp.Results, err
+			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgentSkills, -1)
+			return resp, err
 		},
 		GetFieldSub: func(item types.AgentSkill, fieldKey string) (string, error) {
 			return getCommonField(item.CommonFields, fieldKey)
@@ -197,11 +198,11 @@ func replace() action.Pair {
 			"Ownership and sharing are untouched.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgentSkills(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgentSkills, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) ([]scaffold.Result, error) {
 			if len(IDs) != 1 {
@@ -263,11 +264,11 @@ func download() action.Pair {
 		"Download a skill as a markdown file (with a front matter block naming it) for use locally or to upload elsewhere.",
 		singular,
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgentSkills(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgentSkills, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) ([]scaffold.Result, error) {
 			if len(IDs) != 1 {
@@ -326,11 +327,11 @@ func delete() action.Pair {
 			return connection.Client.DeleteAgentSkill(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListAgentSkills(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAgentSkills)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.AgentSkillRead, types.AgentSkillWrite},
