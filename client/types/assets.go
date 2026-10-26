@@ -35,10 +35,11 @@ type QueryOptions struct {
 	All bool
 
 	// Listing options
-	OrderBy        string // Sort by this field (defaults to ID)
-	OrderDirection string
+	OrderBy        string `json:",omitzero"` // Sort by this field
+	OrderDirection string `json:",omitzero"`
 	CursorID       string // Return assets whose ID is greater than the given ID.
-	// Max number of assets to return. Capped by QueryOptionsMaxLimit.
+	// Max number of assets to return.
+	// Capped by QueryOptionsMaxLimit, defaults to QueryOptionsDefaultLimit.
 	Limit int32 `json:",omitzero"`
 
 	// Filtering on fields of assets
@@ -55,15 +56,13 @@ const (
 )
 
 var ErrBadQueryOptionsLimit = fmt.Errorf("limit must be 0 < x <= %d", QueryOptionsMaxLimit)
-var ErrBadQueryOptionsVersions = fmt.Errorf("version must be -1 <= x <= %d", QueryOptionsMaxVersion)
+var ErrBadQueryOptionsVersion = fmt.Errorf("version must be -1 <= x <= %d", QueryOptionsMaxVersion)
 
 // DefaultQueryOptions returns a QueryOptions with the default values as expected by the api spec.
 // An empty request against a list endpoint will default to these values.
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
-		Limit:          QueryOptionsDefaultLimit,
-		OrderBy:        "ID",
-		OrderDirection: "ASC",
+		Limit: QueryOptionsDefaultLimit,
 	}
 }
 
@@ -72,8 +71,8 @@ func (qo QueryOptions) Validate() error {
 	if qo.Limit < 1 || qo.Limit > QueryOptionsMaxLimit {
 		return ErrBadQueryOptionsLimit
 	}
-	if qo.Version < -1 || qo.Version > QueryOptionsMaxVersion {
-		return ErrBadQueryOptionsVersions
+	if qo.Version < -1 {
+		return ErrBadQueryOptionsVersion
 	}
 	return nil
 }
