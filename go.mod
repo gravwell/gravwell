@@ -43,7 +43,7 @@ require (
 	github.com/google/renameio v1.0.1
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.6.0
-	github.com/gosnmp/gosnmp v1.35.0
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
 	github.com/gravwell/gcfg v1.2.10-0.20260506153221-04dce6faf68d
 	github.com/gravwell/gravwell/v3 v3.8.85
