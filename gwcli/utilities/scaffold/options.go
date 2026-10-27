@@ -217,6 +217,7 @@ func (o QOOmit) QueryOptions(fs *pflag.FlagSet) types.QueryOptions {
 // A Limit of 0 collects everything.
 func CollectToLimit[R interface {
 	GetNextCursor() string
+	GetTotalCount() int
 	Items() []T
 }, T any](qo types.QueryOptions, list func(types.QueryOptions) (R, error)) ([]T, error) {
 	maxCount := int(qo.Limit)

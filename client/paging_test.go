@@ -175,6 +175,10 @@ func TestCollect(t *testing.T) {
 			if len(f.calls) != tt.wantCalls {
 				t.Fatalf("expected %d calls, got %d", tt.wantCalls, len(f.calls))
 			}
+			// the fake reports an accurate TotalCount, so items should have been sized exactly
+			if cap(got) != len(got) {
+				t.Fatalf("expected a capacity of %d, got %d", len(got), cap(got))
+			}
 			// every call should use the requested page size (or the default, if unset)
 			wantLimit := tt.qoLimit
 			if wantLimit == 0 {
@@ -193,6 +197,20 @@ func TestCollect(t *testing.T) {
 			if _, err := client.Collect(types.QueryOptions{Limit: limit}, f.list, 0); !errors.Is(err, types.ErrBadQueryOptionsLimit) {
 				t.Fatalf("limit %d: expected %v, got %v", limit, types.ErrBadQueryOptionsLimit, err)
 			}
+		}
+	})
+	t.Run("TotalCountUnderreported", func(t *testing.T) {
+		f := &fakeListing{count: 25}
+		list := func(opts types.QueryOptions) (types.MacroListResponse, error) {
+			resp, err := f.list(opts)
+			resp.TotalCount = 0
+			return resp, err
+		}
+		got, err := client.Collect(types.QueryOptions{Limit: 10}, list, -1)
+		if err != nil {
+			t.Fatal(err)
+		} else if !slices.Equal(names(got), wantNames(25)) {
+			t.Fatalf("expected all 25 results, got %v", names(got))
 		}
 	})
 	t.Run("ErrorOnFirstPage", func(t *testing.T) {
