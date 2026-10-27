@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 )
 
 const (
@@ -495,9 +497,9 @@ func kitsUrl() string {
 	return KITS_URL
 }
 
-func listRemoteKitsUrl(all bool) string {
-	if all {
-		return LIST_REMOTE_KITS_URL + "?all=true"
+func listRemoteKitsUrl(allVersions bool) string {
+	if allVersions {
+		return LIST_REMOTE_KITS_URL + "?" + queryparams.AllVersions + "=true"
 	}
 	return LIST_REMOTE_KITS_URL
 }
