@@ -45,10 +45,7 @@ func n8nList(name, tagKind string) datasetDefinition {
 
 func resolveDatasets(selected []string) ([]datasetDefinition, error) {
 	if len(selected) == 0 {
-		selected = make([]string, 0, len(datasetCatalog))
-		for name := range datasetCatalog {
-			selected = append(selected, name)
-		}
+		return nil, fmt.Errorf("Dataset is required; name each dataset to collect (%s)", strings.Join(catalogNames(), ", "))
 	}
 	seen := make(map[string]struct{}, len(selected))
 	result := make([]datasetDefinition, 0, len(selected))
@@ -69,4 +66,13 @@ func resolveDatasets(selected []string) ([]datasetDefinition, error) {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
+}
+
+func catalogNames() []string {
+	names := make([]string, 0, len(datasetCatalog))
+	for name := range datasetCatalog {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

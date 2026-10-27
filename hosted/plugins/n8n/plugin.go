@@ -48,11 +48,14 @@ type normalizedSnapshotRecord struct {
 }
 
 type Plugin struct {
-	conf       *Config
-	maxTracked int
-	maxPending int
-	tagMu      sync.Mutex
-	tags       map[string]entry.EntryTag
+	conf          *Config
+	maxTracked    int
+	maxPending    int
+	maxRecordSize int64
+	tagMu         sync.Mutex
+	tags          map[string]entry.EntryTag
+	limiterMu     sync.Mutex
+	limiter       requestLimiter
 }
 
 var _ hosted.Job = (*Plugin)(nil)
@@ -60,7 +63,8 @@ var _ hosted.Job = (*Plugin)(nil)
 func New(conf *Config) *Plugin {
 	return &Plugin{
 		conf: conf, maxTracked: defaultMaxTrackedRecords, maxPending: defaultMaxRawRecords,
-		tags: make(map[string]entry.EntryTag),
+		maxRecordSize: maxNormalizedRecordSize,
+		tags:          make(map[string]entry.EntryTag),
 	}
 }
 
@@ -73,6 +77,8 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 	if err != nil {
 		return nil, err
 	}
+	client.limiter = p.sharedRequestLimiter()
+	client.recordLimit = p.maxRecordSize
 
 	var failures []error
 	var unavailable []string
@@ -81,11 +87,22 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		if err == nil {
 			continue
 		}
-		if errors.Is(err, context.Canceled) {
-			return nil, err
+		if canceled, companion := splitCancellation(err); canceled {
+			if companion == nil {
+				if len(failures) == 0 {
+					return nil, context.Canceled
+				}
+				// A clean shutdown must not erase a hard failure already observed
+				// for an earlier dataset. Return only those failures so the shared
+				// adapter cannot mistake the joined result for clean cancellation.
+				return nil, errors.Join(failures...)
+			}
+			// Keep cleanup and checkpoint failures visible, but remove the
+			// cancellation sentinel so the shared adapter reports the failure
+			// instead of treating the entire joined error as clean shutdown.
+			err = companion
 		}
-		var unavailableErr *datasetUnavailableError
-		if errors.As(err, &unavailableErr) {
+		if unavailableErr, isolated := unaccompaniedUnavailable(err); isolated {
 			unavailable = append(unavailable, definition.Name)
 			rt.Warn("n8n Dataset unavailable", log.KV("dataset", definition.Name), log.KV("http_status", unavailableErr.Status))
 			continue
@@ -103,6 +120,79 @@ func (p *Plugin) Handle(ctx context.Context, rt hosted.Runtime) (*hosted.Continu
 		return nil, errors.Join(failures...)
 	}
 	return p.conf.ContinueAfterInterval(), nil
+}
+
+func (p *Plugin) sharedRequestLimiter() requestLimiter {
+	p.limiterMu.Lock()
+	defer p.limiterMu.Unlock()
+	if p.limiter == nil {
+		p.limiter = newRequestLimiter(p.conf.Requests_Per_Minute)
+	}
+	return p.limiter
+}
+
+// splitCancellation separates a cancellation sentinel from errors joined to
+// it. The shared Hosted Runner adapter treats any error matching
+// context.Canceled as clean shutdown, so the plugin must not let a cleanup or
+// checkpoint failure ride out inside that same error tree.
+func splitCancellation(err error) (canceled bool, companion error) {
+	if err == nil {
+		return false, nil
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var companions []error
+		for _, member := range joined.Unwrap() {
+			memberCanceled, memberCompanion := splitCancellation(member)
+			canceled = canceled || memberCanceled
+			if memberCompanion != nil {
+				companions = append(companions, memberCompanion)
+			}
+		}
+		return canceled, errors.Join(companions...)
+	}
+	if errors.Is(err, context.Canceled) {
+		if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+			cause := wrapped.Unwrap()
+			wrappedCanceled, wrappedCompanion := splitCancellation(cause)
+			if wrappedCanceled && wrappedCompanion != nil {
+				prefix := strings.TrimSuffix(err.Error(), cause.Error())
+				prefix = strings.TrimSuffix(prefix, ": ")
+				if prefix == "" {
+					return true, wrappedCompanion
+				}
+				return true, fmt.Errorf("%s: %w", prefix, wrappedCompanion)
+			}
+		}
+		return true, nil
+	}
+	return false, err
+}
+
+// unaccompaniedUnavailable reports the dataset-unavailable error only when it
+// is the sole cause of the failure. The client joins every result with its
+// normalizer cleanup, and collect joins a failed poll with its in-flight
+// checkpoint, so a single-member chain is still just the unavailable endpoint.
+// A join carrying any second member means a storage or cleanup failure rode
+// along with it; errors.As would still find the unavailable member and hide
+// that failure behind a warning, so such an error is never isolated.
+func unaccompaniedUnavailable(err error) (*datasetUnavailableError, bool) {
+	for err != nil {
+		switch e := err.(type) {
+		case *datasetUnavailableError:
+			return e, true
+		case interface{ Unwrap() []error }:
+			members := e.Unwrap()
+			if len(members) != 1 {
+				return nil, false
+			}
+			err = members[0]
+		case interface{ Unwrap() error }:
+			err = e.Unwrap()
+		default:
+			return nil, false
+		}
+	}
+	return nil, false
 }
 
 func (p *Plugin) collect(ctx context.Context, rt hosted.Runtime, client *client, definition datasetDefinition) (err error) {

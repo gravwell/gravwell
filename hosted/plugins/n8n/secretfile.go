@@ -14,11 +14,24 @@ import (
 	"io"
 	"os"
 	"strings"
+	"syscall"
 )
 
 const maximumCredentialFileSize = 64 << 10
 
+// The pre-open Lstat is not an atomic guarantee: an attacker able to replace
+// the configured path could swap in a FIFO or symlink before open. Nonblocking,
+// no-follow open lets the authoritative descriptor checks below fail closed
+// without pinning the polling goroutine or following the replacement.
+func openCredentialFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
+}
+
 func readCredentialFile(path string) (string, error) {
+	return readCredentialFileWithOpen(path, openCredentialFile)
+}
+
+func readCredentialFileWithOpen(path string, openFile func(string) (*os.File, error)) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", errors.New("Credential-File is required")
@@ -30,7 +43,7 @@ func readCredentialFile(path string) (string, error) {
 	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 		return "", errors.New("Credential-File must be a regular file and not a symbolic link")
 	}
-	f, err := os.Open(path)
+	f, err := openFile(path)
 	if err != nil {
 		return "", fmt.Errorf("Credential-File: %w", err)
 	}

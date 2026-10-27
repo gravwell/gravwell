@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -44,18 +45,17 @@ func testConfig(t *testing.T, baseURL string, datasets ...string) *Config {
 	return conf
 }
 
-func TestVerifyDefaultsAllDatasets(t *testing.T) {
-	conf := testConfig(t, "http://127.0.0.1:12345/api/v1")
-	if got, want := len(conf.definitions), len(datasetCatalog); got != want {
-		t.Fatalf("definitions=%d want %d", got, want)
-	}
-	got := conf.Tags()
-	want := []string{"n8n-audit", "n8n-creds", "n8n-executions", "n8n-projects", "n8n-tags", "n8n-users", "n8n-variables", "n8n-workflows"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("Tags=%v want %v", got, want)
-	}
-	if conf.Page_Size != 100 || conf.Max_Pages != 1000 {
-		t.Fatalf("defaults not applied: %+v", conf)
+func TestVerifyRequiresExplicitDataset(t *testing.T) {
+	for name, datasets := range map[string][]string{"nil": nil, "empty": {}} {
+		t.Run(name, func(t *testing.T) {
+			conf := &Config{Base_URL: "http://127.0.0.1:12345/api/v1", Credential_File: testCredentialFile(t), Allow_Plaintext: true, Dataset: datasets}
+			if err := conf.Verify(); err == nil || !strings.Contains(err.Error(), "Dataset is required") {
+				t.Fatalf("Verify error=%v want Dataset-required rejection", err)
+			}
+			if len(conf.Tags()) != 0 || len(conf.resolvedDatasetNames()) != 0 {
+				t.Fatalf("omitted Dataset resolved tags=%v datasets=%v", conf.Tags(), conf.resolvedDatasetNames())
+			}
+		})
 	}
 }
 
@@ -68,7 +68,7 @@ func TestTagConfiguration(t *testing.T) {
 		wantTags  []string
 	}{
 		{
-			name:     "default dataset tags",
+			name: "explicit all dataset tags", datasets: catalogNames(),
 			wantTags: []string{"n8n-audit", "n8n-creds", "n8n-executions", "n8n-projects", "n8n-tags", "n8n-users", "n8n-variables", "n8n-workflows"},
 		},
 		{
@@ -170,7 +170,7 @@ func TestVerifyRejectsUnsupportedAndManagedConfiguration(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			conf := &Config{Base_URL: "http://127.0.0.1:12345/api/v1", Credential_File: testCredentialFile(t), Allow_Plaintext: true}
+			conf := &Config{Base_URL: "http://127.0.0.1:12345/api/v1", Credential_File: testCredentialFile(t), Allow_Plaintext: true, Dataset: []string{"users", "workflows"}}
 			tc.mutate(conf)
 			if err := conf.Verify(); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("Verify error=%v want substring %q", err, tc.want)
@@ -309,6 +309,10 @@ func TestStateKeyIsolatesSourceAndResolvedTag(t *testing.T) {
 	base := testConfig(t, "http://127.0.0.1:12345/api/v1", "users")
 	definition := datasetCatalog["users"]
 	key := base.stateKey(definition)
+	const compatibilityKey = "n8n/users/snapshot-v6/4f899a89e571221cf21ab7e668121892d55aaacbbb5add360a28f548ae2226ce"
+	if key != compatibilityKey {
+		t.Fatalf("state key=%q want release-version-independent compatibility key %q", key, compatibilityKey)
+	}
 
 	differentSource := *base
 	differentSource.Base_URL = "http://127.0.0.1:54321/api/v1"
@@ -355,5 +359,68 @@ func TestCredentialFileProtection(t *testing.T) {
 func TestCredentialFileShortReadFailsClosed(t *testing.T) {
 	if _, err := readCredentialContents(strings.NewReader("short"), int64(len("complete"))); err == nil || !strings.Contains(err.Error(), "changed during read") {
 		t.Fatalf("short read error=%v", err)
+	}
+}
+
+func TestCredentialFileOpenRejectsFIFOWithoutBlocking(t *testing.T) {
+	fifo := filepath.Join(t.TempDir(), "credential.fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skipf("mkfifo unavailable: %v", err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		f, err := openCredentialFile(fifo)
+		if err == nil {
+			_ = f.Close()
+		}
+		done <- err
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Credential-File open blocked on a FIFO")
+	}
+	if _, err := readCredentialFile(fifo); err == nil || !strings.Contains(err.Error(), "regular file") {
+		t.Fatalf("FIFO error=%v want regular-file rejection", err)
+	}
+}
+
+func TestCredentialFileOpenRefusesSymlinkAndAllowsRegularFile(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "credential")
+	if err := os.WriteFile(target, []byte("synthetic"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "credential-link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := openCredentialFile(link); err == nil {
+		_ = f.Close()
+		t.Fatal("Credential-File open followed a symbolic link")
+	}
+	if got, err := readCredentialFile(target); err != nil || got != "synthetic" {
+		t.Fatalf("regular Credential-File read=%q error=%v", got, err)
+	}
+}
+
+func TestCredentialFileDescriptorRevalidationRejectsRegularFilePathSwap(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "credential")
+	backup := filepath.Join(dir, "credential-before-swap")
+	if err := os.WriteFile(path, []byte("original-value"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opener := func(path string) (*os.File, error) {
+		if err := os.Rename(path, backup); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(path, []byte("replacement!!"), 0o600); err != nil {
+			return nil, err
+		}
+		return openCredentialFile(path)
+	}
+	if _, err := readCredentialFileWithOpen(path, opener); err == nil || !strings.Contains(err.Error(), "changed during validation") {
+		t.Fatalf("path-swap error=%v want descriptor revalidation failure", err)
 	}
 }

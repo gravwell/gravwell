@@ -11,11 +11,13 @@ package n8n
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash"
 	"io"
 	"os"
@@ -24,14 +26,16 @@ import (
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
-
-	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 // Only fixed-width object-member hashes are sorted. This shared budget covers
 // every open object, including ancestors of a deeply nested value. Wider
 // objects spill sorted runs rather than expanding a generic JSON object graph.
-const memberHashBudget = 4096
+const (
+	memberHashBudget        = 4096
+	maxNormalizedRecordSize = int64(64 * 1024 * 1024)
+	maxRecordMembers        = 250_000
+)
 
 var identityFields = []string{"id", "uuid", "eventId", "executionId", "workflowId", "email", "name"}
 var timestampFields = []string{"timestamp", "updatedAt", "createdAt", "startedAt", "stoppedAt", "updated_at", "created_at"}
@@ -39,13 +43,13 @@ var timestampFields = []string{"timestamp", "updatedAt", "createdAt", "startedAt
 type normalizedRecord struct {
 	file                  *os.File
 	path                  string
-	size                  int64
+	size, limit           int64
 	identity, fingerprint [sha256.Size]byte
 	timestamp             time.Time
 }
 
 func (r *normalizedRecord) payload() ([]byte, error) {
-	if r.size < 0 || r.size > int64(entry.MaxDataSize) || r.size > int64(^uint(0)>>1) {
+	if r.size < 0 || r.limit <= 0 || r.size > r.limit || r.size > int64(^uint(0)>>1) {
 		return nil, errors.New("invalid normalized n8n entry size")
 	}
 	data := make([]byte, int(r.size))
@@ -65,6 +69,7 @@ func (r *normalizedRecord) close() error {
 }
 
 type recordNormalizer struct {
+	ctx           context.Context
 	scanner       *responseScanner
 	output        *os.File
 	writer        *bufio.Writer
@@ -74,6 +79,8 @@ type recordNormalizer struct {
 	paths         map[string]struct{}
 	sorters       []*memberSorter
 	members       int
+	memberCount   int
+	memberLimit   int
 	identity      [sha256.Size]byte
 	identityRank  int
 	timestamp     time.Time
@@ -81,15 +88,18 @@ type recordNormalizer struct {
 }
 
 func newRecordNormalizer(tempDir string, limit int64) *recordNormalizer {
-	return &recordNormalizer{tempDir: tempDir, limit: limit, paths: make(map[string]struct{})}
+	if limit > maxNormalizedRecordSize {
+		limit = maxNormalizedRecordSize
+	}
+	return &recordNormalizer{tempDir: tempDir, limit: limit, memberLimit: maxRecordMembers, paths: make(map[string]struct{})}
 }
 
 // Standalone normalization transfers the scratch file to its caller. Streaming
 // collection instead owns one normalizer and reuses its file and write buffer.
-func normalizeRecordStream(scanner *responseScanner, scrub bool, tempDir string, limit int64) (result *normalizedRecord, err error) {
+func normalizeRecordStream(ctx context.Context, scanner *responseScanner, scrub bool, tempDir string, limit int64) (result *normalizedRecord, err error) {
 	n := newRecordNormalizer(tempDir, limit)
 	defer func() { err = errors.Join(err, n.cleanup()) }()
-	result, err = n.normalize(scanner, scrub)
+	result, err = n.normalize(ctx, scanner, scrub)
 	if err == nil {
 		delete(n.paths, result.path)
 		n.output = nil
@@ -97,12 +107,12 @@ func normalizeRecordStream(scanner *responseScanner, scrub bool, tempDir string,
 	return
 }
 
-func (n *recordNormalizer) normalize(scanner *responseScanner, scrub bool) (*normalizedRecord, error) {
-	n.scanner, n.scrub = scanner, scrub
+func (n *recordNormalizer) normalize(ctx context.Context, scanner *responseScanner, scrub bool) (*normalizedRecord, error) {
+	n.ctx, n.scanner, n.scrub = ctx, scanner, scrub
 	n.identity, n.timestamp = [sha256.Size]byte{}, time.Time{}
 	n.identityRank, n.timestampRank = len(identityFields), len(timestampFields)
 	clear(n.sorters[:cap(n.sorters)])
-	n.sorters, n.members = n.sorters[:0], 0
+	n.sorters, n.members, n.memberCount = n.sorters[:0], 0, 0
 	if n.output == nil {
 		file, err := n.scratch()
 		if err != nil {
@@ -129,7 +139,7 @@ func (n *recordNormalizer) normalize(scanner *responseScanner, scrub bool) (*nor
 	if n.timestampRank == len(timestampFields) {
 		n.timestamp = time.Now().UTC()
 	}
-	result := &normalizedRecord{file: n.output, path: n.output.Name(), size: n.size,
+	result := &normalizedRecord{file: n.output, path: n.output.Name(), size: n.size, limit: n.limit,
 		identity: n.identity, fingerprint: fingerprint, timestamp: n.timestamp}
 	return result, nil
 }
@@ -158,9 +168,30 @@ func (n *recordNormalizer) cleanup() error {
 	return cleanupErr
 }
 
+func (n *recordNormalizer) cancelled() error {
+	if n.ctx == nil {
+		return nil
+	}
+	return n.ctx.Err()
+}
+
+type contextReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (r contextReader) Read(p []byte) (int, error) {
+	if r.ctx != nil {
+		if err := r.ctx.Err(); err != nil {
+			return 0, err
+		}
+	}
+	return r.r.Read(p)
+}
+
 func (n *recordNormalizer) write(data []byte) error {
 	if int64(len(data)) > n.limit-n.size {
-		return errors.New("n8n record exceeds Gravwell's maximum entry size")
+		return fmt.Errorf("n8n record exceeds the per-record safety limit of %d bytes", n.limit)
 	}
 	if _, err := n.writer.Write(data); err != nil {
 		return errors.New("write normalized n8n record failed")
@@ -273,11 +304,15 @@ func (n *recordNormalizer) object(depth int) ([sha256.Size]byte, error) {
 		if err := n.write([]byte{':'}); err != nil {
 			return [sha256.Size]byte{}, err
 		}
+		if n.memberCount >= n.memberLimit {
+			return [sha256.Size]byte{}, fmt.Errorf("n8n record exceeds the %d object member limit", n.memberLimit)
+		}
+		n.memberCount++
 		if n.scrub && key.secret.secret() {
 			if err := n.rewind(start); err != nil {
 				return [sha256.Size]byte{}, err
 			}
-			if _, _, err := n.scanner.value(0, false); err != nil {
+			if _, _, err := n.scanner.valueWithObjectMembers(0, false, &n.memberCount, n.memberLimit); err != nil {
 				return [sha256.Size]byte{}, err
 			}
 		} else {
@@ -681,7 +716,10 @@ type memberSorter struct {
 }
 
 func (s *memberSorter) add(member memberDigest) error {
-	if s.owner.members >= memberHashBudget {
+	// One digest per open object is unavoidable until that object closes. Keep
+	// the shared spill budget for additional digests so deep nesting cannot
+	// force a singleton spill for nearly every parsed member.
+	if s.owner.members >= memberHashBudget+len(s.owner.sorters) {
 		var largest *memberSorter
 		for _, candidate := range s.owner.sorters {
 			if largest == nil || len(candidate.memory) > len(largest.memory) {
@@ -712,6 +750,9 @@ func sortMembers(members []memberDigest) error {
 func (s *memberSorter) spill() error {
 	if len(s.memory) == 0 {
 		return nil
+	}
+	if err := s.owner.cancelled(); err != nil {
+		return err
 	}
 	if err := sortMembers(s.memory); err != nil {
 		return err
@@ -761,6 +802,9 @@ func readMember(r io.Reader) (m memberDigest, err error) {
 }
 
 func (s *memberSorter) merge(leftPath, rightPath string) (string, error) {
+	if err := s.owner.cancelled(); err != nil {
+		return "", err
+	}
 	left, err := os.Open(leftPath)
 	if err != nil {
 		return "", errors.New("open temporary n8n member hashes failed")
@@ -779,7 +823,15 @@ func (s *memberSorter) merge(leftPath, rightPath string) (string, error) {
 	lr, rr := bufio.NewReader(left), bufio.NewReader(right)
 	a, ae := readMember(lr)
 	b, be := readMember(rr)
+	merged := 0
 	for ae == nil || be == nil {
+		if merged&1023 == 0 {
+			if err := s.owner.cancelled(); err != nil {
+				_ = out.Close()
+				return "", err
+			}
+		}
+		merged++
 		if ae != nil && !errors.Is(ae, io.EOF) || be != nil && !errors.Is(be, io.EOF) {
 			_ = out.Close()
 			return "", errors.New("read temporary n8n member hashes failed")
@@ -862,13 +914,16 @@ func (s *memberSorter) digest() ([sha256.Size]byte, error) {
 	if err != nil {
 		return [sha256.Size]byte{}, errors.New("open temporary n8n member hashes failed")
 	}
-	_, err = io.Copy(h, f)
+	_, err = io.Copy(h, contextReader{ctx: s.owner.ctx, r: f})
 	closeErr := f.Close()
 	removeErr := os.Remove(path)
 	if removeErr == nil {
 		delete(s.owner.paths, path)
 	}
-	if err != nil || closeErr != nil || removeErr != nil {
+	if err != nil {
+		return [sha256.Size]byte{}, fmt.Errorf("consume temporary n8n member hashes failed: %w", err)
+	}
+	if closeErr != nil || removeErr != nil {
 		return [sha256.Size]byte{}, errors.New("consume temporary n8n member hashes failed")
 	}
 	return sumHash(h), nil

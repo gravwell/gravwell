@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -72,6 +73,87 @@ func (r *dropAfterPutRuntime) Put(key string, value []byte) error {
 		return nil
 	}
 	return r.Runtime.Put(key, value)
+}
+
+type failAfterFirstWaitLimiter struct {
+	calls atomic.Int32
+	err   error
+}
+
+func (l *failAfterFirstWaitLimiter) Wait(context.Context) error {
+	if l.calls.Add(1) > 1 {
+		return l.err
+	}
+	return nil
+}
+
+func TestPluginReusesRateLimiterAcrossFailedHandleCalls(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		http.Error(w, "synthetic failure", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	conf := testConfig(t, server.URL+"/api/v1", "users")
+	plugin := New(conf)
+	limitErr := errors.New("shared limiter rejected immediate retry")
+	limiter := &failAfterFirstWaitLimiter{err: limitErr}
+	plugin.limiter = limiter
+	rt := newMockRuntime(t.Context())
+
+	if _, err := plugin.Handle(t.Context(), rt); err == nil || errors.Is(err, limitErr) {
+		t.Fatalf("first failed poll error=%v, want the server failure", err)
+	}
+	if _, err := plugin.Handle(t.Context(), rt); !errors.Is(err, limitErr) {
+		t.Fatalf("second failed poll error=%v, want the shared limiter failure", err)
+	}
+	if got := limiter.calls.Load(); got != 2 {
+		t.Fatalf("limiter calls=%d want 2", got)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("server requests=%d want 1; the second Handle bypassed the shared limiter", got)
+	}
+}
+
+func TestPluginRetainsRetryAfterAcrossFailedHandleCalls(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if requests.Add(1) == 1 {
+			w.Header().Set("Retry-After", "120")
+			http.Error(w, "synthetic throttle", http.StatusTooManyRequests)
+			return
+		}
+		http.Error(w, "synthetic failure", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	conf := testConfig(t, server.URL+"/api/v1", "users")
+	plugin := New(conf)
+	gate := newRequestLimiter(10000).(*requestGate)
+	now := time.Now()
+	gate.now = func() time.Time { return now }
+	var waited []time.Duration
+	gate.wait = func(_ context.Context, delay time.Duration) error {
+		waited = append(waited, delay)
+		now = now.Add(delay)
+		return nil
+	}
+	plugin.limiter = gate
+	rt := newMockRuntime(t.Context())
+
+	if _, err := plugin.Handle(t.Context(), rt); err == nil || !strings.Contains(err.Error(), "HTTP 429") {
+		t.Fatalf("first failed poll error=%v want HTTP 429", err)
+	}
+	if _, err := plugin.Handle(t.Context(), rt); err == nil || !strings.Contains(err.Error(), "HTTP 500") {
+		t.Fatalf("second failed poll error=%v want HTTP 500", err)
+	}
+	if len(waited) != 1 || waited[0] < 119*time.Second || waited[0] > 121*time.Second {
+		t.Fatalf("retry waits=%v want one approximately 120-second wait", waited)
+	}
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("server requests=%d want 2", got)
+	}
 }
 
 func TestCompletedManifestCommitsBeforeInflightStateIsCleared(t *testing.T) {
@@ -430,6 +512,303 @@ func TestHandleIsolatesUnavailableDatasetAndScrubsCredentials(t *testing.T) {
 	}
 	if strings.Contains(string(credentialState), "DO_NOT_EMIT") || strings.Contains(string(credentialState), "metadata") {
 		t.Fatalf("credential value reached state: %s", credentialState)
+	}
+}
+
+// failPutRuntime fails every Put to one key and records Error log calls so a
+// test can prove a hidden checkpoint failure took the logged hard-failure path.
+type failPutRuntime struct {
+	hosted.Runtime
+	failKey   string
+	failErr   error
+	mu        sync.Mutex
+	failures  int
+	errorLogs []string
+}
+
+func (r *failPutRuntime) Put(key string, value []byte) error {
+	if key == r.failKey {
+		r.mu.Lock()
+		r.failures++
+		r.mu.Unlock()
+		return r.failErr
+	}
+	return r.Runtime.Put(key, value)
+}
+
+func (r *failPutRuntime) Error(msg string, _ ...rfc5424.SDParam) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.errorLogs = append(r.errorLogs, msg)
+}
+
+// laterPageUnavailableServer serves one users record on the first page and
+// answers the second page with an unavailable status, while a sibling
+// workflows dataset stays healthy.
+func laterPageUnavailableServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/users":
+			if r.URL.Query().Get("cursor") == "next" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			_, _ = io.WriteString(w, `{"data":[{"id":"one"}],"nextCursor":"next"}`)
+		case "/api/v1/workflows":
+			_, _ = io.WriteString(w, `{"data":[{"id":"wf-1"}],"nextCursor":null}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+// Regression: an unavailable later page joined with a
+// failed in-flight checkpoint must not be isolated as a warning-only success.
+func TestLaterPageUnavailableJoinedWithInflightPutFailureIsHardFailure(t *testing.T) {
+	server := laterPageUnavailableServer(t)
+	conf := testConfig(t, server.URL+"/api/v1", "users", "workflows")
+	mock := newMockRuntime(t.Context())
+	usersKey := conf.stateKey(datasetCatalog["users"])
+	putErr := errors.New("synthetic in-flight checkpoint failure")
+	rt := &failPutRuntime{Runtime: mock, failKey: usersKey + "/inflight", failErr: putErr}
+
+	continuation, err := New(conf).Handle(t.Context(), rt)
+	if err == nil {
+		t.Fatal("joined checkpoint failure was reported as warning-only success")
+	}
+	if continuation != nil {
+		t.Fatal("hard failure returned a continuation")
+	}
+	if !errors.Is(err, putErr) {
+		t.Fatalf("returned error does not carry the checkpoint failure: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Dataset users") || !strings.Contains(err.Error(), putErr.Error()) {
+		t.Fatalf("returned error does not name the dataset and checkpoint failure: %v", err)
+	}
+	var unavailableErr *datasetUnavailableError
+	if !errors.As(err, &unavailableErr) {
+		t.Fatalf("returned error lost the unavailable cause: %v", err)
+	}
+	rt.mu.Lock()
+	failures, errorLogs := rt.failures, append([]string(nil), rt.errorLogs...)
+	rt.mu.Unlock()
+	if failures != 1 {
+		t.Fatalf("in-flight checkpoint Put attempts=%d want 1", failures)
+	}
+	if !slices.Contains(errorLogs, "n8n Dataset collection failed") {
+		t.Fatalf("hard failure was not logged at error level: %v", errorLogs)
+	}
+	if warn, _ := mock.Status(); strings.Contains(warn, "users") {
+		t.Fatalf("hidden checkpoint failure was reported as an unavailable warning: %q", warn)
+	}
+	if got := len(mock.Entries()); got != 2 {
+		t.Fatalf("entries=%d want the users prefix plus the workflows sibling", got)
+	}
+	if _, err := mock.Get(usersKey); !errors.Is(err, storage.ErrStorageNotFound) {
+		t.Fatalf("failed Dataset advanced completed state: %v", err)
+	}
+	if _, err := mock.Get(usersKey + "/inflight"); !errors.Is(err, storage.ErrStorageNotFound) {
+		t.Fatalf("failed checkpoint left in-flight state behind: %v", err)
+	}
+	if _, err := mock.Get(conf.stateKey(datasetCatalog["workflows"])); err != nil {
+		t.Fatalf("healthy sibling did not advance state: %v", err)
+	}
+}
+
+func TestLaterPageUnavailableWithHealthyStorageStaysIsolatedWarning(t *testing.T) {
+	server := laterPageUnavailableServer(t)
+	conf := testConfig(t, server.URL+"/api/v1", "users", "workflows")
+	rt := newMockRuntime(t.Context())
+	usersKey := conf.stateKey(datasetCatalog["users"])
+	for poll := 0; poll < 2; poll++ {
+		continuation, err := New(conf).Handle(t.Context(), rt)
+		if err != nil {
+			t.Fatalf("poll %d: ordinary unavailable endpoint became a hard failure: %v", poll, err)
+		}
+		if continuation == nil {
+			t.Fatalf("poll %d: missing continuation", poll)
+		}
+		if warn, _ := rt.Status(); !strings.Contains(warn, "users") || strings.Contains(warn, "workflows") {
+			t.Fatalf("poll %d: warning=%q", poll, warn)
+		}
+		if got := len(rt.Entries()); got != 2 {
+			t.Fatalf("poll %d: entries=%d want the users prefix once plus the workflows sibling", poll, got)
+		}
+		if _, err := rt.Get(usersKey); !errors.Is(err, storage.ErrStorageNotFound) {
+			t.Fatalf("poll %d: unavailable Dataset advanced completed state: %v", poll, err)
+		}
+		if _, err := rt.Get(usersKey + "/inflight"); err != nil {
+			t.Fatalf("poll %d: unavailable Dataset did not checkpoint its written prefix: %v", poll, err)
+		}
+		if _, err := rt.Get(conf.stateKey(datasetCatalog["workflows"])); err != nil {
+			t.Fatalf("poll %d: healthy sibling did not advance state: %v", poll, err)
+		}
+	}
+}
+
+func TestUnaccompaniedUnavailableRejectsJoinedCompanions(t *testing.T) {
+	bare := &datasetUnavailableError{Dataset: "users", Status: http.StatusForbidden}
+	other := errors.New("storage failure")
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"bare", bare, true},
+		{"join with nil cleanup", errors.Join(bare, nil), true},
+		{"nested single joins", errors.Join(errors.Join(bare, nil), nil), true},
+		{"wrapped", fmt.Errorf("Dataset users: %w", bare), true},
+		{"wrapped single join", fmt.Errorf("Dataset users: %w", errors.Join(bare, nil)), true},
+		{"other", other, false},
+		{"joined after", errors.Join(bare, other), false},
+		{"joined before", errors.Join(other, bare), false},
+		{"nested companion", errors.Join(errors.Join(bare, nil), other), false},
+		{"wrapped joined", fmt.Errorf("Dataset users: %w", errors.Join(bare, other)), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := unaccompaniedUnavailable(tc.err)
+			if ok != tc.want {
+				t.Fatalf("isolated=%v want %v for %v", ok, tc.want, tc.err)
+			}
+			if ok && got != bare {
+				t.Fatalf("returned %v, want the original unavailable error", got)
+			}
+		})
+	}
+}
+
+func TestSplitCancellationPreservesCompanionFailures(t *testing.T) {
+	checkpointErr := errors.New("checkpoint failed")
+	cleanupErr := errors.New("cleanup failed")
+	cases := []struct {
+		name          string
+		err           error
+		wantCanceled  bool
+		wantCompanion []error
+	}{
+		{name: "ordinary failure", err: checkpointErr, wantCompanion: []error{checkpointErr}},
+		{name: "bare cancellation", err: context.Canceled, wantCanceled: true},
+		{name: "wrapped cancellation", err: fmt.Errorf("request: %w", context.Canceled), wantCanceled: true},
+		{name: "joined after", err: errors.Join(context.Canceled, checkpointErr), wantCanceled: true, wantCompanion: []error{checkpointErr}},
+		{name: "joined before", err: errors.Join(cleanupErr, context.Canceled), wantCanceled: true, wantCompanion: []error{cleanupErr}},
+		{name: "nested and wrapped", err: fmt.Errorf("collect: %w", errors.Join(context.Canceled, checkpointErr, cleanupErr)), wantCanceled: true, wantCompanion: []error{checkpointErr, cleanupErr}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			canceled, companion := splitCancellation(tc.err)
+			if canceled != tc.wantCanceled {
+				t.Fatalf("canceled=%v want %v", canceled, tc.wantCanceled)
+			}
+			if len(tc.wantCompanion) == 0 && companion != nil {
+				t.Fatalf("companion=%v want nil", companion)
+			}
+			for _, want := range tc.wantCompanion {
+				if !errors.Is(companion, want) {
+					t.Fatalf("companion=%v does not preserve %v", companion, want)
+				}
+			}
+			if errors.Is(companion, context.Canceled) {
+				t.Fatalf("companion still matches context.Canceled: %v", companion)
+			}
+		})
+	}
+}
+
+func TestCancellationJoinedWithInflightPutFailureIsHardFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("cursor") == "next" {
+			cancel()
+			<-r.Context().Done()
+			return
+		}
+		_, _ = io.WriteString(w, `{"data":[{"id":"one"}],"nextCursor":"next"}`)
+	}))
+	defer server.Close()
+
+	conf := testConfig(t, server.URL+"/api/v1", "users")
+	stateKey := conf.stateKey(datasetCatalog["users"])
+	checkpointErr := errors.New("synthetic canceled-poll checkpoint failure")
+	rt := &failPutRuntime{
+		Runtime: newMockRuntime(ctx), failKey: stateKey + "/inflight", failErr: checkpointErr,
+	}
+
+	continuation, err := New(conf).Handle(ctx, rt)
+	if err == nil {
+		t.Fatal("cancellation hid the in-flight checkpoint failure")
+	}
+	if continuation != nil {
+		t.Fatal("hard failure returned a continuation")
+	}
+	if errors.Is(err, context.Canceled) {
+		t.Fatalf("hard failure still matches context.Canceled: %v", err)
+	}
+	if !errors.Is(err, checkpointErr) {
+		t.Fatalf("hard failure lost checkpoint cause: %v", err)
+	}
+}
+
+func TestCancellationDoesNotEraseEarlierDatasetFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/users":
+			http.Error(w, "synthetic users failure", http.StatusInternalServerError)
+		case "/api/v1/workflows":
+			cancel()
+			<-r.Context().Done()
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	conf := testConfig(t, server.URL+"/api/v1", "users", "workflows")
+	continuation, err := New(conf).Handle(ctx, newMockRuntime(ctx))
+	if err == nil {
+		t.Fatal("cancellation erased the earlier users failure")
+	}
+	if continuation != nil {
+		t.Fatal("hard failure returned a continuation")
+	}
+	if errors.Is(err, context.Canceled) {
+		t.Fatalf("earlier hard failure still matches context.Canceled: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Dataset users") || !strings.Contains(err.Error(), "HTTP 500") {
+		t.Fatalf("earlier dataset failure was not preserved: %v", err)
+	}
+}
+
+func TestOversizedRecordFailsWithoutWriteOrCheckpoint(t *testing.T) {
+	const testLimit = 256
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"data":[{"id":"one","value":"`)
+		_, _ = io.Copy(w, &repeatedByteReader{remaining: testLimit, value: 'x'})
+		_, _ = io.WriteString(w, `"}],"nextCursor":null}`)
+	}))
+	defer server.Close()
+
+	conf := testConfig(t, server.URL+"/api/v1", "users")
+	plugin := New(conf)
+	plugin.maxRecordSize = testLimit
+	runtime := newMockRuntime(t.Context())
+	if _, err := plugin.Handle(t.Context(), runtime); err == nil || !strings.Contains(err.Error(), "per-record safety limit of 256 bytes") {
+		t.Fatalf("oversized record error=%v", err)
+	}
+	if got := len(runtime.Entries()); got != 0 {
+		t.Fatalf("oversized record wrote %d entries", got)
+	}
+	stateKey := conf.stateKey(datasetCatalog["users"])
+	if _, err := runtime.Get(stateKey); !errors.Is(err, storage.ErrStorageNotFound) {
+		t.Fatalf("oversized record advanced completed state: %v", err)
+	}
+	if _, err := runtime.Get(stateKey + "/inflight"); !errors.Is(err, storage.ErrStorageNotFound) {
+		t.Fatalf("oversized record advanced in-flight state: %v", err)
 	}
 }
 

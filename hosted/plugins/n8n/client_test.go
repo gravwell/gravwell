@@ -24,6 +24,16 @@ import (
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
+type inspectingLimiter struct {
+	err         error
+	hadDeadline bool
+}
+
+func (l *inspectingLimiter) Wait(ctx context.Context) error {
+	_, l.hadDeadline = ctx.Deadline()
+	return l.err
+}
+
 type contextBodyReader struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -79,6 +89,94 @@ func (r failingResponseReader) Read([]byte) (int, error) {
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	now := time.Date(2026, time.October, 22, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name  string
+		value string
+		want  time.Time
+		ok    bool
+	}{
+		{name: "delta seconds", value: "120", want: now.Add(2 * time.Minute), ok: true},
+		{name: "HTTP date", value: now.Add(3 * time.Minute).Format(http.TimeFormat), want: now.Add(3 * time.Minute), ok: true},
+		{name: "delta capped", value: "3600", want: now.Add(maxRetryAfter), ok: true},
+		{name: "HTTP date capped", value: now.Add(time.Hour).Format(http.TimeFormat), want: now.Add(maxRetryAfter), ok: true},
+		{name: "malformed", value: "later", ok: false},
+		{name: "negative", value: "-1", ok: false},
+		{name: "zero", value: "0", ok: false},
+		{name: "expired HTTP date", value: now.Add(-time.Second).Format(http.TimeFormat), ok: false},
+		{name: "overflow", value: "9223372036854775807", ok: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := parseRetryAfter(tc.value, now)
+			if ok != tc.ok || !got.Equal(tc.want) {
+				t.Fatalf("parseRetryAfter(%q)=(%v,%v) want (%v,%v)", tc.value, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+func TestClientRateLimitWaitPrecedesRequestTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[],"nextCursor":null}`))
+	}))
+	defer server.Close()
+	c, err := newClient(server.URL+"/api/v1", "synthetic", 10000, 100, 1, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	limiter := &inspectingLimiter{}
+	c.limiter = limiter
+	if _, err := c.collect(t.Context(), datasetCatalog["users"]); err != nil {
+		t.Fatal(err)
+	}
+	if limiter.hadDeadline {
+		t.Fatal("rate-limit wait consumed the per-request timeout")
+	}
+}
+
+func TestClientRateLimitFailureNamesDatasetAndPage(t *testing.T) {
+	c, err := newClient("https://example.invalid/api/v1", "synthetic", 10000, 100, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := errors.New("synthetic limiter failure")
+	c.limiter = &inspectingLimiter{err: want}
+	_, err = c.collect(t.Context(), datasetCatalog["users"])
+	if !errors.Is(err, want) || !strings.Contains(err.Error(), "Dataset users page 1") {
+		t.Fatalf("error=%v want contextual limiter failure", err)
+	}
+}
+
+func TestRequestGateKeepsLongestRetryDeadlineAndCancels(t *testing.T) {
+	now := time.Date(2026, time.October, 22, 12, 0, 0, 0, time.UTC)
+	gate := newRequestLimiter(10000).(*requestGate)
+	gate.now = func() time.Time { return now }
+	var waited []time.Duration
+	gate.wait = func(_ context.Context, delay time.Duration) error {
+		waited = append(waited, delay)
+		now = now.Add(delay)
+		return nil
+	}
+	gate.DeferUntil(now.Add(2 * time.Minute))
+	gate.DeferUntil(now.Add(30 * time.Second))
+	if err := gate.Wait(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(waited) != 1 || waited[0] != 2*time.Minute {
+		t.Fatalf("retry waits=%v want [2m0s]", waited)
+	}
+
+	gate.DeferUntil(now.Add(time.Hour))
+	gate.wait = waitForContext
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := gate.Wait(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled retry wait error=%v want context.Canceled", err)
+	}
 }
 
 func TestClientCursorPaginationAndLimits(t *testing.T) {
@@ -216,6 +314,25 @@ func TestClientRejectsInvalidCursorType(t *testing.T) {
 	result, err := c.collect(t.Context(), datasetCatalog["users"])
 	if err == nil || !strings.Contains(err.Error(), "nextCursor") || len(result.Records) != 0 {
 		t.Fatalf("result=%v error=%v", result, err)
+	}
+}
+
+func TestClientRejectsExplicitEmptyCursor(t *testing.T) {
+	for _, cursor := range []string{"", "   "} {
+		t.Run(fmt.Sprintf("cursor=%q", cursor), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = fmt.Fprintf(w, `{"data":[{"id":"partial"}],"nextCursor":%q}`, cursor)
+			}))
+			defer server.Close()
+			c, err := newClient(server.URL+"/api/v1", "synthetic", 10000, 100, 2, server.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := c.collect(t.Context(), datasetCatalog["users"])
+			if err == nil || !strings.Contains(err.Error(), "non-empty string") || len(result.Records) != 0 {
+				t.Fatalf("result=%v error=%v want explicit empty-cursor rejection", result, err)
+			}
+		})
 	}
 }
 

@@ -21,27 +21,118 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"golang.org/x/time/rate"
 )
 
 const (
 	requestTimeout = 90 * time.Second
+	// maxRetryAfter keeps an untrusted server from suspending the shared
+	// per-plugin request gate for an operationally unbounded interval. The wait
+	// remains cancellation-aware and happens before the per-request timeout.
+	maxRetryAfter = 15 * time.Minute
 	// defaultMaxRawRecords independently bounds tiny records and pagination
 	// overlap, which can otherwise amplify a small payload into large slices.
 	defaultMaxRawRecords = 500_000
 )
 
 type client struct {
-	baseURL    *url.URL
-	credential string
-	http       *http.Client
-	limiter    *rate.Limiter
-	pageSize   int
-	maxPages   int
-	maxRecords int
+	baseURL     *url.URL
+	credential  string
+	http        *http.Client
+	limiter     requestLimiter
+	pageSize    int
+	maxPages    int
+	maxRecords  int
+	recordLimit int64
+}
+
+type requestLimiter interface {
+	Wait(context.Context) error
+}
+
+type retryDeferrer interface {
+	DeferUntil(time.Time)
+}
+
+type requestGate struct {
+	limiter *rate.Limiter
+	mu      sync.Mutex
+	retryAt time.Time
+	now     func() time.Time
+	wait    func(context.Context, time.Duration) error
+}
+
+func newRequestLimiter(requestsPerMinute int) requestLimiter {
+	interval := time.Minute / time.Duration(requestsPerMinute)
+	return &requestGate{
+		limiter: rate.NewLimiter(rate.Every(interval), 1),
+		now:     time.Now,
+		wait:    waitForContext,
+	}
+}
+
+func (g *requestGate) Wait(ctx context.Context) error {
+	for {
+		g.mu.Lock()
+		now, retryAt := g.now(), g.retryAt
+		g.mu.Unlock()
+		if retryAt.After(now) {
+			if err := g.wait(ctx, retryAt.Sub(now)); err != nil {
+				return err
+			}
+			continue
+		}
+		return g.limiter.Wait(ctx)
+	}
+}
+
+func (g *requestGate) DeferUntil(deadline time.Time) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if deadline.After(g.retryAt) {
+		g.retryAt = deadline
+	}
+}
+
+func waitForContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func parseRetryAfter(value string, now time.Time) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
+		if seconds < 1 || seconds > int64((time.Duration(1<<63-1))/time.Second) {
+			return time.Time{}, false
+		}
+		deadline := now.Add(time.Duration(seconds) * time.Second)
+		return clampRetryAfter(now, deadline), true
+	}
+	deadline, err := http.ParseTime(value)
+	if err != nil || !deadline.After(now) {
+		return time.Time{}, false
+	}
+	return clampRetryAfter(now, deadline), true
+}
+
+func clampRetryAfter(now, deadline time.Time) time.Time {
+	ceiling := now.Add(maxRetryAfter)
+	if deadline.After(ceiling) {
+		return ceiling
+	}
+	return deadline
 }
 
 type collection struct {
@@ -83,12 +174,10 @@ func newClient(baseURL, credential string, requestsPerMinute, pageSize, maxPages
 	// Keep the API key from following a redirect without modifying a caller's
 	// client or any shared Hosted Runner HTTP behavior.
 	copyHTTP.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	interval := time.Minute / time.Duration(requestsPerMinute)
-	limiter := rate.NewLimiter(rate.Every(interval), 1)
 	return &client{
-		baseURL: base, credential: credential, http: &copyHTTP, limiter: limiter,
+		baseURL: base, credential: credential, http: &copyHTTP, limiter: newRequestLimiter(requestsPerMinute),
 		pageSize: pageSize, maxPages: maxPages,
-		maxRecords: defaultMaxRawRecords,
+		maxRecords: defaultMaxRawRecords, recordLimit: maxNormalizedRecordSize,
 	}, nil
 }
 
@@ -97,7 +186,7 @@ func (c *client) collect(ctx context.Context, definition datasetDefinition) (col
 }
 
 func (c *client) collectStreaming(ctx context.Context, definition datasetDefinition, onRecord func(collectedRecord, *normalizedRecord) error) (result collection, err error) {
-	normalizer := newRecordNormalizer("", int64(entry.MaxDataSize))
+	normalizer := newRecordNormalizer("", c.recordLimit)
 	defer func() {
 		err = errors.Join(err, normalizer.cleanup())
 		if err != nil {
@@ -124,13 +213,29 @@ func (c *client) collectStreaming(ctx context.Context, definition datasetDefinit
 		}
 		seen[requestKey] = struct{}{}
 
+		// Rate-limit and server-requested Retry-After waits are part of the poll,
+		// not the HTTP exchange. Waiting before the request context preserves the
+		// full requestTimeout for connecting to n8n and consuming the response.
+		if err := c.limiter.Wait(ctx); err != nil {
+			if parentErr := ctx.Err(); parentErr != nil {
+				return collection{}, parentErr
+			}
+			return collection{}, fmt.Errorf("wait to request Dataset %s page %d: %w", definition.Name, page, err)
+		}
 		requestCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 		response, err := c.request(requestCtx, definition, requestURL, query)
 		if err != nil {
+			requestErr := requestCtx.Err()
 			cancel()
-			return collection{}, err
+			if parentErr := ctx.Err(); parentErr != nil {
+				return collection{}, parentErr
+			}
+			if requestErr != nil {
+				return collection{}, fmt.Errorf("request Dataset %s page %d within 90-second request context: %w", definition.Name, page, requestErr)
+			}
+			return collection{}, fmt.Errorf("request Dataset %s page %d: %w", definition.Name, page, err)
 		}
-		cursor, err := c.consumeResponse(response, definition, page, c.maxRecords-result.Count, &result, onRecord, normalizer)
+		cursor, err := c.consumeResponse(requestCtx, response, definition, page, c.maxRecords-result.Count, &result, onRecord, normalizer)
 		requestErr := requestCtx.Err()
 		cancel()
 		if err != nil {
@@ -173,15 +278,19 @@ func (c *client) request(ctx context.Context, definition datasetDefinition, requ
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if err := c.limiter.Wait(ctx); err != nil {
-		return nil, err
-	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
 		return nil, fmt.Errorf("%s %s request failed", definition.Method, safeURL(u.String()))
+	}
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
+		if deadline, ok := parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()); ok {
+			if deferrer, ok := c.limiter.(retryDeferrer); ok {
+				deferrer.DeferUntil(deadline)
+			}
+		}
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return resp, nil
@@ -195,11 +304,11 @@ func (c *client) request(ctx context.Context, definition datasetDefinition, requ
 	return nil, fmt.Errorf("%s %s failed with HTTP %d", definition.Method, safeURL(u.String()), resp.StatusCode)
 }
 
-func (c *client) consumeResponse(resp *http.Response, definition datasetDefinition, page, remaining int, result *collection, onRecord func(collectedRecord, *normalizedRecord) error, normalizer *recordNormalizer) (string, error) {
+func (c *client) consumeResponse(ctx context.Context, resp *http.Response, definition datasetDefinition, page, remaining int, result *collection, onRecord func(collectedRecord, *normalizedRecord) error, normalizer *recordNormalizer) (string, error) {
 	defer resp.Body.Close()
 	scanner := newResponseScanner(resp.Body)
 	if definition.RecordsField == "" {
-		if err := deliverNormalizedRecord(scanner, false, page, result, onRecord, true, normalizer); err != nil {
+		if err := deliverNormalizedRecord(ctx, scanner, false, page, result, onRecord, true, normalizer); err != nil {
 			return "", err
 		}
 		return "", nil
@@ -227,7 +336,7 @@ func (c *client) consumeResponse(resp *http.Response, definition datasetDefiniti
 				if remaining <= 0 {
 					return "", fmt.Errorf("raw record limit of %d exceeded", c.maxRecords)
 				}
-				if err := deliverNormalizedRecord(scanner, definition.Name == "credentials", page, result, onRecord, false, normalizer); err != nil {
+				if err := deliverNormalizedRecord(ctx, scanner, definition.Name == "credentials", page, result, onRecord, false, normalizer); err != nil {
 					return "", err
 				}
 				remaining--
@@ -261,6 +370,9 @@ func (c *client) consumeResponse(resp *http.Response, definition datasetDefiniti
 					return "", fmt.Errorf("%s must be a string or null", definition.CursorField)
 				}
 				cursor = strings.TrimSpace(cursor)
+				if cursor == "" {
+					return "", fmt.Errorf("%s must be null or a non-empty string", definition.CursorField)
+				}
 			} else {
 				return "", fmt.Errorf("%s must be a string or null", definition.CursorField)
 			}
@@ -302,8 +414,8 @@ func (c *client) consumeResponse(resp *http.Response, definition datasetDefiniti
 	return cursor, nil
 }
 
-func deliverNormalizedRecord(scanner *responseScanner, scrub bool, page int, result *collection, onRecord func(collectedRecord, *normalizedRecord) error, requireEOF bool, normalizer *recordNormalizer) error {
-	body, err := normalizer.normalize(scanner, scrub)
+func deliverNormalizedRecord(ctx context.Context, scanner *responseScanner, scrub bool, page int, result *collection, onRecord func(collectedRecord, *normalizedRecord) error, requireEOF bool, normalizer *recordNormalizer) error {
+	body, err := normalizer.normalize(ctx, scanner, scrub)
 	if err != nil {
 		return err
 	}
@@ -443,6 +555,12 @@ func isHex(b byte) bool {
 }
 
 func (s *responseScanner) value(limit int64, capture bool) ([]byte, byte, error) {
+	return s.valueWithObjectMembers(limit, capture, nil, 0)
+}
+
+// valueWithObjectMembers applies the aggregate object-member bound while a
+// scrubbed value is validated and discarded without retaining secret bytes.
+func (s *responseScanner) valueWithObjectMembers(limit int64, capture bool, memberCount *int, memberLimit int) ([]byte, byte, error) {
 	if err := s.space(); err != nil {
 		return nil, 0, err
 	}
@@ -452,14 +570,14 @@ func (s *responseScanner) value(limit int64, capture bool) ([]byte, byte, error)
 		out = &output
 	}
 	var consumed int64
-	first, err := scanJSONValue(s.reader, out, &consumed, limit, 0)
+	first, err := scanJSONValue(s.reader, out, &consumed, limit, 0, memberCount, memberLimit)
 	if err != nil {
 		return nil, first, err
 	}
 	return output.Bytes(), first, nil
 }
 
-func scanJSONValue(reader *bufio.Reader, output *bytes.Buffer, consumed *int64, limit int64, depth int) (byte, error) {
+func scanJSONValue(reader *bufio.Reader, output *bytes.Buffer, consumed *int64, limit int64, depth int, memberCount *int, memberLimit int) (byte, error) {
 	if depth > 10_000 {
 		return 0, errors.New("JSON nesting limit exceeded")
 	}
@@ -533,6 +651,12 @@ func scanJSONValue(reader *bufio.Reader, output *bytes.Buffer, consumed *int64, 
 					colon, err := read()
 					if err != nil || colon != ':' {
 						return first, errors.New("expected JSON object colon")
+					}
+					if memberCount != nil {
+						if *memberCount >= memberLimit {
+							return first, fmt.Errorf("n8n record exceeds the %d object member limit", memberLimit)
+						}
+						*memberCount++
 					}
 				}
 				if _, err := parse(level + 1); err != nil {

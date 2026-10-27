@@ -2,6 +2,7 @@ package n8n
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -36,7 +37,7 @@ func (r *repeatedByteReader) Read(p []byte) (int, error) {
 
 func normalizeTestRecord(t *testing.T, text string, scrub bool) *normalizedRecord {
 	t.Helper()
-	r, err := normalizeRecordStream(newResponseScanner(strings.NewReader(text)), scrub, t.TempDir(), int64(entry.MaxDataSize))
+	r, err := normalizeRecordStream(t.Context(), newResponseScanner(strings.NewReader(text)), scrub, t.TempDir(), int64(entry.MaxDataSize))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestStreamNormalizerDoesNotAllocateRecordSizedInputOrMap(t *testing.T) {
 			runtime.GC()
 			var before, after runtime.MemStats
 			runtime.ReadMemStats(&before)
-			r, err := normalizeRecordStream(newResponseScanner(reader), false, dir, int64(entry.MaxDataSize))
+			r, err := normalizeRecordStream(t.Context(), newResponseScanner(reader), false, dir, int64(entry.MaxDataSize))
 			runtime.ReadMemStats(&after)
 			if err != nil {
 				t.Fatal(err)
@@ -217,6 +218,53 @@ func TestClientCollectionDoesNotAllocateRecordSizedCopies(t *testing.T) {
 	}
 }
 
+func TestClientRejectsRecordAbovePerRecordSafetyLimitBeforeDelivery(t *testing.T) {
+	if maxNormalizedRecordSize != 64*1024*1024 {
+		t.Fatalf("production per-record safety limit=%d, want %d", maxNormalizedRecordSize, 64*1024*1024)
+	}
+	dir := t.TempDir()
+	t.Setenv("TMPDIR", dir)
+	const testLimit = 256
+	hc := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		body := io.MultiReader(
+			strings.NewReader(`{"data":[{"id":"one","value":"`),
+			&repeatedByteReader{remaining: testLimit, value: 'x'},
+			strings.NewReader(`"}],"nextCursor":null}`),
+		)
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(body)}, nil
+	})}
+	c, err := newClient("https://example.invalid/api/v1", "synthetic", 10000, 100, 1, hc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.recordLimit = testLimit
+	delivered := 0
+	result, err := c.collectStreaming(t.Context(), datasetCatalog["users"], func(collectedRecord, *normalizedRecord) error {
+		delivered++
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "per-record safety limit of 256 bytes") {
+		t.Fatalf("oversized record error=%v", err)
+	}
+	if delivered != 0 || result.Count != 0 || len(result.Records) != 0 {
+		t.Fatalf("oversized record reached delivery: callbacks=%d count=%d records=%d", delivered, result.Count, len(result.Records))
+	}
+	if files, readErr := os.ReadDir(dir); readErr != nil || len(files) != 0 {
+		t.Fatalf("oversized-record scratch files=%v error=%v", files, readErr)
+	}
+}
+
+func TestNormalizedRecordPayloadRejectsSizeAboveBoundBeforeReading(t *testing.T) {
+	normalizer := newRecordNormalizer(t.TempDir(), int64(entry.MaxDataSize))
+	if normalizer.limit != maxNormalizedRecordSize {
+		t.Fatalf("normalizer limit=%d, want hard cap %d", normalizer.limit, maxNormalizedRecordSize)
+	}
+	record := &normalizedRecord{size: maxNormalizedRecordSize + 1, limit: maxNormalizedRecordSize}
+	if _, err := record.payload(); err == nil || !strings.Contains(err.Error(), "invalid normalized n8n entry size") {
+		t.Fatalf("oversized payload error=%v", err)
+	}
+}
+
 func TestStreamNormalizerGiantKeysUseBoundedMemory(t *testing.T) {
 	const length = 8 * 1024 * 1024
 	dir := t.TempDir()
@@ -224,7 +272,7 @@ func TestStreamNormalizerGiantKeysUseBoundedMemory(t *testing.T) {
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	r, err := normalizeRecordStream(newResponseScanner(reader), true, dir, int64(entry.MaxDataSize))
+	r, err := normalizeRecordStream(t.Context(), newResponseScanner(reader), true, dir, int64(entry.MaxDataSize))
 	runtime.ReadMemStats(&after)
 	if err != nil {
 		t.Fatal(err)
@@ -285,7 +333,7 @@ func TestStreamNormalizerWideObjectsSpillAndRemainOrderInvariant(t *testing.T) {
 	// Duplicate keys split across sorted runs must fail before any write.
 	bad := strings.TrimSuffix(a.String(), "}") + `,"f0":2}`
 	dir := t.TempDir()
-	if r, err := normalizeRecordStream(newResponseScanner(strings.NewReader(bad)), false, dir, int64(entry.MaxDataSize)); err == nil {
+	if r, err := normalizeRecordStream(t.Context(), newResponseScanner(strings.NewReader(bad)), false, dir, int64(entry.MaxDataSize)); err == nil {
 		_ = r.close()
 		t.Fatal("duplicate key across runs was accepted")
 	}
@@ -299,7 +347,7 @@ func TestStreamNormalizerValidationAndCleanup(t *testing.T) {
 	for _, text := range []string{`null`, `{"a":1,}`, `{"a":[1,]}`, `{"a":"\x"}`, `{"a":01}`, `{"a":true,"\u0061":false}`, `{"a":"unterminated`} {
 		t.Run(text, func(t *testing.T) {
 			dir := t.TempDir()
-			if r, err := normalizeRecordStream(newResponseScanner(strings.NewReader(text)), false, dir, int64(entry.MaxDataSize)); err == nil {
+			if r, err := normalizeRecordStream(t.Context(), newResponseScanner(strings.NewReader(text)), false, dir, int64(entry.MaxDataSize)); err == nil {
 				_ = r.close()
 				t.Fatal("invalid record was accepted")
 			}
@@ -310,7 +358,7 @@ func TestStreamNormalizerValidationAndCleanup(t *testing.T) {
 		})
 	}
 	dir := t.TempDir()
-	if r, err := normalizeRecordStream(newResponseScanner(strings.NewReader(`{"a":"more than twenty bytes of data"}`)), false, dir, 20); err == nil || !strings.Contains(err.Error(), "maximum entry") {
+	if r, err := normalizeRecordStream(t.Context(), newResponseScanner(strings.NewReader(`{"a":"more than twenty bytes of data"}`)), false, dir, 20); err == nil || !strings.Contains(err.Error(), "per-record safety limit") {
 		if r != nil {
 			_ = r.close()
 		}
@@ -333,7 +381,7 @@ func (r *failingRecordReader) Read(p []byte) (int, error) {
 }
 func TestStreamNormalizerReadFailureCleansScratch(t *testing.T) {
 	dir := t.TempDir()
-	if r, err := normalizeRecordStream(newResponseScanner(&failingRecordReader{}), false, dir, int64(entry.MaxDataSize)); err == nil {
+	if r, err := normalizeRecordStream(t.Context(), newResponseScanner(&failingRecordReader{}), false, dir, int64(entry.MaxDataSize)); err == nil {
 		_ = r.close()
 		t.Fatal("reader failure was ignored")
 	}
@@ -353,4 +401,139 @@ func TestStreamingSecretKeyMatcherMatchesExistingRules(t *testing.T) {
 			t.Errorf("key=%q got %v want %v", key, got, want)
 		}
 	}
+}
+
+func TestStreamNormalizerObjectMemberLimitCountsNestedMembersAndResets(t *testing.T) {
+	dir := t.TempDir()
+	n := newRecordNormalizer(dir, maxNormalizedRecordSize)
+	if n.memberLimit != maxRecordMembers || maxRecordMembers != 250_000 {
+		t.Fatalf("default member limit=%d constant=%d want 250000", n.memberLimit, maxRecordMembers)
+	}
+	n.memberLimit = 5
+	defer func() {
+		if err := n.cleanup(); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	tooWide := `{"outer":{"a":1,"b":2,"c":3},"d":4,"e":5}`
+	if _, err := n.normalize(t.Context(), newResponseScanner(strings.NewReader(tooWide)), false); err == nil || !strings.Contains(err.Error(), "object member limit") {
+		t.Fatalf("nested member-limit error=%v", err)
+	}
+
+	atLimit := `{"a":1,"b":2,"c":3,"d":4,"e":5}`
+	if _, err := n.normalize(t.Context(), newResponseScanner(strings.NewReader(atLimit)), false); err != nil {
+		t.Fatalf("record at member limit: %v", err)
+	}
+	if _, err := n.normalize(t.Context(), newResponseScanner(strings.NewReader(`{"a":1}`)), false); err != nil {
+		t.Fatalf("member count was not reset between records: %v", err)
+	}
+}
+
+func TestMemberHashBudgetReservesOneDigestPerOpenObject(t *testing.T) {
+	dir := t.TempDir()
+	n := newRecordNormalizer(dir, maxNormalizedRecordSize)
+	n.memberLimit = memberHashBudget + 1
+	n.members = memberHashBudget
+	n.sorters = make([]*memberSorter, memberHashBudget)
+	for i := range n.sorters {
+		n.sorters[i] = &memberSorter{owner: n, memory: []memberDigest{{}}}
+	}
+
+	if err := n.sorters[len(n.sorters)-1].add(memberDigest{}); err != nil {
+		t.Fatal(err)
+	}
+	if entries, err := os.ReadDir(dir); err != nil {
+		t.Fatal(err)
+	} else if len(entries) != 0 {
+		t.Fatalf("adding one digest with one digest per open object created %d spill files", len(entries))
+	}
+}
+
+func TestStreamNormalizerObjectMemberLimitCountsScrubbedMembers(t *testing.T) {
+	n := newRecordNormalizer(t.TempDir(), maxNormalizedRecordSize)
+	n.memberLimit = 3
+	defer func() {
+		if err := n.cleanup(); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	atLimit := `{"password":1,"token":2,"id":"x"}`
+	record, err := n.normalize(t.Context(), newResponseScanner(strings.NewReader(atLimit)), true)
+	if err != nil {
+		t.Fatalf("record at member limit: %v", err)
+	}
+	if payload, err := record.payload(); err != nil {
+		t.Fatal(err)
+	} else if string(payload) != `{"id":"x"}` {
+		t.Fatalf("record at member limit payload=%s", payload)
+	}
+	overLimit := `{"password":1,"token":2,"secret":3,"id":"x"}`
+	if _, err := n.normalize(t.Context(), newResponseScanner(strings.NewReader(overLimit)), true); err == nil || !strings.Contains(err.Error(), "object member limit") {
+		t.Fatalf("scrubbed member-limit error=%v", err)
+	}
+	nestedOverLimit := `{"password":{"a":1,"b":2,"c":3},"id":"x"}`
+	if _, err := n.normalize(t.Context(), newResponseScanner(strings.NewReader(nestedOverLimit)), true); err == nil || !strings.Contains(err.Error(), "object member limit") {
+		t.Fatalf("nested scrubbed member-limit error=%v", err)
+	}
+}
+
+type cancelAfterErrChecks struct {
+	context.Context
+	checks int
+	pass   int
+}
+
+func (c *cancelAfterErrChecks) Err() error {
+	c.checks++
+	if c.checks > c.pass {
+		return context.Canceled
+	}
+	return nil
+}
+
+func writeMemberRun(t *testing.T, n *recordNormalizer, start byte) string {
+	t.Helper()
+	f, err := n.scratch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2048; i++ {
+		var raw [64]byte
+		raw[30] = byte(i >> 8)
+		raw[31] = byte(i)
+		raw[63] = start
+		if _, err := f.Write(raw[:]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return f.Name()
+}
+
+func TestMemberHashMergeAndFinalDigestHonorCancellation(t *testing.T) {
+	t.Run("merge loop", func(t *testing.T) {
+		n := newRecordNormalizer(t.TempDir(), maxNormalizedRecordSize)
+		defer n.cleanup()
+		n.ctx = &cancelAfterErrChecks{Context: context.Background(), pass: 1}
+		s := &memberSorter{owner: n}
+		left, right := writeMemberRun(t, n, 1), writeMemberRun(t, n, 2)
+		if _, err := s.merge(left, right); !errors.Is(err, context.Canceled) {
+			t.Fatalf("merge error=%v want context.Canceled", err)
+		}
+	})
+
+	t.Run("final digest", func(t *testing.T) {
+		n := newRecordNormalizer(t.TempDir(), maxNormalizedRecordSize)
+		defer n.cleanup()
+		n.ctx = &cancelAfterErrChecks{Context: context.Background(), pass: 0}
+		s := &memberSorter{owner: n}
+		s.runs[0] = writeMemberRun(t, n, 1)
+		if _, err := s.digest(); !errors.Is(err, context.Canceled) {
+			t.Fatalf("digest error=%v want context.Canceled", err)
+		}
+	})
 }

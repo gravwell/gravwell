@@ -24,6 +24,11 @@ const (
 	Name    = "n8n"
 	ID      = "n8n.ingesters.gravwell.io"
 	Version = "1.0.0"
+	// stateIdentityCompatibility preserves the state keys emitted by version
+	// 1.0.0 without coupling future plugin release versions to checkpoint
+	// identity. The snapshot-vN path component remains the explicit format
+	// migration control.
+	stateIdentityCompatibility = "1.0.0"
 
 	defaultIngesterUUID    = "291e5806-07f4-4533-a979-3296263389bf"
 	defaultRequestsPerMin  = 30
@@ -207,7 +212,7 @@ func (c *Config) Tags() []string {
 }
 
 func (c *Config) stateKey(definition datasetDefinition) string {
-	identity := strings.Join([]string{Version, c.Base_URL, definition.Name, c.tag(definition)}, "\x00")
+	identity := strings.Join([]string{stateIdentityCompatibility, c.Base_URL, definition.Name, c.tag(definition)}, "\x00")
 	// Typed scalar identities must not interpret manifests from the earlier
 	// untyped identity or aggregate-digest namespaces. Starting this namespace
 	// intentionally replays one snapshot, then normal per-record dedup resumes.

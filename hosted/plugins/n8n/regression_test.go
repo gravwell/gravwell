@@ -48,9 +48,21 @@ func TestREADMEAndExampleDocumentOperationalRetryAndCredentialSecurity(t *testin
 		"`os.TempDir()`",
 		"`TMPDIR`",
 		"disk-backed",
-		"1,073,741,823",
+		"67,108,864",
+		"250,000",
+		"about 32 MiB",
+		"`Dataset` is required and has no default",
+		"`executions` is always requested with `includeData=false`",
+		"node inputs and outputs are never fetched",
+		"`NativeRuntime.Write` then deep-copies",
+		"about 128 MiB",
+		"64 MiB per-record safety",
 		"reused for one dataset collection",
 		"snapshot-v6",
+		"Recognized timestamp fields accept RFC3339 strings or numeric Unix seconds",
+		"`id`, `uuid`,",
+		"`timestamp`, `updatedAt`,",
+		"Plugin release-version changes do not change the state identity",
 		"approximately 0.8 KiB of live process memory per tracked record",
 		"roughly 200 MiB at the 250,000-record limit",
 	} {
@@ -64,6 +76,11 @@ func TestREADMEAndExampleDocumentOperationalRetryAndCredentialSecurity(t *testin
 	}
 	if !strings.Contains(string(example), "Allow-Plaintext=false") || !strings.Contains(string(example), "API key in cleartext") {
 		t.Error("example.conf must show the secure default and warn about cleartext credentials")
+	}
+	for _, required := range []string{"runner-wide settings shared", "Reuse an established runner's", "[State]", "Sync"} {
+		if !strings.Contains(string(example), required) {
+			t.Errorf("example.conf is missing runner-wide reuse statement %q", required)
+		}
 	}
 }
 
