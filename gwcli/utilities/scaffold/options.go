@@ -214,13 +214,9 @@ func (o QOOmit) QueryOptions(fs *pflag.FlagSet) types.QueryOptions {
 // CollectToLimit collects every page of list, stopping once qo.Limit items have been gathered.
 // QOBuilders set qo.Limit from --limit, which is the total number of items the user wants,
 // whereas the backend treats it as the page size (and caps it at types.QueryOptionsMaxLimit).
-// A Limit of 0 collects everything.
-func CollectToLimit[R interface {
-	GetNextCursor() string
-	GetTotalCount() int
-	Items() []T
-}, T any](qo types.QueryOptions, list func(types.QueryOptions) (R, error)) ([]T, error) {
+// A Limit < 1 collects everything, matching how the QOBuilders treat --limit.
+func CollectToLimit[R client.Lister[T], T any](qo types.QueryOptions, list func(types.QueryOptions) (R, error)) ([]T, error) {
 	maxCount := int(qo.Limit)
-	qo.Limit = min(qo.Limit, types.QueryOptionsMaxLimit)
+	qo.Limit = 0 // let Collect pick the page size from maxCount
 	return client.Collect(qo, list, maxCount)
 }

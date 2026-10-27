@@ -24,7 +24,8 @@ type pager interface {
 	GetNextCursor() string
 }
 
-type lister[T any] interface {
+// Lister is a single page of a listing, as returned by the list calls (ex: ListMacros).
+type Lister[T any] interface {
 	pager
 	GetTotalCount() int
 	Items() []T
@@ -33,7 +34,7 @@ type lister[T any] interface {
 // Pages iterates each page of a list call, walking the cursor returned in the result.
 // opts is passed to the first call unaltered; later calls only change CursorID.
 //
-// Iteration stops when an error is encountered or NextCursor is empty.
+// Iteration stops when an error is encountered or CursorNext is empty.
 func Pages[R pager](opts types.QueryOptions, list func(types.QueryOptions) (R, error)) iter.Seq2[R, error] {
 	return func(yield func(R, error) bool) {
 		for {
@@ -59,9 +60,14 @@ func Pages[R pager](opts types.QueryOptions, list func(types.QueryOptions) (R, e
 // 1) an error is encountered,
 // 2) all results have been collected, or
 // 3) maxCount has been met/exceeded (if < 1, fetches all results).
-func Collect[R lister[T], T any](opts types.QueryOptions, list func(types.QueryOptions) (R, error), maxCount int) ([]T, error) {
+//
+// If opts.Limit is unset, the page size is min(QueryOptionsMaxLimit, maxCount > 0)
+func Collect[R Lister[T], T any](opts types.QueryOptions, list func(types.QueryOptions) (R, error), maxCount int) ([]T, error) {
 	if opts.Limit == 0 {
-		opts.Limit = types.QueryOptionsDefaultLimit
+		opts.Limit = types.QueryOptionsMaxLimit
+		if maxCount > 0 {
+			opts.Limit = int32(min(maxCount, types.QueryOptionsMaxLimit))
+		}
 	}
 
 	var items []T

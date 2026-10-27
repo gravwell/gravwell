@@ -149,18 +149,22 @@ func TestCollect(t *testing.T) {
 		maxCount  int
 		wantCount int
 		wantCalls int
+		wantLimit int32 // page size every call should use
 	}{
-		{"Empty", 0, 0, 0, 0, 1},
-		{"DefaultPageSize", 5, 0, 0, 5, 1},
-		{"DefaultPageSizeManyPages", 2*types.QueryOptionsDefaultLimit + 1, 0, 0, 2*types.QueryOptionsDefaultLimit + 1, 3},
-		{"ExplicitPageSize", 25, 10, 0, 25, 3},
-		{"CountIsMultipleOfPageSize", 20, 10, 0, 20, 2},
-		{"MaxPageSize", 2*maxLimit + 1, maxLimit, 0, 2*maxLimit + 1, 3},
-		{"NegativeMaxCountCollectsAll", 25, 10, -1, 25, 3},
-		{"MaxCountUnderPageSize", 50, 10, 5, 5, 1},
-		{"MaxCountSpansPages", 50, 10, 25, 25, 3},
-		{"MaxCountOnPageBoundary", 50, 10, 20, 20, 2},
-		{"MaxCountOverAvailable", 5, 10, 10, 5, 1},
+		{"Empty", 0, 0, 0, 0, 1, maxLimit},
+		{"DefaultPageSize", 5, 0, 0, 5, 1, maxLimit},
+		{"DefaultPageSizeManyPages", 2*maxLimit + 1, 0, 0, 2*maxLimit + 1, 3, maxLimit},
+		{"DefaultPageSizeNegativeMaxCount", 2*maxLimit + 1, 0, -1, 2*maxLimit + 1, 3, maxLimit},
+		{"DefaultPageSizeShrinksToMaxCount", 50, 0, 5, 5, 1, 5},
+		{"DefaultPageSizeCappedWhenMaxCountIsLarge", 2*maxLimit + 1, 0, maxLimit + 1, maxLimit + 1, 2, maxLimit},
+		{"ExplicitPageSize", 25, 10, 0, 25, 3, 10},
+		{"CountIsMultipleOfPageSize", 20, 10, 0, 20, 2, 10},
+		{"MaxPageSize", 2*maxLimit + 1, maxLimit, 0, 2*maxLimit + 1, 3, maxLimit},
+		{"NegativeMaxCountCollectsAll", 25, 10, -1, 25, 3, 10},
+		{"MaxCountUnderPageSize", 50, 10, 5, 5, 1, 10},
+		{"MaxCountSpansPages", 50, 10, 25, 25, 3, 10},
+		{"MaxCountOnPageBoundary", 50, 10, 20, 20, 2, 10},
+		{"MaxCountOverAvailable", 5, 10, 10, 5, 1, 10},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -179,14 +183,9 @@ func TestCollect(t *testing.T) {
 			if cap(got) != len(got) {
 				t.Fatalf("expected a capacity of %d, got %d", len(got), cap(got))
 			}
-			// every call should use the requested page size (or the default, if unset)
-			wantLimit := tt.qoLimit
-			if wantLimit == 0 {
-				wantLimit = types.QueryOptionsDefaultLimit
-			}
 			for i, c := range f.calls {
-				if c.Limit != wantLimit {
-					t.Fatalf("call %d used a page size of %d, expected %d", i, c.Limit, wantLimit)
+				if c.Limit != tt.wantLimit {
+					t.Fatalf("call %d used a page size of %d, expected %d", i, c.Limit, tt.wantLimit)
 				}
 			}
 		})
