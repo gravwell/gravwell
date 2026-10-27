@@ -1,5 +1,9 @@
 package types
 
+import (
+	"fmt"
+)
+
 // AllowedOperations is the set of filter operators the registry accepts.
 // Operators are also advertised per-field (and narrowed by type) via
 // AvailableFilter.Operations; this list is the full union across all types.
@@ -29,16 +33,46 @@ type QueryOptions struct {
 	All bool
 
 	// Listing options
-	OrderBy        string // Sort by this field (defaults to ID)
-	OrderDirection string
+	OrderBy        string `json:",omitzero"` // Sort by this field
+	OrderDirection string `json:",omitzero"`
 	CursorID       string // Return assets whose ID is greater than the given ID.
-	Limit          int32  // Max number of assets to return. 0/-1 means no limit.
+	// Max number of assets to return.
+	// Capped by QueryOptionsMaxLimit, defaults to QueryOptionsDefaultLimit.
+	Limit int32 `json:",omitzero"`
 
 	// Filtering on fields of assets
 	Filters []Filter
 
 	// Search filters on multiple fields for a rough string match
 	Search string
+}
+
+const (
+	QueryOptionsDefaultLimit = 100
+	QueryOptionsMaxLimit     = 1000
+	QueryOptionsMaxVersion   = 2147483647
+)
+
+var ErrBadQueryOptionsLimit = fmt.Errorf("limit must be 0 < x <= %d", QueryOptionsMaxLimit)
+var ErrBadQueryOptionsVersion = fmt.Errorf("version must be -1 <= x <= %d", QueryOptionsMaxVersion)
+
+// DefaultQueryOptions returns a QueryOptions with the default values as expected by the api spec.
+// An empty request against a list endpoint will default to these values.
+func DefaultQueryOptions() QueryOptions {
+	return QueryOptions{
+		Limit: QueryOptionsDefaultLimit,
+	}
+}
+
+// Validate confirms that qo fits the api spec.
+func (qo QueryOptions) Validate() error {
+	if qo.Limit < 1 || qo.Limit > QueryOptionsMaxLimit {
+		return ErrBadQueryOptionsLimit
+	}
+	if qo.Version < -1 {
+		return ErrBadQueryOptionsVersion
+	}
+	return nil
 }
 
 // Filter based on the values given, e.g. Key = "Name", Operation = "=", Values = ["foo", "bar"].
