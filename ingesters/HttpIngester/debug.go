@@ -11,6 +11,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
+const redacted = `REDACTED`
+
 var DefaultDebugLogger debugLogger
 
 func init() {
@@ -43,9 +45,7 @@ func (d *debugLoggingMiddlware) ServeHTTP(w http.ResponseWriter, r *http.Request
 	if d.allRequests || responseCode(w) >= 400 {
 		rkv := requestKV(w, r)
 		d.logger.Debug("http debug", rkv...)
-		for k, v := range r.Header {
-			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
-		}
+		logRequestHeaders(d.logger, r)
 	}
 }
 
@@ -67,9 +67,7 @@ func (d *debugLoggingHandler) Handle(h *handler, rh routeHandler, w http.Respons
 	if responseCode(w) >= 400 {
 		rkv := requestKV(w, r)
 		d.logger.Debug("http debug", rkv...)
-		for k, v := range r.Header {
-			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
-		}
+		logRequestHeaders(d.logger, r)
 	}
 }
 
@@ -95,9 +93,7 @@ func (d *debugLoggingAuther) AuthRequest(r *http.Request) error {
 		}
 		rkv := requestKV(rw, r)
 		d.logger.Debug("http debug", rkv...)
-		for k, v := range r.Header {
-			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
-		}
+		logRequestHeaders(d.logger, r)
 	}
 
 	return err
@@ -108,9 +104,7 @@ func (d *debugLoggingAuther) Login(w http.ResponseWriter, r *http.Request) {
 	if responseCode(w) >= 400 {
 		rkv := requestKV(w, r)
 		d.logger.Debug("http debug", rkv...)
-		for k, v := range r.Header {
-			d.logger.Debug(fmt.Sprintf("%v: %v", k, v))
-		}
+		logRequestHeaders(d.logger, r)
 	}
 }
 
@@ -188,9 +182,54 @@ func requestKV(w http.ResponseWriter, r *http.Request) []rfc5424.SDParam {
 	}
 	return append(params,
 		log.KV("method", r.Method),
-		log.KV("url", r.URL.RequestURI()),
+		log.KV("url", redactedRequestURI(r)),
 		log.KV("ip", getRemoteIP(r)),
 	)
+}
+
+// redactedRequestURI returns the request path and query for logging with every
+// query value masked, since preshared-parameter listeners and the HEC health
+// check carry their token in the query.
+func redactedRequestURI(r *http.Request) string {
+	q := r.URL.Query()
+	if len(q) == 0 {
+		return r.URL.EscapedPath()
+	}
+	for _, vs := range q {
+		for i := range vs {
+			vs[i] = redacted
+		}
+	}
+	return r.URL.EscapedPath() + "?" + q.Encode()
+}
+
+// loggableHeaders are the request headers whose values are safe to log. Every
+// other header value is masked, because auth tokens can travel in any header
+// (preshared-header listeners let the operator pick the header name).
+var loggableHeaders = map[string]bool{
+	"Accept":                   true,
+	"Accept-Encoding":          true,
+	"Connection":               true,
+	"Content-Encoding":         true,
+	"Content-Length":           true,
+	"Content-Type":             true,
+	"Transfer-Encoding":        true,
+	"User-Agent":               true,
+	"X-Forwarded-For":          true,
+	"X-Real-Ip":                true,
+	"X-Splunk-Request-Channel": true,
+}
+
+// logRequestHeaders writes one debug line per request header, masking the
+// values of headers not in loggableHeaders.
+func logRequestHeaders(lgr debugLogger, r *http.Request) {
+	for k, v := range r.Header {
+		if loggableHeaders[http.CanonicalHeaderKey(k)] {
+			lgr.Debug(fmt.Sprintf("%v: %v", k, v))
+		} else {
+			lgr.Debug(fmt.Sprintf("%v: [%s]", k, redacted))
+		}
+	}
 }
 
 func responseCode(w http.ResponseWriter) int {
