@@ -21,8 +21,6 @@ const (
 )
 
 type QueryOptions struct {
-	Type string // Specifies the type of asset to return, 'mixed' for everything. Ignored except on the /api/list/assets (ListAll) endpoint
-
 	IncludeDeleted bool
 	Version        int32 // fetch a particular version, when appropriate. 0 means latest, -1 means all versions (list only)
 
