@@ -109,6 +109,7 @@ jobs:
         go vet ./chancacher
         go vet ./debug
         go vet ./ingest
+        go vet -tags realsocket ./ingest
         go vet ./ingest/entry
         go vet ./ingest/processors
         go vet ./ingest/processors/plugin
@@ -117,11 +118,19 @@ jobs:
         go vet ./timegrinder
         go vet ./filewatch
         go vet ./hosted/...
-        go vet ./ingesters/utils
+        go vet ./ingesters/utils/...
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
-        go vet ./ingesters/llm_ingester
+        go vet ./ingesters/llm_ingester/...
         go vet ./ingesters/macosUnifiedLog
+        go vet ./ingesters/snmp
+        go vet ./ingesters/AzureEventHubs
+        go vet ./ingesters/HttpIngester
+        go vet ./ingesters/MSGraphIngester
+        go vet ./ingesters/s3Ingester
+        go vet ./ingesters/sqsIngester
+        go vet ./ingesters/version
+        go vet ./ingesters/examples/...
         go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
@@ -140,11 +149,19 @@ jobs:
         go test -v ./timegrinder
         go test -v ./filewatch
         go test -v ./hosted/...
-        go test -v ./ingesters/utils
+        go test -v ./ingesters/utils/...
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
-        go test -v ./ingesters/llm_ingester
+        go test -v ./ingesters/llm_ingester/...
         go test -v -race ./ingesters/macosUnifiedLog
+        go test -v ./ingesters/snmp
+        go test -v ./ingesters/AzureEventHubs
+        go test -v ./ingesters/HttpIngester
+        go test -v ./ingesters/MSGraphIngester
+        go test -v ./ingesters/s3Ingester
+        go test -v ./ingesters/sqsIngester
+        go test -v ./ingesters/version
+        go test -v ./ingesters/examples/...
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...

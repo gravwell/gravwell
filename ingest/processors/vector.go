@@ -45,8 +45,8 @@ var (
 type VectorConfig struct {
 	Model                string
 	Endpoint             string
-	Token                string
-	Timeout              int // HTTP timeout in seconds (default: 30)
+	Token                string `json:"-"` // omit the token in any reporting
+	Timeout              int    // HTTP timeout in seconds (default: 30)
 	Retry_Attempts       int
 	Passthrough_On_Error bool // Passthrough entries that fail to embed instead of dropping them
 }

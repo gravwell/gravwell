@@ -14,6 +14,7 @@ echo "Running go vet"
 	go vet ./generators/ipgen
         go vet ./chancacher
         go vet ./ingest
+        go vet -tags realsocket ./ingest
         go vet ./ingest/entry
         go vet ./ingest/processors
         go vet ./ingest/processors/plugin
@@ -22,11 +23,19 @@ echo "Running go vet"
         go vet ./timegrinder
         go vet ./filewatch
         go vet ./hosted/...
-        go vet ./ingesters/utils
+        go vet ./ingesters/utils/...
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
-        go vet ./ingesters/llm_ingester
+        go vet ./ingesters/llm_ingester/...
         go vet ./ingesters/macosUnifiedLog
+        go vet ./ingesters/snmp
+        go vet ./ingesters/AzureEventHubs
+        go vet ./ingesters/HttpIngester
+        go vet ./ingesters/MSGraphIngester
+        go vet ./ingesters/s3Ingester
+        go vet ./ingesters/sqsIngester
+        go vet ./ingesters/version
+        go vet ./ingesters/examples/...
         GOOS=linux go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
@@ -44,11 +53,19 @@ echo "Running go test -v"
         go test -v ./timegrinder
         go test -v ./filewatch
         go test -v ./hosted
-        go test -v ./ingesters/utils
+        go test -v ./ingesters/utils/...
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
-        go test -v ./ingesters/llm_ingester
+        go test -v ./ingesters/llm_ingester/...
         go test -v ./ingesters/macosUnifiedLog
+        go test -v ./ingesters/snmp
+        go test -v ./ingesters/AzureEventHubs
+        go test -v ./ingesters/HttpIngester
+        go test -v ./ingesters/MSGraphIngester
+        go test -v ./ingesters/s3Ingester
+        go test -v ./ingesters/sqsIngester
+        go test -v ./ingesters/version
+        go test -v ./ingesters/examples/...
         if [[ "$(go env GOOS)" == "linux" ]]; then go test -v ./ipexist; fi
         go test -v ./netflow
         go test -v ./client/...
@@ -205,6 +222,7 @@ echo "Running build tests"
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
         go build -o /dev/null ./ingesters/llm_ingester
+        go build -o /dev/null ./ingesters/snmp
         go build -o /dev/null ./hosted/runner
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
