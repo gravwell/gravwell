@@ -168,7 +168,7 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 	ll := log.NewLoggerWithKV(h.lgr,
 		log.KV("HEC-Listener", hh.name),
 		log.KV("src", ip.String()),
-		log.KV("url", r.URL.RequestURI()),
+		log.KV("url", redactedRequestURI(r)),
 	)
 
 	if cfg.debugPosts {
@@ -342,7 +342,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	ll := log.NewLoggerWithKV(h.lgr,
 		log.KV("HEC-Listener", hh.name),
 		log.KV("src", ip.String()),
-		log.KV("url", r.URL.RequestURI()),
+		log.KV("url", redactedRequestURI(r)),
 	)
 
 	if cfg.debugPosts {
