@@ -121,11 +121,7 @@ func TestPages(t *testing.T) {
 		}
 	})
 	t.Run("StalledCursor", func(t *testing.T) {
-		list := func(types.QueryOptions) (types.MacroListResponse, error) {
-			var resp types.MacroListResponse
-			resp.CursorNext = "same"
-			return resp, nil
-		}
+		list := cursorCycle("same")
 		var lastErr error
 		var pages int
 		for _, err := range client.Pages(types.QueryOptions{}, list) {
@@ -138,6 +134,53 @@ func TestPages(t *testing.T) {
 			t.Fatalf("expected 3 iterations, got %d", pages)
 		}
 	})
+	t.Run("CursorCycle", func(t *testing.T) {
+		list := cursorCycle("A", "B", "C")
+		var lastErr error
+		var pages int
+		for _, err := range client.Pages(types.QueryOptions{}, list) {
+			pages++
+			lastErr = err
+		}
+		if !errors.Is(lastErr, client.ErrCursorStalled) {
+			t.Fatalf("expected %v, got %v", client.ErrCursorStalled, lastErr)
+		} else if pages != 5 { // pages yielding A, B, C, A (repeat), then the error
+			t.Fatalf("expected 5 iterations, got %d", pages)
+		}
+	})
+	t.Run("StopsOnEmptyPage", func(t *testing.T) {
+		var calls int
+		list := func(types.QueryOptions) (types.MacroListResponse, error) {
+			calls++
+			var resp types.MacroListResponse
+			resp.CursorNext = strconv.Itoa(calls) // always a fresh cursor
+			return resp, nil
+		}
+		for _, err := range client.Pages(types.QueryOptions{}, list) {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if calls != 1 {
+			t.Fatalf("expected 1 call, got %d", calls)
+		}
+	})
+}
+
+// cursorCycle returns a listing that serves one macro per page,
+// handing out cursors from the given set in a loop.
+func cursorCycle(cursors ...string) func(types.QueryOptions) (types.MacroListResponse, error) {
+	var calls int
+	return func(types.QueryOptions) (types.MacroListResponse, error) {
+		if calls > maxFakeCalls {
+			return types.MacroListResponse{}, errRunaway
+		}
+		var resp types.MacroListResponse
+		resp.Results = []types.Macro{{}}
+		resp.CursorNext = cursors[calls%len(cursors)]
+		calls++
+		return resp, nil
+	}
 }
 
 func TestCollect(t *testing.T) {

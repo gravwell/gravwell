@@ -15,9 +15,9 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// ErrCursorStalled is returned when a listing hands back the cursor it was just given,
+// ErrCursorStalled is returned when a listing hands back a cursor it has already given,
 // which would otherwise page forever.
-var ErrCursorStalled = errors.New("listing returned the same cursor it was given")
+var ErrCursorStalled = errors.New("listing returned a cursor it had already given")
 
 type pager interface {
 	GetNextCursor() string
@@ -32,23 +32,26 @@ type Lister[T any] interface {
 // Pages iterates each page of a list call, walking the cursor returned in the result.
 // opts is passed to the first call unaltered; later calls only change CursorID.
 //
-// Iteration stops when an error is encountered or CursorNext is empty.
-func Pages[R pager](opts types.QueryOptions, list func(types.QueryOptions) (R, error)) iter.Seq2[R, error] {
+// Iteration stops when an error is encountered, CursorNext is empty, or a page is empty.
+// If a cursor repeats (ex: A->B->A), ErrCursorStalled is yielded and iteration stops.
+func Pages[R Lister[T], T any](opts types.QueryOptions, list func(types.QueryOptions) (R, error)) iter.Seq2[R, error] {
 	return func(yield func(R, error) bool) {
+		seen := map[string]struct{}{opts.CursorID: {}}
 		for {
 			page, err := list(opts)
 			if !yield(page, err) || err != nil {
 				return
 			}
 			next := page.GetNextCursor()
-			switch next {
-			case "":
+			if next == "" || len(page.Items()) == 0 {
 				return
-			case opts.CursorID:
+			}
+			if _, dup := seen[next]; dup {
 				var zero R
 				yield(zero, ErrCursorStalled)
 				return
 			}
+			seen[next] = struct{}{}
 			opts.CursorID = next
 		}
 	}
