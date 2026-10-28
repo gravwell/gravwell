@@ -73,8 +73,7 @@ func listAction() action.Pair {
 					Operation: "=",
 					Values:    []any{listConsumerID},
 				})
-				resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
-				return resp, err
+				return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
 
 			} else if listDispatcherID != "" {
 				params.QueryOptions.Filters = append(params.QueryOptions.Filters, types.Filter{
@@ -82,12 +81,10 @@ func listAction() action.Pair {
 					Operation: "=",
 					Values:    []any{listDispatcherID},
 				})
-				resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
-				return resp, err
+				return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
 			}
 
-			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
-			return resp, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAlerts)
 		},
 		nil,
 		scaffoldlist.Options{

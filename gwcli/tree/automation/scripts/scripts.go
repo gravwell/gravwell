@@ -75,8 +75,7 @@ func listAction() action.Pair {
 				s, err := connection.Client.GetScheduledScriptEx(id, opts)
 				return []types.ScheduledScript{s}, err
 			}
-			list, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledScripts)
-			return list, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledScripts)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -268,8 +267,7 @@ func edit() action.Pair {
 				return connection.Client.GetScheduledScript(id)
 			},
 			FetchSub: func() (items []types.ScheduledScript, err error) {
-				list, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledScripts, -1)
-				return list, err
+				return client.Collect(types.QueryOptions{}, connection.Client.ListScheduledScripts, -1)
 			},
 			GetFieldSub: func(item types.ScheduledScript, fieldKey string) (value string, err error) {
 				switch fieldKey {

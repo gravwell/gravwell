@@ -50,8 +50,7 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list dashboards", "list dashboards available to you and the system",
 		types.Dashboard{}, func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Dashboard, error) {
-			r, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListDashboards)
-			return r, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListDashboards)
 		},
 		nil,
 		scaffoldlist.Options{

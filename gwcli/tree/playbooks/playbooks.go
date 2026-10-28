@@ -54,8 +54,7 @@ func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list playbooks", "List playbooks available to your user.",
 		types.Playbook{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Playbook, error) {
-			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListPlaybooks)
-			return resp, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListPlaybooks)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -238,8 +237,7 @@ func edit() action.Pair {
 			return connection.Client.GetPlaybook(id)
 		},
 		FetchSub: func() ([]types.Playbook, error) {
-			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListPlaybooks, -1)
-			return resp, err
+			return client.Collect(types.QueryOptions{}, connection.Client.ListPlaybooks, -1)
 		},
 		GetFieldSub: func(item types.Playbook, fieldKey string) (string, error) {
 			switch fieldKey {

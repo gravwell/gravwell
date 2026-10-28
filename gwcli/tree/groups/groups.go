@@ -62,8 +62,7 @@ func listGroups() action.Pair {
 	return scaffoldlist.NewListAction("list groups", "Retrieves the list of groups available on the system",
 		types.Group{},
 		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Group, error) {
-			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListGroups)
-			return resp, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListGroups)
 		},
 		nil,
 		scaffoldlist.Options{

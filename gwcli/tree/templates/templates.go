@@ -185,8 +185,7 @@ func edit() action.Pair {
 			return connection.Client.GetTemplate(id)
 		},
 		FetchSub: func() ([]types.Template, error) {
-			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListTemplates, -1)
-			return resp, err
+			return client.Collect(types.QueryOptions{}, connection.Client.ListTemplates, -1)
 		},
 		GetFieldSub: func(item types.Template, fieldKey string) (string, error) {
 			switch fieldKey {

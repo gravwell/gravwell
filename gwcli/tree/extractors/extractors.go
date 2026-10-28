@@ -97,8 +97,7 @@ func list() action.Pair {
 				return []types.AX{d}, err
 			}
 
-			lr, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListExtractions)
-			return lr, err
+			return scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListExtractions)
 
 		},
 		nil,

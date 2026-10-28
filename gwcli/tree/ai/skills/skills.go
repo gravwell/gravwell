@@ -159,8 +159,7 @@ func edit() action.Pair {
 			return connection.Client.GetAgentSkill(id)
 		},
 		FetchSub: func() ([]types.AgentSkill, error) {
-			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListAgentSkills, -1)
-			return resp, err
+			return client.Collect(types.QueryOptions{}, connection.Client.ListAgentSkills, -1)
 		},
 		GetFieldSub: func(item types.AgentSkill, fieldKey string) (string, error) {
 			return getCommonField(item.CommonFields, fieldKey)

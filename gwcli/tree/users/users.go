@@ -56,8 +56,7 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.User, error) {
-			resp, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListUsers)
-			return resp, err
+			return scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListUsers)
 		}, nil,
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -213,8 +212,7 @@ func edit() action.Pair {
 				return userCBAC.User, nil
 			},
 			FetchSub: func() (items []types.User, err error) {
-				resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
-				return resp, err
+				return client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
 			},
 			GetFieldSub: func(item types.User, fieldKey string) (value string, err error) {
 				switch fieldKey {

@@ -1038,8 +1038,7 @@ func buildRequests() action.Pair {
 			"Note that only the most recent build request is stored for each unique kit ID (e.g. \"io.gravwell.foo\").",
 		types.KitBuildRequest{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.KitBuildRequest, error) {
-			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListKitBuildHistory)
-			return lr, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListKitBuildHistory)
 		},
 		nil,
 		scaffoldlist.Options{

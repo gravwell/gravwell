@@ -168,11 +168,9 @@ func listAction() action.Pair {
 		types.SearchInfo{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchInfo, error) {
 			if params.QueryOptions.All {
-				resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListAllSearches, -1)
-				return resp, err
+				return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAllSearches)
 			}
-			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListSearches, -1)
-			return resp, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListSearches)
 		},
 		nil,
 		scaffoldlist.Options{

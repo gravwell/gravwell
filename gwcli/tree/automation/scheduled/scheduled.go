@@ -72,8 +72,7 @@ func listAction() action.Pair {
 				ss, err := connection.Client.GetScheduledSearchEx(id, client.GetOptions{IncludeDeleted: params.QueryOptions.IncludeDeleted})
 				return []types.ScheduledSearch{ss}, err
 			}
-			list, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledSearches)
-			return list, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledSearches)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -261,8 +260,7 @@ func edit() action.Pair {
 				return connection.Client.GetScheduledSearch(id)
 			},
 			FetchSub: func() (items []types.ScheduledSearch, err error) {
-				list, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledSearches, -1)
-				return list, err
+				return client.Collect(types.QueryOptions{}, connection.Client.ListScheduledSearches, -1)
 			},
 			GetFieldSub: func(item types.ScheduledSearch, fieldKey string) (value string, err error) {
 				switch fieldKey {

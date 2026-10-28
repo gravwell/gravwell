@@ -69,8 +69,7 @@ func listActions() action.Pair {
 	return scaffoldlist.NewListAction("list flows", "Lists information about flows you can access.",
 		types.Flow{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Flow, error) {
-			baseList, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListFlows)
-			return baseList, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListFlows)
 		},
 		nil,
 		scaffoldlist.Options{

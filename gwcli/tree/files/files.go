@@ -52,8 +52,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.File{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.File, error) {
-			flr, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListFiles)
-			return flr, err
+			return scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListFiles)
 		},
 		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
