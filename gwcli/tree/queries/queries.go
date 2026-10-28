@@ -190,11 +190,7 @@ func listAction() action.Pair {
 				"Webserver",
 				"AttachedClients",
 			},
-			QueryOptionsFlags: scaffold.QOOmit{
-				AllData:        false,
-				IncludeDeleted: true,
-				Limit:          true,
-			},
+			QueryOptionsFlags: scaffold.QOOmit{IncludeDeleted: true},
 		})
 }
 

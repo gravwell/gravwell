@@ -131,7 +131,7 @@ func (o QOInclude) Install(fs *pflag.FlagSet) {
 		ft.IncludeDeleted.Register(fs)
 	}
 	if o.Everything || o.Limit {
-		fs.Int32(FlagNameLimit, 0, FlagUsageLimit)
+		fs.Int32(FlagNameLimit, types.QueryOptionsDefaultLimit, FlagUsageLimit)
 	}
 }
 
@@ -181,7 +181,7 @@ func (o QOOmit) Install(fs *pflag.FlagSet) {
 		ft.IncludeDeleted.Register(fs)
 	}
 	if !o.Limit {
-		fs.Int32(FlagNameLimit, 0, FlagUsageLimit)
+		fs.Int32(FlagNameLimit, types.QueryOptionsDefaultLimit, FlagUsageLimit)
 	}
 }
 
