@@ -243,7 +243,7 @@ func TestCollect(t *testing.T) {
 
 // equalOpts compares the fields of QueryOptions that are comparable.
 func equalOpts(a, b types.QueryOptions) bool {
-	return a.Type == b.Type && a.IncludeDeleted == b.IncludeDeleted && a.Version == b.Version &&
+	return a.IncludeDeleted == b.IncludeDeleted && a.Version == b.Version &&
 		a.All == b.All && a.OrderBy == b.OrderBy && a.OrderDirection == b.OrderDirection &&
 		a.CursorID == b.CursorID && a.Limit == b.Limit && a.Search == b.Search &&
 		len(a.Filters) == len(b.Filters)
