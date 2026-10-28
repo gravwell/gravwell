@@ -11,7 +11,6 @@ package client
 import (
 	"errors"
 	"iter"
-	"slices"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 )
@@ -70,19 +69,12 @@ func Collect[R Lister[T], T any](opts types.QueryOptions, list func(types.QueryO
 		}
 	}
 
-	var items []T
+	items := []T{}
 	for page, err := range Pages(opts, list) {
 		if err != nil {
 			return items, err
 		}
 		results := page.Items()
-		if items == nil { // first page; size items to what the listing says it holds
-			want := page.GetTotalCount()
-			if maxCount > 0 {
-				want = min(want, maxCount)
-			}
-			items = make([]T, 0, max(want, 0))
-		}
 		if maxCount > 0 { // only take what we still need, so we never grow past maxCount
 			results = results[:min(len(results), maxCount-len(items))]
 		}
@@ -91,5 +83,5 @@ func Collect[R Lister[T], T any](opts types.QueryOptions, list func(types.QueryO
 			return items, nil
 		}
 	}
-	return slices.Clip(items), nil
+	return items, nil
 }

@@ -179,10 +179,6 @@ func TestCollect(t *testing.T) {
 			if len(f.calls) != tt.wantCalls {
 				t.Fatalf("expected %d calls, got %d", tt.wantCalls, len(f.calls))
 			}
-			// the fake reports an accurate TotalCount, so items should have been sized exactly
-			if cap(got) != len(got) {
-				t.Fatalf("expected a capacity of %d, got %d", len(got), cap(got))
-			}
 			for i, c := range f.calls {
 				if c.Limit != tt.wantLimit {
 					t.Fatalf("call %d used a page size of %d, expected %d", i, c.Limit, tt.wantLimit)
