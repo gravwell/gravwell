@@ -114,6 +114,7 @@ func TestQueryOptions(t *testing.T) {
 				types.QueryOptions{
 					IncludeDeleted: true,
 					All:            true,
+					Limit:          types.QueryOptionsDefaultLimit, // --limit was not set
 				},
 			},
 		},

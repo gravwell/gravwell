@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -51,8 +52,7 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.File{}, func(fs *pflag.FlagSet, param scaffoldlist.DataParameters) ([]types.File, error) {
-			flr, err := connection.Client.ListFiles(param.QueryOptions)
-			return flr.Results, err
+			return scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListFiles)
 		},
 		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
@@ -175,11 +175,11 @@ func edit() action.Pair {
 				return connection.Client.GetFileMetadata(id)
 			},
 			FetchSub: func() (items []types.File, err error) {
-				flr, err := connection.Client.ListFiles(types.QueryOptions{})
+				flr, err := client.Collect(types.QueryOptions{}, connection.Client.ListFiles, -1)
 				if err != nil {
 					return nil, err
 				}
-				return flr.Results, nil
+				return flr, nil
 			},
 			GetFieldSub: func(item types.File, fieldKey string) (value string, err error) {
 				switch fieldKey {
@@ -247,12 +247,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteFile(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListFiles(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListFiles)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
@@ -270,12 +270,12 @@ func replace() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
 			clilog.GetFlag(err)
-			lr, err := connection.Client.ListFiles(types.QueryOptions{All: all})
+			lr, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListFiles, -1)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

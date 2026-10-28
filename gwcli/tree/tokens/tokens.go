@@ -68,11 +68,11 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Token{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Token, error) {
-			resp, err := connection.Client.ListTokens(params.QueryOptions)
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListTokens)
 			if err != nil {
 				return nil, err
 			}
-			return resp.Results, nil
+			return resp, nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -375,12 +375,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteToken(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTokens(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListTokens)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, t := range lr.Results {
+			var items = make([]multiselectlist.SelectableItem[string], len(lr))
+			for i, t := range lr {
 				items[i] = &listitem.Generic{
 					Selected_:  false,
 					ID_:        t.ID,
@@ -417,11 +417,11 @@ func regenerate() action.Pair {
 				return connection.Client.GetToken(id)
 			},
 			FetchSub: func() (items []types.Token, err error) {
-				resp, err := connection.Client.ListTokens(types.QueryOptions{})
+				resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListTokens, -1)
 				if err != nil {
 					return nil, err
 				}
-				return resp.Results, nil
+				return resp, nil
 			},
 			GetFieldSub: func(item types.Token, fieldKey string) (value string, err error) {
 				switch fieldKey {

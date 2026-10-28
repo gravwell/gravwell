@@ -204,7 +204,4 @@ func (cf CommonFields) ToPatch() CommonFieldsPatch {
 	}
 }
 
-type ListAllResponse struct {
-	BaseListResponse
-	Results []CommonFields
-}
+type ListAllResponse = ListResponse[CommonFields]

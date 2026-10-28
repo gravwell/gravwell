@@ -202,12 +202,12 @@ func unpackKitFile(pth, targetDir string) (err error) {
 }
 
 func getSearchLibraryItems(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var items types.SavedQueryListResponse
-	if items, err = cli.ListAllSavedQueries(types.QueryOptions{}); err != nil {
+	var items []types.SavedQuery
+	if items, err = client.Collect(types.QueryOptions{}, cli.ListAllSavedQueries, -1); err != nil {
 		err = fmt.Errorf("failed to get search library items: %w", err)
 		return
 	}
-	for _, sl := range items.Results {
+	for _, sl := range items {
 		if slices.Contains(orig.SavedQueries, sl.ID) || slices.Contains(sl.Labels, label) {
 			kbr.SavedQueries = append(kbr.SavedQueries, sl.ID)
 		}
@@ -216,12 +216,12 @@ func getSearchLibraryItems(cli *client.Client, label string, orig types.KitBuild
 }
 
 func getKitDashboards(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var dashboards types.DashboardListResponse
-	if dashboards, err = cli.ListAllDashboards(types.QueryOptions{}); err != nil {
+	var dashboards []types.Dashboard
+	if dashboards, err = client.Collect(types.QueryOptions{}, cli.ListAllDashboards, -1); err != nil {
 		err = fmt.Errorf("failed to get dashboards: %w", err)
 		return
 	}
-	for _, d := range dashboards.Results {
+	for _, d := range dashboards {
 		if slices.Contains(d.Labels, label) || slices.Contains(orig.Dashboards, d.ID) {
 			kbr.Dashboards = append(kbr.Dashboards, d.ID)
 		}
@@ -230,12 +230,12 @@ func getKitDashboards(cli *client.Client, label string, orig types.KitBuildReque
 }
 
 func getKitTemplates(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var templates types.TemplateListResponse
-	if templates, err = cli.ListAllTemplates(types.QueryOptions{}); err != nil {
+	var templates []types.Template
+	if templates, err = client.Collect(types.QueryOptions{}, cli.ListAllTemplates, -1); err != nil {
 		err = fmt.Errorf("failed to get user templates: %w", err)
 		return
 	}
-	for _, t := range templates.Results {
+	for _, t := range templates {
 		if slices.Contains(t.Labels, label) || slices.Contains(orig.Templates, t.ID) {
 			kbr.Templates = append(kbr.Templates, t.ID)
 		}
@@ -244,12 +244,12 @@ func getKitTemplates(cli *client.Client, label string, orig types.KitBuildReques
 }
 
 func getKitActionables(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var actionables types.ActionableListResponse
-	if actionables, err = cli.ListAllActionables(types.QueryOptions{}); err != nil {
+	var actionables []types.Actionable
+	if actionables, err = client.Collect(types.QueryOptions{}, cli.ListAllActionables, -1); err != nil {
 		err = fmt.Errorf("failed to get actionables: %w", err)
 		return
 	}
-	for _, a := range actionables.Results {
+	for _, a := range actionables {
 		if slices.Contains(a.Labels, label) || slices.Contains(orig.Actionables, a.ID) {
 			kbr.Actionables = append(kbr.Actionables, a.ID)
 		}
@@ -258,12 +258,12 @@ func getKitActionables(cli *client.Client, label string, orig types.KitBuildRequ
 }
 
 func getKitResources(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var resources types.ResourceListResponse
-	if resources, err = cli.ListAllResources(types.QueryOptions{}); err != nil {
+	var resources []types.Resource
+	if resources, err = client.Collect(types.QueryOptions{}, cli.ListAllResources, -1); err != nil {
 		err = fmt.Errorf("failed to get resources: %w", err)
 		return
 	}
-	for _, r := range resources.Results {
+	for _, r := range resources {
 		if slices.Contains(r.Labels, label) || slices.Contains(orig.Resources, r.ID) {
 			kbr.Resources = append(kbr.Resources, r.ID)
 		}
@@ -272,12 +272,12 @@ func getKitResources(cli *client.Client, label string, orig types.KitBuildReques
 }
 
 func getKitScheduledSearches(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var searches types.ScheduledSearchListResponse
-	if searches, err = cli.ListScheduledSearches(types.QueryOptions{}); err != nil {
+	var searches []types.ScheduledSearch
+	if searches, err = client.Collect(types.QueryOptions{}, cli.ListScheduledSearches, -1); err != nil {
 		err = fmt.Errorf("failed to get scheduled searches: %w", err)
 		return
 	}
-	for _, ss := range searches.Results {
+	for _, ss := range searches {
 		if slices.Contains(ss.Labels, label) || slices.Contains(orig.ScheduledSearches, ss.ID) {
 			kbr.ScheduledSearches = append(kbr.ScheduledSearches, ss.ID)
 		}
@@ -286,12 +286,12 @@ func getKitScheduledSearches(cli *client.Client, label string, orig types.KitBui
 }
 
 func getKitScheduledScripts(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var scripts types.ScheduledScriptListResponse
-	if scripts, err = cli.ListScheduledScripts(types.QueryOptions{}); err != nil {
+	var scripts []types.ScheduledScript
+	if scripts, err = client.Collect(types.QueryOptions{}, cli.ListScheduledScripts, -1); err != nil {
 		err = fmt.Errorf("failed to get scheduled scripts: %w", err)
 		return
 	}
-	for _, ss := range scripts.Results {
+	for _, ss := range scripts {
 		if slices.Contains(ss.Labels, label) || slices.Contains(orig.ScheduledScripts, ss.ID) {
 			kbr.ScheduledScripts = append(kbr.ScheduledScripts, ss.ID)
 		}
@@ -300,12 +300,12 @@ func getKitScheduledScripts(cli *client.Client, label string, orig types.KitBuil
 }
 
 func getKitFlows(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var flows types.FlowListResponse
-	if flows, err = cli.ListFlows(types.QueryOptions{}); err != nil {
+	var flows []types.Flow
+	if flows, err = client.Collect(types.QueryOptions{}, cli.ListFlows, -1); err != nil {
 		err = fmt.Errorf("failed to get flows: %w", err)
 		return
 	}
-	for _, f := range flows.Results {
+	for _, f := range flows {
 		if slices.Contains(f.Labels, label) || slices.Contains(orig.Flows, f.ID) {
 			kbr.Flows = append(kbr.Flows, f.ID)
 		}
@@ -314,12 +314,12 @@ func getKitFlows(cli *client.Client, label string, orig types.KitBuildRequest, k
 }
 
 func getKitAlerts(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var alerts types.AlertListResponse
-	if alerts, err = cli.ListAllAlerts(types.QueryOptions{}); err != nil {
+	var alerts []types.Alert
+	if alerts, err = client.Collect(types.QueryOptions{}, cli.ListAllAlerts, -1); err != nil {
 		err = fmt.Errorf("failed to get alerts: %w", err)
 		return
 	}
-	for _, a := range alerts.Results {
+	for _, a := range alerts {
 		if slices.Contains(a.Labels, label) || slices.Contains(orig.Alerts, a.ID) {
 			kbr.Alerts = append(kbr.Alerts, a.ID)
 		}
@@ -328,12 +328,12 @@ func getKitAlerts(cli *client.Client, label string, orig types.KitBuildRequest, 
 }
 
 func getKitMacros(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var macros types.MacroListResponse
-	if macros, err = cli.ListAllMacros(types.QueryOptions{}); err != nil {
+	var macros []types.Macro
+	if macros, err = client.Collect(types.QueryOptions{}, cli.ListAllMacros, -1); err != nil {
 		err = fmt.Errorf("failed to get macros: %w", err)
 		return
 	}
-	for _, m := range macros.Results {
+	for _, m := range macros {
 		if slices.Contains(m.Labels, label) || slices.Contains(orig.Macros, m.ID) {
 			kbr.Macros = append(kbr.Macros, m.ID)
 		}
@@ -342,12 +342,12 @@ func getKitMacros(cli *client.Client, label string, orig types.KitBuildRequest, 
 }
 
 func getKitExtractors(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var extractors types.AXListResponse
-	if extractors, err = cli.ListAllExtractions(types.QueryOptions{}); err != nil {
+	var extractors []types.AX
+	if extractors, err = client.Collect(types.QueryOptions{}, cli.ListAllExtractions, -1); err != nil {
 		err = fmt.Errorf("failed to get extractors: %w", err)
 		return
 	}
-	for _, e := range extractors.Results {
+	for _, e := range extractors {
 		if slices.Contains(e.Labels, label) || slices.Contains(orig.Extractors, e.ID) {
 			kbr.Extractors = append(kbr.Extractors, e.ID)
 		}
@@ -356,12 +356,12 @@ func getKitExtractors(cli *client.Client, label string, orig types.KitBuildReque
 }
 
 func getKitFiles(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	flr, err := cli.ListFiles(types.QueryOptions{})
+	flr, err := client.Collect(types.QueryOptions{}, cli.ListFiles, -1)
 	if err != nil {
 		err = fmt.Errorf("failed to get files: %w", err)
 		return
 	}
-	for _, f := range flr.Results {
+	for _, f := range flr {
 		if slices.Contains(f.Labels, label) || slices.Contains(orig.Files, f.ID) {
 			kbr.Files = append(kbr.Files, f.ID)
 		}
@@ -370,12 +370,12 @@ func getKitFiles(cli *client.Client, label string, orig types.KitBuildRequest, k
 }
 
 func getKitPlaybooks(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var playbooks types.PlaybookListResponse
-	if playbooks, err = cli.ListPlaybooks(types.QueryOptions{}); err != nil {
+	var playbooks []types.Playbook
+	if playbooks, err = client.Collect(types.QueryOptions{}, cli.ListPlaybooks, -1); err != nil {
 		err = fmt.Errorf("failed to get playbooks: %w", err)
 		return
 	}
-	for _, p := range playbooks.Results {
+	for _, p := range playbooks {
 		if slices.Contains(p.Labels, label) || slices.Contains(orig.Playbooks, p.ID) {
 			kbr.Playbooks = append(kbr.Playbooks, p.ID)
 		}
@@ -406,12 +406,12 @@ func pushKit(cli *client.Client, force bool) (err error) {
 	// to the version in the manifest and force is not true, then we need to error out because we don't want to accidentally
 	// overwrite a newer kit with an older one.  If we have a kit with the same ID but a lower version,
 	// then we can proceed with the deployment because the manifest version will overwrite the existing kit version on the server.
-	var kits types.KitStateListResponse
-	if kits, err = cli.ListAllKits(types.QueryOptions{}); err != nil {
+	var kits []types.KitState
+	if kits, err = client.Collect(types.QueryOptions{}, cli.ListAllKits, -1); err != nil {
 		err = fmt.Errorf("failed to get list of kits from server: %w", err)
 		return
 	}
-	for _, k := range kits.Results {
+	for _, k := range kits {
 		if k.ID == mf.ID {
 			if k.Version >= mf.Version {
 				if force {

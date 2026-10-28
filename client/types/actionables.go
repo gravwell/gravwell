@@ -103,10 +103,7 @@ type ActionableTimeVariable struct {
 	Placeholder string
 }
 
-type ActionableListResponse struct {
-	BaseListResponse
-	Results []Actionable
-}
+type ActionableListResponse = ListResponse[Actionable]
 
 // Valid values for ActionableTriggerComplexity.Severity.
 const (
