@@ -22,7 +22,4 @@ type SearchHistoryEntry struct {
 	Launched       time.Time
 }
 
-type SearchHistoryListResponse struct {
-	BaseListResponse
-	Results []SearchHistoryEntry
-}
+type SearchHistoryListResponse = ListResponse[SearchHistoryEntry]

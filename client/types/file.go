@@ -18,10 +18,7 @@ type File struct {
 	FileExtension string // The extension of the uploaded file, with the dot (ex: ".csv").
 }
 
-type FileListResponse struct {
-	BaseListResponse
-	Results []File
-}
+type FileListResponse = ListResponse[File]
 
 // FilePatch is the type used to request an update to the metadata of an existing File.
 type FilePatch struct {

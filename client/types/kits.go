@@ -139,10 +139,7 @@ type KitState struct {
 	ConflictingItems []KitItem         // items which will overwrite a user-created object
 }
 
-type KitStateListResponse struct {
-	BaseListResponse
-	Results []KitState
-}
+type KitStateListResponse = ListResponse[KitState]
 
 type KitEmbeddedItem struct {
 	KitItem
@@ -182,10 +179,7 @@ type KitBuildRequest struct {
 	BuildDate             time.Time
 }
 
-type KitBuildRequestListResponse struct {
-	BaseListResponse
-	Results []KitBuildRequest
-}
+type KitBuildRequestListResponse = ListResponse[KitBuildRequest]
 
 type KitBuildResponse struct {
 	ID      string

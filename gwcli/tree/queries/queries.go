@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -70,7 +71,7 @@ func past() action.Pair {
 		"display search history", "display past searches made by your user",
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchHistoryEntry, error) {
-			resp, err := connection.Client.ListSearchHistory(params.QueryOptions)
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListSearchHistory)
 			if err != nil {
 				// check for explicit no records error
 				if strings.Contains(err.Error(), "No record") {
@@ -79,7 +80,7 @@ func past() action.Pair {
 				}
 				return nil, err
 			}
-			return resp.Results, nil
+			return resp, nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -105,12 +106,12 @@ func past() action.Pair {
 //
 // TODO install omit
 func fetchActiveSearchesForMSL(details bool) ([]multiselectlist.SelectableItem[string], error) {
-	lsd, err := connection.Client.ListSearches(types.QueryOptions{})
+	lsd, err := client.Collect(types.QueryOptions{}, connection.Client.ListSearches, -1)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]multiselectlist.SelectableItem[string], len(lsd.Results))
-	for i, s := range lsd.Results {
+	items := make([]multiselectlist.SelectableItem[string], len(lsd))
+	for i, s := range lsd {
 		var secondLine strings.Builder
 		if s.Error != "" {
 			secondLine.WriteString("error: ")
@@ -167,11 +168,9 @@ func listAction() action.Pair {
 		types.SearchInfo{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.SearchInfo, error) {
 			if params.QueryOptions.All {
-				resp, err := connection.Client.ListAllSearches(types.QueryOptions{})
-				return resp.Results, err
+				return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAllSearches)
 			}
-			resp, err := connection.Client.ListSearches(types.QueryOptions{})
-			return resp.Results, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListSearches)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -189,11 +188,7 @@ func listAction() action.Pair {
 				"Webserver",
 				"AttachedClients",
 			},
-			QueryOptionsFlags: scaffold.QOOmit{
-				AllData:        false,
-				IncludeDeleted: true,
-				Limit:          true,
-			},
+			QueryOptionsFlags: scaffold.QOOmit{IncludeDeleted: true},
 		})
 }
 

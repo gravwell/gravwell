@@ -21,6 +21,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dustin/go-humanize/english"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -392,14 +393,14 @@ func listUserSearchStorage() action.Pair {
 			"This does not factor in other items related to this user that are stored on the system.",
 		userSearchStorage{},
 		func(addtlFlags *pflag.FlagSet, params scaffoldlist.DataParameters) ([]userSearchStorage, error) {
-			statuses, err := connection.Client.ListAllSearches(types.QueryOptions{})
+			statuses, err := client.Collect(types.QueryOptions{}, connection.Client.ListAllSearches, -1)
 			if err != nil {
 				return nil, err
-			} else if len(statuses.Results) < 1 {
+			} else if len(statuses) < 1 {
 				return nil, nil
 			}
 			storageMap := map[int32]int64{}
-			for _, s := range statuses.Results {
+			for _, s := range statuses {
 				if s.StoredData > 0 {
 					storageMap[s.OwnerID] += s.StoredData // starts as bytes
 				}
@@ -508,7 +509,7 @@ func massChown() action.Pair {
 			)
 
 			// saved queries
-			if lr, err := connection.Client.ListAllSavedQueries(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllSavedQueries, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get saved queries: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -516,7 +517,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateSavedQuery(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown saved query %s: %v\n", res.ID, err)
@@ -531,7 +532,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "saved query")
 			}
 			// dashboards
-			if lr, err := connection.Client.ListAllDashboards(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllDashboards, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get dashboards: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -539,7 +540,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateDashboard(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown dashboard %s: %v\n", res.ID, err)
@@ -557,7 +558,7 @@ func massChown() action.Pair {
 			sb.WriteString("chowning kits is not currently supported\n")
 
 			// extractions
-			if lr, err := connection.Client.ListAllExtractions(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllExtractions, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get extractions: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -565,7 +566,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateExtraction(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown extraction %s: %v\n", res.ID, err)
@@ -580,7 +581,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "extraction")
 			}
 			// actionables
-			if lr, err := connection.Client.ListAllActionables(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllActionables, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get actionables: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -588,7 +589,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateActionable(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown actionable %s: %v\n", res.ID, err)
@@ -603,7 +604,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "actionable")
 			}
 			// playbooks
-			if lr, err := connection.Client.ListAllPlaybooks(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllPlaybooks, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get playbooks: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -611,7 +612,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdatePlaybook(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown playbook %s: %v\n", res.ID, err)
@@ -626,7 +627,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "playbook")
 			}
 			// scheduled searches
-			if lr, err := connection.Client.ListAllScheduledSearches(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllScheduledSearches, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get scheduled searches: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -634,7 +635,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateScheduledSearch(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown scheduled search %s: %v\n", res.ID, err)
@@ -649,7 +650,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "scheduled search")
 			}
 			// scheduled scripts
-			if lr, err := connection.Client.ListAllScheduledScripts(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllScheduledScripts, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get scheduled scripts: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -657,7 +658,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateScheduledScript(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown scheduled script %s: %v\n", res.ID, err)
@@ -672,7 +673,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "scheduled script")
 			}
 			// files
-			if lr, err := connection.Client.ListAllFiles(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllFiles, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get files: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -680,7 +681,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateFileMetadata(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown file %s: %v\n", res.ID, err)
@@ -695,7 +696,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "file")
 			}
 			// templates
-			if lr, err := connection.Client.ListAllTemplates(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllTemplates, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get templates: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -703,7 +704,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateTemplate(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown template %s: %v\n", res.ID, err)
@@ -718,7 +719,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "template")
 			}
 			// resources
-			if lr, err := connection.Client.ListAllResources(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllResources, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get resources: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -726,7 +727,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateResourceMetadata(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown resource %s: %v\n", res.ID, err)
@@ -741,7 +742,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "resource")
 			}
 			// macros
-			if lr, err := connection.Client.ListAllMacros(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllMacros, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get macros: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -749,7 +750,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateMacro(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown macro %s: %v\n", res.ID, err)
@@ -764,7 +765,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "macro")
 			}
 			// flows
-			if lr, err := connection.Client.ListAllFlows(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllFlows, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get flows: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -772,7 +773,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateFlow(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown flow %s: %v\n", res.ID, err)
@@ -787,7 +788,7 @@ func massChown() action.Pair {
 				chownedString(&sb, success, "flow")
 			}
 			// alerts
-			if lr, err := connection.Client.ListAllAlerts(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllAlerts, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get alerts: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -795,7 +796,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateAlert(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown alert %s: %v\n", res.ID, err)
@@ -811,7 +812,7 @@ func massChown() action.Pair {
 			}
 
 			// secrets // TODO test
-			if lr, err := connection.Client.ListAllSecrets(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllSecrets, -1); err != nil {
 				clilog.Tee(clilog.ERROR, &sb, "failed to get secrets: "+err.Error()+"\n")
 				failed = true
 				if !noFail {
@@ -819,7 +820,7 @@ func massChown() action.Pair {
 				}
 			} else {
 				var success uint
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					res.CommonFields.OwnerID = to
 					if _, err := connection.Client.UpdateSecret(res.ID, res.ToPatch()); err != nil {
 						fmt.Fprintf(&sb, "failed to chown secret %s: %v\n", res.ID, err)
@@ -914,11 +915,11 @@ func chown() action.Pair {
 			}
 
 			// saved queries
-			if lr, err := connection.Client.ListAllSavedQueries(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllSavedQueries, -1); err != nil {
 				clilog.Writer.Error("failed to get saved queries", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -927,11 +928,11 @@ func chown() action.Pair {
 				}
 			}
 			// dashboards
-			if lr, err := connection.Client.ListAllDashboards(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllDashboards, -1); err != nil {
 				clilog.Writer.Error("failed to get dashboards", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -942,11 +943,11 @@ func chown() action.Pair {
 			// kits
 			// TODO currently being skipped, as they were skipped pre-6.0.0
 			// extractions
-			if lr, err := connection.Client.ListAllExtractions(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllExtractions, -1); err != nil {
 				clilog.Writer.Error("failed to get extractions", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -955,11 +956,11 @@ func chown() action.Pair {
 				}
 			}
 			// actionables
-			if lr, err := connection.Client.ListAllActionables(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllActionables, -1); err != nil {
 				clilog.Writer.Error("failed to get actionables", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -968,11 +969,11 @@ func chown() action.Pair {
 				}
 			}
 			// playbooks
-			if lr, err := connection.Client.ListAllPlaybooks(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllPlaybooks, -1); err != nil {
 				clilog.Writer.Error("failed to get playbooks", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -981,11 +982,11 @@ func chown() action.Pair {
 				}
 			}
 			// scheduled searches
-			if lr, err := connection.Client.ListAllScheduledSearches(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllScheduledSearches, -1); err != nil {
 				clilog.Writer.Error("failed to get scheduled searches", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -994,11 +995,11 @@ func chown() action.Pair {
 				}
 			}
 			// scheduled scripts
-			if lr, err := connection.Client.ListAllScheduledScripts(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllScheduledScripts, -1); err != nil {
 				clilog.Writer.Error("failed to get scheduled scripts", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -1007,11 +1008,11 @@ func chown() action.Pair {
 				}
 			}
 			// files
-			if lr, err := connection.Client.ListAllFiles(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllFiles, -1); err != nil {
 				clilog.Writer.Error("failed to get files", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -1020,11 +1021,11 @@ func chown() action.Pair {
 				}
 			}
 			// templates
-			if lr, err := connection.Client.ListAllTemplates(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllTemplates, -1); err != nil {
 				clilog.Writer.Error("failed to get templates", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -1033,11 +1034,11 @@ func chown() action.Pair {
 				}
 			}
 			// resources
-			if lr, err := connection.Client.ListAllResources(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllResources, -1); err != nil {
 				clilog.Writer.Error("failed to get resources", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -1046,11 +1047,11 @@ func chown() action.Pair {
 				}
 			}
 			// macros
-			if lr, err := connection.Client.ListAllMacros(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllMacros, -1); err != nil {
 				clilog.Writer.Error("failed to get macros", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -1059,11 +1060,11 @@ func chown() action.Pair {
 				}
 			}
 			// flows
-			if lr, err := connection.Client.ListAllFlows(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllFlows, -1); err != nil {
 				clilog.Writer.Error("failed to get flows", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
@@ -1072,11 +1073,11 @@ func chown() action.Pair {
 				}
 			}
 			// alerts
-			if lr, err := connection.Client.ListAllAlerts(qo); err != nil {
+			if lr, err := client.Collect(qo, connection.Client.ListAllAlerts, -1); err != nil {
 				clilog.Writer.Error("failed to get alerts", log.KVErr(err))
 				return nil, err
 			} else {
-				for _, res := range lr.Results {
+				for _, res := range lr {
 					data = append(data, &listitem.Generic{
 						ID_:        res.ID,
 						Name:       res.Name,
