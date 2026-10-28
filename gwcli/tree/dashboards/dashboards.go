@@ -12,6 +12,7 @@ package dashboards
 import (
 	"fmt"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -49,8 +50,7 @@ func NewNav() *cobra.Command {
 func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list dashboards", "list dashboards available to you and the system",
 		types.Dashboard{}, func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Dashboard, error) {
-			r, err := connection.Client.ListDashboards(params.QueryOptions)
-			return r.Results, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListDashboards)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -77,11 +77,11 @@ func delete() action.Pair {
 			return connection.Client.DeleteDashboard(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListDashboards(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListDashboards)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
@@ -98,11 +98,11 @@ func clone() action.Pair {
 	return scaffoldselect.NewSelectAction("clone dashboards", "create a copy of one or many dashboards.",
 		"dashboard",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			dlr, err := connection.Client.ListDashboards(types.QueryOptions{})
+			dlr, err := client.Collect(types.QueryOptions{}, connection.Client.ListDashboards, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(dlr.Results), nil
+			return listitem.WrapAssets(dlr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

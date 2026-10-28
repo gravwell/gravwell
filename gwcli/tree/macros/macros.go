@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
 )
@@ -64,20 +66,20 @@ func list() action.Pair {
 			clilog.GetFlag(err)
 			if gid != 0 { // fetch all macros our group ID can read
 				// TODO inject the group ID filter here rather than manually filtering after the fact
-				macros, err := connection.Client.ListAllMacros(params.QueryOptions)
+				// limit must be applied after filtering, so collect everything first
+				limit := int(params.QueryOptions.Limit)
+				params.QueryOptions.Limit = 0
+				macros, err := client.Collect(params.QueryOptions, connection.Client.ListAllMacros, -1)
 				if err != nil {
 					return nil, err
 				}
-				var macroResults []types.Macro
-				for _, m := range macros.Results {
-					if m.GroupCanRead(gid) {
-						macroResults = append(macroResults, m)
-					}
+				macros = slices.DeleteFunc(macros, func(m types.Macro) bool { return !m.GroupCanRead(gid) })
+				if limit > 0 {
+					macros = macros[:min(len(macros), limit)]
 				}
-				return macroResults, nil
+				return macros, nil
 			}
-			r, err := connection.Client.ListMacros(params.QueryOptions)
-			return r.Results, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListMacros)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -185,8 +187,7 @@ func edit() action.Pair {
 			return connection.Client.GetMacro(id)
 		},
 		FetchSub: func() ([]types.Macro, error) {
-			r, err := connection.Client.ListMacros(types.QueryOptions{})
-			return r.Results, err
+			return client.Collect(types.QueryOptions{}, connection.Client.ListMacros, -1)
 		},
 		GetFieldSub: func(item types.Macro, fieldKey string) (string, error) {
 			switch fieldKey {
@@ -250,12 +251,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteMacro(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListMacros(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListMacros)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{

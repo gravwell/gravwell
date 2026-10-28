@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/confirmation"
@@ -166,26 +167,26 @@ func (m *membershipChanges) SetArgs(parentFS *pflag.FlagSet, tokens []string, wi
 	// TODO we need to check for flags for preselections!
 
 	// build each list from the set of users and groups
-	glr, err := connection.Client.ListGroups(types.QueryOptions{})
+	glr, err := client.Collect(types.QueryOptions{}, connection.Client.ListGroups, -1)
 	if err != nil {
 		return "", nil, err
-	} else if len(glr.Results) < 1 {
+	} else if len(glr) < 1 {
 		return "", nil, errors.New("no groups available. Please create one before attempting to change its users")
 	}
-	ulr, err := connection.Client.ListUsers(types.QueryOptions{})
+	ulr, err := client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
 	if err != nil {
 		return "", nil, err
-	} else if len(ulr.Results) < 1 {
+	} else if len(ulr) < 1 {
 		clilog.Writer.Warn("membershipChanges made it to SetArgs with zero users!", scaffold.IdentifyCaller())
 		return "", nil, errors.New("I don't know how you managed to get here with zero users, but you have no users to modify the group membership of")
 	}
 
 	// build the user list
-	userItems := make([]multiselectlist.SelectableItem[int32], len(ulr.Results))
+	userItems := make([]multiselectlist.SelectableItem[int32], len(ulr))
 	GIDToUIDs := make(map[int32][]int32) // inverse user -> groups mapping so we don't have to hit the backend again
 	{
 		var grpIDssb strings.Builder // reused each cycle
-		for i, user := range ulr.Results {
+		for i, user := range ulr {
 			grpIDssb.Reset()
 			for _, grp := range user.Groups {
 				fmt.Fprint(&grpIDssb, grp.ID, " ")
@@ -209,9 +210,9 @@ func (m *membershipChanges) SetArgs(parentFS *pflag.FlagSet, tokens []string, wi
 	m.users.Title = "Users"
 
 	// build the group list
-	groupItems := make([]multiselectlist.SelectableItem[int32], len(glr.Results))
+	groupItems := make([]multiselectlist.SelectableItem[int32], len(glr))
 	{
-		for i, grp := range glr.Results {
+		for i, grp := range glr {
 			desc := "(no users)"
 			uids := GIDToUIDs[grp.ID]
 			if len(uids) > 0 {

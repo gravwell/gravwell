@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -112,11 +113,11 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		wrappedTemplate{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]wrappedTemplate, error) {
-			resp, err := connection.Client.ListTemplates(params.QueryOptions)
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListTemplates)
 			if err != nil {
 				return nil, err
 			}
-			return wrap(resp.Results), nil
+			return wrap(resp), nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -150,12 +151,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteTemplate(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTemplates(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListTemplates)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Requirements: annotations.Requirements{
@@ -184,8 +185,7 @@ func edit() action.Pair {
 			return connection.Client.GetTemplate(id)
 		},
 		FetchSub: func() ([]types.Template, error) {
-			resp, err := connection.Client.ListTemplates(types.QueryOptions{})
-			return resp.Results, err
+			return client.Collect(types.QueryOptions{}, connection.Client.ListTemplates, -1)
 		},
 		GetFieldSub: func(item types.Template, fieldKey string) (string, error) {
 			switch fieldKey {
@@ -238,11 +238,11 @@ type content struct {
 func show() action.Pair {
 	return scaffoldselect.NewSelectAction("display template contents", "Display the contents of a template", "template",
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListTemplates(types.QueryOptions{}) // TODO need to pass in params
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListTemplates, -1) // TODO need to pass in params
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			asJSON, err := addtlFlags.GetBool(ft.JSON.Name())

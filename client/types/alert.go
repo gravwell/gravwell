@@ -179,10 +179,7 @@ type AlertConsumerValidateResponse struct {
 	Error string
 }
 
-type AlertListResponse struct {
-	BaseListResponse
-	Results []Alert
-}
+type AlertListResponse = ListResponse[Alert]
 
 // FindMostRelevantAutomation resolves the appropriate automation
 // (scheduled search, script, or flow) for the given user based on the

@@ -860,6 +860,7 @@ func TestOmitFlags(t *testing.T) {
 						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
+							Limit:          types.QueryOptionsDefaultLimit, // --limit was not set
 						},
 					},
 				},
@@ -952,6 +953,7 @@ func TestOmitFlags(t *testing.T) {
 						types.QueryOptions{
 							IncludeDeleted: true,
 							All:            true,
+							Limit:          types.QueryOptionsDefaultLimit, // --limit was not set
 						},
 					},
 				},
