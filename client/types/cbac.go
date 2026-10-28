@@ -912,13 +912,6 @@ func isGlob(pattern string) bool {
 	return strings.ContainsAny(pattern, globChars)
 }
 
-func matchGlob(pattern, val string) (r bool) {
-	if g, err := glob.Compile(pattern); err == nil && g != nil {
-		r = g.Match(val)
-	}
-	return
-}
-
 func checkGlob(pattern string) (err error) {
 	if isGlob(pattern) {
 		_, err = glob.Compile(pattern)
@@ -926,18 +919,9 @@ func checkGlob(pattern string) (err error) {
 	return
 }
 
-func matchTag(pattern, tag string) bool {
-	if pattern == tag {
-		return true
-	} else if isGlob(pattern) && matchGlob(pattern, tag) {
-		return true
-	}
-	return false
-}
-
 func (ta TagAccess) check(tg string) bool {
 	for _, v := range ta.Grants {
-		if matchTag(v, tg) {
+		if grantMatches(v, tg) {
 			return true
 		}
 	}
@@ -989,8 +973,9 @@ func CheckTagAccess(tg string, prime TagAccess, set []TagAccess) (allowed bool) 
 
 // FilterTags returns the set of tags permitted within a given slice of tags.
 func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
+	m := newTagMatcher(prime, set)
 	for _, t := range tags {
-		if CheckTagAccess(t, prime, set) {
+		if m.match(t) {
 			r = append(r, t)
 		}
 	}
@@ -1016,12 +1001,7 @@ func (ud *UserDetails) FilterTags(all []string) (r []string) {
 	if ud.Admin {
 		return all
 	}
-	for _, t := range all {
-		if ud.HasTagAccess(t) {
-			r = append(r, t)
-		}
-	}
-	return
+	return FilterTags(all, ud.CBAC.Tags, ud.GroupTagAccess())
 }
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
