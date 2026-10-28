@@ -18,10 +18,13 @@ import (
 	"github.com/gobwas/glob"
 )
 
-// maxGlobCache caps the process-wide compiled glob cache. Grants are set by
-// admins, so the live set is small; the cap only bounds worst-case growth.
-// Patterns past the cap are compiled on every use, as they were before the
-// cache existed.
+// maxGlobCache caps the process-wide compiled glob cache. Only complex globs
+// are cached, not exact or prefix* grants, so 8192 is well above any
+// realistic set of distinct patterns (200 groups of 25 grants is 5,000 grants
+// in all). An entry is at most about 1.6 KB, so a full cache is about 13 MB.
+// Patterns from deleted or edited grants are never removed one by one, so a
+// full cache is emptied and refilled; live patterns compile again on their
+// next use.
 const maxGlobCache = 8192
 
 var (
@@ -41,10 +44,14 @@ func compiledGlob(pattern string) glob.Glob {
 	if err != nil {
 		g = nil
 	}
-	if globCacheSize.Load() < maxGlobCache {
-		if _, loaded := globCache.LoadOrStore(pattern, g); !loaded {
-			globCacheSize.Add(1)
-		}
+	// Only the caller that wins the swap clears, so concurrent callers do not
+	// empty the cache twice. A store that lands between the swap and Clear is
+	// lost and only makes the count run high, which clears a little early.
+	if n := globCacheSize.Load(); n >= maxGlobCache && globCacheSize.CompareAndSwap(n, 0) {
+		globCache.Clear()
+	}
+	if _, loaded := globCache.LoadOrStore(pattern, g); !loaded {
+		globCacheSize.Add(1)
 	}
 	return g
 }

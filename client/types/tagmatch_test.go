@@ -30,8 +30,8 @@ func tagUser(admin bool, user []string, groups ...[]string) *UserDetails {
 }
 
 // outcome runs f and returns its result, or "panic" if it panics. Some valid
-// gobwas patterns, such as "a?-{}", panic in Match. The legacy code panics on
-// them too, so a panic is an outcome to compare, not a test failure.
+// gobwas patterns, such as "a?-{}", panic in Match, so a panic is an outcome
+// to compare, not a test failure.
 func outcome(f func() any) (r any) {
 	defer func() {
 		if recover() != nil {
@@ -41,15 +41,16 @@ func outcome(f func() any) (r any) {
 	return f()
 }
 
-// assertEquivalent checks UserDetails.HasTagAccess, UserDetails.FilterTags,
-// and the package-level CheckTagAccess and FilterTags (with the user's grants
-// as prime and the groups' grants as set) against the frozen legacy
-// implementation, including nil versus empty results. The check functions test
-// grants in the same order as legacy, so they must panic exactly when legacy
-// does. The filters test exact and prefix grants before globs, so they can
-// return a result where legacy panicked, but they must never panic where
-// legacy did not.
-func assertEquivalent(t *testing.T, ud *UserDetails, tags []string) {
+// assertConsistent checks that the filters, which use the merged matcher,
+// agree with the per-tag checks, which walk the grants one at a time:
+// UserDetails.FilterTags and the package-level FilterTags (with the user's
+// grants as prime and the groups' grants as set) must keep exactly the tags
+// that HasTagAccess allows, and return nil when they keep none.
+// UserDetails.FilterTags returns the input unchanged for admins. Some gobwas
+// patterns panic in Match. The checks walk grants in order, so they can panic
+// where the filters, which try exact and prefix grants first, do not; when a
+// check panics, the filters are not compared.
+func assertConsistent(t *testing.T, ud *UserDetails, tags []string) {
 	t.Helper()
 	set := make([]TagAccess, len(ud.Groups))
 	for i, g := range ud.Groups {
@@ -57,39 +58,78 @@ func assertEquivalent(t *testing.T, ud *UserDetails, tags []string) {
 	}
 	prime := ud.CBAC.Tags
 
+	var want []string
 	for _, tg := range tags {
 		got := outcome(func() any { return ud.HasTagAccess(tg) })
-		want := outcome(func() any { return legacyHasTagAccess(ud, tg) })
-		if got != want {
-			t.Errorf("HasTagAccess(%q) = %v, legacy %v (user %q, groups %v)", tg, got, want, prime.Grants, set)
+		if pkg := outcome(func() any { return CheckTagAccess(tg, prime, set) }); pkg != got {
+			t.Errorf("CheckTagAccess(%q) = %v, HasTagAccess %v (user %q, groups %v)", tg, pkg, got, prime.Grants, set)
 		}
-		got = outcome(func() any { return CheckTagAccess(tg, prime, set) })
-		want = outcome(func() any { return legacyCheckTagAccess(tg, prime, set) })
-		if got != want {
-			t.Errorf("CheckTagAccess(%q) = %v, legacy %v (prime %q, set %v)", tg, got, want, prime.Grants, set)
+		if got == "panic" {
+			return
+		}
+		if got == true {
+			want = append(want, tg)
 		}
 	}
 
+	userWant := want
+	if ud.Admin {
+		userWant = tags
+	}
 	filters := []struct {
-		name   string
-		got    func() any
-		legacy func() any
+		name string
+		got  func() any
+		want []string
 	}{
-		{"UserDetails.FilterTags", func() any { return ud.FilterTags(tags) }, func() any { return legacyUserFilterTags(ud, tags) }},
-		{"FilterTags", func() any { return FilterTags(tags, prime, set) }, func() any { return legacyFilterTags(tags, prime, set) }},
+		{"UserDetails.FilterTags", func() any { return ud.FilterTags(tags) }, userWant},
+		{"FilterTags", func() any { return FilterTags(tags, prime, set) }, want},
 	}
 	for _, f := range filters {
-		got, want := outcome(f.got), outcome(f.legacy)
-		if want == "panic" && got != "panic" {
-			continue
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("%s(%q) = %#v, legacy %#v (user %q, groups %v)", f.name, tags, got, want, prime.Grants, set)
+		if got := outcome(f.got); !reflect.DeepEqual(got, f.want) {
+			t.Errorf("%s(%q) = %#v, want %#v (user %q, groups %v)", f.name, tags, got, f.want, prime.Grants, set)
 		}
 	}
 }
 
-func TestTagAccessEquivalence(t *testing.T) {
+// TestTagAccessPinned pins the edge cases whose answers are easy to get wrong,
+// so they do not depend only on the filters agreeing with the checks.
+func TestTagAccessPinned(t *testing.T) {
+	cases := []struct {
+		name  string
+		grant string
+		tag   string
+		want  bool
+	}{
+		{"prefix", "zeek*", "zeekconn", true},
+		{"prefix matches the bare prefix", "zeek*", "zeek", true},
+		{"escaped star is literal", `foo\*`, "foo*", true},
+		{"escaped star is not a prefix", `foo\*`, "foobar", false},
+		{"invalid pattern never matches", "[", "anything", false},
+		{"invalid pattern matches itself", "[", "[", true},
+		{"glob grant matches itself", "{a,b}", "{a,b}", true},
+		{"question mark is one character", "a?", "ab", true},
+		{"question mark is not two characters", "a?", "abc", false},
+		{"star allows the empty tag", "*", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ud := tagUser(false, []string{c.grant})
+			if got := ud.HasTagAccess(c.tag); got != c.want {
+				t.Errorf("HasTagAccess(%q) with grant %q = %v, want %v", c.tag, c.grant, got, c.want)
+			}
+			got := ud.FilterTags([]string{c.tag})
+			if (len(got) == 1) != c.want {
+				t.Errorf("FilterTags([%q]) with grant %q = %q, want allowed %v", c.tag, c.grant, got, c.want)
+			}
+		})
+	}
+
+	if got := tagUser(false, []string{"zeek*"}).FilterTags([]string{"default"}); got != nil {
+		t.Errorf("FilterTags with no match = %#v, want nil", got)
+	}
+}
+
+func TestTagAccessConsistent(t *testing.T) {
 	tags := []string{
 		"", "default", "syslog", "syslog2", "sys", "zeekconn", "zeekdns", "zeek",
 		"win", "winlog", "a", "ab", "abc", "abd", "b", "foo", "foobar", "foo*",
@@ -134,17 +174,17 @@ func TestTagAccessEquivalence(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			assertEquivalent(t, tagUser(c.admin, c.user, c.groups...), tags)
+			assertConsistent(t, tagUser(c.admin, c.user, c.groups...), tags)
 		})
 	}
 
 	t.Run("no tags", func(t *testing.T) {
-		assertEquivalent(t, tagUser(false, []string{"*"}), nil)
-		assertEquivalent(t, tagUser(false, []string{"*"}), []string{})
+		assertConsistent(t, tagUser(false, []string{"*"}), nil)
+		assertConsistent(t, tagUser(false, []string{"*"}), []string{})
 	})
 }
 
-func TestTagAccessEquivalenceRandom(t *testing.T) {
+func TestTagAccessConsistentRandom(t *testing.T) {
 	r := rand.New(rand.NewPCG(3145, 1))
 	grantChars := []string{"a", "b", "c", "_", "-", "*", "?", "[", "]", "{", "}", ",", "!", `\`, "é", "\xff"}
 	tagChars := []string{"a", "b", "c", "_", "-", "é", "\xff"}
@@ -179,7 +219,7 @@ func TestTagAccessEquivalenceRandom(t *testing.T) {
 		// Grants as tags exercise the exact-equality path for glob grants.
 		tags = append(tags, u.CBAC.Tags.Grants...)
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			assertEquivalent(t, u, tags)
+			assertConsistent(t, u, tags)
 		})
 		if t.Failed() {
 			return
@@ -303,15 +343,72 @@ func TestCompiledGlobCap(t *testing.T) {
 	if got := globCacheSize.Load(); got != maxGlobCache {
 		t.Fatalf("cache size = %d, want %d", got, maxGlobCache)
 	}
+	// The next new pattern empties the full cache and is then cached itself.
 	g := compiledGlob("over?cap")
 	if g == nil || !g.Match("overXcap") {
 		t.Fatal("pattern past the cap did not compile and match")
 	}
-	if _, ok := globCache.Load("over?cap"); ok {
-		t.Error("pattern past the cap was cached")
+	if _, ok := globCache.Load("over?cap"); !ok {
+		t.Error("pattern past the cap was not cached after the reset")
 	}
-	if got := globCacheSize.Load(); got != maxGlobCache {
-		t.Errorf("cache size = %d after the cap, want %d", got, maxGlobCache)
+	if _, ok := globCache.Load("p0?"); ok {
+		t.Error("pattern from before the reset is still cached")
+	}
+	if got := globCacheSize.Load(); got != 1 {
+		t.Errorf("cache size = %d after the reset, want 1", got)
+	}
+
+	// A pattern dropped by the reset compiles again and is cached again.
+	g = compiledGlob("p0?")
+	if g == nil || !g.Match("p0x") {
+		t.Fatal("pattern dropped by the reset did not compile and match")
+	}
+	if _, ok := globCache.Load("p0?"); !ok {
+		t.Error("pattern dropped by the reset was not cached again")
+	}
+	if got := globCacheSize.Load(); got != 2 {
+		t.Errorf("cache size = %d, want 2", got)
+	}
+}
+
+// TestCompiledGlobConcurrentReset drives concurrent callers through several
+// resets. Every result must still match, the counter must never fall below the
+// number of cached patterns, and the cache must stay near the cap.
+func TestCompiledGlobConcurrentReset(t *testing.T) {
+	resetGlobCache(t)
+	const workers, perWorker = 8, 3 * maxGlobCache / 8
+	var wg sync.WaitGroup
+	for i := range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range perWorker {
+				// Each worker revisits a few shared patterns between its own,
+				// so hits and misses race with the resets.
+				n := i*perWorker + j
+				if j%4 == 0 {
+					n = j % 64
+				}
+				g := compiledGlob(fmt.Sprintf("r%d?", n))
+				if g == nil || !g.Match(fmt.Sprintf("r%dx", n)) {
+					t.Errorf("compiledGlob(r%d?) did not match during resets", n)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	var cached int64
+	globCache.Range(func(_, _ any) bool {
+		cached++
+		return true
+	})
+	if size := globCacheSize.Load(); size < cached {
+		t.Errorf("counter %d is below the %d cached patterns", size, cached)
+	}
+	if cached > maxGlobCache+workers {
+		t.Errorf("cache holds %d patterns, want at most %d", cached, maxGlobCache+workers)
 	}
 }
 

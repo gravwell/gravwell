@@ -17,13 +17,15 @@ import (
 
 // CBAC tag access benchmarks.
 //
-// impl=legacy is the frozen copy of the original code in
-// tagaccess_legacy_test.go. impl=current calls the real code. api=user is
-// UserDetails.FilterTags and UserDetails.HasTagAccess; api=pkg is the
-// package-level FilterTags and CheckTagAccess, given the user's grants as prime
-// and the groups' grants as set.
+// api=user is UserDetails.FilterTags and UserDetails.HasTagAccess; api=pkg is
+// the package-level FilterTags and CheckTagAccess, given the user's grants as
+// prime and the groups' grants as set.
 //
 //	go test -run '^$' -bench TagAccess -benchmem -count 10 ./client/types/
+//
+// To measure a change, run the same command on the commit before it and on
+// the change, then compare the two outputs with benchstat (see the end of this
+// comment).
 //
 // TAG_BENCH_PROFILE selects the fixture sizes:
 //
@@ -33,13 +35,9 @@ import (
 //	scale  500k tags, 20 groups, 25 grants, 5% globs
 //	stress 2M tags, 100 groups, 100 grants, 5% globs
 //
-// Implementations marked slow only run under the dev profile unless
-// TAG_BENCH_SLOW=1 is set, because outside dev one legacy filter takes from
-// seconds to minutes.
-//
 // BenchmarkTagAccessFilter sweeps one dimension at a time around the profile
-// baseline and reports ns/tag and allowed/op. allowed/op must be equal between
-// implementations. The dimensions are:
+// baseline and reports ns/tag and allowed/op. allowed/op must not change
+// between the two sides of a comparison. The dimensions are:
 //
 //	tags    tags known to the webserver
 //	groups  groups the user belongs to
@@ -47,14 +45,13 @@ import (
 //	globpct percent of grants that are complex globs, not exact or prefix*
 //	narrow  1 makes every grant cover at most a few tags, so the user is
 //	        allowed only a small fraction of the tag list. Most tags then miss
-//	        every grant, which is the worst case for both implementations.
+//	        every grant, which is the worst case.
 //
 // BenchmarkTagAccessShape ignores TAG_BENCH_PROFILE and runs fixed, named
 // shapes (see benchFixedShapes): tags30k-groups200; tags65536-groups20,
 // tags65536-groups200, and tags65536-groups20-narrow at the single-indexer
 // maximum of 65,536 tags; and tags500k-groups20, tags500k-groups20-globpct0,
-// and tags500k-groups1, the original scale measurements. Its legacy
-// implementations always need TAG_BENCH_SLOW=1.
+// and tags500k-groups1, the original scale measurements.
 //
 // BenchmarkTagAccessCheck covers exact, prefix, and glob hits, and a miss, at
 // the profile baseline.
@@ -116,7 +113,7 @@ var benchProfiles = map[string]benchProfile{
 	},
 }
 
-func loadBenchProfile(b *testing.B) (string, benchProfile) {
+func loadBenchProfile(b *testing.B) benchProfile {
 	b.Helper()
 	if testing.Short() {
 		b.Skip("tag access benchmarks are skipped in short mode")
@@ -129,16 +126,7 @@ func loadBenchProfile(b *testing.B) (string, benchProfile) {
 	if !ok {
 		b.Fatalf("unknown TAG_BENCH_PROFILE %q, want dev, site, scale, or stress", name)
 	}
-	return name, p
-}
-
-// skipSlow skips a benchmark that cannot finish in reasonable time, unless the
-// caller opted in with TAG_BENCH_SLOW=1.
-func skipSlow(b *testing.B, slow bool) {
-	b.Helper()
-	if slow && os.Getenv("TAG_BENCH_SLOW") != "1" {
-		b.Skip("slow implementation skipped, set TAG_BENCH_SLOW=1 to run it")
-	}
+	return p
 }
 
 func benchTagName(i int) string {
@@ -243,7 +231,7 @@ var (
 // BenchmarkTagAccessFilter measures a full filter of the tag list, the work
 // done on every search launch, completion, and tag listing.
 func BenchmarkTagAccessFilter(b *testing.B) {
-	profile, p := loadBenchProfile(b)
+	p := loadBenchProfile(b)
 
 	type sweep struct {
 		dim    string
@@ -263,8 +251,7 @@ func BenchmarkTagAccessFilter(b *testing.B) {
 			for _, v := range sw.values {
 				shape := p.base
 				sw.set(&shape, v)
-				b.Run(fmt.Sprintf("impl=%s/api=%s/%s=%d", impl.name, impl.api, sw.dim, v), func(b *testing.B) {
-					skipSlow(b, impl.slow && profile != "dev")
+				b.Run(fmt.Sprintf("api=%s/%s=%d", impl.api, sw.dim, v), func(b *testing.B) {
 					benchFilter(b, impl.filter, shape)
 				})
 			}
@@ -275,10 +262,7 @@ func BenchmarkTagAccessFilter(b *testing.B) {
 // benchFixedShapes are named shapes that do not depend on TAG_BENCH_PROFILE.
 // Run one by name, for example:
 //
-//	go test -run '^$' -bench 'TagAccessShape/impl=current//shape=tags30k-groups200$' -benchmem ./client/types/
-//
-// Legacy implementations skip unless TAG_BENCH_SLOW=1, because each legacy op
-// takes seconds to a minute.
+//	go test -run '^$' -bench 'TagAccessShape/api=user/shape=tags30k-groups200$' -benchmem ./client/types/
 var benchFixedShapes = []struct {
 	name  string
 	shape benchShape
@@ -304,33 +288,24 @@ func BenchmarkTagAccessShape(b *testing.B) {
 	}
 	for _, impl := range filterImpls {
 		for _, fs := range benchFixedShapes {
-			b.Run(fmt.Sprintf("impl=%s/api=%s/shape=%s", impl.name, impl.api, fs.name), func(b *testing.B) {
-				skipSlow(b, impl.slow)
+			b.Run(fmt.Sprintf("api=%s/shape=%s", impl.api, fs.name), func(b *testing.B) {
 				benchFilter(b, impl.filter, fs.shape)
 			})
 		}
 	}
 }
 
-// filterImpls are the filter implementations every filter benchmark compares.
+// filterImpls are the filter entry points every filter benchmark measures.
 var filterImpls = []struct {
-	name   string
 	api    string
 	filter func(ud *UserDetails, set []TagAccess, tags []string) []string
-	slow   bool
 }{
-	{"legacy", "user", func(ud *UserDetails, _ []TagAccess, tags []string) []string {
-		return legacyUserFilterTags(ud, tags)
-	}, true},
-	{"legacy", "pkg", func(ud *UserDetails, set []TagAccess, tags []string) []string {
-		return legacyFilterTags(tags, ud.CBAC.Tags, set)
-	}, true},
-	{"current", "user", func(ud *UserDetails, _ []TagAccess, tags []string) []string {
+	{"user", func(ud *UserDetails, _ []TagAccess, tags []string) []string {
 		return ud.FilterTags(tags)
-	}, false},
-	{"current", "pkg", func(ud *UserDetails, set []TagAccess, tags []string) []string {
+	}},
+	{"pkg", func(ud *UserDetails, set []TagAccess, tags []string) []string {
 		return FilterTags(tags, ud.CBAC.Tags, set)
-	}, false},
+	}},
 }
 
 // benchFilter times filter over the tag list and user for shape, and reports
@@ -352,7 +327,7 @@ func benchFilter(b *testing.B, filter func(*UserDetails, []TagAccess, []string) 
 // The hit cases are resolved by a grant on the user's last group, which is the
 // slowest place for a hit.
 func BenchmarkTagAccessCheck(b *testing.B) {
-	_, p := loadBenchProfile(b)
+	p := loadBenchProfile(b)
 	shape := p.base
 	tags := benchTags(shape.tags)
 	ud := benchUser(shape)
@@ -361,7 +336,7 @@ func BenchmarkTagAccessCheck(b *testing.B) {
 	// not already grant, so only the grant appended below can allow it.
 	pick := func(i int) string {
 		for ; i < len(tags); i++ {
-			if !legacyHasTagAccess(ud, tags[i]) {
+			if !ud.HasTagAccess(tags[i]) {
 				return tags[i]
 			}
 		}
@@ -388,22 +363,19 @@ func BenchmarkTagAccessCheck(b *testing.B) {
 		{"miss", "zz_nomatch", false},
 	}
 	impls := []struct {
-		name  string
 		api   string
 		check func(string) bool
 	}{
-		{"legacy", "user", func(tg string) bool { return legacyHasTagAccess(ud, tg) }},
-		{"legacy", "pkg", func(tg string) bool { return legacyCheckTagAccess(tg, ud.CBAC.Tags, set) }},
-		{"current", "user", ud.HasTagAccess},
-		{"current", "pkg", func(tg string) bool { return CheckTagAccess(tg, ud.CBAC.Tags, set) }},
+		{"user", ud.HasTagAccess},
+		{"pkg", func(tg string) bool { return CheckTagAccess(tg, ud.CBAC.Tags, set) }},
 	}
 
 	for _, impl := range impls {
 		for _, c := range cases {
 			if got := impl.check(c.tag); got != c.want {
-				b.Fatalf("impl=%s api=%s case=%s tag %q: got %v, want %v", impl.name, impl.api, c.name, c.tag, got, c.want)
+				b.Fatalf("api=%s case=%s tag %q: got %v, want %v", impl.api, c.name, c.tag, got, c.want)
 			}
-			b.Run(fmt.Sprintf("impl=%s/api=%s/case=%s", impl.name, impl.api, c.name), func(b *testing.B) {
+			b.Run(fmt.Sprintf("api=%s/case=%s", impl.api, c.name), func(b *testing.B) {
 				b.ReportAllocs()
 				for b.Loop() {
 					benchSinkBool = impl.check(c.tag)
