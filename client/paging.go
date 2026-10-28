@@ -26,7 +26,6 @@ type pager interface {
 // Lister is a single page of a listing, as returned by the list calls (ex: ListMacros).
 type Lister[T any] interface {
 	pager
-	GetTotalCount() int
 	Items() []T
 }
 

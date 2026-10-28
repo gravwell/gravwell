@@ -67,11 +67,6 @@ func (b BaseListResponse) GetNextCursor() string {
 	return b.CursorNext
 }
 
-// GetTotalCount returns the number of items across all pages of the listing.
-func (b BaseListResponse) GetTotalCount() int {
-	return b.TotalCount
-}
-
 // ListResponse is a single page of T, as returned by the list endpoints.
 // Each asset's list response (ex: MacroListResponse) is an alias of it.
 type ListResponse[T any] struct {
