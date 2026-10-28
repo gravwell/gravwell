@@ -14,8 +14,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gravwell/gravwell/v3/generators/base"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/generators/base"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (

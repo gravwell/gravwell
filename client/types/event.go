@@ -30,7 +30,7 @@ const (
 // The Type field should always be EVENTTYPE_EVENT, to indicate that this is a regular event.
 type Event struct {
 	Type     EventType
-	Metadata EventMetadata          `json:",omitempty"`
+	Metadata EventMetadata
 	Contents map[string]interface{} `json:",omitempty"`
 }
 
@@ -42,7 +42,7 @@ type EventLog struct {
 	Level   string
 	Message string            `json:",omitempty"`
 	KV      map[string]string `json:",omitempty"`
-	Trigger Event             `json:",omitempty"`
+	Trigger Event
 }
 
 // EventMetadata tells us about the owner of this event definition and who created the event.
@@ -50,7 +50,7 @@ type EventMetadata struct {
 	UID                int32
 	Username           string
 	Created            time.Time
-	AlertID            string // ThingUUID of the Alert
+	AlertID            string // ID of the Alert that triggered
 	AlertName          string
 	AlertActivation    string   // uniquely identify the particular activation of the alert
 	EventIndex         int      // this event's index within the dispatcher results for the alert activation
@@ -92,12 +92,12 @@ type ValidationProblem struct {
 
 // BuildEventMetadata builds up a generic EventMetadata to be used with
 // events for a specific firing of the given Alert via the given Dispatcher.
-func BuildEventMetadata(created time.Time, ud UserDetails, alertDef AlertDefinition, dispatcher EventDispatcherInfo) EventMetadata {
+func BuildEventMetadata(created time.Time, ud User, alertDef Alert, dispatcher EventDispatcherInfo) EventMetadata {
 	meta := EventMetadata{
-		UID:             ud.UID,
-		Username:        ud.User,
+		UID:             ud.ID,
+		Username:        ud.Username,
 		Created:         created,
-		AlertID:         alertDef.ThingUUID.String(),
+		AlertID:         alertDef.ID,
 		AlertLabels:     alertDef.Labels,
 		AlertName:       alertDef.Name,
 		AlertActivation: uuid.New().String(),

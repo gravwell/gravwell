@@ -10,15 +10,13 @@
 package attach
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gcfg"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -29,10 +27,7 @@ const (
 	envUpdateInterval = time.Minute * 5 //update environment variables every 10minutes
 )
 
-type AttachConfig struct {
-	gcfg.Idxer
-	Vals map[gcfg.Idx]*[]string
-}
+type AttachConfig map[string]string
 
 type attachItem struct {
 	key   string
@@ -40,55 +35,23 @@ type attachItem struct {
 }
 
 func (ac AttachConfig) Attachments() ([]attachItem, error) {
-	names := ac.Names()
-	if len(names) == 0 || len(ac.Vals) == 0 {
+	if len(ac) == 0 {
 		return nil, nil //nothing here
 	}
 	var ats []attachItem
-	for i, name := range names {
-		valptr, ok := ac.Vals[ac.Idx(name)]
-		if !ok || valptr == nil {
-			continue
+	for name, value := range ac {
+		if name == `` {
+			return nil, fmt.Errorf("Attach item has an empty name")
+		} else if value == `` {
+			return nil, fmt.Errorf("Attach item (%s) has an empty value", name)
 		}
-		if vals := *valptr; len(vals) > 1 {
-			return nil, fmt.Errorf("attach key of %q is duplicated %d times", name, len(vals))
-		} else if len(vals) == 1 {
-			if name == `` {
-				return nil, fmt.Errorf("Attach item %d has an empty name", i)
-			} else if vals[0] == `` {
-				return nil, fmt.Errorf("Attach item (%s)%d has an empty value", name, i)
-			}
-			ats = append(ats, attachItem{key: name, value: vals[0]})
-		}
+		ats = append(ats, attachItem{key: name, value: value})
 	}
 	return ats, nil
 }
 
 func (ac AttachConfig) Verify() (err error) {
-	if len(ac.Vals) == 0 {
-		return
-	}
 	_, err = ac.Attachments()
-	return
-}
-
-var (
-	empty = []byte(`{}`)
-)
-
-func (ac AttachConfig) MarshalJSON() (r []byte, err error) {
-	var items []attachItem
-	if items, err = ac.Attachments(); err != nil {
-		return
-	} else if len(items) == 0 {
-		r = empty
-		return
-	}
-	v := make(map[string]string, len(items))
-	for _, item := range items {
-		v[item.key] = item.value
-	}
-	r, err = json.Marshal(v)
 	return
 }
 

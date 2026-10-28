@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 func findReqEvent(evs []protocol.Event, typ string) *protocol.Event {

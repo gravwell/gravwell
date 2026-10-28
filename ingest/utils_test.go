@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 // TestEmergencyQueueClearNilBatchEntry ensures that clear() does not panic when

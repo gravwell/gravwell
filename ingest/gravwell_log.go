@@ -14,85 +14,89 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
 	logTimeout time.Duration = time.Second
 )
 
-type IngestLogger interface {
-	Errorf(string, ...interface{}) error
-	Warnf(string, ...interface{}) error
-	Infof(string, ...interface{}) error
-	Error(string, ...rfc5424.SDParam) error
-	Warn(string, ...rfc5424.SDParam) error
-	Info(string, ...rfc5424.SDParam) error
-}
+const DefaultLogDepth = 5
 
 // Errorf send an error entry down the line with the gravwell tag
 func (im *IngestMuxer) Errorf(format string, args ...interface{}) error {
-	if im.lgr != nil {
-		return im.lgr.ErrorfWithDepth(4, format, args...)
-	}
-	return nil
+	return im.ErrorfWithDepth(DefaultLogDepth, format, args...)
 }
 
 func (im *IngestMuxer) Warnf(format string, args ...interface{}) error {
-	if im.lgr != nil {
-		return im.lgr.WarnfWithDepth(4, format, args...)
-	}
-	return nil
+	return im.WarnfWithDepth(DefaultLogDepth, format, args...)
 }
 
 func (im *IngestMuxer) Infof(format string, args ...interface{}) error {
-	if im.lgr != nil {
-		return im.lgr.InfofWithDepth(4, format, args...)
-	}
-	return nil
+	return im.InfofWithDepth(DefaultLogDepth, format, args...)
 }
 
 // Error send an error entry down the line with the gravwell tag
 func (im *IngestMuxer) Error(msg string, args ...rfc5424.SDParam) error {
-	if im.lgr != nil {
-		return im.lgr.ErrorWithDepth(4, msg, args...)
-	}
-	return nil
+	return im.ErrorWithDepth(DefaultLogDepth, msg, args...)
 }
 
 func (im *IngestMuxer) Warn(msg string, args ...rfc5424.SDParam) error {
-	if im.lgr != nil {
-		return im.lgr.WarnWithDepth(4, msg, args...)
-	}
-	return nil
+	return im.WarnWithDepth(DefaultLogDepth, msg, args...)
 }
 
 func (im *IngestMuxer) Info(msg string, args ...rfc5424.SDParam) error {
+	return im.InfoWithDepth(DefaultLogDepth, msg, args...)
+}
+
+func (im *IngestMuxer) WarnfWithDepth(depth int, format string, args ...interface{}) error {
 	if im.lgr != nil {
-		return im.lgr.InfoWithDepth(4, msg, args...)
+		return im.lgr.WarnfWithDepth(depth, format, args...)
 	}
 	return nil
 }
 
-type nilLogger struct{}
+func (im *IngestMuxer) InfofWithDepth(depth int, format string, args ...interface{}) error {
+	if im.lgr != nil {
+		return im.lgr.InfofWithDepth(depth, format, args...)
+	}
+	return nil
+}
 
-func (n nilLogger) Errorf(s string, i ...interface{}) error                    { return nil }
-func (n nilLogger) Warnf(s string, i ...interface{}) error                     { return nil }
-func (n nilLogger) Infof(s string, i ...interface{}) error                     { return nil }
-func (n nilLogger) ErrorfWithDepth(x int, s string, i ...interface{}) error    { return nil }
-func (n nilLogger) WarnfWithDepth(x int, s string, i ...interface{}) error     { return nil }
-func (n nilLogger) InfofWithDepth(x int, s string, i ...interface{}) error     { return nil }
-func (n nilLogger) Error(a string, i ...rfc5424.SDParam) error                 { return nil }
-func (n nilLogger) Warn(a string, i ...rfc5424.SDParam) error                  { return nil }
-func (n nilLogger) Info(a string, i ...rfc5424.SDParam) error                  { return nil }
-func (n nilLogger) ErrorWithDepth(a int, b string, c ...rfc5424.SDParam) error { return nil }
-func (n nilLogger) WarnWithDepth(a int, b string, c ...rfc5424.SDParam) error  { return nil }
-func (n nilLogger) InfoWithDepth(a int, b string, c ...rfc5424.SDParam) error  { return nil }
-func (n nilLogger) Hostname() string                                           { return `` }
-func (n nilLogger) Appname() string                                            { return `` }
+func (im *IngestMuxer) ErrorfWithDepth(depth int, format string, args ...interface{}) error {
+	if im.lgr != nil {
+		return im.lgr.ErrorfWithDepth(depth, format, args...)
+	}
+	return nil
+}
 
-func NoLogger() Logger {
-	return &nilLogger{}
+func (im *IngestMuxer) InfoWithDepth(depth int, format string, args ...rfc5424.SDParam) error {
+	if im.lgr != nil {
+		return im.lgr.InfoWithDepth(depth, format, args...)
+	}
+	return nil
+}
+
+func (im *IngestMuxer) WarnWithDepth(depth int, format string, args ...rfc5424.SDParam) error {
+	if im.lgr != nil {
+		return im.lgr.WarnWithDepth(depth, format, args...)
+	}
+	return nil
+}
+
+func (im *IngestMuxer) ErrorWithDepth(depth int, format string, args ...rfc5424.SDParam) error {
+	if im.lgr != nil {
+		return im.lgr.ErrorWithDepth(depth, format, args...)
+	}
+	return nil
+}
+
+func (im *IngestMuxer) Hostname() string {
+	return im.hostname
+}
+
+func (im *IngestMuxer) Appname() string {
+	return im.appname
 }
 
 // WriteLog writes a log entry to the muxer, making IngestMuxer compatible

@@ -1,0 +1,388 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+/*
+Package ft (flagtext) provides a repository of strings shared by flags used across actions to enforce output/visual consistency.
+If a flag is used the same way in multiple actions, place it in this package.
+All fields should be considered constant and therefore not be modified at runtime.
+*/
+package ft
+
+// The purpose of this file and package is to provide consistent registering and accessing of flags.
+// The internal structure is secondary.
+//
+// ft.<flag>.Name() is the standardized mechanism for retrieving flags.
+// ft.<flag>.Register(fs) is the standardized mechanism for installing this flag in the given flagset.
+// If a flag needs to modify its parameters (custom usage, set a default value), Name(), Usage(), and Shorthand() are available for manual installation.
+
+import (
+	"errors"
+	"fmt"
+	"go/types"
+	"strconv"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/spf13/pflag"
+)
+
+// a flag is the minimum required for accessing and registering a flag for use in other actions.
+type flag interface {
+	// Used for accessing the flag
+	Name() string
+	Shorthand() string
+	// Used for the initial install of the flag in the given flagset.
+	Register(fs *pflag.FlagSet)
+}
+
+var _ flag = simple{}
+var _ flag = stringSliceRegister{}
+
+//#region simple flag
+
+// a simple is the basic/standard implementation of the flag interface
+type simple struct {
+	name         string
+	shorthand    rune
+	usage        string
+	defaultValue string // cast to the appropriate type if supplied
+	typ          types.BasicKind
+}
+
+// Name returns the name of the flag, with no dashes (--<name>).
+func (s simple) Name() string {
+	return s.name
+}
+
+// Shorthand returns the single rune character for accessing this flag.
+func (s simple) Shorthand() string {
+	var zero rune
+	if s.shorthand == zero {
+		return ""
+	}
+	return string(s.shorthand)
+}
+
+// Usage returns the flag description.
+func (s simple) Usage() string {
+	return s.usage
+}
+
+// Register installs this flag (with its standard type) in the given flagset.
+// Sets the default to the zero value of the type.
+// Only supports a subset of types; expand as need be.
+//
+// It is a helper function to provide consistent usage.
+func (s simple) Register(fs *pflag.FlagSet) {
+	if s.typ == types.Invalid {
+		panic("cannot register a flag with an invalid type")
+	}
+	// There is probably a better way to do this, but pflag does not expose the pflag.Value implementations it uses for primitive types.
+	// Therefore, this will do well enough for a helper function of this low priority.
+	switch s.typ {
+	case types.Bool:
+		var defaultValue bool
+		if s.defaultValue != "" {
+			defaultValue, _ = strconv.ParseBool(s.defaultValue)
+		}
+		fs.BoolP(s.name, s.Shorthand(), defaultValue, s.usage)
+	case types.String:
+		fs.StringP(s.name, s.Shorthand(), s.defaultValue, s.usage)
+	case types.Int32:
+		var defaultValue int64
+		if s.defaultValue != "" {
+			defaultValue, _ = strconv.ParseInt(s.defaultValue, 10, 32)
+		}
+		fs.Int32P(s.name, s.Shorthand(), int32(defaultValue), s.Usage())
+	default:
+		panic(fmt.Sprintf("unhandled type: %v", s.typ))
+	}
+}
+
+//#endregion simple flag
+
+//#region string slice flag
+
+// stringSliceRegister is a special flag handler for flags that take a string slice (ex: --<name> a,b,c,d).
+type stringSliceRegister struct {
+	name      string
+	shorthand rune
+	usage     string
+}
+
+func (s stringSliceRegister) Name() string {
+	return s.name
+}
+
+func (s stringSliceRegister) Shorthand() string {
+	var zero rune
+	if s.shorthand == zero {
+		return ""
+	}
+	return string(s.shorthand)
+}
+
+func (s stringSliceRegister) Usage() string {
+	return s.usage
+}
+
+// Register installs this flag (with its standard type) in the given flagset.
+// Sets the default to the zero value of the type.
+// Only supports a subset of types; expand as need be.
+//
+// It is a helper function to provide consistent usage.
+func (s stringSliceRegister) Register(fs *pflag.FlagSet) {
+	fs.StringSliceP(s.name, s.Shorthand(), nil, s.usage)
+}
+
+//#endregion string slice flag
+
+//#region singular
+
+type singular struct {
+	name      string
+	shorthand rune
+	// the body of the usage message, prior to the singular form being appended.
+	// Expected to be whitespace-trimmed.
+	usagePrefix string
+}
+
+func (s singular) Name() string {
+	return s.name
+}
+
+func (s singular) Shorthand() string {
+	var zero rune
+	if s.shorthand == zero {
+		return ""
+	}
+	return string(s.shorthand)
+}
+
+func (s singular) Usage(singular string) string {
+	return s.usagePrefix + " " + singular
+}
+
+// Register installs this flag as a string in the given flagset.
+// It is a helper function to provide consistent usage.
+func (s singular) Register(fs *pflag.FlagSet, defaultVal string, singular string) {
+	fs.StringP(s.Name(), s.Shorthand(), defaultVal, s.Usage(singular))
+}
+
+var (
+	// NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
+	NoInteractive = simple{
+		name:      "no-interactive",
+		shorthand: 'x',
+		usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
+			"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode",
+		typ: types.Bool,
+	}
+	// Dryrun (--dryrun) is a local flag implemented by actions (typically deletes) to describe actions that would have been taken had --dryrun not been set.
+	Dryrun = simple{
+		name:  "dryrun",
+		usage: "feigns the request action, instead displaying the effects that would have occurred",
+		typ:   types.Bool,
+	}
+	// NoColor is a global flag that disables color and stylization across the board.
+	// It is primarily handled by Mother, in ppre().
+	NoColor = simple{
+		name:  "no-color",
+		usage: "disables colourized output",
+		typ:   types.Bool,
+	}
+
+	//#region authentication
+	API = simple{
+		name:  "api",
+		usage: "the path to a file containing an API key to authenticate with",
+		typ:   types.String,
+	}
+	EAPI = simple{
+		name:  "eapi",
+		usage: "read the API key from environment variable \"" + cfgdir.EnvKeyAPI + "\".",
+		typ:   types.Bool,
+	}
+
+	//#endregion
+
+	//#region output manipulation
+
+	// Output (-o) is a local flag implemented by actions to redirect their results to a file.
+	// Should be paired with --append; often also paired with --json and --csv.
+	Output = simple{
+		name:      "output",
+		shorthand: 'o',
+		usage: "file to write results to.\n" +
+			"Truncates file unless --" + Append.name + " is also given",
+		typ: types.String,
+	}
+
+	// Append (--append) is a local flag implemented with --output to indicated that the target file should be appended to instead of truncated.
+	Append = simple{
+		name:  "append",
+		usage: "append to the given output file instead of truncating it",
+		typ:   types.Bool,
+	}
+
+	// CSV (--csv) is a local flag implemented --output to indicated that results should be in csv format.
+	CSV = simple{
+		name: "csv",
+		usage: "display results as CSV.\n" +
+			"Mutually exclusive with --json, --table",
+		typ: types.Bool,
+	}
+
+	// JSON (--json) is a local flag implemented --output to indicated that results should be in json format.
+	JSON = simple{
+		name: "json",
+		usage: "display results as JSON.\n" +
+			"Mutually exclusive with --csv, --table",
+		typ: types.Bool,
+	}
+
+	// Table (--table) is a local flag implemented --output to indicated that results should be outputted as a fancy table.
+	Table = simple{
+		name: "table",
+		usage: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
+			"Default if no format flags are given",
+		typ: types.Bool,
+	}
+
+	// #endregion output manipulation
+
+	UID = simple{
+		name:  "UID",
+		usage: "ID of the user",
+		typ:   types.Int32,
+	}
+
+	IncludeDeleted = simple{
+		name:  "include-deleted",
+		usage: "include data marked for deletion",
+		typ:   types.Bool,
+	}
+)
+
+// Frequency is a local flag for defining a cron-style interval in which something occurs.
+var Frequency = simple{
+	name:      "frequency",
+	shorthand: 'c',
+	usage:     "cron-style scheduling for scheduled execution",
+}
+
+// Description is a local flag for providing the description of an item.
+var Description = singular{
+	name:        "description",
+	shorthand:   'd',
+	usagePrefix: "flavour description of the",
+}
+
+// Name is a local flag for providing or specifying the name of an item.
+var Name = singular{
+	name:        "name",
+	shorthand:   'n',
+	usagePrefix: "name of the",
+}
+
+// Path is a local flag to allow a user to specify a path to a thing (typically a file).
+var Path = singular{
+	name:        "path",
+	shorthand:   'f',
+	usagePrefix: "path to the",
+}
+
+const DirName = "dir"
+const DirUsagePrefix = "directory to "
+
+const DurationName = "duration"
+
+const (
+	BackfillName      = "backfill"
+	BackfillBoolUsage = "Enables backfill, causing the automation to run for missed time periods."
+
+	EnableBoolUsage = "Enable the newly created automation."
+)
+
+// WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
+func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
+	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)
+}
+
+// DeriveFlagName returns a consistent, sanitized string, usable as a flag name.
+// Lower-cases the name and maps special characters to '-'.
+// Used to ensure consistency.
+func DeriveFlagName(title string) string {
+	title = strings.ToLower(title)
+	title = strings.Map(func(r rune) rune {
+		switch r {
+		case '.', '\\', '/', '\'', '"', '|', ' ':
+			return '-'
+		case '?', '!':
+			return 0
+		}
+		return r
+	}, title)
+	return title
+}
+
+// Mandatory wraps and returns the given text in angle brackets to indicate that it is a required flag or argument.
+func Mandatory(text string) string {
+	return "<" + text + ">"
+}
+
+// Optional wraps and returns the given text in square brackets to indicate that it is an optional flag or argument.
+func Optional(text string) string {
+	return "[" + text + "]"
+}
+
+// MutuallyExclusive wraps and returns the given elements in curly braces to indicate that they are mutually exclusive with one another.
+func MutuallyExclusive(texts ...string) string {
+	return "{" + strings.Join(texts, "|") + "}"
+}
+
+// ErrMutuallyExclusive returns a user-friendly error declaring that all given items were given, but are mutually exclusive.
+//
+// Flags should be given sans "--" prefix.
+//
+// Returns ErrInternal's text if len(flags) < 2.
+func ErrMutuallyExclusive(mxFlags ...string) error {
+	if len(mxFlags) < 2 {
+		clilog.Writer.Warn("ErrMutuallyExclusive called with fewer than 2 flags", log.KV("caller", log.CallLoc(1)), log.KV("flags", mxFlags))
+		return clilog.ErrInternal{}
+	}
+
+	flagList := "--" + strings.Join(mxFlags[:len(mxFlags)-1], ", --") // condense all but the last
+	return errors.New(flagList + ", and --" + mxFlags[len(mxFlags)-1] + " are mutually exclusive")
+}
+
+// flagCaveatStyle sets what extra notes on flag descriptions look like.
+var flagCaveatStyle = lipgloss.NewStyle().Italic(true)
+
+// InteractiveOnly returns a string to be prefixed to the description of flags that only have an effect in interactive mode.
+// These flags should simply be ignored in non-interactive mode.
+func InteractiveOnly() string {
+	return flagCaveatStyle.Render("Interactive only.")
+}
+
+func NonInteractiveOnly() string {
+	return flagCaveatStyle.Render("Non-Interactive only.")
+}
+
+// VariadicArgs returns Usage text for actions that take a variable number of the same argument.
+//
+// itemName will be used as "<itemName>1 <itemName>2 ... <itemName>N".
+func VariadicArgs(itemName string, atLeastOneRequired bool) string {
+	if atLeastOneRequired {
+		return Mandatory(itemName+"1") + " " + Optional(itemName+"2 ... "+itemName+"N")
+	}
+	return Optional(itemName + "1" + " " + itemName + "2 ... " + itemName + "N")
+}

@@ -13,25 +13,8 @@ import (
 	"testing"
 )
 
-func TestActionableTriggerUnmarshalString(t *testing.T) {
-	data := []byte(`"^\\d+\\.\\d+\\.\\d+\\.\\d+$"`)
-	var trigger ActionableTrigger
-	if err := json.Unmarshal(data, &trigger); err != nil {
-		t.Fatal(err)
-	}
-	if trigger.Pattern != `^\d+\.\d+\.\d+\.\d+$` {
-		t.Fatalf("unexpected pattern: %q", trigger.Pattern)
-	}
-	if !trigger.Hyperlink {
-		t.Fatal("string trigger should default to Hyperlink=true")
-	}
-	if trigger.Disabled {
-		t.Fatal("string trigger should default to Disabled=false")
-	}
-}
-
 func TestActionableTriggerUnmarshalObject(t *testing.T) {
-	data := []byte(`{"pattern":"test.*","hyperlink":false,"disabled":true}`)
+	data := []byte(`{"Pattern":"test.*","ActivatesOn":"selection","Disabled":true}`)
 	var trigger ActionableTrigger
 	if err := json.Unmarshal(data, &trigger); err != nil {
 		t.Fatal(err)
@@ -39,8 +22,8 @@ func TestActionableTriggerUnmarshalObject(t *testing.T) {
 	if trigger.Pattern != "test.*" {
 		t.Fatalf("unexpected pattern: %q", trigger.Pattern)
 	}
-	if trigger.Hyperlink {
-		t.Fatal("expected Hyperlink=false")
+	if trigger.ActivatesOn != "selection" {
+		t.Fatalf("expected ActivatesOn=selection, got %q", trigger.ActivatesOn)
 	}
 	if !trigger.Disabled {
 		t.Fatal("expected Disabled=true")
@@ -48,13 +31,13 @@ func TestActionableTriggerUnmarshalObject(t *testing.T) {
 }
 
 func TestActionableTriggerMarshal(t *testing.T) {
-	trigger := ActionableTrigger{Pattern: "foo", Hyperlink: true, Disabled: false}
+	trigger := ActionableTrigger{Pattern: "foo", ActivatesOn: "always", Disabled: false}
 	data, err := json.Marshal(trigger)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Always marshals as object form.
-	expected := `{"pattern":"foo","hyperlink":true,"disabled":false}`
+	expected := `{"Pattern":"foo","ActivatesOn":"always","Disabled":false}`
 	if string(data) != expected {
 		t.Fatalf("expected %s, got %s", expected, string(data))
 	}
@@ -64,44 +47,36 @@ func TestActionableContentRoundTrip(t *testing.T) {
 	input := ActionableContent{
 		MenuLabel: "My Pivot",
 		Triggers: []ActionableTrigger{
-			{Pattern: `\d+\.\d+\.\d+\.\d+`, Hyperlink: true, Disabled: false},
+			{Pattern: `\d+\.\d+\.\d+\.\d+`, ActivatesOn: "always", Disabled: false},
 		},
 		Actions: []ActionableAction{
 			{
-				Name:        "Query IP",
-				Description: "Look up IP",
-				Placeholder: "Enter IP",
+				Type:               ACTIONABLE_COMMAND_QUERY,
+				Name:               "Query IP",
+				Description:        "Look up IP",
+				Query:              "tag=netflow src==_VALUE_",
+				TriggerPlaceholder: "_VALUE_",
+			},
+			{
+				Type:        ACTIONABLE_COMMAND_DASHBOARD,
+				Name:        "Open Dashboard",
+				DashboardID: "some-uuid",
+				Variable:    "ip",
+			},
+			{
+				Type:               ACTIONABLE_COMMAND_URL,
+				Name:               "Open URL",
+				TemplateURL:        "https://example.com/lookup?ip=_VALUE_",
+				TriggerPlaceholder: "_VALUE_",
+				OpenInModal:        true,
+				ModalWidthPercent:  80,
+				NoValueUrlEncode:   true,
 				Start: &ActionableTimeVariable{
 					Type:   "string",
 					Format: "YYYY-MM-DD",
 				},
 				End: &ActionableTimeVariable{
-					Type: "timestamp",
-				},
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_QUERY,
-					Reference: "tag=netflow src==_VALUE_",
-				},
-			},
-			{
-				Name: "Open Dashboard",
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_DASHBOARD,
-					Reference: "some-uuid",
-					Options:   &ActionableCommandOptions{Variable: "ip"},
-				},
-			},
-			{
-				Name:             "Open URL",
-				NoValueURLEncode: true,
-				Command: ActionableCommand{
-					Type:      ACTIONABLE_COMMAND_URL,
-					Reference: "https://example.com/lookup?ip=_VALUE_",
-					Options: &ActionableCommandOptions{
-						Modal:            true,
-						ModalWidth:       "80",
-						NoValueURLEncode: true,
-					},
+					Type: "unix",
 				},
 			},
 		},
@@ -127,36 +102,91 @@ func TestActionableContentRoundTrip(t *testing.T) {
 	}
 }
 
-func TestActionableContentUnmarshalMixedTriggers(t *testing.T) {
-	// Simulates JSON from the server that contains both string and object triggers.
-	raw := `{
-		"menuLabel": null,
-		"triggers": [
-			"plain-pattern",
-			{"pattern":"obj-pattern","hyperlink":false,"disabled":true}
-		],
-		"actions": []
-	}`
-	var content ActionableContent
-	if err := json.Unmarshal([]byte(raw), &content); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+// TestActionableTriggerListOptionsFields is the reason this type exists rather
+// than reusing QueryOptions. QueryOptions has no omitzero tags, so marshalling
+// even a zero value writes Type, All and Version, and the deduplicated trigger
+// listing rejects all three: it has no owner to widen past and no history to
+// pin, and taking them only to drop them would answer an admin's "show me
+// everyone's" with their own and say nothing about it.
+//
+// So a caller handing this type to that endpoint has to come out with exactly
+// the fields the published request body has, and no others.
+func TestActionableTriggerListOptionsFields(t *testing.T) {
+	raw, err := json.Marshal(ActionableTriggerListOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if content.MenuLabel != "" {
-		t.Fatalf("expected empty MenuLabel, got %q", content.MenuLabel)
-	}
-	if len(content.Triggers) != 2 {
-		t.Fatalf("expected 2 triggers, got %d", len(content.Triggers))
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
 	}
 
-	// String trigger: defaults to Hyperlink=true, Disabled=false.
-	tr0 := content.Triggers[0]
-	if tr0.Pattern != "plain-pattern" || !tr0.Hyperlink || tr0.Disabled {
-		t.Fatalf("unexpected string trigger: %+v", tr0)
+	want := map[string]bool{
+		"CursorID": true, "Limit": true, "Filters": true,
+		"IncludeDeleted": true, "OrderBy": true, "OrderDirection": true, "Search": true,
 	}
+	for field := range got {
+		if !want[field] {
+			t.Errorf("marshalled an unexpected field %q; the trigger listing rejects anything outside its request body", field)
+		}
+	}
+	for field := range want {
+		if _, ok := got[field]; !ok {
+			t.Errorf("did not marshal %q", field)
+		}
+	}
+	for _, forbidden := range []string{"Type", "All", "Version"} {
+		if _, ok := got[forbidden]; ok {
+			t.Errorf("marshalled %q, which the endpoint answers with a 400", forbidden)
+		}
+	}
+}
 
-	// Object trigger: explicit values.
-	tr1 := content.Triggers[1]
-	if tr1.Pattern != "obj-pattern" || tr1.Hyperlink || !tr1.Disabled {
-		t.Fatalf("unexpected object trigger: %+v", tr1)
+// TestActionableTriggerListResponseRoundTrip decodes a response in the shape
+// the server sends, so that a change to either side shows up here.
+func TestActionableTriggerListResponseRoundTrip(t *testing.T) {
+	data := []byte(`{
+		"CursorNext": "abc", "CursorPrev": "", "Offset": 0, "TotalCount": 2,
+		"Type": "actionable_trigger", "AvailableFilters": [],
+		"Results": [{
+			"Pattern": "(a+)+",
+			"ActivatesOn": "always",
+			"Complexity": {"Severity": "high", "Backtracking": false, "Reasons": ["because"]},
+			"Menus": [{
+				"MenuLabel": "Tools",
+				"ActionableIDs": ["one", "two"],
+				"Actions": [{"Type": "url", "Name": "Look", "TemplateURL": "https://x/_VALUE_", "TriggerPlaceholder": "_VALUE_"}]
+			}]
+		}]
+	}`)
+	var resp ActionableTriggerListResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Type != "actionable_trigger" || resp.TotalCount != 2 || resp.CursorNext != "abc" {
+		t.Fatalf("list fields did not decode: %+v", resp.BaseListResponse)
+	}
+	if len(resp.Results) != 1 {
+		t.Fatalf("got %d groups, want 1", len(resp.Results))
+	}
+	g := resp.Results[0]
+	if g.Pattern != "(a+)+" || g.ActivatesOn != "always" {
+		t.Errorf("group did not decode: %+v", g)
+	}
+	if g.Complexity.Severity != ACTIONABLE_TRIGGER_SEVERITY_HIGH {
+		t.Errorf("Severity = %q, want high", g.Complexity.Severity)
+	}
+	if len(g.Complexity.Reasons) != 1 {
+		t.Errorf("got %d reasons, want 1", len(g.Complexity.Reasons))
+	}
+	if len(g.Menus) != 1 {
+		t.Fatalf("got %d menus, want 1", len(g.Menus))
+	}
+	m := g.Menus[0]
+	if m.MenuLabel != "Tools" || len(m.ActionableIDs) != 2 || len(m.Actions) != 1 {
+		t.Errorf("menu did not decode: %+v", m)
+	}
+	if m.Actions[0].Type != ACTIONABLE_COMMAND_URL {
+		t.Errorf("action Type = %q, want url", m.Actions[0].Type)
 	}
 }

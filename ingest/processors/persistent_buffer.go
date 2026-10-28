@@ -1,5 +1,5 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux || darwin || freebsd
+// +build linux darwin freebsd
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -18,9 +18,9 @@ import (
 	"fmt"
 
 	"github.com/gravwell/buffer"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
