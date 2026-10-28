@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -65,20 +66,20 @@ func list() action.Pair {
 			clilog.GetFlag(err)
 			if gid != 0 { // fetch all macros our group ID can read
 				// TODO inject the group ID filter here rather than manually filtering after the fact
-				macros, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListAllMacros)
+				// limit must be applied after filtering, so collect everything first
+				limit := int(params.QueryOptions.Limit)
+				params.QueryOptions.Limit = 0
+				macros, err := client.Collect(params.QueryOptions, connection.Client.ListAllMacros, -1)
 				if err != nil {
 					return nil, err
 				}
-				var macroResults []types.Macro
-				for _, m := range macros {
-					if m.GroupCanRead(gid) {
-						macroResults = append(macroResults, m)
-					}
+				macros = slices.DeleteFunc(macros, func(m types.Macro) bool { return !m.GroupCanRead(gid) })
+				if limit > 0 {
+					macros = macros[:min(len(macros), limit)]
 				}
-				return macroResults, nil
+				return macros, nil
 			}
-			r, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListMacros)
-			return r, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListMacros)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -186,8 +187,7 @@ func edit() action.Pair {
 			return connection.Client.GetMacro(id)
 		},
 		FetchSub: func() ([]types.Macro, error) {
-			r, err := client.Collect(types.QueryOptions{}, connection.Client.ListMacros, -1)
-			return r, err
+			return client.Collect(types.QueryOptions{}, connection.Client.ListMacros, -1)
 		},
 		GetFieldSub: func(item types.Macro, fieldKey string) (string, error) {
 			switch fieldKey {
