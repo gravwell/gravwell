@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -187,15 +188,15 @@ func (m *updateModel) SetArgs(_ *pflag.FlagSet, args []string, width, height int
 	if m.stage == selecting {
 		all, err := fs.GetBool(scaffold.FlagNameAllData)
 		clilog.GetFlag(err)
-		lr, err := connection.Client.ListSecrets(types.QueryOptions{All: all})
+		lr, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListSecrets, -1)
 		if err != nil {
 			return "", nil, err
 		}
-		if len(lr.Results) < 1 {
+		if len(lr) < 1 {
 			return "", nil, errors.New("you have no available secrets")
 		}
-		items := make([]list.Item, len(lr.Results))
-		for i, secret := range lr.Results {
+		items := make([]list.Item, len(lr))
+		for i, secret := range lr {
 			items[i] = &listitem.Generic{
 				ID_:        secret.ID,
 				Name:       secret.Name,

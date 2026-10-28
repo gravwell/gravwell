@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -56,12 +57,12 @@ func main() {
 	defer cli.Close()
 
 	// go get a list of kit builds
-	kbrs, err := cli.ListKitBuildHistory(types.QueryOptions{})
+	kbrs, err := client.Collect(types.QueryOptions{}, cli.ListKitBuildHistory, -1)
 	if err != nil {
 		fatalf("Error getting kit build history: %v\n", err)
 	}
 	if cmd == `list` {
-		printKitList(kbrs.Results)
+		printKitList(kbrs)
 		return
 	}
 
@@ -70,7 +71,7 @@ func main() {
 		// for pulls we need to make sure the kit exists
 		// now rip through each one looking for our kit ID
 		var kbr types.KitBuildRequest
-		for _, v := range kbrs.Results {
+		for _, v := range kbrs {
 			if v.ID == kitId {
 				kbr = v
 				break

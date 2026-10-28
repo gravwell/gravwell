@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -63,11 +64,11 @@ func listAction() action.Pair {
 		"List actionables available to your user.",
 		types.Actionable{},
 		func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Actionable, error) {
-			lr, err := connection.Client.ListActionables(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListActionables)
 			if err != nil {
 				return nil, err
 			}
-			return lr.Results, nil
+			return lr, nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -225,11 +226,11 @@ func replace() action.Pair {
 		func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
 			all, err := addtlFlags.GetBool(scaffold.FlagNameAllData)
 			clilog.GetFlag(err)
-			lr, err := connection.Client.ListActionables(types.QueryOptions{All: all})
+			lr, err := client.Collect(types.QueryOptions{All: all}, connection.Client.ListActionables, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, fs *pflag.FlagSet) (_ []scaffold.Result, _ error) {
 			// This is an exactly1 function
@@ -306,11 +307,11 @@ func edit() action.Pair {
 		// caller's own actionables. An admin can still edit another user's actionable directly by
 		// ID; GetActionable (via SelectSub) is not scoped to the caller.
 		FetchSub: func() ([]types.Actionable, error) {
-			lr, err := connection.Client.ListActionables(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListActionables, -1)
 			if err != nil {
 				return nil, err
 			}
-			return lr.Results, nil
+			return lr, nil
 		},
 		GetFieldSub: func(item types.Actionable, fieldKey string) (string, error) {
 			switch fieldKey {
@@ -365,12 +366,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteActionable(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListActionables(param.QueryOptions)
+			lr, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListActionables)
 			if err != nil {
 				return nil, err
 			}
 
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		scaffolddelete.Options{
 			CommonOptions: scaffold.CommonOptions{

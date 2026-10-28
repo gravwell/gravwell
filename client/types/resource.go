@@ -103,7 +103,4 @@ func (r Resource) ToPatch() ResourcePatch {
 	}
 }
 
-type ResourceListResponse struct {
-	BaseListResponse
-	Results []Resource
-}
+type ResourceListResponse = ListResponse[Resource]

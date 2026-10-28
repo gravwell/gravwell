@@ -46,7 +46,4 @@ func (s Secret) ToPatch() SecretPatch {
 }
 
 // SecretListResponse is returned when listing secrets.
-type SecretListResponse struct {
-	BaseListResponse
-	Results []Secret
-}
+type SecretListResponse = ListResponse[Secret]

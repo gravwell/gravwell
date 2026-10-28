@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -61,8 +62,7 @@ func listGroups() action.Pair {
 	return scaffoldlist.NewListAction("list groups", "Retrieves the list of groups available on the system",
 		types.Group{},
 		func(_ *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Group, error) {
-			resp, err := connection.Client.ListGroups(params.QueryOptions)
-			return resp.Results, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListGroups)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -106,12 +106,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteGroup(id)
 		},
 		func(param scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[int32], error) {
-			lr, err := connection.Client.ListGroups(param.QueryOptions)
+			lr, err := scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListGroups)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[int32], len(lr.Results))
-			for i, g := range lr.Results {
+			var items = make([]multiselectlist.SelectableItem[int32], len(lr))
+			for i, g := range lr {
 				items[i] = listitem.NewGroupItem(g, false)
 			}
 
@@ -136,11 +136,11 @@ func edit() action.Pair {
 			return gcbac.Group, nil
 		},
 		FetchSub: func() ([]types.Group, error) {
-			resp, err := connection.Client.ListGroups(types.QueryOptions{})
+			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListGroups, -1)
 			if err != nil {
 				return nil, err
 			}
-			return resp.Results, nil
+			return resp, nil
 		},
 		GetFieldSub: func(item types.Group, fieldKey string) (string, error) {
 			switch fieldKey {

@@ -48,7 +48,4 @@ func (pb Playbook) ToPatch() PlaybookPatch {
 	}
 }
 
-type PlaybookListResponse struct {
-	BaseListResponse
-	Results []Playbook
-}
+type PlaybookListResponse = ListResponse[Playbook]

@@ -75,8 +75,7 @@ func listAction() action.Pair {
 				s, err := connection.Client.GetScheduledScriptEx(id, opts)
 				return []types.ScheduledScript{s}, err
 			}
-			list, err := connection.Client.ListScheduledScripts(params.QueryOptions)
-			return list.Results, err
+			return scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledScripts)
 		},
 		nil,
 		scaffoldlist.Options{
@@ -208,11 +207,11 @@ func delete() action.Pair {
 			return connection.Client.DeleteScheduledScript(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledScripts(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListScheduledScripts)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 			CommonOptions: scaffold.CommonOptions{
@@ -268,8 +267,7 @@ func edit() action.Pair {
 				return connection.Client.GetScheduledScript(id)
 			},
 			FetchSub: func() (items []types.ScheduledScript, err error) {
-				list, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
-				return list.Results, err
+				return client.Collect(types.QueryOptions{}, connection.Client.ListScheduledScripts, -1)
 			},
 			GetFieldSub: func(item types.ScheduledScript, fieldKey string) (value string, err error) {
 				switch fieldKey {
@@ -351,11 +349,11 @@ func cancel() action.Pair {
 		"Cancel one or several scripts by ID, killing any active runs.",
 		"script",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledScripts, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
@@ -390,12 +388,12 @@ func backfillToggle() action.Pair {
 			if err != nil {
 				return nil, err
 			}
-			l, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
+			l, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledScripts, -1)
 			if err != nil {
 				return nil, err
 			}
-			itms := make([]types.ScheduledScript, 0, len(l.Results))
-			for _, s := range l.Results {
+			itms := make([]types.ScheduledScript, 0, len(l))
+			for _, s := range l {
 				if enable && s.BackfillEnabled {
 					continue
 				} else if disable && !s.BackfillEnabled {
@@ -465,11 +463,11 @@ func clear() action.Pair {
 		"Clear the execution results (including errors and state) for one or several scripts.",
 		"script",
 		func(_ *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListScheduledScripts(types.QueryOptions{})
+			lr, err := client.Collect(types.QueryOptions{}, connection.Client.ListScheduledScripts, -1)
 			if err != nil {
 				return nil, err
 			}
-			return listitem.WrapAssets(lr.Results), nil
+			return listitem.WrapAssets(lr), nil
 		},
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))

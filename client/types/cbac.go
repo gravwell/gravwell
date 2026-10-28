@@ -1068,10 +1068,7 @@ func (t Token) ToPatch() TokenPatch {
 }
 
 // TokenListResponse is the type returned when querying a list of tokens.
-type TokenListResponse struct {
-	BaseListResponse
-	Results []Token
-}
+type TokenListResponse = ListResponse[Token]
 
 // TokenRegeneration is the structure used to request regeneration of an existing token
 type TokenRegeneration struct {

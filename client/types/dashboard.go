@@ -124,10 +124,7 @@ func (d Dashboard) ToPatch() DashboardPatch {
 	}
 }
 
-type DashboardListResponse struct {
-	BaseListResponse
-	Results []Dashboard
-}
+type DashboardListResponse = ListResponse[Dashboard]
 
 // DashboardSearchLaunchRequest describes options for launching the searches of a dashboard.
 // Every field is optional: the zero value launches every Searchable over the dashboard's

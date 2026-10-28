@@ -61,6 +61,24 @@ type BaseListResponse struct {
 	AvailableFilters []AvailableFilter
 }
 
+// GetNextCursor returns the cursor of the page following this one.
+// It returns "" if this is the last page.
+func (b BaseListResponse) GetNextCursor() string {
+	return b.CursorNext
+}
+
+// ListResponse is a single page of T, as returned by the list endpoints.
+// Each asset's list response (ex: MacroListResponse) is an alias of it.
+type ListResponse[T any] struct {
+	BaseListResponse
+	Results []T
+}
+
+// Items returns the results on this page.
+func (r ListResponse[T]) Items() []T {
+	return r.Results
+}
+
 type VersionInfo struct {
 	API   ApiInfo
 	Build BuildInfo
