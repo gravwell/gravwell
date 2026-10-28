@@ -52,10 +52,7 @@ func outcome(f func() any) (r any) {
 // check panics, the filters are not compared.
 func assertConsistent(t *testing.T, ud *UserDetails, tags []string) {
 	t.Helper()
-	set := make([]TagAccess, len(ud.Groups))
-	for i, g := range ud.Groups {
-		set[i] = g.CBAC.Tags
-	}
+	set := ud.GroupTagAccess()
 	prime := ud.CBAC.Tags
 
 	var want []string

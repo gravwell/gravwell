@@ -1001,17 +1001,7 @@ func (ud *UserDetails) FilterTags(all []string) (r []string) {
 	if ud.Admin {
 		return all
 	}
-	set := make([]TagAccess, len(ud.Groups))
-	for i, g := range ud.Groups {
-		set[i] = g.CBAC.Tags
-	}
-	m := newTagMatcher(ud.CBAC.Tags, set)
-	for _, t := range all {
-		if m.match(t) {
-			r = append(r, t)
-		}
-	}
-	return
+	return FilterTags(all, ud.CBAC.Tags, ud.GroupTagAccess())
 }
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments

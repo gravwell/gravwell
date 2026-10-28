@@ -212,16 +212,6 @@ func benchUser(s benchShape) *UserDetails {
 	return ud
 }
 
-// groupGrants returns the groups' tag grants in the form the package-level
-// functions take.
-func groupGrants(ud *UserDetails) []TagAccess {
-	set := make([]TagAccess, len(ud.Groups))
-	for i, g := range ud.Groups {
-		set[i] = g.CBAC.Tags
-	}
-	return set
-}
-
 // benchSink keeps results alive so the compiler cannot drop the work.
 var (
 	benchSinkTags []string
@@ -314,7 +304,7 @@ func benchFilter(b *testing.B, filter func(*UserDetails, []TagAccess, []string) 
 	b.Helper()
 	tags := benchTags(shape.tags)
 	ud := benchUser(shape)
-	set := groupGrants(ud)
+	set := ud.GroupTagAccess()
 	b.ReportAllocs()
 	for b.Loop() {
 		benchSinkTags = filter(ud, set, tags)
@@ -350,7 +340,7 @@ func BenchmarkTagAccessCheck(b *testing.B) {
 		prefix+"*",
 		fmt.Sprintf("%s[0-9]", glob[:len(glob)-1]),
 	)
-	set := groupGrants(ud)
+	set := ud.GroupTagAccess()
 
 	cases := []struct {
 		name string
