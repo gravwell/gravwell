@@ -96,15 +96,13 @@ func (c *Client) CleanupUsers() error {
 // ListUsers under the hood, so the user must have the ListUsers
 // capability enabled.
 func (c *Client) LookupUser(username string) (ud types.User, err error) {
-	for page, err := range Pages(types.QueryOptions{Limit: types.QueryOptionsMaxLimit}, c.ListUsers) {
-		if err != nil {
-			return ud, err
-		}
-		for _, l := range page.Results {
-			if l.Username == username {
-				return l, nil
-			}
-		}
+	resp, err := c.ListUsers(types.QueryOptions{
+		Filters: []types.Filter{{Key: "Username", Operation: "=", Values: []any{username}}},
+	})
+	if err != nil {
+		return ud, err
+	} else if len(resp.Results) == 0 {
+		return ud, ErrNotFound
 	}
-	return ud, ErrNotFound
+	return resp.Results[0], nil
 }

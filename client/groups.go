@@ -72,15 +72,13 @@ func (c *Client) CleanupGroups() error {
 // ListGroups under the hood, so the user must have the ListGroups
 // capability enabled.
 func (c *Client) LookupGroup(groupname string) (gd types.Group, err error) {
-	for page, err := range Pages(types.QueryOptions{Limit: types.QueryOptionsMaxLimit}, c.ListGroups) {
-		if err != nil {
-			return gd, err
-		}
-		for _, l := range page.Results {
-			if l.Name == groupname {
-				return l, nil
-			}
-		}
+	resp, err := c.ListGroups(types.QueryOptions{
+		Filters: []types.Filter{{Key: "Name", Operation: "=", Values: []any{groupname}}},
+	})
+	if err != nil {
+		return gd, err
+	} else if len(resp.Results) == 0 {
+		return gd, ErrNotFound
 	}
-	return gd, ErrNotFound
+	return resp.Results[0], nil
 }
