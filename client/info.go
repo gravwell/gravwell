@@ -229,10 +229,12 @@ func (c *Client) GetTags() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	names := make([]string, len(tags))
 	for i, t := range tags {
 		names[i] = t.Name
 	}
+
 	return names, nil
 }
 
