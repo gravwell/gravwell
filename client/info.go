@@ -217,11 +217,23 @@ func (c *Client) SetLogLevel(level string) error {
 	return c.methodStaticPushURL(http.MethodPut, LOGGING_URL, l, nil, nil, nil)
 }
 
-// GetTags returns an array of strings representing the tags on the Gravwell system.
+// ListTags returns a page of the tags on the Gravwell system that the user can access.
+func (c *Client) ListTags(opts types.QueryOptions) (types.TagListResponse, error) {
+	return c.post[types.QueryOptions, types.TagListResponse](LIST_TAGS_URL, &opts)
+}
+
+// GetTags returns the names of every tag on the Gravwell system that the user can access.
+// It walks every page of ListTags.
 func (c *Client) GetTags() ([]string, error) {
-	var tags []string
-	err := c.methodStaticURL(http.MethodGet, LIST_TAGS_URL, &tags)
-	return tags, err
+	tags, err := Collect(types.QueryOptions{}, c.ListTags, 0)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, len(tags))
+	for i, t := range tags {
+		names[i] = t.Name
+	}
+	return names, nil
 }
 
 // GetLicenseDistributionState checks the distribution status of a newly-uploaded license
