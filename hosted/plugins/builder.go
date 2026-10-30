@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/slack"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
@@ -189,6 +190,29 @@ func (sb *SQSBuilder) Build(_ hosted.TagNegotiator, _ func() error) (hosted.Inge
 func NewSQSBuilder(config *sqs.Config, kind, id, version string) *SQSBuilder {
 	return &SQSBuilder{
 		Builder[*sqs.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type SlackBuilder struct {
+	Builder[*slack.Config]
+}
+
+func (sb *SlackBuilder) Build(_ hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	plugin, err := slack.New(sb.config)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJobWithSync(plugin, syncFn), nil
+}
+
+func NewSlackBuilder(config *slack.Config, kind, id, version string) *SlackBuilder {
+	return &SlackBuilder{
+		Builder[*slack.Config]{
 			config:  config,
 			kind:    kind,
 			id:      id,

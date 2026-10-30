@@ -1464,45 +1464,126 @@ func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag
 	return im.WriteEntryContext(ctx, e)
 }
 
+// WriteEntryAcknowledgedContext applies the same configured entry attachments
+// as WriteEntryContext, then waits for an indexer to acknowledge the entry on
+// disk. The entry is updated in place so callers can account for its final
+// attached size after a successful write.
+func (im *IngestMuxer) WriteEntryAcknowledgedContext(ctx context.Context, e *entry.Entry) error {
+	if e == nil {
+		return nil
+	} else if len(e.Data) > im.maxEntrySize {
+		return ErrOversizedEntry
+	} else if e.Tag != entry.GravwellTagId && !im.tc.has(e.Tag) {
+		return ErrUnknownTag
+	}
+	im.mtx.RLock()
+	runok := im.state == running
+	im.mtx.RUnlock()
+	if !runok {
+		return ErrNotRunning
+	}
+	if im.attachActive {
+		im.attacher.Attach(e)
+	}
+	return im.DittoWriteContext(ctx, []entry.Entry{*e})
+}
+
 // DittoWriteContext does a Ditto write, which is specifically
 // intended to duplicate blocks of entries from one indexer to one or
-// more destination indexers. This function will not return until the
-// recipient has indicated that the entries are written to disk.
+// more destination indexers. It waits for the recipient to confirm the entries
+// are on disk unless the caller's context expires or the muxer shuts down.
+// Cancellation after relay handoff is an indeterminate at-least-once result:
+// the block may still commit even though its acknowledgement was not observed.
+//
+// Validation here is deliberately tag-only. Ditto replicates blocks that another
+// indexer already accepted, so the configured entry-size bound of this process
+// is not the authority on them; callers that must honor that bound, such as
+// WriteEntryAcknowledgedContext, enforce it before they get here.
 func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) error {
-	var err error
-	var wg sync.WaitGroup
+	if len(b) == 0 {
+		return nil
+	}
 	for i := range b {
 		if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
 			return ErrUnknownTag
 		}
 	}
-	cb := func(e error) {
-		err = e
-		wg.Done()
+	// Avoid an expensive ownership copy when cancellation or shutdown was
+	// already observed before this call could reach a relay.
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	wg.Add(1)
+	select {
+	case <-im.writeBarrier:
+		return ErrNotRunning
+	default:
+	}
+	// The relay can outlive this call after post-handoff cancellation or
+	// shutdown. Transfer only deep, relay-owned entries so caller reuse cannot
+	// mutate or race the entry slice, Data, SRC, or enumerated-value storage.
+	owned := make([]entry.Entry, len(b))
+	for i := range b {
+		owned[i] = b[i].DeepCopy()
+	}
+	result := make(chan error, 1)
+	cb := func(e error) {
+		result <- e
+	}
 	db := dittoBlock{
-		ents: b,
+		ents: owned,
 		cb:   cb,
+	}
+	// Give cancellation and shutdown priority when they were already observed
+	// before a relay can take ownership of the block. The blocking select below
+	// handles signals that arrive while waiting for a relay.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case <-im.writeBarrier:
+		return ErrNotRunning
+	default:
 	}
 	select {
 	case im.dittoChan <- db:
-		// Now wait for the callback to be called
-		wg.Wait()
-		// Success, update stats
-		var sz uint64
-		for i := range b {
-			sz += b[i].Size()
-		}
-		im.recordWritten(uint64(len(b)), sz)
-
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
-	// The callback will have set err
-	return err
+	// Once a relay accepts db, it owns the block and will invoke cb with the
+	// authoritative disk acknowledgement. The result channel is buffered so the
+	// relay can finish if the caller's context expires first. A context or
+	// shutdown error after handoff means acknowledgement was not observed; it
+	// does not prove the indexer rejected the block, so callers retain normal
+	// at-least-once retry semantics.
+	var err error
+	select {
+	case err = <-result:
+	case <-ctx.Done():
+		// Prefer an acknowledgement that raced with cancellation.
+		select {
+		case err = <-result:
+		default:
+			return ctx.Err()
+		}
+	case <-im.writeBarrier:
+		// Prefer an acknowledgement that raced with shutdown.
+		select {
+		case err = <-result:
+		default:
+			return ErrNotRunning
+		}
+	}
+	if err != nil {
+		return err
+	}
+	var sz uint64
+	for i := range owned {
+		sz += owned[i].Size()
+	}
+	im.recordWritten(uint64(len(b)), sz)
+	return nil
 }
 
 // connFailed will put the destination in a failed state and inform the muxer
