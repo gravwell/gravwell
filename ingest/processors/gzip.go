@@ -130,7 +130,17 @@ func (gd *GzipDecompressor) procEnt(ent *entry.Entry) (rset *entry.Entry, err er
 	}
 
 	gd.rdr.Reset(ent.Data)
-	gd.zrdr.Reset(gd.rdr)
+	if err = gd.zrdr.Reset(gd.rdr); err != nil {
+		// a truncated or malformed header leaves the reader without a decompressor
+		// so treat it as non-gzip data rather than reading from it
+		err = nil
+		if gd.Passthrough_Non_Gzip {
+			rset = ent
+		} else {
+			err = ErrNotGzipped
+		}
+		return
+	}
 	//bwtr := bytes.NewBuffer(nil)
 	gd.bb.Reset()
 

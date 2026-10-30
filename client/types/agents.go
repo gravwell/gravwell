@@ -250,10 +250,7 @@ func (a Agent) ToPatch() AgentPatch {
 	}
 }
 
-type AgentListResponse struct {
-	BaseListResponse
-	Results []Agent
-}
+type AgentListResponse = ListResponse[Agent]
 
 // AgentSkill is a markdown document describing a skill an AI agent can load:
 // its Name and Description (from CommonFields) are advertised to the agent,
@@ -278,7 +275,4 @@ func (s AgentSkill) ToPatch() AgentSkillPatch {
 	}
 }
 
-type AgentSkillListResponse struct {
-	BaseListResponse
-	Results []AgentSkill
-}
+type AgentSkillListResponse = ListResponse[AgentSkill]

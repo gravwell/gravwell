@@ -44,7 +44,4 @@ func (sq SavedQuery) ToPatch() SavedQueryPatch {
 	}
 }
 
-type SavedQueryListResponse struct {
-	BaseListResponse
-	Results []SavedQuery
-}
+type SavedQueryListResponse = ListResponse[SavedQuery]

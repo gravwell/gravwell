@@ -9,6 +9,7 @@
 package weave
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -450,6 +451,48 @@ func TestToCSV(t *testing.T) {
 			}
 		})
 	}
+
+	// values (and aliases) holding commas, quotes, line breaks or leading spaces must be quoted,
+	// so the output reads back as the same rows and columns
+	t.Run("quoting", func(t *testing.T) {
+		type row struct {
+			Name, Description string
+			Labels            []string
+		}
+		data := []row{
+			{Name: "plain", Description: "no specials", Labels: []string{"a", "b"}},
+			{Name: "comma", Description: "this, that, and the other"},
+			{Name: "quote", Description: `say "hi"`},
+			{Name: "newline", Description: "line one\nline two\r\nline three"},
+			{Name: " leading space", Description: ""},
+		}
+		got := ToCSV(data, []string{"Name", "Description", "Labels"}, CSVOptions{Aliases: map[string]string{"Labels": "tags, all"}})
+		want := "Name,Description,\"tags, all\"\n" +
+			"plain,no specials,[a b]\n" +
+			"comma,\"this, that, and the other\",[]\n" +
+			"quote,\"say \"\"hi\"\"\",[]\n" +
+			"newline,\"line one\nline two\r\nline three\",[]\n" +
+			"\" leading space\",,[]"
+		if got != want {
+			t.Fatalf("\n---got---\n%v\n---want---\n%v", got, want)
+		}
+		records, err := csv.NewReader(strings.NewReader(got)).ReadAll()
+		if err != nil {
+			t.Fatal("output is not valid CSV: ", err)
+		}
+		if len(records) != len(data)+1 {
+			t.Fatalf("read back %d records, want %d", len(records), len(data)+1)
+		}
+		if records[0][2] != "tags, all" {
+			t.Errorf("header alias read back as %q", records[0][2])
+		}
+		for i, d := range data {
+			// encoding/csv normalizes \r\n inside quoted fields to \n
+			if r := records[i+1]; r[0] != d.Name || r[1] != strings.ReplaceAll(d.Description, "\r\n", "\n") {
+				t.Errorf("row %d read back as %q", i, r)
+			}
+		}
+	})
 
 	t.Run("not a struct", func(t *testing.T) {
 		m := map[int]float32{}

@@ -473,40 +473,22 @@ type AutomationDebugRequest struct {
 }
 
 // ScheduledSearchListResponse is the response type for listing scheduled searches.
-type ScheduledSearchListResponse struct {
-	BaseListResponse
-	Results []ScheduledSearch
-}
+type ScheduledSearchListResponse = ListResponse[ScheduledSearch]
 
 // ScheduledSearchResultsListResponse is the response type for listing scheduled search results.
-type ScheduledSearchResultsListResponse struct {
-	BaseListResponse
-	Results []ScheduledSearchResults
-}
+type ScheduledSearchResultsListResponse = ListResponse[ScheduledSearchResults]
 
 // ScheduledScriptListResponse is the response type for listing scheduled searches.
-type ScheduledScriptListResponse struct {
-	BaseListResponse
-	Results []ScheduledScript
-}
+type ScheduledScriptListResponse = ListResponse[ScheduledScript]
 
 // ScheduledScriptResultsListResponse is the response type for listing scheduled search results.
-type ScheduledScriptResultsListResponse struct {
-	BaseListResponse
-	Results []ScheduledScriptResults
-}
+type ScheduledScriptResultsListResponse = ListResponse[ScheduledScriptResults]
 
 // FlowListResponse is the response type for listing scheduled searches.
-type FlowListResponse struct {
-	BaseListResponse
-	Results []Flow
-}
+type FlowListResponse = ListResponse[Flow]
 
 // FlowResultsListResponse is the response type for listing scheduled search results.
-type FlowResultsListResponse struct {
-	BaseListResponse
-	Results []FlowResults
-}
+type FlowResultsListResponse = ListResponse[FlowResults]
 
 // SearchAgentCheckin is the type sent by the searchagent to the
 // webserver. It contains the search agent's config and information

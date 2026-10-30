@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -170,13 +171,13 @@ func (m *changePasswordModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, 
 	m.passwordTI.SetValue(pass)
 
 	// fetch all users
-	users, err := connection.Client.ListUsers(types.QueryOptions{})
+	users, err := client.Collect(types.QueryOptions{}, connection.Client.ListUsers, -1)
 	if err != nil {
 		clilog.Writer.Error("failed to get the list of users", log.KV("error", err))
 		return "", nil, fmt.Errorf("failed to get the list of users")
 	}
-	var itms = make([]list.Item, 0, len(users.Results))
-	for _, user := range users.Results {
+	var itms = make([]list.Item, 0, len(users))
+	for _, user := range users {
 		if user.ID == connection.CurrentUser().ID {
 			continue
 		}

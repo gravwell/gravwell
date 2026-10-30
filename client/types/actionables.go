@@ -103,10 +103,7 @@ type ActionableTimeVariable struct {
 	Placeholder string
 }
 
-type ActionableListResponse struct {
-	BaseListResponse
-	Results []Actionable
-}
+type ActionableListResponse = ListResponse[Actionable]
 
 // Valid values for ActionableTriggerComplexity.Severity.
 const (
@@ -175,8 +172,8 @@ type ActionableTriggerListOptions struct {
 	// CursorID names the first group of the page being asked for, as a
 	// CursorNext or CursorPrev from an earlier response.
 	CursorID string
-	// Limit is the most groups to return. 0 and -1 both mean no limit, as
-	// everywhere else.
+	// Limit is the max number of groups to return.
+	// Defaults to QueryOptionsDefaultLimit and is bound by QueryOptionsMaxLimit.
 	Limit int32
 
 	// Taken and ignored, so that a caller can hand over the same options it

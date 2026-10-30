@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
@@ -59,11 +60,11 @@ func listAction() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Secret{}, func(fs *pflag.FlagSet, params scaffoldlist.DataParameters) ([]types.Secret, error) {
-			resp, err := connection.Client.ListSecrets(params.QueryOptions)
+			resp, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListSecrets)
 			if err != nil {
 				return nil, err
 			}
-			return resp.Results, nil
+			return resp, nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -132,12 +133,12 @@ func delete() action.Pair {
 			return connection.Client.DeleteSecret(id)
 		},
 		func(params scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
-			lr, err := connection.Client.ListSecrets(params.QueryOptions)
+			lr, err := scaffold.CollectToLimit(params.QueryOptions, connection.Client.ListSecrets)
 			if err != nil {
 				return nil, err
 			}
-			var items = make([]multiselectlist.SelectableItem[string], len(lr.Results))
-			for i, s := range lr.Results {
+			var items = make([]multiselectlist.SelectableItem[string], len(lr))
+			for i, s := range lr {
 				items[i] = &listitem.Generic{
 					Selected_:  false,
 					ID_:        s.ID,
@@ -168,11 +169,11 @@ func edit() action.Pair {
 			return connection.Client.GetSecret(id)
 		},
 		FetchSub: func() (items []types.Secret, err error) { // get all available resources
-			resp, err := connection.Client.ListSecrets(types.QueryOptions{})
+			resp, err := client.Collect(types.QueryOptions{}, connection.Client.ListSecrets, -1)
 			if err != nil {
 				return nil, err
 			}
-			return resp.Results, nil
+			return resp, nil
 		},
 		GetFieldSub: func(item types.Secret, fieldKey string) (value string, err error) {
 			switch fieldKey {

@@ -210,10 +210,7 @@ func (dc AX) Equal(v AX) bool {
 
 // AXListResponse is what gets returned when you query a list of
 // autoextractors.
-type AXListResponse struct {
-	BaseListResponse
-	Results []AX
-}
+type AXListResponse = ListResponse[AX]
 
 func GenLine(wtr io.Writer, name, line string) (err error) {
 	if len(line) == 0 {

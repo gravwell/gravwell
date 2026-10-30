@@ -13,6 +13,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -105,6 +106,33 @@ func TestVectorLoadConfig(t *testing.T) {
 	}
 	if vp.client == nil {
 		t.Fatal("HTTP client is nil")
+	}
+}
+
+// TestVectorConfigTokenNotReported makes sure the token is not in the JSON
+// shipped with the ingester state via SetRawConfiguration.
+func TestVectorConfigTokenNotReported(t *testing.T) {
+	b := []byte(`
+[preprocessor "vec1"]
+	type = vector
+	Model = test-model
+	Endpoint = http://localhost:8080/v1/embeddings
+	Token = tokenMarker
+`)
+	tc := struct {
+		Preprocessor ProcessorConfig
+	}{}
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatal(err)
+	}
+	bts, err := json.Marshal(tc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(bts); strings.Contains(s, `tokenMarker`) {
+		t.Fatalf("reported config contains the token: %s", s)
+	} else if !strings.Contains(s, `test-model`) || !strings.Contains(s, `http://localhost:8080/v1/embeddings`) {
+		t.Fatalf("reported config is missing non-secret fields: %s", s)
 	}
 }
 

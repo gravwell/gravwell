@@ -215,10 +215,7 @@ func (t DataTable) ToPatch() DataTablePatch {
 	}
 }
 
-type DataTableListResponse struct {
-	BaseListResponse
-	Results []DataTable
-}
+type DataTableListResponse = ListResponse[DataTable]
 
 // DataTableRowValues holds a row's column values, keyed by column name. Each
 // value is kept as raw JSON so that it can be decoded according to its
@@ -293,7 +290,4 @@ type DataTableRowsResult struct {
 	Deleted int64 // existing rows removed
 }
 
-type DataTableRowListResponse struct {
-	BaseListResponse
-	Results []DataTableRow
-}
+type DataTableRowListResponse = ListResponse[DataTableRow]
