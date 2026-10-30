@@ -104,7 +104,8 @@ func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) 
 			additionalNames = append(additionalNames, name)
 		}
 		bldr = builder{
-			forceJson: cfg.Force_JSON_Object,
+			// Additional fields share an object with the array element, even when only one is requested.
+			forceJson: true,
 			bb:        bytes.NewBuffer(nil),
 			keys:      additional,
 			keynames:  additionalNames,
