@@ -138,3 +138,39 @@ func TestGzipProcessor(t *testing.T) {
 	}
 
 }
+
+// gzip magic, CM=8, FNAME set, mtime/xfl/os and then a filename that is never NUL terminated
+var truncatedGzipHeader = []byte{0x1f, 0x8b, 0x08, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff}
+
+func TestGzipTruncatedHeader(t *testing.T) {
+	// a fresh processor has never created a decompressor, which is the state that used to panic
+	p, err := NewGzipDecompressor(GzipDecompressorConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set, err := p.Process(makeEntry(truncatedGzipHeader, 0)); err != nil || len(set) != 0 {
+		t.Fatalf("truncated gzip header was not dropped: %v %d", err, len(set))
+	}
+
+	// with passthrough enabled the malformed entry is handed through untouched
+	p, err = NewGzipDecompressor(GzipDecompressorConfig{Passthrough_Non_Gzip: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set, err := p.Process(makeEntry(truncatedGzipHeader, 0)); err != nil {
+		t.Fatal(err)
+	} else if len(set) != 1 || string(set[0].Data) != string(truncatedGzipHeader) {
+		t.Fatalf("truncated gzip header was not passed through: %d", len(set))
+	}
+
+	// a valid entry still decompresses after a malformed one
+	x, err := gzipCompressVal(`hello`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set, err := p.Process(makeEntry(x, 0)); err != nil {
+		t.Fatal(err)
+	} else if len(set) != 1 || string(set[0].Data) != `hello` {
+		t.Fatalf("failed to decompress after a truncated header: %d", len(set))
+	}
+}
