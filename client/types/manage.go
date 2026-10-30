@@ -9,7 +9,7 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"sort"
 	"time"
 
@@ -32,6 +32,10 @@ type ReplicationState struct {
 	Size    uint64
 }
 
+func (rs ReplicationState) IsZero() bool {
+	return rs.Entries == 0 && rs.Size == 0 && rs.UUID == uuid.Nil
+}
+
 type ShardInfo struct {
 	Name        string
 	Start       time.Time
@@ -39,44 +43,24 @@ type ShardInfo struct {
 	Entries     uint64           //number of entries in the shard
 	Size        uint64           //raw size of data in the shard
 	Stored      uint64           //actual disk usage of the shard
-	RemoteState ReplicationState `json:",omitempty"`
+	RemoteState ReplicationState `json:",omitzero"`
 	Cold        bool             //true if the shard is in the code storage
 	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
 	Fragmentation uint
 }
 
-// MarshalJSON implements a custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
+// MarshalJSON ensures timestamps are clamped.
 func (si ShardInfo) MarshalJSON() ([]byte, error) {
-	x := struct {
-		Name          string
-		Start         time.Time
-		End           time.Time
-		Entries       uint64
-		Size          uint64
-		Stored        uint64
-		Cold          bool              //true if the shard is in the code storage
-		RemoteState   *ReplicationState `json:",omitempty"`
-		Fragmentation uint
-	}{
-		Name:          si.Name,
-		Start:         si.Start,
-		End:           si.End,
-		Entries:       si.Entries,
-		Size:          si.Size,
-		Stored:        si.Stored,
-		Cold:          si.Cold,
-		Fragmentation: si.Fragmentation,
-	}
+	type alias ShardInfo
+	a := alias(si)
 	if si.Start.After(maxJsonTimestamp) {
-		x.Start = maxJsonTimestamp
+		a.Start = maxJsonTimestamp
 	}
 	if si.End.After(maxJsonTimestamp) {
-		x.End = maxJsonTimestamp
+		a.End = maxJsonTimestamp
 	}
-	if !si.RemoteState.isEmpty() {
-		x.RemoteState = &si.RemoteState
-	}
-	return json.Marshal(x)
+
+	return json.Marshal(a)
 }
 
 type WellInfo struct {
@@ -107,40 +91,40 @@ func (wi *WellInfo) Empty() bool {
 }
 
 type StorageStats struct {
-	CoverageStart    time.Time `json:"coverageStart"`
-	CoverageEnd      time.Time `json:"coverageEnd"`
-	DataIngestedHot  uint64    `json:"dataIngestedHot"`
-	DataIngestedCold uint64    `json:"dataIngestedCold"`
-	DataStoredHot    uint64    `json:"dataStoredHot"`
-	DataStoredCold   uint64    `json:"dataStoredCold"`
-	EntryCountHot    uint64    `json:"entryCountHot"`
-	EntryCountCold   uint64    `json:"entryCountCold"`
+	CoverageStart    time.Time
+	CoverageEnd      time.Time
+	DataIngestedHot  uint64
+	DataIngestedCold uint64
+	DataStoredHot    uint64
+	DataStoredCold   uint64
+	EntryCountHot    uint64
+	EntryCountCold   uint64
 }
 
 type PerWellStorageStats struct {
 	StorageStats
-	Accelerator    string   `json:"accelerator"`
-	Engine         string   `json:"engine"`
-	PathCold       string   `json:"pathCold"`
-	PathHot        string   `json:"pathHot"`
-	ShardCountCold uint64   `json:"shardCountCold"`
-	ShardCountHot  uint64   `json:"shardCountHot"`
-	Tags           []string `json:"tags"`
-	WellName       string   `json:"wellName"`
+	Accelerator    string
+	Engine         string
+	PathCold       string
+	PathHot        string
+	ShardCountCold uint64
+	ShardCountHot  uint64
+	Tags           []string
+	WellName       string
 	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
-	Fragmentation uint `json:"fragmentation"`
+	Fragmentation uint
 }
 
 type CalendarRequest struct {
-	Start time.Time `json:"start"`
-	End   time.Time `json:"end"`
-	Wells []string  `json:"wells"`
+	Start time.Time
+	End   time.Time
+	Wells []string
 }
 
 type CalendarEntry struct {
-	Date         string `json:"date"`
-	DataIngested uint64 `json:"dataIngested"`
-	EntryCount   uint64 `json:"entryCount"`
+	Date         string
+	DataIngested uint64
+	EntryCount   uint64
 }
 
 type IndexerWellData struct {
@@ -149,6 +133,13 @@ type IndexerWellData struct {
 	//Key is the UUID of the remote system that we have replicated data for
 	//the value is the list of wells and their data
 	Replicated map[uuid.UUID][]WellInfo
+}
+
+type SearchQueue struct {
+	InFlight    int
+	MaxInFlight int
+	Enqueued    int
+	MaxEnqueued int
 }
 
 func (iwd *IndexerWellData) Sort() {
@@ -160,63 +151,4 @@ func (iwd *IndexerWellData) Sort() {
 			v[i].sort()
 		}
 	}
-}
-
-func (iwd IndexerWellData) MarshalJSON() ([]byte, error) {
-	x := struct {
-		UUID       uuid.UUID
-		Wells      emptyWellList
-		Replicated erp
-	}{
-		UUID:       iwd.UUID,
-		Wells:      emptyWellList(iwd.Wells),
-		Replicated: erp(iwd.Replicated),
-	}
-
-	return json.Marshal(x)
-}
-
-type erp map[uuid.UUID][]WellInfo
-
-func (v erp) MarshalJSON() ([]byte, error) {
-	if len(v) == 0 {
-		return emptyObj, nil
-	}
-	return json.Marshal(map[uuid.UUID][]WellInfo(v))
-}
-
-type eshardList []ShardInfo
-
-func (el eshardList) MarshalJSON() ([]byte, error) {
-	if len(el) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]ShardInfo(el))
-}
-
-func (wi WellInfo) MarshalJSON() ([]byte, error) {
-	type alias WellInfo
-	ts := struct {
-		alias
-		Tags   emptyStrings
-		Shards eshardList
-	}{
-		alias:  alias(wi),
-		Tags:   emptyStrings(wi.Tags),
-		Shards: eshardList(wi.Shards),
-	}
-	return json.Marshal(ts)
-}
-
-type emptyWellList []WellInfo
-
-func (e emptyWellList) MarshalJSON() ([]byte, error) {
-	if len(e) == 0 {
-		return emptyList, nil
-	}
-	return json.Marshal([]WellInfo(e))
-}
-
-func (rs ReplicationState) isEmpty() bool {
-	return rs.Entries == 0 && rs.Size == 0 && rs.UUID == uuid.Nil
 }

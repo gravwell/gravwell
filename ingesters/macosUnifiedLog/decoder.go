@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
@@ -44,11 +45,12 @@ var (
 type eventDecoder struct {
 	br       *bufio.Reader
 	lr       *limitReader
-	dec      *json.Decoder
+	dec      *jsontext.Decoder
 	maxSize  int64
 	started  bool
 	inArray  bool
 	preamble func(string) // optional, called with each non-JSON line skipped ahead of the events
+	err      error        // sticky: once Next fails, it keeps failing with the same error
 }
 
 func newEventDecoder(r io.Reader, maxSize int64, preamble func(string)) *eventDecoder {
@@ -61,24 +63,34 @@ func newEventDecoder(r io.Reader, maxSize int64, preamble func(string)) *eventDe
 	}
 }
 
-// Next returns the next event compacted onto a single line.
-// io.EOF means the output ended cleanly, either between events or by closing the array.
+// Next returns the next event compacted onto a single line. io.EOF means the
+// array closed cleanly; an array left open ends in io.ErrUnexpectedEOF instead.
 func (d *eventDecoder) Next() ([]byte, error) {
+	if d.err != nil {
+		return nil, d.err
+	}
+	data, err := d.next()
+	if err != nil {
+		d.err = err
+	}
+	return data, err
+}
+
+func (d *eventDecoder) next() ([]byte, error) {
 	if !d.started {
 		if err := d.start(); err != nil {
 			return nil, err
 		}
 	}
 	d.lr.n = d.maxSize
-	if d.inArray && !d.dec.More() {
-		// More returns false on both the closing ']' and a read error; Token tells them apart
-		if _, err := d.dec.Token(); err != nil {
+	if d.inArray && d.dec.PeekKind() == ']' {
+		if _, err := d.dec.ReadToken(); err != nil {
 			return nil, err
 		}
 		return nil, io.EOF
 	}
-	var raw json.RawMessage
-	if err := d.dec.Decode(&raw); err != nil {
+	raw, err := d.dec.ReadValue()
+	if err != nil {
 		return nil, err
 	}
 	var buf bytes.Buffer
@@ -104,10 +116,10 @@ func (d *eventDecoder) start() error {
 			if err = d.br.UnreadByte(); err != nil {
 				return err
 			}
-			d.dec = json.NewDecoder(d.lr)
+			d.dec = jsontext.NewDecoder(d.lr)
 			d.lr.n = d.maxSize
 			if b == '[' {
-				if _, err = d.dec.Token(); err != nil {
+				if _, err = d.dec.ReadToken(); err != nil {
 					return err
 				}
 				d.inArray = true

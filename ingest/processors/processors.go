@@ -20,10 +20,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors/plugin"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors/plugin"
 )
 
 const (
