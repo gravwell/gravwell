@@ -26,10 +26,13 @@ func testAgent() Agent {
 		Entrypoint: NodeSpec{
 			Type: NodeRouter, Name: "root", Prompt: "route it", Inherit: true,
 			Children: []*NodeSpec{
-				{Type: NodeSingle, Name: "a", Description: "does a", Prompt: "be a"},
+				{Type: NodeSingle, Name: "a", Description: "does a", Prompt: "be a",
+					AllowedSubagents: []string{"query-writer"}, SubagentOutput: SubagentShown},
 				{Type: NodeLoop, Name: "b", Description: "does b", MaxIterations: 3, Inherit: true, Children: []*NodeSpec{
 					{Type: NodeSingle, Name: "inner", Prompt: "p", AllowedTools: []string{"run_query"}},
 				}},
+				{Type: NodeTool, Name: "check", Description: "parses it", Inherit: true, Tool: "parse_query",
+					Arguments: map[string]string{"query": "${code_blocks}"}, ForEach: "query", Requires: "SUCCESS", MaxItems: 1},
 			},
 		},
 		StateDiagram: `<svg xmlns="http://www.w3.org/2000/svg"/>`,
@@ -103,6 +106,8 @@ func TestNodeSpecValidate(t *testing.T) {
 		"nil child":       {NodeSpec{Type: NodeParallel, Name: "x", Children: []*NodeSpec{nil}}, ErrNodeNilChild},
 		"dup child":       {NodeSpec{Type: NodeRouter, Name: "x", Children: []*NodeSpec{single("a"), single("a")}}, ErrNodeDuplicateChildName},
 		"nested":          {NodeSpec{Type: NodeSerial, Name: "x", Children: []*NodeSpec{{Type: NodeLoop, Name: "l"}}}, ErrNodeLoopChildCount},
+		"tool children":   {NodeSpec{Type: NodeTool, Name: "x", Tool: "t", Children: []*NodeSpec{single("a")}}, ErrNodeToolHasChildren},
+		"tool no tool":    {NodeSpec{Type: NodeTool, Name: "x"}, ErrNodeToolMissingTool},
 	}
 	for name, tc := range bad {
 		if err := tc.n.Validate(); !errors.Is(err, tc.want) {
@@ -119,7 +124,10 @@ func TestNodeSpecClone(t *testing.T) {
 	}
 	c.Children[1].Children[0].AllowedTools[0] = "changed"
 	c.Children[0].Name = "changed"
-	if a.Entrypoint.Children[1].Children[0].AllowedTools[0] != "run_query" || a.Entrypoint.Children[0].Name != "a" {
+	c.Children[0].AllowedSubagents[0] = "changed"
+	c.Children[2].Arguments["query"] = "changed"
+	if a.Entrypoint.Children[1].Children[0].AllowedTools[0] != "run_query" || a.Entrypoint.Children[0].Name != "a" ||
+		a.Entrypoint.Children[0].AllowedSubagents[0] != "query-writer" || a.Entrypoint.Children[2].Arguments["query"] != "${code_blocks}" {
 		t.Errorf("clone shares memory with the original")
 	}
 }
