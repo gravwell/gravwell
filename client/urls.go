@@ -223,6 +223,7 @@ const (
 	TABLES_ID_ROWS_URL                    = `/api/tables/%s/rows`
 	TABLES_ID_ROWS_KEY_URL                = `/api/tables/%s/rows/%s`
 	LIST_TABLE_ROWS_URL                   = `/api/list/table-rows`
+	LIST_LABELS_URL                       = `/api/list/labels`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
