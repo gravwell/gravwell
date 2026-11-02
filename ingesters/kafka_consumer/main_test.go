@@ -18,7 +18,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -124,7 +123,8 @@ func TestDefaultConfigLocations(t *testing.T) {
 func TestCfgTypeSatisfiesBaseInterfaces(t *testing.T) {
 	cfg, err := GetConfig(writeTempConfig(t, mainTestConfig), ``)
 	require.NoError(t, err)
-	var ic config.IngestConfig = cfg.IngestBaseConfig()
+	//var ic config.IngestConfig = cfg.IngestBaseConfig()
+	var ic = cfg.IngestBaseConfig()
 	require.Equal(t, `IngestSecrets`, ic.Secret())
 	tgs, err := cfg.Tags()
 	require.NoError(t, err)
