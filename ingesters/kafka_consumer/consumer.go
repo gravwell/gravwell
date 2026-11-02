@@ -115,6 +115,7 @@ func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
 
 func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 	kc.mtx.Lock()
+	defer kc.mtx.Unlock()
 	if kc.started {
 		err = errors.New("already started")
 	} else if kc.ctx == nil || kc.cf == nil {
@@ -126,6 +127,12 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		}
 		cfg.Consumer.Group.Rebalance.GroupStrategies = kc.strats
 		cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
+		if kc.fetchDefault > 0 {
+			cfg.Consumer.Fetch.Default = kc.fetchDefault
+		}
+		if kc.fetchMax > 0 {
+			cfg.Consumer.Fetch.Max = kc.fetchMax
+		}
 
 		if kc.useTLS {
 			cfg.Net.TLS.Enable = true
@@ -148,7 +155,6 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		kc.started = true
 		go kc.routine(clnt, wg)
 	}
-	kc.mtx.Unlock()
 	return
 }
 

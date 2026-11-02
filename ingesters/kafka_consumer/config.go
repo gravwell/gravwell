@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/inhies/go-bytesize"
 	"github.com/xdg-go/scram"
 )
 
@@ -45,6 +47,10 @@ const (
 	authScramSHA512 = `scramsha512`
 )
 
+// saramaDefaultFetch is the Consumer.Fetch.Default value that sarama.NewConfig applies
+// when nothing is specified.
+var saramaDefaultFetch = sarama.NewConfig().Consumer.Fetch.Default
+
 type KafkaAuthConfig struct {
 	Auth_Type string
 	Username  string
@@ -63,6 +69,11 @@ type ConfigConsumer struct {
 	Synchronous        bool
 	Batch_Size         int
 	Default_Tag        string
+
+	// Fetch sizing, maps to sarama Consumer.Fetch.Default and Consumer.Fetch.Max.
+	// Values are whole byte counts and accept size suffixes (e.g. 512KB, 4MB), fractional sizes such as 1.5MB are rejected.
+	Fetch_Default string // initial number of bytes requested per partition per fetch
+	Fetch_Max     string // upper bound on bytes per partition per fetch, 0 means no limit
 
 	tags.TaggerConfig
 
@@ -96,6 +107,10 @@ type consumerCfg struct {
 	tagKey      string
 	srcBin      bool
 	srcOverride net.IP
+
+	// fetch sizing; zero means leave the sarama default in place
+	fetchDefault int32
+	fetchMax     int32
 
 	auth KafkaAuthConfig
 
@@ -153,7 +168,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 			return nil, fmt.Errorf("Consumer %s preprocessor invalid: %v", k, err)
 		}
 		if cnsmr, err := v.validateAndProcess(cr); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Consumer %s: %w", k, err)
 		} else if err := c.TimeFormat.LoadFormats(cnsmr.tg); err != nil {
 			return nil, err
 		} else {
@@ -351,7 +366,63 @@ func (cc ConfigConsumer) validateAndProcess(cr cfgReadType) (c consumerCfg, err 
 
 	c.preprocessor = cc.Preprocessor
 
+	if c.fetchDefault, c.fetchMax, err = cc.fetchSizes(); err != nil {
+		return
+	}
+
 	c.strats, err = cc.balanceStrats()
+	return
+}
+
+// fetchSizes parses and validates Fetch-Default and Fetch-Max.
+// A returned value of zero means the parameter was not set and the sarama default should be used.
+func (cc ConfigConsumer) fetchSizes() (fetchDef, fetchMax int32, err error) {
+	if fetchDef, err = parseFetchSize(cc.Fetch_Default); err != nil {
+		err = fmt.Errorf("invalid Fetch-Default %q: %w", cc.Fetch_Default, err)
+		return
+	} else if fetchMax, err = parseFetchSize(cc.Fetch_Max); err != nil {
+		err = fmt.Errorf("invalid Fetch-Max %q: %w", cc.Fetch_Max, err)
+		return
+	}
+	if strings.TrimSpace(cc.Fetch_Default) != `` && fetchDef == 0 {
+		err = errors.New("Fetch-Default must be greater than zero")
+		return
+	}
+	if fetchMax > 0 {
+		if fetchDef == 0 && fetchMax < saramaDefaultFetch {
+			// a Fetch-Max below the implicit default would otherwise be
+			// exceeded on the very first request, so bring the default down
+			fetchDef = fetchMax
+		} else if fetchDef > fetchMax {
+			err = fmt.Errorf("Fetch-Default (%d) cannot be larger than Fetch-Max (%d)", fetchDef, fetchMax)
+		}
+	}
+	return
+}
+
+// parseFetchSize accepts either a plain byte count or a whole size with a suffix (KB, MB, ...).
+// Empty strings return zero.
+func parseFetchSize(v string) (s int32, err error) {
+	if v = strings.TrimSpace(v); v == `` {
+		return
+	}
+	var n float64
+	if i, perr := strconv.ParseInt(v, 10, 64); perr == nil {
+		n = float64(i)
+	} else {
+		var bs bytesize.ByteSize
+		if bs, err = bytesize.Parse(v); err != nil {
+			return
+		}
+		n = float64(bs)
+	}
+	if n < 0 {
+		err = errors.New("size cannot be negative")
+	} else if n > float64(sarama.MaxResponseSize) {
+		err = fmt.Errorf("size cannot exceed the maximum Kafka response size of %d bytes", sarama.MaxResponseSize)
+	} else {
+		s = int32(n)
+	}
 	return
 }
 
