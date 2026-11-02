@@ -58,6 +58,7 @@ var (
 	ErrTooManyTags           = errors.New("All tag IDs exhausted, too many tags")
 	ErrUnknownTag            = errors.New("Invalid tag value")
 	ErrInvalidMaxEntrySize   = errors.New("Invalid Max-Entry-Size, max 1GB")
+	ErrCacheMissingTagMap    = errors.New("Cache contains entries but the tagcache file is missing or empty")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -83,6 +84,7 @@ const (
 
 	connectionShutdownSyncTimeout     = 10 * time.Second
 	connectionTimerSyncTimeout        = 60 * time.Second //sometimes disks are stupid, give indexers a long time
+	setupCloseTimeout                 = time.Second      //closing a connection that never finished setup has nothing to flush
 	connectionTimerSyncTimeoutBackoff = 60 * time.Second // if we couldn't flush within 60s give the indexer 60s to collect itself
 )
 
@@ -328,12 +330,33 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		c.Logger = log.NewDiscardLogger()
 	}
 
+	// Cached entries only carry local tag IDs, the tagcache file is the only
+	// record of what those IDs mean. If the cache holds data but the tag map
+	// is gone we cannot safely replay it, so refuse to start rather than drop
+	// entries or ingest them under the wrong tag. This must happen before the
+	// chancachers are created, they begin draining from disk immediately.
+	var tagMap map[string]entry.EntryTag
+	var err error
+	if c.CachePath != "" {
+		if tagMap, err = readTagCache(c.CachePath); err != nil {
+			return nil, err
+		}
+		if len(tagMap) == 0 {
+			if hasData, err := cacheHasData(c.CachePath); err != nil {
+				return nil, err
+			} else if hasData {
+				return nil, fmt.Errorf("%w, refusing to replay cache in %q; move the cache directory aside to start without it", ErrCacheMissingTagMap, c.CachePath)
+			}
+		}
+	} else {
+		tagMap = make(map[string]entry.EntryTag)
+	}
+
 	// connect up the chancacher
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 	var eIn, eOut, bIn, bOut chan interface{}
 
-	var err error
 	if c.CachePath != "" {
 		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
 		if err != nil {
@@ -381,15 +404,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// that's recovering. The cache has tag IDs from the /previous/ run, so
 	// we read the old translations (that were previously saved) and then
 	// add our tags to them. If the old tag map doesn't exist, then it's
-	// anyone's guess where those entries might end up. Those are the
-	// breaks.
-	tagMap := make(map[string]entry.EntryTag)
-	if c.CachePath != "" {
-		tagMap, err = readTagCache(c.CachePath)
-		if err != nil {
-			return nil, err
-		}
-	}
+	// anyone's guess where those entries might end up, so we refuse to
+	// start in that case (see the tagcache check above).
 
 	var taglist []string
 
@@ -525,6 +541,26 @@ func readTagCache(p string) (map[string]entry.EntryTag, error) {
 	}
 
 	return ret, nil
+}
+
+// cacheHasData reports whether either of the entry or block caches under p
+// have data committed to disk.
+func cacheHasData(p string) (bool, error) {
+	for _, sub := range []string{"e", "b"} {
+		for _, f := range []string{"cache_a", "cache_b"} {
+			fi, err := os.Stat(filepath.Join(p, sub, f))
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return false, err
+			}
+			if fi.Size() > 0 {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func writeTagCache(t map[string]entry.EntryTag, p string) error {
@@ -2086,10 +2122,10 @@ loop:
 		//no error, attempt to do a tag translation
 		//we have a good connection, build our tag map
 		if tt, err = im.newTagTrans(ig); err != nil {
-			ig.Close()
+			im.mtx.RUnlock()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			ig = nil
 			tt = nil
-			im.mtx.RUnlock()
 			im.Error("fatal connection error, failed to get get tag translation map",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
@@ -2108,12 +2144,21 @@ loop:
 
 		// set the info
 		if lerr := ig.IdentifyIngester(im.name, im.version, im.uuid); lerr != nil {
+			if im.ctx.Err() != nil {
+				//a Close raced the reconnect, that is not an indexer failure
+				ig.closeTimeout(setupCloseTimeout)
+				return nil, nil, errors.New("Muxer closing")
+			}
 			im.Error("Failed to identify ingester",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
+			//do not leak the half setup connection across the retry, nothing is
+			//outstanding yet so give the close a short budget rather than the
+			//full closeTimeout against a peer that may have stopped reading
+			ig.closeTimeout(setupCloseTimeout)
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {
@@ -2126,18 +2171,25 @@ loop:
 		for {
 			select {
 			case <-im.ctx.Done():
-				return
+				//told to exit, do not hand back a connection that never got the ingest OK
+				ig.closeTimeout(setupCloseTimeout)
+				return nil, nil, errors.New("Muxer closing")
 			default:
 			}
 			ok, lerr := ig.IngestOK()
 			if lerr != nil {
+				if im.ctx.Err() != nil {
+					//a Close raced the reconnect, that is not an indexer failure
+					ig.closeTimeout(setupCloseTimeout)
+					return nil, nil, errors.New("Muxer closing")
+				}
 				im.Error("IngestOK query failed",
 					log.KV("indexer", tgt.Address),
 					log.KV("ingester", im.name),
 					log.KV("version", version.GetVersion()),
 					log.KV("ingesteruuid", im.uuid),
 					log.KVErr(lerr))
-				ig.Close()
+				ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 				//non-fatal, sleep and continue
 				retryDuration = backoff(retryDuration, maxRetryTime)
 				if im.quitableSleep(retryDuration) {
@@ -2164,7 +2216,7 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(lerr))
-			ig.Close()
+			ig.closeTimeout(setupCloseTimeout) //nothing outstanding before hot, keep the close short
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {

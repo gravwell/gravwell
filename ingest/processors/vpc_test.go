@@ -132,3 +132,13 @@ func makeCloudWatchLog(cnt int, zipped bool) []byte {
 	}
 	return bb.Bytes()
 }
+
+func TestVpcTruncatedHeader(t *testing.T) {
+	p, err := NewVpcProcessor(VpcConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set, err := p.Process(makeEntry(truncatedGzipHeader, 0)); err != nil || len(set) != 0 {
+		t.Fatalf("truncated gzip header was not dropped: %v %d", err, len(set))
+	}
+}

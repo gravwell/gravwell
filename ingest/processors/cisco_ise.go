@@ -55,9 +55,15 @@ type CiscoISEConfig struct {
 	Output_Format               string
 	Attribute_Drop_Filter       []string
 	Attribute_Strip_Header      bool
-	maxLatency                  time.Duration
-	format                      uint
-	filters                     []glob.Glob
+
+	// Optional bounds on header timestamps, timestamps outside the bounds are ignored
+	Timestamp_Max_Past_Delta   string
+	Timestamp_Max_Future_Delta string
+
+	maxLatency time.Duration
+	bounds     tsBounds
+	format     uint
+	filters    []glob.Glob
 }
 
 func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error) {
@@ -76,6 +82,10 @@ func (c *CiscoISEConfig) validate() (err error) {
 			err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err)
 			return
 		}
+	}
+
+	if c.bounds, err = newTSBounds(c.Timestamp_Max_Past_Delta, c.Timestamp_Max_Future_Delta); err != nil {
+		return
 	}
 
 	//check if an output format has been specified and validate it
@@ -119,7 +129,7 @@ func (c *CiscoISEConfig) validate() (err error) {
 }
 
 // formatter functions
-type iseFormatter func(*entry.Entry, []glob.Glob, bool) bool
+type iseFormatter func(*entry.Entry, []glob.Glob, bool, tsBounds) bool
 
 type CiscoISE struct {
 	CiscoISEConfig
@@ -159,7 +169,9 @@ func (p *CiscoISE) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(CiscoISEConfig); ok {
-		p.CiscoISEConfig = cfg
+		if cfg.bounds, err = newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta); err == nil {
+			p.CiscoISEConfig = cfg
+		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -192,7 +204,7 @@ func (p *CiscoISE) processEnt(ent *entry.Entry) (r *entry.Entry, err error) {
 		r, err = p.processReassemble(ent)
 	} else {
 		//just attempt to reformat the entry
-		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header) && p.Drop_Misses {
+		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header, p.bounds) && p.Drop_Misses {
 			//bad formatting and no passthrough, just skip it
 			return
 		}
@@ -216,7 +228,7 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (r *entry.Entry, err erro
 	} else if ejected {
 		if rent, ok := msr.meta.(*entry.Entry); ok {
 			rent.Data = []byte(msr.output)
-			if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || !p.Drop_Misses {
+			if p.fmt(rent, p.filters, p.Attribute_Strip_Header, p.bounds) || !p.Drop_Misses {
 				r = rent
 			}
 		}
@@ -230,7 +242,7 @@ func (p *CiscoISE) flush(force bool) (ents []*entry.Entry) {
 		for _, out := range outputs {
 			if rent, ok := out.meta.(*entry.Entry); ok {
 				rent.Data = []byte(out.output)
-				if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || !p.Drop_Misses {
+				if p.fmt(rent, p.filters, p.Attribute_Strip_Header, p.bounds) || !p.Drop_Misses {
 					ents = append(ents, rent)
 				}
 			}
@@ -645,19 +657,19 @@ func indexOfNonEscaped(data []byte, delim byte) (r int) {
 }
 
 // iseRawFormatter is just a passthrough, send as is
-func iseRawFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool) bool {
+func iseRawFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool, bounds tsBounds) bool {
 	return true
 }
 
 // iseCefFormatter attempts to crack the message apart and reform it as a CEF message
 // this WILDLY violates the CEF spec, but so does everyone else
-func iseCefFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool) bool {
+func iseCefFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool, bounds tsBounds) bool {
 	var msg iseMessage
 	if err := msg.Parse(string(ent.Data), filters, stripHeaders); err != nil {
 		return false
 	}
-	//update the timestamp
-	ent.TS = entry.FromStandard(msg.ts)
+	//update the timestamp if it is within bounds
+	bounds.apply(ent, msg.ts)
 	ent.Data = msg.formatAsCEF()
 	return true
 }
@@ -675,14 +687,14 @@ func (m *iseMessage) formatAsCEF() []byte {
 }
 
 // iseJSONFormatter attempts to crack the message apart and reform it as a JSON object
-func iseJSONFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool) bool {
+func iseJSONFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool, bounds tsBounds) bool {
 	var msg iseMessage
 	if err := msg.Parse(string(ent.Data), filters, stripHeaders); err != nil {
 		return false
 	}
 	if v, err := json.Marshal(msg); err == nil {
 		ent.Data = v
-		ent.TS = entry.FromStandard(msg.ts)
+		bounds.apply(ent, msg.ts)
 		return true
 	}
 	return false
