@@ -89,7 +89,7 @@ func TestMainVersion(t *testing.T) {
 func TestMainMissingConfig(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), `does-not-exist.conf`)
 	_, stderr, code := runMain(t, `-config-file`, missing, `-config-overlays`, t.TempDir())
-	require.Zero(t, code, "main reports configuration errors and returns rather than exiting non-zero")
+	require.NotZero(t, code, "configuration errors must exit non-zero")
 	require.Contains(t, stderr, `failed to get configuration`)
 }
 
@@ -97,7 +97,7 @@ func TestMainInvalidConfig(t *testing.T) {
 	// a consumer without a Leader is rejected by GetConfig
 	cfgPath := writeTempConfig(t, strings.Replace(mainTestConfig, `Leader="127.0.0.1"`, ``, 1))
 	_, stderr, code := runMain(t, `-config-file`, cfgPath, `-config-overlays`, t.TempDir())
-	require.Zero(t, code)
+	require.NotZero(t, code)
 	require.Contains(t, stderr, `failed to get configuration`)
 	require.Contains(t, stderr, `Leader`)
 }

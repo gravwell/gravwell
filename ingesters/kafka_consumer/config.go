@@ -47,10 +47,6 @@ const (
 	authScramSHA512 = `scramsha512`
 )
 
-// saramaDefaultFetch is the Consumer.Fetch.Default value that sarama.NewConfig applies
-// when nothing is specified.
-var saramaDefaultFetch = sarama.NewConfig().Consumer.Fetch.Default
-
 type KafkaAuthConfig struct {
 	Auth_Type string
 	Username  string
@@ -389,7 +385,7 @@ func (cc ConfigConsumer) fetchSizes() (fetchDef, fetchMax int32, err error) {
 		return
 	}
 	if fetchMax > 0 {
-		if fetchDef == 0 && fetchMax < saramaDefaultFetch {
+		if fetchDef == 0 && fetchMax < sarama.NewConfig().Consumer.Fetch.Default {
 			// a Fetch-Max below the implicit default would otherwise be
 			// exceeded on the very first request, so bring the default down
 			fetchDef = fetchMax

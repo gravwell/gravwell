@@ -92,7 +92,8 @@ func TestFetchSizes(t *testing.T) {
 		{``, `-1`, 0, 0, true},
 		{`lots`, ``, 0, 0, true},
 		{``, `4XB`, 0, 0, true},
-		{`1GB`, ``, 0, 0, true}, // bigger than sarama.MaxResponseSize
+		{`1.5MB`, ``, 0, 0, true}, // fractional sizes are rejected
+		{`1GB`, ``, 0, 0, true},   // bigger than sarama.MaxResponseSize
 		{`99999999999999`, ``, 0, 0, true},
 	}
 	for i, tt := range tests {

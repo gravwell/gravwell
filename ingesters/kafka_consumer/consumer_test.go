@@ -324,8 +324,9 @@ func TestStartAfterClose(t *testing.T) {
 
 func TestStartReleasesLockOnClientError(t *testing.T) {
 	// main() calls Close after a failed Start, so the lock must be released on every error path
+	// an unknown auth type fails in SetAuth before any network connection is attempted
 	kc, _ := newTestConsumer(t, func(c *consumerCfg) {
-		c.leader = []string{`127.0.0.1:1`} // nothing listens here
+		c.auth = KafkaAuthConfig{Auth_Type: `bogus`}
 	})
 	var wg sync.WaitGroup
 	require.Error(t, kc.Start(&wg))
