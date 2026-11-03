@@ -57,8 +57,8 @@ type EventMetadata struct {
 	TargetTag          string   // the tag this got sent to
 	AlertLabels        []string // labels attached to the alert definition
 	Dispatcher         EventDispatcherInfo
-	Consumers          []EventConsumerInfo    // consmers which will be launched for this event
-	UserMetadata       map[string]interface{} // this is arbitrary stuff that the user attached to the alert def.
+	Consumers          []EventConsumerInfo // consmers which will be launched for this event
+	UserMetadata       map[string]any      // this is arbitrary stuff that the user attached to the alert def.
 	ValidationProblems []ValidationProblem
 }
 
