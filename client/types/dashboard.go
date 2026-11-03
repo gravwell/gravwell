@@ -22,7 +22,7 @@ type Dashboard struct {
 // DashboardLiveUpdateSettings describes Live Update behavior for a Dashboard.
 type DashboardLiveUpdateSettings struct {
 	Enabled  bool
-	Interval string
+	Interval int32 // number of seconds
 }
 
 // DashboardTimeframe represents a timeframe: a relative or absolute period of time.
