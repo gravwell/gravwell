@@ -632,6 +632,31 @@ func TestNoNilSlicesMaps(t *testing.T) {
 		require.True(t, found, "failed to parse \"Labels\" out of json")
 		require.Equal(t, "[]", lbls.String())
 	})
+	// the event fields used to be omitempty, so the key vanished when they were empty
+	t.Run("Event", func(t *testing.T) {
+		b, err := v2.Marshal(types.Event{}, jsoncompat.Opts)
+		require.NoError(t, err)
+		var out struct {
+			Contents jsontext.Value
+			Metadata map[string]jsontext.Value
+		}
+		require.NoError(t, v2.Unmarshal(b, &out, jsoncompat.Opts))
+		require.Equal(t, "{}", out.Contents.String(), "Contents in %s", b)
+		for key, want := range map[string]string{
+			"AlertLabels":        "[]",
+			"Consumers":          "[]",
+			"UserMetadata":       "{}",
+			"ValidationProblems": "[]",
+		} {
+			require.Equal(t, want, out.Metadata[key].String(), "%s in %s", key, b)
+		}
+
+		b, err = v2.Marshal(types.EventConsumerInfo{}, jsoncompat.Opts)
+		require.NoError(t, err)
+		var consumer map[string]jsontext.Value
+		require.NoError(t, v2.Unmarshal(b, &consumer, jsoncompat.Opts))
+		require.Equal(t, "[]", consumer["Labels"].String(), "Labels in %s", b)
+	})
 	t.Run("complex struct", func(t *testing.T) {
 		st := struct {
 			S   []time.Duration
