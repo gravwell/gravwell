@@ -109,14 +109,10 @@ var ErrNoNullOptional = errors.New("optionals may not be null")
 // NOTE(rlandau): implemented as MarshalJSONFrom instead of MarshalJSON in order to propagate encoder
 // option (likely jsoncompat.Opts).
 func (o *Optional[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
-	v, err := dec.ReadValue()
-	if err != nil {
-		return err
-	}
-	if v.String() == `null` {
+	if dec.PeekKind() == jsontext.KindNull {
 		return ErrNoNullOptional
 	}
-	if err := json.Unmarshal(v, &o.value, dec.Options()); err != nil {
+	if err := json.UnmarshalDecode(dec, &o.value); err != nil {
 		return err
 	}
 	o.set = true
