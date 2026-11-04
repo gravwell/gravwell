@@ -28,9 +28,22 @@ type Access struct {
 }
 
 type Actions struct {
-	Delete bool
-	Modify bool
-	Share  bool
+	Delete ActionStatus
+	Modify ActionStatus
+	Share  ActionStatus
+}
+
+type ActionStatus struct {
+	Allowed bool
+	Reason  string `json:",omitempty"`
+}
+
+// NewActionStatus returns an allowed status, or a denied status carrying reason.
+func NewActionStatus(allowed bool, reason string) ActionStatus {
+	if allowed {
+		return ActionStatus{Allowed: true}
+	}
+	return ActionStatus{Reason: reason}
 }
 
 func (a Access) GetOld() otypes.Access {
