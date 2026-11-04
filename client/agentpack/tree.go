@@ -503,8 +503,18 @@ func CheckNode(node *types.NodeSpec, path string) error {
 	}
 	switch node.Type {
 	case types.NodeSingle:
+		// What a single calls on demand is named in AllowedSubagents and is
+		// not part of this graph, so it still has no children.
 		if len(node.Children) != 0 {
 			return fmt.Errorf("%s: a single node cannot have children", path)
+		}
+	case types.NodeTool:
+		// A tool node makes one deterministic call and has nothing under it.
+		if len(node.Children) != 0 {
+			return fmt.Errorf("%s: a tool node cannot have children", path)
+		}
+		if node.Tool == "" {
+			return fmt.Errorf("%s: a tool node needs a Tool to call", path)
 		}
 	case types.NodeSerial, types.NodeParallel, types.NodeRouter:
 		if len(node.Children) == 0 {
