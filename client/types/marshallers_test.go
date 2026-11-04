@@ -605,6 +605,16 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 	})
 }
 
+func TestOptionalsRejectNulls(t *testing.T) {
+	require.ErrorIs(t,
+		v2.Unmarshal([]byte(`null`), &types.Optional[string]{}, jsoncompat.Opts),
+		types.ErrNoNullOptional)
+
+	require.ErrorIs(t,
+		v2.Unmarshal([]byte(`{"Name":"MYMACRO", "Description": null}`), &types.MacroPatch{}, jsoncompat.Opts),
+		types.ErrNoNullOptional)
+}
+
 // tests that MarshalJSONTo/UnmarshalJSONFrom properly carries the caller's encoder/decoder options.
 func TestRowSelectionForwardsCallerOptions(t *testing.T) {
 	t.Run("MatchCaseInsensitiveNames on unmarshal", func(t *testing.T) {
