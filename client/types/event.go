@@ -108,5 +108,14 @@ func BuildEventMetadata(created time.Time, ud User, alertDef Alert, dispatcher E
 	if meta.AlertLabels == nil {
 		meta.AlertLabels = []string{}
 	}
+	if meta.Consumers == nil {
+		meta.Consumers = []EventConsumerInfo{}
+	}
+	if meta.UserMetadata == nil {
+		meta.UserMetadata = map[string]any{}
+	}
+	if meta.ValidationProblems == nil {
+		meta.ValidationProblems = []ValidationProblem{}
+	}
 	return meta
 }

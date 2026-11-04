@@ -666,6 +666,22 @@ func TestNoNilSlicesMaps(t *testing.T) {
 		var consumer map[string]jsontext.Value
 		require.NoError(t, v2.Unmarshal(b, &consumer, jsoncompat.Opts))
 		require.Equal(t, "[]", consumer["Labels"].String(), "Labels in %s", b)
+
+		// the search agent may ingest event metadata with v1, which marshals nil as null,
+		// so BuildEventMetadata must hand out non-nil slices and maps
+		meta := types.BuildEventMetadata(time.Now(), types.User{}, types.Alert{}, types.EventDispatcherInfo{})
+		b, err = v1.Marshal(meta)
+		require.NoError(t, err)
+		var v1Meta map[string]v1.RawMessage
+		require.NoError(t, v1.Unmarshal(b, &v1Meta))
+		for key, want := range map[string]string{
+			"AlertLabels":        "[]",
+			"Consumers":          "[]",
+			"UserMetadata":       "{}",
+			"ValidationProblems": "[]",
+		} {
+			require.Equal(t, want, string(v1Meta[key]), "%s in %s", key, b)
+		}
 	})
 	t.Run("complex struct", func(t *testing.T) {
 		st := struct {
