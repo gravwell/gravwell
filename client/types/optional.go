@@ -105,6 +105,7 @@ func (o Optional[T]) MarshalJSONTo(enc *jsontext.Encoder) error {
 var ErrNoNullOptional = errors.New("optionals may not be null")
 
 // UnmarshalJSONFrom decodes the given data into o's value and marks it as set.
+// A null value is rejected outright.
 //
 // NOTE(rlandau): implemented as MarshalJSONFrom instead of MarshalJSON in order to propagate encoder
 // option (likely jsoncompat.Opts).
