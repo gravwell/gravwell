@@ -397,24 +397,28 @@ func (cc ConfigConsumer) fetchSizes() (fetchDef, fetchMax int32, err error) {
 }
 
 // parseFetchSize accepts either a plain byte count or a whole size with a suffix (KB, MB, ...).
-// Empty strings return zero.
+// Fractional sizes are rejected. Empty strings return zero.
 func parseFetchSize(v string) (s int32, err error) {
 	if v = strings.TrimSpace(v); v == `` {
 		return
 	}
-	var n float64
+	var n int64
 	if i, perr := strconv.ParseInt(v, 10, 64); perr == nil {
-		n = float64(i)
+		n = i
 	} else {
+		if strings.ContainsRune(v, '.') {
+			err = errors.New("fractional sizes are not supported, use a whole number with a suffix such as 2MB")
+			return
+		}
 		var bs bytesize.ByteSize
 		if bs, err = bytesize.Parse(v); err != nil {
 			return
 		}
-		n = float64(bs)
+		n = int64(bs)
 	}
 	if n < 0 {
 		err = errors.New("size cannot be negative")
-	} else if n > float64(sarama.MaxResponseSize) {
+	} else if n > int64(sarama.MaxResponseSize) {
 		err = fmt.Errorf("size cannot exceed the maximum Kafka response size of %d bytes", sarama.MaxResponseSize)
 	} else {
 		s = int32(n)
