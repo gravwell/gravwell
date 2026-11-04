@@ -79,6 +79,14 @@ func (r ListResponse[T]) Items() []T {
 	return r.Results
 }
 
+// Tag is a tag known to the indexers, as returned by the tag list.
+type Tag struct {
+	Name string
+}
+
+// TagListResponse is a single page of tags, as returned by POST /api/list/tags.
+type TagListResponse = ListResponse[Tag]
+
 type VersionInfo struct {
 	API   ApiInfo
 	Build BuildInfo
