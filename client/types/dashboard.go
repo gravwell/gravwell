@@ -21,8 +21,11 @@ type Dashboard struct {
 
 // DashboardLiveUpdateSettings describes Live Update behavior for a Dashboard.
 type DashboardLiveUpdateSettings struct {
-	Enabled  bool
-	Interval string
+	Enabled bool
+
+	// Interval is the number of seconds between Live Update refreshes.
+	// Zero means the client's default.
+	Interval uint32
 }
 
 // DashboardTimeframe represents a timeframe: a relative or absolute period of time.
