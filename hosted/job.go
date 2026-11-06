@@ -77,10 +77,11 @@ func WrapJob(j Job) Ingester {
 }
 
 // WrapJobWithSync adapts a Job to the Ingester interface, additionally calling
-// syncFn after each successful Handle to flush state to disk. This narrows the
-// duplicate-on-restart window to only entries still in the muxer's in-memory
-// channel. Anything that reached the disk cache is matched by durable state.
-// The syncFn is typically BucketWriter.Sync from the ingester's state store.
+// syncFn after each successful Handle to flush plugin state to disk. This does
+// not acknowledge ingest delivery: a Job that must checkpoint only after an
+// entry reaches an indexer must use AcknowledgedWriter for that entry before it
+// updates state. The syncFn is typically BucketWriter.Sync from the ingester's
+// state store.
 func WrapJobWithSync(j Job, syncFn func() error) Ingester {
 	return &jobIngesterAdapter{job: j, syncFn: syncFn}
 }
@@ -126,9 +127,8 @@ func (j *jobIngesterAdapter) Run(ctx context.Context, rt Runtime) error {
 		}
 		rt.ClearError() // a clean poll clears whatever the last one tripped
 
-		// Sync state to disk before sleeping. This narrows the duplicate
-		// window to only entries still in the muxer's in-memory channel.
-		// anything that reached the disk cache is now matched by durable state.
+		// Sync plugin state to disk before sleeping. Ingest delivery is a
+		// separate operation; see AcknowledgedWriter for per-entry durability.
 		if j.syncFn != nil {
 			if syncErr := j.syncFn(); syncErr != nil {
 				rt.Error("sync state failed", log.KVErr(syncErr))
