@@ -115,6 +115,7 @@ func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
 
 func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 	kc.mtx.Lock()
+	defer kc.mtx.Unlock()
 	if kc.started {
 		err = errors.New("already started")
 	} else if kc.ctx == nil || kc.cf == nil {
@@ -126,6 +127,14 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		}
 		cfg.Consumer.Group.Rebalance.GroupStrategies = kc.strats
 		cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
+		if kc.fetchDefault > 0 {
+			cfg.Consumer.Fetch.Default = kc.fetchDefault
+		}
+		if kc.fetchMax > 0 {
+			cfg.Consumer.Fetch.Max = kc.fetchMax
+		}
+		// surface partition errors, such as messages skipped for exceeding Fetch-Max
+		cfg.Consumer.Return.Errors = true
 
 		if kc.useTLS {
 			cfg.Net.TLS.Enable = true
@@ -147,8 +156,8 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		wg.Add(1)
 		kc.started = true
 		go kc.routine(clnt, wg)
+		go kc.logErrors(clnt.Errors())
 	}
-	kc.mtx.Unlock()
 	return
 }
 
@@ -181,6 +190,21 @@ func (kc *kafkaConsumer) routine(client sarama.ConsumerGroup, wg *sync.WaitGroup
 		}
 		if kc.ctx.Err() != nil {
 			break
+		}
+	}
+}
+
+// logErrors drains the consumer group error channel until it closes or the consumer is closed
+func (kc *kafkaConsumer) logErrors(errs <-chan error) {
+	for {
+		select {
+		case err, ok := <-errs:
+			if !ok {
+				return
+			}
+			kc.lg.Error("consumer error", log.KV("consumer", kc.name), log.KVErr(err))
+		case <-kc.ctx.Done():
+			return
 		}
 	}
 }
