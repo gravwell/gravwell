@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 // Mock is a full in-memory implementation of Runtime for use in plugin tests, so each plugin

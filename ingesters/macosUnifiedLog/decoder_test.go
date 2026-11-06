@@ -104,14 +104,14 @@ func TestDecodeUnterminatedArray(t *testing.T) {
 	// a live stream never closes the array, and a killed process can stop anywhere
 	input := strings.TrimSuffix(sampleStream, "]\n")
 	events, _, err := decodeAll(t, input, maxEventSize)
-	if err != io.EOF {
-		t.Fatalf("expected io.EOF, got %v", err)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("expected io.ErrUnexpectedEOF, got %v", err)
 	}
 	checkEvents(t, events, sampleEvents)
 
 	head, _, _ := strings.Cut(sampleStream, `"second message"`)
 	events, _, err = decodeAll(t, head, maxEventSize)
-	if err != io.ErrUnexpectedEOF {
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("expected io.ErrUnexpectedEOF, got %v", err)
 	}
 	checkEvents(t, events, sampleEvents[:1])
@@ -157,8 +157,8 @@ func TestDecodeOversizedEvent(t *testing.T) {
 		sb.WriteString(sampleEvents[1])
 	}
 	events, _, err := decodeAll(t, sb.String(), 1024)
-	if err != io.EOF {
-		t.Fatalf("expected io.EOF, got %v", err)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("expected io.ErrUnexpectedEOF, got %v", err)
 	} else if len(events) != 100 {
 		t.Fatalf("got %d events, want 100", len(events))
 	}
@@ -321,8 +321,8 @@ var realWorldEvents = []string{
 
 func TestDecodeRealWorldSample(t *testing.T) {
 	events, _, err := decodeAll(t, realWorldSample, maxEventSize)
-	if err != io.EOF {
-		t.Fatalf("expected io.EOF, got %v", err)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("expected io.ErrUnexpectedEOF, got %v", err)
 	}
 	checkEvents(t, events, realWorldEvents)
 

@@ -1,10 +1,10 @@
 # The Gravwell Ingest API
 
-API documentation: [https://pkg.go.dev/github.com/gravwell/gravwell/v3/ingest](https://pkg.go.dev/github.com/gravwell/gravwell/v3/ingest?tab=doc)
+API documentation: [https://pkg.go.dev/github.com/gravwell/gravwell/v4/ingest](https://pkg.go.dev/github.com/gravwell/gravwell/v4/ingest?tab=doc)
 
 This package provides methods to build ingesters for the Gravwell analytics platform. Ingesters take raw data from a particular source (pcap, log files, a camera, etc.), bundle it into Entries, and ship the Entries up to the Gravwell indexers.
 
-An Entry (defined in the sub-package [github.com/gravwell/gravwell/v3/ingest/entry](https://pkg.go.dev/github.com/gravwell/gravwell/v3/ingest/entry?tab=doc)) looks like this:
+An Entry (defined in the sub-package [github.com/gravwell/gravwell/v4/ingest/entry](https://pkg.go.dev/github.com/gravwell/gravwell/v4/ingest/entry?tab=doc)) looks like this:
 
 	type Entry struct {
 	    TS   Timestamp
@@ -26,8 +26,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (

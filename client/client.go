@@ -24,13 +24,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/objlog"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/objlog"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"bytes"
 
-	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -56,6 +56,11 @@ var (
 	ErrNoLogin           error = errors.New("Not logged in")
 	ErrEmptyUserAgent    error = errors.New("UserAgent cannot be empty")
 	errNoRedirect              = errors.New(`Refused to follow redirect`)
+
+	ErrEmptyPatch  = errors.New("empty PATCHs are ineffectual")
+	ErrNilResponse = errors.New("nil response")
+	ErrEmptyID     = errors.New("ID must be set")
+	ErrEmptyKey    = errors.New("table row key must be set")
 )
 
 // Client handles interaction with the server's REST APIs and websockets.
@@ -72,7 +77,7 @@ type Client struct {
 	lastNotifId  uint64
 	enforceCert  bool
 	sessionData  ActiveSession
-	userDetails  types.UserDetails
+	userDetails  types.User
 	objLog       objlog.ObjLog
 	wsScheme     string
 	httpScheme   string
@@ -109,22 +114,6 @@ func New(server string, enforceCertificate, useHttps bool) (*Client, error) {
 		UseHttps:               useHttps,
 	}
 	opts.ObjLogger, _ = objlog.NewNilLogger()
-	return NewOpts(opts)
-}
-
-// NewClient connects to the specified server and returns a new Client object.
-// The useHttps parameter enables or disables SSL.
-// Setting enforceCertificate to false will disable SSL certificate validation,
-// allowing self-signed certs.
-//
-// Deprecated: Use New() or NewOpts() instead
-func NewClient(server string, enforceCertificate, useHttps bool, objLogger objlog.ObjLog) (*Client, error) {
-	opts := Opts{
-		Server:                 server,
-		InsecureNoEnforceCerts: !enforceCertificate,
-		UseHttps:               useHttps,
-		ObjLogger:              objLogger,
-	}
 	return NewOpts(opts)
 }
 
@@ -262,15 +251,11 @@ func (c *Client) TestLogin() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	// before doing anything else, check version.
-	// CheckApiVersion actually sends back version mismatches as a string, so we must test both.
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
-	} else if mismatch != "" {
-		return errors.New(mismatch)
 	}
 
-	return c.getStaticURL(TEST_AUTH_URL, nil)
+	return c.getStaticURL(TEST_AUTHENTICATION_URL, nil)
 }
 
 // Login authenticates the client to the webserver using the specified username and password.
@@ -293,10 +278,8 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 		return loginResp, errors.New("Invalid username")
 	}
 
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
-	} else if mismatch != "" {
-		return loginResp, errors.New(mismatch)
 	}
 
 	//build up URL we are going to throw at
@@ -357,15 +340,12 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 	if user == "" {
 		return loginResp, errors.New("Invalid username")
 	}
-
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return loginResp, err
-	} else if mismatch != "" {
-		return loginResp, errors.New(mismatch)
 	}
 
 	//build up URL we are going to throw at
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, MFA_LOGIN_URL)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LOGIN_MFA_URL)
 
 	//build up the form that we are going to throw at login url
 	loginCreds := types.MFAAuthRequest{
@@ -418,17 +398,15 @@ func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+	if err := c.checkApiVersionNoLock(); err != nil {
 		return err
-	} else if mismatch != "" {
-		return errors.New(mismatch)
 	}
 
 	c.token = token
 	c.hm.add(apiTokenHeader, token)
 	//assume we are logged in and test
 	c.state = STATE_AUTHED
-	return c.getStaticURL(TEST_AUTH_URL, nil)
+	return c.getStaticURL(TEST_AUTHENTICATION_URL, nil)
 }
 
 // RefreshLoginToken will ask the webserver to refresh the login state
@@ -442,7 +420,7 @@ func (c *Client) RefreshLoginToken() (err error) {
 		return ErrNoLogin
 	}
 	//build up URL we are going to throw at
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, REFRESH_TOKEN_URL)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LOGIN_REFRESH_TOKEN_URL)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -581,7 +559,7 @@ func (c *Client) InheritSession(sess *ActiveSession) (bool, error) {
 	c.hm.add(authHeaderName, "Bearer "+sess.JWT)
 
 	//try to hit the test page
-	if err := c.nolockTestGet(USER_INFO_URL); err != nil {
+	if err := c.nolockTestGet(SELF_URL); err != nil {
 		return false, nil
 	}
 	c.state = STATE_AUTHED
@@ -702,33 +680,37 @@ func (c *Client) displayNotifications() error {
 }
 
 // DialWebsocket uses the client's auth tokens to connect to a websocket on the server,
-// returning the websocket connection.
-func (c *Client) DialWebsocket(pth string) (conn *websocket.Conn, resp *http.Response, err error) {
+// returning a JSONConn that provides JSON read/write operations and deadline management.
+func (c *Client) DialWebsocket(pth string) (WebsocketConn, error) {
 	//connect get a websocket fired up against the search agent url
 	u := url.URL{
 		Scheme: c.wsScheme,
 		Host:   c.serverURL.Host,
 		Path:   pth,
 	}
-	dlr := &websocket.Dialer{
-		Proxy:            http.ProxyFromEnvironment,
-		HandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:  c.tlsConfig,
-		Jar:              c.clnt.Jar,
+	cfg, err := websocket.NewConfig(u.String(), u.String())
+	if err != nil {
+		return nil, fmt.Errorf("Websocket config error: %v", err)
 	}
-	hdr := make(http.Header)
-	c.hm.populateRequest(hdr)
-	if conn, resp, err = dlr.Dial(u.String(), hdr); err != nil {
-		if resp != nil {
-			resp.Body.Close()
-		}
-		if conn != nil {
-			conn.Close()
-		}
-		conn = nil
-		err = fmt.Errorf("Dial returned %v", err)
+	cfg.TlsConfig = c.tlsConfig
+	cfg.Dialer = &net.Dialer{
+		Timeout: 10 * time.Second,
 	}
-	return
+	cfg.Header = make(http.Header)
+	c.hm.populateRequest(cfg.Header)
+	if c.clnt.Jar != nil {
+		for _, cookie := range c.clnt.Jar.Cookies(&u) {
+			cfg.Header.Add("Cookie", cookie.String())
+		}
+	}
+	ws, err := websocket.DialConfig(cfg)
+	if err != nil {
+		if ws != nil {
+			ws.Close()
+		}
+		return nil, fmt.Errorf("Dial returned %v", err)
+	}
+	return &wsJSONConn{conn: ws}, nil
 }
 
 // SetUserAgent changes the User-Agent field the client sends with requests (default: “GravwellCLI”).
@@ -802,26 +784,4 @@ func (c *Client) DebugDeleteQueryValue(key string) {
 	c.mtx.Lock()
 	c.qm.remove(key)
 	c.mtx.Unlock()
-}
-
-// SetAdminMode sets the ?admin=true parameter on future API requests. Note that setting this
-// parameter has no effect for non-admin users.
-// Admin users should use this parameter carefully, as it gives access to objects belonging
-// to other users and makes it easy to break things.
-func (c *Client) SetAdminMode() {
-	c.qm.set("admin", "true")
-}
-
-// ClearAdminMode unsets the ?admin=true parameter for future API requests.
-func (c *Client) ClearAdminMode() {
-	c.qm.remove("admin")
-}
-
-// AdminMode returns true if the ?admin=true parameter is set for API requests.
-func (c *Client) AdminMode() bool {
-	v, ok := c.qm.get("admin")
-	if !ok {
-		return false
-	}
-	return v == `true`
 }

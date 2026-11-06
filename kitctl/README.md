@@ -29,8 +29,11 @@ To unpack a kit into the current directory, run `kitctl unpack` and give it the 
 
 This creates a file named `MANIFEST` and individual directories for each type of object in the kit:
 
-	MANIFEST		file			macro			playbook		template
-	dashboard		license			pivot			searchlibrary
+	MANIFEST		dashboard		license			pivot			searchlibrary
+	agent			file			macro			playbook		skill
+	template
+
+Under `agent`, each AI agent is a directory named by its ID holding `metadata.json`, the images as `state.svg`/`avatar.svg`, and an `entrypoint` directory with one directory per node (`metadata.json` plus a `prompt` file, children nested beneath). gaftool reads and writes the same tree. Under `skill`, each agent skill is a `.meta` JSON file and a `.body` file holding the raw markdown, like playbooks.
 
 ## Pack a Kit
 

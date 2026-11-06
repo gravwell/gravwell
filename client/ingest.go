@@ -17,13 +17,13 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // TestIngest returns whether or not this client is allowed to ingest data
 // if ingest is allowed err will be nil
 func (c *Client) TestIngest() (err error) {
-	return c.methodStaticURL(http.MethodHead, TEST_INGEST_URL, nil)
+	return c.methodStaticURL(http.MethodHead, INGEST_TEST_URL, nil)
 }
 
 // IngestEntries takes an array of entries and uploads them to the webserver, which
@@ -51,7 +51,7 @@ func (c *Client) IngestEntries(entries []types.StringTagEntry) error {
 // internal logs into the the gravwell tag without an ingest connection.
 // This API requires admin status.
 func (c *Client) IngestInternal(entries []types.StringTagEntry) error {
-	return c.putStaticURL(INTERNAL_INGEST_URL, entries)
+	return c.putStaticURL(INGEST_INTERNAL_URL, entries)
 }
 
 // IngestFile uploads the contents of a file on disk and ingests them.
@@ -136,7 +136,7 @@ func (c *Client) ingest(cb ingestCallback, tag, src, tp string, ignoreTimestamp,
 	}()
 
 	// and ship
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LINES_INGEST_URL)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, INGEST_LINES_URL)
 	var req *http.Request
 	req, err = http.NewRequest(http.MethodPost, uri, r)
 	if err != nil {
@@ -144,7 +144,7 @@ func (c *Client) ingest(cb ingestCallback, tag, src, tp string, ignoreTimestamp,
 	}
 	req.Header.Set(`Content-Type`, wtr.FormDataContentType())
 	okResps := []int{http.StatusOK, http.StatusMultiStatus}
-	if err = c.staticRequest(req, &resp, okResps); err != nil {
+	if err = c.staticRequest(req, &resp, okResps, nil); err != nil {
 		if err != io.EOF {
 			return
 		}

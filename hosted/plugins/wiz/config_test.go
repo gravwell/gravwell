@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func baseConfig() *Config {
