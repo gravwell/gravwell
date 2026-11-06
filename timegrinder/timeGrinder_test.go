@@ -14,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -996,6 +998,17 @@ func TestExtractions(t *testing.T) {
 	}
 }
 
+func TestBindWithoutMilliseconds(t *testing.T) {
+	tg, err := New(Config{})
+	require.NoError(t, err)
+
+	input := []byte("02-Jan-2006 15:04:05")
+	ts, ok, err := tg.Extract(input)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.False(t, ts.IsZero())
+}
+
 func runFullSecTestsCurr(format string) error {
 	tg, err := New(cfg)
 	if err != nil {
@@ -1203,4 +1216,19 @@ func monthAbrev() string {
 		return `Dec`
 	}
 	return ``
+}
+
+func TestYearZeroTweaked(t *testing.T) {
+	tg, err := New(Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts, ok, err := tg.Extract([]byte(`0000-06-15T12:00:00Z`))
+	if err != nil {
+		t.Fatal(err)
+	} else if !ok {
+		t.Fatal("failed to extract")
+	} else if yr := ts.Year(); yr != time.Now().Year() && yr != time.Now().Year()-1 {
+		t.Fatalf("year zero timestamp was not tweaked: %v", ts)
+	}
 }

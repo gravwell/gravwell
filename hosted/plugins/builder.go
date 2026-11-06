@@ -1,0 +1,174 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+package plugins
+
+import (
+	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
+)
+
+type BuilderConfig interface {
+	UUID() uuid.UUID
+}
+
+// Builder is provided as a generic way to implement the IngesterBuilder interface.
+// This can't be truly generic to every config as IngesterBuilder.Build does break standards and returns an interface.
+// To use this a new struct can embed Builder with the same type used in Configs.
+// The Build method will need to be implemented manually. This is done to pivot the types to the interface.
+// And a NewThingBuilder method should be created as well.
+type Builder[T BuilderConfig] struct {
+	config  T
+	kind    string
+	id      string
+	version string
+}
+
+func (b *Builder[T]) Config() any {
+	return b.config
+}
+
+func (b *Builder[T]) Kind() string {
+	return b.kind
+}
+
+func (b *Builder[T]) ID() string {
+	return b.id
+}
+
+func (b *Builder[T]) Version() string {
+	return b.version
+}
+
+func (b *Builder[T]) UUID() uuid.UUID {
+	return b.config.UUID()
+}
+
+type TesterBuilder struct {
+	Builder[*tester.Config]
+}
+
+func (tb *TesterBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	t, err := tester.NewTesterIngester(*(tb.config), tn)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJobWithSync(t, syncFn), nil
+}
+
+func NewTesterBuilder(config *tester.Config, kind, id, version string) *TesterBuilder {
+	return &TesterBuilder{
+		Builder[*tester.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type OktaBuilder struct {
+	Builder[*okta.Config]
+}
+
+func (ob *OktaBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
+	return okta.NewOktaIngester(*(ob.config), tn)
+}
+
+func NewOktaBuilder(config *okta.Config, kind, id, version string) *OktaBuilder {
+	return &OktaBuilder{
+		Builder[*okta.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type MimecastBuilder struct {
+	Builder[*mimecast.Config]
+}
+
+func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(mimecast.New(mb.config), syncFn), nil
+}
+
+func NewMimecastBuilder(config *mimecast.Config, kind, id, version string) *MimecastBuilder {
+	return &MimecastBuilder{
+		Builder[*mimecast.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type JamfBuilder struct {
+	Builder[*jamf.Config]
+}
+
+func (jb *JamfBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(jamf.New(jb.config), syncFn), nil
+}
+
+func NewJamfBuilder(config *jamf.Config, kind, id, version string) *JamfBuilder {
+	return &JamfBuilder{
+		Builder[*jamf.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type WizBuilder struct {
+	Builder[*wiz.Config]
+}
+
+func (wb *WizBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(wiz.New(wb.config), syncFn), nil
+}
+
+func NewWizBuilder(config *wiz.Config, kind, id, version string) *WizBuilder {
+	return &WizBuilder{
+		Builder[*wiz.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type MSGraphBuilder struct {
+	Builder[*msgraph.Config]
+}
+
+func (msgb *MSGraphBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
+	return msgraph.NewIngester(msgb.config), nil
+}
+
+func NewMSGraphBuilder(cfg *msgraph.Config, kind, id, version string) *MSGraphBuilder {
+	return &MSGraphBuilder{
+		Builder[*msgraph.Config]{
+			config:  cfg,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}

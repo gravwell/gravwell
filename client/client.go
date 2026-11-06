@@ -262,6 +262,14 @@ func (c *Client) TestLogin() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	// before doing anything else, check version.
+	// CheckApiVersion actually sends back version mismatches as a string, so we must test both.
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+		return err
+	} else if mismatch != "" {
+		return errors.New(mismatch)
+	}
+
 	return c.getStaticURL(TEST_AUTH_URL, nil)
 }
 
@@ -283,6 +291,12 @@ func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
 	}
 	if user == "" {
 		return loginResp, errors.New("Invalid username")
+	}
+
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+		return loginResp, err
+	} else if mismatch != "" {
+		return loginResp, errors.New(mismatch)
 	}
 
 	//build up URL we are going to throw at
@@ -344,6 +358,12 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 		return loginResp, errors.New("Invalid username")
 	}
 
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+		return loginResp, err
+	} else if mismatch != "" {
+		return loginResp, errors.New(mismatch)
+	}
+
 	//build up URL we are going to throw at
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, MFA_LOGIN_URL)
 
@@ -397,6 +417,13 @@ func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code strin
 func (c *Client) LoginWithAPIToken(token string) (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
+
+	if mismatch, err := c.checkApiVersionNoLock(); err != nil {
+		return err
+	} else if mismatch != "" {
+		return errors.New(mismatch)
+	}
+
 	c.token = token
 	c.hm.add(apiTokenHeader, token)
 	//assume we are logged in and test

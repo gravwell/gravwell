@@ -36,7 +36,17 @@ Please add tests for new functionality you add to packages in the repo.
 You can run the full set of checks manually by running the following command at the top level:
 
 ```
-bash .github/workflows/run_local_build_checksg.sh
+bash .github/workflows/run_local_build_checks.sh
 ```
 
 Don't submit PRs that modify existing tests without discussing it with Gravwell first.
+
+## Tools
+There are a number of tools within this repo to aid development and simplify maintenance. 
+These are all invokable via `go tool`
+
+### `repo`
+Repos containers most commands related to manging the repo state. Notably the go runtime versions and the small collection of `go.mod` files in the repo. 
+
+- `tidy`: runs `go mod tidy` for all the `go.mod` files. Example: `go tool repo tidy`
+- `bump-runtime`: takes two args `[from]` and `[to]` and updates all go version refs in `from` to `to`. Runs `tidy` after. Example: `go tool repo bump-runtime 1.26.3 1.26.4`

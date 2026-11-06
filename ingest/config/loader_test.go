@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type testStruct struct {
@@ -281,5 +283,33 @@ func TestLoadBadKey(t *testing.T) {
 	//check that the error called out "Foobar"
 	if !strings.Contains(err.Error(), `Foobar`) {
 		t.Fatalf("Faild to call out Key name Foobar in error %q", err)
+	}
+}
+
+func TestLoadConfigBytesErrorNoPanic(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       []byte
+		errContains string
+	}{
+		{
+			name:        "backtick value with single backslash-quote",
+			input:       []byte("[global]\nfoo = `bar\\\"baz`\nbar = 1337\n"),
+			errContains: "missing end quote",
+		},
+		{
+			name:        "backtick value with windows-style path containing backslash-quote",
+			input:       []byte("[global]\nfoo = `C:\\\\Program Files\\\"MyApp\"`\nbar = 1337\n"),
+			errContains: "missing end quote",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ts testStruct
+			err := LoadConfigBytes(&ts, tt.input)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.errContains)
+		})
 	}
 }

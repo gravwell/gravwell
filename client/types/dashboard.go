@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/utils"
 )
 
@@ -31,6 +32,122 @@ type Dashboard struct {
 	GUID        string `json:",omitempty"`
 	Trivial     bool   `json:",omitempty"`
 	Synced      bool
+}
+
+// StrictDashboard is a dashboard where we actually unpack all the contents.
+// We're going to use this for migration to the registry.
+type StrictDashboard struct {
+	ID          uint64
+	Name        string
+	UID         int32
+	GIDs        []int32
+	Global      bool
+	WriteAccess Access
+	Description string
+	Created     time.Time
+	Updated     time.Time
+	Data        DashboardContents
+	Labels      []string
+	GUID        string `json:",omitempty"`
+	Trivial     bool   `json:",omitempty"`
+	Synced      bool
+}
+
+type DashboardContents struct {
+	LiveUpdateInterval int                `json:"liveUpdateInterval,omitempty"`
+	LinkZooming        bool               `json:"linkZooming,omitempty"`
+	Grid               DashboardGrid      `json:"grid,omitempty"`
+	Searches           []DashboardSearch  `json:"searches,omitempty"`
+	Tiles              []DashboardTile    `json:"tiles,omitempty"`
+	Timeframe          DashboardTimeframe `json:"timeframe,omitempty"`
+	Version            int                `json:"version,omitempty"`
+	LastDataUpdate     time.Time          `json:"lastDataUpdate,omitempty"`
+}
+
+// DashboardTimeframe specifies a timeframe over which search(es) should run.
+// Based on the the value of the Timeframe field, the other fields have various meanings:
+//
+// If it's one of the following, the GUI will calculate appropriate start/end times to apply to the search: preview ,   today , yesterday , lastHour ,  last24Hours ,   last7Days , lastMonth , last3Months ,   last6Months ,   last9Months ,   last12Months ,  thisHour ,  thisWeek ,  thisMonth , thisYear ,  thisQuarter
+//
+// If it's "dates", Start and End are ISO8601 dates.
+//
+// If it's "timestamps", Start and End are ISO8601 dates but the UI will show them as Unix timestamps for the user to edit.
+//
+// If it's "manual", DurationString is an ISO8601 string, but the UI shows a "seconds, minutes, hours" form for editing.
+//
+// If it's "iso", DurationString is an ISO8601 duration string entered directly by the user.
+type DashboardTimeframe struct {
+	DurationString string `json:"durationString"`
+	Timeframe      string `json:"timeframe"`
+	Timezone       string `json:"timezone"`
+	Start          string `json:"start"`
+	End            string `json:"end"`
+}
+
+type DashboardGrid struct {
+	Gutter       int `json:"gutter,omitempty"`
+	Margin       int `json:"margin,omitempty"`
+	BorderWidth  int `json:"borderWidth,omitempty"`
+	BorderRadius int `json:"borderRadius,omitempty"`
+}
+
+type DashboardSearch struct {
+	Alias     string             `json:"alias"`
+	Timeframe DashboardTimeframe `json:"timeframe"`
+	Query     string             `json:"query,omitempty"`
+	SearchID  int                `json:"searchID,omitempty"`
+	Color     string             `json:"color,omitempty"`
+	Reference DashboardReference `json:"reference"`
+}
+
+type DashboardReference struct {
+	ID     uuid.UUID                `json:"id"`
+	Type   string                   `json:"type"`
+	Extras DashboardReferenceExtras `json:"extras"`
+}
+
+type DashboardReferenceExtras struct {
+	DefaultValue string `json:"defaultValue,omitempty"`
+}
+
+type DashboardTile struct {
+	ID              int                      `json:"id,omitempty"`
+	Title           string                   `json:"title"`
+	Renderer        string                   `json:"renderer"`
+	HideZoom        bool                     `json:"hideZoom,omitempty"`
+	Span            DashboardTileSpan        `json:"span"`
+	SearchesIndex   int                      `json:"searchesIndex"`
+	RendererOptions DashboardRendererOptions `json:"rendererOptions"`
+}
+
+type DashboardTileSpan struct {
+	Col int `json:"col"`
+	Row int `json:"row"`
+	X   int `json:"x,omitempty"`
+	Y   int `json:"y,omitempty"`
+}
+
+type DashboardRendererOptions struct {
+	XAxisSplitLine string                         `json:",omitempty"`
+	YAxisSplitLine string                         `json:",omitempty"`
+	IncludeOther   string                         `json:",omitempty"`
+	Stack          string                         `json:",omitempty"`
+	Smoothing      string                         `json:",omitempty"`
+	Orientation    string                         `json:",omitempty"`
+	ConnectNulls   string                         `json:",omitempty"`
+	Precision      string                         `json:",omitempty"`
+	LogScale       string                         `json:",omitempty"`
+	Range          string                         `json:",omitempty"`
+	Rotate         string                         `json:",omitempty"`
+	Labels         string                         `json:",omitempty"`
+	Background     string                         `json:",omitempty"`
+	Values         DashboardRendererOptionsValues `json:"values"`
+}
+
+type DashboardRendererOptionsValues struct {
+	Smoothing   string
+	Orientation string
+	Columns     []string `json:"columns,omitempty"`
 }
 
 // DashboardAdd is used to push new dashboards.

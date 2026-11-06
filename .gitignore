@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+bin/
 
 # Test binary, build with `go test -c`
 *.test
@@ -16,6 +17,7 @@
 
 # test files
 test.conf
+_artifacts/
 
 #vim files
 *.swp
@@ -25,3 +27,5 @@ manager
 #idea files
 .idea/
 .idea
+#macOS
+.DS_Store

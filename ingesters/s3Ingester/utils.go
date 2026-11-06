@@ -18,13 +18,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 	"github.com/gravwell/jsonparser"
 )
@@ -278,11 +279,28 @@ var (
 	awsUrlRegex = regexp.MustCompile(`s3[-\.]?([a-zA-Z\-0-9]+)?\.amazonaws\.com`)
 )
 
-func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket string, rdr reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet, maxLineSize int, attachMetadata bool) (sz int64, s3rtt, rtt time.Duration, err error) {
+type s3Handler interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+}
+
+func ProcessContext(
+	obj types.Object,
+	ctx context.Context,
+	svc s3Handler,
+	bucket string,
+	rdr reader,
+	tg *timegrinder.TimeGrinder,
+	src net.IP,
+	tag entry.EntryTag,
+	proc *processors.ProcessorSet,
+	maxLineSize int,
+	attachMetadata bool,
+) (sz int64, s3rtt, rtt time.Duration, err error) {
 	var r *s3.GetObjectOutput
 	now := time.Now()
-	r, err = svc.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(bucket),
+	r, err = svc.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: new(bucket),
 		Key:    obj.Key,
 	})
 	if err != nil {
@@ -296,11 +314,17 @@ func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket stri
 		evs.Add(entry.EnumeratedValue{Name: "key", Value: entry.StringEnumData(*obj.Key)})
 	}
 
+	var smartReader io.Reader
+	if smartReader, err = utils.NewCompressedReader(r.Body); err != nil {
+		err = fmt.Errorf("failed to create transparent decompression reader: %w", err)
+		return
+	}
+
 	switch rdr {
 	case lineReader:
-		err = processLinesContext(ctx, r.Body, maxLineSize, tg, src, tag, &evs, proc)
+		err = processLinesContext(ctx, smartReader, maxLineSize, tg, src, tag, &evs, proc)
 	case cloudtrailReader:
-		err = processCloudtrailContext(ctx, r.Body, tg, src, tag, &evs, proc)
+		err = processCloudtrailContext(ctx, smartReader, tg, src, tag, &evs, proc)
 	default:
 		err = errors.New("no reader set")
 	}
@@ -339,7 +363,10 @@ func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg
 			return //just leave
 		}
 	}
-
+	err = sc.Err()
+	if errors.Is(err, bufio.ErrTooLong) {
+		err = fmt.Errorf("Max-Line-Size exceeded: %w", err)
+	}
 	return
 }
 
@@ -393,6 +420,15 @@ func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinde
 			break
 		}
 		if recordarray, dt, _, err = jsonparser.Get([]byte(obj), `Records`); err != nil {
+			if err == jsonparser.KeyPathNotFoundError {
+				// check if this is a digest object, if so we just skip it
+				if isCloudTrailDigestObject(obj) {
+					err = nil
+					continue
+				}
+				//not a digest file, just missing the Records key
+				err = fmt.Errorf("failed to find Records array in cloudtrail log: %v", err)
+			}
 			err = fmt.Errorf("failed to find Records array in cloudtrail log: %v", err)
 			break
 		} else if dt != jsonparser.Array {
@@ -413,8 +449,34 @@ func logSnsKeyDecode(lg *log.Logger, keytype string, buckets, keys []string) {
 	if len(buckets) != len(keys) {
 		lg.Info("successfully decoded messages", log.KV("type", keytype), log.KV("buckets", buckets), log.KV("keys", keys))
 	} else {
-		for i := 0; i < len(buckets); i++ {
+		for i := range buckets {
 			lg.Info("successfully decoded message", log.KV("type", keytype), log.KV("bucket", buckets[i]), log.KV("key", keys[i]))
 		}
 	}
+}
+
+var cloudTrailDigestFileKeys = []string{
+	`digestStartTime`,
+	`digestEndTime`,
+	`digestS3Bucket`,
+	`digestS3Object`,
+}
+
+func isCloudTrailDigestObject(obj json.RawMessage) (ok bool) {
+	//check if this is a digest file, we do this a few ways
+	//first check the top level looking for a few keys that are part of the digest file specification
+	// see here for more info:
+	//   https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-digest-file-structure.html#cloudtrail-log-file-validation-digest-file-contents
+	// we will key off of digestStartTime, digestEndTime, digestS3Bucket, and digestS3Object
+	// if those keys are there AND there is no Records key, we can assume this is a digest file and just skip it
+	for _, key := range cloudTrailDigestFileKeys {
+		if _, err := jsonparser.GetString([]byte(obj), key); err != nil {
+			return false
+		}
+	}
+	// if we get here, all the keys are present, now just check that there is no Records key
+	if _, _, _, err := jsonparser.Get([]byte(obj), `Records`); err != jsonparser.KeyPathNotFoundError {
+		return false // this function should never have even been called, but whatever
+	}
+	return true // has all our keys and no Records key, this is a digest file
 }

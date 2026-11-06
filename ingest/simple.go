@@ -263,10 +263,16 @@ func newTCPConnection(dst, tenant string, auth AuthHash, tags []string, ctx cont
 	return completeIngestConnection(conn, src, tenant, auth, tags, ctx)
 }
 
+// tcpDial is how newTcpConn reaches an indexer.  It is a variable so tests
+// can substitute an in-memory transport and drive the muxer on a fake clock.
+var tcpDial = func(dst string) (net.Conn, error) {
+	//try to dial with a timeout of 3 seconds
+	return net.DialTimeout("tcp", dst, DIAL_TIMEOUT)
+}
+
 func newTcpConn(dst string) (net.Conn, net.IP, error) {
 	var src net.IP
-	//try to dial with a timeout of 3 seconds
-	conn, err := net.DialTimeout("tcp", dst, DIAL_TIMEOUT)
+	conn, err := tcpDial(dst)
 	if err != nil {
 		return nil, src, err
 	}

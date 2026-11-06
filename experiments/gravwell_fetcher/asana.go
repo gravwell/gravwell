@@ -68,7 +68,7 @@ func buildAsanaHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *lo
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        "",
+				Key:        json.RawMessage(`{"key": "none"}`),
 			}
 			err := ot.Set("asana", v.Workspace, state, false)
 			if err != nil {

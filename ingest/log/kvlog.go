@@ -68,6 +68,36 @@ func (kvl *KVLogger) Critical(msg string, sds ...rfc5424.SDParam) error {
 	return kvl.outputStructured(DEFAULT_DEPTH, CRITICAL, msg, append(kvl.sds, sds...)...)
 }
 
+// DebugWithDepth writes a DEBUG level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (kvl *KVLogger) DebugWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
+	return kvl.outputStructured(d, DEBUG, msg, append(kvl.sds, sds...)...)
+}
+
+// InfoWithDepth writes an INFO level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (kvl *KVLogger) InfoWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
+	return kvl.outputStructured(d, INFO, msg, append(kvl.sds, sds...)...)
+}
+
+// WarnWithDepth writes an WARN level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (kvl *KVLogger) WarnWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
+	return kvl.outputStructured(d, WARN, msg, append(kvl.sds, sds...)...)
+}
+
+// ErrorWithDepth writes an ERROR level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (kvl *KVLogger) ErrorWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
+	return kvl.outputStructured(d, ERROR, msg, append(kvl.sds, sds...)...)
+}
+
+// CriticalWithDepth writes a CRITICAL info level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (kvl *KVLogger) CriticalWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
+	return kvl.outputStructured(d, CRITICAL, msg, append(kvl.sds, sds...)...)
+}
+
 // AddKV allows for adding additional KVs to the KV logger
 func (kvl *KVLogger) AddKV(sds ...rfc5424.SDParam) {
 	kvl.sds = append(kvl.sds, sds...)

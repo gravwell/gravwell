@@ -206,9 +206,9 @@ func TestGOBEncodeDecodeEnumeratedValues(t *testing.T) {
 	//check that we got things back out cleanly
 	if err := e.Compare(&out1); err != nil {
 		t.Fatalf("decoded gob entry did not come out the same: %v", err)
-	} else if e.Compare(&out2); err != nil {
+	} else if err := e.Compare(&out2); err != nil {
 		t.Fatalf("decoded gob entry did not come out the same: %v", err)
-	} else if out1.Compare(&out2); err != nil {
+	} else if err := out1.Compare(&out2); err != nil {
 		t.Fatalf("decoded entries did not come out the same: %v", err)
 	}
 }

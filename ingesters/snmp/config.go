@@ -27,16 +27,16 @@ type listener struct {
 	Tag_Name        string
 	Bind_String     string //IP port pair 127.0.0.1:1234
 	Version         string // SNMP version: 1, 2c, 3
-	Community       string // for SNMP v1 and v2
+	Community       string `json:"-"` // for SNMP v1 and v2, DO NOT send this when marshalling
 	Source_Override string
 	Preprocessor    []string
 }
 
 type v3auth struct {
 	Username           string
-	Privacy_Passphrase string
+	Privacy_Passphrase string `json:"-"` // DO NOT send this when marshalling
 	Privacy_Protocol   string
-	Auth_Passphrase    string
+	Auth_Passphrase    string `json:"-"` // DO NOT send this when marshalling
 	Auth_Protocol      string
 }
 

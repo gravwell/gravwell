@@ -33,6 +33,7 @@ type afh struct {
 	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
 	Tag_Name          string //the tag to assign to the request
 	Ignore_Timestamps bool
+	Debug_Posts       bool // whether we are going to log on the gravwell tag about posts
 	Preprocessor      []string
 }
 
@@ -79,24 +80,38 @@ type record struct {
 }
 
 func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	bodyReadLimit := int64(maxBody + 256)
+	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
+	var batch []*entry.Entry
+
+	if cfg.debugPosts {
+		now := time.Now()
+		defer func() {
+			kvs := append(requestKV(w, r),
+				log.KV("entries", len(batch)),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			)
+			h.igst.Info("Amazon Firehose Event", kvs...)
+		}()
+	}
+
 	var kr AFHRequest
-	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 256)}
 	if err := json.NewDecoder(&lr).Decode(&kr); err != nil {
 		//check if the request was just too large
 		if lr.N == 0 {
-			h.lgr.Info("bad request", log.KV("address", ip), log.KV("max-body", maxBody), log.KVErr(errors.New("request body too large")))
+			h.lgr.Info("bad request", log.KV("src", ip), log.KV("max-body", maxBody), log.KVErr(errors.New("request body too large")))
 		} else {
-			h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
+			h.lgr.Info("bad request", log.KV("src", ip), log.KVErr(err))
 		}
 		sendAFHError(w, http.StatusBadRequest, ``, nil)
 		return
 	} else if len(kr.Records) == 0 {
-		h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(errors.New("empty records")))
+		h.lgr.Info("bad request", log.KV("src", ip), log.KVErr(errors.New("empty records")))
 		sendAFHError(w, http.StatusBadRequest, kr.RequestId, errors.New("empty records"))
 		return
 	}
 	reqTS := entry.FromStandard(kr.TS())
-	batch := make([]*entry.Entry, 0, len(kr.Records))
+	batch = make([]*entry.Entry, 0, len(kr.Records))
 	for _, r := range kr.Records {
 		e := &entry.Entry{
 			TS:   reqTS,
@@ -151,9 +166,10 @@ func sendAFHOk(w http.ResponseWriter, id string) {
 }
 
 func includeAFHListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
-	for _, v := range cfg.AFHListener {
+	for k, v := range cfg.AFHListener {
 		hcfg := routeHandler{
-			handler: handleAFH,
+			handler:    handleAFH,
+			debugPosts: v.Debug_Posts,
 		}
 		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
 			return fmt.Errorf("failed to pull tag %s %w", v.Tag_Name, err)
@@ -171,6 +187,10 @@ func includeAFHListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		}
 		if hcfg.auth, err = newPresharedHeaderTokenHandler(afhAuthTokenHeader, v.TokenValue, lgr); err != nil {
 			return fmt.Errorf("failed to generate Amazon Firehose auth %w", err)
+		}
+		if *debugListener == k {
+			hcfg.handler = newDebugLoggingHandler(hcfg.handler, DefaultDebugLogger).Handle
+			hcfg.auth = newDebugLoggingAuther(hcfg.auth, DefaultDebugLogger)
 		}
 		if hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
 			return fmt.Errorf("failed to add handler for %q %w", v.URL, err)

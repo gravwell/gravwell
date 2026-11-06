@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -48,6 +49,8 @@ type routeHandler struct {
 	auth          authHandler
 	pproc         *processors.ProcessorSet
 	paramAttacher paramAttacher
+	debugPosts    bool
+	bufferSize    int
 }
 
 type handler struct {
@@ -183,16 +186,16 @@ func addMaxRequestHeadRoom(max, cur int64, hdr http.Header) {
 	hdr.Add(maxRequestHeadroom, strconv.FormatInt(avail, 10))
 }
 
-func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.reqSI.Add(1)
 
 	//check if its just a health check, if so bypass everything and get this done ASAP
 	if len(h.healthCheckURL) > 0 && r.Method == http.MethodGet && path.Clean(r.URL.Path) == h.healthCheckURL {
 		if h.igst.WillBlock() {
-			rw.WriteHeader(http.StatusInsufficientStorage)
+			w.WriteHeader(http.StatusInsufficientStorage)
 		}
-		//just return, this is an implied 200 or we already wrote the insufficient storage response
-		r.Body.Close() // close, we aren't reading this
+		drainAndClose(r.Body) // close, we aren't reading this
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -202,35 +205,22 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		defer atomic.AddInt64(&h.activeRequests, -1)
 
 		// add header value letting the client know how many outstanding requests are available
-		addMaxRequestHeadRoom(h.maxConcurrentRequests, curr, rw.Header())
+		addMaxRequestHeadRoom(h.maxConcurrentRequests, curr, w.Header())
 
 		//check if we are throttling this request because too many are outstanding
 		if curr > h.maxConcurrentRequests {
 			//too many, shut this down now with minimal processing
 			r.Body.Close() // close, we aren't reading this
-			rw.WriteHeader(http.StatusTooManyRequests)
+			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
 	}
 	// we might actually do something with this defer the cleanup
 	defer drainAndClose(r.Body)
-	w := &trackingRW{
-		ResponseWriter: rw,
-	}
-	if debugOn {
-		defer func(trw *trackingRW, req *http.Request) {
-			debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
-			debugout("\tHEADERS\n")
-			for k, v := range req.Header {
-				debugout("\t\t%v: %v\n", k, v)
-			}
-			debugout("\n")
-		}(w, r)
-	}
 	ip := getRemoteIP(r)
 	rdr, err := getReadableBody(r)
 	if err != nil {
-		h.lgr.Error("failed to get body reader", log.KV("address", ip), log.KVErr(err))
+		h.lgr.Error("failed to get body reader", log.KV("src", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -273,20 +263,16 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	//not an auth, try the actual post URL
 	rh, ok := h.mp[rt]
 	h.RUnlock()
-	debugout("LOOKUP UP ROUTE: %s %s\n", rt.method, rt.uri)
-	if !ok {
+	debugout("LOOK UP ROUTE: %s %s %v\n", rt.method, rt.uri, ok)
+	if !ok || rh.handler == nil {
 		debugout("NO ROUTE\n")
-		h.lgr.Info("bad request URL", log.KV("url", rt.uri), log.KV("method", r.Method))
+		h.lgr.Info("bad request URL", log.KV("src", ip), log.KV("url", rt.uri), log.KV("method", r.Method))
 		w.WriteHeader(http.StatusNotFound)
-		return
-	} else if rh.handler == nil {
-		h.lgr.Info("no handler", log.KV("url", rt.uri), log.KV("method", r.Method))
-		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	if rh.auth != nil {
 		if err := rh.auth.AuthRequest(r); err != nil {
-			h.lgr.Info("access denied", log.KV("address", getRemoteIP(r)), log.KV("url", rt.uri), log.KVErr(err))
+			h.lgr.Info("access denied", log.KV("src", getRemoteIP(r)), log.KV("url", rt.uri), log.KVErr(err))
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -354,26 +340,6 @@ func getReadableBody(r *http.Request) (rc io.ReadCloser, err error) {
 	return
 }
 
-type trackingRW struct {
-	http.ResponseWriter
-	code  int
-	bytes int
-}
-
-func (trw *trackingRW) WriteHeader(code int) {
-	trw.code = code
-	trw.ResponseWriter.WriteHeader(code)
-}
-
-func (trw *trackingRW) Write(b []byte) (r int, err error) {
-	r, err = trw.ResponseWriter.Write(b)
-	trw.bytes += r
-	if trw.code == 0 {
-		trw.code = 200
-	}
-	return
-}
-
 type route struct {
 	method string
 	uri    string
@@ -399,32 +365,66 @@ func (r route) String() string {
 
 func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("multhandler\n")
+
+	var entriesCount int
+	var byteCount int64
+	if cfg.debugPosts {
+		now := time.Now()
+		defer func() {
+			kvs := append(requestKV(w, r),
+				log.KV("entries", entriesCount),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			)
+			h.igst.Info("HTTP multiline", kvs...)
+		}()
+	}
 	scanner := bufio.NewScanner(rdr)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	scanner.Buffer(make([]byte, cfg.bufferSize), cfg.bufferSize)
+
 	for scanner.Scan() {
 		bts := scanner.Bytes()
 		if bts = bytes.TrimSpace(bts); len(bts) == 0 {
 			continue
 		}
+		byteCount += int64(len(bts))
 		// we have to do a bytes.Clone on the output because the bufio.Scanner does internal buffer reuse
 		if err := h.handleEntry(cfg, bytes.Clone(bts), ip, cfg.tag); err != nil {
-			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+			h.lgr.Error("failed to handle entry", log.KV("src", ip), log.KVErr(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		entriesCount++
 	}
 	if err := scanner.Err(); err != nil {
-		h.lgr.Warn("failed to handle multiline upload", log.KVErr(err))
+		if errors.Is(err, bufio.ErrTooLong) {
+			err = fmt.Errorf("Buffer-Size (%d) exceeded: %w", cfg.bufferSize, err)
+		}
+		h.lgr.Warn("failed to handle multiline upload", log.KV("src", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	//using a limited Reader here makes sense because we are going to be eathing the entire HTTP request body as a single entry
-	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 1)}
+	bodyReadLimit := int64(maxBody + 1)
+	//using a limited Reader here makes sense because we are going to be eating the entire HTTP request body as a single entry
+	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
+
+	var entries int
+	if cfg.debugPosts {
+		now := time.Now()
+		defer func() {
+			kvs := append(requestKV(w, r),
+				log.KV("entries", entries),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			)
+			h.igst.Info("HTTP request", kvs...)
+		}()
+	}
+
 	b, err := io.ReadAll(&lr)
 	if err != nil && err != io.EOF {
-		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
+		h.lgr.Info("got bad request", log.KV("src", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if len(b) > maxBody || lr.N == 0 {
@@ -433,10 +433,14 @@ func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.R
 		return
 	}
 	if len(b) == 0 {
-		h.lgr.Info("got an empty post", log.KV("address", ip))
+		h.lgr.Info("got an empty post", log.KV("src", ip))
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	} else if err = h.handleEntry(cfg, b, ip, cfg.tag); err != nil {
-		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+		h.lgr.Error("failed to handle entry", log.KV("src", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+	entries++
+	w.WriteHeader(http.StatusOK)
 }

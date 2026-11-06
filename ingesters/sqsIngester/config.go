@@ -31,6 +31,7 @@ type queue struct {
 	Tag_Name         string
 	Queue_URL        string
 	Region           string
+	Endpoint         string
 	Credentials_Type string
 	AKID             string
 	Secret           string `json:"-"` // DO NOT send this when marshalling

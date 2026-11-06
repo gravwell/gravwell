@@ -37,6 +37,7 @@ var (
 	ErrNotFound         = errors.New("Processor not found")
 	ErrNotReady         = errors.New("ProcessorSet not ready")
 	ErrInvalidEntry     = errors.New("ErrInvalidEntry")
+	ErrProcessorPanic   = errors.New("preprocessor panicked")
 
 	emptyStruct = []byte(`{}`)
 )
@@ -82,6 +83,7 @@ func CheckProcessor(id string) error {
 	case RegexReplaceProcessor:
 	case RegexDropProcessor:
 	case AttachProcessor:
+	case VectorProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -157,6 +159,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexDropLoadConfig(vc)
 	case AttachProcessor:
 		cfg, err = AttachLoadConfig(vc)
+	case VectorProcessor:
+		cfg, err = VectorLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -344,6 +348,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewAttachProcessor(cfg)
+	case VectorProcessor:
+		var cfg VectorConfig
+		if cfg, err = VectorLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewVectorProcessor(cfg)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}
@@ -379,6 +389,7 @@ func (pr *ProcessorSet) Process(ent *entry.Entry) (err error) {
 		return ErrInvalidEntry
 	}
 	pr.Lock()
+	defer pr.Unlock()
 	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
@@ -390,7 +401,6 @@ func (pr *ProcessorSet) Process(ent *entry.Entry) (err error) {
 			err = pr.writeSet(set)
 		}
 	}
-	pr.Unlock()
 	return
 }
 
@@ -399,6 +409,7 @@ func (pr *ProcessorSet) ProcessBatch(ents []*entry.Entry) (err error) {
 		return nil
 	}
 	pr.Lock()
+	defer pr.Unlock()
 	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
@@ -410,7 +421,6 @@ func (pr *ProcessorSet) ProcessBatch(ents []*entry.Entry) (err error) {
 			err = pr.writeSet(set)
 		}
 	}
-	pr.Unlock()
 	return
 }
 
@@ -419,6 +429,7 @@ func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) (e
 		return ErrInvalidEntry
 	}
 	pr.Lock()
+	defer pr.Unlock()
 	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
@@ -430,7 +441,6 @@ func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) (e
 			err = pr.writeSetContext(set, ctx)
 		}
 	}
-	pr.Unlock()
 	return
 }
 
@@ -439,6 +449,7 @@ func (pr *ProcessorSet) ProcessBatchContext(ents []*entry.Entry, ctx context.Con
 		return nil
 	}
 	pr.Lock()
+	defer pr.Unlock()
 	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
@@ -450,7 +461,6 @@ func (pr *ProcessorSet) ProcessBatchContext(ents []*entry.Entry, ctx context.Con
 			err = pr.writeSetContext(set, ctx)
 		}
 	}
-	pr.Unlock()
 	return
 }
 
@@ -476,7 +486,7 @@ func (pr *ProcessorSet) processItems(ents []*entry.Entry) (set []*entry.Entry, e
 	}
 	for i := 0; i < len(pr.set) && len(set) > 0; i++ {
 		orig := set
-		if set, err = pr.set[i].Process(orig); err != nil {
+		if set, err = safeProcess(pr.set[i], orig); err != nil {
 			//TODO FIXME Issue #1225 - https://github.com/gravwell/gravwell/issues/1225
 			if _, ok := err.(*plugin.FaultError); ok {
 				// LOG THIS for issue #1225 and put in some logic
@@ -491,6 +501,19 @@ func (pr *ProcessorSet) processItems(ents []*entry.Entry) (set []*entry.Entry, e
 	return
 }
 
+// safeProcess calls Process on a single preprocessor and converts a panic into an error
+// so that a defect in a preprocessor (or a library it uses) cannot take down the ingester.
+// The entries handed to a preprocessor that panics are dropped.
+func safeProcess(p Processor, ents []*entry.Entry) (set []*entry.Entry, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			set = nil
+			err = fmt.Errorf("%w: %T: %v", ErrProcessorPanic, p, r)
+		}
+	}()
+	return p.Process(ents)
+}
+
 // processItemsOnFlush is just a processors that allows us to hand in the set of Processors as a parameter
 // we need to be able to do this as we force a flush and process on preprocessors
 func (pr *ProcessorSet) processItemsOnFlush(prs []Processor, ents []*entry.Entry) (set []*entry.Entry, err error) {
@@ -499,7 +522,7 @@ func (pr *ProcessorSet) processItemsOnFlush(prs []Processor, ents []*entry.Entry
 		return
 	}
 	for i := 0; i < len(prs) && len(set) > 0; i++ {
-		if set, err = prs[i].Process(set); err != nil {
+		if set, err = safeProcess(prs[i], set); err != nil {
 			break
 		}
 	}

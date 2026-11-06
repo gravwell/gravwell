@@ -48,14 +48,15 @@ const (
 )
 
 var (
-	ErrInvalidAuthType    = errors.New("Invalid authentication type")
-	ErrLoginURLRequired   = errors.New("Authentication type requires a login URL")
-	ErrUnauthorized       = errors.New("Unauthorized")
-	ErrMissingTokenName   = errors.New("Token name is invalid")
-	ErrMissingTokenValue  = errors.New("Token value cannot be empty")
-	ErrBadTokenValue      = errors.New("Bad token value")
-	ErrMissingHeaderValue = errors.New("Token header value cannot be empty")
-	ErrHeaderNotFound     = errors.New("Token header value not found")
+	ErrInvalidAuthType      = errors.New("Invalid authentication type")
+	ErrLoginURLRequired     = errors.New("Authentication type requires a login URL")
+	ErrUnauthorized         = errors.New("Unauthorized")
+	ErrMissingTokenName     = errors.New("Token name is invalid")
+	ErrMissingTokenValue    = errors.New("Token value cannot be empty")
+	ErrBadTokenValue        = errors.New("Bad token value")
+	ErrMissingHeaderValue   = errors.New("Token header value cannot be empty")
+	ErrHeaderNotFound       = errors.New("Token header value not found")
+	ErrTokenWithoutAuthType = errors.New("TokenName or TokenValue specified without an AuthType")
 )
 
 type authType string
@@ -75,6 +76,10 @@ type authHandler interface {
 }
 
 func (a *auth) Validate() (enabled bool, err error) {
+	if (a.AuthType == _none || a.AuthType == none) && (a.TokenName != `` || a.TokenValue != ``) {
+		err = ErrTokenWithoutAuthType
+		return
+	}
 	//check the auth type and make sure a login url is set
 	switch a.AuthType {
 	case none: //do nothing
@@ -321,7 +326,7 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var u, p string
 	//parse the post form
 	if err := r.ParseForm(); err != nil {
-		jah.lgr.Info("bad login request", log.KVErr(err))
+		jah.lgr.Info("bad login request", log.KV("src", getRemoteIP(r)), log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -330,7 +335,7 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	p = r.FormValue(passFormValue)
 	if u != jah.user || p != jah.pass {
 		w.WriteHeader(http.StatusForbidden)
-		jah.lgr.Info("failed login", log.KV("address", getRemoteIP(r)))
+		jah.lgr.Info("failed login", log.KV("src", getRemoteIP(r)))
 		return
 	}
 
@@ -346,11 +351,11 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	if ss, err := token.SignedString([]byte(jah.secret)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		jah.lgr.Info("bad JWT token", log.KV("address", getRemoteIP(r)), log.KVErr(err))
+		jah.lgr.Info("bad JWT token", log.KV("src", getRemoteIP(r)), log.KVErr(err))
 	} else {
 		//set the header
 		io.WriteString(w, ss)
-		jah.lgr.Info("successful login", log.KV("address", getRemoteIP(r)))
+		jah.lgr.Info("successful login", log.KV("src", getRemoteIP(r)))
 	}
 }
 
@@ -417,7 +422,7 @@ func (cah *cookieAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var u, p string
 	//parse the post form
 	if err := r.ParseForm(); err != nil {
-		cah.lgr.Info("bad login request", log.KVErr(err))
+		cah.lgr.Info("bad login request", log.KV("src", getRemoteIP(r)), log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -426,14 +431,14 @@ func (cah *cookieAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	p = r.FormValue(passFormValue)
 	if u != cah.user || p != cah.pass {
 		w.WriteHeader(http.StatusForbidden)
-		cah.lgr.Info("failed login", log.KV("address", getRemoteIP(r)))
+		cah.lgr.Info("failed login", log.KV("src", getRemoteIP(r)))
 		return
 	}
 	expires := time.Now().UTC().Add(jwtDuration)
 	//make a cookie
 	cookie, err := randBase64(32)
 	if err != nil {
-		cah.lgr.Error("failed to generate cookie", log.KVErr(err))
+		cah.lgr.Error("failed to generate cookie", log.KV("src", getRemoteIP(r)), log.KVErr(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

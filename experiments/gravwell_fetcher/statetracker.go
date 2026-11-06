@@ -30,7 +30,7 @@ type trackedObjects map[string]trackedObjectState
 type trackedObjectState struct {
 	Updated    time.Time
 	LatestTime time.Time
-	Key        string
+	Key        json.RawMessage
 }
 
 func NewObjectTracker(pth string) (ot *objectTracker, err error) {

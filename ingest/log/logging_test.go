@@ -20,6 +20,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/crewjam/rfc5424"
 )
 
 const (
@@ -88,7 +90,7 @@ func TestValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testOutputs(t, lgr)
+	testOutputs(t, lgr, filepath.Join(tempdir, testFile))
 }
 
 func TestRawValue(t *testing.T) {
@@ -98,7 +100,7 @@ func TestRawValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	lgr.raw = true
-	testOutputs(t, lgr)
+	testOutputs(t, lgr, pth)
 	bts, err := os.ReadFile(pth)
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +112,7 @@ func TestRawValue(t *testing.T) {
 
 }
 
-func testOutputs(t *testing.T, lgr *Logger) {
+func testOutputs(t *testing.T, lgr *Logger, file string) {
 	var err error
 	if err = lgr.Warnf("ERROR test: %d", 99); err != nil {
 		t.Fatal(err)
@@ -136,7 +138,7 @@ func testOutputs(t *testing.T, lgr *Logger) {
 	if err = lgr.Close(); err != nil {
 		t.Fatal(err)
 	}
-	bts, err := os.ReadFile(filepath.Join(tempdir, testFile))
+	bts, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,4 +389,188 @@ func TestUdpLogger(t *testing.T) {
 	}
 	wg.Wait()
 
+}
+
+// Test_genRfcOutput checks that SDParams that would fail RFC 5424 marshaling
+// do not swallow the log line, that illegal characters in PARAM-NAMEs are
+// replaced, and that PARAM-VALUEs are preserved verbatim (spaces included)
+// with '"', '\', and ']' escaped per RFC 5424 6.3.3.
+func Test_genRfcOutput(t *testing.T) {
+	tests := []struct {
+		name   string // description of this test case
+		ts     time.Time
+		msg    string
+		sds    []rfc5424.SDParam
+		wantSD string // the expected structured data element
+	}{
+		{"single valid SDParam",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{{Name: "1Name", Value: "1Value"}},
+			`[gw@1 1Name="1Value"]`,
+		},
+		{"space in name replaced, space in value preserved",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{
+				{Name: "1 Name", Value: "1Value"},
+				{Name: "2Name", Value: "2 Value"},
+			},
+			`[gw@1 1_Name="1Value" 2Name="2 Value"]`,
+		},
+		{"quoted string value with spaces preserved",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{{Name: "msg", Value: "i am a teapot"}},
+			`[gw@1 msg="i am a teapot"]`,
+		},
+		{"illegal characters in names replaced, escapable characters in values escaped",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{
+				{Name: "1=Name", Value: "1Value"},
+				{Name: `2Na'me"`, Value: "2/Value']"},
+			},
+			`[gw@1 1_Name="1Value" 2Na'me_="2/Value'\]"]`,
+		},
+		{"value with quotes and backslashes escaped",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{{Name: "err", Value: `open "C:\tmp"`}},
+			`[gw@1 err="open \"C:\\tmp\""]`,
+		},
+		{"invalid UTF-8 in value replaced",
+			time.Now(), "base message",
+			[]rfc5424.SDParam{{Name: "bin", Value: "bad\xffbyte"}},
+			`[gw@1 bin="bad_byte"]`,
+		},
+	}
+	const prefix string = "pfx"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := NewDiscardLogger()
+
+			// generate expected raw and RFC outputs; the raw form is untouched
+			// by any sanitization
+			var sbRaw strings.Builder
+			fmt.Fprint(&sbRaw, tt.msg)
+			for _, sd := range tt.sds {
+				fmt.Fprintf(&sbRaw, " %s=%q", sd.Name, sd.Value)
+			}
+			wantRaw := sbRaw.String()
+			wantRFC := fmt.Sprintf("<14>1 %v %s %s - %s %s %s",
+				tt.ts.Format("2006-01-02T15:04:05.999999Z07:00"), l.hostname, l.appname,
+				prefix, tt.wantSD, tt.msg)
+
+			gotRFC, gotRaw := l.genRfcOutput(tt.ts, prefix, INFO, tt.msg, tt.sds...)
+			if string(gotRFC) != wantRFC {
+				t.Errorf("RFC:\ngot: \"%v\"\nwant:\"%v\"", string(gotRFC), wantRFC)
+			} else if string(gotRaw) != wantRaw {
+				t.Errorf("Raw:\ngot: \"%v\"\nwant:\"%v\"", string(gotRaw), wantRaw)
+			}
+		})
+	}
+}
+
+type testLevelRelay struct {
+	pth string
+	f   *os.File
+}
+
+func newTestLevelRelay(pth string) (*testLevelRelay, error) {
+	f, err := os.Create(pth)
+	if err != nil {
+		return nil, err
+	}
+	return &testLevelRelay{pth: pth, f: f}, nil
+}
+
+func (t *testLevelRelay) WriteLog(l Level, ts time.Time, rfcline, rawline string) error {
+	_, err := fmt.Fprintf(t.f, "%s\n", rfcline)
+	return err
+}
+
+func (t *testLevelRelay) Close() error {
+	return t.f.Close()
+}
+
+func TestCloneHostname(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `test_clone_hostname.log`)
+	relay, err := newTestLevelRelay(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lgr := NewLevelRelay(relay)
+
+	cloned, err := lgr.Clone("cloned-hostname", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cloned.Hostname() != "cloned-hostname" {
+		t.Fatalf("expected hostname 'cloned-hostname', got '%s'", cloned.Hostname())
+	}
+
+	if cloned.Appname() != lgr.Appname() {
+		t.Fatalf("expected appname to match original '%s', got '%s'", lgr.Appname(), cloned.Appname())
+	}
+
+	if err = cloned.Infof("test message from cloned logger"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = cloned.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	bts, err := os.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if !strings.Contains(s, "cloned-hostname") {
+		t.Fatal("Missing cloned hostname in log: ", s)
+	}
+	if !strings.Contains(s, "test message from cloned logger") {
+		t.Fatal("Missing log message: ", s)
+	}
+}
+
+func TestCloneAppname(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `test_clone_appname.log`)
+	relay, err := newTestLevelRelay(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lgr := NewLevelRelay(relay)
+
+	cloned, err := lgr.Clone("", "cloned-app")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cloned.Appname() != "cloned-app" {
+		t.Fatalf("expected appname 'cloned-app', got '%s'", cloned.Appname())
+	}
+
+	if cloned.Hostname() != lgr.Hostname() {
+		t.Fatalf("expected hostname to match original '%s', got '%s'", lgr.Hostname(), cloned.Hostname())
+	}
+
+	if err = cloned.Infof("test message from cloned logger"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = cloned.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	bts, err := os.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if !strings.Contains(s, "cloned-app") {
+		t.Fatal("Missing cloned appname in log: ", s)
+	}
+	if !strings.Contains(s, "test message from cloned logger") {
+		t.Fatal("Missing log message: ", s)
+	}
 }

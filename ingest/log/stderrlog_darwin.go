@@ -25,8 +25,8 @@ func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err e
 		clr.rfc = os.Stderr //this is getting redirected to a file
 		var oldstderr int
 		var fout *os.File
-		//get a handle on the output file
-		if fout, err = os.Create(fileOverride); err != nil {
+		//get a handle on the output file, truncate it and make sure its RW for user and group but not other
+		if fout, err = os.OpenFile(fileOverride, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0660); err != nil {
 			return
 		}
 		if cb != nil {

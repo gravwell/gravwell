@@ -8,12 +8,13 @@ go mod tidy
 go mod download
 go mod verify
 go install golang.org/x/vuln/cmd/govulncheck@latest
-go install honnef.co/go/tools/cmd/staticcheck@latest
+go install honnef.co/go/tools/cmd/staticcheck@2026.2.1
 
 echo "Running go vet"
 	go vet ./generators/ipgen
         go vet ./chancacher
         go vet ./ingest
+        go vet -tags realsocket ./ingest
         go vet ./ingest/entry
         go vet ./ingest/processors
         go vet ./ingest/processors/plugin
@@ -21,9 +22,20 @@ echo "Running go vet"
         go vet ./ingest/log
         go vet ./timegrinder
         go vet ./filewatch
-        go vet ./ingesters/utils
+        go vet ./hosted/...
+        go vet ./ingesters/utils/...
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
+        go vet ./ingesters/llm_ingester/...
+        go vet ./ingesters/macosUnifiedLog
+        go vet ./ingesters/snmp
+        go vet ./ingesters/AzureEventHubs
+        go vet ./ingesters/HttpIngester
+        go vet ./ingesters/MSGraphIngester
+        go vet ./ingesters/s3Ingester
+        go vet ./ingesters/sqsIngester
+        go vet ./ingesters/version
+        go vet ./ingesters/examples/...
         GOOS=linux go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
@@ -32,7 +44,7 @@ echo "Running go vet"
 echo "Running go test -v"
 	go test -v ./generators/ipgen
         go test -v ./chancacher
-        go test -v ./ingest
+        CGO_ENABLED=1 go test -race -v ./ingest
         go test -v ./ingest/entry
         go test -v ./ingest/processors
         go test -v ./ingest/processors/plugin
@@ -40,9 +52,20 @@ echo "Running go test -v"
         go test -v ./ingest/log
         go test -v ./timegrinder
         go test -v ./filewatch
-        go test -v ./ingesters/utils
+        go test -v ./hosted
+        go test -v ./ingesters/utils/...
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
+        go test -v ./ingesters/llm_ingester/...
+        go test -v ./ingesters/macosUnifiedLog
+        go test -v ./ingesters/snmp
+        go test -v ./ingesters/AzureEventHubs
+        go test -v ./ingesters/HttpIngester
+        go test -v ./ingesters/MSGraphIngester
+        go test -v ./ingesters/s3Ingester
+        go test -v ./ingesters/sqsIngester
+        go test -v ./ingesters/version
+        go test -v ./ingesters/examples/...
         if [[ "$(go env GOOS)" == "linux" ]]; then go test -v ./ipexist; fi
         go test -v ./netflow
         go test -v ./client/...
@@ -75,6 +98,7 @@ echo "running staticcheck"
 	staticcheck ./client/...
 	staticcheck ./ingesters/args/...
 	staticcheck ./ingesters/base/...
+	staticcheck ./hosted/...
 	staticcheck ./ingesters/utils/...
 	staticcheck ./ingesters/AzureEventHubs/...
 	GOOS=linux staticcheck ./ingesters/canbus/...
@@ -87,6 +111,8 @@ echo "running staticcheck"
 	staticcheck ./ingesters/IPMIIngester/...
 	staticcheck ./ingesters/kafka_consumer/...
 	staticcheck ./ingesters/KinesisIngester/...
+	staticcheck ./ingesters/llm_ingester/...
+	staticcheck ./ingesters/macosUnifiedLog/...
 	staticcheck ./ingesters/massFile/...
 	staticcheck ./ingesters/MSGraphIngester/...
 	staticcheck ./ingesters/multiFile/...
@@ -162,6 +188,9 @@ echo "running govulncheck on everything"
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./ingesters/llm_ingester
+        govulncheck -test ./ingesters/macosUnifiedLog
+        govulncheck -test ./hosted/...
         #govulncheck -test ./gwcli
         GOOS=windows GOARCH=amd64 govulncheck -test ./ingesters/winevents
         GOOS=windows GOARCH=amd64 govulncheck -test ./winevent/...
@@ -192,7 +221,12 @@ echo "Running build tests"
         GOOS=linux go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/llm_ingester
+        go build -o /dev/null ./ingesters/snmp
+        go build -o /dev/null ./hosted/runner
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
+        GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/macosUnifiedLog
+        GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/macosUnifiedLog
         GOOS=linux GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow

@@ -1,0 +1,4 @@
+*.log
+*.state
+llm_ingester
+!.gitignore

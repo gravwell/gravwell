@@ -793,7 +793,7 @@ func (c Capability) Description() string {
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
 	case LogbotAI:
-		return `User can submit requests to Logbot AI`
+		return `User can use the AI completions and MCP services`
 	}
 	return `UNKNOWN`
 }
