@@ -57,8 +57,8 @@ func show() action.Pair {
 		scaffoldlist.Options{
 			Use: "show",
 			Requirements: annotations.Requirements{
-				IPermissions: []types.Capability{types.SOAREmail},
-				XPermissions: []types.Capability{types.SOAREmail},
+				IPermissions: []types.Capability{types.Email},
+				XPermissions: []types.Capability{types.Email},
 			},
 			Pretty: func(_ *pflag.FlagSet, DQColumns []string, DQToAlias map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				mc, err := connection.Client.GetMailConfig()
@@ -246,8 +246,8 @@ func configure() action.Pair {
 				Long:    "Set the SMTP server settings used for sending email notifications.",
 				Aliases: []string{"add", "create", "update"},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SOAREmail},
-					XPermissions: []types.Capability{types.SOAREmail},
+					IPermissions: []types.Capability{types.Email},
+					XPermissions: []types.Capability{types.Email},
 				},
 			},
 		})
@@ -265,8 +265,8 @@ func deleteConfig() action.Pair {
 			CommonOptions: scaffold.CommonOptions{
 				Aliases: []string{"uninstall", "remove"},
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SOAREmail},
-					XPermissions: []types.Capability{types.SOAREmail},
+					IPermissions: []types.Capability{types.Email},
+					XPermissions: []types.Capability{types.Email},
 				},
 			},
 		})
