@@ -256,7 +256,12 @@ func (p *processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int)
 	if len(d) < p.min {
 		return time.Time{}, false, -1 //cannot possibly hit
 	}
-	return extract(p.rxp, p.trxpEx, d, p.format, loc, p.window)
+	t, ok, off := extract(p.rxp, p.trxpEx, d, p.format, loc, p.window)
+	if ok && t.Year() == 0 {
+		// never hand back a year zero timestamp, extract only accepted it if the tweaked year is in the window
+		t = tweakYear(t)
+	}
+	return t, ok, off
 }
 
 func match(rx, rxt *regexp.Regexp, d []byte) (start, end int, ok bool) {

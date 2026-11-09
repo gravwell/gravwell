@@ -23,8 +23,8 @@ import (
 type ipmi struct {
 	Tag_Name          string
 	Target            []string
-	Username          string
-	Password          string
+	Username          string `json:"-"`
+	Password          string `json:"-"`
 	Preprocessor      []string
 	Source_Override   string
 	Rate              int

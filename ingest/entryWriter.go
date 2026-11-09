@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -50,7 +51,17 @@ const (
 	// throttleConn.Write reset before every defaultWriteBlockSize chunk (see
 	// throttle.go), not a deadline over an entire flush/entry.
 	defaultFlushTimeout time.Duration = 30 * time.Second
-	negotiateTagTimeout time.Duration = 10 * time.Second
+)
+
+const (
+	// commandResponseTimeout bounds how long readCommandsUntil will wait for
+	// the indexer to answer a command.  The indexer keepalive (PONG_MAGIC)
+	// arrives every second which is faster than the per read deadline, so
+	// without an overall budget a wedged but alive indexer can keep a client
+	// spinning forever.  The clock resets on any substantive response
+	// (entry confirmations and throttle requests), only keepalives count
+	// against it.
+	commandResponseTimeout time.Duration = 10 * time.Second
 )
 
 const (
@@ -819,39 +830,9 @@ func (ew *EntryWriter) SendIngesterAPIVersion() (err error) {
 		return
 	}
 
-	// read back the ack
-	var ac ackCommand
-	var ok bool
-verCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !ok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-
-		switch ac.cmd {
-		case CONFIRM_API_VER_MAGIC:
-			// success
-			break verCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-		default:
-			err = fmt.Errorf("Unexpected response to API version message: %#v", ac)
-			break verCmdLoop
-		}
-	}
-	if err == nil {
-		err = ew.conn.ClearReadTimeout()
-	} else {
-		ew.conn.ClearReadTimeout()
-	}
-
+	// read back the ack, readCommandsUntil bounds the exchange so an indexer
+	// that keepalives but never answers cannot pin us here
+	_, err = ew.readCommandsUntil(CONFIRM_API_VER_MAGIC)
 	return
 }
 
@@ -917,7 +898,6 @@ func (ew *EntryWriter) IdentifyIngester(name string, version string, id string) 
 }
 
 func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) {
-	ts := time.Now()
 	if err = CheckTag(name); err != nil {
 		return
 	}
@@ -953,56 +933,16 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		return
 	}
 
-	// There are actually two possible responses here so we're gonna have to do this
-	// ourselves rather than call readCommandsUntil
+	// two answers are possible here, let the shared loop wait for either
 	var ac ackCommand
-	var ok bool
-tagCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !ok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-
-		switch ac.cmd {
-		case CONFIRM_ENTRY_MAGIC:
-			//check if the ID is the head, if not pop the head and resend
-			//TODO: if we get an ID we don't know about we just ignore it
-			//      is this the best course of action?
-			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
-				if err != errEntryNotFound {
-					return
-				}
-			}
-		case CONFIRM_TAG_MAGIC:
-			tg = entry.EntryTag(ac.val)
-			break tagCmdLoop
-		case ERROR_TAG_MAGIC:
-			err = errors.New("Failed to negotiate tag")
-			break tagCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-			if time.Since(ts) > negotiateTagTimeout {
-				err = ErrTimeout
-				break tagCmdLoop
-			}
-		default:
-			err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
-			break tagCmdLoop
-		}
+	if ac, err = ew.readCommandsUntilAny(CONFIRM_TAG_MAGIC, ERROR_TAG_MAGIC); err != nil {
+		return
 	}
-	if err == nil {
-		err = ew.conn.ClearReadTimeout()
-	} else {
-		ew.conn.ClearReadTimeout()
+	if ac.cmd == ERROR_TAG_MAGIC {
+		err = errors.New("Failed to negotiate tag")
+		return
 	}
-
+	tg = entry.EntryTag(ac.val)
 	return
 }
 
@@ -1112,13 +1052,46 @@ loop:
 	return
 }
 
+// isStrayConfirm reports whether an entry confirmation failed only because we
+// have nothing matching it: either the ID is unknown or nothing is outstanding
+// at all.  The command loops ignore those, a confirmation for an entry we are
+// not waiting on cannot be acted on, and it is not an answer to the command
+// either so it does not count as progress.
+func isStrayConfirm(err error) bool {
+	return err == errEntryNotFound || err == errEmptyConfBuff
+}
+
 // readCommandsUntil pulls out all of the responses and services them,
-// we block until we hit the command we want
-func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err error) {
+// we block until we hit the command we want.
+//
+// The per read deadline only guarantees the indexer is alive, the indexer
+// keepalive fires faster than the deadline so it can never trip on a
+// connection that is up.  The exchange as a whole is bounded by
+// commandResponseTimeout measured from the last substantive response, and we
+// also leave if our context is cancelled so that a muxer shutdown can pull a
+// connection out of setup rather than wait on a socket read forever.
+func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ackCommand, error) {
+	return ew.readCommandsUntilAny(cmd)
+}
+
+// readCommandsUntilAny is readCommandsUntil for an exchange with more than one
+// possible answer, it returns on the first command in cmds to arrive.
+func (ew *EntryWriter) readCommandsUntilAny(cmds ...IngestCommand) (ac ackCommand, err error) {
 	var ok bool
 	var dur time.Duration
 	defer ew.conn.ClearReadTimeout()
+	last := time.Now() //last substantive response from the indexer
 	for {
+		if err = ew.ctx.Err(); err != nil {
+			return
+		}
+		// the budget is checked here rather than on any one command so that
+		// whatever filler the indexer sends, keepalives or confirms for
+		// entries we never sent, counts against it
+		if time.Since(last) > commandResponseTimeout {
+			err = fmt.Errorf("indexer did not respond to %v within %v: %w", cmds, commandResponseTimeout, ErrTimeout)
+			return
+		}
 		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
 			return
 		}
@@ -1129,15 +1102,21 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err 
 			err = errFailedToReadCommand
 			return
 		}
+		if slices.Contains(cmds, ac.cmd) {
+			return
+		}
 		switch ac.cmd {
 		case CONFIRM_ENTRY_MAGIC:
 			//check if the ID is the head, if not pop the head and resend
 			//TODO: if we get an ID we don't know about we just ignore it
 			//      is this the best course of action?
 			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
-				if err != errEntryNotFound {
+				if !isStrayConfirm(err) {
 					return
 				}
+				err = nil
+			} else {
+				last = time.Now()
 			}
 		case THROTTLE_MAGIC:
 			if dur = time.Duration(ac.val); dur > maxThrottleDur || dur < 0 {
@@ -1146,14 +1125,17 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err 
 			if err = ew.throttle(dur); err != nil {
 				return
 			}
+			last = time.Now()
 		case PONG_MAGIC:
-			// Do nothing
-		}
-		if ac.cmd == cmd {
-			break
+			// unsolicited keepalive, it proves the connection is up but it is
+			// not an answer, so it does not reset the budget
+		default:
+			// anything else means the stream is out of step, fail now rather
+			// than wait out the budget and blame a timeout
+			err = fmt.Errorf("unexpected response %v while waiting for %v", ac.cmd, cmds)
+			return
 		}
 	}
-	return
 }
 
 func (ew *EntryWriter) throttle(dur time.Duration) (err error) {

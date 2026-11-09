@@ -34,14 +34,20 @@ type RegexTimestampConfig struct {
 	Timestamp_Format_Override string
 	Timezone_Override         string
 	Assume_Local_Timezone     bool
+	// Optional bounds on extracted timestamps, timestamps outside the bounds are ignored
+	Timestamp_Max_Past_Delta   string
+	Timestamp_Max_Future_Delta string
 }
 
 func RegexTimestampLoadConfig(vc *config.VariableConfig) (c RegexTimestampConfig, err error) {
-	err = vc.MapTo(&c)
+	if err = vc.MapTo(&c); err != nil {
+		return
+	}
 	if c.Timezone_Override != `` && c.Assume_Local_Timezone {
 		err = errors.New("Can't specify Assume-Local-Timezone and define a Timezone-Override at the same time")
 		return
 	}
+	_, err = newTSBounds(c.Timestamp_Max_Past_Delta, c.Timestamp_Max_Future_Delta)
 	return
 }
 
@@ -51,6 +57,11 @@ func NewRegexTimestampProcessor(cfg RegexTimestampConfig) (*RegexTimestamp, erro
 	}
 	if len(cfg.TS_Match_Name) == 0 {
 		return nil, ErrEmptyMatch
+	}
+
+	bounds, err := newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta)
+	if err != nil {
+		return nil, err
 	}
 
 	re, err := regexp.Compile(cfg.Regex)
@@ -96,6 +107,7 @@ func NewRegexTimestampProcessor(cfg RegexTimestampConfig) (*RegexTimestamp, erro
 		re:                   re,
 		matchidx:             idx,
 		tg:                   tg,
+		bounds:               bounds,
 	}, nil
 }
 
@@ -105,13 +117,16 @@ type RegexTimestamp struct {
 	re       *regexp.Regexp
 	matchidx int
 	tg       *timegrinder.TimeGrinder
+	bounds   tsBounds
 }
 
 func (rt *RegexTimestamp) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexTimestampConfig); ok {
-		rt.RegexTimestampConfig = cfg
+		if rt.bounds, err = newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta); err == nil {
+			rt.RegexTimestampConfig = cfg
+		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -148,7 +163,7 @@ func (rt *RegexTimestamp) processItem(ent *entry.Entry) (*entry.Entry, error) {
 		return nil, err
 	} else if ok {
 		// successful parse
-		ent.TS = entry.FromStandard(extracted)
+		rt.bounds.apply(ent, extracted)
 	}
 	return ent, nil
 }
