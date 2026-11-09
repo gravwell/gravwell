@@ -33,20 +33,25 @@ const (
 	RESP_ENTRY_COUNT    uint32 = 0x3
 	RESP_SEARCH_DETAILS uint32 = 0x4
 	RESP_SEARCH_TAGS    uint32 = 0x5
-)
 
-// Search Launch Methods
-const (
+	// Search Launch Methods
 	LaunchMethodManual          = `manual`
 	LaunchMethodDirectQuery     = `directquery`
 	LaunchMethodFlow            = `flow`
 	LaunchMethodScript          = `script`
 	LaunchMethodScheduledSearch = `scheduledSearch`
 	LaunchMethodDashboard       = `dashboard`
+
+	// Search Refresh Statuses
+	SearchSessionRefreshResultKindRefreshed SearchSessionRefreshResultKind = "refreshed"
+	SearchSessionRefreshResultKindFailed    SearchSessionRefreshResultKind = "failed"
 )
 
 var (
 	ErrIllegalMacroCharacter error = errors.New("Illegal character in macro name")
+
+	ErrSearchSessionRefreshResultInvalid   = errors.New("SearchSessionRefreshResult has no variant set")
+	ErrSearchSessionRefreshResultAmbiguous = errors.New("SearchSessionRefreshResult has both variants set")
 )
 
 // An Element is an item which has been extracted from an entry using the
@@ -214,6 +219,104 @@ type StartSearchResponse struct {
 
 type SearchSessionIntervalUpdate struct {
 	Interval uint
+}
+
+// SearchSessionRefresh describes one search session to refresh.
+type SearchSessionRefresh struct {
+	SearchID  string
+	SessionID uuid.UUID
+
+	// Interval is how often, in seconds, the client will refresh this session
+	// from now on. Unset leaves the interval unchanged.
+	Interval Optional[uint] `json:",omitzero"`
+
+	// Expires is when the search expires. Unset leaves the expiry unchanged.
+	Expires Optional[time.Time] `json:",omitzero"`
+}
+
+// SearchSessionRefreshRequest lists the search sessions to refresh.
+type SearchSessionRefreshRequest struct {
+	Sessions []SearchSessionRefresh
+}
+
+// SearchSessionRefreshResponse is the outcome of a search session refresh.
+// Results[i] is the outcome of Sessions[i] in the request.
+type SearchSessionRefreshResponse struct {
+	Results []SearchSessionRefreshResult
+}
+
+// SearchSessionRefreshResultKind is the discriminator for SearchSessionRefreshResult.
+type SearchSessionRefreshResultKind string
+
+// SearchSessionRefreshed is the result of a successful session refresh.
+type SearchSessionRefreshed struct {
+	Kind      SearchSessionRefreshResultKind
+	SearchID  string
+	SessionID uuid.UUID
+	Interval  uint
+	Expires   Nullable[time.Time]
+}
+
+// SearchSessionRefreshFailed is the result of a failed session refresh.
+type SearchSessionRefreshFailed struct {
+	Kind      SearchSessionRefreshResultKind
+	SearchID  string
+	SessionID uuid.UUID
+	Error     string
+}
+
+// SearchSessionRefreshResult is the outcome of refreshing one search session.
+// Exactly one of Refreshed and Failed is set. It marshals and unmarshals as the
+// variant, with Kind carrying the discriminator on the wire.
+type SearchSessionRefreshResult struct {
+	Refreshed *SearchSessionRefreshed
+	Failed    *SearchSessionRefreshFailed
+}
+
+func (r SearchSessionRefreshResult) MarshalJSON() ([]byte, error) {
+	switch {
+	case r.Refreshed != nil && r.Failed == nil:
+		v := *r.Refreshed
+		v.Kind = SearchSessionRefreshResultKindRefreshed
+		return json.Marshal(v)
+	case r.Failed != nil && r.Refreshed == nil:
+		v := *r.Failed
+		v.Kind = SearchSessionRefreshResultKindFailed
+		return json.Marshal(v)
+	case r.Refreshed == nil && r.Failed == nil:
+		return nil, ErrSearchSessionRefreshResultInvalid
+	default:
+		return nil, ErrSearchSessionRefreshResultAmbiguous
+	}
+}
+
+func (r *SearchSessionRefreshResult) UnmarshalJSON(data []byte) error {
+	*r = SearchSessionRefreshResult{}
+	var probe struct {
+		Kind SearchSessionRefreshResultKind
+	}
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return err
+	}
+	switch probe.Kind {
+	case SearchSessionRefreshResultKindRefreshed:
+		var v SearchSessionRefreshed
+		if err := json.Unmarshal(data, &v); err != nil {
+			return err
+		}
+		v.Kind = probe.Kind
+		r.Refreshed = &v
+	case SearchSessionRefreshResultKindFailed:
+		var v SearchSessionRefreshFailed
+		if err := json.Unmarshal(data, &v); err != nil {
+			return err
+		}
+		v.Kind = probe.Kind
+		r.Failed = &v
+	default:
+		return fmt.Errorf("unknown SearchSessionRefreshResult Kind %q", probe.Kind)
+	}
+	return nil
 }
 
 // StartSearchAck is sent when a search has begun

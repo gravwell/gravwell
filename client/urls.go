@@ -80,6 +80,7 @@ const (
 	SEARCHES_ID_MODULES_URL               = `/api/searches/%s/modules`
 	SEARCHES_ID_STATS_URL                 = `/api/searches/%s/stats`
 	SEARCHES_ID_STATS_METADATA_URL        = `/api/searches/%s/stats/metadata`
+	REFRESH_SEARCH_SESSIONS_URL           = `/api/refresh/search-sessions`
 	SEARCHES_ID_EXPLORE_URL               = `/api/searches/%s/explore/%s`
 	SEARCHES_ID_RENDERER_URL              = `/api/searches/%s/renderer/%s`
 	IMPORT_PERSISTENT_SEARCH_URL          = `/api/import/persistent-search`
