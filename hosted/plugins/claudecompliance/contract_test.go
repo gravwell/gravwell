@@ -1,6 +1,8 @@
 package claudecompliance
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -195,10 +197,12 @@ func TestWindowedManifestDropsIdentitiesBeforeNextWindow(t *testing.T) {
 		t.Fatal(e)
 	}
 	st := rt.checkpoint(t, p)
-	if _, ok := st.Manifest["id:old"]; ok {
+	oldKey := identity([]byte(`{"id":"old"}`), Datasets["activities"].Identity, "")
+	recentKey := identity([]byte(`{"id":"recent"}`), Datasets["activities"].Identity, "")
+	if _, ok := st.Manifest[oldKey]; ok {
 		t.Fatal("identity outside every later window was retained")
 	}
-	if _, ok := st.Manifest["id:recent"]; !ok {
+	if _, ok := st.Manifest[recentKey]; !ok {
 		t.Fatal("identity inside the overlap was dropped")
 	}
 }
@@ -315,8 +319,13 @@ func TestStableIdentityPerEndpoint(t *testing.T) {
 	}
 	for _, c := range cases {
 		d, _ := Datasets[c.dataset]
-		if got := identity([]byte(c.raw), d.Identity, "digest"); got != c.want {
-			t.Errorf("%s identity %q, want %q", c.dataset, got, c.want)
+		want := c.want
+		if want != "sha256:digest" {
+			sum := sha256.Sum256([]byte(want))
+			want = "identity-sha256:" + hex.EncodeToString(sum[:])
+		}
+		if got := identity([]byte(c.raw), d.Identity, "digest"); got != want {
+			t.Errorf("%s identity %q, want %q", c.dataset, got, want)
 		}
 	}
 }
@@ -324,7 +333,9 @@ func TestStableIdentityPerEndpoint(t *testing.T) {
 func TestOversizedIdentityFallsBackToBoundedDigest(t *testing.T) {
 	d := Datasets["activities"]
 	bounded := strings.Repeat("x", maxDiscoveredParameterLen)
-	if got, want := identity([]byte(`{"id":"`+bounded+`"}`), d.Identity, "digest"), "id:"+bounded; got != want {
+	material := "id:" + bounded
+	sum := sha256.Sum256([]byte(material))
+	if got, want := identity([]byte(`{"id":"`+bounded+`"}`), d.Identity, "digest"), "identity-sha256:"+hex.EncodeToString(sum[:]); got != want {
 		t.Fatalf("maximum-length identity = %q, want %q", got, want)
 	}
 	oversized := strings.Repeat("x", maxDiscoveredParameterLen+1)
@@ -336,8 +347,47 @@ func TestOversizedIdentityFallsBackToBoundedDigest(t *testing.T) {
 	// composite alternative remains usable.
 	d = Datasets["project-collaborators"]
 	raw := `{"type":"group","user_id":"` + oversized + `","group_id":"g1"}`
-	if got, want := identity([]byte(raw), d.Identity, "digest"), "type:group\x1fgroup_id:g1"; got != want {
+	material = "type:group\x1fgroup_id:g1"
+	sum = sha256.Sum256([]byte(material))
+	if got, want := identity([]byte(raw), d.Identity, "digest"), "identity-sha256:"+hex.EncodeToString(sum[:]); got != want {
 		t.Fatalf("later bounded identity alternative = %q, want %q", got, want)
+	}
+}
+
+func TestRecordFieldCountIsBoundedBeforeFieldExtraction(t *testing.T) {
+	var row strings.Builder
+	row.WriteByte('{')
+	for i := 0; i <= maxRecordFields; i++ {
+		if i > 0 {
+			row.WriteByte(',')
+		}
+		fmt.Fprintf(&row, `%q:%q`, fmt.Sprintf("field-%04d", i), "value")
+	}
+	row.WriteString(`,"id":"vendor-id","created_at":"2026-09-08T00:00:00Z"}`)
+	raw := []byte(row.String())
+
+	if got := identity(raw, Datasets["activities"].Identity, "digest"); got != "sha256:digest" {
+		t.Fatalf("field-heavy identity = %q", got)
+	}
+	fallback := time.Date(2026, 9, 9, 0, 0, 0, 0, time.UTC)
+	if got := sourceTime(raw, "created_at", fallback); !got.Equal(fallback) {
+		t.Fatalf("field-heavy source time = %v", got)
+	}
+	if _, err := childWork(Datasets["chats"], nil, raw); !errors.Is(err, errRecordFieldLimit) {
+		t.Fatalf("field-heavy discovery error = %v", err)
+	}
+}
+
+func TestSelectedFieldsAcceptsArbitraryJSONNumbersAndNormalizesErrors(t *testing.T) {
+	fields, err := selectedFields([]byte(`{"id":"c1","number":1e400,"nested":{"number":9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999}}`), "id")
+	if err != nil {
+		t.Fatalf("valid large JSON number was rejected: %v", err)
+	}
+	if string(fields["id"]) != `"c1"` {
+		t.Fatalf("selected id = %s", fields["id"])
+	}
+	if _, err = selectedFields([]byte(`{"id":"vendor-controlled-literal`), "id"); !errors.Is(err, errInvalidRecord) || err.Error() != errInvalidRecord.Error() {
+		t.Fatalf("invalid record error was not normalized: %v", err)
 	}
 }
 
@@ -458,37 +508,44 @@ func TestBacklogOverMaxPagesIsNotReplayed(t *testing.T) {
 	}
 }
 
-func TestChildrenBeyondMaxPendingDoNotBrickRoot(t *testing.T) {
-	p, rt := setup(t, "groups")
+func TestMaximumDiscoveryPageFitsValidatedPendingBound(t *testing.T) {
+	p, rt := setup(t, "organizations")
 	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Pending = 2
-	p.conf.Max_Children = 2
-	members := map[string]int{}
+	p.conf.Max_Pending = maxDiscoveredWorkPerPage
+	p.conf.Max_Children = 1000
+	var body strings.Builder
+	body.WriteString(`{"data":[`)
+	for i := 0; i < Datasets["organizations"].Limit; i++ {
+		if i > 0 {
+			body.WriteByte(',')
+		}
+		fmt.Fprintf(&body, `{"uuid":"o-%d"}`, i)
+	}
+	body.WriteString(`],"has_more":false}`)
+	children := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/groups") {
-			return reply(`{"data":[{"id":"g1"},{"id":"g2"},{"id":"g3"}],"has_more":false}`, 200), nil
+		if strings.HasSuffix(r.URL.Path, "/organizations") {
+			return reply(body.String(), http.StatusOK), nil
 		}
-		members[r.URL.Path]++
-		return reply(`{"data":[],"has_more":false}`, 200), nil
+		children++
+		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
 	})
-	start := p.now()
-	for i := 0; i < 4; i++ {
-		p.now = func() time.Time { return start.Add(time.Duration(i) * time.Minute) }
+	for i := 0; i < 2; i++ {
 		if _, e := p.Handle(t.Context(), rt); e != nil {
-			t.Fatalf("poll %d: %v", i, e)
+			t.Fatalf("cycle %d: %v", i, e)
 		}
 	}
-	groups := 0
+	organizations := 0
 	for _, e := range rt.entries {
-		if v, _ := e.GetEnumeratedValue("_source"); v == "groups" {
-			groups++
+		if v, _ := e.GetEnumeratedValue("_source"); v == "organizations" {
+			organizations++
 		}
 	}
-	if groups != 3 {
-		t.Fatalf("root groups written %d times, want exactly 3", groups)
+	if organizations != Datasets["organizations"].Limit {
+		t.Fatalf("root organizations written %d times, want %d", organizations, Datasets["organizations"].Limit)
 	}
-	if members["/v1/compliance/groups/g3/members"] == 0 {
-		t.Fatalf("g3 members never fetched: %v", members)
+	if children != maxDiscoveredWorkPerPage {
+		t.Fatalf("child requests=%d, want %d", children, maxDiscoveredWorkPerPage)
 	}
 }
 

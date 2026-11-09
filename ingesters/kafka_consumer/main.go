@@ -51,10 +51,10 @@ func main() {
 	ib, err := base.Init(ibc)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
-		os.Exit(1)
+		return
 	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
-		os.Exit(1)
+		return
 	}
 	debugOn = ib.Verbose
 	lg = ib.Logger

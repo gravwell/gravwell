@@ -1,11 +1,123 @@
 package claudecompliance
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 )
+
+// TestAggregateRetryWaitBudgetBoundsOneCycle covers the aggregate budget. Each
+// individual Retry-After wait is already capped at the configured poll
+// interval, but a multi-page traversal can chain one ceiling-sized wait per
+// page: the four-page walk below would otherwise hold the runner for two
+// minutes against a sixty-second poll interval. The cycle has to stop once its
+// budget is spent, and stopping must not skip a page. The plugin-local error
+// signal retains the server's delay for fan-out decisions, while the shared
+// runner independently applies its fixed error cadence. The walk must remain
+// resumable.
+func TestAggregateRetryWaitBudgetBoundsOneCycle(t *testing.T) {
+	p, rt := setup(t, "activities")
+	p.conf.Request_Interval = 60
+	p.conf.Max_Retries = 1
+	p.conf.Max_Pages = 10
+	if err := p.conf.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	const perRequestWait = 30 * time.Second
+	throttle := true
+	attempts := map[string]int{}
+	next := map[string]string{"": "c1", "c1": "c2", "c2": "c3", "c3": ""}
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		cursor := r.URL.Query().Get("after_id")
+		attempts[cursor]++
+		if throttle && attempts[cursor] == 1 {
+			resp := reply(`{}`, http.StatusTooManyRequests)
+			resp.Header.Set("retry-after", "30")
+			return resp, nil
+		}
+		follow, known := next[cursor]
+		if !known {
+			t.Fatalf("unexpected cursor %q", cursor)
+		}
+		if follow == "" {
+			return reply(fmt.Sprintf(`{"data":[{"id":"rec-%s","created_at":"2026-09-07T12:00:00Z"}],"has_more":false}`, cursor), http.StatusOK), nil
+		}
+		return reply(fmt.Sprintf(`{"data":[{"id":"rec-%s","created_at":"2026-09-07T12:00:00Z"}],"has_more":true,"last_id":%q}`, cursor, follow), http.StatusOK), nil
+	})
+
+	_, err := p.Handle(t.Context(), rt)
+	if err == nil {
+		t.Fatal("the cycle continued waiting past its aggregate budget")
+	}
+	budget := time.Duration(p.conf.Request_Interval) * time.Second
+	total := time.Duration(0)
+	for _, d := range rt.sleeps {
+		total += d
+	}
+	if total > budget {
+		t.Fatalf("cycle waited %v in total, budget is %v (sleeps=%v)", total, budget, rt.sleeps)
+	}
+	if len(rt.sleeps) != 2 {
+		t.Fatalf("budget admitted %d waits, want the two it can afford: %v", len(rt.sleeps), rt.sleeps)
+	}
+	// The plugin-local back-pressure signal is preserved for fan-out decisions.
+	// The shared runner does not inspect this interface; it applies its fixed
+	// error delay after Handle returns an error.
+	var scheduled interface{ RetryDelay() time.Duration }
+	if !errors.As(err, &scheduled) {
+		t.Fatalf("budget exhaustion lost the back-pressure signal: %v", err)
+	}
+	if got := scheduled.RetryDelay(); got != perRequestWait {
+		t.Fatalf("deferred delay=%v, want the server's own %v", got, perRequestWait)
+	}
+	if !errors.Is(err, errRetryBudget) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Both pages that did complete are durable, and nothing was skipped.
+	if len(rt.entries) != 2 {
+		t.Fatalf("entries=%d, want the two pages the budget paid for", len(rt.entries))
+	}
+	st := rt.checkpoint(t, p)
+	if st.Walk == nil || st.Walk.Cursor != "c2" {
+		t.Fatalf("budget exhaustion lost the resumable cursor: %+v", st.Walk)
+	}
+
+	throttle = false
+	if _, err = p.Handle(t.Context(), rt); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for _, ent := range rt.entries {
+		seen[string(ent.Data)]++
+	}
+	if len(rt.entries) != 4 || len(seen) != 4 {
+		t.Fatalf("resumed walk skipped or duplicated records: entries=%d distinct=%d", len(rt.entries), len(seen))
+	}
+}
+
+// A single wait inside the budget is still honored in full.
+func TestSingleRetryAfterWithinBudgetIsHonored(t *testing.T) {
+	p, rt := setup(t, "activities")
+	requests := 0
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		requests++
+		if requests == 1 {
+			resp := reply(`{}`, http.StatusTooManyRequests)
+			resp.Header.Set("retry-after", "120")
+			return resp, nil
+		}
+		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
+	})
+	if _, err := p.Handle(t.Context(), rt); err != nil {
+		t.Fatal(err)
+	}
+	if len(rt.sleeps) != 1 || rt.sleeps[0] != 120*time.Second {
+		t.Fatalf("a wait well inside the budget was not honored: %v", rt.sleeps)
+	}
+}
 
 // --- Bounded retry ---
 //
@@ -130,7 +242,7 @@ func TestResponseCeilingIsFarAboveAnyRealPage(t *testing.T) {
 	})
 	_, e := p.Handle(t.Context(), rt)
 	t.Logf("endless body: err=%v bytesRead=%d", e, read)
-	if read > 2*maxResponseBytes {
+	if read > 2*(maxResponseBytes+1) {
 		t.Fatalf("unbounded read: %d bytes", read)
 	}
 	_ = rt

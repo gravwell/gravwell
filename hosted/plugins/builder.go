@@ -25,22 +25,6 @@ type BuilderConfig interface {
 	UUID() uuid.UUID
 }
 
-type ClaudeComplianceBuilder struct {
-	Builder[*claudecompliance.Config]
-}
-
-func (b *ClaudeComplianceBuilder) Build(tn hosted.SynchronizingTagNegotiator, syncFn func() error) (hosted.Ingester, error) {
-	j, err := claudecompliance.New(b.config, tn)
-	if err != nil {
-		return nil, err
-	}
-	return hosted.WrapJobWithSync(j, syncFn), nil
-}
-
-func NewClaudeComplianceBuilder(config *claudecompliance.Config, kind, id, version string) *ClaudeComplianceBuilder {
-	return &ClaudeComplianceBuilder{Builder[*claudecompliance.Config]{config: config, kind: kind, id: id, version: version}}
-}
-
 // Builder is provided as a generic way to implement the IngesterBuilder interface.
 // This can't be truly generic to every config as IngesterBuilder.Build does break standards and returns an interface.
 // To use this a new struct can embed Builder with the same type used in Configs.
@@ -77,7 +61,30 @@ type TesterBuilder struct {
 	Builder[*tester.Config]
 }
 
-func (tb *TesterBuilder) Build(tn hosted.SynchronizingTagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+type ClaudeComplianceBuilder struct {
+	Builder[*claudecompliance.Config]
+}
+
+func (b *ClaudeComplianceBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	p, err := claudecompliance.New(b.config, tn)
+	if err != nil {
+		return nil, err
+	}
+	return hosted.WrapJobWithSync(p, syncFn), nil
+}
+
+func NewClaudeComplianceBuilder(config *claudecompliance.Config, kind, id, version string) *ClaudeComplianceBuilder {
+	return &ClaudeComplianceBuilder{
+		Builder[*claudecompliance.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+func (tb *TesterBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
 	t, err := tester.NewTesterIngester(*(tb.config), tn)
 	if err != nil {
 		return nil, err
@@ -100,7 +107,7 @@ type OktaBuilder struct {
 	Builder[*okta.Config]
 }
 
-func (ob *OktaBuilder) Build(tn hosted.SynchronizingTagNegotiator, _ func() error) (hosted.Ingester, error) {
+func (ob *OktaBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
 	return okta.NewOktaIngester(*(ob.config), tn)
 }
 
@@ -119,7 +126,7 @@ type MimecastBuilder struct {
 	Builder[*mimecast.Config]
 }
 
-func (mb *MimecastBuilder) Build(tn hosted.SynchronizingTagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
 	return hosted.WrapJobWithSync(mimecast.New(mb.config), syncFn), nil
 }
 
@@ -138,7 +145,7 @@ type JamfBuilder struct {
 	Builder[*jamf.Config]
 }
 
-func (jb *JamfBuilder) Build(tn hosted.SynchronizingTagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+func (jb *JamfBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
 	return hosted.WrapJobWithSync(jamf.New(jb.config), syncFn), nil
 }
 
@@ -157,7 +164,7 @@ type WizBuilder struct {
 	Builder[*wiz.Config]
 }
 
-func (wb *WizBuilder) Build(tn hosted.SynchronizingTagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+func (wb *WizBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
 	return hosted.WrapJobWithSync(wiz.New(wb.config), syncFn), nil
 }
 
@@ -176,7 +183,7 @@ type MSGraphBuilder struct {
 	Builder[*msgraph.Config]
 }
 
-func (msgb *MSGraphBuilder) Build(tn hosted.SynchronizingTagNegotiator, _ func() error) (hosted.Ingester, error) {
+func (msgb *MSGraphBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
 	return msgraph.NewIngester(msgb.config), nil
 }
 
@@ -195,7 +202,7 @@ type SQSBuilder struct {
 	Builder[*sqs.Config]
 }
 
-func (sb *SQSBuilder) Build(_ hosted.SynchronizingTagNegotiator, _ func() error) (hosted.Ingester, error) {
+func (sb *SQSBuilder) Build(_ hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
 	q, err := sqs.New(sb.config)
 	if err != nil {
 		return nil, err

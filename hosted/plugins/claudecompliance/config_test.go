@@ -44,16 +44,25 @@ func TestRegisteredExample(t *testing.T) {
 	if err := config.LoadConfigFile(&c, p); err != nil {
 		t.Fatal(err)
 	}
+	if c.Global.Ingest_Secret != "REPLACE_ME" || c.Global.Ingest_Secret_File != "" {
+		t.Fatalf("example does not use the current runner's inline ingest-secret path")
+	}
 	if err := c.Configs.Verify(); err != nil {
 		t.Fatal(err)
 	}
 	if c.IngesterCount() != 1 {
 		t.Fatal("incorrect registration count")
 	}
-	// The shipped stanza selects four datasets across three families, so it
+	// The shipped stanza selects all seven root datasets across five families, so it
 	// negotiates one tag per family and not one per endpoint.
 	tags, err := c.Tags()
-	want := []string{"claude-compliance-activities", "claude-compliance-conversations", "claude-compliance-directory"}
+	want := []string{
+		"claude-compliance-activities",
+		"claude-compliance-conversations",
+		"claude-compliance-directory",
+		"claude-compliance-projects",
+		"claude-compliance-sessions",
+	}
 	if err != nil || len(tags) != len(want) {
 		t.Fatalf("tags %v: %v", tags, err)
 	}
@@ -104,7 +113,12 @@ func TestRegisteredLookback(t *testing.T) {
 
 	load := func(t *testing.T, value string) (*claudecompliance.Config, error) {
 		t.Helper()
-		s := strings.Replace(base, "Lookback=24", "Lookback="+value, 1)
+		s := base
+		if value == "<omitted>" {
+			s = strings.Replace(s, "Lookback=24\n", "", 1)
+		} else {
+			s = strings.Replace(s, "Lookback=24", "Lookback="+value, 1)
+		}
 		p := filepath.Join(t.TempDir(), "lookback.conf")
 		if err := os.WriteFile(p, []byte(s), 0600); err != nil {
 			t.Fatal(err)
@@ -124,10 +138,11 @@ func TestRegisteredLookback(t *testing.T) {
 	}
 
 	for value, want := range map[string]int{
-		"1": 1, "24": 24, "168": 168,
-		// An explicit zero means "unset", as it does for every other
-		// zero-valued polling setting, and takes the documented default.
-		"0": 24,
+		"<omitted>": 0,
+		"0":         0,
+		"1":         1,
+		"24":        24,
+		"168":       168,
 		// The exact representability boundary is accepted.
 		"2562047": 2562047,
 	} {
@@ -191,6 +206,6 @@ func TestConfigEqualCoversEveryField(t *testing.T) {
 		Overlap_Seconds: 300,
 		Follow_Children: "enabled",
 		Max_Children:    100,
-		Max_Pending:     10000,
+		Max_Pending:     9000,
 	})
 }

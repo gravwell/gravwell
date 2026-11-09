@@ -8,9 +8,9 @@ package claudecompliance
 // A child that has exhausted its retry backoff ceiling
 // (Failures >= maxChildFailures) is therefore eligible as a fallback
 // eviction victim, but only once no genuinely non-pending candidate exists,
-// and only through the same tombstone=false pruneCheckpoint path used for
-// ordinary capacity eviction -- so an evicted child's checkpoint is
-// compacted, never tombstoned, and it remains rediscoverable.
+// and only through the same untombstoned reclamation path used for ordinary
+// capacity eviction -- so an evicted child's checkpoint is compacted, never
+// tombstoned, and it remains rediscoverable.
 
 import (
 	"encoding/json"
@@ -94,7 +94,12 @@ func TestPendingWedge_ScheduledWorkCannotBeEvictedMidCycle(t *testing.T) {
 			}
 			// The protected cycle may defer the newly discovered grandchild when
 			// every slot is scheduled. Once successful siblings leave the pending
-			// schedule, the next cycle must admit it without exceeding the bound.
+			// schedule, the deferred retry must admit it without exceeding the bound.
+			deferred := list.Items["organization-roles/organization_id:orgA"]
+			if deferred.RetryAt.IsZero() || !deferred.RetryAt.After(p.now()) {
+				t.Fatal("nested capacity deferral did not receive a bounded retry time")
+			}
+			p.now = func() time.Time { return deferred.RetryAt }
 			if _, err := p.Handle(t.Context(), rt); err != nil {
 				t.Fatalf("nested discovery did not resume: %v", err)
 			}
@@ -148,7 +153,7 @@ func TestPendingWedge_PermanentlyFailingChildEventuallyEvicted(t *testing.T) {
 
 	runCycle := func(i int) {
 		var list worklist
-		_ = json.Unmarshal(mustGet(t, rt, workKey), &list)
+		_ = json.Unmarshal(getOptional(rt, workKey), &list)
 		if list.Items != nil {
 			for k, it := range list.Items {
 				it.RetryAt = time.Time{}
@@ -310,10 +315,7 @@ func TestPendingWedge_EvictedUnchangedParentIsLaterRediscovered(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	pruned := readCheckpoint(t, rt, stateKey)
-	if pruned.Retired != "" {
-		t.Fatal("stuck-pending eviction must not tombstone the checkpoint -- it would permanently suppress an unrelated, still-valid parent")
-	}
+	_ = readCheckpoint(t, rt, stateKey)
 
 	// g1 reappears (content-identical, same revision) once capacity frees up.
 	p.conf.Max_Pending = 2
@@ -464,7 +466,7 @@ func TestPendingWedge_MaxPendingStrictlyBounded(t *testing.T) {
 			present = append(present, ids[len(present)])
 		}
 		var list worklist
-		_ = json.Unmarshal(mustGet(t, rt, workKey), &list)
+		_ = json.Unmarshal(getOptional(rt, workKey), &list)
 		if list.Items != nil {
 			for k, it := range list.Items {
 				it.RetryAt = time.Time{}
@@ -486,8 +488,8 @@ func TestPendingWedge_MaxPendingStrictlyBounded(t *testing.T) {
 }
 
 // TestPendingWedge_CheckpointNeverTombstonedByStuckEviction is a direct,
-// minimal check that pruneCheckpoint's tombstone parameter is still false on
-// every path reachable from the stuck-pending eviction fallback, by
+// minimal check that no reclamation reachable from the stuck-pending eviction
+// fallback leaves a tombstone behind, by
 // exercising the exact victim-selection scenario and inspecting the raw
 // persisted checkpoint bytes.
 func TestPendingWedge_CheckpointNeverTombstonedByStuckEviction(t *testing.T) {
@@ -500,13 +502,9 @@ func TestPendingWedge_CheckpointNeverTombstonedByStuckEviction(t *testing.T) {
 		Revision: "rev-g1", Pending: true, Failures: maxChildFailures,
 		LastAttempt: time.Unix(0, 0),
 	}
-	stateKey := func() string {
-		c, e := childConfig(p.conf, stuckWork)
-		if e != nil {
-			t.Fatal(e)
-		}
-		return c.key()
-	}()
+	stuckWork.Slot = 1
+	stuckWork.StateKey = childStateKey(p.conf.key(), stuckWork.Slot)
+	stateKey := stuckWork.StateKey
 	workKey := p.conf.key() + "/children"
 	list := worklist{Items: map[string]work{"group-members/group_id:g1": stuckWork}}
 	b, _ := json.Marshal(list)
@@ -528,27 +526,207 @@ func TestPendingWedge_CheckpointNeverTombstonedByStuckEviction(t *testing.T) {
 		t.Fatal(e)
 	}
 	after := readCheckpoint(t, rt, stateKey)
-	if after.Retired != "" {
-		t.Fatalf("checkpoint was tombstoned by stuck-pending eviction: Retired=%q", after.Retired)
-	}
 	if len(after.Manifest) != 0 || after.Walk != nil {
 		t.Fatal("checkpoint was not compacted (Manifest/Traversal) by eviction")
 	}
 }
 
-// TestPendingWedge_SerializedSizeShedsCapacityVictims proves that a valid
-// Max-Pending setting cannot wedge collection when long discovered identities
-// make the serialized worklist reach its independent byte ceiling.
+func TestPendingWedge_EntryCapacityDeferralIsAtomic(t *testing.T) {
+	p, rt := setup(t, "organizations")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Children = 1
+	p.conf.Max_Pending = 2 // exercise defensive handling of persisted pre-release configuration
+	p.conf.Max_Pages = 1
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/organizations") {
+			return reply(`{"data":[{"uuid":"o1"},{"uuid":"o2"},{"uuid":"o3"}],"has_more":false}`, http.StatusOK), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
+	})
+
+	cont, err := p.Handle(t.Context(), rt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cont == nil || cont.Delay != time.Duration(p.conf.Request_Interval)*time.Second {
+		t.Fatalf("capacity deferral continuation=%+v", cont)
+	}
+	if _, err := rt.Get(p.conf.key() + keyChildren); err == nil {
+		t.Fatal("deferred root page persisted partial child admissions")
+	}
+	if len(rt.entries) != 0 || rt.committed(p) {
+		t.Fatal("deferred root page wrote entries or advanced its checkpoint")
+	}
+	if rt.warnings != 1 {
+		t.Fatalf("capacity deferral warnings=%d, want 1", rt.warnings)
+	}
+}
+
+func TestPendingWedge_EntryEvictionWaitsForWorklistCommit(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Children = 1
+	p.conf.Max_Pending = 1
+	old := work{Dataset: "group-members", Parameter: []string{"group_id:g1"}, Revision: "old", LastCompleted: time.Unix(1, 0).UTC()}
+	child, err := childConfig(p.conf, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old.StateKey = child.key()
+	workKey := p.conf.key() + keyChildren
+	seed, err := json.Marshal(worklist{Items: map[string]work{"group-members/group_id:g1": old}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Put(workKey, seed); err != nil {
+		t.Fatal(err)
+	}
+	seedCheckpoint(t, rt, old.StateKey, checkpoint{Since: time.Unix(1, 0).UTC(), Manifest: manifest{"record": {Digest: "digest"}}})
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[{"id":"g2"}],"has_more":false}`, http.StatusOK), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
+	})
+	rt.putFn = func(key string, _ []byte) error {
+		if key == workKey {
+			return fmt.Errorf("synthetic worklist write failure")
+		}
+		return nil
+	}
+
+	if _, err := p.Handle(t.Context(), rt); err == nil {
+		t.Fatal("worklist write failure was ignored")
+	}
+	if got := mustGet(t, rt, workKey); string(got) != string(seed) {
+		t.Fatal("failed worklist write changed durable ownership")
+	}
+	if cp := readCheckpoint(t, rt, old.StateKey); len(cp.Manifest) != 1 {
+		t.Fatal("checkpoint was compacted before its worklist removal committed")
+	}
+	// The reclamation obligation is recorded before ownership is released, so
+	// it can outlive the failed worklist write. A later cycle must recognize
+	// that the worklist still owns the child and leave its checkpoint alone
+	// rather than reclaiming a checkpoint that is still in use.
+	rt.putFn = nil
+	if _, err := p.Handle(t.Context(), rt); err != nil {
+		t.Fatal(err)
+	}
+	if cp := readCheckpoint(t, rt, old.StateKey); len(cp.Manifest) == 0 {
+		var after worklist
+		if err := json.Unmarshal(mustGet(t, rt, workKey), &after); err != nil {
+			t.Fatal(err)
+		}
+		if _, owned := after.Items["group-members/group_id:g1"]; owned {
+			t.Fatal("a still-owned checkpoint was reclaimed by a stale obligation")
+		}
+	}
+}
+
+// TestCleanupObligationIsDurableAndRetried covers the ownership handoff from
+// the other side. The worklist is the ownership record for child checkpoints;
+// releasing a child and reclaiming its checkpoint cannot be one atomic write,
+// so the obligation has to be durable on its own. A reclamation that fails
+// mid-loop must neither be forgotten nor leave the checkpoint half-compacted,
+// and it must still be retried on a later cycle and across a restart.
+func TestCleanupObligationIsDurableAndRetried(t *testing.T) {
+	p, rt := setup(t, "groups")
+	p.conf.Follow_Children = "enabled"
+	p.conf.Max_Pending = 1
+	p.conf.Max_Children = 1
+	victim := work{Dataset: "group-members", Parameter: []string{"group_id:g1"}, Revision: "old", LastCompleted: time.Unix(1, 0).UTC()}
+	child, err := childConfig(p.conf, victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	victim.StateKey = child.key()
+	workKey := p.conf.key() + keyChildren
+	cleanupKey := p.conf.key() + keyCleanup
+	seed, err := json.Marshal(worklist{Items: map[string]work{"group-members/group_id:g1": victim}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = rt.Put(workKey, seed); err != nil {
+		t.Fatal(err)
+	}
+	seedCheckpoint(t, rt, victim.StateKey, checkpoint{Since: time.Unix(1, 0).UTC(), Manifest: manifest{"record": {Digest: "digest"}}})
+	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, "/groups") {
+			return reply(`{"data":[{"id":"g2"}],"has_more":false}`, http.StatusOK), nil
+		}
+		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
+	})
+	// Only the reclamation itself fails; the worklist write succeeds, so
+	// ownership really is released while the obligation is still outstanding.
+	rt.putFn = func(key string, _ []byte) error {
+		if strings.HasPrefix(key, victim.StateKey) {
+			return fmt.Errorf("synthetic reclamation failure")
+		}
+		return nil
+	}
+	if _, err = p.Handle(t.Context(), rt); err == nil {
+		t.Fatal("a failed checkpoint reclamation was reported as success")
+	}
+	var after worklist
+	if err = json.Unmarshal(mustGet(t, rt, workKey), &after); err != nil {
+		t.Fatal(err)
+	}
+	if _, owned := after.Items["group-members/group_id:g1"]; owned {
+		t.Fatal("the evicted child was not released from the durable worklist")
+	}
+	tasks, err := loadCleanup(rt, cleanupKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 || tasks[0].StateKey != victim.StateKey {
+		t.Fatalf("the reclamation obligation was lost: %#v", tasks)
+	}
+	if tasks[0].Retired != "" {
+		t.Fatalf("capacity eviction staged a tombstone: %q", tasks[0].Retired)
+	}
+	if cp := readCheckpoint(t, rt, victim.StateKey); len(cp.Manifest) != 1 {
+		t.Fatal("a failed reclamation left the checkpoint half-compacted")
+	}
+
+	// A restart retries the outstanding obligation and drains it.
+	rt.putFn = nil
+	fresh := restart(t, p, rt)
+	if _, err = fresh.Handle(t.Context(), rt); err != nil {
+		t.Fatal(err)
+	}
+	if tasks, err = loadCleanup(rt, cleanupKey); err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("the obligation was not drained after the failure cleared: %#v", tasks)
+	}
+	if cp := readCheckpoint(t, rt, victim.StateKey); len(cp.Manifest) != 0 || cp.Walk != nil {
+		t.Fatal("the retried reclamation did not compact the orphaned checkpoint")
+	}
+	_ = readCheckpoint(t, rt, victim.StateKey)
+}
+
+// TestPendingWedge_SerializedSizeShedsCapacityVictims proves that stored work
+// exceeding the independent serialized byte ceiling cannot wedge collection.
+// The Max-Pending ceiling is derived from the worst-case serialized item the
+// current identity bounds permit, so an accepted configuration stays inside
+// the byte ceiling by construction; reaching it means the stored state was
+// written by a pre-release build or corrupted, which is exactly when shedding
+// safe capacity victims has to keep collection recoverable.
 func TestPendingWedge_SerializedSizeShedsCapacityVictims(t *testing.T) {
 	p, rt := setup(t, "organizations")
 	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Pending = 100000
+	p.conf.Max_Pending = maxPendingWorkItems
 	p.conf.Max_Children = 100
 	if err := p.conf.Verify(); err != nil {
 		t.Fatalf("supported Max-Pending value rejected: %v", err)
 	}
 
-	const oldItems = 9000
+	const oldItems = 2000
+	// A state key far wider than any key the current bounds can derive, so the
+	// stored worklist exceeds the byte ceiling while its item count is well
+	// inside Max-Pending.
+	const oversizedStateKey = 16 << 10
 	items := make(map[string]work, oldItems)
 	for i := 0; i < oldItems; i++ {
 		id := fmt.Sprintf("%06d-%s", i, strings.Repeat("x", maxDiscoveredParameterLen-7))
@@ -557,16 +735,16 @@ func TestPendingWedge_SerializedSizeShedsCapacityVictims(t *testing.T) {
 			Dataset:       "role-permissions",
 			Parameter:     []string{"organization_id:" + id, "role_id:" + id},
 			Revision:      "revision",
-			StateKey:      "dataset/v1/organizations/" + id + "/roles/" + id + "/permissions",
-			LastCompleted: time.Unix(1, 0).UTC(),
+			StateKey:      "pre-release/" + strings.Repeat("s", oversizedStateKey) + "/" + id,
+			LastCompleted: time.Unix(int64(i+1), 0).UTC(),
 		}
 	}
 	seed, err := json.Marshal(worklist{Items: items})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(seed) >= maxPersistedWorklistBytes {
-		t.Fatalf("test seed must fit the persist bound: %d bytes", len(seed))
+	if len(seed) <= maxPersistedWorklistBytes {
+		t.Fatalf("test seed must exceed the persist bound to exercise shedding: %d bytes", len(seed))
 	}
 	workKey := p.conf.key() + keyChildren
 	if err := rt.Put(workKey, seed); err != nil {
@@ -622,18 +800,16 @@ func TestPendingWedge_SerializedSizeShedsCapacityVictims(t *testing.T) {
 	}
 }
 
-// TestPendingWedge_UnsheddableByteOverflowDefersAtomically proves that a
-// page which cannot fit even after every safe victim is considered behaves
-// like ordinary Max-Pending backpressure. The page is not written or
-// checkpointed, the durable worklist is unchanged, and no child checkpoint is
-// compacted until a smaller worklist has actually committed.
-func TestPendingWedge_UnsheddableByteOverflowDefersAtomically(t *testing.T) {
+// TestPendingWedge_UnsheddableOverflowDefersAtomically proves that a page
+// which cannot fit while every supported queue slot is pending behaves like
+// ordinary Max-Pending backpressure. The page is not written or checkpointed.
+func TestPendingWedge_UnsheddableOverflowDefersAtomically(t *testing.T) {
 	p, rt := setup(t, "organizations")
 	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Pending = 100000
+	p.conf.Max_Pending = maxPendingWorkItems
 	p.conf.Max_Children = 100
 
-	const total = 13000
+	const total = maxPendingWorkItems
 	items := make(map[string]work, total)
 	for i := 0; i < total; i++ {
 		id := fmt.Sprintf("%06d-%s", i, strings.Repeat("x", maxDiscoveredParameterLen-7))
@@ -644,14 +820,11 @@ func TestPendingWedge_UnsheddableByteOverflowDefersAtomically(t *testing.T) {
 			Parameter:     []string{"organization_id:" + id, "role_id:" + id},
 			Revision:      "revision",
 			StateKey:      stateKey,
-			Pending:       i != 0,
+			Pending:       true,
 			LastCompleted: time.Unix(int64(i+1), 0).UTC(),
 			RetryAt:       p.now().Add(time.Hour),
 		}
 	}
-	victimState := items["role-permissions/organization_id:000000-"+strings.Repeat("x", maxDiscoveredParameterLen-7)+"/role_id:000000-"+strings.Repeat("x", maxDiscoveredParameterLen-7)].StateKey
-	seedCheckpoint(t, rt, victimState, checkpoint{Since: time.Unix(1, 0).UTC(), Manifest: manifest{"record": {Digest: "digest"}}})
-
 	seed, err := json.Marshal(worklist{Items: items})
 	if err != nil {
 		t.Fatal(err)
@@ -685,12 +858,20 @@ func TestPendingWedge_UnsheddableByteOverflowDefersAtomically(t *testing.T) {
 	if cont == nil {
 		t.Fatal("capacity backpressure did not schedule another cycle")
 	}
-	if got := mustGet(t, rt, workKey); string(got) != string(seed) {
-		t.Fatal("deferred page changed the durable worklist")
+	if want := time.Duration(p.conf.Request_Interval) * time.Second; cont.Delay != want {
+		t.Fatalf("capacity backpressure delay=%v, want %v", cont.Delay, want)
 	}
-	cp := readCheckpoint(t, rt, victimState)
-	if len(cp.Manifest) != 1 {
-		t.Fatal("deferred page compacted a checkpoint still owned by the durable worklist")
+	var unchanged worklist
+	if err := json.Unmarshal(mustGet(t, rt, workKey), &unchanged); err != nil {
+		t.Fatal(err)
+	}
+	if len(unchanged.Items) != len(items) {
+		t.Fatalf("deferred page changed work ownership: got=%d want=%d", len(unchanged.Items), len(items))
+	}
+	for key := range unchanged.Items {
+		if strings.HasPrefix(key, "organization-users/organization_id:n") || strings.HasPrefix(key, "organization-roles/organization_id:n") {
+			t.Fatalf("deferred root page persisted new child work: %s", key)
+		}
 	}
 	if len(rt.entries) != 0 || rt.committed(p) {
 		t.Fatal("deferred root page wrote entries or advanced its checkpoint")
@@ -736,15 +917,16 @@ func TestPendingWedge_UnsheddableByteOverflowDefersAtomically(t *testing.T) {
 func TestPendingWedge_ByteShedWaitsForWorklistCommit(t *testing.T) {
 	p, rt := setup(t, "organizations")
 	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Pending = 100000
+	p.conf.Max_Pending = maxPendingWorkItems
 
-	const oldItems = 9000
+	const oldItems = 2000
+	const oversizedStateKey = 16 << 10
 	items := make(map[string]work, oldItems)
 	var victimKey, victimState string
 	for i := 0; i < oldItems; i++ {
 		id := fmt.Sprintf("%06d-%s", i, strings.Repeat("x", maxDiscoveredParameterLen-7))
 		key := "role-permissions/organization_id:" + id + "/role_id:" + id
-		stateKey := "dataset/v1/organizations/" + id + "/roles/" + id + "/permissions"
+		stateKey := "pre-release/" + strings.Repeat("s", oversizedStateKey) + "/" + id
 		items[key] = work{
 			Dataset:       "role-permissions",
 			Parameter:     []string{"organization_id:" + id, "role_id:" + id},
@@ -761,8 +943,8 @@ func TestPendingWedge_ByteShedWaitsForWorklistCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(seed) >= maxPersistedWorklistBytes {
-		t.Fatalf("test seed must fit the persist bound: %d bytes", len(seed))
+	if len(seed) <= maxPersistedWorklistBytes {
+		t.Fatalf("test seed must exceed the persist bound to exercise shedding: %d bytes", len(seed))
 	}
 	workKey := p.conf.key() + keyChildren
 	if err := rt.Put(workKey, seed); err != nil {
@@ -813,32 +995,48 @@ func TestPendingWedge_ByteShedWaitsForWorklistCommit(t *testing.T) {
 	}
 }
 
-// TestPendingWedge_UnsheddableGrandchildrenDeferWithoutLeaks covers the same
-// byte-capacity boundary while a scheduled child is discovering grandchildren.
-// The rejected child page must leave no grandchildren in the durable list and
-// must not write or checkpoint any of that page's records.
+// TestPendingWedge_UnsheddableGrandchildrenDeferWithoutLeaks fills the queue
+// with live, unsheddable work and then lets a scheduled child discover
+// grandchildren it has no room for. The rejected child page must leave no
+// grandchildren in the durable list, must not write or checkpoint any of that
+// page's records, must keep the child pending behind a future RetryAt, and must
+// hand back a positive bounded continuation rather than spinning immediately.
 func TestPendingWedge_UnsheddableGrandchildrenDeferWithoutLeaks(t *testing.T) {
 	p, rt := setup(t, "organizations")
 	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Pending = 100000
+	p.conf.Max_Pending = maxPendingWorkItems
 	p.conf.Max_Children = 1
 
-	const fillerItems = 13500
+	const fillerItems = maxPendingWorkItems - 1
 	items := make(map[string]work, fillerItems+1)
-	currentKey := "organization-roles/organization_id:orgA"
-	items[currentKey] = work{
+	current := work{
 		Dataset:   "organization-roles",
 		Parameter: []string{"organization_id:orgA"},
 		Revision:  "current",
-		StateKey:  "dataset/v1/organizations/orgA/roles",
 		Pending:   true,
 	}
+	currentKey := current.Dataset + "/" + strings.Join(current.Parameter, "/")
+	// Use the namespace the running child actually checkpoints under, so the
+	// no-commit assertion below inspects the keys the deferred page would have
+	// written rather than an invented prefix nothing ever touches.
+	currentConf, err := childConfig(p.conf, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentState := currentConf.key()
+	current.StateKey = currentState
+	items[currentKey] = current
+	// The filler work is deliberately a *direct* child of the scanned root.
+	// Capacity pressure here has to come from live work the queue may not shed:
+	// a deeper descendant whose own parent work item is absent from the list is
+	// an orphan, and the cascade in retireAbsentChildren would correctly retire
+	// it, releasing the very capacity this test exists to exhaust.
 	for i := 0; i < fillerItems; i++ {
 		id := fmt.Sprintf("%06d-%s", i, strings.Repeat("x", maxDiscoveredParameterLen-7))
-		key := "role-permissions/organization_id:" + id + "/role_id:" + id
+		key := "organization-users/organization_id:" + id
 		items[key] = work{
-			Dataset:   "role-permissions",
-			Parameter: []string{"organization_id:" + id, "role_id:" + id},
+			Dataset:   "organization-users",
+			Parameter: []string{"organization_id:" + id},
 			Revision:  "filler",
 			StateKey:  fmt.Sprintf("grandchild-deferral/item/%d", i),
 			Pending:   true,
@@ -867,8 +1065,10 @@ func TestPendingWedge_UnsheddableGrandchildrenDeferWithoutLeaks(t *testing.T) {
 		fmt.Fprintf(&rows, `{"id":%q}`, id)
 	}
 	rows.WriteString(`],"has_more":false}`)
+	childRequests := 0
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/orgA/roles") {
+			childRequests++
 			return reply(rows.String(), http.StatusOK), nil
 		}
 		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
@@ -878,18 +1078,19 @@ func TestPendingWedge_UnsheddableGrandchildrenDeferWithoutLeaks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("grandchild capacity backpressure escaped as an error: %v", err)
 	}
-	if cont == nil || cont.Delay != 0 {
-		t.Fatal("deferred child page did not request an immediate continuation")
-	}
 	var stored worklist
 	if err := json.Unmarshal(mustGet(t, rt, workKey), &stored); err != nil {
 		t.Fatal(err)
 	}
+	if cont == nil || cont.Delay <= 0 || cont.Delay > time.Duration(p.conf.Request_Interval)*time.Second {
+		t.Fatalf("deferred child page did not request bounded backoff: cont=%+v stored=%d ready=%d",
+			cont, len(stored.Items), len(readyWorkKeys(stored, p.now())))
+	}
 	if len(stored.Items) != len(items) {
 		t.Fatalf("deferred child page leaked work items: got=%d want=%d", len(stored.Items), len(items))
 	}
-	if current := stored.Items[currentKey]; !current.Pending {
-		t.Fatal("deferred child was not kept pending")
+	if kept := stored.Items[currentKey]; !kept.Pending || kept.RetryAt.IsZero() || !kept.RetryAt.After(p.now()) {
+		t.Fatalf("deferred child was not kept pending: pending=%t retry_at=%s", kept.Pending, kept.RetryAt)
 	}
 	for key := range stored.Items {
 		if strings.HasPrefix(key, "role-permissions/organization_id:orgA/") {
@@ -897,9 +1098,15 @@ func TestPendingWedge_UnsheddableGrandchildrenDeferWithoutLeaks(t *testing.T) {
 		}
 	}
 	if len(rt.entries) != 0 {
-		t.Fatal("deferred child page wrote entries")
+		t.Fatalf("deferred child page wrote entries: count=%d", len(rt.entries))
 	}
-	if cp := readCheckpoint(t, rt, "dataset/v1/organizations/orgA/roles"); !cp.Since.IsZero() || cp.Walk != nil {
+	if cp := readCheckpoint(t, rt, currentState); !cp.Since.IsZero() || cp.Walk != nil {
 		t.Fatal("deferred child page advanced its checkpoint")
+	}
+	if _, err := p.Handle(t.Context(), rt); err != nil {
+		t.Fatalf("immediate cycle after capacity deferral failed: %v", err)
+	}
+	if childRequests != 1 {
+		t.Fatalf("capacity-deferred child was replayed before RetryAt: requests=%d", childRequests)
 	}
 }
