@@ -380,8 +380,8 @@ func (c *Client) GetSearchQueue() (s types.SearchQueue, err error) {
 	return
 }
 
-// GetLibFile fetches the contents of a particular SOAR library file, as used in
-// scheduled search scripts. The repo and commit arguments are optional.
+// GetLibFile fetches the contents of a particular Anko library file, as used in
+// scheduled scripts. The repo and commit arguments are optional.
 // Examples:
 //
 //	c.GetLibFile("https://github.com/gravwell/libs", "cd9d6c5", "alerts/email.ank")
