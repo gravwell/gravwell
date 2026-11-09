@@ -162,8 +162,8 @@ func (cp *customProcessor) Extract(d []byte, loc *time.Location) (t time.Time, o
 	if t, ok, offset = extract(cp.rx, nil, d, cp.CustomFormat.Format, loc, cp.window); ok && cp.dateMissing {
 		t = addDate(t)
 	}
-	//check if we need to set the year
-	if cp.yearMissing {
+	//check if we need to set the year, a year zero timestamp is never handed back
+	if cp.yearMissing || (ok && t.Year() == 0) {
 		t = tweakYear(t)
 	}
 	return

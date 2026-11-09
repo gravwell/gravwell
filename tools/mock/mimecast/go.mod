@@ -1,6 +1,6 @@
 module mimecast
 
-go 1.26.9
+go 1.26.10
 
 require github.com/gravwell/gravwell/v3 v3.0.0-00010101000000-000000000000
 
@@ -25,7 +25,7 @@ require (
 	github.com/h2non/filetype v1.0.10 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8 // indirect
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/miekg/dns v1.1.56 // indirect
 	github.com/minio/highwayhash v1.0.0 // indirect
 	github.com/open2b/scriggo v0.56.1 // indirect
