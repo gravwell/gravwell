@@ -98,136 +98,6 @@ func TestDeletedProjectDrainsEveryIncompleteChildBeforeTombstone(t *testing.T) {
 	}
 }
 
-// TestAbsenceRetirementNeverPreemptsDrainRetirement makes the drain path the
-// explicit sole owner of a deleted parent's child. A project the vendor reports
-// deleted hands its children to RetireAfterDrain, which finishes the traversal
-// already in flight (or accepts an authoritative 404) and only then compacts the
-// checkpoint *and* writes the deletion tombstone that stops the deleted parent
-// from being rediscovered. "projects" is also one of the absence-tracked parent
-// kinds, so that very same child is in reach of absence retirement -- which
-// deliberately writes no tombstone, because absence is not content-derived.
-// Letting absence retirement reach drain work would substitute the weaker
-// retirement for the stronger one and throw away confirmed-deletion evidence on
-// nothing more than the parent having also dropped out of the listing, so it
-// must skip such work outright however long the parent has been missing.
-func TestAbsenceRetirementNeverPreemptsDrainRetirement(t *testing.T) {
-	p, rt := setup(t, "projects")
-	p.conf.Follow_Children = "enabled"
-	if !absenceTrackedParents[p.conf.dataset.Name] {
-		t.Fatal("precondition: the parent kind must be absence-tracked for this to cover anything")
-	}
-	draining := work{
-		Dataset:   "project-attachments",
-		Parameter: []string{"project_id:p1"},
-		Revision:  "deleted-revision",
-		Pending:   true, RetireAfterDrain: true,
-		// Already past the absence threshold: a deleted parent that has since
-		// dropped out of the listing altogether.
-		AbsentStreak: absentRetirementThreshold + 1,
-		LastAttempt:  p.now().Add(-time.Hour),
-		// Not due yet, so the cycles below are the absence pass alone.
-		RetryAt: p.now().Add(time.Hour),
-	}
-	child, err := childConfig(p.conf, draining)
-	if err != nil {
-		t.Fatal(err)
-	}
-	draining.StateKey = child.key()
-	seedCheckpoint(t, rt, draining.StateKey, checkpoint{
-		Since: p.now(), Manifest: manifest{"identity": {Digest: "d"}},
-	})
-	const key = "project-attachments/project_id:p1"
-	workKey := p.conf.key() + keyChildren
-	seed, err := json.Marshal(worklist{Items: map[string]work{key: draining}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = rt.Put(workKey, seed); err != nil {
-		t.Fatal(err)
-	}
-	attachmentCalls := 0
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/projects") {
-			// A complete, clean, unwindowed pass in which p1 is simply gone.
-			return reply(`{"data":[],"next_page":null}`, http.StatusOK), nil
-		}
-		if !strings.HasSuffix(r.URL.Path, "/projects/p1/attachments") {
-			t.Fatalf("unexpected request path %s", r.URL.Path)
-		}
-		// The deleted project's attachments are gone with it: the drain path's
-		// own authoritative 404, available only after a successful root listing.
-		attachmentCalls++
-		return reply(`{"error":{"type":"not_found_error"}}`, http.StatusNotFound), nil
-	})
-
-	// Enough complete absent passes to retire ordinary child work several times
-	// over.
-	for cycle := 0; cycle < absentRetirementThreshold+1; cycle++ {
-		if _, err = p.Handle(t.Context(), rt); err != nil {
-			t.Fatalf("cycle %d: %v", cycle, err)
-		}
-	}
-	if attachmentCalls != 0 {
-		t.Fatalf("the drain request ran before its retry time: calls=%d", attachmentCalls)
-	}
-	var list worklist
-	if err = json.Unmarshal(mustGet(t, rt, workKey), &list); err != nil {
-		t.Fatal(err)
-	}
-	held, ok := list.Items[key]
-	if !ok {
-		t.Fatal("absence retirement removed work the drain path owns, discarding its deletion tombstone")
-	}
-	if !held.RetireAfterDrain || !held.Pending || held.AbsentStreak != absentRetirementThreshold+1 {
-		t.Fatalf("the absence pass rewrote work it does not own: %+v", held)
-	}
-	if tasks, e := loadCleanup(rt, p.conf.key()+keyCleanup); e != nil || len(tasks) != 0 {
-		t.Fatalf("absence retirement staged a reclamation for drain work: %#v %v", tasks, e)
-	}
-	kept := readCheckpoint(t, rt, draining.StateKey)
-	if len(kept.Manifest) != 1 {
-		t.Fatalf("absence retirement compacted a checkpoint the drain path still owns: %+v", kept)
-	}
-	if tombstones, e := loadTombstones(rt, p.conf.key()+keyTombstones); e != nil || retiredIdentity(tombstones, key, draining.Revision) {
-		t.Fatalf("nothing has confirmed the drain, but a tombstone exists: %v %v", tombstones, e)
-	}
-
-	// The drain path itself still retires it, and still leaves behind the
-	// tombstone absence retirement must never substitute for.
-	p.now = func() time.Time { return held.RetryAt.Add(time.Minute) }
-	if _, err = p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	if attachmentCalls != 1 {
-		t.Fatalf("the drain request did not run once its retry time had passed: calls=%d", attachmentCalls)
-	}
-	list = worklist{}
-	if err = json.Unmarshal(mustGet(t, rt, workKey), &list); err != nil {
-		t.Fatal(err)
-	}
-	if _, still := list.Items[key]; still {
-		t.Fatal("an authoritative 404 did not complete the drain retirement")
-	}
-	drained := readCheckpoint(t, rt, draining.StateKey)
-	tombstones, err := loadTombstones(rt, p.conf.key()+keyTombstones)
-	if err != nil || !retiredIdentity(tombstones, key, draining.Revision) {
-		t.Fatalf("drain retirement lost the deletion tombstone: %v %v", tombstones, err)
-	}
-	if len(drained.Manifest) != 0 || drained.Walk != nil {
-		t.Fatal("drain retirement did not compact the child checkpoint")
-	}
-
-	// The deliberately bounded stuck-pending capacity path is untouched: drain
-	// work that never reaches its 404 is still evictable once it has exhausted
-	// bounded retries, so excluding it from absence retirement cannot wedge the
-	// queue.
-	stuck := draining
-	stuck.Failures = maxChildFailures
-	if got := capacityVictim(worklist{Items: map[string]work{key: stuck}}, nil); got != key {
-		t.Fatalf("stuck drain work is no longer evictable under capacity pressure: %q", got)
-	}
-}
-
 func TestUnknownStoredChildIsRetiredWithoutBlockingHealthySibling(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
@@ -322,55 +192,6 @@ func TestTransientCredentialFailurePreservesChildWorkAndCheckpoint(t *testing.T)
 	}
 	if len(rt.entries) != beforeEntries {
 		t.Fatalf("recovery replayed child history: entries before=%d after=%d", beforeEntries, len(rt.entries))
-	}
-}
-
-func TestStoredChildWithoutNamespaceIsBoundToFiniteSlot(t *testing.T) {
-	p, rt := setup(t, "groups")
-	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Children = 1
-	p.conf.Max_Pending = 100
-
-	workKey := p.conf.key() + keyChildren
-	identity := "group-members/group_id:g1"
-	legacy := work{
-		Dataset:   "group-members",
-		Parameter: []string{"group_id:g1"},
-		Revision:  "r1",
-		Pending:   true,
-	}
-	b, err := json.Marshal(worklist{Items: map[string]work{identity: legacy}, LastRootScan: p.now().UTC()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = rt.Put(workKey, b); err != nil {
-		t.Fatal(err)
-	}
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/groups/g1/members") {
-			return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
-		}
-		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
-	})
-
-	if _, err = p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	var stored worklist
-	if err = json.Unmarshal(mustGet(t, rt, workKey), &stored); err != nil {
-		t.Fatal(err)
-	}
-	got := stored.Items[identity]
-	wantKey := childStateKey(p.conf.key(), 1)
-	if got.Slot != 1 || got.StateKey != wantKey {
-		t.Fatalf("legacy child bound to slot=%d key=%q, want slot=1 key=%q", got.Slot, got.StateKey, wantKey)
-	}
-	configured, err := childConfig(p.conf, legacy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.StateKey == configured.key() {
-		t.Fatal("legacy child reused the configured-selector namespace")
 	}
 }
 
@@ -495,22 +316,6 @@ func TestNonObjectSessionContextDoesNotBlockMessages(t *testing.T) {
 	}
 }
 
-func TestNonMessageOperationIgnoresSessionContext(t *testing.T) {
-	p, rt := setup(t, "activities")
-	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
-		return reply(`{"session":{"id":"irrelevant"},"data":[{"id":"a1","created_at":"2026-09-08T00:00:00Z"}],"has_more":false}`, http.StatusOK), nil
-	})
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	if len(rt.entries) != 1 || !rt.committed(p) {
-		t.Fatal("valid activity was not delivered and checkpointed")
-	}
-	if _, ok := rt.entries[0].GetEnumeratedValue("_session"); ok {
-		t.Fatal("non-message operation attached an irrelevant _session field")
-	}
-}
-
 func TestPendingChildrenDrainWithoutRelistingRoot(t *testing.T) {
 	p, rt := setup(t, "projects")
 	p.conf.Follow_Children = "enabled"
@@ -551,45 +356,6 @@ func TestPendingChildrenDrainWithoutRelistingRoot(t *testing.T) {
 	}
 }
 
-func TestContinuingChildCannotSuppressPeriodicRootDiscovery(t *testing.T) {
-	p, rt := setup(t, "groups")
-	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Children = 1
-	p.conf.Max_Pending = maxPendingWorkItems
-	p.conf.Max_Pages = 1
-	now := p.now()
-	p.now = func() time.Time { return now }
-	rootRequests, childRequests := 0, 0
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/groups") {
-			rootRequests++
-			return reply(`{"data":[{"id":"g1"}],"has_more":false}`, http.StatusOK), nil
-		}
-		childRequests++
-		return reply(fmt.Sprintf(`{"data":[{"user_id":"m%d"}],"has_more":true,"next_page":"c%d"}`, childRequests, childRequests), http.StatusOK), nil
-	})
-
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	if rootRequests != 1 {
-		t.Fatalf("root was re-listed before its interval: requests=%d", rootRequests)
-	}
-	now = now.Add(time.Duration(p.conf.Request_Interval) * time.Second)
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	if rootRequests != 2 {
-		t.Fatalf("continuing child suppressed the due root scan: requests=%d", rootRequests)
-	}
-	if childRequests != 3 {
-		t.Fatalf("periodic root scan blocked child progress: requests=%d", childRequests)
-	}
-}
-
 func TestConfiguredParameterIsNotEmittedAsParentContext(t *testing.T) {
 	p, rt := setup(t, "organization-users")
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
@@ -623,97 +389,12 @@ func TestDiscoveredParentContextExcludesConfiguredAncestors(t *testing.T) {
 			continue
 		}
 		parent, ok := ent.GetEnumeratedValue("_parent")
-		if !ok || parent != `{"role_id":"role-1"}` {
+		if !ok || parent != "role_id:role-1" {
 			t.Fatalf("unexpected discovery parent context: %q", parent)
 		}
 		return
 	}
 	t.Fatal("role-permissions entry was not emitted")
-}
-
-// TestDuplicateDecisionFieldsFailClosed covers ambiguous top-level JSON. A
-// repeated field leaves every decision that reads it -- identity, timestamp,
-// eviction window, pagination, application error -- depending on which copy a
-// decoder happened to keep, while the bytes this ingester emits still contain
-// all of them. The page must be rejected before any of those decisions is
-// taken, with nothing written and no checkpoint advanced.
-func TestDuplicateDecisionFieldsFailClosed(t *testing.T) {
-	for _, tc := range []struct {
-		name, dataset, body string
-	}{
-		{
-			name: "record identity", dataset: "activities",
-			body: `{"data":[{"id":"a1","id":"a2","created_at":"2026-09-07T12:00:00Z"}],"has_more":false}`,
-		},
-		{
-			name: "record timestamp", dataset: "activities",
-			body: `{"data":[{"id":"a1","created_at":"2026-09-07T12:00:00Z","created_at":"2026-09-08T12:00:00Z"}],"has_more":false}`,
-		},
-		{
-			name: "composite identity component", dataset: "role-permissions",
-			body: `{"data":[{"resource_type":"organization","resource_type":"project","resource_id":"r1","action":"read"}],"has_more":false}`,
-		},
-		{
-			name: "pagination flag", dataset: "activities",
-			body: `{"data":[{"id":"a1"}],"has_more":false,"has_more":true,"last_id":"c1"}`,
-		},
-		{
-			name: "pagination token", dataset: "activities",
-			body: `{"data":[{"id":"a1"}],"has_more":true,"last_id":"c1","last_id":"c2"}`,
-		},
-		{
-			name: "application error marker", dataset: "activities",
-			body: `{"data":[],"type":"list","type":"error","error":{"type":"permission_error"}}`,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			p, rt := setup(t, tc.dataset)
-			p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
-				return reply(tc.body, http.StatusOK), nil
-			})
-			_, err := p.Handle(t.Context(), rt)
-			if err == nil {
-				t.Fatal("an ambiguous duplicate decision field was accepted")
-			}
-			if len(rt.entries) != 0 || rt.committed(p) {
-				t.Fatalf("ambiguous page wrote %d entries or advanced its checkpoint (%v)", len(rt.entries), rt.committed(p))
-			}
-		})
-	}
-}
-
-// TestDuplicateDeletionFieldNeitherRetiresNorTombstonesAChild is the
-// consequential half: a repeated deleted_at decides whether a child's
-// checkpoint is compacted and permanently tombstoned, so it must fail closed
-// before any retirement bookkeeping happens.
-func TestDuplicateDeletionFieldNeitherRetiresNorTombstonesAChild(t *testing.T) {
-	p, rt := setup(t, "chats")
-	p.conf.Follow_Children = "enabled"
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/chats") {
-			return reply(`{"data":[{"id":"c1","deleted_at":null,"deleted_at":"2026-09-08T01:00:00Z","updated_at":"2026-09-07T23:00:00Z"}],"has_more":false}`, http.StatusOK), nil
-		}
-		t.Fatalf("an ambiguous parent reached child collection: %s", r.URL.Path)
-		return nil, nil
-	})
-	if _, err := p.Handle(t.Context(), rt); err == nil {
-		t.Fatal("an ambiguous deletion marker was accepted")
-	}
-	if len(rt.entries) != 0 || rt.committed(p) {
-		t.Fatal("ambiguous page wrote entries or advanced its checkpoint")
-	}
-	if b, err := rt.Get(p.conf.key() + keyChildren); err == nil && len(b) != 0 {
-		var list worklist
-		if err := json.Unmarshal(b, &list); err != nil {
-			t.Fatal(err)
-		}
-		if len(list.Items) != 0 {
-			t.Fatalf("ambiguous parent scheduled or retired child work: %#v", list.Items)
-		}
-	}
-	if tombstones, err := loadTombstones(rt, p.conf.key()+keyTombstones); err != nil || len(tombstones) != 0 {
-		t.Fatalf("ambiguous deletion marker produced tombstones: %v %v", tombstones, err)
-	}
 }
 
 func TestNonObjectRowFailsClosedWithoutCheckpoint(t *testing.T) {

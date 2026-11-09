@@ -43,10 +43,10 @@ type Configs struct {
 func (c Configs) Verify() (err error) {
 	for k, v := range c.ClaudeCompliance {
 		if v == nil {
-			return fmt.Errorf("Claude Compliance config %q is nil", k)
+			return fmt.Errorf("ClaudeCompliance config %q is nil", k)
 		}
 		if err = v.Verify(); err != nil {
-			return fmt.Errorf("Claude Compliance config %q failed validation: %w", k, err)
+			return fmt.Errorf("ClaudeCompliance config %q failed validation: %w", k, err)
 		}
 	}
 	for k, v := range c.Okta {
@@ -153,7 +153,8 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.ClaudeCompliance) + len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
+	count += len(c.ClaudeCompliance)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
 	return
 }
 
@@ -162,7 +163,7 @@ type IngesterBuilder interface {
 	Kind() string
 	ID() string
 	Version() string
-	Build(hosted.TagNegotiator, func() error) (hosted.Ingester, error)
+	Build(hosted.SynchronizingTagNegotiator, func() error) (hosted.Ingester, error)
 	Config() any
 }
 

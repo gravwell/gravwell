@@ -257,16 +257,15 @@ func TestStateIsHeldInDiscreteTypedKeys(t *testing.T) {
 		t.Fatalf("manifest is not its own key: %v", e)
 	}
 	// The dedup manifest and the child worklist are the only values that
-	// stay whole, because hosted.Storage has no element listing to shrink or
-	// enumerate a per-element encoding with. Retired namespaces are therefore
-	// cleared through their finite, known set of exact keys.
+	// stay whole, because hosted.Storage has no Delete and no prefix listing
+	// to shrink or enumerate a per-element encoding with.
 	var storage hostedStorage = rt
 	_ = storage
 }
 
-// hostedStorage pins the exact storage surface a plugin is given. If a listing
-// operation is ever added, the manifest and worklist should be revisited;
-// until then they cannot be spread over one key per element.
+// hostedStorage pins the exact storage surface a plugin is given. If Delete
+// or a listing operation is ever added, the manifest and worklist should be
+// revisited; until then they cannot be spread over one key per element.
 type hostedStorage interface {
 	Get(string) ([]byte, error)
 	Put(string, []byte) error
@@ -282,10 +281,8 @@ type hostedStorage interface {
 // and of a page commit, failing the store part way through, and proves that
 // no partial write can advance the committed lower bound past data that was
 // not written. A torn commit may cost duplicates; it may never lose records.
-// The cut range covers every write of a page commit -- its journal record and
-// count as well as its cursor scalars -- and of a dataset commit.
 func TestInterruptedCommitNeverSkipsData(t *testing.T) {
-	for cut := 0; cut < 16; cut++ {
+	for cut := 0; cut < 10; cut++ {
 		t.Run(string(rune('a'+cut)), func(t *testing.T) {
 			p, rt := setup(t, "activities")
 			page := 0

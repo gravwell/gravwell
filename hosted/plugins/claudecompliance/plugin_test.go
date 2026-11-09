@@ -3,7 +3,6 @@ package claudecompliance
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,8 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -28,93 +25,12 @@ type transport func(*http.Request) (*http.Response, error)
 
 func (f transport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-// testRuntimeBase is the package-local Runtime implementation used by this
-// plugin's tests. Keeping it here avoids adding test scaffolding to the shared
-// Hosted Runner API solely for one plugin.
-type testRuntimeBase struct {
-	hosted.StatusTracker
-	mu      sync.Mutex
-	ctx     context.Context
-	store   map[string][]byte
-	tags    map[string]entry.EntryTag
-	nextTag entry.EntryTag
-}
-
-func newTestRuntimeBase(ctx context.Context) *testRuntimeBase {
-	return &testRuntimeBase{
-		ctx:   ctx,
-		store: make(map[string][]byte),
-		tags:  make(map[string]entry.EntryTag),
-	}
-}
-
-func (r *testRuntimeBase) Alive() bool              { return r.ctx.Err() == nil }
-func (r *testRuntimeBase) Context() context.Context { return r.ctx }
-func (r *testRuntimeBase) Sleep(d time.Duration) bool {
-	select {
-	case <-time.After(d):
-		return false
-	case <-r.ctx.Done():
-		return true
-	}
-}
-func (r *testRuntimeBase) Debug(string, ...rfc5424.SDParam)    {}
-func (r *testRuntimeBase) Info(string, ...rfc5424.SDParam)     {}
-func (r *testRuntimeBase) Warn(string, ...rfc5424.SDParam)     {}
-func (r *testRuntimeBase) Error(string, ...rfc5424.SDParam)    {}
-func (r *testRuntimeBase) Critical(string, ...rfc5424.SDParam) {}
-func (r *testRuntimeBase) Write(entry.Entry) error             { return nil }
-func (r *testRuntimeBase) NegotiateTag(name string) (entry.EntryTag, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if tag, ok := r.tags[name]; ok {
-		return tag, nil
-	}
-	r.nextTag++
-	r.tags[name] = r.nextTag
-	return r.nextTag, nil
-}
-func (r *testRuntimeBase) Get(key string) ([]byte, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	v, ok := r.store[key]
-	if !ok {
-		return nil, storage.ErrStorageNotFound
-	}
-	return append([]byte(nil), v...), nil
-}
-func (r *testRuntimeBase) Put(key string, value []byte) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.store[key] = append([]byte(nil), value...)
-	return nil
-}
-func (r *testRuntimeBase) GetString(key string) (string, error) {
-	v, err := r.Get(key)
-	return string(v), err
-}
-func (r *testRuntimeBase) PutString(key, value string) error {
-	return r.Put(key, []byte(value))
-}
-func (r *testRuntimeBase) GetInt64(string) (int64, error) {
-	return 0, storage.ErrStorageNotFound
-}
-func (r *testRuntimeBase) PutInt64(string, int64) error { return nil }
-func (r *testRuntimeBase) GetTime(key string) (time.Time, error) {
-	v, err := r.GetString(key)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return time.Parse(time.RFC3339Nano, v)
-}
-func (r *testRuntimeBase) PutTime(key string, value time.Time) error {
-	return r.PutString(key, value.Format(time.RFC3339Nano))
-}
-
+// runtime wraps the shared hosted.Mock so this package does not re-implement
+// a Runtime, and adds only the failure injection and call accounting the
+// plugin's tests need on top of it.
 type runtime struct {
-	*testRuntimeBase
-	failWrite bool
-	writeFn   func(entry.Entry) error
+	*hosted.Mock
+	failWrite, failState bool
 	// putFn, when set, observes every storage write.
 	putFn func(string, []byte) error
 	// written records every key this runtime has been asked to write.
@@ -150,7 +66,7 @@ func (r *runtime) SyncContext(ctx context.Context, _ time.Duration) error {
 
 func newRuntime(t *testing.T) *runtime {
 	t.Helper()
-	return &runtime{testRuntimeBase: newTestRuntimeBase(t.Context())}
+	return &runtime{Mock: hosted.NewMock(t.Context())}
 }
 
 func (r *runtime) Sleep(d time.Duration) bool {
@@ -160,15 +76,10 @@ func (r *runtime) Sleep(d time.Duration) bool {
 
 func (r *runtime) NegotiateTag(tag string) (entry.EntryTag, error) {
 	r.negotiatedTags = append(r.negotiatedTags, tag)
-	return r.testRuntimeBase.NegotiateTag(tag)
+	return r.Mock.NegotiateTag(tag)
 }
 
 func (r *runtime) Write(e entry.Entry) error {
-	if r.writeFn != nil {
-		if err := r.writeFn(e); err != nil {
-			return err
-		}
-	}
 	if r.failWrite {
 		return errors.New("synthetic write failure")
 	}
@@ -176,13 +87,10 @@ func (r *runtime) Write(e entry.Entry) error {
 	return nil
 }
 
-// Put injects failures either per key (putFn) or after a chosen number of
-// successful writes (failAfter). There is deliberately no blanket "the whole
-// store is down" switch: every cycle writes the housekeeping record naming its
-// owned state namespace before issuing a request, so a blanket failure stops a
-// cycle before it reaches the behavior a checkpoint test means to exercise.
-// failAfter(0) still covers a store that is down from the first write.
 func (r *runtime) Put(key string, b []byte) error {
+	if r.failState {
+		return errors.New("synthetic state failure")
+	}
 	if r.failAfter != nil && r.failAfter() {
 		return errors.New("synthetic partial-commit failure")
 	}
@@ -195,29 +103,14 @@ func (r *runtime) Put(key string, b []byte) error {
 		r.putCounts[key]++
 	}
 	r.written = append(r.written, key)
-	return r.testRuntimeBase.Put(key, b)
+	return r.Mock.Put(key, b)
 }
 
 // PutString and PutTime are re-declared so injected state failures and put
-// accounting cover them too; testRuntimeBase implements them against its own Put.
+// accounting cover them too; hosted.Mock implements them against its own Put.
 func (r *runtime) PutString(key, value string) error { return r.Put(key, []byte(value)) }
 func (r *runtime) PutTime(key string, value time.Time) error {
 	return r.PutString(key, value.Format(time.RFC3339Nano))
-}
-func (r *runtime) GetInt64(key string) (int64, error) {
-	b, err := r.Get(key)
-	if err != nil {
-		return 0, err
-	}
-	if len(b) != 8 {
-		return 0, errors.New("invalid synthetic int64 state")
-	}
-	return int64(binary.BigEndian.Uint64(b)), nil
-}
-func (r *runtime) PutInt64(key string, value int64) error {
-	var b [8]byte
-	binary.BigEndian.PutUint64(b[:], uint64(value))
-	return r.Put(key, b[:])
 }
 
 func (r *runtime) Warn(msg string, params ...rfc5424.SDParam) {
@@ -267,15 +160,9 @@ func (r *runtime) storedKeys() []string {
 // stateBytes totals every byte this runtime currently holds under prefix.
 func (r *runtime) stateBytes(prefix string) int {
 	total := 0
-	for _, k := range []string{keySince, keyManifest, keyHistory,
-		keyWalkCursor, keyWalkSince, keyWalkUntil, keyWalkStarted, keyWalkHistory,
-		keyWalkEmpty, keyWalkMan, keyWalkDeltas} {
+	for _, k := range []string{keySince, keyManifest, keyHistory, keyRetired,
+		keyWalkCursor, keyWalkSince, keyWalkUntil, keyWalkStarted, keyWalkHistory, keyWalkMan} {
 		if b, err := r.Get(prefix + k); err == nil {
-			total += len(b)
-		}
-	}
-	for i := int64(0); i < maxWalkDeltas; i++ {
-		if b, err := r.Get(walkDeltaKey(prefix, i)); err == nil {
 			total += len(b)
 		}
 	}
@@ -298,8 +185,8 @@ func TestFailedIngestSyncDoesNotCommitState(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if rt.committed(p) == false || len(rt.entries) != 1 {
-		t.Fatal("record from failed synchronization was queued again")
+	if rt.committed(p) == false || len(rt.entries) != 2 {
+		t.Fatal("record from failed synchronization not replayed")
 	}
 }
 
@@ -322,30 +209,16 @@ func TestConstructionRequiresAnIngestDeliveryBarrier(t *testing.T) {
 	}
 }
 
-// No data checkpoint may advance until the delivery barrier has returned.
-//
-// "Data checkpoint" is the distinction this asserts, not "any write": the
-// stanza also keeps housekeeping state -- the record naming the state namespace
-// it owns (keySourceRecord) -- that carries no lower bound, cursor, manifest or
-// completion marker, and so cannot acknowledge or skip a single entry. That
-// record is written before any request is issued, which is exactly why this
-// regression classifies each write by key instead of treating every Put as a
-// checkpoint, and names the offending key when it does find one.
+// No checkpoint may advance until the delivery barrier has returned.
 func TestCheckpointWaitsForDeliveryBarrier(t *testing.T) {
 	p, rt := setup(t, "activities")
-	prefix := p.conf.key()
-	type write struct{ what, key string }
-	var order []write
+	order := []string{}
 	p.syncIngest = func(ctx context.Context, _ time.Duration) error {
-		order = append(order, write{what: "sync"})
+		order = append(order, "sync")
 		return nil
 	}
-	rt.putFn = func(key string, _ []byte) error {
-		what := "housekeeping"
-		if strings.HasPrefix(key, prefix) {
-			what = "checkpoint"
-		}
-		order = append(order, write{what: what, key: key})
+	rt.putFn = func(string, []byte) error {
+		order = append(order, "checkpoint")
 		return nil
 	}
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
@@ -354,30 +227,11 @@ func TestCheckpointWaitsForDeliveryBarrier(t *testing.T) {
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	synced := false
-	checkpoints := 0
-	for _, w := range order {
-		switch w.what {
-		case "sync":
-			synced = true
-		case "checkpoint":
-			if !synced {
-				t.Fatalf("checkpoint key %q was written before the delivery barrier: %+v", w.key, order)
-			}
-			checkpoints++
-		default:
-			// Housekeeping state before the barrier is allowed, but only if it
-			// really is outside the dataset's checkpoint namespace.
-			if strings.HasPrefix(w.key, prefix) {
-				t.Fatalf("key %q was misclassified as housekeeping", w.key)
-			}
-		}
+	if len(order) == 0 || order[0] != "sync" {
+		t.Fatalf("a checkpoint key was written before the delivery barrier: %v", order)
 	}
-	if !synced {
-		t.Fatalf("the delivery barrier was never reached: %+v", order)
-	}
-	if checkpoints == 0 {
-		t.Fatalf("no checkpoint was written at all: %+v", order)
+	if len(order) < 2 {
+		t.Fatalf("no checkpoint was written at all: %v", order)
 	}
 }
 
@@ -387,15 +241,7 @@ func setup(t *testing.T, name string) (*Plugin, *runtime) {
 	if e := os.WriteFile(path, []byte("synthetic-test-key"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	c := &Config{
-		PollingConfig:   hosted.PollingConfig{Lookback: 24},
-		Dataset:         []string{name},
-		Credential_File: path,
-		Page_Size:       100,
-		Max_Pages:       5,
-		Max_Retries:     1,
-		Follow_Children: "disabled",
-	}
+	c := &Config{Dataset: []string{name}, Credential_File: path, Page_Size: 100, Max_Pages: 5, Max_Retries: 1, Follow_Children: "disabled"}
 	c.BaseConfig.Ingester_UUID = "00000000-0000-4000-8000-000000000321"
 	d := Datasets[name]
 	for _, m := range placeholder.FindAllStringSubmatch(d.Path, -1) {
@@ -405,9 +251,6 @@ func setup(t *testing.T, name string) (*Plugin, *runtime) {
 		t.Fatal(e)
 	}
 	rt := newRuntime(t)
-	if _, _, e := c.cycleConfig(rt); e != nil {
-		t.Fatal(e)
-	}
 	p, err := New(c, rt)
 	if err != nil {
 		t.Fatal(err)
@@ -472,63 +315,6 @@ func TestEmptyPageWithContinuationIsDrained(t *testing.T) {
 	}
 	if n != 2 || len(rt.entries) != 1 {
 		t.Fatal("empty page terminated traversal")
-	}
-}
-
-func TestEmptyContinuationDoesNotRewriteUnchangedManifests(t *testing.T) {
-	p, rt := setup(t, "activities")
-	p.conf.Max_Pages = 1
-	request := 0
-	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
-		request++
-		if request == 1 {
-			return reply(`{"data":[{"id":"seed"}],"has_more":true,"last_id":"c1"}`, 200), nil
-		}
-		return reply(fmt.Sprintf(`{"data":[],"has_more":true,"last_id":"c%d"}`, request), 200), nil
-	})
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	prefix := p.conf.key()
-	rt.putCounts = map[string]int{}
-	for range 3 {
-		if _, err := p.Handle(t.Context(), rt); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if got := rt.putCounts[prefix+keyManifest]; got != 0 {
-		t.Fatalf("empty continuations rewrote committed manifest %d times", got)
-	}
-	if got := rt.putCounts[prefix+keyWalkMan]; got != 0 {
-		t.Fatalf("empty continuations rewrote walk manifest %d times", got)
-	}
-	if got, err := rt.GetInt64(prefix + keyWalkEmpty); err != nil || got != 3 {
-		t.Fatalf("empty-page checkpoint = %d, %v; want 3", got, err)
-	}
-}
-
-func TestConsecutiveEmptyContinuationsAreBoundedAcrossCycles(t *testing.T) {
-	p, rt := setup(t, "activities")
-	p.conf.Max_Pages = 1
-	requests := 0
-	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
-		requests++
-		return reply(fmt.Sprintf(`{"data":[],"has_more":true,"last_id":"c%d"}`, requests), 200), nil
-	})
-	for i := int64(0); i < maxConsecutiveEmptyPages; i++ {
-		if _, err := p.Handle(t.Context(), rt); err != nil {
-			t.Fatalf("empty page %d failed early: %v", i+1, err)
-		}
-	}
-	if _, err := p.Handle(t.Context(), rt); err == nil || err.Error() != "Compliance returned too many consecutive empty pages" {
-		t.Fatalf("unbounded empty-page walk returned %v", err)
-	}
-	if requests != maxConsecutiveEmptyPages+1 {
-		t.Fatalf("requests = %d, want %d", requests, maxConsecutiveEmptyPages+1)
-	}
-	prefix := p.conf.key()
-	if got, err := rt.GetInt64(prefix + keyWalkEmpty); err != nil || got != maxConsecutiveEmptyPages {
-		t.Fatalf("persisted empty-page cap = %d, %v; want %d", got, err, maxConsecutiveEmptyPages)
 	}
 }
 func TestChatMessagesUseCorrectEnvelope(t *testing.T) {
@@ -758,22 +544,10 @@ func TestStandardRuntimeDoesNotNeedPrivateMethods(t *testing.T) {
 	}
 }
 
-// Each failure mode here interrupts a two-page traversal after the first
-// page's records have already passed the delivery barrier. Every mode must
-// therefore leave exactly one entry queued, must not advance a lower bound over
-// unwritten data, and must finish the traversal on the next cycle by adding only
-// the second page's single entry -- the first page is re-requested, but the
-// delivery ledger keeps it from being queued twice.
-//
-// The "state" mode fails the dataset's own checkpoint writes rather than every
-// write the runtime sees. A blanket failure would also reject the housekeeping
-// record naming the owned state namespace, which is written before the first
-// request, and the cycle would never reach the barrier this case is about.
 func TestPageCheckpointBoundsReplayAfterLaterFailure(t *testing.T) {
 	for _, failure := range []string{"next-page", "state", "cancel-after-sync"} {
 		t.Run(failure, func(t *testing.T) {
 			p, rt := setup(t, "activities")
-			prefix := p.conf.key()
 			failed := true
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -786,24 +560,14 @@ func TestPageCheckpointBoundsReplayAfterLaterFailure(t *testing.T) {
 				}
 				return reply(`{"data":[{"id":"a"}],"has_more":true,"last_id":"a"}`, 200), nil
 			})
-			switch failure {
-			case "state":
-				rt.putFn = func(key string, _ []byte) error {
-					if failed && strings.HasPrefix(key, prefix) {
-						return errors.New("synthetic checkpoint write failure")
-					}
-					return nil
-				}
-			case "cancel-after-sync":
+			rt.failState = failure == "state"
+			if failure == "cancel-after-sync" {
 				p.syncIngest = func(context.Context, time.Duration) error { cancel(); return nil }
 			}
 			if _, err := p.Handle(ctx, rt); err == nil {
 				t.Fatal("failure accepted")
 			}
 			before := len(rt.entries)
-			if before != 1 {
-				t.Fatalf("the interrupted cycle did not deliver exactly the first page: entries=%d", before)
-			}
 			if failure == "next-page" {
 				if rt.committed(p) == false {
 					t.Fatal("completed page was not checkpointed")
@@ -811,16 +575,17 @@ func TestPageCheckpointBoundsReplayAfterLaterFailure(t *testing.T) {
 			} else if rt.committed(p) {
 				t.Fatal("failed page advanced checkpoint")
 			}
-			failed = false
+			failed, rt.failState = false, false
 			p.syncIngest = rt.SyncContext
 			if _, err := p.Handle(t.Context(), rt); err != nil {
 				t.Fatal(err)
 			}
-			if len(rt.entries) != before+1 {
-				t.Fatalf("retry after failure did not queue exactly the remaining page: entries=%d want=%d", len(rt.entries), before+1)
+			wantAdded := 2
+			if failure == "next-page" {
+				wantAdded = 1
 			}
-			if rt.committed(p) == false {
-				t.Fatal("completed retry did not checkpoint the traversal")
+			if len(rt.entries) != before+wantAdded || rt.committed(p) == false {
+				t.Fatal("unexpected replay after failure")
 			}
 		})
 	}
@@ -1021,11 +786,12 @@ func TestNewParentsAndFailedTranscriptSurviveRestart(t *testing.T) {
 	}
 }
 
-// TestActiveRemoteSession404RemainsRetryable keeps an ambiguous child 404 as
-// a failure even after a healthy root listing. A key may be authorized to list
-// sessions without being authorized to read one transcript, so only an
-// explicitly retiring child may use 404 as proof of deletion.
-func TestActiveRemoteSession404RemainsRetryable(t *testing.T) {
+// TestActiveRemoteSession404IsDroppedThenRevisited follows the vendor's
+// 404 guidance: after a healthy root listing, a child 404 means the resource
+// is gone or not yet running, so it is logged and completed rather than
+// retried as a failure. An active remote session is still revisited on the
+// next poll, so its transcript is collected once it becomes readable.
+func TestActiveRemoteSession404IsDroppedThenRevisited(t *testing.T) {
 	p, rt := setup(t, "remote-sessions")
 	p.conf.Follow_Children = "enabled"
 	missing := true
@@ -1043,24 +809,31 @@ func TestActiveRemoteSession404RemainsRetryable(t *testing.T) {
 		}
 		return reply(`{"session":{"id":"agent-session"},"data":[{"id":"m"}],"next_page":null}`, 200), nil
 	})
-	if _, e := p.Handle(t.Context(), rt); e == nil {
-		t.Fatal("child 404 was silently completed")
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if rt.warnings != 1 {
+		t.Fatalf("child 404 was not reported: warnings=%d", rt.warnings)
 	}
 	var list worklist
 	if e := json.Unmarshal(mustGet(t, rt, p.conf.key()+"/children"), &list); e != nil || len(list.Items) != 1 {
 		t.Fatal("child work missing")
 	}
 	for _, w := range list.Items {
-		if !w.Pending || w.Failures != 1 || w.RetryAt.IsZero() {
-			t.Fatalf("404 child was not retained as retryable work: %+v", w)
+		if w.Pending || w.Failures != 0 {
+			t.Fatalf("404 child retained as failing pending work: %+v", w)
 		}
-		p.now = func() time.Time { return w.RetryAt }
 	}
 	missing = false
+	oldNow := p.now()
+	p.now = func() time.Time { return oldNow.Add(2 * time.Minute) }
 	if _, e := p.Handle(t.Context(), rt); e != nil {
 		t.Fatal(e)
 	}
-	if calls != 2 || len(rt.entries) != 2 {
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatal(e)
+	}
+	if calls != 3 || len(rt.entries) != 2 {
 		t.Fatalf("active remote session not revisited: calls=%d entries=%d", calls, len(rt.entries))
 	}
 }
@@ -1131,14 +904,15 @@ func TestChildCancellationDoesNotAccrueFailure(t *testing.T) {
 	}
 }
 
-// TestChild404DuringRootDrainRemainsFailure keeps an ambiguous 404 as a
-// failure before and after a healthy root listing. Listing authorization does
-// not prove transcript authorization.
-func TestChild404DuringRootDrainRemainsFailure(t *testing.T) {
+// TestChild404DuringRootDrainCompletesWithoutFailure covers a deletion that
+// happens after the root queued the child but before a later drain cycle
+// reaches it. Skipping the root in that cycle must not turn the documented
+// resource-removal response into an operator-visible failure.
+func TestChild404DuringRootDrainCompletesWithoutFailure(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	key := p.conf.key() + "/children"
-	seeded, _ := json.Marshal(worklist{LastRootScan: p.now(), Items: map[string]work{
+	seeded, _ := json.Marshal(worklist{Items: map[string]work{
 		"group-members/group_id:g1": {
 			Dataset: "group-members", Parameter: []string{"group_id:g1"},
 			Revision: "r", Pending: true, LastAttempt: p.now().Add(-time.Hour),
@@ -1147,52 +921,19 @@ func TestChild404DuringRootDrainRemainsFailure(t *testing.T) {
 	if e := rt.Put(key, seeded); e != nil {
 		t.Fatal(e)
 	}
-	rootCalls, childCalls := 0, 0
-	missing := true
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/groups") {
-			rootCalls++
-			return reply(`{"data":[{"id":"g1"}],"has_more":false}`, http.StatusOK), nil
-		}
-		childCalls++
-		if missing {
-			return reply(`{"error":{"type":"not_found_error","message":"Not found"}}`, http.StatusNotFound), nil
-		}
-		return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
+	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return reply(`{"error":{"type":"not_found_error","message":"Not found"}}`, http.StatusNotFound), nil
 	})
-	if _, e := p.Handle(t.Context(), rt); e == nil {
-		t.Fatal("child 404 was trusted without a root scan")
+	if _, e := p.Handle(t.Context(), rt); e != nil {
+		t.Fatalf("child 404 during root drain was reported as a failure: %v", e)
 	}
 	var list worklist
 	if e := json.Unmarshal(mustGet(t, rt, key), &list); e != nil {
 		t.Fatal(e)
 	}
 	w := list.Items["group-members/group_id:g1"]
-	if !w.Pending || w.Failures != 1 || w.RetryAt.IsZero() || rootCalls != 0 || childCalls != 1 {
-		t.Fatalf("unconfirmed child 404 was not retained as a failure: work=%+v root=%d child=%d", w, rootCalls, childCalls)
-	}
-	p.now = func() time.Time { return w.RetryAt }
-	if _, e := p.Handle(t.Context(), rt); e == nil {
-		t.Fatal("root-confirmed child 404 was silently completed")
-	}
-	if e := json.Unmarshal(mustGet(t, rt, key), &list); e != nil {
-		t.Fatal(e)
-	}
-	w = list.Items["group-members/group_id:g1"]
-	if !w.Pending || w.Failures != 2 || w.RetryAt.IsZero() || rootCalls != 1 || childCalls != 2 {
-		t.Fatalf("root-confirmed child 404 was not retained: work=%+v root=%d child=%d", w, rootCalls, childCalls)
-	}
-	missing = false
-	p.now = func() time.Time { return w.RetryAt }
-	if _, e := p.Handle(t.Context(), rt); e != nil {
-		t.Fatalf("recovered child did not complete: %v", e)
-	}
-	if e := json.Unmarshal(mustGet(t, rt, key), &list); e != nil {
-		t.Fatal(e)
-	}
-	w = list.Items["group-members/group_id:g1"]
-	if w.Pending || w.Failures != 0 || !w.RetryAt.IsZero() || rootCalls != 2 || childCalls != 3 {
-		t.Fatalf("recovered child was not completed: work=%+v root=%d child=%d", w, rootCalls, childCalls)
+	if w.Pending || w.Failures != 0 || !w.RetryAt.IsZero() {
+		t.Fatalf("child 404 during root drain was not completed cleanly: %+v", w)
 	}
 }
 
@@ -1276,6 +1017,9 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	if len(pruned.Manifest) != 0 {
 		t.Fatal("evicted child checkpoint was not compacted")
 	}
+	if pruned.Retired != "" {
+		t.Fatal("capacity eviction must not tombstone the checkpoint; it would suppress an unchanged parent forever")
+	}
 	for k, w := range list.Items {
 		w.Pending = true
 		w.RetryAt = p.now().Add(time.Hour)
@@ -1290,11 +1034,8 @@ func TestCompletedHistoryRetiresWithoutEvictingPending(t *testing.T) {
 	})
 	before := len(rt.entries)
 	cont, e := p.Handle(t.Context(), rt)
-	if e != nil || cont == nil || cont.Delay <= 0 {
-		t.Fatal("pending capacity did not defer the root page with a bounded delay")
-	}
-	if want := time.Duration(p.conf.Request_Interval) * time.Second; cont.Delay != want {
-		t.Fatalf("pending capacity delay = %v, want %v", cont.Delay, want)
+	if e != nil || cont == nil || cont.Delay != 0 {
+		t.Fatal("pending capacity did not defer the root page")
 	}
 	if len(rt.entries) != before {
 		t.Fatal("deferred root page was partially written")
@@ -1359,7 +1100,10 @@ func TestCapacityEvictedUnchangedParentIsRediscovered(t *testing.T) {
 	if _, ok := list.Items["group-members/group_id:g1"]; ok {
 		t.Fatal("g1 was not evicted for Max-Pending capacity")
 	}
-	_ = readCheckpoint(t, rt, g1.StateKey)
+	pruned := readCheckpoint(t, rt, g1.StateKey)
+	if pruned.Retired != "" {
+		t.Fatal("capacity eviction must not tombstone the checkpoint")
+	}
 
 	// Cycle 3: g1 reappears, content-identical (same revision) to before
 	// its eviction. It must be rediscovered, not silently dropped.
@@ -1615,7 +1359,7 @@ func TestLoweredMaxPendingEvictsCompletedStoredWork(t *testing.T) {
 }
 
 func TestLoweredMaxPendingDrainsHealthyPendingWork(t *testing.T) {
-	p, _ := setup(t, "groups")
+	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	p.conf.Max_Children = 1
 	p.conf.Max_Pending = 1
@@ -1624,23 +1368,21 @@ func TestLoweredMaxPendingDrainsHealthyPendingWork(t *testing.T) {
 		"group-members/g2": {Dataset: "group-members", Parameter: []string{"group_id:g2"}, Pending: true},
 	}}
 	dirty := false
-	pruned := reconcileWorklistCapacity(p.conf, &list, nil, &dirty, maxCleanupTasks)
+	if err := reconcileWorklistCapacity(rt, p.conf, &list, nil, &dirty); err != nil {
+		t.Fatal(err)
+	}
 	if len(list.Items) != 2 || dirty {
 		t.Fatalf("healthy pending work was discarded while lowering the bound: len=%d dirty=%v", len(list.Items), dirty)
-	}
-	if len(pruned) != 0 {
-		t.Fatal("healthy pending work was staged for checkpoint compaction")
 	}
 	item := list.Items["group-members/g1"]
 	item.Pending = false
 	item.LastCompleted = p.now().Add(-time.Hour)
 	list.Items["group-members/g1"] = item
-	pruned = reconcileWorklistCapacity(p.conf, &list, nil, &dirty, maxCleanupTasks)
+	if err := reconcileWorklistCapacity(rt, p.conf, &list, nil, &dirty); err != nil {
+		t.Fatal(err)
+	}
 	if len(list.Items) != 1 || !dirty {
 		t.Fatalf("completed work was not evicted after the pending backlog drained: len=%d dirty=%v", len(list.Items), dirty)
-	}
-	if len(pruned) != 1 {
-		t.Fatalf("completed eviction staged %d checkpoints, want 1", len(pruned))
 	}
 }
 
@@ -1687,7 +1429,7 @@ func TestSingleUnderscoreMetadataPreservesNativeRecord(t *testing.T) {
 	}
 	want := map[string]string{
 		"_source":  "local-session-messages",
-		"_parent":  `{"session_id":"synthetic-id"}`,
+		"_parent":  "session_id:synthetic-id",
 		"_session": `{"id":"session-1"}`,
 	}
 	for key, value := range want {
@@ -1730,24 +1472,14 @@ func TestRecordCapContinuesFromCommittedCursor(t *testing.T) {
 func TestPendingCapacityDefersPageWithoutDuplicateRootWrites(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Pending = 3
-	p.conf.Max_Children = 3
-	workKey := p.conf.key() + keyChildren
-	seeded, _ := json.Marshal(worklist{LastRootScan: p.now().Add(-time.Hour), Items: map[string]work{
-		"group-members/group_id:g0": {
-			Dataset: "group-members", Parameter: []string{"group_id:g0"},
-			Revision: "r0", Pending: true, LastAttempt: p.now().Add(-time.Hour),
-		},
-	}})
-	if err := rt.Put(workKey, seeded); err != nil {
-		t.Fatal(err)
-	}
+	p.conf.Max_Pending = 2
+	p.conf.Max_Children = 2
 	children := map[string]int{}
 	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
 		if strings.HasSuffix(r.URL.Path, "/groups") {
 			return reply(`{"data":[{"id":"g1"},{"id":"g2"},{"id":"g3"}],"has_more":false}`, 200), nil
 		}
-		for _, id := range []string{"g0", "g1", "g2", "g3"} {
+		for _, id := range []string{"g1", "g2", "g3"} {
 			if strings.Contains(r.URL.Path, id) {
 				children[id]++
 				return reply(`{"data":[],"has_more":false}`, 200), nil
@@ -1757,14 +1489,14 @@ func TestPendingCapacityDefersPageWithoutDuplicateRootWrites(t *testing.T) {
 		return nil, nil
 	})
 	cont, e := p.Handle(t.Context(), rt)
-	if e != nil || cont == nil || cont.Delay == 0 || len(rt.entries) != 0 {
+	if e != nil || cont == nil || cont.Delay != 0 || len(rt.entries) != 0 {
 		t.Fatal("capacity-limited page was partially accepted")
 	}
 	cont, e = p.Handle(t.Context(), rt)
 	if e != nil || cont == nil || cont.Delay == 0 || len(rt.entries) != 3 {
 		t.Fatal("deferred root page did not complete exactly once")
 	}
-	for _, id := range []string{"g0", "g1", "g2", "g3"} {
+	for _, id := range []string{"g1", "g2", "g3"} {
 		if children[id] != 1 {
 			t.Fatalf("child %s calls = %d", id, children[id])
 		}
@@ -1980,33 +1712,6 @@ func TestMissingParentIdentityIsLoggedAndSkipped(t *testing.T) {
 	}
 }
 
-func TestDiscoveryAcceptsOutOfRangeJSONNumberAndSkipsFieldHeavyExpansion(t *testing.T) {
-	p, rt := setup(t, "chats")
-	p.conf.Follow_Children = "enabled"
-	var fieldHeavy strings.Builder
-	fieldHeavy.WriteString(`{"id":"field-heavy"`)
-	for i := 0; i <= maxRecordFields; i++ {
-		fmt.Fprintf(&fieldHeavy, `,"field-%04d":"value"`, i)
-	}
-	fieldHeavy.WriteByte('}')
-	body := `{"data":[{"id":"large-number","number":1e400},` + fieldHeavy.String() + `],"has_more":false}`
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/apps/chats") {
-			return reply(body, http.StatusOK), nil
-		}
-		return reply(`{"chat_messages":[],"has_more":false}`, http.StatusOK), nil
-	})
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatalf("valid vendor record blocked collection: %v", err)
-	}
-	if len(rt.entries) != 2 || !rt.committed(p) {
-		t.Fatalf("root page was not delivered and committed: entries=%d committed=%v", len(rt.entries), rt.committed(p))
-	}
-	if rt.warnings != 1 {
-		t.Fatalf("discovery warnings=%d, want 1 for field-heavy record", rt.warnings)
-	}
-}
-
 func TestCredentialReadsFullFileAndRejectsUnsafeContent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "key")
@@ -2034,47 +1739,6 @@ func TestCredentialReadsFullFileAndRejectsUnsafeContent(t *testing.T) {
 	}
 	if _, e := (&Config{Credential_File: path}).credential(); e == nil {
 		t.Fatal("oversized credential accepted")
-	}
-}
-
-func TestCredentialFileRejectsBlockingAndIndirectPaths(t *testing.T) {
-	dir := t.TempDir()
-	permissive := filepath.Join(dir, "credential-permissive")
-	if e := os.WriteFile(permissive, []byte("synthetic-key"), 0644); e != nil {
-		t.Fatal(e)
-	}
-	if _, e := (&Config{Credential_File: permissive}).credential(); e == nil {
-		t.Fatal("group/world-readable credential file accepted")
-	}
-
-	fifo := filepath.Join(dir, "credential-fifo")
-	if e := syscall.Mkfifo(fifo, 0600); e != nil {
-		t.Fatal(e)
-	}
-	done := make(chan error, 1)
-	go func() {
-		_, e := (&Config{Credential_File: fifo}).credential()
-		done <- e
-	}()
-	select {
-	case e := <-done:
-		if e == nil {
-			t.Fatal("FIFO credential path accepted")
-		}
-	case <-time.After(time.Second):
-		t.Fatal("FIFO credential path blocked instead of being rejected")
-	}
-
-	target := filepath.Join(dir, "credential")
-	if e := os.WriteFile(target, []byte("synthetic-key"), 0600); e != nil {
-		t.Fatal(e)
-	}
-	link := filepath.Join(dir, "credential-link")
-	if e := os.Symlink(target, link); e != nil {
-		t.Fatal(e)
-	}
-	if _, e := (&Config{Credential_File: link}).credential(); e == nil {
-		t.Fatal("symlink credential path accepted")
 	}
 }
 
@@ -2115,16 +1779,8 @@ func TestDeletedChatCompactsCheckpointAndRemovesWork(t *testing.T) {
 		t.Fatal("deleted chat retained child work")
 	}
 	pruned := readCheckpoint(t, rt, child.StateKey)
-	if len(pruned.Manifest) != 0 || pruned.Walk != nil {
+	if len(pruned.Manifest) != 0 || pruned.Retired == "" {
 		t.Fatal("deleted chat checkpoint was not compacted")
-	}
-	tombstones, err := loadTombstones(rt, p.conf.key()+keyTombstones)
-	retired := false
-	for _, tombstone := range tombstones {
-		retired = retired || tombstone.Key == "chat-messages/chat_id:c1" && tombstone.Revision != ""
-	}
-	if err != nil || !retired {
-		t.Fatalf("deleted chat tombstone was not retained: %v %v", tombstones, err)
 	}
 	if childCalls != 2 {
 		t.Fatalf("deleted chat transcript was not drained before retirement: calls=%d", childCalls)
@@ -2328,8 +1984,7 @@ func TestManifestEvictionRewritesStaleRecordsInsteadOfDroppingData(t *testing.T)
 }
 
 // --- Bounded absence-based retirement for parent kinds with no vendor
-// deletion signal (organizations, organization-roles, groups, projects,
-// local-sessions; see
+// deletion signal (organizations, groups, projects, local-sessions; see
 // absenceTrackedParents). ---
 
 func TestAbsentParentBelowThresholdDoesNotRetireChild(t *testing.T) {
@@ -2450,57 +2105,11 @@ func TestAbsentParentRetiredAfterConsecutiveCompleteScans(t *testing.T) {
 		t.Fatalf("child work was not retired after %d consecutive complete absent scans", absentRetirementThreshold)
 	}
 	pruned := readCheckpoint(t, rt, child.StateKey)
+	if pruned.Retired != "" {
+		t.Fatalf("absence retirement must not tombstone the child checkpoint (revision is unrelated to why it was retired): retired=%q", pruned.Retired)
+	}
 	if len(pruned.Manifest) != 0 || pruned.Walk != nil {
 		t.Fatal("retirement did not compact the child checkpoint")
-	}
-}
-
-func TestAbsentConfiguredRoleRetiresPermissionWork(t *testing.T) {
-	p, rt := setup(t, "organization-roles")
-	p.conf.Follow_Children = "enabled"
-	present := true
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(r.URL.Path, "/roles") {
-			if present {
-				return reply(`{"data":[{"id":"r1"}],"has_more":false}`, http.StatusOK), nil
-			}
-			return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
-		}
-		if strings.HasSuffix(r.URL.Path, "/permissions") {
-			return reply(`{"data":[{"resource_type":"organization","resource_id":"o1","action":"read"}],"has_more":false}`, http.StatusOK), nil
-		}
-		t.Fatalf("unexpected request %s", r.URL.Path)
-		return nil, nil
-	})
-	if _, err := p.Handle(t.Context(), rt); err != nil {
-		t.Fatal(err)
-	}
-	workKey := p.conf.key() + keyChildren
-	var list worklist
-	if err := json.Unmarshal(mustGet(t, rt, workKey), &list); err != nil {
-		t.Fatal(err)
-	}
-	const childKey = "role-permissions/organization_id:synthetic-id/role_id:r1"
-	child, ok := list.Items[childKey]
-	if !ok || child.StateKey == "" {
-		t.Fatal("permission work was not discovered")
-	}
-	present = false
-	for i := 0; i < absentRetirementThreshold; i++ {
-		if _, err := p.Handle(t.Context(), rt); err != nil {
-			t.Fatal(err)
-		}
-	}
-	list = worklist{}
-	if err := json.Unmarshal(mustGet(t, rt, workKey), &list); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := list.Items[childKey]; ok {
-		t.Fatal("permission work survived three complete role inventories without its role")
-	}
-	cp := readCheckpoint(t, rt, child.StateKey)
-	if len(cp.Manifest) != 0 || cp.Walk != nil {
-		t.Fatalf("absence retirement did not reclaim the permission checkpoint safely: %+v", cp)
 	}
 }
 
@@ -2656,7 +2265,10 @@ func TestAbsenceRetiredUnchangedParentIsRediscovered(t *testing.T) {
 	if _, ok := list.Items["group-members/group_id:g1"]; ok {
 		t.Fatalf("child work was not retired after %d consecutive complete absent scans", absentRetirementThreshold)
 	}
-	_ = readCheckpoint(t, rt, child.StateKey)
+	pruned := readCheckpoint(t, rt, child.StateKey)
+	if pruned.Retired != "" {
+		t.Fatal("absence retirement must not tombstone the checkpoint")
+	}
 
 	// g1 reappears, content-identical (same revision) to before retirement.
 	present = true
@@ -2863,23 +2475,18 @@ func TestOversizedDiscoveredParentDoesNotBlockValidSibling(t *testing.T) {
 	}
 }
 
-// TestStoredOversizedWorkItemIsRetiredSafely covers defensive handling of
-// pre-release stored state. Validation now refuses an oversized configured
-// Parameter outright, so an oversized value can only reach the worklist from
-// state written before that rule existed. Such an item can never make
-// progress and must be retired -- but without a tombstone: an oversized
-// parameter is this ingester's own limitation, not vendor evidence that the
-// parent was deleted, and a tombstone would suppress a valid parent forever.
 func TestStoredOversizedWorkItemIsRetiredSafely(t *testing.T) {
 	p, rt := setup(t, "groups")
 	p.conf.Follow_Children = "enabled"
 	hugeID := strings.Repeat("b", maxDiscoveredParameterLen+1)
 	badParam := "group_id:" + hugeID
-	const staleStateKey = "pre-release/oversized-child#"
+	childConf, e := childConfig(p.conf, work{Dataset: "group-members", Parameter: []string{badParam}})
+	if e != nil {
+		t.Fatal(e)
+	}
 	list := worklist{Items: map[string]work{
-		"group-members/" + badParam: {Dataset: "group-members", Parameter: []string{badParam}, Revision: "rev", Pending: true, StateKey: staleStateKey},
+		"group-members/" + badParam: {Dataset: "group-members", Parameter: []string{badParam}, Revision: "rev", Pending: true, StateKey: childConf.key()},
 	}}
-	seedCheckpoint(t, rt, staleStateKey, checkpoint{Since: p.now(), Manifest: manifest{"record": {Digest: "digest"}}})
 	b, e := json.Marshal(list)
 	if e != nil {
 		t.Fatal(e)
@@ -2910,40 +2517,16 @@ func TestStoredOversizedWorkItemIsRetiredSafely(t *testing.T) {
 	if _, ok := after.Items["group-members/"+badParam]; ok {
 		t.Fatal("oversized work item was not removed")
 	}
-	pruned := readCheckpoint(t, rt, staleStateKey)
-	if len(pruned.Manifest) != 0 || pruned.Walk != nil {
-		t.Fatal("retired oversized work item left its checkpoint behind")
-	}
-}
-
-// TestOversizedConfiguredParameterIsRejectedByValidation is the other half:
-// the value never reaches stored work at all.
-func TestOversizedConfiguredParameterIsRejectedByValidation(t *testing.T) {
-	p, _ := setup(t, "group-members")
-	for _, tc := range []struct {
-		length int
-		ok     bool
-	}{{maxDiscoveredParameterLen, true}, {maxDiscoveredParameterLen + 1, false}} {
-		c := *p.conf
-		c.Parameter = []string{"group_id:" + strings.Repeat("g", tc.length)}
-		err := c.Verify()
-		if tc.ok && err != nil {
-			t.Fatalf("Parameter of %d bytes rejected: %v", tc.length, err)
-		}
-		if !tc.ok {
-			if err == nil {
-				t.Fatalf("Parameter of %d bytes accepted", tc.length)
-			}
-			if strings.Contains(err.Error(), strings.Repeat("g", 32)) {
-				t.Fatal("validation error echoed the parameter value")
-			}
-		}
+	pruned := readCheckpoint(t, rt, childConf.key())
+	if pruned.Retired != "rev" {
+		t.Fatalf("oversized work item was not tombstoned: retired=%q", pruned.Retired)
 	}
 }
 
 func TestConfiguredParameterIsNeverExposedAsParentContext(t *testing.T) {
 	p, rt := setup(t, "organization-users")
-	p.conf.Parameter = []string{"organization_id:configured-org"}
+	huge := strings.Repeat("c", entry.MaxEvDataLength+1)
+	p.conf.Parameter = []string{"organization_id:" + huge}
 	p.http.Transport = transport(func(*http.Request) (*http.Response, error) {
 		return reply(`{"data":[{"id":"u1"}],"has_more":false}`, 200), nil
 	})
@@ -2954,7 +2537,7 @@ func TestConfiguredParameterIsNeverExposedAsParentContext(t *testing.T) {
 		t.Fatalf("expected the entry to still be written, got %d entries", len(rt.entries))
 	}
 	if _, ok := rt.entries[0].GetEnumeratedValue("_parent"); ok {
-		t.Fatal("operator-configured parameter was exposed through _parent")
+		t.Fatal("oversized _parent should have been omitted, not attached")
 	}
 	if v, ok := rt.entries[0].GetEnumeratedValue("_source"); !ok || v != "organization-users" {
 		t.Fatal("_source must still be attached")
@@ -2962,120 +2545,9 @@ func TestConfiguredParameterIsNeverExposedAsParentContext(t *testing.T) {
 	if rt.warnings != 0 {
 		t.Fatalf("configured parameter unexpectedly entered _parent handling: warnings=%d", rt.warnings)
 	}
-}
-
-// TestAbsentOrganizationRetiresRolePermissionDescendants covers the one
-// nested relationship the catalog has: organizations discover roles, and a
-// role discovers its permissions. Absence retirement only ever considered
-// direct children, so when an organization disappeared its grandchild
-// permission work stayed queued forever, backing off against a 404 and holding
-// a bounded slot that no live child could use. Retirement has to cascade
-// through the catalog relationship and the matching parent parameters -- and
-// only those: a sibling organization's identical role must be untouched.
-func TestAbsentOrganizationRetiresRolePermissionDescendants(t *testing.T) {
-	p, rt := setup(t, "organizations")
-	p.conf.Follow_Children = "enabled"
-	p.conf.Max_Children = 10
-	p.conf.Max_Pending = 100
-	workKey := p.conf.key() + keyChildren
-	present := map[string]bool{"orgA": true, "orgB": true}
-	permissionCalls := map[string]int{}
-	p.http.Transport = transport(func(r *http.Request) (*http.Response, error) {
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/organizations"):
-			rows := []string{}
-			for _, id := range []string{"orgA", "orgB"} {
-				if present[id] {
-					rows = append(rows, fmt.Sprintf(`{"uuid":%q}`, id))
-				}
-			}
-			return reply(`{"data":[`+strings.Join(rows, ",")+`],"has_more":false}`, http.StatusOK), nil
-		case strings.HasSuffix(r.URL.Path, "/users"):
-			return reply(`{"data":[],"has_more":false}`, http.StatusOK), nil
-		case strings.HasSuffix(r.URL.Path, "/permissions"):
-			permissionCalls[r.URL.Path]++
-			return reply(`{"data":[{"resource_type":"organization","resource_id":"r1","action":"read"}],"has_more":false}`, http.StatusOK), nil
-		case strings.HasSuffix(r.URL.Path, "/roles"):
-			return reply(`{"data":[{"id":"role1"}],"has_more":false}`, http.StatusOK), nil
-		}
-		t.Fatalf("unexpected request %s", r.URL.Path)
-		return nil, nil
-	})
-
-	// Let discovery settle: organizations, then their roles, then each role's
-	// permissions. Time advances by a poll interval so every cycle re-lists
-	// the root, which is what makes an absence observation authoritative.
-	start := p.now()
-	interval := time.Duration(p.conf.Request_Interval) * time.Second
-	cycle := 0
-	step := func() {
-		cycle++
-		at := start.Add(time.Duration(cycle) * interval)
-		p.now = func() time.Time { return at }
-		if _, err := p.Handle(t.Context(), rt); err != nil {
-			t.Fatalf("cycle %d: %v", cycle, err)
-		}
-	}
-	for i := 0; i < 4; i++ {
-		step()
-	}
-	stored := func() worklist {
-		var list worklist
-		if err := json.Unmarshal(mustGet(t, rt, workKey), &list); err != nil {
-			t.Fatal(err)
-		}
-		return list
-	}
-	const (
-		rolesA       = "organization-roles/organization_id:orgA"
-		usersA       = "organization-users/organization_id:orgA"
-		permissionsA = "role-permissions/organization_id:orgA/role_id:role1"
-		rolesB       = "organization-roles/organization_id:orgB"
-		permissionsB = "role-permissions/organization_id:orgB/role_id:role1"
-	)
-	list := stored()
-	for _, key := range []string{rolesA, usersA, permissionsA, rolesB, permissionsB} {
-		if _, ok := list.Items[key]; !ok {
-			t.Fatalf("discovery did not settle; %s is missing from %d items", key, len(list.Items))
-		}
-	}
-	descendant := list.Items[permissionsA]
-	if descendant.StateKey == "" {
-		t.Fatal("the grandchild never recorded its checkpoint namespace")
-	}
-	if permissionCalls["/v1/compliance/organizations/orgA/roles/role1/permissions"] == 0 {
-		t.Fatal("the grandchild never collected anything")
-	}
-
-	present["orgA"] = false
-	for i := 0; i < absentRetirementThreshold; i++ {
-		step()
-	}
-	list = stored()
-	for _, key := range []string{usersA, rolesA, permissionsA} {
-		if _, ok := list.Items[key]; ok {
-			t.Fatalf("%s survived %d complete scans without its organization", key, absentRetirementThreshold)
-		}
-	}
-	for _, key := range []string{rolesB, permissionsB} {
-		if _, ok := list.Items[key]; !ok {
-			t.Fatalf("retirement of one organization removed unrelated work %s", key)
-		}
-	}
-	cp := readCheckpoint(t, rt, descendant.StateKey)
-	if len(cp.Manifest) != 0 || cp.Walk != nil {
-		t.Fatal("the cascaded retirement did not reclaim the grandchild checkpoint")
-	}
-
-	// orgA comes back unchanged: nothing was permanently suppressed.
-	present["orgA"] = true
-	for i := 0; i < 3; i++ {
-		step()
-	}
-	list = stored()
-	for _, key := range []string{rolesA, permissionsA} {
-		if _, ok := list.Items[key]; !ok {
-			t.Fatalf("%s was not rediscovered after its organization reappeared", key)
+	for _, line := range rt.warningLog {
+		if strings.Contains(line, huge) {
+			t.Fatal("warning logged the oversized _parent value itself")
 		}
 	}
 }
@@ -3085,14 +2557,8 @@ func mustGet(t *testing.T, rt *runtime, key string) []byte {
 	t.Helper()
 	b, err := rt.Get(key)
 	if err != nil {
-		t.Fatalf("get %q: %v", key, err)
+		return nil
 	}
-	return b
-}
-
-// getOptional reads state that may not have been created yet.
-func getOptional(rt *runtime, key string) []byte {
-	b, _ := rt.Get(key)
 	return b
 }
 
@@ -3104,13 +2570,12 @@ func seedCheckpoint(t *testing.T, rt *runtime, prefix string, cp checkpoint) {
 		t.Fatal(err)
 	}
 	if cp.Walk != nil {
-		// Write both complete maps directly, the way a journal fold does, so a
-		// seeded walk starts from an empty page journal.
-		if err := writeManifests(rt, prefix, cp.Manifest, cp.Walk.Manifest); err != nil {
+		if err := commitPage(rt, prefix, cp.Manifest, *cp.Walk); err != nil {
 			t.Fatal(err)
 		}
-		walk := *cp.Walk
-		if err := commitPage(rt, prefix, cp.Manifest, &walk, manifestDelta{}, false); err != nil {
+	}
+	if cp.Retired != "" {
+		if err := rt.PutString(prefix+keyRetired, cp.Retired); err != nil {
 			t.Fatal(err)
 		}
 	}

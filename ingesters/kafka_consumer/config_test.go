@@ -39,6 +39,77 @@ func TestBasicConfig(t *testing.T) {
 	if len(cfg.Consumers) != 3 {
 		t.Fatalf("invalid listener counts: %d != 7", len(cfg.Consumers))
 	}
+	// no fetch sizes specified, sarama defaults should be left alone
+	for name, c := range cfg.Consumers {
+		if c.fetchDefault != 0 || c.fetchMax != 0 {
+			t.Fatalf("consumer %s has unexpected fetch sizes %d/%d", name, c.fetchDefault, c.fetchMax)
+		}
+	}
+}
+
+func TestFetchSizeConfig(t *testing.T) {
+	fout, err := os.CreateTemp(t.TempDir(), `cfg`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fout.Close()
+	if _, err := io.WriteString(fout, fetchConfig); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := GetConfig(fout.Name(), ``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, ok := cfg.Consumers[`fetch`]
+	if !ok {
+		t.Fatal("missing fetch consumer")
+	}
+	if c.fetchDefault != 4*mb {
+		t.Fatalf("bad fetch default: %d", c.fetchDefault)
+	}
+	if c.fetchMax != 16*mb {
+		t.Fatalf("bad fetch max: %d", c.fetchMax)
+	}
+}
+
+func TestFetchSizes(t *testing.T) {
+	tests := []struct {
+		def, max   string
+		wDef, wMax int32
+		shouldFail bool
+	}{
+		{``, ``, 0, 0, false},
+		{`4MB`, ``, 4 * mb, 0, false},
+		{``, `64MB`, 0, 64 * mb, false},
+		{`2MB`, `8MB`, 2 * mb, 8 * mb, false},
+		{`1048576`, `2097152`, 1 * mb, 2 * mb, false},
+		{` 512KB `, `512kb`, 512 * kb, 512 * kb, false},
+		{``, `256KB`, 256 * kb, 256 * kb, false}, // implicit default is brought down to max
+		{`8MB`, `0`, 8 * mb, 0, false},           // explicit 0 max means unlimited
+		{`8MB`, `4MB`, 0, 0, true},               // default larger than max
+		{`0`, ``, 0, 0, true},
+		{`-1`, ``, 0, 0, true},
+		{``, `-1`, 0, 0, true},
+		{`lots`, ``, 0, 0, true},
+		{``, `4XB`, 0, 0, true},
+		{`1.5MB`, ``, 0, 0, true}, // fractional sizes are rejected
+		{`1GB`, ``, 0, 0, true},   // bigger than sarama.MaxResponseSize
+		{`99999999999999`, ``, 0, 0, true},
+	}
+	for i, tt := range tests {
+		cc := ConfigConsumer{Fetch_Default: tt.def, Fetch_Max: tt.max}
+		def, max, err := cc.fetchSizes()
+		if tt.shouldFail {
+			if err == nil {
+				t.Errorf("%d: expected failure for %q/%q, got %d/%d", i, tt.def, tt.max, def, max)
+			}
+			continue
+		} else if err != nil {
+			t.Errorf("%d: unexpected error for %q/%q: %v", i, tt.def, tt.max, err)
+		} else if def != tt.wDef || max != tt.wMax {
+			t.Errorf("%d: %q/%q => %d/%d, wanted %d/%d", i, tt.def, tt.max, def, max, tt.wDef, tt.wMax)
+		}
+	}
 }
 
 const (
@@ -81,5 +152,19 @@ Log-File=/tmp/kafka.log
 	Source-As-Binary=true
 	Tag-Header=TAG
 	Source-Header=SRC
+`
+	fetchConfig string = `
+[Global]
+Ingest-Secret = IngestSecrets
+Pipe-Backend-Target=/opt/gravwell/comms/pipe
+Log-Level=INFO
+
+[Consumer "fetch"]
+	Leader="127.0.0.1"
+	Topic="foo"
+	Default-Tag=foo
+	Tags=bar*
+	Fetch-Default=4MB
+	Fetch-Max=16MB
 `
 )

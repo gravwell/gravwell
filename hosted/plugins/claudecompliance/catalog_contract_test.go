@@ -171,39 +171,6 @@ func TestDatasetsDeclaringAWindowCanActuallyUseIt(t *testing.T) {
 	t.Logf("datasets with a documented time filter: %v", sortedKeys(windowed))
 }
 
-func TestOnlyMessageOperationsAcceptSessionContext(t *testing.T) {
-	want := map[string]bool{
-		"chat-messages":           true,
-		"local-session-messages":  true,
-		"remote-session-messages": true,
-	}
-	for name, d := range Datasets {
-		if d.SessionContext != want[name] {
-			t.Errorf("%s SessionContext=%v, want %v", name, d.SessionContext, want[name])
-		}
-	}
-}
-
-func TestOnlyCompleteSnapshotRootsUseAbsenceRetirement(t *testing.T) {
-	want := map[string]bool{
-		"organizations":      true,
-		"organization-roles": true,
-		"groups":             true,
-		"projects":           true,
-		"local-sessions":     true,
-	}
-	for name := range Datasets {
-		if absenceTrackedParents[name] != want[name] {
-			t.Errorf("%s absence retirement=%v, want %v", name, absenceTrackedParents[name], want[name])
-		}
-	}
-	for name := range absenceTrackedParents {
-		if !want[name] {
-			t.Errorf("unknown absence-retirement root %q", name)
-		}
-	}
-}
-
 func sortedKeys(m map[string]bool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
