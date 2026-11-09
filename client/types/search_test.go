@@ -11,11 +11,13 @@ package types
 import (
 	"encoding/json"
 	v2 "encoding/json/v2"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
@@ -576,5 +578,125 @@ func TestSearchInfoMarshal(t *testing.T) {
 	}
 	if outWithRS.RendererSettings == nil || outWithRS.RendererSettings.Chart == nil || outWithRS.RendererSettings.Chart.Renderer != "chart" {
 		t.Fatalf("expected chart renderer, got %+v", outWithRS.RendererSettings)
+	}
+}
+
+func TestSearchSessionRefreshRequestOmission(t *testing.T) {
+	req := SearchSessionRefreshRequest{Sessions: []SearchSessionRefresh{{
+		SearchID:  "1",
+		SessionID: uuid.Nil,
+	}}}
+
+	b, err := v2.Marshal(&req, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), "Interval") || strings.Contains(string(b), "Expires") {
+		t.Fatalf("unset Interval and Expires must be omitted, got %s", b)
+	}
+
+	req.Sessions[0].Interval = NewOptional(uint(5))
+	req.Sessions[0].Expires = NewOptional(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC))
+	b, err = v2.Marshal(&req, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Interval":5`) {
+		t.Fatalf("set Interval must be present, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("set Expires must be present, got %s", b)
+	}
+}
+
+func TestSearchSessionRefreshResultMarshal(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	refreshed := SearchSessionRefreshResult{Refreshed: &SearchSessionRefreshed{
+		SearchID:  "1",
+		SessionID: uuid.Nil,
+		Interval:  3,
+		Expires:   NewNullable(expires),
+	}}
+	b, err := v2.Marshal(refreshed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Kind":"refreshed"`) {
+		t.Fatalf("refreshed result must carry Kind refreshed, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("refreshed result must carry Expires, got %s", b)
+	}
+	if strings.Contains(string(b), `"Error"`) {
+		t.Fatalf("refreshed result must not carry Error, got %s", b)
+	}
+
+	refreshed.Refreshed.Expires.SetNull()
+	b, err = v2.Marshal(refreshed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("a null expiry must encode as null, got %s", b)
+	}
+
+	failed := SearchSessionRefreshResult{Failed: &SearchSessionRefreshFailed{
+		SearchID:  "2",
+		SessionID: uuid.Nil,
+		Error:     "session not found",
+	}}
+	b, err = v2.Marshal(failed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Kind":"failed"`) {
+		t.Fatalf("failed result must carry Kind failed, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Error":"session not found"`) {
+		t.Fatalf("failed result must carry Error, got %s", b)
+	}
+	if strings.Contains(string(b), `"Expires"`) || strings.Contains(string(b), `"Interval"`) {
+		t.Fatalf("failed result must not carry Interval or Expires, got %s", b)
+	}
+}
+
+func TestSearchSessionRefreshResultUnmarshal(t *testing.T) {
+	body := `{"Results":[` +
+		`{"Kind":"refreshed","SearchID":"1","SessionID":"00000000-0000-0000-0000-000000000000","Interval":3,"Expires":null},` +
+		`{"Kind":"failed","SearchID":"2","SessionID":"00000000-0000-0000-0000-000000000000","Error":"session not found"}` +
+		`]}`
+	var resp SearchSessionRefreshResponse
+	if err := v2.Unmarshal([]byte(body), &resp, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Results) != 2 {
+		t.Fatalf("got %d results, want 2", len(resp.Results))
+	}
+	if r := resp.Results[0].Refreshed; r == nil {
+		t.Fatal("first result is not refreshed")
+	} else if r.Kind != SearchSessionRefreshResultKindRefreshed {
+		t.Fatalf("first result Kind = %q", r.Kind)
+	} else if !r.Expires.IsNull() {
+		t.Fatal("first result Expires should be null")
+	}
+	if f := resp.Results[1].Failed; f == nil {
+		t.Fatal("second result is not failed")
+	} else if f.Kind != SearchSessionRefreshResultKindFailed {
+		t.Fatalf("second result Kind = %q", f.Kind)
+	} else if f.Error != "session not found" {
+		t.Fatalf("second result Error = %q", f.Error)
+	}
+}
+
+func TestSearchSessionRefreshResultErrors(t *testing.T) {
+	if _, err := v2.Marshal(SearchSessionRefreshResult{}, jsoncompat.Opts); !errors.Is(err, ErrSearchSessionRefreshResultInvalid) {
+		t.Fatalf("empty result error = %v, want ErrSearchSessionRefreshResultInvalid", err)
+	}
+	both := SearchSessionRefreshResult{
+		Refreshed: &SearchSessionRefreshed{},
+		Failed:    &SearchSessionRefreshFailed{},
+	}
+	if _, err := v2.Marshal(both, jsoncompat.Opts); !errors.Is(err, ErrSearchSessionRefreshResultAmbiguous) {
+		t.Fatalf("both-variants error = %v, want ErrSearchSessionRefreshResultAmbiguous", err)
 	}
 }
