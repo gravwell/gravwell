@@ -474,3 +474,33 @@ func checkEntryEVs(ents []*entry.Entry) error {
 	}
 	return nil
 }
+
+type panicProcessor struct {
+	nocloser
+}
+
+func (p *panicProcessor) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	var x []int
+	_ = x[len(ents)] // out of range
+	return ents, nil
+}
+
+func TestProcessorSetRecoversPanic(t *testing.T) {
+	var tw testWriter
+	pr := NewProcessorSet(&tw)
+	pr.AddProcessor(&panicProcessor{})
+
+	if err := pr.Process(makeRawTestEntry(`hello`)); !errors.Is(err, ErrProcessorPanic) {
+		t.Fatalf("expected a preprocessor panic error, got %v", err)
+	}
+	if err := pr.ProcessBatch([]*entry.Entry{makeRawTestEntry(`a`), makeRawTestEntry(`b`)}); !errors.Is(err, ErrProcessorPanic) {
+		t.Fatalf("expected a preprocessor panic error, got %v", err)
+	}
+	if len(tw.ents) != 0 {
+		t.Fatalf("entries handed to a panicking preprocessor were written: %d", len(tw.ents))
+	}
+	// the set must not be left locked after a recovered panic
+	if pr.Count() != 1 {
+		t.Fatalf("invalid processor count")
+	}
+}

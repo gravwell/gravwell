@@ -132,6 +132,14 @@ func main() {
 			if s == nil || u == nil {
 				return
 			}
+			defer func() {
+				if r := recover(); r != nil {
+					ib.Logger.Error("recovered panic while handling trap",
+						log.KV("listener", name),
+						log.KV("client", u.IP.String()),
+						log.KV("panic", fmt.Sprintf("%v", r)))
+				}
+			}()
 			if l.Params.Version == gosnmp.Version3 && 0x3&s.MsgFlags != 0x3&l.Params.MsgFlags {
 				ib.Logger.Warn("dropping trap due to invalid msgflags",
 					log.KV("received-flags", 0x3&s.MsgFlags),
@@ -176,10 +184,19 @@ func main() {
 		l.OnNewTrap = cb
 
 		wg.Add(1)
-		go func(bind string) {
+		go func(name, bind string) {
 			defer wg.Done()
-			l.Listen(bind)
-		}(lcfg.Bind_String)
+			for {
+				if !safeListen(ib.Logger, l, name, bind) || exitCtx.Err() != nil {
+					return
+				}
+				// the listener recovered from a panic, drain the listening signal so the restart does not block
+				select {
+				case <-l.Listening():
+				default:
+				}
+			}
+		}(name, lcfg.Bind_String)
 	}
 
 	ib.Debug("Running\n")
@@ -204,4 +221,21 @@ func main() {
 	if err := igst.Close(); err != nil {
 		ib.Logger.Error("failed to close", log.KVErr(err))
 	}
+}
+
+// safeListen runs the trap listener and recovers from any panic raised while parsing a trap.
+// It returns true if the listener panicked and should be restarted.
+func safeListen(lg *log.Logger, l *gosnmp.TrapListener, name, bind string) (panicked bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			panicked = true
+			lg.Error("recovered panic in trap listener, restarting",
+				log.KV("listener", name),
+				log.KV("panic", fmt.Sprintf("%v", r)))
+		}
+	}()
+	if err := l.Listen(bind); err != nil {
+		lg.Error("trap listener failed", log.KV("listener", name), log.KVErr(err))
+	}
+	return
 }

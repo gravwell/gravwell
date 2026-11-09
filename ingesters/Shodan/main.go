@@ -19,14 +19,17 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -241,14 +244,15 @@ func (shodan *shodanStream) streamReader(wg *sync.WaitGroup, igst *ingest.Ingest
 outerLoop:
 	for {
 		debugout("Connecting...")
-		var url string
+		var streamURL string
 		if shodan.firehose {
-			url = fmt.Sprintf(fullFirehose, shodan.apiKey)
+			streamURL = fmt.Sprintf(fullFirehose, shodan.apiKey)
 		} else {
-			url = fmt.Sprintf(privateFirehose, shodan.apiKey)
+			streamURL = fmt.Sprintf(privateFirehose, shodan.apiKey)
 		}
-		req, err := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", streamURL, nil)
 		if err != nil {
+			err = redactURLError(err)
 			lg.Error("can't create HTTP request", log.KVErr(err))
 			igst.Error("can't create HTTP request", log.KVErr(err))
 			time.Sleep(1 * time.Second)
@@ -258,6 +262,7 @@ outerLoop:
 
 		res, err := cli.Do(req)
 		if err != nil {
+			err = redactURLError(err)
 			lg.Error("can't execute HTTP request", log.KVErr(err))
 			igst.Error("can't execute HTTP request", log.KVErr(err))
 			time.Sleep(1 * time.Second)
@@ -364,6 +369,18 @@ func (shodan *shodanStream) shodanIngester(igst *ingest.IngestMuxer) {
 			}
 		}
 	}
+}
+
+// redactURLError strips the query string, which carries the Shodan API key,
+// from a *url.Error so the key is never logged.
+func redactURLError(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		if i := strings.IndexByte(ue.URL, '?'); i >= 0 {
+			ue.URL = ue.URL[:i]
+		}
+	}
+	return err
 }
 
 func debugout(format string, args ...interface{}) {

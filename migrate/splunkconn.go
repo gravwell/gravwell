@@ -322,5 +322,4 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, p
 		}
 		cb(ent)
 	}
-	return
 }

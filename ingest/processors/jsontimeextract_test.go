@@ -85,6 +85,7 @@ func TestJsonTimestamp(t *testing.T) {
 		Path=foo.bar
 		Timestamp-Override="RFC3339"
 		Assume-Local-Timezone=true
+		Timestamp-Max-Past-Delta=175200h
 	`
 	p, err := testLoadPreprocessor(b, `jse`)
 	if err != nil {
@@ -121,6 +122,34 @@ func TestJsonTimestamp(t *testing.T) {
 	}
 }
 
+// TestJsonTimestampDefaultWindow checks that a valid timestamp outside the default window is not applied
+func TestJsonTimestampDefaultWindow(t *testing.T) {
+	b := `
+	[preprocessor "jse"]
+		type = jsontimeextract
+		Path=foo.bar
+	`
+	p, err := testLoadPreprocessor(b, `jse`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	internal := time.Date(2022, 7, 2, 13, 14, 15, 0, time.UTC)
+	data := fmt.Sprintf(`{"foo": {"bar": "%s"}}`, internal.Format(time.RFC3339))
+	ent := entry.Entry{
+		TS:   entry.Now(),
+		Data: []byte(data),
+	}
+	ret, err := p.Process([]*entry.Entry{&ent})
+	if err != nil {
+		t.Fatal(err)
+	} else if len(ret) != 1 {
+		t.Fatalf("wrong return count")
+	}
+	if d := time.Since(ret[0].TS.StandardTime()); d < 0 || d > time.Minute {
+		t.Fatalf("timestamp outside default window was applied: %v", ret[0].TS)
+	}
+}
+
 func TestJsonTimestampQuoted(t *testing.T) {
 	quotedFields := "`\"foo.bar\".bar`"
 	b := `
@@ -129,6 +158,7 @@ func TestJsonTimestampQuoted(t *testing.T) {
 		Path=` + quotedFields + `
 		Timestamp-Override="RFC3339"
 		Assume-Local-Timezone=true
+		Timestamp-Max-Past-Delta=175200h
 	`
 	p, err := testLoadPreprocessor(b, `jse`)
 	if err != nil {
@@ -172,6 +202,7 @@ func TestJsonTimestampFormats(t *testing.T) {
 		Path=foo.bar
 		Timestamp-Override="%s"
 		Assume-Local-Timezone=true
+		Timestamp-Max-Past-Delta=175200h
 	`
 	og := time.Date(2020, 12, 15, 12, 1, 2, 3, time.UTC)
 	internal := time.Date(2022, 7, 2, 13, 14, 15, 0, time.UTC)

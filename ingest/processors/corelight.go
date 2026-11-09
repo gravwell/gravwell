@@ -41,6 +41,10 @@ type CorelightConfig struct {
 
 	// Custom_Format specifies a custom override for a path value and headers, there can be many
 	Custom_Format []string
+
+	// Optional bounds on extracted timestamps, timestamps outside the bounds are ignored
+	Timestamp_Max_Past_Delta   string
+	Timestamp_Max_Future_Delta string
 }
 
 // A Corelight processor takes JSON-formatted Corelight logs and reformats
@@ -48,6 +52,7 @@ type CorelightConfig struct {
 type Corelight struct {
 	nocloser
 	timegrind *timegrinder.TimeGrinder
+	bounds    tsBounds
 	tg        Tagger
 	tagFields map[string][]string
 	tags      map[string]entry.EntryTag
@@ -106,6 +111,9 @@ func (c *Corelight) init(cfg CorelightConfig, tagger Tagger) (err error) {
 	if err = cfg.Validate(); err != nil {
 		return
 	}
+	if c.bounds, err = newTSBounds(cfg.Timestamp_Max_Past_Delta, cfg.Timestamp_Max_Future_Delta); err != nil {
+		return
+	}
 	if s, err := loadCustomFormats(cfg.Custom_Format); err != nil {
 		return err
 	} else {
@@ -138,7 +146,7 @@ func (c *Corelight) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 			// TSV, so let's rewrite the entry.
 			if tv, ok := c.tags[tag]; ok {
 				ent.Tag = tv
-				ent.TS = entry.FromStandard(ts)
+				c.bounds.apply(ent, ts)
 				ent.Data = line
 			}
 		}
