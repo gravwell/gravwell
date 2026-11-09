@@ -217,10 +217,6 @@ type StartSearchResponse struct {
 	Global bool
 }
 
-type SearchSessionIntervalUpdate struct {
-	Interval uint
-}
-
 // SearchSessionRefresh describes one search session to refresh.
 type SearchSessionRefresh struct {
 	SearchID  string
