@@ -11,6 +11,7 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	v2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -20,9 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // TestSetAccess covers gravwell/issues#2708: Client.SetAccess replaces the
@@ -274,6 +277,198 @@ func TestDownloadSearch(t *testing.T) {
 			t.Errorf("error text %q does not contain \"404\"", err.Error())
 		}
 	})
+}
+
+func TestSearchRefreshUsesRefreshEndpoint(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody types.SearchSessionRefreshRequest
+	var gotRaw []byte
+
+	c := newRefreshTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		var err error
+		if gotRaw, err = io.ReadAll(r.Body); err != nil {
+			t.Errorf("read body: %v", err)
+			return
+		}
+		if err := v2.Unmarshal(gotRaw, &gotBody, jsoncompat.Opts); err != nil {
+			t.Errorf("decode body: %v", err)
+			return
+		}
+		var searchID string
+		var sessionID uuid.UUID
+		if len(gotBody.Sessions) > 0 {
+			searchID = gotBody.Sessions[0].SearchID
+			sessionID = gotBody.Sessions[0].SessionID
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(types.SearchSessionRefreshResponse{Results: []types.SearchSessionRefreshResult{{
+			Refreshed: &types.SearchSessionRefreshed{
+				SearchID:  searchID,
+				SessionID: sessionID,
+				Interval:  7,
+				Expires:   types.NewNullable(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)),
+			},
+		}}})
+	})
+
+	sid := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	s := c.SearchFromLaunch(types.LaunchResponse{SearchID: "123", SearchSessionID: sid, RefreshInterval: 3})
+	if err := s.Refresh(); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != client.REFRESH_SEARCH_SESSIONS_URL {
+		t.Errorf("path = %q, want %q", gotPath, client.REFRESH_SEARCH_SESSIONS_URL)
+	}
+	if strings.Contains(string(gotRaw), `"Interval"`) {
+		t.Errorf("Refresh must omit Interval, got %s", gotRaw)
+	}
+	if len(gotBody.Sessions) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(gotBody.Sessions))
+	}
+	if gotBody.Sessions[0].SearchID != "123" || gotBody.Sessions[0].SessionID != sid {
+		t.Errorf("session = %+v, want search 123 / session %s", gotBody.Sessions[0], sid)
+	}
+	if s.Interval() != 7*time.Second {
+		t.Errorf("interval = %v, want 7s", s.Interval())
+	}
+}
+
+func TestSearchUpdateIntervalUsesRefreshEndpoint(t *testing.T) {
+	var gotBody types.SearchSessionRefreshRequest
+	c := newRefreshTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotBody = decodeRefreshRequest(t, r)
+		var searchID string
+		var sessionID uuid.UUID
+		if len(gotBody.Sessions) > 0 {
+			searchID = gotBody.Sessions[0].SearchID
+			sessionID = gotBody.Sessions[0].SessionID
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(types.SearchSessionRefreshResponse{Results: []types.SearchSessionRefreshResult{{
+			Refreshed: &types.SearchSessionRefreshed{
+				SearchID:  searchID,
+				SessionID: sessionID,
+				Interval:  10,
+				Expires:   types.NewNullable(time.Now()),
+			},
+		}}})
+	})
+
+	sid := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	s := c.SearchFromLaunch(types.LaunchResponse{SearchID: "123", SearchSessionID: sid, RefreshInterval: 3})
+	if err := s.UpdateInterval(10 * time.Second); err != nil {
+		t.Fatalf("UpdateInterval: %v", err)
+	}
+	if len(gotBody.Sessions) != 1 || !gotBody.Sessions[0].Interval.IsSet() || gotBody.Sessions[0].Interval.Value() != 10 {
+		t.Fatalf("request interval = %+v, want 10", gotBody.Sessions)
+	}
+	if s.Interval() != 10*time.Second {
+		t.Errorf("interval = %v, want 10s", s.Interval())
+	}
+}
+
+func TestSearchRefreshSurfacesFailedResult(t *testing.T) {
+	c := newRefreshTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		req := decodeRefreshRequest(t, r)
+		var searchID string
+		var sessionID uuid.UUID
+		if len(req.Sessions) > 0 {
+			searchID = req.Sessions[0].SearchID
+			sessionID = req.Sessions[0].SessionID
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(types.SearchSessionRefreshResponse{Results: []types.SearchSessionRefreshResult{{
+			Failed: &types.SearchSessionRefreshFailed{
+				SearchID:  searchID,
+				SessionID: sessionID,
+				Error:     "session not found",
+			},
+		}}})
+	})
+
+	sid := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	s := c.SearchFromLaunch(types.LaunchResponse{SearchID: "123", SearchSessionID: sid, RefreshInterval: 3})
+	err := s.Refresh()
+	if err == nil || !strings.Contains(err.Error(), "session not found") {
+		t.Fatalf("Refresh error = %v, want session not found", err)
+	}
+	if !errors.Is(err, client.ErrSearchSessionRefreshFailed) {
+		t.Fatalf("Refresh error = %v, want ErrSearchSessionRefreshFailed", err)
+	}
+}
+
+func TestRefreshSearchSessionsBatch(t *testing.T) {
+	var gotBody types.SearchSessionRefreshRequest
+	c := newRefreshTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotBody = decodeRefreshRequest(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(types.SearchSessionRefreshResponse{Results: []types.SearchSessionRefreshResult{
+			{Refreshed: &types.SearchSessionRefreshed{SearchID: "1", SessionID: gotBody.Sessions[0].SessionID, Interval: 3, Expires: types.NewNullable(time.Now())}},
+			{Failed: &types.SearchSessionRefreshFailed{SearchID: "2", SessionID: gotBody.Sessions[1].SessionID, Error: "session not found"}},
+		}})
+	})
+
+	first := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	second := uuid.MustParse("55555555-5555-5555-5555-555555555555")
+	resp, err := c.RefreshSearchSessions(types.SearchSessionRefreshRequest{Sessions: []types.SearchSessionRefresh{
+		{SearchID: "1", SessionID: first},
+		{SearchID: "2", SessionID: second},
+	}})
+	if err != nil {
+		t.Fatalf("RefreshSearchSessions: %v", err)
+	}
+	if len(gotBody.Sessions) != 2 || gotBody.Sessions[0].SearchID != "1" || gotBody.Sessions[1].SearchID != "2" {
+		t.Fatalf("request sessions = %+v, want 1 then 2", gotBody.Sessions)
+	}
+	if len(resp.Results) != 2 {
+		t.Fatalf("got %d results, want 2", len(resp.Results))
+	}
+	if resp.Results[0].Refreshed == nil || resp.Results[0].Refreshed.SearchID != "1" {
+		t.Errorf("first result = %+v, want refreshed 1", resp.Results[0])
+	}
+	if resp.Results[1].Failed == nil || resp.Results[1].Failed.SearchID != "2" || resp.Results[1].Failed.Error != "session not found" {
+		t.Errorf("second result = %+v, want failed 2", resp.Results[1])
+	}
+}
+
+func decodeRefreshRequest(t *testing.T, r *http.Request) (req types.SearchSessionRefreshRequest) {
+	t.Helper()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Errorf("read body: %v", err)
+		return
+	}
+	if err := v2.Unmarshal(body, &req, jsoncompat.Opts); err != nil {
+		t.Errorf("decode body: %v", err)
+	}
+	return
+}
+
+func newRefreshTestClient(t *testing.T, handler http.HandlerFunc) *client.Client {
+	t.Helper()
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+
+	mux := http.NewServeMux()
+	mux.HandleFunc(client.REFRESH_SEARCH_SESSIONS_URL, handler)
+	srv := http.Server{Handler: mux}
+	go srv.Serve(l)
+	t.Cleanup(func() { srv.Shutdown(t.Context()) })
+
+	c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
 }
 
 func equalACL(a, b types.ACL) bool {

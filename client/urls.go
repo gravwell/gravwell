@@ -75,7 +75,6 @@ const (
 	SEARCHES_ID_SAVE_URL                  = `/api/searches/%s/save`
 	SEARCHES_ID_STOP_URL                  = `/api/searches/%s/stop`
 	SEARCHES_ID_DOWNLOADS_URL             = `/api/searches/%s/downloads`
-	SEARCHES_ID_PING_URL                  = `/api/searches/%s/ping`
 	SEARCHES_ID_DETACH_URL                = `/api/searches/%s/detach`
 	SEARCHES_ID_MODULES_URL               = `/api/searches/%s/modules`
 	SEARCHES_ID_STATS_URL                 = `/api/searches/%s/stats`
@@ -659,10 +658,6 @@ func secretsIdFullUrl(id string) string {
 
 func searchesUrl() string {
 	return SEARCHES_URL
-}
-
-func searchesIdPingUrl(id string) string {
-	return fmt.Sprintf(SEARCHES_ID_PING_URL, id)
 }
 
 func searchesIdDetachUrl(id string) string {

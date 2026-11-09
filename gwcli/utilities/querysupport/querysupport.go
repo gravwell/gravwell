@@ -228,7 +228,7 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 			case <-ping:
 				return
 			default:
-				s.Ping()
+				s.Refresh()
 				clilog.Writer.Debugf("pinged fg query %s", s.ID)
 				time.Sleep(sleepTime)
 			}
