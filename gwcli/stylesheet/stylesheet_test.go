@@ -126,3 +126,63 @@ func TestViewSubmitButton(t *testing.T) {
 		})
 	}
 }
+
+func TestSegmentedBorder(t *testing.T) {
+	type segment = struct {
+		StylizedTitle string
+		Contents      string
+	}
+	border := lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder())
+
+	t.Run("no segments", func(t *testing.T) {
+		if _, err := stylesheet.SegmentedBorder(border, 10); err == nil {
+			t.Error("expected an error when no segments are given")
+		}
+	})
+	t.Run("bad width", func(t *testing.T) {
+		if _, err := stylesheet.SegmentedBorder(border, 0, segment{"title", "contents"}); err == nil {
+			t.Error("expected an error when width is 0")
+		}
+	})
+
+	tests := []struct {
+		name     string
+		width    int
+		segments []segment
+		want     string
+	}{
+		{"title narrower than box (even remainder)", 10, []segment{{"abcd", "contents"}},
+			"┌───abcd───┐\n" +
+				"│contents  │\n" +
+				"└──────────┘\n"},
+		{"title narrower than box (odd remainder)", 10, []segment{{"abc", "contents"}},
+			"┌───abc────┐\n" +
+				"│contents  │\n" +
+				"└──────────┘\n"},
+		{"title exactly as wide as box", 4, []segment{{"abcd", "body"}},
+			"┌abcd┐\n" +
+				"│body│\n" +
+				"└────┘\n"},
+		{"title wider than box", 4, []segment{{"a long title", "body"}},
+			"┌a long title┐\n" +
+				"│body        │\n" +
+				"└────────────┘\n"},
+		{"later title wider than box", 4, []segment{{"ab", "one"}, {"a long title", "two"}},
+			"┌─────ab─────┐\n" +
+				"│one         │\n" +
+				"├a long title┤\n" +
+				"│two         │\n" +
+				"└────────────┘\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := stylesheet.SegmentedBorder(border, tt.width, tt.segments...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Error("incorrect border.", testsupport.ExpectedActual("\n"+tt.want, "\n"+got))
+			}
+		})
+	}
+}

@@ -164,6 +164,10 @@ func Index(i int) string {
 		borderStyle.Border(bs, false, true, true, true).Width(topWidth).Render(contents)
 }*/
 
+// SegmentedBorder returns a box of the given (inner) width, split into titled segments.
+// Each segment is headed by a divider with its title centered in it.
+//
+// If a title is wider than width, the box is widened to fit it.
 func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 	StylizedTitle string
 	Contents      string
@@ -172,6 +176,12 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 		return "", errors.New("cannot draw a segmented border with no segments")
 	} else if width <= 0 {
 		return "", errors.New("width must be > 0")
+	}
+
+	// a title wider than the box would leave no room for (and a negative count of) dividers,
+	// so grow the box to fit the widest title
+	for _, segment := range segments {
+		width = max(width, lipgloss.Width(segment.StylizedTitle))
 	}
 
 	// prepare the data we need across all iterations
