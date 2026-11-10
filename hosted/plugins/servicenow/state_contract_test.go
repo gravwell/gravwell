@@ -1,0 +1,1197 @@
+package servicenow
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v3/hosted/storage"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
+)
+
+type serviceNowContractRuntime struct {
+	hosted.Runtime
+	state             map[string][]byte
+	entries           []entry.Entry
+	writeCalls        int
+	failWriteAt       int
+	tagErr            error
+	blockContextWrite bool
+	writeStarted      chan struct{}
+}
+
+func newServiceNowContractRuntime() *serviceNowContractRuntime {
+	return &serviceNowContractRuntime{state: map[string][]byte{}}
+}
+
+func (r *serviceNowContractRuntime) Get(key string) ([]byte, error) {
+	value, ok := r.state[key]
+	if !ok {
+		return nil, storage.ErrStorageNotFound
+	}
+	return bytes.Clone(value), nil
+}
+
+func (r *serviceNowContractRuntime) Put(key string, value []byte) error {
+	r.state[key] = bytes.Clone(value)
+	return nil
+}
+
+func (r *serviceNowContractRuntime) Write(value entry.Entry) error {
+	copy := value
+	return r.WriteEntry(&copy)
+}
+
+func (r *serviceNowContractRuntime) WriteEntry(value *entry.Entry) error {
+	r.writeCalls++
+	if r.failWriteAt != 0 && r.writeCalls == r.failWriteAt {
+		return errors.New("synthetic write failure")
+	}
+	copy := *value
+	copy.Data = bytes.Clone(value.Data)
+	r.entries = append(r.entries, copy)
+	return nil
+}
+
+func (r *serviceNowContractRuntime) WriteEntryContext(ctx context.Context, value *entry.Entry) error {
+	if r.blockContextWrite {
+		if r.writeStarted != nil {
+			select {
+			case <-r.writeStarted:
+			default:
+				close(r.writeStarted)
+			}
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return r.WriteEntry(value)
+}
+
+func (r *serviceNowContractRuntime) WriteBatch(values []*entry.Entry) error {
+	for _, value := range values {
+		if err := r.WriteEntry(value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *serviceNowContractRuntime) WriteBatchContext(_ context.Context, values []*entry.Entry) error {
+	return r.WriteBatch(values)
+}
+
+func (r *serviceNowContractRuntime) NegotiateTag(string) (entry.EntryTag, error) {
+	return 42, r.tagErr
+}
+func (r *serviceNowContractRuntime) Debug(string, ...rfc5424.SDParam)    {}
+func (r *serviceNowContractRuntime) Info(string, ...rfc5424.SDParam)     {}
+func (r *serviceNowContractRuntime) Warn(string, ...rfc5424.SDParam)     {}
+func (r *serviceNowContractRuntime) Error(string, ...rfc5424.SDParam)    {}
+func (r *serviceNowContractRuntime) Critical(string, ...rfc5424.SDParam) {}
+
+func serviceNowContractConfig(t *testing.T, instance string) *Config {
+	t.Helper()
+	return &Config{
+		Instance: instance, Secret_File: secretFile(t), Normalization: "disabled",
+		Page_Size: 100, Max_Pages: 10, Overlap: intPointer(300), Timeout: 5, Max_Retries: intPointer(1),
+		PollingConfig: hosted.PollingConfig{Lookback: 24, Requests_Per_Minute: 60000, Request_Interval: 60},
+	}
+}
+
+func TestIncrementalEmptyPollRetainsAnchorCatalogWide(t *testing.T) {
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	anchor := now.Add(-24 * time.Hour)
+	lateTimestamp := anchor.Add(time.Hour)
+	for _, dataset := range Catalog() {
+		dataset := dataset
+		t.Run(dataset.Name, func(t *testing.T) {
+			requests := 0
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if requests <= 2 {
+					_, _ = w.Write([]byte(`{"result":[]}`))
+					return
+				}
+				_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"late","%s":"%s"}]}`, dataset.Timestamp, lateTimestamp.Format("2006-01-02 15:04:05"))
+			}))
+			defer server.Close()
+			runtime := newServiceNowContractRuntime()
+			config := serviceNowContractConfig(t, server.URL)
+			client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+			plugin := New(config, processors.NewProcessorSet(runtime))
+			plugin.now = func() time.Time { return now }
+			if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+				t.Fatal(err)
+			}
+			key := config.StateNamespace() + "/" + dataset.Name
+			state, err := loadCursor(runtime, key)
+			if err != nil || !state.Checkpoint.Equal(anchor) || !state.WindowEnd.IsZero() {
+				t.Fatalf("initial empty state=%+v err=%v", state, err)
+			}
+
+			established := New(config, processors.NewProcessorSet(runtime))
+			established.now = func() time.Time { return now.Add(24 * time.Hour) }
+			if err := established.collect(context.Background(), runtime, client, dataset); err != nil {
+				t.Fatal(err)
+			}
+			state, err = loadCursor(runtime, key)
+			if err != nil || !state.Checkpoint.Equal(anchor) || !state.WindowEnd.IsZero() {
+				t.Fatalf("established empty state=%+v err=%v", state, err)
+			}
+
+			restarted := New(config, processors.NewProcessorSet(runtime))
+			restarted.now = func() time.Time { return now.Add(48 * time.Hour) }
+			if err := restarted.collect(context.Background(), runtime, client, dataset); err != nil {
+				t.Fatal(err)
+			}
+			if len(runtime.entries) != 1 {
+				t.Fatalf("late-visible entries=%d want=1", len(runtime.entries))
+			}
+			state, err = loadCursor(runtime, key)
+			if err != nil || !state.Checkpoint.Equal(lateTimestamp) {
+				t.Fatalf("late-visible state=%+v err=%v", state, err)
+			}
+		})
+	}
+}
+
+func TestIncrementalCatalogStableTieAndWholeSecondBoundary(t *testing.T) {
+	checkpoint := time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)
+	windowEnd := checkpoint.Add(time.Hour)
+	for _, dataset := range Catalog() {
+		query := WindowQuery(dataset, checkpoint, windowEnd, 300)
+		for _, want := range []string{
+			dataset.Timestamp + ">2026-09-21 09:55:00",
+			dataset.Timestamp + "<=2026-09-21 11:00:00",
+			"ORDERBY" + dataset.Timestamp,
+			"ORDERBYsys_id",
+		} {
+			if !strings.Contains(query, want) {
+				t.Errorf("dataset %s query %q missing %q", dataset.Name, query, want)
+			}
+		}
+		zeroOverlapQuery := WindowQuery(dataset, checkpoint, windowEnd, 0)
+		if want := dataset.Timestamp + ">2026-09-21 09:59:59"; !strings.Contains(zeroOverlapQuery, want) {
+			t.Errorf("dataset %s zero-overlap query %q missing mandatory equal-second boundary %q", dataset.Name, zeroOverlapQuery, want)
+		}
+	}
+}
+
+func TestIncrementalEqualSecondBoundaryDeduplicatesByIdentity(t *testing.T) {
+	response := `{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"two","sys_updated_on":"2026-09-21 10:00:00"}]}`
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	response = `{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"two","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"three","sys_updated_on":"2026-09-21 10:00:00"}]}`
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.entries) != 3 {
+		t.Fatalf("entries=%d want=3", len(runtime.entries))
+	}
+	state, err := loadCursor(runtime, config.StateNamespace()+"/incidents")
+	if err != nil || !state.Checkpoint.Equal(time.Date(2026, 9, 21, 10, 0, 0, 0, time.UTC)) {
+		t.Fatalf("state=%+v err=%v", state, err)
+	}
+}
+
+func TestIncrementalZeroOverlapReplaysLaterVisibleEqualSecondRecord(t *testing.T) {
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests == 1 {
+			_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+			return
+		}
+		query := r.URL.Query().Get("sysparm_query")
+		if strings.Contains(query, "sys_updated_on>2026-09-21 10:00:00") {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+			return
+		}
+		if !strings.Contains(query, "sys_updated_on>2026-09-21 09:59:59") {
+			t.Errorf("second zero-overlap query %q did not replay the completed checkpoint second", query)
+		}
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"two","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Overlap = intPointer(0)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	for cycle := 0; cycle < 2; cycle++ {
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return now.Add(time.Duration(cycle) * time.Minute) }
+		if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+			t.Fatalf("cycle %d: %v", cycle+1, err)
+		}
+	}
+	if len(runtime.entries) != 2 {
+		t.Fatalf("later-visible equal-second entries=%d want=2", len(runtime.entries))
+	}
+}
+
+func TestTableSubsecondOrderingTimestampRejectedBeforeDelivery(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21T10:00:00.900Z"}]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	err := plugin.collect(context.Background(), runtime, client, catalog["incidents"])
+	if err == nil || !strings.Contains(err.Error(), "fractional") {
+		t.Fatalf("fractional Table ordering timestamp error=%v", err)
+	}
+	if len(runtime.entries) != 0 {
+		t.Fatalf("fractional Table ordering timestamp delivered %d entries", len(runtime.entries))
+	}
+	if _, exists := runtime.state[config.StateNamespace()+"/incidents"]; exists {
+		t.Fatal("fractional Table ordering timestamp persisted cursor state")
+	}
+}
+
+func TestWindowQueryAfterRejectsFractionalCursor(t *testing.T) {
+	dataset := catalog["incidents"]
+	_, err := windowQueryAfter(
+		dataset,
+		time.Date(2026, 9, 21, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC),
+		300,
+		time.Date(2026, 9, 21, 10, 0, 0, 900000000, time.UTC),
+		"00000000000000000000000000000001",
+	)
+	if err == nil || !strings.Contains(err.Error(), "fractional") {
+		t.Fatalf("fractional cursor error=%v", err)
+	}
+}
+
+func TestPartialPageFailureUsesDurableItemDeduplication(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"two","sys_updated_on":"2026-09-21 10:01:00"}]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	runtime.failWriteAt = 2
+	config := serviceNowContractConfig(t, server.URL)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err == nil {
+		t.Fatal("synthetic partial write succeeded")
+	}
+	if len(runtime.entries) != 1 {
+		t.Fatalf("accepted entries=%d want=1", len(runtime.entries))
+	}
+
+	runtime.failWriteAt = 0
+	restarted := New(config, processors.NewProcessorSet(runtime))
+	restarted.now = plugin.now
+	if err := restarted.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.entries) != 2 || string(runtime.entries[0].Data) == string(runtime.entries[1].Data) {
+		t.Fatalf("partial replay entries=%d data=%q", len(runtime.entries), []string{string(runtime.entries[0].Data), string(runtime.entries[len(runtime.entries)-1].Data)})
+	}
+}
+
+func TestCanceledProcessorWriteDoesNotAdvanceStateAndRetries(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"00000000000000000000000000000001","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	runtime.blockContextWrite = true
+	runtime.writeStarted = make(chan struct{})
+	config := serviceNowContractConfig(t, server.URL)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- plugin.collect(ctx, runtime, client, catalog["incidents"])
+	}()
+	select {
+	case <-runtime.writeStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("processor write did not block")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled collect error=%v want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("canceled processor write did not return")
+	}
+	if len(runtime.entries) != 0 {
+		t.Fatalf("canceled write delivered %d entries", len(runtime.entries))
+	}
+	key := config.StateNamespace() + "/incidents"
+	if _, exists, err := loadCursorIfExists(runtime, key); err != nil || exists {
+		t.Fatalf("canceled write advanced state: exists=%v err=%v", exists, err)
+	}
+
+	runtime.blockContextWrite = false
+	restarted := New(config, processors.NewProcessorSet(runtime))
+	restarted.now = plugin.now
+	if err := restarted.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.entries) != 1 {
+		t.Fatalf("retried entries=%d want=1", len(runtime.entries))
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Hashes) != 1 || state.Checkpoint.IsZero() {
+		t.Fatalf("retry state hashes=%d checkpoint=%v", len(state.Hashes), state.Checkpoint)
+	}
+}
+
+func TestTablePageCeilingResumesPersistedKeyset(t *testing.T) {
+	ids := []string{
+		"00000000000000000000000000000001",
+		"00000000000000000000000000000002",
+		"00000000000000000000000000000003",
+	}
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if got := r.URL.Query().Get("sysparm_offset"); got != "0" {
+			t.Fatalf("offset=%q want=0", got)
+		}
+		query := r.URL.Query().Get("sysparm_query")
+		if requests == 1 {
+			if strings.Contains(query, "^NQ") {
+				t.Fatalf("initial query unexpectedly contains keyset: %q", query)
+			}
+			_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"%s","sys_updated_on":"2026-09-21 10:00:00"},{"sys_id":"%s","sys_updated_on":"2026-09-21 10:01:00"}]}`, ids[0], ids[1])
+			return
+		}
+		for _, part := range []string{"sys_updated_on>2026-09-21 10:01:00", "^NQ", "sys_updated_on=2026-09-21 10:01:00", "sys_id>" + ids[1]} {
+			if !strings.Contains(query, part) {
+				t.Fatalf("resumed query %q missing %q", query, part)
+			}
+		}
+		_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"%s","sys_updated_on":"2026-09-21 10:02:00"}]}`, ids[2])
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 2
+	config.Max_Pages = 1
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadCursor(runtime, config.StateNamespace()+"/incidents")
+	if err != nil || state.Offset != 0 || state.PageID != ids[1] || state.PageTimestamp.IsZero() || state.WindowEnd.IsZero() {
+		t.Fatalf("ceiling state=%+v err=%v", state, err)
+	}
+	restarted := New(config, processors.NewProcessorSet(runtime))
+	restarted.now = plugin.now
+	if err := restarted.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.entries) != 3 {
+		t.Fatalf("entries=%d want=3", len(runtime.entries))
+	}
+	state, err = loadCursor(runtime, config.StateNamespace()+"/incidents")
+	if err != nil || state.Offset != 0 || state.PageID != "" || !state.PageTimestamp.IsZero() || !state.WindowEnd.IsZero() {
+		t.Fatalf("drained state=%+v err=%v", state, err)
+	}
+}
+
+func TestTablePageSizeOneRestartAdvancesKeyset(t *testing.T) {
+	ids := []string{
+		"00000000000000000000000000000001",
+		"00000000000000000000000000000002",
+		"00000000000000000000000000000003",
+	}
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("sysparm_limit"); got != "1" {
+			t.Fatalf("limit=%q want=1", got)
+		}
+		query := r.URL.Query().Get("sysparm_query")
+		if requests == 0 {
+			if strings.Contains(query, "^NQ") {
+				t.Fatalf("initial query unexpectedly contains keyset: %q", query)
+			}
+		} else {
+			for _, part := range []string{"^NQ", "sys_id>" + ids[requests-1]} {
+				if !strings.Contains(query, part) {
+					t.Fatalf("request %d query %q missing %q", requests+1, query, part)
+				}
+			}
+		}
+		if requests < len(ids) {
+			_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"%s","sys_updated_on":"2026-09-21 10:0%d:00"}]}`, ids[requests], requests)
+		} else {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+		}
+		requests++
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 1
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	for cycle := 0; cycle < len(ids)+1; cycle++ {
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return now }
+		if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+			t.Fatalf("cycle %d: %v", cycle+1, err)
+		}
+	}
+	if requests != 4 || len(runtime.entries) != len(ids) {
+		t.Fatalf("requests=%d entries=%d want requests=4 entries=%d", requests, len(runtime.entries), len(ids))
+	}
+	state, err := loadCursor(runtime, config.StateNamespace()+"/incidents")
+	if err != nil || state.PageID != "" || !state.PageTimestamp.IsZero() || !state.WindowEnd.IsZero() || !state.Checkpoint.Equal(time.Date(2026, 9, 21, 10, 2, 0, 0, time.UTC)) {
+		t.Fatalf("drained state=%+v err=%v", state, err)
+	}
+}
+
+func TestSafeOverrideFilterPageSizeOneZeroOverlapAdvancesOldestFirst(t *testing.T) {
+	ids := []string{
+		"00000000000000000000000000000001",
+		"00000000000000000000000000000002",
+		"00000000000000000000000000000003",
+	}
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("sysparm_query")
+		if !strings.Contains(query, "active=true^short_descriptionLIKEORDERBY review") {
+			t.Fatalf("request %d query=%q missing safe override filter", requests+1, query)
+		}
+		if !strings.HasSuffix(query, "^ORDERBYsys_updated_on^ORDERBYsys_id") {
+			t.Fatalf("request %d query=%q does not end with the owned ascending keyset order", requests+1, query)
+		}
+		if requests > 0 && !strings.Contains(query, "sys_id>"+ids[requests-1]) {
+			t.Fatalf("request %d query=%q missing durable keyset", requests+1, query)
+		}
+		if requests < len(ids) {
+			_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"%s","sys_updated_on":"2026-09-21 10:0%d:00"}]}`, ids[requests], requests)
+		} else {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+		}
+		requests++
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 1
+	config.Overlap = intPointer(0)
+	dataset := catalog["incidents"]
+	dataset.Query = "active=true^short_descriptionLIKEORDERBY review"
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	for cycle := 0; cycle < len(ids)+1; cycle++ {
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return now }
+		if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+			t.Fatalf("cycle %d: %v", cycle+1, err)
+		}
+	}
+	if requests != len(ids)+1 || len(runtime.entries) != len(ids) {
+		t.Fatalf("requests=%d entries=%d want requests=%d entries=%d", requests, len(runtime.entries), len(ids)+1, len(ids))
+	}
+	for i, entry := range runtime.entries {
+		if !bytes.Contains(entry.Data, []byte(ids[i])) {
+			t.Fatalf("entry %d=%q want oldest-first id %q", i, entry.Data, ids[i])
+		}
+	}
+}
+
+func TestNoOffsetPageCeilingResumesPersistedContinuation(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "2" {
+			_, _ = w.Write([]byte(`{"result":[{"id":"two","updated":"2026-09-21T10:01:00Z"}]}`))
+			return
+		}
+		w.Header().Set("Link", `<`+server.URL+r.URL.Path+`?page=2>; rel="next"`)
+		_, _ = w.Write([]byte(`{"result":[{"id":"one","updated":"2026-09-21T10:00:00Z"}]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Max_Pages = 1
+	dataset := Dataset{Name: "no-offset", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "updated", REST: &RESTSpec{Path: "/api/no-offset", ResultPath: "result", IDField: "id"}}
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatal(err)
+	}
+	key := config.StateNamespace() + "/" + dataset.Name
+	state, err := loadCursor(runtime, key)
+	if err != nil || state.NextURL == "" || state.WindowEnd.IsZero() {
+		t.Fatalf("ceiling state=%+v err=%v", state, err)
+	}
+	restarted := New(config, processors.NewProcessorSet(runtime))
+	restarted.now = plugin.now
+	if err := restarted.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.entries) != 2 {
+		t.Fatalf("entries=%d want=2", len(runtime.entries))
+	}
+	state, err = loadCursor(runtime, key)
+	if err != nil || state.NextURL != "" || !state.WindowEnd.IsZero() {
+		t.Fatalf("drained state=%+v err=%v", state, err)
+	}
+}
+
+func TestMutableSnapshotMutationRepeatAndDeletionContract(t *testing.T) {
+	response := `{"result":[{"id":"one","created":"2026-09-20T10:00:00Z","value":"first"}]}`
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	dataset := Dataset{Name: "snapshot", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created", REST: &RESTSpec{Path: "/api/snapshot", ResultPath: "result", IDField: "id"}}
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	current := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	poll := func() {
+		t.Helper()
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return current }
+		if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+			t.Fatal(err)
+		}
+		current = current.Add(time.Second)
+	}
+	poll()
+	response = `{"result":[{"id":"one","created":"2026-09-20T10:00:00Z","value":"changed"}]}`
+	poll()
+	poll()
+	if len(runtime.entries) != 2 {
+		t.Fatalf("mutation/repeat entries=%d want=2", len(runtime.entries))
+	}
+	response = `{"result":[]}`
+	poll()
+	state, err := loadCursor(runtime, config.StateNamespace()+"/snapshot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := state.Hashes["one"]; exists || len(runtime.entries) != 2 {
+		t.Fatalf("snapshot deletion state=%+v entries=%d", state, len(runtime.entries))
+	}
+	response = `{"result":[{"id":"one","created":"2026-09-20T10:00:00Z","value":"changed"}]}`
+	poll()
+	if len(runtime.entries) != 3 {
+		t.Fatalf("reappearing snapshot entries=%d want=3", len(runtime.entries))
+	}
+}
+
+func TestOffsetSnapshotExactMultipleTerminalRejectionCompletesSameCycle(t *testing.T) {
+	requests := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		switch r.URL.Query().Get("offset") {
+		case "0":
+			_, _ = w.Write([]byte(`{"result":[{"id":"current","created":"2026-09-20T10:00:00Z","value":"stable"}]}`))
+		case "1":
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Illegal query parameters"}}`))
+		default:
+			t.Fatalf("unexpected offset %q", r.URL.Query().Get("offset"))
+		}
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 3
+	dataset := Dataset{
+		Name: "same-cycle-offset-snapshot", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created",
+		REST: &RESTSpec{Path: "/api/same-cycle-offset-snapshot", ResultPath: "result", IDField: "id", LimitParameter: "limit", OffsetParameter: "offset"},
+	}
+	key := config.StateNamespace() + "/" + dataset.Name
+	initialCheckpoint := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	if err := saveCursor(runtime, key, cursorState{
+		Checkpoint:     initialCheckpoint,
+		SourceContract: config.SourceContractFingerprint(dataset),
+		Seen:           map[string]time.Time{"stale": initialCheckpoint},
+		Hashes:         map[string][32]byte{"stale": {1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewClient(server.URL, config.Secret_File, time.Second, 0, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	completedAt := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	plugin.now = func() time.Time { return completedAt }
+	if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatalf("same-cycle terminal offset returned a false failure after %d requests: %v", requests, err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 || !state.Checkpoint.Equal(completedAt) || !state.WindowEnd.IsZero() || !state.HighWater.IsZero() || state.Offset != 0 || state.NextURL != "" || state.PageID != "" || !state.PageTimestamp.IsZero() {
+		t.Fatalf("same-cycle terminal completion requests=%d state=%+v", requests, state)
+	}
+	if _, exists := state.Hashes["stale"]; exists {
+		t.Fatalf("same-cycle terminal completion retained stale identity: state=%+v", state)
+	}
+	if _, exists := state.Hashes["current"]; !exists || len(runtime.entries) != 1 {
+		t.Fatalf("same-cycle terminal completion hashes=%v entries=%d", state.Hashes, len(runtime.entries))
+	}
+}
+
+func TestNoOffsetSnapshotStaleContinuationRejectionCompletesSameCycle(t *testing.T) {
+	requests := 0
+	var server *httptest.Server
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Query().Get("sysparm_offset") == "1" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Illegal query parameters"}}`))
+			return
+		}
+		w.Header().Set("Link", `<`+server.URL+r.URL.Path+`?sysparm_offset=1>; rel="next"`)
+		_, _ = w.Write([]byte(`{"result":[{"id":"current","created":"2026-09-20T10:00:00Z","value":"stable"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 3
+	dataset := Dataset{
+		Name: "stale-continuation-snapshot", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created",
+		REST: &RESTSpec{Path: "/api/stale-continuation-snapshot", ResultPath: "result", IDField: "id"},
+	}
+	key := config.StateNamespace() + "/" + dataset.Name
+	initialCheckpoint := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	if err := saveCursor(runtime, key, cursorState{
+		Checkpoint:     initialCheckpoint,
+		SourceContract: config.SourceContractFingerprint(dataset),
+		Seen:           map[string]time.Time{"stale": initialCheckpoint},
+		Hashes:         map[string][32]byte{"stale": {1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewClient(server.URL, config.Secret_File, time.Second, 0, 60000, server.Client().Transport)
+	completedAt := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return completedAt }
+	if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatalf("stale continuation returned a false failure after %d requests: %v", requests, err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 || !state.Checkpoint.Equal(completedAt) || !state.WindowEnd.IsZero() || !state.HighWater.IsZero() || state.NextURL != "" || state.Offset != 0 {
+		t.Fatalf("stale continuation completion requests=%d state=%+v", requests, state)
+	}
+	if _, exists := state.Hashes["stale"]; exists {
+		t.Fatalf("stale continuation completion retained stale identity: state=%+v", state)
+	}
+	if _, exists := state.Hashes["current"]; !exists || len(runtime.entries) != 1 {
+		t.Fatalf("stale continuation completion hashes=%v entries=%d", state.Hashes, len(runtime.entries))
+	}
+
+	// The next poll opens a fresh window instead of replaying the rejected
+	// continuation forever.
+	nextAt := completedAt.Add(time.Hour)
+	next := New(config, processors.NewProcessorSet(runtime))
+	next.now = func() time.Time { return nextAt }
+	if err := next.collect(context.Background(), runtime, client, dataset); err != nil {
+		t.Fatalf("poll after stale continuation completion failed: %v", err)
+	}
+	if state, err = loadCursor(runtime, key); err != nil || !state.Checkpoint.Equal(nextAt) || state.NextURL != "" {
+		t.Fatalf("poll after stale continuation completion state=%+v err=%v", state, err)
+	}
+}
+
+func TestOffsetTerminalRejectionExcludedCasesRemainHardFailures(t *testing.T) {
+	tests := []struct {
+		name        string
+		status      int
+		message     string
+		offsetBased bool
+		failAtZero  bool
+	}{
+		{name: "different 400 body", status: http.StatusBadRequest, message: "Invalid query detected", offsetBased: true},
+		{name: "different status", status: http.StatusInternalServerError, message: "Illegal query parameters", offsetBased: true},
+		{name: "offset zero", status: http.StatusBadRequest, message: "Illegal query parameters", offsetBased: true, failAtZero: true},
+		{name: "no offset parameter", status: http.StatusBadRequest, message: "Illegal query parameters", failAtZero: true},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			requests := 0
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if !test.failAtZero && r.URL.Query().Get("offset") == "0" {
+					_, _ = w.Write([]byte(`{"result":[{"id":"one","created":"2026-09-20T10:00:00Z"}]}`))
+					return
+				}
+				w.WriteHeader(test.status)
+				_, _ = fmt.Fprintf(w, `{"error":{"message":%q}}`, test.message)
+			}))
+			defer server.Close()
+
+			config := serviceNowContractConfig(t, server.URL)
+			config.Page_Size = 1
+			config.Max_Pages = 3
+			config.Max_Retries = intPointer(0)
+			rest := &RESTSpec{Path: "/api/excluded-terminal", ResultPath: "result", IDField: "id", LimitParameter: "limit"}
+			if test.offsetBased {
+				rest.OffsetParameter = "offset"
+			}
+			dataset := Dataset{Name: "excluded-terminal", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created", REST: rest}
+			runtime := newServiceNowContractRuntime()
+			client := NewClient(server.URL, config.Secret_File, time.Second, 0, 60000, server.Client().Transport)
+			plugin := New(config, processors.NewProcessorSet(runtime))
+			plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+			if err := plugin.collect(context.Background(), runtime, client, dataset); err == nil {
+				t.Fatalf("excluded terminal condition succeeded after %d requests", requests)
+			}
+			if !test.failAtZero {
+				state, err := loadCursor(runtime, config.StateNamespace()+"/"+dataset.Name)
+				if err != nil || state.Offset != 1 || state.WindowEnd.IsZero() || !state.Checkpoint.Before(state.WindowEnd) {
+					t.Fatalf("hard failure lost recoverable continuation: state=%+v err=%v", state, err)
+				}
+			}
+		})
+	}
+}
+
+func TestOffsetSnapshotExactMultipleTerminalRejectionCompletesAcrossRestarts(t *testing.T) {
+	present := true
+	var offsets []string
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offset := r.URL.Query().Get("offset")
+		offsets = append(offsets, offset)
+		if offset == "1" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Illegal query parameters"}}`))
+			return
+		}
+		if !present {
+			_, _ = w.Write([]byte(`{"result":[]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"result":[{"id":"one","created":"2026-09-20T10:00:00Z","value":"stable"}]}`))
+	}))
+	defer server.Close()
+
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Page_Size = 1
+	config.Max_Pages = 1
+	dataset := Dataset{
+		Name: "offset-snapshot", Product: "ITSM", Tag: "servicenow-itsm", Timestamp: "created",
+		REST: &RESTSpec{Path: "/api/offset-snapshot", ResultPath: "result", IDField: "id", LimitParameter: "limit", OffsetParameter: "offset"},
+	}
+	key := config.StateNamespace() + "/" + dataset.Name
+	initialCheckpoint := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	if err := saveCursor(runtime, key, cursorState{
+		Checkpoint:     initialCheckpoint,
+		SourceContract: config.SourceContractFingerprint(dataset),
+		Seen:           map[string]time.Time{"stale": initialCheckpoint},
+		Hashes:         map[string][32]byte{"stale": {1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	current := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	poll := func() {
+		t.Helper()
+		plugin := New(config, processors.NewProcessorSet(runtime))
+		plugin.now = func() time.Time { return current }
+		if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+			t.Fatal(err)
+		}
+		current = current.Add(time.Second)
+	}
+
+	// The first full page persists offset 1. A recreated job then receives the
+	// ServiceNow terminal-offset rejection and must complete the fixed snapshot.
+	completedAt := current
+	poll()
+	poll()
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.Checkpoint.Equal(completedAt) || !state.WindowEnd.IsZero() || !state.HighWater.IsZero() || state.Offset != 0 || state.NextURL != "" || state.PageID != "" || !state.PageTimestamp.IsZero() {
+		t.Fatalf("terminal rejection did not complete snapshot: state=%+v", state)
+	}
+	if _, exists := state.Hashes["stale"]; exists {
+		t.Fatalf("terminal completion retained stale identity: state=%+v", state)
+	}
+	if _, exists := state.Hashes["one"]; !exists || len(runtime.entries) != 1 {
+		t.Fatalf("terminal completion hashes=%v entries=%d", state.Hashes, len(runtime.entries))
+	}
+
+	// A later empty snapshot prunes the item without a tombstone. Reappearance
+	// must emit it again, and its own exact-page terminal rejection must finish.
+	present = false
+	deletedAt := current
+	poll()
+	state, err = loadCursor(runtime, key)
+	if err != nil || !state.Checkpoint.Equal(deletedAt) || len(state.Hashes) != 0 || len(state.Seen) != 0 || len(runtime.entries) != 1 {
+		t.Fatalf("deleted snapshot state=%+v entries=%d err=%v", state, len(runtime.entries), err)
+	}
+	present = true
+	reappearedAt := current
+	poll()
+	poll()
+	state, err = loadCursor(runtime, key)
+	if err != nil || !state.Checkpoint.Equal(reappearedAt) || !state.WindowEnd.IsZero() || state.Offset != 0 || len(state.Hashes) != 1 || len(runtime.entries) != 2 {
+		t.Fatalf("reappeared snapshot state=%+v entries=%d err=%v", state, len(runtime.entries), err)
+	}
+	if got, want := strings.Join(offsets, ","), "0,1,0,0,1"; got != want {
+		t.Fatalf("offset sequence=%q want=%q", got, want)
+	}
+}
+
+func TestEndpointCatalogMutableSnapshotContract(t *testing.T) {
+	for _, dataset := range EndpointCatalog() {
+		dataset := dataset
+		t.Run(dataset.Name, func(t *testing.T) {
+			value := "first"
+			present := true
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !present {
+					_, _ = w.Write([]byte(`{"result":[]}`))
+					return
+				}
+				if dataset.REST.StaticID != "" {
+					_, _ = fmt.Fprintf(w, `{"result":{"stats":{"count":"1"},"sys_updated_on":"2026-09-20 10:00:00","value":%q}}`, value)
+					return
+				}
+				_, _ = fmt.Fprintf(w, `{"result":[{"sys_id":"one","sys_updated_on":"2026-09-20 10:00:00","value":%q}]}`, value)
+			}))
+			defer server.Close()
+			runtime := newServiceNowContractRuntime()
+			config := serviceNowContractConfig(t, server.URL)
+			client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+			current := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+			poll := func() {
+				t.Helper()
+				plugin := New(config, processors.NewProcessorSet(runtime))
+				plugin.now = func() time.Time { return current }
+				if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+					t.Fatal(err)
+				}
+				current = current.Add(time.Second)
+			}
+			poll()
+			value = "changed"
+			poll()
+			poll()
+			if len(runtime.entries) != 2 {
+				t.Fatalf("mutation/repeat entries=%d want=2", len(runtime.entries))
+			}
+			present = false
+			poll()
+			if len(runtime.entries) != 2 {
+				t.Fatalf("deletion emitted tombstone entries=%d", len(runtime.entries))
+			}
+			state, err := loadCursor(runtime, config.StateNamespace()+"/"+dataset.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			identity := "one"
+			if dataset.REST.StaticID != "" {
+				identity = dataset.REST.StaticID
+			}
+			if _, exists := state.Hashes[identity]; exists {
+				t.Fatalf("absent snapshot identity %q retained", identity)
+			}
+			present = true
+			poll()
+			if len(runtime.entries) != 3 {
+				t.Fatalf("reappearing snapshot entries=%d want=3", len(runtime.entries))
+			}
+		})
+	}
+}
+
+func TestNormalizedFallbackStateCopiesWithoutDeletingSourceState(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	checkpoint := time.Date(2026, 9, 20, 10, 0, 0, 0, time.UTC)
+	fallbackKey := "servicenow-normalization-v2/incidents"
+	config := serviceNowContractConfig(t, server.URL)
+	config.Normalization = "enabled"
+	encoded, err := json.Marshal(cursorState{
+		Checkpoint: checkpoint, SourceContract: config.SourceContractFingerprint(catalog["incidents"]),
+		Seen: map[string]time.Time{}, Hashes: map[string][32]byte{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime.state[fallbackKey] = encoded
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	currentKey := config.StateNamespace() + "/incidents"
+	state, err := loadCursor(runtime, currentKey)
+	if err != nil || !state.Checkpoint.Equal(checkpoint) {
+		t.Fatalf("copied state=%+v err=%v", state, err)
+	}
+	if _, exists := runtime.state[fallbackKey]; !exists {
+		t.Fatal("fallback source state was deleted")
+	}
+}
+
+func TestLegacyCursorWithoutSourceContractResetsToBoundedLookback(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	oldCheckpoint := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	encoded, err := json.Marshal(cursorState{Checkpoint: oldCheckpoint, Seen: map[string]time.Time{}, Hashes: map[string][32]byte{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := serviceNowContractConfig(t, server.URL)
+	key := config.StateNamespace() + "/incidents"
+	runtime.state[key] = encoded
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return now }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCheckpoint := now.Add(-24 * time.Hour)
+	if !state.Checkpoint.Equal(wantCheckpoint) || state.SourceContract != config.SourceContractFingerprint(catalog["incidents"]) {
+		t.Fatalf("legacy state was not reset to bounded replay: state=%+v want_checkpoint=%v", state, wantCheckpoint)
+	}
+}
+
+func TestPriorSourceContractVersionResetsToBoundedLookback(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	oldCheckpoint := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	encoded, err := json.Marshal(cursorState{
+		Checkpoint: oldCheckpoint, SourceContract: "v1:" + strings.Repeat("0", 64),
+		Seen: map[string]time.Time{}, Hashes: map[string][32]byte{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := serviceNowContractConfig(t, server.URL)
+	key := config.StateNamespace() + "/incidents"
+	runtime.state[key] = encoded
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return now }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); err != nil {
+		t.Fatal(err)
+	}
+	state, err := loadCursor(runtime, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCheckpoint := now.Add(-24 * time.Hour)
+	if !state.Checkpoint.Equal(wantCheckpoint) || !strings.HasPrefix(state.SourceContract, "v2:") {
+		t.Fatalf("prior contract state was not reset: state=%+v want_checkpoint=%v", state, wantCheckpoint)
+	}
+}
+
+func TestSourceContractChangesResetCursorWithBoundedReplay(t *testing.T) {
+	now := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)
+	response := `{"result":[{"sys_id":"same","sys_updated_on":"2026-09-21 10:00:00"}]}`
+
+	tests := []struct {
+		name       string
+		oldConfig  func(*testing.T, string) *Config
+		newConfig  func(*testing.T, string) *Config
+		oldDataset func(*testing.T, *Config) Dataset
+		newDataset func(*testing.T, *Config) Dataset
+	}{
+		{
+			name: "instance",
+			oldConfig: func(t *testing.T, instance string) *Config {
+				return serviceNowContractConfig(t, instance)
+			},
+			newConfig: func(t *testing.T, instance string) *Config {
+				return serviceNowContractConfig(t, instance+"/changed")
+			},
+			oldDataset: func(_ *testing.T, _ *Config) Dataset { return catalog["incidents"] },
+			newDataset: func(_ *testing.T, _ *Config) Dataset { return catalog["incidents"] },
+		},
+		{
+			name: "table override",
+			oldConfig: func(t *testing.T, instance string) *Config {
+				return serviceNowContractConfig(t, instance)
+			},
+			newConfig: func(t *testing.T, instance string) *Config {
+				config := serviceNowContractConfig(t, instance)
+				config.Table_Override = []string{`incidents={"Table":"problem"}`}
+				return config
+			},
+			oldDataset: func(_ *testing.T, _ *Config) Dataset { return catalog["incidents"] },
+			newDataset: func(t *testing.T, config *Config) Dataset {
+				config.API = []string{"incidents"}
+				datasets, err := config.Datasets()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return datasets[0]
+			},
+		},
+		{
+			name: "custom endpoint",
+			oldConfig: func(t *testing.T, instance string) *Config {
+				config := serviceNowContractConfig(t, instance)
+				config.API_Endpoint = []string{`custom={"Product":"Test","Path":"/api/example/v1/old","Tag":"servicenow-test","Static_ID":"same","Required_Role":"reader","Documentation":"https://www.servicenow.com/docs/r/example"}`}
+				return config
+			},
+			newConfig: func(t *testing.T, instance string) *Config {
+				config := serviceNowContractConfig(t, instance)
+				config.API_Endpoint = []string{`custom={"Product":"Test","Path":"/api/example/v2/new","Tag":"servicenow-test","Static_ID":"same","Required_Role":"reader","Documentation":"https://www.servicenow.com/docs/r/example"}`}
+				return config
+			},
+			oldDataset: func(t *testing.T, config *Config) Dataset {
+				datasets, err := config.EndpointDatasets()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return datasets[0]
+			},
+			newDataset: func(t *testing.T, config *Config) Dataset {
+				datasets, err := config.EndpointDatasets()
+				if err != nil {
+					t.Fatal(err)
+				}
+				return datasets[0]
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(response))
+			}))
+			defer server.Close()
+			runtime := newServiceNowContractRuntime()
+			poll := func(config *Config, dataset Dataset) {
+				client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+				plugin := New(config, processors.NewProcessorSet(runtime))
+				plugin.now = func() time.Time { return now }
+				if err := plugin.collect(context.Background(), runtime, client, dataset); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			oldConfig := test.oldConfig(t, server.URL)
+			poll(oldConfig, test.oldDataset(t, oldConfig))
+			newConfig := test.newConfig(t, server.URL)
+			poll(newConfig, test.newDataset(t, newConfig))
+			if len(runtime.entries) != 2 {
+				t.Fatalf("source-contract change reused incompatible deduplication state: entries=%d want=2", len(runtime.entries))
+			}
+		})
+	}
+}
+
+func TestSourceFailureDoesNotStarveLaterDataset(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/now/table/incident" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"problem","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	config := serviceNowContractConfig(t, server.URL)
+	config.Table = []string{"incident", "problem"}
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	if _, err := plugin.Handle(context.Background(), runtime); err == nil {
+		t.Fatal("failing source was not reported")
+	}
+	if len(runtime.entries) != 1 || !bytes.Contains(runtime.entries[0].Data, []byte(`"problem"`)) {
+		t.Fatalf("later source entries=%d data=%v", len(runtime.entries), runtime.entries)
+	}
+}
+
+func TestTagNegotiationFailurePreventsDeliveryAndCheckpointAdvance(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[{"sys_id":"one","sys_updated_on":"2026-09-21 10:00:00"}]}`))
+	}))
+	defer server.Close()
+	runtime := newServiceNowContractRuntime()
+	runtime.tagErr = errors.New("synthetic tag failure")
+	config := serviceNowContractConfig(t, server.URL)
+	client := NewClient(server.URL, config.Secret_File, time.Second, 1, 60000, server.Client().Transport)
+	plugin := New(config, processors.NewProcessorSet(runtime))
+	plugin.now = func() time.Time { return time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC) }
+	if err := plugin.collect(context.Background(), runtime, client, catalog["incidents"]); !errors.Is(err, runtime.tagErr) {
+		t.Fatalf("error=%v", err)
+	}
+	if len(runtime.entries) != 0 {
+		t.Fatalf("entries=%d", len(runtime.entries))
+	}
+	if _, exists := runtime.state[config.StateNamespace()+"/incidents"]; exists {
+		t.Fatal("tag failure persisted checkpoint state")
+	}
+}
