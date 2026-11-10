@@ -51,10 +51,15 @@ const (
 	QueryOptionsDefaultLimit = 100
 	QueryOptionsMaxLimit     = 1000
 	QueryOptionsMaxVersion   = 2147483647
+	// Caps on Filters, which keep the generated SQL within SQLite's limits.
+	QueryOptionsMaxFilters      = 30
+	QueryOptionsMaxFilterValues = 100
 )
 
 var ErrBadQueryOptionsLimit = fmt.Errorf("limit must be 0 < x <= %d", QueryOptionsMaxLimit)
 var ErrBadQueryOptionsVersion = fmt.Errorf("version must be -1 <= x <= %d", QueryOptionsMaxVersion)
+var ErrTooManyFilters = fmt.Errorf("at most %d filters are allowed", QueryOptionsMaxFilters)
+var ErrTooManyFilterValues = fmt.Errorf("a filter can have at most %d values", QueryOptionsMaxFilterValues)
 
 // DefaultQueryOptions returns a QueryOptions with the default values as expected by the api spec.
 // An empty request against a list endpoint will default to these values.
@@ -71,6 +76,14 @@ func (qo QueryOptions) Validate() error {
 	}
 	if qo.Version < -1 {
 		return ErrBadQueryOptionsVersion
+	}
+	if len(qo.Filters) > QueryOptionsMaxFilters {
+		return fmt.Errorf("%w, got %d", ErrTooManyFilters, len(qo.Filters))
+	}
+	for _, f := range qo.Filters {
+		if len(f.Values) > QueryOptionsMaxFilterValues {
+			return fmt.Errorf("%w, filter %q has %d", ErrTooManyFilterValues, f.Key, len(f.Values))
+		}
 	}
 	return nil
 }
