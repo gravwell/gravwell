@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/slack"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
@@ -34,6 +35,7 @@ type Configs struct {
 	Tester   map[string]*tester.Config
 	Jamf     map[string]*jamf.Config
 	Wiz      map[string]*wiz.Config
+	Slack    map[string]*slack.Config
 	SQS      map[string]*sqs.Config
 }
 
@@ -109,6 +111,16 @@ func (c Configs) Verify() (err error) {
 			return
 		}
 	}
+	for k, v := range c.Slack {
+		if v == nil {
+			err = fmt.Errorf("Slack config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("Slack config %q failed validation %w", k, err)
+			return
+		}
+	}
 	return
 }
 
@@ -135,12 +147,15 @@ func (c Configs) Tags() (tags []string, err error) {
 	for _, v := range c.SQS {
 		tags = append(tags, v.Tags()...)
 	}
+	for _, v := range c.Slack {
+		tags = append(tags, v.Tags()...)
+	}
 	return
 }
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS) + len(c.Slack)
 	return
 }
 
@@ -190,6 +205,11 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.SQS {
 			if !yield(name, NewSQSBuilder(config, sqs.Name, sqs.ID, sqs.Version)) {
+				return
+			}
+		}
+		for name, config := range c.Slack {
+			if !yield(name, NewSlackBuilder(config, slack.Name, slack.ID, slack.Version)) {
 				return
 			}
 		}
