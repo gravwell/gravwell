@@ -48,10 +48,9 @@ type QueryOptions struct {
 }
 
 const (
-	QueryOptionsDefaultLimit = 100
-	QueryOptionsMaxLimit     = 1000
-	QueryOptionsMaxVersion   = 2147483647
-	// Caps on Filters, which keep the generated SQL within SQLite's limits.
+	QueryOptionsDefaultLimit    = 100
+	QueryOptionsMaxLimit        = 1000
+	QueryOptionsMaxVersion      = 2147483647
 	QueryOptionsMaxFilters      = 30
 	QueryOptionsMaxFilterValues = 100
 )
