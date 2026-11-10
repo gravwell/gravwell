@@ -22,6 +22,7 @@ func TestDeriveFlagName(t *testing.T) {
 		{"unaffected", "input", "input"},
 		{"replaced", `i\n.p/u"t v|a'lue`, "i-n-p-u-t-v-a-lue"},
 		{"uppercase", "not SHOUTING", "not-shouting"},
+		{"drop", "?!", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
