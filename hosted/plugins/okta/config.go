@@ -33,6 +33,9 @@ const (
 
 var (
 	Tags []string = []string{oktaTag, oktaUserTag}
+
+	// parent domains of Okta org URLs, as listed by the org picker at login.okta.com
+	oktaDomainSuffixes = []string{`.okta.com`, `.okta-emea.com`, `.okta-gov.com`, `.okta.mil`, `.oktapreview.com`}
 )
 
 type Config struct {
@@ -84,7 +87,7 @@ func (c *Config) Verify() (err error) {
 	}
 	if c.Domain == `` {
 		return errors.New("missing okta domain")
-	} else if !strings.HasSuffix(c.Domain, `okta.com`) {
+	} else if !isOktaDomain(c.Domain) {
 		err = fmt.Errorf("%q is not an okta domain", c.Domain)
 		return
 	}
@@ -94,4 +97,16 @@ func (c *Config) Verify() (err error) {
 	}
 
 	return
+}
+
+// isOktaDomain reports whether d is an org host under one of the Okta parent domains.
+// Matching on a leading dot rejects look-alike hosts such as example-notokta.com.
+func isOktaDomain(d string) bool {
+	d = strings.ToLower(d)
+	for _, sfx := range oktaDomainSuffixes {
+		if strings.HasSuffix(d, sfx) {
+			return true
+		}
+	}
+	return false
 }
