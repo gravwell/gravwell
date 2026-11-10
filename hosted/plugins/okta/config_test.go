@@ -61,6 +61,22 @@ func TestConfig_Verify(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "valid preview domain",
+			cfg: Config{
+				Token:  "token",
+				Domain: "example.oktapreview.com",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid look-alike domain",
+			cfg: Config{
+				Token:  "token",
+				Domain: "example-notokta.com",
+			},
+			wantErr: true,
+		},
+		{
 			name: "invalid fallback UUID",
 			cfg: Config{
 				Token:      "token",
@@ -172,6 +188,33 @@ func TestConfig_Verify_DomainContainsOkta(t *testing.T) {
 	}
 	if !strings.HasSuffix(cfg.Domain, "okta.com") {
 		t.Error("domain should end with okta.com")
+	}
+}
+
+func TestIsOktaDomain(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		domain string
+		want   bool
+	}{
+		{"example.okta.com", true},
+		{"example-admin.okta.com", true},
+		{"Example.Okta.com", true},
+		{"example.oktapreview.com", true},
+		{"example.okta-emea.com", true},
+		{"example.okta-gov.com", true},
+		{"example.okta.mil", true},
+		{"okta.com", false},
+		{"example-notokta.com", false},
+		{"example.okta.com.evil.com", false},
+		{"login.example.com", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := isOktaDomain(tt.domain); got != tt.want {
+			t.Errorf("isOktaDomain(%q) = %v, want %v", tt.domain, got, tt.want)
+		}
 	}
 }
 
