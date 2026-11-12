@@ -42,6 +42,27 @@ type ScheduledError struct {
 	Timestamp time.Time
 }
 
+// ClearResultsSkipReason is the enumerated reasons an individual ID was skipped.
+type ClearResultsSkipReason string
+
+const (
+	ClearResponseSkipNotFound         ClearResultsSkipReason = "not_found"
+	ClearResponseSkipPermissionDenied ClearResultsSkipReason = "permission_denied"
+)
+
+// ClearResultsSkip contains the ID of an item that was skipped and why.
+type ClearResultsSkip struct {
+	ID     string
+	Reason ClearResultsSkipReason
+}
+
+// ClearResultsResponse answers requests that clear automation results with the number of items
+// successfully deleted and which items were skipped and why.
+type ClearResultsResponse struct {
+	Deleted int32
+	Skipped []ClearResultsSkip
+}
+
 type FlowNodeResult struct {
 	Payload map[string]interface{}
 	ID      int    // the node ID
