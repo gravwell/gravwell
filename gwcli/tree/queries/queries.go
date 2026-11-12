@@ -273,7 +273,7 @@ func save() action.Pair {
 			if expire, err := addtlFlags.GetTime("expire"); err != nil {
 				clilog.GetFlag(err)
 			} else if !expire.IsZero() {
-				ssp.Expires = expire
+				ssp.Expires = types.NewNullable(expire)
 			}
 			results = make([]scaffold.Result, len(IDs))
 			for i, ID := range IDs {

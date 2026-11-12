@@ -700,3 +700,66 @@ func TestSearchSessionRefreshResultErrors(t *testing.T) {
 		t.Fatalf("both-variants error = %v, want ErrSearchSessionRefreshResultAmbiguous", err)
 	}
 }
+
+// TestSearchLaunchInfoExpiresJSON checks the wire form of Expires: a set
+// expiry is a timestamp, no expiry is null, and both decode back.
+func TestSearchLaunchInfoExpiresJSON(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	b, err := v2.Marshal(SearchLaunchInfo{Expires: NewNullable(expires)}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("a set expiry must encode as a timestamp, got %s", b)
+	}
+	var li SearchLaunchInfo
+	if err = v2.Unmarshal(b, &li, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Fatalf("expires = %v, want %v", li.Expires, expires)
+	}
+
+	if b, err = v2.Marshal(SearchLaunchInfo{}, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("no expiry must encode as null, got %s", b)
+	}
+	li = SearchLaunchInfo{Expires: NewNullable(expires)}
+	if err = v2.Unmarshal(b, &li, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !li.Expires.IsNull() {
+		t.Fatalf("expires = %v, want null", li.Expires)
+	}
+}
+
+// TestSaveSearchPatchMergeLaunchInfoExpires checks how a save patch changes
+// the expiry: the patch's value always wins, and the same instant in another
+// time zone is not a change.
+func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+
+	li := SearchLaunchInfo{Expires: NewNullable(expires)}
+	if changed := (SaveSearchPatch{}).MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with no expiry must report a change")
+	}
+	if !li.Expires.IsNull() {
+		t.Errorf("expires = %v, want null", li.Expires)
+	}
+
+	var patch SaveSearchPatch
+	patch.Expires = NewNullable(expires)
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with an expiry must report a change")
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Errorf("expires = %v, want %v", li.Expires, expires)
+	}
+
+	patch.Expires = NewNullable(expires.In(time.FixedZone("offset", 3600)))
+	if changed := patch.MergeLaunchInfo(&li); changed {
+		t.Error("the same instant in another time zone must not report a change")
+	}
+}

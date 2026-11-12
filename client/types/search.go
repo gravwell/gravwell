@@ -413,9 +413,9 @@ type SearchLaunchInfo struct {
 	// the GUI and/or clients on when the query was actually started.
 	Started time.Time
 
-	// Expires marks when when the search should expire/be deleted,
-	// it may be the zero value which means never
-	Expires time.Time
+	// Expires marks when the search should expire/be deleted,
+	// null means never
+	Expires Nullable[time.Time]
 }
 
 // A RendererSettings has the information necessary for client to render searches using legacy renderer modules.
@@ -847,13 +847,14 @@ func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 		li.Reference = p.Reference
 		changed = true
 	}
-	// the expiration is special, we ALWAYS take the experation, even if its the zero value.
+	// the expiration is special, we ALWAYS take the experation, even if it is null.
 	// We do this so that a human clicking save on the GUI ALWAYS blows the search expiration.
 	// The use case is that a scheduled search gets results and fires an alert, the alert logic
 	// this marks the search as saved and sets an expiration.  A user gets the alert, clicks the search,
 	// sees that the results should be kept and clicks save; this action means the user wants to kill
 	// the timer, so we wipe the expiration.
-	changed = changed || !li.Expires.Equal(p.Expires)
+	// compare the instants: Nullable.Equal is a deep comparison, which also compares time zones
+	changed = changed || li.Expires.IsNull() != p.Expires.IsNull() || !li.Expires.Value().Equal(p.Expires.Value())
 	li.Expires = p.Expires
 
 	//Started is best effort, take whatever isn't zero if there is one
