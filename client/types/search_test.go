@@ -763,3 +763,17 @@ func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
 		t.Error("the same instant in another time zone must not report a change")
 	}
 }
+
+// TestSearchLaunchInfoSendsEveryField checks that an empty launch info still
+// carries Method and Reference, which the API requires in every response.
+func TestSearchLaunchInfoSendsEveryField(t *testing.T) {
+	b, err := v2.Marshal(SearchLaunchInfo{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, want := range []string{`"Method":""`, `"Reference":""`, `"Started":`, `"Expires":null`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("launch info must carry %s, got %s", want, b)
+		}
+	}
+}

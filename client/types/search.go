@@ -403,11 +403,11 @@ type SearchInfoListResponse = ListResponse[SearchInfo]
 
 type SearchLaunchInfo struct {
 	//what launched the search, manual, directquery, scheduledsearch, etc...
-	Method string `json:",omitempty"`
+	Method string
 
 	// Reference is the UUID, ID, etc. of the thing that launched the search
 	// this is blank for manual queries
-	Reference string `json:",omitempty"`
+	Reference string
 
 	// Started is the timestamp of when the search was started.  This is used to inform
 	// the GUI and/or clients on when the query was actually started.
