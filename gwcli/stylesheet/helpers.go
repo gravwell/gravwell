@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/spf13/cobra"
@@ -167,7 +168,8 @@ func Index(i int) string {
 // SegmentedBorder returns a box of the given (inner) width, split into titled segments.
 // Each segment is headed by a divider with its title centered in it.
 //
-// If a title is wider than width, the box is widened to fit it.
+// The box is never wider than width (plus its two border cells):
+// contents that are too wide are wrapped and titles that are too wide are truncated.
 func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 	StylizedTitle string
 	Contents      string
@@ -176,12 +178,6 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 		return "", errors.New("cannot draw a segmented border with no segments")
 	} else if width <= 0 {
 		return "", errors.New("width must be > 0")
-	}
-
-	// a title wider than the box would leave no room for (and a negative count of) dividers,
-	// so grow the box to fit the widest title
-	for _, segment := range segments {
-		width = max(width, lipgloss.Width(segment.StylizedTitle))
 	}
 
 	// prepare the data we need across all iterations
@@ -193,8 +189,9 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 
 	var sb strings.Builder
 	for i, segment := range segments {
+		title := ansi.Truncate(segment.StylizedTitle, width, "…")
 		var (
-			titleLen = lipgloss.Width(segment.StylizedTitle)
+			titleLen = lipgloss.Width(title)
 			div      = strings.Repeat(bs.Top, (width-titleLen)/2) // the lines on either side of title
 			leftDiv  = div
 			rightDiv = div
@@ -216,7 +213,7 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 		}
 
 		// generate the segment head
-		head := splitterSty.Render(leftDiv) + segment.StylizedTitle + splitterSty.Render(rightDiv)
+		head := splitterSty.Render(leftDiv) + title + splitterSty.Render(rightDiv)
 		sb.WriteString(head)
 		sb.WriteString("\n")
 
