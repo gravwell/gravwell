@@ -8,6 +8,8 @@
 
 package types
 
+import "encoding/json"
+
 type StackGraphValue struct {
 	Label string
 	Value int64
@@ -35,4 +37,23 @@ func (sgs *StackGraphSet) Magnitude() (v int64) {
 		v += sgs.Values[i].Value
 	}
 	return
+}
+
+func (x StackGraphResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []StackGraphSet
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }

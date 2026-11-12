@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 // TestConfig_Verify checks the required-field, Page-Size, duplicate-section,

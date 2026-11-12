@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

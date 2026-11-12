@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gobwas/glob"
-	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/config"
 )
 
 func TestCiscoISEEmptyConfig(t *testing.T) {

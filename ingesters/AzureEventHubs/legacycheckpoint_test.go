@@ -17,7 +17,7 @@ import (
 	"time"
 
 	eventhubs "github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 func testLogger() *log.KVLogger {

@@ -8,8 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // TestNativeRunnerCloseStopsOneIngester covers stopping a single ingester while the runtime

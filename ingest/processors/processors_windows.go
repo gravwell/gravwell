@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -11,7 +14,7 @@ package processors
 import (
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/config"
 )
 
 func checkProcessorOS(id string) error {

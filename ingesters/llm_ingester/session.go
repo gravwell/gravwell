@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
 
 // defaultMatchWindow is the number of most-recent messages compared when

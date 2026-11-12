@@ -28,12 +28,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/chancacher"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/chancacher"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 const (
@@ -153,7 +153,7 @@ type IngestMuxer struct {
 	state                muxState
 	hostname             string
 	appname              string
-	lgr                  Logger
+	lgr                  log.IngestLogger
 	cacheEnabled         bool
 	cachePath            string
 	cacheSize            int
@@ -189,15 +189,15 @@ type UniformMuxerConfig struct {
 	CacheSize         int
 	CacheMode         string
 	LogLevel          string // deprecated, no longer used
-	Logger            Logger
+	Logger            log.IngestLogger
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 	MaxEntrySize      int
 }
 
@@ -213,15 +213,15 @@ type MuxerConfig struct {
 	CacheSize         int
 	CacheMode         string
 	LogLevel          string // deprecated, no longer used
-	Logger            Logger
+	Logger            log.IngestLogger
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 	MaxEntrySize      int
 }
 
@@ -358,12 +358,14 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	var eIn, eOut, bIn, bOut chan interface{}
 
 	if c.CachePath != "" {
-		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize, c.Logger)
 		if err != nil {
+			c.Logger.Error("Error initializing read cache", log.KVErr(err))
 			return nil, err
 		}
-		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize)
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize, c.Logger)
 		if err != nil {
+			c.Logger.Error("Error initializing write cache", log.KVErr(err))
 			return nil, err
 		}
 		if c.CacheMode == CacheModeFail {
@@ -929,9 +931,15 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 				tagNext = v
 			}
 		}
-		// the count check above misses this: cached IDs are not dense, so the highest can
-		// be at the ceiling while the map is small, and one past it wraps to zero
-		if tagNext >= entry.MaxTagId {
+		// The ID we are about to hand out has to be a legal user tag.  The count check
+		// above misses this: cached IDs are not dense, so the highest can be at the
+		// ceiling while the map is small.
+		//
+		// MaxTagId is GravwellTagId, so handing it out is worse than a wrap: translate
+		// and hasTag both pass that ID straight through, and the caller's entries land
+		// silently in the gravwell well.  Widened to an int because tagNext+1 would wrap
+		// at the very top and pass the test.
+		if int(tagNext)+1 >= int(entry.MaxTagId) {
 			err = ErrTooManyTags
 			return
 		}

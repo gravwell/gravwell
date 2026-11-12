@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/ingest"
 )
 
 var (
@@ -14,14 +15,14 @@ var (
 )
 
 // ParseUUID attempts to parse an ingester UUID string.
-// Returns uuid.Nil for empty or invalid values.
+// Returns uuid.Nil() for empty or invalid values.
 func ParseUUID(s string) uuid.UUID {
 	if s != "" {
 		if u, err := uuid.Parse(s); err == nil {
 			return u
 		}
 	}
-	return uuid.Nil
+	return uuid.Nil()
 }
 
 // BaseConfig holds fields that are common to all plugin configs.
@@ -43,6 +44,41 @@ func (b *BaseConfig) ApplyDefaultIngesterUUID(defaultIngesterUUID string) {
 func (b *BaseConfig) Verify() error {
 	if _, err := uuid.Parse(b.Ingester_UUID); err != nil {
 		return fmt.Errorf("%w: invalid Ingester-UUID %q %w", ErrInvalidConfigValue, b.Ingester_UUID, err)
+	}
+	return nil
+}
+
+// TagProvider is implemented by a config that knows every tag it will write to, with the
+// defaults and prefixes it was configured with already resolved.
+//
+// Every tag taking plugin implements it, and VerifyTags takes it rather than an any on
+// purpose: a plugin that stops implementing it should fail to build rather than quietly
+// stop being checked.
+type TagProvider interface {
+	Tags() []string
+}
+
+// VerifyTags checks every tag a config will actually write to.
+//
+// The resolved set is checked rather than the fields it was built from, because a
+// Tag-Prefix is not a tag, it is half of one: whether it yields something legal depends on
+// what it gets joined to, and only the config knows that.  Asking it what it will write to
+// answers the question exactly, and covers per source overrides at the same time.
+//
+// Call this at the end of Verify, after defaults have been applied and any override
+// strings parsed.  Tags resolved before that are not the tags the plugin will use.
+//
+// A tag that the indexer will refuse is not a cosmetic problem: the ingester comes up,
+// fails to negotiate the tag, and does not ingest.  Catching it in Verify is what turns
+// that into an error an operator can see against the configuration that caused it.
+func VerifyTags(tp TagProvider) error {
+	if tp == nil {
+		return nil
+	}
+	for _, tag := range tp.Tags() {
+		if err := ingest.CheckTag(tag); err != nil {
+			return fmt.Errorf("%w: invalid tag %q: %w", ErrInvalidConfigValue, tag, err)
+		}
 	}
 	return nil
 }
