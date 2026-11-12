@@ -86,8 +86,8 @@ func (c *Client) GetScheduledSearchResults(id string) (results types.ScheduledSe
 }
 
 // ClearScheduledSearchResults deletes all results for the specified scheduled search
-func (c *Client) ClearScheduledSearchResults(id string) error {
-	return c.delete(scheduledSearchesIdResultsUrl(id))
+func (c *Client) ClearScheduledSearchResults(id string) (types.ClearResultsResponse, error) {
+	return c.deleteWithResponse[types.ClearResultsResponse](scheduledSearchesIdResultsUrl(id))
 }
 
 // ClearAllScheduledSearchResults (admin-only) deletes all results for the specified scheduled

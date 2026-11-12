@@ -106,8 +106,8 @@ func (c *Client) GetScheduledScriptResults(id string) (results types.ScheduledSc
 }
 
 // ClearScheduledScriptResults deletes all results for the specified scheduled script
-func (c *Client) ClearScheduledScriptResults(id string) error {
-	return c.delete(scheduledScriptsIdResultsUrl(id))
+func (c *Client) ClearScheduledScriptResults(id string) (types.ClearResultsResponse, error) {
+	return c.deleteWithResponse[types.ClearResultsResponse](scheduledScriptsIdResultsUrl(id))
 }
 
 // ClearAllScheduledScriptResults (admin-only) deletes all results for the specified scheduled
