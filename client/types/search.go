@@ -418,6 +418,14 @@ type SearchLaunchInfo struct {
 	Expires Nullable[time.Time]
 }
 
+// NeverExpires reports whether the search has no expiration. Null is how the
+// API says "never". Releases before 6.0 sent the zero time instead, so a zero
+// time counts too. Use this, not Expires.IsZero, which is always false for a
+// Nullable.
+func (li SearchLaunchInfo) NeverExpires() bool {
+	return li.Expires.Value().IsZero()
+}
+
 // A RendererSettings has the information necessary for client to render searches using legacy renderer modules.
 // All variants of RendererSettings use the "Renderer" property as a discriminator.
 type RendererSettings struct {

@@ -777,3 +777,20 @@ func TestSearchLaunchInfoSendsEveryField(t *testing.T) {
 		}
 	}
 }
+
+// TestSearchLaunchInfoNeverExpires checks that a null expiry and a zero time
+// both mean the search never expires, and that a set time does not.
+func TestSearchLaunchInfoNeverExpires(t *testing.T) {
+	var li SearchLaunchInfo
+	if !li.NeverExpires() {
+		t.Error("a null expiry must report never expires")
+	}
+	li.Expires = NewNullable(time.Time{})
+	if !li.NeverExpires() {
+		t.Error("a zero time must report never expires")
+	}
+	li.Expires = NewNullable(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC))
+	if li.NeverExpires() {
+		t.Error("a set expiry must not report never expires")
+	}
+}
