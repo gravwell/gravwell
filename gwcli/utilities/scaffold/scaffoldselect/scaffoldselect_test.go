@@ -347,6 +347,27 @@ func TestInteractiveCycle(t *testing.T) {
 				assert.Equal(t, "recruited vagrant 3", l2)
 			})
 		})
+		t.Run("submitting with nothing selected does not complete the action", func(t *testing.T) {
+			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
+				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
+					AddtlFlags: afsFunc,
+				}})
+			testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{}, 50, 20, false, nil, false)
+			// deselect the only pre-selected item (Vestal)
+			pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorDown))
+			pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorDown))
+			pair.Model.Update(testsupport.SendHotkey(hotkeys.Select))
+
+			cmd := pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
+			assert.False(t, pair.Model.Done(), "action completed with an empty selection")
+			assert.NotNil(t, cmd, "expected a status message command")
+
+			// the user must still be able to make a selection and submit it
+			pair.Model.Update(testsupport.SendHotkey(hotkeys.Select))
+			cmd = pair.Model.Update(testsupport.SendHotkey(hotkeys.Invoke))
+			assert.True(t, pair.Model.Done(), "action did not complete after a valid selection")
+			assert.Equal(t, "recruited vagrant 3", testsupport.ExtractPrintLineMessageString(t, cmd, true, 0))
+		})
 		t.Run("with cursed", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
