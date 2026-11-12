@@ -821,6 +821,10 @@ func CheckMacroName(name string) error {
 
 type SaveSearchPatch struct {
 	SearchLaunchInfo
+	// Expires is the expiration to save the search with. It takes the place of
+	// SearchLaunchInfo.Expires in the JSON. A value sets the expiration. Null
+	// or a missing Expires clears it, so the search never expires.
+	Expires NullablePatchIn[time.Time] `json:",omitzero"`
 	// these are the supported fields in the free form search metadata; these are used by the GUI
 	Name  string `json:",omitempty"`
 	Notes string `json:",omitempty"`
@@ -855,15 +859,20 @@ func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 		li.Reference = p.Reference
 		changed = true
 	}
-	// the expiration is special, we ALWAYS take the experation, even if it is null.
+	// the expiration is special, we ALWAYS take the expiration, even if it is null or missing.
 	// We do this so that a human clicking save on the GUI ALWAYS blows the search expiration.
 	// The use case is that a scheduled search gets results and fires an alert, the alert logic
 	// this marks the search as saved and sets an expiration.  A user gets the alert, clicks the search,
 	// sees that the results should be kept and clicks save; this action means the user wants to kill
 	// the timer, so we wipe the expiration.
+	before := li.Expires
+	if p.Expires.IsOmitted() {
+		li.Expires.SetNull()
+	} else {
+		p.Expires.Apply(&li.Expires)
+	}
 	// compare the instants: Nullable.Equal is a deep comparison, which also compares time zones
-	changed = changed || li.Expires.IsNull() != p.Expires.IsNull() || !li.Expires.Value().Equal(p.Expires.Value())
-	li.Expires = p.Expires
+	changed = changed || before.IsNull() != li.Expires.IsNull() || !before.Value().Equal(li.Expires.Value())
 
 	//Started is best effort, take whatever isn't zero if there is one
 	if li.Started.IsZero() {

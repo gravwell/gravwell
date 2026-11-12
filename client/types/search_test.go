@@ -736,8 +736,8 @@ func TestSearchLaunchInfoExpiresJSON(t *testing.T) {
 }
 
 // TestSaveSearchPatchMergeLaunchInfoExpires checks how a save patch changes
-// the expiry: the patch's value always wins, and the same instant in another
-// time zone is not a change.
+// the expiry. A missing Expires and a null one both clear it, a value sets it,
+// and the same instant in another time zone is not a change.
 func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
 	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 
@@ -746,11 +746,11 @@ func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
 		t.Error("a patch with no expiry must report a change")
 	}
 	if !li.Expires.IsNull() {
-		t.Errorf("expires = %v, want null", li.Expires)
+		t.Errorf("expires = %v after a patch with no expiry, want null", li.Expires)
 	}
 
 	var patch SaveSearchPatch
-	patch.Expires = NewNullable(expires)
+	patch.Expires = NewNullablePatchIn(expires)
 	if changed := patch.MergeLaunchInfo(&li); !changed {
 		t.Error("a patch with an expiry must report a change")
 	}
@@ -758,9 +758,57 @@ func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
 		t.Errorf("expires = %v, want %v", li.Expires, expires)
 	}
 
-	patch.Expires = NewNullable(expires.In(time.FixedZone("offset", 3600)))
+	patch.Expires = NewNullablePatchIn(expires.In(time.FixedZone("offset", 3600)))
 	if changed := patch.MergeLaunchInfo(&li); changed {
 		t.Error("the same instant in another time zone must not report a change")
+	}
+
+	patch.Expires.Null()
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with a null expiry must report a change")
+	}
+	if !li.Expires.IsNull() {
+		t.Errorf("expires = %v after a null patch, want null", li.Expires)
+	}
+}
+
+// TestSaveSearchPatchExpiresJSON checks the wire form of a save patch's
+// Expires: left out when not set, null when cleared, a timestamp when set.
+// The embedded launch info's Expires never reaches the JSON.
+func TestSaveSearchPatchExpiresJSON(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	patch := SaveSearchPatch{SearchLaunchInfo: SearchLaunchInfo{Expires: NewNullable(expires.Add(time.Hour))}}
+
+	b, err := v2.Marshal(patch, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), `"Expires"`) {
+		t.Fatalf("an unset expiry must be left out, got %s", b)
+	}
+
+	patch.Expires.Null()
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("a cleared expiry must encode as null, got %s", b)
+	}
+
+	patch.Expires.Set(expires)
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("a set expiry must encode as a timestamp, got %s", b)
+	}
+
+	var got SaveSearchPatch
+	if err = v2.Unmarshal(b, &got, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Expires.IsOmitted() || got.Expires.IsNull() || !got.Expires.Value().Equal(expires) {
+		t.Fatalf("decoded expires = %v, want %v", got.Expires, expires)
 	}
 }
 
