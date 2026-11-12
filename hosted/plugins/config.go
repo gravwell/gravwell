@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/n8n"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
@@ -34,6 +35,7 @@ type Configs struct {
 	Tester   map[string]*tester.Config
 	Jamf     map[string]*jamf.Config
 	Wiz      map[string]*wiz.Config
+	N8n      map[string]*n8n.Config
 	SQS      map[string]*sqs.Config
 }
 
@@ -99,6 +101,14 @@ func (c Configs) Verify() (err error) {
 			return
 		}
 	}
+	for k, v := range c.N8n {
+		if v == nil {
+			return fmt.Errorf("N8n config %q is nil", k)
+		}
+		if err = v.Verify(); err != nil {
+			return fmt.Errorf("N8n config %q failed validation: %w", k, err)
+		}
+	}
 	for k, v := range c.SQS {
 		if v == nil {
 			err = fmt.Errorf("SQS config %q is nil", k)
@@ -132,6 +142,9 @@ func (c Configs) Tags() (tags []string, err error) {
 	for _, v := range c.MSGraph {
 		tags = append(tags, v.Tags()...)
 	}
+	for _, v := range c.N8n {
+		tags = append(tags, v.Tags()...)
+	}
 	for _, v := range c.SQS {
 		tags = append(tags, v.Tags()...)
 	}
@@ -140,7 +153,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.SQS)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast) + len(c.Jamf) + len(c.Wiz) + len(c.MSGraph) + len(c.N8n) + len(c.SQS)
 	return
 }
 
@@ -185,6 +198,11 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.MSGraph {
 			if !yield(name, NewMSGraphBuilder(config, msgraph.Name, msgraph.ID, msgraph.Version)) {
+				return
+			}
+		}
+		for name, config := range c.N8n {
+			if !yield(name, NewN8nBuilder(config, n8n.Name, n8n.ID, n8n.Version)) {
 				return
 			}
 		}

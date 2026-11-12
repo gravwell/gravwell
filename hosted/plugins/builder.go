@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/n8n"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
@@ -167,6 +168,25 @@ func NewMSGraphBuilder(cfg *msgraph.Config, kind, id, version string) *MSGraphBu
 	return &MSGraphBuilder{
 		Builder[*msgraph.Config]{
 			config:  cfg,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
+}
+
+type N8nBuilder struct {
+	Builder[*n8n.Config]
+}
+
+func (b *N8nBuilder) Build(_ hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(n8n.New(b.config), syncFn), nil
+}
+
+func NewN8nBuilder(config *n8n.Config, kind, id, version string) *N8nBuilder {
+	return &N8nBuilder{
+		Builder[*n8n.Config]{
+			config:  config,
 			kind:    kind,
 			id:      id,
 			version: version,
