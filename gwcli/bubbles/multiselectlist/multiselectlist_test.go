@@ -14,6 +14,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/bubbles/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
@@ -218,4 +220,51 @@ func TestModel(t *testing.T) {
 			t.Error("expected msl to be done after sending invoke.")
 		}
 	})
+}
+
+// TestFiltering checks that the select and invoke hotkeys are passed through to the filter
+// (rather than acting on the list) while the user is typing into it.
+func TestFiltering(t *testing.T) {
+	msl := multiselectlist.New([]multiselectlist.SelectableItem[int]{
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "a b", Description_: "desc0", ID_: 0},
+		&multiselectlist.DefaultSelectableItem[int]{Title_: "ab", Description_: "desc1", ID_: 1},
+	}, 80, 50, multiselectlist.Options{})
+
+	// begin filtering
+	msl, _ = msl.Update(testsupport.SendHotkey(msl.KeyMap.Filter))
+	if msl.FilterState() != list.Filtering {
+		t.Fatal("list did not enter filtering state.", testsupport.ExpectedActual(list.Filtering, msl.FilterState()))
+	}
+	// type a filter that contains the select key
+	msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	space := tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
+	if !hotkeys.Match(space, hotkeys.Select) {
+		t.Fatal("space is no longer the select hotkey; this test must be updated")
+	}
+	msl, _ = msl.Update(space)
+	msl, _ = msl.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+
+	if got := msl.FilterInput.Value(); got != "a b" {
+		t.Error("select key was not passed to the filter.", testsupport.ExpectedActual("a b", got))
+	}
+	if sel := msl.GetSelectedItems(); len(sel) != 0 {
+		t.Errorf("select key toggled %d item(s) while filtering", len(sel))
+	}
+
+	// invoke should not complete the list while filtering
+	msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.Invoke))
+	if msl.Done() {
+		t.Error("invoke marked the list as done while filtering")
+	}
+
+	msl, _ = msl.Update(testsupport.SendHotkey(msl.KeyMap.AcceptWhileFiltering))
+	if msl.FilterState() == list.Filtering {
+		t.Fatal("failed to accept the filter")
+	}
+
+	// with the filter accepted, select should toggle again
+	msl, _ = msl.Update(testsupport.SendHotkey(hotkeys.Select))
+	if sel := msl.GetSelectedItems(); len(sel) != 1 {
+		t.Error("select key did not toggle an item after filtering.", testsupport.ExpectedActual(1, len(sel)))
+	}
 }
