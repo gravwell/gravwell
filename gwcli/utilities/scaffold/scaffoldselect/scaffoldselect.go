@@ -273,13 +273,14 @@ func (m *selectModel[ID_t]) Update(msg tea.Msg) tea.Cmd {
 	if !m.msl.Done() {
 		return cmd
 	}
-	m.done = true
 
 	itms := m.msl.GetSelectedItems()
 	if len(itms) == 0 {
+		// stay alive so the user can see the message and correct their selection
 		m.msl.Undone()
 		return m.msl.NewStatusMessage("select at least 1 " + m.singular)
 	}
+	m.done = true
 	IDs := make([]ID_t, len(itms))
 	// collect IDs
 	for i, itm := range itms {
