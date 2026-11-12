@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // newTestClient spins up a mock HTTP server backed by mux and returns a Client on it.
@@ -207,6 +208,64 @@ func TestDelete(t *testing.T) {
 
 		if err := c.delete("/things/1"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v, want ErrNotFound", err)
+		}
+	})
+}
+
+func TestDeleteWithResponse(t *testing.T) {
+	t.Run("success sends a DELETE and decodes the response", func(t *testing.T) {
+		var gotMethod string
+		var gotBody []byte
+		var response = types.ClearResultsResponse{
+			Deleted: 2,
+			Skipped: []types.ClearResultsSkip{{ID: "abc", Reason: types.ClearResponseSkipNotFound}},
+		}
+		mux := http.NewServeMux()
+		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
+			gotMethod = r.Method
+			gotBody, _ = io.ReadAll(r.Body)
+			if err := json.MarshalWrite(w, response, jsoncompat.Opts); err != nil {
+				t.Fatal(err)
+			}
+		})
+		c := newTestClient(t, mux)
+
+		got, err := c.deleteWithResponse[types.ClearResultsResponse]("/things/1")
+		if err != nil {
+			t.Fatalf("deleteWithResponse: %v", err)
+		}
+		if gotMethod != http.MethodDelete {
+			t.Errorf("method = %q, want %q", gotMethod, http.MethodDelete)
+		}
+		if len(gotBody) != 0 {
+			t.Errorf("expected empty body, got %q", gotBody)
+		}
+		if !reflect.DeepEqual(got, response) {
+			t.Errorf("resp = %+v, want %+v", got, response)
+		}
+	})
+
+	t.Run("non-200 status surfaces as an error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		c := newTestClient(t, mux)
+
+		if _, err := c.deleteWithResponse[types.ClearResultsResponse]("/things/1"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("err = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("204 is not swallowed", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		})
+		c := newTestClient(t, mux)
+
+		if _, err := c.deleteWithResponse[types.ClearResultsResponse]("/things/1"); err == nil {
+			t.Fatal("expected error on 204 response, got nil")
 		}
 	})
 }
