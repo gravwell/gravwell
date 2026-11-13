@@ -33,15 +33,15 @@ func TestToResult(t *testing.T) {
 		{"nothing to clear", types.ClearResultsResponse{}, nil,
 			scaffold.Result{Success: true, Output: "successfully cleared results for flow 1"}},
 		{"partial",
-			types.ClearResultsResponse{Deleted: 2, Skipped: []types.ClearResultsSkip{
-				{ID: "a", Reason: types.ClearResultsSkipPermissionDenied},
+			types.ClearResultsResponse{Deleted: 2, Skipped: []types.BulkDeleteSkip{
+				{ID: "a", Reason: types.BulkDeleteSkipPermissionDenied},
 			}}, nil,
 			scaffold.Result{Success: true,
 				Output: "partially cleared results for flow 1.\na: permission_denied"}},
 		{"all skipped",
-			types.ClearResultsResponse{Skipped: []types.ClearResultsSkip{
-				{ID: "a", Reason: types.ClearResultsSkipPermissionDenied},
-				{ID: "b", Reason: types.ClearResultsSkipNotFound},
+			types.ClearResultsResponse{Skipped: []types.BulkDeleteSkip{
+				{ID: "a", Reason: types.BulkDeleteSkipPermissionDenied},
+				{ID: "b", Reason: types.BulkDeleteSkipNotFound},
 			}}, nil,
 			scaffold.Result{Success: false,
 				Output: "failed to clear results for flow 1: every result was skipped." +

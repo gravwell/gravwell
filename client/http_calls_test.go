@@ -218,7 +218,7 @@ func TestDeleteWithResponse(t *testing.T) {
 		var gotBody []byte
 		var response = types.ClearResultsResponse{
 			Deleted: 2,
-			Skipped: []types.ClearResultsSkip{{ID: "abc", Reason: types.ClearResultsSkipNotFound}},
+			Skipped: []types.BulkDeleteSkip{{ID: "abc", Reason: types.BulkDeleteSkipNotFound}},
 		}
 		mux := http.NewServeMux()
 		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
@@ -326,7 +326,7 @@ func TestClearAllResults(t *testing.T) {
 	}
 	var response = types.ClearResultsResponse{
 		Deleted: 2,
-		Skipped: []types.ClearResultsSkip{{ID: "abc", Reason: types.ClearResultsSkipPermissionDenied}},
+		Skipped: []types.BulkDeleteSkip{{ID: "abc", Reason: types.BulkDeleteSkipPermissionDenied}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name+"/non-admin", func(t *testing.T) {
