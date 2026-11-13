@@ -10,6 +10,7 @@ package types
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	v2 "encoding/json/v2"
 	"errors"
 	"reflect"
@@ -736,29 +737,30 @@ func TestSearchLaunchInfoExpiresJSON(t *testing.T) {
 }
 
 // TestSaveSearchPatchMergeLaunchInfoExpires checks how a save patch changes
-// the expiry. A missing Expires and a null one both clear it, a value sets it,
-// and the same instant in another time zone is not a change.
+// the expiry. A missing Expires leaves it unchanged, a value sets it, null
+// clears it, and the same instant in another time zone is not a change.
 func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
 	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 
 	li := SearchLaunchInfo{Expires: NewNullable(expires)}
-	if changed := (SaveSearchPatch{}).MergeLaunchInfo(&li); !changed {
-		t.Error("a patch with no expiry must report a change")
-	}
-	if !li.Expires.IsNull() {
-		t.Errorf("expires = %v after a patch with no expiry, want null", li.Expires)
-	}
-
-	var patch SaveSearchPatch
-	patch.Expires = NewNullablePatchIn(expires)
-	if changed := patch.MergeLaunchInfo(&li); !changed {
-		t.Error("a patch with an expiry must report a change")
+	if changed := (SaveSearchPatch{}).MergeLaunchInfo(&li); changed {
+		t.Error("a patch with no expiry must not report a change")
 	}
 	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
-		t.Errorf("expires = %v, want %v", li.Expires, expires)
+		t.Errorf("expires = %v after a patch with no expiry, want it unchanged at %v", li.Expires, expires)
 	}
 
-	patch.Expires = NewNullablePatchIn(expires.In(time.FixedZone("offset", 3600)))
+	later := expires.Add(time.Hour)
+	var patch SaveSearchPatch
+	patch.Expires = NewNullablePatchIn(later)
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with a new expiry must report a change")
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(later) {
+		t.Errorf("expires = %v, want %v", li.Expires, later)
+	}
+
+	patch.Expires = NewNullablePatchIn(later.In(time.FixedZone("offset", 3600)))
 	if changed := patch.MergeLaunchInfo(&li); changed {
 		t.Error("the same instant in another time zone must not report a change")
 	}
@@ -774,10 +776,9 @@ func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
 
 // TestSaveSearchPatchExpiresJSON checks the wire form of a save patch's
 // Expires: left out when not set, null when cleared, a timestamp when set.
-// The embedded launch info's Expires never reaches the JSON.
 func TestSaveSearchPatchExpiresJSON(t *testing.T) {
 	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
-	patch := SaveSearchPatch{SearchLaunchInfo: SearchLaunchInfo{Expires: NewNullable(expires.Add(time.Hour))}}
+	var patch SaveSearchPatch
 
 	b, err := v2.Marshal(patch, jsoncompat.Opts)
 	if err != nil {
@@ -812,6 +813,67 @@ func TestSaveSearchPatchExpiresJSON(t *testing.T) {
 	}
 }
 
+// TestSaveSearchPatchOmitsUnsetFields checks that a save patch sends only the
+// fields that are set. The API reads a missing field as "leave it unchanged".
+func TestSaveSearchPatchOmitsUnsetFields(t *testing.T) {
+	b, err := v2.Marshal(SaveSearchPatch{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(b) != `{}` {
+		t.Fatalf("an empty patch must encode as {}, got %s", b)
+	}
+
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	patch := SaveSearchPatch{
+		Method:    NewOptional(LaunchMethodScript),
+		Reference: NewOptional("ref"),
+		Started:   NewOptional(started),
+	}
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"Method":"script","Reference":"ref","Started":"2026-11-06T12:00:00Z"}`
+	if string(b) != want {
+		t.Fatalf("patch = %s, want %s", b, want)
+	}
+}
+
+// TestSaveSearchPatchMergeLaunchInfoFields checks how a save patch changes
+// Method, Reference, and Started. A missing or empty Method or Reference
+// leaves the stored one, a value replaces it, and Started is taken only when
+// the search has no start time.
+func TestSaveSearchPatchMergeLaunchInfoFields(t *testing.T) {
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	li := SearchLaunchInfo{Method: LaunchMethodManual, Reference: "old"}
+
+	patch := SaveSearchPatch{Method: NewOptional(""), Started: NewOptional(started)}
+	if changed := patch.MergeLaunchInfo(&li); changed {
+		t.Error("an empty Method and a missing Reference must not report a change")
+	}
+	if li.Method != LaunchMethodManual || li.Reference != "old" {
+		t.Errorf("method = %q, reference = %q, want them unchanged", li.Method, li.Reference)
+	}
+	if !li.Started.Equal(started) {
+		t.Errorf("started = %v, want %v for a search with no start time", li.Started, started)
+	}
+
+	patch = SaveSearchPatch{
+		Method:    NewOptional(LaunchMethodScript),
+		Reference: NewOptional("new"),
+		Started:   NewOptional(started.Add(time.Hour)),
+	}
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a new Method and Reference must report a change")
+	}
+	if li.Method != LaunchMethodScript || li.Reference != "new" {
+		t.Errorf("method = %q, reference = %q, want script and new", li.Method, li.Reference)
+	}
+	if !li.Started.Equal(started) {
+		t.Errorf("started = %v, want it kept at %v", li.Started, started)
+	}
+}
+
 // TestSearchLaunchInfoSendsEveryField checks that an empty launch info still
 // carries Method and Reference, which the API requires in every response.
 func TestSearchLaunchInfoSendsEveryField(t *testing.T) {
@@ -840,5 +902,92 @@ func TestSearchLaunchInfoNeverExpires(t *testing.T) {
 	li.Expires = NewNullable(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC))
 	if li.NeverExpires() {
 		t.Error("a set expiry must not report never expires")
+	}
+}
+
+// TestSaveSearchPatchMergeMetadata checks how a save patch changes the stored
+// name and notes: an unset field is left alone, a set one replaces the stored
+// value, an empty string removes it, and other metadata keys are kept.
+func TestSaveSearchPatchMergeMetadata(t *testing.T) {
+	curr := jsontext.Value(`{"Name":"old name","Notes":"old notes","Other":1}`)
+
+	if got := (SaveSearchPatch{}).MergeMetadata(curr); string(got) != string(curr) {
+		t.Errorf("an empty patch changed the metadata to %s", got)
+	}
+
+	got := SaveSearchPatch{Name: NewOptional("new name")}.MergeMetadata(curr)
+	if want := `{"Name":"new name","Notes":"old notes","Other":1}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	got = SaveSearchPatch{Name: NewOptional(""), Notes: NewOptional("new notes")}.MergeMetadata(curr)
+	if want := `{"Notes":"new notes","Other":1}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	got = SaveSearchPatch{Name: NewOptional(""), Notes: NewOptional("")}.MergeMetadata(jsontext.Value(`{"Name":"old name"}`))
+	if got != nil {
+		t.Errorf("metadata = %s, want none", got)
+	}
+
+	got = SaveSearchPatch{Notes: NewOptional("first notes")}.MergeMetadata(nil)
+	if want := `{"Notes":"first notes"}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+}
+
+// TestSearchLaunchInputJSON checks the wire form of the launch information in
+// a launch request. Only the fields that are set are sent, and a null is
+// rejected, because the API does not allow one there.
+func TestSearchLaunchInputJSON(t *testing.T) {
+	b, err := v2.Marshal(SearchLaunchInput{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(b) != `{}` {
+		t.Fatalf("an empty launch input must encode as {}, got %s", b)
+	}
+
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	in := SearchLaunchInput{
+		Method:  NewOptional(LaunchMethodFlow),
+		Expires: NewOptional(expires),
+	}
+	if b, err = v2.Marshal(in, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"Method":"flow","Expires":"2026-11-06T12:00:00Z"}`
+	if string(b) != want {
+		t.Fatalf("launch input = %s, want %s", b, want)
+	}
+
+	var got SearchLaunchInput
+	if err = v2.Unmarshal([]byte(`{"Expires":null}`), &got, jsoncompat.Opts); err == nil {
+		t.Fatal("a null Expires must be rejected")
+	}
+}
+
+// TestSearchLaunchInputLaunchInfo checks the conversion to a SearchLaunchInfo.
+// A field that was left out stays at its zero value, an Expires that was left
+// out is null, and a set field is copied.
+func TestSearchLaunchInputLaunchInfo(t *testing.T) {
+	li := SearchLaunchInput{}.LaunchInfo()
+	if li.Method != `` || li.Reference != `` || !li.Started.IsZero() || !li.Expires.IsNull() {
+		t.Errorf("empty launch input gave %+v, want zero values and a null Expires", li)
+	}
+
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	expires := started.Add(time.Hour)
+	li = SearchLaunchInput{
+		Method:    NewOptional(LaunchMethodScript),
+		Reference: NewOptional("ref"),
+		Started:   NewOptional(started),
+		Expires:   NewOptional(expires),
+	}.LaunchInfo()
+	if li.Method != LaunchMethodScript || li.Reference != "ref" || !li.Started.Equal(started) {
+		t.Errorf("launch info = %+v, want the set fields copied", li)
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Errorf("expires = %v, want %v", li.Expires, expires)
 	}
 }

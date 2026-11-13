@@ -482,3 +482,45 @@ func equalACL(a, b types.ACL) bool {
 	}
 	return true
 }
+
+// TestSaveSearchSendsExpires checks what SaveSearch puts on the wire: null
+// when expires is nil, the time when it is set, and the patch's name.
+func TestSaveSearchSendsExpires(t *testing.T) {
+	var gotBody string
+	l, err := net.Listen("tcp", "[::1]:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	srv := http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("failed to read the request body: %v", err)
+		}
+		gotBody = string(b)
+	})}
+	go srv.Serve(l)
+	t.Cleanup(func() { srv.Shutdown(t.Context()) })
+	c, err := client.NewOpts(client.Opts{Server: l.Addr().String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.SaveSearch("123", nil); err != nil {
+		t.Fatalf("SaveSearch: %v", err)
+	}
+	if !strings.Contains(gotBody, `"Expires":null`) {
+		t.Errorf("a nil expires must send null, got %s", gotBody)
+	}
+
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	if err := c.SaveSearch("123", &expires, types.SaveSearchPatch{Name: types.NewOptional("kept")}); err != nil {
+		t.Fatalf("SaveSearch: %v", err)
+	}
+	if !strings.Contains(gotBody, `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Errorf("a set expires must send the time, got %s", gotBody)
+	}
+	if !strings.Contains(gotBody, `"Name":"kept"`) {
+		t.Errorf("the patch's name must be sent, got %s", gotBody)
+	}
+}

@@ -51,14 +51,20 @@ func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
 	return c.get[types.SearchInfo](searchesIdUrl(sid))
 }
 
-// SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
-// to modify the expiration or search name and notes
-func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
-	var arg any
+// SaveSearch will request that a search is saved by ID. A nil expires means the saved search
+// never expires; otherwise it expires at that time. An optional SaveSearchPatch can be sent
+// to set the search name and notes; its Expires is replaced by expires.
+func (c *Client) SaveSearch(sid string, expires *time.Time, ssp ...types.SaveSearchPatch) error {
+	var patch types.SaveSearchPatch
 	if len(ssp) == 1 {
-		arg = ssp[0]
+		patch = ssp[0]
 	}
-	return c.putStaticURL(searchesIdSaveUrl(sid), arg)
+	if expires == nil {
+		patch.Expires.Null()
+	} else {
+		patch.Expires.Set(*expires)
+	}
+	return c.putStaticURL(searchesIdSaveUrl(sid), patch)
 }
 
 // BackgroundSearch will request that a search is backgrounded by ID
