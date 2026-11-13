@@ -46,6 +46,8 @@ type ScheduledError struct {
 type BulkDeleteSkipReason string
 
 const (
+	// BulkDeleteSkipUnknown means something has gone horribly wrong for this specific result.
+	BulkDeleteSkipUnknown BulkDeleteSkipReason = "unknown"
 	// BulkDeleteSkipNotFound means the ID matched nothing the user could act on:
 	// it never existed, was already deleted, or is not visible to them.
 	BulkDeleteSkipNotFound BulkDeleteSkipReason = "not_found"
