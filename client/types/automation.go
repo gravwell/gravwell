@@ -46,11 +46,11 @@ type ScheduledError struct {
 type ClearResultsSkipReason string
 
 const (
-	// ClearResponseSkipNotFound means the ID matched nothing the user could act on:
+	// ClearResultsSkipNotFound means the ID matched nothing the user could act on:
 	// it never existed, was already deleted, or is not visible to them.
-	ClearResponseSkipNotFound ClearResultsSkipReason = "not_found"
-	// DeleteSkipPermissionDenied means the user can see the asset, but may not delete it.
-	ClearResponseSkipPermissionDenied ClearResultsSkipReason = "permission_denied"
+	ClearResultsSkipNotFound ClearResultsSkipReason = "not_found"
+	// ClearResultsSkipPermissionDenied means the user can see the asset, but may not delete it.
+	ClearResultsSkipPermissionDenied ClearResultsSkipReason = "permission_denied"
 )
 
 // ClearResultsSkip contains the ID of an item that was skipped and why.
