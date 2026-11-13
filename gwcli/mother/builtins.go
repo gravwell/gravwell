@@ -111,7 +111,7 @@ func listHistory(m *Mother, _ *cobra.Command, _ []string) tea.Cmd {
 // Returns the current working directory.
 // Basically redundant in the current prompt style, but facilitates alternative prompt formats or prompt path truncation.
 func pwd(m *Mother, _ *cobra.Command, _ []string) tea.Cmd {
-	return tea.Println(m.pwd.UseLine())
+	return tea.Println(m.pwd.CommandPath())
 }
 
 func quit(m *Mother, _ *cobra.Command, _ []string) tea.Cmd {
