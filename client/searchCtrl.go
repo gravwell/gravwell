@@ -51,14 +51,32 @@ func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
 	return c.get[types.SearchInfo](searchesIdUrl(sid))
 }
 
-// SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
-// to modify the expiration or search name and notes
+// SaveSearch saves the search that has the ID sid.
+//
+// If you give no SaveSearchPatch, the saved search never expires.
+// This rule keeps the behavior of releases before 6.0, where a save with no patch removed
+// the expiration.
+// If you give a SaveSearchPatch, the client sends it without changes.
+// A patch that has no Expires does not change the expiration of the search.
+// The server deletes a search when its expiration time occurs.
+// As a result, no patch and an empty patch give different results:
+//
+//	c.SaveSearch(id)                          // The search never expires.
+//	c.SaveSearch(id, types.SaveSearchPatch{}) // The search keeps its expiration.
+//
+// To set a name or notes on a search that must never expire, set Expires to null on the patch:
+//
+//	patch := types.SaveSearchPatch{Name: types.NewOptional("my search")}
+//	patch.Expires.Null()
+//	c.SaveSearch(id, patch)
 func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
-	var arg any
-	if len(ssp) == 1 {
-		arg = ssp[0]
+	var patch types.SaveSearchPatch
+	if len(ssp) == 0 {
+		patch.Expires.Null()
+	} else {
+		patch = ssp[0]
 	}
-	return c.putStaticURL(searchesIdSaveUrl(sid), arg)
+	return c.putStaticURL(searchesIdSaveUrl(sid), patch)
 }
 
 // BackgroundSearch will request that a search is backgrounded by ID
