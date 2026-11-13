@@ -92,11 +92,13 @@ func (c *Client) ClearScheduledSearchResults(id string) (types.ClearResultsRespo
 
 // ClearAllScheduledSearchResults (admin-only) deletes all results for the specified scheduled
 // search, regardless of which user owns them.
-func (c *Client) ClearAllScheduledSearchResults(id string) error {
+// A nil error does not guarantee all results were cleared; check Skipped.
+func (c *Client) ClearAllScheduledSearchResults(id string) (types.ClearResultsResponse, error) {
 	if !c.userDetails.Admin {
-		return ErrNotAdmin
+		return types.ClearResultsResponse{}, ErrNotAdmin
 	}
-	return c.delete(scheduledSearchesIdResultsUrl(id), urlParam{queryparams.All, "true"})
+	return c.deleteWithResponse[types.ClearResultsResponse](scheduledSearchesIdResultsUrl(id),
+		urlParam{queryparams.All, "true"})
 }
 
 // DebugScheduledSearch requests an immediate debug run of the specified scheduled search.
