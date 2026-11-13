@@ -483,8 +483,9 @@ func equalACL(a, b types.ACL) bool {
 	return true
 }
 
-// TestSaveSearchSendsExpires checks what SaveSearch puts on the wire: null
-// when expires is nil, the time when it is set, and the patch's name.
+// TestSaveSearchSendsExpires checks what SaveSearch puts on the wire: a null
+// Expires with no patch, the patch's time and name when it has them, and no
+// Expires at all for a patch that does not set one.
 func TestSaveSearchSendsExpires(t *testing.T) {
 	var gotBody string
 	l, err := net.Listen("tcp", "[::1]:0")
@@ -506,21 +507,29 @@ func TestSaveSearchSendsExpires(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := c.SaveSearch("123", nil); err != nil {
+	if err := c.SaveSearch("123"); err != nil {
 		t.Fatalf("SaveSearch: %v", err)
 	}
 	if !strings.Contains(gotBody, `"Expires":null`) {
-		t.Errorf("a nil expires must send null, got %s", gotBody)
+		t.Errorf("no patch must send a null Expires, got %s", gotBody)
 	}
 
 	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
-	if err := c.SaveSearch("123", &expires, types.SaveSearchPatch{Name: types.NewOptional("kept")}); err != nil {
+	patch := types.SaveSearchPatch{Expires: types.NewNullablePatchIn(expires), Name: types.NewOptional("kept")}
+	if err := c.SaveSearch("123", patch); err != nil {
 		t.Fatalf("SaveSearch: %v", err)
 	}
 	if !strings.Contains(gotBody, `"Expires":"2026-11-06T12:00:00Z"`) {
-		t.Errorf("a set expires must send the time, got %s", gotBody)
+		t.Errorf("a patch with an Expires must send the time, got %s", gotBody)
 	}
 	if !strings.Contains(gotBody, `"Name":"kept"`) {
 		t.Errorf("the patch's name must be sent, got %s", gotBody)
+	}
+
+	if err := c.SaveSearch("123", types.SaveSearchPatch{Name: types.NewOptional("kept")}); err != nil {
+		t.Fatalf("SaveSearch: %v", err)
+	}
+	if strings.Contains(gotBody, `"Expires"`) {
+		t.Errorf("a patch with no Expires must not send one, got %s", gotBody)
 	}
 }

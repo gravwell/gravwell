@@ -274,15 +274,15 @@ func save() action.Pair {
 				ssp.Notes = types.NewOptional(notes)
 			}
 			// with no expire flag the saved search never expires
-			var expires *time.Time
+			ssp.Expires.Null()
 			if expire, err := addtlFlags.GetTime("expire"); err != nil {
 				clilog.GetFlag(err)
 			} else if !expire.IsZero() {
-				expires = &expire
+				ssp.Expires.Set(expire)
 			}
 			results = make([]scaffold.Result, len(IDs))
 			for i, ID := range IDs {
-				if err := connection.Client.SaveSearch(ID, expires, ssp); err != nil {
+				if err := connection.Client.SaveSearch(ID, ssp); err != nil {
 					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to save search %s: %v", ID, err)}
 				} else {
 					results[i] = scaffold.Result{Success: true, Output: "saved search " + ID}

@@ -51,18 +51,30 @@ func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
 	return c.get[types.SearchInfo](searchesIdUrl(sid))
 }
 
-// SaveSearch will request that a search is saved by ID. A nil expires means the saved search
-// never expires; otherwise it expires at that time. An optional SaveSearchPatch can be sent
-// to set the search name and notes; its Expires is replaced by expires.
-func (c *Client) SaveSearch(sid string, expires *time.Time, ssp ...types.SaveSearchPatch) error {
+// SaveSearch saves the search that has the ID sid.
+//
+// If you give no SaveSearchPatch, the saved search never expires.
+// This rule keeps the behavior of releases before 6.0, where a save with no patch removed
+// the expiration.
+// If you give a SaveSearchPatch, the client sends it without changes.
+// A patch that has no Expires does not change the expiration of the search.
+// The server deletes a search when its expiration time occurs.
+// As a result, no patch and an empty patch give different results:
+//
+//	c.SaveSearch(id)                          // The search never expires.
+//	c.SaveSearch(id, types.SaveSearchPatch{}) // The search keeps its expiration.
+//
+// To set a name or notes on a search that must never expire, set Expires to null on the patch:
+//
+//	patch := types.SaveSearchPatch{Name: types.NewOptional("my search")}
+//	patch.Expires.Null()
+//	c.SaveSearch(id, patch)
+func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
 	var patch types.SaveSearchPatch
-	if len(ssp) == 1 {
-		patch = ssp[0]
-	}
-	if expires == nil {
+	if len(ssp) == 0 {
 		patch.Expires.Null()
 	} else {
-		patch.Expires.Set(*expires)
+		patch = ssp[0]
 	}
 	return c.putStaticURL(searchesIdSaveUrl(sid), patch)
 }
