@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 )
 
 const (
@@ -34,6 +35,9 @@ const (
 	defaultMaxConnections        = 1024 * 10 // about 10k connections, any modern OS should be able to handle this
 	defaultMaxConcurrentRequests = 1024 * 16 // HTTP2 means concurrent requests on a connection, 16k concurrent request is A LOT
 	defaultBufferSize            = 1024 * 1024
+
+	envTrustedProxies     = `GRAVWELL_HTTP_TRUSTED_PROXIES`
+	envIgnoreUntrustedXFF = `GRAVWELL_HTTP_IGNORE_UNTRUSTED_FORWARDED_FOR`
 )
 
 type gbl struct {
@@ -45,6 +49,11 @@ type gbl struct {
 	Health_Check_URL        string
 	Max_Connections         int
 	Max_Concurrent_Requests int
+	Trusted_Proxies         []string // addresses and CIDR blocks allowed to set X-Forwarded-For
+
+	// Ignore_Untrusted_Forwarded_For turns off the legacy behavior of trusting
+	// X-Forwarded-For from any peer when Trusted_Proxies is empty.
+	Ignore_Untrusted_Forwarded_For bool
 }
 
 type cfgReadType struct {
@@ -85,6 +94,8 @@ type cfgType struct {
 	OtelLogsListener map[string]*otelLogsListener
 	Preprocessor     processors.ProcessorConfig
 	TimeFormat       config.CustomTimeFormat
+
+	resolver clientResolver // built from Trusted_Proxies and Ignore_Untrusted_Forwarded_For by Verify
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -123,6 +134,22 @@ func (c *cfgType) Verify() error {
 	if err := c.ValidateTLS(); err != nil {
 		return err
 	}
+
+	if err := config.LoadEnvVar(&c.Trusted_Proxies, envTrustedProxies, nil); err != nil {
+		return fmt.Errorf("failed to load %s %w", envTrustedProxies, err)
+	}
+	if err := config.LoadEnvVar(&c.Ignore_Untrusted_Forwarded_For, envIgnoreUntrustedXFF, false); err != nil {
+		return fmt.Errorf("failed to load %s %w", envIgnoreUntrustedXFF, err)
+	}
+	tp, err := trustedproxy.Parse(c.Trusted_Proxies)
+	if err != nil {
+		return fmt.Errorf("Trusted-Proxies is invalid: %w", err)
+	}
+	c.resolver = clientResolver{
+		trusted: tp,
+		legacy:  tp.Empty() && !c.Ignore_Untrusted_Forwarded_For,
+	}
+
 	if c.Max_Connections == 0 {
 		c.Max_Connections = defaultMaxConnections
 	}

@@ -38,6 +38,8 @@ func (h *handler) loadConfig(cfg *cfgType) error {
 		h.Unlock()
 	}
 
+	h.setResolver(cfg.resolver)
+
 	if err := includeStdListeners(h, h.igst, cfg); err != nil {
 		return fmt.Errorf("failed to include std listeners %w", err)
 	}
@@ -108,6 +110,7 @@ func (h *handler) hotReload(cfg *cfgType) error {
 	h.mp = tempHandler.mp
 	h.auth = tempHandler.auth
 	h.custom = tempHandler.custom
+	h.setResolver(cfg.resolver)
 	h.Unlock()
 
 	if err := h.igst.SetRawConfiguration(cfg); err != nil {

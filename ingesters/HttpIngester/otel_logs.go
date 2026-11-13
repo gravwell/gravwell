@@ -69,10 +69,7 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 		}()
 	}
 
-	ll := log.NewLoggerWithKV(oh.lgr,
-		log.KV("otel-logs-listener", oh.name),
-		log.KV("remoteaddress", ip),
-	)
+	ll := log.NewLoggerWithKV(oh.lgr, append(clientKVs("remoteaddress", requestClient(r)), log.KV("otel-logs-listener", oh.name))...)
 
 	bodyReadLimit := int64(maxBody + 256)
 	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
