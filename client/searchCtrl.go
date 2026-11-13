@@ -35,6 +35,10 @@ const (
 var (
 	ErrSearchNotAttached       = errors.New("search not attached")
 	ErrInvalidDateRequestRange = errors.New("Table request range is invalid")
+
+	ErrSearchSessionRefreshFailed      = errors.New("search session refresh failed")
+	ErrSearchSessionRefreshNoResult    = errors.New("search session refresh returned no result")
+	ErrSearchSessionRefreshResultCount = errors.New("unexpected refresh result count")
 )
 
 // DeleteSearch will request that a search is deleted by search ID
@@ -47,14 +51,32 @@ func (c *Client) GetSearch(sid string) (types.SearchInfo, error) {
 	return c.get[types.SearchInfo](searchesIdUrl(sid))
 }
 
-// SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
-// to modify the expiration or search name and notes
+// SaveSearch saves the search that has the ID sid.
+//
+// If you give no SaveSearchPatch, the saved search never expires.
+// This rule keeps the behavior of releases before 6.0, where a save with no patch removed
+// the expiration.
+// If you give a SaveSearchPatch, the client sends it without changes.
+// A patch that has no Expires does not change the expiration of the search.
+// The server deletes a search when its expiration time occurs.
+// As a result, no patch and an empty patch give different results:
+//
+//	c.SaveSearch(id)                          // The search never expires.
+//	c.SaveSearch(id, types.SaveSearchPatch{}) // The search keeps its expiration.
+//
+// To set a name or notes on a search that must never expire, set Expires to null on the patch:
+//
+//	patch := types.SaveSearchPatch{Name: types.NewOptional("my search")}
+//	patch.Expires.Null()
+//	c.SaveSearch(id, patch)
 func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
-	var arg any
-	if len(ssp) == 1 {
-		arg = ssp[0]
+	var patch types.SaveSearchPatch
+	if len(ssp) == 0 {
+		patch.Expires.Null()
+	} else {
+		patch = ssp[0]
 	}
-	return c.putStaticURL(searchesIdSaveUrl(sid), arg)
+	return c.putStaticURL(searchesIdSaveUrl(sid), patch)
 }
 
 // BackgroundSearch will request that a search is backgrounded by ID
@@ -1093,11 +1115,17 @@ type Search struct {
 	types.SearchInfo
 }
 
-// Ping sends a message to a search handle to keep the search alive.
+// RefreshSearchSessions refreshes one or more search sessions in a single request.
+func (c *Client) RefreshSearchSessions(req types.SearchSessionRefreshRequest) (resp types.SearchSessionRefreshResponse, err error) {
+	err = c.methodStaticPushURL(http.MethodPost, REFRESH_SEARCH_SESSIONS_URL, req, &resp, nil, nil)
+	return
+}
+
+// Refresh sends a message to a search handle to keep the search alive.
 // If you intend to run a search and then wait a long time before interacting with it further,
-// you should periodically call Ping() to keep the connection alive.
-func (s *Search) Ping() error {
-	return s.ping(0)
+// you should periodically call Refresh() to keep the connection alive.
+func (s *Search) Refresh() error {
+	return s.refresh(0)
 }
 
 // Close will close our handle on the search, effectively releasing our lock.
@@ -1112,23 +1140,48 @@ func (s *Search) sidParam() (p urlParam) {
 	return
 }
 
-func (s *Search) ping(iu uint) error {
+// refresh renews the search session. iu is the refresh interval in seconds;
+// zero leaves the current interval unchanged.
+func (s *Search) refresh(iu uint) error {
 	if s == nil || s.cli == nil {
 		//uuuuh... bye...
 		return ErrSearchNotAttached
 	}
-	var resp types.SearchSessionIntervalUpdate
-	req := types.SearchSessionIntervalUpdate{
-		Interval: iu,
+
+	req := types.SearchSessionRefreshRequest{
+		Sessions: []types.SearchSessionRefresh{{
+			SearchID:  s.ID,
+			SessionID: s.session,
+		}},
 	}
-	params := []urlParam{s.sidParam()}
-	if err := s.cli.methodStaticPushURL(http.MethodPut, searchesIdPingUrl(s.ID), req, &resp, nil, params); err != nil {
+
+	if iu > 0 {
+		req.Sessions[0].Interval = types.NewOptional(iu)
+	}
+
+	resp, err := s.cli.RefreshSearchSessions(req)
+	if err != nil {
 		return err
 	}
-	if resp.Interval > 0 {
-		s.interval = time.Duration(resp.Interval) * time.Second
+
+	if len(resp.Results) != 1 {
+		return fmt.Errorf("%w: got %d, want 1", ErrSearchSessionRefreshResultCount, len(resp.Results))
 	}
-	return nil
+
+	switch r := resp.Results[0]; {
+	case r.Failed != nil:
+		if r.Failed.Error == `` {
+			return ErrSearchSessionRefreshFailed
+		}
+		return fmt.Errorf("%w: %s", ErrSearchSessionRefreshFailed, r.Failed.Error)
+	case r.Refreshed == nil:
+		return ErrSearchSessionRefreshNoResult
+	default:
+		if r.Refreshed.Interval > 0 {
+			s.interval = time.Duration(r.Refreshed.Interval) * time.Second
+		}
+		return nil
+	}
 }
 
 // Interval is the duration that the webserver has asked us to update on
@@ -1149,7 +1202,7 @@ func (s *Search) UpdateInterval(d time.Duration) error {
 	}
 	d = d.Round(time.Second)
 	iu := uint(d / time.Second)
-	return s.ping(iu)
+	return s.refresh(iu)
 }
 
 // SearchRange is an accessor to get the start and end timeframes for the search

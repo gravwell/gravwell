@@ -33,20 +33,25 @@ const (
 	RESP_ENTRY_COUNT    uint32 = 0x3
 	RESP_SEARCH_DETAILS uint32 = 0x4
 	RESP_SEARCH_TAGS    uint32 = 0x5
-)
 
-// Search Launch Methods
-const (
+	// Search Launch Methods
 	LaunchMethodManual          = `manual`
 	LaunchMethodDirectQuery     = `directquery`
 	LaunchMethodFlow            = `flow`
 	LaunchMethodScript          = `script`
 	LaunchMethodScheduledSearch = `scheduledSearch`
 	LaunchMethodDashboard       = `dashboard`
+
+	// Search Refresh Statuses
+	SearchSessionRefreshResultKindRefreshed SearchSessionRefreshResultKind = "refreshed"
+	SearchSessionRefreshResultKindFailed    SearchSessionRefreshResultKind = "failed"
 )
 
 var (
 	ErrIllegalMacroCharacter error = errors.New("Illegal character in macro name")
+
+	ErrSearchSessionRefreshResultInvalid   = errors.New("SearchSessionRefreshResult has no variant set")
+	ErrSearchSessionRefreshResultAmbiguous = errors.New("SearchSessionRefreshResult has both variants set")
 )
 
 // An Element is an item which has been extracted from an entry using the
@@ -178,7 +183,7 @@ type StartSearchRequest struct {
 	Addendum    jsontext.Value `json:",omitempty"`
 	Name        string         `json:",omitempty"`
 	Filters     []FilterRequest
-	LaunchInfo  SearchLaunchInfo // information about how a search was launched
+	LaunchInfo  SearchLaunchInput // information about how a search was launched
 	// Sharing parameters
 	GIDs   []int32
 	Global bool
@@ -212,8 +217,112 @@ type StartSearchResponse struct {
 	Global bool
 }
 
-type SearchSessionIntervalUpdate struct {
-	Interval uint
+// SearchSessionRefresh describes one search session to refresh.
+type SearchSessionRefresh struct {
+	SearchID  string
+	SessionID uuid.UUID
+
+	// Interval is how often, in seconds, the client will refresh this session
+	// from now on. Unset leaves the interval unchanged.
+	Interval Optional[uint] `json:",omitzero"`
+
+	// Expires is when the search expires. Unset leaves the expiry unchanged.
+	Expires Optional[time.Time] `json:",omitzero"`
+}
+
+// SearchSessionRefreshRequest lists the search sessions to refresh.
+type SearchSessionRefreshRequest struct {
+	Sessions []SearchSessionRefresh
+}
+
+// SearchSessionRefreshResponse is the outcome of a search session refresh.
+// Results[i] is the outcome of Sessions[i] in the request.
+type SearchSessionRefreshResponse struct {
+	Results []SearchSessionRefreshResult
+}
+
+// SearchSessionRefreshResultKind is the discriminator for SearchSessionRefreshResult.
+type SearchSessionRefreshResultKind string
+
+// SearchSessionRefreshed is the result of a successful session refresh.
+type SearchSessionRefreshed struct {
+	Kind      SearchSessionRefreshResultKind
+	SearchID  string
+	SessionID uuid.UUID
+	Interval  uint
+	Expires   Nullable[time.Time]
+}
+
+// SearchSessionRefreshFailed is the result of a failed session refresh.
+type SearchSessionRefreshFailed struct {
+	Kind      SearchSessionRefreshResultKind
+	SearchID  string
+	SessionID uuid.UUID
+	Error     string
+}
+
+// SearchSessionRefreshResult is the outcome of refreshing one search session.
+// Exactly one of Refreshed and Failed is set. It marshals and unmarshals as the
+// variant, with Kind carrying the discriminator on the wire.
+type SearchSessionRefreshResult struct {
+	Refreshed *SearchSessionRefreshed
+	Failed    *SearchSessionRefreshFailed
+}
+
+// searchSessionRefreshResultWire is the flattened JSON shape of the union.
+// Kind selects which fields belong to the variant.
+type searchSessionRefreshResultWire struct {
+	Kind      SearchSessionRefreshResultKind
+	SearchID  string
+	SessionID uuid.UUID
+	Interval  uint
+	Expires   Nullable[time.Time]
+	Error     string
+}
+
+func (r SearchSessionRefreshResult) MarshalJSONTo(enc *jsontext.Encoder) error {
+	switch {
+	case r.Refreshed != nil && r.Failed == nil:
+		v := *r.Refreshed
+		v.Kind = SearchSessionRefreshResultKindRefreshed
+		return json.MarshalEncode(enc, v)
+	case r.Failed != nil && r.Refreshed == nil:
+		v := *r.Failed
+		v.Kind = SearchSessionRefreshResultKindFailed
+		return json.MarshalEncode(enc, v)
+	case r.Refreshed == nil && r.Failed == nil:
+		return ErrSearchSessionRefreshResultInvalid
+	default:
+		return ErrSearchSessionRefreshResultAmbiguous
+	}
+}
+
+func (r *SearchSessionRefreshResult) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	*r = SearchSessionRefreshResult{}
+	var w searchSessionRefreshResultWire
+	if err := json.UnmarshalDecode(dec, &w); err != nil {
+		return err
+	}
+	switch w.Kind {
+	case SearchSessionRefreshResultKindRefreshed:
+		r.Refreshed = &SearchSessionRefreshed{
+			Kind:      w.Kind,
+			SearchID:  w.SearchID,
+			SessionID: w.SessionID,
+			Interval:  w.Interval,
+			Expires:   w.Expires,
+		}
+	case SearchSessionRefreshResultKindFailed:
+		r.Failed = &SearchSessionRefreshFailed{
+			Kind:      w.Kind,
+			SearchID:  w.SearchID,
+			SessionID: w.SessionID,
+			Error:     w.Error,
+		}
+	default:
+		return fmt.Errorf("unknown SearchSessionRefreshResult Kind %q", w.Kind)
+	}
+	return nil
 }
 
 // StartSearchAck is sent when a search has begun
@@ -292,21 +401,68 @@ type SearchInfo struct {
 
 type SearchInfoListResponse = ListResponse[SearchInfo]
 
+// SearchLaunchInput is the launch information a client sends when it starts a
+// search. The server fills in a default for each omitted field: an omitted
+// Method becomes manual, an omitted Reference stays empty, an omitted Started
+// becomes the current time, and an omitted Expires becomes the server's default
+// for the search. A launch cannot start a search that never expires.
+type SearchLaunchInput struct {
+	//what launched the search, manual, directquery, scheduledSearch, etc...
+	Method Optional[string] `json:",omitzero"`
+
+	// Reference is the UUID, ID, etc. of the thing that launched the search
+	Reference Optional[string] `json:",omitzero"`
+
+	// Started is the timestamp of when the search was started
+	Started Optional[time.Time] `json:",omitzero"`
+
+	// Expires marks when the search should expire/be deleted
+	Expires Optional[time.Time] `json:",omitzero"`
+}
+
+// LaunchInfo returns the input as a SearchLaunchInfo. A field that was left
+// out keeps its zero value, and an Expires that was left out is null.
+func (in SearchLaunchInput) LaunchInfo() (li SearchLaunchInfo) {
+	li.Method = in.Method.Value()
+	li.Reference = in.Reference.Value()
+	li.Started = in.Started.Value()
+	if in.Expires.IsSet() {
+		li.Expires = NewNullable(in.Expires.Value())
+	}
+	return
+}
+
+// SearchLaunchInfo describes how and when a search was launched. The server
+// sends it in every search response.
 type SearchLaunchInfo struct {
 	//what launched the search, manual, directquery, scheduledsearch, etc...
-	Method string `json:",omitempty"`
+	Method string
 
 	// Reference is the UUID, ID, etc. of the thing that launched the search
 	// this is blank for manual queries
-	Reference string `json:",omitempty"`
+	Reference string
 
 	// Started is the timestamp of when the search was started.  This is used to inform
 	// the GUI and/or clients on when the query was actually started.
 	Started time.Time
 
-	// Expires marks when when the search should expire/be deleted,
-	// it may be the zero value which means never
-	Expires time.Time
+	// Expires marks when the search should expire/be deleted. A search launched
+	// with no expiration gets a default from the server, unless a flow, a script,
+	// or a scheduled search launched it in the foreground: that search gets none.
+	// Null means the search has no expiration, and what happens then depends on
+	// the search:
+	//   - a saved search is kept until someone deletes it
+	//   - a backgrounded search that is not saved is deleted 7 days after it finishes
+	//   - any other search is deleted when its last client leaves
+	Expires Nullable[time.Time]
+}
+
+// NeverExpires reports whether the search has no expiration. Null is how the
+// API says "never". Releases before 6.0 sent the zero time instead, so a zero
+// time counts too. Use this, not Expires.IsZero, which is always false for a
+// Nullable.
+func (li SearchLaunchInfo) NeverExpires() bool {
+	return li.Expires.Value().IsZero()
 }
 
 // A RendererSettings has the information necessary for client to render searches using legacy renderer modules.
@@ -703,53 +859,80 @@ func CheckMacroName(name string) error {
 }
 
 type SaveSearchPatch struct {
-	SearchLaunchInfo
-	// these are the supported fields in the free form search metadata; these are used by the GUI
-	Name  string `json:",omitempty"`
-	Notes string `json:",omitempty"`
+	// Expires is the expiration to save the search with. A value sets the
+	// expiration, null means the search never expires, and a missing Expires
+	// leaves the current expiration unchanged.
+	Expires NullablePatchIn[time.Time] `json:",omitzero"`
+	// Method and Reference say what launched the search. A missing or empty one
+	// leaves the stored one unchanged.
+	Method    Optional[string] `json:",omitzero"`
+	Reference Optional[string] `json:",omitzero"`
+	// Started is when the search started. It is used only when the search has
+	// no start time.
+	Started Optional[time.Time] `json:",omitzero"`
+	// these are the supported fields in the free form search metadata; these are used by the GUI.
+	// A missing Name or Notes leaves the stored one unchanged, and an empty string clears it.
+	Name  Optional[string] `json:",omitzero"`
+	Notes Optional[string] `json:",omitzero"`
 }
 
-func (p SaveSearchPatch) GetMetadata() jsontext.Value {
-	if p.Name == `` && p.Notes == `` {
+// MergeMetadata returns the search metadata with the patch's Name and Notes
+// applied to curr. A set field replaces the stored one, an empty string
+// removes it, and an unset field leaves it. Other keys in curr are kept.
+func (p SaveSearchPatch) MergeMetadata(curr jsontext.Value) jsontext.Value {
+	if !p.Name.IsSet() && !p.Notes.IsSet() {
+		return curr
+	}
+	md := map[string]jsontext.Value{}
+	if len(curr) > 0 {
+		// metadata that is not a JSON object on null cannot hold a name or notes, so it is replaced
+		if err := json.Unmarshal(curr, &md); err != nil || md == nil {
+			md = map[string]jsontext.Value{}
+		}
+	}
+	if p.Name.IsSet() {
+		delete(md, `Name`)
+		if v, err := json.Marshal(p.Name.Value()); err == nil && p.Name.Value() != `` {
+			md[`Name`] = v
+		}
+	}
+	if p.Notes.IsSet() {
+		delete(md, `Notes`)
+		if v, err := json.Marshal(p.Notes.Value()); err == nil && p.Notes.Value() != `` {
+			md[`Notes`] = v
+		}
+	}
+	if len(md) == 0 {
 		return nil
 	}
-	md := struct {
-		Name  string `json:",omitempty"`
-		Notes string `json:",omitempty"`
-	}{
-		Name:  p.Name,
-		Notes: p.Notes,
+	v, err := json.Marshal(md, json.Deterministic(true))
+	if err != nil {
+		return curr
 	}
-	if v, err := json.Marshal(md); err == nil && len(v) > 0 {
-		return jsontext.Value(v)
-	}
-	return nil
+	return jsontext.Value(v)
 }
 
 func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 	if li == nil {
 		return
 	}
-	if p.Method != `` {
-		li.Method = p.Method
+	if p.Method.Value() != `` {
+		li.Method = p.Method.Value()
 		changed = true
 	}
-	if p.Reference != `` {
-		li.Reference = p.Reference
+	if p.Reference.Value() != `` {
+		li.Reference = p.Reference.Value()
 		changed = true
 	}
-	// the expiration is special, we ALWAYS take the experation, even if its the zero value.
-	// We do this so that a human clicking save on the GUI ALWAYS blows the search expiration.
-	// The use case is that a scheduled search gets results and fires an alert, the alert logic
-	// this marks the search as saved and sets an expiration.  A user gets the alert, clicks the search,
-	// sees that the results should be kept and clicks save; this action means the user wants to kill
-	// the timer, so we wipe the expiration.
-	changed = changed || !li.Expires.Equal(p.Expires)
-	li.Expires = p.Expires
+	// a value sets the expiration, null clears it, and a missing Expires leaves it alone
+	before := li.Expires
+	p.Expires.Apply(&li.Expires)
+	// compare the instants: Nullable.Equal is a deep comparison, which also compares time zones
+	changed = changed || before.IsNull() != li.Expires.IsNull() || !before.Value().Equal(li.Expires.Value())
 
 	//Started is best effort, take whatever isn't zero if there is one
 	if li.Started.IsZero() {
-		li.Started = p.Started
+		li.Started = p.Started.Value()
 	}
 	return
 }
