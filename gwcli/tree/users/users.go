@@ -187,6 +187,8 @@ func edit() action.Pair {
 				Required: true,
 				Title:    "Username",
 				Usage:    "unique username to assign",
+				// must not shadow the global --username (login) flag
+				FlagName: "new-username",
 				Order:    200,
 			},
 			"name": {
