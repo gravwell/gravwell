@@ -885,8 +885,8 @@ func (p SaveSearchPatch) MergeMetadata(curr jsontext.Value) jsontext.Value {
 	}
 	md := map[string]jsontext.Value{}
 	if len(curr) > 0 {
-		// metadata that is not a JSON object cannot hold a name or notes, so it is replaced
-		if err := json.Unmarshal(curr, &md); err != nil {
+		// metadata that is not a JSON object on null cannot hold a name or notes, so it is replaced
+		if err := json.Unmarshal(curr, &md); err != nil || md == nil {
 			md = map[string]jsontext.Value{}
 		}
 	}

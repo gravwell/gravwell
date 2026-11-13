@@ -934,6 +934,12 @@ func TestSaveSearchPatchMergeMetadata(t *testing.T) {
 	if want := `{"Notes":"first notes"}`; string(got) != want {
 		t.Errorf("metadata = %s, want %s", got, want)
 	}
+
+	// stored metadata that is a JSON null is replaced, like any other non-object
+	got = SaveSearchPatch{Name: NewOptional("name")}.MergeMetadata(jsontext.Value(`null`))
+	if want := `{"Name":"name"}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
 }
 
 // TestSearchLaunchInputJSON checks the wire form of the launch information in
@@ -989,5 +995,29 @@ func TestSearchLaunchInputLaunchInfo(t *testing.T) {
 	}
 	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
 		t.Errorf("expires = %v, want %v", li.Expires, expires)
+	}
+}
+
+// TestSaveSearchPatchMergeMetadataReplacesNonObjects checks stored metadata
+// that is not a JSON object: null, another JSON type, or not JSON at all. A
+// patch that sets a name or notes replaces it. A patch that sets neither
+// leaves it as it is.
+func TestSaveSearchPatchMergeMetadataReplacesNonObjects(t *testing.T) {
+	for _, curr := range []string{`null`, `[]`, `["a"]`, `"text"`, `42`, `true`, `{`} {
+		got := SaveSearchPatch{Name: NewOptional("name")}.MergeMetadata(jsontext.Value(curr))
+		if want := `{"Name":"name"}`; string(got) != want {
+			t.Errorf("metadata %s with a name = %s, want %s", curr, got, want)
+		}
+		got = SaveSearchPatch{Name: NewOptional("name"), Notes: NewOptional("notes")}.MergeMetadata(jsontext.Value(curr))
+		if want := `{"Name":"name","Notes":"notes"}`; string(got) != want {
+			t.Errorf("metadata %s with a name and notes = %s, want %s", curr, got, want)
+		}
+		// clearing a field that non-object metadata cannot hold leaves nothing
+		if got = (SaveSearchPatch{Notes: NewOptional("")}).MergeMetadata(jsontext.Value(curr)); got != nil {
+			t.Errorf("metadata %s with cleared notes = %s, want none", curr, got)
+		}
+		if got = (SaveSearchPatch{}).MergeMetadata(jsontext.Value(curr)); string(got) != curr {
+			t.Errorf("metadata %s with an empty patch = %s, want it unchanged", curr, got)
+		}
 	}
 }
