@@ -42,6 +42,32 @@ type ScheduledError struct {
 	Timestamp time.Time
 }
 
+// BulkDeleteSkipReason is the enumerated reasons an individual ID was skipped.
+type BulkDeleteSkipReason string
+
+const (
+	// BulkDeleteSkipUnknown means something has gone horribly wrong for this specific result.
+	BulkDeleteSkipUnknown BulkDeleteSkipReason = "unknown"
+	// BulkDeleteSkipNotFound means the ID matched nothing the user could act on:
+	// it never existed, was already deleted, or is not visible to them.
+	BulkDeleteSkipNotFound BulkDeleteSkipReason = "not_found"
+	// BulkDeleteSkipPermissionDenied means the user can see the asset, but may not delete it.
+	BulkDeleteSkipPermissionDenied BulkDeleteSkipReason = "permission_denied"
+)
+
+// BulkDeleteSkip contains the ID of an item that was skipped and why.
+type BulkDeleteSkip struct {
+	ID     string
+	Reason BulkDeleteSkipReason
+}
+
+// ClearResultsResponse answers requests that clear automation results with the number of items
+// successfully deleted and which items were skipped and why.
+type ClearResultsResponse struct {
+	Deleted int32
+	Skipped []BulkDeleteSkip
+}
+
 type FlowNodeResult struct {
 	Payload map[string]interface{}
 	ID      int    // the node ID
