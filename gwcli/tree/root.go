@@ -337,6 +337,36 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 		clilog.InitializeFromArgs(args)
 	}
 
+	rootCmd := newRoot()
+
+	// if we are testing, wire up outputs
+	if options.Stdout != nil {
+		rootCmd.SetOut(options.Stdout)
+	}
+	if options.Stderr != nil {
+		rootCmd.SetErr(options.Stderr)
+	}
+
+	// if args were given (ex: we are in testing mode)
+	// use those instead of os.Args
+	if args != nil {
+		rootCmd.SetArgs(args)
+	}
+
+	err := rootCmd.Execute()
+	if err != nil {
+		fmt.Fprintln(rootCmd.ErrOrStderr(), err)
+		return 1
+	}
+
+	return 0
+}
+
+// newRoot assembles the full command tree (root, the global flags, and every nav and action),
+// returning root.
+// It does not execute anything and does not require a connection,
+// but clilog must be initialized first (some scaffolds log while building).
+func newRoot() *cobra.Command {
 	const (
 		// usage
 		use   string = "gwcli"
@@ -371,14 +401,6 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 	rootCmd.PersistentPostRunE = ppost
 	rootCmd.Version = state.Version
 
-	// if we are testing, wire up outputs
-	if options.Stdout != nil {
-		rootCmd.SetOut(options.Stdout)
-	}
-	if options.Stderr != nil {
-		rootCmd.SetErr(options.Stderr)
-	}
-
 	// associate flags
 	uniques.AttachPersistentFlags(rootCmd)
 
@@ -394,12 +416,6 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 		"You need to open gwcli.exe and run it from there.\n" +
 		"Press Return to close.\n"
 	cobra.MousetrapDisplayDuration = 0
-
-	// if args were given (ex: we are in testing mode)
-	// use those instead of os.Args
-	if args != nil {
-		rootCmd.SetArgs(args)
-	}
 
 	{ // build a set of examples
 		fields := "  " + stylesheet.Cur.ExampleText.Render("Invoke an action directly:") +
@@ -460,13 +476,7 @@ func Execute(args []string, opts ...ExecuteOptions) int {
 	})
 	rootCmd.SilenceErrors = true // we will print errors ourself
 
-	err := rootCmd.Execute()
-	if err != nil {
-		fmt.Fprintln(rootCmd.ErrOrStderr(), err)
-		return 1
-	}
-
-	return 0
+	return rootCmd
 }
 
 // TODO This relies on backend libraries that the TUI doesn't have access to as it is in Mono.

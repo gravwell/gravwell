@@ -258,3 +258,54 @@ func TestGatherCredentials(t *testing.T) {
 		})
 	}
 }
+
+// No command may define a flag (or shorthand) that is already defined by one of its ancestors.
+// Siblings/cousins are free to reuse flags; only the path from root to each command is checked.
+//
+// A shadowed flag loses its shorthand (ex: -u) and its value is misread by the ancestor
+// (ex: `users edit --username=NEW` would be treated as a login credential).
+func TestFlagsDoNotShadowAncestors(t *testing.T) {
+	// maps a flag name or shorthand to the path of the command that defined it
+	type owners struct {
+		names      map[string]string
+		shorthands map[string]string
+	}
+
+	var walk func(cmd *cobra.Command, upstream owners)
+	walk = func(cmd *cobra.Command, upstream owners) {
+		// copy the upstream flags so siblings do not see each other's flags
+		cur := owners{maps.Clone(upstream.names), maps.Clone(upstream.shorthands)}
+
+		// LocalFlags is every flag defined on this command (persistent or not),
+		// including those that shadow an inherited flag.
+		cmd.LocalFlags().VisitAll(func(f *pflag.Flag) {
+			if owner, found := upstream.names[f.Name]; found {
+				t.Errorf("%q: --%s shadows the flag of the same name defined by %q",
+					cmd.CommandPath(), f.Name, owner)
+			}
+			cur.names[f.Name] = cmd.CommandPath()
+			if f.Shorthand == "" {
+				return
+			}
+			if owner, found := upstream.shorthands[f.Shorthand]; found {
+				t.Errorf("%q: -%s (--%s) shadows the shorthand of the same name defined by %q",
+					cmd.CommandPath(), f.Shorthand, f.Name, owner)
+			}
+			cur.shorthands[f.Shorthand] = cmd.CommandPath()
+		})
+		for _, child := range cmd.Commands() {
+			walk(child, cur)
+		}
+	}
+	// clilog needs to be spinning for the tree to build
+	if err := clilog.Init(path.Join(t.TempDir(), t.Name()+".log"), "DEBUG"); err != nil {
+		t.Fatal("failed to spin up logger: ", err)
+	}
+	root := newRoot()
+	walk(root, owners{map[string]string{}, map[string]string{}})
+
+	// sanity check that we actually walked the tree
+	if n := len(root.Commands()); n < 10 {
+		t.Fatalf("root only has %d children; was the tree fully built?", n)
+	}
+}
