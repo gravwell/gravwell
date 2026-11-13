@@ -42,28 +42,28 @@ type ScheduledError struct {
 	Timestamp time.Time
 }
 
-// ClearResultsSkipReason is the enumerated reasons an individual ID was skipped.
-type ClearResultsSkipReason string
+// BulkDeleteSkipReason is the enumerated reasons an individual ID was skipped.
+type BulkDeleteSkipReason string
 
 const (
-	// ClearResultsSkipNotFound means the ID matched nothing the user could act on:
+	// BulkDeleteSkipNotFound means the ID matched nothing the user could act on:
 	// it never existed, was already deleted, or is not visible to them.
-	ClearResultsSkipNotFound ClearResultsSkipReason = "not_found"
-	// ClearResultsSkipPermissionDenied means the user can see the asset, but may not delete it.
-	ClearResultsSkipPermissionDenied ClearResultsSkipReason = "permission_denied"
+	BulkDeleteSkipNotFound BulkDeleteSkipReason = "not_found"
+	// BulkDeleteSkipPermissionDenied means the user can see the asset, but may not delete it.
+	BulkDeleteSkipPermissionDenied BulkDeleteSkipReason = "permission_denied"
 )
 
-// ClearResultsSkip contains the ID of an item that was skipped and why.
-type ClearResultsSkip struct {
+// BulkDeleteSkip contains the ID of an item that was skipped and why.
+type BulkDeleteSkip struct {
 	ID     string
-	Reason ClearResultsSkipReason
+	Reason BulkDeleteSkipReason
 }
 
 // ClearResultsResponse answers requests that clear automation results with the number of items
 // successfully deleted and which items were skipped and why.
 type ClearResultsResponse struct {
 	Deleted int32
-	Skipped []ClearResultsSkip
+	Skipped []BulkDeleteSkip
 }
 
 type FlowNodeResult struct {
