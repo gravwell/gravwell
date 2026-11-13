@@ -218,7 +218,7 @@ func TestDeleteWithResponse(t *testing.T) {
 		var gotBody []byte
 		var response = types.ClearResultsResponse{
 			Deleted: 2,
-			Skipped: []types.ClearResultsSkip{{ID: "abc", Reason: types.ClearResponseSkipNotFound}},
+			Skipped: []types.ClearResultsSkip{{ID: "abc", Reason: types.ClearResultsSkipNotFound}},
 		}
 		mux := http.NewServeMux()
 		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
