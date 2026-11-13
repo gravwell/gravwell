@@ -165,11 +165,10 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 	var counter int
 
 	// get a local logger up that will always add some more info
-	ll := log.NewLoggerWithKV(h.lgr,
+	ll := log.NewLoggerWithKV(h.lgr, srcKVs(r,
 		log.KV("HEC-Listener", hh.name),
-		log.KV("src", ip.String()),
 		log.KV("url", redactedRequestURI(r)),
-	)
+	)...)
 
 	if cfg.debugPosts {
 		now := time.Now()
@@ -339,11 +338,10 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	resp := ack{Text: "Success"}
 
 	// get a local logger up that will always add some more info
-	ll := log.NewLoggerWithKV(h.lgr,
+	ll := log.NewLoggerWithKV(h.lgr, srcKVs(r,
 		log.KV("HEC-Listener", hh.name),
-		log.KV("src", ip.String()),
 		log.KV("url", redactedRequestURI(r)),
-	)
+	)...)
 
 	if cfg.debugPosts {
 		now := time.Now()

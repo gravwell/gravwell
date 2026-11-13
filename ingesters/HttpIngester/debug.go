@@ -9,6 +9,7 @@ import (
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 )
 
 const redacted = `REDACTED`
@@ -151,8 +152,9 @@ func (t *trackingRC) Close() error {
 
 type trackingRW struct {
 	http.ResponseWriter
-	code  int
-	bytes int
+	code   int
+	bytes  int
+	client *trustedproxy.Client // set by the handler once it resolves the client
 }
 
 func (trw *trackingRW) WriteHeader(code int) {
@@ -173,18 +175,30 @@ func (trw *trackingRW) Write(b []byte) (r int, err error) {
 // This should be run after writing the response (eg in a defered func) in
 // order to capture the response code and bytes read.
 func requestKV(w http.ResponseWriter, r *http.Request) []rfc5424.SDParam {
-	params := make([]rfc5424.SDParam, 0, 5)
+	params := make([]rfc5424.SDParam, 0, 8)
 	if trw, ok := w.(*trackingRW); ok {
 		params = append(params, log.KV("code", trw.code))
 	}
 	if trc, ok := r.Body.(*trackingRC); ok {
 		params = append(params, log.KV("bytes", trc.bytes))
 	}
-	return append(params,
+	params = append(params,
 		log.KV("method", r.Method),
 		log.KV("url", redactedRequestURI(r)),
-		log.KV("ip", getRemoteIP(r)),
 	)
+	return append(params, clientKVs("ip", loggedClient(w, r))...)
+}
+
+// loggedClient returns the client the handler resolved for r. Middleware that
+// wraps the handler holds the request from before the client was attached, so it
+// is read from the trackingRW. A request the handler did not resolve, such as a
+// health check or a throttled request, logs its TCP peer.
+func loggedClient(w http.ResponseWriter, r *http.Request) trustedproxy.Client {
+	if trw, ok := w.(*trackingRW); ok && trw.client != nil {
+		return *trw.client
+	}
+
+	return requestClient(r)
 }
 
 // redactedRequestURI returns the request path and query for logging with every
