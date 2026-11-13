@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
 // newTestClient spins up a mock HTTP server backed by mux and returns a Client on it.
@@ -211,6 +212,64 @@ func TestDelete(t *testing.T) {
 	})
 }
 
+func TestDeleteWithResponse(t *testing.T) {
+	t.Run("success sends a DELETE and decodes the response", func(t *testing.T) {
+		var gotMethod string
+		var gotBody []byte
+		var response = types.ClearResultsResponse{
+			Deleted: 2,
+			Skipped: []types.BulkDeleteSkip{{ID: "abc", Reason: types.BulkDeleteSkipNotFound}},
+		}
+		mux := http.NewServeMux()
+		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
+			gotMethod = r.Method
+			gotBody, _ = io.ReadAll(r.Body)
+			if err := json.MarshalWrite(w, response, jsoncompat.Opts); err != nil {
+				t.Fatal(err)
+			}
+		})
+		c := newTestClient(t, mux)
+
+		got, err := c.deleteWithResponse[types.ClearResultsResponse]("/things/1")
+		if err != nil {
+			t.Fatalf("deleteWithResponse: %v", err)
+		}
+		if gotMethod != http.MethodDelete {
+			t.Errorf("method = %q, want %q", gotMethod, http.MethodDelete)
+		}
+		if len(gotBody) != 0 {
+			t.Errorf("expected empty body, got %q", gotBody)
+		}
+		if !reflect.DeepEqual(got, response) {
+			t.Errorf("resp = %+v, want %+v", got, response)
+		}
+	})
+
+	t.Run("non-200 status surfaces as an error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		c := newTestClient(t, mux)
+
+		if _, err := c.deleteWithResponse[types.ClearResultsResponse]("/things/1"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("err = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("204 is not swallowed", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/things/1", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		})
+		c := newTestClient(t, mux)
+
+		if _, err := c.deleteWithResponse[types.ClearResultsResponse]("/things/1"); err == nil {
+			t.Fatal("expected error on 204 response, got nil")
+		}
+	})
+}
+
 // tests that a sampling of ListAll* functions actually set the All field properly while still allowing other QOs to persist.
 // Validates that ?all=true is not sent (as it would be redundant with All in QO).
 func TestListAll(t *testing.T) {
@@ -249,6 +308,66 @@ func TestListAll(t *testing.T) {
 			}
 			if gotQuery.Has(queryparams.All) {
 				t.Errorf("unexpected ?%s in query: %v", queryparams.All, gotQuery)
+			}
+		})
+	}
+}
+
+// tests that ClearAll*Results functions are admin-gated, send ?all=true, and decode the response.
+func TestClearAllResults(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		call func(c *Client, id string) (types.ClearResultsResponse, error)
+	}{
+		{"flows", flowsIdResultsUrl("1"), (*Client).ClearAllFlowResults},
+		{"scheduled searches", scheduledSearchesIdResultsUrl("1"), (*Client).ClearAllScheduledSearchResults},
+		{"scheduled scripts", scheduledScriptsIdResultsUrl("1"), (*Client).ClearAllScheduledScriptResults},
+	}
+	var response = types.ClearResultsResponse{
+		Deleted: 2,
+		Skipped: []types.BulkDeleteSkip{{ID: "abc", Reason: types.BulkDeleteSkipPermissionDenied}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+"/non-admin", func(t *testing.T) {
+			var hit bool
+			mux := http.NewServeMux()
+			mux.HandleFunc(tt.url, func(w http.ResponseWriter, r *http.Request) { hit = true })
+			c := newTestClient(t, mux)
+
+			if _, err := tt.call(c, "1"); !errors.Is(err, ErrNotAdmin) {
+				t.Fatalf("err = %v, want ErrNotAdmin", err)
+			}
+			if hit {
+				t.Error("expected no request to be sent for a non-admin")
+			}
+		})
+		t.Run(tt.name+"/admin", func(t *testing.T) {
+			var gotMethod string
+			var gotQuery url.Values
+			mux := http.NewServeMux()
+			mux.HandleFunc(tt.url, func(w http.ResponseWriter, r *http.Request) {
+				gotMethod = r.Method
+				gotQuery = r.URL.Query()
+				if err := json.MarshalWrite(w, response, jsoncompat.Opts); err != nil {
+					t.Error(err)
+				}
+			})
+			c := newTestClient(t, mux)
+			c.userDetails.Admin = true
+
+			got, err := tt.call(c, "1")
+			if err != nil {
+				t.Fatalf("ClearAll: %v", err)
+			}
+			if gotMethod != http.MethodDelete {
+				t.Errorf("method = %q, want %q", gotMethod, http.MethodDelete)
+			}
+			if v := gotQuery.Get(queryparams.All); v != "true" {
+				t.Errorf("?%s = %q, want \"true\"", queryparams.All, v)
+			}
+			if !reflect.DeepEqual(got, response) {
+				t.Errorf("resp = %+v, want %+v", got, response)
 			}
 		})
 	}
