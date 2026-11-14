@@ -446,22 +446,28 @@ type SearchLaunchInfo struct {
 	// the GUI and/or clients on when the query was actually started.
 	Started time.Time
 
-	// Expires marks when the search should expire be deleted. A search launched
-	// with no expiration gets a default from the server, unless a flow, a script,
-	// or a scheduled search launched it in the foreground: that search gets none.
-	// Null means the search has no expiration, and what happens then depends on
-	// the search:
-	//   - a saved search is kept until someone deletes it
-	//   - a backgrounded search that is not saved is deleted 7 days after it finishes
-	//   - any other search is deleted when its last client leaves
+	// Expires is the time at which the server deletes the search. A search
+	// launched with no expiration gets a default from the server. A foreground
+	// search that a flow, a script, or a scheduled search launched is the
+	// exception: it gets no default.
+	// Null means that the search has no expiration. HasNoExpiration lists what
+	// the server does with such a search.
 	Expires Nullable[time.Time]
 }
 
-// NeverExpires reports whether the search has no expiration. Null is how the
-// API says "never". Releases before 6.0 sent the zero time instead, so a zero
-// time counts too. Use this, not Expires.IsZero, which is always false for a
+// HasNoExpiration reports whether the search has no expiration.
+// A 6.0 server sends a null Expires for such a search.
+// A 5.x server sends the zero time, so the two values count.
+// Use HasNoExpiration and not Expires.IsZero, which is always false for a
 // Nullable.
-func (li SearchLaunchInfo) NeverExpires() bool {
+//
+// No expiration does not mean that the server keeps the search permanently.
+// The server applies these rules to a search with no expiration:
+//   - The server keeps a saved search until a user deletes it.
+//   - The server deletes a backgrounded search that is not saved 7 days
+//     after the search completes.
+//   - The server deletes any other search when its last client disconnects.
+func (li SearchLaunchInfo) HasNoExpiration() bool {
 	return li.Expires.Value().IsZero()
 }
 
