@@ -11,8 +11,8 @@ import (
 )
 
 // TestXFF checks the SRC of entries sent with X-Forwarded-For in each client
-// address mode: legacy (no Trusted-Proxies), Ignore-Untrusted-Forwarded-For,
-// Trusted-Proxies listing the test client's peer, and Trusted-Proxies that does
+// address mode: legacy (no Trusted-Proxy), Ignore-Untrusted-Forwarded-For,
+// Trusted-Proxy listing the test client's peer, and Trusted-Proxy that does
 // not list it.
 func TestXFF(t *testing.T) {
 	// notForwarded marks a send whose SRC must be the TCP peer. The peer address
@@ -28,7 +28,7 @@ func TestXFF(t *testing.T) {
 	}
 
 	// spoofed has a client-supplied entry left of the client and a trusted load
-	// balancer right of it. Legacy mode takes the leftmost entry, Trusted-Proxies
+	// balancer right of it. Legacy mode takes the leftmost entry, Trusted-Proxy
 	// walks from the right and stops at the first untrusted entry.
 	const spoofed = "1.1.1.1, 203.0.113.7, 198.51.100.10"
 
@@ -66,7 +66,7 @@ func TestXFF(t *testing.T) {
 			},
 		},
 		{
-			// Trusted-Proxies is set but the test client's peer is not in it
+			// Trusted-Proxy is set but the test client's peer is not in it
 			name: "xff-untrusted",
 			sends: []send{
 				{xff: "192.0.2.99", check: notForwarded},

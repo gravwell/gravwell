@@ -152,8 +152,10 @@ type Client struct {
 	// PeerRaw is RemoteAddr verbatim.
 	PeerRaw string
 
-	// Forwarded is every X-Forwarded-For value joined with ", ", truncated for
-	// logging. It is recorded whether or not the peer is trusted.
+	// Forwarded is the raw X-Forwarded-For header for logging only, with
+	// multiple header lines joined with ", " and truncated. It is recorded
+	// whether or not the peer is trusted. It is never the client address, use
+	// Addr for that.
 	Forwarded string
 
 	// Malformed reports that the walk stopped at an X-Forwarded-For entry that is
@@ -358,8 +360,8 @@ func firstEntries(values []string, dst []string) (n int) {
 	return n
 }
 
-// joinForwarded joins the X-Forwarded-For values for logging, truncated to
-// maxForwardedLen bytes.
+// joinForwarded joins the X-Forwarded-For values into Client.Forwarded for
+// logging, truncated to maxForwardedLen bytes. It does not pick the client.
 func joinForwarded(values []string) string {
 	// build the string up to the limit rather than joining the whole header,
 	// which can be as large as the server's header limit

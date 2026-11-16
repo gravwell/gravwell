@@ -37,7 +37,7 @@ func TestClientIP(t *testing.T) {
 		xff     []string // one element per header line
 		want    string
 	}{
-		// legacy mode: no Trusted-Proxies, header trusted from any peer
+		// legacy mode: no Trusted-Proxy, header trusted from any peer
 		{
 			name:   "legacy no header",
 			remote: "192.0.2.10:5000",
@@ -104,7 +104,7 @@ func TestClientIP(t *testing.T) {
 			want:   "127.0.0.1",
 		},
 
-		// Trusted-Proxies set: strict
+		// Trusted-Proxy set: strict
 		{
 			// a load balancer that appends the client and its own address
 			name:    "trusted load balancer chain",
@@ -170,7 +170,7 @@ func TestClientIP(t *testing.T) {
 			cfg := newTestConfig(t, "", map[string]*lst{
 				"l1": {URL: "/test1", Tag_Name: "tag1"},
 			})
-			cfg.Trusted_Proxies = tt.trusted
+			cfg.Trusted_Proxy = tt.trusted
 			cfg.Ignore_Untrusted_Forwarded_For = tt.ignore
 			require.NoError(t, cfg.Verify())
 
@@ -269,7 +269,7 @@ func TestClientKVs(t *testing.T) {
 	}
 }
 
-func TestVerifyTrustedProxies(t *testing.T) {
+func TestVerifyTrustedProxy(t *testing.T) {
 	tests := []struct {
 		name       string
 		cfg        []string
@@ -356,7 +356,7 @@ func TestVerifyTrustedProxies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.env != `` {
-				t.Setenv(envTrustedProxies, tt.env)
+				t.Setenv(envTrustedProxy, tt.env)
 			}
 			if tt.ignoreEnv != `` {
 				t.Setenv(envIgnoreUntrustedXFF, tt.ignoreEnv)
@@ -365,7 +365,7 @@ func TestVerifyTrustedProxies(t *testing.T) {
 			cfg := newTestConfig(t, "", map[string]*lst{
 				"l1": {URL: "/test1", Tag_Name: "tag1"},
 			})
-			cfg.Trusted_Proxies = tt.cfg
+			cfg.Trusted_Proxy = tt.cfg
 			cfg.Ignore_Untrusted_Forwarded_For = tt.ignore
 
 			err := cfg.Verify()
@@ -386,14 +386,14 @@ func TestVerifyTrustedProxies(t *testing.T) {
 	}
 }
 
-func TestGetConfigTrustedProxies(t *testing.T) {
+func TestGetConfigTrustedProxy(t *testing.T) {
 	const conf = `
 [Global]
 	Ingest-Secret = "testing"
 	Cleartext-Backend-Target=127.0.0.1:4023
 	Bind=":8080"
-	Trusted-Proxies=10.0.0.5
-	Trusted-Proxies=192.168.100.0/24
+	Trusted-Proxy=10.0.0.5
+	Trusted-Proxy=192.168.100.0/24
 
 [Listener "l1"]
 	URL="/ingest"
@@ -405,28 +405,28 @@ func TestGetConfigTrustedProxies(t *testing.T) {
 	cfg, err := GetConfig(pth, "")
 	require.NoError(t, err)
 
-	require.Equal(t, []string{"10.0.0.5", "192.168.100.0/24"}, cfg.Trusted_Proxies)
+	require.Equal(t, []string{"10.0.0.5", "192.168.100.0/24"}, cfg.Trusted_Proxy)
 	require.True(t, cfg.resolver.trusted.Contains(netipAddr(t, "10.0.0.5")))
 	require.True(t, cfg.resolver.trusted.Contains(netipAddr(t, "192.168.100.200")))
 	require.False(t, cfg.resolver.trusted.Contains(netipAddr(t, "10.0.0.6")))
 	require.False(t, cfg.resolver.legacy)
 
-	bad := strings.Replace(conf, "Trusted-Proxies=10.0.0.5", "Trusted-Proxies=0.0.0.0/0", 1)
+	bad := strings.Replace(conf, "Trusted-Proxy=10.0.0.5", "Trusted-Proxy=0.0.0.0/0", 1)
 	require.NoError(t, os.WriteFile(pth, []byte(bad), 0o600))
 
 	_, err = GetConfig(pth, "")
 	require.ErrorContains(t, err, `"0.0.0.0/0"`)
 
-	// no Trusted-Proxies is legacy mode until Ignore-Untrusted-Forwarded-For is set
+	// no Trusted-Proxy is legacy mode until Ignore-Untrusted-Forwarded-For is set
 	noProxies := strings.NewReplacer(
-		"\tTrusted-Proxies=10.0.0.5\n", "",
-		"\tTrusted-Proxies=192.168.100.0/24\n", "",
+		"\tTrusted-Proxy=10.0.0.5\n", "",
+		"\tTrusted-Proxy=192.168.100.0/24\n", "",
 	).Replace(conf)
 	require.NoError(t, os.WriteFile(pth, []byte(noProxies), 0o600))
 
 	cfg, err = GetConfig(pth, "")
 	require.NoError(t, err)
-	require.Empty(t, cfg.Trusted_Proxies)
+	require.Empty(t, cfg.Trusted_Proxy)
 	require.True(t, cfg.resolver.legacy)
 
 	ignore := strings.Replace(noProxies, `Bind=":8080"`, "Bind=\":8080\"\n\tIgnore-Untrusted-Forwarded-For=true", 1)
@@ -438,7 +438,7 @@ func TestGetConfigTrustedProxies(t *testing.T) {
 	require.False(t, cfg.resolver.legacy)
 }
 
-func TestHotReloadTrustedProxies(t *testing.T) {
+func TestHotReloadTrustedProxy(t *testing.T) {
 	muxer := newTestMuxer(t)
 	hndlr := newTestHandler(t, muxer)
 
@@ -447,7 +447,7 @@ func TestHotReloadTrustedProxies(t *testing.T) {
 	}
 	newCfg := func(ignore bool, tp ...string) *cfgType {
 		cfg := newTestConfig(t, "", listeners())
-		cfg.Trusted_Proxies = tp
+		cfg.Trusted_Proxy = tp
 		cfg.Ignore_Untrusted_Forwarded_For = ignore
 		return cfg
 	}
@@ -537,7 +537,7 @@ func TestServeHTTPClient(t *testing.T) {
 					},
 				},
 			})
-			cfg.Trusted_Proxies = tt.trusted
+			cfg.Trusted_Proxy = tt.trusted
 			cfg.Ignore_Untrusted_Forwarded_For = tt.ignore
 			require.NoError(t, hndlr.loadConfig(cfg))
 
@@ -678,7 +678,7 @@ func TestDebugMiddlewareLogsResolvedClient(t *testing.T) {
 			cfg := newTestConfig(t, "", map[string]*lst{
 				"l1": {URL: "/test1", Tag_Name: "tag1"},
 			})
-			cfg.Trusted_Proxies = tt.trusted
+			cfg.Trusted_Proxy = tt.trusted
 			cfg.Ignore_Untrusted_Forwarded_For = tt.ignore
 			require.NoError(t, hndlr.loadConfig(cfg))
 
@@ -753,7 +753,7 @@ func TestResolverSwapConcurrent(t *testing.T) {
 
 	newCfg := func(tp ...string) *cfgType {
 		cfg := newTestConfig(t, "", map[string]*lst{"l1": {URL: "/test1", Tag_Name: "tag1"}})
-		cfg.Trusted_Proxies = tp
+		cfg.Trusted_Proxy = tp
 		cfg.Ignore_Untrusted_Forwarded_For = true
 		return cfg
 	}
@@ -831,7 +831,7 @@ func TestListenerDebugLogsResolvedClient(t *testing.T) {
 					},
 				},
 			})
-			cfg.Trusted_Proxies = tt.trusted
+			cfg.Trusted_Proxy = tt.trusted
 			require.NoError(t, hndlr.loadConfig(cfg))
 
 			// per-listener debugging turns on tracking but not the debug middleware

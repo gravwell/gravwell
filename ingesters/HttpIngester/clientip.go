@@ -24,8 +24,8 @@ const legacyWarnInterval = time.Minute
 
 // clientResolver decides how the client of a request is found.
 //
-// With Trusted-Proxies set, X-Forwarded-For is used only from a listed peer. With
-// no Trusted-Proxies, the legacy behavior trusts the header from any peer unless
+// With Trusted-Proxy set, X-Forwarded-For is used only from a listed peer. With
+// no Trusted-Proxy, the legacy behavior trusts the header from any peer unless
 // Ignore-Untrusted-Forwarded-For is set, in which case the client is the peer.
 type clientResolver struct {
 	trusted trustedproxy.List
@@ -79,7 +79,7 @@ func (h *handler) warnLegacyForwarded(c trustedproxy.Client) {
 
 	h.lgr.Warn("using X-Forwarded-For from a peer that is not a trusted proxy, "+
 		"this default changes in the next major release, "+
-		"set Trusted-Proxies or Ignore-Untrusted-Forwarded-For",
+		"set Trusted-Proxy or Ignore-Untrusted-Forwarded-For",
 		clientKVs("src", c)...)
 }
 
@@ -128,7 +128,8 @@ func clientIP(c trustedproxy.Client) net.IP {
 
 // clientKVs returns the client address under name, the same address used as the
 // entry SRC. When the request carried X-Forwarded-For, or the peer did not parse,
-// it also returns the TCP peer, and the forwarded chain when there is one.
+// it also returns the TCP peer. When there is an X-Forwarded-For header, the raw
+// header is logged under xff for context only, it is not the SRC.
 func clientKVs(name string, c trustedproxy.Client) []rfc5424.SDParam {
 	kvs := []rfc5424.SDParam{log.KV(name, clientIP(c).String())}
 	if c.Forwarded == `` {
