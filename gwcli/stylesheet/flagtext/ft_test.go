@@ -50,5 +50,8 @@ func TestErrMutuallyExclusive(t *testing.T) {
 	if err := ft.ErrMutuallyExclusive("one"); !errors.Is(err, clilog.ErrInternal{}) {
 		t.Error("zero or one arguments should trigger an ErrInternal")
 	}
+	assert.EqualError(t, ft.ErrMutuallyExclusive("one", "two"), "--one and --two are mutually exclusive")
 	assert.EqualError(t, ft.ErrMutuallyExclusive("one", "two", "three"), "--one, --two, and --three are mutually exclusive")
+	assert.EqualError(t, ft.ErrMutuallyExclusive("one", "two", "three", "four"),
+		"--one, --two, --three, and --four are mutually exclusive")
 }
