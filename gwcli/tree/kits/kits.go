@@ -852,7 +852,7 @@ func build() action.Pair {
 				Use: "build",
 				Example: "build --kit-id=com.me.mykit --name=mykit " +
 					"--dashboards=dashboard-one-two-three-four,dashboard-yi-er-san-si " +
-					"--icon=/home/me/icon.png " +
+					"--kit-icon=/home/me/icon.png " +
 					"--download=/home/me/Downloads/",
 				Aliases: []string{"pack", "create", "new"},
 				AddtlFlags: func() *pflag.FlagSet {
