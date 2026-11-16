@@ -196,9 +196,9 @@ type ResultsTable struct {
 }
 
 type ResultsTableCell struct {
-	Elements    []Element `json:",omitempty"`
+	Elements    []Element
 	Value       string
-	WordOffsets []WordOffset `json:",omitempty"`
+	WordOffsets []WordOffset
 }
 
 type ResultsGraph struct {

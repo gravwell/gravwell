@@ -364,6 +364,10 @@ func (p *ukProc) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
 		if err != nil {
 			return time.Time{}, false, -1
 		}
+		// never hand back a year zero timestamp
+		if t.Year() == 0 {
+			t = tweakYear(t)
+		}
 
 		if p.window.Valid(t) {
 			return t, true, idxs[0]

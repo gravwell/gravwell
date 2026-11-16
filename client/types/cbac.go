@@ -55,8 +55,10 @@ const (
 	KitDownload        Capability = 29
 	ScheduleRead       Capability = 30
 	ScheduleWrite      Capability = 31
-	SOARLibs           Capability = 32
-	SOAREmail          Capability = 33
+	SOARLibs           Capability = 32 // Legacy name
+	AnkoLibs           Capability = 32
+	SOAREmail          Capability = 33 // Legacy name
+	Email              Capability = 33
 	PlaybookRead       Capability = 34
 	PlaybookWrite      Capability = 35
 
@@ -327,10 +329,10 @@ func (c Capability) Name() string {
 		return `ScheduleRead`
 	case ScheduleWrite:
 		return `ScheduleWrite`
-	case SOARLibs:
-		return `SOARLibs`
-	case SOAREmail:
-		return `SOAREmail`
+	case AnkoLibs:
+		return `AnkoLibs`
+	case Email:
+		return `Email`
 	case PlaybookRead:
 		return `PlaybookRead`
 	case PlaybookWrite:
@@ -466,9 +468,9 @@ func (c Capability) Category() CapabilityCategory {
 		return AutomationsCat
 	case ScheduleWrite:
 		return AutomationsCat
-	case SOARLibs:
+	case AnkoLibs:
 		return AutomationsCat
-	case SOAREmail:
+	case Email:
 		return AutomationsCat
 	case AlertRead:
 		return AutomationsCat
@@ -594,9 +596,13 @@ func (c *Capability) Parse(v string) (err error) {
 	case `schedulewrite`:
 		*c = ScheduleWrite
 	case `soarlibs`:
-		*c = SOARLibs
+		fallthrough
+	case `ankolibs`:
+		*c = AnkoLibs
 	case `soaremail`:
-		*c = SOAREmail
+		fallthrough
+	case `email`:
+		*c = Email
 	case `playbookread`:
 		*c = PlaybookRead
 	case `playbookwrite`:
@@ -716,10 +722,10 @@ func (c Capability) String() string {
 		return `Schedule Read`
 	case ScheduleWrite:
 		return `Schedule Write`
-	case SOARLibs:
-		return `SOAR Libraries`
-	case SOAREmail:
-		return `SOAR Email`
+	case AnkoLibs:
+		return `Anko Libraries`
+	case Email:
+		return `Email`
 	case PlaybookRead:
 		return `Playbook Read`
 	case PlaybookWrite:
@@ -836,11 +842,11 @@ func (c Capability) Description() string {
 	case ScheduleRead:
 		return `User can view scheduled queries and see results`
 	case ScheduleWrite:
-		return `User can create and update scheduled queries and SOAR scripts`
-	case SOARLibs:
-		return `User can import SOAR libraries`
-	case SOAREmail:
-		return `User can use SOAR email functions`
+		return `User can create and update scheduled queries and scripts`
+	case AnkoLibs:
+		return `User can import Anko libraries`
+	case Email:
+		return `User can use email functions`
 	case PlaybookRead:
 		return `User can read playbooks`
 	case PlaybookWrite:

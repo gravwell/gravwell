@@ -70,14 +70,16 @@ func (msl Model[ID_t]) Update(msg tea.Msg) (Model[ID_t], tea.Cmd) {
 		return msl, nil
 	}
 
-	// handle special inputs
-	switch {
-	case hotkeys.Match(msg, hotkeys.Select):
-		cmd := msl.ToggleCurrentItem()
-		return msl, cmd
-	case hotkeys.Match(msg, hotkeys.Invoke) && msl.FilterState() != list.Filtering:
-		msl.done = true
-		return msl, nil
+	// handle special inputs, unless the user is typing into the filter
+	if msl.FilterState() != list.Filtering {
+		switch {
+		case hotkeys.Match(msg, hotkeys.Select):
+			cmd := msl.ToggleCurrentItem()
+			return msl, cmd
+		case hotkeys.Match(msg, hotkeys.Invoke):
+			msl.done = true
+			return msl, nil
+		}
 	}
 
 	var cmd tea.Cmd

@@ -62,8 +62,8 @@ func NewPair() action.Pair {
 		treeutils.GenerateActionOptions{
 			NodeOptions: treeutils.NodeOptions{
 				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SOAREmail},
-					XPermissions: []types.Capability{types.SOAREmail},
+					IPermissions: []types.Capability{types.Email},
+					XPermissions: []types.Capability{types.Email},
 				},
 			},
 		})

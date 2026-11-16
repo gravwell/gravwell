@@ -61,8 +61,8 @@ var (
 		KitDownload.CapabilityDesc(),
 		ScheduleRead.CapabilityDesc(),
 		ScheduleWrite.CapabilityDesc(),
-		SOARLibs.CapabilityDesc(),
-		SOAREmail.CapabilityDesc(),
+		AnkoLibs.CapabilityDesc(),
+		Email.CapabilityDesc(),
 		PlaybookRead.CapabilityDesc(),
 		PlaybookWrite.CapabilityDesc(),
 

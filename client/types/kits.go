@@ -61,7 +61,7 @@ type KitItem struct {
 
 	// The fields below may be set depending on the type.
 	DefaultDeploymentRules AutomationDeployConfig // set by automations (scripts, scheduled searches, flows)
-	Tags                   []string               `json:",omitempty"` // set by AXes
+	Tags                   []string               // set by AXes
 	LicenseText            string                 `json:",omitempty"` // used for the License type
 }
 
@@ -143,7 +143,7 @@ type KitStateListResponse = ListResponse[KitState]
 
 type KitEmbeddedItem struct {
 	KitItem
-	Content []byte `json:",omitempty"` //the actual contents of the item e.g. a license
+	Content []byte //the actual contents of the item e.g. a license
 }
 
 // KitBuildRequest is used to request a kit be built

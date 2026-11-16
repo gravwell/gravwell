@@ -28,10 +28,15 @@ func NegativeNumber(s string) error {
 		return nil
 	}
 	i, err := strconv.ParseInt(s, 10, 64)
-	if i > -1 {
+	if err != nil {
+		if errors.Is(err, strconv.ErrRange) {
+			return errors.New(s + " is out of range")
+		}
+		return errors.New(s + " is not a number")
+	} else if i > -1 {
 		return errors.New(s + " is not negative")
 	}
-	return err
+	return nil
 }
 
 // Numeric returns an error if s is not composed solely of digits.

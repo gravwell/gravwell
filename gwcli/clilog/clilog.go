@@ -224,12 +224,15 @@ func Tee(lvl Level, alt io.Writer, str string) {
 	}
 }
 
-// Active returns whether or not the given level is currently enabled (<= log.Level)
+// Active returns whether or not the given level is currently enabled (<= log.Level).
+// Nothing is active if the logger is OFF (and OFF itself is never active).
 func Active(lvl Level) bool {
-	if Writer == nil {
+	if Writer == nil || lvl == OFF {
 		return false
 	}
-	return Writer.GetLevel() <= log.Level(lvl)
+	// OFF is the lowest level numerically, so it must be special-cased
+	cur := Writer.GetLevel()
+	return cur != log.OFF && cur <= log.Level(lvl)
 }
 
 //#region helpers

@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/spf13/cobra"
@@ -164,6 +165,11 @@ func Index(i int) string {
 		borderStyle.Border(bs, false, true, true, true).Width(topWidth).Render(contents)
 }*/
 
+// SegmentedBorder returns a box of the given (inner) width, split into titled segments.
+// Each segment is headed by a divider with its title centered in it.
+//
+// The box is never wider than width (plus its two border cells):
+// contents that are too wide are wrapped and titles that are too wide are truncated.
 func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 	StylizedTitle string
 	Contents      string
@@ -183,8 +189,9 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 
 	var sb strings.Builder
 	for i, segment := range segments {
+		title := ansi.Truncate(segment.StylizedTitle, width, "…")
 		var (
-			titleLen = lipgloss.Width(segment.StylizedTitle)
+			titleLen = lipgloss.Width(title)
 			div      = strings.Repeat(bs.Top, (width-titleLen)/2) // the lines on either side of title
 			leftDiv  = div
 			rightDiv = div
@@ -206,7 +213,7 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 		}
 
 		// generate the segment head
-		head := splitterSty.Render(leftDiv) + segment.StylizedTitle + splitterSty.Render(rightDiv)
+		head := splitterSty.Render(leftDiv) + title + splitterSty.Render(rightDiv)
 		sb.WriteString(head)
 		sb.WriteString("\n")
 

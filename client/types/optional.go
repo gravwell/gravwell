@@ -13,6 +13,7 @@ import (
 	"encoding/gob"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -101,11 +102,17 @@ func (o Optional[T]) MarshalJSONTo(enc *jsontext.Encoder) error {
 	return json.MarshalEncode(enc, o.value)
 }
 
+var ErrNoNullOptional = errors.New("optionals may not be null")
+
 // UnmarshalJSONFrom decodes the given data into o's value and marks it as set.
+// A null value is rejected outright.
 //
 // NOTE(rlandau): implemented as MarshalJSONFrom instead of MarshalJSON in order to propagate encoder
 // option (likely jsoncompat.Opts).
 func (o *Optional[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	if dec.PeekKind() == jsontext.KindNull {
+		return ErrNoNullOptional
+	}
 	if err := json.UnmarshalDecode(dec, &o.value); err != nil {
 		return err
 	}

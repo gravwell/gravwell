@@ -133,7 +133,7 @@ type LicenseDistributionStatus struct {
 
 	// if system cannot run in unlicensed mode, a list of reasons will be provided
 	// they may be things like "system is configured as a cluster" or "CBAC is enabled"
-	DisallowUnlicensedReasons []string `json:",omitempty"`
+	DisallowUnlicensedReasons []string
 }
 
 type LicenseIndexerInfo struct {

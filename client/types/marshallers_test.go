@@ -605,6 +605,16 @@ func TestOptionalForwardsCallerOptions(t *testing.T) {
 	})
 }
 
+func TestOptionalsRejectNulls(t *testing.T) {
+	require.ErrorIs(t,
+		v2.Unmarshal([]byte(`null`), &types.Optional[string]{}, jsoncompat.Opts),
+		types.ErrNoNullOptional)
+
+	require.ErrorIs(t,
+		v2.Unmarshal([]byte(`{"Name":"MYMACRO", "Description": null}`), &types.MacroPatch{}, jsoncompat.Opts),
+		types.ErrNoNullOptional)
+}
+
 // tests that MarshalJSONTo/UnmarshalJSONFrom properly carries the caller's encoder/decoder options.
 func TestRowSelectionForwardsCallerOptions(t *testing.T) {
 	t.Run("MatchCaseInsensitiveNames on unmarshal", func(t *testing.T) {
@@ -631,6 +641,47 @@ func TestNoNilSlicesMaps(t *testing.T) {
 		lbls, found := out["Labels"]
 		require.True(t, found, "failed to parse \"Labels\" out of json")
 		require.Equal(t, "[]", lbls.String())
+	})
+	// the event fields used to be omitempty, so the key vanished when they were empty
+	t.Run("Event", func(t *testing.T) {
+		b, err := v2.Marshal(types.Event{}, jsoncompat.Opts)
+		require.NoError(t, err)
+		var out struct {
+			Contents jsontext.Value
+			Metadata map[string]jsontext.Value
+		}
+		require.NoError(t, v2.Unmarshal(b, &out, jsoncompat.Opts))
+		require.Equal(t, "{}", out.Contents.String(), "Contents in %s", b)
+		for key, want := range map[string]string{
+			"AlertLabels":        "[]",
+			"Consumers":          "[]",
+			"UserMetadata":       "{}",
+			"ValidationProblems": "[]",
+		} {
+			require.Equal(t, want, out.Metadata[key].String(), "%s in %s", key, b)
+		}
+
+		b, err = v2.Marshal(types.EventConsumerInfo{}, jsoncompat.Opts)
+		require.NoError(t, err)
+		var consumer map[string]jsontext.Value
+		require.NoError(t, v2.Unmarshal(b, &consumer, jsoncompat.Opts))
+		require.Equal(t, "[]", consumer["Labels"].String(), "Labels in %s", b)
+
+		// the search agent may ingest event metadata with v1, which marshals nil as null,
+		// so BuildEventMetadata must hand out non-nil slices and maps
+		meta := types.BuildEventMetadata(time.Now(), types.User{}, types.Alert{}, types.EventDispatcherInfo{})
+		b, err = v1.Marshal(meta)
+		require.NoError(t, err)
+		var v1Meta map[string]v1.RawMessage
+		require.NoError(t, v1.Unmarshal(b, &v1Meta))
+		for key, want := range map[string]string{
+			"AlertLabels":        "[]",
+			"Consumers":          "[]",
+			"UserMetadata":       "{}",
+			"ValidationProblems": "[]",
+		} {
+			require.Equal(t, want, string(v1Meta[key]), "%s in %s", key, b)
+		}
 	})
 	t.Run("complex struct", func(t *testing.T) {
 		st := struct {

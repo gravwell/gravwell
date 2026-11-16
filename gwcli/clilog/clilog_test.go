@@ -236,6 +236,46 @@ func TestInitializeFromArgs(t *testing.T) {
 	})
 }
 
+func TestActive(t *testing.T) {
+	t.Run("nil writer", func(t *testing.T) {
+		clilog.Destroy()
+		if clilog.Active(clilog.FATAL) {
+			t.Error("a level was reported active without a writer")
+		}
+	})
+
+	allLevels := []clilog.Level{
+		clilog.OFF, clilog.DEBUG, clilog.INFO, clilog.WARN, clilog.ERROR, clilog.CRITICAL, clilog.FATAL,
+	}
+	tests := []struct {
+		initLvl string
+		// the lowest level that should be considered active.
+		// OFF means no level should be active.
+		lowestActive clilog.Level
+	}{
+		{"off", clilog.OFF},
+		{"debug", clilog.DEBUG},
+		{"warn", clilog.WARN},
+		{"fatal", clilog.FATAL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.initLvl, func(t *testing.T) {
+			clilog.Destroy()
+			if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), tt.initLvl); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { clilog.Destroy() })
+
+			for _, lvl := range allLevels {
+				want := tt.lowestActive != clilog.OFF && lvl != clilog.OFF && lvl >= tt.lowestActive
+				if got := clilog.Active(lvl); got != want {
+					t.Errorf("Active(%v) with logger at %v: %v", lvl, tt.initLvl, testsupport.ExpectedActual(want, got))
+				}
+			}
+		})
+	}
+}
+
 func TestInit(t *testing.T) {
 	// ensure the singleton does not exist
 	clilog.Destroy()

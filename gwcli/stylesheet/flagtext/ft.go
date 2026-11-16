@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize/english"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -327,7 +328,7 @@ func DeriveFlagName(title string) string {
 		case '.', '\\', '/', '\'', '"', '|', ' ':
 			return '-'
 		case '?', '!':
-			return 0
+			return -1 // drop
 		}
 		return r
 	}, title)
@@ -360,8 +361,12 @@ func ErrMutuallyExclusive(mxFlags ...string) error {
 		return clilog.ErrInternal{}
 	}
 
-	flagList := "--" + strings.Join(mxFlags[:len(mxFlags)-1], ", --") // condense all but the last
-	return errors.New(flagList + ", and --" + mxFlags[len(mxFlags)-1] + " are mutually exclusive")
+	flags := make([]string, len(mxFlags))
+	for i, f := range mxFlags {
+		flags[i] = "--" + f
+	}
+	// only uses commas if there are 3+ flags
+	return errors.New(english.OxfordWordSeries(flags, "and") + " are mutually exclusive")
 }
 
 // flagCaveatStyle sets what extra notes on flag descriptions look like.

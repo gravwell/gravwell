@@ -93,22 +93,22 @@ func TestInvertedMaps(t *testing.T) {
 		func(fs *pflag.FlagSet, _ DataParameters) ([]types.Flow, error) {
 			return nil, nil
 		},
-		map[string]string{"CommonFields.Can.Delete": "DeleteCap", "AutomationCommonFields.Timezone": "TZ"},
+		map[string]string{"CommonFields.Can.Delete.Allowed": "DeleteCap", "AutomationCommonFields.Timezone": "TZ"},
 		Options{})
 	la, ok := pair.Model.(*ListAction[types.Flow])
 	if !ok {
 		t.Fatal("failed to cast actor")
 	}
 	// check that our custom aliases were respected and overrode the defaults
-	if can := la.dqToAlias["CommonFields.Can.Delete"]; can != "DeleteCap" {
+	if can := la.dqToAlias["CommonFields.Can.Delete.Allowed"]; can != "DeleteCap" {
 		t.Error("bad value for custom alias.", testsupport.ExpectedActual("DeleteCap", can))
 	}
 	if tz := la.dqToAlias["AutomationCommonFields.Timezone"]; tz != "TZ" {
 		t.Error("bad value for custom alias.", testsupport.ExpectedActual("TZ", tz))
 	}
 	// check custom aliases in inverse map
-	if can := la.aliasToDQ["DeleteCap"]; can != "CommonFields.Can.Delete" {
-		t.Error("bad value for custom alias in inverted map.", testsupport.ExpectedActual("CommonFields.Can.Delete", can))
+	if can := la.aliasToDQ["DeleteCap"]; can != "CommonFields.Can.Delete.Allowed" {
+		t.Error("bad value for custom alias in inverted map.", testsupport.ExpectedActual("CommonFields.Can.Delete.Allowed", can))
 	}
 	if tz := la.aliasToDQ["TZ"]; tz != "AutomationCommonFields.Timezone" {
 		t.Error("bad value for custom alias in inverted map.", testsupport.ExpectedActual("AutomationCommonFields.Timezone", tz))

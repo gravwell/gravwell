@@ -201,20 +201,20 @@ func TestAddRemove(t *testing.T) {
 	//check a few when in default deny
 	if cs.Has(Search) {
 		t.Fatal("Search set on clean")
-	} else if cs.Has(SOAREmail) {
-		t.Fatal("SOAREmail set on clean")
+	} else if cs.Has(Email) {
+		t.Fatal("Email set on clean")
 	} else if cs.Has(DashboardRead) {
 		t.Fatal("DashboardRead on clean")
 	}
 
 	//set a few grants and recheck
 	cs.Set(Search)
-	cs.Set(SOAREmail)
+	cs.Set(Email)
 	cs.Set(DashboardRead)
 	if !cs.Has(Search) {
 		t.Fatal("Search not set on default allow")
-	} else if !cs.Has(SOAREmail) {
-		t.Fatal("SOAREmail not set on default allow")
+	} else if !cs.Has(Email) {
+		t.Fatal("Email not set on default allow")
 	} else if !cs.Has(DashboardRead) {
 		t.Fatal("DashboardRead not set on default allow")
 	}
@@ -275,9 +275,9 @@ func TestOverlapWithUserExplicit(t *testing.T) {
 		t.Fatal("User has Search capability after group set")
 	}
 
-	//check that the SOAREmail grant isn't there, as a sanity check
-	if ud.HasCapability(SOAREmail) {
-		t.Fatal("User has SOAREmail after setting search")
+	//check that the Email grant isn't there, as a sanity check
+	if ud.HasCapability(Email) {
+		t.Fatal("User has Email after setting search")
 	}
 
 	//remove Search grant

@@ -309,7 +309,7 @@ func TestNonInteractive(t *testing.T) {
 		{"show columns",
 			scaffoldlist.Options{},
 			[]string{"-x", "--show-columns"},
-			"BackfillEnabled; Can.Delete; Can.Modify; Can.Share; CreatedAt; DeletedAt; Description; Disabled; Flow; FlowName; " +
+			"BackfillEnabled; Can.Delete.Allowed; Can.Delete.Reason; Can.Modify.Allowed; Can.Modify.Reason; Can.Share.Allowed; Can.Share.Reason; CreatedAt; DeletedAt; Description; Disabled; Flow; FlowName; " +
 				"ID; KitID; Labels; LastModifiedBy.Admin; LastModifiedBy.CreatedAt; LastModifiedBy.DefaultSearchGroups; " +
 				"LastModifiedBy.DeletedAt; LastModifiedBy.Email; LastModifiedBy.Groups; LastModifiedBy.ID; LastModifiedBy.LastLogin; " +
 				"LastModifiedBy.Locked; LastModifiedBy.MFA.RecoveryCodes.Codes; LastModifiedBy.MFA.RecoveryCodes.Enabled; " +
@@ -318,7 +318,9 @@ func TestNonInteractive(t *testing.T) {
 				"LastModifiedBy.SSOUser; LastModifiedBy.UpdatedAt; LastModifiedBy.Username; LastModifiedByID; " +
 				"LatestResults.AutomationResultsCommonFields.LastError; LatestResults.AutomationResultsCommonFields.LastRun; " +
 				"LatestResults.AutomationResultsCommonFields.LastRunDuration; LatestResults.AutomationResultsCommonFields.LastSearchIDs; " +
-				"LatestResults.CommonFields.Can.Delete; LatestResults.CommonFields.Can.Modify; LatestResults.CommonFields.Can.Share; " +
+				"LatestResults.CommonFields.Can.Delete.Allowed; LatestResults.CommonFields.Can.Delete.Reason; " +
+				"LatestResults.CommonFields.Can.Modify.Allowed; LatestResults.CommonFields.Can.Modify.Reason; " +
+				"LatestResults.CommonFields.Can.Share.Allowed; LatestResults.CommonFields.Can.Share.Reason; " +
 				"LatestResults.CommonFields.CreatedAt; LatestResults.CommonFields.DeletedAt; LatestResults.CommonFields.Description; " +
 				"LatestResults.CommonFields.ID; LatestResults.CommonFields.KitID; LatestResults.CommonFields.Labels; LatestResults.CommonFields.LastModifiedBy.Admin; " +
 				"LatestResults.CommonFields.LastModifiedBy.CreatedAt; LatestResults.CommonFields.LastModifiedBy.DefaultSearchGroups; " +

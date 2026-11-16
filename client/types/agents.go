@@ -11,6 +11,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -29,6 +30,16 @@ const (
 	NodeLoop NodeType = "loop"
 	// NodeRouter has an LLM pick one of Children to handle the turn.
 	NodeRouter NodeType = "router"
+	// NodeTool makes one deterministic tool call, with no model in it.
+	NodeTool NodeType = "tool"
+)
+
+// SubagentOutput values: what a client sees while a subagent a node called
+// is working. See NodeSpec.SubagentOutput.
+const (
+	SubagentCollapsed = "collapsed"
+	SubagentShown     = "shown"
+	SubagentHidden    = "hidden"
 )
 
 var (
@@ -40,6 +51,8 @@ var (
 	ErrNodeLoopChildCount     = errors.New("a loop node needs exactly one child")
 	ErrNodeNilChild           = errors.New("child is null")
 	ErrNodeDuplicateChildName = errors.New("duplicate child name")
+	ErrNodeToolHasChildren    = errors.New("a tool node cannot have children")
+	ErrNodeToolMissingTool    = errors.New("a tool node needs a Tool to call")
 )
 
 // NodeSpec is a single node in an agent graph.
@@ -51,8 +64,10 @@ type NodeSpec struct {
 	// Parallel or Router, which address their children by name. Required.
 	Name string
 
-	// Description is shown to the routing LLM when this node is a child of a
-	// Router, so it should describe what the node handles. Optional otherwise.
+	// Description is what a model is given to choose this node by: when it is
+	// a child of a Router, the routing LLM reads it, and when it is a subagent
+	// (an installed agent another node calls as a tool) it is the description
+	// of that tool. Optional otherwise.
 	Description string
 
 	// Inherit, when true, gives this node (and, for composites, the subtree
@@ -64,7 +79,31 @@ type NodeSpec struct {
 	// subtree beneath it) may use when Inherit is false: those named here that
 	// are also present in the parent's set. An empty list grants none. Filtering
 	// composes down the tree, never widening it.
+	//
+	// Neither reaches into a subagent. A subagent is a separate installed
+	// agent, built from its own spec against the full tool set the caller was
+	// granted, because delegating to an agent runs that agent as its author
+	// defined it (see AllowedSubagents).
 	AllowedTools []string `json:",omitempty"`
+
+	// AllowedSubagents names the installed agents this node's model may call
+	// as tools, drawn from the agents the caller is allowed to see. Each named
+	// agent becomes one tool, addressed by the agent's name and described by
+	// its description, taking the task to carry out.
+	//
+	// Delegation is opt-in and does not inherit: an empty or absent list means
+	// this node delegates to nothing. Names that match no installed agent are
+	// dropped, as are an agent already on the delegation chain (so no agent
+	// can be reached twice down one path, and none can call itself) and one
+	// whose name is not usable as a tool name. Only a single node delegates;
+	// the composites ignore this field.
+	AllowedSubagents []string `json:",omitempty"`
+
+	// SubagentOutput is what a client sees while a subagent this node called
+	// is working: "collapsed" (the default, and the empty value) streams it as
+	// a block the client can draw folded, "shown" asks the client to open it,
+	// and "hidden" sends none of it.
+	SubagentOutput string `json:",omitempty"`
 
 	// Prompt is the system prompt for LLM-backed nodes (single, router). For a
 	// router it guides the routing decision and is not handed to the chosen
@@ -75,15 +114,44 @@ type NodeSpec struct {
 	// iterations for a loop.
 	MaxIterations int
 
+	// Tool is the tool a tool node calls, by name. Required for that type and
+	// ignored by every other.
+	Tool string `json:",omitempty"`
+
+	// Arguments are the arguments a tool node calls its tool with. A value is
+	// used literally unless it is a placeholder (${last_code_block},
+	// ${last_message}, ${code_blocks}) that takes its text from the
+	// conversation at the moment the node runs.
+	Arguments map[string]string `json:",omitempty"`
+
+	// Requires turns a tool node into a verification: a result that does not
+	// contain this text is a failure. A verifying node vetoes the exit of the
+	// loop it sits in, so the pass runs again with the failures in the
+	// conversation, and marks the final answer.
+	Requires string `json:",omitempty"`
+
+	// MaxItems caps how many items a verifying tool node accepts. Items past
+	// the cap are removed from the answer without being checked, and the
+	// answer says so.
+	MaxItems int `json:",omitempty"`
+
+	// ForEach names the argument a tool node iterates, which makes it call its
+	// tool once per item rather than once in total. The only source is
+	// ${code_blocks}: every fenced block the stage above it produced.
+	ForEach string `json:",omitempty"`
+
 	// Children are the sub-nodes for composite types. Serial, parallel, and
-	// router take one or more; a loop takes exactly one (the node it wraps).
+	// router take one or more; a loop takes exactly one (the node it wraps). A
+	// single and a tool node have none: what a single calls on demand is named
+	// in AllowedSubagents and lives outside this graph.
 	Children []*NodeSpec `json:",omitempty"`
 }
 
 // Validate checks the structure of the node and every node beneath it: each
-// has a name and a known type, singles have no children, the other composites
-// have the right number, and siblings have distinct names. Errors name the
-// offending node by its path from this one.
+// has a name and a known type, singles and tool nodes have no children, a tool
+// node names its tool, the composites have the right number of children, and
+// siblings have distinct names. Errors name the offending node by its path
+// from this one.
 func (n *NodeSpec) Validate() error {
 	return n.validate(n.Name)
 }
@@ -96,6 +164,13 @@ func (n *NodeSpec) validate(path string) error {
 	case NodeSingle:
 		if len(n.Children) != 0 {
 			return fmt.Errorf("%s: %w", path, ErrNodeSingleHasChildren)
+		}
+	case NodeTool:
+		if len(n.Children) != 0 {
+			return fmt.Errorf("%s: %w", path, ErrNodeToolHasChildren)
+		}
+		if n.Tool == "" {
+			return fmt.Errorf("%s: %w", path, ErrNodeToolMissingTool)
 		}
 	case NodeSerial, NodeParallel, NodeRouter:
 		if len(n.Children) == 0 {
@@ -133,6 +208,8 @@ func (n *NodeSpec) Clone() *NodeSpec {
 	}
 	c := *n
 	c.AllowedTools = slices.Clone(n.AllowedTools)
+	c.AllowedSubagents = slices.Clone(n.AllowedSubagents)
+	c.Arguments = maps.Clone(n.Arguments)
 	c.Children = nil
 	for _, ch := range n.Children {
 		c.Children = append(c.Children, ch.Clone())
