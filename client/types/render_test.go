@@ -33,7 +33,7 @@ func TestResultsRequestStatsOverDecode(t *testing.T) {
 		{name: "lowercase width", body: `{"width": 30}`, want: width},
 		{name: "lowercase count", body: `{"count": 12}`, want: count},
 		{name: "Width and Count", body: `{"Width": 30, "Count": 12}`, wantErr: types.ErrResultsRequestStatsOverInvalid},
-		{name: "empty object", body: `{}`},
+		{name: "empty object", body: `{}`, wantErr: types.ErrResultsRequestStatsOverEmpty},
 		{name: "null", body: `null`},
 	}
 	for _, tt := range tests {
@@ -57,8 +57,60 @@ func TestResultsRequestDecodeStatsOver(t *testing.T) {
 
 	var got types.ResultsRequest
 	require.NoError(t, json.UnmarshalRead(strings.NewReader(body), &got, jsoncompat.Opts))
-	require.Equal(t, &types.ResultsRequestStatsOverWidth{Width: 30}, got.Stats.Over.OverWidth)
-	require.Nil(t, got.Stats.Over.OverCount)
+	over := got.Stats.Value().Over.Value()
+	require.Equal(t, &types.ResultsRequestStatsOverWidth{Width: 30}, over.OverWidth)
+	require.Nil(t, over.OverCount)
+}
+
+// A left-out Stats or Over is unset. Null is rejected, and so is an Over
+// with neither Width nor Count.
+func TestResultsRequestDecodeStatsPresence(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantStats bool
+		wantOver  bool
+		wantErr   error
+	}{
+		{name: "no Stats", body: `{"SID": "s"}`},
+		{name: "empty Stats", body: `{"SID": "s", "Stats": {}}`, wantStats: true},
+		{name: "empty Operations", body: `{"SID": "s", "Stats": {"Operations": []}}`, wantStats: true},
+		{name: "no Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}]}}`, wantStats: true},
+		{name: "Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}], "Over": {"Width": 30}}}`, wantStats: true, wantOver: true},
+		{name: "null Stats", body: `{"SID": "s", "Stats": null}`, wantErr: types.ErrNoNullOptional},
+		{name: "null Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}], "Over": null}}`, wantErr: types.ErrNoNullOptional},
+		{name: "empty Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}], "Over": {}}}`, wantErr: types.ErrResultsRequestStatsOverEmpty},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got types.ResultsRequest
+			err := json.UnmarshalRead(strings.NewReader(tt.body), &got, jsoncompat.Opts)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantStats, got.Stats.IsSet())
+			require.Equal(t, tt.wantOver, got.Stats.Value().Over.IsSet())
+		})
+	}
+}
+
+// A request with no Over encodes without the key, so it decodes as unset.
+func TestResultsRequestRoundTripNoOver(t *testing.T) {
+	src := types.ResultsRequest{
+		SID: "s",
+		Stats: types.NewOptional(types.ResultsRequestStats{
+			Operations: []types.StatsOperation{{Operation: "count"}},
+		}),
+	}
+	enc, err := json.Marshal(src, jsoncompat.Opts)
+	require.NoError(t, err)
+
+	var got types.ResultsRequest
+	require.NoError(t, json.Unmarshal(enc, &got, jsoncompat.Opts), "decoding %s", enc)
+	require.True(t, got.Stats.IsSet())
+	require.False(t, got.Stats.Value().Over.IsSet())
 }
 
 func TestResultsRequestStatsOverRoundTrip(t *testing.T) {

@@ -117,6 +117,7 @@ const (
 
 var (
 	ErrResultsRequestStatsOverInvalid = errors.New("only one of 'width' or 'count' may be specified, got both")
+	ErrResultsRequestStatsOverEmpty   = errors.New("'Over' needs one of 'Width' or 'Count'")
 	ErrResultsResponseInvalid         = errors.New("ResultsResponse has no variant set")
 )
 
@@ -134,7 +135,8 @@ type ResultsRequest struct {
 	Sort   []ResultsSort `json:",omitempty"`
 	Start  time.Time
 	SID    string
-	Stats  ResultsRequestStats
+	// Unset means no stats.
+	Stats Optional[ResultsRequestStats] `json:",omitzero"`
 }
 
 type ResultsSort struct {
@@ -147,7 +149,8 @@ type ResultsSort struct {
 
 type ResultsRequestStats struct {
 	Operations ResultsRequestStatsOperationList `json:",omitempty"`
-	Over       ResultsRequestStatsOver
+	// Unset means the operations run over the whole time range, with no bins.
+	Over Optional[ResultsRequestStatsOver] `json:",omitzero"`
 }
 
 type ResultsRequestStatsOperationList = []StatsOperation
@@ -696,6 +699,10 @@ func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
 
 	if raw.Width != nil && raw.Count != nil {
 		return ErrResultsRequestStatsOverInvalid
+	}
+
+	if raw.Width == nil && raw.Count == nil {
+		return ErrResultsRequestStatsOverEmpty
 	}
 
 	if raw.Width != nil {
