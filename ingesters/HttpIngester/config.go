@@ -14,8 +14,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
+	"strings"
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
@@ -141,7 +143,13 @@ func (c *cfgType) Verify() error {
 	if err := config.LoadEnvVar(&c.Ignore_Untrusted_Forwarded_For, envIgnoreUntrustedXFF, false); err != nil {
 		return fmt.Errorf("failed to load %s %w", envIgnoreUntrustedXFF, err)
 	}
-	tp, err := trustedproxy.Parse(c.Trusted_Proxy)
+	entries := c.Trusted_Proxy
+	if v := os.Getenv(envTrustedProxy); len(entries) == 0 && v != `` {
+		// the env loader drops blank entries, so parse the raw value: a variable
+		// holding only separators is rejected rather than read as unset
+		entries = strings.Split(v, `,`)
+	}
+	tp, err := trustedproxy.Parse(entries)
 	if err != nil {
 		return fmt.Errorf("Trusted-Proxy is invalid: %w", err)
 	}

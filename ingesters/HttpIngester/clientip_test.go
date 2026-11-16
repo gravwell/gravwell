@@ -21,7 +21,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
@@ -206,7 +205,7 @@ func TestLegacyForwardedWarning(t *testing.T) {
 	}
 	require.Equal(t, 1, warnings(), "warnings are rate limited across peers")
 
-	h.legacyWarned.Store(time.Now().Add(-2 * legacyWarnInterval).UnixNano())
+	h.legacyWarned.Store(int64(monoNow() - 2*legacyWarnInterval))
 	h.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
 	require.Equal(t, 2, warnings(), "the warning repeats after the interval")
 
@@ -347,6 +346,33 @@ func TestVerifyTrustedProxy(t *testing.T) {
 			wantErr: `"0.0.0.0/0"`,
 		},
 		{
+			name:    "ipv4 split trust all rejected",
+			cfg:     []string{"0.0.0.0/1", "128.0.0.0/1"},
+			wantErr: "cover every IPv4 address",
+		},
+		{
+			name:    "blank entries rejected",
+			cfg:     []string{"", " "},
+			wantErr: "blank",
+		},
+		{
+			name:    "env var of only separators rejected",
+			env:     ",",
+			wantErr: "blank",
+		},
+		{
+			name:    "env var of only whitespace rejected",
+			env:     " ",
+			wantErr: "blank",
+		},
+		{
+			// the config value wins over the env var, so it must not be dropped
+			name:    "blank config value with env var rejected",
+			cfg:     []string{""},
+			env:     "10.0.0.1",
+			wantErr: "blank",
+		},
+		{
 			name:    "ipv6 trust all rejected",
 			cfg:     []string{"::/0"},
 			wantErr: `"::/0"`,
@@ -416,6 +442,16 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 
 	_, err = GetConfig(pth, "")
 	require.ErrorContains(t, err, `"0.0.0.0/0"`)
+
+	// a value of only blanks must fail rather than fall back to legacy mode
+	blank := strings.NewReplacer(
+		"Trusted-Proxy=10.0.0.5", `Trusted-Proxy=""`,
+		"\tTrusted-Proxy=192.168.100.0/24\n", "",
+	).Replace(conf)
+	require.NoError(t, os.WriteFile(pth, []byte(blank), 0o600))
+
+	_, err = GetConfig(pth, "")
+	require.ErrorContains(t, err, "blank")
 
 	// no Trusted-Proxy is legacy mode until Ignore-Untrusted-Forwarded-For is set
 	noProxies := strings.NewReplacer(

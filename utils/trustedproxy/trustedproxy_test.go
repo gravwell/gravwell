@@ -49,7 +49,10 @@ func TestParse(t *testing.T) {
 		wantErr string   // substring of the error, empty for success
 	}{
 		{name: "nil", entries: nil, want: nil},
-		{name: "blank entries skipped", entries: []string{"", "  ", "\t"}, want: nil},
+		{name: "empty", entries: []string{}, want: nil},
+		// an option set only to blanks must not read as unset, which is legacy mode
+		{name: "only blank entries", entries: []string{"", "  ", "\t"}, wantErr: "every trusted proxy entry is blank"},
+		{name: "single blank entry", entries: []string{""}, wantErr: "every trusted proxy entry is blank"},
 		{name: "ipv4 host", entries: []string{"10.0.0.1"}, want: []string{"10.0.0.1/32"}},
 		{name: "ipv6 host", entries: []string{"2001:db8::1"}, want: []string{"2001:db8::1/128"}},
 		{name: "trimmed", entries: []string{"  10.0.0.1 "}, want: []string{"10.0.0.1/32"}},
@@ -82,6 +85,33 @@ func TestParse(t *testing.T) {
 		{name: "nat64 well-known prefix", entries: []string{"64:ff9b::/96"}, want: []string{"64:ff9b::/96"}},
 		{name: "unique local block", entries: []string{"fc00::/7"}, want: []string{"fc00::/7"}},
 		{name: "global unicast block", entries: []string{"2000::/3"}, want: []string{"2000::/3"}},
+		{name: "ipv4 halves", entries: []string{"0.0.0.0/1", "128.0.0.0/1"}, wantErr: "cover every IPv4 address"},
+		{
+			name:    "ipv4 quarters unordered and overlapping",
+			entries: []string{"192.0.0.0/2", "10.0.0.1", "0.0.0.0/2", "128.0.0.0/2", "64.0.0.0/2", "64.0.0.0/3"},
+			wantErr: "cover every IPv4 address",
+		},
+		{name: "ipv4 mapped halves", entries: []string{"::ffff:0.0.0.0/97", "::ffff:128.0.0.0/97"}, wantErr: "cover every IPv4 address"},
+		{name: "ipv4 split coverage", entries: siblings("255.255.255.255", "255.255.255.255"), wantErr: "cover every IPv4 address"},
+		{name: "ipv4 split coverage missing one address", entries: siblings("255.255.255.255"), want: siblings("255.255.255.255")},
+		{name: "ipv4 halves with a gap", entries: []string{"0.0.0.0/1", "128.0.0.1/32", "128.0.0.2/31", "128.0.0.4/30"}, want: []string{"0.0.0.0/1", "128.0.0.1/32", "128.0.0.2/31", "128.0.0.4/30"}},
+		// IPv4-mapped peers match in IPv4 form, so every other IPv6 address is all of IPv6
+		{name: "ipv6 split coverage", entries: siblings("::ffff:0:0/96"), wantErr: "cover every IPv6 address"},
+		// a mapped entry is stored in IPv4 form, so it neither fills the IPv6 gap
+		// left by the missing 8000::/1 nor is needed to cover ::ffff:0:0/96
+		{
+			name:    "ipv6 split coverage with a gap and a mapped entry",
+			entries: append(siblings("::ffff:0:0/96")[1:], "::ffff:10.0.0.0/104"),
+			want:    append(siblings("::ffff:0:0/96")[1:], "10.0.0.0/8"),
+		},
+		{
+			name:    "ipv6 split coverage with a mapped entry",
+			entries: append(siblings("::ffff:0:0/96"), "::ffff:10.0.0.0/104"),
+			wantErr: "cover every IPv6 address",
+		},
+		{name: "ipv6 split coverage with a gap", entries: siblings("::fffe:0:0/95", "::fffe:0:0/97"), want: siblings("::fffe:0:0/95", "::fffe:0:0/97")},
+		{name: "ipv6 halves around mapped range", entries: []string{"8000::/1", "::/97"}, want: []string{"8000::/1", "::/97"}},
+		{name: "ipv4 and ipv6 halves", entries: []string{"0.0.0.0/1", "8000::/1"}, want: []string{"0.0.0.0/1", "8000::/1"}},
 	}
 
 	for _, tt := range tests {
@@ -118,6 +148,28 @@ func TestParse(t *testing.T) {
 			}
 		})
 	}
+}
+
+// siblings returns the prefixes that cover every address of target's family
+// except target, the sibling of target at each prefix length from 1 down to
+// target's own, then extra. target is an address or a CIDR block.
+func siblings(target string, extra ...string) []string {
+	pfx, err := netip.ParsePrefix(target)
+	if err != nil {
+		a := netip.MustParseAddr(target)
+		pfx = netip.PrefixFrom(a, a.BitLen())
+	}
+
+	var out []string
+	b := pfx.Addr().AsSlice()
+	for i := 0; i < pfx.Bits(); i++ {
+		b[i/8] ^= 0x80 >> (i % 8)
+		a, _ := netip.AddrFromSlice(b)
+		out = append(out, netip.PrefixFrom(a, i+1).Masked().String())
+		b[i/8] ^= 0x80 >> (i % 8)
+	}
+
+	return append(out, extra...)
 }
 
 func TestContains(t *testing.T) {

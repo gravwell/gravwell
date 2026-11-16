@@ -36,6 +36,7 @@ const (
 
 var (
 	errTrustAll     = errors.New("a prefix length of 0 would trust every address")
+	errAllBlank     = errors.New("every trusted proxy entry is blank")
 	errSpansMapped  = errors.New("an IPv6 block that spans ::ffff:0:0/96 never matches IPv4 peers, list IPv4 ranges in IPv4 form")
 	ipv4MappedRange = netip.MustParsePrefix(`::ffff:0:0/96`)
 )
@@ -48,12 +49,15 @@ type List struct {
 
 // Parse parses a list of IPv4 or IPv6 addresses and CIDR blocks.
 //
-// Entries are trimmed and blank entries are skipped. A bare address becomes a
-// single host prefix, a CIDR block is masked to its network address, and
-// IPv4-mapped IPv6 entries are stored in their IPv4 form. An entry with a prefix
-// length of 0 is rejected. Any other IPv6 block that overlaps the IPv4-mapped
-// range ::ffff:0:0/96 is rejected too, since peers are matched in IPv4 form and
-// could never match it. Errors name the offending entry.
+// Entries are trimmed and blank entries are skipped, but a non-empty list in
+// which every entry is blank is rejected rather than read as no list. A bare
+// address becomes a single host prefix, a CIDR block is masked to its network
+// address, and IPv4-mapped IPv6 entries are stored in their IPv4 form. An entry
+// with a prefix length of 0 is rejected, as is a list whose entries together
+// cover every IPv4 or every IPv6 address. Any other IPv6 block that overlaps the
+// IPv4-mapped range ::ffff:0:0/96 is rejected too, since peers are matched in
+// IPv4 form and could never match it. An error about a single entry names
+// that entry.
 func Parse(entries []string) (List, error) {
 	var l List
 
@@ -70,7 +74,76 @@ func Parse(entries []string) (List, error) {
 		l.prefixes = append(l.prefixes, pfx)
 	}
 
+	if len(entries) > 0 && len(l.prefixes) == 0 {
+		return List{}, errAllBlank
+	}
+	if err := checkCoverage(l.prefixes); err != nil {
+		return List{}, err
+	}
+
 	return l, nil
+}
+
+// checkCoverage rejects prefixes that together cover a whole address family.
+// IPv4-mapped peers are matched in IPv4 form, so the IPv6 check counts
+// ::ffff:0:0/96 as covered.
+func checkCoverage(prefixes []netip.Prefix) error {
+	var v4, v6 []netip.Prefix
+	for _, pfx := range prefixes {
+		if pfx.Addr().Is4() {
+			v4 = append(v4, pfx)
+		} else {
+			v6 = append(v6, pfx)
+		}
+	}
+
+	if coversAll(v4, netip.IPv4Unspecified()) {
+		return errors.New("the trusted proxies together cover every IPv4 address, list only the addresses of your proxies")
+	}
+	if len(v6) > 0 && coversAll(append(v6, ipv4MappedRange), netip.IPv6Unspecified()) {
+		return errors.New("the trusted proxies together cover every IPv6 address, list only the addresses of your proxies")
+	}
+
+	return nil
+}
+
+// coversAll reports whether the masked prefixes, all of first's family, cover
+// every address of that family. first is the lowest address of the family. It
+// sorts prefixes in place.
+func coversAll(prefixes []netip.Prefix, first netip.Addr) bool {
+	slices.SortFunc(prefixes, func(a, b netip.Prefix) int {
+		return a.Addr().Compare(b.Addr())
+	})
+
+	// next is the lowest address not yet covered
+	next := first
+	for _, pfx := range prefixes {
+		if pfx.Addr().Compare(next) > 0 {
+			return false
+		}
+
+		end := lastAddr(pfx)
+		if !end.Next().IsValid() {
+			// end is the highest address of the family
+			return true
+		}
+		if end.Compare(next) >= 0 {
+			next = end.Next()
+		}
+	}
+
+	return false
+}
+
+// lastAddr returns the highest address in pfx.
+func lastAddr(pfx netip.Prefix) netip.Addr {
+	b := pfx.Addr().AsSlice()
+	for i := pfx.Bits(); i < len(b)*8; i++ {
+		b[i/8] |= 0x80 >> (i % 8)
+	}
+
+	a, _ := netip.AddrFromSlice(b)
+	return a
 }
 
 func parseEntry(e string) (netip.Prefix, error) {

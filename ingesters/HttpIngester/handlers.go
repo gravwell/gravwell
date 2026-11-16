@@ -65,7 +65,7 @@ type handler struct {
 	custom                map[route]http.Handler
 	healthCheckURL        string
 	resolver              atomic.Pointer[clientResolver]
-	legacyWarned          atomic.Int64 // unix nanoseconds of the last legacy X-Forwarded-For warning
+	legacyWarned          atomic.Int64 // monoNow() at the last legacy X-Forwarded-For warning
 	maxConcurrentRequests int64
 	activeRequests        int64
 }

@@ -22,6 +22,15 @@ import (
 // legacyWarnInterval is the minimum time between legacy X-Forwarded-For warnings.
 const legacyWarnInterval = time.Minute
 
+// monoStart is the base of monoNow. Time measured from it uses the monotonic
+// clock, so a wall clock step cannot stall or hurry the legacy warning.
+var monoStart = time.Now()
+
+// monoNow returns the monotonic time since monoStart.
+func monoNow() time.Duration {
+	return time.Since(monoStart)
+}
+
 // clientResolver decides how the client of a request is found.
 //
 // With Trusted-Proxy set, X-Forwarded-For is used only from a listed peer. With
@@ -67,7 +76,7 @@ func (h *handler) client(r *http.Request) trustedproxy.Client {
 // warnLegacyForwarded logs that the client address came from an X-Forwarded-For
 // header sent by an unlisted peer. It logs at most once per legacyWarnInterval.
 func (h *handler) warnLegacyForwarded(c trustedproxy.Client) {
-	now := time.Now().UnixNano()
+	now := int64(monoNow())
 
 	last := h.legacyWarned.Load()
 	if last != 0 && now-last < int64(legacyWarnInterval) {
