@@ -9,9 +9,14 @@
 package processors
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 var (
@@ -444,5 +449,129 @@ func TestJsonArraySplitQuoted(t *testing.T) {
 	}
 	if err := checkEntryEVs(rset); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// splitData runs one batch through p and returns the output data.
+func splitData(t *testing.T, p *JsonArraySplitter, in ...string) (out []string) {
+	t.Helper()
+	var ents []*entry.Entry
+	for _, v := range in {
+		ents = append(ents, &entry.Entry{Tag: 123, Data: []byte(v)})
+	}
+	rset, err := p.Process(ents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ent := range rset {
+		out = append(out, string(ent.Data))
+	}
+	return
+}
+
+func newTestSplitter(t *testing.T, cfg JsonArraySplitConfig) *JsonArraySplitter {
+	t.Helper()
+	p, err := NewJsonArraySplitter(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// A failed extraction must not leak into later entries.
+func TestJsonArraySplitNoStateLeak(t *testing.T) {
+	cfg := JsonArraySplitConfig{Extraction: `events`, Additional_Fields: `host`, Drop_Misses: true}
+	bad := `{"events":[{"id":1},{"id":2}],"host":tru}`
+	good := `{"events":[{"id":5},{"id":6}],"host":"x"}`
+	want := []string{`{"events":{"id":5},"host":"x"}`, `{"events":{"id":6},"host":"x"}`}
+
+	t.Run("same batch", func(t *testing.T) {
+		if got := splitData(t, newTestSplitter(t, cfg), bad, good); !slices.Equal(got, want) {
+			t.Fatalf("got %q, want %q", got, want)
+		}
+	})
+	t.Run("separate calls", func(t *testing.T) {
+		p := newTestSplitter(t, cfg)
+		for range 3 {
+			if got := splitData(t, p, bad); len(got) != 0 {
+				t.Fatalf("malformed entry emitted %q", got)
+			}
+		}
+		if got := splitData(t, p, good); !slices.Equal(got, want) {
+			t.Fatalf("got %q, want %q", got, want)
+		}
+	})
+}
+
+// Entries that fail to split follow Drop-Misses and are never partially emitted.
+func TestJsonArraySplitMalformed(t *testing.T) {
+	for _, tc := range []struct{ name, additional, in string }{
+		{`bad additional field`, `host`, `{"events":[{"id":1},{"id":2}],"host":tru}`},
+		{`truncated array`, `host`, `{"host":"x","events":[{"id":1},{"id":2`},
+		{`truncated array, no additional`, ``, `{"events":[{"id":1},{"id":2`},
+		{`not an array`, `host`, `{"host":"x","events":"none"}`},
+	} {
+		for _, drop := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/drop=%v", tc.name, drop), func(t *testing.T) {
+				cfg := JsonArraySplitConfig{Extraction: `events`, Additional_Fields: tc.additional, Drop_Misses: drop}
+				var want []string
+				if !drop {
+					want = []string{tc.in}
+				}
+				if got := splitData(t, newTestSplitter(t, cfg), tc.in); !slices.Equal(got, want) {
+					t.Fatalf("got %q, want %q", got, want)
+				}
+			})
+		}
+	}
+}
+
+// Additional field names must not collide with the extraction name or each other.
+func TestJsonArraySplitKeyCollision(t *testing.T) {
+	for _, additional := range []string{`meta.events`, `a.host,b.host`, `host,host`} {
+		cfg := JsonArraySplitConfig{Extraction: `events`, Additional_Fields: additional}
+		if _, err := NewJsonArraySplitter(cfg); err == nil {
+			t.Errorf("Additional-Fields=%q was accepted", additional)
+		}
+	}
+}
+
+// Additional-Fields always produces objects, so the loaded config must report Force-JSON-Object.
+func TestJsonArraySplitAdditionalForcesObject(t *testing.T) {
+	p, err := testLoadPreprocessor(`
+	[preprocessor "j2"]
+		type = jsonarraysplit
+		Extraction=events
+		Additional-Fields=host
+	`, `j2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.(*JsonArraySplitter).Force_JSON_Object {
+		t.Fatal("Force-JSON-Object not set with Additional-Fields")
+	}
+}
+
+// Cost must not depend on whether the additional field sits before or after the array.
+func TestJsonArraySplitAdditionalCost(t *testing.T) {
+	const count = 16 << 10
+	elems := strings.Repeat(`0,`, count-1) + `0`
+	run := func(doc string) (best time.Duration) {
+		p := newTestSplitter(t, JsonArraySplitConfig{Extraction: `a`, Additional_Fields: `z`})
+		for i := range 3 {
+			start := time.Now()
+			if n := len(splitData(t, p, doc)); n != count {
+				t.Fatalf("got %d entries, want %d", n, count)
+			}
+			if d := time.Since(start); i == 0 || d < best {
+				best = d
+			}
+		}
+		return
+	}
+	before := run(`{"z":1,"a":[` + elems + `]}`)
+	after := run(`{"a":[` + elems + `],"z":1}`)
+	if after > 10*before {
+		t.Fatalf("field after array took %v, before array took %v", after, before)
 	}
 }

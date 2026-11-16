@@ -9,11 +9,13 @@
 package processors
 
 import (
+	"bytes"
 	"net"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/jsonparser"
 )
 
 var (
@@ -325,5 +327,30 @@ func TestJsonConfigQuoted(t *testing.T) {
 		t.Fatalf("Invalid return count %v != 1", len(rset))
 	} else if string(rset[0].Data) != testOutputJson {
 		t.Fatal("bad result", string(rset[0].Data))
+	}
+}
+
+// add() then extract() must close the object, even with one key and no forceJson.
+func TestBuilderAddThenExtract(t *testing.T) {
+	b := builder{bb: bytes.NewBuffer(nil), keys: [][]string{{`host`}}, keynames: []string{`host`}}
+	b.add(`events`, jsonparser.Object, []byte(`{"id":1}`))
+	if err := b.extract([]byte(`{"host":"sensor-1"}`)); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"events":{"id":1},"host":"sensor-1"}`
+	if got, _ := b.render(); string(got) != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}
+
+// A failed extract() must leave the builder empty.
+func TestBuilderExtractErrorResets(t *testing.T) {
+	b := builder{forceJson: true, bb: bytes.NewBuffer(nil), keys: [][]string{{`host`}}, keynames: []string{`host`}}
+	b.add(`events`, jsonparser.Object, []byte(`{"id":1}`))
+	if err := b.extract([]byte(`{"host":tru}`)); err == nil {
+		t.Fatal("malformed value did not fail")
+	}
+	if b.bb.Len() != 0 || b.cnt != 0 || b.comma {
+		t.Fatalf("builder kept state: %q cnt=%d comma=%v", b.bb.String(), b.cnt, b.comma)
 	}
 }
