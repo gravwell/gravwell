@@ -102,6 +102,21 @@ func (c *Client) delete(url string, params ...urlParam) error {
 	return err
 }
 
+// deleteWithResponse submits an empty DELETE request against the given URL and expects ResponseT in return.
+// It does NOT swallow 204s.
+func (c *Client) deleteWithResponse[ResponseT any](url string, params ...urlParam) (response ResponseT, _ error) {
+	resp, err := c.reqDriver(http.MethodDelete, url, nil, nil, params...)
+	defer drainResponse(resp)
+	if err != nil {
+		return response, err
+	}
+	if err := json.UnmarshalRead(resp.Body, &response, jsoncompat.Opts); err != nil {
+		return response, err
+	}
+	c.objLog.Log("WEB RECV", url, response)
+	return response, nil
+}
+
 // GetOptions is the base set of options supported by asset GET requests.
 type GetOptions struct {
 	IncludeDeleted bool

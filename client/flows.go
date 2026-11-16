@@ -99,18 +99,21 @@ func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error
 	return c.get[types.FlowResults](flowsIdResultsUrl(id))
 }
 
-// ClearFlowResults deletes all results for the specified flow
-func (c *Client) ClearFlowResults(id string) error {
-	return c.delete(flowsIdResultsUrl(id))
+// ClearFlowResults deletes all results for the specified flow.
+// A nil error does not guarantee all results were cleared; check Skipped.
+func (c *Client) ClearFlowResults(id string) (types.ClearResultsResponse, error) {
+	return c.deleteWithResponse[types.ClearResultsResponse](flowsIdResultsUrl(id))
 }
 
 // ClearAllFlowResults (admin-only) deletes all results for the specified flow,
 // regardless of which user owns them.
-func (c *Client) ClearAllFlowResults(id string) error {
+// A nil error does not guarantee all results were cleared; check Skipped.
+func (c *Client) ClearAllFlowResults(id string) (types.ClearResultsResponse, error) {
 	if !c.userDetails.Admin {
-		return ErrNotAdmin
+		return types.ClearResultsResponse{}, ErrNotAdmin
 	}
-	return c.delete(flowsIdResultsUrl(id), urlParam{queryparams.All, "true"})
+	return c.deleteWithResponse[types.ClearResultsResponse](flowsIdResultsUrl(id),
+		urlParam{queryparams.All, "true"})
 }
 
 // DebugFlow schedules an immediate execution of the specified flow.
