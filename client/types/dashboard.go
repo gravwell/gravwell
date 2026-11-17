@@ -130,11 +130,11 @@ func (d Dashboard) ToPatch() DashboardPatch {
 type DashboardListResponse = ListResponse[Dashboard]
 
 // DashboardSearchLaunchRequest describes options for launching the searches of a dashboard.
-// Every field is optional: the zero value launches every Searchable over the dashboard's
-// stored Timeframe.
+// Every field is optional.
 type DashboardSearchLaunchRequest struct {
-	// Timeframe applies to every Searchable that does not carry its own TimeframeOverride.
-	// Nil falls back to the dashboard's stored Timeframe.
+	// SearchTimeframes wins over every other timeframe, keyed by Searches key.
+	SearchTimeframes map[string]DashboardTimeframe `json:",omitempty"`
+	// Timeframe applies where there is no entry and no TimeframeOverride.
 	Timeframe *DashboardTimeframe `json:",omitempty"`
 	// Variables supplies values for template variables, keyed by the full variable name
 	// including the %% prefix and postfix (e.g. "%%IP%%"). Values apply dashboard-wide.
