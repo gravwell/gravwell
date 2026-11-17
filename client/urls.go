@@ -69,14 +69,14 @@ const (
 	LIST_SEARCHES_URL                     = `/api/list/searches`
 	SEARCHES_ID_URL                       = `/api/searches/%s`
 	SEARCHES_ID_ACCESS_URL                = `/api/searches/%s/access`
-	SEARCHES_ID_ATTACH_URL                = `/api/searches/%s/attach`
+	SEARCHES_ID_SESSIONS_URL              = `/api/searches/%s/sessions`
+	SEARCHES_ID_SESSIONS_ID_URL           = `/api/searches/%s/sessions/%s`
 	SEARCHES_ID_EXTRACTOR_SUGGESTIONS_URL = `/api/searches/%s/extractor-suggestions`
 	SEARCHES_ID_BACKGROUND_URL            = `/api/searches/%s/background`
 	SEARCHES_ID_SAVE_URL                  = `/api/searches/%s/save`
 	SEARCHES_ID_STOP_URL                  = `/api/searches/%s/stop`
 	SEARCHES_ID_DOWNLOADS_URL             = `/api/searches/%s/downloads`
 	SEARCHES_ID_PING_URL                  = `/api/searches/%s/ping`
-	SEARCHES_ID_DETACH_URL                = `/api/searches/%s/detach`
 	SEARCHES_ID_MODULES_URL               = `/api/searches/%s/modules`
 	SEARCHES_ID_STATS_URL                 = `/api/searches/%s/stats`
 	SEARCHES_ID_STATS_METADATA_URL        = `/api/searches/%s/stats/metadata`
@@ -664,8 +664,8 @@ func searchesIdPingUrl(id string) string {
 	return fmt.Sprintf(SEARCHES_ID_PING_URL, id)
 }
 
-func searchesIdDetachUrl(id string) string {
-	return fmt.Sprintf(SEARCHES_ID_DETACH_URL, id)
+func searchesIdSessionsIdUrl(id, sessionId string) string {
+	return fmt.Sprintf(SEARCHES_ID_SESSIONS_ID_URL, id, sessionId)
 }
 
 func searchesIdStatsMetadataUrl(id string) string {
@@ -692,8 +692,8 @@ func validateQueryUrl() string {
 	return VALIDATE_QUERY_URL
 }
 
-func searchesIdAttachUrl(id string) string {
-	return fmt.Sprintf(SEARCHES_ID_ATTACH_URL, id)
+func searchesIdSessionsUrl(id string) string {
+	return fmt.Sprintf(SEARCHES_ID_SESSIONS_URL, id)
 }
 
 func alertsUrl() string {

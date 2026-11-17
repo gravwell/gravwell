@@ -232,7 +232,7 @@ func (c *Client) StartFilteredSearch(query string, start, end time.Time, nohisto
 // returns the associated Search object.
 func (c *Client) AttachSearch(id string) (s Search, err error) {
 	var resp types.LaunchResponse
-	if err = c.getStaticURL(searchesIdAttachUrl(id), &resp); err != nil {
+	if err = c.postStaticURL(searchesIdSessionsUrl(id), nil, &resp); err != nil {
 		return
 	}
 	return c.SearchFromLaunch(resp), nil
@@ -991,7 +991,7 @@ func (c *Client) GetSearchStats(s Search, count uint, start, end time.Time) (ss 
 
 // DetachSearch disconnects the client from a search. This may lead to the search being garbage collected.
 func (c *Client) DetachSearch(s Search) {
-	c.putStaticURL(searchesIdDetachUrl(s.ID), nil, s.sidParam())
+	c.deleteStaticURL(searchesIdSessionsIdUrl(s.ID, s.session.String()), nil)
 }
 
 // DownloadSearch returns an io.ReadCloser which can be used to download the results of the search
@@ -1103,7 +1103,7 @@ func (s *Search) Ping() error {
 // Close will close our handle on the search, effectively releasing our lock.
 // The search will be cleaned up if there are no other clients and it is not a backgrounded/saved search.
 func (s *Search) Close() error {
-	return s.cli.putStaticURL(searchesIdDetachUrl(s.ID), nil, s.sidParam())
+	return s.cli.deleteStaticURL(searchesIdSessionsIdUrl(s.ID, s.session.String()), nil)
 }
 
 func (s *Search) sidParam() (p urlParam) {
