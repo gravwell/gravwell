@@ -304,7 +304,9 @@ func TestLegacyForwardedWarning(t *testing.T) {
 		t.Fatalf("%d warnings, want 1: warnings are rate limited across peers", n)
 	}
 
-	cs.legacyWarned.Store(int64(monoNow() - 2*legacyWarnInterval))
+	// shorten the interval and wait past it rather than wait a minute
+	cs.legacyWarn.Interval = 20 * time.Millisecond
+	time.Sleep(2 * cs.legacyWarn.Interval)
 	cs.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
 	if n := warnings(); n != 2 {
 		t.Fatalf("%d warnings, want 2: the warning repeats after the interval", n)
@@ -324,27 +326,70 @@ func TestLegacyForwardedWarning(t *testing.T) {
 }
 
 // TestLegacyForwardedWarningConcurrent checks that concurrent requests on every
-// listener produce one warning in total.
+// listener produce one warning in total, and that a slow warning write does not
+// hold up other requests.
 func TestLegacyForwardedWarningConcurrent(t *testing.T) {
-	logBuf := &lockedBuffer{}
-	cs, err := newClientSource(clientResolver{legacy: true}, log.New(logBuf))
+	bw := newBlockingWriter()
+	cs, err := newClientSource(clientResolver{legacy: true}, log.New(bw))
 	if err != nil {
 		t.Fatalf("newClientSource: %v", err)
 	}
 
-	var wg sync.WaitGroup
-	for i := 0; i < 32; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cs.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
-		}()
-	}
-	wg.Wait()
+	// the first warning blocks in the log write until released
+	first := make(chan struct{})
+	go func() {
+		defer close(first)
+		cs.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
+	}()
+	<-bw.entered
 
-	if n := strings.Count(logBuf.String(), "Ignore-Untrusted-Forwarded-For"); n != 1 {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		var wg sync.WaitGroup
+		for i := 0; i < 32; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				cs.client(newXFFRequest("192.0.2.11:5000", "203.0.113.8"))
+			}()
+		}
+		wg.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("requests blocked behind the warning write")
+	}
+
+	close(bw.release)
+	<-first
+	if n := strings.Count(bw.String(), "Ignore-Untrusted-Forwarded-For"); n != 1 {
 		t.Fatalf("%d warnings from concurrent requests, want 1", n)
 	}
+}
+
+// blockingWriter is a log destination whose first write blocks until release is
+// closed. entered is closed when that write starts.
+type blockingWriter struct {
+	lockedBuffer
+	once    sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func newBlockingWriter() *blockingWriter {
+	return &blockingWriter{entered: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (bw *blockingWriter) Write(b []byte) (int, error) {
+	bw.once.Do(func() {
+		close(bw.entered)
+		<-bw.release
+	})
+
+	return bw.lockedBuffer.Write(b)
 }
 
 func TestClientKVs(t *testing.T) {
@@ -356,6 +401,12 @@ func TestClientKVs(t *testing.T) {
 		{
 			name:   "no header",
 			client: trustedproxy.List{}.Resolve(newXFFRequest("192.0.2.10:5000")),
+			want:   map[string]string{"src": "192.0.2.10"},
+		},
+		{
+			// an empty header line logs like no header
+			name:   "empty header",
+			client: trustedproxy.ResolveLegacy(newXFFRequest("192.0.2.10:5000", "")),
 			want:   map[string]string{"src": "192.0.2.10"},
 		},
 		{

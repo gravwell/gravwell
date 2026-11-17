@@ -12,26 +12,17 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"sync/atomic"
 	"time"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
+	"golang.org/x/time/rate"
 )
 
 // legacyWarnInterval is the minimum time between legacy X-Forwarded-For warnings.
 const legacyWarnInterval = time.Minute
-
-// monoStart is the base of monoNow. Time measured from it uses the monotonic
-// clock, so a wall clock step cannot stall or hurry the legacy warning.
-var monoStart = time.Now()
-
-// monoNow returns the monotonic time since monoStart.
-func monoNow() time.Duration {
-	return time.Since(monoStart)
-}
 
 // clientResolver decides how the client of a request is found.
 //
@@ -55,9 +46,9 @@ func (cr clientResolver) resolve(r *http.Request) trustedproxy.Client {
 // legacy warning is rate limited across all listeners, so one clientSource is
 // shared by all of them.
 type clientSource struct {
-	resolver     clientResolver // set once at startup, read without a lock
-	lg           ingest.Logger
-	legacyWarned atomic.Int64 // monoNow() at the last legacy X-Forwarded-For warning
+	resolver   clientResolver // set once at startup, read without a lock
+	lg         ingest.Logger
+	legacyWarn rate.Sometimes // rate limits the legacy X-Forwarded-For warning
 }
 
 func newClientSource(cr clientResolver, lg ingest.Logger) (*clientSource, error) {
@@ -65,7 +56,11 @@ func newClientSource(cr clientResolver, lg ingest.Logger) (*clientSource, error)
 		return nil, errors.New("nil logger")
 	}
 
-	return &clientSource{resolver: cr, lg: lg}, nil
+	return &clientSource{
+		resolver:   cr,
+		lg:         lg,
+		legacyWarn: rate.Sometimes{Interval: legacyWarnInterval},
+	}, nil
 }
 
 // client resolves the client of r with the configured resolver.
@@ -81,13 +76,11 @@ func (cs *clientSource) client(r *http.Request) trustedproxy.Client {
 // warnLegacyForwarded logs that the client address came from an X-Forwarded-For
 // header sent by an unlisted peer. It logs at most once per legacyWarnInterval.
 func (cs *clientSource) warnLegacyForwarded(c trustedproxy.Client) {
-	now := int64(monoNow())
-
-	last := cs.legacyWarned.Load()
-	if last != 0 && now-last < int64(legacyWarnInterval) {
-		return
-	}
-	if !cs.legacyWarned.CompareAndSwap(last, now) {
+	// decide under the Sometimes lock but log after it, so a slow log write
+	// does not hold up other requests
+	var fire bool
+	cs.legacyWarn.Do(func() { fire = true })
+	if !fire {
 		return
 	}
 
@@ -114,14 +107,14 @@ func clientIP(c trustedproxy.Client) net.IP {
 // key.
 func clientKVs(name string, c trustedproxy.Client) []rfc5424.SDParam {
 	kvs := []rfc5424.SDParam{log.KV(name, clientIP(c).String())}
-	if c.Forwarded == `` {
+	if !c.HasForwarded() {
 		if !c.Addr.IsValid() {
 			kvs = append(kvs, log.KV("peer", peerString(c)))
 		}
 		return kvs
 	}
 
-	kvs = append(kvs, log.KV("peer", peerString(c)), log.KV("xff", c.Forwarded))
+	kvs = append(kvs, log.KV("peer", peerString(c)), log.KV("xff", c.Forwarded()))
 	if c.Malformed {
 		kvs = append(kvs, log.KV("xff-malformed", true))
 	}
