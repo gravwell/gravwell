@@ -676,29 +676,34 @@ func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
 	return []byte(`{}`), nil
 }
 
+// resultsRequestStatsOverJSON is the wire form of ResultsRequestStatsOver.
+// A nil field means the key was absent.
+type resultsRequestStatsOverJSON struct {
+	Width *int
+	Count *int
+}
+
 func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
 	if len(d) == 0 || string(d) == "null" {
 		return nil
 	}
 
-	var raw map[string]int
-	if err := json.Unmarshal(d, &raw); err != nil {
+	// jsoncompat.Opts matches keys in any case, so both "Width" and "width" decode.
+	var raw resultsRequestStatsOverJSON
+	if err := json.Unmarshal(d, &raw, jsoncompat.Opts); err != nil {
 		return err
 	}
 
-	w, hasWidth := raw["width"]
-	c, hasCount := raw["count"]
-
-	if hasWidth && hasCount {
+	if raw.Width != nil && raw.Count != nil {
 		return ErrResultsRequestStatsOverInvalid
 	}
 
-	if hasWidth {
-		rr.OverWidth = &ResultsRequestStatsOverWidth{Width: w}
+	if raw.Width != nil {
+		rr.OverWidth = &ResultsRequestStatsOverWidth{Width: *raw.Width}
 	}
 
-	if hasCount {
-		rr.OverCount = &ResultsRequestStatsOverCount{Count: c}
+	if raw.Count != nil {
+		rr.OverCount = &ResultsRequestStatsOverCount{Count: *raw.Count}
 	}
 
 	return nil
