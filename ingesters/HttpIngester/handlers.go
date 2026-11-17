@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -39,7 +40,7 @@ const (
 )
 
 // note that handleFuncs should read from the reader, not from the Request.Body.
-type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader, net.IP)
+type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader)
 
 type routeHandler struct {
 	ignoreTs      bool
@@ -65,12 +66,12 @@ type handler struct {
 	custom                map[route]http.Handler
 	healthCheckURL        string
 	resolver              atomic.Pointer[clientResolver]
-	legacyWarned          atomic.Int64 // monoNow() at the last legacy X-Forwarded-For warning
+	legacyWarn            rate.Sometimes // rate limits the legacy X-Forwarded-For warning
 	maxConcurrentRequests int64
 	activeRequests        int64
 }
 
-func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Request, rdr io.Reader, ip net.IP) {
+func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Request, rdr io.Reader) {
 	if w == nil {
 		return
 	} else if rdr == nil || h == nil || rh.handler == nil {
@@ -78,7 +79,7 @@ func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Reque
 		return
 	}
 	rh.paramAttacher.process(req)
-	rh.handler(h, rh, w, req, rdr, ip)
+	rh.handler(h, rh, w, req, rdr)
 }
 
 func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI *utils.StatsItem, maxConcurrent int) (h *handler, err error) {
@@ -97,6 +98,7 @@ func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI
 			reqSI:                 reqSI,
 			entSI:                 entSI,
 			bytesSI:               bytesSI,
+			legacyWarn:            rate.Sometimes{Interval: legacyWarnInterval},
 			maxConcurrentRequests: int64(maxConcurrent),
 		}
 	}
@@ -221,8 +223,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer drainAndClose(r.Body)
 
 	// resolve the client once, the auth handlers and request logging read it back from the request
-	r, c := h.attachClient(w, r)
-	ip := clientIP(c)
+	r, _ = h.attachClient(w, r)
 
 	rdr, err := getReadableBody(r)
 	if err != nil {
@@ -287,7 +288,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInsufficientStorage)
 		return
 	}
-	rh.handle(h, w, r, rdr, ip)
+	rh.handle(h, w, r, rdr)
 }
 func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.EntryTag) (err error) {
 	var ts entry.Timestamp
@@ -369,7 +370,8 @@ func (r route) String() string {
 	return r.method + "://" + path.Clean(r.uri)
 }
 
-func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	debugout("multhandler\n")
 
 	var entriesCount int
@@ -411,7 +413,8 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusOK)
 }
 
-func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	bodyReadLimit := int64(maxBody + 1)
 	//using a limited Reader here makes sense because we are going to be eating the entire HTTP request body as a single entry
 	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}

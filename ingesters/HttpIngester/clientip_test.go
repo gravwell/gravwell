@@ -10,6 +10,9 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -17,14 +20,21 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
+	"time"
 
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 func TestClientIP(t *testing.T) {
@@ -173,7 +183,7 @@ func TestClientIP(t *testing.T) {
 			cfg.Ignore_Untrusted_Forwarded_For = tt.ignore
 			require.NoError(t, cfg.Verify())
 
-			h := &handler{lgr: log.NewDiscardLogger()}
+			h := newWarnHandler(log.NewDiscardLogger())
 			h.setResolver(cfg.resolver)
 
 			got := clientIP(h.client(newXFFRequest(tt.remote, tt.xff...)))
@@ -182,9 +192,14 @@ func TestClientIP(t *testing.T) {
 	}
 }
 
+// newWarnHandler returns a handler with only the fields client resolution uses.
+func newWarnHandler(lgr *log.Logger) *handler {
+	return &handler{lgr: lgr, legacyWarn: rate.Sometimes{Interval: legacyWarnInterval}}
+}
+
 func TestLegacyForwardedWarning(t *testing.T) {
 	logBuf := &lockedBuffer{}
-	h := &handler{lgr: log.New(logBuf)}
+	h := newWarnHandler(log.New(logBuf))
 	h.setResolver(clientResolver{legacy: true})
 
 	warnings := func() int {
@@ -205,13 +220,78 @@ func TestLegacyForwardedWarning(t *testing.T) {
 	}
 	require.Equal(t, 1, warnings(), "warnings are rate limited across peers")
 
-	h.legacyWarned.Store(int64(monoNow() - 2*legacyWarnInterval))
+	// shorten the interval and wait past it rather than wait a minute
+	h.legacyWarn.Interval = 20 * time.Millisecond
+	time.Sleep(2 * h.legacyWarn.Interval)
 	h.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
 	require.Equal(t, 2, warnings(), "the warning repeats after the interval")
 
-	strict := &handler{lgr: log.New(logBuf)}
+	strict := newWarnHandler(log.New(logBuf))
 	strict.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
 	require.Equal(t, 2, warnings(), "strict mode never warns")
+}
+
+// TestLegacyForwardedWarningConcurrent checks that concurrent requests produce
+// one warning in total, and that a slow warning write does not hold up other
+// requests.
+func TestLegacyForwardedWarningConcurrent(t *testing.T) {
+	bw := newBlockingWriter()
+	h := newWarnHandler(log.New(bw))
+	h.setResolver(clientResolver{legacy: true})
+
+	// the first warning blocks in the log write until released
+	first := make(chan struct{})
+	go func() {
+		defer close(first)
+		h.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
+	}()
+	<-bw.entered
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		var wg sync.WaitGroup
+		for i := 0; i < 32; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				h.client(newXFFRequest("192.0.2.11:5000", "203.0.113.8"))
+			}()
+		}
+		wg.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("requests blocked behind the warning write")
+	}
+
+	close(bw.release)
+	<-first
+	require.Equal(t, 1, strings.Count(bw.String(), "Ignore-Untrusted-Forwarded-For"))
+}
+
+// blockingWriter is a log destination whose first write blocks until release is
+// closed. entered is closed when that write starts.
+type blockingWriter struct {
+	lockedBuffer
+	once    sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func newBlockingWriter() *blockingWriter {
+	return &blockingWriter{entered: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (bw *blockingWriter) Write(b []byte) (int, error) {
+	bw.once.Do(func() {
+		close(bw.entered)
+		<-bw.release
+	})
+
+	return bw.lockedBuffer.Write(b)
 }
 
 func TestClientKVs(t *testing.T) {
@@ -223,6 +303,12 @@ func TestClientKVs(t *testing.T) {
 		{
 			name:   "no header",
 			client: trustedproxy.List{}.Resolve(newXFFRequest("192.0.2.10:5000")),
+			want:   map[string]string{"src": "192.0.2.10"},
+		},
+		{
+			// an empty header line logs like no header
+			name:   "empty header",
+			client: trustedproxy.ResolveLegacy(newXFFRequest("192.0.2.10:5000", "")),
 			want:   map[string]string{"src": "192.0.2.10"},
 		},
 		{
@@ -602,7 +688,7 @@ func TestServeHTTPClient(t *testing.T) {
 			srv.Close()
 
 			require.Equal(t, tt.wantAddr, capture.client().String())
-			require.Equal(t, tt.xff, capture.client().Forwarded)
+			require.Equal(t, tt.xff, capture.client().Forwarded())
 
 			out := logBuf.String()
 			require.Contains(t, out, "failed login")
@@ -899,8 +985,8 @@ func TestListenerDebugLogsResolvedClient(t *testing.T) {
 			r.Header.Set("X-Forwarded-For", "203.0.113.7")
 			rec := httptest.NewRecorder()
 			trw := &trackingRW{ResponseWriter: rec}
-			r, c := hndlr.attachClient(trw, r)
-			rh.handle(hndlr, trw, r, r.Body, clientIP(c))
+			r, _ = hndlr.attachClient(trw, r)
+			rh.handle(hndlr, trw, r, r.Body)
 			require.Equal(t, http.StatusBadRequest, rec.Code, "an empty post fails in the route handler")
 
 			var lines []string
@@ -917,4 +1003,169 @@ func TestListenerDebugLogsResolvedClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRouteHandlersUseResolvedClient sends a request through a trusted peer to
+// every route type in each mode and checks that the entry SRC is the resolved
+// client and that the route's log line names the same address. In trusted mode
+// the client differs from the TCP peer, so a route that read the request's peer
+// instead of the attached client would fail.
+//
+// The test muxer has no indexer, so ServeHTTP answers with 507 before the route
+// handler runs. The route handler is called directly with the request
+// ServeHTTP would hand it.
+func TestRouteHandlersUseResolvedClient(t *testing.T) {
+	routes := []struct {
+		name   string
+		url    string
+		body   string
+		logKey string // the client key in the route's log lines
+	}{
+		{name: "std single", url: "/single", body: "hello", logKey: "src"},
+		{name: "std multiline", url: "/multi", body: "one\ntwo\n", logKey: "src"},
+		{name: "hec event", url: "/hec/event", body: `{"event":"hello"}`, logKey: "src"},
+		{name: "hec raw", url: "/hec/raw", body: "one\ntwo\n", logKey: "src"},
+		{
+			name:   "amazon firehose",
+			url:    "/afh",
+			body:   `{"requestId":"r1","records":[{"data":"aGVsbG8="}]}`,
+			logKey: "src",
+		},
+		{
+			name:   "otel logs",
+			url:    "/v1/logs",
+			body:   `{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":{"stringValue":"hello"}}]}]}]}`,
+			logKey: "remoteaddress",
+		},
+		{
+			name:   "otel metrics",
+			url:    "/v1/metrics",
+			body:   `{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"m","gauge":{"dataPoints":[{"asInt":"1"}]}}]}]}]}`,
+			logKey: "remoteaddress",
+		},
+	}
+	modes := []struct {
+		name    string
+		trusted []string
+		ignore  bool
+		want    string
+	}{
+		{name: "trusted", trusted: []string{"192.0.2.1"}, want: "203.0.113.7"},
+		{name: "legacy", want: "203.0.113.7"},
+		{name: "ignore", ignore: true, want: "192.0.2.1"},
+	}
+
+	for _, mode := range modes {
+		t.Run(mode.name, func(t *testing.T) {
+			logBuf := &lockedBuffer{}
+			hndlr, err := newHandler(newTestMuxer(t), log.New(logBuf), nil, nil, nil, 0)
+			require.NoError(t, err)
+
+			cfg := newTestConfig(t, "", map[string]*lst{
+				"single": {URL: "/single", Tag_Name: "tag1"},
+				"multi":  {URL: "/multi", Tag_Name: "tag1", Multiline: true},
+			})
+			cfg.HECListener = map[string]*hecCompatible{
+				"hec": {URL: "/hec", Tag_Name: "tag1", TokenValue: "secret"},
+			}
+			cfg.AFHListener = map[string]*afh{
+				"afh": {URL: "/afh", Tag_Name: "tag1", TokenValue: "secret"},
+			}
+			cfg.OtelLogsListener = map[string]*otelLogsListener{
+				"logs": {URL: "/v1/logs", Tag_Name: "tag1"},
+			}
+			cfg.OtelListener = map[string]*otelMetricsListener{
+				"metrics": {URL: "/v1/metrics", Tag_Name: "tag1"},
+			}
+			cfg.Trusted_Proxy = mode.trusted
+			cfg.Ignore_Untrusted_Forwarded_For = mode.ignore
+			require.NoError(t, hndlr.loadConfig(cfg))
+
+			// main sets the body limit from the config
+			prevMaxBody := maxBody
+			maxBody = cfg.MaxBody()
+			t.Cleanup(func() { maxBody = prevMaxBody })
+
+			for _, rt := range routes {
+				t.Run(rt.name, func(t *testing.T) {
+					hndlr.RLock()
+					rh, ok := hndlr.mp[route{method: http.MethodPost, uri: rt.url}]
+					hndlr.RUnlock()
+					require.True(t, ok, "no route for %s", rt.url)
+
+					ew := &captureEntryWriter{}
+					rh.pproc = processors.NewProcessorSet(ew)
+
+					// serve resolves the client as ServeHTTP does and runs the route
+					// handler with rdr as the body, returning the log output of the
+					// route handler alone
+					serve := func(body string, rdr func(*http.Request) io.Reader) (*httptest.ResponseRecorder, string) {
+						// httptest.NewRequest uses 192.0.2.1:1234 as RemoteAddr
+						r := httptest.NewRequest(http.MethodPost, rt.url, strings.NewReader(body))
+						r.Header.Set("Content-Type", "application/json")
+						r.Header.Set("X-Forwarded-For", "203.0.113.7")
+						rec := httptest.NewRecorder()
+						r, _ = hndlr.attachClient(rec, r)
+
+						before := len(logBuf.String())
+						rh.handle(hndlr, rec, r, rdr(r))
+						return rec, logBuf.String()[before:]
+					}
+
+					rec, _ := serve(rt.body, func(r *http.Request) io.Reader { return r.Body })
+					require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+					ents := ew.entries()
+					require.NotEmpty(t, ents)
+					for _, e := range ents {
+						require.Equal(t, mode.want, e.SRC.String(), "entry SRC")
+					}
+
+					// a failed body read makes every route log a line about the request
+					_, out := serve("", func(*http.Request) io.Reader {
+						return iotest.ErrReader(errors.New("read failed"))
+					})
+					m := regexp.MustCompile(`\b` + rt.logKey + `="([^"]*)"`).FindStringSubmatch(out)
+					require.NotNil(t, m, "no %s in the route log output %q", rt.logKey, out)
+					require.Equal(t, mode.want, m[1], "the logged client should be the entry SRC")
+				})
+			}
+		})
+	}
+}
+
+// captureEntryWriter records the entries a route handler writes.
+type captureEntryWriter struct {
+	mtx  sync.Mutex
+	ents []*entry.Entry
+}
+
+func (cw *captureEntryWriter) WriteEntry(e *entry.Entry) error {
+	cw.mtx.Lock()
+	defer cw.mtx.Unlock()
+
+	cw.ents = append(cw.ents, e)
+	return nil
+}
+
+func (cw *captureEntryWriter) WriteEntryContext(_ context.Context, e *entry.Entry) error {
+	return cw.WriteEntry(e)
+}
+
+func (cw *captureEntryWriter) WriteBatch(ents []*entry.Entry) error {
+	cw.mtx.Lock()
+	defer cw.mtx.Unlock()
+
+	cw.ents = append(cw.ents, ents...)
+	return nil
+}
+
+func (cw *captureEntryWriter) WriteBatchContext(_ context.Context, ents []*entry.Entry) error {
+	return cw.WriteBatch(ents)
+}
+
+func (cw *captureEntryWriter) entries() []*entry.Entry {
+	cw.mtx.Lock()
+	defer cw.mtx.Unlock()
+
+	return slices.Clone(cw.ents)
 }

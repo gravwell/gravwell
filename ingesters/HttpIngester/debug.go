@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 
@@ -62,8 +61,8 @@ func newDebugLoggingHandler(next handleFunc, logger debugLogger) *debugLoggingHa
 	}
 }
 
-func (d *debugLoggingHandler) Handle(h *handler, rh routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	d.next(h, rh, w, r, rdr, ip)
+func (d *debugLoggingHandler) Handle(h *handler, rh routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	d.next(h, rh, w, r, rdr)
 
 	if responseCode(w) >= 400 {
 		rkv := requestKV(w, r)

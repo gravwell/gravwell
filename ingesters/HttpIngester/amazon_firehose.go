@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -79,7 +78,8 @@ type record struct {
 	Data []byte `json:"data"`
 }
 
-func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	bodyReadLimit := int64(maxBody + 256)
 	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
 	var batch []*entry.Entry

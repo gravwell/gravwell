@@ -22,15 +22,6 @@ import (
 // legacyWarnInterval is the minimum time between legacy X-Forwarded-For warnings.
 const legacyWarnInterval = time.Minute
 
-// monoStart is the base of monoNow. Time measured from it uses the monotonic
-// clock, so a wall clock step cannot stall or hurry the legacy warning.
-var monoStart = time.Now()
-
-// monoNow returns the monotonic time since monoStart.
-func monoNow() time.Duration {
-	return time.Since(monoStart)
-}
-
 // clientResolver decides how the client of a request is found.
 //
 // With Trusted-Proxy set, X-Forwarded-For is used only from a listed peer. With
@@ -76,13 +67,11 @@ func (h *handler) client(r *http.Request) trustedproxy.Client {
 // warnLegacyForwarded logs that the client address came from an X-Forwarded-For
 // header sent by an unlisted peer. It logs at most once per legacyWarnInterval.
 func (h *handler) warnLegacyForwarded(c trustedproxy.Client) {
-	now := int64(monoNow())
-
-	last := h.legacyWarned.Load()
-	if last != 0 && now-last < int64(legacyWarnInterval) {
-		return
-	}
-	if !h.legacyWarned.CompareAndSwap(last, now) {
+	// decide under the Sometimes lock but log after it, so a slow log write
+	// does not hold up other requests
+	var fire bool
+	h.legacyWarn.Do(func() { fire = true })
+	if !fire {
 		return
 	}
 
@@ -116,13 +105,20 @@ func clientFromContext(r *http.Request) (trustedproxy.Client, bool) {
 }
 
 // requestClient returns the client attached to r. A request without one resolves
-// to its TCP peer.
+// to its TCP peer. That fallback exists only for the health check and throttled
+// 429 paths, which answer before the client is attached. Any other use of it is
+// a bug.
 func requestClient(r *http.Request) trustedproxy.Client {
 	if c, ok := clientFromContext(r); ok {
 		return c
 	}
 
 	return trustedproxy.List{}.Resolve(r)
+}
+
+// requestIP returns the entry SRC for r, the same address srcKVs logs.
+func requestIP(r *http.Request) net.IP {
+	return clientIP(requestClient(r))
 }
 
 // clientIP returns the address used as the entry SRC. It falls back to 127.0.0.1
@@ -141,14 +137,14 @@ func clientIP(c trustedproxy.Client) net.IP {
 // header is logged under xff for context only, it is not the SRC.
 func clientKVs(name string, c trustedproxy.Client) []rfc5424.SDParam {
 	kvs := []rfc5424.SDParam{log.KV(name, clientIP(c).String())}
-	if c.Forwarded == `` {
+	if !c.HasForwarded() {
 		if !c.Addr.IsValid() {
 			kvs = append(kvs, log.KV("peer", peerString(c)))
 		}
 		return kvs
 	}
 
-	kvs = append(kvs, log.KV("peer", peerString(c)), log.KV("xff", c.Forwarded))
+	kvs = append(kvs, log.KV("peer", peerString(c)), log.KV("xff", c.Forwarded()))
 	if c.Malformed {
 		kvs = append(kvs, log.KV("xff-malformed", true))
 	}

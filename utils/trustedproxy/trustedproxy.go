@@ -225,11 +225,10 @@ type Client struct {
 	// PeerRaw is RemoteAddr verbatim.
 	PeerRaw string
 
-	// Forwarded is the raw X-Forwarded-For header for logging only, with
-	// multiple header lines joined with ", " and truncated. It is recorded
-	// whether or not the peer is trusted. It is never the client address, use
-	// Addr for that.
-	Forwarded string
+	// forwarded holds the X-Forwarded-For header lines, recorded whether or not
+	// the peer is trusted. It aliases the request header slice, so it must not
+	// be mutated.
+	forwarded []string
 
 	// Malformed reports that the walk stopped at an X-Forwarded-For entry that is
 	// not an address. Addr is then the nearest trusted hop to its right.
@@ -259,7 +258,7 @@ func (l List) Resolve(r *http.Request) Client {
 		Addr:      peer,
 		Peer:      peer,
 		PeerRaw:   r.RemoteAddr,
-		Forwarded: joinForwarded(values),
+		forwarded: values,
 	}
 
 	if !l.Contains(peer) {
@@ -305,7 +304,7 @@ func ResolveLegacy(r *http.Request) Client {
 
 	c := Client{
 		PeerRaw:   r.RemoteAddr,
-		Forwarded: joinForwarded(values),
+		forwarded: values,
 	}
 	if peer, ok := parseHost(r.RemoteAddr); ok {
 		c.Addr = peer
@@ -325,6 +324,19 @@ func ResolveLegacy(r *http.Request) Client {
 	}
 
 	return c
+}
+
+// Forwarded returns the raw X-Forwarded-For header for logging only, with
+// multiple header lines joined with ", " and truncated. It is never the client
+// address, use Addr for that.
+func (c Client) Forwarded() string {
+	return joinForwarded(c.forwarded)
+}
+
+// HasForwarded reports whether Forwarded is non-empty, without building it. A
+// single empty header line does not count.
+func (c Client) HasForwarded() bool {
+	return len(c.forwarded) > 1 || len(c.forwarded) == 1 && c.forwarded[0] != ``
 }
 
 // String returns the client address, falling back to the host part of PeerRaw
@@ -433,9 +445,14 @@ func firstEntries(values []string, dst []string) (n int) {
 	return n
 }
 
-// joinForwarded joins the X-Forwarded-For values into Client.Forwarded for
-// logging, truncated to maxForwardedLen bytes. It does not pick the client.
+// joinForwarded joins the X-Forwarded-For values for Client.Forwarded,
+// truncated to maxForwardedLen bytes. It does not pick the client.
 func joinForwarded(values []string) string {
+	// the common single short header line is returned without allocating
+	if len(values) == 1 && len(values[0]) <= maxForwardedLen {
+		return values[0]
+	}
+
 	// build the string up to the limit rather than joining the whole header,
 	// which can be as large as the server's header limit
 	var sb strings.Builder

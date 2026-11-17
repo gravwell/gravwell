@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -486,8 +487,11 @@ func TestResolve(t *testing.T) {
 			if c.PeerRaw != tt.remote {
 				t.Errorf("PeerRaw = %q, want %q", c.PeerRaw, tt.remote)
 			}
-			if c.Forwarded != tt.wantFwd {
-				t.Errorf("Forwarded = %q, want %q", c.Forwarded, tt.wantFwd)
+			if got := c.Forwarded(); got != tt.wantFwd {
+				t.Errorf("Forwarded() = %q, want %q", got, tt.wantFwd)
+			}
+			if got, want := c.HasForwarded(), tt.wantFwd != ``; got != want {
+				t.Errorf("HasForwarded() = %v, want %v", got, want)
 			}
 			if c.Malformed != tt.malformed {
 				t.Errorf("Malformed = %v, want %v", c.Malformed, tt.malformed)
@@ -507,7 +511,7 @@ func addrString(a netip.Addr) string {
 func TestResolveNilRequest(t *testing.T) {
 	l := mustParse(t, "10.0.0.1")
 
-	if c := l.Resolve(nil); c != (Client{}) {
+	if c := l.Resolve(nil); !reflect.DeepEqual(c, Client{}) {
 		t.Fatalf("Resolve(nil) = %+v, want zero Client", c)
 	}
 }
@@ -546,8 +550,8 @@ func TestResolveForwardedTruncated(t *testing.T) {
 	long := strings.Repeat("203.0.113.5, ", 200) + "198.51.100.7"
 	c := l.Resolve(newRequest("10.0.0.1:5000", long))
 
-	if len(c.Forwarded) != maxForwardedLen+len("...") || !strings.HasSuffix(c.Forwarded, "...") {
-		t.Fatalf("Forwarded not truncated: len %d", len(c.Forwarded))
+	if fwd := c.Forwarded(); len(fwd) != maxForwardedLen+len("...") || !strings.HasSuffix(fwd, "...") {
+		t.Fatalf("Forwarded not truncated: len %d", len(fwd))
 	}
 	if want := "198.51.100.7"; c.Addr.String() != want {
 		t.Fatalf("Addr = %s, want %s", c.Addr, want)
@@ -611,6 +615,42 @@ func TestJoinForwardedBounded(t *testing.T) {
 	}
 	if perRun := (after.TotalAlloc - before.TotalAlloc) / runs; perRun > 4*maxForwardedLen {
 		t.Fatalf("allocated %d bytes per call for a %d byte header", perRun, len(values[0])+len(values[1]))
+	}
+}
+
+// TestForwardedSingleValueNoAlloc checks that the common single short header
+// line, joined on each log call, does not allocate.
+func TestForwardedSingleValueNoAlloc(t *testing.T) {
+	c := ResolveLegacy(newRequest("198.51.100.1:5000", "203.0.113.5, 198.51.100.10"))
+
+	var got string
+	if n := testing.AllocsPerRun(100, func() { got = c.Forwarded() }); n != 0 {
+		t.Fatalf("Forwarded() made %v allocations, want 0", n)
+	}
+	if want := "203.0.113.5, 198.51.100.10"; got != want {
+		t.Fatalf("Forwarded() = %q, want %q", got, want)
+	}
+}
+
+func TestHasForwarded(t *testing.T) {
+	tests := []struct {
+		name string
+		xff  []string // one element per header line
+	}{
+		{name: "no header"},
+		{name: "one empty line", xff: []string{""}},
+		{name: "two empty lines", xff: []string{"", ""}},
+		{name: "blank line", xff: []string{" "}},
+		{name: "one address", xff: []string{"203.0.113.5"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ResolveLegacy(newRequest("198.51.100.1:5000", tt.xff...))
+			if got, want := c.HasForwarded(), c.Forwarded() != ``; got != want {
+				t.Fatalf("HasForwarded() = %v, want %v for Forwarded() %q", got, want, c.Forwarded())
+			}
+		})
 	}
 }
 
@@ -798,8 +838,11 @@ func TestResolveLegacy(t *testing.T) {
 			if c.PeerRaw != tt.remote {
 				t.Errorf("PeerRaw = %q, want %q", c.PeerRaw, tt.remote)
 			}
-			if c.Forwarded != tt.wantFwd {
-				t.Errorf("Forwarded = %q, want %q", c.Forwarded, tt.wantFwd)
+			if got := c.Forwarded(); got != tt.wantFwd {
+				t.Errorf("Forwarded() = %q, want %q", got, tt.wantFwd)
+			}
+			if got, want := c.HasForwarded(), tt.wantFwd != ``; got != want {
+				t.Errorf("HasForwarded() = %v, want %v", got, want)
 			}
 			if c.Malformed != tt.malformed {
 				t.Errorf("Malformed = %v, want %v", c.Malformed, tt.malformed)
@@ -807,7 +850,7 @@ func TestResolveLegacy(t *testing.T) {
 		})
 	}
 
-	if c := ResolveLegacy(nil); c != (Client{}) {
+	if c := ResolveLegacy(nil); !reflect.DeepEqual(c, Client{}) {
 		t.Fatalf("ResolveLegacy(nil) = %+v, want zero Client", c)
 	}
 }

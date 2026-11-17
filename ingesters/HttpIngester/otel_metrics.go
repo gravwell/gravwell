@@ -64,7 +64,8 @@ type otelHandler struct {
 	timeWindow     timegrinder.TimestampWindow
 }
 
-func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	var entriesCount int
 	var byteCount int64
 

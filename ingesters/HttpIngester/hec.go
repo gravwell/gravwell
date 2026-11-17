@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -158,7 +157,8 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 	return
 }
 
-func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	defaultTag := cfg.tag
 	var tgo tagOverride
 	resp := respSuccess
@@ -331,7 +331,8 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 	json.NewEncoder(w).Encode(ack{Code: 6, Text: "Invalid data format", InvalidEventNumber: index})
 }
 
-func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	var count int
 	var data int
 	defaultTag := cfg.tag
