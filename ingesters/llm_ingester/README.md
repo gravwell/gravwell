@@ -38,6 +38,54 @@ Point `Upstream-URL` in the config at your real provider (and set
 `Upstream-Authorization` if you want the proxy to inject the real key instead
 of passing the client's through).
 
+## Client address
+
+The client address is the SRC of every ingested entry, and derived sessions
+are tracked per client address. Two `[Global]` options decide where the address
+comes from:
+
+| `Trusted-Proxy` | `Ignore-Untrusted-Forwarded-For` | Client address |
+| --- | --- | --- |
+| set | any | `X-Forwarded-For` from a listed proxy, else the TCP peer |
+| not set | `false` (default) | leftmost address in `X-Forwarded-For` from any sender, else the TCP peer |
+| not set | `true` | the TCP peer |
+
+If the proxy runs behind a reverse proxy or load balancer, list it in
+`Trusted-Proxy`. Repeat the key for each address or CIDR block. The proxy then
+reads `X-Forwarded-For` from the right and takes the first address that is not
+a listed proxy. A list that trusts every address is rejected, whether by a
+single entry (`0.0.0.0/0`, `::/0`) or by entries that together cover all of
+IPv4 or IPv6. A `Trusted-Proxy` set only to blanks is rejected too, rather than
+read as not set.
+
+```ini
+[Global]
+	Trusted-Proxy = 10.0.0.5
+	Trusted-Proxy = 192.168.100.0/24
+```
+
+If nothing sits in front of the proxy, set `Ignore-Untrusted-Forwarded-For =
+true` so the client address is always the TCP peer.
+
+With neither option set, the proxy trusts `X-Forwarded-For` from any sender
+and takes its leftmost address as the client. Any client can then choose its
+SRC and the session it is grouped into by sending its own leftmost
+`X-Forwarded-For` entry, as in earlier releases. When the header sets the
+client address, the proxy logs a warning, at most once a minute. This default
+changes in the next major release.
+
+Warnings about a request, such as an unparseable body or a failed upstream
+call, carry the client address as `src`, the same address as the entry SRC.
+When the request has `X-Forwarded-For`, they also carry the TCP `peer` and the
+raw header as `xff`. The `xff` field is for logging only, it is never the SRC
+or the session key.
+
+The options can also be set with the `GRAVWELL_LLM_TRUSTED_PROXY`
+(comma-separated) and `GRAVWELL_LLM_IGNORE_UNTRUSTED_FORWARDED_FOR` environment
+variables. Config file entries for `Trusted-Proxy` take precedence over the
+environment variable. The ignore variable can only turn the option on. If it
+is `true`, a config value of `false` does not override it.
+
 ## Claude Code
 
 Claude Code talks to the Messages API (`POST /v1/messages`), so it needs an

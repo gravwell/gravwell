@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
+	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 )
 
 // proxyHandler is the http.Handler for one [Listener] entry.
@@ -46,17 +47,22 @@ type proxyHandler struct {
 	// always forward, even when Allow_Unknown_Paths is off (see
 	// protocol.Protocol.PassthroughPaths).
 	passSet map[string]bool
+	clients *clientSource
 	lg      ingest.Logger
 }
 
 // newProxyHandler builds the handler for one listener. lg is required: every
 // path through the handler reports problems by logging them, so a nil logger
 // would silently discard the only signal an operator gets. Callers with no
-// interest in the output (tests, mostly) pass log.NewDiscardLogger().
+// interest in the output (tests, mostly) pass log.NewDiscardLogger(). clients is
+// required too, and is shared by every listener.
 func newProxyHandler(name string, cfg *listener, proto protocol.Protocol, tag entry.EntryTag,
-	pproc *processors.ProcessorSet, sessions *sessionStore, lg ingest.Logger) (*proxyHandler, error) {
+	pproc *processors.ProcessorSet, sessions *sessionStore, clients *clientSource, lg ingest.Logger) (*proxyHandler, error) {
 	if lg == nil {
 		return nil, errors.New("nil logger")
+	}
+	if clients == nil {
+		return nil, errors.New("nil client source")
 	}
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	if cfg.Insecure_Skip_TLS_Verify_Upstream {
@@ -80,6 +86,7 @@ func newProxyHandler(name string, cfg *listener, proto protocol.Protocol, tag en
 		upstream: &http.Client{Transport: tr},
 		pathSet:  make(map[string]bool),
 		passSet:  make(map[string]bool),
+		clients:  clients,
 		lg:       lg,
 	}
 	for _, p := range proto.Paths() {
@@ -107,8 +114,9 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	client := h.clients.client(r)
 	if !h.pathSet[r.URL.Path] {
-		h.serveUnparsedPath(w, r)
+		h.serveUnparsedPath(w, r, client)
 		return
 	}
 	started := time.Now()
@@ -120,11 +128,12 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logMode:      h.cfg.Log_Mode,
 		logToolCalls: h.cfg.Log_Tool_Calls,
 		logUsage:     h.cfg.Log_Usage,
-		clientIP:     getRemoteIP(r),
+		client:       client,
+		clientIP:     clientIP(client),
 		lg:           h.lg,
 	}
 
-	body, ok := h.readBody(w, r)
+	body, ok := h.readBody(w, r, client)
 	if !ok {
 		return
 	}
@@ -134,15 +143,15 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Forward anyway — the upstream is the source of truth for protocol
 		// errors. Just log that we couldn't extract events.
 		h.lg.Warn("failed to parse request body, forwarding without ingest",
-			log.KV("listener", h.name), log.KVErr(err))
-		h.forwardWithoutIngest(w, r, body)
+			srcKVs(client, log.KV("listener", h.name), log.KVErr(err))...)
+		h.forwardWithoutIngest(w, r, body, client)
 		return
 	}
 	ec.model = parsedReq.Model
 	ec.stream = parsedReq.Stream
 
-	// Sessions are partitioned by client IP
-	sessionID, newSession := h.resolveSession(r, ec.clientIP.String(), parsedReq.MessageHashes)
+	// Sessions are partitioned by client IP, the same address as the entry SRC
+	sessionID, newSession := h.resolveSession(r, client, parsedReq.MessageHashes)
 	ec.sessionID = sessionID
 	ec.newSession = newSession
 
@@ -152,7 +161,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.forwardUpstream(r, body)
 	if err != nil {
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
-		h.lg.Warn("upstream request failed", log.KV("listener", h.name), log.KVErr(err))
+		h.lg.Warn("upstream request failed", srcKVs(client, log.KV("listener", h.name), log.KVErr(err))...)
 		return
 	}
 	defer resp.Body.Close()
@@ -164,10 +173,10 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode >= 400 {
 		// Pipe the error body straight through; do not try to parse.
 		if _, err := io.Copy(w, resp.Body); err != nil {
-			h.lg.Warn("copy upstream error body", log.KVErr(err))
+			h.lg.Warn("copy upstream error body", srcKVs(client, log.KVErr(err))...)
 		}
 		h.lg.Warn("upstream returned error status",
-			log.KV("listener", h.name), log.KV("status", resp.StatusCode))
+			srcKVs(client, log.KV("listener", h.name), log.KV("status", resp.StatusCode))...)
 		return
 	}
 
@@ -176,9 +185,9 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// them untouched instead of feeding it garbage.
 	if enc := resp.Header.Get("Content-Encoding"); enc != "" && !strings.EqualFold(enc, "identity") {
 		h.lg.Warn("upstream response is encoded, forwarding without ingest",
-			log.KV("listener", h.name), log.KV("content-encoding", enc))
+			srcKVs(client, log.KV("listener", h.name), log.KV("content-encoding", enc))...)
 		if _, err := io.Copy(w, resp.Body); err != nil {
-			h.lg.Warn("copy encoded upstream body", log.KVErr(err))
+			h.lg.Warn("copy encoded upstream body", srcKVs(client, log.KVErr(err))...)
 		}
 		return
 	}
@@ -200,34 +209,34 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // attach the configured upstream credential to a request we know nothing
 // about, so an operator who wants that has to ask for it with
 // Allow_Unknown_Paths.
-func (h *proxyHandler) serveUnparsedPath(w http.ResponseWriter, r *http.Request) {
+func (h *proxyHandler) serveUnparsedPath(w http.ResponseWriter, r *http.Request, client trustedproxy.Client) {
 	if !h.passSet[r.URL.Path] && !h.cfg.Allow_Unknown_Paths {
 		h.lg.Warn("rejecting request on unrecognized path",
-			log.KV("listener", h.name), log.KV("path", r.URL.Path))
+			srcKVs(client, log.KV("listener", h.name), log.KV("path", r.URL.Path))...)
 		http.NotFound(w, r)
 		return
 	}
-	body, ok := h.readBody(w, r)
+	body, ok := h.readBody(w, r, client)
 	if !ok {
 		return
 	}
-	h.forwardWithoutIngest(w, r, body)
+	h.forwardWithoutIngest(w, r, body, client)
 }
 
 // readBody reads the request body subject to the configured limit, answering
 // the client and returning false when it cannot be used.
-func (h *proxyHandler) readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+func (h *proxyHandler) readBody(w http.ResponseWriter, r *http.Request, client trustedproxy.Client) ([]byte, bool) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, int64(h.cfg.Max_Body)+1))
 	r.Body.Close()
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
-		h.lg.Warn("failed to read request body", log.KV("listener", h.name), log.KVErr(err))
+		h.lg.Warn("failed to read request body", srcKVs(client, log.KV("listener", h.name), log.KVErr(err))...)
 		return nil, false
 	}
 	if len(body) > h.cfg.Max_Body {
 		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 		h.lg.Warn("request body too large",
-			log.KV("listener", h.name), log.KV("max_body", h.cfg.Max_Body))
+			srcKVs(client, log.KV("listener", h.name), log.KV("max_body", h.cfg.Max_Body))...)
 		return nil, false
 	}
 	return body, true
@@ -242,23 +251,27 @@ func (h *proxyHandler) readBody(w http.ResponseWriter, r *http.Request) ([]byte,
 // either the client is not the one the operator configured for, or the header
 // name is wrong. Prefix matching still covers it, but silently degrading hides
 // a misconfiguration that costs session accuracy on every request.
-func (h *proxyHandler) resolveSession(r *http.Request, client string, hashes []string) (string, bool) {
+//
+// Sessions are partitioned by the client address, the same address as the
+// entry SRC.
+func (h *proxyHandler) resolveSession(r *http.Request, client trustedproxy.Client, hashes []string) (string, bool) {
+	key := clientIP(client).String()
 	if hdr := h.cfg.Session_ID_Header; hdr != "" {
 		raw := r.Header.Get(hdr)
 		switch id := sanitizeSessionID(raw); {
 		case id != "":
-			return h.sessions.ResolveExplicit(client, id)
+			return h.sessions.ResolveExplicit(key, id)
 		case raw == "":
 			h.lg.Warn("session id header configured but absent, falling back to prefix matching",
-				log.KV("listener", h.name), log.KV("header", hdr))
+				srcKVs(client, log.KV("listener", h.name), log.KV("header", hdr))...)
 		default:
 			// Deliberately does not log the value: it is client-controlled and
 			// we just decided it was not fit to keep.
 			h.lg.Warn("session id header value rejected, falling back to prefix matching",
-				log.KV("listener", h.name), log.KV("header", hdr), log.KV("length", len(raw)))
+				srcKVs(client, log.KV("listener", h.name), log.KV("header", hdr), log.KV("length", len(raw)))...)
 		}
 	}
-	return h.sessions.Resolve(client, hashes)
+	return h.sessions.Resolve(key, hashes)
 }
 
 // forwardUpstream rewrites the request to target the configured upstream and
@@ -295,18 +308,18 @@ func (h *proxyHandler) forwardUpstream(r *http.Request, body []byte) (*http.Resp
 
 // forwardWithoutIngest is used when we can't parse the request — still proxy
 // the bytes so the client gets a usable response.
-func (h *proxyHandler) forwardWithoutIngest(w http.ResponseWriter, r *http.Request, body []byte) {
+func (h *proxyHandler) forwardWithoutIngest(w http.ResponseWriter, r *http.Request, body []byte, client trustedproxy.Client) {
 	resp, err := h.forwardUpstream(r, body)
 	if err != nil {
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
-		h.lg.Warn("upstream request failed", log.KV("listener", h.name), log.KVErr(err))
+		h.lg.Warn("upstream request failed", srcKVs(client, log.KV("listener", h.name), log.KVErr(err))...)
 		return
 	}
 	defer resp.Body.Close()
 	copyResponseHeaders(w, resp)
 	w.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		h.lg.Warn("copy upstream body (unparseable request)", log.KVErr(err))
+		h.lg.Warn("copy upstream body (unparseable request)", srcKVs(client, log.KVErr(err))...)
 	}
 }
 
@@ -315,15 +328,15 @@ func (h *proxyHandler) forwardWithoutIngest(w http.ResponseWriter, r *http.Reque
 func (h *proxyHandler) handleBuffered(w http.ResponseWriter, resp *http.Response, ec *emitCtx, started time.Time) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		h.lg.Warn("read upstream body", log.KV("listener", h.name), log.KVErr(err))
+		h.lg.Warn("read upstream body", srcKVs(ec.client, log.KV("listener", h.name), log.KVErr(err))...)
 		return
 	}
 	if _, err := w.Write(body); err != nil {
-		h.lg.Warn("write client body", log.KVErr(err))
+		h.lg.Warn("write client body", srcKVs(ec.client, log.KVErr(err))...)
 	}
 	parsed, err := h.proto.ParseResponse(body)
 	if err != nil {
-		h.lg.Warn("parse upstream response", log.KV("listener", h.name), log.KVErr(err))
+		h.lg.Warn("parse upstream response", srcKVs(ec.client, log.KV("listener", h.name), log.KVErr(err))...)
 		return
 	}
 	ec.requestID = parsed.RequestID
@@ -356,7 +369,7 @@ streamLoop:
 			}
 			if ferr := reass.Feed(bytes.Clone(chunk)); ferr != nil {
 				h.lg.Warn("stream parse error",
-					log.KV("listener", h.name), log.KVErr(ferr))
+					srcKVs(ec.client, log.KV("listener", h.name), log.KVErr(ferr))...)
 			}
 		}
 		if rerr != nil {
@@ -367,11 +380,11 @@ streamLoop:
 		}
 	}
 	if streamErr != nil {
-		h.lg.Warn("stream io error", log.KV("listener", h.name), log.KVErr(streamErr))
+		h.lg.Warn("stream io error", srcKVs(ec.client, log.KV("listener", h.name), log.KVErr(streamErr))...)
 	}
 	parsed, err := reass.Finalize()
 	if err != nil {
-		h.lg.Warn("finalize stream", log.KV("listener", h.name), log.KVErr(err))
+		h.lg.Warn("finalize stream", srcKVs(ec.client, log.KV("listener", h.name), log.KVErr(err))...)
 		return
 	}
 	ec.requestID = parsed.RequestID
@@ -482,8 +495,9 @@ func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
 
 // setForwardedFor appends the immediate peer's IP to the X-Forwarded-For chain,
 // preserving any chain the client already sent (copyRequestHeaders carries it
-// over). This keeps the real client visible to the upstream instead of
-// clobbering the header with a possibly-empty inbound value.
+// over). Every non-blank header line of the chain is kept, joined into one.
+// This keeps the real client visible to the upstream instead of clobbering the
+// header with a possibly-empty inbound value.
 func setForwardedFor(out, r *http.Request) {
 	peer, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -492,33 +506,12 @@ func setForwardedFor(out, r *http.Request) {
 	if peer == "" {
 		return
 	}
-	if prior := out.Header.Get("X-Forwarded-For"); prior != "" {
-		out.Header.Set("X-Forwarded-For", prior+", "+peer)
-	} else {
-		out.Header.Set("X-Forwarded-For", peer)
-	}
-}
 
-func getRemoteIP(r *http.Request) net.IP {
-	// Prefer the leading X-Forwarded-For entry (the original client), but only
-	// when it actually parses. A present-but-malformed value (spoofed or
-	// mangled) must not be trusted — falling back to it would collapse many
-	// distinct clients onto 127.0.0.1, breaking session isolation and SRC
-	// attribution. In that case, and when the header is absent, use the
-	// immediate peer from RemoteAddr instead.
-	host := r.Header.Get("X-Forwarded-For")
-	if i := strings.IndexByte(host, ','); i >= 0 {
-		host = host[:i]
+	var chain []string
+	for _, v := range out.Header.Values("X-Forwarded-For") {
+		if strings.TrimSpace(v) != "" {
+			chain = append(chain, v)
+		}
 	}
-	if ip := net.ParseIP(strings.TrimSpace(host)); ip != nil {
-		return ip
-	}
-	peer, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		peer = r.RemoteAddr
-	}
-	if ip := net.ParseIP(strings.TrimSpace(peer)); ip != nil {
-		return ip
-	}
-	return net.ParseIP("127.0.0.1")
+	out.Header.Set("X-Forwarded-For", strings.Join(append(chain, peer), ", "))
 }

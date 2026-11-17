@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
+	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 )
 
 const (
@@ -34,6 +36,9 @@ const (
 	logModeDeltas           = "delta"
 	logModeUserOnly         = "user"
 	logModeFullConversation = "full"
+
+	envTrustedProxy       = `GRAVWELL_LLM_TRUSTED_PROXY`
+	envIgnoreUntrustedXFF = `GRAVWELL_LLM_IGNORE_UNTRUSTED_FORWARDED_FOR`
 )
 
 type gbl struct {
@@ -49,6 +54,13 @@ type gbl struct {
 	// request; smaller values are cheaper. Unset or non-positive uses
 	// defaultMatchWindow.
 	Session_Match_Window int
+	// Trusted_Proxy is an address or CIDR block allowed to set
+	// X-Forwarded-For, repeated for each one. The resolved client is the entry
+	// SRC and partitions sessions.
+	Trusted_Proxy []string
+	// Ignore_Untrusted_Forwarded_For turns off the legacy behavior of trusting
+	// X-Forwarded-For from any peer when Trusted_Proxy is empty.
+	Ignore_Untrusted_Forwarded_For bool
 }
 
 type cfgReadType struct {
@@ -158,6 +170,8 @@ type cfgType struct {
 	Attach       attach.AttachConfig
 	Listener     map[string]*listener
 	Preprocessor processors.ProcessorConfig
+
+	resolver clientResolver // built from Trusted_Proxy and Ignore_Untrusted_Forwarded_For by Verify
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -186,6 +200,28 @@ func (c *cfgType) Verify() error {
 	if err := c.Attach.Verify(); err != nil {
 		return err
 	}
+
+	if err := config.LoadEnvVar(&c.Trusted_Proxy, envTrustedProxy, nil); err != nil {
+		return fmt.Errorf("failed to load %s %w", envTrustedProxy, err)
+	}
+	if err := config.LoadEnvVar(&c.Ignore_Untrusted_Forwarded_For, envIgnoreUntrustedXFF, false); err != nil {
+		return fmt.Errorf("failed to load %s %w", envIgnoreUntrustedXFF, err)
+	}
+	entries := c.Trusted_Proxy
+	if v := os.Getenv(envTrustedProxy); len(entries) == 0 && v != `` {
+		// the env loader drops blank entries, so parse the raw value: a variable
+		// holding only separators is rejected rather than read as unset
+		entries = strings.Split(v, `,`)
+	}
+	tp, err := trustedproxy.Parse(entries)
+	if err != nil {
+		return fmt.Errorf("Trusted-Proxy is invalid: %w", err)
+	}
+	c.resolver = clientResolver{
+		trusted: tp,
+		legacy:  tp.Empty() && !c.Ignore_Untrusted_Forwarded_For,
+	}
+
 	if len(c.Listener) == 0 {
 		return errors.New("no listeners defined")
 	}
