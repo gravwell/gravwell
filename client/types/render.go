@@ -101,8 +101,8 @@ const (
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
 
-	ResultsKindTable = "table"
-	ResultsKindGraph = "graph"
+	ResultsKindTable ResultsKind = "table"
+	ResultsKindGraph ResultsKind = "graph"
 
 	TransformOperatorCount       TransformOperator = "count"
 	TransformOperatorSum         TransformOperator = "sum"
@@ -122,6 +122,9 @@ var (
 
 // TransformOperator represents the operator to apply to results
 type TransformOperator string
+
+// ResultsKind names the payload type a Results API response carries.
+type ResultsKind string
 
 type ResultsRequest struct {
 	Fence  Geofence
@@ -187,7 +190,7 @@ type ResultsResponse struct {
 
 type ResultsTable struct {
 	HasExplore       bool
-	Kind             string
+	Kind             ResultsKind
 	BinCount         int
 	BinWidth         float64
 	Columns          []string
@@ -202,7 +205,7 @@ type ResultsTableCell struct {
 }
 
 type ResultsGraph struct {
-	Kind                     string
+	Kind                     ResultsKind
 	Links                    []ResultsGraphLink
 	NodeEnumeratedValueNames []string
 	LinkEnumeratedValueNames []string

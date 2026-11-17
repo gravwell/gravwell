@@ -275,7 +275,7 @@ type SearchInfo struct {
 	AXEligible            bool       // AXEligible is true when the search can serve as a base for AX generation: the renderer is raw, and both MultiTag and ModifiesData are false.
 	// ResultsKind indicates the Results API response payload type callers will receive.
 	// It's one of [ResultsKindTable] or [ResultsKindGraph].
-	ResultsKind string
+	ResultsKind ResultsKind
 	// Preview indicates that this search is a preview search.
 	// This means that the query most likely did not cover the entire time range that was originally requested.
 	// A preview search is used when a user is trying to understand what they have or establish AX relationships.
