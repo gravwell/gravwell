@@ -106,17 +106,19 @@ func (c *Client) GetScheduledScriptResults(id string) (results types.ScheduledSc
 }
 
 // ClearScheduledScriptResults deletes all results for the specified scheduled script
-func (c *Client) ClearScheduledScriptResults(id string) error {
-	return c.delete(scheduledScriptsIdResultsUrl(id))
+func (c *Client) ClearScheduledScriptResults(id string) (types.ClearResultsResponse, error) {
+	return c.deleteWithResponse[types.ClearResultsResponse](scheduledScriptsIdResultsUrl(id))
 }
 
 // ClearAllScheduledScriptResults (admin-only) deletes all results for the specified scheduled
 // script, regardless of which user owns them.
-func (c *Client) ClearAllScheduledScriptResults(id string) error {
+// A nil error does not guarantee all results were cleared; check Skipped.
+func (c *Client) ClearAllScheduledScriptResults(id string) (types.ClearResultsResponse, error) {
 	if !c.userDetails.Admin {
-		return ErrNotAdmin
+		return types.ClearResultsResponse{}, ErrNotAdmin
 	}
-	return c.delete(scheduledScriptsIdResultsUrl(id), urlParam{queryparams.All, "true"})
+	return c.deleteWithResponse[types.ClearResultsResponse](scheduledScriptsIdResultsUrl(id),
+		urlParam{queryparams.All, "true"})
 }
 
 // DebugScheduledScript requests an immediate debug run of the specified scheduled script.
