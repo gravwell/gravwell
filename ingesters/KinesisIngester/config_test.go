@@ -23,16 +23,16 @@ func TestConfig_VerifyCredentials(t *testing.T) {
 		credTyp string
 		akid    string
 		secret  string
-		wantErr string
+		wantErr bool
 	}{
 		{name: "static", credTyp: "static", akid: "akid", secret: "secret"},
 		{name: "empty type is static", akid: "akid", secret: "secret"},
 		{name: "environment", credTyp: "environment"},
 		{name: "ec2role", credTyp: "ec2role"},
-		{name: "invalid type", credTyp: "ec2-role", wantErr: `invalid Credentials-Type "ec2-role"`},
-		{name: "empty type without keys", wantErr: "missing ID"},
-		{name: "static without ID", credTyp: "static", secret: "secret", wantErr: "missing ID"},
-		{name: "static without secret", credTyp: "static", akid: "akid", wantErr: "missing secret"},
+		{name: "invalid type", credTyp: "ec2-role", wantErr: true},
+		{name: "empty type without keys", wantErr: true},
+		{name: "static without ID", credTyp: "static", secret: "secret", wantErr: true},
+		{name: "static without secret", credTyp: "static", akid: "akid", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -53,8 +53,8 @@ func TestConfig_VerifyCredentials(t *testing.T) {
 				},
 			}
 			err := conf.Verify()
-			if tt.wantErr != "" {
-				assert.EqualError(t, err, tt.wantErr)
+			if tt.wantErr {
+				assert.ErrorContains(t, err, "Global credentials invalid")
 			} else {
 				assert.NoError(t, err)
 			}

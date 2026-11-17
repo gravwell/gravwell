@@ -101,7 +101,7 @@ func (c cfgType) Verify() error {
 		return errors.New("No backend targets specified")
 	}
 	if _, err := sqs_common.GetCredentials(c.Global.Credentials_Type, c.Global.AWS_Access_Key_ID, c.Global.AWS_Secret_Access_Key); err != nil {
-		return err
+		return fmt.Errorf("Global credentials invalid (Credentials-Type, AWS-Access-Key-ID, AWS-Secret-Access-Key): %w", err)
 	}
 	if len(c.KinesisStream) == 0 {
 		return errors.New("At least one Kinesis stream required.")
