@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -79,7 +78,8 @@ type record struct {
 	Data []byte `json:"data"`
 }
 
-func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	bodyReadLimit := int64(maxBody + 256)
 	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
 	var batch []*entry.Entry
@@ -99,14 +99,14 @@ func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 	if err := json.NewDecoder(&lr).Decode(&kr); err != nil {
 		//check if the request was just too large
 		if lr.N == 0 {
-			h.lgr.Info("bad request", log.KV("src", ip), log.KV("max-body", maxBody), log.KVErr(errors.New("request body too large")))
+			h.lgr.Info("bad request", srcKVs(r, log.KV("max-body", maxBody), log.KVErr(errors.New("request body too large")))...)
 		} else {
-			h.lgr.Info("bad request", log.KV("src", ip), log.KVErr(err))
+			h.lgr.Info("bad request", srcKVs(r, log.KVErr(err))...)
 		}
 		sendAFHError(w, http.StatusBadRequest, ``, nil)
 		return
 	} else if len(kr.Records) == 0 {
-		h.lgr.Info("bad request", log.KV("src", ip), log.KVErr(errors.New("empty records")))
+		h.lgr.Info("bad request", srcKVs(r, log.KVErr(errors.New("empty records")))...)
 		sendAFHError(w, http.StatusBadRequest, kr.RequestId, errors.New("empty records"))
 		return
 	}

@@ -124,15 +124,8 @@ func main() {
 		httpLogger = dlog.New(io.Discard, ``, 0)
 	}
 
-	var chain http.Handler = hnd
-	if debugOn {
-		chain = newDebugLoggingMiddleware(hnd, DefaultDebugLogger, true)
-	}
-	// little wacky to check debugOn again, but we only want to add the
-	// tracking once, and it needs to be first.
-	if debugOn || cfg.HasDebugListener() || *debugListener != "" {
-		chain = newTrackingMiddleware(chain)
-	}
+	tracking := cfg.HasDebugListener() || *debugListener != ""
+	chain := newChain(hnd, debugOn, tracking, DefaultDebugLogger)
 
 	srv := &http.Server{
 		Addr:              cfg.Bind,
@@ -217,31 +210,27 @@ watchExitLoop:
 	}
 }
 
+// newChain wraps hnd with the optional debug logging and request tracking
+// middleware. Debug logging always turns on tracking, which it reads the response
+// code and resolved client from.
+func newChain(hnd *handler, debugLogging, tracking bool, dl debugLogger) http.Handler {
+	var chain http.Handler = hnd
+	if debugLogging {
+		chain = newDebugLoggingMiddleware(hnd, dl, true)
+	}
+
+	// tracking needs to be the outermost wrapper
+	if tracking || debugLogging {
+		chain = newTrackingMiddleware(chain)
+	}
+
+	return chain
+}
+
 func debugout(format string, args ...interface{}) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
-}
-
-func getRemoteAddr(r *http.Request) (host string) {
-	xfflist, ok := r.Header[`X-Forwarded-For`]
-	if !ok || len(xfflist) == 0 {
-		host, _, _ = net.SplitHostPort(r.RemoteAddr)
-	} else {
-		host = xfflist[0]
-	}
-	return
-
-}
-
-func getRemoteIP(r *http.Request) (ip net.IP) {
-	if host := getRemoteAddr(r); host != `` {
-		if ip = net.ParseIP(host); ip != nil {
-			return
-		}
-	}
-	ip = net.ParseIP(`127.0.0.1`)
-	return
 }
 
 func readAll(r io.Reader, buff []byte) (offset int, err error) {
