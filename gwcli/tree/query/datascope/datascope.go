@@ -54,7 +54,7 @@ func keepAlive(search *grav.Search, done chan bool) {
 			return
 		default:
 		}
-		if err := search.Refresh(); err != nil {
+		if err := search.Ping(); err != nil {
 			clilog.Writer.Warnf("keepAlive: ping failed: %v", err)
 			break
 		}
