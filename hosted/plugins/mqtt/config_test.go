@@ -130,16 +130,46 @@ func TestSessionExpiryBounds(t *testing.T) {
 	require.NoError(t, c.Verify())
 	require.Equal(t, uint32(900), c.sessionExpiry)
 
-	c = baseConfig()
-	c.Session_Expiry = maxSessionExpiry
-	require.NoError(t, c.Verify())
-	require.Equal(t, uint32(maxSessionExpiry), c.sessionExpiry)
+	// the ceiling and one past it, guarded because neither value is
+	// representable as an int on a 32 bit build
+	if max := maxSessionExpiry; int64(int(max)) == max {
+		c = baseConfig()
+		c.Session_Expiry = int(max)
+		require.NoError(t, c.Verify())
+		require.Equal(t, uint32(maxSessionExpiry), c.sessionExpiry)
+	}
+	if over := maxSessionExpiry + 1; int64(int(over)) == over {
+		// an unchecked conversion would wrap to 0, which means "drop the
+		// session at disconnect" and silently discards every queued message
+		c = baseConfig()
+		c.Session_Expiry = int(over)
+		require.ErrorContains(t, c.Verify(), `Session-Expiry`)
+	}
+}
 
-	// one past the uint32 ceiling would wrap to 0, which means "drop the
-	// session at disconnect" and silently discards every queued message
-	c = baseConfig()
-	c.Session_Expiry = maxSessionExpiry + 1
-	require.ErrorContains(t, c.Verify(), `Session-Expiry`)
+// autopaho only applies TlsCfg to a TLS scheme, so TLS options against a
+// plaintext broker would be silently ignored and the credentials would go out
+// in the clear.
+func TestTLSOptionsRequireTLSScheme(t *testing.T) {
+	for name, mutate := range map[string]func(*Config){
+		`ca cert`:     func(c *Config) { c.CA_Cert = `/tmp/ca.pem` },
+		`client cert`: func(c *Config) { c.Client_Cert = `/tmp/c.pem` },
+		`client key`:  func(c *Config) { c.Client_Key = `/tmp/c.key` },
+		`skip verify`: func(c *Config) { c.Insecure_Skip_TLS_Verify = true },
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := baseConfig() // mqtt:// broker
+			mutate(&c)
+			require.ErrorContains(t, c.Verify(), `TLS`)
+		})
+	}
+
+	// the same options are fine once the broker is a TLS one
+	c := baseConfig()
+	c.Broker = []string{`tls://broker.example.com`}
+	c.Insecure_Skip_TLS_Verify = true
+	require.NoError(t, c.Verify())
+	require.NotNil(t, c.tlsCfg)
 }
 
 func TestClientIDDefaulting(t *testing.T) {
@@ -201,9 +231,15 @@ func TestBadConfigs(t *testing.T) {
 		`negative session expiry`: func(c *Config) { c.Session_Expiry = -1 },
 		`max in flight too large`: func(c *Config) { c.Max_In_Flight = 70000 },
 		`bad source override`:     func(c *Config) { c.Source_Override = `not-an-ip` },
-		`client cert without key`: func(c *Config) { c.Client_Cert = `/tmp/nope.pem` },
-		`missing CA file`:         func(c *Config) { c.CA_Cert = `/dev/null/nope.pem` },
-		`bad ingester uuid`:       func(c *Config) { c.Ingester_UUID = `not-a-uuid` },
+		`client cert without key`: func(c *Config) {
+			c.Broker = []string{`tls://broker.example.com`}
+			c.Client_Cert = `/tmp/nope.pem`
+		},
+		`missing CA file`: func(c *Config) {
+			c.Broker = []string{`tls://broker.example.com`}
+			c.CA_Cert = `/dev/null/nope.pem`
+		},
+		`bad ingester uuid`: func(c *Config) { c.Ingester_UUID = `not-a-uuid` },
 		`both timestamp modes`: func(c *Config) {
 			c.Ignore_Timestamps = true
 			c.Extract_Timestamps = true

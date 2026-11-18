@@ -10,6 +10,7 @@ package mqtt
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/eclipse/paho.golang/paho"
 	"github.com/gravwell/gravwell/v4/ingest"
@@ -45,15 +46,42 @@ type acker interface {
 // The panic guard is not optional: this runs on a goroutine the paho library
 // owns, which the runner's own recover does not cover, so a panic here would
 // take the whole hosted runner down.
-func (s *subscriber) handle(pr paho.PublishReceived) (handled bool, err error) {
-	s.guard("publish handler", func() {
-		var a acker
-		if pr.Client != nil {
-			a = pr.Client
+//
+// The recover acknowledges the message before returning. Unwinding without an
+// ack would leave the packet at the head of paho's ack tracker, blocking every
+// acknowledgement behind it until the subscription stalls - the one failure
+// mode handlePublish is written to avoid. A panic is a bug, and redelivering
+// the message that triggered it would most likely just trigger it again, so
+// the message is dropped and the subscription stays alive.
+func (s *subscriber) handle(pr paho.PublishReceived) (bool, error) {
+	var a acker
+	if pr.Client != nil {
+		a = pr.Client
+	}
+	return s.handleGuarded(pr.Packet, a)
+}
+
+// handleGuarded is handle with the acker injected, so the recover path can be
+// tested. See handle for why the recover acknowledges.
+func (s *subscriber) handleGuarded(p *paho.Publish, a acker) (handled bool, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.rt.Error("recovered from panic, dropping message",
+				log.KV("subscription", s.name),
+				log.KV("topic", topicOf(p)),
+				log.KV("panic", fmt.Sprintf("%v", r)))
+			s.ack(p, a)
+			handled, err = true, nil
 		}
-		handled, err = s.handlePublish(pr.Packet, a)
-	})
-	return
+	}()
+	return s.handlePublish(p, a)
+}
+
+func topicOf(p *paho.Publish) string {
+	if p == nil {
+		return ``
+	}
+	return p.Topic
 }
 
 // handlePublish does the real work: route, build, write, then acknowledge.

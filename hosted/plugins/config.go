@@ -135,18 +135,32 @@ func (c Configs) Verify() (err error) {
 // in a permanent loop of kicking each other off.  This cannot live in the
 // plugin's own Verify, which only ever sees one instance.
 func (c Configs) checkMQTTClientIDs() error {
-	seen := make(map[string]string, len(c.MQTT))
+	seenID := make(map[string]string, len(c.MQTT))
+	seenUUID := make(map[string]string, len(c.MQTT))
 	names := make([]string, 0, len(c.MQTT))
 	for name := range c.MQTT {
 		names = append(names, name)
 	}
 	sort.Strings(names) // deterministic error messages
 	for _, name := range names {
-		id := c.MQTT[name].ClientID(name)
-		if prev, ok := seen[id]; ok {
+		cfg := c.MQTT[name]
+
+		// A duplicate Ingester-UUID is worse than a duplicate Client-ID: the
+		// runner keys its runners by UUID and quietly skips the second one, so
+		// the subscription never starts and only a log line says so.  Every
+		// instance that leaves Ingester-UUID unset inherits the same default,
+		// which makes two defaulted sections the easy way to hit this.
+		uuid := cfg.UUID().String()
+		if prev, ok := seenUUID[uuid]; ok {
+			return fmt.Errorf("MQTT configs %q and %q share Ingester-UUID %q, give each one its own", prev, name, uuid)
+		}
+		seenUUID[uuid] = name
+
+		id := cfg.ClientID(name)
+		if prev, ok := seenID[id]; ok {
 			return fmt.Errorf("MQTT configs %q and %q both resolve to Client-ID %q, set a distinct Client-ID on one of them", prev, name, id)
 		}
-		seen[id] = name
+		seenID[id] = name
 	}
 	return nil
 }

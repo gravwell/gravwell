@@ -310,9 +310,6 @@ func TestTimestampExtraction(t *testing.T) {
 // every other plugin sharing the process, so the handler has to contain it.
 func TestHandlePanicIsContained(t *testing.T) {
 	h := newHarness(t, nil)
-	// a Publish with a nil Client and a packet whose properties we corrupt is
-	// not enough to panic on its own, so drive guard directly as well as
-	// through the real callback
 	require.NotPanics(t, func() {
 		h.sub.guard("test", func() { panic("boom") })
 	})
@@ -320,6 +317,51 @@ func TestHandlePanicIsContained(t *testing.T) {
 		_, _ = h.sub.handle(paho.PublishReceived{Packet: pub(`a/b`, `data`, 1)})
 	})
 	require.Len(t, h.rt.Entries(), 1, "a normal message still goes through the guard")
+}
+
+// panicRuntime panics on the first write, to drive the handler's recover.
+type panicRuntime struct {
+	*hosted.Mock
+	panicked bool
+}
+
+func (p *panicRuntime) Write(e entry.Entry) error {
+	if !p.panicked {
+		p.panicked = true
+		panic("boom from the write path")
+	}
+	return p.Mock.Write(e)
+}
+
+// A recovered panic MUST still acknowledge the message. Unwinding without an
+// ack leaves the packet at the head of paho's ack tracker, which blocks every
+// acknowledgement behind it until the subscription stalls - the exact failure
+// the retry logic exists to avoid.
+func TestHandlePanicStillAcknowledges(t *testing.T) {
+	conf := Config{
+		Broker: []string{`mqtt://127.0.0.1:1883`},
+		Topic:  []string{`a/#`},
+	}
+	conf.Tag_Name = `default`
+	conf.Ingester_UUID = testUUID
+	require.NoError(t, conf.Verify())
+
+	ctx, cf := context.WithCancel(context.Background())
+	t.Cleanup(cf)
+	rt := &panicRuntime{Mock: hosted.NewMock(ctx)}
+	ing, err := New(conf, `test`, rt)
+	require.NoError(t, err)
+	sub := &subscriber{Ingester: ing, ctx: ctx, rt: rt}
+	fa := &fakeAcker{}
+
+	var handled bool
+	require.NotPanics(t, func() {
+		handled, err = sub.handleGuarded(pub(`a/b`, `data`, 1), fa)
+	})
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.True(t, rt.panicked, "the write path should have panicked")
+	require.Equal(t, 1, fa.count(), "a panicking message must still be acked or the subscription wedges")
 }
 
 func TestNewNegotiatesEveryRouteTag(t *testing.T) {

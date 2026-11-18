@@ -133,7 +133,10 @@ func (i *Ingester) Run(ctx context.Context, rt hosted.Runtime) error {
 			return errors.New("mqtt connection manager terminated")
 		}
 	}
-	return ctx.Err()
+	// a cancelled context is a clean stop. Returning ctx.Err() here would have
+	// the runner log it as an ingester failure and flag an error status on
+	// every shutdown and every config reload.
+	return nil
 }
 
 func (s *subscriber) clientConfig() autopaho.ClientConfig {
@@ -182,6 +185,8 @@ func (s *subscriber) buildConnect(c *paho.Connect, u *url.URL) (*paho.Connect, e
 
 func (s *subscriber) onConnectionUp(cm *autopaho.ConnectionManager, connack *paho.Connack) {
 	s.rt.Info("mqtt connection established", log.KV("subscription", s.name))
+	s.rt.ClearError()
+	s.rt.ClearWarn()
 	// OnConnectionUp must not block, so the subscribe happens in its own
 	// goroutine. autopaho calls this on every reconnect, which is what
 	// re-establishes the subscriptions.
@@ -217,7 +222,7 @@ func (s *subscriber) subscribe(cm *autopaho.ConnectionManager) {
 		if s.ctx.Err() != nil {
 			return // shutting down
 		}
-		if errors.Is(err, paho.ErrConnectionLost) {
+		if errors.Is(err, paho.ErrConnectionLost) || errors.Is(err, autopaho.ConnectionDownError) {
 			// the reconnect will call OnConnectionUp again, which starts a
 			// fresh attempt, so this goroutine is done
 			s.rt.Warn("subscribe abandoned, connection lost",
@@ -356,15 +361,21 @@ func (s *subscriber) guard(what string, fn func()) {
 
 func (s *subscriber) onConnectionDown() bool {
 	s.rt.Warn("mqtt connection lost", log.KV("subscription", s.name))
+	s.rt.SetWarn("mqtt connection lost, reconnecting")
 	return true // keep trying to reconnect
 }
 
+// onConnectError reports upstream as well as logging. autopaho retries
+// forever, so without this an instance with a bad password or an unreachable
+// broker would log on every attempt while still reporting itself healthy.
 func (s *subscriber) onConnectError(err error) {
 	s.rt.Error("mqtt connection attempt failed",
 		log.KV("subscription", s.name), log.KVErr(err))
+	s.rt.SetError(fmt.Errorf("mqtt connection failed: %w", err))
 }
 
 func (s *subscriber) onClientError(err error) {
 	s.rt.Error("mqtt client error",
 		log.KV("subscription", s.name), log.KVErr(err))
+	s.rt.SetError(fmt.Errorf("mqtt client error: %w", err))
 }

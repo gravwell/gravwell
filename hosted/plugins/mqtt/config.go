@@ -48,8 +48,10 @@ const (
 	defaultSessionExpiry uint32 = 600
 	defaultKeepAlive     uint16 = 30
 
-	// maxSessionExpiry is the MQTT v5 ceiling, the field is a uint32 of seconds
-	maxSessionExpiry = 4294967295
+	// maxSessionExpiry is the MQTT v5 ceiling, the field is a uint32 of
+	// seconds. Typed int64 because the untyped constant does not fit in an
+	// int on a 32 bit build.
+	maxSessionExpiry int64 = 4294967295
 
 	defaultMQTTPort uint16 = 1883
 	defaultTLSPort  uint16 = 8883
@@ -409,7 +411,7 @@ func (c *Config) sessionExpiryValue() (uint32, error) {
 	switch {
 	case c.Session_Expiry < 0:
 		return 0, errors.New("Session-Expiry cannot be negative")
-	case c.Session_Expiry > maxSessionExpiry:
+	case int64(c.Session_Expiry) > maxSessionExpiry:
 		// an unchecked conversion would wrap, and a wrapped value of zero
 		// means "end the session at disconnect", silently discarding every
 		// queued QoS 1/2 message
@@ -498,7 +500,16 @@ func (c *Config) tlsConfig(brokers []*url.URL) (*tls.Config, error) {
 		}
 	}
 	hasMaterial := c.CA_Cert != `` || c.Client_Cert != `` || c.Client_Key != ``
-	if !tlsScheme && !hasMaterial && !c.Insecure_Skip_TLS_Verify {
+	if !tlsScheme {
+		// autopaho only applies TlsCfg to a TLS scheme, so accepting these
+		// against a plaintext broker would silently dial in the clear and send
+		// the credentials with it, while the operator believes TLS is on.
+		if hasMaterial {
+			return nil, errors.New("CA-Cert, Client-Cert and Client-Key require a TLS Broker scheme (tls://, ssl://, mqtts:// or wss://)")
+		}
+		if c.Insecure_Skip_TLS_Verify {
+			return nil, errors.New("Insecure-Skip-TLS-Verify requires a TLS Broker scheme (tls://, ssl://, mqtts:// or wss://)")
+		}
 		return nil, nil
 	}
 
