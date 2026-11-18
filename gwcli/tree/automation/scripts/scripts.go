@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
+	"github.com/gravwell/gravwell/v4/gwcli/tree/automation/internal/clearresults"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -472,11 +473,8 @@ func clear() action.Pair {
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
 			for i, ID := range IDs {
-				if err := connection.Client.ClearScheduledScriptResults(ID); err != nil {
-					results[i] = scaffold.Result{Success: false, Output: err.Error()}
-				} else {
-					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("successfully cleared results for script %s", ID)}
-				}
+				response, err := connection.Client.ClearScheduledScriptResults(ID)
+				results[i] = clearresults.ToResult("script", ID, response, err)
 			}
 			return results, nil
 		},
