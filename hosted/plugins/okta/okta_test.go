@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -607,6 +608,56 @@ func TestOAuth_Bearer(t *testing.T) {
 	}
 	assertClean(t, rt, f, false)
 	assertClean(t, rt2, f, false)
+}
+
+// a key generated outside Okta: a PEM in Private-Key-File, and the kid its public JWK was imported with
+func TestOAuth_KeyFile(t *testing.T) {
+	t.Parallel()
+	f := newFakeOkta(t, withDPoP, withData(testEvents(3), nil), func(f *fakeOkta) { f.kid = `gravwell-1` })
+
+	rt := newTestRuntime(t)
+	o := newOAuthIngester(t, f, rt, true, func(c *Config) {
+		c.Private_Key = ``
+		c.Private_Key_File = writeKeyFile(t, pkcs8PEM(t, testKey()))
+		c.Private_Key_ID = `gravwell-1`
+	})
+	if err := o.getSystemLogs(rt.ctx, rt); err != nil {
+		t.Fatal(err)
+	}
+	assertData(t, rt.data(o.systemTag), f.logs)
+	assertClean(t, rt, f, false)
+}
+
+// a key file that other users can access is worth a warning at startup, not a refusal to run
+func TestOAuth_KeyFilePermissionWarning(t *testing.T) {
+	t.Parallel()
+	warned := func(t *testing.T, mode os.FileMode) bool {
+		f := newFakeOkta(t, withData(testEvents(1), nil))
+		rt := newTestRuntime(t)
+		pth := writeKeyFile(t, pkcs8PEM(t, testKey()))
+		if err := os.Chmod(pth, mode); err != nil {
+			t.Fatal(err)
+		}
+		o := newOAuthIngester(t, f, rt, false, func(c *Config) { c.Private_Key, c.Private_Key_File = ``, pth })
+		if err := o.Run(rt.ctx, rt); err != nil {
+			t.Fatal(err)
+		}
+		assertData(t, rt.data(o.systemTag), f.logs)
+		for _, l := range rt.logged(`WARN`) {
+			if strings.Contains(l.msg, `Private-Key-File`) {
+				return true
+			}
+		}
+		return false
+	}
+	for mode, want := range map[os.FileMode]bool{0600: false, 0400: false, 0640: true, 0644: true} {
+		t.Run(fmt.Sprintf("%04o", mode), func(t *testing.T) {
+			t.Parallel()
+			if got := warned(t, mode); got != want {
+				t.Errorf("warned = %v, want %v", got, want)
+			}
+		})
+	}
 }
 
 func TestOAuth_DPoP(t *testing.T) {

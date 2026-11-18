@@ -9,6 +9,7 @@
 package okta
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -16,8 +17,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
+	"os"
 	"strings"
 )
 
@@ -26,8 +29,42 @@ const (
 	endMarkerPrefix   = "-----END "
 )
 
-// parsePrivateKey parses an Okta JWK or RSA PEM private key, returning the JWK kid if any.
-// Paths are rejected and errors never contain key material.
+const maxKeyFileSize = 64 * 1024 // far above any RSA key in PEM or JWK form
+
+var errKeyEncoding = errors.New(`unrecognized private key encoding: expected PEM ("-----BEGIN ...") or Okta JWK JSON ("{...}")`)
+
+// readKeyFile reads a Private-Key-File. Errors name the path and never contain the contents.
+func readKeyFile(pth string) ([]byte, error) {
+	check := func(fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		} else if !fi.Mode().IsRegular() {
+			return fmt.Errorf("%q is not a regular file", pth)
+		} else if fi.Size() > maxKeyFileSize {
+			return fmt.Errorf("%q is too large to be a private key", pth)
+		}
+		return nil
+	}
+	// check before opening, opening a FIFO blocks until something writes to it
+	if err := check(os.Stat(pth)); err != nil {
+		return nil, err
+	}
+	fin, err := os.Open(pth)
+	if err != nil {
+		return nil, err
+	}
+	defer fin.Close()
+	// and again on the open file, so the checks hold for the file that is read
+	if err = check(fin.Stat()); err != nil {
+		return nil, err
+	}
+	b, err := io.ReadAll(io.LimitReader(fin, maxKeyFileSize))
+	// editors on Windows put a byte order mark in front of a JWK
+	return bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")), err
+}
+
+// parsePrivateKey parses the text of an Okta JWK or RSA PEM private key, returning the JWK kid if any.
+// A path is not key material and is rejected, errors never contain key material.
 func parsePrivateKey(raw string) (key *rsa.PrivateKey, kid string, err error) {
 	s := strings.TrimSpace(strings.ReplaceAll(raw, `\n`, "\n"))
 
@@ -47,7 +84,7 @@ func parsePrivateKey(raw string) (key *rsa.PrivateKey, kid string, err error) {
 			}
 		}
 	default:
-		err = errors.New(`unrecognized private key encoding: expected PEM ("-----BEGIN ...") or Okta JWK JSON ("{...}"); a file path is not accepted`)
+		err = errKeyEncoding
 	}
 	if err != nil {
 		return nil, "", err

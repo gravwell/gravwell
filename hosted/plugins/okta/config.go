@@ -48,30 +48,55 @@ type Config struct {
 	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
 
 	// OAuth 2.0 service app authentication, mutually exclusive with Token
-	Client_ID      string
-	Private_Key    string `json:"-"` // Okta JWK JSON or RSA PEM - DO NOT send this when marshalling
-	Private_Key_ID string // optional, overrides the JWK kid
+	Client_ID        string
+	Private_Key      string `json:"-"` // Okta JWK JSON or RSA PEM - DO NOT send this when marshalling
+	Private_Key_File string `json:"-"` // a file holding the key, mutually exclusive with Private_Key - DO NOT send this when marshalling
+	Private_Key_ID   string // optional, overrides the JWK kid
 
-	parsed *parsedKey // Private_Key as parsed by Verify, so the key is only parsed once
+	parsed *parsedKey // the key Verify loaded from Private_Key or Private_Key_File, read and parsed once
 }
 
 type parsedKey struct {
-	raw string // the Private_Key it was parsed from
-	key *rsa.PrivateKey
-	kid string
+	raw, file string // the Private_Key or Private_Key_File it came from
+	key       *rsa.PrivateKey
+	kid       string
 }
 
-// privateKey parses Private_Key, or returns what an earlier call parsed from the same value
+// privateKey parses Private_Key, or reads and parses Private_Key_File. A later call for the same
+// setting returns the same key, the file is read once.
 func (c *Config) privateKey() (*rsa.PrivateKey, string, error) {
-	if pk := c.parsed; pk != nil && pk.raw == c.Private_Key {
+	if pk := c.parsed; pk != nil && pk.raw == c.Private_Key && pk.file == c.Private_Key_File {
 		return pk.key, pk.kid, nil
 	}
-	key, kid, err := parsePrivateKey(c.Private_Key)
-	if err != nil {
-		return nil, ``, fmt.Errorf("invalid Private-Key: %w", err)
+	raw, name := c.Private_Key, `Private-Key`
+	if c.Private_Key_File != `` {
+		b, err := readKeyFile(c.Private_Key_File)
+		if err != nil {
+			return nil, ``, fmt.Errorf("failed to read Private-Key-File: %w", err)
+		}
+		raw, name = string(b), `Private-Key-File`
 	}
-	c.parsed = &parsedKey{raw: c.Private_Key, key: key, kid: kid}
+	key, kid, err := parsePrivateKey(raw)
+	if err != nil {
+		if errors.Is(err, errKeyEncoding) && c.Private_Key_File == `` {
+			return nil, ``, fmt.Errorf("invalid %s: %w; a file path belongs in Private-Key-File", name, err)
+		}
+		return nil, ``, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	c.parsed = &parsedKey{raw: c.Private_Key, file: c.Private_Key_File, key: key, kid: kid}
 	return key, kid, nil
+}
+
+// sameKeyFile reports whether nc loaded the same key from Private_Key_File. The path alone
+// does not change when the key is rotated, comparing the keys lets a reload pick the new one up.
+func (c *Config) sameKeyFile(nc *Config) bool {
+	if c.Private_Key_File == `` || (c.parsed == nil && nc.parsed == nil) {
+		return true // no key loaded on either side, the settings decide
+	} else if c.parsed == nil || nc.parsed == nil {
+		return false // only one side has been through Verify, a restart is the safe answer
+	}
+	// Private_Key_ID overrides the JWK kid, and Equal has already compared it
+	return (c.Private_Key_ID != `` || c.parsed.kid == nc.parsed.kid) && c.parsed.key.Equal(nc.parsed.key)
 }
 
 var _ hosted.Config = (*Config)(nil) // compile time interface check
@@ -91,7 +116,9 @@ func (c *Config) Equal(ncp any) bool {
 		c.Token == nc.Token &&
 		c.Client_ID == nc.Client_ID &&
 		c.Private_Key == nc.Private_Key &&
-		c.Private_Key_ID == nc.Private_Key_ID
+		c.Private_Key_File == nc.Private_Key_File &&
+		c.Private_Key_ID == nc.Private_Key_ID &&
+		c.sameKeyFile(nc)
 }
 
 // useOAuth reports whether the config authenticates as an OAuth 2.0 service app rather than with an SSWS token
@@ -134,20 +161,24 @@ func (c *Config) Verify() (err error) {
 	return
 }
 
-// verifyAuth enforces that exactly one of {Token} or {Client-ID, Private-Key, Private-Key-ID} is configured
+// verifyAuth enforces that exactly one of {Token} or {Client-ID, a private key, Private-Key-ID} is
+// configured, the private key being exactly one of Private-Key or Private-Key-File
 func (c *Config) verifyAuth() error {
-	oauth := c.Client_ID != `` || c.Private_Key != `` || c.Private_Key_ID != ``
+	key := c.Private_Key != `` || c.Private_Key_File != ``
+	oauth := c.Client_ID != `` || key || c.Private_Key_ID != ``
 	switch {
 	case c.Token != `` && oauth:
-		return errors.New("Token and Client-ID/Private-Key/Private-Key-ID are mutually exclusive")
+		return errors.New("Token and Client-ID/Private-Key/Private-Key-File/Private-Key-ID are mutually exclusive")
 	case c.Token != ``:
 		return nil
 	case !oauth:
-		return errors.New("missing okta authentication: set Token, or Client-ID + Private-Key")
+		return errors.New("missing okta authentication: set Token, or Client-ID + Private-Key or Private-Key-File")
 	case c.Client_ID == ``:
-		return errors.New("Private-Key and Private-Key-ID require Client-ID")
-	case c.Private_Key == ``:
-		return errors.New("Client-ID requires Private-Key")
+		return errors.New("Private-Key, Private-Key-File and Private-Key-ID require Client-ID")
+	case !key:
+		return errors.New("Client-ID requires Private-Key or Private-Key-File")
+	case c.Private_Key != `` && c.Private_Key_File != ``:
+		return errors.New("Private-Key and Private-Key-File are mutually exclusive")
 	}
 	_, _, err := c.privateKey()
 	return err

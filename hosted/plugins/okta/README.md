@@ -14,7 +14,7 @@ authentication methods use the same cursor, so switching between them neither dr
 ## Authentication
 
 There are two options, and they are mutually exclusive: configure `Token`, or `Client-ID` plus
-`Private-Key`.
+a private key (`Private-Key` or `Private-Key-File`).
 
 ### API Token
 
@@ -51,6 +51,43 @@ In the Okta Admin Console:
 A client secret is not supported, because Okta only accepts `private_key_jwt` client authentication
 for tokens with Okta API (`okta.*`) scopes.
 
+#### Using your own key
+
+The key pair does not have to come from Okta. It can be generated where the ingester runs, so the
+private key never leaves that host and Okta is given only the public key. This is the preferred
+setup where someone other than the Okta administrator runs the ingester.
+
+1. Generate a 2048-bit RSA key that only the ingester can read:
+
+   ```
+   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out okta-private.pem
+   chmod 600 okta-private.pem
+   ```
+
+2. Build the public key as a JWK. Okta requires a `kid`, any ID that is unique within the app will
+   do. `AQAB` is the public exponent 65537, the `openssl` default.
+
+   ```
+   n=$(openssl rsa -in okta-private.pem -noout -modulus | cut -d= -f2 | xxd -r -p | base64 | tr -d '=\n' | tr '+/' '-_')
+   printf '{"kty":"RSA","use":"sig","alg":"RS256","kid":"gravwell-1","e":"AQAB","n":"%s"}\n' "$n"
+   ```
+
+3. In step 2 of the setup above, paste that JWK into the **Add a public key** dialog in place of
+   generating a key.
+
+4. Point the ingester at the private key and give it the same `kid`:
+
+   ```
+   Client-ID="0oa1b2c3d4e5f6g7h8i9"
+   Private-Key-File="/opt/gravwell/etc/okta-private.pem"
+   Private-Key-ID="gravwell-1"
+   ```
+
+To rotate the key, add the new public key to the app under a new `kid`, replace the file, update
+`Private-Key-ID` and reload or restart the ingester, then remove the old key from the app. Replace
+the file by renaming a new one over it: the file is read when the config is loaded, and a config
+whose key file is missing or half written is rejected as a whole.
+
 ## Configuration
 
 | Key | Required | Description |
@@ -58,14 +95,17 @@ for tokens with Okta API (`okta.*`) scopes.
 | `Domain` | yes | Okta org domain, e.g. `example.okta.com`. `*.oktapreview.com`, `*.okta-emea.com`, `*.okta-gov.com` and `*.okta.mil` also work. |
 | `Token` | one of | SSWS API token. |
 | `Client-ID` | one of | Service app client ID. |
-| `Private-Key` | with `Client-ID` | Service app private key, as the console's JWK JSON or as an unencrypted RSA PEM (PKCS#1 or PKCS#8). A file path is not accepted. |
-| `Private-Key-ID` | no | Key ID (`kid`) sent with the client assertion. Defaults to the JWK `kid`, and Okta does not require one. |
+| `Private-Key` | one of, with `Client-ID` | Service app private key, as the console's JWK JSON or as an unencrypted RSA PEM (PKCS#1 or PKCS#8). |
+| `Private-Key-File` | one of, with `Client-ID` | Path of a file holding the private key in either of those forms. Mutually exclusive with `Private-Key`. |
+| `Private-Key-ID` | no | Key ID (`kid`) sent with the client assertion. Defaults to the JWK `kid`, and Okta does not require one. With your own key, set it to the `kid` of the public JWK. |
 | `Request-Batch-Size` | no | System Log events per request (default 100, max 3000). |
 | `Request-Per-Minute` | no | Client-side request rate limit (default 60, max 6000). |
 | `Request-Burst` | no | Request burst allowance (default 10). |
 | `Ingester-UUID` | no | Ingester UUID. |
 
-The private key can be given in any of these forms:
+`Private-Key-File` keeps the key out of the config file. The file is read when the config is
+loaded, and a reload picks up a changed key. The ingester logs a warning at startup if users other
+than the file's owner can access it. Given inline, the private key can take any of these forms:
 
 ```
 Private-Key=`{"kty":"RSA","kid":"...","n":"...","e":"AQAB","d":"...","p":"...","q":"...","dp":"...","dq":"...","qi":"..."}`

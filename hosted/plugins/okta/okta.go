@@ -133,6 +133,7 @@ func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 
 	// create a share http client to avoid passing a rate limiter around, and allow connection/resource reuse.
 	if o.cfg.useOAuth() {
+		o.warnKeyFilePerms(rt)
 		o.c = o.newOAuthDoer(ctx, rl, rt)
 	} else {
 		o.c = utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)

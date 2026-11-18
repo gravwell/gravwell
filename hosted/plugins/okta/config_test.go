@@ -3,6 +3,8 @@ package okta
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -231,8 +233,159 @@ func TestConfigEqual(t *testing.T) {
 		Token:              "token",
 		Client_ID:          "client",
 		Private_Key:        "key",
+		Private_Key_File:   "/key.pem",
 		Private_Key_ID:     "kid",
 	})
+}
+
+func writeKeyFile(t *testing.T, contents string) string {
+	t.Helper()
+	pth := filepath.Join(t.TempDir(), "okta.key")
+	if err := os.WriteFile(pth, []byte(contents), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return pth
+}
+
+func TestConfig_PrivateKeyFile(t *testing.T) {
+	t.Parallel()
+	key := testKey()
+	p8 := pkcs8PEM(t, key)
+	pemFile := writeKeyFile(t, p8)
+	jwkFile := writeKeyFile(t, oktaJWK(t, jwkFields(key, "file-kid"))+"\n")
+	bomFile := writeKeyFile(t, "\xef\xbb\xbf"+oktaJWK(t, jwkFields(key, "file-kid"))+"\r\n")
+	big := writeKeyFile(t, strings.Repeat("A", maxKeyFileSize+1))
+	garbage := writeKeyFile(t, "dGhpcyBpcyBub3QgYSBrZXkgYXQgYWxsLCBqdXN0IGdhcmJhZ2U")
+	missing := filepath.Join(t.TempDir(), "missing.pem")
+
+	tests := []struct {
+		name    string
+		cfg     Config
+		wantKid string
+		wantErr string // a fragment of the expected error, empty for success
+	}{
+		{name: "pem file", cfg: Config{Client_ID: "client", Private_Key_File: pemFile}},
+		{name: "jwk file", cfg: Config{Client_ID: "client", Private_Key_File: jwkFile}, wantKid: "file-kid"},
+		{name: "jwk file with a byte order mark", cfg: Config{Client_ID: "client", Private_Key_File: bomFile}, wantKid: "file-kid"},
+		{name: "inline and file", cfg: Config{Client_ID: "client", Private_Key: p8, Private_Key_File: pemFile}, wantErr: "mutually exclusive"},
+		{name: "token and file", cfg: Config{Token: "token", Private_Key_File: pemFile}, wantErr: "mutually exclusive"},
+		{name: "file without client id", cfg: Config{Private_Key_File: pemFile}, wantErr: "require Client-ID"},
+		{name: "missing file", cfg: Config{Client_ID: "client", Private_Key_File: missing}, wantErr: missing},
+		{name: "directory", cfg: Config{Client_ID: "client", Private_Key_File: filepath.Dir(pemFile)}, wantErr: "not a regular file"},
+		{name: "too large", cfg: Config{Client_ID: "client", Private_Key_File: big}, wantErr: "too large"},
+		{name: "not a key", cfg: Config{Client_ID: "client", Private_Key_File: garbage}, wantErr: "invalid Private-Key-File"},
+		{name: "path given inline", cfg: Config{Client_ID: "client", Private_Key: pemFile}, wantErr: "belongs in Private-Key-File"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.cfg.Domain = "example.okta.com"
+			inline := tt.cfg.Private_Key
+			err := tt.cfg.Verify()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Verify() error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				assertNoFragments(t, err.Error(), pemBody(p8))
+				return
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if tt.cfg.Private_Key != inline {
+				t.Error("Verify copied the key file into Private_Key")
+			}
+			if !tt.cfg.useOAuth() {
+				t.Error("useOAuth() = false")
+			}
+			got, kid, err := tt.cfg.privateKey()
+			if err != nil || !got.Equal(key) || kid != tt.wantKid {
+				t.Errorf("privateKey() kid %q, want %q: %v", kid, tt.wantKid, err)
+			}
+		})
+	}
+}
+
+// the config file key is Private-Key-File, and the file is read once: by Verify, not again by NewOktaIngester
+func TestConfig_PrivateKeyFileReadOnce(t *testing.T) {
+	t.Parallel()
+	pth := writeKeyFile(t, pkcs1PEM(testKey()))
+	conf := "[Okta \"test\"]\n\tDomain = example.okta.com\n\tClient-ID = client\n\tPrivate-Key-File = \"" + pth + "\"\n\tPrivate-Key-ID = my-kid\n"
+	var cr struct{ Okta map[string]*Config }
+	if err := config.LoadConfigBytes(&cr, []byte(conf)); err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+	c := cr.Okta["test"]
+	if c == nil || c.Private_Key_File != pth {
+		t.Fatalf("Private-Key-File not loaded: %+v", c)
+	}
+	if err := c.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(pth); err != nil {
+		t.Fatal(err)
+	}
+	// the runner hands NewOktaIngester a copy of the verified config
+	if _, err := NewOktaIngester(*c, newTestRuntime(t)); err != nil {
+		t.Fatalf("NewOktaIngester read the key file again: %v", err)
+	}
+}
+
+// a rotated key keeps its path, a reload must still see the config as changed
+func TestConfig_PrivateKeyFileRotation(t *testing.T) {
+	t.Parallel()
+	pth := writeKeyFile(t, pkcs8PEM(t, testKey()))
+	load := func() *Config {
+		c := &Config{Domain: "example.okta.com", Client_ID: "client", Private_Key_File: pth}
+		if err := c.Verify(); err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	running := load()
+	if !running.Equal(load()) {
+		t.Error("an unchanged key file made the config unequal")
+	}
+
+	other, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(pth, []byte(pkcs8PEM(t, other)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if running.Equal(load()) {
+		t.Error("a rotated key file left the config equal")
+	}
+
+	// a config that has not loaded its key cannot be shown to hold the same one
+	unverified := *load()
+	unverified.parsed = nil
+	if load().Equal(&unverified) {
+		t.Error("a config that never loaded its key file compared equal")
+	}
+}
+
+// the JWK kid only matters while Private-Key-ID does not override it
+func TestConfig_PrivateKeyFileKid(t *testing.T) {
+	t.Parallel()
+	pth := writeKeyFile(t, oktaJWK(t, jwkFields(testKey(), "kid-1")))
+	load := func(keyID string) *Config {
+		c := &Config{Domain: "example.okta.com", Client_ID: "client", Private_Key_File: pth, Private_Key_ID: keyID}
+		if err := c.Verify(); err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	plain, overridden := load(""), load("override")
+	if err := os.WriteFile(pth, []byte(oktaJWK(t, jwkFields(testKey(), "kid-2"))), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if plain.Equal(load("")) {
+		t.Error("a changed JWK kid left the config equal")
+	}
+	if !overridden.Equal(load("override")) {
+		t.Error("a JWK kid that Private-Key-ID overrides made the config unequal")
+	}
 }
 
 func TestConfig_Verify_Auth(t *testing.T) {

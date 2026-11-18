@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -67,6 +68,22 @@ func (o *OktaIngester) loadPrivateKey() error {
 		return fmt.Errorf("failed to build client assertion signer %w", err)
 	}
 	return nil
+}
+
+// warnKeyFilePerms flags a Private-Key-File that users other than its owner can access. It only
+// warns: a secret mounted read-only into a container is often group or world readable there.
+func (o *OktaIngester) warnKeyFilePerms(lg hosted.Logger) {
+	if o.cfg.Private_Key_File == `` {
+		return
+	}
+	fi, err := os.Stat(o.cfg.Private_Key_File)
+	if err != nil {
+		return // the key is already loaded, this is only a check of the file
+	}
+	if perm := fi.Mode().Perm(); perm&0o077 != 0 {
+		lg.Warn("the okta Private-Key-File is accessible to other users, restrict it to its owner (chmod 600)",
+			log.KV("path", o.cfg.Private_Key_File), log.KV("mode", fmt.Sprintf("%04o", perm)))
+	}
 }
 
 // newOAuthDoer builds the doer the fetch loops use in OAuth mode. The SDK is used for token
