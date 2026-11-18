@@ -13,22 +13,22 @@ if [ ! -f "$CONFIG" ]; then
 fi
 set -e
 echo -n "Testing $DIR  "
-go build -o /dev/shm/ingester $DIR
-cp $CONFIG /dev/shm/config.cfg
-/dev/shm/ingester -config-overlays="" -config-file=/dev/shm/config.cfg -validate
+go build -o /tmp/ingester $DIR
+cp $CONFIG /tmp/config.cfg
+/tmp/ingester -config-overlays="" -config-file=/tmp/config.cfg -validate
 
 set +e
 #check that a UUID was NOT set
-grep -q "Ingester-UUID=" /dev/shm/config.cfg
+grep -q "Ingester-UUID=" /tmp/config.cfg
 if [ "$?" == "0" ]; then
 	echo "$DIR set the UUID on validate"
 	exit 3
 fi
 
 set -e
-/dev/shm/ingester -config-overlays="" -config-file=/dev/shm/config.cfg -validate-uuid-config
+/tmp/ingester -config-overlays="" -config-file=/tmp/config.cfg -validate-uuid-config
 set +e
-grep -q "Ingester-UUID=" /dev/shm/config.cfg
+grep -q "Ingester-UUID=" /tmp/config.cfg
 if [ "$?" != "0" ]; then
 	echo "$DIR did NOT set the UUID on validate-uuid-config"
 	exit 3
