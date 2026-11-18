@@ -17,7 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
-  "github.com/gravwell/gravwell/v4/sqs_common"
+	"github.com/gravwell/gravwell/v4/sqs_common"
 )
 
 const (
