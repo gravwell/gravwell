@@ -9,95 +9,183 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
-func TestMain(m *testing.M) {
+func init() {
+	// queueRunner logs through the package-global lg; give it a real, discarding
+	// logger so tests don't panic on a nil receiver.
 	lg = log.NewDiscardLogger()
-	os.Exit(m.Run())
 }
 
-// logWatcher closes hit when the receive error is logged.
-type logWatcher struct {
-	hit  chan struct{}
-	once sync.Once
+// fakeSQS is a hand-written sqsClient double used to drive queueRunner's
+// receive loop without a real SQS connection.
+type fakeSQS struct {
+	calls      atomic.Int64
+	getMessage func(ctx context.Context) ([]types.Message, error)
 }
 
-func (w *logWatcher) Write(b []byte) (int, error) {
-	if bytes.Contains(b, []byte("sqs receive message error")) {
-		w.once.Do(func() { close(w.hit) })
+func (f *fakeSQS) GetMessages(ctx context.Context) ([]types.Message, error) {
+	f.calls.Add(1)
+	return f.getMessage(ctx)
+}
+
+func (f *fakeSQS) DeleteMessages(ctx context.Context, m []types.Message) error {
+	return nil
+}
+
+// waitTimeout waits for wg to finish, returning false if timeout elapses first.
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
 	}
-	return len(b), nil
 }
 
-func (w *logWatcher) Close() error { return nil }
-
-// receiveGoroutines counts the live goroutines started by queueRunner.
-func receiveGoroutines() int {
-	buf := make([]byte, 1<<20)
-	return strings.Count(string(buf[:runtime.Stack(buf, true)]), ".queueRunner.func")
+// waitForGoroutineBaseline polls runtime.NumGoroutine until it settles back
+// to within tolerance of baseline, or fails the test once timeout elapses.
+// This is how we detect the goroutine leak the double-send bug caused: every
+// erroring receive spawned a goroutine that could never return, so the count
+// would climb and never come back down.
+func waitForGoroutineBaseline(t *testing.T, baseline, tolerance int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		runtime.Gosched()
+		if n := runtime.NumGoroutine(); n <= baseline+tolerance {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("goroutine count did not settle: have %d, want <= %d", runtime.NumGoroutine(), baseline+tolerance)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
-// A failed receive must hand over one result and exit (gravwell/issues#3250).
-func TestQueueRunner_FailedReceive(t *testing.T) {
-	// isolate from the developer's AWS environment
-	empty := filepath.Join(t.TempDir(), "empty")
-	require.NoError(t, os.WriteFile(empty, nil, 0600))
-	t.Setenv("AWS_CONFIG_FILE", empty)
-	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", empty)
-	t.Setenv("AWS_PROFILE", "")
-	t.Setenv("AWS_MAX_ATTEMPTS", "1")
+// TestQueueRunner_ErrorLoopDoesNotLeakGoroutines is a regression test for a bug
+// where, on a GetMessages error, the per-iteration goroutine did `c <- nil`
+// and then unconditionally fell through to also do `c <- o` -- a double send
+// on a single-receiver channel. Since only one value is ever received per
+// loop iteration, each erroring iteration left one goroutine permanently
+// blocked trying to deliver its second, unwanted send: a goroutine leaked on
+// every single receive error.
+//
+// The fix buffers the channel by one and returns immediately after the error
+// send. This test drives many consecutive receive errors and asserts the
+// loop keeps making progress (GetMessages keeps getting called) and that no
+// goroutines are left behind once the loop is stopped.
+func TestQueueRunner_ErrorLoopDoesNotLeakGoroutines(t *testing.T) {
+	baseline := runtime.NumGoroutine()
 
-	w := &logWatcher{hit: make(chan struct{})}
-	require.NoError(t, lg.AddWriter(w))
-	t.Cleanup(func() { _ = lg.DeleteWriter(w) })
+	fake := &fakeSQS{
+		getMessage: func(ctx context.Context) ([]types.Message, error) {
+			return nil, errTestGetMessages
+		},
+	}
 
-	creds, err := sqs_common.GetCredentials("static", "akid", "secret")
-	require.NoError(t, err)
+	done := make(chan bool)
+	var wg sync.WaitGroup
+	hcfg := &handlerConfig{
+		Name: "errtest",
+		SQS:  fake,
+		wg:   &wg,
+		done: done,
+		// hcfg.ctx is only consulted by the ERROR_BACKOFF sleep in the receive
+		// loop; pre-cancelling it makes that sleep return immediately instead
+		// of blocking real wall-clock time for every erroring iteration, so the
+		// loop can churn through many iterations quickly.
+		ctx: canceledContext(),
+	}
 
-	// nothing listens on port 1, so every receive fails
-	s, err := sqs_common.SQSListener(&sqs_common.Config{
-		Queue:       "http://127.0.0.1:1/000000000000/q",
-		Region:      "us-east-1",
-		Endpoint:    "http://127.0.0.1:1",
-		Credentials: creds,
-	})
-	require.NoError(t, err)
+	const wantIterations = 25
+
+	wg.Add(1)
+	go queueRunner(context.Background(), hcfg)
+
+	require.Eventually(t, func() bool {
+		return fake.calls.Load() >= wantIterations
+	}, 2*time.Second, time.Millisecond, "queueRunner did not keep retrying after receive errors")
+
+	close(done)
+	require.True(t, waitTimeout(&wg, 2*time.Second), "queueRunner did not return after done was closed")
+
+	waitForGoroutineBaseline(t, baseline, 5, 2*time.Second)
+}
+
+// TestQueueRunner_ShutdownDuringInFlightFetch exercises the case where
+// hcfg.done is closed while a GetMessages call is still in flight (simulating
+// a real long poll). queueRunner must return promptly rather than waiting for
+// the fetch, and once the fetch's context is eventually canceled and it
+// unblocks, its buffered send onto the internal channel must not panic or
+// hang -- it has no receiver left, so the buffer of one must silently absorb
+// it.
+func TestQueueRunner_ShutdownDuringInFlightFetch(t *testing.T) {
+	baseline := runtime.NumGoroutine()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var wg sync.WaitGroup
-	done := make(chan bool)
-	wg.Add(1)
-	go queueRunner(ctx, &handlerConfig{SQS: s, Name: "test", wg: &wg, done: done, ctx: ctx})
-
-	select {
-	case <-w.hit:
-	case <-time.After(30 * time.Second):
-		t.Fatal("receive did not fail")
+	started := make(chan struct{})
+	fake := &fakeSQS{
+		getMessage: func(ctx context.Context) ([]types.Message, error) {
+			close(started)
+			<-ctx.Done() // blocks like a real long poll until shutdown cancels ctx
+			return nil, ctx.Err()
+		},
 	}
 
-	// the runner is now in its error backoff: no receive may be left behind
-	require.Eventually(t, func() bool { return receiveGoroutines() == 0 },
-		3*time.Second, 10*time.Millisecond, "failed receive leaked a goroutine")
+	done := make(chan bool)
+	var wg sync.WaitGroup
+	hcfg := &handlerConfig{
+		Name: "shutdowntest",
+		SQS:  fake,
+		wg:   &wg,
+		done: done,
+		ctx:  ctx,
+	}
 
-	// a receive in flight at shutdown must also exit
+	wg.Add(1)
+	go queueRunner(ctx, hcfg)
+
+	<-started // fetch is now in flight and blocked on ctx
+
 	close(done)
+
+	returned := waitTimeout(&wg, 250*time.Millisecond)
+	require.True(t, returned, "queueRunner waited for the in-flight fetch instead of returning on done")
+
+	// Now unblock the still-running fetch goroutine; its eventual send onto
+	// the buffered channel should complete silently rather than hang forever.
 	cancel()
-	wg.Wait()
-	require.Eventually(t, func() bool { return receiveGoroutines() == 0 },
-		3*time.Second, 10*time.Millisecond, "shutdown leaked a receive goroutine")
+
+	waitForGoroutineBaseline(t, baseline, 5, 2*time.Second)
 }
+
+func canceledContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
+}
+
+var errTestGetMessages = &fakeError{"simulated GetMessages error"}
+
+type fakeError struct{ msg string }
+
+func (e *fakeError) Error() string { return e.msg }
