@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -16,113 +16,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/netflow"
 	"github.com/gravwell/ipfix"
 )
-
-var (
-	ErrAlreadyListening = errors.New("Already listening")
-	ErrAlreadyClosed    = errors.New("Already closed")
-	ErrNotReady         = errors.New("Not Ready")
-)
-
-type NetflowV5Handler struct {
-	bindConfig
-	mtx   *sync.Mutex
-	c     *net.UDPConn
-	ready bool
-}
-
-func NewNetflowV5Handler(c bindConfig) (*NetflowV5Handler, error) {
-	if err := c.Validate(); err != nil {
-		return nil, err
-	}
-
-	return &NetflowV5Handler{
-		bindConfig: c,
-		mtx:        &sync.Mutex{},
-	}, nil
-}
-
-func (n *NetflowV5Handler) String() string {
-	return `NetflowV5`
-}
-
-func (n *NetflowV5Handler) Listen(s string) (err error) {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
-	if n.c != nil {
-		err = ErrAlreadyListening
-		return
-	}
-	var a *net.UDPAddr
-	if a, err = net.ResolveUDPAddr("udp", s); err != nil {
-		return
-	}
-	if n.c, err = net.ListenUDP("udp", a); err == nil {
-		n.ready = true
-	}
-	return
-}
-
-func (n *NetflowV5Handler) Close() error {
-	if n == nil {
-		return ErrAlreadyClosed
-	}
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
-	n.ready = false
-	return n.c.Close()
-}
-
-func (n *NetflowV5Handler) Start(id int) error {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
-	if !n.ready || n.c == nil {
-		fmt.Println(n.ready, n.c)
-		return ErrNotReady
-	}
-	if id < 0 {
-		return errors.New("invalid id")
-	}
-	go n.routine(id)
-	return nil
-}
-
-func (n *NetflowV5Handler) routine(id int) {
-	defer n.wg.Done()
-	defer delConn(id)
-	var nf netflow.NFv5
-	var l int
-	var addr *net.UDPAddr
-	var err error
-	var ts entry.Timestamp
-	tbuff := make([]byte, netflow.HeaderSize+(30*netflow.RecordSize))
-	for {
-		if _, addr, err = n.c.ReadFromUDP(tbuff); err != nil {
-			return
-		}
-		if l, err = nf.ValidateSize(tbuff); err != nil {
-			continue //there isn't much we can do about bad packets...
-		}
-		lbuff := make([]byte, l)
-		copy(lbuff, tbuff[0:l])
-		if n.ignoreTS {
-			ts = entry.Now()
-		} else {
-			ts = entry.UnixTime(int64(binary.BigEndian.Uint32(lbuff[8:12])), int64(binary.BigEndian.Uint32(lbuff[12:16])))
-		}
-		e := &entry.Entry{
-			Tag:  n.tag,
-			SRC:  addr.IP,
-			TS:   ts,
-			Data: lbuff,
-		}
-		n.ch <- e
-	}
-}
 
 type IpfixHandler struct {
 	bindConfig
@@ -228,10 +126,10 @@ func (i *IpfixHandler) routine(id int) {
 	tbuff := make([]byte, 65507) // just go with max UDP packet size
 	for {
 		if l, addr, err = i.c.ReadFromUDP(tbuff); err != nil {
-			debugout("Error in ReadFromUDP: %v\n", err)
+			debug.Out("Error in ReadFromUDP: %v\n", err)
 			return
 		}
-		debugout("%v got packet of length %v from %v\n", time.Now(), l, addr.IP)
+		debug.Out("%v got packet of length %v from %v\n", time.Now(), l, addr.IP)
 
 		// For each message received, we want to parse it, extract and attach
 		// any relevant but missing templates, then re-marshal it and ingest
@@ -240,7 +138,7 @@ func (i *IpfixHandler) routine(id int) {
 		// We do this manually for speed
 		// Grab the version so we know where to look
 		if l < 2 {
-			debugout("Message too short for IPFIX or Netflow v9, skipping\n")
+			debug.Out("Message too short for IPFIX or Netflow v9, skipping\n")
 			continue
 		}
 		version = binary.BigEndian.Uint16(tbuff[0:])
@@ -249,7 +147,7 @@ func (i *IpfixHandler) routine(id int) {
 			// netflow v9
 			// Make sure it's long enough, a netflow v9 message header is 20 bytes long
 			if l < 20 {
-				debugout("Message too short for Netflow v9, skipping\n")
+				debug.Out("Message too short for Netflow v9, skipping\n")
 				continue
 			}
 			domainID = binary.BigEndian.Uint32(tbuff[16:])
@@ -257,7 +155,7 @@ func (i *IpfixHandler) routine(id int) {
 			// ipfix
 			// Make sure it's long enough, a ipfix message header is 16 bytes long
 			if l < 16 {
-				debugout("Message too short for IPFIX, skipping\n")
+				debug.Out("Message too short for IPFIX, skipping\n")
 				continue
 			}
 			domainID = binary.BigEndian.Uint32(tbuff[12:])
@@ -266,7 +164,7 @@ func (i *IpfixHandler) routine(id int) {
 		key := getSessionKey(domainID, addr.IP)
 		if s, ok = sessionMap[key]; !ok {
 			// if it's not in the map yet, we need to create a session
-			debugout("Creating new session for %v\n", key.String())
+			debug.Out("Creating new session for %v\n", key.String())
 			lg.Info("creating new session", log.KV("address", addr.IP), log.KV("domain", domainID))
 			s = ipfix.NewSession()
 			sessionMap[key] = s
@@ -281,7 +179,7 @@ func (i *IpfixHandler) routine(id int) {
 
 		msg, err := s.ParseBuffer(tbuff[:l])
 		if err != nil {
-			debugout("Rejecting packet: %v\n", err)
+			debug.Out("Rejecting packet: %v\n", err)
 			// must have been a bad packet
 			continue
 		}
@@ -292,16 +190,16 @@ func (i *IpfixHandler) routine(id int) {
 		var lbuff []byte
 		templates, err := s.LookupTemplateRecords(msg)
 		if err != nil || (len(msg.DataRecords) == 0 && len(msg.TemplateRecords) == 0) {
-			debugout("Failed to lookup template records for message, passing original (this is not necessarily an error)\n")
+			debug.Out("Failed to lookup template records for message, passing original (this is not necessarily an error)\n")
 			lbuff = make([]byte, l)
 			copy(lbuff, tbuff[0:l])
 		} else {
-			debugout("Attaching %d templates\n", len(templates))
+			debug.Out("Attaching %d templates\n", len(templates))
 			msg.TemplateRecords = templates
 			lbuff, err = s.Marshal(msg)
 			if err != nil {
 				// if we fail to marshal, I guess just send along the original
-				debugout("Failed to marshal message, passing original\n")
+				debug.Out("Failed to marshal message, passing original\n")
 				lbuff = make([]byte, l)
 				copy(lbuff, tbuff[0:l])
 			}
