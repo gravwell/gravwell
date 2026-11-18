@@ -266,14 +266,19 @@ func save() action.Pair {
 			notes, err := addtlFlags.GetString("notes")
 			clilog.GetFlag(err)
 
-			ssp := types.SaveSearchPatch{
-				Name:  name,
-				Notes: notes,
+			var ssp types.SaveSearchPatch
+			if name != "" {
+				ssp.Name = types.NewOptional(name)
 			}
+			if notes != "" {
+				ssp.Notes = types.NewOptional(notes)
+			}
+			// with no expire flag the saved search never expires
+			ssp.Expires.Null()
 			if expire, err := addtlFlags.GetTime("expire"); err != nil {
 				clilog.GetFlag(err)
 			} else if !expire.IsZero() {
-				ssp.Expires = expire
+				ssp.Expires.Set(expire)
 			}
 			results = make([]scaffold.Result, len(IDs))
 			for i, ID := range IDs {
