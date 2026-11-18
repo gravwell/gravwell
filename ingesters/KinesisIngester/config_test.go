@@ -9,10 +9,13 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_VerifyCredentials(t *testing.T) {
@@ -60,6 +63,40 @@ func TestConfig_VerifyCredentials(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Not parallel: t.Setenv keeps the host's AWS environment out of the region lookup.
+func TestConfig_VerifyAssumeRoleRegion(t *testing.T) {
+	dir := t.TempDir()
+	for _, k := range []string{"AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE"} {
+		f := filepath.Join(dir, k)
+		require.NoError(t, os.WriteFile(f, nil, 0600))
+		t.Setenv(k, f)
+	}
+	for _, k := range []string{"AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE", "AWS_DEFAULT_PROFILE"} {
+		t.Setenv(k, "")
+	}
+
+	conf := cfgType{
+		Global: global{
+			IngestConfig: config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
+			},
+			Credentials_Type: "assumerole",
+			Role_ARN:         "arn:aws:iam::123456789012:role/gravwell-ingest",
+		},
+		KinesisStream: map[string]*streamDef{
+			"stream1": {Stream_Name: "stream", Tag_Name: "kinesis"},
+		},
+	}
+
+	err := conf.Verify()
+	assert.ErrorContains(t, err, "Kinesis stream stream1")
+	assert.ErrorContains(t, err, "requires Region")
+
+	t.Setenv("AWS_REGION", "us-west-2")
+	assert.NoError(t, conf.Verify())
 }
 
 func TestConfig_VerifyAssumeRole(t *testing.T) {

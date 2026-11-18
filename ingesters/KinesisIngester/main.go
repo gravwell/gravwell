@@ -103,6 +103,7 @@ func main() {
 
 	for _, stream := range cfg.KinesisStream {
 		cc := cfg.Global.credentialsConfig(stream.Region)
+		cc.Logger = lg
 		var key string
 		if cc.Type == sqs_common.CredentialsTypeAssumeRole {
 			key = stream.Region

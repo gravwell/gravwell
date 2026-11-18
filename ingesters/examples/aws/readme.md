@@ -349,7 +349,7 @@ The ingester calls STS `AssumeRole` with its own source credentials:
 - `Source-Credentials-Type` selects them: `environment` (the default, the AWS SDK default chain), `ec2role` or `static`.
 - `static` uses the key settings (`ID`/`Secret` for S3, `AKID`/`Secret` for SQS, `AWS-Access-Key-ID`/`AWS-Secret-Access-Key` for Kinesis). Keys that are set without `Source-Credentials-Type=static` are a configuration error, so leftover or placeholder keys cannot be used by accident.
 
-The STS call uses the listener's `Region` (the stream's `Region` for Kinesis). The role credentials last one hour and are refreshed a few minutes before they expire. The role session name (`gravwell-s3`, `gravwell-sqs` or `gravwell-kinesis`) appears in the customer's CloudTrail.
+The STS call uses the listener's `Region` (the stream's `Region` for Kinesis). Without one, `AWS_REGION` or the shared AWS config must supply it; the config fails to load otherwise. The role credentials last one hour and are refreshed a few minutes before they expire. If a refresh fails, the ingester logs a warning, keeps using the current credentials until they expire, and retries STS every 30 seconds. The role session name (`gravwell-s3`, `gravwell-sqs` or `gravwell-kinesis`) appears in the customer's CloudTrail.
 
 At startup the ingester assumes the role once. If that fails, it logs a `credentials check failed` error naming the role, so a wrong `Role-ARN`, `External-ID` or trust policy shows up in the log right away. The check itself never stops the ingester. After it, the S3 and SQS ingesters keep retrying, and the Kinesis ingester exits after five failed attempts to describe a stream, as with any other credential failure.
 

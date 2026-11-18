@@ -52,6 +52,7 @@ func (s *SQSS3Config) credentialsConfig() sqs_common.CredentialsConfig {
 		SourceType:  s.Source_Credentials_Type,
 		Region:      s.Region,
 		SessionName: roleSessionName,
+		Logger:      s.Logger,
 	}
 }
 

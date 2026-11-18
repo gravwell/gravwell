@@ -9,6 +9,7 @@
 package sqs_common
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -287,45 +289,103 @@ func TestCredentialsConfig_assumeRoleProvider_Refresh(t *testing.T) {
 	}
 }
 
+// logBuffer is a concurrency-safe log sink.
+type logBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *logBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *logBuffer) Close() error { return nil }
+
+func (b *logBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// Every ttl here is inside the expiry window, so the cache refreshes on each
+// Retrieve unless the refresher holds it off.
 func TestCredentialsConfig_assumeRoleProvider_RefreshFailure(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		ttl     time.Duration // both are inside the expiry window, so every Retrieve refreshes
-		wantErr bool
-	}{
-		{"still valid credentials are kept", time.Minute, false},
-		{"nearly expired credentials are not", time.Second, true},
-	}
+	const refreshWarning = "assume role refresh failed"
+	stsDown := errors.New("ServiceUnavailable")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			fake := &fakeSTS{ttl: tt.ttl}
-			p := CredentialsConfig{Type: "assumerole", RoleARN: testRoleARN}.assumeRoleProvider(fake)
-			first, err := p.Retrieve(t.Context())
-			require.NoError(t, err)
+	t.Run("valid credentials are reused and STS is not called per request", func(t *testing.T) {
+		t.Parallel()
+		var logs logBuffer
+		fake := &fakeSTS{ttl: time.Minute}
+		conf := CredentialsConfig{Type: "assumerole", RoleARN: testRoleARN, ExternalID: "some-id", Logger: log.New(&logs)}
+		p := conf.assumeRoleProvider(fake)
+		first, err := p.Retrieve(t.Context())
+		require.NoError(t, err)
 
-			fake.setErr(errors.New("ServiceUnavailable"))
-			got, err := p.Retrieve(t.Context())
-			assert.Len(t, fake.calls(), 2)
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "ServiceUnavailable")
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, first.AccessKeyID, got.AccessKeyID)
-			assert.Equal(t, first.SessionToken, got.SessionToken)
+		fake.setErr(stsDown)
+		got, err := p.Retrieve(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, first.AccessKeyID, got.AccessKeyID)
+		assert.Equal(t, first.SessionToken, got.SessionToken)
+		assert.WithinDuration(t, time.Now().Add(assumeRoleRetryInterval), got.Expires, 5*time.Second)
+		assert.Len(t, fake.calls(), 2)
 
-			// once STS is back the next call refreshes
-			fake.setErr(nil)
+		// within the retry interval the reused credentials come from the cache
+		for range 3 {
 			_, err = p.Retrieve(t.Context())
 			require.NoError(t, err)
-			assert.Len(t, fake.calls(), 3)
-		})
-	}
+		}
+		assert.Len(t, fake.calls(), 2)
+
+		out := logs.String()
+		assert.Equal(t, 1, strings.Count(out, refreshWarning))
+		assert.Contains(t, out, testRoleARN)
+		assert.Contains(t, out, "ServiceUnavailable")
+		assert.NotContains(t, out, "some-id")
+
+		// once the retry is due and STS is back, the next call refreshes
+		fake.setErr(nil)
+		p.Invalidate()
+		_, err = p.Retrieve(t.Context())
+		require.NoError(t, err)
+		assert.Len(t, fake.calls(), 3)
+
+		// and fresh credentials get the expiry window again
+		_, err = p.Retrieve(t.Context())
+		require.NoError(t, err)
+		assert.Len(t, fake.calls(), 4)
+	})
+
+	t.Run("reuse stops before the real expiry", func(t *testing.T) {
+		t.Parallel()
+		ttl := 25 * time.Second
+		fake := &fakeSTS{ttl: ttl}
+		p := CredentialsConfig{Type: "assumerole", RoleARN: testRoleARN}.assumeRoleProvider(fake)
+		_, err := p.Retrieve(t.Context())
+		require.NoError(t, err)
+
+		fake.setErr(stsDown)
+		got, err := p.Retrieve(t.Context())
+		require.NoError(t, err)
+		assert.WithinDuration(t, time.Now().Add(ttl-assumeRoleMinRemaining), got.Expires, 5*time.Second)
+	})
+
+	t.Run("nearly expired credentials are not reused", func(t *testing.T) {
+		t.Parallel()
+		fake := &fakeSTS{ttl: time.Second}
+		p := CredentialsConfig{Type: "assumerole", RoleARN: testRoleARN}.assumeRoleProvider(fake)
+		_, err := p.Retrieve(t.Context())
+		require.NoError(t, err)
+
+		fake.setErr(stsDown)
+		_, err = p.Retrieve(t.Context())
+		require.ErrorContains(t, err, "ServiceUnavailable")
+		assert.Len(t, fake.calls(), 2)
+	})
 }
 
 func TestCredentialsConfig_CheckAssumeRole(t *testing.T) {
@@ -374,6 +434,32 @@ func isolateAWSEnv(t *testing.T) {
 		t.Setenv(k, "")
 	}
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+}
+
+// Not parallel: t.Setenv.
+func TestCredentialsConfig_CheckRegion(t *testing.T) {
+	isolateAWSEnv(t)
+
+	role := CredentialsConfig{Type: "assumerole", RoleARN: testRoleARN}
+
+	t.Run("other types need no region", func(t *testing.T) {
+		assert.NoError(t, CredentialsConfig{Type: "environment"}.CheckRegion())
+	})
+
+	t.Run("region set", func(t *testing.T) {
+		c := role
+		c.Region = "us-east-1"
+		assert.NoError(t, c.CheckRegion())
+	})
+
+	t.Run("no region anywhere", func(t *testing.T) {
+		assert.ErrorContains(t, role.CheckRegion(), "requires Region")
+	})
+
+	t.Run("region from the environment", func(t *testing.T) {
+		t.Setenv("AWS_REGION", "us-west-2")
+		assert.NoError(t, role.CheckRegion())
+	})
 }
 
 // Not parallel: t.Setenv.

@@ -243,8 +243,11 @@ func (c *cfgType) Verify() error {
 		if _, err := parseReader(v.Reader); err != nil {
 			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
 		}
-		if err := v.credentialsConfig().Validate(); err != nil {
+		cc := v.credentialsConfig()
+		if err := cc.Validate(); err != nil {
 			return err
+		} else if err = cc.CheckRegion(); err != nil {
+			return fmt.Errorf("Listener %s: %w", k, err)
 		}
 	}
 

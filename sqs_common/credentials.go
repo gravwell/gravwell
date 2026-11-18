@@ -22,6 +22,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 // Credentials-Type values.
@@ -42,9 +44,11 @@ const (
 	assumeRoleCheckTimeout = 15 * time.Second
 	// below this, credentials are not reused after a failed refresh
 	assumeRoleMinRemaining = 10 * time.Second
-	minExternalIDLen       = 2
-	maxExternalIDLen       = 1224
-	roleResourcePrefix     = "role/"
+	// how often STS is retried while reused credentials are still valid
+	assumeRoleRetryInterval = 30 * time.Second
+	minExternalIDLen        = 2
+	maxExternalIDLen        = 1224
+	roleResourcePrefix      = "role/"
 )
 
 var (
@@ -64,6 +68,9 @@ type CredentialsConfig struct {
 	SourceType  string // assumerole only, optional: environment (default), static, ec2role
 	Region      string // region for the STS call (assumerole only)
 	SessionName string // assumerole only; defaults to "gravwell-ingester"
+
+	// Logger is optional (assumerole only): it warns when a refresh fails.
+	Logger *log.Logger
 }
 
 // Validate checks the configuration without contacting AWS.
@@ -117,6 +124,23 @@ func (c CredentialsConfig) Validate() error {
 	return nil
 }
 
+// CheckRegion reports at config load what Provider would at startup:
+// assumerole needs a region for STS, from Region or the AWS environment.
+// It is separate from Validate because it reads the host's AWS environment.
+func (c CredentialsConfig) CheckRegion() error {
+	if c.Type != CredentialsTypeAssumeRole || c.Region != "" {
+		return nil
+	}
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		return fmt.Errorf("load AWS config for assumerole: %w", err)
+	}
+	if cfg.Region == "" {
+		return errors.New("Credentials-Type=assumerole requires Region (or AWS_REGION) for the STS AssumeRole call")
+	}
+	return nil
+}
+
 // Provider returns the credentials provider for c. A nil provider with a nil
 // error means the caller should use the SDK default credential chain.
 // For assumerole the STS call is deferred until credentials are first retrieved.
@@ -158,7 +182,7 @@ func (c CredentialsConfig) assumeRoleProvider(client stscreds.AssumeRoleAPIClien
 			o.ExternalID = new(c.ExternalID)
 		}
 	})
-	return aws.NewCredentialsCache(&assumeRoleRefresher{AssumeRoleProvider: p}, func(o *aws.CredentialsCacheOptions) {
+	return aws.NewCredentialsCache(&assumeRoleRefresher{AssumeRoleProvider: p, lg: c.Logger, roleARN: c.RoleARN}, func(o *aws.CredentialsCacheOptions) {
 		o.ExpiryWindow = assumeRoleExpiryWindow
 		o.ExpiryWindowJitterFrac = assumeRoleJitterFrac
 	})
@@ -167,26 +191,53 @@ func (c CredentialsConfig) assumeRoleProvider(client stscreds.AssumeRoleAPIClien
 // assumeRoleRefresher keeps the current role credentials in use when an early
 // refresh fails. Without it, the cache's expiry window turns a short STS outage
 // into failed requests while the credentials are still valid.
-// The cache serializes Retrieve and HandleFailToRefresh, so last needs no lock.
+// The cache serializes its calls into the refresher, so the fields need no lock.
 type assumeRoleRefresher struct {
 	*stscreds.AssumeRoleProvider
-	last aws.Credentials
+	last     aws.Credentials
+	fallback bool // the credentials about to be cached are a reuse of last
+	lg       *log.Logger
+	roleARN  string
 }
 
 func (p *assumeRoleRefresher) Retrieve(ctx context.Context) (aws.Credentials, error) {
 	creds, err := p.AssumeRoleProvider.Retrieve(ctx)
 	if err == nil {
 		p.last = creds
+		p.fallback = false
 	}
 	return creds, err
 }
 
 // HandleFailToRefresh implements aws.HandleFailRefreshCredentialsCacheStrategy.
 func (p *assumeRoleRefresher) HandleFailToRefresh(_ context.Context, _ aws.Credentials, err error) (aws.Credentials, error) {
-	if p.last.HasKeys() && time.Until(p.last.Expires) > assumeRoleMinRemaining {
-		return p.last, nil
+	if !p.last.HasKeys() || time.Until(p.last.Expires) <= assumeRoleMinRemaining {
+		return aws.Credentials{}, err
 	}
-	return aws.Credentials{}, err
+	fb := p.last
+	// Try STS again shortly, but stop using the credentials before they really expire.
+	fb.Expires = time.Now().Add(assumeRoleRetryInterval)
+	if limit := p.last.Expires.Add(-assumeRoleMinRemaining); limit.Before(fb.Expires) {
+		fb.Expires = limit
+	}
+	p.fallback = true
+	if p.lg != nil {
+		_ = p.lg.Warn("assume role refresh failed, reusing current credentials until they expire",
+			log.KV("role", p.roleARN), log.KV("expires", p.last.Expires), log.KVErr(err))
+	}
+	return fb, nil
+}
+
+// AdjustExpiresBy implements aws.AdjustExpiresByCredentialsCacheStrategy.
+// Fallback credentials already carry the time to retry STS, so the cache's
+// expiry window is not taken off them a second time.
+func (p *assumeRoleRefresher) AdjustExpiresBy(c aws.Credentials, d time.Duration) (aws.Credentials, error) {
+	if p.fallback {
+		p.fallback = false
+		return c, nil
+	}
+	c.Expires = c.Expires.Add(d)
+	return c, nil
 }
 
 // sourceType is the credential type used to call STS for assumerole.

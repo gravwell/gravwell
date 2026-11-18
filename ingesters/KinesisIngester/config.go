@@ -135,6 +135,9 @@ func (c cfgType) Verify() error {
 		if v == nil {
 			return fmt.Errorf("Kinesis stream %v config is nil", k)
 		}
+		if err := c.Global.credentialsConfig(v.Region).CheckRegion(); err != nil {
+			return fmt.Errorf("Kinesis stream %s: %w", k, err)
+		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("Kinesis stream %s preprocessor invalid: %v", k, err)
 		}

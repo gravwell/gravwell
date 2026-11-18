@@ -118,6 +118,7 @@ func (bc *BucketConfig) credentialsConfig() sqs_common.CredentialsConfig {
 		SourceType:  bc.Source_Credentials_Type,
 		Region:      bc.Region,
 		SessionName: roleSessionName,
+		Logger:      bc.Logger,
 	}
 }
 

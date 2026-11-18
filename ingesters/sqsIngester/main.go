@@ -137,6 +137,7 @@ func main() {
 		}
 
 		cc := v.credentialsConfig()
+		cc.Logger = lg
 		c, err := cc.Provider(ctx)
 		if err != nil {
 			lg.Fatal("obtaining credentials", log.KVErr(err))
