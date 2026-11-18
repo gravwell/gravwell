@@ -14,14 +14,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"sort"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/utils/trustedproxy"
 )
 
 const (
@@ -34,6 +37,9 @@ const (
 	defaultMaxConnections        = 1024 * 10 // about 10k connections, any modern OS should be able to handle this
 	defaultMaxConcurrentRequests = 1024 * 16 // HTTP2 means concurrent requests on a connection, 16k concurrent request is A LOT
 	defaultBufferSize            = 1024 * 1024
+
+	envTrustedProxy       = `GRAVWELL_HTTP_TRUSTED_PROXY`
+	envIgnoreUntrustedXFF = `GRAVWELL_HTTP_IGNORE_UNTRUSTED_FORWARDED_FOR`
 )
 
 type gbl struct {
@@ -45,6 +51,11 @@ type gbl struct {
 	Health_Check_URL        string
 	Max_Connections         int
 	Max_Concurrent_Requests int
+	Trusted_Proxy           []string // address or CIDR block allowed to set X-Forwarded-For, repeated for each one
+
+	// Ignore_Untrusted_Forwarded_For turns off the legacy behavior of trusting
+	// X-Forwarded-For from any peer when Trusted_Proxy is empty.
+	Ignore_Untrusted_Forwarded_For bool
 }
 
 type cfgReadType struct {
@@ -85,6 +96,8 @@ type cfgType struct {
 	OtelLogsListener map[string]*otelLogsListener
 	Preprocessor     processors.ProcessorConfig
 	TimeFormat       config.CustomTimeFormat
+
+	resolver clientResolver // built from Trusted_Proxy and Ignore_Untrusted_Forwarded_For by Verify
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -123,6 +136,28 @@ func (c *cfgType) Verify() error {
 	if err := c.ValidateTLS(); err != nil {
 		return err
 	}
+
+	if err := config.LoadEnvVar(&c.Trusted_Proxy, envTrustedProxy, nil); err != nil {
+		return fmt.Errorf("failed to load %s %w", envTrustedProxy, err)
+	}
+	if err := config.LoadEnvVar(&c.Ignore_Untrusted_Forwarded_For, envIgnoreUntrustedXFF, false); err != nil {
+		return fmt.Errorf("failed to load %s %w", envIgnoreUntrustedXFF, err)
+	}
+	entries := c.Trusted_Proxy
+	if v := os.Getenv(envTrustedProxy); len(entries) == 0 && v != `` {
+		// the env loader drops blank entries, so parse the raw value: a variable
+		// holding only separators is rejected rather than read as unset
+		entries = strings.Split(v, `,`)
+	}
+	tp, err := trustedproxy.Parse(entries)
+	if err != nil {
+		return fmt.Errorf("Trusted-Proxy is invalid: %w", err)
+	}
+	c.resolver = clientResolver{
+		trusted: tp,
+		legacy:  tp.Empty() && !c.Ignore_Untrusted_Forwarded_For,
+	}
+
 	if c.Max_Connections == 0 {
 		c.Max_Connections = defaultMaxConnections
 	}
