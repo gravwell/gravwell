@@ -157,16 +157,10 @@ type ResultsRequestStatsOperationList = []StatsOperation
 
 // ResultsRequestStatsOver only one of the properties is populated at a time.
 type ResultsRequestStatsOver struct {
-	OverWidth *ResultsRequestStatsOverWidth
-	OverCount *ResultsRequestStatsOverCount
-}
-
-type ResultsRequestStatsOverCount struct {
-	Count int
-}
-
-type ResultsRequestStatsOverWidth struct {
-	Width int
+	// Width is the size of each bin, in seconds.
+	Width Optional[int] `json:",omitzero"`
+	// Count is the number of bins.
+	Count Optional[int] `json:",omitzero"`
 }
 
 type StatsInfo struct {
@@ -663,27 +657,28 @@ func (tr *TimeRange) UnmarshalJSON(d []byte) error {
 	return nil
 }
 
-func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
-	if rr.OverCount != nil && rr.OverWidth != nil {
-		return nil, ErrResultsRequestStatsOverInvalid
+// validate checks that exactly one of Width and Count is set.
+func (rr ResultsRequestStatsOver) validate() error {
+	if rr.Width.IsSet() && rr.Count.IsSet() {
+		return ErrResultsRequestStatsOverInvalid
 	}
 
-	if rr.OverCount != nil {
-		return json.Marshal(rr.OverCount)
+	if !rr.Width.IsSet() && !rr.Count.IsSet() {
+		return ErrResultsRequestStatsOverEmpty
 	}
 
-	if rr.OverWidth != nil {
-		return json.Marshal(rr.OverWidth)
-	}
-
-	return []byte(`{}`), nil
+	return nil
 }
 
-// resultsRequestStatsOverJSON is the wire form of ResultsRequestStatsOver.
-// A nil field means the key was absent.
-type resultsRequestStatsOverJSON struct {
-	Width *int
-	Count *int
+// resultsRequestStatsOverJSON has the fields of ResultsRequestStatsOver without its JSON methods.
+type resultsRequestStatsOverJSON ResultsRequestStatsOver
+
+func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
+	if err := rr.validate(); err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(resultsRequestStatsOverJSON(*rr))
 }
 
 func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
@@ -697,22 +692,12 @@ func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
 		return err
 	}
 
-	if raw.Width != nil && raw.Count != nil {
-		return ErrResultsRequestStatsOverInvalid
+	over := ResultsRequestStatsOver(raw)
+	if err := over.validate(); err != nil {
+		return err
 	}
 
-	if raw.Width == nil && raw.Count == nil {
-		return ErrResultsRequestStatsOverEmpty
-	}
-
-	if raw.Width != nil {
-		rr.OverWidth = &ResultsRequestStatsOverWidth{Width: *raw.Width}
-	}
-
-	if raw.Count != nil {
-		rr.OverCount = &ResultsRequestStatsOverCount{Count: *raw.Count}
-	}
-
+	*rr = over
 	return nil
 }
 

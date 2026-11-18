@@ -19,8 +19,8 @@ import (
 )
 
 func TestResultsRequestStatsOverDecode(t *testing.T) {
-	width := types.ResultsRequestStatsOver{OverWidth: &types.ResultsRequestStatsOverWidth{Width: 30}}
-	count := types.ResultsRequestStatsOver{OverCount: &types.ResultsRequestStatsOverCount{Count: 12}}
+	width := types.ResultsRequestStatsOver{Width: types.NewOptional(30)}
+	count := types.ResultsRequestStatsOver{Count: types.NewOptional(12)}
 
 	tests := []struct {
 		name    string
@@ -34,6 +34,8 @@ func TestResultsRequestStatsOverDecode(t *testing.T) {
 		{name: "lowercase count", body: `{"count": 12}`, want: count},
 		{name: "Width and Count", body: `{"Width": 30, "Count": 12}`, wantErr: types.ErrResultsRequestStatsOverInvalid},
 		{name: "empty object", body: `{}`, wantErr: types.ErrResultsRequestStatsOverEmpty},
+		{name: "null Width", body: `{"Width": null}`, wantErr: types.ErrNoNullOptional},
+		{name: "null Count", body: `{"Count": null}`, wantErr: types.ErrNoNullOptional},
 		{name: "null", body: `null`},
 	}
 	for _, tt := range tests {
@@ -58,8 +60,8 @@ func TestResultsRequestDecodeStatsOver(t *testing.T) {
 	var got types.ResultsRequest
 	require.NoError(t, json.UnmarshalRead(strings.NewReader(body), &got, jsoncompat.Opts))
 	over := got.Stats.Value().Over.Value()
-	require.Equal(t, &types.ResultsRequestStatsOverWidth{Width: 30}, over.OverWidth)
-	require.Nil(t, over.OverCount)
+	require.Equal(t, types.NewOptional(30), over.Width)
+	require.False(t, over.Count.IsSet())
 }
 
 // A left-out Stats or Over is unset. Null is rejected, and so is an Over
@@ -114,15 +116,40 @@ func TestResultsRequestRoundTripNoOver(t *testing.T) {
 }
 
 func TestResultsRequestStatsOverRoundTrip(t *testing.T) {
-	for _, src := range []types.ResultsRequestStatsOver{
-		{OverWidth: &types.ResultsRequestStatsOverWidth{Width: 30}},
-		{OverCount: &types.ResultsRequestStatsOverCount{Count: 12}},
+	for _, tt := range []struct {
+		src  types.ResultsRequestStatsOver
+		wire string
+	}{
+		{src: types.ResultsRequestStatsOver{Width: types.NewOptional(30)}, wire: `{"Width":30}`},
+		{src: types.ResultsRequestStatsOver{Count: types.NewOptional(12)}, wire: `{"Count":12}`},
 	} {
-		enc, err := json.Marshal(&src)
+		enc, err := json.Marshal(&tt.src)
 		require.NoError(t, err)
+		require.Equal(t, tt.wire, string(enc))
 
 		var got types.ResultsRequestStatsOver
 		require.NoError(t, json.Unmarshal(enc, &got), "decoding %s", enc)
-		require.Equal(t, src, got)
+		require.Equal(t, tt.src, got)
 	}
+}
+
+// The encoder refuses the shapes the decoder refuses.
+func TestResultsRequestStatsOverEncodeInvalid(t *testing.T) {
+	_, err := json.Marshal(&types.ResultsRequestStatsOver{})
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOverEmpty)
+
+	_, err = json.Marshal(&types.ResultsRequestStatsOver{
+		Width: types.NewOptional(30),
+		Count: types.NewOptional(12),
+	})
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOverInvalid)
+
+	_, err = json.Marshal(types.ResultsRequest{
+		SID: "s",
+		Stats: types.NewOptional(types.ResultsRequestStats{
+			Operations: []types.StatsOperation{{Operation: "count"}},
+			Over:       types.NewOptional(types.ResultsRequestStatsOver{}),
+		}),
+	}, jsoncompat.Opts)
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOverEmpty)
 }
