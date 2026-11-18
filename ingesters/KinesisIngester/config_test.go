@@ -15,80 +15,120 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConfig_Verify_Credentials(t *testing.T) {
+func TestConfig_VerifyCredentials(t *testing.T) {
 	t.Parallel()
 
-	newCfg := func(g global) cfgType {
-		g.IngestConfig = config.IngestConfig{
-			Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-			Ingest_Secret:            "secret",
-		}
-		return cfgType{
-			Global: g,
-			KinesisStream: map[string]*streamDef{
-				"stream1": {Stream_Name: "test", Region: "us-east-1", Tag_Name: "kinesis"},
-			},
-		}
+	tests := []struct {
+		name    string
+		credTyp string
+		akid    string
+		secret  string
+		wantErr bool
+	}{
+		{name: "static", credTyp: "static", akid: "akid", secret: "secret"},
+		{name: "empty type is static", akid: "akid", secret: "secret"},
+		{name: "environment", credTyp: "environment"},
+		{name: "ec2role", credTyp: "ec2role"},
+		{name: "invalid type", credTyp: "ec2-role", wantErr: true},
+		{name: "empty type without keys", wantErr: true},
+		{name: "static without ID", credTyp: "static", secret: "secret", wantErr: true},
+		{name: "static without secret", credTyp: "static", akid: "akid", wantErr: true},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			conf := cfgType{
+				Global: global{
+					IngestConfig: config.IngestConfig{
+						Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+						Ingest_Secret:            "secret",
+					},
+					Credentials_Type:      tt.credTyp,
+					AWS_Access_Key_ID:     tt.akid,
+					AWS_Secret_Access_Key: tt.secret,
+				},
+				KinesisStream: map[string]*streamDef{
+					"stream1": {Stream_Name: "stream", Tag_Name: "kinesis", Region: "us-west-1"},
+				},
+			}
+			err := conf.Verify()
+			if tt.wantErr {
+				assert.ErrorContains(t, err, "Global credentials invalid")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConfig_VerifyAssumeRole(t *testing.T) {
+	t.Parallel()
+
+	const roleARN = "arn:aws:iam::123456789012:role/gravwell-ingest"
 
 	tests := []struct {
 		name    string
 		global  global
-		wantErr bool
+		wantErr string // empty means no error; otherwise a substring of the error
 	}{
 		{
-			name:    "static",
-			global:  global{Credentials_Type: "static", AWS_Access_Key_ID: "id", AWS_Secret_Access_Key: "secret"},
-			wantErr: false,
+			name:   "assumerole",
+			global: global{Credentials_Type: "assumerole", Role_ARN: roleARN, External_ID: "some-id"},
 		},
 		{
-			name:    "environment",
-			global:  global{Credentials_Type: "environment"},
-			wantErr: false,
-		},
-		{
-			name:    "static missing secret",
-			global:  global{Credentials_Type: "static", AWS_Access_Key_ID: "id"},
-			wantErr: true,
-		},
-		{
-			name:    "invalid type",
-			global:  global{Credentials_Type: "foobar"},
-			wantErr: true,
-		},
-		{
-			name: "assumerole",
+			name: "assumerole with static source",
 			global: global{
-				Credentials_Type: "assumerole",
-				Role_ARN:         "arn:aws:iam::123456789012:role/gravwell-ingest",
-				External_ID:      "some-id",
+				Credentials_Type:        "assumerole",
+				Role_ARN:                roleARN,
+				Source_Credentials_Type: "static",
+				AWS_Access_Key_ID:       "akid",
+				AWS_Secret_Access_Key:   "secret",
 			},
-			wantErr: false,
-		},
-		{
-			name: "Role-ARN without assumerole",
-			global: global{
-				Credentials_Type: "environment",
-				Role_ARN:         "arn:aws:iam::123456789012:role/gravwell-ingest",
-			},
-			wantErr: true,
 		},
 		{
 			name:    "assumerole missing Role-ARN",
 			global:  global{Credentials_Type: "assumerole"},
-			wantErr: true,
+			wantErr: "requires Role-ARN",
+		},
+		{
+			name: "assumerole with keys but no static source",
+			global: global{
+				Credentials_Type:      "assumerole",
+				Role_ARN:              roleARN,
+				AWS_Access_Key_ID:     "akid",
+				AWS_Secret_Access_Key: "secret",
+			},
+			wantErr: "access keys are set but not used",
+		},
+		{
+			name:    "Role-ARN without assumerole",
+			global:  global{Credentials_Type: "environment", Role_ARN: roleARN},
+			wantErr: "Role-ARN requires Credentials-Type=assumerole",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := newCfg(tt.global).Verify()
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
+			g := tt.global
+			g.IngestConfig = config.IngestConfig{
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
 			}
+			conf := cfgType{
+				Global: g,
+				KinesisStream: map[string]*streamDef{
+					"stream1": {Stream_Name: "stream", Tag_Name: "kinesis", Region: "us-west-1"},
+				},
+			}
+			err := conf.Verify()
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, "Global credentials invalid")
+			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }

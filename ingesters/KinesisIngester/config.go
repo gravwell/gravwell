@@ -120,15 +120,15 @@ func (c cfgType) Verify() error {
 	if connCount == 0 {
 		return errors.New("No backend targets specified")
 	}
+	if err := c.Global.credentialsConfig("").Validate(); err != nil {
+		return fmt.Errorf("Global credentials invalid (Credentials-Type, AWS-Access-Key-ID, AWS-Secret-Access-Key): %w", err)
+	}
 	if len(c.KinesisStream) == 0 {
 		return errors.New("At least one Kinesis stream required.")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
 	} else if err = c.TimeFormat.Validate(); err != nil {
-		return err
-	}
-	if err := c.Global.credentialsConfig("").Validate(); err != nil {
 		return err
 	}
 	for k, v := range c.KinesisStream {

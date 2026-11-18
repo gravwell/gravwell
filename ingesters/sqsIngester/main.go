@@ -199,14 +199,15 @@ func debugout(format string, args ...any) {
 func queueRunner(ctx context.Context, hcfg *handlerConfig) {
 	defer hcfg.wg.Done()
 
-	c := make(chan []types.Message)
+	// buffered so a receive still in flight at shutdown can send and exit
+	c := make(chan []types.Message, 1)
 	for {
 		var out []types.Message
 		go func() {
+			// exactly one send per receive; o is nil on error
 			o, err := hcfg.SQS.GetMessages(ctx)
 			if err != nil {
 				lg.Error("sqs receive message error", log.KV("listener", hcfg.Name), log.KVErr(err))
-				c <- nil
 			}
 			c <- o
 		}()
