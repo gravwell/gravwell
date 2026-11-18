@@ -9,35 +9,31 @@
 package n8n
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/ingest"
 )
 
 const (
-	Name    = "n8n"
-	ID      = "n8n.ingesters.gravwell.io"
-	Version = "1.0.0"
-	// stateIdentityCompatibility preserves the state keys emitted by version
-	// 1.0.0 without coupling future plugin release versions to checkpoint
-	// identity. The snapshot-vN path component remains the explicit format
-	// migration control.
-	stateIdentityCompatibility = "1.0.0"
-
-	defaultIngesterUUID    = "291e5806-07f4-4533-a979-3296263389bf"
-	defaultRequestsPerMin  = 30
-	defaultInterval        = 300
-	defaultPageSize        = 100
-	defaultMaxPages        = 1000
-	maximumPageSize        = 250
-	maximumMaxPages        = 100000
-	maximumRequestInterval = 9_223_372_036 // largest whole-second delay representable by time.Duration
+	defaultIngesterUUIDStr   = "291e5806-07f4-4533-a979-3296263389bf"
+	defaultRequestsPerMin    = 30
+	defaultInterval          = 300
+	defaultPageSize          = 100
+	defaultMaxPages          = 1000
+	maximumPageSize          = 250
+	maximumMaxPages          = 100000
+	maximumLookbackHours     = 2_562_047     // largest whole-hour delay representable by time.Duration
+	maximumRequestInterval   = 9_223_372_036 // largest whole-second delay representable by time.Duration
+	maximumRequestsPerMinute = 10000         // highest accepted client-side request rate
+	minimumRequestInterval   = 60            // shortest accepted delay between polls, in seconds
 )
 
 type Config struct {
@@ -45,13 +41,14 @@ type Config struct {
 	hosted.MultiTagConfig
 	hosted.PollingConfig
 
-	Dataset         []string
-	Base_URL        string
-	Credential      string `json:"-"`
-	Credential_File string `json:"-"`
-	Page_Size       int
-	Max_Pages       int
-	Allow_Plaintext bool
+	Dataset                []string
+	Base_URL               string
+	Credential             string `json:"-"`
+	Credential_File        string `json:"-"`
+	Page_Size              int
+	Max_Pages              int
+	Allow_Plaintext        bool
+	Include_Execution_Data bool
 
 	definitions []datasetDefinition
 }
@@ -62,19 +59,19 @@ func (c *Config) Verify() error {
 	if c == nil {
 		return errors.New("nil n8n configuration")
 	}
-	c.ApplyDefaultIngesterUUID(defaultIngesterUUID)
+	c.ApplyDefaultIngesterUUID(defaultIngesterUUIDStr)
 	if err := c.BaseConfig.Verify(); err != nil {
 		return err
 	}
-	if c.Lookback != 0 {
-		return errors.New("Lookback is not supported because n8n collection uses complete API snapshots")
+	if c.Lookback < 0 || c.Lookback > maximumLookbackHours {
+		return fmt.Errorf("Lookback must be between 0 and %d hours", maximumLookbackHours)
 	}
 	c.PollingConfig.ApplyDefaults(0, defaultRequestsPerMin, defaultInterval)
-	if c.Requests_Per_Minute < 1 || c.Requests_Per_Minute > 10000 {
-		return errors.New("Requests-Per-Minute must be between 1 and 10000")
+	if c.Requests_Per_Minute < 1 || c.Requests_Per_Minute > maximumRequestsPerMinute {
+		return fmt.Errorf("Requests-Per-Minute must be between 1 and %d", maximumRequestsPerMinute)
 	}
-	if c.Request_Interval < 60 || int64(c.Request_Interval) > maximumRequestInterval {
-		return fmt.Errorf("Request-Interval must be between 60 and %d seconds", maximumRequestInterval)
+	if c.Request_Interval < minimumRequestInterval || int64(c.Request_Interval) > maximumRequestInterval {
+		return fmt.Errorf("Request-Interval must be between %d and %d seconds", minimumRequestInterval, maximumRequestInterval)
 	}
 	if c.Page_Size == 0 {
 		c.Page_Size = defaultPageSize
@@ -88,10 +85,19 @@ func (c *Config) Verify() error {
 	if c.Max_Pages < 1 || c.Max_Pages > maximumMaxPages {
 		return fmt.Errorf("Max-Pages must be between 1 and %d", maximumMaxPages)
 	}
-
 	definitions, err := resolveDatasets(c.Dataset)
 	if err != nil {
 		return err
+	}
+	hasExecutions := false
+	for _, definition := range definitions {
+		hasExecutions = hasExecutions || definition.Name == "executions"
+	}
+	if c.Include_Execution_Data && !hasExecutions {
+		return errors.New("Include-Execution-Data requires Dataset=executions")
+	}
+	if c.Lookback != 0 && !c.Include_Execution_Data {
+		return errors.New("Lookback is supported only when Include-Execution-Data=true")
 	}
 	if c.Tag_Name != "" && len(definitions) != 1 {
 		return errors.New("Tag-Name requires exactly one Dataset")
@@ -101,7 +107,7 @@ func (c *Config) Verify() error {
 	}
 
 	base, err := url.Parse(strings.TrimSpace(c.Base_URL))
-	if err != nil || base.Scheme == "" || base.Host == "" {
+	if err != nil || base.Scheme == "" || base.Hostname() == "" {
 		return errors.New("Base-URL must be an absolute URL")
 	}
 	if base.Scheme != "https" && !(c.Allow_Plaintext && base.Scheme == "http") {
@@ -147,6 +153,7 @@ func (c *Config) Equal(other any) bool {
 		c.Page_Size == nc.Page_Size &&
 		c.Max_Pages == nc.Max_Pages &&
 		c.Allow_Plaintext == nc.Allow_Plaintext &&
+		c.Include_Execution_Data == nc.Include_Execution_Data &&
 		slices.Equal(c.Dataset, nc.Dataset)
 }
 
@@ -155,21 +162,24 @@ func (c *Config) SanitizedConfig() any {
 		return nil
 	}
 	return struct {
-		Dataset           []string
-		BaseURL           string
-		PageSize          int
-		MaxPages          int
-		TagName           string
-		TagPrefix         string
-		RequestsPerMinute int
-		RequestInterval   int
-		AllowPlaintext    bool
+		Dataset              []string
+		BaseURL              string
+		PageSize             int
+		MaxPages             int
+		TagName              string
+		TagPrefix            string
+		RequestsPerMinute    int
+		RequestInterval      int
+		Lookback             int
+		AllowPlaintext       bool
+		IncludeExecutionData bool
 	}{
 		Dataset: c.resolvedDatasetNames(), BaseURL: c.Base_URL,
 		PageSize: c.Page_Size, MaxPages: c.Max_Pages,
 		TagName: c.Tag_Name, TagPrefix: c.Tag_Prefix,
 		RequestsPerMinute: c.Requests_Per_Minute, RequestInterval: c.Request_Interval,
-		AllowPlaintext: c.Allow_Plaintext,
+		Lookback:       c.Lookback,
+		AllowPlaintext: c.Allow_Plaintext, IncludeExecutionData: c.Include_Execution_Data,
 	}
 }
 
@@ -212,19 +222,93 @@ func (c *Config) Tags() []string {
 }
 
 func (c *Config) stateKey(definition datasetDefinition) string {
-	identity := strings.Join([]string{stateIdentityCompatibility, c.Base_URL, definition.Name, c.tag(definition)}, "\x00")
-	// Typed scalar identities must not interpret manifests from the earlier
-	// untyped identity or aggregate-digest namespaces. Starting this namespace
-	// intentionally replays one snapshot, then normal per-record dedup resumes.
-	return fmt.Sprintf("n8n/%s/snapshot-v6/%x", definition.Name, sha256.Sum256([]byte(identity)))
+	// The runner's state bucket already scopes data to this plugin stanza and
+	// Ingester UUID. Keeping mutable source and tag settings out of the key lets
+	// a verified reload continue the same checkpoint. Operators who intentionally
+	// change source identity use a new Ingester UUID, which selects a new bucket.
+	return fmt.Sprintf("n8n/%s/snapshot-v1", definition.Name)
 }
 
 func (c *Config) credential() (string, error) {
-	if strings.TrimSpace(c.Credential_File) != "" {
+	inline, file := strings.TrimSpace(c.Credential), strings.TrimSpace(c.Credential_File)
+	if (inline != "") == (file != "") {
+		return "", errors.New("exactly one of Credential or Credential-File is required")
+	}
+	if file != "" {
 		return readCredentialFile(c.Credential_File)
 	}
-	if c.Credential == "" {
-		return "", errors.New("Credential or Credential-File is required")
+	return inline, nil
+}
+
+const maximumCredentialFileSize = 64 << 10
+
+// The pre-open Lstat is not an atomic guarantee: an attacker able to replace
+// the configured path could swap in a FIFO or symlink before open. Nonblocking,
+// no-follow open lets the authoritative descriptor checks below fail closed
+// without pinning the polling goroutine or following the replacement.
+func openCredentialFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
+}
+
+func readCredentialFile(path string) (string, error) {
+	return readCredentialFileWithOpen(path, openCredentialFile)
+}
+
+func readCredentialFileWithOpen(path string, openFile func(string) (*os.File, error)) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", errors.New("Credential-File is required")
 	}
-	return c.Credential, nil
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", fmt.Errorf("Credential-File: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return "", errors.New("Credential-File must be a regular file and not a symbolic link")
+	}
+	f, err := openFile(path)
+	if err != nil {
+		return "", fmt.Errorf("Credential-File: %w", err)
+	}
+	defer f.Close()
+
+	openedInfo, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("Credential-File: %w", err)
+	}
+	if !os.SameFile(info, openedInfo) {
+		return "", errors.New("Credential-File changed during validation")
+	}
+	if !openedInfo.Mode().IsRegular() {
+		return "", errors.New("Credential-File must be a regular file and not a symbolic link")
+	}
+	if openedInfo.Size() < 1 || openedInfo.Size() > maximumCredentialFileSize {
+		return "", fmt.Errorf("Credential-File must be between 1 byte and %d bytes", maximumCredentialFileSize)
+	}
+	if openedInfo.Mode().Perm()&0o077 != 0 {
+		return "", errors.New("Credential-File must not be accessible by group or other users")
+	}
+	body, err := readCredentialContents(f, openedInfo.Size())
+	if err != nil {
+		return "", fmt.Errorf("Credential-File: %w", err)
+	}
+	value := strings.TrimSpace(string(body))
+	if value == "" {
+		return "", errors.New("Credential-File is empty")
+	}
+	return value, nil
+}
+
+func readCredentialContents(r io.Reader, expectedSize int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, maximumCredentialFileSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) < 1 || len(body) > maximumCredentialFileSize {
+		return nil, fmt.Errorf("Credential-File must be between 1 byte and %d bytes", maximumCredentialFileSize)
+	}
+	if int64(len(body)) != expectedSize {
+		return nil, errors.New("Credential-File changed during read")
+	}
+	return body, nil
 }
