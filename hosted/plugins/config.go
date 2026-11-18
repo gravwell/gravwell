@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"sort"
 	"uuid"
 
 	"github.com/gravwell/gravwell/v4/hosted"
@@ -21,6 +22,7 @@ import (
 	// include all the native hosted ingesters
 	"github.com/gravwell/gravwell/v4/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/mqtt"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/sqs"
@@ -36,6 +38,7 @@ type Configs struct {
 	Jamf     map[string]*jamf.Config
 	Wiz      map[string]*wiz.Config
 	SQS      map[string]*sqs.Config
+	MQTT     map[string]*mqtt.Config
 }
 
 // Verify ensures that the plugin configs are valid
@@ -110,7 +113,42 @@ func (c Configs) Verify() (err error) {
 			return
 		}
 	}
+	for k, v := range c.MQTT {
+		if v == nil {
+			err = fmt.Errorf("MQTT config %q is nil", k)
+			return
+		}
+		if err = v.Verify(); err != nil {
+			err = fmt.Errorf("MQTT config %q failed validation: %w", k, err)
+			return
+		}
+	}
+	if err = c.checkMQTTClientIDs(); err != nil {
+		return
+	}
 	return
+}
+
+// checkMQTTClientIDs rejects MQTT subscriptions that would present the same
+// client ID to a broker.  A broker evicts the existing session when a second
+// client connects with the same ID, so a collision puts the two subscriptions
+// in a permanent loop of kicking each other off.  This cannot live in the
+// plugin's own Verify, which only ever sees one instance.
+func (c Configs) checkMQTTClientIDs() error {
+	seen := make(map[string]string, len(c.MQTT))
+	names := make([]string, 0, len(c.MQTT))
+	for name := range c.MQTT {
+		names = append(names, name)
+	}
+	sort.Strings(names) // deterministic error messages
+	for _, name := range names {
+		id := c.MQTT[name].ClientID(name)
+		if prev, ok := seen[id]; ok {
+			return fmt.Errorf("MQTT configs %q and %q both resolve to Client-ID %q, set a distinct Client-ID on one of them", prev, name, id)
+		}
+		seen[id] = name
+	}
+	return nil
 }
 
 // Tags implements the required interface for base.cfgHelper which is used during startup
@@ -134,6 +172,9 @@ func (c Configs) Tags() (tags []string, err error) {
 		tags = append(tags, v.Tags()...)
 	}
 	for _, v := range c.SQS {
+		tags = append(tags, v.Tags()...)
+	}
+	for _, v := range c.MQTT {
 		tags = append(tags, v.Tags()...)
 	}
 	return
@@ -203,6 +244,11 @@ func (c Configs) Builders() iter.Seq2[string, IngesterBuilder] {
 		}
 		for name, config := range c.SQS {
 			if !yield(name, NewSQSBuilder(config, sqs.Name, sqs.ID, sqs.Version)) {
+				return
+			}
+		}
+		for name, config := range c.MQTT {
+			if !yield(name, NewMQTTBuilder(config, name, mqtt.Name, mqtt.ID, mqtt.Version)) {
 				return
 			}
 		}

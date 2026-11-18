@@ -19,6 +19,7 @@ func TestPluginSecretsAreTyped(t *testing.T) {
 		`Mimecast`: {`Client-Id`, `Client-Secret`},
 		`MSGraph`:  {`Client-Secret`},
 		`SQS`:      {`Secret`},
+		`MQTT`:     {`Password`},
 		`Wiz`:      {`Client-Id`, `Client-Secret`},
 		`Tester`:   nil,
 	}
@@ -76,6 +77,7 @@ func TestPluginRequiredMatchesVerify(t *testing.T) {
 		`Mimecast`: {`Client-Id`, `Client-Secret`},
 		`MSGraph`:  {`Tenant-ID`, `Client-ID`, `Client-Secret`, `Content-Type`},
 		`SQS`:      {`Queue-URL`, `Region`},
+		`MQTT`:     {`Broker`, `Topic`},
 		`Wiz`:      {`Client-Id`, `Client-Secret`, `Endpoint`, `Tag-Name`},
 		`Tester`:   nil, // everything it takes has a default
 	}

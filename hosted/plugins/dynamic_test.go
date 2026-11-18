@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/mqtt"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/sqs"
@@ -111,6 +112,17 @@ func cases() []pluginCase {
 			},
 			extract: func(t any, n string) (any, bool) {
 				v, ok := t.(*struct{ Wiz map[string]*wiz.Config }).Wiz[n]
+				return v, ok
+			},
+		},
+		{
+			kind: `MQTT`, example: `mqtt/example.conf`, secrets: []string{`Password`},
+			get: func(c Configs) (string, any, bool) { return first(c.MQTT) },
+			fresh: func() any {
+				return &struct{ MQTT map[string]*mqtt.Config }{}
+			},
+			extract: func(t any, n string) (any, bool) {
+				v, ok := t.(*struct{ MQTT map[string]*mqtt.Config }).MQTT[n]
 				return v, ok
 			},
 		},
