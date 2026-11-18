@@ -25,6 +25,7 @@ const (
 	maxMaxRetries      = 10
 	defaultMaxRetries  = 3
 	defaultMaxLineSize = 4 * 1024 * 1024
+	roleSessionName    = "gravwell-s3"
 )
 
 type AuthConfig struct {
@@ -100,6 +101,24 @@ type BucketConfig struct {
 	Secret           string `json:"-"` //do not ship this as part of a config report
 	Credentials_Type string
 	AttachMetadata   bool
+
+	// Credentials-Type=assumerole only
+	Role_ARN                string
+	External_ID             string `json:"-"` //do not ship this as part of a config report
+	Source_Credentials_Type string
+}
+
+func (bc *BucketConfig) credentialsConfig() sqs_common.CredentialsConfig {
+	return sqs_common.CredentialsConfig{
+		Type:        bc.Credentials_Type,
+		ID:          bc.ID,
+		Secret:      bc.Secret,
+		RoleARN:     bc.Role_ARN,
+		ExternalID:  bc.External_ID,
+		SourceType:  bc.Source_Credentials_Type,
+		Region:      bc.Region,
+		SessionName: roleSessionName,
+	}
 }
 
 type BucketReader struct {
@@ -109,6 +128,12 @@ type BucketReader struct {
 	filter       *matcher
 	src          net.IP
 	rdr          reader
+	creds        aws.CredentialsProvider
+}
+
+// checkCredentials reports an assumerole misconfiguration; it does nothing for other credential types.
+func (br *BucketReader) checkCredentials(ctx context.Context) error {
+	return br.credentialsConfig().CheckAssumeRole(ctx, br.creds)
 }
 
 func NewBucketReader(ctx context.Context, cfg BucketConfig) (br *BucketReader, err error) {
@@ -123,7 +148,7 @@ func NewBucketReader(ctx context.Context, cfg BucketConfig) (br *BucketReader, e
 	if rdr, err = parseReader(cfg.Reader); err != nil {
 		return
 	}
-	c, err := sqs_common.GetCredentials(cfg.Credentials_Type, cfg.ID, cfg.Secret)
+	c, err := cfg.credentialsConfig().Provider(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -139,6 +164,7 @@ func NewBucketReader(ctx context.Context, cfg BucketConfig) (br *BucketReader, e
 		filter:       filter,
 		src:          cfg.srcOverride(),
 		rdr:          rdr,
+		creds:        c,
 		//TODO FIXME prefixFilter: resolvePrefixFilter(cfg.FileFilters),
 	}
 	return

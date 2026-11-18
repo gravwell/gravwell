@@ -44,6 +44,11 @@ type bucket struct {
 	ID               string `json:"-"` // DO NOT send this when marshalling
 	Secret           string `json:"-"` // DO NOT send this when marshalling
 	Attach_Metadata  bool
+
+	// Credentials-Type=assumerole only; omitempty keeps the reported config unchanged when unused
+	Role_ARN                string `json:",omitempty"`
+	External_ID             string `json:"-"` // DO NOT send this when marshalling
+	Source_Credentials_Type string `json:",omitempty"`
 }
 
 type sqsS3 struct {
@@ -61,6 +66,37 @@ type sqsS3 struct {
 	Max_Line_Size    int
 	Source_Override  string
 	Attach_Metadata  bool
+
+	// Credentials-Type=assumerole only; omitempty keeps the reported config unchanged when unused
+	Role_ARN                string `json:",omitempty"`
+	External_ID             string `json:"-"` // DO NOT send this when marshalling
+	Source_Credentials_Type string `json:",omitempty"`
+}
+
+func (b *bucket) credentialsConfig() sqs_common.CredentialsConfig {
+	return sqs_common.CredentialsConfig{
+		Type:        b.Credentials_Type,
+		ID:          b.ID,
+		Secret:      b.Secret,
+		RoleARN:     b.Role_ARN,
+		ExternalID:  b.External_ID,
+		SourceType:  b.Source_Credentials_Type,
+		Region:      b.Region,
+		SessionName: roleSessionName,
+	}
+}
+
+func (s *sqsS3) credentialsConfig() sqs_common.CredentialsConfig {
+	return sqs_common.CredentialsConfig{
+		Type:        s.Credentials_Type,
+		ID:          s.ID,
+		Secret:      s.Secret,
+		RoleARN:     s.Role_ARN,
+		ExternalID:  s.External_ID,
+		SourceType:  s.Source_Credentials_Type,
+		Region:      s.Region,
+		SessionName: roleSessionName,
+	}
 }
 
 type global struct {
@@ -174,7 +210,7 @@ func (c *cfgType) Verify() error {
 		if _, err := parseReader(v.Reader); err != nil {
 			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
 		}
-		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.ID, v.Secret); err != nil {
+		if err := v.credentialsConfig().Validate(); err != nil {
 			return err
 		}
 	}
@@ -207,7 +243,7 @@ func (c *cfgType) Verify() error {
 		if _, err := parseReader(v.Reader); err != nil {
 			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
 		}
-		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.ID, v.Secret); err != nil {
+		if err := v.credentialsConfig().Validate(); err != nil {
 			return err
 		}
 	}

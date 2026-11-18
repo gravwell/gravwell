@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
@@ -92,16 +93,31 @@ func main() {
 	stateMan.Start()
 	defer stateMan.Close()
 
-	c, err := sqs_common.GetCredentials(cfg.Global.Credentials_Type, cfg.Global.AWS_Access_Key_ID, cfg.Global.AWS_Secret_Access_Key)
-	if err != nil {
-		lg.Fatal("obtaining credentials", log.KVErr(err))
-	}
-
 	dieChan := make(chan bool)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Without assumerole the provider is region independent and shared by all
+	// streams; assumerole needs one per STS region, which is the stream's region.
+	providers := make(map[string]aws.CredentialsProvider)
+
 	for _, stream := range cfg.KinesisStream {
+		cc := cfg.Global.credentialsConfig(stream.Region)
+		var key string
+		if cc.Type == sqs_common.CredentialsTypeAssumeRole {
+			key = stream.Region
+		}
+		c, ok := providers[key]
+		if !ok {
+			if c, err = cc.Provider(ctx); err != nil {
+				lg.Fatal("obtaining credentials", log.KV("stream", stream.Stream_Name), log.KVErr(err))
+			}
+			providers[key] = c
+			if err := cc.CheckAssumeRole(ctx, c); err != nil {
+				lg.Error("credentials check failed", log.KV("stream", stream.Stream_Name), log.KVErr(err))
+			}
+		}
+
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
 			lg.Fatal("failed to resolve tag", log.KV("tag", stream.Tag_Name), log.KV("stream", stream.Stream_Name), log.KVErr(err))

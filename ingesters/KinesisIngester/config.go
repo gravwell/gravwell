@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 )
 
 const (
@@ -33,6 +34,26 @@ type global struct {
 	Credentials_Type      string
 	AWS_Access_Key_ID     string `json:"-"` // DO NOT send this when marshalling
 	AWS_Secret_Access_Key string `json:"-"` // DO NOT send this when marshalling
+
+	// Credentials-Type=assumerole only; omitempty keeps the reported config unchanged when unused
+	Role_ARN                string `json:",omitempty"`
+	External_ID             string `json:"-"` // DO NOT send this when marshalling
+	Source_Credentials_Type string `json:",omitempty"`
+}
+
+// credentialsConfig returns the credentials for a stream in region; with
+// assumerole the region is used for the STS call.
+func (g *global) credentialsConfig(region string) sqs_common.CredentialsConfig {
+	return sqs_common.CredentialsConfig{
+		Type:        g.Credentials_Type,
+		ID:          g.AWS_Access_Key_ID,
+		Secret:      g.AWS_Secret_Access_Key,
+		RoleARN:     g.Role_ARN,
+		ExternalID:  g.External_ID,
+		SourceType:  g.Source_Credentials_Type,
+		Region:      region,
+		SessionName: "gravwell-kinesis",
+	}
 }
 
 type streamDef struct {
@@ -105,6 +126,9 @@ func (c cfgType) Verify() error {
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
 	} else if err = c.TimeFormat.Validate(); err != nil {
+		return err
+	}
+	if err := c.Global.credentialsConfig("").Validate(); err != nil {
 		return err
 	}
 	for k, v := range c.KinesisStream {

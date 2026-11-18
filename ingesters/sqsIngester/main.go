@@ -136,9 +136,13 @@ func main() {
 			ctx:              ctx,
 		}
 
-		c, err := sqs_common.GetCredentials(v.Credentials_Type, v.AKID, v.Secret)
+		cc := v.credentialsConfig()
+		c, err := cc.Provider(ctx)
 		if err != nil {
 			lg.Fatal("obtaining credentials", log.KVErr(err))
+		}
+		if err := cc.CheckAssumeRole(ctx, c); err != nil {
+			lg.Error("credentials check failed", log.KV("listener", k), log.KVErr(err))
 		}
 
 		s, err := sqs_common.SQSListener(&sqs_common.Config{
