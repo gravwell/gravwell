@@ -102,6 +102,7 @@ section "Performing a test build and check with config"
 /bin/bash ./ingesters/test/build.sh ./ingesters/O365Ingester ingesters/test/configs/o365_ingest.conf
 /bin/bash ./ingesters/test/build.sh ./ingesters/PacketFleet ingesters/test/configs/packet_fleet.conf
 /bin/bash ./ingesters/test/build.sh ./ingesters/llm_ingester ingesters/test/configs/llm_ingester.conf
+/bin/bash ./ingesters/test/build.sh ./ingesters/mqttIngester ingesters/test/configs/mqtt.conf
 CGO_ENABLED=1 /bin/bash ./ingesters/test/build.sh ./ingesters/networkLog ingesters/test/configs/network_capture.conf
 
 echo "${GREEN}All checks passed${RESET}"
