@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +34,7 @@ import (
 const (
 	Name    string = `okta`
 	ID      string = `okta.ingesters.gravwell.io`
-	Version string = `1.0.0` // must be canonical version string with only major.minor.point
+	Version string = `1.1.0` // must be canonical version string with only major.minor.point
 
 	httpBackoff = 10 * time.Second
 	httpTimeout = 5 * time.Second
@@ -74,6 +75,8 @@ type OktaIngester struct {
 	systemTag      entry.EntryTag
 	userTag        entry.EntryTag
 	c              doer
+	baseURL        string
+	oauthState     // OAuth 2.0 service app state, see oauth.go
 }
 
 func NewOktaIngester(c Config, tn hosted.TagNegotiator) (o *OktaIngester, err error) {
@@ -81,7 +84,16 @@ func NewOktaIngester(c Config, tn hosted.TagNegotiator) (o *OktaIngester, err er
 		return
 	}
 	o = &OktaIngester{
-		cfg: c,
+		cfg:     c,
+		baseURL: `https://` + c.Domain,
+	}
+	if c.useOAuth() {
+		// the org URL is the audience of the client assertion, keep it in Okta's canonical lower case
+		o.baseURL = strings.ToLower(o.baseURL)
+		if err = o.loadPrivateKey(); err != nil {
+			o = nil
+			return
+		}
 	}
 	if o.systemTag, err = tn.NegotiateTag(oktaTag); err != nil {
 		o = nil
@@ -120,7 +132,11 @@ func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 	}
 
 	// create a share http client to avoid passing a rate limiter around, and allow connection/resource reuse.
-	o.c = utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
+	if o.cfg.useOAuth() {
+		o.c = o.newOAuthDoer(ctx, rl, rt)
+	} else {
+		o.c = utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
+	}
 
 	wg := &sync.WaitGroup{}
 	wg.Go(func() {
@@ -155,7 +171,7 @@ func (o *OktaIngester) userLogRoutine(ctx context.Context, rt hosted.Runtime) {
 				continue //skip this, not sure how this could happen, but skip it
 			}
 			//just look for changes over the last boundary
-			rt.Debug("requesting users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
+			rt.Debug("requesting users", log.KV("start", start.UTC().Format(timeFormat)), log.KV("end", end.UTC().Format(timeFormat)))
 			if err := o.getUserLogs(ctx, start, end, rt); err != nil {
 				rt.Error("failed to get users", log.KV("error", err))
 			} else {
@@ -180,10 +196,16 @@ func (o *OktaIngester) systemLogRoutine(ctx context.Context, rt hosted.Runtime) 
 	}
 }
 
-func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) error {
+func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) (err error) {
+	// flag failures on the ingester status, a clean page clears it
+	defer func() {
+		if err != nil && ctx.Err() == nil {
+			rt.SetError(err)
+		}
+	}()
 	var req *http.Request
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, o.baseURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to build request %w", err)
 	}
@@ -194,14 +216,14 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) err
 		req.URL.Path = systemLogsPath
 		values := req.URL.Query()
 		values.Add(`sortOrder`, `ASCENDING`)
-		values.Add(`since`, o.latestTS.Format(timeFormat))
+		values.Add(`since`, o.latestTS.UTC().Format(timeFormat))
 		values.Add(`limit`, strconv.Itoa(o.cfg.Request_Batch_Size))
 		req.URL.RawQuery = values.Encode()
 	}
 
 	req.Header.Set(`Accept`, `application/json`)
 	req.Header.Set(`Content-Type`, `application/json`)
-	req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
+	o.setAuth(req)
 
 	var quit bool
 	for !quit && ctx.Err() == nil {
@@ -214,8 +236,9 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) err
 		if err != nil {
 			return err
 		} else if resp.StatusCode != 200 {
+			err = o.statusError(resp)
 			utils.DrainResponse(resp)
-			return fmt.Errorf("invalid status code %d", resp.StatusCode)
+			return err
 		}
 
 		cnt, ts, err := o.handleSystemLogs(resp.Body, rt)
@@ -247,6 +270,7 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) err
 			// failing to sync the state is not fatal, keep eating, we might recover later
 			rt.Error("failed to sync state", log.KV("error", err))
 		}
+		rt.ClearError()
 
 		if cnt == 0 {
 			quit = rt.Sleep(emptySleepDur)
@@ -350,13 +374,14 @@ func lastUpdatedFilter(start, end time.Time) (r string) {
 	}
 	if !start.IsZero() && !end.IsZero() {
 		//both
-		r = fmt.Sprintf(`lastUpdated gt %q and lastUpdated lt %q`, start.Format(timeFormat), end.Format(timeFormat))
+		// timeFormat ends in a literal Z, the times must be UTC
+		r = fmt.Sprintf(`lastUpdated gt %q and lastUpdated lt %q`, start.UTC().Format(timeFormat), end.UTC().Format(timeFormat))
 	}
 	return
 }
 
 func (o *OktaIngester) getUserLogs(ctx context.Context, start, end time.Time, rt hosted.Runtime) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.baseURL, nil)
 	if err != nil {
 		return err
 	}
@@ -370,9 +395,29 @@ func (o *OktaIngester) getUserLogs(ctx context.Context, start, end time.Time, rt
 	req.URL.RawQuery = values.Encode()
 	req.Header.Set(`Accept`, `application/json`)
 	req.Header.Set(`Content-Type`, `application/json`)
-	req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
+	o.setAuth(req)
 
-	return o.linkFollowingRequest(req, rt)
+	err = o.linkFollowingRequest(req, rt)
+	if isInsufficientScope(err) {
+		rt.Warn("the okta.users.read scope is not granted to the service app, users cannot be collected", log.KVErr(err))
+	}
+	return err
+}
+
+// setAuth adds the SSWS token, in OAuth mode the oauthDoer authorizes each attempt instead
+func (o *OktaIngester) setAuth(req *http.Request) {
+	if !o.cfg.useOAuth() {
+		req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
+	}
+}
+
+// statusError describes a non-200 response. Token mode keeps its original error, OAuth mode
+// reports what Okta said, its scope and role failures need the detail.
+func (o *OktaIngester) statusError(resp *http.Response) error {
+	if !o.cfg.useOAuth() {
+		return fmt.Errorf("invalid status code %d", resp.StatusCode)
+	}
+	return newAPIError(resp)
 }
 
 func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime) error {
@@ -381,8 +426,9 @@ func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime
 		if err != nil {
 			return err
 		} else if resp.StatusCode != 200 {
+			err = o.statusError(resp)
 			utils.DrainResponse(resp)
-			return fmt.Errorf("invalid status code %d", resp.StatusCode)
+			return err
 		}
 
 		//consume results
