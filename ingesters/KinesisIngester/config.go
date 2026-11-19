@@ -9,13 +9,19 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/sqs_common"
 )
@@ -78,7 +84,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	return &c, nil
 }
 
-func (c cfgType) Verify() error {
+func (c *cfgType) Verify() error {
 	if err := c.Global.IngestConfig.Verify(); err != nil {
 		return err
 	} else if err = c.Attach.Verify(); err != nil {
@@ -111,19 +117,69 @@ func (c cfgType) Verify() error {
 	} else if err = c.TimeFormat.Validate(); err != nil {
 		return err
 	}
+	sdkRegion := sync.OnceValues(loadSDKRegion)
 	for k, v := range c.KinesisStream {
-		if v == nil {
-			return fmt.Errorf("Kinesis stream %v config is nil", k)
+		if err := verifyStream(k, v, sdkRegion); err != nil {
+			return err
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("Kinesis stream %s preprocessor invalid: %v", k, err)
 		}
-		if v.Iterator_Type == `` {
-			// default to LATEST
-			v.Iterator_Type = "LATEST"
+	}
+	return nil
+}
+
+// verifyStream checks a stream definition and fills in its defaults.
+// sdkRegion is called only when the stream sets no Region.
+func verifyStream(k string, v *streamDef, sdkRegion func() (string, error)) error {
+	if v == nil {
+		return fmt.Errorf("Kinesis stream %v config is nil", k)
+	}
+	if v.Stream_Name == `` {
+		return fmt.Errorf("Kinesis stream %v Stream-Name parameter is empty", k)
+	}
+	if v.Region == `` {
+		// the AWS SDK falls back to AWS_REGION and the shared config
+		if r, err := sdkRegion(); err != nil {
+			return fmt.Errorf("Kinesis stream %v Region parameter is empty and the AWS config failed to load: %w", k, err)
+		} else if r == `` {
+			return fmt.Errorf("Kinesis stream %v Region parameter is empty", k)
+		}
+	}
+	if v.Tag_Name == `` {
+		v.Tag_Name = entry.DefaultTagName
+	}
+	if err := ingest.CheckTag(v.Tag_Name); err != nil {
+		return fmt.Errorf("Kinesis stream %v Tag-Name %q is invalid: %w", k, v.Tag_Name, err)
+	}
+	// main.go sets no starting sequence number or timestamp, so only these two work
+	switch it := types.ShardIteratorType(strings.ToUpper(strings.TrimSpace(v.Iterator_Type))); it {
+	case ``:
+		v.Iterator_Type = string(types.ShardIteratorTypeLatest)
+	case types.ShardIteratorTypeLatest, types.ShardIteratorTypeTrimHorizon:
+		v.Iterator_Type = string(it)
+	default:
+		return fmt.Errorf("Kinesis stream %v Iterator-Type %q is invalid, must be %s or %s",
+			k, v.Iterator_Type, types.ShardIteratorTypeLatest, types.ShardIteratorTypeTrimHorizon)
+	}
+	if v.Timezone_Override != `` {
+		if v.Assume_Local_Timezone {
+			return fmt.Errorf("Kinesis stream %v cannot specify both Assume-Local-Timezone and Timezone-Override", k)
+		}
+		if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+			return fmt.Errorf("Kinesis stream %v Timezone-Override %q is invalid: %w", k, v.Timezone_Override, err)
 		}
 	}
 	return nil
+}
+
+// loadSDKRegion returns the region the AWS SDK resolves when the config sets none.
+func loadSDKRegion() (string, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
+	if err != nil {
+		return ``, err
+	}
+	return cfg.Region, nil
 }
 
 func (c *cfgType) Targets() ([]string, error) {
