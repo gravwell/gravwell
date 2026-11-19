@@ -461,6 +461,7 @@ func TestVerifyTrustedProxy(t *testing.T) {
 		name       string
 		cfg        []string
 		env        string
+		file       string   // contents of the file named by the _FILE variable
 		ignore     bool     // Ignore-Untrusted-Forwarded-For in the config
 		ignoreEnv  string   // GRAVWELL_LLM_IGNORE_UNTRUSTED_FORWARDED_FOR
 		trusted    []string // addresses expected to be trusted
@@ -546,12 +547,12 @@ func TestVerifyTrustedProxy(t *testing.T) {
 		{
 			name:    "env var of only separators rejected",
 			env:     ",",
-			wantErr: "blank",
+			wantErr: "no entries",
 		},
 		{
 			name:    "env var of only whitespace rejected",
 			env:     " ",
-			wantErr: "blank",
+			wantErr: "no entries",
 		},
 		{
 			// the config value wins over the env var, so it must not be dropped
@@ -559,6 +560,40 @@ func TestVerifyTrustedProxy(t *testing.T) {
 			cfg:     []string{""},
 			env:     "10.0.0.1",
 			wantErr: "blank",
+		},
+		{
+			name:      "file one entry per line",
+			file:      "10.0.0.1\n10.0.0.2\r\n192.168.100.0/24\n",
+			trusted:   []string{"10.0.0.1", "10.0.0.2", "192.168.100.7"},
+			untrusted: []string{"10.0.0.3"},
+		},
+		{
+			name:      "file commas and lines",
+			file:      "10.0.0.1, 10.0.0.2\n10.0.0.3\n",
+			trusted:   []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"},
+			untrusted: []string{"10.0.0.4"},
+		},
+		{
+			name:      "env var wins over file",
+			env:       "10.0.0.1",
+			file:      "10.0.0.2\n",
+			trusted:   []string{"10.0.0.1"},
+			untrusted: []string{"10.0.0.2"},
+		},
+		{
+			name:    "file of only separators rejected",
+			file:    ",,\n,\n",
+			wantErr: "no entries",
+		},
+		{
+			name:    "empty file rejected",
+			file:    "\n",
+			wantErr: "empty",
+		},
+		{
+			name:    "invalid file entry",
+			file:    "10.0.0.1\nnope\n",
+			wantErr: `"nope"`,
 		},
 		{
 			name:    "ipv6 trust all rejected",
@@ -571,6 +606,9 @@ func TestVerifyTrustedProxy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.env != `` {
 				t.Setenv(envTrustedProxy, tt.env)
+			}
+			if tt.file != `` {
+				t.Setenv(envTrustedProxy+`_FILE`, writeTrustedProxyFile(t, tt.file))
 			}
 			if tt.ignoreEnv != `` {
 				t.Setenv(envIgnoreUntrustedXFF, tt.ignoreEnv)
@@ -1008,4 +1046,13 @@ func mustList(t *testing.T, entries ...string) trustedproxy.List {
 	}
 
 	return l
+}
+
+func writeTrustedProxyFile(t *testing.T, content string) string {
+	t.Helper()
+	pth := filepath.Join(t.TempDir(), "trusted_proxy")
+	if err := os.WriteFile(pth, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return pth
 }

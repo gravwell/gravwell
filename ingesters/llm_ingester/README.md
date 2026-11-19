@@ -82,9 +82,12 @@ or the session key.
 
 The options can also be set with the `GRAVWELL_LLM_TRUSTED_PROXY`
 (comma-separated) and `GRAVWELL_LLM_IGNORE_UNTRUSTED_FORWARDED_FOR` environment
-variables. Config file entries for `Trusted-Proxy` take precedence over the
-environment variable. The ignore variable can only turn the option on. If it
-is `true`, a config value of `false` does not override it.
+variables. `GRAVWELL_LLM_TRUSTED_PROXY_FILE` names a file instead. The file
+lists one entry per line, comma-separated entries, or both, and has no comment
+syntax. A value or file of only commas or blanks stops startup. Config file
+entries for `Trusted-Proxy` take precedence over the environment variable. The
+ignore variable can only turn the option on. If it is `true`, a config value of
+`false` does not override it.
 
 ## Claude Code
 
