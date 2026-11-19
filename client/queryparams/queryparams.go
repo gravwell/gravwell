@@ -14,4 +14,7 @@ const (
 	//
 	// List endpoints use QueryOptions.All instead.
 	All string = "all"
+	// AllVersions includes every version of each kit, even those that have been superseded.
+	// Used by /api/list/remote-kits.
+	AllVersions string = "all_versions"
 )
