@@ -148,17 +148,6 @@ func TestConfig_VerifyCredentials(t *testing.T) {
 	}
 }
 
-// isolateAWSRegion hides any region set by the environment or the shared AWS config.
-func isolateAWSRegion(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("AWS_CONFIG_FILE", filepath.Join(dir, "config"))
-	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(dir, "credentials"))
-	t.Setenv("AWS_PROFILE", "")
-	t.Setenv("AWS_DEFAULT_PROFILE", "")
-	t.Setenv("AWS_REGION", "")
-	t.Setenv("AWS_DEFAULT_REGION", "")
-}
-
 func TestConfig_VerifyKeepsEnvironment(t *testing.T) {
 	t.Setenv("GRAVWELL_INGEST_SECRET", "envsecret")
 	t.Setenv("GRAVWELL_CLEARTEXT_TARGETS", "127.0.0.1:4023")
@@ -176,7 +165,7 @@ func TestConfig_VerifyKeepsEnvironment(t *testing.T) {
 }
 
 func TestVerifyStream(t *testing.T) {
-	isolateAWSRegion(t)
+	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -192,20 +181,24 @@ func TestVerifyStream(t *testing.T) {
 		{name: "lower case iterator", mod: func(v *streamDef) { v.Iterator_Type = " latest " }, wantTag: "kinesis", wantIter: "LATEST"},
 		{name: "unknown iterator", mod: func(v *streamDef) { v.Iterator_Type = "NEWEST" }, wantErr: "Iterator-Type"},
 		{name: "iterator needs a timestamp", mod: func(v *streamDef) { v.Iterator_Type = "AT_TIMESTAMP" }, wantErr: "Iterator-Type"},
-		{name: "no region", mod: func(v *streamDef) { v.Region = "" }, wantErr: "Region"},
+		{name: "no region is left to the SDK", mod: func(v *streamDef) { v.Region = "" }, wantTag: "kinesis", wantIter: "LATEST"},
 		{name: "no stream name", mod: func(v *streamDef) { v.Stream_Name = "" }, wantErr: "Stream-Name"},
 		{name: "timezone override", mod: func(v *streamDef) { v.Timezone_Override = "America/Denver" }, wantTag: "kinesis", wantIter: "LATEST"},
 		{name: "invalid timezone", mod: func(v *streamDef) { v.Timezone_Override = "Mars/Olympus" }, wantErr: "Timezone-Override"},
 		{name: "both timezones", mod: func(v *streamDef) {
 			v.Timezone_Override = "America/Denver"
 			v.Assume_Local_Timezone = true
-		}, wantErr: "Assume-Local-Timezone"},
+		}, wantTag: "kinesis", wantIter: "LATEST"},
+		{name: "invalid timezone with local timezone", mod: func(v *streamDef) {
+			v.Timezone_Override = "Mars/Olympus"
+			v.Assume_Local_Timezone = true
+		}, wantErr: "Timezone-Override"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := &streamDef{Stream_Name: "stream", Tag_Name: "kinesis", Region: "us-west-1"}
 			tt.mod(v)
-			err := verifyStream("s", v, loadSDKRegion)
+			err := verifyStream("s", v)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 				return
@@ -216,33 +209,5 @@ func TestVerifyStream(t *testing.T) {
 		})
 	}
 
-	assert.ErrorContains(t, verifyStream("s", nil, loadSDKRegion), "nil")
-}
-
-func TestVerifyStream_RegionFromEnvironment(t *testing.T) {
-	isolateAWSRegion(t)
-	t.Setenv("AWS_REGION", "us-east-2")
-	assert.NoError(t, verifyStream("s", &streamDef{Stream_Name: "stream", Tag_Name: "kinesis"}, loadSDKRegion))
-}
-
-func TestConfig_VerifySDKRegion(t *testing.T) {
-	isolateAWSRegion(t)
-	t.Setenv("AWS_REGION", "us-east-2")
-	c := &cfgType{
-		Global: global{
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "secret",
-			},
-			Credentials_Type: "environment",
-		},
-		KinesisStream: map[string]*streamDef{
-			"a": {Stream_Name: "a", Tag_Name: "kinesis"},
-			"b": {Stream_Name: "b", Tag_Name: "kinesis"},
-		},
-	}
-	require.NoError(t, c.Verify())
-
-	t.Setenv("AWS_REGION", "")
-	assert.ErrorContains(t, c.Verify(), "Region parameter is empty")
+	assert.ErrorContains(t, verifyStream("s", nil), "nil")
 }

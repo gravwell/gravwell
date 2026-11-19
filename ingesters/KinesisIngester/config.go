@@ -9,14 +9,11 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
@@ -121,9 +118,8 @@ func (c *cfgType) Verify() error {
 	} else if err = c.TimeFormat.Validate(); err != nil {
 		return err
 	}
-	sdkRegion := sync.OnceValues(loadSDKRegion)
 	for k, v := range c.KinesisStream {
-		if err := verifyStream(k, v, sdkRegion); err != nil {
+		if err := verifyStream(k, v); err != nil {
 			return err
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
@@ -134,22 +130,16 @@ func (c *cfgType) Verify() error {
 }
 
 // verifyStream checks a stream definition and fills in its defaults.
-// sdkRegion is called only when the stream sets no Region.
-func verifyStream(k string, v *streamDef, sdkRegion func() (string, error)) error {
+func verifyStream(k string, v *streamDef) error {
 	if v == nil {
 		return fmt.Errorf("Kinesis stream %v config is nil", k)
 	}
 	if v.Stream_Name == `` {
 		return fmt.Errorf("Kinesis stream %v Stream-Name parameter is empty", k)
 	}
-	if v.Region == `` {
-		// the AWS SDK falls back to AWS_REGION and the shared config
-		if r, err := sdkRegion(); err != nil {
-			return fmt.Errorf("Kinesis stream %v Region parameter is empty and the AWS config failed to load: %w", k, err)
-		} else if r == `` {
-			return fmt.Errorf("Kinesis stream %v Region parameter is empty", k)
-		}
-	}
+	// An empty Region is left to the AWS SDK (AWS_REGION, AWS_PROFILE, ~/.aws/config) at
+	// startup. Resolving it here would check the environment -validate runs in, which is
+	// often not the service's.
 	if v.Tag_Name == `` {
 		v.Tag_Name = entry.DefaultTagName
 	}
@@ -166,24 +156,14 @@ func verifyStream(k string, v *streamDef, sdkRegion func() (string, error)) erro
 		return fmt.Errorf("Kinesis stream %v Iterator-Type %q is invalid, must be %s or %s",
 			k, v.Iterator_Type, types.ShardIteratorTypeLatest, types.ShardIteratorTypeTrimHorizon)
 	}
+	// main.go applies Timezone-Override after Assume-Local-Timezone, so the override
+	// wins when both are set; existing configs that set both keep working
 	if v.Timezone_Override != `` {
-		if v.Assume_Local_Timezone {
-			return fmt.Errorf("Kinesis stream %v cannot specify both Assume-Local-Timezone and Timezone-Override", k)
-		}
 		if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
 			return fmt.Errorf("Kinesis stream %v Timezone-Override %q is invalid: %w", k, v.Timezone_Override, err)
 		}
 	}
 	return nil
-}
-
-// loadSDKRegion returns the region the AWS SDK resolves when the config sets none.
-func loadSDKRegion() (string, error) {
-	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
-	if err != nil {
-		return ``, err
-	}
-	return cfg.Region, nil
 }
 
 func (c *cfgType) Targets() ([]string, error) {
