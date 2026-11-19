@@ -9,6 +9,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -24,6 +26,8 @@ import (
 // of IngestConfig/AttachConfig. Tags(), Timeout(), parseTimeout(), and the
 // simple getters don't touch IngestConfig.Verify()/AttachConfig.Verify()
 // either, so they're tested directly against cfgType/global as well.
+// TestGetConfigLogDestination is the exception: it runs the full Verify()
+// because the bug it covers is applyDefaults conflicting with IngestConfig.Verify().
 
 func TestApplyDefaults(t *testing.T) {
 	t.Parallel()
@@ -48,6 +52,67 @@ func TestApplyDefaults(t *testing.T) {
 	}
 	if c2.Global.State_Store_Location != "/custom/checkpoints" {
 		t.Errorf("applyDefaults() overwrote an explicit Checkpoint_Storage_Location: got %q", c2.Global.State_Store_Location)
+	}
+
+	// Log-UDP-Target excludes Log-File, so no default
+	c3 := &cfgType{}
+	c3.Global.Log_UDP_Target = "127.0.0.1:514"
+	applyDefaults(c3)
+	if c3.Global.Log_File != `` {
+		t.Errorf("applyDefaults() set Log_File = %q alongside Log_UDP_Target", c3.Global.Log_File)
+	}
+}
+
+func TestGetConfigLogDestination(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		udp  string
+		file string // relative to the test's temp dir
+	}{
+		{name: "Log-UDP-Target", udp: "127.0.0.1:514"},
+		{name: "Log-File", file: "eventhubs.log"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			var logLine, wantFile string
+			if tc.udp != `` {
+				logLine = "Log-UDP-Target=" + tc.udp
+			} else {
+				wantFile = filepath.Join(dir, tc.file)
+				logLine = "Log-File=" + wantFile
+			}
+			conf := `[Global]
+Ingest-Secret=secret
+Pipe-Backend-Target=/opt/gravwell/comms/pipe
+` + logLine + `
+[EventHub "hub"]
+	Event-Hubs-Namespace=ns
+	Event-Hub=hub
+	Token-Name=name
+	Token-Key=key
+	Tag-Name=eventhub
+`
+			pth := filepath.Join(dir, "c.conf")
+			if err := os.WriteFile(pth, []byte(conf), 0600); err != nil {
+				t.Fatal(err)
+			}
+			c, err := GetConfig(pth, ``)
+			if err != nil {
+				t.Fatalf("GetConfig() error: %v", err)
+			}
+			if err = c.Verify(); err != nil {
+				t.Fatalf("Verify() error: %v", err)
+			}
+			if c.Global.Log_File != wantFile {
+				t.Errorf("Log_File = %q, want %q", c.Global.Log_File, wantFile)
+			}
+			if c.Global.Log_UDP_Target != tc.udp {
+				t.Errorf("Log_UDP_Target = %q, want %q", c.Global.Log_UDP_Target, tc.udp)
+			}
+		})
 	}
 }
 
