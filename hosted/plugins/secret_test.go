@@ -14,7 +14,7 @@ import (
 func TestPluginSecretsAreTyped(t *testing.T) {
 	// what each plugin is expected to treat as a secret
 	want := map[string][]string{
-		`Okta`:     {`Token`},
+		`Okta`:     {`Token`, `Private-Key`},
 		`Jamf`:     {`Client-Secret`},
 		`Mimecast`: {`Client-Id`, `Client-Secret`},
 		`MSGraph`:  {`Client-Secret`},
@@ -71,7 +71,7 @@ func TestPluginSecretsAreTyped(t *testing.T) {
 // would happily accept, which is the failure mode worth guarding against.
 func TestPluginRequiredMatchesVerify(t *testing.T) {
 	want := map[string][]string{
-		`Okta`:     {`Domain`, `Token`},
+		`Okta`:     {`Domain`}, // Token is required only without Client-ID
 		`Jamf`:     {`Host`, `Client-Id`, `Client-Secret`},
 		`Mimecast`: {`Client-Id`, `Client-Secret`},
 		`MSGraph`:  {`Tenant-ID`, `Client-ID`, `Client-Secret`, `Content-Type`},
