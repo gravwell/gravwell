@@ -662,7 +662,8 @@ func searchesUrl() string {
 
 func searchesIdSessionsIdUrl(id, sessionId string) string {
 	return fmt.Sprintf(SEARCHES_ID_SESSIONS_ID_URL, id, sessionId)
-  
+}
+
 func searchesIdStatsMetadataUrl(id string) string {
 	return fmt.Sprintf(SEARCHES_ID_STATS_METADATA_URL, id)
 }
