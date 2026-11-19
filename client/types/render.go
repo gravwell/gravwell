@@ -12,8 +12,10 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"io"
+	"slices"
 	"sort"
 	"time"
 
@@ -117,10 +119,12 @@ const (
 
 var (
 	ErrResultsRequestStatsOverInvalid = errors.New("only one of 'width' or 'count' may be specified, got both")
+	ErrResultsRequestStatsOverEmpty   = errors.New("'Over' needs one of 'Width' or 'Count'")
+	ErrResultsRequestStatsOperation   = errors.New("'Operation' must be one of count, sum, total, mean, stddev, variance, min, max, unique_count")
 	ErrResultsResponseInvalid         = errors.New("ResultsResponse has no variant set")
 )
 
-// TransformOperator represents the operator to apply to results
+// TransformOperator names a stats operation.
 type TransformOperator string
 
 // ResultsKind names the payload type a Results API response carries.
@@ -134,7 +138,8 @@ type ResultsRequest struct {
 	Sort   []ResultsSort `json:",omitempty"`
 	Start  time.Time
 	SID    string
-	Stats  ResultsRequestStats
+	// Unset means no stats.
+	Stats Optional[ResultsRequestStats] `json:",omitzero"`
 }
 
 type ResultsSort struct {
@@ -147,23 +152,18 @@ type ResultsSort struct {
 
 type ResultsRequestStats struct {
 	Operations ResultsRequestStatsOperationList `json:",omitempty"`
-	Over       ResultsRequestStatsOver
+	// Unset means the operations run over the whole time range, with no bins.
+	Over Optional[ResultsRequestStatsOver] `json:",omitzero"`
 }
 
 type ResultsRequestStatsOperationList = []StatsOperation
 
 // ResultsRequestStatsOver only one of the properties is populated at a time.
 type ResultsRequestStatsOver struct {
-	OverWidth *ResultsRequestStatsOverWidth
-	OverCount *ResultsRequestStatsOverCount
-}
-
-type ResultsRequestStatsOverCount struct {
-	Count int
-}
-
-type ResultsRequestStatsOverWidth struct {
-	Width int
+	// Width is the size of each bin, in seconds.
+	Width Optional[int] `json:",omitzero"`
+	// Count is the number of bins.
+	Count Optional[int] `json:",omitzero"`
 }
 
 type StatsInfo struct {
@@ -178,8 +178,8 @@ type StatsOperation struct {
 	By []string `json:",omitempty"`
 	// The EV to perform the operation on. If omitted, the operand will be the entire entry.
 	Operand string `json:",omitempty"`
-	// one of "count" | "sum" | "avg" | "min" | "max"
-	Operation string
+	// A results request takes only the TransformOperator constants.
+	Operation TransformOperator
 }
 
 // ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
@@ -660,47 +660,100 @@ func (tr *TimeRange) UnmarshalJSON(d []byte) error {
 	return nil
 }
 
-func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
-	if rr.OverCount != nil && rr.OverWidth != nil {
-		return nil, ErrResultsRequestStatsOverInvalid
-	}
-
-	if rr.OverCount != nil {
-		return json.Marshal(rr.OverCount)
-	}
-
-	if rr.OverWidth != nil {
-		return json.Marshal(rr.OverWidth)
-	}
-
-	return []byte(`{}`), nil
+// resultsRequestStatsOperations are the operations a results request may ask for.
+// They are the operations of the stats search module.
+var resultsRequestStatsOperations = []TransformOperator{
+	TransformOperatorCount,
+	TransformOperatorSum,
+	TransformOperatorTotal,
+	TransformOperatorMean,
+	TransformOperatorStddev,
+	TransformOperatorVariance,
+	TransformOperatorMin,
+	TransformOperatorMax,
+	TransformOperatorUniqueCount,
 }
 
-func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
-	if len(d) == 0 || string(d) == "null" {
-		return nil
+// validate checks that every operation names one of resultsRequestStatsOperations.
+func (rs ResultsRequestStats) validate() error {
+	for i, o := range rs.Operations {
+		if !slices.Contains(resultsRequestStatsOperations, o.Operation) {
+			return fmt.Errorf("operation %d: %w, got %q", i, ErrResultsRequestStatsOperation, o.Operation)
+		}
 	}
 
-	var raw map[string]int
-	if err := json.Unmarshal(d, &raw); err != nil {
+	return nil
+}
+
+// resultsRequestStatsJSON is ResultsRequestStats without its JSON methods.
+// Those methods marshal and unmarshal this type to prevent infinite recursion.
+type resultsRequestStatsJSON ResultsRequestStats
+
+func (rs ResultsRequestStats) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := rs.validate(); err != nil {
 		return err
 	}
 
-	w, hasWidth := raw["width"]
-	c, hasCount := raw["count"]
+	return json.MarshalEncode(enc, resultsRequestStatsJSON(rs))
+}
 
-	if hasWidth && hasCount {
+func (rs *ResultsRequestStats) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	var raw resultsRequestStatsJSON
+	if err := json.UnmarshalDecode(dec, &raw, jsoncompat.Opts); err != nil {
+		return err
+	}
+
+	stats := ResultsRequestStats(raw)
+	if err := stats.validate(); err != nil {
+		return err
+	}
+
+	*rs = stats
+	return nil
+}
+
+// validate checks that exactly one of Width and Count is set.
+func (rr ResultsRequestStatsOver) validate() error {
+	if rr.Width.IsSet() && rr.Count.IsSet() {
 		return ErrResultsRequestStatsOverInvalid
 	}
 
-	if hasWidth {
-		rr.OverWidth = &ResultsRequestStatsOverWidth{Width: w}
+	if !rr.Width.IsSet() && !rr.Count.IsSet() {
+		return ErrResultsRequestStatsOverEmpty
 	}
 
-	if hasCount {
-		rr.OverCount = &ResultsRequestStatsOverCount{Count: c}
+	return nil
+}
+
+// resultsRequestStatsOverJSON is ResultsRequestStatsOver without its JSON methods.
+// Those methods marshal and unmarshal this type to prevent infinite recursion.
+type resultsRequestStatsOverJSON ResultsRequestStatsOver
+
+func (rr ResultsRequestStatsOver) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := rr.validate(); err != nil {
+		return err
 	}
 
+	return json.MarshalEncode(enc, resultsRequestStatsOverJSON(rr))
+}
+
+func (rr *ResultsRequestStatsOver) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	if dec.PeekKind() == jsontext.KindNull {
+		return dec.SkipValue()
+	}
+
+	// jsoncompat.Opts matches keys in any case, so both "Width" and "width" decode.
+	var raw resultsRequestStatsOverJSON
+	if err := json.UnmarshalDecode(dec, &raw, jsoncompat.Opts); err != nil {
+		return err
+	}
+
+	over := ResultsRequestStatsOver(raw)
+	if err := over.validate(); err != nil {
+		return err
+	}
+
+	*rr = over
 	return nil
 }
 
