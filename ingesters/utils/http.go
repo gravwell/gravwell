@@ -93,11 +93,17 @@ func (rc *RetryHttpClient) Do(req *http.Request) (resp *http.Response, err error
 }
 
 func (rc *RetryHttpClient) isRecoverableStatus(status int) bool {
+	return IsRecoverableStatus(status, rc.retryResponseCodes)
+}
+
+// IsRecoverableStatus reports whether a response status is worth retrying: any server error,
+// or one of retryCodes
+func IsRecoverableStatus(status int, retryCodes []int) bool {
 	if status >= 500 {
 		// it is server side, so yes
 		return true
 	}
-	for _, v := range rc.retryResponseCodes {
+	for _, v := range retryCodes {
 		if v == status {
 			return true
 		}
