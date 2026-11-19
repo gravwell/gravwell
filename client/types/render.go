@@ -673,22 +673,22 @@ func (rr ResultsRequestStatsOver) validate() error {
 // resultsRequestStatsOverJSON has the fields of ResultsRequestStatsOver without its JSON methods.
 type resultsRequestStatsOverJSON ResultsRequestStatsOver
 
-func (rr *ResultsRequestStatsOver) MarshalJSON() ([]byte, error) {
+func (rr ResultsRequestStatsOver) MarshalJSONTo(enc *jsontext.Encoder) error {
 	if err := rr.validate(); err != nil {
-		return nil, err
+		return err
 	}
 
-	return json.Marshal(resultsRequestStatsOverJSON(*rr))
+	return json.MarshalEncode(enc, resultsRequestStatsOverJSON(rr))
 }
 
-func (rr *ResultsRequestStatsOver) UnmarshalJSON(d []byte) error {
-	if len(d) == 0 || string(d) == "null" {
-		return nil
+func (rr *ResultsRequestStatsOver) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
+	if dec.PeekKind() == jsontext.KindNull {
+		return dec.SkipValue()
 	}
 
 	// jsoncompat.Opts matches keys in any case, so both "Width" and "width" decode.
 	var raw resultsRequestStatsOverJSON
-	if err := json.Unmarshal(d, &raw, jsoncompat.Opts); err != nil {
+	if err := json.UnmarshalDecode(dec, &raw, jsoncompat.Opts); err != nil {
 		return err
 	}
 
