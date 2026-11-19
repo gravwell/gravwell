@@ -108,6 +108,14 @@ type TagNegotiator interface {
 	NegotiateTag(name string) (entry.EntryTag, error)
 }
 
+// SynchronizingTagNegotiator is the startup surface required by an ingester
+// that must wait for queued entries to reach the ingest muxer before it can
+// advance an external-source checkpoint.
+type SynchronizingTagNegotiator interface {
+	TagNegotiator
+	SyncContext(context.Context, time.Duration) error
+}
+
 // Storage is the provided interface that enables hosted ingesters to store and retrieve state
 type Storage interface {
 	Get(string) ([]byte, error)
