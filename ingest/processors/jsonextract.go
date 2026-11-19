@@ -122,7 +122,6 @@ func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 		return nil
 	}
 	if err := je.bldr.extract(ent.Data); err != nil {
-		je.bldr.reset()
 		if !je.Drop_Misses {
 			return ent
 		}
@@ -210,11 +209,22 @@ type builder struct {
 	keynames  []string
 }
 
-func (b *builder) extract(data []byte) error {
-	if len(b.keys) > 1 || b.forceJson {
-		return b.extractJson(data)
+// objectMode is true once add() has opened an object, so it always gets closed.
+func (b *builder) objectMode() bool {
+	return len(b.keys) > 1 || b.forceJson || b.comma
+}
+
+// extract resets the builder on failure so no partial state survives.
+func (b *builder) extract(data []byte) (err error) {
+	if b.objectMode() {
+		err = b.extractJson(data)
+	} else {
+		err = b.extractObject(data)
 	}
-	return b.extractObject(data)
+	if err != nil {
+		b.reset()
+	}
+	return
 }
 
 // Extracting a single field and not rewrapping in JSON with a key name
@@ -255,7 +265,7 @@ func (b *builder) add(key string, dt jsonparser.ValueType, v []byte) {
 	} else {
 		b.bb.WriteString(",")
 	}
-	addData(key, dt, v, b.bb)
+	b.bb.Write(appendField(b.bb.AvailableBuffer(), key, dt, v))
 	b.cnt++
 	b.comma = true
 }
@@ -264,7 +274,7 @@ func (b *builder) render() (r []byte, cnt int) {
 	if b.cnt == 0 {
 		return
 	}
-	if len(b.keys) > 1 || b.forceJson {
+	if b.comma {
 		io.WriteString(b.bb, "}")
 	}
 	r = append([]byte{}, b.bb.Bytes()...) //force allocation
@@ -279,11 +289,29 @@ func (b *builder) reset() {
 	b.cnt = 0
 }
 
-func addData(key string, dt jsonparser.ValueType, v []byte, bb *bytes.Buffer) {
+// appendField appends `"key":value` to b, escaping the key and quoting string values.
+func appendField(b []byte, key string, dt jsonparser.ValueType, v []byte) []byte {
+	b = append(appendJSONString(b, key), ':')
 	if dt == jsonparser.String {
-		fmt.Fprintf(bb, `"%s":"%s"`, key, string(v))
-	} else {
-		fmt.Fprintf(bb, `"%s":`, key)
-		bb.Write(v)
+		return append(append(append(b, '"'), v...), '"')
 	}
+	return append(b, v...)
+}
+
+// appendJSONString appends s to b as a quoted JSON string.
+func appendJSONString(b []byte, s string) []byte {
+	const hex = `0123456789abcdef`
+	b = append(b, '"')
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '"' || c == '\\':
+			b = append(b, '\\', c)
+		case c < 0x20:
+			b = append(b, `\u00`...)
+			b = append(b, hex[c>>4], hex[c&0xf])
+		default:
+			b = append(b, c)
+		}
+	}
+	return append(b, '"')
 }

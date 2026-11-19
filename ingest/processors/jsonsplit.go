@@ -9,7 +9,7 @@
 package processors
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -49,6 +49,30 @@ func (jasc *JsonArraySplitConfig) validate() (err error) {
 			jasc.Drop_Misses = true
 		}
 	}
+	var keyname string
+	if _, keyname, err = jasc.getKeyData(); err == nil {
+		_, _, err = jasc.getAdditionalData(keyname)
+	}
+	return
+}
+
+// getAdditionalData parses Additional-Fields, rejecting names that collide with keyname or each other.
+func (jasc *JsonArraySplitConfig) getAdditionalData(keyname string) (keys [][]string, names []string, err error) {
+	if jasc.Additional_Fields == `` {
+		return
+	}
+	for _, fld := range splitRespectQuotes(jasc.Additional_Fields, commaSplitter) {
+		var k []string
+		var name string
+		if k, name, err = getKeys(fld); err != nil {
+			return
+		} else if name == keyname || inStringSet(names, name) {
+			err = fmt.Errorf("%w: %q in Additional-Fields", ErrDuplicateKeyname, name)
+			return
+		}
+		keys = append(keys, k)
+		names = append(names, name)
+	}
 	return
 }
 
@@ -77,10 +101,10 @@ func (jasc *JsonArraySplitConfig) getKeyData() (key []string, keyname string, er
 type JsonArraySplitter struct {
 	nocloser
 	JsonArraySplitConfig
-	key        []string
-	keyname    string
-	useBuilder bool
-	bldr       builder
+	key             []string
+	keyname         string
+	additional      [][]string
+	additionalNames []string
 }
 
 func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) {
@@ -88,36 +112,19 @@ func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) 
 	if err != nil {
 		return nil, err
 	}
-	var bldr builder
-	var useBuilder bool
-	if cfg.Additional_Fields != `` {
-		flds := splitRespectQuotes(cfg.Additional_Fields, commaSplitter)
-		var additional [][]string
-		var additionalNames []string
-		for _, fld := range flds {
-			var keys []string
-			var name string
-			if keys, name, err = getKeys(fld); err != nil {
-				return nil, err
-			}
-			additional = append(additional, keys)
-			additionalNames = append(additionalNames, name)
-		}
-		bldr = builder{
-			// Additional fields share an object with the array element, even when only one is requested.
-			forceJson: true,
-			bb:        bytes.NewBuffer(nil),
-			keys:      additional,
-			keynames:  additionalNames,
-		}
-		useBuilder = true
+	additional, additionalNames, err := cfg.getAdditionalData(keyname)
+	if err != nil {
+		return nil, err
+	} else if len(additional) > 0 {
+		// additional fields share an object with the array element
+		cfg.Force_JSON_Object = true
 	}
 	return &JsonArraySplitter{
 		JsonArraySplitConfig: cfg,
 		key:                  key,
 		keyname:              keyname,
-		bldr:                 bldr,
-		useBuilder:           useBuilder,
+		additional:           additional,
+		additionalNames:      additionalNames,
 	}, nil
 }
 
@@ -125,7 +132,11 @@ func (je *JsonArraySplitter) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonArraySplitConfig); ok {
-		je.JsonArraySplitConfig = cfg
+		// rebuild so derived state (keys, additional fields, forced objects) tracks the new config
+		var nje *JsonArraySplitter
+		if nje, err = NewJsonArraySplitter(cfg); err == nil {
+			*je = *nje
+		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -141,75 +152,69 @@ func (je *JsonArraySplitter) Process(ents []*entry.Entry) ([]*entry.Entry, error
 		if ent == nil {
 			continue
 		}
-		if set, err := je.processItem(ent); err != nil {
-			continue
-		} else if len(set) > 0 {
-			r = append(r, set...)
-		}
+		r = append(r, je.processItem(ent)...)
 	}
 	return r, nil
 }
 
-func (je *JsonArraySplitter) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
+// processItem splits one entry; an entry that cannot be split is a miss and is never partially emitted.
+func (je *JsonArraySplitter) processItem(ent *entry.Entry) (rset []*entry.Entry) {
+	if !json.Valid(ent.Data) {
+		return je.miss(ent)
+	}
+	extra, err := je.additionalFields(ent.Data)
+	if err != nil {
+		return je.miss(ent)
+	}
 	cb := func(v []byte, dt jsonparser.ValueType, off int, lerr error) {
-		if len(v) == 0 || lerr != nil {
+		// an empty element can only be represented inside an object
+		if lerr != nil || (len(v) == 0 && !je.Force_JSON_Object) {
 			return
 		}
-		if je.useBuilder {
-			//manually add our array value
-			je.bldr.add(je.keyname, dt, v)
-			if err = je.bldr.extract(ent.Data); err != nil {
-				return
-			}
-			if data, cnt := je.bldr.render(); cnt > 0 {
-				tent := &entry.Entry{
-					Tag:  ent.Tag,
-					SRC:  ent.SRC,
-					TS:   ent.TS,
-					Data: data,
-				}
-				tent.CopyEnumeratedBlock(ent)
-				rset = append(rset, tent)
-			}
-		} else if r, ok := je.genEntry(dt, ent, v); ok {
-			r.CopyEnumeratedBlock(ent)
-			rset = append(rset, r)
-		}
-	}
-	if ent == nil {
-		return
+		rset = append(rset, je.genEntry(dt, ent, v, extra))
 	}
 	if _, err = jsonparser.ArrayEach(ent.Data, cb, je.key...); err != nil {
-		if err == jsonparser.KeyPathNotFoundError {
-			if !je.Drop_Misses && rset == nil {
-				rset = []*entry.Entry{ent}
-			}
-			err = nil
-		}
+		return je.miss(ent)
 	}
 	return
 }
 
-func (je *JsonArraySplitter) genEntry(dt jsonparser.ValueType, ent *entry.Entry, v []byte) (r *entry.Entry, ok bool) {
-	if ent == nil || v == nil {
-		return
+// miss applies Drop-Misses to an entry that could not be split.
+func (je *JsonArraySplitter) miss(ent *entry.Entry) []*entry.Entry {
+	if je.Drop_Misses {
+		return nil
 	}
-	if len(v) != 0 {
-		ok = true
-		r = &entry.Entry{
-			Tag: ent.Tag,
-			SRC: ent.SRC,
-			TS:  ent.TS,
+	return []*entry.Entry{ent}
+}
+
+// additionalFields extracts the additional fields once per entry as `,"name":value` pairs.
+func (je *JsonArraySplitter) additionalFields(data []byte) (r []byte, err error) {
+	for i, keys := range je.additional {
+		v, dt, _, lerr := jsonparser.Get(data, keys...)
+		if lerr == jsonparser.KeyPathNotFoundError || (lerr == nil && dt == jsonparser.NotExist) {
+			continue
+		} else if lerr != nil {
+			return nil, lerr
 		}
-		if !je.Force_JSON_Object {
-			r.Data = v
-		} else if dt == jsonparser.String {
-			r.Data = []byte(fmt.Sprintf(`{"%s":"%s"}`, je.keyname, string(v)))
-		} else {
-			r.Data = []byte(fmt.Sprintf(`{"%s":%s}`, je.keyname, string(v)))
-		}
+		r = appendField(append(r, ','), je.additionalNames[i], dt, v)
 	}
 	return
+}
+
+func (je *JsonArraySplitter) genEntry(dt jsonparser.ValueType, ent *entry.Entry, v, extra []byte) *entry.Entry {
+	r := &entry.Entry{
+		Tag:  ent.Tag,
+		SRC:  ent.SRC,
+		TS:   ent.TS,
+		Data: v,
+	}
+	if je.Force_JSON_Object {
+		data := make([]byte, 0, len(je.keyname)+len(v)+len(extra)+7)
+		data = appendField(append(data, '{'), je.keyname, dt, v)
+		r.Data = append(append(data, extra...), '}')
+	}
+	r.CopyEnumeratedBlock(ent)
+	return r
 }
 
 func getKeys(s string) (keys []string, name string, err error) {

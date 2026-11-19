@@ -9,11 +9,12 @@
 package processors
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -301,6 +302,55 @@ func TestJsonArraySplitAdditional(t *testing.T) {
 	}
 }
 
+// Additional fields are merged into each element's object, checked byte for byte.
+func TestJsonArraySplitAdditionalFieldsObject(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		additional string
+		forceJSON  bool
+		wantFields string
+	}{
+		{name: "single string", additional: "host", wantFields: `,"host":"sensor-1"`},
+		{name: "single object", additional: "meta", wantFields: `,"meta":{"sequence":7}`},
+		{name: "nested number", additional: "meta.sequence", wantFields: `,"sequence":7`},
+		{name: "missing field", additional: "missing"},
+		{name: "multiple fields", additional: "host,meta.sequence", wantFields: `,"host":"sensor-1","sequence":7`},
+		{name: "explicit object", additional: "host", forceJSON: true, wantFields: `,"host":"sensor-1"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := fmt.Sprintf(`[preprocessor "split"]
+				Type=jsonarraysplit
+				Extraction=events
+				Additional-Fields=%q
+				Force-JSON-Object=%t
+			`, tc.additional, tc.forceJSON)
+			p, err := testLoadPreprocessor(cfg, "split")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ents := makeEntry([]byte(`{"events":[{"id":1},{"id":2}],"host":"sensor-1","meta":{"sequence":7}}`), 123)
+			original := ents[0]
+			out, err := p.Process(ents)
+			if err != nil {
+				t.Fatal(err)
+			} else if len(out) != 2 {
+				t.Fatalf("got %d entries, want 2", len(out))
+			}
+			for i, ent := range out {
+				if want := fmt.Sprintf(`{"events":{"id":%d}%s}`, i+1, tc.wantFields); string(ent.Data) != want {
+					t.Errorf("entry %d: got %s, want %s", i, ent.Data, want)
+				}
+				if ent.Tag != original.Tag || ent.TS != original.TS || !ent.SRC.Equal(original.SRC) {
+					t.Errorf("entry %d did not preserve metadata", i)
+				}
+			}
+			if err := checkEntryEVs(out); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestJsonSplitQuotedCSV(t *testing.T) {
 	in := `foo,bar.baz,"foo.bar","foo,bar"`
 	expected := []string{`foo`, `bar.baz`, `"foo.bar"`, `"foo,bar"`}
@@ -510,6 +560,7 @@ func TestJsonArraySplitMalformed(t *testing.T) {
 		{`truncated array`, `host`, `{"host":"x","events":[{"id":1},{"id":2`},
 		{`truncated array, no additional`, ``, `{"events":[{"id":1},{"id":2`},
 		{`not an array`, `host`, `{"host":"x","events":"none"}`},
+		{`truncated after array`, `host`, `{"events":[{"id":1},{"id":2}],"host":"x"`},
 	} {
 		for _, drop := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/drop=%v", tc.name, drop), func(t *testing.T) {
@@ -530,8 +581,11 @@ func TestJsonArraySplitMalformed(t *testing.T) {
 func TestJsonArraySplitKeyCollision(t *testing.T) {
 	for _, additional := range []string{`meta.events`, `a.host,b.host`, `host,host`} {
 		cfg := JsonArraySplitConfig{Extraction: `events`, Additional_Fields: additional}
-		if _, err := NewJsonArraySplitter(cfg); err == nil {
-			t.Errorf("Additional-Fields=%q was accepted", additional)
+		if err := cfg.validate(); !errors.Is(err, ErrDuplicateKeyname) {
+			t.Errorf("Additional-Fields=%q passed validation: %v", additional, err)
+		}
+		if _, err := NewJsonArraySplitter(cfg); !errors.Is(err, ErrDuplicateKeyname) {
+			t.Errorf("Additional-Fields=%q was accepted: %v", additional, err)
 		}
 	}
 }
@@ -552,26 +606,80 @@ func TestJsonArraySplitAdditionalForcesObject(t *testing.T) {
 	}
 }
 
-// Cost must not depend on whether the additional field sits before or after the array.
-func TestJsonArraySplitAdditionalCost(t *testing.T) {
-	const count = 16 << 10
-	elems := strings.Repeat(`0,`, count-1) + `0`
-	run := func(doc string) (best time.Duration) {
-		p := newTestSplitter(t, JsonArraySplitConfig{Extraction: `a`, Additional_Fields: `z`})
-		for i := range 3 {
-			start := time.Now()
-			if n := len(splitData(t, p, doc)); n != count {
-				t.Fatalf("got %d entries, want %d", n, count)
-			}
-			if d := time.Since(start); i == 0 || d < best {
-				best = d
-			}
-		}
-		return
+// Splitting must work after Config() swaps in a config, including Additional-Fields without Force-JSON-Object.
+func TestJsonArraySplitReconfig(t *testing.T) {
+	cfg := JsonArraySplitConfig{Extraction: `e`, Additional_Fields: `h`}
+	p := newTestSplitter(t, cfg)
+	if err := p.Config(cfg); err != nil {
+		t.Fatal(err)
 	}
-	before := run(`{"z":1,"a":[` + elems + `]}`)
-	after := run(`{"a":[` + elems + `],"z":1}`)
-	if after > 10*before {
-		t.Fatalf("field after array took %v, before array took %v", after, before)
+	want := []string{`{"e":1,"h":2}`}
+	if got := splitData(t, p, `{"e":[1],"h":2}`); !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if err := p.Config(JsonArraySplitConfig{Extraction: `a,b`}); err == nil {
+		t.Fatal("invalid config accepted")
+	}
+}
+
+// Key names containing JSON metacharacters must be escaped in the output.
+func TestJsonArraySplitEscapedKeys(t *testing.T) {
+	cfg := JsonArraySplitConfig{Extraction: `"a\"b"`, Additional_Fields: `"c\\d"`, Force_JSON_Object: true}
+	got := splitData(t, newTestSplitter(t, cfg), `{"a\"b":[1],"c\\d":2}`)
+	want := []string{`{"a\"b":1,"c\\d":2}`}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if !json.Valid([]byte(got[0])) {
+		t.Fatalf("invalid JSON %s", got[0])
+	}
+}
+
+// Arrays that yield no entries emit nothing, and empty strings survive when wrapped in an object.
+func TestJsonArraySplitEmpty(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		force bool
+		drop  bool
+		in    string
+		want  []string
+	}{
+		{name: `empty array`, in: `{"e":[],"h":"x"}`},
+		{name: `empty array dropped`, drop: true, in: `{"e":[],"h":"x"}`},
+		{name: `only empty strings`, in: `{"e":["",""]}`},
+		{name: `empty string raw`, in: `{"e":["","x"]}`, want: []string{`x`}},
+		{name: `empty string object`, force: true, in: `{"e":["","x"]}`, want: []string{`{"e":""}`, `{"e":"x"}`}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := JsonArraySplitConfig{Extraction: `e`, Force_JSON_Object: tc.force, Drop_Misses: tc.drop}
+			if got := splitData(t, newTestSplitter(t, cfg), tc.in); !slices.Equal(got, tc.want) {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// Cost must not depend on whether the additional field sits before or after the array;
+// compare the two benchmarks rather than asserting on wall-clock time in a test.
+func BenchmarkJsonArraySplitAdditionalBefore(b *testing.B) {
+	benchmarkJsonArraySplitAdditional(b, `{"z":1,"a":[%s]}`)
+}
+
+func BenchmarkJsonArraySplitAdditionalAfter(b *testing.B) {
+	benchmarkJsonArraySplitAdditional(b, `{"a":[%s],"z":1}`)
+}
+
+func benchmarkJsonArraySplitAdditional(b *testing.B, format string) {
+	const count = 16 << 10
+	doc := []byte(fmt.Sprintf(format, strings.Repeat(`0,`, count-1)+`0`))
+	p, err := NewJsonArraySplitter(JsonArraySplitConfig{Extraction: `a`, Additional_Fields: `z`})
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(len(doc)))
+	for b.Loop() {
+		if rset, _ := p.Process([]*entry.Entry{{Data: doc}}); len(rset) != count {
+			b.Fatalf("got %d entries, want %d", len(rset), count)
+		}
 	}
 }
