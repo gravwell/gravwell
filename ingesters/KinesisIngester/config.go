@@ -64,6 +64,16 @@ type cfgType struct {
 	TimeFormat    config.CustomTimeFormat
 }
 
+func applyDefaults(c *cfgType) {
+	if c.Global.State_Store_Location == `` {
+		c.Global.State_Store_Location = defaultStateStore
+	}
+	// Log-File and Log-UDP-Target are mutually exclusive
+	if c.Global.Log_File == `` && c.Global.Log_UDP_Target == `` {
+		c.Global.Log_File = defaultLogFile
+	}
+}
+
 func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var c cfgType
 	if err := config.LoadConfigFile(&c, path); err != nil {
@@ -71,13 +81,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	} else if err = config.LoadConfigOverlays(&c, overlayPath); err != nil {
 		return nil, err
 	}
-	//initialize the state store location if its empty
-	if c.Global.State_Store_Location == `` {
-		c.Global.State_Store_Location = defaultStateStore
-	}
-	if c.Global.Log_File == `` {
-		c.Global.Log_File = defaultLogFile
-	}
+	applyDefaults(&c)
 	if err := c.Verify(); err != nil {
 		return nil, err
 	}
