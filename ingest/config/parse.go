@@ -171,8 +171,8 @@ func ParseBool(v string) (r bool, err error) {
 
 // ParseUint64 will attempt to turn the given string into an unsigned 64-bit integer.
 func ParseUint64(v string) (i uint64, err error) {
-	if strings.HasPrefix(v, "0x") {
-		i, err = strconv.ParseUint(strings.TrimPrefix(v, "0x"), 16, 64)
+	if after, ok := strings.CutPrefix(v, "0x"); ok {
+		i, err = strconv.ParseUint(after, 16, 64)
 	} else {
 		i, err = strconv.ParseUint(v, 10, 64)
 	}
@@ -181,8 +181,8 @@ func ParseUint64(v string) (i uint64, err error) {
 
 // ParseInt64 will attempt to turn the given string into a signed 64-bit integer.
 func ParseInt64(v string) (i int64, err error) {
-	if strings.HasPrefix(v, "0x") {
-		i, err = strconv.ParseInt(strings.TrimPrefix(v, "0x"), 16, 64)
+	if after, ok := strings.CutPrefix(v, "0x"); ok {
+		i, err = strconv.ParseInt(after, 16, 64)
 	} else {
 		i, err = strconv.ParseInt(v, 10, 64)
 	}
