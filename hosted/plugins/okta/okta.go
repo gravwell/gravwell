@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +34,7 @@ import (
 const (
 	Name    string = `okta`
 	ID      string = `okta.ingesters.gravwell.io`
-	Version string = `1.0.0` // must be canonical version string with only major.minor.point
+	Version string = `1.1.0` // must be canonical version string with only major.minor.point
 
 	httpBackoff = 10 * time.Second
 	httpTimeout = 5 * time.Second
@@ -74,6 +75,8 @@ type OktaIngester struct {
 	systemTag      entry.EntryTag
 	userTag        entry.EntryTag
 	c              doer
+	baseURL        string
+	oauthState     // OAuth 2.0 service app state, see oauth.go
 }
 
 func NewOktaIngester(c Config, tn hosted.TagNegotiator) (o *OktaIngester, err error) {
@@ -81,7 +84,16 @@ func NewOktaIngester(c Config, tn hosted.TagNegotiator) (o *OktaIngester, err er
 		return
 	}
 	o = &OktaIngester{
-		cfg: c,
+		cfg:     c,
+		baseURL: `https://` + c.Domain,
+	}
+	if c.useOAuth() {
+		// the org URL is the audience of the client assertion, keep it in Okta's canonical lower case
+		o.baseURL = strings.ToLower(o.baseURL)
+		if err = o.loadPrivateKey(); err != nil {
+			o = nil
+			return
+		}
 	}
 	if o.systemTag, err = tn.NegotiateTag(oktaTag); err != nil {
 		o = nil
@@ -119,8 +131,21 @@ func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 		rl.SetBurst(o.cfg.Request_Burst)
 	}
 
+	// a cursor saved for another org (the Domain changed) is dropped, the system log restarts from the saved timestamp
+	if n := o.systemLogsNext; n != nil && !o.sameOrigin(n) {
+		rt.Warn("discarding url checkpoint for another okta domain", log.KV("host", n.Host))
+		o.systemLogsNext = nil
+	}
+
 	// create a share http client to avoid passing a rate limiter around, and allow connection/resource reuse.
-	o.c = utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
+	if o.cfg.useOAuth() {
+		o.warnKeyFilePerms(rt)
+		d := o.newOAuthDoer(ctx, rl, rt)
+		defer d.cli.CloseIdleConnections() // each Run clones its own transport, the token client shares it
+		o.c = d
+	} else {
+		o.c = sswsDoer{next: utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes), token: o.cfg.Token}
+	}
 
 	wg := &sync.WaitGroup{}
 	wg.Go(func() {
@@ -155,7 +180,7 @@ func (o *OktaIngester) userLogRoutine(ctx context.Context, rt hosted.Runtime) {
 				continue //skip this, not sure how this could happen, but skip it
 			}
 			//just look for changes over the last boundary
-			rt.Debug("requesting users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
+			rt.Debug("requesting users", log.KV("start", start.UTC().Format(timeFormat)), log.KV("end", end.UTC().Format(timeFormat)))
 			if err := o.getUserLogs(ctx, start, end, rt); err != nil {
 				rt.Error("failed to get users", log.KV("error", err))
 			} else {
@@ -180,10 +205,16 @@ func (o *OktaIngester) systemLogRoutine(ctx context.Context, rt hosted.Runtime) 
 	}
 }
 
-func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) error {
+func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) (err error) {
+	// flag failures on the ingester status, a clean page clears it
+	defer func() {
+		if err != nil && ctx.Err() == nil {
+			rt.SetError(err)
+		}
+	}()
 	var req *http.Request
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, o.baseURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to build request %w", err)
 	}
@@ -194,14 +225,13 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) err
 		req.URL.Path = systemLogsPath
 		values := req.URL.Query()
 		values.Add(`sortOrder`, `ASCENDING`)
-		values.Add(`since`, o.latestTS.Format(timeFormat))
+		values.Add(`since`, o.latestTS.UTC().Format(timeFormat))
 		values.Add(`limit`, strconv.Itoa(o.cfg.Request_Batch_Size))
 		req.URL.RawQuery = values.Encode()
 	}
 
 	req.Header.Set(`Accept`, `application/json`)
 	req.Header.Set(`Content-Type`, `application/json`)
-	req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
 
 	var quit bool
 	for !quit && ctx.Err() == nil {
@@ -214,8 +244,9 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) err
 		if err != nil {
 			return err
 		} else if resp.StatusCode != 200 {
+			err = o.statusError(resp)
 			utils.DrainResponse(resp)
-			return fmt.Errorf("invalid status code %d", resp.StatusCode)
+			return err
 		}
 
 		cnt, ts, err := o.handleSystemLogs(resp.Body, rt)
@@ -239,6 +270,14 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) err
 			return err
 		} else if sln, err = url.Parse(next); err != nil {
 			return fmt.Errorf("Bad next URL %w", err)
+		} else if !o.sameOrigin(sln) {
+			// never follow or save a next link that leaves the org: drop the cursor, the next
+			// attempt restarts from the latest timestamp
+			o.systemLogsNext = nil
+			if serr := errors.Join(o.syncState(rt), rt.PutString(urlKey, ``)); serr != nil {
+				rt.Error("failed to sync state", log.KV("error", serr))
+			}
+			return fmt.Errorf("okta next link points at another host %q", sln.Host)
 		}
 		req.URL = sln
 		o.systemLogsNext = sln
@@ -247,6 +286,7 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) err
 			// failing to sync the state is not fatal, keep eating, we might recover later
 			rt.Error("failed to sync state", log.KV("error", err))
 		}
+		rt.ClearError()
 
 		if cnt == 0 {
 			quit = rt.Sleep(emptySleepDur)
@@ -350,13 +390,14 @@ func lastUpdatedFilter(start, end time.Time) (r string) {
 	}
 	if !start.IsZero() && !end.IsZero() {
 		//both
-		r = fmt.Sprintf(`lastUpdated gt %q and lastUpdated lt %q`, start.Format(timeFormat), end.Format(timeFormat))
+		// timeFormat ends in a literal Z, the times must be UTC
+		r = fmt.Sprintf(`lastUpdated gt %q and lastUpdated lt %q`, start.UTC().Format(timeFormat), end.UTC().Format(timeFormat))
 	}
 	return
 }
 
 func (o *OktaIngester) getUserLogs(ctx context.Context, start, end time.Time, rt hosted.Runtime) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, o.baseURL, nil)
 	if err != nil {
 		return err
 	}
@@ -370,9 +411,32 @@ func (o *OktaIngester) getUserLogs(ctx context.Context, start, end time.Time, rt
 	req.URL.RawQuery = values.Encode()
 	req.Header.Set(`Accept`, `application/json`)
 	req.Header.Set(`Content-Type`, `application/json`)
-	req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
 
-	return o.linkFollowingRequest(req, rt)
+	err = o.linkFollowingRequest(req, rt)
+	if isInsufficientScope(err) {
+		rt.Warn("the okta.users.read scope is not granted to the service app, users cannot be collected", log.KVErr(err))
+	}
+	return err
+}
+
+// sswsDoer is the doer for Token mode, it adds the SSWS token to every request
+type sswsDoer struct {
+	next  doer
+	token string
+}
+
+func (d sswsDoer) Do(req *http.Request) (*http.Response, error) {
+	req.Header.Set(`Authorization`, `SSWS `+d.token)
+	return d.next.Do(req)
+}
+
+// statusError describes a non-200 response with what Okta said
+func (o *OktaIngester) statusError(resp *http.Response) error {
+	e := newAPIError(resp)
+	if e.status == http.StatusForbidden && o.cfg.useOAuth() {
+		e.msg += `; check that the service app is assigned the Read-only Administrator role and granted the okta.logs.read and okta.users.read scopes`
+	}
+	return e
 }
 
 func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime) error {
@@ -381,8 +445,9 @@ func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime
 		if err != nil {
 			return err
 		} else if resp.StatusCode != 200 {
+			err = o.statusError(resp)
 			utils.DrainResponse(resp)
-			return fmt.Errorf("invalid status code %d", resp.StatusCode)
+			return err
 		}
 
 		//consume results
@@ -402,11 +467,21 @@ func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime
 				break
 			}
 			return err
-		} else if req.URL, err = url.Parse(next); err != nil {
+		} else if nu, err := url.Parse(next); err != nil {
 			return fmt.Errorf("Bad next URL %w", err)
+		} else if !o.sameOrigin(nu) {
+			return fmt.Errorf("okta next link points at another host %q", nu.Host)
+		} else {
+			req.URL = nu
 		}
 	}
 	return nil
+}
+
+// sameOrigin reports whether u is on the configured org. Next links are absolute URLs from Okta or
+// the state store, credentials must not follow one to another host.
+func (o *OktaIngester) sameOrigin(u *url.URL) bool {
+	return strings.EqualFold(u.Scheme+`://`+u.Host, o.baseURL)
 }
 
 func (o *OktaIngester) handleUserLogs(rdr io.Reader, rt hosted.Runtime) (err error) {

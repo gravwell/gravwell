@@ -9,6 +9,7 @@
 package okta
 
 import (
+	"crypto/rsa"
 	"errors"
 	"fmt"
 	"strings"
@@ -45,6 +46,66 @@ type Config struct {
 	Request_Burst      int // leaky bucket burstability
 	Domain             string
 	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
+
+	// OAuth 2.0 service app authentication, mutually exclusive with Token
+	Client_ID        string
+	Private_Key      string `json:"-"` // Okta JWK JSON or RSA PEM - DO NOT send this when marshalling
+	Private_Key_File string `json:"-"` // a file holding the key, mutually exclusive with Private_Key - DO NOT send this when marshalling
+	Private_Key_ID   string // optional, overrides the JWK kid
+
+	parsed *parsedKey // the key Verify loaded from Private_Key or Private_Key_File, read and parsed once
+}
+
+type parsedKey struct {
+	raw, file string // the Private_Key or Private_Key_File it came from
+	key       *rsa.PrivateKey
+	kid       string
+}
+
+// privateKey parses Private_Key, or reads and parses Private_Key_File. A later call for the same
+// setting returns the same key, the file is read once.
+func (c *Config) privateKey() (*rsa.PrivateKey, string, error) {
+	if pk := c.loaded(); pk != nil {
+		return pk.key, pk.kid, nil
+	}
+	raw, name := c.Private_Key, `Private-Key`
+	if c.Private_Key_File != `` {
+		b, err := readKeyFile(c.Private_Key_File)
+		if err != nil {
+			return nil, ``, fmt.Errorf("failed to read Private-Key-File: %w", err)
+		}
+		raw, name = string(b), `Private-Key-File`
+	}
+	key, kid, err := parsePrivateKey(raw)
+	if err != nil {
+		if errors.Is(err, errKeyEncoding) && c.Private_Key_File == `` {
+			return nil, ``, fmt.Errorf("invalid %s: %w; a file path belongs in Private-Key-File", name, err)
+		}
+		return nil, ``, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	c.parsed = &parsedKey{raw: c.Private_Key, file: c.Private_Key_File, key: key, kid: kid}
+	return key, kid, nil
+}
+
+// sameKey reports whether nc loaded the same key. The keys are compared rather than the settings:
+// a rotated Private-Key-File keeps its path, and a reformatted Private-Key is still the same key.
+func (c *Config) sameKey(nc *Config) bool {
+	a, b := c.loaded(), nc.loaded()
+	if a == nil || b == nil {
+		// a side whose settings have not been through Verify has no key to compare, the settings decide
+		return a == nil && b == nil && c.Private_Key == nc.Private_Key
+	}
+	// Private_Key_ID overrides the JWK kid, and Equal has already compared it
+	return (c.Private_Key_ID != `` || a.kid == b.kid) && a.key.Equal(b.key)
+}
+
+// loaded returns the key Verify loaded for the current settings, nil if there is none or the
+// settings have changed since
+func (c *Config) loaded() *parsedKey {
+	if pk := c.parsed; pk != nil && pk.raw == c.Private_Key && pk.file == c.Private_Key_File {
+		return pk
+	}
+	return nil
 }
 
 var _ hosted.Config = (*Config)(nil) // compile time interface check
@@ -61,7 +122,16 @@ func (c *Config) Equal(ncp any) bool {
 		c.Request_Per_Minute == nc.Request_Per_Minute &&
 		c.Request_Burst == nc.Request_Burst &&
 		c.Domain == nc.Domain &&
-		c.Token == nc.Token
+		c.Token == nc.Token &&
+		c.Client_ID == nc.Client_ID &&
+		c.Private_Key_File == nc.Private_Key_File &&
+		c.Private_Key_ID == nc.Private_Key_ID &&
+		c.sameKey(nc)
+}
+
+// useOAuth reports whether the config authenticates as an OAuth 2.0 service app rather than with an SSWS token
+func (c *Config) useOAuth() bool {
+	return c.Token == `` && c.Client_ID != ``
 }
 
 func (c *Config) Verify() (err error) {
@@ -82,8 +152,8 @@ func (c *Config) Verify() (err error) {
 		c.Request_Burst = defaultRequestBurst
 	}
 
-	if c.Token == `` {
-		return errors.New("missing okta authentication token")
+	if err = c.verifyAuth(); err != nil {
+		return
 	}
 	if c.Domain == `` {
 		return errors.New("missing okta domain")
@@ -97,6 +167,29 @@ func (c *Config) Verify() (err error) {
 	}
 
 	return
+}
+
+// verifyAuth enforces that exactly one of {Token} or {Client-ID, a private key, Private-Key-ID} is
+// configured, the private key being exactly one of Private-Key or Private-Key-File
+func (c *Config) verifyAuth() error {
+	key := c.Private_Key != `` || c.Private_Key_File != ``
+	oauth := c.Client_ID != `` || key || c.Private_Key_ID != ``
+	switch {
+	case c.Token != `` && oauth:
+		return errors.New("Token and Client-ID/Private-Key/Private-Key-File/Private-Key-ID are mutually exclusive")
+	case c.Token != ``:
+		return nil
+	case !oauth:
+		return errors.New("missing okta authentication: set Token, or Client-ID + Private-Key or Private-Key-File")
+	case c.Client_ID == ``:
+		return errors.New("Private-Key, Private-Key-File and Private-Key-ID require Client-ID")
+	case !key:
+		return errors.New("Client-ID requires Private-Key or Private-Key-File")
+	case c.Private_Key != `` && c.Private_Key_File != ``:
+		return errors.New("Private-Key and Private-Key-File are mutually exclusive")
+	}
+	_, _, err := c.privateKey()
+	return err
 }
 
 // isOktaDomain reports whether d is an org host under one of the Okta parent domains.
