@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -35,12 +36,13 @@ var ()
 type flowType int
 
 type collector struct {
-	Bind_String           string //IP port pair 127.0.0.1:1234
-	Tag_Name              string
-	Assume_Local_Timezone bool
-	Ignore_Timestamps     bool
-	Flow_Type             string
-	Session_Dump_Enabled  bool
+	Bind_String               string //IP port pair 127.0.0.1:1234
+	Tag_Name                  string
+	Assume_Local_Timezone     bool
+	Ignore_Timestamps         bool
+	Disable_Timestamp_Control bool // accept flow header times outside of the default window
+	Flow_Type                 string
+	Session_Dump_Enabled      bool
 }
 
 type cfgReadType struct {
@@ -102,6 +104,23 @@ func (c *cfgType) Verify() error {
 		bindMp[v.Bind_String] = k
 	}
 	return nil
+}
+
+// headerTimeWindow is the window applied to flow header times.
+// A delta set in the Global config overrides the default for that side.
+func (c *cfgType) headerTimeWindow() (w timegrinder.TimestampWindow, err error) {
+	var gw timegrinder.TimestampWindow
+	if gw, err = c.GlobalTimestampWindow(); err != nil {
+		return
+	}
+	w = defaultHeaderTimeWindow
+	if strings.TrimSpace(c.Timestamp_Max_Past_Delta) != `` {
+		w.MaxPastDelta = gw.MaxPastDelta
+	}
+	if strings.TrimSpace(c.Timestamp_Max_Future_Delta) != `` {
+		w.MaxFutureDelta = gw.MaxFutureDelta
+	}
+	return
 }
 
 func (c *cfgType) Tags() ([]string, error) {

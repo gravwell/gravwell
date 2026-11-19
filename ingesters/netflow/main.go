@@ -94,6 +94,10 @@ func main() {
 		}
 	}
 
+	if bc.tsWindow, err = cfg.headerTimeWindow(); err != nil {
+		lg.FatalCode(0, "invalid timestamp window", log.KVErr(err))
+	}
+
 	//fire up our backends
 	for k, v := range cfg.Collector {
 		//get the tag for this listener
@@ -107,6 +111,7 @@ func main() {
 		}
 		bc.tag = tag
 		bc.ignoreTS = v.Ignore_Timestamps
+		bc.disableTSControl = v.Disable_Timestamp_Control
 		bc.localTZ = v.Assume_Local_Timezone
 		bc.sessionDumpEnabled = v.Session_Dump_Enabled
 		bc.lastInfoDump = time.Now()

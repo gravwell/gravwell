@@ -118,7 +118,6 @@ func (i *IpfixHandler) routine(id int) {
 	var s *ipfix.Session
 	var addr *net.UDPAddr
 	var err error
-	var ts entry.Timestamp
 	var version uint16
 	var domainID uint32
 
@@ -205,15 +204,10 @@ func (i *IpfixHandler) routine(id int) {
 			}
 		}
 
-		if i.ignoreTS {
-			ts = entry.Now()
-		} else {
-			ts = entry.UnixTime(int64(msg.Header.ExportTime), 0)
-		}
 		e := &entry.Entry{
 			Tag:  i.tag,
 			SRC:  addr.IP,
-			TS:   ts,
+			TS:   i.headerTime(msg.Header.ExportTime, 0),
 			Data: lbuff,
 		}
 		i.ch <- e
