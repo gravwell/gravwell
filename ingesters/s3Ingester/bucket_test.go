@@ -35,6 +35,46 @@ func TestNewBucketReader_Endpoint(t *testing.T) {
 	assert.Equal(t, cfg.Endpoint, br.AuthConfig.Endpoint)
 }
 
+func TestNewBucketReader_AssumeRole(t *testing.T) {
+	t.Parallel()
+
+	newCfg := func() BucketConfig {
+		return BucketConfig{
+			AuthConfig: AuthConfig{
+				Region:     "us-east-1",
+				Bucket_ARN: "arn:aws:s3:::test-bucket",
+			},
+			Credentials_Type:        "assumerole",
+			ID:                      "test-access-key-id",
+			Secret:                  "test-secret-key",
+			Role_ARN:                "arn:aws:iam::123456789012:role/gravwell-ingest",
+			Source_Credentials_Type: "static",
+			External_ID:             "some-id",
+			Reader:                  "line",
+			TagName:                 "default",
+			Name:                    "assumerole-test",
+			Proc:                    &processors.ProcessorSet{},
+			Logger:                  log.NewDiscardLogger(),
+		}
+	}
+
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+		br, err := NewBucketReader(t.Context(), newCfg())
+		require.NoError(t, err)
+		require.NotNil(t, br)
+	})
+
+	t.Run("Role-ARN without assumerole", func(t *testing.T) {
+		t.Parallel()
+		cfg := newCfg()
+		cfg.Credentials_Type = "static"
+		_, err := NewBucketReader(t.Context(), cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Role-ARN requires Credentials-Type=assumerole")
+	})
+}
+
 func TestAuthConfig_Validate(t *testing.T) {
 	t.Parallel()
 

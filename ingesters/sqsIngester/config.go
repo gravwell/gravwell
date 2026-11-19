@@ -36,6 +36,24 @@ type queue struct {
 	AKID             string
 	Secret           string `json:"-"` // DO NOT send this when marshalling
 	Preprocessor     []string
+
+	// Credentials-Type=assumerole only; omitempty keeps the reported config unchanged when unused
+	Role_ARN                string `json:",omitempty"`
+	External_ID             string `json:"-"` // DO NOT send this when marshalling
+	Source_Credentials_Type string `json:",omitempty"`
+}
+
+func (q *queue) credentialsConfig() sqs_common.CredentialsConfig {
+	return sqs_common.CredentialsConfig{
+		Type:        q.Credentials_Type,
+		ID:          q.AKID,
+		Secret:      q.Secret,
+		RoleARN:     q.Role_ARN,
+		ExternalID:  q.External_ID,
+		SourceType:  q.Source_Credentials_Type,
+		Region:      q.Region,
+		SessionName: "gravwell-sqs",
+	}
 }
 
 type baseConfig struct {
@@ -124,7 +142,7 @@ func (c *cfgType) Verify() error {
 		if v.Region == "" {
 			return fmt.Errorf("Queue %s must provide Region", k)
 		}
-		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.AKID, v.Secret); err != nil {
+		if err := v.credentialsConfig().Validate(); err != nil {
 			return err
 		}
 	}

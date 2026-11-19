@@ -18,6 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.7
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.101.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.27
+	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1
 	github.com/bmatcuk/doublestar/v4 v4.4.0
 	github.com/brianvoe/gofakeit v3.18.0+incompatible
 	github.com/bxcodec/faker/v3 v3.3.1
@@ -94,7 +95,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.21 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1 // indirect
 	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

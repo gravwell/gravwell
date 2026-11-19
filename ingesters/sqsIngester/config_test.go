@@ -55,6 +55,67 @@ func TestConfig_Verify(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "valid assumerole config",
+			conf: &cfgType{
+				IngestConfig: config.IngestConfig{
+					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+					Ingest_Secret:            "secret",
+				},
+				Queue: map[string]*queue{
+					"default": {
+						Queue_URL:               "https://sqs.us-east-1.amazonaws.com/123/q",
+						Region:                  "us-east-1",
+						Credentials_Type:        "assumerole",
+						Role_ARN:                "arn:aws:iam::123456789012:role/gravwell-ingest",
+						External_ID:             "some-id",
+						Source_Credentials_Type: "static",
+						AKID:                    "akid",
+						Secret:                  "secret",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Role-ARN without assumerole",
+			conf: &cfgType{
+				IngestConfig: config.IngestConfig{
+					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+					Ingest_Secret:            "secret",
+				},
+				Queue: map[string]*queue{
+					"default": {
+						Queue_URL:        "https://sqs.us-east-1.amazonaws.com/123/q",
+						Region:           "us-east-1",
+						Credentials_Type: "static",
+						AKID:             "akid",
+						Secret:           "secret",
+						Role_ARN:         "arn:aws:iam::123456789012:role/gravwell-ingest",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "assumerole invalid External-ID",
+			conf: &cfgType{
+				IngestConfig: config.IngestConfig{
+					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+					Ingest_Secret:            "secret",
+				},
+				Queue: map[string]*queue{
+					"default": {
+						Queue_URL:        "https://sqs.us-east-1.amazonaws.com/123/q",
+						Region:           "us-east-1",
+						Credentials_Type: "assumerole",
+						Role_ARN:         "arn:aws:iam::123456789012:role/gravwell-ingest",
+						External_ID:      "bad id",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "missing region",
 			conf: &cfgType{
 				IngestConfig: config.IngestConfig{

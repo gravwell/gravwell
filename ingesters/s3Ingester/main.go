@@ -98,6 +98,10 @@ func main() {
 			ID:               v.ID,
 			Secret:           v.Secret,
 			AttachMetadata:   v.Attach_Metadata,
+
+			Role_ARN:                v.Role_ARN,
+			External_ID:             v.External_ID,
+			Source_Credentials_Type: v.Source_Credentials_Type,
 		}
 		if bcfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			ib.Logger.FatalCode(0, "failed to get established tag",
@@ -117,6 +121,9 @@ func main() {
 		if b, err := NewBucketReader(ctx, bcfg); err != nil {
 			ib.Logger.FatalCode(0, "failed to create bucket reader", log.KVErr(err))
 		} else {
+			if err := b.checkCredentials(ctx); err != nil {
+				ib.Logger.Error("credentials check failed", log.KV("bucket", k), log.KVErr(err))
+			}
 			brs = append(brs, b)
 		}
 	}
@@ -141,6 +148,10 @@ func main() {
 			Secret:           v.Secret,
 			FileFilters:      v.File_Filters,
 			AttachMetadata:   v.Attach_Metadata,
+
+			Role_ARN:                v.Role_ARN,
+			External_ID:             v.External_ID,
+			Source_Credentials_Type: v.Source_Credentials_Type,
 		}
 		if scfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			ib.Logger.FatalCode(0, "failed to get established tag",
@@ -160,6 +171,9 @@ func main() {
 		if b, err := NewSQSS3Listener(ctx, scfg); err != nil {
 			ib.Logger.FatalCode(0, "failed to create SQS S3 Listener", log.KVErr(err))
 		} else {
+			if err := b.checkCredentials(ctx); err != nil {
+				ib.Logger.Error("credentials check failed", log.KV("listener", k), log.KVErr(err))
+			}
 			sqsS3 = append(sqsS3, b)
 		}
 	}

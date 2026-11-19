@@ -34,6 +34,26 @@ type global struct {
 	Credentials_Type      string
 	AWS_Access_Key_ID     string `json:"-"` // DO NOT send this when marshalling
 	AWS_Secret_Access_Key string `json:"-"` // DO NOT send this when marshalling
+
+	// Credentials-Type=assumerole only; omitempty keeps the reported config unchanged when unused
+	Role_ARN                string `json:",omitempty"`
+	External_ID             string `json:"-"` // DO NOT send this when marshalling
+	Source_Credentials_Type string `json:",omitempty"`
+}
+
+// credentialsConfig returns the credentials for a stream in region; with
+// assumerole the region is used for the STS call.
+func (g *global) credentialsConfig(region string) sqs_common.CredentialsConfig {
+	return sqs_common.CredentialsConfig{
+		Type:        g.Credentials_Type,
+		ID:          g.AWS_Access_Key_ID,
+		Secret:      g.AWS_Secret_Access_Key,
+		RoleARN:     g.Role_ARN,
+		ExternalID:  g.External_ID,
+		SourceType:  g.Source_Credentials_Type,
+		Region:      region,
+		SessionName: "gravwell-kinesis",
+	}
 }
 
 type streamDef struct {
@@ -100,7 +120,7 @@ func (c cfgType) Verify() error {
 	if connCount == 0 {
 		return errors.New("No backend targets specified")
 	}
-	if _, err := sqs_common.GetCredentials(c.Global.Credentials_Type, c.Global.AWS_Access_Key_ID, c.Global.AWS_Secret_Access_Key); err != nil {
+	if err := c.Global.credentialsConfig("").Validate(); err != nil {
 		return fmt.Errorf("Global credentials invalid (Credentials-Type, AWS-Access-Key-ID, AWS-Secret-Access-Key): %w", err)
 	}
 	if len(c.KinesisStream) == 0 {
@@ -114,6 +134,9 @@ func (c cfgType) Verify() error {
 	for k, v := range c.KinesisStream {
 		if v == nil {
 			return fmt.Errorf("Kinesis stream %v config is nil", k)
+		}
+		if err := c.Global.credentialsConfig(v.Region).CheckRegion(); err != nil {
+			return fmt.Errorf("Kinesis stream %s: %w", k, err)
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("Kinesis stream %s preprocessor invalid: %v", k, err)

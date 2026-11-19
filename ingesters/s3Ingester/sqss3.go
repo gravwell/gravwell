@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -34,6 +35,25 @@ type SQSS3Config struct {
 	Secret           string `json:"-"` //do not ship this as part of a config report
 	Credentials_Type string
 	AttachMetadata   bool
+
+	// Credentials-Type=assumerole only
+	Role_ARN                string
+	External_ID             string `json:"-"` //do not ship this as part of a config report
+	Source_Credentials_Type string
+}
+
+func (s *SQSS3Config) credentialsConfig() sqs_common.CredentialsConfig {
+	return sqs_common.CredentialsConfig{
+		Type:        s.Credentials_Type,
+		ID:          s.ID,
+		Secret:      s.Secret,
+		RoleARN:     s.Role_ARN,
+		ExternalID:  s.External_ID,
+		SourceType:  s.Source_Credentials_Type,
+		Region:      s.Region,
+		SessionName: roleSessionName,
+		Logger:      s.Logger,
+	}
 }
 
 type SQSS3Listener struct {
@@ -44,6 +64,12 @@ type SQSS3Listener struct {
 	src    net.IP
 	rdr    reader
 	filter *matcher
+	creds  aws.CredentialsProvider
+}
+
+// checkCredentials reports an assumerole misconfiguration; it does nothing for other credential types.
+func (s *SQSS3Listener) checkCredentials(ctx context.Context) error {
+	return s.credentialsConfig().CheckAssumeRole(ctx, s.creds)
 }
 
 func NewSQSS3Listener(ctx context.Context, cfg SQSS3Config) (s *SQSS3Listener, err error) {
@@ -65,7 +91,7 @@ func NewSQSS3Listener(ctx context.Context, cfg SQSS3Config) (s *SQSS3Listener, e
 		return
 	}
 
-	c, err := sqs_common.GetCredentials(cfg.Credentials_Type, cfg.ID, cfg.Secret)
+	c, err := cfg.credentialsConfig().Provider(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +133,7 @@ func NewSQSS3Listener(ctx context.Context, cfg SQSS3Config) (s *SQSS3Listener, e
 		src:         cfg.srcOverride(),
 		rdr:         rdr,
 		filter:      filter,
+		creds:       c,
 	}
 	return
 }
