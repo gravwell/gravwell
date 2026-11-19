@@ -156,11 +156,15 @@ func pemShape(s string) string {
 	)
 }
 
-// parsePEMPrivateKey accepts PKCS#1 ("RSA PRIVATE KEY") and PKCS#8 ("PRIVATE KEY") PEM.
+// parsePEMPrivateKey accepts PKCS#1 ("RSA PRIVATE KEY") and PKCS#8 ("PRIVATE KEY") PEM. Other
+// blocks, such as the certificate in a cert+key bundle, are skipped.
 func parsePEMPrivateKey(b []byte) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode(b)
+	block, rest := pem.Decode(b)
+	for block != nil && !strings.HasSuffix(block.Type, "PRIVATE KEY") {
+		block, rest = pem.Decode(rest)
+	}
 	if block == nil {
-		return nil, errors.New("PEM decode failed: no PEM block found")
+		return nil, errors.New("PEM decode failed: no private key PEM block found")
 	}
 	if strings.Contains(block.Headers["Proc-Type"], "ENCRYPTED") {
 		return nil, errors.New("encrypted PEM private keys are not supported; supply an unencrypted key")
@@ -211,9 +215,21 @@ type jwkRSAPrivateKey struct {
 }
 
 func parseJWKPrivateKey(b []byte) (*rsa.PrivateKey, string, error) {
+	var set struct {
+		Keys []json.RawMessage `json:"keys"`
+	}
+	if err := json.Unmarshal(b, &set); err != nil {
+		// deliberately not wrapped, a JSON error can echo bytes of the input
+		return nil, "", errors.New("JWK decode failed: value is not valid JSON")
+	} else if set.Keys != nil {
+		// a JWK Set, as Okta shows the app's public keys; accept one holding a single key
+		if len(set.Keys) != 1 {
+			return nil, "", fmt.Errorf("value is a JWK Set with %d keys, supply the single private JWK", len(set.Keys))
+		}
+		b = set.Keys[0]
+	}
 	var jwk jwkRSAPrivateKey
 	if err := json.Unmarshal(b, &jwk); err != nil {
-		// deliberately not wrapped, a JSON error can echo bytes of the input
 		return nil, "", errors.New("JWK decode failed: value is not valid JSON")
 	}
 	if jwk.Kty != "" && !strings.EqualFold(jwk.Kty, "RSA") {

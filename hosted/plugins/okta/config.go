@@ -87,13 +87,12 @@ func (c *Config) privateKey() (*rsa.PrivateKey, string, error) {
 	return key, kid, nil
 }
 
-// sameKeyFile reports whether nc loaded the same key from Private_Key_File. The path alone
-// does not change when the key is rotated, comparing the keys lets a reload pick the new one up.
-func (c *Config) sameKeyFile(nc *Config) bool {
-	if c.Private_Key_File == `` || (c.parsed == nil && nc.parsed == nil) {
-		return true // no key loaded on either side, the settings decide
-	} else if c.parsed == nil || nc.parsed == nil {
-		return false // only one side has been through Verify, a restart is the safe answer
+// sameKey reports whether nc loaded the same key. The keys are compared rather than the settings:
+// a rotated Private-Key-File keeps its path, and a reformatted Private-Key is still the same key.
+func (c *Config) sameKey(nc *Config) bool {
+	if c.parsed == nil || nc.parsed == nil {
+		// a side that has not been through Verify has no key to compare, the settings decide
+		return c.parsed == nil && nc.parsed == nil && c.Private_Key == nc.Private_Key
 	}
 	// Private_Key_ID overrides the JWK kid, and Equal has already compared it
 	return (c.Private_Key_ID != `` || c.parsed.kid == nc.parsed.kid) && c.parsed.key.Equal(nc.parsed.key)
@@ -115,10 +114,9 @@ func (c *Config) Equal(ncp any) bool {
 		c.Domain == nc.Domain &&
 		c.Token == nc.Token &&
 		c.Client_ID == nc.Client_ID &&
-		c.Private_Key == nc.Private_Key &&
 		c.Private_Key_File == nc.Private_Key_File &&
 		c.Private_Key_ID == nc.Private_Key_ID &&
-		c.sameKeyFile(nc)
+		c.sameKey(nc)
 }
 
 // useOAuth reports whether the config authenticates as an OAuth 2.0 service app rather than with an SSWS token

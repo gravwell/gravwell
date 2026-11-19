@@ -156,13 +156,13 @@ func (d *oauthDoer) Do(req *http.Request) (*http.Response, error) {
 		case resp.StatusCode == http.StatusUnauthorized && !reauthed:
 			// the token was revoked or expired early, try once more with a new one
 			utils.DrainResponse(resp)
-			d.dropToken()
+			d.dropToken(areq.Header.Get(`Authorization`))
 			reauthed = true
 			continue
 		default:
 			// a token keeps the scopes it was issued with, drop it so a later grant takes effect
 			if resp.StatusCode == http.StatusUnauthorized || insufficientScope(resp) {
-				d.dropToken()
+				d.dropToken(areq.Header.Get(`Authorization`))
 			}
 			return resp, nil
 		}
@@ -186,7 +186,7 @@ func (d *oauthDoer) authorize(req *http.Request) (retry bool, err error) {
 
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
-	d.tokens.failed = nil
+	d.tokens.failed, d.tokens.nonces = nil, 0
 	cfg := d.auth
 	cfg.Req = req
 	if err = okta.NewPrivateKeyAuth(cfg).Authorize(req.Method, htu.String()); err == nil {
@@ -200,15 +200,19 @@ func (d *oauthDoer) authorize(req *http.Request) (retry bool, err error) {
 	return errors.As(err, &ue), fmt.Errorf("okta token request failed: %w", err)
 }
 
-func (d *oauthDoer) dropToken() {
+// dropToken flushes the cached token if it is still the rejected one, the other routine may
+// already have replaced it
+func (d *oauthDoer) dropToken(rejected string) {
 	d.mtx.Lock()
-	d.auth.TokenCache.Flush()
-	d.mtx.Unlock()
+	defer d.mtx.Unlock()
+	if tok, ok := d.auth.TokenCache.Get(okta.AccessTokenCacheKey); ok && tok == rejected {
+		d.auth.TokenCache.Flush()
+	}
 }
 
-// retryStatus mirrors utils.RetryHttpClient: server errors and the Token mode retry codes
+// retryStatus is the utils.RetryHttpClient policy: server errors and the Token mode retry codes
 func retryStatus(status int) bool {
-	return status >= 500 || slices.Contains(httpRetryCodes, status)
+	return utils.IsRecoverableStatus(status, httpRetryCodes)
 }
 
 // apiError is a non-200 response from the Okta API
@@ -255,9 +259,6 @@ func newAPIError(resp *http.Response) *apiError {
 		e.msg += `: ` + body.ErrorSummary
 	} else if e.code != `` {
 		e.msg += `: ` + e.code + `: ` + params[`error_description`]
-	}
-	if e.status == http.StatusForbidden {
-		e.msg += `; check that the service app is assigned the Read-only Administrator role and granted the okta.logs.read and okta.users.read scopes`
 	}
 	return e
 }
@@ -335,7 +336,12 @@ type tokenTransport struct {
 	lg     hosted.Logger
 	next   http.RoundTripper
 	failed *tokenError // the last refused token request, guarded by oauthDoer.mtx
+	nonces int         // use_dpop_nonce replies to this token request, guarded by oauthDoer.mtx
 }
+
+// maxDPoPNonces bounds the SDK's DPoP nonce handshake, it requests a new token on every
+// use_dpop_nonce reply without a limit
+const maxDPoPNonces = 3
 
 func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := t.next.RoundTrip(req)
@@ -357,9 +363,18 @@ func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	_ = json.Unmarshal(body, &tr)
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		kvs := []rfc5424.SDParam{log.KV("status", resp.StatusCode), log.KV("error", tr.Error), log.KV("description", tr.Description)}
+		if tr.Error == `use_dpop_nonce` {
+			t.nonces++
+		}
 		// requesting a proof, then a nonce, is the normal DPoP handshake
-		if tr.Error == `use_dpop_nonce` || (tr.Error == `invalid_dpop_proof` && req.Header.Get(`DPoP`) == ``) {
+		if (tr.Error == `use_dpop_nonce` && t.nonces <= maxDPoPNonces && resp.Header.Get(`DPoP-Nonce`) != ``) ||
+			(tr.Error == `invalid_dpop_proof` && req.Header.Get(`DPoP`) == ``) {
 			t.lg.Debug("okta token endpoint requested DPoP", kvs...)
+		} else if tr.Error == `use_dpop_nonce` {
+			// hide the nonce request from the SDK so it stops, authorize reports t.failed
+			resp.Body = io.NopCloser(strings.NewReader(`{}`))
+			t.failed = &tokenError{status: resp.StatusCode, code: tr.Error, desc: `the DPoP nonce handshake did not complete`}
+			t.lg.Error("okta token request failed", kvs...)
 		} else {
 			t.failed = &tokenError{status: resp.StatusCode, code: tr.Error, desc: tr.Description}
 			t.lg.Error("okta token request failed", kvs...)

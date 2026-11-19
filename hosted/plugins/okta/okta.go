@@ -131,12 +131,20 @@ func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 		rl.SetBurst(o.cfg.Request_Burst)
 	}
 
+	// a cursor saved for another org (the Domain changed) is dropped, the system log restarts from the saved timestamp
+	if n := o.systemLogsNext; n != nil && !strings.EqualFold(n.Scheme+`://`+n.Host, o.baseURL) {
+		rt.Warn("discarding url checkpoint for another okta domain", log.KV("host", n.Host))
+		o.systemLogsNext = nil
+	}
+
 	// create a share http client to avoid passing a rate limiter around, and allow connection/resource reuse.
 	if o.cfg.useOAuth() {
 		o.warnKeyFilePerms(rt)
-		o.c = o.newOAuthDoer(ctx, rl, rt)
+		d := o.newOAuthDoer(ctx, rl, rt)
+		defer d.cli.CloseIdleConnections() // each Run clones its own transport, the token client shares it
+		o.c = d
 	} else {
-		o.c = utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
+		o.c = sswsDoer{next: utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes), token: o.cfg.Token}
 	}
 
 	wg := &sync.WaitGroup{}
@@ -224,7 +232,6 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) (er
 
 	req.Header.Set(`Accept`, `application/json`)
 	req.Header.Set(`Content-Type`, `application/json`)
-	o.setAuth(req)
 
 	var quit bool
 	for !quit && ctx.Err() == nil {
@@ -396,7 +403,6 @@ func (o *OktaIngester) getUserLogs(ctx context.Context, start, end time.Time, rt
 	req.URL.RawQuery = values.Encode()
 	req.Header.Set(`Accept`, `application/json`)
 	req.Header.Set(`Content-Type`, `application/json`)
-	o.setAuth(req)
 
 	err = o.linkFollowingRequest(req, rt)
 	if isInsufficientScope(err) {
@@ -405,20 +411,24 @@ func (o *OktaIngester) getUserLogs(ctx context.Context, start, end time.Time, rt
 	return err
 }
 
-// setAuth adds the SSWS token, in OAuth mode the oauthDoer authorizes each attempt instead
-func (o *OktaIngester) setAuth(req *http.Request) {
-	if !o.cfg.useOAuth() {
-		req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
-	}
+// sswsDoer is the doer for Token mode, it adds the SSWS token to every request
+type sswsDoer struct {
+	next  doer
+	token string
 }
 
-// statusError describes a non-200 response. Token mode keeps its original error, OAuth mode
-// reports what Okta said, its scope and role failures need the detail.
+func (d sswsDoer) Do(req *http.Request) (*http.Response, error) {
+	req.Header.Set(`Authorization`, `SSWS `+d.token)
+	return d.next.Do(req)
+}
+
+// statusError describes a non-200 response with what Okta said
 func (o *OktaIngester) statusError(resp *http.Response) error {
-	if !o.cfg.useOAuth() {
-		return fmt.Errorf("invalid status code %d", resp.StatusCode)
+	e := newAPIError(resp)
+	if e.status == http.StatusForbidden && o.cfg.useOAuth() {
+		e.msg += `; check that the service app is assigned the Read-only Administrator role and granted the okta.logs.read and okta.users.read scopes`
 	}
-	return newAPIError(resp)
+	return e
 }
 
 func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime) error {

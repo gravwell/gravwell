@@ -365,6 +365,33 @@ func TestConfig_PrivateKeyFileRotation(t *testing.T) {
 	}
 }
 
+// an inline key is compared as a key, not as text: the same key in another encoding is not a change
+func TestConfig_InlineKeyComparedAsKey(t *testing.T) {
+	t.Parallel()
+	load := func(pk string) *Config {
+		c := &Config{Domain: "example.okta.com", Client_ID: "client", Private_Key: pk}
+		if err := c.Verify(); err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	p8 := pkcs8PEM(t, testKey())
+	running := load(p8)
+	if !running.Equal(load(pkcs1PEM(testKey()))) {
+		t.Error("the same key as PKCS#1 compared as changed")
+	}
+	if !running.Equal(load(strings.ReplaceAll(strings.TrimSpace(p8), "\n", `\n`))) {
+		t.Error("the same key with escaped newlines compared as changed")
+	}
+	other, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if running.Equal(load(pkcs8PEM(t, other))) {
+		t.Error("a different inline key compared as unchanged")
+	}
+}
+
 // the JWK kid only matters while Private-Key-ID does not override it
 func TestConfig_PrivateKeyFileKid(t *testing.T) {
 	t.Parallel()

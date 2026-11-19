@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/okta/okta-sdk-golang/v6/okta"
 	"golang.org/x/time/rate"
 )
 
@@ -54,10 +55,12 @@ type fakeOkta struct {
 	scope     string // granted scope
 	userPage  int    // users per page
 	nonce     string
-	reject401 int // API requests to answer with 401, revoking every token
-	reject429 int // API requests to answer with 429
-	skip429   int // API requests to let through before reject429 applies
-	token503  int // token requests to answer with 503
+	reject401 int  // API requests to answer with 401, revoking every token
+	reject429 int  // API requests to answer with 429
+	skip429   int  // API requests to let through before reject429 applies
+	token503  int  // token requests to answer with 503
+	nonceLoop bool // answer every DPoP proof with use_dpop_nonce
+	noNonce   bool // leave the DPoP-Nonce header off the use_dpop_nonce reply
 
 	mu         sync.Mutex
 	logs       []string
@@ -229,9 +232,11 @@ func (f *fakeOkta) token(w http.ResponseWriter, r *http.Request) {
 			oauthError(w, 400, `invalid_dpop_proof`, err.Error())
 			return
 		}
-		if claims[`nonce`] != f.nonce {
+		if f.nonceLoop || claims[`nonce`] != f.nonce {
 			f.tokenErrs = append(f.tokenErrs, `use_dpop_nonce`)
-			w.Header().Set(`DPoP-Nonce`, f.nonce)
+			if !f.noNonce {
+				w.Header().Set(`DPoP-Nonce`, f.nonce)
+			}
 			oauthError(w, 400, `use_dpop_nonce`, `Authorization server requires nonce in DPoP proof.`)
 			return
 		}
@@ -417,7 +422,7 @@ func newSSWSIngester(t *testing.T, f *fakeOkta, rt *testRuntime) *OktaIngester {
 		t.Fatal(err)
 	}
 	o.baseURL = testBaseURL
-	o.c = &http.Client{Transport: f.transport(t), Timeout: 10 * time.Second}
+	o.c = sswsDoer{next: &http.Client{Transport: f.transport(t), Timeout: 10 * time.Second}, token: testSSWS}
 	o.latestTS = eventBase.Add(-time.Hour)
 	return o
 }
@@ -526,7 +531,7 @@ func TestSSWS_Legacy(t *testing.T) {
 	}
 }
 
-// Token mode shares its fetch loops with OAuth mode: its errors keep their original text, and a
+// Token mode shares its fetch loops with OAuth mode: its errors carry the response status, and a
 // system log failure flags the ingester status until a page succeeds
 func TestSSWS_Errors(t *testing.T) {
 	t.Parallel()
@@ -534,24 +539,24 @@ func TestSSWS_Errors(t *testing.T) {
 
 	rt := newTestRuntime(t)
 	o := newSSWSIngester(t, f, rt)
-	o.cfg.Token = `revoked`
-	if err := o.getUserLogs(rt.ctx, eventBase.Add(-time.Hour), eventBase, rt); err == nil || err.Error() != `invalid status code 401` {
+	o.c = sswsDoer{next: o.c.(sswsDoer).next, token: `revoked`}
+	if err := o.getUserLogs(rt.ctx, eventBase.Add(-time.Hour), eventBase, rt); err == nil || !isStatus(err, http.StatusUnauthorized) {
 		t.Errorf("users error %v", err)
 	}
 	if _, serr := rt.Status(); serr != nil {
 		t.Errorf("a users failure must not flag the error status: %v", serr)
 	}
-	if err := o.getSystemLogs(rt.ctx, rt); err == nil || err.Error() != `invalid status code 401` {
+	if err := o.getSystemLogs(rt.ctx, rt); err == nil || !isStatus(err, http.StatusUnauthorized) || !strings.Contains(err.Error(), `Invalid token provided`) {
 		t.Errorf("system logs error %v", err)
 	}
-	if _, serr := rt.Status(); serr == nil || serr.Error() != `invalid status code 401` {
+	if _, serr := rt.Status(); serr == nil || !isStatus(serr, http.StatusUnauthorized) {
 		t.Errorf("a system log failure did not flag the error status: %v", serr)
 	}
 	if len(rt.logged(``)) != 0 {
 		t.Errorf("unexpected logs: %v", rt.logged(``))
 	}
 
-	o.cfg.Token = testSSWS
+	o.c = sswsDoer{next: o.c.(sswsDoer).next, token: testSSWS}
 	if err := o.getSystemLogs(rt.ctx, rt); err != nil {
 		t.Fatal(err)
 	}
@@ -910,6 +915,102 @@ func TestOAuth_ForeignHostRefused(t *testing.T) {
 	}
 	if _, _, schemes, issued, _ := f.snapshot(); len(schemes) != 0 || len(issued) != 0 {
 		t.Errorf("%d API requests and %d tokens for a foreign host, want none", len(schemes), len(issued))
+	}
+}
+
+// a cursor saved for another org is dropped at startup, collection restarts from the saved timestamp
+func TestOAuth_ForeignCursorDropped(t *testing.T) {
+	t.Parallel()
+	f := newFakeOkta(t, withData(testEvents(3), nil))
+
+	rt := newTestRuntime(t)
+	if err := rt.PutString(urlKey, `http://old-org.okta.com/api/v1/logs?limit=2&sortOrder=ASCENDING&after=2`); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.PutTime(tsKey, eventBase.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	o := newOAuthIngester(t, f, rt, false, nil)
+	if err := o.Run(rt.ctx, rt); err != nil {
+		t.Fatal(err)
+	}
+	assertData(t, rt.data(o.systemTag), f.logs)
+	logQ, _, _, _, _ := f.snapshot()
+	if len(logQ) == 0 || logQ[0].Has(`after`) || logQ[0].Get(`since`) != eventBase.Add(-time.Hour).Format(timeFormat) {
+		t.Errorf("first query %v, want a restart from the saved timestamp", logQ)
+	}
+	var warned bool
+	for _, l := range rt.logged(`WARN`) {
+		warned = warned || strings.Contains(l.msg, `discarding url checkpoint`)
+	}
+	if !warned {
+		t.Errorf("the dropped cursor was not logged: %v", rt.logged(``))
+	}
+	if saved, err := rt.GetString(urlKey); err != nil || !strings.HasPrefix(saved, testBaseURL+systemLogsPath+`?`) {
+		t.Errorf("saved cursor %q still points at another org: %v", saved, err)
+	}
+}
+
+// the SDK follows use_dpop_nonce replies without a limit, the handshake must give up
+func TestOAuth_DPoPNonceLoopBounded(t *testing.T) {
+	t.Parallel()
+	for name, tt := range map[string]struct {
+		opt  func(*fakeOkta)
+		want int // token requests
+	}{
+		`nonce never accepted`: {func(f *fakeOkta) { f.nonceLoop = true }, 2 + maxDPoPNonces},
+		`no nonce header`:      {func(f *fakeOkta) { f.nonceLoop, f.noNonce = true, true }, 2},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFakeOkta(t, withDPoP, withData(testEvents(1), nil), tt.opt)
+			rt := newTestRuntime(t)
+			o := newOAuthIngester(t, f, rt, true, nil)
+			done := make(chan error, 1)
+			go func() { done <- o.getSystemLogs(rt.ctx, rt) }()
+			select {
+			case err := <-done:
+				if err == nil || !strings.Contains(err.Error(), `nonce handshake did not complete`) {
+					t.Fatalf("got %v, want the handshake abandoned", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("the DPoP nonce handshake is still running")
+			}
+			if _, _, _, issued, tokenErrs := f.snapshot(); len(issued) != 0 || len(tokenErrs) != tt.want {
+				t.Errorf("%d tokens after %d token requests %v, want none after %d", len(issued), len(tokenErrs), tokenErrs, tt.want)
+			}
+			if _, serr := rt.Status(); serr == nil {
+				t.Error("the abandoned handshake did not flag the error status")
+			}
+		})
+	}
+}
+
+// one routine must not flush a token the other has just fetched
+func TestOAuthDoer_DropTokenOnlyIfRejected(t *testing.T) {
+	t.Parallel()
+	f := newFakeOkta(t)
+	o := newOAuthIngester(t, f, newTestRuntime(t), true, nil)
+	d := o.c.(*oauthDoer)
+	cached := func() bool {
+		_, ok := d.auth.TokenCache.Get(okta.AccessTokenCacheKey)
+		return ok
+	}
+	d.auth.TokenCache.Set(okta.AccessTokenCacheKey, `Bearer current`, time.Minute)
+	if d.dropToken(`Bearer stale`); !cached() {
+		t.Fatal("flushed a token that had already replaced the rejected one")
+	}
+	if d.dropToken(`Bearer current`); cached() {
+		t.Fatal("the rejected token was kept")
+	}
+}
+
+func TestRetryStatus(t *testing.T) {
+	t.Parallel()
+	for status, want := range map[int]bool{425: true, 429: true, 500: true, 503: true, 200: false, 400: false, 401: false, 403: false, 404: false} {
+		if got := retryStatus(status); got != want {
+			t.Errorf("retryStatus(%d) = %v, want %v", status, got, want)
+		}
 	}
 }
 
