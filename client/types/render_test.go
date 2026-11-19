@@ -153,3 +153,54 @@ func TestResultsRequestStatsOverEncodeInvalid(t *testing.T) {
 	}, jsoncompat.Opts)
 	require.ErrorIs(t, err, types.ErrResultsRequestStatsOverEmpty)
 }
+
+// A results request rejects an operation the stats module doesn't have, on decode and on encode.
+func TestResultsRequestStatsOperation(t *testing.T) {
+	tests := []struct {
+		name    string
+		ops     string
+		wantErr bool
+	}{
+		{name: "count", ops: `[{"Operation": "count"}]`},
+		{name: "every operation", ops: `[{"Operation": "count"}, {"Operation": "sum"}, {"Operation": "total"}, {"Operation": "mean"}, {"Operation": "stddev"}, {"Operation": "variance"}, {"Operation": "min"}, {"Operation": "max"}, {"Operation": "unique_count"}]`},
+		{name: "empty object", ops: `[{}]`, wantErr: true},
+		{name: "empty object then As alone", ops: `[{}, {"As": "n"}]`, wantErr: true},
+		{name: "empty Operation", ops: `[{"Operation": ""}]`, wantErr: true},
+		{name: "unknown Operation", ops: `[{"Operation": "median"}]`, wantErr: true},
+		{name: "Operation with a pipe", ops: `[{"Operation": "count | table"}]`, wantErr: true},
+		{name: "second operation is bad", ops: `[{"Operation": "count"}, {"Operation": "avg"}]`, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `{"SID": "s", "Stats": {"Operations": ` + tt.ops + `}}`
+			var got types.ResultsRequest
+			err := json.UnmarshalRead(strings.NewReader(body), &got, jsoncompat.Opts)
+			if tt.wantErr {
+				require.ErrorIs(t, err, types.ErrResultsRequestStatsOperation)
+				return
+			}
+			require.NoError(t, err)
+
+			_, err = json.Marshal(got, jsoncompat.Opts)
+			require.NoError(t, err)
+		})
+	}
+
+	_, err := json.Marshal(types.ResultsRequest{
+		SID:   "s",
+		Stats: types.NewOptional(types.ResultsRequestStats{Operations: []types.StatsOperation{{As: "n"}}}),
+	}, jsoncompat.Opts)
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOperation)
+	require.ErrorContains(t, err, "operation 0")
+}
+
+// Only a results request checks Operation. Decoding SearchInfo never fails on an operation name.
+func TestStatsInfoKeepsOtherOperations(t *testing.T) {
+	src := types.StatsInfo{FixedStatsOperation: []types.StatsOperation{{Operation: "median"}}}
+	enc, err := json.Marshal(src, jsoncompat.Opts)
+	require.NoError(t, err)
+
+	var got types.StatsInfo
+	require.NoError(t, json.Unmarshal(enc, &got, jsoncompat.Opts), "decoding %s", enc)
+	require.Equal(t, src, got)
+}
