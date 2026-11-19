@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/sqs_common"
 )
 
 const (
@@ -57,6 +58,16 @@ type cfgType struct {
 	TimeFormat    config.CustomTimeFormat
 }
 
+func applyDefaults(c *cfgType) {
+	if c.Global.State_Store_Location == `` {
+		c.Global.State_Store_Location = defaultStateStore
+	}
+	// Log-File and Log-UDP-Target are mutually exclusive
+	if c.Global.Log_File == `` && c.Global.Log_UDP_Target == `` {
+		c.Global.Log_File = defaultLogFile
+	}
+}
+
 func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var c cfgType
 	if err := config.LoadConfigFile(&c, path); err != nil {
@@ -64,13 +75,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	} else if err = config.LoadConfigOverlays(&c, overlayPath); err != nil {
 		return nil, err
 	}
-	//initialize the state store location if its empty
-	if c.Global.State_Store_Location == `` {
-		c.Global.State_Store_Location = defaultStateStore
-	}
-	if c.Global.Log_File == `` {
-		c.Global.Log_File = defaultLogFile
-	}
+	applyDefaults(&c)
 	if err := c.Verify(); err != nil {
 		return nil, err
 	}
@@ -98,6 +103,9 @@ func (c cfgType) Verify() error {
 		len(c.Global.Pipe_Backend_Target)
 	if connCount == 0 {
 		return errors.New("No backend targets specified")
+	}
+	if _, err := sqs_common.GetCredentials(c.Global.Credentials_Type, c.Global.AWS_Access_Key_ID, c.Global.AWS_Secret_Access_Key); err != nil {
+		return fmt.Errorf("Global credentials invalid (Credentials-Type, AWS-Access-Key-ID, AWS-Secret-Access-Key): %w", err)
 	}
 	if len(c.KinesisStream) == 0 {
 		return errors.New("At least one Kinesis stream required.")
