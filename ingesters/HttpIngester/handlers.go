@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -39,7 +40,7 @@ const (
 )
 
 // note that handleFuncs should read from the reader, not from the Request.Body.
-type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader, net.IP)
+type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader)
 
 type routeHandler struct {
 	ignoreTs      bool
@@ -64,11 +65,13 @@ type handler struct {
 	auth                  map[route]authHandler
 	custom                map[route]http.Handler
 	healthCheckURL        string
+	resolver              atomic.Pointer[clientResolver]
+	legacyWarn            rate.Sometimes // rate limits the legacy X-Forwarded-For warning
 	maxConcurrentRequests int64
 	activeRequests        int64
 }
 
-func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Request, rdr io.Reader, ip net.IP) {
+func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Request, rdr io.Reader) {
 	if w == nil {
 		return
 	} else if rdr == nil || h == nil || rh.handler == nil {
@@ -76,7 +79,7 @@ func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Reque
 		return
 	}
 	rh.paramAttacher.process(req)
-	rh.handler(h, rh, w, req, rdr, ip)
+	rh.handler(h, rh, w, req, rdr)
 }
 
 func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI *utils.StatsItem, maxConcurrent int) (h *handler, err error) {
@@ -95,6 +98,7 @@ func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI
 			reqSI:                 reqSI,
 			entSI:                 entSI,
 			bytesSI:               bytesSI,
+			legacyWarn:            rate.Sometimes{Interval: legacyWarnInterval},
 			maxConcurrentRequests: int64(maxConcurrent),
 		}
 	}
@@ -217,10 +221,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// we might actually do something with this defer the cleanup
 	defer drainAndClose(r.Body)
-	ip := getRemoteIP(r)
+
+	// resolve the client once, the auth handlers and request logging read it back from the request
+	r, _ = h.attachClient(w, r)
+
 	rdr, err := getReadableBody(r)
 	if err != nil {
-		h.lgr.Error("failed to get body reader", log.KV("src", ip), log.KVErr(err))
+		h.lgr.Error("failed to get body reader", srcKVs(r, log.KVErr(err))...)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -266,13 +273,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	debugout("LOOK UP ROUTE: %s %s %v\n", rt.method, rt.uri, ok)
 	if !ok || rh.handler == nil {
 		debugout("NO ROUTE\n")
-		h.lgr.Info("bad request URL", log.KV("src", ip), log.KV("url", rt.uri), log.KV("method", r.Method))
+		h.lgr.Info("bad request URL", srcKVs(r, log.KV("url", rt.uri), log.KV("method", r.Method))...)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	if rh.auth != nil {
 		if err := rh.auth.AuthRequest(r); err != nil {
-			h.lgr.Info("access denied", log.KV("src", getRemoteIP(r)), log.KV("url", rt.uri), log.KVErr(err))
+			h.lgr.Info("access denied", srcKVs(r, log.KV("url", rt.uri), log.KVErr(err))...)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -281,7 +288,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInsufficientStorage)
 		return
 	}
-	rh.handle(h, w, r, rdr, ip)
+	rh.handle(h, w, r, rdr)
 }
 func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.EntryTag) (err error) {
 	var ts entry.Timestamp
@@ -363,7 +370,8 @@ func (r route) String() string {
 	return r.method + "://" + path.Clean(r.uri)
 }
 
-func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	debugout("multhandler\n")
 
 	var entriesCount int
@@ -389,7 +397,7 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 		byteCount += int64(len(bts))
 		// we have to do a bytes.Clone on the output because the bufio.Scanner does internal buffer reuse
 		if err := h.handleEntry(cfg, bytes.Clone(bts), ip, cfg.tag); err != nil {
-			h.lgr.Error("failed to handle entry", log.KV("src", ip), log.KVErr(err))
+			h.lgr.Error("failed to handle entry", srcKVs(r, log.KVErr(err))...)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -399,13 +407,14 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 		if errors.Is(err, bufio.ErrTooLong) {
 			err = fmt.Errorf("Buffer-Size (%d) exceeded: %w", cfg.bufferSize, err)
 		}
-		h.lgr.Warn("failed to handle multiline upload", log.KV("src", ip), log.KVErr(err))
+		h.lgr.Warn("failed to handle multiline upload", srcKVs(r, log.KVErr(err))...)
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	bodyReadLimit := int64(maxBody + 1)
 	//using a limited Reader here makes sense because we are going to be eating the entire HTTP request body as a single entry
 	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
@@ -424,7 +433,7 @@ func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.R
 
 	b, err := io.ReadAll(&lr)
 	if err != nil && err != io.EOF {
-		h.lgr.Info("got bad request", log.KV("src", ip), log.KVErr(err))
+		h.lgr.Info("got bad request", srcKVs(r, log.KVErr(err))...)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if len(b) > maxBody || lr.N == 0 {
@@ -433,11 +442,11 @@ func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.R
 		return
 	}
 	if len(b) == 0 {
-		h.lgr.Info("got an empty post", log.KV("src", ip))
+		h.lgr.Info("got an empty post", srcKVs(r)...)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if err = h.handleEntry(cfg, b, ip, cfg.tag); err != nil {
-		h.lgr.Error("failed to handle entry", log.KV("src", ip), log.KVErr(err))
+		h.lgr.Error("failed to handle entry", srcKVs(r, log.KVErr(err))...)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

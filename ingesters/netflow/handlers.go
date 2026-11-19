@@ -98,7 +98,6 @@ func (n *NetflowV5Handler) routine(id int) {
 	var l int
 	var addr *net.UDPAddr
 	var err error
-	var ts entry.Timestamp
 	tbuff := make([]byte, netflow.HeaderSize+(30*netflow.RecordSize))
 	for {
 		if _, addr, err = n.c.ReadFromUDP(tbuff); err != nil {
@@ -109,15 +108,10 @@ func (n *NetflowV5Handler) routine(id int) {
 		}
 		lbuff := make([]byte, l)
 		copy(lbuff, tbuff[0:l])
-		if n.ignoreTS {
-			ts = entry.Now()
-		} else {
-			ts = entry.UnixTime(int64(binary.BigEndian.Uint32(lbuff[8:12])), int64(binary.BigEndian.Uint32(lbuff[12:16])))
-		}
 		e := &entry.Entry{
 			Tag:  n.tag,
 			SRC:  addr.IP,
-			TS:   ts,
+			TS:   n.headerTime(binary.BigEndian.Uint32(lbuff[8:12]), binary.BigEndian.Uint32(lbuff[12:16])),
 			Data: lbuff,
 		}
 		n.ch <- e
@@ -220,7 +214,6 @@ func (i *IpfixHandler) routine(id int) {
 	var s *ipfix.Session
 	var addr *net.UDPAddr
 	var err error
-	var ts entry.Timestamp
 	var version uint16
 	var domainID uint32
 
@@ -307,15 +300,10 @@ func (i *IpfixHandler) routine(id int) {
 			}
 		}
 
-		if i.ignoreTS {
-			ts = entry.Now()
-		} else {
-			ts = entry.UnixTime(int64(msg.Header.ExportTime), 0)
-		}
 		e := &entry.Entry{
 			Tag:  i.tag,
 			SRC:  addr.IP,
-			TS:   ts,
+			TS:   i.headerTime(msg.Header.ExportTime, 0),
 			Data: lbuff,
 		}
 		i.ch <- e
