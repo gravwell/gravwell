@@ -76,10 +76,10 @@ const (
 	SEARCHES_ID_SAVE_URL                  = `/api/searches/%s/save`
 	SEARCHES_ID_STOP_URL                  = `/api/searches/%s/stop`
 	SEARCHES_ID_DOWNLOADS_URL             = `/api/searches/%s/downloads`
-	SEARCHES_ID_PING_URL                  = `/api/searches/%s/ping`
 	SEARCHES_ID_MODULES_URL               = `/api/searches/%s/modules`
 	SEARCHES_ID_STATS_URL                 = `/api/searches/%s/stats`
 	SEARCHES_ID_STATS_METADATA_URL        = `/api/searches/%s/stats/metadata`
+	REFRESH_SEARCH_SESSIONS_URL           = `/api/refresh/search-sessions`
 	SEARCHES_ID_EXPLORE_URL               = `/api/searches/%s/explore/%s`
 	SEARCHES_ID_RENDERER_URL              = `/api/searches/%s/renderer/%s`
 	IMPORT_PERSISTENT_SEARCH_URL          = `/api/import/persistent-search`
@@ -660,14 +660,9 @@ func searchesUrl() string {
 	return SEARCHES_URL
 }
 
-func searchesIdPingUrl(id string) string {
-	return fmt.Sprintf(SEARCHES_ID_PING_URL, id)
-}
-
 func searchesIdSessionsIdUrl(id, sessionId string) string {
 	return fmt.Sprintf(SEARCHES_ID_SESSIONS_ID_URL, id, sessionId)
-}
-
+  
 func searchesIdStatsMetadataUrl(id string) string {
 	return fmt.Sprintf(SEARCHES_ID_STATS_METADATA_URL, id)
 }
