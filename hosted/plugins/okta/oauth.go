@@ -363,17 +363,20 @@ func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	_ = json.Unmarshal(body, &tr)
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		kvs := []rfc5424.SDParam{log.KV("status", resp.StatusCode), log.KV("error", tr.Error), log.KV("description", tr.Description)}
-		if tr.Error == `use_dpop_nonce` {
+		// the SDK starts another handshake round whenever the body mentions use_dpop_nonce, wherever
+		// it appears, so that is the test here too
+		nonceReply := bytes.Contains(body, []byte(`use_dpop_nonce`))
+		if nonceReply {
 			t.nonces++
 		}
 		// requesting a proof, then a nonce, is the normal DPoP handshake
-		if (tr.Error == `use_dpop_nonce` && t.nonces <= maxDPoPNonces && resp.Header.Get(`DPoP-Nonce`) != ``) ||
-			(tr.Error == `invalid_dpop_proof` && req.Header.Get(`DPoP`) == ``) {
+		if (nonceReply && t.nonces <= maxDPoPNonces && resp.Header.Get(`DPoP-Nonce`) != ``) ||
+			(!nonceReply && tr.Error == `invalid_dpop_proof` && req.Header.Get(`DPoP`) == ``) {
 			t.lg.Debug("okta token endpoint requested DPoP", kvs...)
-		} else if tr.Error == `use_dpop_nonce` {
+		} else if nonceReply {
 			// hide the nonce request from the SDK so it stops, authorize reports t.failed
 			resp.Body = io.NopCloser(strings.NewReader(`{}`))
-			t.failed = &tokenError{status: resp.StatusCode, code: tr.Error, desc: `the DPoP nonce handshake did not complete`}
+			t.failed = &tokenError{status: resp.StatusCode, code: `use_dpop_nonce`, desc: `the DPoP nonce handshake did not complete`}
 			t.lg.Error("okta token request failed", kvs...)
 		} else {
 			t.failed = &tokenError{status: resp.StatusCode, code: tr.Error, desc: tr.Description}

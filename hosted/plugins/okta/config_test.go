@@ -390,6 +390,13 @@ func TestConfig_InlineKeyComparedAsKey(t *testing.T) {
 	if running.Equal(load(pkcs8PEM(t, other))) {
 		t.Error("a different inline key compared as unchanged")
 	}
+
+	// a copy keeps the key its original loaded, a changed setting must not hide behind it
+	edited := *running
+	edited.Private_Key = pkcs8PEM(t, other)
+	if running.Equal(&edited) {
+		t.Error("a copy with a changed Private_Key that was not verified again compared as unchanged")
+	}
 }
 
 // the JWK kid only matters while Private-Key-ID does not override it

@@ -61,6 +61,9 @@ type fakeOkta struct {
 	token503  int  // token requests to answer with 503
 	nonceLoop bool // answer every DPoP proof with use_dpop_nonce
 	noNonce   bool // leave the DPoP-Nonce header off the use_dpop_nonce reply
+	// name use_dpop_nonce only in the error description, the SDK still treats that as a nonce request
+	nonceInDesc bool
+	foreignNext bool // hand out next links on another host
 
 	mu         sync.Mutex
 	logs       []string
@@ -237,6 +240,10 @@ func (f *fakeOkta) token(w http.ResponseWriter, r *http.Request) {
 			if !f.noNonce {
 				w.Header().Set(`DPoP-Nonce`, f.nonce)
 			}
+			if f.nonceInDesc {
+				oauthError(w, 400, `invalid_dpop_proof`, `use_dpop_nonce: a nonce is required in the DPoP proof.`)
+				return
+			}
 			oauthError(w, 400, `use_dpop_nonce`, `Authorization server requires nonce in DPoP proof.`)
 			return
 		}
@@ -372,7 +379,7 @@ func (f *fakeOkta) systemLogs(w http.ResponseWriter, r *http.Request) {
 	next := url.Values{`after`: {strconv.Itoa(end)}, `limit`: {q.Get(`limit`)}, `since`: {q.Get(`since`)}, `sortOrder`: {q.Get(`sortOrder`)}}
 	writePage(w, f.logs[start:end],
 		fmt.Sprintf(`<http://%s%s?%s>; rel="self"`, r.Host, r.URL.Path, r.URL.RawQuery),
-		fmt.Sprintf(`<http://%s%s?%s>; rel="next"`, r.Host, r.URL.Path, next.Encode()))
+		fmt.Sprintf(`<http://%s%s?%s>; rel="next"`, f.nextHost(r), r.URL.Path, next.Encode()))
 }
 
 // listUsers hands out a next link until the last page
@@ -385,7 +392,7 @@ func (f *fakeOkta) listUsers(w http.ResponseWriter, r *http.Request) {
 	links := []string{fmt.Sprintf(`<http://%s%s?%s>; rel="self"`, r.Host, r.URL.Path, r.URL.RawQuery)}
 	if end < len(f.users) {
 		next := url.Values{`after`: {strconv.Itoa(end)}, `limit`: {q.Get(`limit`)}, `search`: {q.Get(`search`)}}
-		links = append(links, fmt.Sprintf(`<http://%s%s?%s>; rel="next"`, r.Host, r.URL.Path, next.Encode()))
+		links = append(links, fmt.Sprintf(`<http://%s%s?%s>; rel="next"`, f.nextHost(r), r.URL.Path, next.Encode()))
 	}
 	writePage(w, f.users[start:end], links...)
 }
@@ -958,8 +965,9 @@ func TestOAuth_DPoPNonceLoopBounded(t *testing.T) {
 		opt  func(*fakeOkta)
 		want int // token requests
 	}{
-		`nonce never accepted`: {func(f *fakeOkta) { f.nonceLoop = true }, 2 + maxDPoPNonces},
-		`no nonce header`:      {func(f *fakeOkta) { f.nonceLoop, f.noNonce = true, true }, 2},
+		`nonce never accepted`:                {func(f *fakeOkta) { f.nonceLoop = true }, 2 + maxDPoPNonces},
+		`no nonce header`:                     {func(f *fakeOkta) { f.nonceLoop, f.noNonce = true, true }, 2},
+		`nonce named only in the description`: {func(f *fakeOkta) { f.nonceLoop, f.nonceInDesc = true, true }, 2 + maxDPoPNonces},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1032,6 +1040,77 @@ func TestOAuth_ShutdownEndsRetries(t *testing.T) {
 	}
 	if _, serr := rt.Status(); serr != nil {
 		t.Errorf("a shutdown must not flag the error status: %v", serr)
+	}
+}
+
+// nextHost is the host the fake puts in a next link, called with f.mu held
+func (f *fakeOkta) nextHost(r *http.Request) string {
+	if f.foreignNext {
+		return `okta.example.net`
+	}
+	return r.Host
+}
+
+// a next link that leaves the org is neither followed nor saved, in either auth mode. Every
+// connection in these tests reaches the fake, so a followed link would show up as another request.
+func TestForeignNextLink(t *testing.T) {
+	t.Parallel()
+	ingesters := map[string]func(*testing.T, *fakeOkta, *testRuntime) *OktaIngester{
+		`ssws`: newSSWSIngester,
+		`oauth`: func(t *testing.T, f *fakeOkta, rt *testRuntime) *OktaIngester {
+			return newOAuthIngester(t, f, rt, true, nil)
+		},
+	}
+	for name, mk := range ingesters {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFakeOkta(t, withData(testEvents(5), testUsers(5)), func(f *fakeOkta) { f.foreignNext = true })
+			rt := newTestRuntime(t)
+			o := mk(t, f, rt)
+
+			err := o.getSystemLogs(rt.ctx, rt)
+			if err == nil || !strings.Contains(err.Error(), `another host`) {
+				t.Fatalf("system logs: got %v, want the next link refused", err)
+			}
+			assertData(t, rt.data(o.systemTag), f.logs[:2]) // the page itself is kept
+			if o.systemLogsNext != nil {
+				t.Errorf("the foreign link was kept as the cursor: %v", o.systemLogsNext)
+			}
+			if saved, _ := rt.GetString(urlKey); saved != `` {
+				t.Errorf("the foreign link was saved: %q", saved)
+			}
+			if _, serr := rt.Status(); serr == nil {
+				t.Error("the refused link did not flag the error status")
+			}
+
+			rt2 := newTestRuntime(t)
+			err = o.getUserLogs(rt2.ctx, eventBase.Add(-time.Hour), eventBase, rt2)
+			if err == nil || !strings.Contains(err.Error(), `another host`) {
+				t.Fatalf("users: got %v, want the next link refused", err)
+			}
+			assertData(t, rt2.data(o.userTag), f.users[:2])
+			if _, _, schemes, _, _ := f.snapshot(); len(schemes) != 2 {
+				t.Fatalf("%d API requests, want one per call: nothing may follow the foreign links", len(schemes))
+			}
+
+			// with sane links again, collection restarts from the latest timestamp
+			f.mu.Lock()
+			f.foreignNext = false
+			f.mu.Unlock()
+			if err = o.getSystemLogs(rt.ctx, rt); err != nil {
+				t.Fatal(err)
+			}
+			logQ, _, _, _, _ := f.snapshot()
+			if q := logQ[1]; q.Has(`after`) || q.Get(`since`) != eventBase.Add(time.Second).Format(timeFormat) {
+				t.Errorf("resumed with %v, want a restart from the latest timestamp", q)
+			}
+			if _, serr := rt.Status(); serr != nil {
+				t.Errorf("error status not cleared: %v", serr)
+			}
+			if saved, _ := rt.GetString(urlKey); !strings.HasPrefix(saved, testBaseURL+systemLogsPath+`?`) {
+				t.Errorf("saved cursor %q", saved)
+			}
+		})
 	}
 }
 

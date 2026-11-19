@@ -26,14 +26,11 @@ func TestParsePrivateKey(t *testing.T) {
 	p1, p8 := pkcs1PEM(key), pkcs8PEM(t, key)
 
 	indented := "\t" + strings.ReplaceAll(strings.TrimSpace(p8), "\n", "\n\t")
-	cert := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("not a real certificate")}))
 	tests := []struct {
 		name    string
 		raw     string
 		wantKid string
 	}{
-		{name: "certificate then key bundle", raw: cert + p8},
-		{name: "key then certificate bundle", raw: p1 + cert},
 		{name: "pkcs1 pem", raw: p1},
 		{name: "pkcs8 pem", raw: p8},
 		{name: "literal newline escapes", raw: strings.ReplaceAll(p1, "\n", `\n`)},
@@ -124,23 +121,6 @@ func TestParsePrivateKey_Rejects(t *testing.T) {
 			}
 			assertNoFragments(t, err.Error(), tt.raw, body, keyFile)
 		})
-	}
-}
-
-// a PEM with no private key in it, such as the public key or a certificate, must say so
-func TestParsePrivateKey_NoKeyBlock(t *testing.T) {
-	t.Parallel()
-	pub, err := x509.MarshalPKIXPublicKey(&testKey().PublicKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for name, raw := range map[string]string{
-		"public key":  string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pub})),
-		"certificate": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("not a real certificate")})),
-	} {
-		if _, _, err := parsePrivateKey(raw); err == nil || !strings.Contains(err.Error(), "no private key PEM block found") {
-			t.Errorf("%s: got %v, want it to say no private key was found", name, err)
-		}
 	}
 }
 

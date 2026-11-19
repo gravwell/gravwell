@@ -132,7 +132,7 @@ func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 	}
 
 	// a cursor saved for another org (the Domain changed) is dropped, the system log restarts from the saved timestamp
-	if n := o.systemLogsNext; n != nil && !strings.EqualFold(n.Scheme+`://`+n.Host, o.baseURL) {
+	if n := o.systemLogsNext; n != nil && !o.sameOrigin(n) {
 		rt.Warn("discarding url checkpoint for another okta domain", log.KV("host", n.Host))
 		o.systemLogsNext = nil
 	}
@@ -270,6 +270,14 @@ func (o *OktaIngester) getSystemLogs(ctx context.Context, rt hosted.Runtime) (er
 			return err
 		} else if sln, err = url.Parse(next); err != nil {
 			return fmt.Errorf("Bad next URL %w", err)
+		} else if !o.sameOrigin(sln) {
+			// never follow or save a next link that leaves the org: drop the cursor, the next
+			// attempt restarts from the latest timestamp
+			o.systemLogsNext = nil
+			if serr := errors.Join(o.syncState(rt), rt.PutString(urlKey, ``)); serr != nil {
+				rt.Error("failed to sync state", log.KV("error", serr))
+			}
+			return fmt.Errorf("okta next link points at another host %q", sln.Host)
 		}
 		req.URL = sln
 		o.systemLogsNext = sln
@@ -459,11 +467,21 @@ func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime
 				break
 			}
 			return err
-		} else if req.URL, err = url.Parse(next); err != nil {
+		} else if nu, err := url.Parse(next); err != nil {
 			return fmt.Errorf("Bad next URL %w", err)
+		} else if !o.sameOrigin(nu) {
+			return fmt.Errorf("okta next link points at another host %q", nu.Host)
+		} else {
+			req.URL = nu
 		}
 	}
 	return nil
+}
+
+// sameOrigin reports whether u is on the configured org. Next links are absolute URLs from Okta or
+// the state store, credentials must not follow one to another host.
+func (o *OktaIngester) sameOrigin(u *url.URL) bool {
+	return strings.EqualFold(u.Scheme+`://`+u.Host, o.baseURL)
 }
 
 func (o *OktaIngester) handleUserLogs(rdr io.Reader, rt hosted.Runtime) (err error) {

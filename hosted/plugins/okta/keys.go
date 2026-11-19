@@ -156,15 +156,11 @@ func pemShape(s string) string {
 	)
 }
 
-// parsePEMPrivateKey accepts PKCS#1 ("RSA PRIVATE KEY") and PKCS#8 ("PRIVATE KEY") PEM. Other
-// blocks, such as the certificate in a cert+key bundle, are skipped.
+// parsePEMPrivateKey accepts PKCS#1 ("RSA PRIVATE KEY") and PKCS#8 ("PRIVATE KEY") PEM.
 func parsePEMPrivateKey(b []byte) (*rsa.PrivateKey, error) {
-	block, rest := pem.Decode(b)
-	for block != nil && !strings.HasSuffix(block.Type, "PRIVATE KEY") {
-		block, rest = pem.Decode(rest)
-	}
+	block, _ := pem.Decode(b)
 	if block == nil {
-		return nil, errors.New("PEM decode failed: no private key PEM block found")
+		return nil, errors.New("PEM decode failed: no PEM block found")
 	}
 	if strings.Contains(block.Headers["Proc-Type"], "ENCRYPTED") {
 		return nil, errors.New("encrypted PEM private keys are not supported; supply an unencrypted key")

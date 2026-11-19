@@ -65,7 +65,7 @@ type parsedKey struct {
 // privateKey parses Private_Key, or reads and parses Private_Key_File. A later call for the same
 // setting returns the same key, the file is read once.
 func (c *Config) privateKey() (*rsa.PrivateKey, string, error) {
-	if pk := c.parsed; pk != nil && pk.raw == c.Private_Key && pk.file == c.Private_Key_File {
+	if pk := c.loaded(); pk != nil {
 		return pk.key, pk.kid, nil
 	}
 	raw, name := c.Private_Key, `Private-Key`
@@ -90,12 +90,22 @@ func (c *Config) privateKey() (*rsa.PrivateKey, string, error) {
 // sameKey reports whether nc loaded the same key. The keys are compared rather than the settings:
 // a rotated Private-Key-File keeps its path, and a reformatted Private-Key is still the same key.
 func (c *Config) sameKey(nc *Config) bool {
-	if c.parsed == nil || nc.parsed == nil {
-		// a side that has not been through Verify has no key to compare, the settings decide
-		return c.parsed == nil && nc.parsed == nil && c.Private_Key == nc.Private_Key
+	a, b := c.loaded(), nc.loaded()
+	if a == nil || b == nil {
+		// a side whose settings have not been through Verify has no key to compare, the settings decide
+		return a == nil && b == nil && c.Private_Key == nc.Private_Key
 	}
 	// Private_Key_ID overrides the JWK kid, and Equal has already compared it
-	return (c.Private_Key_ID != `` || c.parsed.kid == nc.parsed.kid) && c.parsed.key.Equal(nc.parsed.key)
+	return (c.Private_Key_ID != `` || a.kid == b.kid) && a.key.Equal(b.key)
+}
+
+// loaded returns the key Verify loaded for the current settings, nil if there is none or the
+// settings have changed since
+func (c *Config) loaded() *parsedKey {
+	if pk := c.parsed; pk != nil && pk.raw == c.Private_Key && pk.file == c.Private_Key_File {
+		return pk
+	}
+	return nil
 }
 
 var _ hosted.Config = (*Config)(nil) // compile time interface check
