@@ -12,9 +12,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravwell/gcfg"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 type attachTestConfig struct {
@@ -385,8 +384,8 @@ func TestAttachProcessorManualUUID(t *testing.T) {
 
 	// Inject $UUID into the valid config
 	// We use "foo" which we know exists in validAttachConfig
-	val := []string{"$UUID"}
-	attachCfg.Vals[attachCfg.Idx("foo")] = &val
+	val := "$UUID"
+	attachCfg["foo"] = val
 
 	_, err = NewAttachProcessor(attachCfg)
 	if err == nil {
@@ -417,16 +416,11 @@ func TestAttachProcessorConfigUUID(t *testing.T) {
 
 	// Now try to reconfigure with a UUID config
 	// We reuse the valid config but inject $UUID
-	val := []string{"$UUID"}
+	val := "$UUID"
 	// We need a copy of the config map to avoid modifying the original if it was shared (it's not deeper than this test)
 	// But to be safe and clean:
 	uuidCfg := attachCfg
-	// Deep copy the vals map or just modify since validCfg isn't used after
-	uuidCfg.Vals = make(map[gcfg.Idx]*[]string)
-	for k, v := range attachCfg.Vals {
-		uuidCfg.Vals[k] = v
-	}
-	uuidCfg.Vals[uuidCfg.Idx("foo")] = &val
+	uuidCfg["foo"] = val
 
 	if err := p.Config(uuidCfg); err == nil {
 		t.Fatal("Expected error when reconfiguring with $UUID")

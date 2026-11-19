@@ -26,9 +26,9 @@ import (
 
 	"github.com/crewjam/rfc5424"
 	"github.com/go-jose/go-jose/v4"
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/okta/okta-sdk-golang/v6/okta"
 	goCache "github.com/patrickmn/go-cache"
 	"golang.org/x/time/rate"

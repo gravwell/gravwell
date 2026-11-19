@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 // testKey is shared by every test, RSA key generation is slow
