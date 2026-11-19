@@ -1,0 +1,206 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+package types_test
+
+import (
+	"encoding/json/v2"
+	"strings"
+	"testing"
+
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
+	"github.com/stretchr/testify/require"
+)
+
+func TestResultsRequestStatsOverDecode(t *testing.T) {
+	width := types.ResultsRequestStatsOver{Width: types.NewOptional(30)}
+	count := types.ResultsRequestStatsOver{Count: types.NewOptional(12)}
+
+	tests := []struct {
+		name    string
+		body    string
+		want    types.ResultsRequestStatsOver
+		wantErr error
+	}{
+		{name: "Width", body: `{"Width": 30}`, want: width},
+		{name: "Count", body: `{"Count": 12}`, want: count},
+		{name: "lowercase width", body: `{"width": 30}`, want: width},
+		{name: "lowercase count", body: `{"count": 12}`, want: count},
+		{name: "Width and Count", body: `{"Width": 30, "Count": 12}`, wantErr: types.ErrResultsRequestStatsOverInvalid},
+		{name: "empty object", body: `{}`, wantErr: types.ErrResultsRequestStatsOverEmpty},
+		{name: "null Width", body: `{"Width": null}`, wantErr: types.ErrNoNullOptional},
+		{name: "null Count", body: `{"Count": null}`, wantErr: types.ErrNoNullOptional},
+		{name: "null", body: `null`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got types.ResultsRequestStatsOver
+			err := json.Unmarshal([]byte(tt.body), &got)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// The request body documented for POST /api/searches/{id}/results, decoded
+// as the webserver decodes it.
+func TestResultsRequestDecodeStatsOver(t *testing.T) {
+	body := `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}], "Over": {"Width": 30}}}`
+
+	var got types.ResultsRequest
+	require.NoError(t, json.UnmarshalRead(strings.NewReader(body), &got, jsoncompat.Opts))
+	over := got.Stats.Value().Over.Value()
+	require.Equal(t, types.NewOptional(30), over.Width)
+	require.False(t, over.Count.IsSet())
+}
+
+// A left-out Stats or Over is unset. Null is rejected, and so is an Over
+// with neither Width nor Count.
+func TestResultsRequestDecodeStatsPresence(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantStats bool
+		wantOver  bool
+		wantErr   error
+	}{
+		{name: "no Stats", body: `{"SID": "s"}`},
+		{name: "empty Stats", body: `{"SID": "s", "Stats": {}}`, wantStats: true},
+		{name: "empty Operations", body: `{"SID": "s", "Stats": {"Operations": []}}`, wantStats: true},
+		{name: "no Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}]}}`, wantStats: true},
+		{name: "Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}], "Over": {"Width": 30}}}`, wantStats: true, wantOver: true},
+		{name: "null Stats", body: `{"SID": "s", "Stats": null}`, wantErr: types.ErrNoNullOptional},
+		{name: "null Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}], "Over": null}}`, wantErr: types.ErrNoNullOptional},
+		{name: "empty Over", body: `{"SID": "s", "Stats": {"Operations": [{"Operation": "count"}], "Over": {}}}`, wantErr: types.ErrResultsRequestStatsOverEmpty},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got types.ResultsRequest
+			err := json.UnmarshalRead(strings.NewReader(tt.body), &got, jsoncompat.Opts)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantStats, got.Stats.IsSet())
+			require.Equal(t, tt.wantOver, got.Stats.Value().Over.IsSet())
+		})
+	}
+}
+
+// A request with no Over encodes without the key, so it decodes as unset.
+func TestResultsRequestRoundTripNoOver(t *testing.T) {
+	src := types.ResultsRequest{
+		SID: "s",
+		Stats: types.NewOptional(types.ResultsRequestStats{
+			Operations: []types.StatsOperation{{Operation: "count"}},
+		}),
+	}
+	enc, err := json.Marshal(src, jsoncompat.Opts)
+	require.NoError(t, err)
+
+	var got types.ResultsRequest
+	require.NoError(t, json.Unmarshal(enc, &got, jsoncompat.Opts), "decoding %s", enc)
+	require.True(t, got.Stats.IsSet())
+	require.False(t, got.Stats.Value().Over.IsSet())
+}
+
+func TestResultsRequestStatsOverRoundTrip(t *testing.T) {
+	for _, tt := range []struct {
+		src  types.ResultsRequestStatsOver
+		wire string
+	}{
+		{src: types.ResultsRequestStatsOver{Width: types.NewOptional(30)}, wire: `{"Width":30}`},
+		{src: types.ResultsRequestStatsOver{Count: types.NewOptional(12)}, wire: `{"Count":12}`},
+	} {
+		enc, err := json.Marshal(&tt.src)
+		require.NoError(t, err)
+		require.Equal(t, tt.wire, string(enc))
+
+		var got types.ResultsRequestStatsOver
+		require.NoError(t, json.Unmarshal(enc, &got), "decoding %s", enc)
+		require.Equal(t, tt.src, got)
+	}
+}
+
+// The encoder refuses the shapes the decoder refuses.
+func TestResultsRequestStatsOverEncodeInvalid(t *testing.T) {
+	_, err := json.Marshal(&types.ResultsRequestStatsOver{})
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOverEmpty)
+
+	_, err = json.Marshal(&types.ResultsRequestStatsOver{
+		Width: types.NewOptional(30),
+		Count: types.NewOptional(12),
+	})
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOverInvalid)
+
+	_, err = json.Marshal(types.ResultsRequest{
+		SID: "s",
+		Stats: types.NewOptional(types.ResultsRequestStats{
+			Operations: []types.StatsOperation{{Operation: "count"}},
+			Over:       types.NewOptional(types.ResultsRequestStatsOver{}),
+		}),
+	}, jsoncompat.Opts)
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOverEmpty)
+}
+
+// A results request rejects an operation the stats module doesn't have, on decode and on encode.
+func TestResultsRequestStatsOperation(t *testing.T) {
+	tests := []struct {
+		name    string
+		ops     string
+		wantErr bool
+	}{
+		{name: "count", ops: `[{"Operation": "count"}]`},
+		{name: "every operation", ops: `[{"Operation": "count"}, {"Operation": "sum"}, {"Operation": "total"}, {"Operation": "mean"}, {"Operation": "stddev"}, {"Operation": "variance"}, {"Operation": "min"}, {"Operation": "max"}, {"Operation": "unique_count"}]`},
+		{name: "empty object", ops: `[{}]`, wantErr: true},
+		{name: "empty object then As alone", ops: `[{}, {"As": "n"}]`, wantErr: true},
+		{name: "empty Operation", ops: `[{"Operation": ""}]`, wantErr: true},
+		{name: "unknown Operation", ops: `[{"Operation": "median"}]`, wantErr: true},
+		{name: "Operation with a pipe", ops: `[{"Operation": "count | table"}]`, wantErr: true},
+		{name: "second operation is bad", ops: `[{"Operation": "count"}, {"Operation": "avg"}]`, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `{"SID": "s", "Stats": {"Operations": ` + tt.ops + `}}`
+			var got types.ResultsRequest
+			err := json.UnmarshalRead(strings.NewReader(body), &got, jsoncompat.Opts)
+			if tt.wantErr {
+				require.ErrorIs(t, err, types.ErrResultsRequestStatsOperation)
+				return
+			}
+			require.NoError(t, err)
+
+			_, err = json.Marshal(got, jsoncompat.Opts)
+			require.NoError(t, err)
+		})
+	}
+
+	_, err := json.Marshal(types.ResultsRequest{
+		SID:   "s",
+		Stats: types.NewOptional(types.ResultsRequestStats{Operations: []types.StatsOperation{{As: "n"}}}),
+	}, jsoncompat.Opts)
+	require.ErrorIs(t, err, types.ErrResultsRequestStatsOperation)
+	require.ErrorContains(t, err, "operation 0")
+}
+
+// Only a results request checks Operation. Decoding SearchInfo never fails on an operation name.
+func TestStatsInfoKeepsOtherOperations(t *testing.T) {
+	src := types.StatsInfo{FixedStatsOperation: []types.StatsOperation{{Operation: "median"}}}
+	enc, err := json.Marshal(src, jsoncompat.Opts)
+	require.NoError(t, err)
+
+	var got types.StatsInfo
+	require.NoError(t, json.Unmarshal(enc, &got, jsoncompat.Opts), "decoding %s", enc)
+	require.Equal(t, src, got)
+}
