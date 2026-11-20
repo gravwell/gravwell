@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -169,7 +170,7 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		log.KV("HEC-Listener", hh.name),
 		log.KV("url", redactedRequestURI(r)),
 	)
-	ll.AddKV(clientKVs("src", requestClient(r))...)
+	ll.AddKV(clientip.KVs("src", requestClient(r))...)
 
 	if cfg.debugPosts {
 		now := time.Now()
@@ -344,7 +345,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		log.KV("HEC-Listener", hh.name),
 		log.KV("url", redactedRequestURI(r)),
 	)
-	ll.AddKV(clientKVs("src", requestClient(r))...)
+	ll.AddKV(clientip.KVs("src", requestClient(r))...)
 
 	if cfg.debugPosts {
 		now := time.Now()

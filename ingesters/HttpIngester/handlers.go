@@ -28,8 +28,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
 	"github.com/gravwell/gravwell/v3/timegrinder"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -65,8 +65,8 @@ type handler struct {
 	auth                  map[route]authHandler
 	custom                map[route]http.Handler
 	healthCheckURL        string
-	resolver              atomic.Pointer[clientResolver]
-	legacyWarn            rate.Sometimes // rate limits the legacy X-Forwarded-For warning
+	resolver              atomic.Pointer[clientip.Resolver]
+	legacyWarn            *clientip.LegacyWarner
 	maxConcurrentRequests int64
 	activeRequests        int64
 }
@@ -98,7 +98,7 @@ func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI
 			reqSI:                 reqSI,
 			entSI:                 entSI,
 			bytesSI:               bytesSI,
-			legacyWarn:            rate.Sometimes{Interval: legacyWarnInterval},
+			legacyWarn:            clientip.NewLegacyWarner(lgr),
 			maxConcurrentRequests: int64(maxConcurrent),
 		}
 	}
