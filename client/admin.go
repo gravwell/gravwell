@@ -183,20 +183,8 @@ func (c *Client) Sessions(id int32) ([]types.Session, error) {
 }
 
 // GetLicenseInfo returns information about the currently installed license.
-func (c *Client) GetLicenseInfo() (li types.LicenseInfo, err error) {
+func (c *Client) GetLicenseInfo() (li types.LicenseInfoResponse, err error) {
 	err = c.getStaticURL(licenseUrl(), &li)
-	return
-}
-
-// GetLicenseSKU returns the SKU for the license in use.
-func (c *Client) GetLicenseSKU() (sku string, err error) {
-	err = c.getStaticURL(licenseSkuUrl(), &sku)
-	return
-}
-
-// GetLicenseSerial returns the serial number for the current license.
-func (c *Client) GetLicenseSerial() (serial string, err error) {
-	err = c.getStaticURL(licenseSerialUrl(), &serial)
 	return
 }
 
