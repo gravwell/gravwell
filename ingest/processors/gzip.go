@@ -86,7 +86,7 @@ type GzipDecompressor struct {
 	maxBuff  int
 }
 
-func (gd *GzipDecompressor) Config(v interface{}) (err error) {
+func (gd *GzipDecompressor) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(GzipDecompressorConfig); ok {

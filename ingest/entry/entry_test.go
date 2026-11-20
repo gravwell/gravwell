@@ -304,7 +304,7 @@ func BenchmarkDecodeAlt(b *testing.B) {
 func BenchmarkDataCopy(b *testing.B) {
 	b.StopTimer()
 	buff := make([]byte, 4096)
-	for i := 0; i < len(buff); i++ {
+	for i := range buff {
 		buff[i] = byte(i % 0xff)
 	}
 	b.StartTimer()
@@ -320,7 +320,7 @@ func BenchmarkDataCopy(b *testing.B) {
 func BenchmarkDataAppend(b *testing.B) {
 	b.StopTimer()
 	buff := make([]byte, 4096)
-	for i := 0; i < len(buff); i++ {
+	for i := range buff {
 		buff[i] = byte(i % 0xff)
 	}
 	b.StartTimer()
@@ -338,7 +338,7 @@ func FuzzDecodeHeaderNoEvs(f *testing.F) {
 		net.ParseIP("192.168.1.1"),
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < fuzzCorpusSize; i++ {
+	for i := range fuzzCorpusSize {
 		e := &Entry{
 			TS:   Now(),
 			Tag:  EntryTag((i*10 + i) % 0x10000),
@@ -373,7 +373,7 @@ func FuzzDecodeHeaderWithEvs(f *testing.F) {
 		net.ParseIP("255.255.255.254"),
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < fuzzCorpusSize; i++ {
+	for i := range fuzzCorpusSize {
 		e := &Entry{
 			TS:   Now(),
 			Tag:  EntryTag((i*11 + i) % 0x10000),
@@ -408,7 +408,7 @@ func FuzzDecodeEntryNoEvs(f *testing.F) {
 		net.ParseIP("192.168.1.1"),
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < fuzzCorpusSize; i++ {
+	for i := range fuzzCorpusSize {
 		e := &Entry{
 			TS:   Now(),
 			Tag:  EntryTag((i*10 + i) % 0x10000),
@@ -436,7 +436,7 @@ func FuzzDecodeEntryWithEvs(f *testing.F) {
 		net.ParseIP("255.255.255.254"),
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < fuzzCorpusSize; i++ {
+	for i := range fuzzCorpusSize {
 		e := &Entry{
 			TS:   Now(),
 			Tag:  EntryTag((i*11 + i) % 0x10000),

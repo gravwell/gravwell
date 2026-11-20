@@ -118,7 +118,7 @@ func (jn *JsonNormalize) setDepth() {
 	}
 }
 
-func (jn *JsonNormalize) Config(v interface{}) (err error) {
+func (jn *JsonNormalize) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonNormalizeConfig); ok {
@@ -233,7 +233,7 @@ func (jn *JsonNormalize) processItem(ent *entry.Entry) (rset *entry.Entry, err e
 // silently corrupts 19-digit values like Snowflake IDs, Windows
 // EventRecordIDs, or epoch-nanosecond timestamps
 // (1234567890123456789 -> 1234567890123456800).
-func decodeJSON(data []byte) (v interface{}, err error) {
+func decodeJSON(data []byte) (v any, err error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	err = dec.Decode(&v)
@@ -245,7 +245,7 @@ func decodeJSON(data []byte) (v interface{}, err error) {
 // "?a=1\u0026b=2"), which breaks downstream regex/grok extraction that
 // expects the literal characters. json.Encoder.Encode always appends a
 // trailing newline, which is trimmed to match json.Marshal's output shape.
-func marshalJSON(v interface{}, pretty bool) ([]byte, error) {
+func marshalJSON(v any, pretty bool) ([]byte, error) {
 	bb := bytes.NewBuffer(nil)
 	enc := json.NewEncoder(bb)
 	enc.SetEscapeHTML(false)
@@ -314,11 +314,11 @@ func unescapeOnce(data []byte) ([]byte, bool) {
 // with no error or indication that nothing happened. Structural recursion
 // is instead bounded by the separate, generous maxStructuralDepth constant
 // purely to guard against stack overflow on pathological input.
-func normalizeValue(v interface{}, escapeDepth uint) interface{} {
+func normalizeValue(v any, escapeDepth uint) any {
 	return normalizeValueDepth(v, escapeDepth, maxStructuralDepth)
 }
 
-func normalizeValueDepth(v interface{}, escapeDepth uint, structDepth int) interface{} {
+func normalizeValueDepth(v any, escapeDepth uint, structDepth int) any {
 	if structDepth <= 0 {
 		return v
 	}
@@ -352,12 +352,12 @@ func normalizeValueDepth(v interface{}, escapeDepth uint, structDepth int) inter
 		// structural-depth allowance, since maxStructuralDepth bounds a
 		// single value's nesting, not the cumulative walk across unwraps.
 		return normalizeValueDepth(nested, escapeDepth-1, maxStructuralDepth)
-	case map[string]interface{}:
+	case map[string]any:
 		for k, val := range t {
 			t[k] = normalizeValueDepth(val, escapeDepth, structDepth-1)
 		}
 		return t
-	case []interface{}:
+	case []any:
 		for i, val := range t {
 			t[i] = normalizeValueDepth(val, escapeDepth, structDepth-1)
 		}
@@ -366,4 +366,3 @@ func normalizeValueDepth(v interface{}, escapeDepth uint, structDepth int) inter
 		return v
 	}
 }
-

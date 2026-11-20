@@ -53,7 +53,7 @@ func NewJsonRouter(cfg JsonRouteConfig, tagger Tagger) (*JsonRouter, error) {
 	return jr, nil
 }
 
-func (jr *JsonRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (jr *JsonRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonRouteConfig); ok {
