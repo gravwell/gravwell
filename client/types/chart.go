@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
@@ -67,18 +68,10 @@ type ChartableValueSet struct {
 
 // AddKeyComponents preps the ChartableValueSet with the appropriate key material
 func (cvs *ChartableValueSet) AddKeyComponents(name, cat string, keys []string) error {
-	for i := range cvs.Names {
-		if cvs.Names[i] == name {
-			return fmt.Errorf(`Name "%s" already exists`, name)
-		}
+	if slices.Contains(cvs.Names, name) {
+		return fmt.Errorf(`Name "%s" already exists`, name)
 	}
-	addCat := true
-	for i := range cvs.Categories {
-		if cvs.Categories[i] == cat {
-			addCat = false
-			break
-		}
-	}
+	addCat := !slices.Contains(cvs.Categories, cat)
 	cvs.Names = append(cvs.Names, name)
 	if addCat {
 		cvs.Categories = append(cvs.Categories, cat)

@@ -17,28 +17,28 @@ type logMsg struct {
 }
 
 // AccessLogF submits a log message to the webserver at the Access log level.
-func (c *Client) AccessLogF(format string, a ...interface{}) error {
+func (c *Client) AccessLogF(format string, a ...any) error {
 	s := fmt.Sprintf(format, a...)
 	msg := logMsg{Body: s}
 	return c.postStaticURL(loggingAccessUrl(), msg, nil)
 }
 
 // InfoLogF submits a log message to the webserver at the Info log level.
-func (c *Client) InfoLogF(format string, a ...interface{}) error {
+func (c *Client) InfoLogF(format string, a ...any) error {
 	s := fmt.Sprintf(format, a...)
 	msg := logMsg{Body: s}
 	return c.postStaticURL(loggingInfoUrl(), msg, nil)
 }
 
 // WarnLogF submits a log message to the webserver at the Warn log level.
-func (c *Client) WarnLogF(format string, a ...interface{}) error {
+func (c *Client) WarnLogF(format string, a ...any) error {
 	s := fmt.Sprintf(format, a...)
 	msg := logMsg{Body: s}
 	return c.postStaticURL(loggingWarnUrl(), msg, nil)
 }
 
 // ErrorLogF submits a log message to the webserver at the Error log level.
-func (c *Client) ErrorLogF(format string, a ...interface{}) error {
+func (c *Client) ErrorLogF(format string, a ...any) error {
 	s := fmt.Sprintf(format, a...)
 	msg := logMsg{Body: s}
 	return c.postStaticURL(loggingErrorUrl(), msg, nil)

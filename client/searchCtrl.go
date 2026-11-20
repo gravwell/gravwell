@@ -398,7 +398,7 @@ func (c *Client) getStringTagTableEntries(s Search, first, last uint64) (ste []t
 	return
 }
 
-func (c *Client) getRenderResults(s Search, er types.EntryRange, obj interface{}) (err error) {
+func (c *Client) getRenderResults(s Search, er types.EntryRange, obj any) (err error) {
 	params := []urlParam{
 		s.sidParam(),
 		ezParam(`first`, er.First),
@@ -410,7 +410,7 @@ func (c *Client) getRenderResults(s Search, er types.EntryRange, obj interface{}
 	return
 }
 
-func (c *Client) getFencedRenderResults(s Search, er types.EntryRange, fence types.Geofence, obj interface{}) (err error) {
+func (c *Client) getFencedRenderResults(s Search, er types.EntryRange, fence types.Geofence, obj any) (err error) {
 	if !fence.Enabled() {
 		err = c.getRenderResults(s, er, obj)
 		return
@@ -977,7 +977,7 @@ func (c *Client) GetSearchMetadata(s Search) (sm types.SearchMetadata, err error
 	return
 }
 
-func (c *Client) getStats(s Search, count uint, start, end time.Time, pth string, obj interface{}) (err error) {
+func (c *Client) getStats(s Search, count uint, start, end time.Time, pth string, obj any) (err error) {
 	if count == 0 {
 		err = errors.New("invalid count")
 		return
