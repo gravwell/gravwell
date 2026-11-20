@@ -344,14 +344,6 @@ func licenseUrl() string {
 	return LICENSE_URL
 }
 
-func licenseSkuUrl() string {
-	return LICENSE_SKU_URL
-}
-
-func licenseSerialUrl() string {
-	return LICENSE_SERIAL_URL
-}
-
 func licenseUpdateUrl() string {
 	return LICENSE_UPDATE_URL
 }

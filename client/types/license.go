@@ -88,8 +88,9 @@ var (
 type LicenseType uint64
 type FeatureOverride uint64
 
-// A LicenseInfo block represents the overall configuration for a license - the
-// type, customer information, expiration, etc.
+// A LicenseInfo block represents the overall configuration for a license,
+// composed primarily of values intrinsic to the license' signature.
+// It does not contain derived/computed values; they may be computed via their respective methods.
 type LicenseInfo struct {
 	Version        uint64
 	CustomerUUID   string `json:",omitempty"`
@@ -102,6 +103,28 @@ type LicenseInfo struct {
 	Metadata  []byte
 	NFR       bool //non-commercial license override
 	Hash      []byte
+}
+
+// LicenseInfoResponse is the response to GET /api/license.
+// It composes the signed LicenseInfo with its derived values for a complete, flat representation.
+type LicenseInfoResponse struct {
+	LicenseInfo
+	Features    Features
+	IngestLimit string
+	Manageable  bool // true if the license subscription can be managed through the billing portal
+	SKU         string
+	Serial      string
+}
+
+// NewLicenseInfoResponse fills in every field that can be derived from li alone.
+// Hash, IngestLimit, and Manageable require the full license and must be set by the caller.
+func NewLicenseInfoResponse(li LicenseInfo) LicenseInfoResponse {
+	return LicenseInfoResponse{
+		LicenseInfo: li,
+		Features:    li.Features(),
+		SKU:         li.SKU(),
+		Serial:      li.Serial(),
+	}
 }
 
 // Features is a list of features present on this license. It's used in the
