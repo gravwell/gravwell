@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 )
 
 // emitCtx bundles the per-request metadata shared by every entry emitted from
@@ -29,7 +30,8 @@ type emitCtx struct {
 	logMode      string
 	logToolCalls bool
 	logUsage     bool
-	clientIP     net.IP
+	client       trustedproxy.Client // the resolved client, for log lines
+	clientIP     net.IP              // clientip.IP(client), the entry SRC
 	sessionID    string
 	newSession   bool
 	upstreamCode int

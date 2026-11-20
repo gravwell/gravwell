@@ -82,6 +82,12 @@ func main() {
 		return
 	}
 
+	clients, err := newClientSource(cfg.resolver, lg)
+	if err != nil {
+		lg.FatalCode(0, "failed to init client address resolution", log.KVErr(err))
+		return
+	}
+
 	lg.Info("registered protocols", log.KV("protocols", strings.Join(protocol.Names(), ", ")))
 
 	type listenerSrv struct {
@@ -108,7 +114,7 @@ func main() {
 				log.KV("listener", name), log.KVErr(err))
 			return
 		}
-		ph, err := newProxyHandler(name, lcfg, proto, tag, pproc, sessions, lg)
+		ph, err := newProxyHandler(name, lcfg, proto, tag, pproc, sessions, clients, lg)
 		if err != nil {
 			lg.FatalCode(0, "failed to build proxy handler",
 				log.KV("listener", name), log.KVErr(err))
