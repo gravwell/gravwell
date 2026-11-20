@@ -66,11 +66,9 @@ func listGroups() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ListGroups},
-					XPermissions: []types.Capability{types.ListGroups},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ListGroups},
+				XPermissions: []types.Capability{types.ListGroups},
 			},
 			DefaultColumns: []string{"ID", "Name", "Description"},
 		})
@@ -90,9 +88,7 @@ func create() action.Pair {
 			})
 			return result.ID, "", err
 		}, scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		})
 }
 
@@ -117,7 +113,7 @@ func delete() action.Pair {
 
 			return items, nil
 		}, scaffolddelete.Options{
-			CommonOptions:     scaffold.CommonOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
+			Requirements:      annotations.Requirements{UserIsAdmin: true},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
 }
@@ -171,10 +167,8 @@ func edit() action.Pair {
 	}
 	return scaffoldedit.NewEditAction("group", "groups", cfg, funcs,
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				// group creation/management is currently restricted to admins, matching admin.go's pattern
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			// group creation/management is currently restricted to admins, matching admin.go's pattern
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		})
 }
 
@@ -189,15 +183,13 @@ func listUsers() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "users",
-				Usage: "users " + ft.MutuallyExclusive("--csv", "--json", "--table") +
-					" " + ft.Optional("flags") + " " + ft.Mandatory("group ID"),
-				Example: "users 2",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ListGroupMembers},
-					XPermissions: []types.Capability{types.ListGroupMembers},
-				},
+			Use: "users",
+			Usage: "users " + ft.MutuallyExclusive("--csv", "--json", "--table") +
+				" " + ft.Optional("flags") + " " + ft.Mandatory("group ID"),
+			Example: "users 2",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ListGroupMembers},
+				XPermissions: []types.Capability{types.ListGroupMembers},
 			},
 			DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

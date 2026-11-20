@@ -58,9 +58,7 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{IPermissions: []types.Capability{types.PlaybookRead}},
-			},
+			Requirements: annotations.Requirements{IPermissions: []types.Capability{types.PlaybookRead}},
 			DefaultColumns: []string{
 				"CommonFields.ID",
 				"CommonFields.Name",
@@ -120,17 +118,15 @@ func download() action.Pair {
 			return []scaffold.Result{{Output: pb.Body + "\n", Success: true}}, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "download",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Output.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.PlaybookRead},
-					XPermissions: []types.Capability{types.PlaybookRead},
-				},
+			Use: "download",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Output.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.PlaybookRead},
+				XPermissions: []types.Capability{types.PlaybookRead},
 			},
 			Exactly1: true,
 		})
@@ -168,27 +164,23 @@ func create() action.Pair {
 			}
 
 			pb := types.Playbook{
-				CommonFields: types.CommonFields{
-					Name:        cfg["name"].Provider.Get(),
-					Description: cfg["desc"].Provider.Get(),
-					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
-				},
-				Body: body,
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
+				Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
+				Body:        body,
 			}
 			result, err := connection.Client.CreatePlaybook(pb)
 			return result.ID, "", err
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "markdown file. Overwrites --content.")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.PlaybookWrite},
-					XPermissions: []types.Capability{types.PlaybookWrite},
-				},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Path.Register(fs, "", "markdown file. Overwrites --content.")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.PlaybookWrite},
+				XPermissions: []types.Capability{types.PlaybookWrite},
 			},
 		})
 }
@@ -210,11 +202,9 @@ func delete() action.Pair {
 
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
-					XPermissions: []types.Capability{types.PlaybookWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+				XPermissions: []types.Capability{types.PlaybookWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
@@ -272,11 +262,9 @@ func edit() action.Pair {
 	}
 	return scaffoldedit.NewEditAction("playbook", "playbooks", cfg, funcs,
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
-					XPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
+				XPermissions: []types.Capability{types.PlaybookRead, types.PlaybookWrite},
 			},
 		})
 }

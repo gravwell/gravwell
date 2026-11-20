@@ -84,12 +84,10 @@ func past() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "past",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SearchHistory},
-					XPermissions: []types.Capability{types.SearchHistory},
-				},
+			Use: "past",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SearchHistory},
+				XPermissions: []types.Capability{types.SearchHistory},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -136,12 +134,10 @@ func info() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "info",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.AttachSearch},
-					XPermissions: []types.Capability{types.Search, types.AttachSearch},
-				},
+			Use: "info",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.AttachSearch},
+				XPermissions: []types.Capability{types.Search, types.AttachSearch},
 			},
 			DefaultColumns: []string{"ID", "UID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -174,11 +170,9 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.AttachSearch},
-					XPermissions: []types.Capability{types.Search, types.AttachSearch},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.AttachSearch},
+				XPermissions: []types.Capability{types.Search, types.AttachSearch},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -215,12 +209,10 @@ func stop() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "stop",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.AttachSearch},
-					XPermissions: []types.Capability{types.Search, types.AttachSearch},
-				},
+			Use: "stop",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.AttachSearch},
+				XPermissions: []types.Capability{types.Search, types.AttachSearch},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no running queries (that you can access)" }},
 	)
@@ -242,13 +234,12 @@ func importAction() action.Pair {
 			return 0, "", connection.Client.ImportSearch(f, 0)
 
 		},
-		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+		scaffoldcreate.Options{
 			Use: "import",
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.SaveSearch, types.Search, types.SetSearchGroup},
 				XPermissions: []types.Capability{types.SaveSearch, types.Search, types.SetSearchGroup},
-			},
-		}})
+			}})
 }
 
 func save() action.Pair {
@@ -291,19 +282,17 @@ func save() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "save",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String(ft.Name.Name(), "", "name the newly saved search")
-					fs.String("notes", "", "attach extra information to the saved search")
-					fs.Time("expire", time.Time{}, []string{uniques.SearchTimeFormat}, "override the expiration time of the this search")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SaveSearch},
-					XPermissions: []types.Capability{types.SaveSearch},
-				},
+			Use: "save",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String(ft.Name.Name(), "", "name the newly saved search")
+				fs.String("notes", "", "attach extra information to the saved search")
+				fs.Time("expire", time.Time{}, []string{uniques.SearchTimeFormat}, "override the expiration time of the this search")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SaveSearch},
+				XPermissions: []types.Capability{types.SaveSearch},
 			},
 		},
 	)
@@ -333,11 +322,9 @@ func background() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.BackgroundSearch},
-					XPermissions: []types.Capability{types.BackgroundSearch},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.AttachSearch, types.BackgroundSearch},
+				XPermissions: []types.Capability{types.BackgroundSearch},
 			},
 		})
 }
@@ -356,11 +343,9 @@ func delete() action.Pair {
 		},
 		scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.AttachSearch},
-					XPermissions: []types.Capability{types.Search},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.AttachSearch},
+				XPermissions: []types.Capability{types.Search},
 			},
 		})
 }
@@ -410,21 +395,19 @@ func setAccess() action.Pair {
 
 			return results, nil
 		}, scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "set-access",
-				Aliases: []string{"set-groups", "set-group"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Int32Slice("reader-groups", nil, "Groups allowed to read the search. Omit to leave unchanged; pass an empty list to clear.")
-					fs.Int32Slice("writer-groups", nil, "Groups allowed to write the search. Omit to leave unchanged; pass an empty list to clear.")
-					fs.Bool("reader-global", false, "Whether the search is globally readable by any user. Omit to leave unchanged. Requires admin to set true.")
-					fs.Bool("writer-global", false, "Whether the search is globally writable by any user. Omit to leave unchanged. Requires admin to set true.")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SetSearchGroup},
-					XPermissions: []types.Capability{types.SetSearchGroup},
-				},
+			Use:     "set-access",
+			Aliases: []string{"set-groups", "set-group"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Int32Slice("reader-groups", nil, "Groups allowed to read the search. Omit to leave unchanged; pass an empty list to clear.")
+				fs.Int32Slice("writer-groups", nil, "Groups allowed to write the search. Omit to leave unchanged; pass an empty list to clear.")
+				fs.Bool("reader-global", false, "Whether the search is globally readable by any user. Omit to leave unchanged. Requires admin to set true.")
+				fs.Bool("writer-global", false, "Whether the search is globally writable by any user. Omit to leave unchanged. Requires admin to set true.")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Search, types.AttachSearch, types.SetSearchGroup},
+				XPermissions: []types.Capability{types.SetSearchGroup},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if readerGroupsSet = fs.Changed("reader-groups"); readerGroupsSet {

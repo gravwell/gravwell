@@ -92,13 +92,11 @@ func wells() action.Pair {
 			}
 			return toRet, nil
 		}, nil, scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "wells",
-				Aliases: []string{"well"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead},
-					XPermissions: []types.Capability{types.SystemInfoRead},
-				},
+			Use:     "wells",
+			Aliases: []string{"well"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SystemInfoRead},
+				XPermissions: []types.Capability{types.SystemInfoRead},
 			},
 			DefaultColumns:    []string{"Indexer.UUID", "Indexer.Name", "ID", "Name", "Tags", "Accelerator", "Engine", "Path", "ColdPath"},
 			QueryOptionsFlags: scaffold.QOOmit{Everything: true},

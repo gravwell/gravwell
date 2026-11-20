@@ -60,11 +60,9 @@ func Action() action.Pair {
 			return nil
 		},
 		treeutils.GenerateActionOptions{
-			NodeOptions: treeutils.NodeOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AlertWrite},
-					XPermissions: []types.Capability{types.AlertWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AlertWrite},
+				XPermissions: []types.Capability{types.AlertWrite},
 			},
 			Usage: ft.Mandatory("--name=NAME") + ft.Optional("flags"),
 			Example: "--name=myalert" +
@@ -164,12 +162,10 @@ func validateFlagValues(availableConsumers map[string]types.Flow, availableDispa
 		}
 	}
 	return "", types.Alert{
-		CommonFields: types.CommonFields{
-			OwnerID:     connection.CurrentUser().ID,
-			Name:        flagVals.name,
-			Description: flagVals.description,
-		},
-		TargetTag: flagVals.tag,
+		OwnerID:     connection.CurrentUser().ID,
+		Name:        flagVals.name,
+		Description: flagVals.description,
+		TargetTag:   flagVals.tag,
 
 		Consumers:          consumers,
 		Dispatchers:        dispatchers,
