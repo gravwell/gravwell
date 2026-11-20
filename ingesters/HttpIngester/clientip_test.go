@@ -13,10 +13,8 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -27,448 +25,48 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/iotest"
-	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
 	"github.com/gravwell/gravwell/v4/utils/trustedproxy"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/time/rate"
 )
 
-func TestClientIP(t *testing.T) {
-	tests := []struct {
-		name    string
-		trusted []string
-		ignore  bool // Ignore-Untrusted-Forwarded-For
-		remote  string
-		xff     []string // one element per header line
-		want    string
-	}{
-		// legacy mode: no Trusted-Proxy, header trusted from any peer
-		{
-			name:   "legacy no header",
-			remote: "192.0.2.10:5000",
-			want:   "192.0.2.10",
-		},
-		{
-			name:   "legacy single entry used as before",
-			remote: "192.0.2.10:5000",
-			xff:    []string{"203.0.113.7"},
-			want:   "203.0.113.7",
-		},
-		{
-			// a multi-address header used to resolve to 127.0.0.1
-			name:   "legacy multi entry header uses leftmost",
-			remote: "35.191.1.2:51234",
-			xff:    []string{"203.0.113.7,198.51.100.10"},
-			want:   "203.0.113.7",
-		},
-		{
-			name:   "legacy multi entry header with spaces",
-			remote: "35.191.1.2:51234",
-			xff:    []string{"203.0.113.7, 198.51.100.10"},
-			want:   "203.0.113.7",
-		},
-		{
-			name:   "legacy entry with port",
-			remote: "192.0.2.10:5000",
-			xff:    []string{"203.0.113.7:4444"},
-			want:   "203.0.113.7",
-		},
-		{
-			name:   "legacy no valid entry uses peer",
-			remote: "192.0.2.10:5000",
-			xff:    []string{"unknown"},
-			want:   "192.0.2.10",
-		},
-		{
-			name:   "legacy unparseable peer uses header",
-			remote: "@unix",
-			xff:    []string{"203.0.113.7"},
-			want:   "203.0.113.7",
-		},
-
-		// Ignore-Untrusted-Forwarded-For: strict with nothing trusted
-		{
-			name:   "ignore single entry uses peer",
-			ignore: true,
-			remote: "192.0.2.10:5000",
-			xff:    []string{"203.0.113.7"},
-			want:   "192.0.2.10",
-		},
-		{
-			name:   "ignore multi entry uses peer",
-			ignore: true,
-			remote: "192.0.2.10:5000",
-			xff:    []string{"203.0.113.7,198.51.100.10"},
-			want:   "192.0.2.10",
-		},
-		{
-			name:   "ignore unparseable peer falls back to loopback",
-			ignore: true,
-			remote: "@unix",
-			xff:    []string{"203.0.113.7"},
-			want:   "127.0.0.1",
-		},
-
-		// Trusted-Proxy set: strict
-		{
-			// a load balancer that appends the client and its own address
-			name:    "trusted load balancer chain",
-			trusted: []string{"35.191.0.0/16", "198.51.100.10"},
-			remote:  "35.191.1.2:51234",
-			xff:     []string{"203.0.113.7,198.51.100.10"},
-			want:    "203.0.113.7",
-		},
-		{
-			name:    "client supplied entry left of the client is ignored",
-			trusted: []string{"35.191.0.0/16", "198.51.100.10"},
-			remote:  "35.191.1.2:51234",
-			xff:     []string{"192.0.2.99, 203.0.113.7, 198.51.100.10"},
-			want:    "203.0.113.7",
-		},
-		{
-			name:    "trusted proxy across header lines",
-			trusted: []string{"10.0.0.1"},
-			remote:  "10.0.0.1:5000",
-			xff:     []string{"192.0.2.99", "203.0.113.7"},
-			want:    "203.0.113.7",
-		},
-		{
-			name:    "untrusted peer with trusted list",
-			trusted: []string{"10.0.0.1"},
-			remote:  "192.0.2.10:5000",
-			xff:     []string{"203.0.113.7"},
-			want:    "192.0.2.10",
-		},
-		{
-			name:    "trusted list wins over ignore",
-			trusted: []string{"10.0.0.1"},
-			ignore:  true,
-			remote:  "10.0.0.1:5000",
-			xff:     []string{"203.0.113.7"},
-			want:    "203.0.113.7",
-		},
-		{
-			name:    "malformed entry stops at the trusted peer",
-			trusted: []string{"10.0.0.1"},
-			remote:  "10.0.0.1:5000",
-			xff:     []string{"203.0.113.7, unknown"},
-			want:    "10.0.0.1",
-		},
-		{
-			name:    "ipv6 trusted peer",
-			trusted: []string{"2001:db8::/64"},
-			remote:  "[2001:db8::1]:443",
-			xff:     []string{"2001:db8:ffff::7"},
-			want:    "2001:db8:ffff::7",
-		},
-		{
-			name:    "strict unparseable peer falls back to loopback",
-			trusted: []string{"10.0.0.1"},
-			remote:  "@unix",
-			xff:     []string{"203.0.113.7"},
-			want:    "127.0.0.1",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := newTestConfig(t, "", map[string]*lst{
-				"l1": {URL: "/test1", Tag_Name: "tag1"},
-			})
-			cfg.Trusted_Proxy = tt.trusted
-			cfg.Ignore_Untrusted_Forwarded_For = tt.ignore
-			require.NoError(t, cfg.Verify())
-
-			h := newWarnHandler(log.NewDiscardLogger())
-			h.setResolver(cfg.resolver)
-
-			got := clientIP(h.client(newXFFRequest(tt.remote, tt.xff...)))
-			require.True(t, got.Equal(net.ParseIP(tt.want)), "got %v, want %s", got, tt.want)
-		})
-	}
-}
-
-// newWarnHandler returns a handler with only the fields client resolution uses.
-func newWarnHandler(lgr *log.Logger) *handler {
-	return &handler{lgr: lgr, legacyWarn: rate.Sometimes{Interval: legacyWarnInterval}}
-}
-
-func TestLegacyForwardedWarning(t *testing.T) {
-	logBuf := &lockedBuffer{}
-	h := newWarnHandler(log.New(logBuf))
-	h.setResolver(clientResolver{legacy: true})
-
-	warnings := func() int {
-		return strings.Count(logBuf.String(), "Ignore-Untrusted-Forwarded-For")
-	}
-
-	h.client(newXFFRequest("192.0.2.10:5000"))
-	h.client(newXFFRequest("192.0.2.10:5000", "192.0.2.10"))
-	require.Equal(t, 0, warnings(), "no warning when the header did not change the client")
-
-	h.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
-	require.Equal(t, 1, warnings(), "the header set the client")
-	require.Contains(t, logBuf.String(), `src="203.0.113.7"`)
-	require.Contains(t, logBuf.String(), `peer="192.0.2.10"`)
-
-	for i := 0; i < 10; i++ {
-		h.client(newXFFRequest("192.0.2.11:5000", "203.0.113.8"))
-	}
-	require.Equal(t, 1, warnings(), "warnings are rate limited across peers")
-
-	// shorten the interval and wait past it rather than wait a minute
-	h.legacyWarn.Interval = 20 * time.Millisecond
-	time.Sleep(2 * h.legacyWarn.Interval)
-	h.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
-	require.Equal(t, 2, warnings(), "the warning repeats after the interval")
-
-	strict := newWarnHandler(log.New(logBuf))
-	strict.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
-	require.Equal(t, 2, warnings(), "strict mode never warns")
-}
-
-// TestLegacyForwardedWarningConcurrent checks that concurrent requests produce
-// one warning in total, and that a slow warning write does not hold up other
-// requests.
-func TestLegacyForwardedWarningConcurrent(t *testing.T) {
-	bw := newBlockingWriter()
-	h := newWarnHandler(log.New(bw))
-	h.setResolver(clientResolver{legacy: true})
-
-	// the first warning blocks in the log write until released
-	first := make(chan struct{})
-	go func() {
-		defer close(first)
-		h.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
-	}()
-	<-bw.entered
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		var wg sync.WaitGroup
-		for i := 0; i < 32; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				h.client(newXFFRequest("192.0.2.11:5000", "203.0.113.8"))
-			}()
-		}
-		wg.Wait()
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("requests blocked behind the warning write")
-	}
-
-	close(bw.release)
-	<-first
-	require.Equal(t, 1, strings.Count(bw.String(), "Ignore-Untrusted-Forwarded-For"))
-}
-
-// blockingWriter is a log destination whose first write blocks until release is
-// closed. entered is closed when that write starts.
-type blockingWriter struct {
-	lockedBuffer
-	once    sync.Once
-	entered chan struct{}
-	release chan struct{}
-}
-
-func newBlockingWriter() *blockingWriter {
-	return &blockingWriter{entered: make(chan struct{}), release: make(chan struct{})}
-}
-
-func (bw *blockingWriter) Write(b []byte) (int, error) {
-	bw.once.Do(func() {
-		close(bw.entered)
-		<-bw.release
-	})
-
-	return bw.lockedBuffer.Write(b)
-}
-
-func TestClientKVs(t *testing.T) {
-	tests := []struct {
-		name   string
-		client trustedproxy.Client
-		want   map[string]string
-	}{
-		{
-			name:   "no header",
-			client: trustedproxy.List{}.Resolve(newXFFRequest("192.0.2.10:5000")),
-			want:   map[string]string{"src": "192.0.2.10"},
-		},
-		{
-			// an empty header line logs like no header
-			name:   "empty header",
-			client: trustedproxy.ResolveLegacy(newXFFRequest("192.0.2.10:5000", "")),
-			want:   map[string]string{"src": "192.0.2.10"},
-		},
-		{
-			name:   "header from untrusted peer",
-			client: trustedproxy.List{}.Resolve(newXFFRequest("192.0.2.10:5000", "203.0.113.7")),
-			want:   map[string]string{"src": "192.0.2.10", "peer": "192.0.2.10", "xff": "203.0.113.7"},
-		},
-		{
-			name: "malformed header from trusted peer",
-			client: mustList(t, "10.0.0.1").Resolve(
-				newXFFRequest("10.0.0.1:5000", "203.0.113.7, unknown"),
-			),
-			want: map[string]string{
-				"src":           "10.0.0.1",
-				"peer":          "10.0.0.1",
-				"xff":           "203.0.113.7, unknown",
-				"xff-malformed": "true",
-			},
-		},
-		{
-			name:   "legacy header with unparseable peer",
-			client: trustedproxy.ResolveLegacy(newXFFRequest("@unix", "203.0.113.7")),
-			want:   map[string]string{"src": "203.0.113.7", "peer": "@unix", "xff": "203.0.113.7"},
-		},
-		{
-			// the logged address is the SRC fallback, with the raw peer beside it
-			name:   "unparseable peer",
-			client: trustedproxy.List{}.Resolve(newXFFRequest("@unix")),
-			want:   map[string]string{"src": "127.0.0.1", "peer": "@unix"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := map[string]string{}
-			for _, kv := range clientKVs("src", tt.client) {
-				got[kv.Name] = kv.Value
-			}
-
-			require.Equal(t, tt.want, got)
-			require.Equal(t, clientIP(tt.client).String(), got["src"], "the logged address should be the entry SRC")
-		})
-	}
-}
-
+// TestVerifyTrustedProxy checks that Verify builds the resolver from the config
+// and the GRAVWELL_HTTP_ environment variables. clientip.LoadResolver tests the
+// options themselves.
 func TestVerifyTrustedProxy(t *testing.T) {
 	tests := []struct {
 		name       string
 		cfg        []string
 		env        string
+		file       string   // contents of the file named by the _FILE variable
 		ignore     bool     // Ignore-Untrusted-Forwarded-For in the config
 		ignoreEnv  string   // GRAVWELL_HTTP_IGNORE_UNTRUSTED_FORWARDED_FOR
-		trusted    []string // addresses expected to be trusted
-		untrusted  []string // addresses expected not to be trusted
-		wantLegacy bool
+		want       []string // the trusted list
+		wantIgnore bool
 		wantErr    string
 	}{
-		{
-			name:       "unset is legacy mode",
-			untrusted:  []string{"127.0.0.1", "10.0.0.1"},
-			wantLegacy: true,
-		},
-		{
-			name:      "ignore turns off legacy mode",
-			ignore:    true,
-			untrusted: []string{"127.0.0.1", "10.0.0.1"},
-		},
-		{
-			name:      "ignore env var turns off legacy mode",
-			ignoreEnv: "true",
-			untrusted: []string{"127.0.0.1"},
-		},
-		{
-			name:       "ignore env var false keeps legacy mode",
-			ignoreEnv:  "false",
-			wantLegacy: true,
-		},
-		{
-			name:      "trusted list is never legacy",
-			cfg:       []string{"10.0.0.1"},
-			trusted:   []string{"10.0.0.1"},
-			untrusted: []string{"10.0.0.2"},
-		},
-		{
-			name:      "invalid ignore env var",
-			ignoreEnv: "maybe",
-			wantErr:   envIgnoreUntrustedXFF,
-		},
-		{
-			name:      "addresses and blocks",
-			cfg:       []string{"10.0.0.1", "192.168.100.0/24", "2001:db8::/64"},
-			trusted:   []string{"10.0.0.1", "192.168.100.7", "2001:db8::5"},
-			untrusted: []string{"10.0.0.2", "192.168.101.7"},
-		},
-		{
-			name:      "env var comma list",
-			env:       "10.0.0.1, 192.168.100.0/24",
-			trusted:   []string{"10.0.0.1", "192.168.100.7"},
-			untrusted: []string{"10.0.0.2"},
-		},
-		{
-			name:      "config wins over env var",
-			cfg:       []string{"10.0.0.1"},
-			env:       "10.0.0.2",
-			trusted:   []string{"10.0.0.1"},
-			untrusted: []string{"10.0.0.2"},
-		},
-		{
-			name:    "invalid entry",
-			cfg:     []string{"10.0.0.1", "proxy.example.com"},
-			wantErr: `"proxy.example.com"`,
-		},
-		{
-			name:    "invalid env entry",
-			env:     "10.0.0.1,nope",
-			wantErr: `"nope"`,
-		},
-		{
-			name:    "ipv4 trust all rejected",
-			cfg:     []string{"0.0.0.0/0"},
-			wantErr: `"0.0.0.0/0"`,
-		},
-		{
-			name:    "ipv4 split trust all rejected",
-			cfg:     []string{"0.0.0.0/1", "128.0.0.0/1"},
-			wantErr: "cover every IPv4 address",
-		},
-		{
-			name:    "blank entries rejected",
-			cfg:     []string{"", " "},
-			wantErr: "blank",
-		},
-		{
-			name:    "env var of only separators rejected",
-			env:     ",",
-			wantErr: "blank",
-		},
-		{
-			name:    "env var of only whitespace rejected",
-			env:     " ",
-			wantErr: "blank",
-		},
-		{
-			// the config value wins over the env var, so it must not be dropped
-			name:    "blank config value with env var rejected",
-			cfg:     []string{""},
-			env:     "10.0.0.1",
-			wantErr: "blank",
-		},
-		{
-			name:    "ipv6 trust all rejected",
-			cfg:     []string{"::/0"},
-			wantErr: `"::/0"`,
-		},
+		{name: "unset is legacy mode"},
+		{name: "ignore", ignore: true, wantIgnore: true},
+		{name: "ignore env var", ignoreEnv: "true", wantIgnore: true},
+		{name: "config list", cfg: []string{"10.0.0.1", "192.168.100.0/24"}, want: []string{"10.0.0.1", "192.168.100.0/24"}},
+		{name: "env var list", env: "10.0.0.1, 192.168.100.0/24", want: []string{"10.0.0.1", "192.168.100.0/24"}},
+		{name: "file list", file: "10.0.0.1\n10.0.0.2\n", want: []string{"10.0.0.1", "10.0.0.2"}},
+		{name: "invalid ignore env var", ignoreEnv: "maybe", wantErr: envIgnoreUntrustedXFF},
+		{name: "invalid entry", cfg: []string{"proxy.example.com"}, wantErr: `Trusted-Proxy is invalid: invalid trusted proxy "proxy.example.com"`},
+		{name: "env var of only separators", env: ",", wantErr: "failed to load Trusted-Proxy: " + envTrustedProxy + ": "},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.env != `` {
 				t.Setenv(envTrustedProxy, tt.env)
+			}
+			if tt.file != `` {
+				t.Setenv(envTrustedProxy+`_FILE`, writeTrustedProxyFile(t, tt.file))
 			}
 			if tt.ignoreEnv != `` {
 				t.Setenv(envIgnoreUntrustedXFF, tt.ignoreEnv)
@@ -487,13 +85,7 @@ func TestVerifyTrustedProxy(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			require.Equal(t, tt.wantLegacy, cfg.resolver.legacy, "legacy mode")
-			for _, a := range tt.trusted {
-				require.True(t, cfg.resolver.trusted.Contains(netipAddr(t, a)), "%s should be trusted", a)
-			}
-			for _, a := range tt.untrusted {
-				require.False(t, cfg.resolver.trusted.Contains(netipAddr(t, a)), "%s should not be trusted", a)
-			}
+			require.Equal(t, clientip.NewResolver(mustList(t, tt.want...), tt.wantIgnore), cfg.resolver)
 		})
 	}
 }
@@ -518,10 +110,8 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"10.0.0.5", "192.168.100.0/24"}, cfg.Trusted_Proxy)
-	require.True(t, cfg.resolver.trusted.Contains(netipAddr(t, "10.0.0.5")))
-	require.True(t, cfg.resolver.trusted.Contains(netipAddr(t, "192.168.100.200")))
-	require.False(t, cfg.resolver.trusted.Contains(netipAddr(t, "10.0.0.6")))
-	require.False(t, cfg.resolver.legacy)
+	require.Equal(t, clientip.NewResolver(mustList(t, "10.0.0.5", "192.168.100.0/24"), false), cfg.resolver)
+	require.False(t, cfg.resolver.Legacy())
 
 	bad := strings.Replace(conf, "Trusted-Proxy=10.0.0.5", "Trusted-Proxy=0.0.0.0/0", 1)
 	require.NoError(t, os.WriteFile(pth, []byte(bad), 0o600))
@@ -549,7 +139,7 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 	cfg, err = GetConfig(pth, "")
 	require.NoError(t, err)
 	require.Empty(t, cfg.Trusted_Proxy)
-	require.True(t, cfg.resolver.legacy)
+	require.True(t, cfg.resolver.Legacy())
 
 	ignore := strings.Replace(noProxies, `Bind=":8080"`, "Bind=\":8080\"\n\tIgnore-Untrusted-Forwarded-For=true", 1)
 	require.NoError(t, os.WriteFile(pth, []byte(ignore), 0o600))
@@ -557,7 +147,7 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 	cfg, err = GetConfig(pth, "")
 	require.NoError(t, err)
 	require.True(t, cfg.Ignore_Untrusted_Forwarded_For)
-	require.False(t, cfg.resolver.legacy)
+	require.False(t, cfg.resolver.Legacy())
 }
 
 func TestHotReloadTrustedProxy(t *testing.T) {
@@ -574,7 +164,7 @@ func TestHotReloadTrustedProxy(t *testing.T) {
 		return cfg
 	}
 	resolve := func(xff string) string {
-		return clientIP(hndlr.client(newXFFRequest("10.0.0.1:5000", xff))).String()
+		return clientip.IP(hndlr.client(newXFFRequest("10.0.0.1:5000", xff))).String()
 	}
 
 	require.NoError(t, hndlr.loadConfig(newCfg(false, "10.0.0.0/8")))
@@ -594,6 +184,61 @@ func TestHotReloadTrustedProxy(t *testing.T) {
 
 	require.Error(t, hndlr.hotReload(newCfg(false, "0.0.0.0/0")))
 	require.Equal(t, "10.0.0.1", resolve("192.0.2.99, 203.0.113.7"), "a rejected reload should keep the previous settings")
+}
+
+// TestHotReloadTrustedProxyFile checks that each reload reads the
+// Trusted-Proxy _FILE again, so an edited file takes effect on SIGHUP.
+func TestHotReloadTrustedProxyFile(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	newCfg := func() *cfgType {
+		return newTestConfig(t, "", map[string]*lst{"l1": {URL: "/test1", Tag_Name: "tag1"}})
+	}
+	resolve := func(peer string) string {
+		return clientip.IP(hndlr.client(newXFFRequest(peer, "192.0.2.99, 203.0.113.7"))).String()
+	}
+
+	pth := writeTrustedProxyFile(t, "10.0.0.1\n10.0.0.2\n")
+	t.Setenv(envTrustedProxy+`_FILE`, pth)
+
+	require.NoError(t, hndlr.loadConfig(newCfg()))
+	require.Equal(t, "203.0.113.7", resolve("10.0.0.1:5000"), "first line should be trusted")
+	require.Equal(t, "203.0.113.7", resolve("10.0.0.2:5000"), "second line should be trusted")
+	require.Equal(t, "10.0.0.3", resolve("10.0.0.3:5000"))
+
+	require.NoError(t, os.WriteFile(pth, []byte("10.0.0.3\n"), 0o600))
+	require.NoError(t, hndlr.hotReload(newCfg()))
+	require.Equal(t, "10.0.0.1", resolve("10.0.0.1:5000"), "reload should drop the removed proxy")
+	require.Equal(t, "203.0.113.7", resolve("10.0.0.3:5000"), "reload should trust the added proxy")
+
+	require.NoError(t, os.WriteFile(pth, []byte(",\n"), 0o600))
+	require.ErrorContains(t, hndlr.hotReload(newCfg()), "no entries")
+	require.Equal(t, "203.0.113.7", resolve("10.0.0.3:5000"), "a rejected reload should keep the previous settings")
+}
+
+// TestHotReloadKeepsLegacyWarningLimit checks that a reload swaps the resolver
+// but keeps the legacy warning rate limit, so a SIGHUP does not repeat the
+// warning.
+func TestHotReloadKeepsLegacyWarningLimit(t *testing.T) {
+	logBuf := &lockedBuffer{}
+	hndlr, err := newHandler(newTestMuxer(t), log.New(logBuf), nil, nil, nil, 0)
+	require.NoError(t, err)
+
+	newCfg := func() *cfgType {
+		return newTestConfig(t, "", map[string]*lst{"l1": {URL: "/test1", Tag_Name: "tag1"}})
+	}
+	warnings := func() int {
+		return strings.Count(logBuf.String(), "Ignore-Untrusted-Forwarded-For")
+	}
+
+	require.NoError(t, hndlr.loadConfig(newCfg()))
+	hndlr.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
+	require.Equal(t, 1, warnings())
+
+	require.NoError(t, hndlr.hotReload(newCfg()))
+	hndlr.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))
+	require.Equal(t, 1, warnings(), "a reload should not reset the warning rate limit")
 }
 
 // TestServeHTTPClient drives real requests over TCP through handler.ServeHTTP
@@ -769,15 +414,6 @@ func mustList(t *testing.T, entries ...string) trustedproxy.List {
 	return l
 }
 
-func netipAddr(t *testing.T, s string) netip.Addr {
-	t.Helper()
-
-	a, err := netip.ParseAddr(s)
-	require.NoError(t, err)
-
-	return a
-}
-
 // TestDebugMiddlewareLogsResolvedClient checks that the -v debug middleware logs
 // the client the handler resolved, not the TCP peer.
 func TestDebugMiddlewareLogsResolvedClient(t *testing.T) {
@@ -833,7 +469,7 @@ func TestDebugChainResolvesAfterThrottle(t *testing.T) {
 		"l1": {URL: "/test1", Tag_Name: "tag1"},
 	})
 	require.NoError(t, hndlr.loadConfig(cfg))
-	require.True(t, cfg.resolver.legacy)
+	require.True(t, cfg.resolver.Legacy())
 
 	warnings := func() int {
 		return strings.Count(logBuf.String(), "Ignore-Untrusted-Forwarded-For")
@@ -1168,4 +804,13 @@ func (cw *captureEntryWriter) entries() []*entry.Entry {
 	defer cw.mtx.Unlock()
 
 	return slices.Clone(cw.ents)
+}
+
+func writeTrustedProxyFile(t *testing.T, content string) string {
+	t.Helper()
+	pth := filepath.Join(t.TempDir(), "trusted_proxy")
+	if err := os.WriteFile(pth, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return pth
 }
