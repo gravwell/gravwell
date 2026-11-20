@@ -226,7 +226,7 @@ func TestIsOktaDomain(t *testing.T) {
 
 func TestConfigEqual(t *testing.T) {
 	configtest.CheckEqual(t, Config{
-		BaseConfig:         hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		Ingester_UUID:      defaultIngesterUUIDStr,
 		Request_Batch_Size: defaultPageSize,
 		Request_Per_Minute: defaultRequestPerMinute,
 		Request_Burst:      defaultRequestBurst,
