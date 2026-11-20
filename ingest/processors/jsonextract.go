@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
@@ -67,6 +68,12 @@ func (c *JsonExtractConfig) validate() (err error) {
 
 type JsonExtractor struct {
 	nocloser
+	mu sync.Mutex
+	jsonExtractState
+}
+
+// jsonExtractState is everything derived from the config, so Config() can swap it as one unit.
+type jsonExtractState struct {
 	JsonExtractConfig
 	bldr builder
 }
@@ -79,7 +86,7 @@ func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &JsonExtractor{
+	return &JsonExtractor{jsonExtractState: jsonExtractState{
 		JsonExtractConfig: cfg,
 		bldr: builder{
 			forceJson: cfg.Force_JSON_Object,
@@ -87,14 +94,20 @@ func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
 			keys:      keys,
 			keynames:  keynames,
 		},
-	}, nil
+	}}, nil
 }
 
 func (je *JsonExtractor) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonExtractConfig); ok {
-		je.JsonExtractConfig = cfg
+		// rebuild so the builder tracks the new extractions
+		var nje *JsonExtractor
+		if nje, err = NewJsonExtractor(cfg); err == nil {
+			je.mu.Lock()
+			je.jsonExtractState = nje.jsonExtractState
+			je.mu.Unlock()
+		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -105,6 +118,8 @@ func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err 
 	if len(ents) == 0 {
 		return
 	}
+	je.mu.Lock()
+	defer je.mu.Unlock()
 	rset = ents[:0]
 	for _, ent := range ents {
 		if ent == nil {
@@ -118,11 +133,10 @@ func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err 
 
 func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	// if we have drop misses or strict extraction, validate the JSON first
-	if (je.Drop_Misses || je.Strict_Extraction) && !json.Valid(ent.Data) {
+	if (je.Drop_Misses || je.Strict_Extraction) && !validJson(ent.Data) {
 		return nil
 	}
 	if err := je.bldr.extract(ent.Data); err != nil {
-		je.bldr.reset()
 		if !je.Drop_Misses {
 			return ent
 		}
@@ -210,11 +224,22 @@ type builder struct {
 	keynames  []string
 }
 
-func (b *builder) extract(data []byte) error {
-	if len(b.keys) > 1 || b.forceJson {
-		return b.extractJson(data)
+// objectMode is true once add() has opened an object, so it always gets closed.
+func (b *builder) objectMode() bool {
+	return len(b.keys) > 1 || b.forceJson || b.comma
+}
+
+// extract resets the builder on failure so no partial state survives.
+func (b *builder) extract(data []byte) (err error) {
+	if b.objectMode() {
+		err = b.extractJson(data)
+	} else {
+		err = b.extractObject(data)
 	}
-	return b.extractObject(data)
+	if err != nil {
+		b.reset()
+	}
+	return
 }
 
 // Extracting a single field and not rewrapping in JSON with a key name
@@ -255,7 +280,7 @@ func (b *builder) add(key string, dt jsonparser.ValueType, v []byte) {
 	} else {
 		b.bb.WriteString(",")
 	}
-	addData(key, dt, v, b.bb)
+	b.bb.Write(appendField(b.bb.AvailableBuffer(), key, dt, v))
 	b.cnt++
 	b.comma = true
 }
@@ -264,7 +289,7 @@ func (b *builder) render() (r []byte, cnt int) {
 	if b.cnt == 0 {
 		return
 	}
-	if len(b.keys) > 1 || b.forceJson {
+	if b.comma {
 		io.WriteString(b.bb, "}")
 	}
 	r = append([]byte{}, b.bb.Bytes()...) //force allocation
@@ -279,11 +304,34 @@ func (b *builder) reset() {
 	b.cnt = 0
 }
 
-func addData(key string, dt jsonparser.ValueType, v []byte, bb *bytes.Buffer) {
+// appendField appends `"key":value` to b, escaping the key and quoting string values.
+func appendField(b []byte, key string, dt jsonparser.ValueType, v []byte) []byte {
+	b = append(appendJSONString(b, key), ':')
 	if dt == jsonparser.String {
-		fmt.Fprintf(bb, `"%s":"%s"`, key, string(v))
-	} else {
-		fmt.Fprintf(bb, `"%s":`, key)
-		bb.Write(v)
+		return append(append(append(b, '"'), v...), '"')
 	}
+	return append(b, v...)
+}
+
+// appendJSONString appends s to b as a quoted JSON string.
+func appendJSONString(b []byte, s string) []byte {
+	const hex = `0123456789abcdef`
+	b = append(b, '"')
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '"' || c == '\\':
+			b = append(b, '\\', c)
+		case c < 0x20:
+			b = append(b, `\u00`...)
+			b = append(b, hex[c>>4], hex[c&0xf])
+		default:
+			b = append(b, c)
+		}
+	}
+	return append(b, '"')
+}
+
+// validJson reports whether data is a single valid JSON document, ignoring trailing NUL padding.
+func validJson(data []byte) bool {
+	return json.Valid(bytes.TrimRight(data, "\x00"))
 }

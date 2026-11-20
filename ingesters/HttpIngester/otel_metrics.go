@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
 	"github.com/gravwell/gravwell/v4/timegrinder"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -82,7 +83,7 @@ func (oh *otelHandler) handle(h *handler, cfg routeHandler, w http.ResponseWrite
 	}
 
 	ll := log.NewLoggerWithKV(oh.lgr, log.KV("otel-listener", oh.name))
-	ll.AddKV(clientKVs("remoteaddress", requestClient(r))...)
+	ll.AddKV(clientip.KVs("remoteaddress", requestClient(r))...)
 
 	bodyReadLimit := int64(maxBody + 256) // add a few bytes of leeway for headers or other overhead
 	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}

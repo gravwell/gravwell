@@ -14,17 +14,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"sort"
-	"strings"
 
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
-	"github.com/gravwell/gravwell/v4/utils/trustedproxy"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
 )
 
 const (
@@ -60,7 +58,7 @@ type gbl struct {
 
 type cfgReadType struct {
 	Global                         gbl
-	Attach                         attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	Attach                         attach.AttachConfig
 	Listener                       map[string]*lst
 	HEC_Compatible_Listener        map[string]*hecCompatible
 	Amazon_Firehose_Listener       map[string]*afh
@@ -88,7 +86,7 @@ type lst struct {
 
 type cfgType struct {
 	gbl
-	Attach           attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	Attach           attach.AttachConfig
 	Listener         map[string]*lst
 	HECListener      map[string]*hecCompatible
 	AFHListener      map[string]*afh
@@ -97,7 +95,7 @@ type cfgType struct {
 	Preprocessor     processors.ProcessorConfig
 	TimeFormat       config.CustomTimeFormat
 
-	resolver clientResolver // built from Trusted_Proxy and Ignore_Untrusted_Forwarded_For by Verify
+	resolver clientip.Resolver // built from Trusted_Proxy and Ignore_Untrusted_Forwarded_For by Verify
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -137,26 +135,11 @@ func (c *cfgType) Verify() error {
 		return err
 	}
 
-	if err := config.LoadEnvVar(&c.Trusted_Proxy, envTrustedProxy, nil); err != nil {
-		return fmt.Errorf("failed to load %s %w", envTrustedProxy, err)
-	}
-	if err := config.LoadEnvVar(&c.Ignore_Untrusted_Forwarded_For, envIgnoreUntrustedXFF, false); err != nil {
-		return fmt.Errorf("failed to load %s %w", envIgnoreUntrustedXFF, err)
-	}
-	entries := c.Trusted_Proxy
-	if v := os.Getenv(envTrustedProxy); len(entries) == 0 && v != `` {
-		// the env loader drops blank entries, so parse the raw value: a variable
-		// holding only separators is rejected rather than read as unset
-		entries = strings.Split(v, `,`)
-	}
-	tp, err := trustedproxy.Parse(entries)
+	cr, err := clientip.LoadResolver(&c.Trusted_Proxy, &c.Ignore_Untrusted_Forwarded_For, envTrustedProxy, envIgnoreUntrustedXFF)
 	if err != nil {
-		return fmt.Errorf("Trusted-Proxy is invalid: %w", err)
+		return err
 	}
-	c.resolver = clientResolver{
-		trusted: tp,
-		legacy:  tp.Empty() && !c.Ignore_Untrusted_Forwarded_For,
-	}
+	c.resolver = cr
 
 	if c.Max_Connections == 0 {
 		c.Max_Connections = defaultMaxConnections
