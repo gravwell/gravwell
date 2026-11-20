@@ -53,7 +53,7 @@ func (f *fakeListing) list(opts types.QueryOptions) (types.MacroListResponse, er
 	var resp types.MacroListResponse
 	resp.TotalCount = f.count
 	for i := start; i < end; i++ {
-		resp.Results = append(resp.Results, types.Macro{CommonFields: types.CommonFields{Name: strconv.Itoa(i)}})
+		resp.Results = append(resp.Results, types.Macro{Name: strconv.Itoa(i)})
 	}
 	if end < f.count {
 		resp.CursorNext = strconv.Itoa(end)
