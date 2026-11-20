@@ -96,12 +96,12 @@ func loadEnvUint(nm string) (v uint64, err error) {
 // If there's nothing there, it attempt to append _FILE to the variable
 // name and see if it contains a filename; if so, it reads the
 // contents of the file into cnd.
-func LoadEnvVar(cnd interface{}, envName string, defVal interface{}) error {
+func LoadEnvVar(cnd any, envName string, defVal any) error {
 	//check that cnd isn't nil, and is a pointer
 	if cnd == nil {
 		return ErrInvalidArg
 	}
-	if reflect.ValueOf(cnd).Kind() != reflect.Ptr {
+	if reflect.ValueOf(cnd).Kind() != reflect.Pointer {
 		return ErrInvalidArg
 	}
 
@@ -544,5 +544,98 @@ func loadStringFromFile(pth string, val *string) (err error) {
 	//trim nulls, newlines, and carriage returns from the file because it will be a nightmare to debug
 	*val = string(bytes.Trim(buff, "\n\t\r\x00"))
 
+	return
+}
+
+const maxEnvListFileSize int64 = 64 * 1024
+
+// ErrEmptyEnvList is returned by LoadEnvVarListStrict when a value has
+// content but no entries, for example only commas or blanks.
+var ErrEmptyEnvList = errors.New("Environment list has no entries")
+
+// LoadEnvVarListStrict loads a list from the environment variable envName, or
+// from the file named by envName_FILE. Unlike LoadEnvVar on a *[]string, it
+// never reads a value that has content as an empty list, and the file may
+// hold more than one line.
+//
+//   - If lst already has entries, for example from the config file, it is left
+//     unchanged and the environment is not read.
+//   - If envName is set to a non-empty value, the value is split on commas and
+//     newlines. Each entry is trimmed and blank entries are dropped. If no
+//     entries remain, an error wrapping ErrEmptyEnvList names the variable.
+//   - If envName is set to an empty string, it is treated as unset and
+//     envName_FILE is not read, the same as LoadEnvVar.
+//   - Otherwise, if envName_FILE is set, the whole file is read (at most 64 KiB)
+//     and split in the same way, so it may list one entry per line,
+//     comma-separated entries, or both. An empty or whitespace-only file returns
+//     an error wrapping ErrEmptyEnvFile, and a file with content but no entries
+//     returns an error wrapping ErrEmptyEnvList. There is no comment syntax: a
+//     line starting with # is returned as an entry.
+//   - If neither variable is set, lst is left empty and nil is returned.
+//
+// Entries are returned as found; validating them is up to the caller.
+func LoadEnvVarListStrict(lst *[]string, envName string) error {
+	if lst == nil || envName == `` {
+		return ErrInvalidArg
+	} else if len(*lst) > 0 {
+		return nil
+	}
+	if v, ok := os.LookupEnv(envName); ok {
+		if v == `` {
+			return nil
+		}
+		ents := splitEnvList(v)
+		if len(ents) == 0 {
+			return fmt.Errorf("%s: %w", envName, ErrEmptyEnvList)
+		}
+		*lst = ents
+		return nil
+	}
+	fileVar := envName + `_FILE`
+	pth, ok := os.LookupEnv(fileVar)
+	if !ok {
+		return nil
+	}
+	v, err := readEnvListFile(pth)
+	if err != nil {
+		return fmt.Errorf("%s: %w", fileVar, err)
+	} else if strings.TrimSpace(v) == `` {
+		return fmt.Errorf("%s %q: %w", fileVar, pth, ErrEmptyEnvFile)
+	}
+	ents := splitEnvList(v)
+	if len(ents) == 0 {
+		return fmt.Errorf("%s %q: %w", fileVar, pth, ErrEmptyEnvList)
+	}
+	*lst = ents
+	return nil
+}
+
+func readEnvListFile(pth string) (string, error) {
+	fin, err := os.Open(pth)
+	if err != nil {
+		return ``, err
+	}
+	defer fin.Close()
+	// read one byte past the cap so an oversized file is detected without a
+	// stat, which would not work for pipes and the like
+	buff, err := io.ReadAll(io.LimitReader(fin, maxEnvListFileSize+1))
+	if err != nil {
+		return ``, fmt.Errorf("failed to read %q: %w", pth, err)
+	} else if int64(len(buff)) > maxEnvListFileSize {
+		return ``, fmt.Errorf("%q is larger than %d bytes", pth, maxEnvListFileSize)
+	}
+	return string(buff), nil
+}
+
+// splitEnvList splits v on commas, newlines and carriage returns, trims each
+// entry and drops blank ones.
+func splitEnvList(v string) (r []string) {
+	for _, b := range strings.FieldsFunc(v, func(c rune) bool {
+		return c == ',' || c == '\n' || c == '\r'
+	}) {
+		if b = strings.TrimSpace(b); b != `` {
+			r = append(r, b)
+		}
+	}
 	return
 }
