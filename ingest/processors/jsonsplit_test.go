@@ -10,7 +10,6 @@ package processors
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -561,6 +560,7 @@ func TestJsonArraySplitMalformed(t *testing.T) {
 		{`truncated array, no additional`, ``, `{"events":[{"id":1},{"id":2`},
 		{`not an array`, `host`, `{"host":"x","events":"none"}`},
 		{`truncated after array`, `host`, `{"events":[{"id":1},{"id":2}],"host":"x"`},
+		{`trailing document`, ``, `{"events":[{"id":1}]} {"events":[{"id":2}]}`},
 	} {
 		for _, drop := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/drop=%v", tc.name, drop), func(t *testing.T) {
@@ -577,16 +577,45 @@ func TestJsonArraySplitMalformed(t *testing.T) {
 	}
 }
 
-// Additional field names must not collide with the extraction name or each other.
+// Colliding Additional-Fields names still load, so existing configs keep working,
+// but a colliding field is skipped so the output never repeats a key.
 func TestJsonArraySplitKeyCollision(t *testing.T) {
-	for _, additional := range []string{`meta.events`, `a.host,b.host`, `host,host`} {
-		cfg := JsonArraySplitConfig{Extraction: `events`, Additional_Fields: additional}
-		if err := cfg.validate(); !errors.Is(err, ErrDuplicateKeyname) {
-			t.Errorf("Additional-Fields=%q passed validation: %v", additional, err)
+	const data = `{"events":[1],"host":"h","a":{"host":"a"},"b":{"host":"b"},"meta":{"events":"m"}}`
+	for _, tc := range []struct{ additional, want string }{
+		{`meta.events`, `{"events":1}`},
+		{`a.host,b.host`, `{"events":1,"host":"a"}`},
+		{`host,host`, `{"events":1,"host":"h"}`},
+		{`host,meta.events,a.host`, `{"events":1,"host":"h"}`},
+	} {
+		cfg := JsonArraySplitConfig{Extraction: `events`, Additional_Fields: tc.additional}
+		if err := cfg.validate(); err != nil {
+			t.Errorf("Additional-Fields=%q failed validation: %v", tc.additional, err)
 		}
-		if _, err := NewJsonArraySplitter(cfg); !errors.Is(err, ErrDuplicateKeyname) {
-			t.Errorf("Additional-Fields=%q was accepted: %v", additional, err)
+		got := splitData(t, newTestSplitter(t, cfg), data)
+		if len(got) != 1 || got[0] != tc.want {
+			t.Errorf("Additional-Fields=%q: got %q, want %q", tc.additional, got, tc.want)
 		}
+	}
+}
+
+// Configs that NewJsonArraySplitter rejects must fail validation too, so config checks catch them.
+func TestJsonArraySplitValidate(t *testing.T) {
+	for _, cfg := range []JsonArraySplitConfig{
+		{Extraction: `a,b`},
+		{Additional_Fields: `host`},
+	} {
+		if err := cfg.validate(); err == nil {
+			t.Errorf("%+v passed validation", cfg)
+		}
+	}
+}
+
+// Trailing NUL padding after the document does not stop a split.
+func TestJsonArraySplitTrailingBytes(t *testing.T) {
+	cfg := JsonArraySplitConfig{Extraction: `e`, Drop_Misses: true}
+	want := []string{`1`, `2`}
+	if got := splitData(t, newTestSplitter(t, cfg), "{\"e\":[1,2]}\x00"); !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 

@@ -343,6 +343,29 @@ func TestBuilderAddThenExtract(t *testing.T) {
 	}
 }
 
+// Config() must swap in the new extractions, not just the config fields.
+func TestJsonExtractorReconfig(t *testing.T) {
+	je, err := NewJsonExtractor(JsonExtractConfig{Extractions: `a`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = je.Config(JsonExtractConfig{Extractions: `a,b`}); err != nil {
+		t.Fatal(err)
+	}
+	rset, _ := je.Process([]*entry.Entry{{Data: []byte(`{"a":1,"b":2}`)}})
+	if len(rset) != 1 || string(rset[0].Data) != `{"a":1,"b":2}` {
+		t.Fatalf("got %v", rset)
+	}
+	if err = je.Config(JsonExtractConfig{Strict_Extraction: true, Extractions: `a`}); err == nil {
+		t.Fatal("invalid config accepted")
+	}
+	// Config() takes the struct as-is, like NewJsonExtractor: misses still pass through
+	rset, _ = je.Process([]*entry.Entry{{Data: []byte(`{"c":3}`)}})
+	if len(rset) != 1 || string(rset[0].Data) != `{"c":3}` {
+		t.Fatalf("miss not passed through after reconfig: %v", rset)
+	}
+}
+
 // A failed extract() must leave the builder empty.
 func TestBuilderExtractErrorResets(t *testing.T) {
 	b := builder{forceJson: true, bb: bytes.NewBuffer(nil), keys: [][]string{{`host`}}, keynames: []string{`host`}}
@@ -352,5 +375,17 @@ func TestBuilderExtractErrorResets(t *testing.T) {
 	}
 	if b.bb.Len() != 0 || b.cnt != 0 || b.comma {
 		t.Fatalf("builder kept state: %q cnt=%d comma=%v", b.bb.String(), b.cnt, b.comma)
+	}
+}
+
+// Trailing NUL padding must not turn a valid entry into a miss.
+func TestJsonExtractTrailingNul(t *testing.T) {
+	je, err := NewJsonExtractor(JsonExtractConfig{Drop_Misses: true, Extractions: `a`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rset, _ := je.Process([]*entry.Entry{{Data: []byte("{\"a\":1}\x00\x00")}})
+	if len(rset) != 1 || string(rset[0].Data) != `1` {
+		t.Fatalf("got %v", rset)
 	}
 }

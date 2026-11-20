@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -67,6 +68,12 @@ func (c *JsonExtractConfig) validate() (err error) {
 
 type JsonExtractor struct {
 	nocloser
+	mu sync.Mutex
+	jsonExtractState
+}
+
+// jsonExtractState is everything derived from the config, so Config() can swap it as one unit.
+type jsonExtractState struct {
 	JsonExtractConfig
 	bldr builder
 }
@@ -79,7 +86,7 @@ func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &JsonExtractor{
+	return &JsonExtractor{jsonExtractState: jsonExtractState{
 		JsonExtractConfig: cfg,
 		bldr: builder{
 			forceJson: cfg.Force_JSON_Object,
@@ -87,14 +94,20 @@ func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
 			keys:      keys,
 			keynames:  keynames,
 		},
-	}, nil
+	}}, nil
 }
 
 func (je *JsonExtractor) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonExtractConfig); ok {
-		je.JsonExtractConfig = cfg
+		// rebuild so the builder tracks the new extractions
+		var nje *JsonExtractor
+		if nje, err = NewJsonExtractor(cfg); err == nil {
+			je.mu.Lock()
+			je.jsonExtractState = nje.jsonExtractState
+			je.mu.Unlock()
+		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -105,6 +118,8 @@ func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err 
 	if len(ents) == 0 {
 		return
 	}
+	je.mu.Lock()
+	defer je.mu.Unlock()
 	rset = ents[:0]
 	for _, ent := range ents {
 		if ent == nil {
@@ -118,7 +133,7 @@ func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err 
 
 func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	// if we have drop misses or strict extraction, validate the JSON first
-	if (je.Drop_Misses || je.Strict_Extraction) && !json.Valid(ent.Data) {
+	if (je.Drop_Misses || je.Strict_Extraction) && !validJson(ent.Data) {
 		return nil
 	}
 	if err := je.bldr.extract(ent.Data); err != nil {
@@ -314,4 +329,9 @@ func appendJSONString(b []byte, s string) []byte {
 		}
 	}
 	return append(b, '"')
+}
+
+// validJson reports whether data is a single valid JSON document, ignoring trailing NUL padding.
+func validJson(data []byte) bool {
+	return json.Valid(bytes.TrimRight(data, "\x00"))
 }

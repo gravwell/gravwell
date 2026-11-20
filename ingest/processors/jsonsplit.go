@@ -9,10 +9,10 @@
 package processors
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -56,7 +56,9 @@ func (jasc *JsonArraySplitConfig) validate() (err error) {
 	return
 }
 
-// getAdditionalData parses Additional-Fields, rejecting names that collide with keyname or each other.
+// getAdditionalData parses Additional-Fields into key paths and output names.
+// A name that collides with keyname or an earlier field is skipped so output objects never repeat a key;
+// configs with collisions predate this check, so they still load.
 func (jasc *JsonArraySplitConfig) getAdditionalData(keyname string) (keys [][]string, names []string, err error) {
 	if jasc.Additional_Fields == `` {
 		return
@@ -67,8 +69,7 @@ func (jasc *JsonArraySplitConfig) getAdditionalData(keyname string) (keys [][]st
 		if k, name, err = getKeys(fld); err != nil {
 			return
 		} else if name == keyname || inStringSet(names, name) {
-			err = fmt.Errorf("%w: %q in Additional-Fields", ErrDuplicateKeyname, name)
-			return
+			continue
 		}
 		keys = append(keys, k)
 		names = append(names, name)
@@ -100,6 +101,12 @@ func (jasc *JsonArraySplitConfig) getKeyData() (key []string, keyname string, er
 
 type JsonArraySplitter struct {
 	nocloser
+	mu sync.Mutex
+	jsonArraySplitState
+}
+
+// jsonArraySplitState is everything derived from the config, so Config() can swap it as one unit.
+type jsonArraySplitState struct {
 	JsonArraySplitConfig
 	key             []string
 	keyname         string
@@ -115,17 +122,17 @@ func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) 
 	additional, additionalNames, err := cfg.getAdditionalData(keyname)
 	if err != nil {
 		return nil, err
-	} else if len(additional) > 0 {
-		// additional fields share an object with the array element
+	} else if cfg.Additional_Fields != `` {
+		// additional fields share an object with the array element, even if every one was a skipped collision
 		cfg.Force_JSON_Object = true
 	}
-	return &JsonArraySplitter{
+	return &JsonArraySplitter{jsonArraySplitState: jsonArraySplitState{
 		JsonArraySplitConfig: cfg,
 		key:                  key,
 		keyname:              keyname,
 		additional:           additional,
 		additionalNames:      additionalNames,
-	}, nil
+	}}, nil
 }
 
 func (je *JsonArraySplitter) Config(v interface{}) (err error) {
@@ -135,7 +142,9 @@ func (je *JsonArraySplitter) Config(v interface{}) (err error) {
 		// rebuild so derived state (keys, additional fields, forced objects) tracks the new config
 		var nje *JsonArraySplitter
 		if nje, err = NewJsonArraySplitter(cfg); err == nil {
-			*je = *nje
+			je.mu.Lock()
+			je.jsonArraySplitState = nje.jsonArraySplitState
+			je.mu.Unlock()
 		}
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
@@ -147,6 +156,8 @@ func (je *JsonArraySplitter) Process(ents []*entry.Entry) ([]*entry.Entry, error
 	if len(ents) == 0 {
 		return nil, nil
 	}
+	je.mu.Lock()
+	defer je.mu.Unlock()
 	var r []*entry.Entry
 	for _, ent := range ents {
 		if ent == nil {
@@ -159,16 +170,16 @@ func (je *JsonArraySplitter) Process(ents []*entry.Entry) ([]*entry.Entry, error
 
 // processItem splits one entry; an entry that cannot be split is a miss and is never partially emitted.
 func (je *JsonArraySplitter) processItem(ent *entry.Entry) (rset []*entry.Entry) {
-	if !json.Valid(ent.Data) {
+	if !validJson(ent.Data) {
 		return je.miss(ent)
 	}
 	extra, err := je.additionalFields(ent.Data)
 	if err != nil {
 		return je.miss(ent)
 	}
-	cb := func(v []byte, dt jsonparser.ValueType, off int, lerr error) {
+	cb := func(v []byte, dt jsonparser.ValueType, _ int, _ error) {
 		// an empty element can only be represented inside an object
-		if lerr != nil || (len(v) == 0 && !je.Force_JSON_Object) {
+		if len(v) == 0 && !je.Force_JSON_Object {
 			return
 		}
 		rset = append(rset, je.genEntry(dt, ent, v, extra))
