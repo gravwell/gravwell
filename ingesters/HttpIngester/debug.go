@@ -8,6 +8,7 @@ import (
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
 	"github.com/gravwell/gravwell/v4/utils/trustedproxy"
 )
 
@@ -185,7 +186,7 @@ func requestKV(w http.ResponseWriter, r *http.Request) []rfc5424.SDParam {
 		log.KV("method", r.Method),
 		log.KV("url", redactedRequestURI(r)),
 	)
-	return append(params, clientKVs("ip", loggedClient(w, r))...)
+	return append(params, clientip.KVs("ip", loggedClient(w, r))...)
 }
 
 // loggedClient returns the client the handler resolved for r. Middleware that

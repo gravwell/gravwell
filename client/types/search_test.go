@@ -824,53 +824,36 @@ func TestSaveSearchPatchOmitsUnsetFields(t *testing.T) {
 		t.Fatalf("an empty patch must encode as {}, got %s", b)
 	}
 
-	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 	patch := SaveSearchPatch{
-		Method:    NewOptional(LaunchMethodScript),
-		Reference: NewOptional("ref"),
-		Started:   NewOptional(started),
+		Name:  NewOptional("name"),
+		Notes: NewOptional("notes"),
 	}
 	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	want := `{"Method":"script","Reference":"ref","Started":"2026-11-06T12:00:00Z"}`
+	want := `{"Name":"name","Notes":"notes"}`
 	if string(b) != want {
 		t.Fatalf("patch = %s, want %s", b, want)
 	}
 }
 
-// TestSaveSearchPatchMergeLaunchInfoFields checks how a save patch changes
-// Method, Reference, and Started. A missing or empty Method or Reference
-// leaves the stored one, a value replaces it, and Started is taken only when
-// the search has no start time.
-func TestSaveSearchPatchMergeLaunchInfoFields(t *testing.T) {
+// TestSaveSearchPatchIgnoresLaunchFields checks that a save body cannot change
+// Method, Reference, or Started. They are set at launch, so the patch drops
+// them when it decodes and MergeLaunchInfo leaves the stored ones.
+func TestSaveSearchPatchIgnoresLaunchFields(t *testing.T) {
 	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
-	li := SearchLaunchInfo{Method: LaunchMethodManual, Reference: "old"}
+	li := SearchLaunchInfo{Method: LaunchMethodManual, Reference: "old", Started: started}
 
-	patch := SaveSearchPatch{Method: NewOptional(""), Started: NewOptional(started)}
+	body := `{"Method":"script","Reference":"new","Started":"2026-11-06T13:00:00Z"}`
+	var patch SaveSearchPatch
+	if err := v2.Unmarshal([]byte(body), &patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
 	if changed := patch.MergeLaunchInfo(&li); changed {
-		t.Error("an empty Method and a missing Reference must not report a change")
+		t.Error("launch fields in a save body must not report a change")
 	}
-	if li.Method != LaunchMethodManual || li.Reference != "old" {
-		t.Errorf("method = %q, reference = %q, want them unchanged", li.Method, li.Reference)
-	}
-	if !li.Started.Equal(started) {
-		t.Errorf("started = %v, want %v for a search with no start time", li.Started, started)
-	}
-
-	patch = SaveSearchPatch{
-		Method:    NewOptional(LaunchMethodScript),
-		Reference: NewOptional("new"),
-		Started:   NewOptional(started.Add(time.Hour)),
-	}
-	if changed := patch.MergeLaunchInfo(&li); !changed {
-		t.Error("a new Method and Reference must report a change")
-	}
-	if li.Method != LaunchMethodScript || li.Reference != "new" {
-		t.Errorf("method = %q, reference = %q, want script and new", li.Method, li.Reference)
-	}
-	if !li.Started.Equal(started) {
-		t.Errorf("started = %v, want it kept at %v", li.Started, started)
+	if li.Method != LaunchMethodManual || li.Reference != "old" || !li.Started.Equal(started) {
+		t.Errorf("method = %q, reference = %q, started = %v, want them unchanged", li.Method, li.Reference, li.Started)
 	}
 }
 
