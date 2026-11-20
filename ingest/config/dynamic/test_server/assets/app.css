@@ -1,0 +1,243 @@
+:root {
+	color-scheme: light dark;
+	--bg: #f6f7f9; --panel: #fff; --ink: #14171a; --muted: #5b6570;
+	--line: #d8dde3; --accent: #0b6bcb; --ok: #1a7f4b; --bad: #b3261e;
+	--chip: #eef2f7;
+}
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #14171a; --panel: #1c2024; --ink: #e8eaed; --muted: #9aa4af;
+		--line: #2c3238; --accent: #6aa9f0; --ok: #5ec98d; --bad: #f2837b;
+		--chip: #23282e;
+	}
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0; background: var(--bg); color: var(--ink);
+	font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+header {
+	display: flex; align-items: center; gap: 1rem; padding: .7rem 1rem;
+	background: var(--panel); border-bottom: 1px solid var(--line);
+}
+header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+header .sp { flex: 1; }
+main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 1rem; padding: 1rem; align-items: start; }
+@media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 1rem; }
+.panel > h2 {
+	margin: 0; padding: .55rem .8rem; font-size: 12px; font-weight: 600;
+	text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+	border-bottom: 1px solid var(--line);
+}
+.panel > .body { padding: .5rem; }
+.row {
+	display: block; width: 100%; text-align: left; background: none; color: inherit;
+	border: 1px solid transparent; border-radius: 6px; padding: .45rem .6rem;
+	cursor: pointer; font: inherit;
+}
+.row:hover { background: var(--chip); border-color: var(--line); }
+.row .nm { font-weight: 600; }
+.row .sub { color: var(--muted); font-size: 12px; }
+.empty { color: var(--muted); padding: .5rem .6rem; font-style: italic; }
+.chip {
+	display: inline-block; background: var(--chip); border: 1px solid var(--line);
+	border-radius: 999px; padding: 0 .5rem; font-size: 11px; color: var(--muted);
+}
+.chip.on { color: var(--ok); border-color: var(--ok); }
+.chip.off { color: var(--muted); }
+form { padding: .8rem; }
+fieldset { border: 0; padding: 0; margin: 0 0 .9rem; }
+label { display: block; margin-bottom: .8rem; }
+label .lbl { display: block; font-weight: 600; margin-bottom: .2rem; }
+label .hint { display: block; color: var(--muted); font-size: 12px; margin-bottom: .25rem; }
+label .req { color: var(--bad); }
+input[type=text], input[type=number], input[type=password], textarea, select {
+	width: 100%; padding: .4rem .5rem; border: 1px solid var(--line); border-radius: 6px;
+	background: var(--bg); color: var(--ink); font: inherit;
+}
+textarea { min-height: 5rem; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+input[type=checkbox] { width: auto; }
+/* the two form actions.  They share every rule but the fill so that Delete reads as the
+ * same weight of control as Save rather than as an afterthought: it is a real action with a
+ * real consequence, and a ghost outline next to a solid button says the opposite. */
+button.go, button.danger {
+	color: #fff; border: 0; border-radius: 6px;
+	padding: .45rem .9rem; font: inherit; font-weight: 600; cursor: pointer;
+}
+button.go { background: var(--accent); }
+button.danger { background: var(--bad); }
+button.go:hover, button.danger:hover { filter: brightness(1.08); }
+.actions { display: flex; gap: .6rem; align-items: center; }
+.note { padding: .5rem .8rem; border-radius: 6px; margin: 0 .8rem .8rem; }
+.note.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+.note.bad { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
+.ty { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); }
+
+/* the connection chip and its dropdown */
+.statuswrap { position: relative; }
+button.chip { cursor: pointer; font: inherit; font-size: 11px; line-height: 1.6; }
+.dropdown {
+	position: absolute; right: 0; top: 1.8rem; z-index: 10; min-width: 34rem; max-width: 90vw;
+	background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+	box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: .4rem; overflow-x: auto;
+}
+table.ing { border-collapse: collapse; width: 100%; font-size: 12px; }
+table.ing th {
+	text-align: left; font-weight: 600; color: var(--muted); padding: .25rem .5rem;
+	border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+table.ing td { padding: .3rem .5rem; border-bottom: 1px solid var(--line); }
+table.ing tr:last-child td { border-bottom: 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* a row or panel for something an ingester reported that this server does not hold.  The
+ * tag is what stops an operator reading it as a runner they made and going looking for a
+ * delete button; the dashed edge says "this one is not like the others" without competing
+ * with the status dot, which is still the thing to read first. */
+.tag {
+	font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+	color: var(--muted); border: 1px dashed var(--line); border-radius: 4px;
+	padding: .05rem .3rem; margin-left: .4rem; white-space: nowrap;
+}
+.row.unmanaged { border-style: dashed; }
+span.bad { color: var(--bad); }
+.muted { color: var(--muted); }
+.dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--ok); }
+
+/* assignment pickers */
+.assign { border: 1px solid var(--line); border-radius: 6px; padding: .6rem; margin-bottom: .9rem; }
+.assign > .lbl { font-weight: 600; display: block; margin-bottom: .2rem; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin-top: .5rem; }
+@media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
+select[multiple] {
+	width: 100%; padding: .25rem; border: 1px solid var(--line); border-radius: 6px;
+	background: var(--bg); color: var(--ink); font: inherit;
+}
+select[multiple] option { padding: .15rem .3rem; }
+
+/* repeating inputs for a []string */
+.list { display: flex; flex-direction: column; gap: .3rem; }
+.listrow { display: flex; gap: .3rem; align-items: center; }
+.listrow input[type=text] { flex: 1; }
+button.mini {
+	flex: 0 0 auto; min-width: 1.9rem; height: 1.9rem; padding: 0 .5rem;
+	border: 1px solid var(--line); border-radius: 6px; background: var(--chip);
+	color: var(--ink); font: inherit; line-height: 1; cursor: pointer;
+}
+button.mini:hover { border-color: var(--accent); color: var(--accent); }
+button.mini.add { margin-top: .35rem; height: auto; padding: .25rem .6rem; }
+
+/* secrets
+ *
+ * A masked field is the one place an operator cannot check their own typing, so it is
+ * given a distinct treatment rather than being left to look like a broken text box: a key
+ * mark, a tinted ground, and monospaced characters with room between them so the mask
+ * reads as a deliberate row of dots rather than a smudge.
+ *
+ * The mask glyph itself belongs to the browser and is not settable from CSS. Chrome and
+ * Firefox draw a bullet, some platforms draw an asterisk. The letter-spacing below is
+ * what makes either of them look intentional. */
+.secretwrap { position: relative; display: block; }
+.secretwrap::before {
+	content: ""; position: absolute; left: .6rem; top: 50%; margin-top: -.4rem;
+	width: .8rem; height: .8rem; pointer-events: none; background: var(--muted);
+	/* a key, as a mask so it takes the theme's colour rather than being baked in */
+	-webkit-mask: var(--key-icon) no-repeat center / contain;
+	mask: var(--key-icon) no-repeat center / contain;
+}
+:root {
+	--key-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='7.5' cy='15.5' r='4.5'/><path d='M10.7 12.3 21 2'/><path d='m17 6 3 3'/></svg>");
+}
+.secretwrap input[type=password] {
+	padding-left: 2rem;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	letter-spacing: .32em;
+	background: color-mix(in srgb, var(--accent) 5%, var(--bg));
+}
+.secretwrap input[type=password]:focus {
+	outline: none; border-color: var(--accent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.secretwrap:focus-within::before { background: var(--accent); }
+/* the placeholder is prose, it should not inherit the mask spacing */
+.secretwrap input[type=password]::placeholder {
+	font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+	letter-spacing: normal; font-style: italic; color: var(--muted);
+}
+/* a small badge saying whether anything is stored, so "empty" and "hidden" are distinct */
+.secretstate {
+	position: absolute; right: .5rem; top: 50%; margin-top: -.55rem;
+	font-size: 10px; line-height: 1.1; padding: .1rem .4rem; border-radius: 999px;
+	pointer-events: none; border: 1px solid var(--line); background: var(--panel);
+	color: var(--muted);
+}
+.secretstate.set { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+/* the badge describes what is stored on the server, so it stops being the truth the
+ * moment someone types.  :placeholder-shown is false as soon as the box has content,
+ * which gets this right with no script. */
+.secretwrap input[type=password]:not(:placeholder-shown) ~ .secretstate { opacity: 0; }
+
+/* give the other inputs a matching focus ring rather than the browser's default */
+input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus {
+	outline: none; border-color: var(--accent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* runner status.  The three states use the same palette as the rest of the page so they
+   follow the light and dark themes rather than pinning their own colors. */
+.dot.ok { background: var(--ok); }
+.dot.bad { background: var(--bad); }
+.dot.unknown { background: var(--muted); }
+.row .nm .dot { margin-right: .4rem; vertical-align: baseline; }
+.row .sub.ok { color: var(--ok); }
+.row .sub.bad { color: var(--bad); }
+.row .sub.unknown { color: var(--muted); }
+.errtext {
+	color: var(--bad);
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: .82rem;
+	white-space: pre-wrap;
+	word-break: break-word;
+	padding-bottom: .5rem;
+}
+
+/* plugin metadata: the icon a plugin ships, its version, and its documentation links.
+   The icon is sized here rather than by whoever drew it, sanitizeIcon strips the width
+   and height it arrived with so that one oversized icon cannot wreck a list. */
+.icon {
+	width: 1.05rem; height: 1.05rem;
+	flex: 0 0 auto;
+	margin-right: .45rem;
+	vertical-align: -.15rem;
+	color: var(--accent);
+}
+.row .nm { display: flex; align-items: center; gap: 0; }
+.ver {
+	margin-left: .45rem; padding: 0 .35rem;
+	border: 1px solid var(--line); border-radius: 4px;
+	font-size: .72rem; font-weight: 500; color: var(--muted);
+}
+.sub.docs { display: flex; gap: .6rem; }
+.sub.docs a, .kindhead .docs a { color: var(--accent); text-decoration: none; }
+.sub.docs a:hover, .kindhead .docs a:hover { text-decoration: underline; }
+.kindhead {
+	display: flex; align-items: center; gap: 0;
+	margin-bottom: .8rem; padding-bottom: .6rem;
+	border-bottom: 1px solid var(--line);
+}
+.kindhead .icon { width: 1.4rem; height: 1.4rem; margin-right: .55rem; }
+.kindhead .kindname { font-weight: 600; font-size: 1.02rem; }
+.kindhead .docs { margin-left: auto; display: flex; gap: .7rem; font-size: .82rem; }
+
+/* the ingester glyph in the connection dropdown.  It sits inside a mono cell, so the
+   alignment is set here rather than inherited from a run of monospace digits. */
+.idcell { display: flex; align-items: center; gap: .4rem; }
+.idcell .icon { margin-right: 0; vertical-align: baseline; }
+.icon.ing.on { color: var(--ok); }
+.icon.ing.off { color: var(--muted); }
+
+/* a requirement that depends on another field cannot be expressed by the asterisk alone,
+   so it is spelled out under the label */
+.hint.cond { color: var(--muted); font-style: italic; }
+select[multiple] { min-height: 5.5rem; }

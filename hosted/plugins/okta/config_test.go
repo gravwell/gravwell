@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
 )
 
 func TestConfig_Verify(t *testing.T) {
