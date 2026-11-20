@@ -46,7 +46,7 @@ type cfgType struct {
 	ShodanConf   map[string]*ShodanConf
 }
 
-func (c cfgType) Verify() error {
+func (c *cfgType) Verify() error {
 	if err := c.Global.IngestConfig.Verify(); err != nil {
 		return err
 	} else if err = c.Attach.Verify(); err != nil {
