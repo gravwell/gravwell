@@ -278,3 +278,15 @@ func TestTags(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyKeepsEnvironment(t *testing.T) {
+	t.Setenv("GRAVWELL_INGEST_SECRET", "envsecret")
+	t.Setenv("GRAVWELL_CLEARTEXT_TARGETS", "127.0.0.1:4023")
+	c := &cfgType{
+		Global:      global{Tenant_ID: "tenant"},
+		ContentType: map[string]*contentType{"alerts": {}},
+	}
+	require.NoError(t, c.Verify())
+	assert.Equal(t, "envsecret", c.Global.Ingest_Secret)
+	assert.Equal(t, []string{"127.0.0.1:4023"}, c.Global.Cleartext_Backend_Target)
+}
