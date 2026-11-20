@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -239,10 +240,8 @@ func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler,
 		mtchs:                mtchs,
 		lh:                   lh,
 	}
-	for i := range f.filters {
-		if fltr.Equal(f.filters[i]) {
-			return nil
-		}
+	if slices.ContainsFunc(f.filters, fltr.Equal) {
+		return nil
 	}
 	f.filters = append(f.filters, fltr)
 	return nil
