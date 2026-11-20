@@ -138,8 +138,7 @@ func (c *Client) GetKit(id string) (ki types.KitState, err error) {
 // is the ID of the staged kit. The cfg parameter provides install-time
 // options.
 func (c *Client) InstallKit(id string, cfg types.KitConfig) (installId int, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, kitsIdUrl(id), cfg, &installId, nil, nil)
-	return
+	return c.post[types.KitInstallRequest, int](kitInstallsUrl(), &types.KitInstallRequest{ID: id, Config: cfg})
 }
 
 // ModifyKit tells the webserver to change parameters on an installed kit.
