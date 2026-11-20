@@ -194,7 +194,7 @@ type ResultsTable struct {
 	BinCount         int
 	BinWidth         float64
 	Columns          []string
-	Messages         []Message `json:",format:emitempty"`
+	Messages         []Message
 	Rows             []map[string]*ResultsTableCell
 	TotalResultCount int64
 }
@@ -208,7 +208,7 @@ type ResultsTableCell struct {
 type ResultsGraph struct {
 	Kind                     ResultsKind
 	Links                    []ResultsGraphLink
-	Messages                 []Message `json:",format:emitempty"`
+	Messages                 []Message
 	NodeEnumeratedValueNames []string
 	LinkEnumeratedValueNames []string
 	Nodes                    []ResultsGraphNode
