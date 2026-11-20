@@ -83,12 +83,10 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: flags,
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.MacroRead},
-					XPermissions: []types.Capability{types.MacroRead},
-				},
+			AddtlFlags: flags,
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.MacroRead},
+				XPermissions: []types.Capability{types.MacroRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -148,21 +146,19 @@ func create() action.Pair {
 
 	return scaffoldcreate.NewCreateAction("macro", fields,
 		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
-			sm := types.Macro{}
-			// all three fields are required, no need to nil-check them
-			sm.Name = strings.ToUpper(cfg["name"].Provider.Get())
-			sm.Description = cfg["desc"].Provider.Get()
-			sm.Expansion = cfg["exp"].Provider.Get()
+			sm := types.Macro{
+				// all three fields are required, no need to nil-check them
+				Name:        strings.ToUpper(cfg["name"].Provider.Get()),
+				Description: cfg["desc"].Provider.Get(),
+				Expansion:   cfg["exp"].Provider.Get()}
 
 			macro, err := connection.Client.CreateMacro(sm)
 			return macro.ID, "", err
 
 		}, scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.MacroWrite},
-					XPermissions: []types.Capability{types.MacroWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.MacroWrite},
+				XPermissions: []types.Capability{types.MacroWrite},
 			},
 		})
 }
@@ -232,11 +228,9 @@ func edit() action.Pair {
 
 	return scaffoldedit.NewEditAction(singular, "macros", cfg, funcs,
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
-					XPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
+				XPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
 			},
 		})
 }
@@ -258,11 +252,9 @@ func delete() action.Pair {
 
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
-					XPermissions: []types.Capability{types.MacroWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.MacroRead, types.MacroWrite},
+				XPermissions: []types.Capability{types.MacroWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})

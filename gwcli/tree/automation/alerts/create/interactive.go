@@ -124,10 +124,8 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 				hlConsumers = append(hlConsumers, "\""+li.Title()+"\"")
 			}
 			c.alertToCreate = types.Alert{
-				CommonFields: types.CommonFields{
-					Name:        c.metadata.name.Value(),
-					Description: c.metadata.description.Value(),
-				},
+				Name:               c.metadata.name.Value(),
+				Description:        c.metadata.description.Value(),
 				TargetTag:          c.metadata.tag.Value(),
 				Disabled:           !c.metadata.enable,
 				MaxEvents:          int(maxEvents),

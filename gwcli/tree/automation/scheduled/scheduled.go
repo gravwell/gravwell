@@ -77,16 +77,14 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := pflag.FlagSet{}
-					fs.String("id", "", "fetches the scheduled search associated to the given id.")
-					return &fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead},
-					XPermissions: []types.Capability{types.ScheduleRead},
-				},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.String("id", "", "fetches the scheduled search associated to the given id.")
+				return &fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead},
+				XPermissions: []types.Capability{types.ScheduleRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -145,12 +143,11 @@ func create() action.Pair {
 
 			return connection.CreateScheduledSearch(name, desc, freq, qry, dur)
 		},
-		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+		scaffoldcreate.Options{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.ScheduleWrite},
 				XPermissions: []types.Capability{types.ScheduleWrite},
-			},
-		}})
+			}})
 }
 
 func delete() action.Pair {
@@ -172,11 +169,9 @@ func delete() action.Pair {
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
 			},
 		})
 }
@@ -321,12 +316,11 @@ func edit() action.Pair {
 				return data.Name, err
 			},
 		},
-		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
+		scaffoldedit.Options{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
 				XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-			},
-		}})
+			}})
 }
 
 // searchValue returns a displayable representation of the search attached to item.
@@ -392,12 +386,10 @@ func cancel() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "cancel",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
-				},
+			Use: "cancel",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
 			},
 		})
 }
@@ -463,18 +455,16 @@ func backfillToggle() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "backfill",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("enable", false, "enable backfill")
-					fs.Bool("disable", false, "disable backfill")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-				},
+			Use: "backfill",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("enable", false, "enable backfill")
+				fs.Bool("disable", false, "disable backfill")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				_, _, err = getBackfillFlags(fs)
@@ -503,12 +493,10 @@ func clear() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "clear",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
-				},
+			Use: "clear",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
 			},
 		})
 }

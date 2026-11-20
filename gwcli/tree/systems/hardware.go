@@ -125,12 +125,10 @@ func newHardwareAction() action.Pair {
 			sb.WriteString(constructOverview(o, llw))
 			return []scaffold.Result{{Output: sb.String(), Success: true}}, nil
 		}, scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"hw"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Stats},
-					XPermissions: []types.Capability{types.Stats},
-				},
+			Aliases: []string{"hw"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Stats},
+				XPermissions: []types.Capability{types.Stats},
 			},
 		})
 }

@@ -88,17 +88,15 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String("consumer", "", "Filter to alerts that refer to this consumer. Should be the ID of the a flow. Used to answer: which alerts will launch this specific flow")
-					fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search. Used to answer: which alerts will be invoked by this specific scheduled search")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AlertRead},
-					XPermissions: []types.Capability{types.AlertRead},
-				},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String("consumer", "", "Filter to alerts that refer to this consumer. Should be the ID of the a flow. Used to answer: which alerts will launch this specific flow")
+				fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search. Used to answer: which alerts will be invoked by this specific scheduled search")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AlertRead},
+				XPermissions: []types.Capability{types.AlertRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -145,11 +143,9 @@ func delete() action.Pair {
 			return listitem.WrapAssets(lr), nil
 		},
 		scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
-					XPermissions: []types.Capability{types.AlertWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				XPermissions: []types.Capability{types.AlertWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true}},
 	)
@@ -228,18 +224,16 @@ func toggle() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "toggle",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("enable", false, "explicitly enable selected alerts. No-op on alerts already enabled. Mutually exclusive with --disable")
-					fs.Bool("disable", false, "explicitly disable selected alerts. No-op on alerts already disabled. Mutually exclusive with --enable")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
-					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
-				},
+			Use: "toggle",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("enable", false, "explicitly enable selected alerts. No-op on alerts already enabled. Mutually exclusive with --disable")
+				fs.Bool("disable", false, "explicitly disable selected alerts. No-op on alerts already disabled. Mutually exclusive with --enable")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
 			},
 			NoItemsError: func(fs *pflag.FlagSet) string {
 				if toggleEnable {
@@ -461,22 +455,20 @@ func save() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "save",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("enable", false, "Enable search saving.\n"+
-						"Mutually exclusive with --disable")
-					fs.Duration(ft.DurationName, 0, "Duration for which to save a triggering search. Must be positive.")
-					fs.Bool("disable", false, "Disable search saving.\n"+
-						"Mutually exclusive with --enable")
-					fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
-					XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
-				},
+			Use: "save",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("enable", false, "Enable search saving.\n"+
+					"Mutually exclusive with --disable")
+				fs.Duration(ft.DurationName, 0, "Duration for which to save a triggering search. Must be positive.")
+				fs.Bool("disable", false, "Disable search saving.\n"+
+					"Mutually exclusive with --enable")
+				fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
+				XPermissions: []types.Capability{types.AlertRead, types.AlertWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				enable, err := fs.GetBool("enable")

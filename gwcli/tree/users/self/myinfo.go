@@ -98,9 +98,7 @@ func MyInfo() action.Pair {
 			}
 			return []scaffold.Result{{Output: res, Success: true}}, nil
 		}, scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: flags,
-			},
+			AddtlFlags: flags,
 		})
 }
 

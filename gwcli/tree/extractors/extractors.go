@@ -102,12 +102,10 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: flags,
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ExtractorRead},
-					XPermissions: []types.Capability{types.ExtractorRead},
-				},
+			AddtlFlags: flags,
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ExtractorRead},
+				XPermissions: []types.Capability{types.ExtractorRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -205,15 +203,13 @@ func create() action.Pair {
 
 			// map fields back into the underlying type
 			axd := types.AX{
-				CommonFields: types.CommonFields{
-					Name:        cfg["name"].Provider.Get(),
-					Description: cfg["desc"].Provider.Get(),
-					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
-				},
-				Module: cfg["module"].Provider.Get(),
-				Tags:   strings.Split(strings.ReplaceAll(cfg["tags"].Provider.Get(), " ", ""), ","),
-				Params: cfg["params"].Provider.Get(),
-				Args:   cfg["args"].Provider.Get(),
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
+				Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
+				Module:      cfg["module"].Provider.Get(),
+				Tags:        strings.Split(strings.ReplaceAll(cfg["tags"].Provider.Get(), " ", ""), ","),
+				Params:      cfg["params"].Provider.Get(),
+				Args:        cfg["args"].Provider.Get(),
 			}
 
 			// check for dryrun
@@ -238,21 +234,19 @@ func create() action.Pair {
 			return axd.ID, "", err
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Example: "create --" + ft.Name.Name() + "=testcsv " +
-					"--" + ft.Description.Name() + "=\"CSV auto-extraction for the super ugly CSV data\" " +
-					"--tags=csv" +
-					"--module csv " +
-					"--module-parameters " + "\"ts, name, id, guid, src, srcport, dst, dstport, data, country, city, hash\"",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Dryrun.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ExtractorWrite},
-					XPermissions: []types.Capability{types.ExtractorWrite},
-				},
+			Example: "create --" + ft.Name.Name() + "=testcsv " +
+				"--" + ft.Description.Name() + "=\"CSV auto-extraction for the super ugly CSV data\" " +
+				"--tags=csv" +
+				"--module csv " +
+				"--module-parameters " + "\"ts, name, id, guid, src, srcport, dst, dstport, data, country, city, hash\"",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Dryrun.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ExtractorWrite},
+				XPermissions: []types.Capability{types.ExtractorWrite},
 			},
 		})
 }
@@ -277,11 +271,9 @@ func delete() action.Pair {
 
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
-					XPermissions: []types.Capability{types.ExtractorWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
+				XPermissions: []types.Capability{types.ExtractorWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		},
@@ -301,9 +293,7 @@ func modules() action.Pair {
 			return []scaffold.Result{{Output: strings.Join(engines, ", "), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"engines"},
-			},
+			Aliases: []string{"engines"},
 		})
 
 }
@@ -418,10 +408,10 @@ func edit() action.Pair {
 				return data.Name, nil
 			},
 		},
-		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{Requirements: annotations.Requirements{
+		scaffoldedit.Options{Requirements: annotations.Requirements{
 			IPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
 			XPermissions: []types.Capability{types.ExtractorRead, types.ExtractorWrite},
-		}}},
+		}},
 	)
 }
 
@@ -456,12 +446,10 @@ func importUpload() action.Pair {
 			return []scaffold.Result{{Output: sb.String(), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: "import " + ft.Mandatory("path/to/file.toml"),
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ExtractorWrite},
-					XPermissions: []types.Capability{types.ExtractorWrite},
-				},
+			Usage: "import " + ft.Mandatory("path/to/file.toml"),
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ExtractorWrite},
+				XPermissions: []types.Capability{types.ExtractorWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
@@ -514,12 +502,10 @@ func find() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "find",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ExtractorRead},
-					XPermissions: []types.Capability{types.ExtractorRead},
-				},
+			Use: "find",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ExtractorRead},
+				XPermissions: []types.Capability{types.ExtractorRead},
 			},
 		})
 }

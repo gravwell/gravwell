@@ -39,10 +39,8 @@ func TestOptions(t *testing.T) {
 			func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[string], error) { return nil, nil },
 			func(IDs []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) { return nil, nil },
 			scaffoldselect.Options{
-				CommonOptions: scaffold.CommonOptions{
-					Aliases:      []string{"a", "b", "a"},
-					Requirements: annotations.Requirements{DeploymentHasCBAC: true},
-				},
+				Aliases:      []string{"a", "b", "a"},
+				Requirements: annotations.Requirements{DeploymentHasCBAC: true},
 			})
 		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
 		assert.Nil(t, annotations.CheckRequirements(pair.Action, true, false, nil))
@@ -118,9 +116,7 @@ func TestNonInteractive(t *testing.T) {
 				var sbOut, sbErr strings.Builder
 				pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 					func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[int], error) { return nil, nil }, operate, scaffoldselect.Options{
-						CommonOptions: scaffold.CommonOptions{
-							AddtlFlags: afsFunc,
-						},
+						AddtlFlags: afsFunc,
 						ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 							if fs.NArg() > 4 {
 								return "the party may contain no more than 4 members", nil
@@ -166,9 +162,7 @@ func TestNonInteractive(t *testing.T) {
 				var sbOut, sbErr strings.Builder
 				pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 					func(addtlFlags *pflag.FlagSet) ([]multiselectlist.SelectableItem[int], error) { return nil, nil }, operate, scaffoldselect.Options{
-						CommonOptions: scaffold.CommonOptions{
-							AddtlFlags: afsFunc,
-						},
+						AddtlFlags: afsFunc,
 						ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 							if fs.NArg() > 4 {
 								return "the party may contain no more than 4 members", nil
@@ -200,7 +194,7 @@ func TestNonInteractive(t *testing.T) {
 		pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 			func(*pflag.FlagSet) ([]multiselectlist.SelectableItem[int], error) {
 				return nil, nil
-			}, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsFunc}})
+			}, operate, scaffoldselect.Options{AddtlFlags: afsFunc})
 		uniques.AttachPersistentFlags(pair.Action)
 		pair.Action.SetOut(&sbOut)
 		pair.Action.SetErr(&sbErr)
@@ -269,18 +263,16 @@ func TestInteractiveCycle(t *testing.T) {
 	t.Run("1+", func(t *testing.T) {
 		t.Run("no data returned uses custom EmptyError", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
-				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
-					AddtlFlags: afsFunc,
-				},
+				collectItems, operate, scaffoldselect.Options{
+					AddtlFlags:   afsFunc,
 					NoItemsError: func(fs *pflag.FlagSet) string { return "you cannot leave with an empty party!" }})
 			args := []string{"--no-data"}
 			testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, args, 50, 20, false, nil, true)
 		})
 		t.Run("validate func is called and can fail out properly", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
-				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
+				collectItems, operate, scaffoldselect.Options{
 					AddtlFlags: afsFunc,
-				},
 					ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 						switch len(fs.Args()) {
 						case 1:
@@ -304,9 +296,8 @@ func TestInteractiveCycle(t *testing.T) {
 		})
 		t.Run("without cursed", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
-				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
-					AddtlFlags: afsFunc,
-				}})
+				collectItems, operate, scaffoldselect.Options{
+					AddtlFlags: afsFunc})
 			args := []string{}
 			wantInv := false
 			testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, args, 50, 20, wantInv, nil, false)
@@ -349,9 +340,8 @@ func TestInteractiveCycle(t *testing.T) {
 		})
 		t.Run("submitting with nothing selected does not complete the action", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
-				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
-					AddtlFlags: afsFunc,
-				}})
+				collectItems, operate, scaffoldselect.Options{
+					AddtlFlags: afsFunc})
 			testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{}, 50, 20, false, nil, false)
 			// deselect the only pre-selected item (Vestal)
 			pair.Model.Update(testsupport.SendHotkey(hotkeys.CursorDown))
@@ -370,9 +360,8 @@ func TestInteractiveCycle(t *testing.T) {
 		})
 		t.Run("with cursed", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
-				collectItems, operate, scaffoldselect.Options{CommonOptions: scaffold.CommonOptions{
-					AddtlFlags: afsFunc,
-				}})
+				collectItems, operate, scaffoldselect.Options{
+					AddtlFlags: afsFunc})
 			args := []string{"--cursed"}
 			wantInv := false
 			testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, args, 50, 20, wantInv, nil, false)
@@ -418,15 +407,13 @@ func TestInteractiveCycle(t *testing.T) {
 		t.Run("no data returned uses custom EmptyError", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
-					CommonOptions: scaffold.CommonOptions{
-						AddtlFlags: func() *pflag.FlagSet {
-							fs := &pflag.FlagSet{}
-							fs.Bool("cursed", false,
-								"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
-							fs.Uint("single", 0, "select a single vagabond instead of the whole wagon.")
-							fs.Bool("no-data", false, "try to leave without a party in tow.")
-							return fs
-						},
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Bool("cursed", false,
+							"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
+						fs.Uint("single", 0, "select a single vagabond instead of the whole wagon.")
+						fs.Bool("no-data", false, "try to leave without a party in tow.")
+						return fs
 					},
 					NoItemsError: func(fs *pflag.FlagSet) string { return "you cannot leave with an empty party!" },
 					Exactly1:     true,
@@ -437,10 +424,8 @@ func TestInteractiveCycle(t *testing.T) {
 		t.Run("without cursed", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
-					CommonOptions: scaffold.CommonOptions{
-						AddtlFlags: afsFunc,
-					},
-					Exactly1: true,
+					AddtlFlags: afsFunc,
+					Exactly1:   true,
 				})
 			args := []string{}
 			wantInv := false
@@ -481,10 +466,8 @@ func TestInteractiveCycle(t *testing.T) {
 		t.Run("with cursed", func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
-					CommonOptions: scaffold.CommonOptions{
-						AddtlFlags: afsFunc,
-					},
-					Exactly1: true,
+					AddtlFlags: afsFunc,
+					Exactly1:   true,
 				})
 			args := []string{"--cursed"}
 			wantInv := false
@@ -570,17 +553,15 @@ func TestInteractiveDirectInvoke(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pair := scaffoldselect.NewSelectAction("short test", "long test", "item",
 				collectItems, operate, scaffoldselect.Options{
-					CommonOptions: scaffold.CommonOptions{
-						AddtlFlags: func() *pflag.FlagSet {
-							fs := &pflag.FlagSet{}
-							fs.Bool("cursed", false,
-								"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
-							fs.Uint("single", 0, "select a single vagabond instead of the whole wagon.")
-							fs.Bool("no-data", false, "try to leave without a party in tow.")
-							fs.Bool("fatal", false,
-								"Another life wasted in the pursuit of glory and gold.")
-							return fs
-						},
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Bool("cursed", false,
+							"These swarming fiends carry a pernicious plague! A sickness so virulent, so insidious, it is more a curse than a mere disease.")
+						fs.Uint("single", 0, "select a single vagabond instead of the whole wagon.")
+						fs.Bool("no-data", false, "try to leave without a party in tow.")
+						fs.Bool("fatal", false,
+							"Another life wasted in the pursuit of glory and gold.")
+						return fs
 					},
 					Exactly1: tt.exactly1,
 				})

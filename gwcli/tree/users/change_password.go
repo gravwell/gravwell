@@ -72,7 +72,7 @@ func changePassword() action.Pair {
 			return errors.New("--new-password must be non-empty")
 		},
 		treeutils.GenerateActionOptions{
-			NodeOptions: treeutils.NodeOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		},
 	)
 

@@ -72,20 +72,18 @@ func get() action.Pair {
 			// drop keys
 			return slices.Collect(maps.Values(ingesters)), nil
 		}, nil, scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     use,
-				Example: fmt.Sprintf("%v --%s=12345", flagHostname, use),
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String(flagHostname, "", "prefix-match ingesters on hostname")
-					fs.String(flagUUID, "", "prefix-match ingesters on uuid")
-					fs.String(flagName, "", "prefix-match ingesters on name")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Stats},
-					XPermissions: []types.Capability{types.Stats},
-				},
+			Use:     use,
+			Example: fmt.Sprintf("%v --%s=12345", flagHostname, use),
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String(flagHostname, "", "prefix-match ingesters on hostname")
+				fs.String(flagUUID, "", "prefix-match ingesters on uuid")
+				fs.String(flagName, "", "prefix-match ingesters on name")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Stats},
+				XPermissions: []types.Capability{types.Stats},
 			},
 			DefaultColumns: []string{"Indexer", "RemoteAddress", "Size", "Uptime", "Tags", "Name", "Version", "UUID", "Label", "IP", "Hostname", "Entries", "StateSize", "CacheState", "CacheSize", "Children"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

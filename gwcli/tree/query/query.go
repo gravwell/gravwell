@@ -96,14 +96,13 @@ var localFS pflag.FlagSet
 func NewQueryAction() action.Pair {
 	cmd := treeutils.GenerateAction("query", "submit a query",
 		helpDesc,
-		runE, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+		runE, treeutils.GenerateActionOptions{
 			CommandAliases: []string{"q", "search"},
 			// query bundles ad-hoc search, optional backgrounding, and optional scheduling into a single action.
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite, types.Download},
 				XPermissions: []types.Capability{types.Search, types.BackgroundSearch, types.ScheduleWrite, types.Download},
-			},
-		}})
+			}})
 
 	localFS = initialLocalFlagSet()
 
