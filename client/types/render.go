@@ -176,7 +176,9 @@ type StatsInfo struct {
 type StatsOperation struct {
 	As string   `json:",omitempty"`
 	By []string `json:",omitempty"`
-	// The EV to perform the operation on. If omitted, the operand will be the entire entry.
+	// The EV to perform the operation on. Required for every operation except
+	// count and unique_count. With no operand, count counts entries and
+	// unique_count counts distinct DATA values.
 	Operand string `json:",omitempty"`
 	// A results request takes only the TransformOperator constants.
 	Operation TransformOperator
