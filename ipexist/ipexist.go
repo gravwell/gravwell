@@ -89,7 +89,7 @@ func LoadIPBitMapMemoryMapped(r io.Reader, p string) (*IpBitMap, error) {
 
 func (ipbm *IpBitMap) Close() (err error) {
 	ipbm.bitmaps = nil
-	for i := 0; i < 0xffff; i++ {
+	for i := range 0xffff {
 		ipbm.bitmapOffsets[i] = 0
 	}
 	if ipbm.mmapBacked {
