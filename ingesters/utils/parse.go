@@ -58,8 +58,8 @@ func ParseSource(v string) (ret net.IP, err error) {
 }
 
 func ParseInt(v string) (r uint64, err error) {
-	if strings.HasPrefix(v, `0x`) {
-		r, err = strconv.ParseUint(strings.TrimPrefix(v, `0x`), 16, 64)
+	if after, ok := strings.CutPrefix(v, `0x`); ok {
+		r, err = strconv.ParseUint(after, 16, 64)
 	} else {
 		r, err = strconv.ParseUint(v, 10, 64)
 	}

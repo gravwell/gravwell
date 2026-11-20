@@ -400,7 +400,7 @@ func getSourceIP(dev string) (net.IP, error) {
 	return nil, errors.New("No IP for " + dev)
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

@@ -233,13 +233,13 @@ func (f follower) TimestampDelimited() (rex string, ok bool, err error) {
 		return
 	}
 	//fixup the regex string to fit on line breaks
-	if strings.HasPrefix(rex, `\A`) {
+	if after, ok0 := strings.CutPrefix(rex, `\A`); ok0 {
 		//remove the "at beginning of text" sequence and replace with newline
-		rex = `\n` + strings.TrimPrefix(rex, `\A`)
+		rex = `\n` + after
 	}
-	if strings.HasPrefix(rex, `^`) {
+	if after, ok0 := strings.CutPrefix(rex, `^`); ok0 {
 		//remove the "at beginning regex and replace with newline
-		rex = `\n` + strings.TrimPrefix(rex, `^`)
+		rex = `\n` + after
 	}
 	if _, err = regexp.Compile(rex); err != nil {
 		return

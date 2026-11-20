@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
@@ -47,13 +46,9 @@ func newTestClients(t *testing.T, cr clientip.Resolver) *clientSource {
 // address options on.
 func newVerifyConfig() *cfgType {
 	return &cfgType{
-		gbl: gbl{
-			IngestConfig: config.IngestConfig{
-				Ingest_Secret:            "testing",
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-			},
-		},
-		Listener: map[string]*listener{"l1": validListener()},
+		Ingest_Secret:            "testing",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Listener:                 map[string]*listener{"l1": validListener()},
 	}
 }
 
@@ -443,7 +438,7 @@ func TestProxyLogsClient(t *testing.T) {
 			ph.ServeHTTP(httptest.NewRecorder(), req)
 
 			var line string
-			for _, l := range strings.Split(logBuf.String(), "\n") {
+			for l := range strings.SplitSeq(logBuf.String(), "\n") {
 				if strings.Contains(l, tt.want) {
 					line = l
 				}

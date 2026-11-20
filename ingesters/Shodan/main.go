@@ -374,8 +374,7 @@ func (shodan *shodanStream) shodanIngester(igst *ingest.IngestMuxer) {
 // redactURLError strips the query string, which carries the Shodan API key,
 // from a *url.Error so the key is never logged.
 func redactURLError(err error) error {
-	var ue *url.Error
-	if errors.As(err, &ue) {
+	if ue, ok := errors.AsType[*url.Error](err); ok {
 		if i := strings.IndexByte(ue.URL, '?'); i >= 0 {
 			ue.URL = ue.URL[:i]
 		}
@@ -383,7 +382,7 @@ func redactURLError(err error) error {
 	return err
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
