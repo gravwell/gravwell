@@ -51,6 +51,13 @@ type KitConfig struct {
 	AutomationDeployRules map[string]AutomationDeployConfig // overrides for defaults
 }
 
+// KitInstallRequest asks the webserver to install a staged kit.
+// The webserver queues the install and returns an install ID for polling its status.
+type KitInstallRequest struct {
+	ID     string    // ID of the staged kit (KitState.ID), not its KitID
+	Config KitConfig // install-time options
+}
+
 // KitItem implements the generic container for each item in a kit (dashboard, query, etc)
 type KitItem struct {
 	Name        string // User-friendly
