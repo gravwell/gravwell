@@ -128,7 +128,7 @@ func (tsr *TagSrcRouter) init(cfg TagSrcRouterConfig, tagger Tagger) error {
 	return nil
 }
 
-func (tsr *TagSrcRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (tsr *TagSrcRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(TagSrcRouterConfig); ok {

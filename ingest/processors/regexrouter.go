@@ -67,7 +67,7 @@ func NewRegexRouter(cfg RegexRouteConfig, tagger Tagger) (*RegexRouter, error) {
 	return rr, nil
 }
 
-func (rr *RegexRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (rr *RegexRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexRouteConfig); ok {

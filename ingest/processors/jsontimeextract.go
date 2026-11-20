@@ -79,7 +79,7 @@ func NewJsonTimestamp(cfg JsonTimestampConfig) (*JsonTimestamp, error) {
 	}, nil
 }
 
-func (j *JsonTimestamp) Config(v interface{}) (err error) {
+func (j *JsonTimestamp) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonTimestampConfig); ok {

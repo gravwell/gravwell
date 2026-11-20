@@ -90,10 +90,10 @@ type logData struct {
 }
 
 type logEvent struct {
-	ID   string                 `json:"id"`
-	TS   int64                  `json:"timestamp"`
-	Msg  string                 `json:"message,omitempty"`
-	Flds map[string]interface{} `json:"extractedFields,omitempty"`
+	ID   string         `json:"id"`
+	TS   int64          `json:"timestamp"`
+	Msg  string         `json:"message,omitempty"`
+	Flds map[string]any `json:"extractedFields,omitempty"`
 }
 
 func makeCloudWatchLog(cnt int, zipped bool) []byte {
@@ -105,12 +105,12 @@ func makeCloudWatchLog(cnt int, zipped bool) []byte {
 		Filters: []string{`foo`, `bar`, `baz`},
 		Type:    `foo.bar.baz`,
 	}
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		ld.Events = append(ld.Events, logEvent{
 			ID:  fmt.Sprintf("ID%d", i),
 			TS:  time.Now().Unix(),
 			Msg: fmt.Sprintf("Message %d is zipped %v", i, zipped),
-			Flds: map[string]interface{}{
+			Flds: map[string]any{
 				"start":   `100`,
 				"end":     100 + i,
 				"message": fmt.Sprintf("%d is zipped %v", i, zipped),

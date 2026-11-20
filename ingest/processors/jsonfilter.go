@@ -127,7 +127,7 @@ func NewJsonFilter(cfg JsonFilterConfig) (*JsonFilter, error) {
 	}, nil
 }
 
-func (j *JsonFilter) Config(v interface{}) (err error) {
+func (j *JsonFilter) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonFilterConfig); ok {

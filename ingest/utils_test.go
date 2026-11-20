@@ -47,7 +47,7 @@ func TestEmergencyQueueClearNilBatchEntry(t *testing.T) {
 func TestTagBitMask(t *testing.T) {
 	var tmt tagMaskTracker
 	//make sure its empty
-	for i := 0; i < 0x10000; i++ {
+	for i := range 0x10000 {
 		tg := entry.EntryTag(i)
 		if tmt.has(tg) {
 			t.Fatalf("tag  %d set without being set", i)

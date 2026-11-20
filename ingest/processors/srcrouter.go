@@ -61,7 +61,7 @@ func NewSrcRouter(cfg SrcRouteConfig, tagger Tagger) (*SrcRouter, error) {
 	return rr, nil
 }
 
-func (sr *SrcRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (sr *SrcRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(SrcRouteConfig); ok {
@@ -128,7 +128,7 @@ func (sr *SrcRouter) processItem(ent *entry.Entry) *entry.Entry {
 
 func (sr *SrcRouter) handleExtract(v net.IP) (tag entry.EntryTag, drop, ok bool) {
 	//check if we have a tag
-	var r interface{}
+	var r any
 	if v != nil {
 		r, _ = sr.tree.FindCIDR(v.String())
 	}
