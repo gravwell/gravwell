@@ -871,13 +871,6 @@ type SaveSearchPatch struct {
 	// expiration, null means the search never expires, and a missing Expires
 	// leaves the current expiration unchanged.
 	Expires NullablePatchIn[time.Time] `json:",omitzero"`
-	// Method and Reference say what launched the search. A missing or empty one
-	// leaves the stored one unchanged.
-	Method    Optional[string] `json:",omitzero"`
-	Reference Optional[string] `json:",omitzero"`
-	// Started is when the search started. It is used only when the search has
-	// no start time.
-	Started Optional[time.Time] `json:",omitzero"`
 	// these are the supported fields in the free form search metadata; these are used by the GUI.
 	// A missing Name or Notes leaves the stored one unchanged, and an empty string clears it.
 	Name  Optional[string] `json:",omitzero"`
@@ -920,29 +913,21 @@ func (p SaveSearchPatch) MergeMetadata(curr jsontext.Value) jsontext.Value {
 	return jsontext.Value(v)
 }
 
+// MergeLaunchInfo applies the patch's Expires to li and reports whether the
+// expiration changed. Method, Reference, and Started are set at launch, and a
+// save does not change them.
 func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 	if li == nil {
 		return
 	}
-	if p.Method.Value() != `` {
-		li.Method = p.Method.Value()
-		changed = true
-	}
-	if p.Reference.Value() != `` {
-		li.Reference = p.Reference.Value()
-		changed = true
-	}
 	// a value sets the expiration, null clears it, and a missing Expires leaves it alone
 	before := li.Expires
 	p.Expires.Apply(&li.Expires)
-	// compare the instants: Nullable.Equal is a deep comparison, which also compares time zones
-	changed = changed || before.IsNull() != li.Expires.IsNull() || !before.Value().Equal(li.Expires.Value())
-
-	//Started is best effort, take whatever isn't zero if there is one
-	if li.Started.IsZero() {
-		li.Started = p.Started.Value()
+	if before.IsNull() != li.Expires.IsNull() {
+		return true
 	}
-	return
+	// Nullable.Equal also compares time zones, so compare the instants
+	return !before.Value().Equal(li.Expires.Value())
 }
 
 type SearchCtrlSetAccessRequest struct {
