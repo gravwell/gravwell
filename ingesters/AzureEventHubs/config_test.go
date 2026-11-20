@@ -343,3 +343,18 @@ func TestSimpleGetters(t *testing.T) {
 		t.Errorf("IngestBaseConfig().Ingest_Secret = %q, want %q", got.Ingest_Secret, "shh")
 	}
 }
+
+func TestVerifyKeepsEnvironment(t *testing.T) {
+	t.Setenv("GRAVWELL_INGEST_SECRET", "envsecret")
+	t.Setenv("GRAVWELL_CLEARTEXT_TARGETS", "127.0.0.1:4023")
+	c := &cfgType{EventHub: map[string]*eventHubConf{"hub": validEventHub()}}
+	if err := c.Verify(); err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	if c.Global.Ingest_Secret != "envsecret" {
+		t.Errorf("Ingest_Secret = %q, want %q", c.Global.Ingest_Secret, "envsecret")
+	}
+	if len(c.Global.Cleartext_Backend_Target) != 1 || c.Global.Cleartext_Backend_Target[0] != "127.0.0.1:4023" {
+		t.Errorf("Cleartext_Backend_Target = %v, want [127.0.0.1:4023]", c.Global.Cleartext_Backend_Target)
+	}
+}
