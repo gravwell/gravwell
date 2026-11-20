@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
+     fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round"
+     role="img" aria-labelledby="ti-title">
+  <title id="ti-title">Testing ingester</title>
+
+  <!-- inbound data: arrow feeding the flask -->
+  <path d="M12 1.4 V4.8" />
+  <path d="M10.2 2.9 L12 4.9 L13.8 2.9" />
+
+  <!-- flask rim -->
+  <path d="M8.2 8 H15.8" />
+
+  <!-- flask body -->
+  <path d="M9.8 8 V12.6 L5.2 19.2 A2 2 0 0 0 7 21.2 H17 A2 2 0 0 0 18.8 19.2 L14.2 12.6 V8" />
+
+  <!-- contents -->
+  <path d="M7.1 16.5 L5.2 19.2 A2 2 0 0 0 7 21.2 H17 A2 2 0 0 0 18.8 19.2 L16.9 16.5 Z"
+        fill="currentColor" stroke="none" />
+</svg>

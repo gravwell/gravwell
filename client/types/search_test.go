@@ -1,0 +1,1023 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+package types
+
+import (
+	"encoding/json"
+	"encoding/json/jsontext"
+	v2 "encoding/json/v2"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
+)
+
+func TestRowSelectionMarshal(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   RowSelection
+		wantErr bool
+	}{
+		{"valid range", RowSelection{Kind: "range", Start: 0, End: 10}, false},
+		{"valid single", RowSelection{Kind: "single", Index: 5}, false},
+		{"range with index set", RowSelection{Kind: "range", Start: 0, End: 10, Index: 3}, true},
+		{"single with start set", RowSelection{Kind: "single", Index: 5, Start: 1}, true},
+		{"single with end set", RowSelection{Kind: "single", Index: 5, End: 1}, true},
+		{"single with start and end set", RowSelection{Kind: "single", Index: 5, Start: 1, End: 7}, true},
+		{"unknown kind", RowSelection{Kind: "bogus"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := json.Marshal(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out RowSelection
+			if err := json.Unmarshal(b, &out); err != nil {
+				t.Fatal(err)
+			}
+			if out != tt.input {
+				t.Fatalf("round-trip mismatch: got %+v, want %+v", out, tt.input)
+			}
+		})
+	}
+}
+
+func TestRowSelectionUnmarshal(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid range (lower case)", `{"kind":"range","start":0,"end":10}`, false},
+		{"valid range (title case)", `{"Kind":"range","Start":0,"end":10}`, false},
+		{"valid single", `{"kind":"single","index":5}`, false},
+		{"range with index set", `{"kind":"range","start":0,"end":10,"index":3}`, true},
+		{"single with start set", `{"kind":"single","index":5,"start":1}`, true},
+		{"single with end set (lower case)", `{"kind":"single","index":5,"end":1}`, true},
+		{"single with end set (mixwed case)", `{"kind":"single","Index":5,"end":1}`, true},
+		{"single with start and end set", `{"kind":"single","index":5,"start":1,"end":7}`, true},
+		{"unknown kind", `{"kind":"bogus"}`, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out RowSelection
+			err := v2.Unmarshal([]byte(tt.input), &out, jsoncompat.Opts)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestRenderSettings(t *testing.T) {
+	tests := []struct {
+		name string
+		json string
+		want RendererSettings
+		// wantJSON is the exact expected wire format. Asserted against a
+		// literal on purpose: comparing marshal(got) to marshal(want) cannot
+		// observe anything MarshalJSON normalizes.
+		wantJSON string
+	}{
+		{
+			name:     "chart",
+			wantJSON: `{"Renderer":"chart","Channels":{"Category":"Category","Nominal":"Value","Temporal":"Timestamp"}}`,
+			json:     `{"Renderer":"chart","Channels":{"Category":"Category","Nominal":"Value","Temporal":"Timestamp"}}`,
+			want: RendererSettings{
+				Chart: &RSChart{
+					Renderer: "chart",
+					Channels: RSChartChannels{
+						Category: "Category",
+						Nominal:  "Value",
+						Temporal: "Timestamp",
+					},
+				},
+			},
+		},
+		{
+			name:     "point2point",
+			wantJSON: `{"Renderer":"point2point","Channels":{"From":"Src","To":"Dst","Magnitude":"Mag","Tooltip":[]}}`,
+			json:     `{"Renderer":"point2point","Channels":{"From":"Src","To":"Dst","Magnitude":"Mag"}}`,
+			want: RendererSettings{
+				P2P: &RSP2P{
+					Renderer: "point2point",
+					Channels: RSP2PChannels{
+						From:      "Src",
+						To:        "Dst",
+						Magnitude: "Mag",
+					},
+				},
+			},
+		},
+		{
+			name:     "numbercard",
+			wantJSON: `{"Renderer":"numbercard","Channels":{"Label":"Name","Value":"Magnitude"}}`,
+			json:     `{"Renderer":"numbercard","Channels":{"Value":"Magnitude","Label":"Name"}}`,
+			want: RendererSettings{
+				Number: &RSNumber{
+					Renderer: "numbercard",
+					Channels: RSNumberChannels{
+						Value: "Magnitude",
+						Label: "Name",
+					},
+				},
+			},
+		},
+		{
+			name:     "gauge",
+			wantJSON: `{"Renderer":"gauge","Channels":{"Label":"Name","Value":"Magnitude","Min":"Min","Max":"Max"}}`,
+			json:     `{"Renderer":"gauge","Channels":{"Value":"Magnitude","Min":"Min","Max":"Max","Label":"Name"}}`,
+			want: RendererSettings{
+				Number: &RSNumber{
+					Renderer: "gauge",
+					Channels: RSNumberChannels{
+						Value: "Magnitude",
+						Label: "Name",
+						Min:   "Min",
+						Max:   "Max",
+					},
+				},
+			},
+		},
+		{
+			name:     "heatmap",
+			wantJSON: `{"Renderer":"heatmap","Channels":{"Location":"Location","Magnitude":"Magnitude"}}`,
+			json:     `{"Renderer":"heatmap","Channels":{"Location":"Location","Magnitude":"Magnitude"}}`,
+			want: RendererSettings{
+				Heatmap: &RSHeatmap{
+					Renderer: "heatmap",
+					Channels: RSHeatmapChannels{
+						Location:  "Location",
+						Magnitude: "Magnitude",
+					},
+				},
+			},
+		},
+		{
+			name:     "pointmap",
+			wantJSON: `{"Renderer":"pointmap","Channels":{"Location":"Location","Tooltip":["Bytes"]}}`,
+			json:     `{"Renderer":"pointmap","Channels":{"Location":"Location","Tooltip":["Bytes"]}}`,
+			want: RendererSettings{
+				Pointmap: &RSPointmap{
+					Renderer: "pointmap",
+					Channels: RSPointmapChannels{
+						Location: "Location",
+						Tooltip:  []string{"Bytes"},
+					},
+				},
+			},
+		},
+		{
+			name:     "stackgraph",
+			wantJSON: `{"Renderer":"stackgraph","Channels":{"Category":"proto","Nominal":"count","Color":"service"}}`,
+			json:     `{"Renderer":"stackgraph","Channels":{"Category":"proto","Nominal":"count","Color":"service"}}`,
+			want: RendererSettings{
+				StackGraph: &RSStackGraph{
+					Renderer: "stackgraph",
+					Channels: RSStackGraphChannels{
+						Category: "proto",
+						Nominal:  "count",
+						Color:    "service",
+					},
+				},
+			},
+		},
+		{
+			name:     "wordcloud",
+			wantJSON: `{"Renderer":"wordcloud","Channels":{"Name":"Name","Magnitude":"Magnitude"}}`,
+			json:     `{"Renderer":"wordcloud","Channels":{"Name":"Name","Magnitude":"Magnitude"}}`,
+			want: RendererSettings{
+				WordCloud: &RSWordCloud{
+					Renderer: "wordcloud",
+					Channels: RSWordCloudChannels{
+						Name:      "Name",
+						Magnitude: "Magnitude",
+					},
+				},
+			},
+		},
+		{
+			name:     "table",
+			wantJSON: `{"Renderer":"table","Channels":{"Columns":["Appname","MsgID"]}}`,
+			json:     `{"Renderer":"table","Channels":{"Columns":["Appname","MsgID"]}}`,
+			want: RendererSettings{
+				Tabular: &RSTabular{
+					Renderer: "table",
+					Channels: RSTabularChannels{
+						Columns: []string{"Appname", "MsgID"},
+					},
+				},
+			},
+		},
+		// hex/pcap/raw/text all decode to RSTabular; only the discriminator
+		// distinguishes them, so each string needs its own case.
+		{
+			name:     "hex",
+			wantJSON: `{"Renderer":"hex","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"hex","Channels":{"Columns":["DATA"]}}`,
+			want: RendererSettings{
+				Tabular: &RSTabular{
+					Renderer: "hex",
+					Channels: RSTabularChannels{Columns: []string{"DATA"}},
+				},
+			},
+		},
+		{
+			name:     "pcap",
+			wantJSON: `{"Renderer":"pcap","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"pcap","Channels":{"Columns":["DATA"]}}`,
+			want: RendererSettings{
+				Tabular: &RSTabular{
+					Renderer: "pcap",
+					Channels: RSTabularChannels{Columns: []string{"DATA"}},
+				},
+			},
+		},
+		{
+			name:     "raw",
+			wantJSON: `{"Renderer":"raw","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"raw","Channels":{"Columns":["DATA"]}}`,
+			want: RendererSettings{
+				Tabular: &RSTabular{
+					Renderer: "raw",
+					Channels: RSTabularChannels{Columns: []string{"DATA"}},
+				},
+			},
+		},
+		{
+			name:     "text",
+			wantJSON: `{"Renderer":"text","Channels":{"Columns":["DATA"]}}`,
+			json:     `{"Renderer":"text","Channels":{"Columns":["DATA"]}}`,
+			want: RendererSettings{
+				Tabular: &RSTabular{
+					Renderer: "text",
+					Channels: RSTabularChannels{Columns: []string{"DATA"}},
+				},
+			},
+		},
+		{
+			name:     "fdg",
+			wantJSON: `{"Renderer":"fdg","Channels":{"Weight":"weight"}}`,
+			json:     `{"Renderer":"fdg","Channels":{"Weight":"weight"}}`,
+			want: RendererSettings{
+				Fdg: &RSFdg{
+					Renderer: "fdg",
+					Channels: RSFdgChannels{
+						Weight: "weight",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got RendererSettings
+			if err := json.Unmarshal([]byte(tt.json), &got); err != nil {
+				t.Fatalf("Unmarshal failed: %v", err)
+			}
+
+			// Assert the decoded Go value directly. Comparing marshalled bytes
+			// alone cannot see a variant flip: a value whose Renderer string
+			// disagrees with its variant decodes into a *different* variant and
+			// still re-marshals byte-identically.
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("decoded value mismatch:\nGot:  %#v\nWant: %#v", got, tt.want)
+			}
+
+			// Assert the wire format against a literal. Comparing marshal(got)
+			// to marshal(want) is blind to anything MarshalJSON normalizes,
+			// because both sides pass through the same normalization — that is
+			// how the nil-slice -> [] fix went untested.
+			b1, err := json.Marshal(got)
+			if err != nil {
+				t.Fatalf("Marshal got failed: %v", err)
+			}
+			if string(b1) != tt.wantJSON {
+				t.Errorf("wire format mismatch:\nGot:  %s\nWant: %s", string(b1), tt.wantJSON)
+			}
+
+			// Round trip is asserted on the wire format, not the Go value:
+			// normalization is intentionally not idempotent in memory (a nil
+			// slice marshals to [] and decodes back as an empty non-nil slice).
+			// What must hold is that re-encoding is stable.
+			b2, err := json.Marshal(tt.want)
+			if err != nil {
+				t.Fatalf("Marshal want failed: %v", err)
+			}
+			var got2 RendererSettings
+			if err := json.Unmarshal(b2, &got2); err != nil {
+				t.Fatalf("Unmarshal from Marshal failed: %v", err)
+			}
+			b3, err := json.Marshal(got2)
+			if err != nil {
+				t.Fatalf("Marshal roundtripped value failed: %v", err)
+			}
+			if string(b3) != tt.wantJSON {
+				t.Errorf("roundtrip wire mismatch:\nGot:  %s\nWant: %s", string(b3), tt.wantJSON)
+			}
+		})
+	}
+}
+
+// TestRendererSettingsEmptyMarshalsNull pins the contract that an empty
+// RendererSettings encodes as null rather than failing. A MarshalJSON error
+// here propagates to the top of the enclosing document: the whole SearchInfo
+// (or a slice of them) yields zero bytes, which in a handler that has already
+// written a 200 means an empty body with no error signal.
+// TestSearchInfoWithEmptyRendererSettings guards the blast radius: omitempty
+// tests the pointer, not the pointee, so a non-nil pointer to an empty
+// RendererSettings is not skipped. If marshalling it failed, the error would
+// escape to the top of the enclosing document and blank every SearchInfo in it.
+func TestSearchInfoWithEmptyRendererSettings(t *testing.T) {
+	si := []SearchInfo{
+		{CommonFields: CommonFields{ID: "a"}},
+		{CommonFields: CommonFields{ID: "b"}, RendererSettings: &RendererSettings{}},
+		{CommonFields: CommonFields{ID: "c"}},
+	}
+	sb, err := json.Marshal(si)
+	if err != nil {
+		t.Fatalf("SearchInfo slice with an empty RendererSettings must marshal: %v", err)
+	}
+	for _, id := range []string{`"a"`, `"b"`, `"c"`} {
+		if !strings.Contains(string(sb), id) {
+			t.Errorf("SearchInfo %s missing from output: %s", id, sb)
+		}
+	}
+}
+
+// TestRendererSettingsRequiredArraysNeverNull pins the wire contract for the
+// three channel arrays the schema marks required: they must encode as [] even
+// when the Go value is nil. Nil is reachable in practice because gob does not
+// preserve the empty-vs-nil distinction, so a search that round-trips through
+// the archive or remote search info comes back with a nil slice.
+//
+// Each case must fail if its type's MarshalJSON is removed — the table-driven
+// test above only covers this for point2point, whose fixture has no tooltip.
+func TestRendererSettingsRequiredArraysNeverNull(t *testing.T) {
+	tests := []struct {
+		name string
+		in   RendererSettings
+		want string
+	}{
+		{
+			name: "p2p nil tooltip",
+			in:   RendererSettings{P2P: &RSP2P{Renderer: "point2point", Channels: RSP2PChannels{From: "Src", To: "Dst", Magnitude: "Magnitude"}}},
+			want: `{"Renderer":"point2point","Channels":{"From":"Src","To":"Dst","Magnitude":"Magnitude","Tooltip":[]}}`,
+		},
+		{
+			name: "pointmap nil tooltip",
+			in:   RendererSettings{Pointmap: &RSPointmap{Renderer: "pointmap", Channels: RSPointmapChannels{Location: "Location"}}},
+			want: `{"Renderer":"pointmap","Channels":{"Location":"Location","Tooltip":[]}}`,
+		},
+		{
+			name: "tabular nil columns",
+			in:   RendererSettings{Tabular: &RSTabular{Renderer: "table", Channels: RSTabularChannels{}}},
+			want: `{"Renderer":"table","Channels":{"Columns":[]}}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := json.Marshal(tt.in)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			if string(b) != tt.want {
+				t.Errorf("required array encoded as null:\nGot:  %s\nWant: %s", b, tt.want)
+			}
+		})
+	}
+}
+
+// TestRendererSettingsDecodeGuards covers the two Unmarshaler conventions the
+// type has to honour: null is a no-op, and the receiver is reset so that
+// decoding twice into the same value cannot leave two live variants (which
+// MarshalJSON then rejects forever).
+func TestRendererSettingsDecodeGuards(t *testing.T) {
+	t.Run("null is a no-op", func(t *testing.T) {
+		var rs RendererSettings
+		if err := json.Unmarshal([]byte(`null`), &rs); err != nil {
+			t.Fatalf("decoding null must not error: %v", err)
+		}
+		if !reflect.DeepEqual(rs, RendererSettings{}) {
+			t.Errorf("decoding null must leave the value untouched, got %#v", rs)
+		}
+	})
+
+	t.Run("receiver is reset between decodes", func(t *testing.T) {
+		var rs RendererSettings
+		if err := json.Unmarshal([]byte(`{"Renderer":"chart","Channels":{"Category":"c","Nominal":"n"}}`), &rs); err != nil {
+			t.Fatalf("first decode: %v", err)
+		}
+		if err := json.Unmarshal([]byte(`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`), &rs); err != nil {
+			t.Fatalf("second decode: %v", err)
+		}
+		if rs.Chart != nil {
+			t.Error("Chart survived a decode into the same value; receiver was not reset")
+		}
+		if rs.Fdg == nil {
+			t.Fatal("Fdg not set by second decode")
+		}
+		// A value carrying two variants is permanently unencodable.
+		if _, err := json.Marshal(rs); err != nil {
+			t.Errorf("value is unencodable after two decodes: %v", err)
+		}
+	})
+
+	t.Run("streaming decoder reuses the value", func(t *testing.T) {
+		stream := `{"Renderer":"chart","Channels":{"Category":"c","Nominal":"n"}}` +
+			`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`
+		dec := json.NewDecoder(strings.NewReader(stream))
+		var rs RendererSettings
+		for i := 0; i < 2; i++ {
+			if err := dec.Decode(&rs); err != nil {
+				t.Fatalf("decode %d: %v", i, err)
+			}
+			if _, err := json.Marshal(rs); err != nil {
+				t.Fatalf("frame %d is unencodable: %v", i, err)
+			}
+		}
+	})
+}
+
+func TestRenderSettingsErrors(t *testing.T) {
+	// 1. Multiple fields set
+	rsMultiple := RendererSettings{
+		Chart: &RSChart{Renderer: "chart"},
+		Fdg:   &RSFdg{Renderer: "fdg"},
+	}
+	_, err := json.Marshal(rsMultiple)
+	if err == nil {
+		t.Fatal("expected error when multiple render settings are specified")
+	}
+
+	// 2. Zero fields set (empty / nil)
+	rsEmpty := RendererSettings{}
+	k, err := json.Marshal(rsEmpty)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(k) != `null` {
+		t.Fatalf("expect k to be `null`, got %s", string(k))
+	}
+}
+
+// TestSearchInfoDurationRoundTrip covers Duration surviving a decode as a
+// plain int64 nanoseconds value (the default encoding for a time.Duration field).
+// Per the registry API spec.
+func TestSearchInfoDurationRoundTrip(t *testing.T) {
+	in := SearchInfo{CommonFields: CommonFields{ID: "dur"}, ItemCount: 42, Duration: 90 * time.Second}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Duration":90000000000`) {
+		t.Fatalf("Duration missing from the wire format: %s", b)
+	}
+	var out SearchInfo
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.Duration != in.Duration {
+		t.Errorf("Duration lost on decode: got %v, want %v", out.Duration, in.Duration)
+	}
+	if out.ItemCount != in.ItemCount {
+		t.Errorf("ItemCount = %d, want %d", out.ItemCount, in.ItemCount)
+	}
+}
+
+// TestDownloadSearchOmitsZeroTimeframe pins that a zero TimeRange omits the
+// field entirely rather than sending a year-1 window. A zero TimeRange is the
+// in-repo idiom for "download everything".
+func TestDownloadSearchOmitsZeroTimeframe(t *testing.T) {
+	var zero Timeframe
+	if !zero.IsEmpty() {
+		t.Error("zero Timeframe must report empty")
+	}
+	var nilTF *Timeframe
+	if !nilTF.IsEmpty() {
+		t.Error("nil Timeframe must report empty")
+	}
+
+	omitted, err := json.Marshal(SearchDownloadRequest{Format: "json"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(omitted), "Timeframe") {
+		t.Errorf("a nil Timeframe must be omitted, got %s", omitted)
+	}
+
+	set, err := json.Marshal(SearchDownloadRequest{
+		Format:    "json",
+		Timeframe: &Timeframe{Start: time.Unix(1, 0).UTC(), End: time.Unix(2, 0).UTC()},
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(set), "Timeframe") {
+		t.Errorf("a set Timeframe must be present, got %s", set)
+	}
+}
+
+func TestSearchInfoMarshal(t *testing.T) {
+	// Test without RenderSettings
+	siEmpty := SearchInfo{
+		CommonFields: CommonFields{ID: "test-id"},
+	}
+	b, err := json.Marshal(siEmpty)
+	if err != nil {
+		t.Fatalf("failed to marshal SearchInfo without RenderSettings: %v", err)
+	}
+	var outEmpty SearchInfo
+	if err := json.Unmarshal(b, &outEmpty); err != nil {
+		t.Fatalf("failed to unmarshal SearchInfo without RenderSettings: %v", err)
+	}
+	if outEmpty.ID != "test-id" {
+		t.Fatalf("expected ID test-id, got %s", outEmpty.ID)
+	}
+
+	// Test with RenderSettings
+	siWithRenderSettings := SearchInfo{
+		CommonFields: CommonFields{ID: "test-id-with-rs"},
+		RendererSettings: &RendererSettings{
+			Chart: &RSChart{
+				Renderer: "chart",
+			},
+		},
+	}
+	b2, err := json.Marshal(siWithRenderSettings)
+	if err != nil {
+		t.Fatalf("failed to marshal SearchInfo with RenderSettings: %v", err)
+	}
+	var outWithRS SearchInfo
+	if err := json.Unmarshal(b2, &outWithRS); err != nil {
+		t.Fatalf("failed to unmarshal SearchInfo with RenderSettings: %v", err)
+	}
+	if outWithRS.RendererSettings == nil || outWithRS.RendererSettings.Chart == nil || outWithRS.RendererSettings.Chart.Renderer != "chart" {
+		t.Fatalf("expected chart renderer, got %+v", outWithRS.RendererSettings)
+	}
+}
+
+func TestSearchSessionRefreshRequestOmission(t *testing.T) {
+	req := SearchSessionRefreshRequest{Sessions: []SearchSessionRefresh{{
+		SearchID:  "1",
+		SessionID: uuid.Nil,
+	}}}
+
+	b, err := v2.Marshal(&req, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), "Interval") || strings.Contains(string(b), "Expires") {
+		t.Fatalf("unset Interval and Expires must be omitted, got %s", b)
+	}
+
+	req.Sessions[0].Interval = NewOptional(uint(5))
+	req.Sessions[0].Expires = NewOptional(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC))
+	b, err = v2.Marshal(&req, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Interval":5`) {
+		t.Fatalf("set Interval must be present, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("set Expires must be present, got %s", b)
+	}
+}
+
+func TestSearchSessionRefreshResultMarshal(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	refreshed := SearchSessionRefreshResult{Refreshed: &SearchSessionRefreshed{
+		SearchID:  "1",
+		SessionID: uuid.Nil,
+		Interval:  3,
+		Expires:   NewNullable(expires),
+	}}
+	b, err := v2.Marshal(refreshed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Kind":"refreshed"`) {
+		t.Fatalf("refreshed result must carry Kind refreshed, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("refreshed result must carry Expires, got %s", b)
+	}
+	if strings.Contains(string(b), `"Error"`) {
+		t.Fatalf("refreshed result must not carry Error, got %s", b)
+	}
+
+	refreshed.Refreshed.Expires.SetNull()
+	b, err = v2.Marshal(refreshed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("a null expiry must encode as null, got %s", b)
+	}
+
+	failed := SearchSessionRefreshResult{Failed: &SearchSessionRefreshFailed{
+		SearchID:  "2",
+		SessionID: uuid.Nil,
+		Error:     "session not found",
+	}}
+	b, err = v2.Marshal(failed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Kind":"failed"`) {
+		t.Fatalf("failed result must carry Kind failed, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Error":"session not found"`) {
+		t.Fatalf("failed result must carry Error, got %s", b)
+	}
+	if strings.Contains(string(b), `"Expires"`) || strings.Contains(string(b), `"Interval"`) {
+		t.Fatalf("failed result must not carry Interval or Expires, got %s", b)
+	}
+}
+
+func TestSearchSessionRefreshResultUnmarshal(t *testing.T) {
+	body := `{"Results":[` +
+		`{"Kind":"refreshed","SearchID":"1","SessionID":"00000000-0000-0000-0000-000000000000","Interval":3,"Expires":null},` +
+		`{"Kind":"failed","SearchID":"2","SessionID":"00000000-0000-0000-0000-000000000000","Error":"session not found"}` +
+		`]}`
+	var resp SearchSessionRefreshResponse
+	if err := v2.Unmarshal([]byte(body), &resp, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Results) != 2 {
+		t.Fatalf("got %d results, want 2", len(resp.Results))
+	}
+	if r := resp.Results[0].Refreshed; r == nil {
+		t.Fatal("first result is not refreshed")
+	} else if r.Kind != SearchSessionRefreshResultKindRefreshed {
+		t.Fatalf("first result Kind = %q", r.Kind)
+	} else if !r.Expires.IsNull() {
+		t.Fatal("first result Expires should be null")
+	}
+	if f := resp.Results[1].Failed; f == nil {
+		t.Fatal("second result is not failed")
+	} else if f.Kind != SearchSessionRefreshResultKindFailed {
+		t.Fatalf("second result Kind = %q", f.Kind)
+	} else if f.Error != "session not found" {
+		t.Fatalf("second result Error = %q", f.Error)
+	}
+}
+
+func TestSearchSessionRefreshResultErrors(t *testing.T) {
+	if _, err := v2.Marshal(SearchSessionRefreshResult{}, jsoncompat.Opts); !errors.Is(err, ErrSearchSessionRefreshResultInvalid) {
+		t.Fatalf("empty result error = %v, want ErrSearchSessionRefreshResultInvalid", err)
+	}
+	both := SearchSessionRefreshResult{
+		Refreshed: &SearchSessionRefreshed{},
+		Failed:    &SearchSessionRefreshFailed{},
+	}
+	if _, err := v2.Marshal(both, jsoncompat.Opts); !errors.Is(err, ErrSearchSessionRefreshResultAmbiguous) {
+		t.Fatalf("both-variants error = %v, want ErrSearchSessionRefreshResultAmbiguous", err)
+	}
+}
+
+// TestSearchLaunchInfoExpiresJSON checks the wire form of Expires: a set
+// expiry is a timestamp, no expiry is null, and both decode back.
+func TestSearchLaunchInfoExpiresJSON(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	b, err := v2.Marshal(SearchLaunchInfo{Expires: NewNullable(expires)}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("a set expiry must encode as a timestamp, got %s", b)
+	}
+	var li SearchLaunchInfo
+	if err = v2.Unmarshal(b, &li, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Fatalf("expires = %v, want %v", li.Expires, expires)
+	}
+
+	if b, err = v2.Marshal(SearchLaunchInfo{}, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("no expiry must encode as null, got %s", b)
+	}
+	li = SearchLaunchInfo{Expires: NewNullable(expires)}
+	if err = v2.Unmarshal(b, &li, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !li.Expires.IsNull() {
+		t.Fatalf("expires = %v, want null", li.Expires)
+	}
+}
+
+// TestSaveSearchPatchMergeLaunchInfoExpires checks how a save patch changes
+// the expiry. A missing Expires leaves it unchanged, a value sets it, null
+// clears it, and the same instant in another time zone is not a change.
+func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+
+	li := SearchLaunchInfo{Expires: NewNullable(expires)}
+	if changed := (SaveSearchPatch{}).MergeLaunchInfo(&li); changed {
+		t.Error("a patch with no expiry must not report a change")
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Errorf("expires = %v after a patch with no expiry, want it unchanged at %v", li.Expires, expires)
+	}
+
+	later := expires.Add(time.Hour)
+	var patch SaveSearchPatch
+	patch.Expires = NewNullablePatchIn(later)
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with a new expiry must report a change")
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(later) {
+		t.Errorf("expires = %v, want %v", li.Expires, later)
+	}
+
+	patch.Expires = NewNullablePatchIn(later.In(time.FixedZone("offset", 3600)))
+	if changed := patch.MergeLaunchInfo(&li); changed {
+		t.Error("the same instant in another time zone must not report a change")
+	}
+
+	patch.Expires.Null()
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with a null expiry must report a change")
+	}
+	if !li.Expires.IsNull() {
+		t.Errorf("expires = %v after a null patch, want null", li.Expires)
+	}
+}
+
+// TestSaveSearchPatchExpiresJSON checks the wire form of a save patch's
+// Expires: left out when not set, null when cleared, a timestamp when set.
+func TestSaveSearchPatchExpiresJSON(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	var patch SaveSearchPatch
+
+	b, err := v2.Marshal(patch, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), `"Expires"`) {
+		t.Fatalf("an unset expiry must be left out, got %s", b)
+	}
+
+	patch.Expires.Null()
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("a cleared expiry must encode as null, got %s", b)
+	}
+
+	patch.Expires.Set(expires)
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("a set expiry must encode as a timestamp, got %s", b)
+	}
+
+	var got SaveSearchPatch
+	if err = v2.Unmarshal(b, &got, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Expires.IsOmitted() || got.Expires.IsNull() || !got.Expires.Value().Equal(expires) {
+		t.Fatalf("decoded expires = %v, want %v", got.Expires, expires)
+	}
+}
+
+// TestSaveSearchPatchOmitsUnsetFields checks that a save patch sends only the
+// fields that are set. The API reads a missing field as "leave it unchanged".
+func TestSaveSearchPatchOmitsUnsetFields(t *testing.T) {
+	b, err := v2.Marshal(SaveSearchPatch{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(b) != `{}` {
+		t.Fatalf("an empty patch must encode as {}, got %s", b)
+	}
+
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	patch := SaveSearchPatch{
+		Method:    NewOptional(LaunchMethodScript),
+		Reference: NewOptional("ref"),
+		Started:   NewOptional(started),
+	}
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"Method":"script","Reference":"ref","Started":"2026-11-06T12:00:00Z"}`
+	if string(b) != want {
+		t.Fatalf("patch = %s, want %s", b, want)
+	}
+}
+
+// TestSaveSearchPatchMergeLaunchInfoFields checks how a save patch changes
+// Method, Reference, and Started. A missing or empty Method or Reference
+// leaves the stored one, a value replaces it, and Started is taken only when
+// the search has no start time.
+func TestSaveSearchPatchMergeLaunchInfoFields(t *testing.T) {
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	li := SearchLaunchInfo{Method: LaunchMethodManual, Reference: "old"}
+
+	patch := SaveSearchPatch{Method: NewOptional(""), Started: NewOptional(started)}
+	if changed := patch.MergeLaunchInfo(&li); changed {
+		t.Error("an empty Method and a missing Reference must not report a change")
+	}
+	if li.Method != LaunchMethodManual || li.Reference != "old" {
+		t.Errorf("method = %q, reference = %q, want them unchanged", li.Method, li.Reference)
+	}
+	if !li.Started.Equal(started) {
+		t.Errorf("started = %v, want %v for a search with no start time", li.Started, started)
+	}
+
+	patch = SaveSearchPatch{
+		Method:    NewOptional(LaunchMethodScript),
+		Reference: NewOptional("new"),
+		Started:   NewOptional(started.Add(time.Hour)),
+	}
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a new Method and Reference must report a change")
+	}
+	if li.Method != LaunchMethodScript || li.Reference != "new" {
+		t.Errorf("method = %q, reference = %q, want script and new", li.Method, li.Reference)
+	}
+	if !li.Started.Equal(started) {
+		t.Errorf("started = %v, want it kept at %v", li.Started, started)
+	}
+}
+
+// TestSearchLaunchInfoSendsEveryField checks that an empty launch info still
+// carries Method and Reference, which the API requires in every response.
+func TestSearchLaunchInfoSendsEveryField(t *testing.T) {
+	b, err := v2.Marshal(SearchLaunchInfo{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, want := range []string{`"Method":""`, `"Reference":""`, `"Started":`, `"Expires":null`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("launch info must carry %s, got %s", want, b)
+		}
+	}
+}
+
+// TestSearchLaunchInfoHasNoExpiration checks that a null expiration and a zero
+// time both report no expiration, and that a set time does not.
+func TestSearchLaunchInfoHasNoExpiration(t *testing.T) {
+	var li SearchLaunchInfo
+	if !li.HasNoExpiration() {
+		t.Error("a null expiration must report no expiration")
+	}
+	li.Expires = NewNullable(time.Time{})
+	if !li.HasNoExpiration() {
+		t.Error("a zero time must report no expiration")
+	}
+	li.Expires = NewNullable(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC))
+	if li.HasNoExpiration() {
+		t.Error("a set expiration must not report no expiration")
+	}
+}
+
+// TestSaveSearchPatchMergeMetadata checks how a save patch changes the stored
+// name and notes: an unset field is left alone, a set one replaces the stored
+// value, an empty string removes it, and other metadata keys are kept.
+func TestSaveSearchPatchMergeMetadata(t *testing.T) {
+	curr := jsontext.Value(`{"Name":"old name","Notes":"old notes","Other":1}`)
+
+	if got := (SaveSearchPatch{}).MergeMetadata(curr); string(got) != string(curr) {
+		t.Errorf("an empty patch changed the metadata to %s", got)
+	}
+
+	got := SaveSearchPatch{Name: NewOptional("new name")}.MergeMetadata(curr)
+	if want := `{"Name":"new name","Notes":"old notes","Other":1}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	got = SaveSearchPatch{Name: NewOptional(""), Notes: NewOptional("new notes")}.MergeMetadata(curr)
+	if want := `{"Notes":"new notes","Other":1}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	got = SaveSearchPatch{Name: NewOptional(""), Notes: NewOptional("")}.MergeMetadata(jsontext.Value(`{"Name":"old name"}`))
+	if got != nil {
+		t.Errorf("metadata = %s, want none", got)
+	}
+
+	got = SaveSearchPatch{Notes: NewOptional("first notes")}.MergeMetadata(nil)
+	if want := `{"Notes":"first notes"}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	// stored metadata that is a JSON null is replaced, like any other non-object
+	got = SaveSearchPatch{Name: NewOptional("name")}.MergeMetadata(jsontext.Value(`null`))
+	if want := `{"Name":"name"}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+}
+
+// TestSearchLaunchInputJSON checks the wire form of the launch information in
+// a launch request. Only the fields that are set are sent, and a null is
+// rejected, because the API does not allow one there.
+func TestSearchLaunchInputJSON(t *testing.T) {
+	b, err := v2.Marshal(SearchLaunchInput{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(b) != `{}` {
+		t.Fatalf("an empty launch input must encode as {}, got %s", b)
+	}
+
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	in := SearchLaunchInput{
+		Method:  NewOptional(LaunchMethodFlow),
+		Expires: NewOptional(expires),
+	}
+	if b, err = v2.Marshal(in, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"Method":"flow","Expires":"2026-11-06T12:00:00Z"}`
+	if string(b) != want {
+		t.Fatalf("launch input = %s, want %s", b, want)
+	}
+
+	var got SearchLaunchInput
+	if err = v2.Unmarshal([]byte(`{"Expires":null}`), &got, jsoncompat.Opts); err == nil {
+		t.Fatal("a null Expires must be rejected")
+	}
+}
+
+// TestSearchLaunchInputLaunchInfo checks the conversion to a SearchLaunchInfo.
+// A field that was left out stays at its zero value, an Expires that was left
+// out is null, and a set field is copied.
+func TestSearchLaunchInputLaunchInfo(t *testing.T) {
+	li := SearchLaunchInput{}.LaunchInfo()
+	if li.Method != `` || li.Reference != `` || !li.Started.IsZero() || !li.Expires.IsNull() {
+		t.Errorf("empty launch input gave %+v, want zero values and a null Expires", li)
+	}
+
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	expires := started.Add(time.Hour)
+	li = SearchLaunchInput{
+		Method:    NewOptional(LaunchMethodScript),
+		Reference: NewOptional("ref"),
+		Started:   NewOptional(started),
+		Expires:   NewOptional(expires),
+	}.LaunchInfo()
+	if li.Method != LaunchMethodScript || li.Reference != "ref" || !li.Started.Equal(started) {
+		t.Errorf("launch info = %+v, want the set fields copied", li)
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Errorf("expires = %v, want %v", li.Expires, expires)
+	}
+}
+
+// TestSaveSearchPatchMergeMetadataReplacesNonObjects checks stored metadata
+// that is not a JSON object: null, another JSON type, or not JSON at all. A
+// patch that sets a name or notes replaces it. A patch that sets neither
+// leaves it as it is.
+func TestSaveSearchPatchMergeMetadataReplacesNonObjects(t *testing.T) {
+	for _, curr := range []string{`null`, `[]`, `["a"]`, `"text"`, `42`, `true`, `{`} {
+		got := SaveSearchPatch{Name: NewOptional("name")}.MergeMetadata(jsontext.Value(curr))
+		if want := `{"Name":"name"}`; string(got) != want {
+			t.Errorf("metadata %s with a name = %s, want %s", curr, got, want)
+		}
+		got = SaveSearchPatch{Name: NewOptional("name"), Notes: NewOptional("notes")}.MergeMetadata(jsontext.Value(curr))
+		if want := `{"Name":"name","Notes":"notes"}`; string(got) != want {
+			t.Errorf("metadata %s with a name and notes = %s, want %s", curr, got, want)
+		}
+		// clearing a field that non-object metadata cannot hold leaves nothing
+		if got = (SaveSearchPatch{Notes: NewOptional("")}).MergeMetadata(jsontext.Value(curr)); got != nil {
+			t.Errorf("metadata %s with cleared notes = %s, want none", curr, got)
+		}
+		if got = (SaveSearchPatch{}).MergeMetadata(jsontext.Value(curr)); string(got) != curr {
+			t.Errorf("metadata %s with an empty patch = %s, want it unchanged", curr, got)
+		}
+	}
+}

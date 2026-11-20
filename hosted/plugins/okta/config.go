@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 const (
@@ -41,16 +41,16 @@ var (
 
 type Config struct {
 	hosted.BaseConfig
-	Request_Batch_Size int // how many entries do we request per HTTP request
-	Request_Per_Minute int // what is our basic request rate
-	Request_Burst      int // leaky bucket burstability
-	Domain             string
-	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
+	Request_Batch_Size int    // how many entries do we request per HTTP request
+	Request_Per_Minute int    // what is our basic request rate
+	Request_Burst      int    // leaky bucket burstability
+	Domain             string `dynamic:"required"`
+	Token              string `json:"-" dynamic:"secret,requiredif=Client-ID:"` // authentication token - DO NOT send this when marshalling
 
 	// OAuth 2.0 service app authentication, mutually exclusive with Token
 	Client_ID        string
-	Private_Key      string `json:"-"` // Okta JWK JSON or RSA PEM - DO NOT send this when marshalling
-	Private_Key_File string `json:"-"` // a file holding the key, mutually exclusive with Private_Key - DO NOT send this when marshalling
+	Private_Key      string `json:"-" dynamic:"secret"` // Okta JWK JSON or RSA PEM - DO NOT send this when marshalling
+	Private_Key_File string `json:"-"`                  // a file holding the key, mutually exclusive with Private_Key - DO NOT send this when marshalling
 	Private_Key_ID   string // optional, overrides the JWK kid
 
 	parsed *parsedKey // the key Verify loaded from Private_Key or Private_Key_File, read and parsed once
