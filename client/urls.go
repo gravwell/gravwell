@@ -145,6 +145,7 @@ const (
 	KITS_ID_URL                           = `/api/kits/%s`
 	KIT_BUILDS_URL                        = `/api/kit-builds`
 	KIT_BUILDS_ID_URL                     = `/api/kit-builds/%s`
+	KIT_INSTALLS_URL                      = `/api/kit-installs`
 	LIST_KIT_INSTALLS_URL                 = `/api/list/kit-installs`
 	KIT_INSTALLS_ID_URL                   = `/api/kit-installs/%v`
 	LIST_REMOTE_KITS_URL                  = `/api/list/remote-kits`
@@ -513,6 +514,10 @@ func kitBuildsUrl() string {
 
 func kitBuildsIdUrl(id string) string {
 	return fmt.Sprintf(KIT_BUILDS_ID_URL, id)
+}
+
+func kitInstallsUrl() string {
+	return KIT_INSTALLS_URL
 }
 
 func listKitInstallsUrl() string {
