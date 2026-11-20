@@ -66,7 +66,7 @@ func TestGlobalExtractor(t *testing.T) {
 	for i := range tests {
 		go func(errp *error, w *sync.WaitGroup, format string) {
 			w.Done()
-			for j := 0; j < BENCH_LOOP_COUNT; j++ {
+			for j := range BENCH_LOOP_COUNT {
 				val := time.Now().Add(time.Duration(j) * -1).Format(format)
 				if _, ok, err := Extract([]byte(val)); err != nil {
 					*errp = err
@@ -101,7 +101,7 @@ func TestGlobalMatcher(t *testing.T) {
 	for i := range tests {
 		go func(errp *error, w *sync.WaitGroup, format string) {
 			w.Done()
-			for j := 0; j < BENCH_LOOP_COUNT; j++ {
+			for j := range BENCH_LOOP_COUNT {
 				val := time.Now().Add(time.Duration(j)*time.Second).Format(format) + "somedata"
 				if _, _, ok := Match([]byte(val)); !ok {
 					t.Errorf("did not match %s", val)
@@ -1020,7 +1020,7 @@ func runFullSecTestsCurr(format string) error {
 func runFullSecTestsCustomCurr(tg *TimeGrinder, format string) error {
 	b := time.Now().UTC()
 	b = b.Truncate(24 * time.Hour)
-	for i := 0; i < TEST_COUNT; i++ {
+	for i := range TEST_COUNT {
 		diff := time.Duration(rand.Int63()%120)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
 		t := b.Add(diff)
 		ts := genTimeLine(t, format)
@@ -1049,7 +1049,7 @@ func runFullSecTests(format string) error {
 }
 
 func runFullSecTestsCustom(tg *TimeGrinder, format string) error {
-	for i := 0; i < TEST_COUNT; i++ {
+	for range TEST_COUNT {
 		diff := time.Duration(rand.Int63()%100000)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
 		t := baseTime.Add(diff)
 		ts := genTimeLine(t.UTC(), format)
@@ -1071,7 +1071,7 @@ func runFullSecTestsCustom(tg *TimeGrinder, format string) error {
 }
 
 func runFullSecTestsSingle(p Processor, format string) error {
-	for i := 0; i < TEST_COUNT; i++ {
+	for range TEST_COUNT {
 		diff := time.Duration(rand.Int63()%100000)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
 		t := baseTime.Add(diff)
 		ts := genTimeLine(t.UTC(), format)
@@ -1093,7 +1093,7 @@ func runFullSecTestsSingle(p Processor, format string) error {
 
 func runFullSecTestsSingleCurr(p Processor, format string) error {
 	b := time.Now().UTC().Truncate(24 * time.Hour)
-	for i := 0; i < TEST_COUNT; i++ {
+	for range TEST_COUNT {
 		diff := time.Duration(rand.Int63()%60)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
 		t := b.Add(diff)
 		ts := genTimeLine(t.UTC(), format)
@@ -1117,7 +1117,7 @@ func runFullNoSecTests(format string) error {
 	if err != nil {
 		return err
 	}
-	for i := 0; i < TEST_COUNT; i++ {
+	for range TEST_COUNT {
 		s := baseTime.Unix() + (rand.Int63() % 100000)
 		s = s - (s % 60)
 		t := time.Unix(s, 0)
