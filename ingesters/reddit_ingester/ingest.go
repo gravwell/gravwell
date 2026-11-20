@@ -66,7 +66,7 @@ func init() {
 		}
 	}
 	if *clearConns != "" {
-		for _, conn := range strings.Split(*clearConns, ",") {
+		for conn := range strings.SplitSeq(*clearConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				connSet = append(connSet, fmt.Sprintf("tcp://%s", conn))
@@ -74,7 +74,7 @@ func init() {
 		}
 	}
 	if *pipeConns != "" {
-		for _, conn := range strings.Split(*pipeConns, ",") {
+		for conn := range strings.SplitSeq(*pipeConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				connSet = append(connSet, fmt.Sprintf("pipe://%s", conn))

@@ -62,7 +62,7 @@ func Parse() (a Args, err error) {
 	}
 	a.Tags = []string{*tagName}
 	if *clearConns != "" {
-		for _, conn := range strings.Split(*clearConns, ",") {
+		for conn := range strings.SplitSeq(*clearConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				conn = fmt.Sprintf("tcp://%s", config.AppendDefaultPort(conn, config.DefaultCleartextPort))
@@ -71,7 +71,7 @@ func Parse() (a Args, err error) {
 		}
 	}
 	if *tlsConns != "" {
-		for _, conn := range strings.Split(*tlsConns, ",") {
+		for conn := range strings.SplitSeq(*tlsConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				conn = fmt.Sprintf("tls://%s", config.AppendDefaultPort(conn, config.DefaultTLSPort))
@@ -80,7 +80,7 @@ func Parse() (a Args, err error) {
 		}
 	}
 	if *pipeConns != "" {
-		for _, conn := range strings.Split(*pipeConns, ",") {
+		for conn := range strings.SplitSeq(*pipeConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				a.Conns = append(a.Conns, fmt.Sprintf("pipe://%s", conn))

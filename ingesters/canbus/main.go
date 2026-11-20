@@ -293,7 +293,7 @@ mainLoop:
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

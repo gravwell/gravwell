@@ -13,6 +13,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -103,12 +104,7 @@ func IsRecoverableStatus(status int, retryCodes []int) bool {
 		// it is server side, so yes
 		return true
 	}
-	for _, v := range retryCodes {
-		if v == status {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(retryCodes, status)
 }
 
 func DrainResponse(resp *http.Response) {
