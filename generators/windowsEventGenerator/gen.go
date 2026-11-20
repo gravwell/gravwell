@@ -26,7 +26,7 @@ const (
 )
 
 func throw(wlog *eventlog.Log, cnt uint64) (err error) {
-	for i := uint64(0); i < cnt; i++ {
+	for range cnt {
 		ts := time.Now()
 		dt := genData(ts)
 		// Randomly write error, info, or warning
@@ -86,10 +86,7 @@ func genBigData(ts time.Time) string {
 	if pad == nil {
 		genPad()
 	}
-	datalen := 2048 + rand.Intn(maxLogSize)
-	if datalen > maxLogSize {
-		datalen = maxLogSize
-	}
+	datalen := min(2048+rand.Intn(maxLogSize), maxLogSize)
 	offset := rand.Intn(len(pad) - datalen)
 	return string(pad[offset : offset+datalen])
 }
