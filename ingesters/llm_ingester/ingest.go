@@ -31,7 +31,7 @@ type emitCtx struct {
 	logToolCalls bool
 	logUsage     bool
 	client       trustedproxy.Client // the resolved client, for log lines
-	clientIP     net.IP              // clientIP(client), the entry SRC
+	clientIP     net.IP              // clientip.IP(client), the entry SRC
 	sessionID    string
 	newSession   bool
 	upstreamCode int

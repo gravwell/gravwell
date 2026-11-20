@@ -24,6 +24,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
 	_ "github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/openai"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
+	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 )
 
 // upstreamCapture records what the mock upstream received.
@@ -61,7 +63,7 @@ func newTestHandler(t *testing.T, upstreamURL string, mutate func(*listener)) (*
 	}
 	c := &capture{}
 	ph, err := newProxyHandler("test", l, proto, entry.EntryTag(0),
-		processors.NewProcessorSet(c), sessions, newTestClients(t, clientResolver{legacy: true}), log.NewDiscardLogger())
+		processors.NewProcessorSet(c), sessions, newTestClients(t, clientip.NewResolver(trustedproxy.List{}, false)), log.NewDiscardLogger())
 	if err != nil {
 		t.Fatalf("newProxyHandler: %v", err)
 	}
@@ -426,7 +428,7 @@ func newAnthropicTestHandler(t *testing.T, upstreamURL string, mutate func(*list
 	}
 	c := &capture{}
 	ph, err := newProxyHandler("test", l, proto, entry.EntryTag(0),
-		processors.NewProcessorSet(c), sessions, newTestClients(t, clientResolver{legacy: true}), log.NewDiscardLogger())
+		processors.NewProcessorSet(c), sessions, newTestClients(t, clientip.NewResolver(trustedproxy.List{}, false)), log.NewDiscardLogger())
 	if err != nil {
 		t.Fatalf("newProxyHandler: %v", err)
 	}

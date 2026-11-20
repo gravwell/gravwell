@@ -22,7 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
 )
 
 const (
@@ -95,7 +95,7 @@ type cfgType struct {
 	Preprocessor     processors.ProcessorConfig
 	TimeFormat       config.CustomTimeFormat
 
-	resolver clientResolver // built from Trusted_Proxy and Ignore_Untrusted_Forwarded_For by Verify
+	resolver clientip.Resolver // built from Trusted_Proxy and Ignore_Untrusted_Forwarded_For by Verify
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -135,20 +135,11 @@ func (c *cfgType) Verify() error {
 		return err
 	}
 
-	if err := config.LoadEnvVarListStrict(&c.Trusted_Proxy, envTrustedProxy); err != nil {
-		return fmt.Errorf("failed to load Trusted-Proxy: %w", err) // err names the variable
-	}
-	if err := config.LoadEnvVar(&c.Ignore_Untrusted_Forwarded_For, envIgnoreUntrustedXFF, false); err != nil {
-		return fmt.Errorf("failed to load %s %w", envIgnoreUntrustedXFF, err)
-	}
-	tp, err := trustedproxy.Parse(c.Trusted_Proxy)
+	cr, err := clientip.LoadResolver(&c.Trusted_Proxy, &c.Ignore_Untrusted_Forwarded_For, envTrustedProxy, envIgnoreUntrustedXFF)
 	if err != nil {
-		return fmt.Errorf("Trusted-Proxy is invalid: %w", err)
+		return err
 	}
-	c.resolver = clientResolver{
-		trusted: tp,
-		legacy:  tp.Empty() && !c.Ignore_Untrusted_Forwarded_For,
-	}
+	c.resolver = cr
 
 	if c.Max_Connections == 0 {
 		c.Max_Connections = defaultMaxConnections

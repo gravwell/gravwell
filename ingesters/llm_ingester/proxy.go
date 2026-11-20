@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
 	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol/anthropic"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
 	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
 )
 
@@ -129,7 +130,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logToolCalls: h.cfg.Log_Tool_Calls,
 		logUsage:     h.cfg.Log_Usage,
 		client:       client,
-		clientIP:     clientIP(client),
+		clientIP:     clientip.IP(client),
 		lg:           h.lg,
 	}
 
@@ -255,7 +256,7 @@ func (h *proxyHandler) readBody(w http.ResponseWriter, r *http.Request, client t
 // Sessions are partitioned by the client address, the same address as the
 // entry SRC.
 func (h *proxyHandler) resolveSession(r *http.Request, client trustedproxy.Client, hashes []string) (string, bool) {
-	key := clientIP(client).String()
+	key := clientip.IP(client).String()
 	if hdr := h.cfg.Session_ID_Header; hdr != "" {
 		raw := r.Header.Get(hdr)
 		switch id := sanitizeSessionID(raw); {
