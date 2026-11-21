@@ -80,11 +80,9 @@ func listAction() action.Pair {
 			}
 			return wrap, nil
 		}, nil, scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Stats},
-					XPermissions: []types.Capability{types.Stats},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Stats},
+				XPermissions: []types.Capability{types.Stats},
 			},
 			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})

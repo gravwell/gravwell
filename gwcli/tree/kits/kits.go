@@ -76,12 +76,10 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"get"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitRead},
-					XPermissions: []types.Capability{types.KitRead},
-				},
+			Aliases: []string{"get"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitRead},
+				XPermissions: []types.Capability{types.KitRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -125,18 +123,16 @@ func uninstall() action.Pair {
 			}
 			return items, nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "uninstall",
-				Aliases: []string{"delete", "remove"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("force", false, "Delete the kit even if it has modified items.")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitRead, types.KitWrite},
-					XPermissions: []types.Capability{types.KitWrite},
-				},
+			Use:     "uninstall",
+			Aliases: []string{"delete", "remove"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("force", false, "Delete the kit even if it has modified items.")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitRead, types.KitWrite},
+				XPermissions: []types.Capability{types.KitWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
@@ -232,14 +228,12 @@ func upload() action.Pair {
 			return ks.Name + " (ID: " + ks.ID + ")", "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:   "upload",
-				Short: "upload a kit file",
-				Long:  "Upload a kit file and stage it for installation.",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitWrite},
-					XPermissions: []types.Capability{types.KitWrite},
-				},
+			Use:   "upload",
+			Short: "upload a kit file",
+			Long:  "Upload a kit file and stage it for installation.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitWrite},
+				XPermissions: []types.Capability{types.KitWrite},
 			},
 		},
 	)
@@ -281,12 +275,10 @@ func pull() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "pull",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitRead, types.KitWrite},
-					XPermissions: []types.Capability{types.KitWrite},
-				},
+			Use: "pull",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitRead, types.KitWrite},
+				XPermissions: []types.Capability{types.KitWrite},
 			},
 		})
 }
@@ -720,10 +712,8 @@ func build() action.Pair {
 			var iconID string
 			if iconPath := strings.TrimSpace(fields["icon"].Provider.Get()); iconPath != "" {
 				resp, err := connection.Client.CreateFile(types.File{
-					CommonFields: types.CommonFields{
-						Name:        "Kit Icon (" + fields["name"].Provider.Get() + ")",
-						Description: "Icon for locally built kit " + fields["name"].Provider.Get() + " (KitID: " + fields["kit ID"].Provider.Get() + ")",
-					},
+					Name:        "Kit Icon (" + fields["name"].Provider.Get() + ")",
+					Description: "Icon for locally built kit " + fields["name"].Provider.Get() + " (KitID: " + fields["kit ID"].Provider.Get() + ")",
 				})
 				if err != nil {
 					clilog.Writer.Error("failed to create icon as file", log.KVErr(err))
@@ -762,9 +752,7 @@ func build() action.Pair {
 			}
 
 			kbr := types.KitBuildRequest{
-				CommonFields: types.CommonFields{
-					Name: fields["name"].Provider.Get(),
-				},
+				Name:              fields["name"].Provider.Get(),
 				KitID:             fields["kit ID"].Provider.Get(),
 				Readme:            fields["readme"].Provider.Get(),
 				KitVersion:        int(kitVersion),
@@ -848,37 +836,35 @@ func build() action.Pair {
 			return fmt.Sprintf("created new kit %s (ID: %v/KitID: %v/Version: %v)", kbr.Name, resp.ID, kbr.KitID, kbr.KitVersion), "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "build",
-				Example: "build --kit-id=com.me.mykit --name=mykit " +
-					"--dashboards=dashboard-one-two-three-four,dashboard-yi-er-san-si " +
-					"--kit-icon=/home/me/icon.png " +
-					"--download=/home/me/Downloads/",
-				Aliases: []string{"pack", "create", "new"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("no-clobber", false, "Do not truncate files with matching names. Instead, return an error.")
-					fs.String(buildFlagRebuild, "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID. "+
-						"As embedded items cannot be selected individually, providing a new path (interactively or "+
-						"via --embedded-items) will clobber (or append to, if --"+buildFlagAppendEmbedded+" is given) existing embedded items.")
-					fs.Bool(buildFlagAppendEmbedded, false, "Only applies when --"+buildFlagRebuild+" or --"+buildFlagRepack+" are specified. "+
-						"If embedded items are specified, they will be appended to the current set instead of clobbering it.\n"+
-						"Mutually exclusive with "+buildFlagRebuild)
-					fs.String(buildFlagRepack, "", "Instead of composing a kit from scratch, build a kit based off a currently-installed kit by its (unique, not KitID) ID. "+
-						"As embedded items cannot be selected individually, providing a path (interactively or "+
-						"via --embedded-items) will clobber (or append to, if --"+buildFlagAppendEmbedded+" is given) existing embedded items.\n"+
-						"Mutually exclusive with "+buildFlagRebuild)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					// we need list permissions on basically everything when in interactive mode
-					IPermissions: []types.Capability{types.KitBuild,
-						types.DashboardRead, types.TemplateRead, types.ActionableRead,
-						types.ScheduleRead, types.ResourceRead, types.MacroRead,
-						types.ExtractorRead, types.FileRead, types.PlaybookRead,
-						types.LibraryRead, types.AlertRead},
-					XPermissions: []types.Capability{types.KitBuild},
-				},
+			Use: "build",
+			Example: "build --kit-id=com.me.mykit --name=mykit " +
+				"--dashboards=dashboard-one-two-three-four,dashboard-yi-er-san-si " +
+				"--kit-icon=/home/me/icon.png " +
+				"--download=/home/me/Downloads/",
+			Aliases: []string{"pack", "create", "new"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("no-clobber", false, "Do not truncate files with matching names. Instead, return an error.")
+				fs.String(buildFlagRebuild, "", "Instead of composing a kit from scratch, re-execute a prior build request by its Kit ID. "+
+					"As embedded items cannot be selected individually, providing a new path (interactively or "+
+					"via --embedded-items) will clobber (or append to, if --"+buildFlagAppendEmbedded+" is given) existing embedded items.")
+				fs.Bool(buildFlagAppendEmbedded, false, "Only applies when --"+buildFlagRebuild+" or --"+buildFlagRepack+" are specified. "+
+					"If embedded items are specified, they will be appended to the current set instead of clobbering it.\n"+
+					"Mutually exclusive with "+buildFlagRebuild)
+				fs.String(buildFlagRepack, "", "Instead of composing a kit from scratch, build a kit based off a currently-installed kit by its (unique, not KitID) ID. "+
+					"As embedded items cannot be selected individually, providing a path (interactively or "+
+					"via --embedded-items) will clobber (or append to, if --"+buildFlagAppendEmbedded+" is given) existing embedded items.\n"+
+					"Mutually exclusive with "+buildFlagRebuild)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				// we need list permissions on basically everything when in interactive mode
+				IPermissions: []types.Capability{types.KitBuild,
+					types.DashboardRead, types.TemplateRead, types.ActionableRead,
+					types.ScheduleRead, types.ResourceRead, types.MacroRead,
+					types.ExtractorRead, types.FileRead, types.PlaybookRead,
+					types.LibraryRead, types.AlertRead},
+				XPermissions: []types.Capability{types.KitBuild},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// ensure we clobber any prior rebuild/repack request
@@ -1014,10 +1000,8 @@ func collectEmbeddedItems(dirPath string, recur bool) ([]types.KitEmbeddedItem, 
 				return nil, err
 			}
 			items = append(items, types.KitEmbeddedItem{
-				KitItem: types.KitItem{
-					Name: filepath.Base(entry.Name()),
-					Type: types.KitAssetFile,
-				},
+				Name:    filepath.Base(entry.Name()),
+				Type:    types.KitAssetFile,
 				Content: content,
 			})
 		} else if recur {
@@ -1042,13 +1026,11 @@ func buildRequests() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "build-requests",
-				Aliases: []string{"list-build-requests", "list-builds", "build-request"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitBuild},
-					XPermissions: []types.Capability{types.KitBuild},
-				},
+			Use:     "build-requests",
+			Aliases: []string{"list-build-requests", "list-builds", "build-request"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitBuild},
+				XPermissions: []types.Capability{types.KitBuild},
 			},
 			DefaultColumns:    []string{"KitID", "KitVersion", "BuildDate"},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
@@ -1064,13 +1046,11 @@ func remote() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "remotes",
-				Aliases: []string{"list-remotes", "remote", "list-remote"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitRead},
-					XPermissions: []types.Capability{types.KitRead},
-				},
+			Use:     "remotes",
+			Aliases: []string{"list-remotes", "remote", "list-remote"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitRead},
+				XPermissions: []types.Capability{types.KitRead},
 			},
 			DefaultColumns: []string{"ID", "KitID", "Name", "Description", "Version"},
 			QueryOptionsFlags: scaffold.QOOmit{
@@ -1137,18 +1117,16 @@ func download() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "download",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String(ft.DirName, ".", ft.DirUsagePrefix+"place downloaded kits. Creates the directory if necessary.")
-					fs.Bool("no-clobber", false, "do not truncate files with matching names. Instead, return an error.")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.KitRead},
-					XPermissions: []types.Capability{types.KitRead},
-				},
+			Use: "download",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String(ft.DirName, ".", ft.DirUsagePrefix+"place downloaded kits. Creates the directory if necessary.")
+				fs.Bool("no-clobber", false, "do not truncate files with matching names. Instead, return an error.")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.KitRead},
+				XPermissions: []types.Capability{types.KitRead},
 			}})
 }
 

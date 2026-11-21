@@ -108,10 +108,10 @@ func execute(t *testing.T, cmd *cobra.Command, args []string) {
 // cobra command non-interactively against a mock server and asserts the
 // wire request preserves everything except the one field actually targeted.
 func TestSetAccessPreservesUnspecifiedFields(t *testing.T) {
-	existing := types.SearchInfo{}
-	existing.OwnerID = 42
-	existing.Readers = types.ACL{GIDs: []int32{7}, Global: true}
-	existing.Writers = types.ACL{GIDs: []int32{99}, Global: true}
+	existing := types.SearchInfo{
+		OwnerID: 42,
+		Readers: types.ACL{GIDs: []int32{7}, Global: true},
+		Writers: types.ACL{GIDs: []int32{99}, Global: true}}
 
 	got, sawAccessCall := newAccessMockServer(t, existing)
 
@@ -142,10 +142,10 @@ func TestSetAccessPreservesUnspecifiedFields(t *testing.T) {
 // the search's current state) untouched.
 func TestSetAccessFlagsIndependently(t *testing.T) {
 	base := func() types.SearchInfo {
-		si := types.SearchInfo{}
-		si.OwnerID = 10
-		si.Readers = types.ACL{GIDs: []int32{1}, Global: false}
-		si.Writers = types.ACL{GIDs: []int32{2}, Global: false}
+		si := types.SearchInfo{
+			OwnerID: 10,
+			Readers: types.ACL{GIDs: []int32{1}, Global: false},
+			Writers: types.ACL{GIDs: []int32{2}, Global: false}}
 		return si
 	}
 
@@ -207,10 +207,10 @@ func TestSetAccessFlagsIndependently(t *testing.T) {
 // now fail validation before ever touching the network (or, interactively,
 // before ever showing the search picker).
 func TestSetAccessNoFlagsErrors(t *testing.T) {
-	existing := types.SearchInfo{}
-	existing.OwnerID = 7
-	existing.Readers = types.ACL{GIDs: []int32{1, 2}, Global: true}
-	existing.Writers = types.ACL{GIDs: []int32{3}, Global: false}
+	existing := types.SearchInfo{
+		OwnerID: 7,
+		Readers: types.ACL{GIDs: []int32{1, 2}, Global: true},
+		Writers: types.ACL{GIDs: []int32{3}, Global: false}}
 
 	_, sawAccessCall := newAccessMockServer(t, existing)
 
@@ -235,9 +235,9 @@ func TestSetAccessNoFlagsErrors(t *testing.T) {
 // sibling actions (e.g. info()) that panic outside of full CLI bootstrap
 // due to unrelated uninitialized global state (clilog.Writer).
 func TestSetAccessGroupAlias(t *testing.T) {
-	existing := types.SearchInfo{}
-	existing.OwnerID = 1
-	existing.Writers = types.ACL{GIDs: []int32{9}}
+	existing := types.SearchInfo{
+		OwnerID: 1,
+		Writers: types.ACL{GIDs: []int32{9}}}
 
 	got, sawAccessCall := newAccessMockServer(t, existing)
 

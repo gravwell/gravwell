@@ -82,7 +82,7 @@ func initialModifView(height, width uint) modifView {
 		// checks that the string is composed of valid characters for duration parsing
 		// (0-9 and h,m,s,u,n)
 		// ! does not confirm that it is a valid duration!
-		validChars := map[rune]interface{}{
+		validChars := map[rune]any{
 			'h': nil, 'm': nil, 's': nil,
 			'u': nil, 'n': nil, '.': nil,
 		}

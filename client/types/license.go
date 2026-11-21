@@ -300,7 +300,7 @@ func (li LicenseInfo) CBACEnabled() bool {
 	return li.Overrides.Set(CBAC)
 }
 
-func EncodeMetadata(md map[string]interface{}) ([]byte, error) {
+func EncodeMetadata(md map[string]any) ([]byte, error) {
 	bb := bytes.NewBuffer(nil)
 	if err := gob.NewEncoder(bb).Encode(md); err != nil {
 		return nil, err
@@ -308,7 +308,7 @@ func EncodeMetadata(md map[string]interface{}) ([]byte, error) {
 	return bb.Bytes(), nil
 }
 
-func (li LicenseInfo) decodeMetadata(obj interface{}) error {
+func (li LicenseInfo) decodeMetadata(obj any) error {
 	if len(li.Metadata) == 0 {
 		return ErrNoMetadata
 	}
@@ -316,8 +316,8 @@ func (li LicenseInfo) decodeMetadata(obj interface{}) error {
 	return gob.NewDecoder(bb).Decode(obj)
 }
 
-func (li LicenseInfo) Get(key string) (val interface{}, err error) {
-	var md map[string]interface{}
+func (li LicenseInfo) Get(key string) (val any, err error) {
+	var md map[string]any
 	var ok bool
 	if err = li.decodeMetadata(&md); err != nil {
 		return
@@ -510,7 +510,7 @@ func ParseType(c string) (LicenseType, error) {
 func FeatureOverridesString(fo FeatureOverride) (s string) {
 	mask := FeatureOverride(0x1)
 	var t FeatureOverride
-	for i := 0; i < 63; i++ {
+	for range 63 {
 		t = (fo & mask)
 		if t != 0 {
 			if s == `` {

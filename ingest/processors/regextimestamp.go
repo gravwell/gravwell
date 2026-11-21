@@ -120,7 +120,7 @@ type RegexTimestamp struct {
 	bounds   tsBounds
 }
 
-func (rt *RegexTimestamp) Config(v interface{}) (err error) {
+func (rt *RegexTimestamp) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexTimestampConfig); ok {

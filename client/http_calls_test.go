@@ -145,8 +145,8 @@ func TestPatch(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		p := types.FilePatch{}
-		p.Name = types.NewOptional("renamed")
+		p := types.FilePatch{
+			Name: types.NewOptional("renamed")}
 		resp, err := c.patch[types.FilePatch, types.File]("/files/abc", p)
 		if err != nil {
 			t.Fatalf("patch: %v", err)
@@ -169,8 +169,8 @@ func TestPatch(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		p := types.FilePatch{}
-		p.Name = types.NewOptional("renamed")
+		p := types.FilePatch{
+			Name: types.NewOptional("renamed")}
 		if _, err := c.patch[types.FilePatch, types.File]("/files/abc", p); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v, want ErrNotFound", err)
 		}

@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 func TestCreateBlock(t *testing.T) {
 	var sz uint64
 	eb := NewEntryBlock(nil, 0)
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -80,7 +80,7 @@ func TestCreateBlock(t *testing.T) {
 func TestPeelBlock(t *testing.T) {
 	var sz uint64
 	eb := NewEntryBlock(nil, 0)
-	for i := 0; i < 16*1024; i++ {
+	for range 16 * 1024 {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -120,7 +120,7 @@ func TestCreateEBlock(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64
 
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -159,7 +159,7 @@ func TestCreateEBlockWithEvs(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64
 
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntryWithEvs()
 		if err != nil {
 			t.Fatal(err)
@@ -198,7 +198,7 @@ func TestCreateBlockSizeInfer(t *testing.T) {
 	var sz uint64
 	var ents []Entry
 	var entps []*Entry
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -222,7 +222,7 @@ func TestDeepCopyBlock(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64
 
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -255,7 +255,7 @@ func TestNewDeepBlock(t *testing.T) {
 	var set []*Entry
 	var sz uint64
 
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -294,7 +294,7 @@ func TestNewDeepBlockNoSize(t *testing.T) {
 	var set []*Entry
 	var sz uint64
 
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -332,7 +332,7 @@ func TestDeepBroken(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64
 
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -392,7 +392,7 @@ func TestEBlockAppend(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64
 
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -411,7 +411,7 @@ func TestEBlockAppend(t *testing.T) {
 	}
 
 	var eb2 EntryBlock
-	for i := 0; i < testSize; i++ {
+	for range testSize {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
@@ -453,7 +453,7 @@ func TestEBlockAppend(t *testing.T) {
 }
 
 func FuzzEntryBlockNoEvs(f *testing.F) {
-	for x := 0; x < fuzzCorpusSize; x++ {
+	for x := range fuzzCorpusSize {
 		var eb EntryBlock
 		for i := 0; i < (x + 1); i++ {
 			e, err := genRandomEntry()
@@ -479,7 +479,7 @@ func FuzzEntryBlockNoEvs(f *testing.F) {
 }
 
 func FuzzEntryBlockWithEvs(f *testing.F) {
-	for x := 0; x < fuzzCorpusSize; x++ {
+	for x := range fuzzCorpusSize {
 		var eb EntryBlock
 		for i := 0; i < (x + 1); i++ {
 			e, err := genRandomEntryWithEvs()
@@ -554,7 +554,7 @@ func compareEntry(a, b *Entry) error {
 func makeRandBuff(sz int) []byte {
 	b := make([]byte, sz)
 
-	for i := 0; i < (RANDOM_BUFF_SIZE_MB * MB); i++ {
+	for i := range RANDOM_BUFF_SIZE_MB * MB {
 		b[i] = byte(rand.Intn(0xff))
 	}
 	return b

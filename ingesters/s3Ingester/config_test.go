@@ -3,7 +3,6 @@ package main
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,11 +17,9 @@ func TestS3Config_Verify(t *testing.T) {
 		{
 			name: "valid minimal",
 			conf: &cfgType{
-				IngestConfig: config.IngestConfig{
-					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-					Ingest_Secret:            "secret",
-				},
-				State_Store_Location: "/tmp/s3_state",
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
+				State_Store_Location:     "/tmp/s3_state",
 				Bucket: map[string]*bucket{
 					"mybucket": {
 						AuthConfig: AuthConfig{
@@ -41,11 +38,9 @@ func TestS3Config_Verify(t *testing.T) {
 		{
 			name: "valid sqs/s3 w/ endpoint",
 			conf: &cfgType{
-				IngestConfig: config.IngestConfig{
-					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-					Ingest_Secret:            "secret",
-				},
-				State_Store_Location: "/tmp/s3_state",
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
+				State_Store_Location:     "/tmp/s3_state",
 				SQS_S3_Listener: map[string]*sqsS3{
 					"sqs1": {
 						Region:           "us-east-1",
@@ -62,10 +57,8 @@ func TestS3Config_Verify(t *testing.T) {
 		{
 			name: "missing state store",
 			conf: &cfgType{
-				IngestConfig: config.IngestConfig{
-					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-					Ingest_Secret:            "secret",
-				},
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
 				Bucket: map[string]*bucket{
 					"mybucket": {AuthConfig: AuthConfig{Region: "us-east-1", Bucket_Name: "mybucket"}},
 				},
@@ -75,11 +68,9 @@ func TestS3Config_Verify(t *testing.T) {
 		{
 			name: "mutual exclusion w/ endpoint and arn",
 			conf: &cfgType{
-				IngestConfig: config.IngestConfig{
-					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-					Ingest_Secret:            "secret",
-				},
-				State_Store_Location: "/tmp/s3_state",
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
+				State_Store_Location:     "/tmp/s3_state",
 				Bucket: map[string]*bucket{
 					"mybucket": {
 						AuthConfig: AuthConfig{

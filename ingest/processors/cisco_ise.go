@@ -165,7 +165,7 @@ func NewCiscoISEProcessor(cfg CiscoISEConfig) (ise *CiscoISE, err error) {
 	return
 }
 
-func (p *CiscoISE) Config(v interface{}) (err error) {
+func (p *CiscoISE) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(CiscoISEConfig); ok {
@@ -284,7 +284,7 @@ func newMultipartAssembler(maxBuff uint64, maxLatency time.Duration) *multipartA
 	}
 }
 
-func (ma *multipartAssembler) add(msg remoteISE, meta interface{}) (msr messageSequenceResult, ejected, bad bool) {
+func (ma *multipartAssembler) add(msg remoteISE, meta any) (msr messageSequenceResult, ejected, bad bool) {
 	src := msg.remoteISEHeaderSource
 	//check if we have an existing message
 	if v, ok := ma.tracker[src]; ok {
@@ -365,7 +365,7 @@ func (ma *multipartAssembler) flush(force bool) (outputs []messageSequenceResult
 
 type messageSequenceResult struct {
 	output string
-	meta   interface{}
+	meta   any
 }
 
 type messageSequence struct {
@@ -375,11 +375,11 @@ type messageSequence struct {
 	curr   uint16
 	bodies []string
 	last   time.Time
-	meta   interface{}
+	meta   any
 }
 
 // newMessageSequence generates a new message sequence from a given remoteISE
-func newMessageSequence(msg remoteISE, meta interface{}) (ms *messageSequence, ok bool) {
+func newMessageSequence(msg remoteISE, meta any) (ms *messageSequence, ok bool) {
 	if msg.total == 0 || msg.seq >= msg.total {
 		return // this is bad mmmkay
 	}

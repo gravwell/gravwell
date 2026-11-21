@@ -24,15 +24,15 @@ var (
 const DefaultLogDepth = 5
 
 // Errorf send an error entry down the line with the gravwell tag
-func (im *IngestMuxer) Errorf(format string, args ...interface{}) error {
+func (im *IngestMuxer) Errorf(format string, args ...any) error {
 	return im.ErrorfWithDepth(DefaultLogDepth, format, args...)
 }
 
-func (im *IngestMuxer) Warnf(format string, args ...interface{}) error {
+func (im *IngestMuxer) Warnf(format string, args ...any) error {
 	return im.WarnfWithDepth(DefaultLogDepth, format, args...)
 }
 
-func (im *IngestMuxer) Infof(format string, args ...interface{}) error {
+func (im *IngestMuxer) Infof(format string, args ...any) error {
 	return im.InfofWithDepth(DefaultLogDepth, format, args...)
 }
 
@@ -49,21 +49,21 @@ func (im *IngestMuxer) Info(msg string, args ...rfc5424.SDParam) error {
 	return im.InfoWithDepth(DefaultLogDepth, msg, args...)
 }
 
-func (im *IngestMuxer) WarnfWithDepth(depth int, format string, args ...interface{}) error {
+func (im *IngestMuxer) WarnfWithDepth(depth int, format string, args ...any) error {
 	if im.lgr != nil {
 		return im.lgr.WarnfWithDepth(depth, format, args...)
 	}
 	return nil
 }
 
-func (im *IngestMuxer) InfofWithDepth(depth int, format string, args ...interface{}) error {
+func (im *IngestMuxer) InfofWithDepth(depth int, format string, args ...any) error {
 	if im.lgr != nil {
 		return im.lgr.InfofWithDepth(depth, format, args...)
 	}
 	return nil
 }
 
-func (im *IngestMuxer) ErrorfWithDepth(depth int, format string, args ...interface{}) error {
+func (im *IngestMuxer) ErrorfWithDepth(depth int, format string, args ...any) error {
 	if im.lgr != nil {
 		return im.lgr.ErrorfWithDepth(depth, format, args...)
 	}

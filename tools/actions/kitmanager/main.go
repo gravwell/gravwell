@@ -94,12 +94,12 @@ func main() {
 	}
 }
 
-func fatalf(format string, v ...interface{}) {
+func fatalf(format string, v ...any) {
 	fmt.Printf(format, v...)
 	os.Exit(1)
 }
 
-func fatal(v ...interface{}) {
+func fatal(v ...any) {
 	fmt.Print(v...)
 	os.Exit(1)
 }

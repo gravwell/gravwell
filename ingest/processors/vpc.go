@@ -86,7 +86,7 @@ type Vpc struct {
 	maxBuff  int
 }
 
-func (p *Vpc) Config(v interface{}) (err error) {
+func (p *Vpc) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(VpcConfig); ok {

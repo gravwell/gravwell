@@ -661,7 +661,7 @@ func readLicense(dir, name string) (x []byte, err error) {
  * Generic
  **************************************************************************/
 
-func genericWrite(dir string, itm types.KitItem, x interface{}) error {
+func genericWrite(dir string, itm types.KitItem, x any) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, string(itm.Type))
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -677,7 +677,7 @@ func genericWrite(dir string, itm types.KitItem, x interface{}) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func genericRead(dir string, itm types.KitItem, obj interface{}) (err error) {
+func genericRead(dir string, itm types.KitItem, obj any) (err error) {
 	p := filepath.Join(dir, string(itm.Type))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", itm.ID))
 	// Read the metadata file

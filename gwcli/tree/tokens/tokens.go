@@ -76,11 +76,9 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TokenRead},
-					XPermissions: []types.Capability{types.TokenRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TokenRead},
+				XPermissions: []types.Capability{types.TokenRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -101,13 +99,11 @@ func get() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "get",
-				Example: "get ID1 ID2",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TokenRead},
-					XPermissions: []types.Capability{types.TokenRead},
-				},
+			Use:     "get",
+			Example: "get ID1 ID2",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TokenRead},
+				XPermissions: []types.Capability{types.TokenRead},
 			},
 			Pretty: func(addtlFlags *pflag.FlagSet, _ []string, _ map[string]string, params scaffoldlist.DataParameters) (string, error) {
 				tokens, err := getTokens(addtlFlags.Args(), params)
@@ -308,10 +304,8 @@ func create() action.Pair {
 	return scaffoldcreate.NewCreateAction("token", fields,
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			tc := types.Token{
-				CommonFields: types.CommonFields{
-					Name:        cfg["name"].Provider.Get(),
-					Description: cfg["desc"].Provider.Get(),
-				},
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
 			}
 
 			if caps := cfg["capabilities"].Provider.Get(); strings.TrimSpace(caps) != "" {
@@ -354,13 +348,11 @@ func create() action.Pair {
 			_, err = outFile.WriteString(tf.Value)
 			return tf.ID, "", err
 		}, scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Long: "Create a new token. " +
-					"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless --path is specified.",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TokenWrite},
-					XPermissions: []types.Capability{types.TokenWrite},
-				},
+			Long: "Create a new token. " +
+				"The token itself will be written to local file '" + stylesheet.Cur.ExampleText.Render(defaultTokenPath) + "' unless --path is specified.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TokenWrite},
+				XPermissions: []types.Capability{types.TokenWrite},
 			},
 		})
 }
@@ -391,11 +383,9 @@ func delete() action.Pair {
 
 			return items, nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
-					XPermissions: []types.Capability{types.TokenWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
+				XPermissions: []types.Capability{types.TokenWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
@@ -471,11 +461,9 @@ func regenerate() action.Pair {
 			},
 		},
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
-					XPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
+				XPermissions: []types.Capability{types.TokenRead, types.TokenWrite},
 			},
 		},
 	)

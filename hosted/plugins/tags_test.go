@@ -67,23 +67,23 @@ func tagCases() []tagCase {
 	return []tagCase{
 		{`Tester`, func(tag string) verifier {
 			return &tester.Config{
-				BaseConfig:      hosted.BaseConfig{Ingester_UUID: uuidStr},
-				SingleTagConfig: hosted.SingleTagConfig{Tag_Name: tag},
+				Ingester_UUID: uuidStr,
+				Tag_Name:      tag,
 			}
 		}},
 		{`Jamf`, func(tag string) verifier {
 			return &jamf.Config{
-				BaseConfig:     hosted.BaseConfig{Ingester_UUID: uuidStr},
-				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: tag},
-				Host:           `https://example.jamfcloud.com`,
-				Client_Id:      `id`,
-				Client_Secret:  `secret`,
+				Ingester_UUID: uuidStr,
+				Tag_Name:      tag,
+				Host:          `https://example.jamfcloud.com`,
+				Client_Id:     `id`,
+				Client_Secret: `secret`,
 			}
 		}},
 		{`SQS`, func(tag string) verifier {
 			return &sqs.Config{
-				BaseConfig:       hosted.BaseConfig{Ingester_UUID: uuidStr},
-				SingleTagConfig:  hosted.SingleTagConfig{Tag_Name: tag},
+				Ingester_UUID:    uuidStr,
+				Tag_Name:         tag,
 				Queue_URL:        `https://sqs.us-east-1.amazonaws.com/1/q`,
 				Region:           `us-east-1`,
 				Credentials_Type: `static`,
@@ -93,16 +93,16 @@ func tagCases() []tagCase {
 		}},
 		{`Mimecast`, func(tag string) verifier {
 			return &mimecast.Config{
-				BaseConfig:     hosted.BaseConfig{Ingester_UUID: uuidStr},
-				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: tag},
-				Client_Id:      `id`,
-				Client_Secret:  `secret`,
-				Api:            []mimecast.Api{mimecast.AuditApi},
+				Ingester_UUID: uuidStr,
+				Tag_Name:      tag,
+				Client_Id:     `id`,
+				Client_Secret: `secret`,
+				Api:           []mimecast.Api{mimecast.AuditApi},
 			}
 		}},
 		{`MSGraph`, func(tag string) verifier {
 			return &msgraph.Config{
-				BaseConfig:    hosted.BaseConfig{Ingester_UUID: uuidStr},
+				Ingester_UUID: uuidStr,
 				Tenant_ID:     `tenant`,
 				Client_ID:     `id`,
 				Client_Secret: `secret`,
@@ -112,7 +112,7 @@ func tagCases() []tagCase {
 		}},
 		{`Wiz`, func(tag string) verifier {
 			return &wiz.Config{
-				BaseConfig:    hosted.BaseConfig{Ingester_UUID: uuidStr},
+				Ingester_UUID: uuidStr,
 				Client_Id:     `id`,
 				Client_Secret: `secret`,
 				Endpoint:      `https://api.us1.app.wiz.io/graphql`,
@@ -157,22 +157,22 @@ func TestPluginsRejectBadTags(t *testing.T) {
 func TestTagPrefixIsCheckedAsAResolvedTag(t *testing.T) {
 	const uuidStr = `4f1c35f6-6af6-4103-8fdc-df2c63026f0d`
 	c := &mimecast.Config{
-		BaseConfig:     hosted.BaseConfig{Ingester_UUID: uuidStr},
-		MultiTagConfig: hosted.MultiTagConfig{Tag_Prefix: `bad prefix`},
-		Client_Id:      `id`,
-		Client_Secret:  `secret`,
-		Api:            []mimecast.Api{mimecast.AuditApi},
+		Ingester_UUID: uuidStr,
+		Tag_Prefix:    `bad prefix`,
+		Client_Id:     `id`,
+		Client_Secret: `secret`,
+		Api:           []mimecast.Api{mimecast.AuditApi},
 	}
 	if err := c.Verify(); err == nil {
 		t.Error(`a Tag-Prefix that resolves to an illegal tag was accepted`)
 	}
 	// and a good prefix still resolves to something legal
 	c = &mimecast.Config{
-		BaseConfig:     hosted.BaseConfig{Ingester_UUID: uuidStr},
-		MultiTagConfig: hosted.MultiTagConfig{Tag_Prefix: `mc`},
-		Client_Id:      `id`,
-		Client_Secret:  `secret`,
-		Api:            []mimecast.Api{mimecast.AuditApi},
+		Ingester_UUID: uuidStr,
+		Tag_Prefix:    `mc`,
+		Client_Id:     `id`,
+		Client_Secret: `secret`,
+		Api:           []mimecast.Api{mimecast.AuditApi},
 	}
 	if err := c.Verify(); err != nil {
 		t.Errorf("a valid Tag-Prefix was rejected: %v", err)
@@ -210,8 +210,8 @@ func hasTagField(rt reflect.Type, depth int) bool {
 	if depth > 4 || rt == nil || rt.Kind() != reflect.Struct {
 		return false
 	}
-	for i := range rt.NumField() {
-		f := rt.Field(i)
+	for f := range rt.Fields() {
+		f := f
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
 			if hasTagField(f.Type, depth+1) {
 				return true

@@ -174,14 +174,14 @@ func newUnstartedMuxer(t *testing.T) *ingest.IngestMuxer {
 func newTestConsumer(t *testing.T, mod func(*consumerCfg)) (*kafkaConsumer, *fakeWriter) {
 	t.Helper()
 	cfg := consumerCfg{
-		TaggerConfig: tags.TaggerConfig{Tags: []string{`default`, `allowed*`}},
-		defTag:       `default`,
-		leader:       []string{`127.0.0.1:9092`},
-		topic:        testTopic,
-		group:        defaultConsumerGroup,
-		batchSize:    defaultBatchSize,
-		srcKey:       defaultSRCHeader,
-		tagKey:       defaultTagHeader,
+		Tags:      []string{`default`, `allowed*`},
+		defTag:    `default`,
+		leader:    []string{`127.0.0.1:9092`},
+		topic:     testTopic,
+		group:     defaultConsumerGroup,
+		batchSize: defaultBatchSize,
+		srcKey:    defaultSRCHeader,
+		tagKey:    defaultTagHeader,
 	}
 	if mod != nil {
 		mod(&cfg)

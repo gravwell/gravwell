@@ -442,7 +442,7 @@ type PackedAlert struct {
 	SaveSearchEnabled  bool
 	Schemas            types.AlertSchemas
 	TargetTag          string
-	UserMetadata       map[string]interface{}
+	UserMetadata       map[string]any
 }
 
 // PackAlert converts an Alert into a PackedAlert for inclusion in a kit.

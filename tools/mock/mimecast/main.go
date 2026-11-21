@@ -416,7 +416,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		jitter := time.Duration(float64(duration) * (float64(i) / float64(eventsPerPage)))
 		eventTime := start.Add(jitter)
 
-		event := map[string]interface{}{
+		event := map[string]any{
 			"eventTime": eventTime.Format(mimecast.AuditTimeFormat),
 			"message":   messages[i%len(messages)],
 			"user":      users[i%len(users)],
@@ -573,7 +573,7 @@ func validateSiem(w http.ResponseWriter, r *http.Request, format string) (start 
 
 func genSiemEvents(amount int, start, end time.Time) ([]json.RawMessage, error) {
 	// Generate multiple MTA events with jittered timestamps within the time range
-	events := make([]map[string]interface{}, 0, amount)
+	events := make([]map[string]any, 0, amount)
 	duration := end.Sub(start)
 
 	messages := []string{
@@ -587,7 +587,7 @@ func genSiemEvents(amount int, start, end time.Time) ([]json.RawMessage, error) 
 	tos := []string{"recipient@example.com", "user@example.com", "admin@example.com", "team@example.com", "support@example.com"}
 	subjects := []string{"Important Update", "Monthly Report", "Action Required", "System Notification", "Security Alert"}
 
-	for i := 0; i < amount; i++ {
+	for i := range amount {
 		// Add jitter within the time range, distributing events from start to end
 		// Use (i+1)/(amount+1) to avoid bunching at the boundaries
 		jitterFactor := float64(i+1) / float64(amount+1)
@@ -597,7 +597,7 @@ func genSiemEvents(amount int, start, end time.Time) ([]json.RawMessage, error) 
 		fmt.Printf("Generated SIEM event %d: start=%s end=%s duration=%s jitterFactor=%f eventTime=%s\n",
 			i, start.Format(time.RFC3339), end.Format(time.RFC3339), duration, jitterFactor, eventTime.Format(time.RFC3339))
 
-		event := map[string]interface{}{
+		event := map[string]any{
 			"timestamp": eventTime.UnixMilli(),
 			"message":   messages[i%len(messages)],
 			"from":      froms[i%len(froms)],

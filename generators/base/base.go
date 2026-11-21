@@ -168,7 +168,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 	var connSet []string
 
 	if *clearConns != "" {
-		for _, conn := range strings.Split(*clearConns, ",") {
+		for conn := range strings.SplitSeq(*clearConns, ",") {
 			conn = config.AppendDefaultPort(strings.TrimSpace(conn), config.DefaultCleartextPort)
 			if len(conn) > 0 {
 				connSet = append(connSet, fmt.Sprintf("tcp://%s", conn))
@@ -176,7 +176,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		}
 	}
 	if *tlsConns != "" {
-		for _, conn := range strings.Split(*tlsConns, ",") {
+		for conn := range strings.SplitSeq(*tlsConns, ",") {
 			conn = config.AppendDefaultPort(strings.TrimSpace(conn), config.DefaultTLSPort)
 			if len(conn) > 0 {
 				connSet = append(connSet, fmt.Sprintf("tls://%s", conn))
@@ -184,7 +184,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		}
 	}
 	if *pipeConns != "" {
-		for _, conn := range strings.Split(*pipeConns, ",") {
+		for conn := range strings.SplitSeq(*pipeConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				connSet = append(connSet, fmt.Sprintf("pipe://%s", conn))
@@ -260,20 +260,18 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 	}
 
 	umc := ingest.UniformMuxerConfig{
-		Destinations:  gc.ConnSet,
-		VerifyCert:    !gc.InsecureNoTLSValidate,
-		Tags:          []string{gc.Tag},
-		Auth:          gc.Auth,
-		Tenant:        gc.Tenant,
-		IngesterName:  name,
-		IngesterUUID:  guid,
-		IngesterLabel: `generator`,
-		Logger:        lgr,
-		LogLevel:      gc.LogLevel.String(),
-		IngestStreamConfig: config.IngestStreamConfig{
-			Enable_Compression: gc.Compression,
-		},
-		MaxEntrySize: gc.MaxEntrySize,
+		Destinations:       gc.ConnSet,
+		VerifyCert:         !gc.InsecureNoTLSValidate,
+		Tags:               []string{gc.Tag},
+		Auth:               gc.Auth,
+		Tenant:             gc.Tenant,
+		IngesterName:       name,
+		IngesterUUID:       guid,
+		IngesterLabel:      `generator`,
+		Logger:             lgr,
+		LogLevel:           gc.LogLevel.String(),
+		Enable_Compression: gc.Compression,
+		MaxEntrySize:       gc.MaxEntrySize,
 	}
 	var igst *ingest.IngestMuxer
 	if igst, err = ingest.NewUniformMuxer(umc); err != nil {
@@ -313,8 +311,8 @@ func getDuration(v string) (d time.Duration, err error) {
 		dursuffix{suffix: `w`, mult: 24 * 7 * time.Hour},
 	}
 	for _, ds := range dss {
-		if strings.HasSuffix(v, ds.suffix) {
-			v = strings.TrimSuffix(v, ds.suffix)
+		if before, ok := strings.CutSuffix(v, ds.suffix); ok {
+			v = before
 			var x int64
 			if x, err = strconv.ParseInt(v, 10, 64); err != nil {
 				return
@@ -435,7 +433,7 @@ loop:
 	for !*stop {
 		ts := time.Now()
 		start := ts
-		for i := uint64(0); i < cnt; i++ {
+		for range cnt {
 			ts := tsg.Get()
 			ent = &entry.Entry{
 				TS:  entry.FromStandard(ts),

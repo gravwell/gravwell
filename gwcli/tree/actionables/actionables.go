@@ -72,10 +72,8 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ActionableRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ActionableRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -111,11 +109,9 @@ func get() action.Pair {
 			return []scaffold.Result{{Output: sb.String(), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: "get " + ft.VariadicArgs("actionable ID", true),
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ActionableRead},
-				},
+			Usage: "get " + ft.VariadicArgs("actionable ID", true),
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ActionableRead},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
@@ -140,11 +136,9 @@ func create() action.Pair {
 		func(fields map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// stuff common fields into the actionable
 			spec := types.Actionable{
-				CommonFields: types.CommonFields{
-					Name:        fields["name"].Provider.Get(),
-					Description: fields["description"].Provider.Get(),
-					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
-				},
+				Name:        fields["name"].Provider.Get(),
+				Description: fields["description"].Provider.Get(),
+				Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
 			}
 
 			// attempt to read from the given JSON, if provided
@@ -162,13 +156,11 @@ func create() action.Pair {
 			return new.ID, "", err
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Long: "Create a new actionable empty or from JSON. " +
-					"Call " + stylesheet.Path(true, "~", "actionables", "json") + " to view the required schema or " +
-					"call " + stylesheet.Path(true, "~", "actionables", "get", "<ID>") + " to view an existing actionable as JSON.",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ActionableWrite},
-				},
+			Long: "Create a new actionable empty or from JSON. " +
+				"Call " + stylesheet.Path(true, "~", "actionables", "json") + " to view the required schema or " +
+				"call " + stylesheet.Path(true, "~", "actionables", "get", "<ID>") + " to view an existing actionable as JSON.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ActionableWrite},
 			},
 		})
 }
@@ -352,8 +344,8 @@ func edit() action.Pair {
 		},
 	}
 	return scaffoldedit.NewEditAction("actionable", "actionables", cfg, funcs,
-		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
-			Requirements: annotations.Requirements{IPermissions: []types.Capability{types.ActionableRead}}}})
+		scaffoldedit.Options{
+			Requirements: annotations.Requirements{IPermissions: []types.Capability{types.ActionableRead}}})
 }
 
 func delete() action.Pair {
@@ -374,10 +366,8 @@ func delete() action.Pair {
 			return listitem.WrapAssets(lr), nil
 		},
 		scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ActionableRead, types.ActionableWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})

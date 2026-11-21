@@ -55,7 +55,7 @@ func TestRandomWeightedV4Generator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		_ = gen.IP()
 	}
 }
@@ -66,7 +66,7 @@ func TestRandomWeightedV6Generator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		gen.IP()
 	}
 }

@@ -131,7 +131,7 @@ func NewRegexExtractor(cfg RegexExtractConfig) (*RegexExtractor, error) {
 	}, nil
 }
 
-func (re *RegexExtractor) Config(v interface{}) (err error) {
+func (re *RegexExtractor) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexExtractConfig); ok {

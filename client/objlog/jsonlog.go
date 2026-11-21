@@ -38,7 +38,7 @@ func NewJSONLogger(path string) (ObjLog, error) {
 
 // Log records a request path, method, and the objects sent and received.
 // The output JSON will be encoded with tab indentation and a newline betwen objects.
-func (jol *JSONObjLogger) Log(id, method string, obj interface{}) error {
+func (jol *JSONObjLogger) Log(id, method string, obj any) error {
 	if jol.fout == nil {
 		return errNilFout
 	}

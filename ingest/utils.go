@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -104,12 +105,7 @@ func isBadTagChar(r rune) bool {
 	case '*', '$', '\\', '[', ']': // Characters allowed in the query syntax, but not in negotiation.
 		return true
 	}
-	for _, v := range ConstraintSpecials {
-		if r == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ConstraintSpecials, r)
 }
 
 // CheckTag takes a tag name and returns an error if it contains any

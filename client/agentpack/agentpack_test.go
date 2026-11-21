@@ -38,7 +38,7 @@ func tinyPNG(t *testing.T) []byte {
 // testAgent is a small but complete agent: a router over a single and a loop.
 func testAgent() *types.Agent {
 	return &types.Agent{
-		CommonFields: types.CommonFields{Name: "test-agent", Description: "for tests"},
+		Name: "test-agent", Description: "for tests",
 		StateDiagram: tinySVG,
 		Entrypoint: types.NodeSpec{
 			Type: types.NodeRouter, Name: "root", Prompt: "route it", Inherit: true,

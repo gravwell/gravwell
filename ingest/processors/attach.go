@@ -100,7 +100,7 @@ type AttachProc struct {
 }
 
 // Config updates the configuration for the attach processor
-func (a *AttachProc) Config(v interface{}) (err error) {
+func (a *AttachProc) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(attach.AttachConfig); ok {

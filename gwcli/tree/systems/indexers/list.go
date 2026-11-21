@@ -152,11 +152,9 @@ func list() action.Pair {
 			"Storage.EntryCountCold":   "Cold.Count",
 		},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
-					XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+				XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
 			},
 			QueryOptionsFlags: scaffold.QOOmit{Everything: true},
 		})

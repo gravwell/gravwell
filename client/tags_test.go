@@ -48,10 +48,10 @@ func (s *tagServer) mux(t *testing.T) *http.ServeMux {
 			end = min(end, start+int(opts.Limit))
 		}
 
-		resp := types.TagListResponse{Results: []types.Tag{}}
-		resp.Type = "tag"
-		resp.TotalCount = len(s.tags)
-		resp.Offset = start
+		resp := types.TagListResponse{Results: []types.Tag{},
+			Type:       "tag",
+			TotalCount: len(s.tags),
+			Offset:     start}
 
 		for _, name := range s.tags[start:end] {
 			resp.Results = append(resp.Results, types.Tag{Name: name})
