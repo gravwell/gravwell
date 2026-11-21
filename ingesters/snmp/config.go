@@ -114,29 +114,59 @@ func protoNames[T comparable](mp map[string]T) string {
 // actually speaks SNMPv3; the protocol names are checked either way so that a
 // typo is still caught, but rules about which combinations make sense only
 // apply where they can have an effect.
+//
+// gosnmp's TrapListener.Listen throws away the error from validateParameters,
+// so anything gosnmp would reject never surfaces: the listener binds and then
+// silently drops every trap.  Everything gosnmp requires has to be caught here
+// instead.
 func (a *v3auth) validate(v3 bool) error {
-	if v := normProto(a.Auth_Protocol); v != `` {
-		if _, ok := authProtocols[v]; !ok {
-			return fmt.Errorf("Invalid Auth-Protocol %v. Supported protocols: %s",
+	// Decide whether a protocol is configured from the raw value, not the
+	// normalized one, so that a value that normalizes away to nothing -- all
+	// separators ("-", "_") or all whitespace -- is rejected as a typo rather
+	// than treated as unset and silently downgraded to noAuthNoPriv.
+	authSet := a.Auth_Protocol != ``
+	privSet := a.Privacy_Protocol != ``
+	if authSet {
+		if _, ok := authProtocols[normProto(a.Auth_Protocol)]; !ok {
+			return fmt.Errorf("Invalid Auth-Protocol %q. Supported protocols: %s",
 				a.Auth_Protocol, protoNames(authProtocols))
 		}
 	}
-	if v := normProto(a.Privacy_Protocol); v != `` {
-		if _, ok := privacyProtocols[v]; !ok {
-			return fmt.Errorf("Invalid Privacy-Protocol %v. Supported protocols: %s",
+	if privSet {
+		if _, ok := privacyProtocols[normProto(a.Privacy_Protocol)]; !ok {
+			return fmt.Errorf("Invalid Privacy-Protocol %q. Supported protocols: %s",
 				a.Privacy_Protocol, protoNames(privacyProtocols))
 		}
-		// SNMPv3 has no privacy without authentication, catch it here rather
-		// than silently failing to decrypt every trap that shows up.  gosnmp
-		// treats NoAuth as MD5 when it localizes the privacy key, so this
-		// otherwise comes out as traps that never decrypt.
-		if v3 && normProto(a.Auth_Protocol) == `` {
-			return errors.New("Privacy-Protocol requires an Auth-Protocol")
+	}
+	if !v3 {
+		return nil
+	}
+	// UsmSecurityParameters.validate requires a username at every security
+	// level, including noAuthNoPriv.
+	if strings.TrimSpace(a.Username) == `` {
+		return errors.New("Username is required for SNMP version 3")
+	}
+	if authSet && a.Auth_Passphrase == `` {
+		return fmt.Errorf("Auth-Protocol %s is set but Auth-Passphrase is empty", a.Auth_Protocol)
+	}
+	if privSet {
+		// SNMPv3 has no privacy without authentication.  Earlier releases
+		// ignored Privacy-Protocol in this case and accepted noAuthNoPriv
+		// traps, so spell out what changed and how to fix it.
+		if !authSet {
+			return fmt.Errorf("Privacy-Protocol %s requires an Auth-Protocol and Auth-Passphrase; "+
+				"SNMPv3 has no privacy without authentication. Previous versions of this ingester "+
+				"ignored Privacy-Protocol here and accepted unauthenticated (noAuthNoPriv) traps. "+
+				"Set Auth-Protocol and Auth-Passphrase to match the sending agent, or remove "+
+				"Privacy-Protocol and Privacy-Passphrase to keep accepting noAuthNoPriv traps",
+				a.Privacy_Protocol)
+		}
+		if a.Privacy_Passphrase == `` {
+			return fmt.Errorf("Privacy-Protocol %s is set but Privacy-Passphrase is empty", a.Privacy_Protocol)
 		}
 	}
 	return nil
 }
-
 func (a *v3auth) getAuthProto() gosnmp.SnmpV3AuthProtocol {
 	if p, ok := authProtocols[normProto(a.Auth_Protocol)]; ok {
 		return p
@@ -219,7 +249,7 @@ func (c *cfgType) Verify() error {
 		}
 
 		if err := v.v3auth.validate(v.Version == `3`); err != nil {
-			return fmt.Errorf("Listener %s SNMP v3 security config is invalid: %v", k, err)
+			return fmt.Errorf("Listener %s security config is invalid: %v", k, err)
 		}
 
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {

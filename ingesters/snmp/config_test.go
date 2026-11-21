@@ -141,7 +141,7 @@ func TestAuthProtocols(t *testing.T) {
 		{`SHA512`, gosnmp.SHA512},
 	}
 	for _, test := range tests {
-		v := v3auth{Auth_Protocol: test.name}
+		v := v3auth{Username: `user`, Auth_Protocol: test.name, Auth_Passphrase: `authpass`}
 		if err := v.validate(true); err != nil {
 			t.Fatalf("auth protocol %q rejected: %v", test.name, err)
 		}
@@ -150,7 +150,7 @@ func TestAuthProtocols(t *testing.T) {
 		}
 	}
 	for _, name := range []string{`SHA2`, `AES`, `SHA 256`, `nope`} {
-		v := v3auth{Auth_Protocol: name}
+		v := v3auth{Username: `user`, Auth_Protocol: name, Auth_Passphrase: `authpass`}
 		if err := v.validate(true); err == nil {
 			t.Fatalf("auth protocol %q was accepted", name)
 		}
@@ -180,7 +180,7 @@ func TestPrivacyProtocols(t *testing.T) {
 	}
 	for _, test := range tests {
 		// privacy requires auth, so pair it up
-		v := v3auth{Auth_Protocol: `SHA`, Privacy_Protocol: test.name}
+		v := v3auth{Username: `user`, Auth_Protocol: `SHA`, Auth_Passphrase: `authpass`, Privacy_Protocol: test.name, Privacy_Passphrase: `privpass`}
 		if err := v.validate(true); err != nil {
 			t.Fatalf("privacy protocol %q rejected: %v", test.name, err)
 		}
@@ -189,13 +189,13 @@ func TestPrivacyProtocols(t *testing.T) {
 		}
 	}
 	for _, name := range []string{`AES512`, `MD5`, `AES 256`, `nope`} {
-		v := v3auth{Auth_Protocol: `SHA`, Privacy_Protocol: name}
+		v := v3auth{Username: `user`, Auth_Protocol: `SHA`, Auth_Passphrase: `authpass`, Privacy_Protocol: name, Privacy_Passphrase: `privpass`}
 		if err := v.validate(true); err == nil {
 			t.Fatalf("privacy protocol %q was accepted", name)
 		}
 	}
 	// privacy without auth is not a thing in SNMPv3
-	v := v3auth{Privacy_Protocol: `AES`}
+	v := v3auth{Username: `user`, Privacy_Protocol: `AES`, Privacy_Passphrase: `privpass`}
 	if err := v.validate(true); err == nil {
 		t.Fatal("privacy without auth was accepted")
 	}
@@ -276,5 +276,44 @@ func TestConfigPrivacyProtocol(t *testing.T) {
 	}
 	if got := l.getMsgFlags(); got != gosnmp.AuthPriv {
 		t.Fatalf("msgFlags is %v, want %v", got, gosnmp.AuthPriv)
+	}
+}
+
+// TestV3RequiredFields makes sure v3 settings that gosnmp would reject at
+// trap time, and silently drop every trap for, are caught at config load.
+// gosnmp's TrapListener.Listen discards the error from validateParameters,
+// so none of these produce a startup failure on their own.
+func TestV3RequiredFields(t *testing.T) {
+	good := v3auth{
+		Username:           `user`,
+		Auth_Protocol:      `SHA256`,
+		Auth_Passphrase:    `authpass`,
+		Privacy_Protocol:   `AES`,
+		Privacy_Passphrase: `privpass`,
+	}
+	if err := good.validate(true); err != nil {
+		t.Fatalf("valid v3 config rejected: %v", err)
+	}
+	tests := map[string]func(*v3auth){
+		`missing username`:           func(v *v3auth) { v.Username = `` },
+		`missing auth passphrase`:    func(v *v3auth) { v.Auth_Passphrase = `` },
+		`missing privacy passphrase`: func(v *v3auth) { v.Privacy_Passphrase = `` },
+		`separator only auth`:        func(v *v3auth) { v.Auth_Protocol = `-` },
+		`separator only privacy`:     func(v *v3auth) { v.Privacy_Protocol = `_` },
+		`separator run privacy`:      func(v *v3auth) { v.Privacy_Protocol = `--` },
+		`whitespace only auth`:       func(v *v3auth) { v.Auth_Protocol = ` ` },
+		`whitespace only privacy`:    func(v *v3auth) { v.Privacy_Protocol = ` ` },
+		`whitespace only username`:   func(v *v3auth) { v.Username = ` ` },
+	}
+	for name, mod := range tests {
+		v := good
+		mod(&v)
+		if err := v.validate(true); err == nil {
+			t.Fatalf("%s was accepted", name)
+		}
+	}
+	// a v3 listener with no auth or privacy only needs a username
+	if err := (&v3auth{Username: `user`}).validate(true); err != nil {
+		t.Fatalf("noAuthNoPriv v3 config rejected: %v", err)
 	}
 }
