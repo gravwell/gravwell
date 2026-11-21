@@ -18,7 +18,7 @@ func (c *Client) TokenCapabilities() (cl []string, err error) {
 	return c.get[[]string](infoTokenCapabilitiesUrl())
 }
 
-// CreateToken instantiates a new token. CreateToken and RegenToken are
+// CreateToken instantiates a new token. CreateToken and RegenerateToken are
 // the only cases in which a TokenFull object (containing the Value field)
 // is returned.
 func (c *Client) CreateToken(tc types.Token) (tf types.TokenFull, err error) {
@@ -60,9 +60,9 @@ func (c *Client) UpdateToken(id string, p types.TokenPatch) (updated types.Token
 	return c.patch[types.TokenPatch, types.Token](tokensIdUrl(id), p)
 }
 
-// RegenToken requests that the secret token string be regenerated without modifying the token contents or permissions
-func (c *Client) RegenToken(id string, tr types.TokenRegeneration) (t types.TokenFull, err error) {
-	return c.patch[types.TokenRegeneration, types.TokenFull](tokensIdRegenerateUrl(id), tr)
+// RegenerateToken requests that the secret token string be regenerated without modifying the token contents or permissions
+func (c *Client) RegenerateToken(id string, tr types.TokenRegeneration) (t types.TokenFull, err error) {
+	return c.post[types.TokenRegeneration, types.TokenFull](tokensIdRegenerateUrl(id), &tr)
 }
 
 // DeleteToken deletes a token.
