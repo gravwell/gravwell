@@ -30,6 +30,10 @@ const (
 	defaultRequestPerMinute = 60
 	defaultRequestBurst     = 10
 	defaultRequestTimeout   = 20 * time.Second
+	defaultUserPollInterval = 10 * time.Minute
+	minUserPollInterval     = 5 * time.Minute // every poll lists every user, do not let it run hotter than this
+	defaultUserDumpInterval = 24 * time.Hour
+	minUserDumpInterval     = 10 * time.Minute // and it must also be longer than the poll interval
 )
 
 var (
@@ -46,6 +50,8 @@ type Config struct {
 	Request_Burst      int // leaky bucket burstability
 	Domain             string
 	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
+	User_Poll_Interval string // how often users are listed and the changed ones emitted; parsed by time.ParseDuration, default 10m, min 5m
+	User_Dump_Interval string // how often every user is emitted, changed or not; parsed by time.ParseDuration, default 24h
 
 	// OAuth 2.0 service app authentication, mutually exclusive with Token
 	Client_ID        string
@@ -123,10 +129,28 @@ func (c *Config) Equal(ncp any) bool {
 		c.Request_Burst == nc.Request_Burst &&
 		c.Domain == nc.Domain &&
 		c.Token == nc.Token &&
+		c.User_Poll_Interval == nc.User_Poll_Interval &&
+		c.User_Dump_Interval == nc.User_Dump_Interval &&
 		c.Client_ID == nc.Client_ID &&
 		c.Private_Key_File == nc.Private_Key_File &&
 		c.Private_Key_ID == nc.Private_Key_ID &&
 		c.sameKey(nc)
+}
+
+// userPollInterval is how often users are listed and the changed ones emitted
+func (c *Config) userPollInterval() time.Duration {
+	if d, err := time.ParseDuration(c.User_Poll_Interval); err == nil && d >= minUserPollInterval {
+		return d
+	}
+	return defaultUserPollInterval
+}
+
+// userDumpInterval is how often every user is emitted, changed or not
+func (c *Config) userDumpInterval() time.Duration {
+	if d, err := time.ParseDuration(c.User_Dump_Interval); err == nil && d >= minUserDumpInterval {
+		return d
+	}
+	return defaultUserDumpInterval
 }
 
 // useOAuth reports whether the config authenticates as an OAuth 2.0 service app rather than with an SSWS token
@@ -150,6 +174,28 @@ func (c *Config) Verify() (err error) {
 
 	if c.Request_Burst <= 0 {
 		c.Request_Burst = defaultRequestBurst
+	}
+
+	if c.User_Poll_Interval != `` {
+		d, perr := time.ParseDuration(c.User_Poll_Interval)
+		if perr != nil {
+			return fmt.Errorf("invalid User-Poll-Interval %q: %w", c.User_Poll_Interval, perr)
+		} else if d < minUserPollInterval {
+			return fmt.Errorf("User-Poll-Interval %q is less than the minimum of 5m", c.User_Poll_Interval)
+		}
+	}
+	if c.User_Dump_Interval != `` {
+		d, perr := time.ParseDuration(c.User_Dump_Interval)
+		if perr != nil {
+			return fmt.Errorf("invalid User-Dump-Interval %q: %w", c.User_Dump_Interval, perr)
+		} else if d < minUserDumpInterval {
+			return fmt.Errorf("User-Dump-Interval %q is less than the minimum of 10m", c.User_Dump_Interval)
+		}
+	}
+	// compared as they take effect, so a long poll is checked against the default dump interval too.
+	// Dumps ride on the user polls, a dump no longer than a poll would make every poll a dump.
+	if poll, dump := c.userPollInterval(), c.userDumpInterval(); dump <= poll {
+		return fmt.Errorf("User-Dump-Interval of %v must be longer than the User-Poll-Interval of %v", dump, poll)
 	}
 
 	if err = c.verifyAuth(); err != nil {

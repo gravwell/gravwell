@@ -96,29 +96,26 @@ func parsePrivateKey(raw string) (key *rsa.PrivateKey, kid string, err error) {
 func repairPEM(s string) (string, error) {
 	const markerSuffix = "-----"
 
-	bi := strings.Index(s, beginMarkerPrefix)
-	if bi < 0 {
+	_, afterBegin, ok := strings.Cut(s, beginMarkerPrefix)
+	if !ok {
 		return "", errors.New("no BEGIN marker")
 	}
-	afterBegin := s[bi+len(beginMarkerPrefix):]
 
-	typeEnd := strings.Index(afterBegin, markerSuffix)
-	if typeEnd < 0 {
+	blockType, rest, ok := strings.Cut(afterBegin, markerSuffix)
+	if !ok {
 		return "", errors.New("BEGIN marker is not terminated")
 	}
-	blockType := strings.TrimSpace(afterBegin[:typeEnd])
-	if blockType == "" {
+	if blockType = strings.TrimSpace(blockType); blockType == "" {
 		return "", errors.New("BEGIN marker has no block type")
 	}
 
-	body := afterBegin[typeEnd+len(markerSuffix):]
-	endIdx := strings.Index(body, endMarkerPrefix)
-	if endIdx < 0 {
+	body, _, ok := strings.Cut(rest, endMarkerPrefix)
+	if !ok {
 		return "", errors.New("no END marker")
 	}
 
 	var b64 strings.Builder
-	for _, r := range body[:endIdx] {
+	for _, r := range body {
 		switch r {
 		case ' ', '\t', '\n', '\r':
 		default:
@@ -141,7 +138,7 @@ func repairPEM(s string) (string, error) {
 // pemShape describes key material structure (markers and counts only) for decode errors
 func pemShape(s string) string {
 	indented := false
-	for _, ln := range strings.Split(s, "\n") {
+	for ln := range strings.SplitSeq(s, "\n") {
 		if ln != strings.TrimLeft(ln, " \t") {
 			indented = true
 			break
