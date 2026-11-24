@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -35,8 +36,9 @@ import (
 )
 
 // TestVerifyTrustedProxy checks that Verify builds the resolver from the config
-// and the GRAVWELL_HTTP_ environment variables. clientip.LoadResolver tests the
-// options themselves.
+// and the GRAVWELL_HTTP_TRUSTED_PROXY environment variables. GetConfig loads the
+// ignore variable, see TestGetConfigIgnoreUntrusted. clientip.LoadResolver tests
+// the options themselves.
 func TestVerifyTrustedProxy(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -44,18 +46,15 @@ func TestVerifyTrustedProxy(t *testing.T) {
 		env        string
 		file       string   // contents of the file named by the _FILE variable
 		ignore     bool     // Ignore-Untrusted-Forwarded-For in the config
-		ignoreEnv  string   // GRAVWELL_HTTP_IGNORE_UNTRUSTED_FORWARDED_FOR
 		want       []string // the trusted list
 		wantIgnore bool
 		wantErr    string
 	}{
-		{name: "unset is legacy mode"},
+		{name: "ignore false is legacy mode"},
 		{name: "ignore", ignore: true, wantIgnore: true},
-		{name: "ignore env var", ignoreEnv: "true", wantIgnore: true},
 		{name: "config list", cfg: []string{"10.0.0.1", "192.168.100.0/24"}, want: []string{"10.0.0.1", "192.168.100.0/24"}},
 		{name: "env var list", env: "10.0.0.1, 192.168.100.0/24", want: []string{"10.0.0.1", "192.168.100.0/24"}},
 		{name: "file list", file: "10.0.0.1\n10.0.0.2\n", want: []string{"10.0.0.1", "10.0.0.2"}},
-		{name: "invalid ignore env var", ignoreEnv: "maybe", wantErr: envIgnoreUntrustedXFF},
 		{name: "invalid entry", cfg: []string{"proxy.example.com"}, wantErr: `Trusted-Proxy is invalid: invalid trusted proxy "proxy.example.com"`},
 		{name: "env var of only separators", env: ",", wantErr: "failed to load Trusted-Proxy: " + envTrustedProxy + ": "},
 	}
@@ -68,10 +67,6 @@ func TestVerifyTrustedProxy(t *testing.T) {
 			if tt.file != `` {
 				t.Setenv(envTrustedProxy+`_FILE`, writeTrustedProxyFile(t, tt.file))
 			}
-			if tt.ignoreEnv != `` {
-				t.Setenv(envIgnoreUntrustedXFF, tt.ignoreEnv)
-			}
-
 			cfg := newTestConfig(t, "", map[string]*lst{
 				"l1": {URL: "/test1", Tag_Name: "tag1"},
 			})
@@ -129,7 +124,7 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 	_, err = GetConfig(pth, "")
 	require.ErrorContains(t, err, "blank")
 
-	// no Trusted-Proxy is legacy mode until Ignore-Untrusted-Forwarded-For is set
+	// no Trusted-Proxy uses the peer unless Ignore-Untrusted-Forwarded-For is false
 	noProxies := strings.NewReplacer(
 		"\tTrusted-Proxy=10.0.0.5\n", "",
 		"\tTrusted-Proxy=192.168.100.0/24\n", "",
@@ -139,15 +134,125 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 	cfg, err = GetConfig(pth, "")
 	require.NoError(t, err)
 	require.Empty(t, cfg.Trusted_Proxy)
-	require.True(t, cfg.resolver.Legacy())
+	require.True(t, cfg.Ignore_Untrusted_Forwarded_For)
+	require.False(t, cfg.resolver.Legacy())
 
-	ignore := strings.Replace(noProxies, `Bind=":8080"`, "Bind=\":8080\"\n\tIgnore-Untrusted-Forwarded-For=true", 1)
-	require.NoError(t, os.WriteFile(pth, []byte(ignore), 0o600))
+	legacy := strings.Replace(noProxies, `Bind=":8080"`, "Bind=\":8080\"\n\tIgnore-Untrusted-Forwarded-For=false", 1)
+	require.NoError(t, os.WriteFile(pth, []byte(legacy), 0o600))
 
 	cfg, err = GetConfig(pth, "")
 	require.NoError(t, err)
-	require.True(t, cfg.Ignore_Untrusted_Forwarded_For)
-	require.False(t, cfg.resolver.Legacy())
+	require.False(t, cfg.Ignore_Untrusted_Forwarded_For)
+	require.True(t, cfg.resolver.Legacy())
+}
+
+// ignoreConf is a minimal config for TestGetConfigIgnoreUntrusted, with %s
+// replaced by extra [Global] lines.
+const ignoreConf = `
+[Global]
+	Ingest-Secret = "testing"
+	Cleartext-Backend-Target=127.0.0.1:4023
+	Bind=":8080"
+%s
+[Listener "l1"]
+	URL="/ingest"
+	Tag-Name=tag1
+`
+
+// TestGetConfigIgnoreUntrusted checks the default of
+// Ignore-Untrusted-Forwarded-For and its precedence: the config file and
+// overlays, then GRAVWELL_HTTP_IGNORE_UNTRUSTED_FORWARDED_FOR, then true.
+func TestGetConfigIgnoreUntrusted(t *testing.T) {
+	tests := []struct {
+		name    string
+		file    string  // extra [Global] lines in the config file
+		overlay string  // extra [Global] lines in an overlay, none when empty
+		env     *string // nil leaves the variable unset
+		want    bool
+		wantErr string
+	}{
+		{name: "key absent defaults to true", want: true},
+		{name: "file false", file: "\tIgnore-Untrusted-Forwarded-For=false\n", want: false},
+		{name: "file true", file: "\tIgnore-Untrusted-Forwarded-For=true\n", want: true},
+		{name: "env false with key absent", env: new("false"), want: false},
+		{name: "env true with key absent", env: new("true"), want: true},
+		{name: "file false wins over env true", file: "\tIgnore-Untrusted-Forwarded-For=false\n", env: new("true"), want: false},
+		{name: "file true wins over env false", file: "\tIgnore-Untrusted-Forwarded-For=true\n", env: new("false"), want: true},
+		{name: "overlay false", overlay: "\tIgnore-Untrusted-Forwarded-For=false\n", want: false},
+		{name: "overlay without key keeps file", file: "\tIgnore-Untrusted-Forwarded-For=false\n", overlay: "\tLog-Level=INFO\n", want: false},
+		{name: "overlay without key keeps env", overlay: "\tLog-Level=INFO\n", env: new("false"), want: false},
+		{name: "bad env value", env: new("maybe"), wantErr: envIgnoreUntrustedXFF},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != nil {
+				t.Setenv(envIgnoreUntrustedXFF, *tt.env)
+			}
+			dir := t.TempDir()
+			pth := filepath.Join(dir, "http.conf")
+			require.NoError(t, os.WriteFile(pth, []byte(fmt.Sprintf(ignoreConf, tt.file)), 0o600))
+			var overlays string
+			if tt.overlay != `` {
+				overlays = filepath.Join(dir, "conf.d")
+				require.NoError(t, os.Mkdir(overlays, 0o700))
+				require.NoError(t, os.WriteFile(filepath.Join(overlays, "o.conf"), []byte("[Global]\n"+tt.overlay), 0o600))
+			}
+
+			cfg, err := GetConfig(pth, overlays)
+			if tt.wantErr != `` {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, cfg.Ignore_Untrusted_Forwarded_For)
+			require.Equal(t, !tt.want, cfg.resolver.Legacy(), "no Trusted-Proxy is legacy mode only when the option is false")
+		})
+	}
+}
+
+// TestHotReloadIgnoreUntrusted runs GetConfig and hotReload as a SIGHUP does and
+// checks that each reload applies the default and precedence afresh.
+func TestHotReloadIgnoreUntrusted(t *testing.T) {
+	muxer := newTestMuxer(t)
+	hndlr := newTestHandler(t, muxer)
+
+	pth := filepath.Join(t.TempDir(), "http.conf")
+	load := func(extra string, reload bool) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(pth, []byte(fmt.Sprintf(ignoreConf, extra)), 0o600))
+		cfg, err := GetConfig(pth, "")
+		require.NoError(t, err)
+		if reload {
+			require.NoError(t, hndlr.hotReload(cfg))
+		} else {
+			require.NoError(t, hndlr.loadConfig(cfg))
+		}
+	}
+	resolve := func() string {
+		return clientip.IP(hndlr.client(newXFFRequest("192.0.2.10:5000", "203.0.113.7"))).String()
+	}
+
+	load("", false)
+	require.Equal(t, "192.0.2.10", resolve(), "the default should use the peer")
+
+	load("\tIgnore-Untrusted-Forwarded-For=false\n", true)
+	require.Equal(t, "203.0.113.7", resolve(), "an explicit false should trust the header")
+
+	load("", true)
+	require.Equal(t, "192.0.2.10", resolve(), "removing the key should restore the default")
+
+	t.Setenv(envIgnoreUntrustedXFF, "false")
+	load("", true)
+	require.Equal(t, "203.0.113.7", resolve(), "the env var should apply on reload")
+
+	load("\tIgnore-Untrusted-Forwarded-For=true\n", true)
+	require.Equal(t, "192.0.2.10", resolve(), "the file should win over the env var on reload")
+
+	t.Setenv(envIgnoreUntrustedXFF, "maybe")
+	_, err := GetConfig(pth, "")
+	require.ErrorContains(t, err, envIgnoreUntrustedXFF, "a bad env var should fail the reload")
+	require.Equal(t, "192.0.2.10", resolve(), "a failed reload should keep the previous settings")
 }
 
 func TestHotReloadTrustedProxy(t *testing.T) {

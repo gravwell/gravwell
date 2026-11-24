@@ -31,8 +31,8 @@ const legacyWarnInterval = time.Minute
 // Resolver decides how the client of a request is found.
 //
 // With Trusted-Proxy set, X-Forwarded-For is used only from a listed peer. With
-// no Trusted-Proxy, the legacy behavior trusts the header from any peer unless
-// Ignore-Untrusted-Forwarded-For is set, in which case the client is the peer.
+// no Trusted-Proxy the client is the peer, unless Ignore-Untrusted-Forwarded-For
+// is false, in which case the legacy behavior trusts the header from any peer.
 //
 // A Resolver holds no state beyond its settings, so it can be swapped on a
 // config reload. The zero value trusts no proxies.
@@ -50,23 +50,35 @@ func NewResolver(trusted trustedproxy.List, ignoreUntrusted bool) Resolver {
 	}
 }
 
-// LoadResolver fills the Trusted-Proxy and Ignore-Untrusted-Forwarded-For config
-// values from the environment variables trustedEnv and ignoreEnv where the config
-// leaves them unset, then parses them into a Resolver. Errors name the
-// option or variable at fault.
-func LoadResolver(trusted *[]string, ignoreUntrusted *bool, trustedEnv, ignoreEnv string) (Resolver, error) {
+// LoadIgnoreUntrusted returns the Ignore-Untrusted-Forwarded-For value set by the
+// environment variable envName, or the file named by envName_FILE, and true when
+// neither is set. Ingesters seed their config with it before reading the config
+// file, so a value in the file or an overlay takes precedence.
+func LoadIgnoreUntrusted(envName string) (bool, error) {
+	// start from false: LoadEnvVar leaves a bool that is already true alone,
+	// and fills in the default of true only when the variable is unset
+	var v bool
+	if err := config.LoadEnvVar(&v, envName, true); err != nil {
+		return false, fmt.Errorf("failed to load %s %w", envName, err)
+	}
+
+	return v, nil
+}
+
+// LoadResolver fills the Trusted-Proxy config value from the environment
+// variable trustedEnv where the config leaves it unset, then parses it with the
+// Ignore-Untrusted-Forwarded-For setting into a Resolver. Errors name the option
+// or variable at fault.
+func LoadResolver(trusted *[]string, ignoreUntrusted bool, trustedEnv string) (Resolver, error) {
 	if err := config.LoadEnvVar(trusted, trustedEnv, nil); err != nil {
 		return Resolver{}, fmt.Errorf("failed to load Trusted-Proxy: %w", err) // err names the variable
-	}
-	if err := config.LoadEnvVar(ignoreUntrusted, ignoreEnv, false); err != nil {
-		return Resolver{}, fmt.Errorf("failed to load %s %w", ignoreEnv, err)
 	}
 	tp, err := trustedproxy.Parse(*trusted)
 	if err != nil {
 		return Resolver{}, fmt.Errorf("Trusted-Proxy is invalid: %w", err)
 	}
 
-	return NewResolver(tp, *ignoreUntrusted), nil
+	return NewResolver(tp, ignoreUntrusted), nil
 }
 
 // Legacy reports whether X-Forwarded-For is trusted from any peer.
@@ -126,9 +138,8 @@ func (lw *LegacyWarner) warn(c trustedproxy.Client) {
 		return
 	}
 
-	lw.lg.Warn("using X-Forwarded-For from a peer that is not a trusted proxy, "+
-		"this default changes in the next major release, "+
-		"set Trusted-Proxy or Ignore-Untrusted-Forwarded-For",
+	lw.lg.Warn("trusting X-Forwarded-For from any peer because Ignore-Untrusted-Forwarded-For is false, "+
+		"set Trusted-Proxy instead",
 		KVs("src", c)...)
 }
 
