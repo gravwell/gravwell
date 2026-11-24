@@ -55,7 +55,7 @@ func NewResolver(trusted trustedproxy.List, ignoreUntrusted bool) Resolver {
 // leaves them unset, then parses them into a Resolver. Errors name the
 // option or variable at fault.
 func LoadResolver(trusted *[]string, ignoreUntrusted *bool, trustedEnv, ignoreEnv string) (Resolver, error) {
-	if err := config.LoadEnvVarListStrict(trusted, trustedEnv); err != nil {
+	if err := config.LoadEnvVar(trusted, trustedEnv, nil); err != nil {
 		return Resolver{}, fmt.Errorf("failed to load Trusted-Proxy: %w", err) // err names the variable
 	}
 	if err := config.LoadEnvVar(ignoreUntrusted, ignoreEnv, false); err != nil {
