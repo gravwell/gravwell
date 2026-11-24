@@ -108,7 +108,7 @@ type preprocessorBase struct {
 	Type string
 }
 
-func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error) {
+func ProcessorLoadConfig(vc *config.VariableConfig) (cfg any, err error) {
 	var pb preprocessorBase
 	if err = vc.MapTo(&pb); err != nil {
 		return
@@ -183,7 +183,7 @@ func (pc ProcessorConfig) MarshalJSON() ([]byte, error) {
 	if len(pc) == 0 {
 		return emptyStruct, nil
 	}
-	mp := map[string]interface{}{}
+	mp := map[string]any{}
 	for k, v := range pc {
 		cfg, err := ProcessorLoadConfig(v)
 		if err != nil {

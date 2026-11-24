@@ -124,7 +124,7 @@ func main() {
 
 func popEnts(rdr utils.ReimportReader) (ents []*entry.Entry, err error) {
 	cnt := rand.Intn(15) + 1
-	for i := 0; i < cnt; i++ {
+	for range cnt {
 		var ent *entry.Entry
 		if ent, err = rdr.ReadEntry(); err == nil {
 			ents = append(ents, ent)

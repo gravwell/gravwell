@@ -43,10 +43,7 @@ func (c *chunkReader) Read(p []byte) (int, error) {
 	if len(c.data) == 0 {
 		return 0, io.EOF
 	}
-	n := testChunk
-	if n > len(p) {
-		n = len(p)
-	}
+	n := min(testChunk, len(p))
 	n = copy(p[:n], c.data)
 	c.data = c.data[n:]
 	return n, nil

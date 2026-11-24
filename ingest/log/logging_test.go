@@ -172,7 +172,7 @@ func TestMulti(t *testing.T) {
 		t.Fatal(err)
 	}
 	var toCheck []string
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		fout, err := os.CreateTemp(tempdir, ``)
 		if err != nil {
 			t.Fatal(err)
@@ -214,7 +214,7 @@ func TestAddRemove(t *testing.T) {
 	}
 	var added []io.WriteCloser
 	var toCheck []string
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		fout, err := os.CreateTemp(tempdir, ``)
 		if err != nil {
 			t.Fatal(err)
@@ -347,9 +347,7 @@ func TestUdpLogger(t *testing.T) {
 	}
 
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for i := 0; i < 500; i += 4 {
 			if err = lgr.Criticalf("log line %d - CRITICAL", i); err != nil {
 				t.Error(err)
@@ -369,11 +367,11 @@ func TestUdpLogger(t *testing.T) {
 		if err = lgr.Close(); err != nil {
 			t.Error(err)
 		}
-	}()
+	})
 
 	// read 100 packets, we don't care about the other 9900, UDP should keep trucking
 	buff := make([]byte, 4096)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		n, _, err := conn.ReadFrom(buff)
 		if err != nil {
 			t.Fatal(err)

@@ -54,7 +54,7 @@ type TrapRecord struct {
 // variables.
 type SnmpVariable struct {
 	OID        string
-	Value      interface{}
+	Value      any
 	Type       gosnmp.Asn1BER
 	TypeString string
 }

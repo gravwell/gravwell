@@ -26,13 +26,11 @@ type syslogProcessor struct {
 
 func NewSyslogProcessor() *syslogProcessor {
 	return &syslogProcessor{
-		processor: processor{
-			rxp:    regexp.MustCompile(SyslogRegex),
-			rxstr:  SyslogRegex,
-			format: SyslogFormat,
-			name:   Syslog.String(),
-			min:    len(SyslogFormat),
-		},
+		rxp:    regexp.MustCompile(SyslogRegex),
+		rxstr:  SyslogRegex,
+		format: SyslogFormat,
+		name:   Syslog.String(),
+		min:    len(SyslogFormat),
 	}
 }
 
@@ -392,8 +390,8 @@ func (p *ukProc) Match(d []byte) (start, end int, ok bool) {
 }
 
 func (p *ukProc) parse(value string, loc *time.Location) (time.Time, error) {
-	if i := strings.IndexByte(value, ','); i >= 0 {
-		t, err := time.Parse(p.format, value[:i]+"."+value[i+1:])
+	if before, after, ok := strings.Cut(value, ","); ok {
+		t, err := time.Parse(p.format, before+"."+after)
 		if err == nil {
 			return t, err
 		}

@@ -621,6 +621,6 @@ func GenerateKDTree(khildren uint, depth uint, genRequirements func() annotation
 	return treeutils.GenerateAction(
 		randomdata.SillyName(), "short", "long",
 		func(c *cobra.Command, s []string) error { return nil },
-		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{Requirements: genRequirements()}},
+		treeutils.GenerateActionOptions{Requirements: genRequirements()},
 	)
 }

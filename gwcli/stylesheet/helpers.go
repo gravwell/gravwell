@@ -15,7 +15,7 @@ import (
 )
 
 // ErrPrintf is a tea.Printf wrapper that colors the output as an error.
-func ErrPrintf(format string, a ...interface{}) tea.Cmd {
+func ErrPrintf(format string, a ...any) tea.Cmd {
 	return tea.Printf("%s", Cur.ErrorText.Render(fmt.Sprintf(format, a...)))
 }
 

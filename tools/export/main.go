@@ -99,7 +99,7 @@ func login() (cli *client.Client, err error) {
 		return
 	}
 	loggedIn := false
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if passwd, err = prompt.Password("Password: "); err != nil {
 			fmt.Fprintf(os.Stderr, "Password error: %v\n", err)
 			return

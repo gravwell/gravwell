@@ -182,7 +182,7 @@ func TestRunStreamsPartialStartupFailureClosesPriorProcessors(t *testing.T) {
 	muxer := newTestMuxer(t, "ok")
 
 	sawPriorClosed := false
-	for i := 0; i < 25; i++ {
+	for i := range 25 {
 		proc := &stubProcCloser{}
 		withStubBuildProcessorSet(t, func(pc processors.ProcessorConfig, igst *ingest.IngestMuxer, names []string) (processorCloser, error) {
 			return proc, nil

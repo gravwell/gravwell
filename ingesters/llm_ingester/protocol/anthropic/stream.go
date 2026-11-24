@@ -122,7 +122,7 @@ func (r *sseReassembler) Feed(chunk []byte) error {
 // contain several `field: value\n` lines; we only look at `data:` lines (the
 // `event:` line is redundant with the JSON "type" field).
 func (r *sseReassembler) processEvent(event []byte) error {
-	for _, line := range bytes.Split(event, []byte("\n")) {
+	for line := range bytes.SplitSeq(event, []byte("\n")) {
 		if !bytes.HasPrefix(line, []byte("data:")) {
 			continue
 		}

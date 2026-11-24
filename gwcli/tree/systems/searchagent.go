@@ -71,12 +71,10 @@ Use --json/--csv/--table to script against per-agent data.`
 		}
 		return searchAgentInfosToRows(status.SchedulerStatus.SearchAgents), nil
 	}, nil, scaffoldlist.Options{
-		CommonOptions: scaffold.CommonOptions{
-			Use: use,
-			Requirements: annotations.Requirements{
-				IPermissions: []types.Capability{types.ScheduleRead},
-				XPermissions: []types.Capability{types.ScheduleRead},
-			},
+		Use: use,
+		Requirements: annotations.Requirements{
+			IPermissions: []types.Capability{types.ScheduleRead},
+			XPermissions: []types.Capability{types.ScheduleRead},
 		},
 		DefaultColumns: []string{"UUID", "LastCheckin", "ActiveJobs"},
 		EmptyMessage:   "no search agents have checked in",

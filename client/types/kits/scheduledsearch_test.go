@@ -26,16 +26,12 @@ func TestPackScheduledSearchRoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ss := types.ScheduledSearch{
-				CommonFields: types.CommonFields{
-					Name:        "test search",
-					Description: "a description",
-					ID:          "ss-id",
-				},
-				AutomationCommonFields: types.AutomationCommonFields{
-					Schedule: "* * * * *",
-				},
-				Search:   tt.search,
-				Duration: -3600,
+				Name:        "test search",
+				Description: "a description",
+				ID:          "ss-id",
+				Schedule:    "* * * * *",
+				Search:      tt.search,
+				Duration:    -3600,
 			}
 
 			packed := PackScheduledSearch(ss)

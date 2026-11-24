@@ -1,5 +1,4 @@
 //go:build !linux
-// +build !linux
 
 /*************************************************************************
  * Copyright 2026 Gravwell, Inc. All rights reserved.

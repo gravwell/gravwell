@@ -347,7 +347,7 @@ func ReadTree(dir string, requireState bool) (*types.Agent, error) {
 		return nil, fmt.Errorf("%q: %w", filepath.Join(dir, MetadataFile), ErrMissingName)
 	}
 
-	agent := types.Agent{CommonFields: types.CommonFields{Name: meta.Name, Description: meta.Description}}
+	agent := types.Agent{Name: meta.Name, Description: meta.Description}
 	meta.resourceFields.applyTo(&agent)
 
 	var err error

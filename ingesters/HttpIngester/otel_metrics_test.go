@@ -11,7 +11,6 @@ package main
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -141,14 +140,10 @@ func TestOtelListenerInConfig(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind:             "127.0.0.1:8080",
-			Health_Check_URL: "",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Health_Check_URL:         "",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
@@ -168,14 +163,10 @@ func TestOtelListenerMultipleInConfig(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind:             "127.0.0.1:8080",
-			Health_Check_URL: "",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Health_Check_URL:         "",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"prod": {
 				URL:      "/v1/metrics",
@@ -202,13 +193,9 @@ func TestOtelListenerHotReload(t *testing.T) {
 
 	// Initial load with one listener
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
@@ -221,13 +208,9 @@ func TestOtelListenerHotReload(t *testing.T) {
 
 	// Hot reload with additional listener
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
@@ -251,13 +234,9 @@ func TestOtelListenerHotReloadRemoval(t *testing.T) {
 
 	// Initial load with two listeners
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
@@ -275,13 +254,9 @@ func TestOtelListenerHotReloadRemoval(t *testing.T) {
 
 	// Hot reload removing one listener
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
@@ -300,13 +275,9 @@ func TestOtelListenerConflictWithOtherListeners(t *testing.T) {
 
 	// Try to load config with conflicting URLs between standard listener and otel listener
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		Listener: map[string]*lst{
 			"std": {
 				URL:      "/v1/metrics",
@@ -328,13 +299,9 @@ func TestOtelListenerConflictWithOtherListeners(t *testing.T) {
 
 func TestOtelListenerDuplicateURL(t *testing.T) {
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel1": {
 				URL:      "/v1/metrics",
@@ -357,13 +324,9 @@ func TestOtelListenerWithPreprocessors(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel": {
 				URL:          "/v1/metrics",
@@ -481,14 +444,10 @@ func TestOtelListenerURLNormalization(t *testing.T) {
 
 func TestOtelListenerEmptyConfig(t *testing.T) {
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
-		OtelListener: map[string]*otelMetricsListener{},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
+		OtelListener:             map[string]*otelMetricsListener{},
 	}
 
 	err := cfg.Verify()
@@ -501,13 +460,9 @@ func TestOtelListenerWithBasicAuth(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel": {
 				URL:      "/v1/metrics",
@@ -531,13 +486,9 @@ func TestOtelListenerWithPresharedToken(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel": {
 				URL:      "/v1/metrics",
@@ -558,13 +509,9 @@ func TestOtelListenerWithPresharedToken(t *testing.T) {
 
 func TestOtelListenerWithInvalidAuth(t *testing.T) {
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"otel": {
 				URL:      "/v1/metrics",
@@ -587,13 +534,9 @@ func TestOtelListenerMixedWithOtherListeners(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		Listener: map[string]*lst{
 			"std": {
 				URL:      "/json",

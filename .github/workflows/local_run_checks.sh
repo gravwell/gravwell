@@ -33,6 +33,8 @@ WINDOWS_PKGS='./winevent/... ./ingesters/winevents/... ./generators/windowsEvent
 NATIVE=$(go list ./... 2>/dev/null | grep -vE "$NON_NATIVE" | grep -v '/ingesters/networkLog$')
 # gwcli is tested separately with -tags ci, which is a superset of the untagged run
 NATIVE_NO_GWCLI=$(echo "$NATIVE" | grep -v '/gwcli')
+# go_fix.sh reads these from the environment.
+export CGO_PKG WINDOWS_PKGS NATIVE
 
 section "Skipping native vet/test/build for"
 go list ./... 2>/dev/null | grep -E "$NON_NATIVE"
@@ -45,6 +47,12 @@ section "Checking module hygiene"
 go mod tidy && git diff --exit-code go.mod go.sum
 go mod download
 go mod verify
+
+section "Checking go fix drift"
+bash ./.github/workflows/go_fix.sh diff
+
+section "Checking go fix coverage"
+bash ./.github/workflows/go_fix.sh coverage
 
 section "Running go vet"
 go vet $NATIVE

@@ -70,7 +70,7 @@ func NewRegexReplacer(cfg RegexReplaceConfig) (*RegexReplacer, error) {
 	}, nil
 }
 
-func (rr *RegexReplacer) Config(v interface{}) (err error) {
+func (rr *RegexReplacer) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexReplaceConfig); ok {

@@ -74,11 +74,9 @@ func listActions() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead},
-					XPermissions: []types.Capability{types.ScheduleRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead},
+				XPermissions: []types.Capability{types.ScheduleRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -164,28 +162,23 @@ func importCreate() action.Pair {
 			}
 
 			spec := types.Flow{
-				CommonFields: types.CommonFields{
-					Name:        cfg["name"].Provider.Get(),
-					Description: cfg["desc"].Provider.Get(),
-					Readers:     types.ACL{GIDs: groups},
-				},
-				AutomationCommonFields: types.AutomationCommonFields{
-					Schedule: cfg["frequency"].Provider.Get(),
-				},
-				Flow: json,
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
+				Readers:     types.ACL{GIDs: groups},
+				Schedule:    cfg["frequency"].Provider.Get(),
+				Flow:        json,
 			}
 			var result types.Flow
 			result, err = connection.Client.CreateFlow(spec)
 			id = result.ID
 			return
 		},
-		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+		scaffoldcreate.Options{
 			Use: "import",
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.ScheduleWrite},
 				XPermissions: []types.Capability{types.ScheduleWrite},
-			},
-		}})
+			}})
 }
 
 func download() action.Pair {
@@ -217,16 +210,14 @@ func download() action.Pair {
 			return []scaffold.Result{{Output: flow.Flow, Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Output.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead},
-					XPermissions: []types.Capability{types.ScheduleRead},
-				},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Output.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead},
+				XPermissions: []types.Capability{types.ScheduleRead},
 			},
 
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -254,11 +245,9 @@ func delete() action.Pair {
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
 			},
 		})
 }
@@ -309,12 +298,10 @@ func cancel() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "cancel",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
-				},
+			Use: "cancel",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
 			},
 		})
 }
@@ -379,18 +366,16 @@ func backfillToggle() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "backfill",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("enable", false, "enable backfill")
-					fs.Bool("disable", false, "disable backfill")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-				},
+			Use: "backfill",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("enable", false, "enable backfill")
+				fs.Bool("disable", false, "disable backfill")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				_, _, err = getBackfillFlags(fs)
@@ -415,12 +400,10 @@ func clear() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "clear",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
-				},
+			Use: "clear",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleRead, types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
 			},
 		})
 }
@@ -451,20 +434,18 @@ func parse() action.Pair {
 			return []scaffold.Result{{Output: "successfully parsed flow", Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: "parse " + ft.MutuallyExclusive("<flow string>", "--path=path/to/file"),
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "file containing the flow to parse.\n"+
-						"Mutually exclusive with --stdin and bare arguments")
-					fs.Bool("stdin", false, ft.NonInteractiveOnly()+" read the flow string from stdin.\n"+
-						"Mutually exclusive with --path")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ScheduleWrite},
-					XPermissions: []types.Capability{types.ScheduleWrite},
-				},
+			Usage: "parse " + ft.MutuallyExclusive("<flow string>", "--path=path/to/file"),
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Path.Register(fs, "", "file containing the flow to parse.\n"+
+					"Mutually exclusive with --stdin and bare arguments")
+				fs.Bool("stdin", false, ft.NonInteractiveOnly()+" read the flow string from stdin.\n"+
+					"Mutually exclusive with --path")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ScheduleWrite},
+				XPermissions: []types.Capability{types.ScheduleWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				parseFileContent = "" // ensure it is clear before each action
@@ -547,28 +528,23 @@ func create() action.Pair {
 			backfill, _ := strconv.ParseBool(fields["backfill"].Provider.Get())
 
 			newFlow, err := connection.Client.CreateFlow(types.Flow{
-				CommonFields: types.CommonFields{
-					Name:        fields["name"].Provider.Get(),
-					Description: fields["desc"].Provider.Get(),
-					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
-				},
-				AutomationCommonFields: types.AutomationCommonFields{
-					Schedule:        fields["schedule"].Provider.Get(),
-					Disabled:        !enabled,
-					BackfillEnabled: backfill,
-				},
-				Flow: string(flowContent),
+				Name:            fields["name"].Provider.Get(),
+				Description:     fields["desc"].Provider.Get(),
+				Labels:          scaffoldcreate.GetLabelsFromField(fields["labels"]),
+				Schedule:        fields["schedule"].Provider.Get(),
+				Disabled:        !enabled,
+				BackfillEnabled: backfill,
+				Flow:            string(flowContent),
 			})
 			if err != nil {
 				return 0, "", err
 			}
 			return newFlow.ID, "", nil
 		},
-		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+		scaffoldcreate.Options{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.ScheduleWrite},
 				XPermissions: []types.Capability{types.ScheduleWrite},
-			},
-		}})
+			}})
 
 }

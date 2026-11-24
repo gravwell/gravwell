@@ -112,7 +112,7 @@ func TestTearDownCache(t *testing.T) {
 	dir := t.TempDir()
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -130,7 +130,7 @@ func TestTearDownCache(t *testing.T) {
 	results := make(map[int]int)
 
 	// now we should read everything back in order
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -145,7 +145,7 @@ func TestTearDownCache(t *testing.T) {
 	}
 
 	// verify counts
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -212,7 +212,7 @@ func TestRecover(t *testing.T) {
 	dir := t.TempDir()
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -237,7 +237,7 @@ func TestRecover(t *testing.T) {
 	results := make(map[int]int)
 
 	// now we should read everything back in order
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -253,7 +253,7 @@ func TestRecover(t *testing.T) {
 	}
 
 	// verify counts
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -268,7 +268,7 @@ func TestCommit(t *testing.T) {
 
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -299,7 +299,7 @@ func TestDrain(t *testing.T) {
 
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -317,7 +317,7 @@ func TestDrain(t *testing.T) {
 	go func(ec chan error) {
 		defer close(ec)
 		// now we should read everything back in order
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			select {
 			case v := <-c.Out:
 				if v == nil {
@@ -342,7 +342,7 @@ func TestDrain(t *testing.T) {
 		t.Fatal(err)
 	}
 	// verify counts
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -357,7 +357,7 @@ func TestCacheStartStop(t *testing.T) {
 
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 99; i++ {
+	for i := range 99 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -389,7 +389,7 @@ func TestCacheStartStop(t *testing.T) {
 	results := make(map[int]int)
 
 	// now we should read everything back in order
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -404,7 +404,7 @@ func TestCacheStartStop(t *testing.T) {
 	}
 
 	// verify counts
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -419,7 +419,7 @@ func TestCache(t *testing.T) {
 
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -435,7 +435,7 @@ func TestCache(t *testing.T) {
 	results := make(map[int]int)
 
 	// now we should read everything back in order
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -450,7 +450,7 @@ func TestCache(t *testing.T) {
 	}
 
 	// verify counts
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -489,7 +489,7 @@ func TestMerge(t *testing.T) {
 
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -579,7 +579,7 @@ func TestMerge(t *testing.T) {
 	results := make(map[int]int)
 
 	// now we should read everything back in order
-	for i := 0; i < 200; i++ {
+	for range 200 {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -595,7 +595,7 @@ func TestMerge(t *testing.T) {
 	}
 
 	// verify counts
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -614,7 +614,7 @@ func TestCacheHasData(t *testing.T) {
 		t.Fail()
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case c.In <- &ChanCacheTester{V: i}:
 		// success
@@ -663,7 +663,7 @@ func TestCacheEntries(t *testing.T) {
 	dir := t.TempDir()
 	c, _ := NewChanCacher(2, dir, 0, defaultLogger)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		e := &entry.Entry{
 			Data: []byte(fmt.Sprintf("%d", i)),
 			SRC:  net.IP([]byte{'a', 'b', 'c', 'd'}),
@@ -689,7 +689,7 @@ func TestCacheEntries(t *testing.T) {
 	results := make(map[int]int)
 
 	// now we should read everything back in order
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -712,7 +712,7 @@ func TestCacheEntries(t *testing.T) {
 	}
 
 	// verify counts
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -751,7 +751,7 @@ func TestCacheOldEntries(t *testing.T) {
 	results := make(map[int]int)
 
 	// now we should read everything back in order
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -783,7 +783,7 @@ func TestCacheOldEntries(t *testing.T) {
 	}
 
 	// verify counts
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)
@@ -1000,12 +1000,12 @@ func TestSpam(t *testing.T) {
 	c, _ := NewChanCacher(100, dir, 1024*1024*1000, defaultLogger)
 
 	go func() {
-		for i := 0; i < 5000000; i++ {
+		for range 5000000 {
 			c.In <- &ChanCacheTester{V: 1, Data: "adsfasdfjas;ldfkja;lkefjwl;kfjawlekfja;lwkefj;alwkefj;lawkefj;alkefj;akwfj;akwfje;aklefj;akef;aklwfe;alkwfje;lakwfj;akfej;akfe;akefj;awejfa;effefa;edflkj"}
 		}
 	}()
 
-	for i := 0; i < 5000000; i++ {
+	for range 5000000 {
 		v := <-c.Out
 		if v.(*ChanCacheTester).V != 1 {
 			t.Fatal("what")
@@ -1025,13 +1025,13 @@ func TestCycleConnection(t *testing.T) {
 	const cycles = 10
 	const entriesPerCycle = 100
 
-	for i := 0; i < cycles; i++ {
+	for i := range cycles {
 		c, err := NewChanCacher(2, dir, 0, defaultLogger)
 		if err != nil {
 			t.Fatalf("cycle %d: failed to create ChanCacher: %v", i, err)
 		}
 
-		for j := 0; j < entriesPerCycle; j++ {
+		for j := range entriesPerCycle {
 			select {
 			case c.In <- &ChanCacheTester{V: i*entriesPerCycle + j, Data: fmt.Sprintf("cycle %d entry %d", i, j)}:
 			case <-time.After(DEFAULT_TIMEOUT):
@@ -1053,7 +1053,7 @@ func TestCycleConnection(t *testing.T) {
 	results := make(map[int]int)
 	totalExpected := cycles * entriesPerCycle
 
-	for i := 0; i < totalExpected; i++ {
+	for i := range totalExpected {
 		select {
 		case v := <-c.Out:
 			if v == nil {
@@ -1067,7 +1067,7 @@ func TestCycleConnection(t *testing.T) {
 	}
 
 	// Verify we got all entries exactly once
-	for i := 0; i < totalExpected; i++ {
+	for i := range totalExpected {
 		count, ok := results[i]
 		if !ok {
 			t.Errorf("missing entry %d", i)
@@ -1096,7 +1096,7 @@ func BenchmarkReference(b *testing.B) {
 		}
 	}()
 
-	for i := 0; i < 100000; i++ {
+	for range 100000 {
 		in <- 1
 	}
 	close(in)
@@ -1113,7 +1113,7 @@ func BenchmarkUnbufferedSmall(b *testing.B) {
 		}
 	}()
 
-	for i := 0; i < 100000; i++ {
+	for range 100000 {
 		c.In <- v
 	}
 
@@ -1131,7 +1131,7 @@ func BenchmarkBufferedSmall(b *testing.B) {
 		}
 	}()
 
-	for i := 0; i < 100000; i++ {
+	for range 100000 {
 		c.In <- v
 	}
 
@@ -1149,7 +1149,7 @@ func BenchmarkBufferedLarge(b *testing.B) {
 		}
 	}()
 
-	for i := 0; i < 10000000; i++ {
+	for range 10000000 {
 		c.In <- v
 	}
 
@@ -1162,11 +1162,11 @@ func BenchmarkCacheBlocked(b *testing.B) {
 
 	COUNT := 10000000
 
-	for i := 0; i < COUNT; i++ {
+	for i := range COUNT {
 		c.In <- &ChanCacheTester{V: i}
 	}
 
-	for i := 0; i < COUNT; i++ {
+	for range COUNT {
 		<-c.Out
 	}
 }
@@ -1183,7 +1183,7 @@ func BenchmarkCacheStreaming(b *testing.B) {
 		}
 	}()
 
-	for i := 0; i < COUNT; i++ {
+	for i := range COUNT {
 		c.In <- &ChanCacheTester{V: i}
 	}
 

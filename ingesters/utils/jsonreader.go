@@ -52,7 +52,7 @@ func NewJsonLimitedDecoder(rdr io.Reader, max int64) (jld *JsonLimitedDecoder, e
 }
 
 // Decode an object using a JSON decoder
-func (j *JsonLimitedDecoder) Decode(v interface{}) (err error) {
+func (j *JsonLimitedDecoder) Decode(v any) (err error) {
 	j.lr.N = j.maxSize
 	err = j.Decoder.Decode(v)
 	j.total += j.maxSize - j.lr.N //keep a tally

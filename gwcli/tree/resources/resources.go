@@ -89,11 +89,9 @@ func list() action.Pair {
 				"Size",
 				"ContentType",
 			},
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ResourceRead},
-					XPermissions: []types.Capability{types.ResourceRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ResourceRead},
+				XPermissions: []types.Capability{types.ResourceRead},
 			},
 		})
 }
@@ -135,17 +133,15 @@ func download() action.Pair {
 			return []scaffold.Result{{Output: string(data), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("flags"), ft.Mandatory("resource ID")),
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Output.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ResourceRead},
-					XPermissions: []types.Capability{types.ResourceRead},
-				},
+			Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("flags"), ft.Mandatory("resource ID")),
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Output.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ResourceRead},
+				XPermissions: []types.Capability{types.ResourceRead},
 			},
 
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -181,11 +177,9 @@ func create() action.Pair {
 			}
 			// transmute to resource struct
 			data := types.Resource{
-				CommonFields: types.CommonFields{
-					Name:        cfg["name"].Provider.Get(),
-					Description: cfg["desc"].Provider.Get(),
-					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
-				},
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
+				Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 			}
 
 			resp, err := connection.Client.CreateResource(data)
@@ -198,11 +192,9 @@ func create() action.Pair {
 
 			return resp.ID, "", err
 		}, scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ResourceWrite},
-					XPermissions: []types.Capability{types.ResourceWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ResourceWrite},
+				XPermissions: []types.Capability{types.ResourceWrite},
 			},
 		})
 }
@@ -224,11 +216,9 @@ func delete() action.Pair {
 
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
-					XPermissions: []types.Capability{types.ResourceWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
+				XPermissions: []types.Capability{types.ResourceWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
@@ -293,11 +283,9 @@ func edit() action.Pair {
 		},
 	},
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
-					XPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
+				XPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
 			},
 		})
 }
@@ -348,18 +336,16 @@ func replace() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "replace",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.Path.Register(fs, "", "local file to replace the resource contents")
-					fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
-					XPermissions: []types.Capability{types.ResourceWrite},
-				},
+			Use: "replace",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.Path.Register(fs, "", "local file to replace the resource contents")
+				fs.Bool(scaffold.FlagNameAllData, false, scaffold.FlagUsageAllData)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ResourceRead, types.ResourceWrite},
+				XPermissions: []types.Capability{types.ResourceWrite},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				pth, err := fs.GetString(ft.Path.Name())

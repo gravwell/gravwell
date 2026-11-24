@@ -1,5 +1,4 @@
 //go:build 386 || arm || mips || mipsle || s390x
-// +build 386 arm mips mipsle s390x
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.

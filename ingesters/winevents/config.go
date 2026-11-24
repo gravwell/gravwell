@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 /*************************************************************************
  * Copyright 2023 Gravwell, Inc. All rights reserved.
@@ -16,6 +15,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -154,7 +154,7 @@ func (c *CfgType) AttachConfig() attach.AttachConfig {
 }
 
 // RawConfig gets an object that is suitable for the ingestmuxer.SetRawConfiguration
-func (c *CfgType) RawConfig() interface{} {
+func (c *CfgType) RawConfig() any {
 	if c == nil {
 		return nil
 	}
@@ -270,12 +270,7 @@ func (ec *EventStreamConfig) Validate() error {
 }
 
 func inStringSet(needle string, haystack []string) bool {
-	for i := range haystack {
-		if needle == haystack[i] {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }
 
 func validateEventIDs(ev string) error {

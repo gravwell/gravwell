@@ -125,11 +125,9 @@ func NewFollower(cfg FollowerConfig) (*follower, error) {
 		fsn:      wtchr,
 		lh:       cfg.Handler,
 		state:    cfg.State,
-		FileName: FileName{
-			FilePath: cfg.FilePath,
-			BaseName: cfg.BaseName,
-		},
-		lastAct: time.Now(),
+		FilePath: cfg.FilePath,
+		BaseName: cfg.BaseName,
+		lastAct:  time.Now(),
 	}, nil
 }
 

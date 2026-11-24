@@ -48,13 +48,12 @@ func NewIngestAction() action.Pair {
 		"ingest",
 		"ingest data from a file or STDIN",
 		helpDesc, runE,
-		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+		treeutils.GenerateActionOptions{
 			CommandAliases: []string{"in", "sip", "read", "load", "slurp"},
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.Ingest},
 				XPermissions: []types.Capability{types.Ingest},
-			},
-		}})
+			}})
 	cmd.Example = "./gwcli ingest picture/of/space.png,pulsar query_results.json cat/pics/,animals ..."
 
 	{ // install flags

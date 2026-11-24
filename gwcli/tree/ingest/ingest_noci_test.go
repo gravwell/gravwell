@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -261,12 +262,7 @@ func verifyTagExists(t *testing.T, tag string) bool {
 		t.Error(err)
 		return false
 	}
-	for _, serverTag := range tags {
-		if serverTag == tag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tags, tag)
 }
 
 // TestNewIngestActionRun is very similar to autoingest, but includes the manual creation and execution of the cobra command.
