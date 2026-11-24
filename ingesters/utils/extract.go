@@ -31,6 +31,18 @@ type ReadResetCloser interface {
 	Reset() error
 }
 
+type nopResetCloser struct {
+	io.Reader
+}
+
+func NopResetCloser(r io.Reader) ReadResetCloser {
+	return &nopResetCloser{r}
+}
+
+func (nopResetCloser) Close() error { return nil }
+
+func (nopResetCloser) Reset() error { return nil }
+
 type buffReadCloser struct {
 	r     ReadResetCloser
 	b     io.Reader

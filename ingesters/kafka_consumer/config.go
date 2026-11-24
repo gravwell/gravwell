@@ -20,12 +20,12 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest/processors/tags"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 	"github.com/inhies/go-bytesize"
 	"github.com/xdg-go/scram"
 )
@@ -124,7 +124,7 @@ type consumerCfg struct {
 
 type cfgReadType struct {
 	Global       config.IngestConfig
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Consumer     map[string]*ConfigConsumer
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -132,7 +132,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Consumers    map[string]*consumerCfg
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
