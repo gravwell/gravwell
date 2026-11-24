@@ -431,7 +431,7 @@ func (m *mainService) init(ctx context.Context) error {
 	return err
 }
 
-func debugPrint(f string, args ...interface{}) {
+func debugPrint(f string, args ...any) {
 	infoout(f, args...)
 }
 

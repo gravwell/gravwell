@@ -232,7 +232,6 @@ func Kinds() (ks []PluginKind, err error) {
 	rt := reflect.TypeFor[Configs]()
 	ks = make([]PluginKind, 0, rt.NumField())
 	for f := range rt.Fields() {
-		f := f
 		if !f.IsExported() {
 			continue // not config, gcfg cannot reach it either
 		}

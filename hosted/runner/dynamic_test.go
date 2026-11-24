@@ -32,7 +32,7 @@ func pluginMembers(t *testing.T) []string {
 	rt := reflect.TypeFor[plugins.Configs]()
 	names := make([]string, 0, rt.NumField())
 	for f := range rt.Fields() {
-		if f := f; f.IsExported() {
+		if f.IsExported() {
 			names = append(names, f.Name)
 		}
 	}

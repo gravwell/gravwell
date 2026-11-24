@@ -272,8 +272,7 @@ func (fr *FileRotator) rotateHistoryNoLock() (err error) {
 
 	//iterate in reverse, incrementing the ID and renaming the files
 	for _, h := range slices.Backward(hist) {
-
-		h.historyID = h.historyID + 1
+		h.historyID++ // h is a copy, only used to build the new path
 		if err = os.Rename(h.origpath(), h.path()); err != nil {
 			err = fmt.Errorf("failed to rotate %v -> %v %w", h.origpath(), h.path(), err)
 			return

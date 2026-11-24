@@ -93,7 +93,7 @@ func exportSet(input, output string) (err error) {
 	return
 }
 
-func writeObject(wtr io.Writer, obj interface{}) (err error) {
+func writeObject(wtr io.Writer, obj any) (err error) {
 	var bts []byte
 	if bts, err = json.Marshal(obj); err != nil {
 		err = fmt.Errorf("failed to marshal object %w", err)

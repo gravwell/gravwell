@@ -211,7 +211,6 @@ func hasTagField(rt reflect.Type, depth int) bool {
 		return false
 	}
 	for f := range rt.Fields() {
-		f := f
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
 			if hasTagField(f.Type, depth+1) {
 				return true
