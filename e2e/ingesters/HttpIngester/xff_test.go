@@ -11,7 +11,8 @@ import (
 )
 
 // TestXFF checks the SRC of entries sent with X-Forwarded-For in each client
-// address mode: legacy (no Trusted-Proxy), Ignore-Untrusted-Forwarded-For,
+// address mode: the default (no Trusted-Proxy), legacy
+// (Ignore-Untrusted-Forwarded-For=false), Ignore-Untrusted-Forwarded-For=true,
 // Trusted-Proxy listing the test client's peer, and Trusted-Proxy that does
 // not list it.
 func TestXFF(t *testing.T) {
@@ -41,6 +42,14 @@ func TestXFF(t *testing.T) {
 		name  string
 		sends []send
 	}{
+		{
+			name: "xff-default",
+			sends: []send{
+				{xff: "192.0.2.99", check: notForwarded},
+				{xff: "203.0.113.7,198.51.100.10", check: notForwarded},
+				{xff: spoofed, check: notForwarded},
+			},
+		},
 		{
 			name: "xff-legacy",
 			sends: []send{
