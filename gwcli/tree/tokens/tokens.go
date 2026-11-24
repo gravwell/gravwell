@@ -463,7 +463,7 @@ func regenerate() action.Pair {
 				tr := types.TokenRegeneration{
 					ExpiresAt: data.ExpiresAt,
 				}
-				tf, err := connection.Client.RegenToken(data.ID, tr)
+				tf, err := connection.Client.RegenerateToken(data.ID, tr)
 				if err != nil {
 					return "", err
 				}
