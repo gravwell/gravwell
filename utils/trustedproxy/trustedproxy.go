@@ -292,9 +292,10 @@ func (l List) Resolve(r *http.Request) Client {
 // entry was skipped.
 //
 // The header is client-controlled, so the result can be any address the sender
-// chooses. ResolveLegacy exists only to keep the behavior of ingesters that
-// trusted the header before trusted proxies were configurable. Never use it for
-// a security decision. It will be removed in the next major release.
+// chooses. ResolveLegacy backs the ingester option
+// Ignore-Untrusted-Forwarded-For=false, which keeps the behavior of ingesters
+// that trusted the header before trusted proxies were configurable. Never use it
+// for a security decision.
 func ResolveLegacy(r *http.Request) Client {
 	if r == nil {
 		return Client{}
