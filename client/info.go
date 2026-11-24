@@ -16,7 +16,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -386,34 +385,15 @@ func (c *Client) GetSearchQueue() (s types.SearchQueue, err error) {
 //
 //	c.GetLibFile("https://github.com/gravwell/libs", "cd9d6c5", "alerts/email.ank")
 //	c.GetLibFile("", "", "utils/links.ank")
-func (c *Client) GetLibFile(repo, commit, fn string) (bts []byte, err error) {
-	if fn == `` {
-		err = errors.New("Missing filename")
-		return
+func (c *Client) GetLibFile(req types.LibraryFileRequest) (bts []byte, err error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
 	}
-	if _, err = url.Parse(repo); err != nil {
-		return
+
+	rdr, err := c.requestReader(http.MethodPost, LIBS_URL, &req)
+	if err != nil {
+		return nil, err
 	}
-	mp := make(map[string]string, 3)
-	if repo != `` {
-		mp[`repo`] = repo
-	}
-	if commit != `` {
-		mp[`commit`] = commit
-	}
-	mp[`path`] = fn
-	var resp *http.Response
-	if resp, err = c.methodParamRequestURL(http.MethodGet, LIBS_URL, mp); err == nil {
-		if resp.StatusCode != 200 {
-			if err = decodeBodyError(resp.Body); err == nil {
-				err = fmt.Errorf("Invalid response code: %s(%d)", resp.Status, resp.StatusCode)
-			}
-		} else {
-			bb := bytes.NewBuffer(nil)
-			io.Copy(bb, resp.Body)
-			bts = bb.Bytes()
-		}
-		drainResponse(resp)
-	}
-	return
+	f, err := io.ReadAll(rdr)
+	return f, err
 }
