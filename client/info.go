@@ -390,7 +390,7 @@ func (c *Client) GetLibFile(req types.LibraryFileRequest) (bts []byte, err error
 		return nil, err
 	}
 
-	rdr, err := c.requestReader(http.MethodPost, LIBS_URL, &req)
+	rdr, err := c.requestReader(http.MethodPost, LIBS_RESOLVE_URL, &req)
 	if err != nil {
 		return nil, err
 	}
