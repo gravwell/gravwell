@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -260,12 +261,7 @@ func TestHandle_SplitsRecordAcrossSectionTags(t *testing.T) {
 }
 
 func containsTag(tags []entry.EntryTag, want entry.EntryTag) bool {
-	for _, tag := range tags {
-		if tag == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tags, want)
 }
 
 // TestHandle_PaginatesUntilExhausted verifies that a single Handle call
@@ -455,4 +451,3 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
-

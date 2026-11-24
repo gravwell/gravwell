@@ -34,17 +34,15 @@ func notifications() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "notifications",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("seen", false, "include notifications you've already seen")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.NotificationRead},
-					XPermissions: []types.Capability{types.NotificationRead},
-				},
+			Use: "notifications",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("seen", false, "include notifications you've already seen")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.NotificationRead},
+				XPermissions: []types.Capability{types.NotificationRead},
 			},
 			DefaultColumns: []string{
 				"Sender", "Msg", "Broadcast", "Level",

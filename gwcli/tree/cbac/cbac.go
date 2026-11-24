@@ -77,12 +77,10 @@ func listCapabilities() action.Pair {
 			"Desc": "Description",
 		},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "capabilities",
-				Aliases: []string{"caps", "list-caps", "list-capabilities"},
-				Requirements: annotations.Requirements{
-					DeploymentHasCBAC: true,
-				},
+			Use:     "capabilities",
+			Aliases: []string{"caps", "list-caps", "list-capabilities"},
+			Requirements: annotations.Requirements{
+				DeploymentHasCBAC: true,
 			},
 			DefaultColumns: []string{"Category", "Name", "Desc"},
 		})
@@ -100,12 +98,10 @@ func listTemplates() action.Pair {
 			"Desc": "Description",
 		},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "templates",
-				Aliases: []string{"list-templates"},
-				Requirements: annotations.Requirements{
-					DeploymentHasCBAC: true,
-				},
+			Use:     "templates",
+			Aliases: []string{"list-templates"},
+			Requirements: annotations.Requirements{
+				DeploymentHasCBAC: true,
 			},
 			DefaultColumns: []string{"Name", "Desc", "Caps"},
 		})
@@ -163,12 +159,10 @@ func myCapabilities() action.Pair {
 		},
 		nil, // implicit in the wrapper type
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "my",
-				Aliases: []string{"self", "current", "my-capabilities", "my-caps"},
-				Requirements: annotations.Requirements{
-					DeploymentHasCBAC: true,
-				},
+			Use:     "my",
+			Aliases: []string{"self", "current", "my-capabilities", "my-caps"},
+			Requirements: annotations.Requirements{
+				DeploymentHasCBAC: true,
 			},
 			DefaultColumns: []string{"Category", "Name", "UserGrant", "GroupGrants"},
 		})
@@ -213,19 +207,17 @@ func get() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "get",
-				Aliases: []string{"users", "groups"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Int32Slice("uids", nil, "IDs of the users to include")
-					fs.Int32Slice("gids", nil, "IDs of the groups to include")
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					DeploymentHasCBAC: true,
-					UserIsAdmin:       true,
-				},
+			Use:     "get",
+			Aliases: []string{"users", "groups"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Int32Slice("uids", nil, "IDs of the users to include")
+				fs.Int32Slice("gids", nil, "IDs of the groups to include")
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				DeploymentHasCBAC: true,
+				UserIsAdmin:       true,
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (_ string, err error) {
 				uids, err = fs.GetInt32Slice("uids")
@@ -644,18 +636,16 @@ func set() action.Pair {
 			return sb.String(), "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:   "set",
-				Short: "set capabilities of users and groups",
-				Long:  "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
-				Usage: "set " +
-					ft.MutuallyExclusive("--uids", "--gids") +
-					ft.Mandatory("--caps"),
-				Aliases: []string{"replace"},
-				Requirements: annotations.Requirements{
-					DeploymentHasCBAC: true,
-					UserIsAdmin:       true,
-				},
+			Use:   "set",
+			Short: "set capabilities of users and groups",
+			Long:  "Supplant the current capabilities of each selected user and group by providing a new set of capabilities.",
+			Usage: "set " +
+				ft.MutuallyExclusive("--uids", "--gids") +
+				ft.Mandatory("--caps"),
+			Aliases: []string{"replace"},
+			Requirements: annotations.Requirements{
+				DeploymentHasCBAC: true,
+				UserIsAdmin:       true,
 			},
 			IDIsSuccessMessage: true,
 		})

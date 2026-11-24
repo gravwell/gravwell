@@ -13,11 +13,9 @@ func TestNewBucketReader_Endpoint(t *testing.T) {
 	t.Parallel()
 
 	cfg := BucketConfig{
-		AuthConfig: AuthConfig{
-			Region:      "us-east-1",
-			Bucket_Name: "test-bucket",
-			Endpoint:    "http://localhost:9300",
-		},
+		Region:           "us-east-1",
+		Bucket_Name:      "test-bucket",
+		Endpoint:         "http://localhost:9300",
 		Credentials_Type: "static",
 		ID:               "test-access-key-id",
 		Secret:           "test-secret-key",

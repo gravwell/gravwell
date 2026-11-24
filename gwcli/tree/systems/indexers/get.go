@@ -49,13 +49,11 @@ func get() action.Pair {
 			"Storage.EntryCountCold":   "Storage.Cold.Count",
 		},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "get",
-				Example: "get 127.0.0.1:9404",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
-					XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
-				},
+			Use:     "get",
+			Example: "get 127.0.0.1:9404",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+				XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
 			},
 			DefaultColumnsFromExcludeRegex: []*regexp.Regexp{
 				regexp.MustCompile(`^Ingest\.Entries.*Tail`),
@@ -147,9 +145,7 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 	var wg sync.WaitGroup
 
 	// get ingesters
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		ingStats, err := connection.Client.GetIngesterStats()
 		if err != nil {
 			clilog.Writer.Warnf("failed to fetch ingester stats: %v", err)
@@ -231,11 +227,9 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 			mu.Unlock()
 			return
 		}
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		pings, err := connection.Client.GetPingStates()
 		if err != nil {
 			clilog.Writer.Warnf("failed to fetch ping states: %v", err)
@@ -249,11 +243,9 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 			found = true
 			mu.Unlock()
 		}
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		stats, err := connection.Client.GetIndexStats()
 		if err != nil {
 			clilog.Writer.Warnf("failed to fetch index stats: %v", err)
@@ -273,11 +265,9 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 			dii.Children.Wells = state.IndexStats
 			dii.UUID = state.UUID.String()
 		}
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		descs, err := connection.Client.GetSystemDescriptions()
 		if err != nil {
 			clilog.Writer.Warnf("failed to fetch system descriptions: %v", err)
@@ -291,11 +281,9 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 			found = true
 			dii.System.Description = desc
 		}
-	}()
+	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		stats, err := connection.Client.GetSystemStats()
 		if err != nil {
 			clilog.Writer.Warnf("failed to fetch system stats: %v", err)
@@ -309,7 +297,7 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 			found = true
 			dii.System.Stats = stat
 		}
-	}()
+	})
 	wg.Wait()
 
 	return

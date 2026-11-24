@@ -29,10 +29,10 @@ import (
 // does not mean coming back here to update anything.
 func pluginMembers(t *testing.T) []string {
 	t.Helper()
-	rt := reflect.TypeOf(plugins.Configs{})
+	rt := reflect.TypeFor[plugins.Configs]()
 	names := make([]string, 0, rt.NumField())
-	for i := 0; i < rt.NumField(); i++ {
-		if f := rt.Field(i); f.IsExported() {
+	for f := range rt.Fields() {
+		if f.IsExported() {
 			names = append(names, f.Name)
 		}
 	}

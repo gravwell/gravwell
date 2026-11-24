@@ -39,7 +39,7 @@ type Drop struct {
 	DropConfig
 }
 
-func (gd *Drop) Config(v interface{}) (err error) {
+func (gd *Drop) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(DropConfig); ok {

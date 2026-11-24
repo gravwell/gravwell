@@ -60,11 +60,9 @@ func NewPair() action.Pair {
 			return nil
 		},
 		treeutils.GenerateActionOptions{
-			NodeOptions: treeutils.NodeOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Email},
-					XPermissions: []types.Capability{types.Email},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Email},
+				XPermissions: []types.Capability{types.Email},
 			},
 		})
 	cmd.Flags().AddFlagSet(flags())

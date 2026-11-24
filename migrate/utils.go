@@ -97,7 +97,7 @@ func getIngestConnection(cfg *cfgType, lg *log.Logger) *ingest.IngestMuxer {
 	return igst
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if !v {
 		return
 	}

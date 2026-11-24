@@ -13,6 +13,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -332,9 +333,9 @@ func TestVectorProcessorEmptyBatch(t *testing.T) {
 // Entries with no payload have nothing worth embedding — they must pass through
 // untouched and must not cost an API call.
 func TestVectorProcessorEmptyData(t *testing.T) {
-	var requests int32
+	var requests atomic.Int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&requests, 1)
+		requests.Add(1)
 		http.Error(w, "should not have been called", http.StatusBadRequest)
 	}))
 	defer ts.Close()
@@ -365,7 +366,7 @@ func TestVectorProcessorEmptyData(t *testing.T) {
 			t.Errorf("entry %d has an embeddings EV but carries no data", i)
 		}
 	}
-	if n := atomic.LoadInt32(&requests); n != 0 {
+	if n := requests.Load(); n != 0 {
 		t.Errorf("expected no embedding requests for an all-empty batch, got %d", n)
 	}
 }
@@ -461,7 +462,7 @@ func TestVectorProcessorBatch(t *testing.T) {
 		gotInputs = len(req.Input)
 		var resp embeddingResponse
 		// Return data out of order to exercise index-based reordering.
-		for i := len(req.Input) - 1; i >= 0; i-- {
+		for i := range slices.Backward(req.Input) {
 			resp.Data = append(resp.Data, struct {
 				Index     int       `json:"index"`
 				Embedding []float64 `json:"embedding"`
@@ -536,9 +537,9 @@ func TestVectorProcessorPassthroughOnError(t *testing.T) {
 }
 
 func TestVectorProcessorRetry(t *testing.T) {
-	var calls int32
+	var calls atomic.Int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if atomic.AddInt32(&calls, 1) < 3 {
+		if calls.Add(1) < 3 {
 			http.Error(w, "slow down", http.StatusTooManyRequests)
 			return
 		}
@@ -568,7 +569,7 @@ func TestVectorProcessorRetry(t *testing.T) {
 	if len(rset) != 1 {
 		t.Fatalf("expected success after retries, got %d results", len(rset))
 	}
-	if got := atomic.LoadInt32(&calls); got != 3 {
+	if got := calls.Load(); got != 3 {
 		t.Errorf("expected 3 attempts (2 rate-limited + 1 success), got %d", got)
 	}
 }

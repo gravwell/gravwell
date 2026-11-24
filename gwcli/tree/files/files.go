@@ -56,11 +56,9 @@ func list() action.Pair {
 		},
 		map[string]string{"Size": "SizeBytes"},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.FileRead},
-					XPermissions: []types.Capability{types.FileRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.FileRead},
+				XPermissions: []types.Capability{types.FileRead},
 			},
 			DefaultColumns: []string{
 				"CommonFields.ID",
@@ -104,16 +102,14 @@ func download() action.Pair {
 			}
 			return []scaffold.Result{{Output: string(b), Success: true}}, nil
 		}, scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					var fs = &pflag.FlagSet{}
-					ft.Output.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.FileRead},
-					XPermissions: []types.Capability{types.FileRead},
-				},
+			AddtlFlags: func() *pflag.FlagSet {
+				var fs = &pflag.FlagSet{}
+				ft.Output.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.FileRead},
+				XPermissions: []types.Capability{types.FileRead},
 			},
 		})
 }
@@ -135,11 +131,9 @@ func create() action.Pair {
 			filePath = cfg["path"].Provider.Get()
 
 			var inMeta = types.File{
-				CommonFields: types.CommonFields{
-					Name:        name,
-					Description: desc,
-					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
-				},
+				Name:        name,
+				Description: desc,
+				Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
 			}
 
 			outMeta, err := connection.Client.CreateFile(inMeta)
@@ -154,11 +148,9 @@ func create() action.Pair {
 			}
 			return outMeta.ID, "", nil
 		}, scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.FileWrite},
-					XPermissions: []types.Capability{types.FileWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.FileWrite},
+				XPermissions: []types.Capability{types.FileWrite},
 			},
 		})
 }
@@ -227,11 +219,9 @@ func edit() action.Pair {
 			},
 		},
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.FileRead, types.FileWrite},
-					XPermissions: []types.Capability{types.FileRead, types.FileWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.FileRead, types.FileWrite},
+				XPermissions: []types.Capability{types.FileRead, types.FileWrite},
 			},
 		},
 	)
@@ -254,11 +244,9 @@ func delete() action.Pair {
 
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.FileRead, types.FileWrite},
-					XPermissions: []types.Capability{types.FileWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.FileRead, types.FileWrite},
+				XPermissions: []types.Capability{types.FileWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }

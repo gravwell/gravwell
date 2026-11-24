@@ -180,7 +180,7 @@ func checkTLSPublicKey(local, remote []byte) bool {
 	if len(local) == 0 || len(remote) == 0 || len(local) != len(remote) {
 		return false
 	}
-	for i := 0; i < len(local); i++ {
+	for i := range local {
 		if local[i] != remote[i] {
 			return false
 		}

@@ -73,11 +73,9 @@ func listAction() action.Pair {
 				"CommonFields.Name",
 				"CommonFields.Description",
 			},
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SecretRead},
-					XPermissions: []types.Capability{types.SecretRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SecretRead},
+				XPermissions: []types.Capability{types.SecretRead},
 			},
 		})
 }
@@ -99,12 +97,10 @@ func create() action.Pair {
 	return scaffoldcreate.NewCreateAction("secret", fields,
 		func(cfg map[string]scaffoldcreate.Field, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			data := types.SecretCreate{
-				CommonFields: types.CommonFields{
-					Name:        cfg["name"].Provider.Get(),
-					Description: cfg["desc"].Provider.Get(),
-					Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
-				},
-				Value: cfg["value"].Provider.Get(),
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
+				Labels:      scaffoldcreate.GetLabelsFromField(cfg["labels"]),
+				Value:       cfg["value"].Provider.Get(),
 			}
 
 			resp, err := connection.Client.CreateSecret(data)
@@ -114,11 +110,9 @@ func create() action.Pair {
 
 			return resp.ID, "", err
 		}, scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SecretWrite},
-					XPermissions: []types.Capability{types.SecretWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SecretWrite},
+				XPermissions: []types.Capability{types.SecretWrite},
 			},
 		})
 }
@@ -149,11 +143,9 @@ func delete() action.Pair {
 
 			return items, nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
-					XPermissions: []types.Capability{types.SecretWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
+				XPermissions: []types.Capability{types.SecretWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
@@ -217,11 +209,9 @@ func edit() action.Pair {
 			return s.Name, err
 		},
 	}, scaffoldedit.Options{
-		CommonOptions: scaffold.CommonOptions{
-			Requirements: annotations.Requirements{
-				IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
-				XPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
-			},
+		Requirements: annotations.Requirements{
+			IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
+			XPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
 		},
 	})
 }

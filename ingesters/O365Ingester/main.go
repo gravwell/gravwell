@@ -305,7 +305,7 @@ func scrubO365Error(err error) error {
 	return errors.New(s)
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

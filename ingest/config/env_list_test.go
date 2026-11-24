@@ -53,7 +53,7 @@ func TestLoadEnvVarList(t *testing.T) {
 		{name: "file whitespace only", file: new(" \n\r\n\t"), wantErr: ErrEmptyEnvFile},
 		{name: "file only commas", file: new(",,,"), wantErr: ErrEmptyEnvList, errHas: "TEST_LIST_FILE"},
 		{name: "file only separators", file: new(" ,\n , \r\n,"), wantErr: ErrEmptyEnvList},
-		{name: "file missing", file: strPtr(missing), wantErr: os.ErrNotExist, errHas: "TEST_LIST_FILE"},
+		{name: "file missing", file: new(missing), wantErr: os.ErrNotExist, errHas: "TEST_LIST_FILE"},
 		{name: "file too large", file: new(strings.Repeat("10.0.0.1\n", int(maxEnvListFileSize)/9+1)), errHas: "larger than"},
 		{name: "file at size cap", file: new(strings.Repeat("a", int(maxEnvListFileSize))), want: []string{strings.Repeat("a", int(maxEnvListFileSize))}},
 	}

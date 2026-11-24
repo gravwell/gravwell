@@ -735,7 +735,7 @@ func TestDeletedAtMarshalsNullable(t *testing.T) {
 		// land at the top level of every asset that embeds it.
 		{"live SearchInfo", types.SearchInfo{}, `null`},
 		{"live Macro", types.Macro{}, `null`},
-		{"deleted Macro", types.Macro{CommonFields: types.CommonFields{DeletedAt: types.NewNullable(ts)}}, `"2026-09-17T12:00:00Z"`},
+		{"deleted Macro", types.Macro{DeletedAt: types.NewNullable(ts)}, `"2026-09-17T12:00:00Z"`},
 		{"live User", types.User{}, `null`},
 		{"deleted User", types.User{DeletedAt: types.NewNullable(ts)}, `"2026-09-17T12:00:00Z"`},
 		{"live Group", types.Group{}, `null`},

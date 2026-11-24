@@ -668,13 +668,9 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 	clilog.Writer.Debugf("Scheduling query %v (%v) for %v", name, qry, freq)
 	result, err := Client.CreateScheduledSearch(
 		types.ScheduledSearch{
-			CommonFields: types.CommonFields{
-				Name:        name,
-				Description: desc,
-			},
-			AutomationCommonFields: types.AutomationCommonFields{
-				Schedule: freq,
-			},
+			Name:        name,
+			Description: desc,
+			Schedule:    freq,
 			Search: types.Searchable{
 				Kind:        types.SearchableKindQueryString,
 				QueryString: qry,

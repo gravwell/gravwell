@@ -109,15 +109,13 @@ func newCalendarAction() action.Pair {
 	},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:        "calendar",
-				Example:    "calendar 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default",
-				Aliases:    aliases,
-				AddtlFlags: calendarFlags,
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
-					XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
-				},
+			Use:        "calendar",
+			Example:    "calendar 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default",
+			Aliases:    aliases,
+			AddtlFlags: calendarFlags,
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
+				XPermissions: []types.Capability{types.SystemInfoRead, types.Stats},
 			},
 			// ValidateArgs does its namesake and sets/resets the package vars.
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

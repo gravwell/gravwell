@@ -245,7 +245,7 @@ func TestLegacyWarning(t *testing.T) {
 		"set Trusted-Proxy instead")
 	require.Contains(t, logBuf.String(), `src="203.0.113.7" peer="192.0.2.10" xff="203.0.113.7"`)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		legacy.Resolve(newXFFRequest("192.0.2.11:5000", "203.0.113.8"), lw)
 	}
 	require.Equal(t, 1, warnings(), "warnings are rate limited across peers")
@@ -286,12 +286,10 @@ func TestLegacyWarningConcurrent(t *testing.T) {
 	go func() {
 		defer close(done)
 		var wg sync.WaitGroup
-		for i := 0; i < 32; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 32 {
+			wg.Go(func() {
 				cr.Resolve(newXFFRequest("192.0.2.11:5000", "203.0.113.8"), lw)
-			}()
+			})
 		}
 		wg.Wait()
 	}()

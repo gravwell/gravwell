@@ -386,7 +386,7 @@ func packKit(args []string) {
 		log.Fatalf("Could not get builder: %v", err)
 	}
 
-	marshallAdd := func(itm types.KitItem, obj interface{}) error {
+	marshallAdd := func(itm types.KitItem, obj any) error {
 		bts, err := json.Marshal(obj)
 		if err != nil {
 			return fmt.Errorf("Could not marshal %v %v: %v", itm.Type, itm.Name, err)

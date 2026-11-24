@@ -100,8 +100,8 @@ func aliasResponseError(c *Client, resp *http.Response) error {
 // WebsocketConn implements a minimal websocket interface for sending objects as JSON encoded messages
 // each Write call flushes the socket
 type WebsocketConn interface {
-	ReadJSON(v interface{}) error
-	WriteJSON(v interface{}) error
+	ReadJSON(v any) error
+	WriteJSON(v any) error
 	SetReadDeadline(t time.Time) error
 	SetWriteDeadline(t time.Time) error
 	Close() error
@@ -113,11 +113,11 @@ type wsJSONConn struct {
 	conn *websocket.Conn
 }
 
-func (w *wsJSONConn) ReadJSON(v interface{}) error {
+func (w *wsJSONConn) ReadJSON(v any) error {
 	return websocket.JSON.Receive(w.conn, v)
 }
 
-func (w *wsJSONConn) WriteJSON(v interface{}) error {
+func (w *wsJSONConn) WriteJSON(v any) error {
 	return websocket.JSON.Send(w.conn, v)
 }
 

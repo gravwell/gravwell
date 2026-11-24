@@ -86,8 +86,9 @@ func TestSkillFromFile(t *testing.T) {
 
 func TestRenderRoundTrip(t *testing.T) {
 	s := types.AgentSkill{
-		CommonFields: types.CommonFields{Name: "triage", Description: "Triage alerts"},
-		Body:         "# Triage\n\n1. look",
+		Name:        "triage",
+		Description: "Triage alerts",
+		Body:        "# Triage\n\n1. look",
 	}
 	sf, err := parseSkill(render(s))
 	if err != nil {
@@ -96,7 +97,7 @@ func TestRenderRoundTrip(t *testing.T) {
 	if sf.Name != s.Name || sf.Description != s.Description || sf.Body != s.Body+"\n" || !sf.FromFrontMatter {
 		t.Errorf("round trip changed the skill: %+v", sf)
 	}
-	noDesc := render(types.AgentSkill{CommonFields: types.CommonFields{Name: "x"}, Body: "b\n"})
+	noDesc := render(types.AgentSkill{Name: "x", Body: "b\n"})
 	if noDesc != "---\nname: x\n---\nb\n" {
 		t.Errorf("rendered %q", noDesc)
 	}

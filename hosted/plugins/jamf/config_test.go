@@ -161,18 +161,18 @@ func TestConfig_Tags(t *testing.T) {
 			want:     []string{"jamf-general", "jamf-applications"},
 		},
 		{
-                        name:     "sections containing _",
-                        sections: []string{"STORAGE", generalSectionName, "DISK_ENCRYPTION"},
-                        want:     []string{"jamf-storage", "jamf-general", "jamf-disk-encryption"},
-                },
+			name:     "sections containing _",
+			sections: []string{"STORAGE", generalSectionName, "DISK_ENCRYPTION"},
+			want:     []string{"jamf-storage", "jamf-general", "jamf-disk-encryption"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := Config{
 				Host: "https://jamf.example.com", Client_Id: "id", Client_Secret: "secret",
-				Sections:       tt.sections,
-				MultiTagConfig: hosted.MultiTagConfig{Tag_Name: tt.tagName, Tag_Prefix: tt.prefix},
+				Sections: tt.sections,
+				Tag_Name: tt.tagName, Tag_Prefix: tt.prefix,
 			}
 			if err := c.Verify(); err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -201,10 +201,10 @@ func TestConfig_RequestSections(t *testing.T) {
 			want:     []string{generalSectionName, "APPLICATIONS"},
 		},
 		{
-                        name:     "user sections with GENERAL not first are unchanged",
-                        sections: []string{"STORAGE", generalSectionName, "DISK_ENCRYPTION"},
-                        want:     []string{generalSectionName, "STORAGE", "DISK_ENCRYPTION"},
-                },
+			name:     "user sections with GENERAL not first are unchanged",
+			sections: []string{"STORAGE", generalSectionName, "DISK_ENCRYPTION"},
+			want:     []string{generalSectionName, "STORAGE", "DISK_ENCRYPTION"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -216,4 +216,3 @@ func TestConfig_RequestSections(t *testing.T) {
 		})
 	}
 }
-

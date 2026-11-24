@@ -23,7 +23,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/iotest"
 
@@ -595,13 +594,13 @@ func TestDebugChainResolvesAfterThrottle(t *testing.T) {
 	require.Equal(t, 0, warnings(), "a health check should not resolve the client")
 
 	hndlr.maxConcurrentRequests = 1
-	atomic.StoreInt64(&hndlr.activeRequests, 1)
+	hndlr.activeRequests.Store(1)
 	dl = &captureDebugLogger{}
 	require.Equal(t, http.StatusTooManyRequests, serve(dl, http.MethodPost, "/test1"))
 	require.Contains(t, dl.String(), " ip=192.0.2.1 ")
 	require.Equal(t, 0, warnings(), "a throttled request should not resolve the client")
 
-	atomic.StoreInt64(&hndlr.activeRequests, 0)
+	hndlr.activeRequests.Store(0)
 	dl = &captureDebugLogger{}
 	require.Equal(t, http.StatusNotFound, serve(dl, http.MethodPost, "/unknown"))
 	require.Contains(t, dl.String(), " ip=203.0.113.7 ")
@@ -624,10 +623,8 @@ func TestResolverSwapConcurrent(t *testing.T) {
 
 	done := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < 4; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 4 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-done:
@@ -640,10 +637,10 @@ func TestResolverSwapConcurrent(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		if i%2 == 0 {
 			require.NoError(t, hndlr.hotReload(newCfg()))
 		} else {

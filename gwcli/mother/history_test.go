@@ -160,7 +160,7 @@ func Test_history_GetRecord(t *testing.T) {
 		randOlderRecordFunc := func(t *testing.T) {
 			roll := rand.Intn(int(_ARRAY_SIZE) * 2)
 			t.Logf("Rolled %d", roll)
-			for i := 0; i < roll; i++ {
+			for i := range roll {
 				if r := h.getOlderRecord(); r != "" {
 					t.Fatalf("iteration #%d: found non-empty value %s", i, r)
 				}
@@ -192,7 +192,7 @@ func Test_history_GetRecord(t *testing.T) {
 		randNewerRecordFunc := func(t *testing.T) {
 			roll := rand.Intn(int(_ARRAY_SIZE) * 2)
 			t.Logf("Rolled %d", roll)
-			for i := 0; i < roll; i++ {
+			for i := range roll {
 				if r := h.getNewerRecord(); r != "" {
 					t.Fatalf("iteration #%d: found non-empty value %s", i, r)
 				}
@@ -218,7 +218,7 @@ func Test_history_GetRecord(t *testing.T) {
 	t.Run("at limit", func(t *testing.T) {
 		h := newHistory()
 		var i uint16
-		for i = 0; i < _ARRAY_SIZE; i++ {
+		for i = range _ARRAY_SIZE {
 			h.insert(fmt.Sprintf("%v", i))
 		}
 		t.Run("first GetRecord", func(t *testing.T) {
@@ -268,7 +268,7 @@ func Test_history_GetAllRecords(t *testing.T) {
 		cap := 50
 		h := newHistory()
 		want := make([]string, cap)
-		for i := 0; i < cap; i++ {
+		for i := range cap {
 			h.insert("command")
 			want[i] = "command"
 		}
@@ -285,7 +285,7 @@ func Test_history_GetAllRecords(t *testing.T) {
 			h.insert(fmt.Sprintf("%d", -i))
 		}
 		rs := h.getAllRecords()
-		for i := 0; i < int(_ARRAY_END); i++ {
+		for i := range int(_ARRAY_END) {
 			if rs[i] != fmt.Sprintf("%d", -i) {
 				t.Fatalf("value mismatch: (index: %d) (want: %s, got (rs[i]): %s)", i, fmt.Sprintf("%d", -i), rs[i])
 			}

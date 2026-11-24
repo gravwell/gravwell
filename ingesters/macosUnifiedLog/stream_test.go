@@ -114,7 +114,7 @@ func (h *cancelingHandler) ProcessContext(ent *entry.Entry, ctx context.Context)
 func parseLogLines(t *testing.T, s string) []rfc5424.Message {
 	t.Helper()
 	var msgs []rfc5424.Message
-	for _, line := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(s, "\n"), "\n") {
 		if line == "" {
 			continue
 		}
@@ -222,8 +222,7 @@ func TestRunOnceCleanExit(t *testing.T) {
 	if err == nil || err.Error() != "log exited" {
 		t.Fatalf("got %v, want exactly \"log exited\"", err)
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		t.Fatalf("error unexpectedly wraps an *exec.ExitError: %v", err)
 	}
 }
@@ -233,8 +232,7 @@ func TestRunOnceKillsOnDecodeError(t *testing.T) {
 	s, h, _ := shellStreamer(t, `printf '[{"a":1},oops'; exec sleep 60`, "sh")
 	start := time.Now()
 	n, err := s.runOnce(context.Background())
-	var serr *jsontext.SyntacticError
-	if !errors.As(err, &serr) {
+	if _, ok := errors.AsType[*jsontext.SyntacticError](err); !ok {
 		t.Fatalf("expected a JSON syntax error, got %v", err)
 	}
 	if n != 1 || h.count() != 1 {
@@ -477,7 +475,7 @@ func TestStderrRelayPreservesOrder(t *testing.T) {
 	var sb strings.Builder
 	lineLens := []int{10, maxStderrLine, maxStderrLine + 1, 2*maxStderrLine + 37, 1}
 	for i, n := range lineLens {
-		for j := 0; j < n; j++ {
+		for j := range n {
 			sb.WriteByte(byte('a' + (i+j)%26))
 		}
 		if i < len(lineLens)-1 {

@@ -263,9 +263,9 @@ func parseJWKPrivateKey(b []byte) (*rsa.PrivateKey, string, error) {
 	}
 
 	key := &rsa.PrivateKey{
-		PublicKey: rsa.PublicKey{N: n, E: int(e.Int64())},
-		D:         d,
-		Primes:    []*big.Int{p, q},
+		N: n, E: int(e.Int64()),
+		D:      d,
+		Primes: []*big.Int{p, q},
 	}
 	key.Precompute()
 	if err := key.Validate(); err != nil {

@@ -39,8 +39,8 @@ const MaxDepth = 1000000
 // buffer. The buffer can also cache to disk. The user is expected to connect
 // ChanCacher.In and ChanCacher.Out.
 type ChanCacher struct {
-	In      chan interface{}
-	Out     chan interface{}
+	In      chan any
+	Out     chan any
 	runDone bool
 	maxSize int
 
@@ -105,8 +105,8 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int, lgr log.IngestLo
 		maxDepth = MaxDepth
 	}
 	c := &ChanCacher{
-		In:          make(chan interface{}),
-		Out:         make(chan interface{}, maxDepth),
+		In:          make(chan any),
+		Out:         make(chan any, maxDepth),
 		cachePath:   cachePath,
 		cache:       cachePath != "",
 		cachePaused: make(chan bool),
@@ -282,7 +282,7 @@ func (c *ChanCacher) cacheHandler() {
 		var err error
 
 		dec := gob.NewDecoder(c.cacheR)
-		var v interface{}
+		var v any
 		for {
 			err = dec.Decode(&v)
 			if err != nil {
@@ -332,7 +332,7 @@ func (c *ChanCacher) cacheHandler() {
 	}
 }
 
-func (c *ChanCacher) cacheValue(v interface{}) {
+func (c *ChanCacher) cacheValue(v any) {
 	if v == nil {
 		return
 	}
@@ -489,7 +489,7 @@ func merge(rPath, wPath string) error {
 	enc := gob.NewEncoder(t)
 
 	rdec := gob.NewDecoder(fr)
-	var v interface{}
+	var v any
 	for {
 		err = rdec.Decode(&v)
 		if err != nil {

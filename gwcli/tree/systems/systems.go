@@ -90,12 +90,10 @@ func newStorageAction() action.Pair {
 			"Stats.EntryCountCold":   "Cold.Count",
 		},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: use,
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SystemInfoRead},
-					XPermissions: []types.Capability{types.SystemInfoRead},
-				},
+			Use: use,
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SystemInfoRead},
+				XPermissions: []types.Capability{types.SystemInfoRead},
 			},
 		})
 }
@@ -133,12 +131,10 @@ func state() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "state",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Stats},
-					XPermissions: []types.Capability{types.Stats},
-				},
+			Use: "state",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Stats},
+				XPermissions: []types.Capability{types.Stats},
 			},
 			Pretty: func(_ *pflag.FlagSet, _ []string, _ map[string]string, _ scaffoldlist.DataParameters) (string, error) {
 				idxrs, err := connection.Client.GetSystemDescriptions()

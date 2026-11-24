@@ -144,7 +144,7 @@ func GenAuthHash(password string) (AuthHash, error) {
 	io.WriteString(h512, password)
 	runningHash = h512.Sum(nil)
 
-	for i := uint16(0); i < HASH_ITERATIONS; i++ {
+	for range HASH_ITERATIONS {
 		md := md5.New()
 		size, err := md.Write(runningHash)
 		if err != nil {
@@ -164,9 +164,7 @@ func GenAuthHash(password string) (AuthHash, error) {
 		}
 		runningHash = sh.Sum(nil)
 	}
-	for i := 0; i < len(auth); i++ {
-		auth[i] = runningHash[i]
-	}
+	copy(auth[:], runningHash)
 	return auth, nil
 }
 
@@ -178,7 +176,7 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 	if err != nil {
 		return err
 	}
-	for i := 0; i < len(vResp.Response); i++ {
+	for i := range vResp.Response {
 		if vResp.Response[i] != resp.Response[i] {
 			return errors.New("Verification Failed")
 		}
@@ -205,7 +203,7 @@ func NewChallenge(auth AuthHash) (Challenge, error) {
 	prngMtx.Lock()
 	checkAndReseedPRNGNoLock()
 	iter := uint16(10000 + prng.Intn(10000))
-	for i := 0; i < len(chal); i++ {
+	for i := range chal {
 		chal[i] = byte(prng.Intn(0xff))
 	}
 	prngMtx.Unlock()
@@ -225,9 +223,7 @@ func GenerateResponse(auth AuthHash, ch Challenge) (resp *ChallengeResponse, err
 	//hash first with SHA512
 	runningHash := make([]byte, 32)
 	authSlice := make([]byte, len(auth))
-	for i := 0; i < 32; i++ {
-		runningHash[i] = ch.RandChallenge[i]
-	}
+	copy(runningHash, ch.RandChallenge[:])
 	copy(authSlice, auth[:])
 	sha := sha512.New()
 	if _, err = sha.Write(runningHash); err != nil {
@@ -252,9 +248,7 @@ func GenerateResponse(auth AuthHash, ch Challenge) (resp *ChallengeResponse, err
 	}
 	//NOTE: The last hash HAS to be SHA256 because we expect
 	//a 32 byte result
-	for i := 0; i < len(resp.Response); i++ {
-		resp.Response[i] = runningHash[i]
-	}
+	copy(resp.Response[:], runningHash)
 	return
 }
 

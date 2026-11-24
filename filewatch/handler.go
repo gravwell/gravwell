@@ -27,14 +27,14 @@ const (
 	evFilenameName = `file`
 )
 
-type debugOut func(string, ...interface{})
+type debugOut func(string, ...any)
 
 type logger interface {
-	Criticalf(string, ...interface{}) error
-	Errorf(string, ...interface{}) error
-	Warnf(string, ...interface{}) error
-	Infof(string, ...interface{}) error
-	Debugf(string, ...interface{}) error
+	Criticalf(string, ...any) error
+	Errorf(string, ...any) error
+	Warnf(string, ...any) error
+	Infof(string, ...any) error
+	Debugf(string, ...any) error
 
 	Critical(string, ...rfc5424.SDParam) error
 	Error(string, ...rfc5424.SDParam) error

@@ -59,11 +59,10 @@ func listAction() action.Pair {
 			return scaffold.CollectToLimit(param.QueryOptions, connection.Client.ListUsers)
 		}, nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.ListUsers},
-					XPermissions: []types.Capability{types.ListUsers},
-				}},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.ListUsers},
+				XPermissions: []types.Capability{types.ListUsers},
+			},
 			DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"},
 		},
 	)
@@ -150,7 +149,7 @@ func create() action.Pair {
 			return u.ID, "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		})
 }
 
@@ -176,7 +175,7 @@ func delete() action.Pair {
 			return items, nil
 		},
 		scaffolddelete.Options{
-			CommonOptions:     scaffold.CommonOptions{Requirements: annotations.Requirements{UserIsAdmin: true}},
+			Requirements:      annotations.Requirements{UserIsAdmin: true},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true}})
 }
 
@@ -255,10 +254,8 @@ func edit() action.Pair {
 			},
 		},
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				// edits arbitrary users by ID; this is an admin-only operation
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			// edits arbitrary users by ID; this is an admin-only operation
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		},
 	)
 }
@@ -340,22 +337,20 @@ func sessionsAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "sessions",
-				Usage:   "sessions " + ft.Optional("Flags") + " " + ft.VariadicArgs("UID", true),
-				Example: "sessions 1 8",
-				Aliases: []string{"session"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String("since",
-						"",
-						"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
-							"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
-					return fs
-				},
-				// views sessions for arbitrary users by ID; this is an admin-only operation
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+			Use:     "sessions",
+			Usage:   "sessions " + ft.Optional("Flags") + " " + ft.VariadicArgs("UID", true),
+			Example: "sessions 1 8",
+			Aliases: []string{"session"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String("since",
+					"",
+					"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
+						"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
+				return fs
 			},
+			// views sessions for arbitrary users by ID; this is an admin-only operation
+			Requirements:   annotations.Requirements{UserIsAdmin: true},
 			DefaultColumns: []string{"SessionID", "Origin", "LastHit"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// check for since override and set default if not
@@ -445,10 +440,8 @@ func lock() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:          "lock",
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Use:          "lock",
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no unlocked accounts you can lock." },
 		})
 }
@@ -482,10 +475,8 @@ func unlock() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:          "unlock",
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Use:          "unlock",
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			NoItemsError: func(fs *pflag.FlagSet) string { return "There are no locked accounts you can unlock." },
 		})
 }

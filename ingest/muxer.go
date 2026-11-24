@@ -140,10 +140,10 @@ type IngestMuxer struct {
 	pubKey               string
 	privKey              string
 	verifyCert           bool
-	eChan                chan interface{}
-	eChanOut             chan interface{}
-	bChan                chan interface{}
-	bChanOut             chan interface{}
+	eChan                chan any
+	eChanOut             chan any
+	bChan                chan any
+	bChanOut             chan any
 	dittoChan            chan dittoBlock
 	eq                   *emergencyQueue
 	writeBarrier         chan bool
@@ -355,7 +355,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// connect up the chancacher
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
-	var eIn, eOut, bIn, bOut chan interface{}
+	var eIn, eOut, bIn, bOut chan any
 
 	if c.CachePath != "" {
 		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize, c.Logger)
@@ -382,8 +382,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		} else if depth > maxIngestChanDepth {
 			depth = maxIngestChanDepth
 		}
-		eChan := make(chan interface{}, depth)
-		bChan := make(chan interface{}, depth)
+		eChan := make(chan any, depth)
+		bChan := make(chan any, depth)
 		eIn = eChan
 		eOut = eChan
 		bIn = bChan
@@ -824,7 +824,7 @@ func (im *IngestMuxer) WillBlock() bool {
 	return false
 }
 
-func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
+func (im *IngestMuxer) SetRawConfiguration(obj any) (err error) {
 	if obj == nil {
 		return
 	}
@@ -839,7 +839,7 @@ func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
 	return
 }
 
-func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
+func (im *IngestMuxer) SetMetadata(obj any) (err error) {
 	if obj == nil {
 		return
 	}
@@ -1746,7 +1746,7 @@ inputLoop:
 							//discard this entry, this isn't real and there is no way to get here
 							b[i] = nil //this is safe, we check for this everywhere
 							// first, reverse anything we've translated already
-							for j := 0; j < i; j++ {
+							for j := range i {
 								if b[j] != nil {
 									b[j].Tag = nc.tt.reverse(b[j].Tag)
 								}
@@ -1764,7 +1764,7 @@ inputLoop:
 							// so we get the correct tag set.
 
 							// first, reverse anything we've translated already
-							for j := 0; j < i; j++ {
+							for j := range i {
 								if b[j] != nil {
 									b[j].Tag = nc.tt.reverse(b[j].Tag)
 								}
@@ -2412,7 +2412,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 					if !ok {
 						// could not translate, push it back on the queue and bail
 						// first we need to reverse the ones we have already translated, ugh
-						for j := 0; j < i; j++ {
+						for j := range i {
 							if blk[j] != nil {
 								blk[j].Tag = tt.reverse(blk[j].Tag)
 							}

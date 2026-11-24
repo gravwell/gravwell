@@ -55,7 +55,7 @@ func NewState(pth string, perm os.FileMode) (s *State, err error) {
 	return
 }
 
-func (s *State) Write(f interface{}) (err error) {
+func (s *State) Write(f any) (err error) {
 	s.Lock()
 	var fout *safefile.File
 	if fout, err = safefile.Create(s.fpath, s.perm); err == nil {
@@ -72,7 +72,7 @@ func (s *State) Write(f interface{}) (err error) {
 	return
 }
 
-func (s *State) Read(f interface{}) (err error) {
+func (s *State) Read(f any) (err error) {
 	s.Lock()
 	var fin *os.File
 	if fin, err = os.Open(s.fpath); err != nil {

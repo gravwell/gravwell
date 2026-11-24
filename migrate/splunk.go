@@ -254,7 +254,7 @@ func initializeSplunk(cfg *cfgType, st *StateTracker, ctx context.Context) (stop
 	cachedTracker := newSplunkTracker()
 	// Read states from the state file
 	var obj splunkStatus
-	if err := st.GetStates(splunkStateType, &obj, func(val interface{}) error {
+	if err := st.GetStates(splunkStateType, &obj, func(val any) error {
 		if val == nil {
 			return nil ///ummm ok?
 		}

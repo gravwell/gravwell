@@ -52,13 +52,12 @@ func NewAttachAction() action.Pair {
 		"re-attach to a backgrounded query",
 		helpDesc,
 		runE,
-		treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+		treeutils.GenerateActionOptions{
 			CommandAliases: []string{"reattach"},
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.AttachSearch},
 				XPermissions: []types.Capability{types.AttachSearch},
-			},
-		}})
+			}})
 
 	localFS := initialLocalFlagSet()
 	cmd.Flags().AddFlagSet(&localFS)

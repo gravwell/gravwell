@@ -1,5 +1,4 @@
 //go:build darwin || freebsd
-// +build darwin freebsd
 
 /*************************************************************************
  * Copyright 2023 Gravwell, Inc. All rights reserved.

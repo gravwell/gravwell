@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -129,15 +130,15 @@ type Logger struct {
 }
 
 type IngestLogger interface {
-	Errorf(string, ...interface{}) error
-	Warnf(string, ...interface{}) error
-	Infof(string, ...interface{}) error
+	Errorf(string, ...any) error
+	Warnf(string, ...any) error
+	Infof(string, ...any) error
 	Error(string, ...rfc5424.SDParam) error
 	Warn(string, ...rfc5424.SDParam) error
 	Info(string, ...rfc5424.SDParam) error
-	InfofWithDepth(int, string, ...interface{}) error
-	WarnfWithDepth(int, string, ...interface{}) error
-	ErrorfWithDepth(int, string, ...interface{}) error
+	InfofWithDepth(int, string, ...any) error
+	WarnfWithDepth(int, string, ...any) error
+	ErrorfWithDepth(int, string, ...any) error
 	InfoWithDepth(int, string, ...rfc5424.SDParam) error
 	WarnWithDepth(int, string, ...rfc5424.SDParam) error
 	ErrorWithDepth(int, string, ...rfc5424.SDParam) error
@@ -303,8 +304,8 @@ func (l *Logger) DeleteWriter(wtr io.Writer) error {
 	if err := l.ready(); err != nil {
 		return err
 	}
-	for i := len(l.wtrs) - 1; i >= 0; i-- {
-		if l.wtrs[i] == wtr {
+	for i, v := range slices.Backward(l.wtrs) {
+		if v == wtr {
 			l.wtrs = append(l.wtrs[:i], l.wtrs[i+1:]...)
 		}
 	}
@@ -321,8 +322,8 @@ func (l *Logger) DeleteRelay(rl Relay) error {
 	if err := l.ready(); err != nil {
 		return err
 	}
-	for i := len(l.rls) - 1; i >= 0; i-- {
-		if l.rls[i] == rl {
+	for i, v := range slices.Backward(l.rls) {
+		if v == rl {
 			l.rls = append(l.rls[:i], l.rls[i+1:]...)
 		}
 	}
@@ -366,71 +367,71 @@ func (l *Logger) GetLevel() Level {
 
 // Debugf writes a DEBUG level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) Debugf(f string, args ...interface{}) error {
+func (l *Logger) Debugf(f string, args ...any) error {
 	return l.outputf(DEFAULT_DEPTH, DEBUG, f, args...)
 }
 
 // Infof writes an INFO level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) Infof(f string, args ...interface{}) error {
+func (l *Logger) Infof(f string, args ...any) error {
 	return l.outputf(DEFAULT_DEPTH, INFO, f, args...)
 }
 
 // Warnf writes an WARN level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) Warnf(f string, args ...interface{}) error {
+func (l *Logger) Warnf(f string, args ...any) error {
 	return l.outputf(DEFAULT_DEPTH, WARN, f, args...)
 }
 
 // Errorf writes an ERROR level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) Errorf(f string, args ...interface{}) error {
+func (l *Logger) Errorf(f string, args ...any) error {
 	return l.outputf(DEFAULT_DEPTH, ERROR, f, args...)
 }
 
 // Criticalf writes a CRITICALinfo level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) Criticalf(f string, args ...interface{}) error {
+func (l *Logger) Criticalf(f string, args ...any) error {
 	return l.outputf(DEFAULT_DEPTH, CRITICAL, f, args...)
 }
 
 // DebugfWithDepth writes a DEBUG level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) DebugfWithDepth(d int, f string, args ...interface{}) error {
+func (l *Logger) DebugfWithDepth(d int, f string, args ...any) error {
 	return l.outputf(d, DEBUG, f, args...)
 }
 
 // InfofWithDepth writes an INFO level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) InfofWithDepth(d int, f string, args ...interface{}) error {
+func (l *Logger) InfofWithDepth(d int, f string, args ...any) error {
 	return l.outputf(d, INFO, f, args...)
 }
 
 // WarnfWithDepth writes an WARN level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) WarnfWithDepth(d int, f string, args ...interface{}) error {
+func (l *Logger) WarnfWithDepth(d int, f string, args ...any) error {
 	return l.outputf(d, WARN, f, args...)
 }
 
 // ErrorfWithDepth writes an ERROR level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) ErrorfWithDepth(d int, f string, args ...interface{}) error {
+func (l *Logger) ErrorfWithDepth(d int, f string, args ...any) error {
 	return l.outputf(d, ERROR, f, args...)
 }
 
 // CriticalfWithDepthf writes a CRITICALinfo level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
-func (l *Logger) CriticalfWithDepthf(d int, f string, args ...interface{}) error {
+func (l *Logger) CriticalfWithDepthf(d int, f string, args ...any) error {
 	return l.outputf(d, CRITICAL, f, args...)
 }
 
 // Fatalf writes a log using a format string, closes the logger, and issues an os.Exit(-1)
-func (l *Logger) Fatalf(f string, args ...interface{}) {
+func (l *Logger) Fatalf(f string, args ...any) {
 	l.fatalfCode(DEFAULT_DEPTH, -1, f, args...)
 }
 
 // FatalfCode is identical to a log.Fatal, except it allows for controlling the exit code
-func (l *Logger) FatalfCode(code int, f string, args ...interface{}) {
+func (l *Logger) FatalfCode(code int, f string, args ...any) {
 	l.fatalfCode(DEFAULT_DEPTH, code, f, args...)
 }
 
@@ -506,12 +507,12 @@ func (l *Logger) FatalCode(code int, msg string, sds ...rfc5424.SDParam) {
 	os.Exit(code)
 }
 
-func (l *Logger) fatalfCode(depth, code int, f string, args ...interface{}) {
+func (l *Logger) fatalfCode(depth, code int, f string, args ...any) {
 	l.outputf(depth, FATAL, f, args...)
 	os.Exit(code)
 }
 
-func (l *Logger) outputf(depth int, lvl Level, f string, args ...interface{}) (err error) {
+func (l *Logger) outputf(depth int, lvl Level, f string, args ...any) (err error) {
 	if l.lvl == OFF || lvl < l.lvl {
 		return
 	}
@@ -573,7 +574,7 @@ func (l *Logger) writeOutput(lvl Level, ts time.Time, ln, msg string) (err error
 	return
 }
 
-func (l *Logger) genOutputf(ts time.Time, pfx string, lvl Level, f string, args ...interface{}) (full, msg string) {
+func (l *Logger) genOutputf(ts time.Time, pfx string, lvl Level, f string, args ...any) (full, msg string) {
 	msg = strings.TrimSpace(fmt.Sprintf(f, args...))
 	if l.raw {
 		full = l.genRawOutput(ts, pfx, lvl, msg)
