@@ -24,7 +24,8 @@ func TestMimecast(t *testing.T) {
 	mock, err := tc.Run(t.Context(), mockImage,
 		e2e.WithDefaults(t, "mimecast-mock",
 			tc.WithExposedPorts("8080/tcp"),
-			tc.WithWaitStrategy(wait.ForLog("starting server")),
+			// the mock logs "starting server" before it listens, so wait on the port instead
+			tc.WithWaitStrategy(wait.ForListeningPort("8080/tcp")),
 		)...,
 	)
 	if err != nil {
