@@ -4,8 +4,34 @@ This ingester pulls from the [Okta](https://www.okta.com/) Management API and fo
 Gravwell as Okta's original JSON:
 
 - **System Log** (`/api/v1/logs`) to the `okta` tag, timestamped by the event's `published` time.
-- **Users** (`/api/v1/users`) to the `okta-users` tag. Every 10 minutes it pulls the users whose
-  `lastUpdated` falls in the last window.
+- **Users** (`/api/v1/users`) to the `okta-users` tag. Every `User-Poll-Interval` (10 minutes by
+  default) it lists every user, `DEPROVISIONED` users included, and emits the ones that are new or
+  whose `lastUpdated` or `lastLogin` changed since the last listing. Every `User-Dump-Interval`
+  (24 hours by default) it emits every user instead, whether or not it changed.
+
+Okta cannot search users by `lastLogin`, so a login is only visible by listing every user and
+comparing. Each poll costs one request per 200 users, so an org with 20,000 users needs 100 requests
+per poll. Those requests share the `Request-Per-Minute` budget with the System Log. Size that budget
+for the org, or poll less often with `User-Poll-Interval`. A listing that is skipped because the ingest
+connection is down is retried a minute later. One that fails is retried after a minute, then 2, 4 and
+so on up to the poll interval, so a lasting failure such as a missing scope is not hammered. A dump
+that fails part way is retried as a dump, but does not write again the users it already wrote. The
+next poll is timed from the end of a listing, so a listing that takes longer than the poll interval
+does not start the next one at once. Elements of a users page that are not user objects are skipped
+with a warning.
+
+The times of the last completed dump and listing are saved in the state file, along with the
+`Domain` they were for. After a restart the ingester carries on from them, so repeated restarts do
+not dump every user each time. A dump runs at startup only if the last one is older than
+`User-Dump-Interval`, or the saved state cannot be used. That is the case when either time is
+missing, unreadable or in the future, or the state was saved for a different `Domain`.
+Which users were emitted is kept in memory only. So the first listing after a restart emits the users
+whose `lastUpdated` or `lastLogin` is later than 5 minutes before the last saved listing.
+
+When Okta answers with `429 Too Many Requests`, the ingester logs a warning. It waits until the time
+Okta gives in `X-Rate-Limit-Reset`, measured against Okta's `Date` header and capped at 2 minutes, then
+retries the same page. Pages already ingested are not fetched again. Without that header it waits 10
+seconds. A 429 from the OAuth token endpoint, which has its own rate limit, is handled the same way.
 
 The System Log is polled from the last ingested event, following Okta's `next` links. The cursor and
 latest timestamp are saved after every page, so a restart resumes where it left off. Both
@@ -101,6 +127,8 @@ whose key file is missing or half written is rejected as a whole.
 | `Request-Batch-Size` | no | System Log events per request (default 100, max 3000). |
 | `Request-Per-Minute` | no | Client-side request rate limit (default 60, max 6000). |
 | `Request-Burst` | no | Request burst allowance (default 10). |
+| `User-Poll-Interval` | no | How often every user is listed and the changed ones emitted, as a Go duration such as `10m` or `1h` (default `10m`, minimum `5m`). |
+| `User-Dump-Interval` | no | How often every user is emitted, changed or not, as a Go duration such as `24h` or `12h30m` (default `24h`, minimum `10m`, and longer than `User-Poll-Interval`). |
 | `Ingester-UUID` | no | Ingester UUID. |
 
 `Private-Key-File` keeps the key out of the config file. The file is read when the config is
