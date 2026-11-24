@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !386 && !arm && !mips && !mipsle && !s390x && !windows
 
 //lint:file-ignore SA1019 this is all to support legacy plugins, can't change imports
 

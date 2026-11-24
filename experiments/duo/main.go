@@ -14,7 +14,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"gravwell/pkg/utils"
 	"log"
 	"net"
 	"net/url"
@@ -25,9 +24,9 @@ import (
 	duoapi "github.com/duosecurity/duo_api_golang"
 	"github.com/gravwell/gravwell/v4/generators/base"
 	"github.com/gravwell/gravwell/v4/ingest"
-	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	glog "github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"golang.org/x/time/rate"
 )
 
@@ -613,18 +612,16 @@ func getTrustLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src
 
 func getIngestMuxer(gc base.GeneratorConfig, to time.Duration) (igst *ingest.IngestMuxer, src net.IP, err error) {
 	umc := ingest.UniformMuxerConfig{
-		Destinations:  gc.ConnSet,
-		Tags:          tags,
-		Auth:          gc.Auth,
-		Tenant:        gc.Tenant,
-		IngesterName:  name,
-		IngesterUUID:  guid,
-		IngesterLabel: `duo`,
-		Logger:        glog.NewDiscardLogger(),
-		LogLevel:      gc.LogLevel.String(),
-		IngestStreamConfig: config.IngestStreamConfig{
-			Enable_Compression: gc.Compression,
-		},
+		Destinations:       gc.ConnSet,
+		Tags:               tags,
+		Auth:               gc.Auth,
+		Tenant:             gc.Tenant,
+		IngesterName:       name,
+		IngesterUUID:       guid,
+		IngesterLabel:      `duo`,
+		Logger:             glog.NewDiscardLogger(),
+		LogLevel:           gc.LogLevel.String(),
+		Enable_Compression: gc.Compression,
 	}
 	if igst, err = ingest.NewUniformMuxer(umc); err != nil {
 		return

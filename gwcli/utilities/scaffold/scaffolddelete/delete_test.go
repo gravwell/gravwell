@@ -215,9 +215,7 @@ func TestNonInteractive(t *testing.T) {
 				genDelFunc(&gotCustom),
 				collectItems,
 				scaffolddelete.Options{
-					CommonOptions: scaffold.CommonOptions{
-						AddtlFlags: afsCustom,
-					},
+					AddtlFlags: afsCustom,
 				})
 			uniques.AttachPersistentFlags(pair.Action)
 			pair.Action.SetOut(&sbOut)
@@ -283,14 +281,14 @@ func TestInteractiveCycle(t *testing.T) {
 			func(_ scaffolddelete.DataParameters) ([]multiselectlist.SelectableItem[string], error) {
 				return nil, fetchErr
 			},
-			scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+			scaffolddelete.Options{AddtlFlags: afsCustom})
 		_, _, err := pair.Model.SetArgs(nil, []string{}, 50, 20)
 		assert.ErrorIs(t, err, fetchErr)
 	})
 
 	t.Run("with items, no flags (interactive mode)", func(t *testing.T) {
 		var gotCustom int16
-		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(&gotCustom), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(&gotCustom), collectItems, scaffolddelete.Options{AddtlFlags: afsCustom})
 		testsupport.CheckSetArgs(t, pair.Model.SetArgs, nil, []string{"--custom=20"}, 50, 20, false, nil, false)
 
 		t.Run("check initial view", func(t *testing.T) {
@@ -323,7 +321,7 @@ func TestInteractiveCycle(t *testing.T) {
 	})
 
 	t.Run("IDs via bare args skip interactive", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{AddtlFlags: afsCustom})
 		inv, cmd, err := pair.Model.SetArgs(nil, []string{"alpha", "beta"}, 50, 20)
 		assert.Empty(t, inv)
 		assert.Nil(t, err)
@@ -332,7 +330,7 @@ func TestInteractiveCycle(t *testing.T) {
 	})
 
 	t.Run("bad flags returns invalid", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{AddtlFlags: afsCustom})
 		inv, _, err := pair.Model.SetArgs(nil, []string{"--nonexistent"}, 50, 20)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, inv)
@@ -341,7 +339,7 @@ func TestInteractiveCycle(t *testing.T) {
 
 func TestModelLifecycle(t *testing.T) {
 	t.Run("reset after done", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{AddtlFlags: afsCustom})
 		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
 		assert.Nil(t, err)
 		assert.True(t, pair.Model.Done())
@@ -351,7 +349,7 @@ func TestModelLifecycle(t *testing.T) {
 	})
 
 	t.Run("repeated use", func(t *testing.T) {
-		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems, scaffolddelete.Options{AddtlFlags: afsCustom})
 
 		// First use
 		_, _, err := pair.Model.SetArgs(nil, []string{"alpha"}, 50, 20)
@@ -367,7 +365,7 @@ func TestModelLifecycle(t *testing.T) {
 
 	t.Run("view when done", func(t *testing.T) {
 		var gotCustom int16
-		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(&gotCustom), collectItems, scaffolddelete.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: afsCustom}})
+		pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(&gotCustom), collectItems, scaffolddelete.Options{AddtlFlags: afsCustom})
 		_, _, err := pair.Model.SetArgs(nil, []string{"--custom", "-1", "alpha"}, 50, 20)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, pair.Model.View())
@@ -378,11 +376,9 @@ func TestModelLifecycle(t *testing.T) {
 func TestOptions(t *testing.T) {
 	pair := scaffolddelete.NewDeleteAction("widget", genDelFunc(nil), collectItems,
 		scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags:   afsCustom,
-				Aliases:      []string{"a", "b"},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			AddtlFlags:   afsCustom,
+			Aliases:      []string{"a", "b"},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		})
 
 	assert.Equal(t, "delete", pair.Action.Use)

@@ -33,13 +33,8 @@ WINDOWS_PKGS='./winevent/... ./ingesters/winevents/... ./generators/windowsEvent
 NATIVE=$(go list ./... 2>/dev/null | grep -vE "$NON_NATIVE" | grep -v '/ingesters/networkLog$')
 # gwcli is tested separately with -tags ci, which is a superset of the untagged run
 NATIVE_NO_GWCLI=$(echo "$NATIVE" | grep -v '/gwcli')
-# Packages whose file set differs on windows (_windows.go files or build tags).
-# Most of the tree does not build for windows, so go fix only sweeps these.
-# hosted/ is skipped: its windows test files pull in hosted/storage, which needs syscall.Flock.
-FILES='{{.ImportPath}} {{join .GoFiles " "}} {{join .TestGoFiles " "}} {{join .XTestGoFiles " "}}'
-WINDOWS_FIX=$(comm -13 <(GOOS=linux go list -e -f "$FILES" ./... 2>/dev/null | sort) \
-	<(GOOS=windows go list -e -f "$FILES" ./... 2>/dev/null | sort) \
-	| awk '{print $1}' | grep -vE '/(experiments|test_data|hosted/)')
+# go_fix.sh reads these from the environment.
+export CGO_PKG WINDOWS_PKGS NATIVE
 
 section "Skipping native vet/test/build for"
 go list ./... 2>/dev/null | grep -E "$NON_NATIVE"
@@ -54,9 +49,10 @@ go mod download
 go mod verify
 
 section "Checking go fix drift"
-go fix -diff $NATIVE
-GOOS=windows GOARCH=amd64 go fix -diff $WINDOWS_FIX
-CGO_ENABLED=1 go fix -diff $CGO_PKG
+bash ./.github/workflows/go_fix.sh diff
+
+section "Checking go fix coverage"
+bash ./.github/workflows/go_fix.sh coverage
 
 section "Running go vet"
 go vet $NATIVE

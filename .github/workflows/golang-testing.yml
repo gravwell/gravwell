@@ -57,16 +57,8 @@ jobs:
         NATIVE=$(go list ./... 2>/dev/null | grep -vE "$NON_NATIVE" | grep -v '/ingesters/networkLog$' | tr '\n' ' ')
         # gwcli is tested separately with -tags ci, which is a superset of the untagged run
         NATIVE_NO_GWCLI=$(echo "$NATIVE" | tr ' ' '\n' | grep -v '/gwcli' | tr '\n' ' ')
-        # Packages whose file set differs on windows (_windows.go files or build tags).
-        # Most of the tree does not build for windows, so go fix only sweeps these.
-        # hosted/ is skipped: its windows test files pull in hosted/storage, which needs syscall.Flock.
-        FILES='{{.ImportPath}} {{join .GoFiles " "}} {{join .TestGoFiles " "}} {{join .XTestGoFiles " "}}'
-        WINDOWS_FIX=$(comm -13 <(GOOS=linux go list -e -f "$FILES" ./... 2>/dev/null | sort) \
-          <(GOOS=windows go list -e -f "$FILES" ./... 2>/dev/null | sort) \
-          | awk '{print $1}' | grep -vE '/(experiments|test_data|hosted/)' | tr '\n' ' ')
         echo "NATIVE=$NATIVE" >> "$GITHUB_ENV"
         echo "NATIVE_NO_GWCLI=$NATIVE_NO_GWCLI" >> "$GITHUB_ENV"
-        echo "WINDOWS_FIX=$WINDOWS_FIX" >> "$GITHUB_ENV"
 
     - name: Skipping native vet/test/build for
       run: go list ./... 2>/dev/null | grep -E "$NON_NATIVE"
@@ -84,10 +76,10 @@ jobs:
 
     # go fix -diff exits non-zero if any modernizer would change code.
     - name: Checking go fix drift
-      run: |
-        go fix -diff $NATIVE
-        GOOS=windows go fix -diff $WINDOWS_FIX
-        CGO_ENABLED=1 go fix -diff $CGO_PKG
+      run: bash ./.github/workflows/go_fix.sh diff
+
+    - name: Checking go fix coverage
+      run: bash ./.github/workflows/go_fix.sh coverage
 
     - name: Running go vet
       run: |
