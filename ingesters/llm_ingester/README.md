@@ -47,8 +47,8 @@ comes from:
 | `Trusted-Proxy` | `Ignore-Untrusted-Forwarded-For` | Client address |
 | --- | --- | --- |
 | set | any | `X-Forwarded-For` from a listed proxy, else the TCP peer |
-| not set | `false` (default) | leftmost address in `X-Forwarded-For` from any sender, else the TCP peer |
-| not set | `true` | the TCP peer |
+| not set | `true` (default) | the TCP peer |
+| not set | `false` | leftmost address in `X-Forwarded-For` from any sender, else the TCP peer |
 
 If the proxy runs behind a reverse proxy or load balancer, list it in
 `Trusted-Proxy`. Repeat the key for each address or CIDR block. The proxy then
@@ -64,15 +64,16 @@ read as not set.
 	Trusted-Proxy = 192.168.100.0/24
 ```
 
-If nothing sits in front of the proxy, set `Ignore-Untrusted-Forwarded-For =
-true` so the client address is always the TCP peer.
+If nothing sits in front of the proxy, leave both options unset and the
+client address is always the TCP peer.
 
-With neither option set, the proxy trusts `X-Forwarded-For` from any sender
-and takes its leftmost address as the client. Any client can then choose its
-SRC and the session it is grouped into by sending its own leftmost
-`X-Forwarded-For` entry, as in earlier releases. When the header sets the
-client address, the proxy logs a warning, at most once a minute. This default
-changes in the next major release.
+Setting `Ignore-Untrusted-Forwarded-For = false` with no `Trusted-Proxy`
+restores the behavior of earlier releases: the proxy trusts `X-Forwarded-For`
+from any sender and takes its leftmost address as the client. Any client can
+then choose its SRC and the session it is grouped into by sending its own
+leftmost `X-Forwarded-For` entry, so use `Trusted-Proxy` instead where you can.
+When the header sets the client address, the proxy logs a warning, at most once
+a minute.
 
 Warnings about a request, such as an unparseable body or a failed upstream
 call, carry the client address as `src`, the same address as the entry SRC.
@@ -86,8 +87,9 @@ variables. `GRAVWELL_LLM_TRUSTED_PROXY_FILE` names a file instead. The file
 lists one entry per line, comma-separated entries, or both, and has no comment
 syntax. A value or file of only commas or blanks stops startup. Config file
 entries for `Trusted-Proxy` take precedence over the environment variable. The
-ignore variable can only turn the option on. If it is `true`, a config value of
-`false` does not override it.
+ignore variable accepts `true` or `false` and applies only when the config file
+and overlays do not set `Ignore-Untrusted-Forwarded-For`. An invalid value stops
+startup.
 
 ## Claude Code
 
