@@ -51,8 +51,7 @@ func TestLiveOAuth(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	end := time.Now().Add(-userLogWindowLag).Round(time.Second)
-	if err = o.getUserLogs(ctx, end.Add(-24*time.Hour), end, rt); err != nil {
+	if _, err = o.getUsers(ctx, rt, newUserTracker(), true); err != nil {
 		t.Fatalf("users: %v", err)
 	}
 	users := len(rt.data(o.userTag))
