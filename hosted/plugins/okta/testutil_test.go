@@ -125,7 +125,7 @@ func (r *testRuntime) Get(key string) ([]byte, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	v, ok := r.store[key]
-	if !ok {
+	if !ok || len(v) == 0 { // the bolt store reports an empty value as missing too
 		return nil, storage.ErrStorageNotFound
 	}
 	return append([]byte(nil), v...), nil
@@ -162,24 +162,17 @@ func (r *testRuntime) PutInt64(key string, value int64) error {
 	return r.Put(key, b)
 }
 
+// times are stored as the bolt store stores them
 func (r *testRuntime) GetTime(key string) (time.Time, error) {
-	v, err := r.Get(key)
+	v, err := r.GetString(key)
 	if err != nil {
 		return time.Time{}, err
 	}
-	var t time.Time
-	if err := t.UnmarshalBinary(v); err != nil {
-		return time.Time{}, err
-	}
-	return t, nil
+	return time.Parse(time.RFC3339Nano, v)
 }
 
 func (r *testRuntime) PutTime(key string, value time.Time) error {
-	b, err := value.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	return r.Put(key, b)
+	return r.PutString(key, value.Format(time.RFC3339Nano))
 }
 
 func (r *testRuntime) Write(e entry.Entry) error {

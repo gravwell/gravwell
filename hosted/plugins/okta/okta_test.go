@@ -59,6 +59,7 @@ type fakeOkta struct {
 	reject429 int  // API requests to answer with 429
 	skip429   int  // API requests to let through before reject429 applies
 	token503  int  // token requests to answer with 503
+	token429  int  // token requests to answer with 429, rate limited for about a second
 	nonceLoop bool // answer every DPoP proof with use_dpop_nonce
 	noNonce   bool // leave the DPoP-Nonce header off the use_dpop_nonce reply
 	// name use_dpop_nonce only in the error description, the SDK still treats that as a nonce request
@@ -183,6 +184,13 @@ func (f *fakeOkta) token(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	tokenURL := `http://` + r.Host + tokenPath
+	if f.token429 > 0 {
+		f.token429--
+		f.tokenErrs = append(f.tokenErrs, `429`)
+		w.Header().Set(`X-Rate-Limit-Reset`, strconv.FormatInt(time.Now().Add(time.Second).Unix(), 10))
+		oauthError(w, http.StatusTooManyRequests, `too_many_requests`, `API call exceeded rate limit due to too many requests.`)
+		return
+	}
 	if f.token503 > 0 {
 		f.token503--
 		f.tokenErrs = append(f.tokenErrs, `503`)
@@ -518,8 +526,7 @@ func TestSSWS_Legacy(t *testing.T) {
 	}
 
 	rt2 := newTestRuntime(t)
-	start, end := eventBase.Add(-time.Hour), eventBase.Add(time.Hour)
-	if err := o.getUserLogs(rt2.ctx, start, end, rt2); err != nil {
+	if _, err := o.getUsers(rt2.ctx, rt2, newUserTracker(), true); err != nil {
 		t.Fatal(err)
 	}
 	assertData(t, rt2.data(o.userTag), f.users)
@@ -533,7 +540,7 @@ func TestSSWS_Legacy(t *testing.T) {
 		logQ[0].Get(`sortOrder`) != `ASCENDING` || logQ[0].Get(`limit`) != `2` || logQ[2].Get(`after`) != `4` {
 		t.Errorf("unexpected system log queries %v", logQ)
 	}
-	if len(userQ) != 3 || userQ[0].Get(`search`) != lastUpdatedFilter(start, end) || userQ[0].Get(`limit`) != `200` {
+	if len(userQ) != 3 || userQ[0].Get(`search`) != allUsersSearch || userQ[0].Get(`limit`) != `200` {
 		t.Errorf("unexpected user queries %v", userQ)
 	}
 }
@@ -547,7 +554,7 @@ func TestSSWS_Errors(t *testing.T) {
 	rt := newTestRuntime(t)
 	o := newSSWSIngester(t, f, rt)
 	o.c = sswsDoer{next: o.c.(sswsDoer).next, token: `revoked`}
-	if err := o.getUserLogs(rt.ctx, eventBase.Add(-time.Hour), eventBase, rt); err == nil || !isStatus(err, http.StatusUnauthorized) {
+	if _, err := o.getUsers(rt.ctx, rt, newUserTracker(), true); err == nil || !isStatus(err, http.StatusUnauthorized) {
 		t.Errorf("users error %v", err)
 	}
 	if _, serr := rt.Status(); serr != nil {
@@ -593,8 +600,7 @@ func TestOAuth_Bearer(t *testing.T) {
 	}
 
 	rt2 := newTestRuntime(t)
-	start, end := eventBase.Add(-time.Hour), eventBase.Add(time.Hour)
-	if err := o.getUserLogs(rt2.ctx, start, end, rt2); err != nil {
+	if _, err := o.getUsers(rt2.ctx, rt2, newUserTracker(), true); err != nil {
 		t.Fatal(err)
 	}
 	assertData(t, rt2.data(o.userTag), f.users)
@@ -611,7 +617,7 @@ func TestOAuth_Bearer(t *testing.T) {
 	var afters []string
 	for _, q := range userQ {
 		afters = append(afters, q.Get(`after`))
-		if q.Get(`search`) != lastUpdatedFilter(start, end) || q.Get(`limit`) != `200` {
+		if q.Get(`search`) != allUsersSearch || q.Get(`limit`) != `200` {
 			t.Errorf("unexpected user query %v", q)
 		}
 	}
@@ -686,7 +692,7 @@ func TestOAuth_DPoP(t *testing.T) {
 	assertData(t, rt.data(o.systemTag), f.logs)
 
 	rt2 := newTestRuntime(t)
-	if err := o.getUserLogs(rt2.ctx, eventBase.Add(-time.Hour), eventBase, rt2); err != nil {
+	if _, err := o.getUsers(rt2.ctx, rt2, newUserTracker(), true); err != nil {
 		t.Fatal(err)
 	}
 	assertData(t, rt2.data(o.userTag), f.users)
@@ -815,7 +821,7 @@ func TestOAuth_MissingScope(t *testing.T) {
 
 	rt := newTestRuntime(t)
 	o := newOAuthIngester(t, f, rt, true, nil)
-	err := o.getUserLogs(rt.ctx, eventBase.Add(-time.Hour), eventBase, rt)
+	_, err := o.getUsers(rt.ctx, rt, newUserTracker(), true)
 	if !isInsufficientScope(err) || !strings.Contains(err.Error(), `insufficient_scope`) || !strings.Contains(err.Error(), `Read-only Administrator`) {
 		t.Fatalf("expected an insufficient scope error, got %v", err)
 	}
@@ -854,15 +860,14 @@ func TestOAuth_ScopeGrantedLater(t *testing.T) {
 
 	rt := newTestRuntime(t)
 	o := newOAuthIngester(t, f, rt, true, nil)
-	start, end := eventBase.Add(-time.Hour), eventBase
-	if err := o.getUserLogs(rt.ctx, start, end, rt); !isInsufficientScope(err) {
+	if _, err := o.getUsers(rt.ctx, rt, newUserTracker(), true); !isInsufficientScope(err) {
 		t.Fatalf("expected an insufficient scope error, got %v", err)
 	}
 
 	f.mu.Lock()
 	f.scope = bothScopes
 	f.mu.Unlock()
-	if err := o.getUserLogs(rt.ctx, start, end, rt); err != nil {
+	if _, err := o.getUsers(rt.ctx, rt, newUserTracker(), true); err != nil {
 		t.Fatalf("users still failing after the scope was granted: %v", err)
 	}
 	assertData(t, rt.data(o.userTag), f.users)
@@ -879,7 +884,7 @@ func TestOAuth_RateLimitedRetriedInPlace(t *testing.T) {
 
 	rt := newTestRuntime(t)
 	o := newOAuthIngester(t, f, rt, true, nil)
-	if err := o.getUserLogs(rt.ctx, eventBase.Add(-time.Hour), eventBase, rt); err != nil {
+	if _, err := o.getUsers(rt.ctx, rt, newUserTracker(), true); err != nil {
 		t.Fatal(err)
 	}
 	assertData(t, rt.data(o.userTag), f.users)
@@ -888,6 +893,69 @@ func TestOAuth_RateLimitedRetriedInPlace(t *testing.T) {
 		t.Errorf("%d pages served from %d requests with %d tokens, want 3 pages, 4 requests, 1 token", len(userQ), len(schemes), len(issued))
 	}
 	assertClean(t, rt, f, false)
+}
+
+// Token mode waits out a 429 too: the page is retried in place once Okta's rate limit resets
+func TestSSWS_RateLimitedRetriedInPlace(t *testing.T) {
+	t.Parallel()
+	f := newFakeOkta(t, withData(nil, testUsers(5)), func(f *fakeOkta) { f.skip429, f.reject429 = 1, 2 })
+
+	rt := newTestRuntime(t)
+	o := newSSWSIngester(t, f, rt)
+	o.c = sswsDoer{next: o.c.(sswsDoer).next, token: testSSWS, lg: rt}
+	if _, err := o.getUsers(rt.ctx, rt, newUserTracker(), true); err != nil {
+		t.Fatal(err)
+	}
+	assertData(t, rt.data(o.userTag), f.users)
+	_, userQ, schemes, _, _ := f.snapshot()
+	if len(userQ) != 3 || len(schemes) != 5 {
+		t.Errorf("%d pages served from %d requests, want 3 pages, 5 requests", len(userQ), len(schemes))
+	}
+	var warned int
+	for _, l := range rt.logged(`WARN`) {
+		if strings.Contains(l.msg, `rate limit`) {
+			warned++
+		}
+	}
+	if warned != 2 {
+		t.Errorf("warned %d times, want once per 429: %v", warned, rt.logged(``))
+	}
+	assertClean(t, rt, f, false)
+}
+
+func TestRateLimitWait(t *testing.T) {
+	t.Parallel()
+	okta := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC) // Okta's clock, ours is elsewhere
+	resp := func(reset, date string) *http.Response {
+		h := http.Header{}
+		if reset != `` {
+			h.Set(`X-Rate-Limit-Reset`, reset)
+		}
+		if date != `` {
+			h.Set(`Date`, date)
+		}
+		return &http.Response{StatusCode: http.StatusTooManyRequests, Header: h}
+	}
+	at := func(d time.Duration) string { return strconv.FormatInt(okta.Add(d).Unix(), 10) }
+	date := okta.Format(http.TimeFormat)
+	for name, c := range map[string]struct {
+		resp *http.Response
+		want time.Duration
+	}{
+		`reset ahead`:    {resp(at(30*time.Second), date), 30*time.Second + rateLimitPad},
+		`reset now`:      {resp(at(0), date), rateLimitPad},
+		`reset passed`:   {resp(at(-time.Minute), date), rateLimitPad},
+		`reset far off`:  {resp(at(time.Hour), date), maxRateLimitWait},
+		`no reset`:       {resp(``, date), 7 * time.Second},
+		`bad reset`:      {resp(`soon`, date), 7 * time.Second},
+		`zero reset`:     {resp(`0`, date), 7 * time.Second},
+		`no date, ours`:  {resp(strconv.FormatInt(time.Now().Add(-time.Hour).Unix(), 10), ``), rateLimitPad},
+		`bad date, ours`: {resp(strconv.FormatInt(time.Now().Add(-time.Hour).Unix(), 10), `yesterday`), rateLimitPad},
+	} {
+		if got := rateLimitWait(c.resp, 7*time.Second); got != c.want {
+			t.Errorf("%s: waited %v, want %v", name, got, c.want)
+		}
+	}
 }
 
 // a token endpoint outage is retried in place, a refused credential is not
@@ -904,6 +972,35 @@ func TestOAuth_TokenEndpointRetried(t *testing.T) {
 	if _, _, _, issued, tokenErrs := f.snapshot(); len(issued) != 1 || !slices.Equal(tokenErrs, []string{`503`, `503`}) {
 		t.Errorf("issued %d tokens after %v, want one after two 503s", len(issued), tokenErrs)
 	}
+}
+
+// the token endpoint has its own rate limit: a 429 there is waited out until Okta's reset time, not
+// retried on the short backoff, and logged as rate limiting rather than as a failed token request
+func TestOAuth_TokenEndpointRateLimited(t *testing.T) {
+	t.Parallel()
+	f := newFakeOkta(t, withData(testEvents(1), nil), func(f *fakeOkta) { f.token429 = 1 })
+
+	rt := newTestRuntime(t)
+	o := newOAuthIngester(t, f, rt, true, nil) // a millisecond backoff
+	start := time.Now()
+	if err := o.getSystemLogs(rt.ctx, rt); err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(start); took < rateLimitPad {
+		t.Errorf("retried after %v, want a wait for the rate limit reset", took)
+	}
+	assertData(t, rt.data(o.systemTag), f.logs)
+	if _, _, _, issued, tokenErrs := f.snapshot(); len(issued) != 1 || !slices.Equal(tokenErrs, []string{`429`}) {
+		t.Errorf("issued %d tokens after %v, want one after a 429", len(issued), tokenErrs)
+	}
+	var warned bool
+	for _, l := range rt.logged(`WARN`) {
+		warned = warned || (strings.Contains(l.msg, `rate limit`) && strings.Contains(l.String(), tokenPath))
+	}
+	if !warned {
+		t.Errorf("token rate limiting not logged: %v", rt.logged(``))
+	}
+	assertClean(t, rt, f, false) // no error logged for it
 }
 
 // the saved cursor is an absolute URL, credentials must not follow it to another host
@@ -1013,9 +1110,10 @@ func TestOAuthDoer_DropTokenOnlyIfRejected(t *testing.T) {
 	}
 }
 
+// a 429 is not retried on the fixed backoff, every client waits for the rate limit reset instead
 func TestRetryStatus(t *testing.T) {
 	t.Parallel()
-	for status, want := range map[int]bool{425: true, 429: true, 500: true, 503: true, 200: false, 400: false, 401: false, 403: false, 404: false} {
+	for status, want := range map[int]bool{425: true, 429: false, 500: true, 503: true, 200: false, 400: false, 401: false, 403: false, 404: false} {
 		if got := retryStatus(status); got != want {
 			t.Errorf("retryStatus(%d) = %v, want %v", status, got, want)
 		}
@@ -1084,7 +1182,7 @@ func TestForeignNextLink(t *testing.T) {
 			}
 
 			rt2 := newTestRuntime(t)
-			err = o.getUserLogs(rt2.ctx, eventBase.Add(-time.Hour), eventBase, rt2)
+			_, err = o.getUsers(rt2.ctx, rt2, newUserTracker(), true)
 			if err == nil || !strings.Contains(err.Error(), `another host`) {
 				t.Fatalf("users: got %v, want the next link refused", err)
 			}
@@ -1119,11 +1217,6 @@ func TestTimesSentAsUTC(t *testing.T) {
 	t.Parallel()
 	zone := time.FixedZone(`UTC+2`, 2*60*60)
 	since := eventBase.Add(-time.Hour)
-
-	want := `lastUpdated gt "2026-10-01T11:00:00.000Z" and lastUpdated lt "2026-10-01T12:00:00.000Z"`
-	if got := lastUpdatedFilter(since.In(zone), eventBase.In(zone)); got != want {
-		t.Errorf("users filter %q, want %q", got, want)
-	}
 
 	ingesters := map[string]func(*testing.T, *fakeOkta, *testRuntime) *OktaIngester{
 		`ssws`: newSSWSIngester,
