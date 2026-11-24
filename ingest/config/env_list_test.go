@@ -18,7 +18,7 @@ import (
 	"testing"
 )
 
-func TestLoadEnvVarListStrict(t *testing.T) {
+func TestLoadEnvVarList(t *testing.T) {
 	const missing = "\x00missing" // file content marker: point _FILE at a path that does not exist
 	tests := []struct {
 		name    string
@@ -75,7 +75,7 @@ func TestLoadEnvVarListStrict(t *testing.T) {
 			}
 
 			lst := tt.cfg
-			err := LoadEnvVarListStrict(&lst, name)
+			err := LoadEnvVar(&lst, name, nil)
 			if tt.wantErr != nil || tt.errHas != `` {
 				if err == nil {
 					t.Fatalf("got %q, want an error", lst)
@@ -101,35 +101,37 @@ func TestLoadEnvVarListStrict(t *testing.T) {
 	}
 }
 
-func TestLoadEnvVarListStrictInvalidArgs(t *testing.T) {
-	var lst []string
-	if err := LoadEnvVarListStrict(nil, "GRAVWELL_TEST_LIST"); !errors.Is(err, ErrInvalidArg) {
+func TestLoadEnvVarListArgs(t *testing.T) {
+	if err := LoadEnvVar((*[]string)(nil), "GRAVWELL_TEST_LIST", nil); !errors.Is(err, ErrInvalidArg) {
 		t.Fatalf("nil list: %v", err)
 	}
-	if err := LoadEnvVarListStrict(&lst, ""); !errors.Is(err, ErrInvalidArg) {
-		t.Fatalf("empty name: %v", err)
+	// no variable name is a no-op, the same as the other types
+	var lst []string
+	if err := LoadEnvVar(&lst, "", nil); err != nil || lst != nil {
+		t.Fatalf("empty name: %q %v", lst, err)
 	}
 }
 
-// TestLoadEnvVarListUnchanged pins the behavior of the lenient list loader,
-// which LoadEnvVarListStrict does not replace: only the first line of a _FILE
-// is read, and a value of only separators is an empty list.
-func TestLoadEnvVarListUnchanged(t *testing.T) {
-	var lst []string
-	t.Setenv("GRAVWELL_TEST_LENIENT", ",")
-	if err := LoadEnvVar(&lst, "GRAVWELL_TEST_LENIENT", nil); err != nil || len(lst) != 0 {
-		t.Fatalf("separators: %q %v", lst, err)
+// TestLoadDefaultsTargetsFile checks that the backend target lists read every
+// line of their _FILE variables.
+func TestLoadDefaultsTargetsFile(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), "targets")
+	if err := os.WriteFile(pth, []byte("10.0.0.1:4023\n10.0.0.2:4023, 10.0.0.3:4023\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(envClearTarget+"_FILE", pth)
+	var ic IngestConfig
+	if err := ic.loadDefaults(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"10.0.0.1:4023", "10.0.0.2:4023", "10.0.0.3:4023"}; !reflect.DeepEqual(ic.Cleartext_Backend_Target, want) {
+		t.Fatalf("got %q, want %q", ic.Cleartext_Backend_Target, want)
 	}
 
-	pth := filepath.Join(t.TempDir(), "list")
-	if err := os.WriteFile(pth, []byte("10.0.0.1,10.0.0.2\n10.0.0.3\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("GRAVWELL_TEST_LENIENT_FILE_ONLY_FILE", pth)
-	if err := LoadEnvVar(&lst, "GRAVWELL_TEST_LENIENT_FILE_ONLY", nil); err != nil {
-		t.Fatal(err)
-	} else if want := []string{"10.0.0.1", "10.0.0.2"}; !reflect.DeepEqual(lst, want) {
-		t.Fatalf("got %q, want %q", lst, want)
+	t.Setenv(envEncTarget, ",")
+	ic = IngestConfig{}
+	if err := ic.loadDefaults(); !errors.Is(err, ErrEmptyEnvList) {
+		t.Fatalf("got %v, want %v", err, ErrEmptyEnvList)
 	}
 }
 
