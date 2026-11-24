@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/configtest"
@@ -231,6 +232,8 @@ func TestConfigEqual(t *testing.T) {
 		Request_Burst:      defaultRequestBurst,
 		Domain:             "example.okta.com",
 		Token:              "token",
+		User_Poll_Interval: "15m",
+		User_Dump_Interval: "12h",
 		Client_ID:          "client",
 		Private_Key:        "key",
 		Private_Key_File:   "/key.pem",
@@ -582,5 +585,51 @@ func TestConfig_PrivateKeyForms(t *testing.T) {
 				t.Error("parsed key does not match")
 			}
 		})
+	}
+}
+
+func TestConfig_UserIntervals(t *testing.T) {
+	t.Parallel()
+	type ivals struct{ poll, dump string }
+	for in, want := range map[ivals][2]time.Duration{
+		{}:                  {10 * time.Minute, 24 * time.Hour},
+		{`5m`, ``}:          {5 * time.Minute, 24 * time.Hour},
+		{`30m`, `12h`}:      {30 * time.Minute, 12 * time.Hour},
+		{`5m`, `10m`}:       {5 * time.Minute, 10 * time.Minute},
+		{``, `10m1s`}:       {10 * time.Minute, 10*time.Minute + time.Second},
+		{`30m`, `31m`}:      {30 * time.Minute, 31 * time.Minute},
+		{`1h`, `168h`}:      {time.Hour, 168 * time.Hour},
+		{`23h59m`, ``}:      {23*time.Hour + 59*time.Minute, 24 * time.Hour},
+		{`5m0s`, `24h0m0s`}: {5 * time.Minute, 24 * time.Hour},
+	} {
+		cfg := Config{Token: "token", Domain: "example.okta.com", User_Poll_Interval: in.poll, User_Dump_Interval: in.dump}
+		if err := cfg.Verify(); err != nil {
+			t.Errorf("%q: %v", in, err)
+		} else if poll, dump := cfg.userPollInterval(), cfg.userDumpInterval(); poll != want[0] || dump != want[1] {
+			t.Errorf("%q: intervals %v, %v, want %v", in, poll, dump, want)
+		}
+	}
+	for in, field := range map[ivals]string{
+		{`bogus`, ``}: `User-Poll-Interval`,
+		{`10`, ``}:    `User-Poll-Interval`,
+		{`4m59s`, ``}: `User-Poll-Interval`,
+		{`1m`, ``}:    `User-Poll-Interval`,
+		{`0s`, ``}:    `User-Poll-Interval`,
+		{`-10m`, ``}:  `User-Poll-Interval`,
+		{``, `bogus`}: `User-Dump-Interval`,
+		{``, `24`}:    `User-Dump-Interval`,
+		{``, `5m`}:    `User-Dump-Interval`, // under the 10m minimum
+		{`5m`, `9m`}:  `User-Dump-Interval`, // under the 10m minimum though longer than the poll
+		{``, `10m`}:   `User-Dump-Interval`, // equal to the default poll
+		{`1h`, `1h`}:  `User-Dump-Interval`, // equal to the poll
+		{`1h`, `30m`}: `User-Dump-Interval`, // shorter than the poll
+		{``, `-1h`}:   `User-Dump-Interval`,
+		{`24h`, ``}:   `User-Dump-Interval`, // the default dump is no longer than the poll
+		{`48h`, ``}:   `User-Dump-Interval`,
+	} {
+		cfg := Config{Token: "token", Domain: "example.okta.com", User_Poll_Interval: in.poll, User_Dump_Interval: in.dump}
+		if err := cfg.Verify(); err == nil || !strings.Contains(err.Error(), field) {
+			t.Errorf("%q: got %v, want %s refused", in, err, field)
+		}
 	}
 }

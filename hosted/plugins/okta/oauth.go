@@ -146,11 +146,23 @@ func (d *oauthDoer) Do(req *http.Request) (*http.Response, error) {
 			resp, err = d.cli.Do(areq)
 			retry = true // as in Token mode, transport errors are retried until shutdown
 		}
+		wait := d.backoff
 		switch {
 		case err != nil:
 			if !retry || d.ctx.Err() != nil {
 				return nil, err
 			}
+			if te := (*tokenError)(nil); errors.As(err, &te) && te.status == http.StatusTooManyRequests {
+				if te.wait > 0 {
+					wait = te.wait
+				}
+				logRateLimited(d.tokens.lg, tokenPath, wait)
+			}
+		case resp.StatusCode == http.StatusTooManyRequests:
+			// wait for the rate limit window to reset, the retry carries a new DPoP proof
+			wait = rateLimitWait(resp, d.backoff)
+			utils.DrainResponse(resp)
+			logRateLimited(d.tokens.lg, areq.URL.Path, wait)
 		case retryStatus(resp.StatusCode):
 			utils.DrainResponse(resp)
 		case resp.StatusCode == http.StatusUnauthorized && !reauthed:
@@ -166,7 +178,7 @@ func (d *oauthDoer) Do(req *http.Request) (*http.Response, error) {
 			}
 			return resp, nil
 		}
-		if utils.QuitableSleep(d.ctx, d.backoff) {
+		if utils.QuitableSleep(d.ctx, wait) {
 			return nil, d.ctx.Err()
 		}
 	}
@@ -194,7 +206,8 @@ func (d *oauthDoer) authorize(req *http.Request) (retry bool, err error) {
 	}
 	// the SDK reports a refused token request only as an empty token
 	if te := d.tokens.failed; te != nil {
-		return retryStatus(te.status), te
+		// a 429 is retried too, Do waits until the rate limit resets
+		return retryStatus(te.status) || te.status == http.StatusTooManyRequests, te
 	}
 	var ue *url.Error
 	return errors.As(err, &ue), fmt.Errorf("okta token request failed: %w", err)
@@ -210,7 +223,8 @@ func (d *oauthDoer) dropToken(rejected string) {
 	}
 }
 
-// retryStatus is the utils.RetryHttpClient policy: server errors and the Token mode retry codes
+// retryStatus is the utils.RetryHttpClient policy: server errors and httpRetryCodes, all retried on
+// the fixed backoff
 func retryStatus(status int) bool {
 	return utils.IsRecoverableStatus(status, httpRetryCodes)
 }
@@ -317,6 +331,7 @@ func (b *cancelBody) Close() error {
 type tokenError struct {
 	status     int
 	code, desc string
+	wait       time.Duration // for a 429, how long until Okta's rate limit resets, zero if it did not say
 }
 
 func (e *tokenError) Error() string {
@@ -361,7 +376,11 @@ func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		Scope       string `json:"scope"`
 	}
 	_ = json.Unmarshal(body, &tr)
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+	if resp.StatusCode == http.StatusTooManyRequests {
+		// the token endpoint has its own rate limit, Do waits it out and logs it
+		t.failed = &tokenError{status: resp.StatusCode, code: tr.Error, desc: tr.Description, wait: rateLimitWait(resp, 0)}
+		return resp, nil
+	} else if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		kvs := []rfc5424.SDParam{log.KV("status", resp.StatusCode), log.KV("error", tr.Error), log.KV("description", tr.Description)}
 		// the SDK starts another handshake round whenever the body mentions use_dpop_nonce, wherever
 		// it appears, so that is the test here too

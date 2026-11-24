@@ -127,7 +127,7 @@ func TestParsePrivateKey_Rejects(t *testing.T) {
 // pemBody returns the base64 body of a PEM block without line breaks
 func pemBody(p string) string {
 	var sb strings.Builder
-	for _, ln := range strings.Split(p, "\n") {
+	for ln := range strings.SplitSeq(p, "\n") {
 		if !strings.HasPrefix(ln, "-----") {
 			sb.WriteString(strings.TrimSpace(ln))
 		}
