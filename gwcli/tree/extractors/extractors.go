@@ -470,7 +470,7 @@ func find() action.Pair {
 			}
 			data := make([]types.AX, 0, len(tags))
 			for _, tag := range tags {
-				ax, err := connection.Client.FindExtraction(tag)
+				ax, err := connection.Client.ResolveExtraction(tag)
 				if phrases.IsNotFoundErr(err) { // no associated ax
 					continue
 				} else if err != nil {
@@ -483,7 +483,7 @@ func find() action.Pair {
 		func(tags []string, addtlFlags *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(tags))
 			for i, tag := range tags {
-				ax, err := connection.Client.FindExtraction(tag)
+				ax, err := connection.Client.ResolveExtraction(tag)
 				if phrases.IsNotFoundErr(err) {
 					results[i].Output = "tag '" + tag + "' does not have an extractor"
 					results[i].Success = true
@@ -543,7 +543,7 @@ func clear() action.Pair {
 			results = make([]scaffold.Result, len(tags))
 
 			for i, tag := range tags {
-				ax, err := connection.Client.FindExtraction(tag)
+				ax, err := connection.Client.ResolveExtraction(tag)
 				if phrases.IsNotFoundErr(err) {
 					results[i] = scaffold.Result{Success: true, Output: "tag '" + tag + "' does not have an extractor"}
 					continue

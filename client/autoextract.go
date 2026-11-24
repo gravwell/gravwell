@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -36,9 +37,10 @@ func (c *Client) GetExtraction(id string) (d types.AX, err error) {
 	return c.get[types.AX](autoExtractorsIdUrl(id))
 }
 
-// FindExtraction returns the most appropriate extraction for a given tag
-func (c *Client) FindExtraction(tag string) (d types.AX, err error) {
-	return c.get[types.AX](tagsTagAutoExtractorUrl(tag))
+// ResolveExtraction returns the auto-extractor for the given tag (for the current user).
+// The server answers with a 404 if no extraction applies.
+func (c *Client) ResolveExtraction(tag string) (d types.AX, err error) {
+	return c.get[types.AX](resolveAutoExtractorUrl(), urlParam{queryparams.Tag, tag})
 }
 
 // DeleteExtraction deletes the specified autoextraction.
