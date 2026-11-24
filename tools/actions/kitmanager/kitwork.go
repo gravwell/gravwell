@@ -90,10 +90,8 @@ func pullKit(cli *client.Client, kbrBase types.KitBuildRequest) (err error) {
 func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) (kbr types.KitBuildRequest, err error) {
 	// initialize the KBR with the things that are not going to change
 	kbr = types.KitBuildRequest{
-		KitID: kbrBase.KitID,
-		CommonFields: types.CommonFields{
-			Name: kbrBase.Name,
-		},
+		KitID:                 kbrBase.KitID,
+		Name:                  kbrBase.Name,
 		Readme:                kbrBase.Readme,
 		KitVersion:            kbrBase.Version,
 		MinVersion:            kbrBase.MinVersion,

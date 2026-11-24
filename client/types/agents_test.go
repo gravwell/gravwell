@@ -17,12 +17,10 @@ import (
 
 func testAgent() Agent {
 	return Agent{
-		CommonFields: CommonFields{
-			ID:          "abc",
-			Name:        "triage",
-			Description: "Triage incoming alerts",
-			Labels:      []string{"ai"},
-		},
+		ID:          "abc",
+		Name:        "triage",
+		Description: "Triage incoming alerts",
+		Labels:      []string{"ai"},
 		Entrypoint: NodeSpec{
 			Type: NodeRouter, Name: "root", Prompt: "route it", Inherit: true,
 			Children: []*NodeSpec{
@@ -134,8 +132,8 @@ func TestNodeSpecClone(t *testing.T) {
 
 func TestAgentSkillJSONRoundTrip(t *testing.T) {
 	s := AgentSkill{
-		CommonFields: CommonFields{ID: "abc", Name: "triage", Description: "Triage incoming alerts"},
-		Body:         "# Triage\n\n1. Look at the alert\n",
+		ID: "abc", Name: "triage", Description: "Triage incoming alerts",
+		Body: "# Triage\n\n1. Look at the alert\n",
 	}
 	b, err := json.Marshal(s)
 	if err != nil {

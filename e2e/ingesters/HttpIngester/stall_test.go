@@ -137,7 +137,7 @@ func TestSurvivesStalledIndexer(t *testing.T) {
 	const duringPauseCount = 3
 	errs := make([]error, duringPauseCount)
 	var wg sync.WaitGroup
-	for i := 0; i < duringPauseCount; i++ {
+	for i := range duringPauseCount {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

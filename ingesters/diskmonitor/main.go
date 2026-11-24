@@ -76,15 +76,15 @@ func init() {
 		tags = append(tags, *tagName)
 	}
 	if *clearHeadHole != "" {
-		bits := strings.Split(*clearHeadHole, ",")
-		for _, bit := range bits {
+		bits := strings.SplitSeq(*clearHeadHole, ",")
+		for bit := range bits {
 			bit = strings.TrimSpace(bit)
 			dst = append(dst, fmt.Sprintf("tcp://%s", bit))
 		}
 	}
 	if *pipeHeadHole != "" {
-		bits := strings.Split(*pipeHeadHole, ",")
-		for _, bit := range bits {
+		bits := strings.SplitSeq(*pipeHeadHole, ",")
+		for bit := range bits {
 			bit = strings.TrimSpace(bit)
 			dst = append(dst, fmt.Sprintf("pipe://%s", bit))
 		}

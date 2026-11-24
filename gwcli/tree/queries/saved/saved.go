@@ -51,11 +51,9 @@ func listAction() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LibraryRead},
-					XPermissions: []types.Capability{types.LibraryRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LibraryRead},
+				XPermissions: []types.Capability{types.LibraryRead},
 			},
 			DefaultColumns: []string{"CommonFields.ID", "CommonFields.Name", "CommonFields.Description", "Query"},
 		})
@@ -76,19 +74,18 @@ func create() action.Pair {
 
 	return scaffoldcreate.NewCreateAction("saved query", fields,
 		func(cfg map[string]scaffoldcreate.Field, _ *pflag.FlagSet) (any, string, error) {
-			sq := types.SavedQuery{}
-			sq.Name = cfg["name"].Provider.Get()
-			sq.Description = cfg["desc"].Provider.Get()
-			sq.Query = cfg["query"].Provider.Get()
+			sq := types.SavedQuery{
+				Name:        cfg["name"].Provider.Get(),
+				Description: cfg["desc"].Provider.Get(),
+				Query:       cfg["query"].Provider.Get()}
 
 			result, err := connection.Client.CreateSavedQuery(sq)
 			return result.ID, "", err
-		}, scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{
+		}, scaffoldcreate.Options{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.LibraryWrite},
 				XPermissions: []types.Capability{types.LibraryWrite},
-			},
-		}})
+			}})
 }
 
 func edit() action.Pair {
@@ -148,12 +145,11 @@ func edit() action.Pair {
 	}
 
 	return scaffoldedit.NewEditAction("saved query", "saved queries", cfg, funcs,
-		scaffoldedit.Options{CommonOptions: scaffold.CommonOptions{
+		scaffoldedit.Options{
 			Requirements: annotations.Requirements{
 				IPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
 				XPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
-			},
-		}})
+			}})
 }
 
 func delete() action.Pair {
@@ -174,11 +170,9 @@ func delete() action.Pair {
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
-					XPermissions: []types.Capability{types.LibraryWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LibraryRead, types.LibraryWrite},
+				XPermissions: []types.Capability{types.LibraryWrite},
 			},
 		})
 }
@@ -196,12 +190,10 @@ func show() action.Pair {
 				sq.Name, sq.Description, sq.Query), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"print", "get"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LibraryRead},
-					XPermissions: []types.Capability{types.LibraryRead},
-				},
+			Aliases: []string{"print", "get"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LibraryRead},
+				XPermissions: []types.Capability{types.LibraryRead},
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {

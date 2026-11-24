@@ -74,6 +74,13 @@ jobs:
         go mod download
         go mod verify
 
+    # go fix -diff exits non-zero if any modernizer would change code.
+    - name: Checking go fix drift
+      run: bash ./.github/workflows/go_fix.sh diff
+
+    - name: Checking go fix coverage
+      run: bash ./.github/workflows/go_fix.sh coverage
+
     - name: Running go vet
       run: |
         go vet $NATIVE

@@ -63,10 +63,8 @@ func toggleAdmin() action.Pair {
 			return nil
 		},
 		treeutils.GenerateActionOptions{
-			NodeOptions: treeutils.NodeOptions{
-				// promoting/demoting another user's admin status is inherently admin-only
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			// promoting/demoting another user's admin status is inherently admin-only
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		},
 	)
 	fs := toggleAdminFlagSet()

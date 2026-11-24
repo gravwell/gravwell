@@ -113,7 +113,7 @@ func (t *Thing) Decode(v []byte) error {
 	return nil
 }
 
-func (t *Thing) EncodeContents(obj interface{}) error {
+func (t *Thing) EncodeContents(obj any) error {
 	bb := bytes.NewBuffer(nil)
 	if err := gob.NewEncoder(bb).Encode(obj); err != nil {
 		return err
@@ -122,7 +122,7 @@ func (t *Thing) EncodeContents(obj interface{}) error {
 	return nil
 }
 
-func (t *Thing) DecodeContents(obj interface{}) error {
+func (t *Thing) DecodeContents(obj any) error {
 	bb := bytes.NewBuffer(t.Contents)
 	if err := gob.NewDecoder(bb).Decode(obj); err != nil {
 		return err

@@ -154,8 +154,8 @@ func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 			rip = cfg.src
 		}
 
-		lns := bytes.Split(buff[:n], sp)
-		for _, ln := range lns {
+		lns := bytes.SplitSeq(buff[:n], sp)
+		for ln := range lns {
 			ln = bytes.Trim(ln, "\n\r\t ")
 			if len(ln) == 0 {
 				continue

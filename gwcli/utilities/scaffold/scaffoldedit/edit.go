@@ -118,7 +118,7 @@ func NewEditAction[I scaffold.Id_t, S any](
 			}
 			return runInteractive(cmd, args)
 
-		}, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{CommandAliases: []string{"e"}}})
+		}, treeutils.GenerateActionOptions{CommandAliases: []string{"e"}})
 
 	// attach flags to cmd
 	cmd.Flags().AddFlagSet(&fs)

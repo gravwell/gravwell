@@ -1,5 +1,4 @@
 //go:build linux || darwin || freebsd
-// +build linux darwin freebsd
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -26,7 +25,7 @@ func checkProcessorOS(id string) error {
 	return nil
 }
 
-func processorLoadConfigOS(vc *config.VariableConfig) (cfg interface{}, err error) {
+func processorLoadConfigOS(vc *config.VariableConfig) (cfg any, err error) {
 	var pb preprocessorBase
 	if err = vc.MapTo(&pb); err != nil {
 		return

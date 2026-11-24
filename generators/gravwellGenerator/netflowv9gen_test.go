@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"net"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -158,7 +159,7 @@ func TestNetflowV9WireFormat(t *testing.T) {
 		nfv9V6TemplateID: nfv9RecordLen(nfv9V6Template),
 	}
 	ts := time.Date(2026, 7, 19, 12, 34, 56, 0, time.UTC)
-	for i := 0; i < 256; i++ {
+	for range 256 {
 		ts = ts.Add(time.Second)
 		b := genDataNetflowV9(ts)
 		if len(b) < nfv9HeaderLen {
@@ -243,7 +244,7 @@ func TestNetflowV9UptimeSpan(t *testing.T) {
 	ts := time.Now().Add(-120 * 24 * time.Hour)
 	var prevUptime, prevSeq uint32
 	var reboots int
-	for i := 0; i < 4096; i++ {
+	for i := range 4096 {
 		b := genDataNetflowV9(ts)
 		uptime := binary.BigEndian.Uint32(b[4:8])
 		seq := binary.BigEndian.Uint32(b[12:16])
@@ -298,7 +299,7 @@ func TestNetflowV9Branches(t *testing.T) {
 	nfv9Reset()
 	seen := map[string]bool{}
 	ts := time.Date(2026, 7, 19, 12, 34, 56, 0, time.UTC)
-	for i := 0; i < 512; i++ {
+	for range 512 {
 		ts = ts.Add(time.Second)
 		s := ipfix.NewSession()
 		msg, err := s.ParseBuffer(genDataNetflowV9(ts))
@@ -360,7 +361,7 @@ func TestNetflowV9IpfixShareSession(t *testing.T) {
 	nfv9Reset()
 	s := ipfix.NewSession()
 	ts := time.Date(2026, 7, 19, 12, 34, 56, 0, time.UTC)
-	for i := 0; i < 64; i++ {
+	for range 64 {
 		ts = ts.Add(time.Second)
 		for _, tc := range []struct {
 			name    string
@@ -405,19 +406,17 @@ func TestNetflowV9Registered(t *testing.T) {
 	} else if f == nil {
 		t.Fatal("netflowv9 has a nil Finalizer")
 	}
-	for _, v := range getList() {
-		if v == `netflowv9` {
-			return
-		}
+	if slices.Contains(getList(), `netflowv9`) {
+		return
 	}
 	t.Fatal("netflowv9 is missing from the generator list")
 }
 
 // nfv9Values indexes interpreted fields by name, failing if any field did not
 // interpret cleanly against the v9 dictionary
-func nfv9Values(t *testing.T, fields []ipfix.InterpretedField) map[string]interface{} {
+func nfv9Values(t *testing.T, fields []ipfix.InterpretedField) map[string]any {
 	t.Helper()
-	vals := make(map[string]interface{}, len(fields))
+	vals := make(map[string]any, len(fields))
 	for _, f := range fields {
 		if f.Name == `` || f.Value == nil {
 			t.Fatalf("field %d not interpretable: %+v", f.FieldID, f)

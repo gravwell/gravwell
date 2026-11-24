@@ -144,7 +144,7 @@ func TestAdd(t *testing.T) {
 	var ips []net.IP
 	bm := NewIPBitMap()
 	//build up our set
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		ip := genIP()
 		if err := bm.AddIP(ip); err != nil {
 			t.Fatal(err)
@@ -195,7 +195,7 @@ func TestRemove(t *testing.T) {
 	var ips []net.IP
 	bm := NewIPBitMap()
 	//build up our set
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		ip := genIP()
 		if err := bm.AddIP(ip); err != nil {
 			t.Fatal(err)
@@ -355,7 +355,7 @@ func TestAddMemoryMapped(t *testing.T) {
 		t.Fatal(err)
 	}
 	//build up our set
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		ip := genIP()
 		if err := bm.AddIP(ip); err != nil {
 			t.Fatal(err)
@@ -406,7 +406,7 @@ func BenchmarkTest(b *testing.B) {
 	var ips []net.IP
 	bm := NewIPBitMap()
 	//build up our set
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		ip := genIP()
 		if (i & 1) == 0 {
 			if err := bm.AddIP(ip); err != nil {
@@ -437,7 +437,7 @@ func BenchmarkTestMemoryMapped(b *testing.B) {
 		b.Fatal(err)
 	}
 	//build up our set
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		ip := genIP()
 		if (i & 1) == 0 {
 			if err := bm.AddIP(ip); err != nil {

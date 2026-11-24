@@ -127,11 +127,10 @@ func modGroupUsers(use, short, long string, aliases []string, add bool) action.P
 				return errors.New("all requested group changes failed")
 			}
 			return nil
-		}, treeutils.GenerateActionOptions{NodeOptions: treeutils.NodeOptions{
+		}, treeutils.GenerateActionOptions{
 			CommandAliases: aliases,
 			// modifying group membership is currently restricted to admins, matching admin.go's pattern
-			Requirements: annotations.Requirements{UserIsAdmin: true},
-		}}),
+			Requirements: annotations.Requirements{UserIsAdmin: true}}),
 		newMembershipChangesInteractive(add))
 
 	pair.Action.Flags().AddFlagSet(membershipFlagset(add))

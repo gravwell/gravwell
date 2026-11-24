@@ -42,7 +42,7 @@ var (
 	ErrNotReady         = errors.New("IngesterBase is not ready")
 )
 
-type getConfigFunc func(cfg, overlay string) (interface{}, error)
+type getConfigFunc func(cfg, overlay string) (any, error)
 
 type cfgHelper interface {
 	Tags() ([]string, error)
@@ -55,14 +55,14 @@ type IngesterBaseConfig struct {
 	AppName                      string
 	DefaultConfigLocation        string
 	DefaultConfigOverlayLocation string
-	GetConfigFunc                interface{}
+	GetConfigFunc                any
 }
 
 type IngesterBase struct {
 	IngesterBaseConfig
 	Verbose       bool
 	Logger        *log.Logger
-	Cfg           interface{}
+	Cfg           any
 	id            uuid.UUID
 	emitUUID      bool
 	sm            *utils.StatsManager
@@ -147,18 +147,18 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 
 // ReloadConfig attempts to validate and reload the configuration into the provided configuration interface.
 // This function is used for hot config reloads on ingesters and that support it.
-func (ib *IngesterBase) ReloadConfig(v interface{}) (err error) {
+func (ib *IngesterBase) ReloadConfig(v any) (err error) {
 	// check that we are ready and have a good interface pointer
 	if ib == nil || (ib.configFile == `` && ib.configOverlay == ``) {
 		return errors.New("ingester base not ready")
 	} else if v == nil {
 		return ErrInvalidParameter
-	} else if reflect.ValueOf(v).Kind() != reflect.Ptr {
+	} else if reflect.ValueOf(v).Kind() != reflect.Pointer {
 		return ErrInvalidParameter
 	}
 
 	// attempt to load the config
-	var obj interface{}
+	var obj any
 	if obj, _, err = ib.getConfig(ib.configFile, ib.configOverlay); err != nil {
 		err = fmt.Errorf("failed to load configuration %w", err)
 		return
@@ -188,7 +188,7 @@ func (ib *IngesterBase) ReloadConfig(v interface{}) (err error) {
 //
 // Basically we are going to use some reflect foo to reduct the amount of boiler plate code
 // needed by users of this library
-func (ib *IngesterBase) AssignConfig(v interface{}) (err error) {
+func (ib *IngesterBase) AssignConfig(v any) (err error) {
 	//preflight checks
 	if v == nil {
 		return ErrInvalidParameter
@@ -196,7 +196,7 @@ func (ib *IngesterBase) AssignConfig(v interface{}) (err error) {
 		return ErrNotReady
 	}
 	//check that the value handed in is a pointer
-	if reflect.ValueOf(v).Kind() != reflect.Ptr {
+	if reflect.ValueOf(v).Kind() != reflect.Pointer {
 		return ErrInvalidParameter
 	}
 	vv := reflect.ValueOf(v).Elem() //get a handle on the incoming interface pointer value
@@ -302,7 +302,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	return
 }
 
-func (ib *IngesterBase) Debug(format string, args ...interface{}) {
+func (ib *IngesterBase) Debug(format string, args ...any) {
 	if ib.Verbose {
 		fmt.Printf(format, args...)
 		return
@@ -345,7 +345,7 @@ func (ib *IngesterBase) writebackUUID(id uuid.UUID) (err error) {
 
 	//now make sure the Cfg we were handed is actually something we can write to
 	v := reflect.ValueOf(ib.Cfg)
-	if v.Type().Kind() != reflect.Ptr {
+	if v.Type().Kind() != reflect.Pointer {
 		err = fmt.Errorf("Config value %T is not a pointer", ib.Cfg)
 		return
 	}
@@ -454,7 +454,7 @@ func (ibc IngesterBaseConfig) validate() error {
 	return nil
 }
 
-func (ibc IngesterBaseConfig) getConfig(confLoc, confDLoc string) (obj interface{}, ch cfgHelper, err error) {
+func (ibc IngesterBaseConfig) getConfig(confLoc, confDLoc string) (obj any, ch cfgHelper, err error) {
 	if ibc.GetConfigFunc == nil {
 		err = errors.New("nil get config func")
 		return
@@ -505,7 +505,7 @@ type verifier interface {
 	Verify() error
 }
 
-func verifyConfig(obj interface{}) (err error) {
+func verifyConfig(obj any) (err error) {
 	if obj == nil {
 		err = errors.New("config object is nil")
 	} else if ff, ok := obj.(verifier); !ok {

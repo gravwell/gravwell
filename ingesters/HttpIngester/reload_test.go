@@ -16,7 +16,6 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/ingest"
-	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/stretchr/testify/require"
 )
@@ -214,13 +213,9 @@ func TestHotReloadOtelMetrics(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
 		},
@@ -230,13 +225,9 @@ func TestHotReloadOtelMetrics(t *testing.T) {
 	require.True(t, hasRoute(hndlr, "/v1/metrics"), "metrics route should exist after initial load")
 
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
 			"m2": {URL: "/v2/metrics", Tag_Name: "otel-metrics-v2"},
@@ -254,13 +245,9 @@ func TestHotReloadOtelMetricsRemovesListener(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
 			"m2": {URL: "/v2/metrics", Tag_Name: "otel-m2"},
@@ -271,13 +258,9 @@ func TestHotReloadOtelMetricsRemovesListener(t *testing.T) {
 	require.True(t, hasRoute(hndlr, "/v2/metrics"), "m2 route should exist after initial load")
 
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
 		},
@@ -292,13 +275,9 @@ func TestHotReloadOtelMetricsPreservesExistingTags(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
 		},
@@ -307,13 +286,9 @@ func TestHotReloadOtelMetricsPreservesExistingTags(t *testing.T) {
 	require.True(t, hasTag(muxer, "otel-m1"), "otel-m1 should be known after initial load")
 
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m2": {URL: "/v2/metrics", Tag_Name: "otel-m2"},
 		},
@@ -328,13 +303,9 @@ func TestHotReloadOtelMetricsIdempotent(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-m1"},
 			"m2": {URL: "/v2/metrics", Tag_Name: "otel-m2"},
@@ -365,13 +336,9 @@ func TestHotReloadOtelMetricsWithAuth(t *testing.T) {
 
 	// Load with basic auth
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {
 				URL:      "/v1/metrics",
@@ -385,13 +352,9 @@ func TestHotReloadOtelMetricsWithAuth(t *testing.T) {
 
 	// Hot reload preserving auth
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {
 				URL:      "/v1/metrics",
@@ -405,13 +368,9 @@ func TestHotReloadOtelMetricsWithAuth(t *testing.T) {
 
 	// Hot reload dropping auth
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
 		},
@@ -425,13 +384,9 @@ func TestHotReloadOtelMetricsWithJWTAuth(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {
 				URL:      "/v1/metrics",
@@ -446,13 +401,9 @@ func TestHotReloadOtelMetricsWithJWTAuth(t *testing.T) {
 
 	// Hot reload should update auth routes
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
 		},
@@ -467,13 +418,9 @@ func TestHotReloadOtelLogs(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
 		},
@@ -483,13 +430,9 @@ func TestHotReloadOtelLogs(t *testing.T) {
 	require.True(t, hasRoute(hndlr, "/v1/logs"), "logs route should exist after initial load")
 
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
 			"l2": {URL: "/v2/logs", Tag_Name: "otel-logs-v2"},
@@ -507,13 +450,9 @@ func TestHotReloadOtelLogsRemovesListener(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
 			"l2": {URL: "/v2/logs", Tag_Name: "otel-l2"},
@@ -524,13 +463,9 @@ func TestHotReloadOtelLogsRemovesListener(t *testing.T) {
 	require.True(t, hasRoute(hndlr, "/v2/logs"), "l2 route should exist after initial load")
 
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
 		},
@@ -545,13 +480,9 @@ func TestHotReloadOtelLogsPreservesExistingTags(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
 		},
@@ -560,13 +491,9 @@ func TestHotReloadOtelLogsPreservesExistingTags(t *testing.T) {
 	require.True(t, hasTag(muxer, "otel-l1"), "otel-l1 should be known after initial load")
 
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l2": {URL: "/v2/logs", Tag_Name: "otel-l2"},
 		},
@@ -581,13 +508,9 @@ func TestHotReloadOtelLogsIdempotent(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	cfg := &cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-l1"},
 			"l2": {URL: "/v2/logs", Tag_Name: "otel-l2"},
@@ -617,13 +540,9 @@ func TestHotReloadOtelLogsWithAuth(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {
 				URL:      "/v1/logs",
@@ -637,13 +556,9 @@ func TestHotReloadOtelLogsWithAuth(t *testing.T) {
 
 	// Hot reload with updated token value
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {
 				URL:      "/v1/logs",
@@ -657,13 +572,9 @@ func TestHotReloadOtelLogsWithAuth(t *testing.T) {
 
 	// Hot reload dropping auth
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
 		},
@@ -677,13 +588,9 @@ func TestHotReloadOtelLogsWithJWTAuth(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {
 				URL:      "/v1/logs",
@@ -698,13 +605,9 @@ func TestHotReloadOtelLogsWithJWTAuth(t *testing.T) {
 
 	// Hot reload should clear the JWT login route when auth is removed
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelLogsListener: map[string]*otelLogsListener{
 			"l1": {URL: "/v1/logs", Tag_Name: "otel-logs"},
 		},
@@ -719,13 +622,9 @@ func TestHotReloadMixedOtelAndStdListeners(t *testing.T) {
 	hndlr := newTestHandler(t, muxer)
 
 	err := hndlr.loadConfig(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		Listener: map[string]*lst{
 			"std": {URL: "/json", Tag_Name: "json-tag"},
 		},
@@ -743,13 +642,9 @@ func TestHotReloadMixedOtelAndStdListeners(t *testing.T) {
 
 	// Hot reload: remove std listener, keep OTEL listeners, add new metrics listener
 	err = hndlr.hotReload(&cfgType{
-		gbl: gbl{
-			Bind: "127.0.0.1:8080",
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
+		Bind:                     "127.0.0.1:8080",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
 		OtelListener: map[string]*otelMetricsListener{
 			"m1": {URL: "/v1/metrics", Tag_Name: "otel-metrics"},
 			"m2": {URL: "/v2/metrics", Tag_Name: "otel-metrics-v2"},
@@ -799,15 +694,11 @@ func newTestConfig(t *testing.T, healthCheckURL string, listeners map[string]*ls
 	t.Helper()
 
 	return &cfgType{
-		gbl: gbl{
-			Bind:             "127.0.0.1:8080",
-			Health_Check_URL: healthCheckURL,
-			IngestConfig: config.IngestConfig{
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-				Ingest_Secret:            "testing",
-			},
-		},
-		Listener: listeners,
+		Bind:                     "127.0.0.1:8080",
+		Health_Check_URL:         healthCheckURL,
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Ingest_Secret:            "testing",
+		Listener:                 listeners,
 	}
 }
 

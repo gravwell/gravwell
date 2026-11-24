@@ -27,7 +27,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/sigils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
@@ -104,16 +103,14 @@ func TestOptions(t *testing.T) {
 			return 1, "", err
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "alt",
-				Short:   "my short description",
-				Long:    "my long description",
-				Aliases: aliases,
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.BoolP("testbool", "k", false, "")
-					return fs
-				},
+			Use:     "alt",
+			Short:   "my short description",
+			Long:    "my long description",
+			Aliases: aliases,
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.BoolP("testbool", "k", false, "")
+				return fs
 			},
 		},
 	)
@@ -213,12 +210,10 @@ func TestOptions(t *testing.T) {
 					return 1, "", nil
 				},
 				scaffoldcreate.Options{
-					CommonOptions: scaffold.CommonOptions{
-						AddtlFlags: func() *pflag.FlagSet {
-							fs := &pflag.FlagSet{}
-							fs.Bool("nonfield", false, "addtl flag")
-							return fs
-						},
+					AddtlFlags: func() *pflag.FlagSet {
+						fs := &pflag.FlagSet{}
+						fs.Bool("nonfield", false, "addtl flag")
+						return fs
 					},
 					ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 						// set external values so we can check
@@ -325,10 +320,8 @@ func TestOptions(t *testing.T) {
 				return 0, "", nil
 			},
 			scaffoldcreate.Options{
-				CommonOptions: scaffold.CommonOptions{
-					Aliases:      []string{"a", "b", "a"},
-					Requirements: annotations.Requirements{UserIsAdmin: true},
-				},
+				Aliases:      []string{"a", "b", "a"},
+				Requirements: annotations.Requirements{UserIsAdmin: true},
 			})
 		assert.Equal(t, []string{"a", "b"}, pair.Action.Aliases)
 		assert.Nil(t, annotations.CheckRequirements(pair.Action, false, true, nil))

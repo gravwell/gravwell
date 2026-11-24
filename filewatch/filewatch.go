@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -203,13 +204,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	if existing, ok := wm.watched[c.BaseDir]; !ok {
 		doAdd = true
 	} else {
-		doAdd = true
-		for _, e := range existing {
-			if e == c {
-				doAdd = false
-				break
-			}
-		}
+		doAdd = !slices.Contains(existing, c)
 	}
 
 	if doAdd {

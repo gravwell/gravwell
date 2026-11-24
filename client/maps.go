@@ -9,6 +9,7 @@
 package client
 
 import (
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -47,9 +48,7 @@ func (hm *headerMap) get(k string) (v string, ok bool) {
 func (hm *headerMap) dump() (r map[string]string) {
 	hm.Lock()
 	r = make(map[string]string, len(hm.mp))
-	for k, v := range hm.mp {
-		r[k] = v
-	}
+	maps.Copy(r, hm.mp)
 	hm.Unlock()
 	return
 }

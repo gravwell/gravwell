@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"net"
+	"slices"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -50,8 +51,8 @@ func emitRequestEvents(ec *emitCtx, evs []protocol.Event) {
 		// turn when tool logging is on (so the response.tool_call entries have
 		// matching results). Assistant turns are never logged in this mode.
 		latest := -1
-		for i := len(evs) - 1; i >= 0; i-- {
-			if evs[i].Type == protocol.EventUserMessage {
+		for i, ev := range slices.Backward(evs) {
+			if ev.Type == protocol.EventUserMessage {
 				latest = i
 				break
 			}
@@ -117,8 +118,8 @@ func emitRequestEvents(ec *emitCtx, evs []protocol.Event) {
 // message — the events that arrived with this request and were not already
 // logged as part of a previous one.
 func tailStart(evs []protocol.Event) int {
-	for i := len(evs) - 1; i >= 0; i-- {
-		if evs[i].Type == protocol.EventAssistantMessage {
+	for i, ev := range slices.Backward(evs) {
+		if ev.Type == protocol.EventAssistantMessage {
 			return i + 1
 		}
 	}
@@ -198,7 +199,7 @@ func buildEntry(ec *emitCtx, ev protocol.Event) *entry.Entry {
 	return e
 }
 
-func addEV(ec *emitCtx, e *entry.Entry, name string, val interface{}) {
+func addEV(ec *emitCtx, e *entry.Entry, name string, val any) {
 	if err := e.AddEnumeratedValueEx(name, val); err != nil {
 		ec.lg.Warn("failed to add EV",
 			log.KV("name", name),

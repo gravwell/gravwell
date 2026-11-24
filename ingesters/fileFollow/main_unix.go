@@ -1,5 +1,4 @@
 //go:build linux || darwin || freebsd
-// +build linux darwin freebsd
 
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
@@ -228,7 +227,7 @@ func main() {
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

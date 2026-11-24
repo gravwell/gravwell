@@ -151,21 +151,14 @@ func (cf *CommonFields) CanWrite(u *User) bool {
 }
 
 func (cf *CommonFields) GroupCanRead(gid int32) bool {
-	for i := range cf.Readers.GIDs {
-		if cf.Readers.GIDs[i] == gid {
-			return true
-		}
+	if slices.Contains(cf.Readers.GIDs, gid) {
+		return true
 	}
 	return cf.GroupCanWrite(gid)
 }
 
 func (cf *CommonFields) GroupCanWrite(gid int32) bool {
-	for i := range cf.Writers.GIDs {
-		if cf.Writers.GIDs[i] == gid {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(cf.Writers.GIDs, gid)
 }
 
 // AllGIDs returns the union of Readers.GIDs and Writers.GIDs, i.e. every

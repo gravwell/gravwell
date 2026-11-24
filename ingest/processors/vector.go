@@ -198,12 +198,9 @@ func (vp *VectorProc) getEmbeddings(inputs []string) ([][]float64, error) {
 		return nil, err
 	}
 
-	attempts := vp.Retry_Attempts
-	if attempts < 1 {
-		attempts = 1
-	}
+	attempts := max(vp.Retry_Attempts, 1)
 	var lastErr error
-	for attempt := 0; attempt < attempts; attempt++ {
+	for attempt := range attempts {
 		if attempt > 0 {
 			time.Sleep(vectorBackoff(attempt))
 		}

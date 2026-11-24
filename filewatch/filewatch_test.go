@@ -145,7 +145,7 @@ func TestSingleWatcher(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				if lh.Len() == len(res) {
 					break
 				}
@@ -223,7 +223,7 @@ func TestSingleWatcherBaseDirDelete(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				if lh.Len() == len(res) {
 					break
 				}
@@ -273,7 +273,7 @@ func TestMultiWatcherNoDelete(t *testing.T) {
 	var lhs []*safeTrackingLH
 
 	fireWatcher(func(workingDir string, w *WatchManager) error {
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			lh := newSafeTrackingLH()
 			lhs = append(lhs, lh)
 			watchCfg := WatchConfig{
@@ -295,7 +295,7 @@ func TestMultiWatcherNoDelete(t *testing.T) {
 		nil,
 		func(workingDir string) error {
 			//perform the writes
-			for i := 0; i < testMultiCount; i++ {
+			for i := range testMultiCount {
 				_, r, err := writeLines(filepath.Join(workingDir, fmt.Sprintf(`test%dpaco123`, i)))
 				if err != nil {
 					t.Fatal(err)
@@ -307,7 +307,7 @@ func TestMultiWatcherNoDelete(t *testing.T) {
 			for i < 100 {
 				//check all our lengths
 				missed := false
-				for j := 0; j < testMultiCount; j++ {
+				for j := range testMultiCount {
 					if lhs[j].Len() != len(res[j]) {
 						missed = true
 						break
@@ -357,7 +357,7 @@ func TestOverflow(t *testing.T) {
 		return nil
 	}, func(workingDir string) error {
 		// just touch enough files to overload the watcher
-		for i := 0; i < WATCH_OVERFLOW; i++ {
+		for i := range WATCH_OVERFLOW {
 			err := os.WriteFile(filepath.Join(workingDir, fmt.Sprintf("paco%v", i)), []byte("test"), 0644)
 			if err != nil {
 				t.Fatal(err)
@@ -400,7 +400,7 @@ func TestMultiWatcherWithOverlap(t *testing.T) {
 	matcher := `paco`
 
 	fireWatcher(func(workingDir string, w *WatchManager) error {
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			matcher = matcher + `1`
 			lh := newSafeTrackingLH()
 			lhs = append(lhs, lh)
@@ -430,7 +430,7 @@ func TestMultiWatcherWithOverlap(t *testing.T) {
 		for i < 50 {
 			//check all our lengths
 			missed := false
-			for j := 0; j < testMultiCount; j++ {
+			for j := range testMultiCount {
 				if lhs[j].Len() < len(res) {
 					missed = true
 					break
@@ -443,7 +443,7 @@ func TestMultiWatcherWithOverlap(t *testing.T) {
 			i++
 		}
 		if i >= 50 {
-			for j := 0; j < testMultiCount; j++ {
+			for j := range testMultiCount {
 				fmt.Println(j, lhs[j].Len(), len(res))
 			}
 
@@ -476,7 +476,7 @@ func TestMultiWatcherWithDelete(t *testing.T) {
 	var counts []int
 
 	fireWatcher(func(workingDir string, w *WatchManager) error {
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			lh := newSafeTrackingLH()
 			lhs = append(lhs, lh)
 			watchCfg := WatchConfig{
@@ -496,7 +496,7 @@ func TestMultiWatcherWithDelete(t *testing.T) {
 		return nil
 	}, nil, func(workingDir string) error {
 		//perform the writes
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			cnt, r, err := writeLines(filepath.Join(workingDir, fname))
 			if err != nil {
@@ -509,7 +509,7 @@ func TestMultiWatcherWithDelete(t *testing.T) {
 		for i < 100 {
 			//check all our lengths
 			missed := false
-			for j := 0; j < testMultiCount; j++ {
+			for j := range testMultiCount {
 				if lhs[j].Len() != len(res[j]) {
 					missed = true
 					break
@@ -525,7 +525,7 @@ func TestMultiWatcherWithDelete(t *testing.T) {
 			return errors.New("timed out waiting for all lines")
 		}
 		//now delete each of the files
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			if err := os.Remove(filepath.Join(workingDir, fname)); err != nil {
 				return err
@@ -533,7 +533,7 @@ func TestMultiWatcherWithDelete(t *testing.T) {
 		}
 		return nil
 	}, func(w *WatchManager) error {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			if w.Followers() == 0 {
 				return nil
 			}
@@ -561,7 +561,7 @@ func TestMultiWatcherWithMoveNoMatch(t *testing.T) {
 	var counts []int
 
 	fireWatcher(func(workingDir string, w *WatchManager) error {
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			lh := newSafeTrackingLH()
 			lhs = append(lhs, lh)
 			watchCfg := WatchConfig{
@@ -581,7 +581,7 @@ func TestMultiWatcherWithMoveNoMatch(t *testing.T) {
 		return nil
 	}, nil, func(workingDir string) error {
 		//perform the writes
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			cnt, r, err := writeLines(filepath.Join(workingDir, fname))
 			if err != nil {
@@ -594,7 +594,7 @@ func TestMultiWatcherWithMoveNoMatch(t *testing.T) {
 		for i < 100 {
 			//check all our lengths
 			missed := false
-			for j := 0; j < testMultiCount; j++ {
+			for j := range testMultiCount {
 				if lhs[j].Len() != len(res[j]) {
 					missed = true
 					break
@@ -610,7 +610,7 @@ func TestMultiWatcherWithMoveNoMatch(t *testing.T) {
 			return errors.New("timed out waiting for all lines")
 		}
 		//now delete each of the files
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			newname := fmt.Sprintf(`test%dchico123`, i)
 			if err := os.Rename(filepath.Join(workingDir, fname), filepath.Join(workingDir, newname)); err != nil {
@@ -619,7 +619,7 @@ func TestMultiWatcherWithMoveNoMatch(t *testing.T) {
 		}
 		return nil
 	}, func(w *WatchManager) error {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			if w.Followers() == 0 {
 				return nil
 			}
@@ -647,7 +647,7 @@ func TestMultiWatcherWithMoveWithMatch(t *testing.T) {
 	var counts []int
 
 	fireWatcher(func(workingDir string, w *WatchManager) error {
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			lh := newSafeTrackingLH()
 			lhs = append(lhs, lh)
 			watchCfg := WatchConfig{
@@ -667,7 +667,7 @@ func TestMultiWatcherWithMoveWithMatch(t *testing.T) {
 		return nil
 	}, nil, func(workingDir string) error {
 		//perform the writes
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			cnt, r, err := writeLines(filepath.Join(workingDir, fname))
 			if err != nil {
@@ -680,7 +680,7 @@ func TestMultiWatcherWithMoveWithMatch(t *testing.T) {
 		for i < 100 {
 			//check all our lengths
 			missed := false
-			for j := 0; j < testMultiCount; j++ {
+			for j := range testMultiCount {
 				if lhs[j].Len() != len(res[j]) {
 					missed = true
 					break
@@ -696,7 +696,7 @@ func TestMultiWatcherWithMoveWithMatch(t *testing.T) {
 			return errors.New("timed out waiting for all lines")
 		}
 		//now delete each of the files
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			newname := fmt.Sprintf(`test%dpaco456`, i)
 			if err := os.Rename(filepath.Join(workingDir, fname), filepath.Join(workingDir, newname)); err != nil {
@@ -706,7 +706,7 @@ func TestMultiWatcherWithMoveWithMatch(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		return nil
 	}, func(w *WatchManager) error {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			if w.Followers() == testMultiCount {
 				return nil
 			}
@@ -734,7 +734,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 	var counts []int
 
 	fireWatcher(func(workingDir string, w *WatchManager) error {
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			lh := newSafeTrackingLH()
 			lhs = append(lhs, lh)
 			watchCfg := WatchConfig{
@@ -754,7 +754,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 		return nil
 	}, nil, func(workingDir string) error {
 		//perform the writes
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			cnt, r, err := writeLines(filepath.Join(workingDir, fname))
 			if err != nil {
@@ -767,7 +767,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 		for i < 100 {
 			//check all our lengths
 			missed := false
-			for j := 0; j < testMultiCount; j++ {
+			for j := range testMultiCount {
 				if lhs[j].Len() != len(res[j]) {
 					missed = true
 					break
@@ -783,7 +783,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 			return errors.New("timed out waiting for all lines")
 		}
 		//now delete each of the files
-		for i := 0; i < testMultiCount; i++ {
+		for i := range testMultiCount {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
 			newname := fmt.Sprintf(`test%dpaco456`, (i+1)%testMultiCount)
 			if err := os.Rename(filepath.Join(workingDir, fname), filepath.Join(workingDir, newname)); err != nil {
@@ -792,7 +792,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 		}
 		return nil
 	}, func(w *WatchManager) error {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			if w.Followers() == testMultiCount {
 				return nil
 			}
@@ -845,7 +845,7 @@ func TestSingleWatcherNonExist(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				if lh.Len() == len(res) {
 					break
 				}

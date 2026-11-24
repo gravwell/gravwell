@@ -243,8 +243,8 @@ func eventIDSelect(q Query) (includes, excludes []string, err error) {
 		return
 	}
 
-	components := strings.Split(q.EventID, ",")
-	for _, c := range components {
+	components := strings.SplitSeq(q.EventID, ",")
+	for c := range components {
 		c = strings.TrimSpace(c)
 		switch {
 		case incEventIDRegex.MatchString(c):
@@ -301,7 +301,7 @@ func levelSelect(q Query) (levels string, err error) {
 	l := func(level int) string { return fmt.Sprintf("Level = %d", level) }
 
 	var levelSelect []string
-	for _, expr := range strings.Split(q.Level, ",") {
+	for expr := range strings.SplitSeq(q.Level, ",") {
 		expr = strings.TrimSpace(expr)
 		switch strings.ToLower(expr) {
 		default:

@@ -10,6 +10,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -130,12 +131,7 @@ func consolidateTags(orig, incoming []string) (r []string) {
 }
 
 func inSet(r string, set []string) bool {
-	for _, v := range set {
-		if r == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(set, r)
 }
 
 func outputTotals(bytes uint64) {

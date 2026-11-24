@@ -217,14 +217,12 @@ func logLevel() action.Pair {
 			return []scaffold.Result{{Output: "current log level: " + level, Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String("set", "", "log level to set")
-					return fs
-				},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String("set", "", "log level to set")
+				return fs
 			},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		})
 }
 
@@ -252,10 +250,8 @@ func addIndexer() action.Pair {
 			return []scaffold.Result{{Output: "indexer added successfully", Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage:        fmt.Sprintf("add-indexer %s %s ", ft.Optional("Flags"), ft.Mandatory("host:port")),
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Usage:        fmt.Sprintf("add-indexer %s %s ", ft.Optional("Flags"), ft.Mandatory("host:port")),
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("dial string"), nil
@@ -312,17 +308,15 @@ func backup() action.Pair {
 			return []scaffold.Result{{Output: fmt.Sprintf("backup written to %s", out), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: fmt.Sprintf("backup %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Bool("include-scheduled-searches", false, "include scheduled searches in the backup")
-					fs.Bool("omit-sensitive", false, "omit sensitive items")
-					fs.String("encrypt", "", "encrypt the backup with the given password. No encryption will be applied if unset.")
-					return fs
-				},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+			Usage: fmt.Sprintf("backup %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Bool("include-scheduled-searches", false, "include scheduled searches in the backup")
+				fs.Bool("omit-sensitive", false, "omit sensitive items")
+				fs.String("encrypt", "", "encrypt the backup with the given password. No encryption will be applied if unset.")
+				return fs
 			},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("output path"), nil
@@ -348,10 +342,8 @@ func restore() action.Pair {
 			return []scaffold.Result{{Output: fmt.Sprintf("successfully restored from %s", path), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage:        fmt.Sprintf("restore %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Usage:        fmt.Sprintf("restore %s %s", ft.Optional("flags"), ft.Mandatory("path/to/backup/file")),
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("backup file path"), nil
@@ -843,17 +835,15 @@ func massChown() action.Pair {
 			return []scaffold.Result{{Output: sb.String(), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage: "mass-chown --from=<UID> --to=<UID>",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Int32("to", 0, "user ID  to transfer ownership to")
-					fs.Int32("from", 0, "user ID to transfer ownership from")
-					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
-					return fs
-				},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+			Usage: "mass-chown --from=<UID> --to=<UID>",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Int32("to", 0, "user ID  to transfer ownership to")
+				fs.Int32("from", 0, "user ID to transfer ownership from")
+				fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
+				return fs
 			},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				to, err := fs.GetInt32("to")
 				clilog.GetFlag(err)
@@ -1112,22 +1102,20 @@ func chown() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "chown",
-				Usage: fmt.Sprintf("chown %s %s %s %s",
-					ft.Mandatory("--to <UID>"), ft.Mandatory("--from <UID>"),
-					ft.Optional("--no-fail"),
-					ft.VariadicArgs("entity ID", true)),
-				Example: "chown --to=1 --from 5 dashboard-abc-def-ghi scheduled-search-one-two-three",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.Int32("to", 0, "user ID  to transfer ownership to")
-					fs.Int32("from", 0, "user ID to transfer ownership from")
-					fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
-					return fs
-				},
-				Requirements: annotations.Requirements{UserIsAdmin: true},
+			Use: "chown",
+			Usage: fmt.Sprintf("chown %s %s %s %s",
+				ft.Mandatory("--to <UID>"), ft.Mandatory("--from <UID>"),
+				ft.Optional("--no-fail"),
+				ft.VariadicArgs("entity ID", true)),
+			Example: "chown --to=1 --from 5 dashboard-abc-def-ghi scheduled-search-one-two-three",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.Int32("to", 0, "user ID  to transfer ownership to")
+				fs.Int32("from", 0, "user ID to transfer ownership from")
+				fs.Bool("no-fail", false, "continue on failures, rather than immediately failing out")
+				return fs
 			},
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				to, err := fs.GetInt32("to")
 				clilog.GetFlag(err)

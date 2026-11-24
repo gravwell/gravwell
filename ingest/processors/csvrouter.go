@@ -53,7 +53,7 @@ func NewCSVRouter(cfg CSVRouteConfig, tagger Tagger) (*CSVRouter, error) {
 	return cr, nil
 }
 
-func (cr *CSVRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (cr *CSVRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(CSVRouteConfig); ok {

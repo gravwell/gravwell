@@ -69,7 +69,7 @@ func NewEnumeratedData(evtype uint8, data []byte) (ed EnumeratedData, err error)
 
 // InferEnumeratedData takes a native type and creates a properly annotated enumerated value data section.
 // The function returns an empty EnumeratedData if the type provided type is invalid.
-func InferEnumeratedData(val interface{}) (EnumeratedData, error) {
+func InferEnumeratedData(val any) (EnumeratedData, error) {
 	switch v := val.(type) {
 	case bool:
 		return BoolEnumData(v), nil
@@ -316,7 +316,7 @@ func DurationEnumData(v time.Duration) EnumeratedData {
 }
 
 // Interface is a helper function that will return an interface populated with the native type.
-func (ev EnumeratedData) Interface() (v interface{}) {
+func (ev EnumeratedData) Interface() (v any) {
 	switch ev.evtype {
 	case typeBool:
 		if len(ev.data) != 1 {
@@ -556,7 +556,7 @@ func (ev EnumeratedData) MarshalJSON() ([]byte, error) {
 }
 
 func (ev *EnumeratedData) UnmarshalJSON(v []byte) error {
-	var x interface{}
+	var x any
 	if err := json.Unmarshal(v, &x); err != nil {
 		return err
 	}

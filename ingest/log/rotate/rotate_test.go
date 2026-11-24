@@ -348,7 +348,7 @@ func TestNoExtesionNoCompression(t *testing.T) {
 }
 
 func dropLines(wtr io.Writer, cnt int) (err error) {
-	for i := 0; i < cnt; i++ {
+	for i := range cnt {
 		if _, err = fmt.Fprintf(wtr, "%v line %d\n", time.Now(), i); err != nil {
 			break
 		}

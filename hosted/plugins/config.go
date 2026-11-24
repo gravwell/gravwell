@@ -229,10 +229,9 @@ type PluginKind struct {
 // the two can never drift apart.  It also guarantees the Kind matches the member a
 // generated config has to land in, they are the same name.
 func Kinds() (ks []PluginKind, err error) {
-	rt := reflect.TypeOf(Configs{})
+	rt := reflect.TypeFor[Configs]()
 	ks = make([]PluginKind, 0, rt.NumField())
-	for i := 0; i < rt.NumField(); i++ {
-		f := rt.Field(i)
+	for f := range rt.Fields() {
 		if !f.IsExported() {
 			continue // not config, gcfg cannot reach it either
 		}

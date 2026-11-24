@@ -14,7 +14,7 @@ package objlog
 // tracing the Gravwell request API.
 type ObjLog interface {
 	Close() error
-	Log(id, method string, obj interface{}) error
+	Log(id, method string, obj any) error
 }
 
 // NilObjLogger is an empty implementation of the ObjLog interface for use when no logging is desired.
@@ -27,7 +27,7 @@ func NewNilLogger() (ObjLog, error) {
 }
 
 // Log implements the Log method on the interface, NilObjLogger does nothing.
-func (nol *NilObjLogger) Log(id, method string, obj interface{}) error {
+func (nol *NilObjLogger) Log(id, method string, obj any) error {
 	return nil
 }
 

@@ -120,7 +120,7 @@ func TestAuthTagRequest(t *testing.T) {
 	var tr TagRequest
 	var tr2 TagRequest
 
-	for i := 0; i < testTagCount; i++ {
+	for i := range testTagCount {
 		tr.Count++
 		tr.Tags = append(tr.Tags, fmt.Sprintf("Tag%d", i))
 	}
@@ -150,7 +150,7 @@ func TestAuthTagResponse(t *testing.T) {
 	}
 	var tr2 TagResponse
 
-	for i := 0; i < testTagCount; i++ {
+	for i := range testTagCount {
 		tr.Count++
 		tr.Tags[fmt.Sprintf("Tag%d", i)] = entry.EntryTag(i)
 	}
@@ -263,7 +263,7 @@ func TestAuthTenantEnabledBadVersionChallengeResponse(t *testing.T) {
 func FuzzAuthChallengeResponse(f *testing.F) {
 	var chal Challenge
 	var hsh AuthHash
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		var err error
 		pwd := fmt.Sprintf("password test with %d %x %b", i, i, i)
 		bb := bytes.NewBuffer(nil)
