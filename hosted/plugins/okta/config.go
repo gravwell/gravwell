@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -45,10 +45,10 @@ var (
 
 type Config struct {
 	hosted.BaseConfig
-	Request_Batch_Size int // how many entries do we request per HTTP request
-	Request_Per_Minute int // what is our basic request rate
-	Request_Burst      int // leaky bucket burstability
-	Domain             string
+	Request_Batch_Size int    // how many entries do we request per HTTP request
+	Request_Per_Minute int    // what is our basic request rate
+	Request_Burst      int    // leaky bucket burstability
+	Domain             string `dynamic:"required"`
 	Token              string `json:"-" dynamic:"secret,requiredif=Client-ID:"` // authentication token - DO NOT send this when marshalling
 	User_Poll_Interval string // how often users are listed and the changed ones emitted; parsed by time.ParseDuration, default 10m, min 5m
 	User_Dump_Interval string // how often every user is emitted, changed or not; parsed by time.ParseDuration, default 24h
