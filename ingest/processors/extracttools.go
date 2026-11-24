@@ -22,7 +22,7 @@ var (
 )
 
 type accessor interface {
-	Get(string) interface{}
+	Get(string) any
 }
 
 type replaceNode interface {

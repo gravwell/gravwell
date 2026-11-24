@@ -129,12 +129,10 @@ func MapFile(f *os.File) (*FileMap, error) {
 		return nil, err
 	}
 	return &FileMap{
-		fmap: fmap{
-			r:    r,
-			fio:  f,
-			Buff: r.mp[0:sz],
-			open: true,
-		},
+		r:    r,
+		fio:  f,
+		Buff: r.mp[0:sz],
+		open: true,
 	}, nil
 }
 

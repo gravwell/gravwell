@@ -100,17 +100,15 @@ func sessions() action.Pair {
 		},
 		map[string]string{"ID": "SessionID"},
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "sessions",
-				Aliases: []string{"session"},
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					fs.String("since",
-						"",
-						"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
-							"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
-					return fs
-				},
+			Use:     "sessions",
+			Aliases: []string{"session"},
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				fs.String("since",
+					"",
+					"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
+						"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
+				return fs
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -174,9 +172,7 @@ func logoutAll() action.Pair {
 			connection.End()
 			return []scaffold.Result{{Output: "Successfully logged out all sessions", Success: true}}, tea.Quit
 		}, scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Usage:   "logout-all",
-				Aliases: []string{"boot"},
-			},
+			Usage:   "logout-all",
+			Aliases: []string{"boot"},
 		})
 }

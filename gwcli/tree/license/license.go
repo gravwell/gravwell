@@ -98,12 +98,10 @@ func licenseInfo() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "info",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LicenseRead},
-					XPermissions: []types.Capability{types.LicenseRead},
-				},
+			Use: "info",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LicenseRead},
+				XPermissions: []types.Capability{types.LicenseRead},
 			},
 			DefaultColumns: []string{
 				"Type",
@@ -190,11 +188,9 @@ func licenseFeatures() action.Pair {
 			return []scaffold.Result{{Output: strings.Join(enabled, ", "), Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LicenseRead},
-					XPermissions: []types.Capability{types.LicenseRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.LicenseRead},
+				XPermissions: []types.Capability{types.LicenseRead},
 			},
 		},
 	)
@@ -225,10 +221,8 @@ func licenseUpdate() action.Pair {
 			return "license updated with warnings:\n" + strings.Join(msgs, "\n"), "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:          "update",
-				Requirements: annotations.Requirements{UserIsAdmin: true},
-			},
+			Use:          "update",
+			Requirements: annotations.Requirements{UserIsAdmin: true},
 		},
 	)
 }

@@ -11,6 +11,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 )
@@ -69,7 +70,7 @@ type ClearResultsResponse struct {
 }
 
 type FlowNodeResult struct {
-	Payload map[string]interface{}
+	Payload map[string]any
 	ID      int    // the node ID
 	Type    string // the type of node, e.g. RunQuery
 	Log     string
@@ -101,12 +102,12 @@ type FlowParseRequest struct {
 type FlowParseResponse struct {
 	OK bool
 
-	OutputPayloads map[int]map[string]interface{}
+	OutputPayloads map[int]map[string]any
 
 	// InitialPayload defines a payload to be passed in to any
 	// nodes with no dependencies, i.e. the nodes which will run
 	// first.
-	InitialPayload map[string]interface{}
+	InitialPayload map[string]any
 
 	// Failures contains a map of node ID to failure for any nodes
 	// which failed to parse.  Note that parsing continues as much
@@ -199,10 +200,8 @@ func (um UserMail) Validate() error {
 	if len(um.To) == 0 {
 		return errors.New("no recepients")
 	}
-	for _, v := range um.To {
-		if v == `` {
-			return errors.New("Invalid recepient")
-		}
+	if slices.Contains(um.To, ``) {
+		return errors.New("Invalid recepient")
 	}
 	for _, v := range um.Attachments {
 		if err := v.Validate(); err != nil {

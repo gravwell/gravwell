@@ -48,7 +48,8 @@ func TestUploadEditShowReplaceDownloadDelete(t *testing.T) {
 		agentLabels = []string{"lbl1", "otherlbl"}
 	)
 	def := types.Agent{
-		CommonFields: types.CommonFields{Name: agentName, Description: agentDesc},
+		Name:        agentName,
+		Description: agentDesc,
 		Entrypoint: types.NodeSpec{Type: types.NodeSerial, Name: "pipeline", Inherit: true, Children: []*types.NodeSpec{
 			{Type: types.NodeSingle, Name: "collect", Prompt: "collect the facts", AllowedTools: []string{"list_tags"}, MaxIterations: 5},
 			{Type: types.NodeSingle, Name: "report", Prompt: "write it up", Inherit: true},

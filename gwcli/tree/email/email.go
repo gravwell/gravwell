@@ -240,15 +240,13 @@ func configure() action.Pair {
 			)
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:     "configure",
-				Short:   "configure email settings",
-				Long:    "Set the SMTP server settings used for sending email notifications.",
-				Aliases: []string{"add", "create", "update"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Email},
-					XPermissions: []types.Capability{types.Email},
-				},
+			Use:     "configure",
+			Short:   "configure email settings",
+			Long:    "Set the SMTP server settings used for sending email notifications.",
+			Aliases: []string{"add", "create", "update"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Email},
+				XPermissions: []types.Capability{types.Email},
 			},
 		})
 }
@@ -262,12 +260,10 @@ func deleteConfig() action.Pair {
 			return []scaffold.Result{{Output: "email configuration removed", Success: true}}, nil
 		},
 		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Aliases: []string{"uninstall", "remove"},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.Email},
-					XPermissions: []types.Capability{types.Email},
-				},
+			Aliases: []string{"uninstall", "remove"},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.Email},
+				XPermissions: []types.Capability{types.Email},
 			},
 		})
 }

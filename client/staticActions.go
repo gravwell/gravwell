@@ -19,6 +19,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ type urlParam struct {
 	value string
 }
 
-func ezParam(name string, val interface{}) urlParam {
+func ezParam(name string, val any) urlParam {
 	return urlParam{key: name, value: fmt.Sprintf("%v", val)}
 }
 
@@ -61,30 +62,30 @@ func (e *ClientError) Error() string {
 	return fmt.Sprintf("Bad Status %s(%d): %s", e.Status, e.StatusCode, e.ErrorBody)
 }
 
-func (c *Client) getStaticURL(url string, obj interface{}, params ...urlParam) error {
+func (c *Client) getStaticURL(url string, obj any, params ...urlParam) error {
 	return c.methodStaticURL(http.MethodGet, url, obj, params...)
 }
 
-func (c *Client) putStaticURL(url string, obj interface{}, params ...urlParam) error {
+func (c *Client) putStaticURL(url string, obj any, params ...urlParam) error {
 	return c.methodStaticPushURL(http.MethodPut, url, obj, nil, nil, params)
 }
 
 func (c *Client) putStaticRawURL(url string, data []byte, params ...urlParam) error {
 	return c.methodStaticPushRawURL(http.MethodPut, url, data, nil, nil, params)
 }
-func (c *Client) patchStaticURL(url string, obj interface{}, params ...urlParam) error {
+func (c *Client) patchStaticURL(url string, obj any, params ...urlParam) error {
 	return c.methodStaticPushURL(http.MethodPatch, url, obj, nil, nil, params)
 }
 
-func (c *Client) postStaticURL(url string, sendObj, recvObj interface{}, params ...urlParam) error {
+func (c *Client) postStaticURL(url string, sendObj, recvObj any, params ...urlParam) error {
 	return c.methodStaticPushURL(http.MethodPost, url, sendObj, recvObj, nil, params)
 }
 
-func (c *Client) deleteStaticURL(url string, sendObj interface{}, params ...urlParam) error {
+func (c *Client) deleteStaticURL(url string, sendObj any, params ...urlParam) error {
 	return c.methodStaticPushURL(http.MethodDelete, url, sendObj, nil, nil, params)
 }
 
-func (c *Client) methodStaticURL(method, url string, obj interface{}, params ...urlParam) error {
+func (c *Client) methodStaticURL(method, url string, obj any, params ...urlParam) error {
 	if c.state != STATE_AUTHED {
 		return ErrNoLogin
 	}
@@ -106,7 +107,7 @@ func addParams(req *http.Request, params []urlParam) {
 	}
 }
 
-func (c *Client) methodStaticParamURL(method, pth string, params []urlParam, obj interface{}) error {
+func (c *Client) methodStaticParamURL(method, pth string, params []urlParam, obj any) error {
 	if c.state != STATE_AUTHED {
 		return ErrNoLogin
 	}
@@ -121,15 +122,10 @@ func (c *Client) methodStaticParamURL(method, pth string, params []urlParam, obj
 }
 
 func respOk(rcode int, okCodes ...int) bool {
-	for _, c := range okCodes {
-		if rcode == c {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(okCodes, rcode)
 }
 
-func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses []int, params []urlParam) error {
+func (c *Client) staticRequest(req *http.Request, obj any, okResponses []int, params []urlParam) error {
 	if c.state != STATE_AUTHED {
 		return ErrNoLogin
 	}
@@ -200,7 +196,7 @@ func (c *Client) RawRequest(req *http.Request) (resp *http.Response, err error) 
 	return
 }
 
-func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj interface{}, okResps []int, params []urlParam) error {
+func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj any, okResps []int, params []urlParam) error {
 	var err error
 
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
@@ -240,7 +236,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	return nil
 }
 
-func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interface{}, okResps []int, params []urlParam) error {
+func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj any, okResps []int, params []urlParam) error {
 	var jsonBytes []byte
 	var err error
 

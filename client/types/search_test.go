@@ -354,9 +354,9 @@ func TestRenderSettings(t *testing.T) {
 // escape to the top of the enclosing document and blank every SearchInfo in it.
 func TestSearchInfoWithEmptyRendererSettings(t *testing.T) {
 	si := []SearchInfo{
-		{CommonFields: CommonFields{ID: "a"}},
-		{CommonFields: CommonFields{ID: "b"}, RendererSettings: &RendererSettings{}},
-		{CommonFields: CommonFields{ID: "c"}},
+		{ID: "a"},
+		{ID: "b", RendererSettings: &RendererSettings{}},
+		{ID: "c"},
 	}
 	sb, err := json.Marshal(si)
 	if err != nil {
@@ -452,7 +452,7 @@ func TestRendererSettingsDecodeGuards(t *testing.T) {
 			`{"Renderer":"fdg","Channels":{"Weight":"weight"}}`
 		dec := json.NewDecoder(strings.NewReader(stream))
 		var rs RendererSettings
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			if err := dec.Decode(&rs); err != nil {
 				t.Fatalf("decode %d: %v", i, err)
 			}
@@ -490,7 +490,7 @@ func TestRenderSettingsErrors(t *testing.T) {
 // plain int64 nanoseconds value (the default encoding for a time.Duration field).
 // Per the registry API spec.
 func TestSearchInfoDurationRoundTrip(t *testing.T) {
-	in := SearchInfo{CommonFields: CommonFields{ID: "dur"}, ItemCount: 42, Duration: 90 * time.Second}
+	in := SearchInfo{ID: "dur", ItemCount: 42, Duration: 90 * time.Second}
 	b, err := json.Marshal(in)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -546,7 +546,7 @@ func TestDownloadSearchOmitsZeroTimeframe(t *testing.T) {
 func TestSearchInfoMarshal(t *testing.T) {
 	// Test without RenderSettings
 	siEmpty := SearchInfo{
-		CommonFields: CommonFields{ID: "test-id"},
+		ID: "test-id",
 	}
 	b, err := json.Marshal(siEmpty)
 	if err != nil {
@@ -562,7 +562,7 @@ func TestSearchInfoMarshal(t *testing.T) {
 
 	// Test with RenderSettings
 	siWithRenderSettings := SearchInfo{
-		CommonFields: CommonFields{ID: "test-id-with-rs"},
+		ID: "test-id-with-rs",
 		RendererSettings: &RendererSettings{
 			Chart: &RSChart{
 				Renderer: "chart",

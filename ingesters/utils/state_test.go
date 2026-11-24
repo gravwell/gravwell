@@ -82,7 +82,7 @@ func TestUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	wg.Add(100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		go func(w *sync.WaitGroup, sm *State, v int) {
 			tv := testS{
 				Foo: `test`,

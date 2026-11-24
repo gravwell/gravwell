@@ -233,11 +233,9 @@ func newPresharedHeaderTokenHandler(hdr, value string, lgr *log.Logger) (hnd aut
 		err = ErrMissingHeaderValue
 	} else {
 		hnd = &preTokenHandler{
-			tokHandler: tokHandler{
-				lgr:      lgr,
-				hdrName:  hdr,
-				tokValue: value,
-			},
+			lgr:      lgr,
+			hdrName:  hdr,
+			tokValue: value,
 		}
 	}
 	return
@@ -267,11 +265,9 @@ func newPresharedParamHandler(name, value string, lgr *log.Logger) (hnd authHand
 		err = ErrMissingTokenValue
 	} else {
 		hnd = &preParamHandler{
-			tokHandler: tokHandler{
-				lgr:      lgr,
-				hdrName:  name,
-				tokValue: value,
-			},
+			lgr:      lgr,
+			hdrName:  name,
+			tokValue: value,
 		}
 	}
 	return
@@ -384,7 +380,7 @@ func (jah *jwtAuthHandler) AuthRequest(r *http.Request) error {
 	return nil
 }
 
-func (jah *jwtAuthHandler) secretParser(token *jwt.Token) (interface{}, error) {
+func (jah *jwtAuthHandler) secretParser(token *jwt.Token) (any, error) {
 	// Don't forget to validate the alg is what you expect:
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 		return nil, errors.New("Unexpected signing method")

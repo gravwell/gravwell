@@ -376,9 +376,7 @@ func TestCompiledGlobConcurrentReset(t *testing.T) {
 	const workers, perWorker = 8, 3 * maxGlobCache / 8
 	var wg sync.WaitGroup
 	for i := range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := range perWorker {
 				// Each worker revisits a few shared patterns between its own,
 				// so hits and misses race with the resets.
@@ -392,7 +390,7 @@ func TestCompiledGlobConcurrentReset(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -413,9 +411,7 @@ func TestCompiledGlobConcurrent(t *testing.T) {
 	resetGlobCache(t)
 	var wg sync.WaitGroup
 	for i := range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := range 200 {
 				g := compiledGlob(fmt.Sprintf("c%d?", (i+j)%50))
 				if g == nil || !g.Match(fmt.Sprintf("c%dx", (i+j)%50)) {
@@ -423,7 +419,7 @@ func TestCompiledGlobConcurrent(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if got := globCacheSize.Load(); got != 50 {

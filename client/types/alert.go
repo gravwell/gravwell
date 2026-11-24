@@ -56,21 +56,21 @@ type Alert struct {
 	TargetTag string
 
 	// Arbitrary user-defined metadata which will be injected into the events
-	UserMetadata map[string]interface{}
+	UserMetadata map[string]any
 }
 
 // AlertPatch is the type used to request an update to an existing Alert.
 type AlertPatch struct {
 	CommonFieldsPatch
-	Consumers          Optional[[]AlertConsumer]        `json:",omitzero"`
-	Disabled           Optional[bool]                   `json:",omitzero"`
-	Dispatchers        Optional[[]AlertDispatcher]      `json:",omitzero"`
-	MaxEvents          Optional[int]                    `json:",omitzero"`
-	SaveSearchDuration Optional[int32]                  `json:",omitzero"`
-	SaveSearchEnabled  Optional[bool]                   `json:",omitzero"`
-	Schemas            Optional[AlertSchemas]           `json:",omitzero"`
-	TargetTag          Optional[string]                 `json:",omitzero"`
-	UserMetadata       Optional[map[string]interface{}] `json:",omitzero"`
+	Consumers          Optional[[]AlertConsumer]   `json:",omitzero"`
+	Disabled           Optional[bool]              `json:",omitzero"`
+	Dispatchers        Optional[[]AlertDispatcher] `json:",omitzero"`
+	MaxEvents          Optional[int]               `json:",omitzero"`
+	SaveSearchDuration Optional[int32]             `json:",omitzero"`
+	SaveSearchEnabled  Optional[bool]              `json:",omitzero"`
+	Schemas            Optional[AlertSchemas]      `json:",omitzero"`
+	TargetTag          Optional[string]            `json:",omitzero"`
+	UserMetadata       Optional[map[string]any]    `json:",omitzero"`
 }
 
 // ToPatch converts a into an AlertPatch with every field set.
@@ -113,7 +113,7 @@ type AlertSchemas struct {
 	OCSF AlertSchemasOcsf
 
 	// A user-provided JSON schema.
-	JSON map[string]interface{}
+	JSON map[string]any
 
 	ActiveSchema string
 }
@@ -149,7 +149,7 @@ type AlertDispatcherValidateError struct {
 	// The path that led to the error
 	Path string
 
-	InvalidValue *interface{}
+	InvalidValue *any
 
 	// Human-friendly information as to why the item failed
 	Message string

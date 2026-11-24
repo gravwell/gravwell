@@ -83,7 +83,7 @@ func (st *StateTracker) Close() (err error) {
 	return
 }
 
-func (st *StateTracker) Add(tp string, value interface{}) (err error) {
+func (st *StateTracker) Add(tp string, value any) (err error) {
 	var rob json.RawMessage
 	if tp == `` || value == nil {
 		return errors.New("invalid parameters")
@@ -108,9 +108,9 @@ func (st *StateTracker) writeEntry(ent StateEntry) (err error) {
 	return
 }
 
-type stcallback func(interface{}) error
+type stcallback func(any) error
 
-func (st *StateTracker) GetStates(tp string, value interface{}, cb stcallback) (err error) {
+func (st *StateTracker) GetStates(tp string, value any, cb stcallback) (err error) {
 	if cb == nil || tp == `` {
 		err = errors.New(`invalid parameters`)
 		return

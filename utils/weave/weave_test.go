@@ -198,11 +198,11 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						a:     10,
-						b:     0,
-						c:     &c,
-						d:     "D",
-						inner: inner{foo: "FOO"}}},
+						a:   10,
+						b:   0,
+						c:   &c,
+						d:   "D",
+						foo: "FOO"}},
 				columns: []string{"a"}},
 			"a\n" + "10",
 		},
@@ -210,11 +210,11 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						a:     10,
-						b:     0,
-						c:     &c,
-						d:     "D",
-						inner: inner{foo: "FOO"}}},
+						a:   10,
+						b:   0,
+						c:   &c,
+						d:   "D",
+						foo: "FOO"}},
 				columns: []string{"a", "c"}},
 			"a,c\n" + "10,5.0123",
 		},
@@ -230,7 +230,7 @@ func TestToCSV(t *testing.T) {
 		{"∃!c∃!r, deeply nested",
 			args{
 				st: []any{
-					outer{inner: inner{too: &too{mu: 5}}},
+					outer{too: &too{mu: 5}},
 				},
 				columns: []string{
 					"too.mu",
@@ -240,7 +240,7 @@ func TestToCSV(t *testing.T) {
 		{"∃c∃!r, deeply nested",
 			args{
 				st: []any{
-					outer{inner: inner{too: &too{mu: 5, yu: 6}}},
+					outer{too: &too{mu: 5, yu: 6}},
 				},
 				columns: []string{
 					"too.mu", "too.yu",
@@ -250,7 +250,7 @@ func TestToCSV(t *testing.T) {
 		{"∃c∃!r, deeply nested",
 			args{
 				st: []any{
-					outer{inner: inner{too: &too{mu: 5, yu: 6}}, a: 10000, Exported: -87.5},
+					outer{too: &too{mu: 5, yu: 6}, a: 10000, Exported: -87.5},
 				},
 				columns: []string{
 					"Exported", "too.mu", "too.yu", "a",
@@ -261,7 +261,7 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						inner:    inner{foo: "FOO", too: &too{mu: 5, yu: 1}},
+						foo: "FOO", too: &too{mu: 5, yu: 1},
 						a:        10,
 						b:        0,
 						c:        &c,
@@ -276,7 +276,7 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
@@ -291,35 +291,35 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        57,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        256,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
@@ -339,35 +339,35 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        57,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        256,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
@@ -391,14 +391,14 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
@@ -413,14 +413,14 @@ func TestToCSV(t *testing.T) {
 			args{
 				st: []any{
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
 						d:        "D",
 						Exported: 3.145},
 					outer{
-						inner:    inner{foo: "FOO"},
+						foo:      "FOO",
 						a:        10,
 						b:        0,
 						c:        &c,
@@ -527,11 +527,9 @@ func TestToCSV(t *testing.T) {
 		var data = make([]nest, longCSVLineCount)
 		for i := range longCSVLineCount {
 			data[i] = nest{
-				n: fmt.Sprintf("%dN", i), innerNest: innerNest{
-					in: "IN", innerInnerNest: innerInnerNest{
-						iin: "IIN", innerInnerInnerNest: innerInnerInnerNest{iiin: "IIIN"},
-					},
-				},
+				n:   fmt.Sprintf("%dN", i),
+				in:  "IN",
+				iin: "IIN", iiin: "IIIN",
 			}
 		}
 
@@ -648,7 +646,7 @@ func TestToCSV(t *testing.T) {
 	t.Run("embedded pointers, all initialized", func(t *testing.T) {
 		inptrVal := -9
 		ptrStructVal := ptrstruct{a: 0, b: "B"}
-		v := outer{z: 10, inner: inner{inptr: &inptrVal, p: &ptrStructVal}}
+		v := outer{z: 10, inptr: &inptrVal, p: &ptrStructVal}
 		actual := ToCSV([]outer{v}, []string{"z", "inptr", "p", "a", "b"}, CSVOptions{})
 		expected := "z,inptr,p,a,b\n" +
 			"10,-9,{0 B},,"
@@ -815,7 +813,7 @@ func TestToTable(t *testing.T) {
 		// data for pointers
 		A, c, one := 1, "c", "one"
 		var Alpha float32 = 3.14
-		depth1p := d1p{e1: e1{Alpha: &Alpha, beta: 6.28}, one: &one}
+		depth1p := d1p{Alpha: &Alpha, beta: 6.28, one: &one}
 
 		actualData := []d0p{
 			{A: &A, B: 2, c: &c, D: "D", depth1p: &depth1p},
@@ -845,7 +843,7 @@ func TestToTable(t *testing.T) {
 		// data for pointers
 		A, c, one := 1, "c", "one"
 		var Alpha float32 = 3.14
-		depth1p := d1p{e1: e1{Alpha: &Alpha, beta: 6.28}, one: &one}
+		depth1p := d1p{Alpha: &Alpha, beta: 6.28, one: &one}
 
 		actualData := []d0p{
 			{A: &A, B: 2, c: &c, D: "D", depth1p: &depth1p},
@@ -1217,7 +1215,7 @@ func TestToJSON(t *testing.T) {
 		)
 
 		data := make([]d0, iterations)
-		for i := 0; i < iterations; i++ {
+		for i := range iterations {
 			data[i] = d0{A0: d0A0,
 				Depth1: d1{A1: d1A1,
 					Depth2: &d2{A2: &d2A2, B2: d2B2,
@@ -1267,7 +1265,7 @@ func TestToJSON(t *testing.T) {
 		var C1 = 5
 		var D1 = 3.14
 		data := []d0{
-			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
+			{A0: &A0, B0: B0, C1: C1, D1: &D1},
 		}
 
 		actual, err := ToJSON(data, []string{"A0", "B0", "C1", "D1"}, JSONOptions{})
@@ -1305,7 +1303,7 @@ func TestToJSON(t *testing.T) {
 		var C1 = 5
 		var D1 = 3.14
 		data := []d0{
-			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
+			{A0: &A0, B0: B0, C1: C1, D1: &D1},
 		}
 
 		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"}, JSONOptions{})
@@ -1343,7 +1341,7 @@ func TestToJSON(t *testing.T) {
 		var C1 = 5
 		var D1 = 3.14
 		data := []d0{
-			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
+			{A0: &A0, B0: B0, C1: C1, D1: &D1},
 		}
 
 		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"},
@@ -1706,10 +1704,10 @@ func TestFindQualifiedField(t *testing.T) {
 		e: struct {
 			a string
 			b string
-		}{a: "", b: ""}}}, lvl2: lvl2{b: 9}, a: "a"}
+		}{a: "", b: ""}}}, b: 9, a: "a"}
 
 	t.Run("depth 0", func(t *testing.T) {
-		exp, expFound := reflect.TypeOf(lvl1{}).FieldByName("a")
+		exp, expFound := reflect.TypeFor[lvl1]().FieldByName("a")
 		got, gotFound, _, err := FindQualifiedField[lvl1]("a", lvl1{})
 		if err != nil {
 			panic(err)
@@ -1724,7 +1722,7 @@ func TestFindQualifiedField(t *testing.T) {
 		}
 	})
 	t.Run("depth 0 pointer", func(t *testing.T) {
-		exp, expFound := reflect.TypeOf(lvl2{}).FieldByName("c")
+		exp, expFound := reflect.TypeFor[lvl2]().FieldByName("c")
 		got, gotFound, _, err := FindQualifiedField[lvl2]("c", lvl2{})
 		if err != nil {
 			panic(err)
@@ -1740,7 +1738,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("promoted", func(t *testing.T) {
-		exp, expFound := reflect.TypeOf(lvl1{}).FieldByName("b")
+		exp, expFound := reflect.TypeFor[lvl1]().FieldByName("b")
 		got, gotFound, _, err := FindQualifiedField[lvl1]("b", lvl1{})
 		if err != nil {
 			panic(err)
@@ -1756,7 +1754,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("promoted pointer", func(t *testing.T) {
-		exp, expFound := reflect.TypeOf(lvl1{}).FieldByName("c")
+		exp, expFound := reflect.TypeFor[lvl1]().FieldByName("c")
 		got, gotFound, _, err := FindQualifiedField[lvl1]("c", lvl1{})
 		if err != nil {
 			panic(err)
@@ -1772,7 +1770,7 @@ func TestFindQualifiedField(t *testing.T) {
 	t.Run("named struct navigation", func(t *testing.T) {
 
 		var expIndexPath = []int{1, 0}
-		var exp = reflect.TypeOf(lvl1{}).FieldByIndex(expIndexPath)
+		var exp = reflect.TypeFor[lvl1]().FieldByIndex(expIndexPath)
 
 		got, _, gotIndexPath, err := FindQualifiedField[lvl1]("l2.b", lvl1{})
 		if err != nil {
@@ -1787,7 +1785,7 @@ func TestFindQualifiedField(t *testing.T) {
 			t.Errorf("path len mismatch: gotPath(%v) != expectedPath(%v)", gotIndexPath, expIndexPath)
 		}
 
-		for i := 0; i < len(gotIndexPath); i++ {
+		for i := range gotIndexPath {
 			if gotIndexPath[i] != expIndexPath[i] {
 				t.Errorf("path mismatch @ index [%d]: gotPath(%v) != expectedPath(%v)", i, gotIndexPath, expIndexPath)
 			}
@@ -1796,7 +1794,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 	t.Run("named struct navigation outer -> (embed) -> too -> mu", func(t *testing.T) {
 		var expIndexPath = []int{0, 1, 0}
-		var exp = reflect.TypeOf(outer{}).FieldByIndex(expIndexPath)
+		var exp = reflect.TypeFor[outer]().FieldByIndex(expIndexPath)
 
 		got, _, gotIndexPath, err := FindQualifiedField[outer]("too.mu", outer{})
 		if err != nil {
@@ -1811,7 +1809,7 @@ func TestFindQualifiedField(t *testing.T) {
 			t.Errorf("path len mismatch: gotPath(%v) != expectedPath(%v)", gotIndexPath, expIndexPath)
 		}
 
-		for i := 0; i < len(gotIndexPath); i++ {
+		for i := range gotIndexPath {
 			if gotIndexPath[i] != expIndexPath[i] {
 				t.Errorf("path mismatch @ index [%d]: gotPath(%v) != expectedPath(%v)", i, gotIndexPath, expIndexPath)
 			}
@@ -1822,7 +1820,7 @@ func TestFindQualifiedField(t *testing.T) {
 
 		// access one field too far within too
 
-		var exp = reflect.TypeOf(outer{}).FieldByIndex([]int{0, 1, 1})
+		var exp = reflect.TypeFor[outer]().FieldByIndex([]int{0, 1, 1})
 
 		got, _, _, err := FindQualifiedField[lvl1]("too.mu", outer{})
 		if err != nil {
@@ -1836,7 +1834,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 	t.Run("named struct navigation ptr", func(t *testing.T) {
 
-		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 1})
+		var exp = reflect.TypeFor[lvl1]().FieldByIndex([]int{0, 1})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l2.c", lvl1{})
 		if err != nil {
@@ -1850,7 +1848,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("embedded + depth 2", func(t *testing.T) {
-		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 2, 0})
+		var exp = reflect.TypeFor[lvl1]().FieldByIndex([]int{0, 2, 0})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l3.d", lvl1{})
 		if err != nil {
@@ -1864,7 +1862,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("depth 3", func(t *testing.T) {
-		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 2, 0})
+		var exp = reflect.TypeFor[lvl1]().FieldByIndex([]int{0, 2, 0})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l2.l3.d", lvl1{})
 		if err != nil {
@@ -1879,7 +1877,7 @@ func TestFindQualifiedField(t *testing.T) {
 	// test accessing fields within first-class struct, e, embedded at depth 0,
 	// in struct lvl3
 	t.Run("first-class internal struct @ depth 0", func(t *testing.T) {
-		var exp = reflect.TypeOf(lvl3{}).FieldByIndex([]int{1, 1})
+		var exp = reflect.TypeFor[lvl3]().FieldByIndex([]int{1, 1})
 
 		got, _, _, err := FindQualifiedField[lvl3]("e.b", lvl3{})
 		if err != nil {
@@ -1892,7 +1890,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("deeply nested first-class struct", func(t *testing.T) {
-		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{1, 2, 1, 1})
+		var exp = reflect.TypeFor[lvl1]().FieldByIndex([]int{1, 2, 1, 1})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l2.l3.e.b", lvl1{})
 		if err != nil {
@@ -2203,15 +2201,15 @@ func TestStructFieldsExported(t *testing.T) {
 		wantColumns []string
 	}{
 		{"single level", dblmbd{Y: "y string"}, []string{"Y"}},
-		{"second level", mbd{z: "z string", dblmbd: dblmbd{Y: "y sting"}}, []string{}},
+		{"second level", mbd{z: "z string", Y: "y sting"}, []string{}},
 		{"third level",
 			triple{
 				A:   -780,
 				b:   1,
 				dbl: dblmbd{Y: "y string"},
 				ins: mbd{z: "z string", dblmbd: dblmbd{Y: "y string 2"}},
-				mbd: mbd{dblmbd: dblmbd{Y: "y string 3"},
-					z: "z string 2"},
+				Y:   "y string 3",
+				z:   "z string 2",
 			}, tripleWant},
 		{"third level valueless", triple{}, tripleWant},
 		{"third level pointer", &triple{}, tripleWant},

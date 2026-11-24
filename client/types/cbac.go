@@ -190,12 +190,7 @@ func (cs CapabilitySet) Has(c Capability) bool {
 }
 
 func (cs CapabilitySet) HasOneOf(c []Capability) (has bool) {
-	for _, i := range c {
-		if cs.Has(i) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(c, cs.Has)
 }
 
 // IsSet checks if a capability grant is set

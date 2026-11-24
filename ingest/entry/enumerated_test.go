@@ -144,7 +144,7 @@ func TestEnumeratedMaxSizes(t *testing.T) {
 	}
 }
 
-func testEVCycle(a interface{}) (err error) {
+func testEVCycle(a any) (err error) {
 	var ev EnumeratedValue
 	if ev, err = NewEnumeratedValue(`testing`, a); err != nil {
 		return
@@ -160,7 +160,7 @@ func testEVCycle(a interface{}) (err error) {
 		s = string(bts)
 	} else if ts, ok := a.(time.Time); ok {
 		s = FromStandard(ts).String() //convert to our internal time type
-		ta = reflect.TypeOf(Timestamp{})
+		ta = reflect.TypeFor[Timestamp]()
 	}
 
 	//test stringer
@@ -283,7 +283,7 @@ func TestEntryJSON(t *testing.T) {
 		Data: []byte("hello"),
 		SRC:  net.ParseIP("dead:beef::feed:febe"),
 	}
-	x := []interface{}{
+	x := []any{
 		float32(3.14),
 		float64(1.6180),
 		"hello",
@@ -407,7 +407,7 @@ func FuzzEVEncodeDecode(f *testing.F) {
 	})
 }
 
-func addFuzzSample(f *testing.F, val interface{}) error {
+func addFuzzSample(f *testing.F, val any) error {
 	if buff, err := encodeEv(val); err != nil {
 		return err
 	} else {
@@ -416,7 +416,7 @@ func addFuzzSample(f *testing.F, val interface{}) error {
 	return nil
 }
 
-func encodeEv(a interface{}) (buff []byte, err error) {
+func encodeEv(a any) (buff []byte, err error) {
 	var ev EnumeratedValue
 	name := fmt.Sprintf("test %T %v", a, a)
 	if ev, err = NewEnumeratedValue(name, a); err == nil {

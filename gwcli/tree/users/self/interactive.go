@@ -18,7 +18,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/hotkeys"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -423,14 +422,12 @@ func update() action.Pair {
 			return "", "", nil
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use:   "update",
-				Short: "Update your user information.",
-				Long:  "Update the basic details of the current user. Empty values will remain unchanged.",
-				Usage: fmt.Sprint("update ",
-					ft.Optional("--new-username=<USERNAME>"), " ",
-					ft.Optional("--new-name=<NAME>"), " ",
-					ft.Optional("--new-email=<EMAIL>")),
-			},
+			Use:   "update",
+			Short: "Update your user information.",
+			Long:  "Update the basic details of the current user. Empty values will remain unchanged.",
+			Usage: fmt.Sprint("update ",
+				ft.Optional("--new-username=<USERNAME>"), " ",
+				ft.Optional("--new-name=<NAME>"), " ",
+				ft.Optional("--new-email=<EMAIL>")),
 		})
 }

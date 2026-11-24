@@ -38,7 +38,7 @@ func makeChildren(n, nameBytes, cfgBytes int) map[string]IngesterState {
 	if cfgBytes > 0 {
 		cfg = rawStr(cfgBytes)
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		key := fmt.Sprintf("child-%04d", i)
 		m[key] = IngesterState{
 			UUID:          key,

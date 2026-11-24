@@ -395,13 +395,11 @@ func TestNonInteractive(t *testing.T) {
 					for i := range 5 {
 						iStr := strconv.FormatInt(int64(i), 10)
 						ms[i] = types.Flow{
-							CommonFields: types.CommonFields{
-								Name:      "Name_" + iStr,
-								CreatedAt: time.Unix(5, 0).UTC(),
-								ID:        iStr,
-								Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
-							},
-							Flow: "Flow_" + iStr}
+							Name:      "Name_" + iStr,
+							CreatedAt: time.Unix(5, 0).UTC(),
+							ID:        iStr,
+							Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+							Flow:      "Flow_" + iStr}
 					}
 
 					return ms, nil
@@ -435,13 +433,11 @@ func TestNonInteractive(t *testing.T) {
 				for i := range 5 {
 					iStr := strconv.FormatInt(int64(i), 10)
 					ms[i] = types.Flow{
-						CommonFields: types.CommonFields{
-							Name:      "Name_" + iStr,
-							CreatedAt: time.Unix(5, 0).UTC(),
-							ID:        iStr,
-							Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
-						},
-						Flow: "Flow_" + iStr}
+						Name:      "Name_" + iStr,
+						CreatedAt: time.Unix(5, 0).UTC(),
+						ID:        iStr,
+						Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+						Flow:      "Flow_" + iStr}
 				}
 
 				return ms, nil
@@ -621,13 +617,11 @@ func TestAutoAliasPrefix(t *testing.T) {
 					for i := range 5 {
 						iStr := strconv.FormatInt(int64(i), 10)
 						ms[i] = types.Flow{
-							CommonFields: types.CommonFields{
-								Name:      "Name_" + iStr,
-								CreatedAt: time.Unix(5, 0).UTC(),
-								ID:        iStr,
-								Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
-							},
-							Flow: "Flow_" + iStr}
+							Name:      "Name_" + iStr,
+							CreatedAt: time.Unix(5, 0).UTC(),
+							ID:        iStr,
+							Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
+							Flow:      "Flow_" + iStr}
 					}
 
 					return ms, nil
@@ -658,12 +652,10 @@ func TestHelpGeneration(t *testing.T) {
 			for i := range 5 {
 				iStr := strconv.FormatInt(int64(i), 10)
 				ms[i] = types.Macro{
-					CommonFields: types.CommonFields{
-						Name:      "Name_" + iStr,
-						CreatedAt: time.Unix(17500000, 0),
-						ID:        iStr,
-						Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
-					},
+					Name:      "Name_" + iStr,
+					CreatedAt: time.Unix(17500000, 0),
+					ID:        iStr,
+					Readers:   types.ACL{GIDs: []int32{1, 100}, Global: true},
 					Expansion: "Expansion_" + iStr}
 			}
 
@@ -671,7 +663,7 @@ func TestHelpGeneration(t *testing.T) {
 		},
 		map[string]string{"CommonFields.ID": "ItemID"},
 		scaffoldlist.Options{
-			CommonOptions:  scaffold.CommonOptions{Example: "use tkn1 tkn2 --csv"},
+			Example:        "use tkn1 tkn2 --csv",
 			DefaultColumns: []string{"CommonFields.ID", "CommonFields.Name", "Expansion"},
 		},
 	)

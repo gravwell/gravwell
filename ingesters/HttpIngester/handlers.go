@@ -68,7 +68,7 @@ type handler struct {
 	resolver              atomic.Pointer[clientip.Resolver]
 	legacyWarn            *clientip.LegacyWarner
 	maxConcurrentRequests int64
-	activeRequests        int64
+	activeRequests        atomic.Int64
 }
 
 func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Request, rdr io.Reader) {
@@ -205,8 +205,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if h.maxConcurrentRequests > 0 {
 		//increment active requests
-		curr := atomic.AddInt64(&h.activeRequests, 1)
-		defer atomic.AddInt64(&h.activeRequests, -1)
+		curr := h.activeRequests.Add(1)
+		defer h.activeRequests.Add(-1)
 
 		// add header value letting the client know how many outstanding requests are available
 		addMaxRequestHeadRoom(h.maxConcurrentRequests, curr, w.Header())

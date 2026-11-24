@@ -123,7 +123,7 @@ func checkPerformance(tg *timegrinder.TimeGrinder, v []byte) {
 	}
 
 	ts = time.Now()
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		if _, ok, err = tg.Extract(v); err != nil || !ok {
 			break
 		}

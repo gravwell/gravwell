@@ -112,7 +112,7 @@ func TestSSEReassemblerFragmentedFeed(t *testing.T) {
 	// Feeding one byte at a time exercises fragment buffering across arbitrary
 	// chunk boundaries.
 	r := newSSEReassembler()
-	for i := 0; i < len(sampleStream); i++ {
+	for i := range len(sampleStream) {
 		if err := r.Feed([]byte{sampleStream[i]}); err != nil {
 			t.Fatalf("Feed: %v", err)
 		}

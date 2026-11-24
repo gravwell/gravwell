@@ -1,5 +1,4 @@
 //go:build linux || darwin || freebsd
-// +build linux darwin freebsd
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -89,7 +88,7 @@ func NewPersistentBuffer(cfg PersistentBufferConfig, tagger Tagger) (*Persistent
 	}, nil
 }
 
-func (gd *PersistentBuffer) Config(v interface{}) (err error) {
+func (gd *PersistentBuffer) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(PersistentBufferConfig); ok {

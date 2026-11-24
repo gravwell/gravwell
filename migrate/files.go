@@ -180,7 +180,7 @@ func getFileList(val *files, st *StateTracker) ([]string, error) {
 	var obj fileStatus
 	mp := map[string]fileStatus{}
 	// populate the list of files that have been handled so far
-	if err := st.GetStates(filesStateType, &obj, func(val interface{}) error {
+	if err := st.GetStates(filesStateType, &obj, func(val any) error {
 		if val == nil {
 			return nil ///ummm ok?
 		}

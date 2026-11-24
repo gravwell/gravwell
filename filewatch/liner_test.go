@@ -200,7 +200,7 @@ func writeLines(fname string) (int, map[string]bool, error) {
 
 	var count int
 	var s string
-	for i := 0; i < testLineCount; i++ {
+	for range testLineCount {
 		b := randomString(defMaxLine)
 		s = string(b)
 		fmt.Fprintf(fout, "%s\r\n", s)

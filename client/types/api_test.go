@@ -14,11 +14,9 @@ import (
 
 func TestVersionCompare(t *testing.T) {
 	o := BuildInfo{
-		CanonicalVersion: CanonicalVersion{
-			Major: 1,
-			Minor: 0,
-			Point: 5,
-		},
+		Major: 1,
+		Minor: 0,
+		Point: 5,
 	}
 	n := o
 	if o.NewerVersion(n) {

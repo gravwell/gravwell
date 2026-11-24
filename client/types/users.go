@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"net"
+	"slices"
 	"time"
 
 	"crypto/rand"
@@ -144,7 +145,7 @@ func GenerateRecoveryCodes(count int) (RecoveryCodes, error) {
 		Remaining: count,
 		Generated: time.Now(),
 	}
-	for i := 0; i < count; i++ {
+	for range count {
 		b := make([]byte, 6)
 		if _, err := rand.Read(b); err != nil {
 			return r, err
@@ -277,12 +278,7 @@ func (ud *UserDetails) UserCanRead(uid int32, gids []int32) bool {
 	if ud.UID == uid {
 		return true
 	}
-	for _, group := range gids {
-		if ud.InGroup(group) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(gids, ud.InGroup)
 }
 
 // CanModify returns true if the user is allowed to modify
@@ -400,10 +396,8 @@ func (u *User) IsGroupMember(gid int32) bool {
 // from the provided list of group IDs.
 func (u *User) IsAnyGroupMember(gids []int32) bool {
 	for _, g := range u.Groups {
-		for _, gid := range gids {
-			if g.ID == gid {
-				return true
-			}
+		if slices.Contains(gids, g.ID) {
+			return true
 		}
 	}
 	return false

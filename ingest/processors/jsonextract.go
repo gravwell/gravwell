@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
@@ -86,18 +87,17 @@ func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &JsonExtractor{jsonExtractState: jsonExtractState{
+	return &JsonExtractor{
 		JsonExtractConfig: cfg,
 		bldr: builder{
 			forceJson: cfg.Force_JSON_Object,
 			bb:        bytes.NewBuffer(nil),
 			keys:      keys,
 			keynames:  keynames,
-		},
-	}}, nil
+		}}, nil
 }
 
-func (je *JsonExtractor) Config(v interface{}) (err error) {
+func (je *JsonExtractor) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonExtractConfig); ok {
@@ -207,12 +207,7 @@ func inStringSliceSet(set [][]string, key []string) bool {
 }
 
 func inStringSet(set []string, key string) bool {
-	for _, x := range set {
-		if x == key {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(set, key)
 }
 
 type builder struct {

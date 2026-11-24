@@ -86,7 +86,7 @@ func (c *Client) CleanupUserPreferences() error {
 // GetGuiPreferences is a convenience function: it returns the Data
 // field of the preferences object named `prefs` belonging to the
 // specified user, loading it into the specified object.
-func (c *Client) GetGuiPreferences(uid int32, obj interface{}) error {
+func (c *Client) GetGuiPreferences(uid int32, obj any) error {
 	return c.getStaticURL(usersIdPreferencesUrl(uid), obj)
 }
 
@@ -99,6 +99,6 @@ func (c *Client) ClearGuiPreferences(id int32) error {
 
 // UpdateGuiPreferences updates the Data field of the preferences object
 // named `prefs` belonging to the specified user.
-func (c *Client) UpdateGuiPreferences(id int32, obj interface{}) error {
+func (c *Client) UpdateGuiPreferences(id int32, obj any) error {
 	return c.putStaticURL(usersIdPreferencesUrl(id), obj)
 }

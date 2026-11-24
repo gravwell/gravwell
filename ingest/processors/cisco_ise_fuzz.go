@@ -1,5 +1,4 @@
 //go:build gofuzz
-// +build gofuzz
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.

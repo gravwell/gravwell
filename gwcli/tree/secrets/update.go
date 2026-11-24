@@ -68,11 +68,9 @@ func updateValue() action.Pair {
 		treeutils.GenerateActionOptions{
 			Usage:   ft.MutuallyExclusive("--value", "--file") + " " + ft.Mandatory("secret ID"),
 			Example: "--value=mysupersecretvalue secret-one-two-three-four",
-			NodeOptions: treeutils.NodeOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
-					XPermissions: []types.Capability{types.SecretWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.SecretRead, types.SecretWrite},
+				XPermissions: []types.Capability{types.SecretWrite},
 			},
 		},
 	)

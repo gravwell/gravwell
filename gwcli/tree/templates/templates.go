@@ -121,14 +121,13 @@ func list() action.Pair {
 		},
 		nil,
 		scaffoldlist.Options{
-			CommonOptions: scaffold.CommonOptions{AddtlFlags: func() *pflag.FlagSet {
+			AddtlFlags: func() *pflag.FlagSet {
 				addtlFlags := &pflag.FlagSet{}
 				return addtlFlags
 			},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TemplateRead},
-					XPermissions: []types.Capability{types.TemplateRead},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TemplateRead},
+				XPermissions: []types.Capability{types.TemplateRead},
 			},
 
 			DefaultColumns: []string{
@@ -158,11 +157,9 @@ func delete() action.Pair {
 
 			return listitem.WrapAssets(lr), nil
 		}, scaffolddelete.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
-					XPermissions: []types.Capability{types.TemplateWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
+				XPermissions: []types.Capability{types.TemplateWrite},
 			},
 			QueryOptionsFlags: scaffold.QOInclude{Everything: true},
 		})
@@ -220,11 +217,9 @@ func edit() action.Pair {
 	}
 	return scaffoldedit.NewEditAction("template", "templates", cfg, funcs,
 		scaffoldedit.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
-					XPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
-				},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
+				XPermissions: []types.Capability{types.TemplateRead, types.TemplateWrite},
 			},
 		})
 }
@@ -302,17 +297,15 @@ func show() action.Pair {
 			return results, nil
 		},
 		scaffoldselect.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Use: "show",
-				AddtlFlags: func() *pflag.FlagSet {
-					fs := &pflag.FlagSet{}
-					ft.JSON.Register(fs)
-					return fs
-				},
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TemplateRead},
-					XPermissions: []types.Capability{types.TemplateRead},
-				},
+			Use: "show",
+			AddtlFlags: func() *pflag.FlagSet {
+				fs := &pflag.FlagSet{}
+				ft.JSON.Register(fs)
+				return fs
+			},
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TemplateRead},
+				XPermissions: []types.Capability{types.TemplateRead},
 			},
 		})
 }
@@ -343,13 +336,11 @@ func create() action.Pair {
 			}
 
 			newTemplate, err := connection.Client.CreateTemplate(types.Template{
-				CommonFields: types.CommonFields{
-					Name:        fields["name"].Provider.Get(),
-					Description: fields["desc"].Provider.Get(),
-					Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
-				},
-				Query:     content.Query,
-				Variables: content.Variables,
+				Name:        fields["name"].Provider.Get(),
+				Description: fields["desc"].Provider.Get(),
+				Labels:      scaffoldcreate.GetLabelsFromField(fields["labels"]),
+				Query:       content.Query,
+				Variables:   content.Variables,
 			})
 			if err != nil {
 				return 0, "", err
@@ -358,13 +349,11 @@ func create() action.Pair {
 
 		},
 		scaffoldcreate.Options{
-			CommonOptions: scaffold.CommonOptions{
-				Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
-					"Call " + stylesheet.Path(true, "~", "templates", "json") + " to see the format of the JSON file.",
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.TemplateWrite},
-					XPermissions: []types.Capability{types.TemplateWrite},
-				},
+			Long: "Create a new template. It will be empty unless you specify a --path to a JSON file.\n" +
+				"Call " + stylesheet.Path(true, "~", "templates", "json") + " to see the format of the JSON file.",
+			Requirements: annotations.Requirements{
+				IPermissions: []types.Capability{types.TemplateWrite},
+				XPermissions: []types.Capability{types.TemplateWrite},
 			},
 
 			IDIsSuccessMessage: true,

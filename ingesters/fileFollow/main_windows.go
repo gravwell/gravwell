@@ -165,37 +165,37 @@ func runService(s *mainService) {
 	debugout("Service stopped\n")
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }
 
-type errWriter func(format string, args ...interface{})
+type errWriter func(format string, args ...any)
 
-func interactiveErrorWriter(format string, args ...interface{}) {
+func interactiveErrorWriter(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format, args...)
 }
 
-func serviceErrorWriter(format string, args ...interface{}) {
+func serviceErrorWriter(format string, args ...any) {
 	elog.Error(1, fmt.Sprintf(format, args...))
 }
 
-func interactiveInfoWriter(format string, args ...interface{}) {
+func interactiveInfoWriter(format string, args ...any) {
 	fmt.Printf(format, args...)
 }
 
-func serviceInfoWriter(format string, args ...interface{}) {
+func serviceInfoWriter(format string, args ...any) {
 	elog.Info(1, fmt.Sprintf(format, args...))
 }
 
-func errorout(format string, args ...interface{}) {
+func errorout(format string, args ...any) {
 	if errW != nil {
 		errW(format, args...)
 	}
 }
 
-func infoout(format string, args ...interface{}) {
+func infoout(format string, args ...any) {
 	if infW != nil {
 		infW(format, args...)
 	}
@@ -204,27 +204,27 @@ func infoout(format string, args ...interface{}) {
 type debugLogger struct {
 }
 
-func (dl debugLogger) Debugf(f string, args ...interface{}) error {
+func (dl debugLogger) Debugf(f string, args ...any) error {
 	debugout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Infof(f string, args ...interface{}) error {
+func (dl debugLogger) Infof(f string, args ...any) error {
 	infoout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Warnf(f string, args ...interface{}) error {
+func (dl debugLogger) Warnf(f string, args ...any) error {
 	infoout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Errorf(f string, args ...interface{}) error {
+func (dl debugLogger) Errorf(f string, args ...any) error {
 	errorout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Criticalf(f string, args ...interface{}) error {
+func (dl debugLogger) Criticalf(f string, args ...any) error {
 	errorout(f, args...)
 	return nil
 }
