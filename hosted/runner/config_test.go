@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted/storage"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
