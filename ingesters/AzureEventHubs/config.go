@@ -60,7 +60,8 @@ type cfgType struct {
 }
 
 func applyDefaults(c *cfgType) {
-	if c.Global.Log_File == `` {
+	// Log-File and Log-UDP-Target are mutually exclusive
+	if c.Global.Log_File == `` && c.Global.Log_UDP_Target == `` {
 		c.Global.Log_File = defaultLogFile
 	}
 	if c.Global.State_Store_Location == `` {
@@ -79,7 +80,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	return &c, nil
 }
 
-func (c cfgType) Verify() error {
+func (c *cfgType) Verify() error {
 	if err := c.Global.IngestConfig.Verify(); err != nil {
 		return err
 	} else if err = c.Attach.Verify(); err != nil {

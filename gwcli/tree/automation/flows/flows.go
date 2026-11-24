@@ -33,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/automation/internal/clearresults"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -408,11 +409,8 @@ func clear() action.Pair {
 		func(IDs []string, _ *pflag.FlagSet) (results []scaffold.Result, _ error) {
 			results = make([]scaffold.Result, len(IDs))
 			for i, ID := range IDs {
-				if err := connection.Client.ClearFlowResults(ID); err != nil {
-					results[i] = scaffold.Result{Success: false, Output: fmt.Sprintf("failed to clear results for flow %s: %v", ID, err)}
-				} else {
-					results[i] = scaffold.Result{Success: true, Output: fmt.Sprintf("successfully cleared results for flow %s", ID)}
-				}
+				response, err := connection.Client.ClearFlowResults(ID)
+				results[i] = clearresults.ToResult("flow", ID, response, err)
 			}
 			return results, nil
 		},

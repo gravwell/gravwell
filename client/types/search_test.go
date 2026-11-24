@@ -10,12 +10,15 @@ package types
 
 import (
 	"encoding/json"
+	"encoding/json/jsontext"
 	v2 "encoding/json/v2"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/utils/jsoncompat"
 )
 
@@ -576,5 +579,428 @@ func TestSearchInfoMarshal(t *testing.T) {
 	}
 	if outWithRS.RendererSettings == nil || outWithRS.RendererSettings.Chart == nil || outWithRS.RendererSettings.Chart.Renderer != "chart" {
 		t.Fatalf("expected chart renderer, got %+v", outWithRS.RendererSettings)
+	}
+}
+
+func TestSearchSessionRefreshRequestOmission(t *testing.T) {
+	req := SearchSessionRefreshRequest{Sessions: []SearchSessionRefresh{{
+		SearchID:  "1",
+		SessionID: uuid.Nil,
+	}}}
+
+	b, err := v2.Marshal(&req, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), "Interval") || strings.Contains(string(b), "Expires") {
+		t.Fatalf("unset Interval and Expires must be omitted, got %s", b)
+	}
+
+	req.Sessions[0].Interval = NewOptional(uint(5))
+	req.Sessions[0].Expires = NewOptional(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC))
+	b, err = v2.Marshal(&req, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Interval":5`) {
+		t.Fatalf("set Interval must be present, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("set Expires must be present, got %s", b)
+	}
+}
+
+func TestSearchSessionRefreshResultMarshal(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	refreshed := SearchSessionRefreshResult{Refreshed: &SearchSessionRefreshed{
+		SearchID:  "1",
+		SessionID: uuid.Nil,
+		Interval:  3,
+		Expires:   NewNullable(expires),
+	}}
+	b, err := v2.Marshal(refreshed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Kind":"refreshed"`) {
+		t.Fatalf("refreshed result must carry Kind refreshed, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("refreshed result must carry Expires, got %s", b)
+	}
+	if strings.Contains(string(b), `"Error"`) {
+		t.Fatalf("refreshed result must not carry Error, got %s", b)
+	}
+
+	refreshed.Refreshed.Expires.SetNull()
+	b, err = v2.Marshal(refreshed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("a null expiry must encode as null, got %s", b)
+	}
+
+	failed := SearchSessionRefreshResult{Failed: &SearchSessionRefreshFailed{
+		SearchID:  "2",
+		SessionID: uuid.Nil,
+		Error:     "session not found",
+	}}
+	b, err = v2.Marshal(failed, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Kind":"failed"`) {
+		t.Fatalf("failed result must carry Kind failed, got %s", b)
+	}
+	if !strings.Contains(string(b), `"Error":"session not found"`) {
+		t.Fatalf("failed result must carry Error, got %s", b)
+	}
+	if strings.Contains(string(b), `"Expires"`) || strings.Contains(string(b), `"Interval"`) {
+		t.Fatalf("failed result must not carry Interval or Expires, got %s", b)
+	}
+}
+
+func TestSearchSessionRefreshResultUnmarshal(t *testing.T) {
+	body := `{"Results":[` +
+		`{"Kind":"refreshed","SearchID":"1","SessionID":"00000000-0000-0000-0000-000000000000","Interval":3,"Expires":null},` +
+		`{"Kind":"failed","SearchID":"2","SessionID":"00000000-0000-0000-0000-000000000000","Error":"session not found"}` +
+		`]}`
+	var resp SearchSessionRefreshResponse
+	if err := v2.Unmarshal([]byte(body), &resp, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Results) != 2 {
+		t.Fatalf("got %d results, want 2", len(resp.Results))
+	}
+	if r := resp.Results[0].Refreshed; r == nil {
+		t.Fatal("first result is not refreshed")
+	} else if r.Kind != SearchSessionRefreshResultKindRefreshed {
+		t.Fatalf("first result Kind = %q", r.Kind)
+	} else if !r.Expires.IsNull() {
+		t.Fatal("first result Expires should be null")
+	}
+	if f := resp.Results[1].Failed; f == nil {
+		t.Fatal("second result is not failed")
+	} else if f.Kind != SearchSessionRefreshResultKindFailed {
+		t.Fatalf("second result Kind = %q", f.Kind)
+	} else if f.Error != "session not found" {
+		t.Fatalf("second result Error = %q", f.Error)
+	}
+}
+
+func TestSearchSessionRefreshResultErrors(t *testing.T) {
+	if _, err := v2.Marshal(SearchSessionRefreshResult{}, jsoncompat.Opts); !errors.Is(err, ErrSearchSessionRefreshResultInvalid) {
+		t.Fatalf("empty result error = %v, want ErrSearchSessionRefreshResultInvalid", err)
+	}
+	both := SearchSessionRefreshResult{
+		Refreshed: &SearchSessionRefreshed{},
+		Failed:    &SearchSessionRefreshFailed{},
+	}
+	if _, err := v2.Marshal(both, jsoncompat.Opts); !errors.Is(err, ErrSearchSessionRefreshResultAmbiguous) {
+		t.Fatalf("both-variants error = %v, want ErrSearchSessionRefreshResultAmbiguous", err)
+	}
+}
+
+// TestSearchLaunchInfoExpiresJSON checks the wire form of Expires: a set
+// expiry is a timestamp, no expiry is null, and both decode back.
+func TestSearchLaunchInfoExpiresJSON(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	b, err := v2.Marshal(SearchLaunchInfo{Expires: NewNullable(expires)}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("a set expiry must encode as a timestamp, got %s", b)
+	}
+	var li SearchLaunchInfo
+	if err = v2.Unmarshal(b, &li, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Fatalf("expires = %v, want %v", li.Expires, expires)
+	}
+
+	if b, err = v2.Marshal(SearchLaunchInfo{}, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("no expiry must encode as null, got %s", b)
+	}
+	li = SearchLaunchInfo{Expires: NewNullable(expires)}
+	if err = v2.Unmarshal(b, &li, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !li.Expires.IsNull() {
+		t.Fatalf("expires = %v, want null", li.Expires)
+	}
+}
+
+// TestSaveSearchPatchMergeLaunchInfoExpires checks how a save patch changes
+// the expiry. A missing Expires leaves it unchanged, a value sets it, null
+// clears it, and the same instant in another time zone is not a change.
+func TestSaveSearchPatchMergeLaunchInfoExpires(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+
+	li := SearchLaunchInfo{Expires: NewNullable(expires)}
+	if changed := (SaveSearchPatch{}).MergeLaunchInfo(&li); changed {
+		t.Error("a patch with no expiry must not report a change")
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Errorf("expires = %v after a patch with no expiry, want it unchanged at %v", li.Expires, expires)
+	}
+
+	later := expires.Add(time.Hour)
+	var patch SaveSearchPatch
+	patch.Expires = NewNullablePatchIn(later)
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with a new expiry must report a change")
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(later) {
+		t.Errorf("expires = %v, want %v", li.Expires, later)
+	}
+
+	patch.Expires = NewNullablePatchIn(later.In(time.FixedZone("offset", 3600)))
+	if changed := patch.MergeLaunchInfo(&li); changed {
+		t.Error("the same instant in another time zone must not report a change")
+	}
+
+	patch.Expires.Null()
+	if changed := patch.MergeLaunchInfo(&li); !changed {
+		t.Error("a patch with a null expiry must report a change")
+	}
+	if !li.Expires.IsNull() {
+		t.Errorf("expires = %v after a null patch, want null", li.Expires)
+	}
+}
+
+// TestSaveSearchPatchExpiresJSON checks the wire form of a save patch's
+// Expires: left out when not set, null when cleared, a timestamp when set.
+func TestSaveSearchPatchExpiresJSON(t *testing.T) {
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	var patch SaveSearchPatch
+
+	b, err := v2.Marshal(patch, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), `"Expires"`) {
+		t.Fatalf("an unset expiry must be left out, got %s", b)
+	}
+
+	patch.Expires.Null()
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":null`) {
+		t.Fatalf("a cleared expiry must encode as null, got %s", b)
+	}
+
+	patch.Expires.Set(expires)
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"Expires":"2026-11-06T12:00:00Z"`) {
+		t.Fatalf("a set expiry must encode as a timestamp, got %s", b)
+	}
+
+	var got SaveSearchPatch
+	if err = v2.Unmarshal(b, &got, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Expires.IsOmitted() || got.Expires.IsNull() || !got.Expires.Value().Equal(expires) {
+		t.Fatalf("decoded expires = %v, want %v", got.Expires, expires)
+	}
+}
+
+// TestSaveSearchPatchOmitsUnsetFields checks that a save patch sends only the
+// fields that are set. The API reads a missing field as "leave it unchanged".
+func TestSaveSearchPatchOmitsUnsetFields(t *testing.T) {
+	b, err := v2.Marshal(SaveSearchPatch{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(b) != `{}` {
+		t.Fatalf("an empty patch must encode as {}, got %s", b)
+	}
+
+	patch := SaveSearchPatch{
+		Name:  NewOptional("name"),
+		Notes: NewOptional("notes"),
+	}
+	if b, err = v2.Marshal(patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"Name":"name","Notes":"notes"}`
+	if string(b) != want {
+		t.Fatalf("patch = %s, want %s", b, want)
+	}
+}
+
+// TestSaveSearchPatchIgnoresLaunchFields checks that a save body cannot change
+// Method, Reference, or Started. They are set at launch, so the patch drops
+// them when it decodes and MergeLaunchInfo leaves the stored ones.
+func TestSaveSearchPatchIgnoresLaunchFields(t *testing.T) {
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	li := SearchLaunchInfo{Method: LaunchMethodManual, Reference: "old", Started: started}
+
+	body := `{"Method":"script","Reference":"new","Started":"2026-11-06T13:00:00Z"}`
+	var patch SaveSearchPatch
+	if err := v2.Unmarshal([]byte(body), &patch, jsoncompat.Opts); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if changed := patch.MergeLaunchInfo(&li); changed {
+		t.Error("launch fields in a save body must not report a change")
+	}
+	if li.Method != LaunchMethodManual || li.Reference != "old" || !li.Started.Equal(started) {
+		t.Errorf("method = %q, reference = %q, started = %v, want them unchanged", li.Method, li.Reference, li.Started)
+	}
+}
+
+// TestSearchLaunchInfoSendsEveryField checks that an empty launch info still
+// carries Method and Reference, which the API requires in every response.
+func TestSearchLaunchInfoSendsEveryField(t *testing.T) {
+	b, err := v2.Marshal(SearchLaunchInfo{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, want := range []string{`"Method":""`, `"Reference":""`, `"Started":`, `"Expires":null`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("launch info must carry %s, got %s", want, b)
+		}
+	}
+}
+
+// TestSearchLaunchInfoHasNoExpiration checks that a null expiration and a zero
+// time both report no expiration, and that a set time does not.
+func TestSearchLaunchInfoHasNoExpiration(t *testing.T) {
+	var li SearchLaunchInfo
+	if !li.HasNoExpiration() {
+		t.Error("a null expiration must report no expiration")
+	}
+	li.Expires = NewNullable(time.Time{})
+	if !li.HasNoExpiration() {
+		t.Error("a zero time must report no expiration")
+	}
+	li.Expires = NewNullable(time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC))
+	if li.HasNoExpiration() {
+		t.Error("a set expiration must not report no expiration")
+	}
+}
+
+// TestSaveSearchPatchMergeMetadata checks how a save patch changes the stored
+// name and notes: an unset field is left alone, a set one replaces the stored
+// value, an empty string removes it, and other metadata keys are kept.
+func TestSaveSearchPatchMergeMetadata(t *testing.T) {
+	curr := jsontext.Value(`{"Name":"old name","Notes":"old notes","Other":1}`)
+
+	if got := (SaveSearchPatch{}).MergeMetadata(curr); string(got) != string(curr) {
+		t.Errorf("an empty patch changed the metadata to %s", got)
+	}
+
+	got := SaveSearchPatch{Name: NewOptional("new name")}.MergeMetadata(curr)
+	if want := `{"Name":"new name","Notes":"old notes","Other":1}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	got = SaveSearchPatch{Name: NewOptional(""), Notes: NewOptional("new notes")}.MergeMetadata(curr)
+	if want := `{"Notes":"new notes","Other":1}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	got = SaveSearchPatch{Name: NewOptional(""), Notes: NewOptional("")}.MergeMetadata(jsontext.Value(`{"Name":"old name"}`))
+	if got != nil {
+		t.Errorf("metadata = %s, want none", got)
+	}
+
+	got = SaveSearchPatch{Notes: NewOptional("first notes")}.MergeMetadata(nil)
+	if want := `{"Notes":"first notes"}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+
+	// stored metadata that is a JSON null is replaced, like any other non-object
+	got = SaveSearchPatch{Name: NewOptional("name")}.MergeMetadata(jsontext.Value(`null`))
+	if want := `{"Name":"name"}`; string(got) != want {
+		t.Errorf("metadata = %s, want %s", got, want)
+	}
+}
+
+// TestSearchLaunchInputJSON checks the wire form of the launch information in
+// a launch request. Only the fields that are set are sent, and a null is
+// rejected, because the API does not allow one there.
+func TestSearchLaunchInputJSON(t *testing.T) {
+	b, err := v2.Marshal(SearchLaunchInput{}, jsoncompat.Opts)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(b) != `{}` {
+		t.Fatalf("an empty launch input must encode as {}, got %s", b)
+	}
+
+	expires := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	in := SearchLaunchInput{
+		Method:  NewOptional(LaunchMethodFlow),
+		Expires: NewOptional(expires),
+	}
+	if b, err = v2.Marshal(in, jsoncompat.Opts); err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	want := `{"Method":"flow","Expires":"2026-11-06T12:00:00Z"}`
+	if string(b) != want {
+		t.Fatalf("launch input = %s, want %s", b, want)
+	}
+
+	var got SearchLaunchInput
+	if err = v2.Unmarshal([]byte(`{"Expires":null}`), &got, jsoncompat.Opts); err == nil {
+		t.Fatal("a null Expires must be rejected")
+	}
+}
+
+// TestSearchLaunchInputLaunchInfo checks the conversion to a SearchLaunchInfo.
+// A field that was left out stays at its zero value, an Expires that was left
+// out is null, and a set field is copied.
+func TestSearchLaunchInputLaunchInfo(t *testing.T) {
+	li := SearchLaunchInput{}.LaunchInfo()
+	if li.Method != `` || li.Reference != `` || !li.Started.IsZero() || !li.Expires.IsNull() {
+		t.Errorf("empty launch input gave %+v, want zero values and a null Expires", li)
+	}
+
+	started := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	expires := started.Add(time.Hour)
+	li = SearchLaunchInput{
+		Method:    NewOptional(LaunchMethodScript),
+		Reference: NewOptional("ref"),
+		Started:   NewOptional(started),
+		Expires:   NewOptional(expires),
+	}.LaunchInfo()
+	if li.Method != LaunchMethodScript || li.Reference != "ref" || !li.Started.Equal(started) {
+		t.Errorf("launch info = %+v, want the set fields copied", li)
+	}
+	if li.Expires.IsNull() || !li.Expires.Value().Equal(expires) {
+		t.Errorf("expires = %v, want %v", li.Expires, expires)
+	}
+}
+
+// TestSaveSearchPatchMergeMetadataReplacesNonObjects checks stored metadata
+// that is not a JSON object: null, another JSON type, or not JSON at all. A
+// patch that sets a name or notes replaces it. A patch that sets neither
+// leaves it as it is.
+func TestSaveSearchPatchMergeMetadataReplacesNonObjects(t *testing.T) {
+	for _, curr := range []string{`null`, `[]`, `["a"]`, `"text"`, `42`, `true`, `{`} {
+		got := SaveSearchPatch{Name: NewOptional("name")}.MergeMetadata(jsontext.Value(curr))
+		if want := `{"Name":"name"}`; string(got) != want {
+			t.Errorf("metadata %s with a name = %s, want %s", curr, got, want)
+		}
+		got = SaveSearchPatch{Name: NewOptional("name"), Notes: NewOptional("notes")}.MergeMetadata(jsontext.Value(curr))
+		if want := `{"Name":"name","Notes":"notes"}`; string(got) != want {
+			t.Errorf("metadata %s with a name and notes = %s, want %s", curr, got, want)
+		}
+		// clearing a field that non-object metadata cannot hold leaves nothing
+		if got = (SaveSearchPatch{Notes: NewOptional("")}).MergeMetadata(jsontext.Value(curr)); got != nil {
+			t.Errorf("metadata %s with cleared notes = %s, want none", curr, got)
+		}
+		if got = (SaveSearchPatch{}).MergeMetadata(jsontext.Value(curr)); string(got) != curr {
+			t.Errorf("metadata %s with an empty patch = %s, want it unchanged", curr, got)
+		}
 	}
 }

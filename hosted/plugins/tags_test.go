@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/msgraph"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/sqs"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/tester"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/wiz"
@@ -350,6 +351,48 @@ func TestSQSCredentialsAreConditionallyRequired(t *testing.T) {
 	} {
 		if got := set(tc.mode).RequiredNow(akid); got != tc.want {
 			t.Errorf("Credentials-Type=%v: AKID required = %v, want %v", tc.mode, got, tc.want)
+		}
+	}
+}
+
+// TestOktaTokenIsConditionallyRequired pins that Token is needed only when the config does not
+// authenticate as an OAuth service app, marked always required it would block Client-ID configs.
+func TestOktaTokenIsConditionallyRequired(t *testing.T) {
+	rd, err := dynamic.MapRunnerDefinition(`Okta`, `probe`, okta.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, ok := findVarByName(rd, `Token`)
+	if !ok {
+		t.Fatal(`no Token variable`)
+	}
+	if tok.Required {
+		t.Error(`Token is marked always required, which blocks OAuth service app configs`)
+	}
+	if tok.RequiredWhen == nil || tok.RequiredWhen.Field != `Client-ID` {
+		t.Fatalf("Token carries condition %+v, want one on Client-ID", tok.RequiredWhen)
+	}
+
+	set := func(id any) dynamic.RunnerDefinition {
+		out := rd
+		out.Variables = append([]dynamic.Variable(nil), rd.Variables...)
+		for i := range out.Variables {
+			if out.Variables[i].Name == `Client-ID` {
+				out.Variables[i].Value = id
+			}
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		id   any
+		want bool
+	}{
+		{nil, true},
+		{``, true},
+		{`0oa1b2c3d4`, false},
+	} {
+		if got := set(tc.id).RequiredNow(tok); got != tc.want {
+			t.Errorf("Client-ID=%v: Token required = %v, want %v", tc.id, got, tc.want)
 		}
 	}
 }

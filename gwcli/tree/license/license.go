@@ -44,8 +44,6 @@ func NewNav() *cobra.Command {
 		[]action.Pair{
 			licenseInfo(),
 			licenseFeatures(),
-			licenseSKU(),
-			licenseSerial(),
 			licenseUpdate(),
 		},
 		treeutils.NodeOptions{
@@ -90,15 +88,13 @@ func licenseInfo() action.Pair {
 	return scaffoldlist.NewListAction(
 		"display information about the current license",
 		"Displays details about the currently installed Gravwell license.",
-		wrappedLicenseInfo{},
-		func(_ *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]wrappedLicenseInfo, error) {
+		types.LicenseInfoResponse{},
+		func(_ *pflag.FlagSet, _ scaffoldlist.DataParameters) ([]types.LicenseInfoResponse, error) {
 			li, err := connection.Client.GetLicenseInfo()
 			if err != nil {
 				return nil, err
 			}
-			var wrapped wrappedLicenseInfo
-			wrapped.FromTypes(li)
-			return []wrappedLicenseInfo{wrapped}, nil
+			return []types.LicenseInfoResponse{li}, nil
 		},
 		nil,
 		scaffoldlist.Options{
@@ -129,8 +125,8 @@ func licenseInfo() action.Pair {
 					"%s%v\n"+
 					"%s%v",
 					stylesheet.Cur.Field("Type", fieldWidth), li.Type,
-					stylesheet.Cur.Field("Serial", fieldWidth), li.Serial(),
-					stylesheet.Cur.Field("SKU", fieldWidth), li.SKU(),
+					stylesheet.Cur.Field("Serial", fieldWidth), li.Serial,
+					stylesheet.Cur.Field("SKU", fieldWidth), li.SKU,
 					stylesheet.Cur.Field("Customer UUID", fieldWidth), li.CustomerUUID,
 					stylesheet.Cur.Field("Customer #", fieldWidth), li.CustomerNumber,
 					stylesheet.Cur.Field("Expiration", fieldWidth), li.Expiration,
@@ -138,7 +134,9 @@ func licenseInfo() action.Pair {
 					stylesheet.Cur.Field("NFR", fieldWidth), li.NFR,
 					stylesheet.Cur.Field("Version", fieldWidth), li.Version)
 				return stylesheet.SegmentedBorder(
-					stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()),
+					stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(
+						stylesheet.Cur.PrimaryText.GetForeground(),
+					),
 					borderWidth,
 					struct {
 						StylizedTitle string
@@ -166,7 +164,7 @@ func licenseFeatures() action.Pair {
 			if err != nil {
 				return []scaffold.Result{{Output: err.Error()}}, nil
 			}
-			feats := li.Features()
+			feats := li.Features
 			checks := []struct {
 				enabled bool
 				name    string
@@ -190,56 +188,6 @@ func licenseFeatures() action.Pair {
 				return []scaffold.Result{{Output: "(none)", Success: true}}, nil
 			}
 			return []scaffold.Result{{Output: strings.Join(enabled, ", "), Success: true}}, nil
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LicenseRead},
-					XPermissions: []types.Capability{types.LicenseRead},
-				},
-			},
-		},
-	)
-}
-
-func licenseSKU() action.Pair {
-	const (
-		use   string = "sku"
-		short string = "display the SKU of the current license"
-		long  string = "Displays the SKU string for the currently installed Gravwell license."
-	)
-	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
-			sku, err := connection.Client.GetLicenseSKU()
-			if err != nil {
-				return []scaffold.Result{{Output: err.Error()}}, nil
-			}
-			return []scaffold.Result{{Output: sku, Success: true}}, nil
-		},
-		scaffold.BasicOptions{
-			CommonOptions: scaffold.CommonOptions{
-				Requirements: annotations.Requirements{
-					IPermissions: []types.Capability{types.LicenseRead},
-					XPermissions: []types.Capability{types.LicenseRead},
-				},
-			},
-		},
-	)
-}
-
-func licenseSerial() action.Pair {
-	const (
-		use   string = "serial"
-		short string = "display the serial number of the current license"
-		long  string = "Displays the serial number for the currently installed Gravwell license."
-	)
-	return scaffold.NewBasicAction(use, short, long,
-		func(fs *pflag.FlagSet) (_ []scaffold.Result, addtlCmds tea.Cmd) {
-			serial, err := connection.Client.GetLicenseSerial()
-			if err != nil {
-				return []scaffold.Result{{Output: err.Error()}}, nil
-			}
-			return []scaffold.Result{{Output: serial, Success: true}}, nil
 		},
 		scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{

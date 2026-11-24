@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/gravwell/gravwell/v4/client/queryparams"
 )
 
 const (
@@ -69,17 +71,17 @@ const (
 	LIST_SEARCHES_URL                     = `/api/list/searches`
 	SEARCHES_ID_URL                       = `/api/searches/%s`
 	SEARCHES_ID_ACCESS_URL                = `/api/searches/%s/access`
-	SEARCHES_ID_ATTACH_URL                = `/api/searches/%s/attach`
+	SEARCHES_ID_SESSIONS_URL              = `/api/searches/%s/sessions`
+	SEARCHES_ID_SESSIONS_ID_URL           = `/api/searches/%s/sessions/%s`
 	SEARCHES_ID_EXTRACTOR_SUGGESTIONS_URL = `/api/searches/%s/extractor-suggestions`
 	SEARCHES_ID_BACKGROUND_URL            = `/api/searches/%s/background`
 	SEARCHES_ID_SAVE_URL                  = `/api/searches/%s/save`
 	SEARCHES_ID_STOP_URL                  = `/api/searches/%s/stop`
 	SEARCHES_ID_DOWNLOADS_URL             = `/api/searches/%s/downloads`
-	SEARCHES_ID_PING_URL                  = `/api/searches/%s/ping`
-	SEARCHES_ID_DETACH_URL                = `/api/searches/%s/detach`
 	SEARCHES_ID_MODULES_URL               = `/api/searches/%s/modules`
 	SEARCHES_ID_STATS_URL                 = `/api/searches/%s/stats`
 	SEARCHES_ID_STATS_METADATA_URL        = `/api/searches/%s/stats/metadata`
+	REFRESH_SEARCH_SESSIONS_URL           = `/api/refresh/search-sessions`
 	SEARCHES_ID_EXPLORE_URL               = `/api/searches/%s/explore/%s`
 	SEARCHES_ID_RENDERER_URL              = `/api/searches/%s/renderer/%s`
 	IMPORT_PERSISTENT_SEARCH_URL          = `/api/import/persistent-search`
@@ -145,6 +147,7 @@ const (
 	KITS_ID_URL                           = `/api/kits/%s`
 	KIT_BUILDS_URL                        = `/api/kit-builds`
 	KIT_BUILDS_ID_URL                     = `/api/kit-builds/%s`
+	KIT_INSTALLS_URL                      = `/api/kit-installs`
 	LIST_KIT_INSTALLS_URL                 = `/api/list/kit-installs`
 	KIT_INSTALLS_ID_URL                   = `/api/kit-installs/%v`
 	LIST_REMOTE_KITS_URL                  = `/api/list/remote-kits`
@@ -341,14 +344,6 @@ func licenseUrl() string {
 	return LICENSE_URL
 }
 
-func licenseSkuUrl() string {
-	return LICENSE_SKU_URL
-}
-
-func licenseSerialUrl() string {
-	return LICENSE_SERIAL_URL
-}
-
 func licenseUpdateUrl() string {
 	return LICENSE_UPDATE_URL
 }
@@ -496,9 +491,9 @@ func kitsUrl() string {
 	return KITS_URL
 }
 
-func listRemoteKitsUrl(all bool) string {
-	if all {
-		return LIST_REMOTE_KITS_URL + "?all=true"
+func listRemoteKitsUrl(allVersions bool) string {
+	if allVersions {
+		return LIST_REMOTE_KITS_URL + "?" + queryparams.AllVersions + "=true"
 	}
 	return LIST_REMOTE_KITS_URL
 }
@@ -513,6 +508,10 @@ func kitBuildsUrl() string {
 
 func kitBuildsIdUrl(id string) string {
 	return fmt.Sprintf(KIT_BUILDS_ID_URL, id)
+}
+
+func kitInstallsUrl() string {
+	return KIT_INSTALLS_URL
 }
 
 func listKitInstallsUrl() string {
@@ -660,12 +659,8 @@ func searchesUrl() string {
 	return SEARCHES_URL
 }
 
-func searchesIdPingUrl(id string) string {
-	return fmt.Sprintf(SEARCHES_ID_PING_URL, id)
-}
-
-func searchesIdDetachUrl(id string) string {
-	return fmt.Sprintf(SEARCHES_ID_DETACH_URL, id)
+func searchesIdSessionsIdUrl(id, sessionId string) string {
+	return fmt.Sprintf(SEARCHES_ID_SESSIONS_ID_URL, id, sessionId)
 }
 
 func searchesIdStatsMetadataUrl(id string) string {
@@ -692,8 +687,8 @@ func validateQueryUrl() string {
 	return VALIDATE_QUERY_URL
 }
 
-func searchesIdAttachUrl(id string) string {
-	return fmt.Sprintf(SEARCHES_ID_ATTACH_URL, id)
+func searchesIdSessionsUrl(id string) string {
+	return fmt.Sprintf(SEARCHES_ID_SESSIONS_URL, id)
 }
 
 func alertsUrl() string {
