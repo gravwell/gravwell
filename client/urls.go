@@ -103,9 +103,7 @@ const (
 	LIST_MACROS_URL                       = `/api/list/macros`
 	MACROS_ID_URL                         = `/api/macros/%s`
 	LICENSE_URL                           = `/api/license`
-	LICENSE_SKU_URL                       = `/api/license/sku`
-	LICENSE_SERIAL_URL                    = `/api/license/serial`
-	LICENSE_UPDATE_URL                    = `/api/license/update`
+	LICENSE_MANAGEMENT_LINK_URL           = `/api/license/management-link`
 	RESOURCES_URL                         = "/api/resources"
 	LIST_RESOURCES_URL                    = "/api/list/resources"
 	RESOURCES_ID_URL                      = "/api/resources/%s"
@@ -342,10 +340,6 @@ func notificationsUrl() string {
 
 func licenseUrl() string {
 	return LICENSE_URL
-}
-
-func licenseUpdateUrl() string {
-	return LICENSE_UPDATE_URL
 }
 
 func resourcesUrl() string {
