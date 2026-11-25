@@ -330,7 +330,8 @@ func (c *Client) SendMail(from string, to []string, subject string, body string,
 }
 
 // SendPrebuiltMail operates as SendMail, but takes a pre-populated types.UserMail object
-// as an argument instead of discrete arguments.
+// as an argument instead of discrete arguments. If msg.Config is set, the webserver sends
+// through that SMTP server instead of the user's saved mail settings.
 func (c *Client) SendPrebuiltMail(msg types.UserMail) error {
 	return c.postStaticURL(MAIL_URL, &msg, nil)
 }

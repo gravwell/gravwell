@@ -157,7 +157,7 @@ const (
 	AUTO_EXTRACTORS_UPLOAD_URL            = `/api/auto-extractors/upload`
 	VALIDATE_AUTO_EXTRACTOR_URL           = `/api/validate/auto-extractor`
 	AUTO_EXTRACTORS_ID_URL                = `/api/auto-extractors/%s`
-	TAGS_TAG_AUTO_EXTRACTOR_URL           = `/api/tags/%s/auto-extractor`
+	RESOLVE_AUTO_EXTRACTOR_URL            = `/api/resolve/auto-extractor`
 	INFO_EXTRACTOR_ENGINES_URL            = `/api/info/extractor-engines`
 	TEMPLATES_URL                         = "/api/templates"
 	LIST_TEMPLATES_URL                    = "/api/list/templates"
@@ -540,8 +540,8 @@ func autoExtractorsIdUrl(id string) string {
 	return fmt.Sprintf(AUTO_EXTRACTORS_ID_URL, id)
 }
 
-func tagsTagAutoExtractorUrl(tag string) string {
-	return fmt.Sprintf(TAGS_TAG_AUTO_EXTRACTOR_URL, tag)
+func resolveAutoExtractorUrl() string {
+	return RESOLVE_AUTO_EXTRACTOR_URL
 }
 
 func infoExtractorEnginesUrl() string {
