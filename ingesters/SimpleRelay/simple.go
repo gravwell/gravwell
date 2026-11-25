@@ -219,6 +219,11 @@ func handleConn(c net.Conn, cfg handlerConfig, tp bindType) {
 	}
 }
 
+// tlsHandshakeTimeout is how long a TLS client on any listener type gets to
+// complete its handshake before we drop it.  It is a variable rather than a
+// constant so that tests can shorten it.
+var tlsHandshakeTimeout time.Duration = 5 * time.Second
+
 // tlsHandshake completes the TLS handshake on TLS connections under
 // tlsHandshakeTimeout so that a peer which connects and never speaks TLS cannot
 // park a handler.  It is a no-op for everything else.  The caller must already

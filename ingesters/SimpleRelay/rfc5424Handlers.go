@@ -29,19 +29,15 @@ const (
 	maxDataStaleTime time.Duration = 10 * time.Second
 )
 
-// these are variables rather than constants so that tests can shorten them
-var (
-	// the default amount of time we will pump the RFC5424 TCP reader
-	// we have to do this because the last entry read is held until the connection drops
-	// or we get a new entry, so we will periodically pump the reader
-	defaultReaderPumpInterval time.Duration = 5 * time.Second
-	// how long a TLS client gets to complete its handshake before we drop it
-	tlsHandshakeTimeout time.Duration = 5 * time.Second
-)
+// the default amount of time we will pump the RFC5424 TCP reader
+// we have to do this because the last entry read is held until the connection drops
+// or we get a new entry, so we will periodically pump the reader.
+// This is a variable rather than a constant so that tests can shorten it.
+var defaultReaderPumpInterval time.Duration = 5 * time.Second
 
 func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
-	// the caller (handleConn) owns the waitgroup and closer set bookkeeping
-	defer c.Close()
+	// the caller (handleConn) owns the connection: it closes it and does the
+	// waitgroup and closer set bookkeeping
 	var rip net.IP
 	debugout("new connection from %v\n", c.RemoteAddr().String())
 

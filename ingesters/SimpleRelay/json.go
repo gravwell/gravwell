@@ -202,7 +202,10 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 		debugout("Accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
 		lg.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", `json`), log.KV("mode", tp), log.KV("listener", cfg.name))
 		failCount = 0
-		go jsonConnHandler(conn, cfg, igst)
+		// tracked from the accept loop so that shutdown never misses a handler
+		cfg.wg.Go(func() {
+			jsonConnHandler(conn, cfg, igst)
+		})
 	}
 }
 
@@ -268,9 +271,8 @@ func jsonAcceptorUDP(conn *net.UDPConn, id int, igst *ingest.IngestMuxer, cfg js
 }
 
 func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer) {
-	cfg.wg.Add(1)
+	// the acceptor owns the waitgroup accounting
 	id := addConn(c)
-	defer cfg.wg.Done()
 	defer delConn(id)
 	defer c.Close()
 	if err := tlsHandshake(c, cfg.ctx); err != nil {

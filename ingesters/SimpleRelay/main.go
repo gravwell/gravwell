@@ -147,7 +147,7 @@ func main() {
 	}
 }
 
-func debugout(format string, args ...any) {
+func debugout(format string, args ...interface{}) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

@@ -16,6 +16,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -489,5 +490,87 @@ func TestPumperPendingTLSHandshake(t *testing.T) {
 	pumper := newReadTimeoutPumper(srv, testPumpInterval)
 	if n, err := pumper.Read(make([]byte, 16)); err == nil {
 		t.Fatalf("pumper reported an idle tick (%d bytes) on an unfinished TLS handshake", n)
+	}
+}
+
+// TestAcceptorTLSReaderTypes drives the line and RFC6587 readers through the
+// real acceptor over TLS, they share handleConn with the RFC5424 reader and
+// rely on it for the handshake and all of the connection bookkeeping.
+func TestAcceptorTLSReaderTypes(t *testing.T) {
+	tests := []struct {
+		name  string
+		lrt   readerType
+		frame func(string) string
+	}{
+		{"line", lineReader, func(m string) string { return m + "\n" }},
+		{"rfc6587", rfc6587Reader, func(m string) string { return fmt.Sprintf("%d %s", len(m), m) }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, cw := testHandlerConfig(t)
+			cfg.lrt = tc.lrt
+			addr := startTestAcceptor(t, cfg, testTLSConfig(t))
+			base := connCount()
+
+			cli, err := tls.Dial("tcp", addr.String(), &tls.Config{InsecureSkipVerify: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cli.Close()
+			for _, m := range testMsgs {
+				if _, err = io.WriteString(cli, tc.frame(m)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			waitForEntries(t, cw, testMsgs)
+			if n := connCount(); n != base+1 {
+				t.Fatalf("live connection count is %d, wanted %d", n, base+1)
+			}
+			cli.Close()
+			waitForConnCount(t, base)
+		})
+	}
+}
+
+// TestShutdownInterruptsPendingHandshake does what main does on shutdown,
+// closing everything in the closer set, while a client is sitting in the TLS
+// handshake.  The connection has to be dropped right away rather than after
+// the handshake timeout, which is set far out of reach here.
+func TestShutdownInterruptsPendingHandshake(t *testing.T) {
+	cfg, _ := testHandlerConfig(t)
+	tlsHandshakeTimeout = time.Minute // restored by testHandlerConfig's cleanup
+	addr := startTestAcceptor(t, cfg, testTLSConfig(t))
+	base := connCount()
+
+	cli, err := net.Dial("tcp", addr.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	waitForConnCount(t, base+1) // the pending handshake is tracked
+
+	mtx.Lock()
+	for _, v := range connClosers {
+		v.Close()
+	}
+	mtx.Unlock()
+
+	cli.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err = cli.Read(make([]byte, 16)); err == nil {
+		t.Fatal("server sent data to a client that never handshook")
+	} else if isTimeout(err) {
+		t.Fatal("shutdown did not drop a connection that was mid handshake")
+	}
+	waitTimeout(t, cfg.wg, 5*time.Second)
+}
+
+func waitForConnCount(t *testing.T, want int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for connCount() != want && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if n := connCount(); n != want {
+		t.Fatalf("connection count is %d, wanted %d", n, want)
 	}
 }

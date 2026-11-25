@@ -21,8 +21,8 @@ import (
 )
 
 func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
-	// the caller (handleConn) owns the waitgroup and closer set bookkeeping
-	defer c.Close()
+	// the caller (handleConn) owns the connection: it closes it and does the
+	// waitgroup and closer set bookkeeping
 	var rip net.IP
 
 	if cfg.src == nil {
@@ -151,8 +151,8 @@ func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 			rip = cfg.src
 		}
 
-		lns := bytes.SplitSeq(buff[:n], sp)
-		for ln := range lns {
+		lns := bytes.Split(buff[:n], sp)
+		for _, ln := range lns {
 			ln = bytes.Trim(ln, "\n\r\t ")
 			if len(ln) == 0 {
 				continue
