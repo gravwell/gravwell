@@ -194,10 +194,48 @@ func TestPrivacyProtocols(t *testing.T) {
 			t.Fatalf("privacy protocol %q was accepted", name)
 		}
 	}
-	// privacy without auth is not a thing in SNMPv3
+	// SNMPv3 has no privacy without auth, but that is a warning rather than a
+	// rejection: refusing to start would take every other listener with it.
 	v := v3auth{Username: `user`, Privacy_Protocol: `AES`, Privacy_Passphrase: `privpass`}
-	if err := v.validate(true); err == nil {
-		t.Fatal("privacy without auth was accepted")
+	if err := v.validate(true); err != nil {
+		t.Fatalf("privacy without auth was rejected: %v", err)
+	}
+	if warns := v.securityWarnings(true); len(warns) != 1 {
+		t.Fatalf("privacy without auth produced %d warnings, want 1", len(warns))
+	}
+}
+
+// TestSecurityWarnings makes sure the settings that are honored as written but
+// do not do what they look like they do get called out at startup, and that
+// sane configurations stay quiet.
+func TestSecurityWarnings(t *testing.T) {
+	// privacy with no auth resolves to noAuthNoPriv and accepts anything
+	v := v3auth{Username: `user`, Privacy_Protocol: `AES`, Privacy_Passphrase: `privpass`}
+	warns := v.securityWarnings(true)
+	if len(warns) != 1 {
+		t.Fatalf("got %d warnings, want 1: %v", len(warns), warns)
+	}
+	if !strings.Contains(warns[0], `noAuthNoPriv`) {
+		t.Fatalf("warning does not explain the downgrade: %q", warns[0])
+	}
+	// the same settings on a v2c listener are inert and have always been
+	if warns := v.securityWarnings(false); len(warns) != 0 {
+		t.Fatalf("v2c listener warned about v3 security: %v", warns)
+	}
+	// a complete config warns about nothing
+	full := v3auth{
+		Username:           `user`,
+		Auth_Protocol:      `SHA256`,
+		Auth_Passphrase:    `authpass`,
+		Privacy_Protocol:   `AES`,
+		Privacy_Passphrase: `privpass`,
+	}
+	if warns := full.securityWarnings(true); len(warns) != 0 {
+		t.Fatalf("complete v3 config warned: %v", warns)
+	}
+	// so does a deliberate noAuthNoPriv listener
+	if warns := (&v3auth{Username: `user`}).securityWarnings(true); len(warns) != 0 {
+		t.Fatalf("noAuthNoPriv listener warned: %v", warns)
 	}
 }
 
@@ -295,7 +333,6 @@ func TestV3RequiredFields(t *testing.T) {
 		t.Fatalf("valid v3 config rejected: %v", err)
 	}
 	tests := map[string]func(*v3auth){
-		`missing username`:           func(v *v3auth) { v.Username = `` },
 		`missing auth passphrase`:    func(v *v3auth) { v.Auth_Passphrase = `` },
 		`missing privacy passphrase`: func(v *v3auth) { v.Privacy_Passphrase = `` },
 		`separator only auth`:        func(v *v3auth) { v.Auth_Protocol = `-` },
@@ -303,7 +340,6 @@ func TestV3RequiredFields(t *testing.T) {
 		`separator run privacy`:      func(v *v3auth) { v.Privacy_Protocol = `--` },
 		`whitespace only auth`:       func(v *v3auth) { v.Auth_Protocol = ` ` },
 		`whitespace only privacy`:    func(v *v3auth) { v.Privacy_Protocol = ` ` },
-		`whitespace only username`:   func(v *v3auth) { v.Username = ` ` },
 	}
 	for name, mod := range tests {
 		v := good
@@ -312,8 +348,13 @@ func TestV3RequiredFields(t *testing.T) {
 			t.Fatalf("%s was accepted", name)
 		}
 	}
-	// a v3 listener with no auth or privacy only needs a username
-	if err := (&v3auth{Username: `user`}).validate(true); err != nil {
-		t.Fatalf("noAuthNoPriv v3 config rejected: %v", err)
+	// a bare noAuthNoPriv v3 listener is legal, with or without a username.
+	// gosnmp never compares the configured user name against an incoming trap
+	// (unmarshal overwrites it from the packet), so requiring one would break
+	// working listeners without enforcing anything.
+	for _, v := range []v3auth{{Username: `user`}, {}} {
+		if err := v.validate(true); err != nil {
+			t.Fatalf("noAuthNoPriv v3 config rejected: %v", err)
+		}
 	}
 }

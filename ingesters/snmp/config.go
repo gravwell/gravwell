@@ -11,7 +11,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 
@@ -102,12 +104,7 @@ func normProto(v string) string {
 // protoNames returns the sorted set of names accepted for a protocol map, it
 // is only used to build error messages.
 func protoNames[T comparable](mp map[string]T) string {
-	names := make([]string, 0, len(mp))
-	for k := range mp {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	return strings.Join(names, `, `)
+	return strings.Join(slices.Sorted(maps.Keys(mp)), `, `)
 }
 
 // validate checks the v3 security settings.  v3 reports whether the listener
@@ -141,31 +138,35 @@ func (a *v3auth) validate(v3 bool) error {
 	if !v3 {
 		return nil
 	}
-	// UsmSecurityParameters.validate requires a username at every security
-	// level, including noAuthNoPriv.
-	if strings.TrimSpace(a.Username) == `` {
-		return errors.New("Username is required for SNMP version 3")
-	}
 	if authSet && a.Auth_Passphrase == `` {
 		return fmt.Errorf("Auth-Protocol %s is set but Auth-Passphrase is empty", a.Auth_Protocol)
 	}
-	if privSet {
-		// SNMPv3 has no privacy without authentication.  Earlier releases
-		// ignored Privacy-Protocol in this case and accepted noAuthNoPriv
-		// traps, so spell out what changed and how to fix it.
-		if !authSet {
-			return fmt.Errorf("Privacy-Protocol %s requires an Auth-Protocol and Auth-Passphrase; "+
-				"SNMPv3 has no privacy without authentication. Previous versions of this ingester "+
-				"ignored Privacy-Protocol here and accepted unauthenticated (noAuthNoPriv) traps. "+
-				"Set Auth-Protocol and Auth-Passphrase to match the sending agent, or remove "+
-				"Privacy-Protocol and Privacy-Passphrase to keep accepting noAuthNoPriv traps",
-				a.Privacy_Protocol)
-		}
-		if a.Privacy_Passphrase == `` {
-			return fmt.Errorf("Privacy-Protocol %s is set but Privacy-Passphrase is empty", a.Privacy_Protocol)
-		}
+	if privSet && authSet && a.Privacy_Passphrase == `` {
+		return fmt.Errorf("Privacy-Protocol %s is set but Privacy-Passphrase is empty", a.Privacy_Protocol)
 	}
 	return nil
+}
+
+// securityWarnings returns security settings that are legal and that the
+// ingester honors as-is, but that almost certainly do not do what the operator
+// intended.  These are warnings rather than errors: refusing to start would
+// take every other listener in the config down with this one.
+func (a *v3auth) securityWarnings(v3 bool) (warns []string) {
+	if !v3 {
+		return
+	}
+	// SNMPv3 has no privacy without authentication, so getMsgFlags resolves
+	// this to noAuthNoPriv and Privacy-Protocol is ignored entirely.  The
+	// listener then accepts unauthenticated, unencrypted traps from anyone,
+	// which is not what a config naming a privacy protocol looks like it does.
+	if a.Privacy_Protocol != `` && a.Auth_Protocol == `` {
+		warns = append(warns, fmt.Sprintf("Privacy-Protocol %s is ignored because no Auth-Protocol is set: "+
+			"SNMPv3 has no privacy without authentication, so this listener runs noAuthNoPriv and accepts "+
+			"unauthenticated, unencrypted traps. Set Auth-Protocol and Auth-Passphrase to match the sending "+
+			"agent, or remove the Privacy-Protocol and Privacy-Passphrase lines to make the intent explicit",
+			a.Privacy_Protocol))
+	}
+	return
 }
 func (a *v3auth) getAuthProto() gosnmp.SnmpV3AuthProtocol {
 	if p, ok := authProtocols[normProto(a.Auth_Protocol)]; ok {
