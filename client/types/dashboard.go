@@ -8,6 +8,14 @@
 
 package types
 
+import (
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+	"time"
+)
+
 // Dashboard defines tiles and searches to show a dashboard in the UI.
 type Dashboard struct {
 	CommonFields
@@ -38,6 +46,39 @@ type DashboardTimeframe struct {
 	// Timezone is the IANA time zone used to evaluate Start and End for a "range"
 	// timeframe, like America/Denver. Nil means each viewer's own zone is used.
 	Timezone *string `json:",omitempty"`
+}
+
+// Kind values for DashboardTimeframe.
+const (
+	DashboardTimeframeKindRange   = "range"
+	DashboardTimeframeKindPreview = "preview"
+)
+
+// Validate checks the shape of tf. It does not evaluate Start or End.
+func (tf DashboardTimeframe) Validate() error {
+	switch tf.Kind {
+	case DashboardTimeframeKindRange:
+		if tf.Start == "" || tf.End == "" {
+			return errors.New("a range timeframe requires Start and End")
+		}
+		if tf.Timezone != nil {
+			if *tf.Timezone == "" {
+				return errors.New("Timezone may not be empty; omit it or use null")
+			}
+			if _, err := time.LoadLocation(*tf.Timezone); err != nil {
+				return fmt.Errorf("unknown Timezone %q", *tf.Timezone)
+			}
+		}
+	case DashboardTimeframeKindPreview:
+		if tf.Start != "" || tf.End != "" || tf.Timezone != nil {
+			return errors.New("a preview timeframe does not accept Start, End, or Timezone")
+		}
+	case "":
+		return errors.New("missing Kind")
+	default:
+		return fmt.Errorf("unknown Kind %q", tf.Kind)
+	}
+	return nil
 }
 
 // DashboardGrid describes top-level grid layout options for a Dashboard.
@@ -139,6 +180,30 @@ type DashboardSearchLaunchRequest struct {
 	// Variables supplies values for template variables, keyed by the full variable name
 	// including the %% prefix and postfix (e.g. "%%IP%%"). Values apply dashboard-wide.
 	Variables map[string]string `json:",omitempty"`
+}
+
+// Validate checks the shape of req: every variable has a name and every
+// timeframe is well formed. It does not evaluate Start or End.
+func (req DashboardSearchLaunchRequest) Validate() error {
+	for k := range req.Variables {
+		if k == "" {
+			return errors.New("Variables may not contain an empty name")
+		}
+	}
+
+	if req.Timeframe != nil {
+		if err := req.Timeframe.Validate(); err != nil {
+			return fmt.Errorf("invalid Timeframe: %w", err)
+		}
+	}
+
+	// sorted so the same request always reports the same entry
+	for _, k := range slices.Sorted(maps.Keys(req.SearchTimeframes)) {
+		if err := req.SearchTimeframes[k].Validate(); err != nil {
+			return fmt.Errorf("invalid SearchTimeframes[%q]: %w", k, err)
+		}
+	}
+	return nil
 }
 
 // DashboardSearchLaunchResponse is the outcome of launching the searches of a dashboard.
