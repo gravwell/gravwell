@@ -186,18 +186,50 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 		}
 		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
 		lg.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", cfg.lrt), log.KV("mode", tp), log.KV("listener", cfg.name))
-		failCount = 0
-		switch cfg.lrt {
-		case lineReader:
-			go lineConnHandlerTCP(conn, cfg)
-		case rfc5424Reader:
-			go rfc5424ConnHandlerTCP(conn, cfg)
-		case rfc6587Reader:
-			go rfc6587ConnHandlerTCP(conn, cfg)
-		default:
-			lg.Error("invalid reader type", log.KV("readertype", cfg.lrt))
+		failCount = 0 //reset the accept fail count on success
+		// every connection gets its own goroutine, the handshake and the handler
+		// both block and must never hold up the accept loop
+		cfg.wg.Go(func() {
+			handleConn(conn, cfg, tp)
+		})
+	}
+}
+
+// handleConn completes the TLS handshake on TLS connections and then hands the
+// connection to the reader for this listener.  It blocks for the life of the
+// connection.
+func handleConn(c net.Conn, cfg handlerConfig, tp bindType) {
+	// complete the TLS handshake up front under its own deadline so a peer that
+	// connects and never speaks TLS cannot park a handler.  The connection is in
+	// the closer set while we wait so that shutdown can interrupt it.
+	if tc, ok := c.(*tls.Conn); ok {
+		hid := addConn(c)
+		ctx, cancel := context.WithTimeout(cfg.ctx, tlsHandshakeTimeout)
+		err := tc.HandshakeContext(ctx)
+		cancel()
+		delConn(hid)
+		if err != nil {
+			lg.Warn("tls handshake failed",
+				log.KV("address", c.RemoteAddr()),
+				log.KV("readertype", cfg.lrt),
+				log.KV("mode", tp),
+				log.KV("listener", cfg.name),
+				log.KVErr(err),
+			)
+			c.Close()
 			return
 		}
+	}
+	switch cfg.lrt {
+	case lineReader:
+		lineConnHandlerTCP(c, cfg)
+	case rfc5424Reader:
+		rfc5424ConnHandlerTCP(c, cfg)
+	case rfc6587Reader:
+		rfc6587ConnHandlerTCP(c, cfg)
+	default:
+		lg.Error("invalid reader type", log.KV("readertype", cfg.lrt))
+		c.Close()
 	}
 }
 

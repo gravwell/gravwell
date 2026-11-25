@@ -25,11 +25,17 @@ import (
 )
 
 const (
+	maxDataStaleTime time.Duration = 10 * time.Second
+)
+
+// these are variables rather than constants so that tests can shorten them
+var (
 	// the default amount of time we will pump the RFC5424 TCP reader
 	// we have to do this because the last entry read is held until the connection drops
 	// or we get a new entry, so we will periodically pump the reader
 	defaultReaderPumpInterval time.Duration = 5 * time.Second
-	maxDataStaleTime          time.Duration = 10 * time.Second
+	// how long a TLS client gets to complete its handshake before we drop it
+	tlsHandshakeTimeout time.Duration = 5 * time.Second
 )
 
 func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
@@ -356,14 +362,19 @@ func (rtp *readTimeoutPumper) lastRead() time.Duration {
 
 func (rtp *readTimeoutPumper) Read(buff []byte) (n int, err error) {
 	//set timeout
-	if err = rtp.conn.SetReadDeadline(time.Now().Add(rtp.timeout)); err != nil {
+	start := time.Now()
+	if err = rtp.conn.SetReadDeadline(start.Add(rtp.timeout)); err != nil {
 		return
 	}
 	n, err = rtp.conn.Read(buff)
 	if err != nil {
 		// clear timeout not matter what
 		rtp.conn.SetReadDeadline(time.Time{})
-		if isTimeout(err) {
+		// Only a timeout that actually waited out our deadline is an idle tick.
+		// A timeout that comes back early is a stale error the connection is
+		// replaying (crypto/tls does this forever after a handshake times out),
+		// swallowing those turns the caller into a busy loop, so let it fail.
+		if isTimeout(err) && time.Since(start) >= rtp.timeout/2 {
 			//only pump the artificial newline if we read nothing and there is a buffer
 			if n <= 0 && len(buff) > 0 {
 				n = 1
