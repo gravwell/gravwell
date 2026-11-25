@@ -1,0 +1,65 @@
+# Microsoft 365 profile. The repeated Api fields share one tenant, credential,
+# schedule, state, and stable default Microsoft job identity. Each dataset keeps
+# its compact source record and routes to a consolidated ms-* destination.
+
+[Global]
+Label="Microsoft 365 API"
+Ingester-UUID="11111111-1111-4111-8111-111111111111" # Synthetic example: replace with a unique persistent UUID
+# Ingest-Secret="REPLACE_ME"
+# Ingest-Secret-File="/opt/gravwell/secrets/gravwell-ingest.secret"
+# Cleartext-Backend-Target="127.0.0.1:4023"
+# Encrypted-Backend-Target="127.0.0.1:4024"
+# Pipe-Backend-Target="/opt/gravwell/comms/pipe"
+Connection-Timeout=30s
+Enable-Compression=false
+Insecure-Skip-TLS-Verify=false
+# Ingest-Cache-Path="/opt/gravwell/cache/microsoft365-hosted-runner.cache"
+# Max-Ingest-Cache=1024
+# Cache-Depth=256
+# Cache-Mode="always"
+# Log-Level="INFO"
+# Log-File="/opt/gravwell/log/microsoft365-hosted-runner.log"
+
+[State]
+Path="/opt/gravwell/state/microsoft365-hosted-runner.state"
+Sync=false
+
+[Microsoft "microsoft-365"]
+# Synthetic example identifiers: replace them with this deployment's values.
+Tenant-ID="22222222-2222-4222-8222-222222222222"
+Client-ID="33333333-3333-4333-8333-333333333333"
+Client-Secret="REPLACE_WITH_CLIENT_SECRET_VALUE"
+# Microsoft requires the vendor's tenant UUID on every Management Activity
+# request. This is not the customer tenant, application, or object UUID.
+Publisher-Identifier="44444444-4444-4444-8444-444444444444"
+Api="entra-applications"
+Api="entra-conditional-access-policies"
+Api="defender-xdr-alerts"
+Api="defender-xdr-incidents"
+Api="entra-devices"
+Api="entra-directory-audits"
+Api="microsoft365-exchange-mailboxes"
+Api="entra-groups"
+Api="microsoft365-license-assignments"
+Api="entra-risk-detections"
+Api="entra-risky-users"
+Api="entra-role-assignments"
+Api="entra-service-principals"
+Api="entra-signins"
+Api="entra-users"
+Api="microsoft365-audit-azure-active-directory"
+Api="microsoft365-audit-exchange"
+Api="microsoft365-audit-sharepoint"
+Api="microsoft365-audit-general"
+Api="microsoft365-dlp"
+Lookback=24
+Requests-Per-Minute=12
+Request-Interval=900
+Tag-Schema="consolidated"
+# Ingester-UUID is optional; omission uses the plugin's stable default UUID.
+# The selectors above route to these consolidated destination tags:
+# ms-defender-xdr-alerts, ms-defender-xdr-incidents, ms-entra-audit,
+# ms-entra-directory, ms-entra-governance, ms-entra-risk, ms-entra-signin,
+# ms-m365-inventory, ms-o365-azure, ms-o365-dlp, ms-o365-exchange,
+# ms-o365-general, and ms-o365-sharepoint. Provision all thirteen. `_source`
+# preserves the exact selector identity inside each shared destination.

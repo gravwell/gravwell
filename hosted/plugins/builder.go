@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/hosted"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
+	"github.com/gravwell/gravwell/v3/hosted/plugins/microsoft"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
@@ -100,6 +101,25 @@ func NewOktaBuilder(config *okta.Config, kind, id, version string) *OktaBuilder 
 
 type MimecastBuilder struct {
 	Builder[*mimecast.Config]
+}
+
+type MicrosoftBuilder struct {
+	Builder[*microsoft.Config]
+}
+
+func (mb *MicrosoftBuilder) Build(_ hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
+	return hosted.WrapJobWithSync(microsoft.NewWithStateSync(mb.config, syncFn), syncFn), nil
+}
+
+func NewMicrosoftBuilder(config *microsoft.Config, kind, id, version string) *MicrosoftBuilder {
+	return &MicrosoftBuilder{
+		Builder[*microsoft.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+	}
 }
 
 func (mb *MimecastBuilder) Build(tn hosted.TagNegotiator, syncFn func() error) (hosted.Ingester, error) {
