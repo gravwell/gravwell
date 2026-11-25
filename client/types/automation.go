@@ -176,13 +176,53 @@ func (f NodeParseError) String() string {
 	return f.Err
 }
 
+// SMTP connection encryption modes for UserMailConfig.Encryption.
+const (
+	MailEncryptionNone     string = `none`     // plaintext, never upgrade
+	MailEncryptionStartTLS string = `starttls` // plaintext connect, STARTTLS required
+	MailEncryptionTLS      string = `tls`      // TLS from the first byte (SMTPS, usually port 465)
+)
+
+var (
+	ErrMailNoServer          = errors.New("must specify a mail server")
+	ErrMailInvalidPort       = errors.New("must specify a valid mail server port")
+	ErrMailInvalidEncryption = errors.New("invalid mail encryption mode")
+)
+
 type UserMailConfig struct {
 	Server             string
 	Port               int
 	Username           string
 	Password           string
-	UseTLS             bool
+	UseTLS             bool // legacy, used only when Encryption is empty: true means STARTTLS
 	InsecureSkipVerify bool
+	Encryption         string `json:",omitempty"` // one of the MailEncryption* modes; overrides UseTLS
+}
+
+// Validate checks that the config names a server, a valid port, and a known encryption mode.
+func (c UserMailConfig) Validate() error {
+	if c.Server == `` {
+		return ErrMailNoServer
+	}
+	if c.Port <= 0 || c.Port > 0xffff {
+		return ErrMailInvalidPort
+	}
+	switch c.Encryption {
+	case ``, MailEncryptionNone, MailEncryptionStartTLS, MailEncryptionTLS:
+	default:
+		return fmt.Errorf("%w %q", ErrMailInvalidEncryption, c.Encryption)
+	}
+	return nil
+}
+
+// EncryptionMode returns the effective encryption mode, falling back to UseTLS when Encryption is empty.
+func (c UserMailConfig) EncryptionMode() string {
+	if c.Encryption != `` {
+		return c.Encryption
+	} else if c.UseTLS {
+		return MailEncryptionStartTLS
+	}
+	return MailEncryptionNone
 }
 
 type UserMail struct {
@@ -193,6 +233,7 @@ type UserMail struct {
 	Subject     string
 	Body        string
 	Attachments []UserMailAttachment
+	Config      *UserMailConfig `json:",omitempty"` // optional per-message SMTP config; nil uses the sender's saved settings
 }
 
 func (um UserMail) Validate() error {
@@ -207,6 +248,11 @@ func (um UserMail) Validate() error {
 	}
 	for _, v := range um.Attachments {
 		if err := v.Validate(); err != nil {
+			return err
+		}
+	}
+	if um.Config != nil {
+		if err := um.Config.Validate(); err != nil {
 			return err
 		}
 	}
