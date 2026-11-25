@@ -58,11 +58,8 @@ func findGoodRFC6587Header(b []byte) (number, start, end int) {
 }
 
 func rfc6587ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
-	cfg.wg.Add(1)
-	id := addConn(c)
-	defer cfg.wg.Done()
-	defer delConn(id)
-	defer c.Close()
+	// the caller (handleConn) owns the connection: it closes it and does the
+	// waitgroup and closer set bookkeeping
 	var rip net.IP
 	debugout("new connection from %v\n", c.RemoteAddr().String())
 

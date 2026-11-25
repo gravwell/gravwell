@@ -187,7 +187,10 @@ func regexAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg regex
 		debugout("Accepted %v connection from %s in regex mode\n", tp.String(), conn.RemoteAddr())
 		lg.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", `regex`), log.KV("mode", tp), log.KV("listener", cfg.name))
 		failCount = 0
-		go regexConnHandler(conn, cfg, igst)
+		// tracked from the accept loop so that shutdown never misses a handler
+		cfg.wg.Go(func() {
+			regexConnHandler(conn, cfg, igst)
+		})
 	}
 }
 
@@ -265,11 +268,14 @@ func regexAcceptorUDP(conn *net.UDPConn, id int, cfg regexHandlerConfig, igst *i
 }
 
 func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMuxer) {
-	cfg.wg.Add(1)
+	// the acceptor owns the waitgroup accounting
 	id := addConn(c)
-	defer cfg.wg.Done()
 	defer delConn(id)
 	defer c.Close()
+	if err := tlsHandshake(c, cfg.ctx); err != nil {
+		logHandshakeFailure(c, cfg.name, err)
+		return
+	}
 	var rip net.IP
 
 	if cfg.src == nil {

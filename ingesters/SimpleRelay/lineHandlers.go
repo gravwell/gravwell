@@ -21,11 +21,8 @@ import (
 )
 
 func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
-	cfg.wg.Add(1)
-	id := addConn(c)
-	defer cfg.wg.Done()
-	defer delConn(id)
-	defer c.Close()
+	// the caller (handleConn) owns the connection: it closes it and does the
+	// waitgroup and closer set bookkeeping
 	var rip net.IP
 
 	if cfg.src == nil {
