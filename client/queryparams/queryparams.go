@@ -17,4 +17,7 @@ const (
 	// AllVersions includes every version of each kit, even those that have been superseded.
 	// Used by /api/list/remote-kits.
 	AllVersions string = "all_versions"
+	// Tag is the tag whose auto-extractor to resolve (string).
+	// Used by /api/resolve/auto-extractor.
+	Tag string = "tag"
 )
