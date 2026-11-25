@@ -12,6 +12,7 @@ import (
 	"github.com/gravwell/gravwell/v4/hosted"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/jamf"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/mqtt"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/msgraph"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v4/hosted/plugins/sqs"
@@ -194,5 +195,32 @@ func NewSQSBuilder(config *sqs.Config, kind, id, version string) *SQSBuilder {
 			id:      id,
 			version: version,
 		},
+	}
+}
+
+// MQTTBuilder carries the instance name as well as the config.  The default
+// Client-ID is derived from it, and two subscriptions presenting the same
+// Client-ID would evict each other's broker session.
+type MQTTBuilder struct {
+	Builder[*mqtt.Config]
+	name string
+}
+
+// Build returns the ingester directly rather than wrapping it with
+// WrapJobWithSync: an MQTT subscription is a persistent connection, not a
+// pollable Job.
+func (mb *MQTTBuilder) Build(tn hosted.TagNegotiator, _ func() error) (hosted.Ingester, error) {
+	return mqtt.New(*(mb.config), mb.name, tn)
+}
+
+func NewMQTTBuilder(config *mqtt.Config, name, kind, id, version string) *MQTTBuilder {
+	return &MQTTBuilder{
+		Builder: Builder[*mqtt.Config]{
+			config:  config,
+			kind:    kind,
+			id:      id,
+			version: version,
+		},
+		name: name,
 	}
 }
