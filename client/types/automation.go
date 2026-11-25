@@ -9,8 +9,10 @@
 package types
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -428,6 +430,35 @@ type ScheduledScriptResults struct {
 	ScheduledScriptID string                    // references the ScheduledScript this result belongs to
 	DebugOutput       []byte                    // output of the script if debugmode was enabled
 	PersistentMaps    map[string]map[string]any // a place to stash variables between runs
+}
+
+// A LibraryFileRequest describes a file in a Git repo to be fetched.
+type LibraryFileRequest struct {
+	// Repository is the URL of the repository.
+	// Empty selects the Library-Repository setting.
+	Repository string
+	// Commit is the full, 40-character hex ID of a commit.
+	// Branch and tag names are refused.
+	// Empty selects the Library-Commit setting, or HEAD.
+	Commit string
+	// Path is the file's path from the root of the repository. It is required.
+	Path string
+}
+
+// Validate checks that the request has a Path and, if set, its commit is a full commit ID.
+func (req LibraryFileRequest) Validate() error {
+	if req.Path == "" {
+		return errors.New("Path is required")
+	} else if _, err := url.Parse(req.Repository); err != nil {
+		return err
+	} else if req.Commit != "" {
+		if len(req.Commit) != 40 {
+			return fmt.Errorf("Commit %q is not a full, 40-character commit ID", req.Commit)
+		} else if _, err := hex.DecodeString(req.Commit); err != nil {
+			return fmt.Errorf("Commit %q is not a hex commit ID", req.Commit)
+		}
+	}
+	return nil
 }
 
 // Flow represents a flow-type automation to run on a schedule.

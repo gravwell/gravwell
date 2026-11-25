@@ -176,7 +176,7 @@ const (
 	SAVED_QUERIES_URL                     = "/api/saved-queries"
 	SAVED_QUERIES_ID_URL                  = "/api/saved-queries/%s"
 	LIST_SAVED_QUERIES_URL                = "/api/list/saved-queries"
-	LIBS_URL                              = `/api/libs`
+	LIBS_RESOLVE_URL                      = `/api/resolve/libs`
 	INFO_CAPABILITIES_URL                 = `/api/info/capabilities`
 	INFO_CAPABILITY_TEMPLATES_URL         = `/api/info/capability-templates`
 	SELF_CAPABILITIES_URL                 = `/api/self/capabilities`

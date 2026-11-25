@@ -65,7 +65,7 @@ func (o DownloadFileOptions) params() []urlParam {
 
 // GetFileEx returns the specified file's contents, conforming to the given options.
 func (c *Client) GetFileEx(id string, opts DownloadFileOptions) ([]byte, error) {
-	rc, err := c.getDownload(filesIdContentUrl(id), opts.params()...)
+	rc, err := c.requestReader(http.MethodGet, filesIdContentUrl(id), nil, opts.params()...)
 	if err != nil {
 		return nil, err
 	}

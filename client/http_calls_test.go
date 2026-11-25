@@ -423,26 +423,31 @@ func TestGet(t *testing.T) {
 	})
 }
 
-func TestGetDownload(t *testing.T) {
+func Test_requestReader(t *testing.T) {
 	t.Run("success returns the raw body reader", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/files/abc/download", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("hello world"))
+			w.Write([]byte(r.Method))
 		})
 		c := newTestClient(t, mux)
 
-		rc, err := c.getDownload("/files/abc/download")
-		if err != nil {
-			t.Fatalf("getDownload: %v", err)
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			t.Run(method, func(t *testing.T) {
+				rc, err := c.requestReader(method, "/files/abc/download", nil)
+				if err != nil {
+					t.Fatalf("download: %v", err)
+				}
+				defer rc.Close()
+				data, err := io.ReadAll(rc)
+				if err != nil {
+					t.Fatalf("reading body: %v", err)
+				}
+				if string(data) != method {
+					t.Errorf("body = %q, want %q", data, "hello world")
+				}
+			})
 		}
-		defer rc.Close()
-		data, err := io.ReadAll(rc)
-		if err != nil {
-			t.Fatalf("reading body: %v", err)
-		}
-		if string(data) != "hello world" {
-			t.Errorf("body = %q, want %q", data, "hello world")
-		}
+
 	})
 
 	t.Run("non-200 status surfaces as an error with no reader", func(t *testing.T) {
@@ -452,13 +457,54 @@ func TestGetDownload(t *testing.T) {
 		})
 		c := newTestClient(t, mux)
 
-		rc, err := c.getDownload("/files/abc/download")
+		rc, err := c.requestReader(http.MethodGet, "/files/abc/download", nil)
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v, want ErrNotFound", err)
 		}
 		if rc != nil {
 			t.Errorf("expected nil reader on error, got %v", rc)
 		}
+	})
+	t.Run("BodyIsMarshaled", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/whatever", func(w http.ResponseWriter, r *http.Request) {
+			// write back the body
+			b, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.Write(b)
+		})
+		c := newTestClient(t, mux)
+
+		type s struct {
+			A string
+			S struct {
+				I int
+			}
+		}
+
+		tests := []struct {
+			method string
+			body   s
+		}{
+			{http.MethodGet, s{}},
+			{http.MethodPost, s{A: "A", S: struct{ I int }{I: 5}}},
+		}
+		for _, tt := range tests {
+			rc, err := c.requestReader(tt.method, "/whatever", tt.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got s
+			if err := json.UnmarshalRead(rc, &got, jsoncompat.Opts); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(tt.body, got) {
+				t.Fatalf("expected exact equality.\nSent: %#v\nGot: %#v", tt.body, got)
+			}
+		}
+
 	})
 }
 
