@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -39,10 +40,7 @@ var (
 )
 
 func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
-	cfg.wg.Add(1)
-	id := addConn(c)
-	defer cfg.wg.Done()
-	defer delConn(id)
+	// the caller (handleConn) owns the waitgroup and closer set bookkeeping
 	defer c.Close()
 	var rip net.IP
 	debugout("new connection from %v\n", c.RemoteAddr().String())
@@ -370,11 +368,12 @@ func (rtp *readTimeoutPumper) Read(buff []byte) (n int, err error) {
 	if err != nil {
 		// clear timeout not matter what
 		rtp.conn.SetReadDeadline(time.Time{})
-		// Only a timeout that actually waited out our deadline is an idle tick.
-		// A timeout that comes back early is a stale error the connection is
-		// replaying (crypto/tls does this forever after a handshake times out),
-		// swallowing those turns the caller into a busy loop, so let it fail.
-		if isTimeout(err) && time.Since(start) >= rtp.timeout/2 {
+		// Only a timeout that actually waited out our deadline on a usable
+		// connection is an idle tick.  crypto/tls replays a handshake timeout
+		// forever, so a TLS connection that has not finished its handshake is
+		// dead, and any timeout that comes back early is a stale error.
+		// Swallowing either turns the caller into a busy loop, so let it fail.
+		if isTimeout(err) && time.Since(start) >= rtp.timeout/2 && handshakeComplete(rtp.conn) {
 			//only pump the artificial newline if we read nothing and there is a buffer
 			if n <= 0 && len(buff) > 0 {
 				n = 1
@@ -389,6 +388,15 @@ func (rtp *readTimeoutPumper) Read(buff []byte) (n int, err error) {
 		rtp.last = time.Now()
 	}
 	return
+}
+
+// handshakeComplete is false only for a TLS connection that has not finished
+// its handshake, every other connection is considered ready.
+func handshakeComplete(c net.Conn) bool {
+	if tc, ok := c.(*tls.Conn); ok {
+		return tc.ConnectionState().HandshakeComplete
+	}
+	return true
 }
 
 func isTimeout(err error) bool {

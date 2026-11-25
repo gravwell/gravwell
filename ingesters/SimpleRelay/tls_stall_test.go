@@ -101,7 +101,7 @@ func TestPumperIdleTick(t *testing.T) {
 	const interval = 50 * time.Millisecond
 	pumper := newReadTimeoutPumper(srv, interval)
 	buff := make([]byte, 16)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		start := time.Now()
 		n, err := pumper.Read(buff)
 		if err != nil {
@@ -150,7 +150,7 @@ func (cw *captureWriter) entries() []string {
 
 const (
 	testPumpInterval     = 50 * time.Millisecond
-	testHandshakeTimeout = 500 * time.Millisecond
+	testHandshakeTimeout = time.Second
 )
 
 var testMsgs = []string{
@@ -176,8 +176,11 @@ func testHandlerConfig(t *testing.T) (handlerConfig, *captureWriter) {
 	origPump, origHandshake := defaultReaderPumpInterval, tlsHandshakeTimeout
 	defaultReaderPumpInterval, tlsHandshakeTimeout = testPumpInterval, testHandshakeTimeout
 	t.Cleanup(func() {
-		waitTimeout(t, wg, 5*time.Second)
-		defaultReaderPumpInterval, tlsHandshakeTimeout = origPump, origHandshake
+		// deferred so the timers are restored even if the wait gives up
+		defer func() {
+			defaultReaderPumpInterval, tlsHandshakeTimeout = origPump, origHandshake
+		}()
+		waitTimeout(t, wg, 10*time.Second)
 	})
 
 	cw := &captureWriter{}
@@ -276,7 +279,7 @@ func TestRFC5424HandlerStalledTLSHandshake(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(40 * testPumpInterval):
+	case <-time.After(5 * time.Second):
 		t.Fatal("handler is still running against a dead TLS handshake")
 	}
 	if ents := cw.entries(); len(ents) != 0 {
@@ -375,7 +378,7 @@ func TestAcceptorSurvivesBadHandshakes(t *testing.T) {
 	cfg, cw := testHandlerConfig(t)
 	addr := startTestAcceptor(t, cfg, testTLSConfig(t))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		silent, err := net.Dial("tcp", addr.String())
 		if err != nil {
 			t.Fatal(err)
@@ -385,7 +388,7 @@ func TestAcceptorSurvivesBadHandshakes(t *testing.T) {
 
 	send := func(msg string) {
 		t.Helper()
-		d := &net.Dialer{Timeout: testHandshakeTimeout / 2}
+		d := &net.Dialer{Timeout: 2 * testHandshakeTimeout}
 		cli, err := tls.DialWithDialer(d, "tcp", addr.String(), &tls.Config{InsecureSkipVerify: true})
 		if err != nil {
 			t.Fatalf("listener did not serve a real client: %v", err)
@@ -396,16 +399,95 @@ func TestAcceptorSurvivesBadHandshakes(t *testing.T) {
 		}
 	}
 
-	// well inside the handshake timeout, the silent clients are still pending
+	// a serial accept loop would make us wait out all three silent clients
 	start := time.Now()
 	send(testMsgs[0])
 	waitForEntries(t, cw, testMsgs[:1])
-	if d := time.Since(start); d >= testHandshakeTimeout {
+	if d := time.Since(start); d >= 2*testHandshakeTimeout {
 		t.Fatalf("real client waited %v behind stalled handshakes", d)
 	}
 
 	// let the silent clients time out, the listener has to still be alive
-	time.Sleep(2 * testHandshakeTimeout)
+	time.Sleep(testHandshakeTimeout + testHandshakeTimeout/2)
 	send(testMsgs[1])
 	waitForEntries(t, cw, testMsgs[:2])
+}
+
+// silentTLSConn returns the server side of a TLS connection whose client has
+// connected and will never send a ClientHello.
+func silentTLSConn(t *testing.T) net.Conn {
+	t.Helper()
+	lst, err := tls.Listen("tcp", "127.0.0.1:0", testTLSConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { lst.Close() })
+	cli, err := net.Dial("tcp", lst.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cli.Close() })
+	srv, err := lst.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { srv.Close() })
+	return srv
+}
+
+// mustReturn fails the test if f is still running well after the handshake
+// timeout should have fired.
+func mustReturn(t *testing.T, what string, f func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		f()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * testHandshakeTimeout):
+		t.Fatalf("%s is still running against a dead TLS handshake", what)
+	}
+}
+
+// TestRegexHandlerStalledTLSHandshake and TestJSONHandlerStalledTLSHandshake
+// check that the regex and JSON listeners drop a client that never handshakes
+// instead of parking a handler on it forever.
+func TestRegexHandlerStalledTLSHandshake(t *testing.T) {
+	base, _ := testHandlerConfig(t)
+	cfg := regexHandlerConfig{
+		name:  "test",
+		wg:    base.wg,
+		ctx:   base.ctx,
+		proc:  base.proc,
+		regex: "X",
+	}
+	srv := silentTLSConn(t)
+	mustReturn(t, "regex handler", func() { regexConnHandler(srv, cfg, nil) })
+}
+
+func TestJSONHandlerStalledTLSHandshake(t *testing.T) {
+	base, _ := testHandlerConfig(t)
+	cfg := jsonHandlerConfig{
+		name:             "test",
+		wg:               base.wg,
+		ctx:              base.ctx,
+		proc:             base.proc,
+		ignoreTimestamps: true,
+		maxObjectSize:    1024 * 1024, // the handler bails before reading without one
+	}
+	srv := silentTLSConn(t)
+	mustReturn(t, "json handler", func() { jsonConnHandler(srv, cfg, nil) })
+}
+
+// TestPumperPendingTLSHandshake covers a pumped read that waits out its whole
+// deadline on a TLS connection that never handshakes.  The wait was genuine,
+// but the connection is dead and must not be reported as an idle tick.
+func TestPumperPendingTLSHandshake(t *testing.T) {
+	srv := silentTLSConn(t)
+	pumper := newReadTimeoutPumper(srv, testPumpInterval)
+	if n, err := pumper.Read(make([]byte, 16)); err == nil {
+		t.Fatalf("pumper reported an idle tick (%d bytes) on an unfinished TLS handshake", n)
+	}
 }

@@ -273,6 +273,10 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 	defer cfg.wg.Done()
 	defer delConn(id)
 	defer c.Close()
+	if err := tlsHandshake(c, cfg.ctx); err != nil {
+		logHandshakeFailure(c, cfg.name, err)
+		return
+	}
 	var rip net.IP
 	var lip net.IP // just used for logging
 	var tg *timegrinder.TimeGrinder

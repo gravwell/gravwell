@@ -197,28 +197,15 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 
 // handleConn completes the TLS handshake on TLS connections and then hands the
 // connection to the reader for this listener.  It blocks for the life of the
-// connection.
+// connection, which stays in the closer set the whole time so that shutdown
+// can always interrupt it.
 func handleConn(c net.Conn, cfg handlerConfig, tp bindType) {
-	// complete the TLS handshake up front under its own deadline so a peer that
-	// connects and never speaks TLS cannot park a handler.  The connection is in
-	// the closer set while we wait so that shutdown can interrupt it.
-	if tc, ok := c.(*tls.Conn); ok {
-		hid := addConn(c)
-		ctx, cancel := context.WithTimeout(cfg.ctx, tlsHandshakeTimeout)
-		err := tc.HandshakeContext(ctx)
-		cancel()
-		delConn(hid)
-		if err != nil {
-			lg.Warn("tls handshake failed",
-				log.KV("address", c.RemoteAddr()),
-				log.KV("readertype", cfg.lrt),
-				log.KV("mode", tp),
-				log.KV("listener", cfg.name),
-				log.KVErr(err),
-			)
-			c.Close()
-			return
-		}
+	id := addConn(c)
+	defer delConn(id)
+	defer c.Close()
+	if err := tlsHandshake(c, cfg.ctx); err != nil {
+		logHandshakeFailure(c, cfg.name, err)
+		return
 	}
 	switch cfg.lrt {
 	case lineReader:
@@ -229,8 +216,27 @@ func handleConn(c net.Conn, cfg handlerConfig, tp bindType) {
 		rfc6587ConnHandlerTCP(c, cfg)
 	default:
 		lg.Error("invalid reader type", log.KV("readertype", cfg.lrt))
-		c.Close()
 	}
+}
+
+// tlsHandshake completes the TLS handshake on TLS connections under
+// tlsHandshakeTimeout so that a peer which connects and never speaks TLS cannot
+// park a handler.  It is a no-op for everything else.  The caller must already
+// have the connection in the closer set so that shutdown can interrupt it.
+func tlsHandshake(c net.Conn, ctx context.Context) error {
+	tc, ok := c.(*tls.Conn)
+	if !ok {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, tlsHandshakeTimeout)
+	defer cancel()
+	return tc.HandshakeContext(ctx)
+}
+
+// logHandshakeFailure is deliberately at info, port scanners and TCP health
+// checks fail the handshake constantly and are not worth a warning each.
+func logHandshakeFailure(c net.Conn, listener string, err error) {
+	lg.Info("tls handshake failed", log.KV("address", c.RemoteAddr()), log.KV("listener", listener), log.KVErr(err))
 }
 
 func acceptorUDP(conn *net.UDPConn, id int, cfg handlerConfig, igst *ingest.IngestMuxer) {

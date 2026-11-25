@@ -270,6 +270,10 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 	defer cfg.wg.Done()
 	defer delConn(id)
 	defer c.Close()
+	if err := tlsHandshake(c, cfg.ctx); err != nil {
+		logHandshakeFailure(c, cfg.name, err)
+		return
+	}
 	var rip net.IP
 
 	if cfg.src == nil {
