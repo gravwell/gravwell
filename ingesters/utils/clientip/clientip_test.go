@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/utils/trustedproxy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -241,12 +241,11 @@ func TestLegacyWarning(t *testing.T) {
 
 	legacy.Resolve(newXFFRequest("192.0.2.10:5000", "203.0.113.7"), lw)
 	require.Equal(t, 1, warnings(), "the header set the client")
-	require.Contains(t, logBuf.String(), "using X-Forwarded-For from a peer that is not a trusted proxy, "+
-		"this default changes in the next major release, "+
-		"set Trusted-Proxy or Ignore-Untrusted-Forwarded-For")
+	require.Contains(t, logBuf.String(), "trusting X-Forwarded-For from any peer because Ignore-Untrusted-Forwarded-For is false, "+
+		"set Trusted-Proxy instead")
 	require.Contains(t, logBuf.String(), `src="203.0.113.7" peer="192.0.2.10" xff="203.0.113.7"`)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		legacy.Resolve(newXFFRequest("192.0.2.11:5000", "203.0.113.8"), lw)
 	}
 	require.Equal(t, 1, warnings(), "warnings are rate limited across peers")
@@ -287,12 +286,10 @@ func TestLegacyWarningConcurrent(t *testing.T) {
 	go func() {
 		defer close(done)
 		var wg sync.WaitGroup
-		for i := 0; i < 32; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 32 {
+			wg.Go(func() {
 				cr.Resolve(newXFFRequest("192.0.2.11:5000", "203.0.113.8"), lw)
-			}()
+			})
 		}
 		wg.Wait()
 	}()
@@ -363,14 +360,51 @@ func TestKVs(t *testing.T) {
 	}
 }
 
+func TestLoadIgnoreUntrusted(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     *string // nil leaves the variable unset
+		file    string  // contents of the file named by the _FILE variable
+		want    bool
+		wantErr string
+	}{
+		{name: "unset defaults to true", want: true},
+		{name: "true", env: new("true"), want: true},
+		{name: "false", env: new("false"), want: false},
+		{name: "zero", env: new("0"), want: false},
+		{name: "file false", file: "false\n", want: false},
+		{name: "env wins over file", env: new("true"), file: "false\n", want: true},
+		{name: "invalid", env: new("maybe"), wantErr: "failed to load " + testIgnoreEnv + " "},
+		{name: "empty", env: new(""), wantErr: testIgnoreEnv},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != nil {
+				t.Setenv(testIgnoreEnv, *tt.env)
+			}
+			if tt.file != `` {
+				t.Setenv(testIgnoreEnv+`_FILE`, writeTrustedProxyFile(t, tt.file))
+			}
+
+			got, err := LoadIgnoreUntrusted(testIgnoreEnv)
+			if tt.wantErr != `` {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestLoadResolver(t *testing.T) {
 	tests := []struct {
 		name       string
 		cfg        []string
 		env        string
 		file       string   // contents of the file named by the _FILE variable
-		ignore     bool     // Ignore-Untrusted-Forwarded-For in the config
-		ignoreEnv  string   // the ignore environment variable
+		ignore     bool     // Ignore-Untrusted-Forwarded-For
 		wantCfg    []string // Trusted-Proxy after the environment is loaded
 		trusted    []string // addresses expected to be trusted
 		untrusted  []string // addresses expected not to be trusted
@@ -378,24 +412,14 @@ func TestLoadResolver(t *testing.T) {
 		wantErr    string
 	}{
 		{
-			name:       "unset is legacy mode",
+			name:       "ignore false is legacy mode",
 			untrusted:  []string{"127.0.0.1", "10.0.0.1"},
 			wantLegacy: true,
 		},
 		{
-			name:      "ignore turns off legacy mode",
+			name:      "ignore true is not legacy mode",
 			ignore:    true,
 			untrusted: []string{"127.0.0.1", "10.0.0.1"},
-		},
-		{
-			name:      "ignore env var turns off legacy mode",
-			ignoreEnv: "true",
-			untrusted: []string{"127.0.0.1"},
-		},
-		{
-			name:       "ignore env var false keeps legacy mode",
-			ignoreEnv:  "false",
-			wantLegacy: true,
 		},
 		{
 			name:      "trusted list is never legacy",
@@ -403,11 +427,6 @@ func TestLoadResolver(t *testing.T) {
 			wantCfg:   []string{"10.0.0.1"},
 			trusted:   []string{"10.0.0.1"},
 			untrusted: []string{"10.0.0.2"},
-		},
-		{
-			name:      "invalid ignore env var",
-			ignoreEnv: "maybe",
-			wantErr:   "failed to load " + testIgnoreEnv + " ",
 		},
 		{
 			name:      "addresses and blocks",
@@ -525,12 +544,8 @@ func TestLoadResolver(t *testing.T) {
 			if tt.file != `` {
 				t.Setenv(testTrustedEnv+`_FILE`, writeTrustedProxyFile(t, tt.file))
 			}
-			if tt.ignoreEnv != `` {
-				t.Setenv(testIgnoreEnv, tt.ignoreEnv)
-			}
-
-			trusted, ignore := tt.cfg, tt.ignore
-			cr, err := LoadResolver(&trusted, &ignore, testTrustedEnv, testIgnoreEnv)
+			trusted := tt.cfg
+			cr, err := LoadResolver(&trusted, tt.ignore, testTrustedEnv)
 			if tt.wantErr != `` {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -538,7 +553,6 @@ func TestLoadResolver(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tt.wantCfg, trusted, "Trusted-Proxy")
-			require.Equal(t, tt.ignore || tt.ignoreEnv == "true", ignore, "Ignore-Untrusted-Forwarded-For")
 			require.Equal(t, tt.wantLegacy, cr.Legacy(), "legacy mode")
 			for _, a := range tt.trusted {
 				require.True(t, cr.trusted.Contains(netip.MustParseAddr(a)), "%s should be trusted", a)

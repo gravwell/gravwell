@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"

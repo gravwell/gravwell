@@ -14,9 +14,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -128,7 +128,7 @@ func (tsr *TagSrcRouter) init(cfg TagSrcRouterConfig, tagger Tagger) error {
 	return nil
 }
 
-func (tsr *TagSrcRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (tsr *TagSrcRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(TagSrcRouterConfig); ok {

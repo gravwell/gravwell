@@ -3,7 +3,6 @@ package main
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,10 +17,8 @@ func TestConfig_Verify(t *testing.T) {
 		{
 			name: "valid std config",
 			conf: &cfgType{
-				IngestConfig: config.IngestConfig{
-					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-					Ingest_Secret:            "secret",
-				},
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
 				Queue: map[string]*queue{
 					"default": {
 						Queue_URL:        "https://sqs.us-east-1.amazonaws.com/123/q",
@@ -37,10 +34,8 @@ func TestConfig_Verify(t *testing.T) {
 		{
 			name: "valid local endpoint config",
 			conf: &cfgType{
-				IngestConfig: config.IngestConfig{
-					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-					Ingest_Secret:            "secret",
-				},
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
 				Queue: map[string]*queue{
 					"local": {
 						Queue_URL:        "http://localhost:9324/q",
@@ -57,10 +52,8 @@ func TestConfig_Verify(t *testing.T) {
 		{
 			name: "missing region",
 			conf: &cfgType{
-				IngestConfig: config.IngestConfig{
-					Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-					Ingest_Secret:            "secret",
-				},
+				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+				Ingest_Secret:            "secret",
 				Queue: map[string]*queue{
 					"bad": {
 						Queue_URL: "https://sqs.us-east-1.amazonaws.com/123/q",

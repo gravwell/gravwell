@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/klauspost/compress/snappy"
 )
 
@@ -583,7 +583,7 @@ headerLoop:
 			// never get a second DITTO_BLOCK_MAGIC on the
 			// same connection while we're processing the
 			// first.
-			for i := uint64(0); i < length; i++ {
+			for range length {
 				ent, err := er.readNoAck()
 				if err != nil {
 					// We're just going to bail out entirely
@@ -1108,7 +1108,7 @@ func (ac *ackCommand) shouldFlush() bool {
 	return ac.cmd == FORCE_ACK_MAGIC
 }
 
-func setReadBuffer(c interface{}, n int) error {
+func setReadBuffer(c any, n int) error {
 	switch v := c.(type) {
 	case *net.IPConn:
 		return v.SetReadBuffer(n)
@@ -1123,7 +1123,7 @@ func setReadBuffer(c interface{}, n int) error {
 	return nil
 }
 
-func setWriteBuffer(c interface{}, n int) error {
+func setWriteBuffer(c any, n int) error {
 	switch v := c.(type) {
 	case *net.IPConn:
 		return v.SetWriteBuffer(n)

@@ -28,12 +28,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/chancacher"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/chancacher"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 const (
@@ -140,10 +140,10 @@ type IngestMuxer struct {
 	pubKey               string
 	privKey              string
 	verifyCert           bool
-	eChan                chan interface{}
-	eChanOut             chan interface{}
-	bChan                chan interface{}
-	bChanOut             chan interface{}
+	eChan                chan any
+	eChanOut             chan any
+	bChan                chan any
+	bChanOut             chan any
 	dittoChan            chan dittoBlock
 	eq                   *emergencyQueue
 	writeBarrier         chan bool
@@ -153,7 +153,7 @@ type IngestMuxer struct {
 	state                muxState
 	hostname             string
 	appname              string
-	lgr                  Logger
+	lgr                  log.IngestLogger
 	cacheEnabled         bool
 	cachePath            string
 	cacheSize            int
@@ -189,15 +189,15 @@ type UniformMuxerConfig struct {
 	CacheSize         int
 	CacheMode         string
 	LogLevel          string // deprecated, no longer used
-	Logger            Logger
+	Logger            log.IngestLogger
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 	MaxEntrySize      int
 }
 
@@ -213,15 +213,15 @@ type MuxerConfig struct {
 	CacheSize         int
 	CacheMode         string
 	LogLevel          string // deprecated, no longer used
-	Logger            Logger
+	Logger            log.IngestLogger
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 	MaxEntrySize      int
 }
 
@@ -355,15 +355,17 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// connect up the chancacher
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
-	var eIn, eOut, bIn, bOut chan interface{}
+	var eIn, eOut, bIn, bOut chan any
 
 	if c.CachePath != "" {
-		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize, c.Logger)
 		if err != nil {
+			c.Logger.Error("Error initializing read cache", log.KVErr(err))
 			return nil, err
 		}
-		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize)
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize, c.Logger)
 		if err != nil {
+			c.Logger.Error("Error initializing write cache", log.KVErr(err))
 			return nil, err
 		}
 		if c.CacheMode == CacheModeFail {
@@ -380,8 +382,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		} else if depth > maxIngestChanDepth {
 			depth = maxIngestChanDepth
 		}
-		eChan := make(chan interface{}, depth)
-		bChan := make(chan interface{}, depth)
+		eChan := make(chan any, depth)
+		bChan := make(chan any, depth)
 		eIn = eChan
 		eOut = eChan
 		bIn = bChan
@@ -822,7 +824,7 @@ func (im *IngestMuxer) WillBlock() bool {
 	return false
 }
 
-func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
+func (im *IngestMuxer) SetRawConfiguration(obj any) (err error) {
 	if obj == nil {
 		return
 	}
@@ -837,7 +839,7 @@ func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
 	return
 }
 
-func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
+func (im *IngestMuxer) SetMetadata(obj any) (err error) {
 	if obj == nil {
 		return
 	}
@@ -929,9 +931,15 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 				tagNext = v
 			}
 		}
-		// the count check above misses this: cached IDs are not dense, so the highest can
-		// be at the ceiling while the map is small, and one past it wraps to zero
-		if tagNext >= entry.MaxTagId {
+		// The ID we are about to hand out has to be a legal user tag.  The count check
+		// above misses this: cached IDs are not dense, so the highest can be at the
+		// ceiling while the map is small.
+		//
+		// MaxTagId is GravwellTagId, so handing it out is worse than a wrap: translate
+		// and hasTag both pass that ID straight through, and the caller's entries land
+		// silently in the gravwell well.  Widened to an int because tagNext+1 would wrap
+		// at the very top and pass the test.
+		if int(tagNext)+1 >= int(entry.MaxTagId) {
 			err = ErrTooManyTags
 			return
 		}
@@ -1738,7 +1746,7 @@ inputLoop:
 							//discard this entry, this isn't real and there is no way to get here
 							b[i] = nil //this is safe, we check for this everywhere
 							// first, reverse anything we've translated already
-							for j := 0; j < i; j++ {
+							for j := range i {
 								if b[j] != nil {
 									b[j].Tag = nc.tt.reverse(b[j].Tag)
 								}
@@ -1756,7 +1764,7 @@ inputLoop:
 							// so we get the correct tag set.
 
 							// first, reverse anything we've translated already
-							for j := 0; j < i; j++ {
+							for j := range i {
 								if b[j] != nil {
 									b[j].Tag = nc.tt.reverse(b[j].Tag)
 								}
@@ -2404,7 +2412,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 					if !ok {
 						// could not translate, push it back on the queue and bail
 						// first we need to reverse the ones we have already translated, ugh
-						for j := 0; j < i; j++ {
+						for j := range i {
 							if blk[j] != nil {
 								blk[j].Tag = tt.reverse(blk[j].Tag)
 							}

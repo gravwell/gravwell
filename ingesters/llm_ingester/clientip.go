@@ -13,9 +13,9 @@ import (
 	"net/http"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
-	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
+	"github.com/gravwell/gravwell/v4/utils/trustedproxy"
 )
 
 // clientSource resolves the client of each request for every listener. The
@@ -26,7 +26,7 @@ type clientSource struct {
 	legacyWarn *clientip.LegacyWarner
 }
 
-func newClientSource(cr clientip.Resolver, lg ingest.Logger) (*clientSource, error) {
+func newClientSource(cr clientip.Resolver, lg log.IngestLogger) (*clientSource, error) {
 	if lg == nil {
 		return nil, errors.New("nil logger")
 	}

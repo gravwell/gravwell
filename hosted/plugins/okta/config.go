@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/hosted"
+	"github.com/gravwell/gravwell/v4/hosted"
 )
 
 const (
@@ -45,18 +45,18 @@ var (
 
 type Config struct {
 	hosted.BaseConfig
-	Request_Batch_Size int // how many entries do we request per HTTP request
-	Request_Per_Minute int // what is our basic request rate
-	Request_Burst      int // leaky bucket burstability
-	Domain             string
-	Token              string `json:"-"` // authentication token - DO NOT send this when marshalling
+	Request_Batch_Size int    // how many entries do we request per HTTP request
+	Request_Per_Minute int    // what is our basic request rate
+	Request_Burst      int    // leaky bucket burstability
+	Domain             string `dynamic:"required"`
+	Token              string `json:"-" dynamic:"secret,requiredif=Client-ID:"` // authentication token - DO NOT send this when marshalling
 	User_Poll_Interval string // how often users are listed and the changed ones emitted; parsed by time.ParseDuration, default 10m, min 5m
 	User_Dump_Interval string // how often every user is emitted, changed or not; parsed by time.ParseDuration, default 24h
 
 	// OAuth 2.0 service app authentication, mutually exclusive with Token
 	Client_ID        string
-	Private_Key      string `json:"-"` // Okta JWK JSON or RSA PEM - DO NOT send this when marshalling
-	Private_Key_File string `json:"-"` // a file holding the key, mutually exclusive with Private_Key - DO NOT send this when marshalling
+	Private_Key      string `json:"-" dynamic:"secret"` // Okta JWK JSON or RSA PEM - DO NOT send this when marshalling
+	Private_Key_File string `json:"-"`                  // a file holding the key, mutually exclusive with Private_Key - DO NOT send this when marshalling
 	Private_Key_ID   string // optional, overrides the JWK kid
 
 	parsed *parsedKey // the key Verify loaded from Private_Key or Private_Key_File, read and parsed once

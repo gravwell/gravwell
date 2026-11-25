@@ -1,5 +1,4 @@
 //go:build 386 || arm || mips || mipsle || s390x
-// +build 386 arm mips mipsle s390x
 
 package plugin
 
@@ -8,12 +7,20 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 type PluginProgram struct{}
 type Tagger struct{}
+
+// FaultError is never produced on 32bit architectures, it exists so callers
+// can type check plugin crashes on every platform.
+type FaultError struct{}
+
+func (fe *FaultError) Error() string {
+	return ErrNotSupported.Error()
+}
 
 var (
 	ErrNotSupported = errors.New("plugins are not supported on 32bit architectures")

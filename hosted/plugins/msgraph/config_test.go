@@ -3,8 +3,7 @@ package msgraph
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func TestConfig_Verify_IngesterUUID(t *testing.T) {
@@ -45,7 +44,7 @@ func TestConfig_Verify_IngesterUUID(t *testing.T) {
 				Client_ID:     "c",
 				Client_Secret: "s",
 				Content_Type:  []ContentType{ContentAlerts},
-				BaseConfig:    hosted.BaseConfig{Ingester_UUID: tt.ingesterUUID},
+				Ingester_UUID: tt.ingesterUUID,
 			}
 			err := cfg.Verify()
 			if (err != nil) != tt.wantErr {
@@ -64,7 +63,7 @@ func TestConfig_Verify_AggregatesErrors(t *testing.T) {
 		Client_ID:     "c",
 		Client_Secret: "s",
 		Content_Type:  []ContentType{ContentAlerts},
-		BaseConfig:    hosted.BaseConfig{Ingester_UUID: "not-a-uuid"},
+		Ingester_UUID: "not-a-uuid",
 	}
 	err := cfg.Verify()
 	if err == nil {
@@ -77,7 +76,7 @@ func TestConfig_Verify_AggregatesErrors(t *testing.T) {
 
 func TestConfigEqual(t *testing.T) {
 	configtest.CheckEqual(t, Config{
-		BaseConfig:          hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
+		Ingester_UUID:       defaultIngesterUUIDStr,
 		Tenant_ID:           "tenant",
 		Client_ID:           "id",
 		Client_Secret:       "secret",

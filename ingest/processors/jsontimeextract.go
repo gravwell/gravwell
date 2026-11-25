@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 	"github.com/gravwell/jsonparser"
 )
 
@@ -79,7 +79,7 @@ func NewJsonTimestamp(cfg JsonTimestampConfig) (*JsonTimestamp, error) {
 	}, nil
 }
 
-func (j *JsonTimestamp) Config(v interface{}) (err error) {
+func (j *JsonTimestamp) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonTimestampConfig); ok {

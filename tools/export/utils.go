@@ -10,12 +10,13 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingest"
 )
 
 type shardRange struct {
@@ -130,12 +131,7 @@ func consolidateTags(orig, incoming []string) (r []string) {
 }
 
 func inSet(r string, set []string) bool {
-	for _, v := range set {
-		if r == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(set, r)
 }
 
 func outputTotals(bytes uint64) {

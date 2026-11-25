@@ -15,8 +15,8 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/jsonparser"
 	"github.com/klauspost/compress/gzip"
 )
@@ -86,7 +86,7 @@ type Vpc struct {
 	maxBuff  int
 }
 
-func (p *Vpc) Config(v interface{}) (err error) {
+func (p *Vpc) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(VpcConfig); ok {

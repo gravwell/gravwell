@@ -522,7 +522,7 @@ func TestResolveHopCap(t *testing.T) {
 	// The client sits just left of maxHops trusted entries, so the walk stops at
 	// the cap before reaching it and returns the leftmost walked entry.
 	entries := []string{"203.0.113.5"}
-	for i := 0; i < maxHops; i++ {
+	for i := range maxHops {
 		entries = append(entries, fmt.Sprintf("10.0.0.%d", i+1))
 	}
 
@@ -605,7 +605,7 @@ func TestJoinForwardedBounded(t *testing.T) {
 	var got string
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	for i := 0; i < runs; i++ {
+	for range runs {
 		got = joinForwarded(values)
 	}
 	runtime.ReadMemStats(&after)
@@ -858,7 +858,7 @@ func TestResolveLegacy(t *testing.T) {
 func TestResolveLegacyHopCap(t *testing.T) {
 	// maxHops unparseable entries before the address: the walk stops at the cap.
 	entries := make([]string, 0, maxHops+1)
-	for i := 0; i < maxHops; i++ {
+	for range maxHops {
 		entries = append(entries, "unknown")
 	}
 	entries = append(entries, "203.0.113.5")

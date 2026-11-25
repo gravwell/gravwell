@@ -11,7 +11,7 @@ package anthropic
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 func findStreamEvent(p *protocol.ParsedResponse, typ string) *protocol.Event {
@@ -112,7 +112,7 @@ func TestSSEReassemblerFragmentedFeed(t *testing.T) {
 	// Feeding one byte at a time exercises fragment buffering across arbitrary
 	// chunk boundaries.
 	r := newSSEReassembler()
-	for i := 0; i < len(sampleStream); i++ {
+	for i := range len(sampleStream) {
 		if err := r.Feed([]byte{sampleStream[i]}); err != nil {
 			t.Fatalf("Feed: %v", err)
 		}

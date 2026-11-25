@@ -11,8 +11,8 @@ package processors
 import (
 	"fmt"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -39,7 +39,7 @@ type Drop struct {
 	DropConfig
 }
 
-func (gd *Drop) Config(v interface{}) (err error) {
+func (gd *Drop) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(DropConfig); ok {

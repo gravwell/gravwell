@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -84,7 +84,7 @@ func NewCorelight(cfg CorelightConfig, tagger Tagger) (*Corelight, error) {
 	return rr, nil
 }
 
-func (c *Corelight) Config(v interface{}, tagger Tagger) (err error) {
+func (c *Corelight) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(CorelightConfig); ok {
@@ -158,7 +158,7 @@ func (c *Corelight) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 // the log type (conn, dns, dhcp, weird, etc.), and convert the entry to TSV format.
 // If it succeeds, it returns the destination tag, a new timestamp, and the log entry in TSV format
 func (c *Corelight) processLine(s []byte) (tag string, ts time.Time, line []byte) {
-	mp := map[string]interface{}{}
+	mp := map[string]any{}
 	line = s
 	if idx := bytes.IndexByte(line, '{'); idx == -1 {
 		tag = defaultTag
@@ -174,7 +174,7 @@ func (c *Corelight) processLine(s []byte) (tag string, ts time.Time, line []byte
 	return
 }
 
-func (c *Corelight) process(mp map[string]interface{}, og []byte) (tag string, ts time.Time, line []byte) {
+func (c *Corelight) process(mp map[string]any, og []byte) (tag string, ts time.Time, line []byte) {
 	var ok bool
 	var headers []string
 	if len(mp) == 0 {
@@ -194,9 +194,9 @@ func (c *Corelight) process(mp map[string]interface{}, og []byte) (tag string, t
 	return
 }
 
-func (c *Corelight) getTagTs(mp map[string]interface{}) (tag string, ts time.Time, ok bool) {
-	var tagv interface{}
-	var tsv interface{}
+func (c *Corelight) getTagTs(mp map[string]any) (tag string, ts time.Time, ok bool) {
+	var tagv any
+	var tsv any
 	var tss string
 	var tagval string
 	var err error
@@ -223,7 +223,7 @@ func tabReplace(v rune) rune {
 	return v
 }
 
-func emitLine(ts time.Time, headers []string, mp map[string]interface{}) (line []byte, ok bool) {
+func emitLine(ts time.Time, headers []string, mp map[string]any) (line []byte, ok bool) {
 	bb := bytes.NewBuffer(nil)
 	var f64 float64
 	var s string

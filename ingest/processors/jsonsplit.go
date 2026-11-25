@@ -14,8 +14,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/jsonparser"
 )
 
@@ -126,16 +126,15 @@ func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) 
 		// additional fields share an object with the array element, even if every one was a skipped collision
 		cfg.Force_JSON_Object = true
 	}
-	return &JsonArraySplitter{jsonArraySplitState: jsonArraySplitState{
+	return &JsonArraySplitter{
 		JsonArraySplitConfig: cfg,
 		key:                  key,
 		keyname:              keyname,
 		additional:           additional,
-		additionalNames:      additionalNames,
-	}}, nil
+		additionalNames:      additionalNames}, nil
 }
 
-func (je *JsonArraySplitter) Config(v interface{}) (err error) {
+func (je *JsonArraySplitter) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonArraySplitConfig); ok {

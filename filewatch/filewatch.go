@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -23,8 +24,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (
@@ -57,7 +57,7 @@ type WatchManager struct {
 	removed map[string][]WatchConfig
 
 	routineRet chan error
-	logger     ingest.IngestLogger
+	logger     log.IngestLogger
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
@@ -88,7 +88,7 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 		watcher: w,
 		watched: map[string][]WatchConfig{},
 		removed: map[string][]WatchConfig{},
-		logger:  ingest.NoLogger(),
+		logger:  log.NoLogger(),
 		ctx:     ctx,
 		cancel:  cancel,
 	}, nil
@@ -102,12 +102,12 @@ func (wm *WatchManager) Context() context.Context {
 	return wm.ctx
 }
 
-func (wm *WatchManager) SetLogger(lgr ingest.IngestLogger) {
+func (wm *WatchManager) SetLogger(lgr log.IngestLogger) {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()
 
 	if lgr == nil {
-		wm.logger = ingest.NoLogger()
+		wm.logger = log.NoLogger()
 	} else {
 		wm.logger = lgr
 	}
@@ -204,13 +204,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	if existing, ok := wm.watched[c.BaseDir]; !ok {
 		doAdd = true
 	} else {
-		doAdd = true
-		for _, e := range existing {
-			if e == c {
-				doAdd = false
-				break
-			}
-		}
+		doAdd = !slices.Contains(existing, c)
 	}
 
 	if doAdd {

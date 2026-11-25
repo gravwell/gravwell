@@ -1,6 +1,6 @@
 module gravwell/e2e
 
-go 1.26.11
+go 1.27.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
@@ -9,7 +9,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.16
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.27
 	github.com/containerd/errdefs v1.0.0
-	github.com/docker/docker v28.5.2+incompatible
 	github.com/gosimple/slug v1.15.0
 	github.com/gravwell/gravwell/v3 v3.8.83
 	github.com/testcontainers/testcontainers-go v0.41.0
@@ -17,7 +16,8 @@ require (
 	google.golang.org/protobuf v1.36.12
 )
 
-replace github.com/gravwell/gravwell/v3 => ..
+// todo(2278) update to v4 post next-major beta
+// replace github.com/gravwell/gravwell/v4 => ..
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
@@ -48,6 +48,7 @@ require (
 	github.com/crewjam/rfc5424 v0.1.0 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
+	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect

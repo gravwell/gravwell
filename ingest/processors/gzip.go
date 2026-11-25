@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -86,7 +86,7 @@ type GzipDecompressor struct {
 	maxBuff  int
 }
 
-func (gd *GzipDecompressor) Config(v interface{}) (err error) {
+func (gd *GzipDecompressor) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(GzipDecompressorConfig); ok {

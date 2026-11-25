@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 /*************************************************************************
  * Copyright 2023 Gravwell, Inc. All rights reserved.
@@ -16,16 +15,17 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/winevent"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/winevent"
 )
 
 const (
@@ -75,7 +75,7 @@ type CfgType struct {
 		Bookmark_Location string
 		Ignore_Timestamps bool
 	}
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	EventChannel map[string]*EventStreamConfig
 	Preprocessor processors.ProcessorConfig
 }
@@ -154,7 +154,7 @@ func (c *CfgType) AttachConfig() attach.AttachConfig {
 }
 
 // RawConfig gets an object that is suitable for the ingestmuxer.SetRawConfiguration
-func (c *CfgType) RawConfig() interface{} {
+func (c *CfgType) RawConfig() any {
 	if c == nil {
 		return nil
 	}
@@ -162,7 +162,7 @@ func (c *CfgType) RawConfig() interface{} {
 		config.IngestConfig
 		Bookmark_Location string
 		Ignore_Timestamps bool
-		Attach            attach.AttachConfig
+		Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 		EventChannel      map[string]*EventStreamConfig
 		Preprocessor      processors.ProcessorConfig
 	}{
@@ -270,12 +270,7 @@ func (ec *EventStreamConfig) Validate() error {
 }
 
 func inStringSet(needle string, haystack []string) bool {
-	for i := range haystack {
-		if needle == haystack[i] {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }
 
 func validateEventIDs(ev string) error {

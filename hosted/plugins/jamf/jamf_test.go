@@ -13,15 +13,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/storage"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/storage"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 // mockRuntime is a minimal in-memory implementation of hosted.Runtime,
@@ -260,12 +261,7 @@ func TestHandle_SplitsRecordAcrossSectionTags(t *testing.T) {
 }
 
 func containsTag(tags []entry.EntryTag, want entry.EntryTag) bool {
-	for _, tag := range tags {
-		if tag == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tags, want)
 }
 
 // TestHandle_PaginatesUntilExhausted verifies that a single Handle call
@@ -455,4 +451,3 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
-

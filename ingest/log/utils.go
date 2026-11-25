@@ -16,10 +16,10 @@ import (
 	"runtime"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/v4/host"
 )
 
-func KV(name string, value interface{}) (r rfc5424.SDParam) {
+func KV(name string, value any) (r rfc5424.SDParam) {
 	r.Name = name
 	switch v := value.(type) {
 	case string:

@@ -12,11 +12,12 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v4/ingest"
 )
 
 type stateTracker struct {
@@ -122,9 +123,7 @@ func (st *stateTracker) tickNoLock() {
 	}
 
 	// transfer from temp map to state map
-	for k, v := range st.tempMap {
-		st.stateMap[k] = v
-	}
+	maps.Copy(st.stateMap, st.tempMap)
 	// clean the state map
 	st.cleanStatesNoLock()
 	// reset the temp map

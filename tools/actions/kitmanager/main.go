@@ -14,7 +14,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 func main() {
@@ -56,7 +57,7 @@ func main() {
 	defer cli.Close()
 
 	// go get a list of kit builds
-	kbrs, err := cli.ListKitBuildHistory()
+	kbrs, err := client.Collect(types.QueryOptions{}, cli.ListKitBuildHistory, -1)
 	if err != nil {
 		fatalf("Error getting kit build history: %v\n", err)
 	}
@@ -93,12 +94,12 @@ func main() {
 	}
 }
 
-func fatalf(format string, v ...interface{}) {
+func fatalf(format string, v ...any) {
 	fmt.Printf(format, v...)
 	os.Exit(1)
 }
 
-func fatal(v ...interface{}) {
+func fatal(v ...any) {
 	fmt.Print(v...)
 	os.Exit(1)
 }

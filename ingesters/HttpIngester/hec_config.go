@@ -17,9 +17,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -221,10 +221,8 @@ func extractElementTag(v string) (match, tag string, err error) {
 func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (err error) {
 	for k, v := range cfg.HECListener {
 		hh := &hecHandler{
-			ackIds: map[string]uint64{},
-			hecHealth: hecHealth{
-				igst: hnd.igst,
-			},
+			ackIds:         map[string]uint64{},
+			igst:           hnd.igst,
 			rawLineBreaker: v.Raw_Line_Breaker,
 			name:           k,
 			maxSize:        fixupMaxSize(v.Max_Size),

@@ -13,8 +13,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func baseConfig() *Config {
@@ -152,23 +151,21 @@ func TestConfigQueryOverride(t *testing.T) {
 
 func equalConfig() Config {
 	return Config{
-		BaseConfig: hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
-		PollingConfig: hosted.PollingConfig{
-			Lookback:            defaultLookback,
-			Requests_Per_Minute: defaultRequestsPerMinute,
-			Request_Interval:    defaultInterval,
-		},
-		Client_Id:          "id",
-		Client_Secret:      "secret",
-		Endpoint:           "https://api.us1.app.wiz.io/graphql",
-		Auth_URL:           defaultAuthURL,
-		Audience:           defaultAudience,
-		Page_Size:          defaultPageSize,
-		Max_Pages_Per_Type: defaultMaxPagesPerType,
-		Tag_Name:           "wiz",
-		Tag_Override:       []string{sourceAudit + ":wiz-audit"},
-		tags:               map[string]string{sourceAudit: "wiz-audit"},
-		queries:            map[string]string{sourceAudit: "query{}"},
+		Ingester_UUID:       defaultIngesterUUIDStr,
+		Lookback:            defaultLookback,
+		Requests_Per_Minute: defaultRequestsPerMinute,
+		Request_Interval:    defaultInterval,
+		Client_Id:           "id",
+		Client_Secret:       "secret",
+		Endpoint:            "https://api.us1.app.wiz.io/graphql",
+		Auth_URL:            defaultAuthURL,
+		Audience:            defaultAudience,
+		Page_Size:           defaultPageSize,
+		Max_Pages_Per_Type:  defaultMaxPagesPerType,
+		Tag_Name:            "wiz",
+		Tag_Override:        []string{sourceAudit + ":wiz-audit"},
+		tags:                map[string]string{sourceAudit: "wiz-audit"},
+		queries:             map[string]string{sourceAudit: "query{}"},
 	}
 }
 

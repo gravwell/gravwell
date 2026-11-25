@@ -1,5 +1,4 @@
 //go:build !386 && !arm && !mips && !mipsle && !s390x
-// +build !386,!arm,!mips,!mipsle,!s390x
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -21,9 +20,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors/plugin"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors/plugin"
 	"github.com/open2b/scriggo"
 )
 

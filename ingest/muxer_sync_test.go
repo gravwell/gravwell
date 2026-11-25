@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -58,11 +58,9 @@ func TestSyncWithBacklog(t *testing.T) {
 	ti.hold()
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		writeUntil(mxr, tg, stop)
-	}()
+	})
 
 	if err := waitForFullChannel(mxr, 30*time.Second); err != nil {
 		close(stop)
@@ -124,7 +122,7 @@ func TestSyncDoesNotHoldLockDuringAck(t *testing.T) {
 	// unacked and park Sync in syncTimeout.
 	ti.hold()
 	data := []byte(`ack wait test entry`)
-	for i := 0; i < entryCount; i++ {
+	for range entryCount {
 		ent := &entry.Entry{
 			TS:   entry.Now(),
 			Tag:  tg,
@@ -206,11 +204,9 @@ func noTestMuxerLockStarvesRelayRoutine(t *testing.T) {
 	ti.hold()
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		writeUntil(mxr, tg, stop)
-	}()
+	})
 	if err := waitForFullChannel(mxr, 30*time.Second); err != nil {
 		close(stop)
 		wg.Wait()

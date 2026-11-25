@@ -9,15 +9,15 @@
 package plugins
 
 import (
-	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/jamf"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/mimecast"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/msgraph"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/okta"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/sqs"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/tester"
-	"github.com/gravwell/gravwell/v3/hosted/plugins/wiz"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/jamf"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/mimecast"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/msgraph"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/okta"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/sqs"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/tester"
+	"github.com/gravwell/gravwell/v4/hosted/plugins/wiz"
+	"uuid"
 )
 
 type BuilderConfig interface {

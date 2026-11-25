@@ -4,7 +4,7 @@ import (
 	"errors"
 	"gravwell" //package expose the builtin plugin funcs
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (

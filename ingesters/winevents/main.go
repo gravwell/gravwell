@@ -26,11 +26,11 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
-	"github.com/gravwell/gravwell/v3/winevent"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config/validate"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
+	"github.com/gravwell/gravwell/v4/winevent"
 )
 
 const (
@@ -183,7 +183,7 @@ func serviceWriteTimeout(ch chan svc.ChangeRequest, r svc.ChangeRequest, to time
 	return
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

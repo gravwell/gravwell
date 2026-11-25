@@ -1,5 +1,4 @@
 //go:build !386 && !arm && !mips && !mipsle && !s390x
-// +build !386,!arm,!mips,!mipsle,!s390x
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -21,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/open2b/scriggo"
 	"github.com/open2b/scriggo/native"
 )
@@ -383,11 +382,11 @@ func (pp *PluginProgram) execute() {
 func builtinItems(pp *PluginProgram) native.Declarations {
 	decs := make(native.Declarations, 2)
 	decs[ExecuteFuncName] = pp.register
-	decs[ConfigFuncName] = reflect.TypeOf((*ConfigFunc)(nil)).Elem()
-	decs[FlushFuncName] = reflect.TypeOf((*FlushFunc)(nil)).Elem()
-	decs[ProcessFuncName] = reflect.TypeOf((*ProcessFunc)(nil)).Elem()
-	decs[ConfigMapName] = reflect.TypeOf((*ConfigMap)(nil)).Elem()
-	decs[TaggerName] = reflect.TypeOf((*Tagger)(nil)).Elem()
+	decs[ConfigFuncName] = reflect.TypeFor[ConfigFunc]()
+	decs[FlushFuncName] = reflect.TypeFor[FlushFunc]()
+	decs[ProcessFuncName] = reflect.TypeFor[ProcessFunc]()
+	decs[ConfigMapName] = reflect.TypeFor[ConfigMap]()
+	decs[TaggerName] = reflect.TypeFor[Tagger]()
 	return decs
 }
 
@@ -467,7 +466,7 @@ func (tt *TestTagger) KnownTags() (r []string) {
 	return
 }
 
-func noPrint(interface{}) {}
-func stdoutPrint(val interface{}) {
+func noPrint(any) {}
+func stdoutPrint(val any) {
 	fmt.Printf("%v", val)
 }

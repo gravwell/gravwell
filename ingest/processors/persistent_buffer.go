@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux || darwin || freebsd
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -18,9 +17,9 @@ import (
 	"fmt"
 
 	"github.com/gravwell/buffer"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
@@ -89,7 +88,7 @@ func NewPersistentBuffer(cfg PersistentBufferConfig, tagger Tagger) (*Persistent
 	}, nil
 }
 
-func (gd *PersistentBuffer) Config(v interface{}) (err error) {
+func (gd *PersistentBuffer) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(PersistentBufferConfig); ok {

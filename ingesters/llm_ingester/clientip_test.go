@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -22,13 +23,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
-	"github.com/gravwell/gravwell/v3/utils/trustedproxy"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
+	"github.com/gravwell/gravwell/v4/utils/trustedproxy"
 )
 
 // newTestClients returns a clientSource that discards its log output.
@@ -47,13 +47,9 @@ func newTestClients(t *testing.T, cr clientip.Resolver) *clientSource {
 // address options on.
 func newVerifyConfig() *cfgType {
 	return &cfgType{
-		gbl: gbl{
-			IngestConfig: config.IngestConfig{
-				Ingest_Secret:            "testing",
-				Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
-			},
-		},
-		Listener: map[string]*listener{"l1": validListener()},
+		Ingest_Secret:            "testing",
+		Cleartext_Backend_Target: []string{"127.0.0.1:4023"},
+		Listener:                 map[string]*listener{"l1": validListener()},
 	}
 }
 
@@ -93,8 +89,9 @@ func (lb *lockedBuffer) String() string {
 }
 
 // TestVerifyTrustedProxy checks that Verify builds the resolver from the config
-// and the GRAVWELL_LLM_ environment variables. clientip.LoadResolver tests the
-// options themselves.
+// and the GRAVWELL_LLM_TRUSTED_PROXY environment variables. GetConfig loads the
+// ignore variable, see TestGetConfigIgnoreUntrusted. clientip.LoadResolver tests
+// the options themselves.
 func TestVerifyTrustedProxy(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -102,18 +99,15 @@ func TestVerifyTrustedProxy(t *testing.T) {
 		env        string
 		file       string   // contents of the file named by the _FILE variable
 		ignore     bool     // Ignore-Untrusted-Forwarded-For in the config
-		ignoreEnv  string   // GRAVWELL_LLM_IGNORE_UNTRUSTED_FORWARDED_FOR
 		want       []string // the trusted list
 		wantIgnore bool
 		wantErr    string
 	}{
-		{name: "unset is legacy mode"},
+		{name: "ignore false is legacy mode"},
 		{name: "ignore", ignore: true, wantIgnore: true},
-		{name: "ignore env var", ignoreEnv: "true", wantIgnore: true},
 		{name: "config list", cfg: []string{"10.0.0.1", "192.168.100.0/24"}, want: []string{"10.0.0.1", "192.168.100.0/24"}},
 		{name: "env var list", env: "10.0.0.1, 192.168.100.0/24", want: []string{"10.0.0.1", "192.168.100.0/24"}},
 		{name: "file list", file: "10.0.0.1\n10.0.0.2\n", want: []string{"10.0.0.1", "10.0.0.2"}},
-		{name: "invalid ignore env var", ignoreEnv: "maybe", wantErr: envIgnoreUntrustedXFF},
 		{name: "invalid entry", cfg: []string{"proxy.example.com"}, wantErr: `Trusted-Proxy is invalid: invalid trusted proxy "proxy.example.com"`},
 		{name: "env var of only separators", env: ",", wantErr: "failed to load Trusted-Proxy: " + envTrustedProxy + ": "},
 	}
@@ -126,10 +120,6 @@ func TestVerifyTrustedProxy(t *testing.T) {
 			if tt.file != `` {
 				t.Setenv(envTrustedProxy+`_FILE`, writeTrustedProxyFile(t, tt.file))
 			}
-			if tt.ignoreEnv != `` {
-				t.Setenv(envIgnoreUntrustedXFF, tt.ignoreEnv)
-			}
-
 			cfg := newVerifyConfig()
 			cfg.Trusted_Proxy = tt.cfg
 			cfg.Ignore_Untrusted_Forwarded_For = tt.ignore
@@ -203,7 +193,7 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 		t.Fatalf("GetConfig error %v, want one for blank Trusted-Proxy", err)
 	}
 
-	// no Trusted-Proxy is legacy mode until Ignore-Untrusted-Forwarded-For is set
+	// no Trusted-Proxy uses the peer unless Ignore-Untrusted-Forwarded-For is false
 	noProxies := strings.NewReplacer(
 		"\tTrusted-Proxy=10.0.0.5\n", "",
 		"\tTrusted-Proxy=192.168.100.0/24\n", "",
@@ -213,23 +203,143 @@ func TestGetConfigTrustedProxy(t *testing.T) {
 	if cfg, err = GetConfig(pth, ""); err != nil {
 		t.Fatalf("GetConfig: %v", err)
 	}
-	if len(cfg.Trusted_Proxy) != 0 || !cfg.resolver.Legacy() {
-		t.Fatalf("Trusted_Proxy %v legacy %v, want empty and legacy", cfg.Trusted_Proxy, cfg.resolver.Legacy())
+	if len(cfg.Trusted_Proxy) != 0 || !cfg.Ignore_Untrusted_Forwarded_For || cfg.resolver.Legacy() {
+		t.Fatalf("Trusted_Proxy %v ignore %v legacy %v, want empty, true and not legacy",
+			cfg.Trusted_Proxy, cfg.Ignore_Untrusted_Forwarded_For, cfg.resolver.Legacy())
 	}
 
-	write(strings.Replace(noProxies, "[Global]\n", "[Global]\n\tIgnore-Untrusted-Forwarded-For=true\n", 1))
+	write(strings.Replace(noProxies, "[Global]\n", "[Global]\n\tIgnore-Untrusted-Forwarded-For=false\n", 1))
 	if cfg, err = GetConfig(pth, ""); err != nil {
 		t.Fatalf("GetConfig: %v", err)
 	}
-	if !cfg.Ignore_Untrusted_Forwarded_For || cfg.resolver.Legacy() {
-		t.Fatalf("Ignore_Untrusted_Forwarded_For %v legacy %v, want true and not legacy",
+	if cfg.Ignore_Untrusted_Forwarded_For || !cfg.resolver.Legacy() {
+		t.Fatalf("Ignore_Untrusted_Forwarded_For %v legacy %v, want false and legacy",
 			cfg.Ignore_Untrusted_Forwarded_For, cfg.resolver.Legacy())
+	}
+}
+
+// ignoreConf is a minimal config for TestGetConfigIgnoreUntrusted, with %s
+// replaced by extra [Global] lines.
+const ignoreConf = `
+[Global]
+	Ingest-Secret = "testing"
+	Cleartext-Backend-Target=127.0.0.1:4023
+%s
+[Listener "l1"]
+	Bind = ":4180"
+	Upstream-URL = "http://example.com"
+	Protocol = "openai-chat"
+`
+
+// TestGetConfigIgnoreUntrusted checks the default of
+// Ignore-Untrusted-Forwarded-For and its precedence: the config file and
+// overlays, then GRAVWELL_LLM_IGNORE_UNTRUSTED_FORWARDED_FOR, then true.
+func TestGetConfigIgnoreUntrusted(t *testing.T) {
+	tests := []struct {
+		name    string
+		file    string  // extra [Global] lines in the config file
+		overlay string  // extra [Global] lines in an overlay, none when empty
+		env     *string // nil leaves the variable unset
+		want    bool
+		wantErr string
+	}{
+		{name: "key absent defaults to true", want: true},
+		{name: "file false", file: "\tIgnore-Untrusted-Forwarded-For=false\n", want: false},
+		{name: "file true", file: "\tIgnore-Untrusted-Forwarded-For=true\n", want: true},
+		{name: "env false with key absent", env: new("false"), want: false},
+		{name: "env true with key absent", env: new("true"), want: true},
+		{name: "file false wins over env true", file: "\tIgnore-Untrusted-Forwarded-For=false\n", env: new("true"), want: false},
+		{name: "file true wins over env false", file: "\tIgnore-Untrusted-Forwarded-For=true\n", env: new("false"), want: true},
+		{name: "overlay false", overlay: "\tIgnore-Untrusted-Forwarded-For=false\n", want: false},
+		{name: "overlay without key keeps file", file: "\tIgnore-Untrusted-Forwarded-For=false\n", overlay: "\tLog-Level=INFO\n", want: false},
+		{name: "overlay without key keeps env", overlay: "\tLog-Level=INFO\n", env: new("false"), want: false},
+		{name: "bad env value", env: new("maybe"), wantErr: envIgnoreUntrustedXFF},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != nil {
+				t.Setenv(envIgnoreUntrustedXFF, *tt.env)
+			}
+			dir := t.TempDir()
+			pth := filepath.Join(dir, "llm.conf")
+			if err := os.WriteFile(pth, []byte(fmt.Sprintf(ignoreConf, tt.file)), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var overlays string
+			if tt.overlay != `` {
+				overlays = filepath.Join(dir, "conf.d")
+				if err := os.Mkdir(overlays, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(overlays, "o.conf"), []byte("[Global]\n"+tt.overlay), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			cfg, err := GetConfig(pth, overlays)
+			if tt.wantErr != `` {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("GetConfig error %v, want one containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("GetConfig: %v", err)
+			}
+			if cfg.Ignore_Untrusted_Forwarded_For != tt.want {
+				t.Fatalf("Ignore_Untrusted_Forwarded_For %v, want %v", cfg.Ignore_Untrusted_Forwarded_For, tt.want)
+			}
+			if cfg.resolver.Legacy() == tt.want {
+				t.Fatalf("legacy %v with Ignore_Untrusted_Forwarded_For %v", cfg.resolver.Legacy(), tt.want)
+			}
+		})
+	}
+}
+
+// TestGetConfigIgnoreUntrustedRepeated loads the config again after changing
+// the file and environment, as a restart does, and checks that nothing carries
+// over from the previous load.
+func TestGetConfigIgnoreUntrustedRepeated(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), "llm.conf")
+	load := func(extra string) *cfgType {
+		t.Helper()
+		if err := os.WriteFile(pth, []byte(fmt.Sprintf(ignoreConf, extra)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := GetConfig(pth, "")
+		if err != nil {
+			t.Fatalf("GetConfig: %v", err)
+		}
+		return cfg
+	}
+
+	steps := []struct {
+		env   string // empty leaves the variable as it was
+		extra string
+		want  bool
+	}{
+		{want: true},
+		{extra: "\tIgnore-Untrusted-Forwarded-For=false\n", want: false},
+		{want: true},
+		{env: "false", want: false},
+		{extra: "\tIgnore-Untrusted-Forwarded-For=true\n", want: true},
+		{env: "true", extra: "\tIgnore-Untrusted-Forwarded-For=false\n", want: false},
+	}
+	for i, s := range steps {
+		if s.env != `` {
+			t.Setenv(envIgnoreUntrustedXFF, s.env)
+		}
+		if got := load(s.extra).Ignore_Untrusted_Forwarded_For; got != s.want {
+			t.Fatalf("step %d: Ignore_Untrusted_Forwarded_For %v, want %v", i, got, s.want)
+		}
 	}
 }
 
 // TestShippedExampleConfigTrustedProxy checks that the commented
 // Trusted-Proxy examples in the shipped config parse once uncommented, and
-// that the shipped config keeps the legacy default.
+// that the shipped config leaves Ignore-Untrusted-Forwarded-For at its default
+// of true.
 func TestShippedExampleConfigTrustedProxy(t *testing.T) {
 	raw, err := os.ReadFile("gravwell_llm_ingester.conf")
 	if err != nil {
@@ -255,6 +365,18 @@ func TestShippedExampleConfigTrustedProxy(t *testing.T) {
 	}
 	if len(cfg.Trusted_Proxy) == 0 || cfg.resolver.Legacy() {
 		t.Fatalf("uncommented examples gave Trusted_Proxy %v legacy %v", cfg.Trusted_Proxy, cfg.resolver.Legacy())
+	}
+
+	shipped := strings.Replace(string(raw), "#Cleartext-Backend-Target", "Cleartext-Backend-Target", 1)
+	if err := os.WriteFile(pth, []byte(shipped), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = GetConfig(pth, ""); err != nil {
+		t.Fatalf("GetConfig: %v", err)
+	}
+	if !cfg.Ignore_Untrusted_Forwarded_For || cfg.resolver.Legacy() {
+		t.Fatalf("shipped config gave Ignore_Untrusted_Forwarded_For %v legacy %v, want true and not legacy",
+			cfg.Ignore_Untrusted_Forwarded_For, cfg.resolver.Legacy())
 	}
 }
 
@@ -443,7 +565,7 @@ func TestProxyLogsClient(t *testing.T) {
 			ph.ServeHTTP(httptest.NewRecorder(), req)
 
 			var line string
-			for _, l := range strings.Split(logBuf.String(), "\n") {
+			for l := range strings.SplitSeq(logBuf.String(), "\n") {
 				if strings.Contains(l, tt.want) {
 					line = l
 				}

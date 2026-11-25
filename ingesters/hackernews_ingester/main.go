@@ -23,12 +23,11 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
-
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 var (
@@ -63,7 +62,7 @@ func main() {
 
 	var connSet []string
 	if *clearConns != "" {
-		for _, conn := range strings.Split(*clearConns, ",") {
+		for conn := range strings.SplitSeq(*clearConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				connSet = append(connSet, fmt.Sprintf("tcp://%s", conn))
@@ -71,7 +70,7 @@ func main() {
 		}
 	}
 	if *pipeConns != "" {
-		for _, conn := range strings.Split(*pipeConns, ",") {
+		for conn := range strings.SplitSeq(*pipeConns, ",") {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				connSet = append(connSet, fmt.Sprintf("pipe://%s", conn))
@@ -197,7 +196,7 @@ func (stream *HNStream) hnIngester(igst *ingest.IngestMuxer) {
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if !*verbose {
 		return
 	}

@@ -14,8 +14,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -67,7 +67,7 @@ func NewRegexRouter(cfg RegexRouteConfig, tagger Tagger) (*RegexRouter, error) {
 	return rr, nil
 }
 
-func (rr *RegexRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (rr *RegexRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexRouteConfig); ok {

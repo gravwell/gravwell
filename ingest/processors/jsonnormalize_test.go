@@ -15,8 +15,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func TestJsonNormalizeLoadConfig(t *testing.T) {
@@ -90,11 +90,11 @@ func TestJsonNormalizeNestedField(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := `{"user":"alice","payload":"{\"a\":1,\"b\":[1,2,3]}"}`
-	want := map[string]interface{}{
+	want := map[string]any{
 		"user": "alice",
-		"payload": map[string]interface{}{
+		"payload": map[string]any{
 			"a": float64(1),
-			"b": []interface{}{float64(1), float64(2), float64(3)},
+			"b": []any{float64(1), float64(2), float64(3)},
 		},
 	}
 	rset, err := p.Process(makeEntry([]byte(in), entry.EntryTag(7)))
@@ -118,9 +118,9 @@ func TestJsonNormalizeWholeEntryQuoted(t *testing.T) {
 	// the entire entry is a quoted, escaped JSON document, itself containing
 	// another escaped JSON document as a field value
 	in := `"{\"a\":1,\"nested\":\"{\\\"c\\\":true}\"}"`
-	want := map[string]interface{}{
+	want := map[string]any{
 		"a": float64(1),
-		"nested": map[string]interface{}{
+		"nested": map[string]any{
 			"c": true,
 		},
 	}
@@ -142,9 +142,9 @@ func TestJsonNormalizeMalformedNoOuterQuotes(t *testing.T) {
 	// invalid JSON as raw bytes: backslash-escaping was applied but the
 	// enclosing quotes were stripped upstream
 	in := `{\"a\":\"b\",\"c\":{\"d\":1}}`
-	want := map[string]interface{}{
+	want := map[string]any{
 		"a": "b",
-		"c": map[string]interface{}{
+		"c": map[string]any{
 			"d": float64(1),
 		},
 	}
@@ -164,9 +164,9 @@ func TestJsonNormalizeArrayOfEscapedStrings(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := `["{\"x\":1}", "{\"y\":2}"]`
-	want := []interface{}{
-		map[string]interface{}{"x": float64(1)},
-		map[string]interface{}{"y": float64(2)},
+	want := []any{
+		map[string]any{"x": float64(1)},
+		map[string]any{"y": float64(2)},
 	}
 	rset, err := p.Process(makeEntry([]byte(in), 0))
 	if err != nil {
@@ -184,7 +184,7 @@ func TestJsonNormalizeAlreadyNormal(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := `{"a":1,"b":"c"}`
-	want := map[string]interface{}{"a": float64(1), "b": "c"}
+	want := map[string]any{"a": float64(1), "b": "c"}
 	rset, err := p.Process(makeEntry([]byte(in), 0))
 	if err != nil {
 		t.Fatal(err)
@@ -205,8 +205,8 @@ func TestJsonNormalizeMaxDepthLimitsEscapingLayers(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := `{"payload":"{\"a\":1}"}`
-	want := map[string]interface{}{
-		"payload": map[string]interface{}{"a": float64(1)},
+	want := map[string]any{
+		"payload": map[string]any{"a": float64(1)},
 	}
 	rset, err := p.Process(makeEntry([]byte(in), 0))
 	if err != nil {
@@ -228,11 +228,11 @@ func TestJsonNormalizeMaxDepthLimitsEscapingLayers(t *testing.T) {
 	if len(rset2) != 1 {
 		t.Fatalf("Invalid result count: %d", len(rset2))
 	}
-	var got2 map[string]interface{}
+	var got2 map[string]any
 	if err := json.Unmarshal(rset2[0].Data, &got2); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
-	payload, ok := got2["payload"].(map[string]interface{})
+	payload, ok := got2["payload"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected payload to be unwrapped one layer, got %T: %v", got2["payload"], got2["payload"])
 	}
@@ -252,7 +252,7 @@ func TestJsonNormalizeStructuralNestingIsFree(t *testing.T) {
 	}
 	nestLevels := 20
 	in := `{"a":1}`
-	for i := 0; i < nestLevels; i++ {
+	for i := range nestLevels {
 		in = fmt.Sprintf(`{"level%d":%s}`, i, in)
 	}
 	// bury one escaped field at the very bottom, next to the structural nesting
@@ -265,11 +265,11 @@ func TestJsonNormalizeStructuralNestingIsFree(t *testing.T) {
 	if len(rset) != 1 {
 		t.Fatalf("Invalid result count: %d", len(rset))
 	}
-	var got map[string]interface{}
+	var got map[string]any
 	if err := json.Unmarshal(rset[0].Data, &got); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
-	escaped, ok := got["escaped"].(map[string]interface{})
+	escaped, ok := got["escaped"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected deeply-nested document to still unwrap its escaped field, got %T: %v", got["escaped"], got["escaped"])
 	}
@@ -279,13 +279,13 @@ func TestJsonNormalizeStructuralNestingIsFree(t *testing.T) {
 	// and confirm the structural nesting itself survived untouched
 	cur := got["outer"]
 	for i := nestLevels - 1; i >= 0; i-- {
-		m, ok := cur.(map[string]interface{})
+		m, ok := cur.(map[string]any)
 		if !ok {
 			t.Fatalf("structural nesting was corrupted at level%d: %T %v", i, cur, cur)
 		}
 		cur = m[fmt.Sprintf("level%d", i)]
 	}
-	if m, ok := cur.(map[string]interface{}); !ok || m["a"] != float64(1) {
+	if m, ok := cur.(map[string]any); !ok || m["a"] != float64(1) {
 		t.Fatalf("innermost structural value was corrupted: %v", cur)
 	}
 }
@@ -305,7 +305,7 @@ func TestJsonNormalizePretty(t *testing.T) {
 	if string(rset[0].Data) == `{"a":1}` {
 		t.Fatalf("expected pretty-printed output, got compact: %v", string(rset[0].Data))
 	}
-	var got map[string]interface{}
+	var got map[string]any
 	if err := json.Unmarshal(rset[0].Data, &got); err != nil {
 		t.Fatalf("pretty output is not valid JSON: %v", err)
 	}
@@ -434,9 +434,9 @@ func TestJsonNormalizePreservesEnumeratedValues(t *testing.T) {
 // checkNormalized unmarshals got and compares it against want using
 // reflect.DeepEqual, so callers can express expectations as Go values
 // instead of exact-byte-string JSON (map key order is not guaranteed).
-func checkNormalized(t *testing.T, got []byte, want interface{}) {
+func checkNormalized(t *testing.T, got []byte, want any) {
 	t.Helper()
-	var v interface{}
+	var v any
 	if err := json.Unmarshal(got, &v); err != nil {
 		t.Fatalf("output is not valid JSON: %v (data: %s)", err, string(got))
 	}
@@ -444,4 +444,3 @@ func checkNormalized(t *testing.T, got []byte, want interface{}) {
 		t.Fatalf("normalized output mismatch:\n got:  %#v\n want: %#v", v, want)
 	}
 }
-

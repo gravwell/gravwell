@@ -1,5 +1,4 @@
-//go:build !386 && !arm && !mips && !mipsle && !s390x && !linux
-// +build !386,!arm,!mips,!mipsle,!s390x,!linux
+//go:build windows
 
 package plugin
 
@@ -133,9 +132,10 @@ import (
 	rfc5424 "github.com/crewjam/rfc5424"
 	glob "github.com/gobwas/glob"
 	uuid "github.com/google/uuid"
-	ingest "github.com/gravwell/gravwell/v3/ingest"
-	config "github.com/gravwell/gravwell/v3/ingest/config"
-	entry "github.com/gravwell/gravwell/v3/ingest/entry"
+	ingest "github.com/gravwell/gravwell/v4/ingest"
+	config "github.com/gravwell/gravwell/v4/ingest/config"
+	entry "github.com/gravwell/gravwell/v4/ingest/entry"
+	ingestLog "github.com/gravwell/gravwell/v4/ingest/log"
 	ipfix "github.com/gravwell/ipfix"
 	jsonparser_2 "github.com/gravwell/jsonparser"
 	filetype "github.com/h2non/filetype"
@@ -156,15 +156,15 @@ func init() {
 	decs["ErrWriteAfterClose"] = &tar.ErrWriteAfterClose
 	decs["ErrWriteTooLong"] = &tar.ErrWriteTooLong
 	decs["FileInfoHeader"] = tar.FileInfoHeader
-	decs["Format"] = reflect.TypeOf((*tar.Format)(nil)).Elem()
+	decs["Format"] = reflect.TypeFor[tar.Format]()
 	decs["FormatGNU"] = tar.FormatGNU
 	decs["FormatPAX"] = tar.FormatPAX
 	decs["FormatUSTAR"] = tar.FormatUSTAR
 	decs["FormatUnknown"] = tar.FormatUnknown
-	decs["Header"] = reflect.TypeOf((*tar.Header)(nil)).Elem()
+	decs["Header"] = reflect.TypeFor[tar.Header]()
 	decs["NewReader"] = tar.NewReader
 	decs["NewWriter"] = tar.NewWriter
-	decs["Reader"] = reflect.TypeOf((*tar.Reader)(nil)).Elem()
+	decs["Reader"] = reflect.TypeFor[tar.Reader]()
 	decs["TypeBlock"] = native.UntypedNumericConst("52")
 	decs["TypeChar"] = native.UntypedNumericConst("51")
 	decs["TypeCont"] = native.UntypedNumericConst("55")
@@ -179,32 +179,32 @@ func init() {
 	decs["TypeSymlink"] = native.UntypedNumericConst("50")
 	decs["TypeXGlobalHeader"] = native.UntypedNumericConst("103")
 	decs["TypeXHeader"] = native.UntypedNumericConst("120")
-	decs["Writer"] = reflect.TypeOf((*tar.Writer)(nil)).Elem()
+	decs["Writer"] = reflect.TypeFor[tar.Writer]()
 	packages["archive/tar"] = native.Package{
 		Name:         "tar",
 		Declarations: decs,
 	}
 	// "archive/zip"
 	decs = make(native.Declarations, 19)
-	decs["Compressor"] = reflect.TypeOf((*zip.Compressor)(nil)).Elem()
-	decs["Decompressor"] = reflect.TypeOf((*zip.Decompressor)(nil)).Elem()
+	decs["Compressor"] = reflect.TypeFor[zip.Compressor]()
+	decs["Decompressor"] = reflect.TypeFor[zip.Decompressor]()
 	decs["Deflate"] = zip.Deflate
 	decs["ErrAlgorithm"] = &zip.ErrAlgorithm
 	decs["ErrChecksum"] = &zip.ErrChecksum
 	decs["ErrFormat"] = &zip.ErrFormat
 	decs["ErrInsecurePath"] = &zip.ErrInsecurePath
-	decs["File"] = reflect.TypeOf((*zip.File)(nil)).Elem()
-	decs["FileHeader"] = reflect.TypeOf((*zip.FileHeader)(nil)).Elem()
+	decs["File"] = reflect.TypeFor[zip.File]()
+	decs["FileHeader"] = reflect.TypeFor[zip.FileHeader]()
 	decs["FileInfoHeader"] = zip.FileInfoHeader
 	decs["NewReader"] = zip.NewReader
 	decs["NewWriter"] = zip.NewWriter
 	decs["OpenReader"] = zip.OpenReader
-	decs["ReadCloser"] = reflect.TypeOf((*zip.ReadCloser)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*zip.Reader)(nil)).Elem()
+	decs["ReadCloser"] = reflect.TypeFor[zip.ReadCloser]()
+	decs["Reader"] = reflect.TypeFor[zip.Reader]()
 	decs["RegisterCompressor"] = zip.RegisterCompressor
 	decs["RegisterDecompressor"] = zip.RegisterDecompressor
 	decs["Store"] = zip.Store
-	decs["Writer"] = reflect.TypeOf((*zip.Writer)(nil)).Elem()
+	decs["Writer"] = reflect.TypeFor[zip.Writer]()
 	packages["archive/zip"] = native.Package{
 		Name:         "zip",
 		Declarations: decs,
@@ -227,22 +227,22 @@ func init() {
 	decs["NewScanner"] = bufio.NewScanner
 	decs["NewWriter"] = bufio.NewWriter
 	decs["NewWriterSize"] = bufio.NewWriterSize
-	decs["ReadWriter"] = reflect.TypeOf((*bufio.ReadWriter)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*bufio.Reader)(nil)).Elem()
+	decs["ReadWriter"] = reflect.TypeFor[bufio.ReadWriter]()
+	decs["Reader"] = reflect.TypeFor[bufio.Reader]()
 	decs["ScanBytes"] = bufio.ScanBytes
 	decs["ScanLines"] = bufio.ScanLines
 	decs["ScanRunes"] = bufio.ScanRunes
 	decs["ScanWords"] = bufio.ScanWords
-	decs["Scanner"] = reflect.TypeOf((*bufio.Scanner)(nil)).Elem()
-	decs["SplitFunc"] = reflect.TypeOf((*bufio.SplitFunc)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*bufio.Writer)(nil)).Elem()
+	decs["Scanner"] = reflect.TypeFor[bufio.Scanner]()
+	decs["SplitFunc"] = reflect.TypeFor[bufio.SplitFunc]()
+	decs["Writer"] = reflect.TypeFor[bufio.Writer]()
 	packages["bufio"] = native.Package{
 		Name:         "bufio",
 		Declarations: decs,
 	}
 	// "bytes"
 	decs = make(native.Declarations, 59)
-	decs["Buffer"] = reflect.TypeOf((*bytes.Buffer)(nil)).Elem()
+	decs["Buffer"] = reflect.TypeFor[bytes.Buffer]()
 	decs["Clone"] = bytes.Clone
 	decs["Compare"] = bytes.Compare
 	decs["Contains"] = bytes.Contains
@@ -275,7 +275,7 @@ func init() {
 	decs["NewBuffer"] = bytes.NewBuffer
 	decs["NewBufferString"] = bytes.NewBufferString
 	decs["NewReader"] = bytes.NewReader
-	decs["Reader"] = reflect.TypeOf((*bytes.Reader)(nil)).Elem()
+	decs["Reader"] = reflect.TypeFor[bytes.Reader]()
 	decs["Repeat"] = bytes.Repeat
 	decs["Replace"] = bytes.Replace
 	decs["ReplaceAll"] = bytes.ReplaceAll
@@ -308,7 +308,7 @@ func init() {
 	// "compress/bzip2"
 	decs = make(native.Declarations, 2)
 	decs["NewReader"] = bzip2.NewReader
-	decs["StructuralError"] = reflect.TypeOf((*bzip2.StructuralError)(nil)).Elem()
+	decs["StructuralError"] = reflect.TypeFor[bzip2.StructuralError]()
 	packages["compress/bzip2"] = native.Package{
 		Name:         "bzip2",
 		Declarations: decs,
@@ -317,20 +317,20 @@ func init() {
 	decs = make(native.Declarations, 16)
 	decs["BestCompression"] = native.UntypedNumericConst("9")
 	decs["BestSpeed"] = native.UntypedNumericConst("1")
-	decs["CorruptInputError"] = reflect.TypeOf((*flate.CorruptInputError)(nil)).Elem()
+	decs["CorruptInputError"] = reflect.TypeFor[flate.CorruptInputError]()
 	decs["DefaultCompression"] = native.UntypedNumericConst("-1")
 	decs["HuffmanOnly"] = native.UntypedNumericConst("-2")
-	decs["InternalError"] = reflect.TypeOf((*flate.InternalError)(nil)).Elem()
+	decs["InternalError"] = reflect.TypeFor[flate.InternalError]()
 	decs["NewReader"] = flate.NewReader
 	decs["NewReaderDict"] = flate.NewReaderDict
 	decs["NewWriter"] = flate.NewWriter
 	decs["NewWriterDict"] = flate.NewWriterDict
 	decs["NoCompression"] = native.UntypedNumericConst("0")
-	decs["ReadError"] = reflect.TypeOf((*flate.ReadError)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*flate.Reader)(nil)).Elem()
-	decs["Resetter"] = reflect.TypeOf((*flate.Resetter)(nil)).Elem()
-	decs["WriteError"] = reflect.TypeOf((*flate.WriteError)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*flate.Writer)(nil)).Elem()
+	decs["ReadError"] = reflect.TypeFor[flate.ReadError]()
+	decs["Reader"] = reflect.TypeFor[flate.Reader]()
+	decs["Resetter"] = reflect.TypeFor[flate.Resetter]()
+	decs["WriteError"] = reflect.TypeFor[flate.WriteError]()
+	decs["Writer"] = reflect.TypeFor[flate.Writer]()
 	packages["compress/flate"] = native.Package{
 		Name:         "flate",
 		Declarations: decs,
@@ -342,14 +342,14 @@ func init() {
 	decs["DefaultCompression"] = native.UntypedNumericConst("-1")
 	decs["ErrChecksum"] = &gzip.ErrChecksum
 	decs["ErrHeader"] = &gzip.ErrHeader
-	decs["Header"] = reflect.TypeOf((*gzip.Header)(nil)).Elem()
+	decs["Header"] = reflect.TypeFor[gzip.Header]()
 	decs["HuffmanOnly"] = native.UntypedNumericConst("-2")
 	decs["NewReader"] = gzip.NewReader
 	decs["NewWriter"] = gzip.NewWriter
 	decs["NewWriterLevel"] = gzip.NewWriterLevel
 	decs["NoCompression"] = native.UntypedNumericConst("0")
-	decs["Reader"] = reflect.TypeOf((*gzip.Reader)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*gzip.Writer)(nil)).Elem()
+	decs["Reader"] = reflect.TypeFor[gzip.Reader]()
+	decs["Writer"] = reflect.TypeFor[gzip.Writer]()
 	packages["compress/gzip"] = native.Package{
 		Name:         "gzip",
 		Declarations: decs,
@@ -360,9 +360,9 @@ func init() {
 	decs["MSB"] = lzw.MSB
 	decs["NewReader"] = lzw.NewReader
 	decs["NewWriter"] = lzw.NewWriter
-	decs["Order"] = reflect.TypeOf((*lzw.Order)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*lzw.Reader)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*lzw.Writer)(nil)).Elem()
+	decs["Order"] = reflect.TypeFor[lzw.Order]()
+	decs["Reader"] = reflect.TypeFor[lzw.Reader]()
+	decs["Writer"] = reflect.TypeFor[lzw.Writer]()
 	packages["compress/lzw"] = native.Package{
 		Name:         "lzw",
 		Declarations: decs,
@@ -382,8 +382,8 @@ func init() {
 	decs["NewWriterLevel"] = zlib.NewWriterLevel
 	decs["NewWriterLevelDict"] = zlib.NewWriterLevelDict
 	decs["NoCompression"] = native.UntypedNumericConst("0")
-	decs["Resetter"] = reflect.TypeOf((*zlib.Resetter)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*zlib.Writer)(nil)).Elem()
+	decs["Resetter"] = reflect.TypeFor[zlib.Resetter]()
+	decs["Writer"] = reflect.TypeFor[zlib.Writer]()
 	packages["compress/zlib"] = native.Package{
 		Name:         "zlib",
 		Declarations: decs,
@@ -392,7 +392,7 @@ func init() {
 	decs = make(native.Declarations, 6)
 	decs["Fix"] = heap.Fix
 	decs["Init"] = heap.Init
-	decs["Interface"] = reflect.TypeOf((*heap.Interface)(nil)).Elem()
+	decs["Interface"] = reflect.TypeFor[heap.Interface]()
 	decs["Pop"] = heap.Pop
 	decs["Push"] = heap.Push
 	decs["Remove"] = heap.Remove
@@ -402,8 +402,8 @@ func init() {
 	}
 	// "container/list"
 	decs = make(native.Declarations, 3)
-	decs["Element"] = reflect.TypeOf((*list.Element)(nil)).Elem()
-	decs["List"] = reflect.TypeOf((*list.List)(nil)).Elem()
+	decs["Element"] = reflect.TypeFor[list.Element]()
+	decs["List"] = reflect.TypeFor[list.List]()
 	decs["New"] = list.New
 	packages["container/list"] = native.Package{
 		Name:         "list",
@@ -412,7 +412,7 @@ func init() {
 	// "container/ring"
 	decs = make(native.Declarations, 2)
 	decs["New"] = ring.New
-	decs["Ring"] = reflect.TypeOf((*ring.Ring)(nil)).Elem()
+	decs["Ring"] = reflect.TypeFor[ring.Ring]()
 	packages["container/ring"] = native.Package{
 		Name:         "ring",
 		Declarations: decs,
@@ -421,11 +421,11 @@ func init() {
 	decs = make(native.Declarations, 17)
 	decs["AfterFunc"] = context.AfterFunc
 	decs["Background"] = context.Background
-	decs["CancelCauseFunc"] = reflect.TypeOf((*context.CancelCauseFunc)(nil)).Elem()
-	decs["CancelFunc"] = reflect.TypeOf((*context.CancelFunc)(nil)).Elem()
+	decs["CancelCauseFunc"] = reflect.TypeFor[context.CancelCauseFunc]()
+	decs["CancelFunc"] = reflect.TypeFor[context.CancelFunc]()
 	decs["Canceled"] = &context.Canceled
 	decs["Cause"] = context.Cause
-	decs["Context"] = reflect.TypeOf((*context.Context)(nil)).Elem()
+	decs["Context"] = reflect.TypeFor[context.Context]()
 	decs["DeadlineExceeded"] = &context.DeadlineExceeded
 	decs["TODO"] = context.TODO
 	decs["WithCancel"] = context.WithCancel
@@ -446,14 +446,14 @@ func init() {
 	decs["BLAKE2b_384"] = crypto.BLAKE2b_384
 	decs["BLAKE2b_512"] = crypto.BLAKE2b_512
 	decs["BLAKE2s_256"] = crypto.BLAKE2s_256
-	decs["Decrypter"] = reflect.TypeOf((*crypto.Decrypter)(nil)).Elem()
-	decs["DecrypterOpts"] = reflect.TypeOf((*crypto.DecrypterOpts)(nil)).Elem()
-	decs["Hash"] = reflect.TypeOf((*crypto.Hash)(nil)).Elem()
+	decs["Decrypter"] = reflect.TypeFor[crypto.Decrypter]()
+	decs["DecrypterOpts"] = reflect.TypeFor[crypto.DecrypterOpts]()
+	decs["Hash"] = reflect.TypeFor[crypto.Hash]()
 	decs["MD4"] = crypto.MD4
 	decs["MD5"] = crypto.MD5
 	decs["MD5SHA1"] = crypto.MD5SHA1
-	decs["PrivateKey"] = reflect.TypeOf((*crypto.PrivateKey)(nil)).Elem()
-	decs["PublicKey"] = reflect.TypeOf((*crypto.PublicKey)(nil)).Elem()
+	decs["PrivateKey"] = reflect.TypeFor[crypto.PrivateKey]()
+	decs["PublicKey"] = reflect.TypeFor[crypto.PublicKey]()
 	decs["RIPEMD160"] = crypto.RIPEMD160
 	decs["RegisterHash"] = crypto.RegisterHash
 	decs["SHA1"] = crypto.SHA1
@@ -467,8 +467,8 @@ func init() {
 	decs["SHA512"] = crypto.SHA512
 	decs["SHA512_224"] = crypto.SHA512_224
 	decs["SHA512_256"] = crypto.SHA512_256
-	decs["Signer"] = reflect.TypeOf((*crypto.Signer)(nil)).Elem()
-	decs["SignerOpts"] = reflect.TypeOf((*crypto.SignerOpts)(nil)).Elem()
+	decs["Signer"] = reflect.TypeFor[crypto.Signer]()
+	decs["SignerOpts"] = reflect.TypeFor[crypto.SignerOpts]()
 	packages["crypto"] = native.Package{
 		Name:         "crypto",
 		Declarations: decs,
@@ -476,7 +476,7 @@ func init() {
 	// "crypto/aes"
 	decs = make(native.Declarations, 3)
 	decs["BlockSize"] = native.UntypedNumericConst("16")
-	decs["KeySizeError"] = reflect.TypeOf((*aes.KeySizeError)(nil)).Elem()
+	decs["KeySizeError"] = reflect.TypeFor[aes.KeySizeError]()
 	decs["NewCipher"] = aes.NewCipher
 	packages["crypto/aes"] = native.Package{
 		Name:         "aes",
@@ -484,9 +484,9 @@ func init() {
 	}
 	// "crypto/cipher"
 	decs = make(native.Declarations, 15)
-	decs["AEAD"] = reflect.TypeOf((*cipher.AEAD)(nil)).Elem()
-	decs["Block"] = reflect.TypeOf((*cipher.Block)(nil)).Elem()
-	decs["BlockMode"] = reflect.TypeOf((*cipher.BlockMode)(nil)).Elem()
+	decs["AEAD"] = reflect.TypeFor[cipher.AEAD]()
+	decs["Block"] = reflect.TypeFor[cipher.Block]()
+	decs["BlockMode"] = reflect.TypeFor[cipher.BlockMode]()
 	decs["NewCBCDecrypter"] = cipher.NewCBCDecrypter
 	decs["NewCBCEncrypter"] = cipher.NewCBCEncrypter
 	decs["NewCFBDecrypter"] = cipher.NewCFBDecrypter
@@ -496,9 +496,9 @@ func init() {
 	decs["NewGCMWithNonceSize"] = cipher.NewGCMWithNonceSize
 	decs["NewGCMWithTagSize"] = cipher.NewGCMWithTagSize
 	decs["NewOFB"] = cipher.NewOFB
-	decs["Stream"] = reflect.TypeOf((*cipher.Stream)(nil)).Elem()
-	decs["StreamReader"] = reflect.TypeOf((*cipher.StreamReader)(nil)).Elem()
-	decs["StreamWriter"] = reflect.TypeOf((*cipher.StreamWriter)(nil)).Elem()
+	decs["Stream"] = reflect.TypeFor[cipher.Stream]()
+	decs["StreamReader"] = reflect.TypeFor[cipher.StreamReader]()
+	decs["StreamWriter"] = reflect.TypeFor[cipher.StreamWriter]()
 	packages["crypto/cipher"] = native.Package{
 		Name:         "cipher",
 		Declarations: decs,
@@ -506,7 +506,7 @@ func init() {
 	// "crypto/des"
 	decs = make(native.Declarations, 4)
 	decs["BlockSize"] = native.UntypedNumericConst("8")
-	decs["KeySizeError"] = reflect.TypeOf((*des.KeySizeError)(nil)).Elem()
+	decs["KeySizeError"] = reflect.TypeFor[des.KeySizeError]()
 	decs["NewCipher"] = des.NewCipher
 	decs["NewTripleDESCipher"] = des.NewTripleDESCipher
 	packages["crypto/des"] = native.Package{
@@ -522,10 +522,10 @@ func init() {
 	decs["L2048N224"] = dsa.L2048N224
 	decs["L2048N256"] = dsa.L2048N256
 	decs["L3072N256"] = dsa.L3072N256
-	decs["ParameterSizes"] = reflect.TypeOf((*dsa.ParameterSizes)(nil)).Elem()
-	decs["Parameters"] = reflect.TypeOf((*dsa.Parameters)(nil)).Elem()
-	decs["PrivateKey"] = reflect.TypeOf((*dsa.PrivateKey)(nil)).Elem()
-	decs["PublicKey"] = reflect.TypeOf((*dsa.PublicKey)(nil)).Elem()
+	decs["ParameterSizes"] = reflect.TypeFor[dsa.ParameterSizes]()
+	decs["Parameters"] = reflect.TypeFor[dsa.Parameters]()
+	decs["PrivateKey"] = reflect.TypeFor[dsa.PrivateKey]()
+	decs["PublicKey"] = reflect.TypeFor[dsa.PublicKey]()
 	decs["Sign"] = dsa.Sign
 	decs["Verify"] = dsa.Verify
 	packages["crypto/dsa"] = native.Package{
@@ -535,8 +535,8 @@ func init() {
 	// "crypto/ecdsa"
 	decs = make(native.Declarations, 7)
 	decs["GenerateKey"] = ecdsa.GenerateKey
-	decs["PrivateKey"] = reflect.TypeOf((*ecdsa.PrivateKey)(nil)).Elem()
-	decs["PublicKey"] = reflect.TypeOf((*ecdsa.PublicKey)(nil)).Elem()
+	decs["PrivateKey"] = reflect.TypeFor[ecdsa.PrivateKey]()
+	decs["PublicKey"] = reflect.TypeFor[ecdsa.PublicKey]()
 	decs["Sign"] = ecdsa.Sign
 	decs["SignASN1"] = ecdsa.SignASN1
 	decs["Verify"] = ecdsa.Verify
@@ -547,8 +547,8 @@ func init() {
 	}
 	// "crypto/elliptic"
 	decs = make(native.Declarations, 11)
-	decs["Curve"] = reflect.TypeOf((*elliptic.Curve)(nil)).Elem()
-	decs["CurveParams"] = reflect.TypeOf((*elliptic.CurveParams)(nil)).Elem()
+	decs["Curve"] = reflect.TypeFor[elliptic.Curve]()
+	decs["CurveParams"] = reflect.TypeFor[elliptic.CurveParams]()
 	decs["GenerateKey"] = elliptic.GenerateKey
 	decs["Marshal"] = elliptic.Marshal
 	decs["MarshalCompressed"] = elliptic.MarshalCompressed
@@ -592,8 +592,8 @@ func init() {
 	}
 	// "crypto/rc4"
 	decs = make(native.Declarations, 3)
-	decs["Cipher"] = reflect.TypeOf((*rc4.Cipher)(nil)).Elem()
-	decs["KeySizeError"] = reflect.TypeOf((*rc4.KeySizeError)(nil)).Elem()
+	decs["Cipher"] = reflect.TypeFor[rc4.Cipher]()
+	decs["KeySizeError"] = reflect.TypeFor[rc4.KeySizeError]()
 	decs["NewCipher"] = rc4.NewCipher
 	packages["crypto/rc4"] = native.Package{
 		Name:         "rc4",
@@ -601,7 +601,7 @@ func init() {
 	}
 	// "crypto/rsa"
 	decs = make(native.Declarations, 23)
-	decs["CRTValue"] = reflect.TypeOf((*rsa.CRTValue)(nil)).Elem()
+	decs["CRTValue"] = reflect.TypeFor[rsa.CRTValue]()
 	decs["DecryptOAEP"] = rsa.DecryptOAEP
 	decs["DecryptPKCS1v15"] = rsa.DecryptPKCS1v15
 	decs["DecryptPKCS1v15SessionKey"] = rsa.DecryptPKCS1v15SessionKey
@@ -612,14 +612,14 @@ func init() {
 	decs["ErrVerification"] = &rsa.ErrVerification
 	decs["GenerateKey"] = rsa.GenerateKey
 	decs["GenerateMultiPrimeKey"] = rsa.GenerateMultiPrimeKey
-	decs["OAEPOptions"] = reflect.TypeOf((*rsa.OAEPOptions)(nil)).Elem()
-	decs["PKCS1v15DecryptOptions"] = reflect.TypeOf((*rsa.PKCS1v15DecryptOptions)(nil)).Elem()
-	decs["PSSOptions"] = reflect.TypeOf((*rsa.PSSOptions)(nil)).Elem()
+	decs["OAEPOptions"] = reflect.TypeFor[rsa.OAEPOptions]()
+	decs["PKCS1v15DecryptOptions"] = reflect.TypeFor[rsa.PKCS1v15DecryptOptions]()
+	decs["PSSOptions"] = reflect.TypeFor[rsa.PSSOptions]()
 	decs["PSSSaltLengthAuto"] = native.UntypedNumericConst("0")
 	decs["PSSSaltLengthEqualsHash"] = native.UntypedNumericConst("-1")
-	decs["PrecomputedValues"] = reflect.TypeOf((*rsa.PrecomputedValues)(nil)).Elem()
-	decs["PrivateKey"] = reflect.TypeOf((*rsa.PrivateKey)(nil)).Elem()
-	decs["PublicKey"] = reflect.TypeOf((*rsa.PublicKey)(nil)).Elem()
+	decs["PrecomputedValues"] = reflect.TypeFor[rsa.PrecomputedValues]()
+	decs["PrivateKey"] = reflect.TypeFor[rsa.PrivateKey]()
+	decs["PublicKey"] = reflect.TypeFor[rsa.PublicKey]()
 	decs["SignPKCS1v15"] = rsa.SignPKCS1v15
 	decs["SignPSS"] = rsa.SignPSS
 	decs["VerifyPKCS1v15"] = rsa.VerifyPKCS1v15
@@ -685,28 +685,28 @@ func init() {
 	}
 	// "crypto/tls"
 	decs = make(native.Declarations, 110)
-	decs["AlertError"] = reflect.TypeOf((*tls.AlertError)(nil)).Elem()
-	decs["Certificate"] = reflect.TypeOf((*tls.Certificate)(nil)).Elem()
-	decs["CertificateRequestInfo"] = reflect.TypeOf((*tls.CertificateRequestInfo)(nil)).Elem()
-	decs["CertificateVerificationError"] = reflect.TypeOf((*tls.CertificateVerificationError)(nil)).Elem()
-	decs["CipherSuite"] = reflect.TypeOf((*tls.CipherSuite)(nil)).Elem()
+	decs["AlertError"] = reflect.TypeFor[tls.AlertError]()
+	decs["Certificate"] = reflect.TypeFor[tls.Certificate]()
+	decs["CertificateRequestInfo"] = reflect.TypeFor[tls.CertificateRequestInfo]()
+	decs["CertificateVerificationError"] = reflect.TypeFor[tls.CertificateVerificationError]()
+	decs["CipherSuite"] = reflect.TypeFor[tls.CipherSuite]()
 	decs["CipherSuiteName"] = tls.CipherSuiteName
 	decs["CipherSuites"] = tls.CipherSuites
 	decs["Client"] = tls.Client
-	decs["ClientAuthType"] = reflect.TypeOf((*tls.ClientAuthType)(nil)).Elem()
-	decs["ClientHelloInfo"] = reflect.TypeOf((*tls.ClientHelloInfo)(nil)).Elem()
-	decs["ClientSessionCache"] = reflect.TypeOf((*tls.ClientSessionCache)(nil)).Elem()
-	decs["ClientSessionState"] = reflect.TypeOf((*tls.ClientSessionState)(nil)).Elem()
-	decs["Config"] = reflect.TypeOf((*tls.Config)(nil)).Elem()
-	decs["Conn"] = reflect.TypeOf((*tls.Conn)(nil)).Elem()
-	decs["ConnectionState"] = reflect.TypeOf((*tls.ConnectionState)(nil)).Elem()
-	decs["CurveID"] = reflect.TypeOf((*tls.CurveID)(nil)).Elem()
+	decs["ClientAuthType"] = reflect.TypeFor[tls.ClientAuthType]()
+	decs["ClientHelloInfo"] = reflect.TypeFor[tls.ClientHelloInfo]()
+	decs["ClientSessionCache"] = reflect.TypeFor[tls.ClientSessionCache]()
+	decs["ClientSessionState"] = reflect.TypeFor[tls.ClientSessionState]()
+	decs["Config"] = reflect.TypeFor[tls.Config]()
+	decs["Conn"] = reflect.TypeFor[tls.Conn]()
+	decs["ConnectionState"] = reflect.TypeFor[tls.ConnectionState]()
+	decs["CurveID"] = reflect.TypeFor[tls.CurveID]()
 	decs["CurveP256"] = tls.CurveP256
 	decs["CurveP384"] = tls.CurveP384
 	decs["CurveP521"] = tls.CurveP521
 	decs["Dial"] = tls.Dial
 	decs["DialWithDialer"] = tls.DialWithDialer
-	decs["Dialer"] = reflect.TypeOf((*tls.Dialer)(nil)).Elem()
+	decs["Dialer"] = reflect.TypeFor[tls.Dialer]()
 	decs["ECDSAWithP256AndSHA256"] = tls.ECDSAWithP256AndSHA256
 	decs["ECDSAWithP384AndSHA384"] = tls.ECDSAWithP384AndSHA384
 	decs["ECDSAWithP521AndSHA512"] = tls.ECDSAWithP521AndSHA512
@@ -728,36 +728,36 @@ func init() {
 	decs["PSSWithSHA512"] = tls.PSSWithSHA512
 	decs["ParseSessionState"] = tls.ParseSessionState
 	decs["QUICClient"] = tls.QUICClient
-	decs["QUICConfig"] = reflect.TypeOf((*tls.QUICConfig)(nil)).Elem()
-	decs["QUICConn"] = reflect.TypeOf((*tls.QUICConn)(nil)).Elem()
-	decs["QUICEncryptionLevel"] = reflect.TypeOf((*tls.QUICEncryptionLevel)(nil)).Elem()
+	decs["QUICConfig"] = reflect.TypeFor[tls.QUICConfig]()
+	decs["QUICConn"] = reflect.TypeFor[tls.QUICConn]()
+	decs["QUICEncryptionLevel"] = reflect.TypeFor[tls.QUICEncryptionLevel]()
 	decs["QUICEncryptionLevelApplication"] = tls.QUICEncryptionLevelApplication
 	decs["QUICEncryptionLevelEarly"] = tls.QUICEncryptionLevelEarly
 	decs["QUICEncryptionLevelHandshake"] = tls.QUICEncryptionLevelHandshake
 	decs["QUICEncryptionLevelInitial"] = tls.QUICEncryptionLevelInitial
-	decs["QUICEvent"] = reflect.TypeOf((*tls.QUICEvent)(nil)).Elem()
-	decs["QUICEventKind"] = reflect.TypeOf((*tls.QUICEventKind)(nil)).Elem()
+	decs["QUICEvent"] = reflect.TypeFor[tls.QUICEvent]()
+	decs["QUICEventKind"] = reflect.TypeFor[tls.QUICEventKind]()
 	decs["QUICHandshakeDone"] = tls.QUICHandshakeDone
 	decs["QUICNoEvent"] = tls.QUICNoEvent
 	decs["QUICRejectedEarlyData"] = tls.QUICRejectedEarlyData
 	decs["QUICServer"] = tls.QUICServer
-	decs["QUICSessionTicketOptions"] = reflect.TypeOf((*tls.QUICSessionTicketOptions)(nil)).Elem()
+	decs["QUICSessionTicketOptions"] = reflect.TypeFor[tls.QUICSessionTicketOptions]()
 	decs["QUICSetReadSecret"] = tls.QUICSetReadSecret
 	decs["QUICSetWriteSecret"] = tls.QUICSetWriteSecret
 	decs["QUICTransportParameters"] = tls.QUICTransportParameters
 	decs["QUICTransportParametersRequired"] = tls.QUICTransportParametersRequired
 	decs["QUICWriteData"] = tls.QUICWriteData
-	decs["RecordHeaderError"] = reflect.TypeOf((*tls.RecordHeaderError)(nil)).Elem()
+	decs["RecordHeaderError"] = reflect.TypeFor[tls.RecordHeaderError]()
 	decs["RenegotiateFreelyAsClient"] = tls.RenegotiateFreelyAsClient
 	decs["RenegotiateNever"] = tls.RenegotiateNever
 	decs["RenegotiateOnceAsClient"] = tls.RenegotiateOnceAsClient
-	decs["RenegotiationSupport"] = reflect.TypeOf((*tls.RenegotiationSupport)(nil)).Elem()
+	decs["RenegotiationSupport"] = reflect.TypeFor[tls.RenegotiationSupport]()
 	decs["RequestClientCert"] = tls.RequestClientCert
 	decs["RequireAndVerifyClientCert"] = tls.RequireAndVerifyClientCert
 	decs["RequireAnyClientCert"] = tls.RequireAnyClientCert
 	decs["Server"] = tls.Server
-	decs["SessionState"] = reflect.TypeOf((*tls.SessionState)(nil)).Elem()
-	decs["SignatureScheme"] = reflect.TypeOf((*tls.SignatureScheme)(nil)).Elem()
+	decs["SessionState"] = reflect.TypeFor[tls.SessionState]()
+	decs["SignatureScheme"] = reflect.TypeFor[tls.SignatureScheme]()
 	decs["TLS_AES_128_GCM_SHA256"] = tls.TLS_AES_128_GCM_SHA256
 	decs["TLS_AES_256_GCM_SHA384"] = tls.TLS_AES_256_GCM_SHA384
 	decs["TLS_CHACHA20_POLY1305_SHA256"] = tls.TLS_CHACHA20_POLY1305_SHA256
@@ -803,11 +803,11 @@ func init() {
 	decs = make(native.Declarations, 106)
 	decs["CANotAuthorizedForExtKeyUsage"] = x509.CANotAuthorizedForExtKeyUsage
 	decs["CANotAuthorizedForThisName"] = x509.CANotAuthorizedForThisName
-	decs["CertPool"] = reflect.TypeOf((*x509.CertPool)(nil)).Elem()
-	decs["Certificate"] = reflect.TypeOf((*x509.Certificate)(nil)).Elem()
-	decs["CertificateInvalidError"] = reflect.TypeOf((*x509.CertificateInvalidError)(nil)).Elem()
-	decs["CertificateRequest"] = reflect.TypeOf((*x509.CertificateRequest)(nil)).Elem()
-	decs["ConstraintViolationError"] = reflect.TypeOf((*x509.ConstraintViolationError)(nil)).Elem()
+	decs["CertPool"] = reflect.TypeFor[x509.CertPool]()
+	decs["Certificate"] = reflect.TypeFor[x509.Certificate]()
+	decs["CertificateInvalidError"] = reflect.TypeFor[x509.CertificateInvalidError]()
+	decs["CertificateRequest"] = reflect.TypeFor[x509.CertificateRequest]()
+	decs["ConstraintViolationError"] = reflect.TypeFor[x509.ConstraintViolationError]()
 	decs["CreateCertificate"] = x509.CreateCertificate
 	decs["CreateCertificateRequest"] = x509.CreateCertificateRequest
 	decs["CreateRevocationList"] = x509.CreateRevocationList
@@ -824,7 +824,7 @@ func init() {
 	decs["EncryptPEMBlock"] = x509.EncryptPEMBlock
 	decs["ErrUnsupportedAlgorithm"] = &x509.ErrUnsupportedAlgorithm
 	decs["Expired"] = x509.Expired
-	decs["ExtKeyUsage"] = reflect.TypeOf((*x509.ExtKeyUsage)(nil)).Elem()
+	decs["ExtKeyUsage"] = reflect.TypeFor[x509.ExtKeyUsage]()
 	decs["ExtKeyUsageAny"] = x509.ExtKeyUsageAny
 	decs["ExtKeyUsageClientAuth"] = x509.ExtKeyUsageClientAuth
 	decs["ExtKeyUsageCodeSigning"] = x509.ExtKeyUsageCodeSigning
@@ -839,13 +839,13 @@ func init() {
 	decs["ExtKeyUsageOCSPSigning"] = x509.ExtKeyUsageOCSPSigning
 	decs["ExtKeyUsageServerAuth"] = x509.ExtKeyUsageServerAuth
 	decs["ExtKeyUsageTimeStamping"] = x509.ExtKeyUsageTimeStamping
-	decs["HostnameError"] = reflect.TypeOf((*x509.HostnameError)(nil)).Elem()
+	decs["HostnameError"] = reflect.TypeFor[x509.HostnameError]()
 	decs["IncompatibleUsage"] = x509.IncompatibleUsage
 	decs["IncorrectPasswordError"] = &x509.IncorrectPasswordError
-	decs["InsecureAlgorithmError"] = reflect.TypeOf((*x509.InsecureAlgorithmError)(nil)).Elem()
-	decs["InvalidReason"] = reflect.TypeOf((*x509.InvalidReason)(nil)).Elem()
+	decs["InsecureAlgorithmError"] = reflect.TypeFor[x509.InsecureAlgorithmError]()
+	decs["InvalidReason"] = reflect.TypeFor[x509.InvalidReason]()
 	decs["IsEncryptedPEMBlock"] = x509.IsEncryptedPEMBlock
-	decs["KeyUsage"] = reflect.TypeOf((*x509.KeyUsage)(nil)).Elem()
+	decs["KeyUsage"] = reflect.TypeFor[x509.KeyUsage]()
 	decs["KeyUsageCRLSign"] = x509.KeyUsageCRLSign
 	decs["KeyUsageCertSign"] = x509.KeyUsageCertSign
 	decs["KeyUsageContentCommitment"] = x509.KeyUsageContentCommitment
@@ -866,7 +866,7 @@ func init() {
 	decs["NameMismatch"] = x509.NameMismatch
 	decs["NewCertPool"] = x509.NewCertPool
 	decs["NotAuthorizedToSign"] = x509.NotAuthorizedToSign
-	decs["PEMCipher"] = reflect.TypeOf((*x509.PEMCipher)(nil)).Elem()
+	decs["PEMCipher"] = reflect.TypeFor[x509.PEMCipher]()
 	decs["PEMCipher3DES"] = x509.PEMCipher3DES
 	decs["PEMCipherAES128"] = x509.PEMCipherAES128
 	decs["PEMCipherAES192"] = x509.PEMCipherAES192
@@ -883,11 +883,11 @@ func init() {
 	decs["ParsePKCS8PrivateKey"] = x509.ParsePKCS8PrivateKey
 	decs["ParsePKIXPublicKey"] = x509.ParsePKIXPublicKey
 	decs["ParseRevocationList"] = x509.ParseRevocationList
-	decs["PublicKeyAlgorithm"] = reflect.TypeOf((*x509.PublicKeyAlgorithm)(nil)).Elem()
+	decs["PublicKeyAlgorithm"] = reflect.TypeFor[x509.PublicKeyAlgorithm]()
 	decs["PureEd25519"] = x509.PureEd25519
 	decs["RSA"] = x509.RSA
-	decs["RevocationList"] = reflect.TypeOf((*x509.RevocationList)(nil)).Elem()
-	decs["RevocationListEntry"] = reflect.TypeOf((*x509.RevocationListEntry)(nil)).Elem()
+	decs["RevocationList"] = reflect.TypeFor[x509.RevocationList]()
+	decs["RevocationListEntry"] = reflect.TypeFor[x509.RevocationListEntry]()
 	decs["SHA1WithRSA"] = x509.SHA1WithRSA
 	decs["SHA256WithRSA"] = x509.SHA256WithRSA
 	decs["SHA256WithRSAPSS"] = x509.SHA256WithRSAPSS
@@ -896,50 +896,50 @@ func init() {
 	decs["SHA512WithRSA"] = x509.SHA512WithRSA
 	decs["SHA512WithRSAPSS"] = x509.SHA512WithRSAPSS
 	decs["SetFallbackRoots"] = x509.SetFallbackRoots
-	decs["SignatureAlgorithm"] = reflect.TypeOf((*x509.SignatureAlgorithm)(nil)).Elem()
+	decs["SignatureAlgorithm"] = reflect.TypeFor[x509.SignatureAlgorithm]()
 	decs["SystemCertPool"] = x509.SystemCertPool
-	decs["SystemRootsError"] = reflect.TypeOf((*x509.SystemRootsError)(nil)).Elem()
+	decs["SystemRootsError"] = reflect.TypeFor[x509.SystemRootsError]()
 	decs["TooManyConstraints"] = x509.TooManyConstraints
 	decs["TooManyIntermediates"] = x509.TooManyIntermediates
 	decs["UnconstrainedName"] = x509.UnconstrainedName
-	decs["UnhandledCriticalExtension"] = reflect.TypeOf((*x509.UnhandledCriticalExtension)(nil)).Elem()
-	decs["UnknownAuthorityError"] = reflect.TypeOf((*x509.UnknownAuthorityError)(nil)).Elem()
+	decs["UnhandledCriticalExtension"] = reflect.TypeFor[x509.UnhandledCriticalExtension]()
+	decs["UnknownAuthorityError"] = reflect.TypeFor[x509.UnknownAuthorityError]()
 	decs["UnknownPublicKeyAlgorithm"] = x509.UnknownPublicKeyAlgorithm
 	decs["UnknownSignatureAlgorithm"] = x509.UnknownSignatureAlgorithm
-	decs["VerifyOptions"] = reflect.TypeOf((*x509.VerifyOptions)(nil)).Elem()
+	decs["VerifyOptions"] = reflect.TypeFor[x509.VerifyOptions]()
 	packages["crypto/x509"] = native.Package{
 		Name:         "x509",
 		Declarations: decs,
 	}
 	// "crypto/x509/pkix"
 	decs = make(native.Declarations, 10)
-	decs["AlgorithmIdentifier"] = reflect.TypeOf((*pkix.AlgorithmIdentifier)(nil)).Elem()
-	decs["AttributeTypeAndValue"] = reflect.TypeOf((*pkix.AttributeTypeAndValue)(nil)).Elem()
-	decs["AttributeTypeAndValueSET"] = reflect.TypeOf((*pkix.AttributeTypeAndValueSET)(nil)).Elem()
-	decs["CertificateList"] = reflect.TypeOf((*pkix.CertificateList)(nil)).Elem()
-	decs["Extension"] = reflect.TypeOf((*pkix.Extension)(nil)).Elem()
-	decs["Name"] = reflect.TypeOf((*pkix.Name)(nil)).Elem()
-	decs["RDNSequence"] = reflect.TypeOf((*pkix.RDNSequence)(nil)).Elem()
-	decs["RelativeDistinguishedNameSET"] = reflect.TypeOf((*pkix.RelativeDistinguishedNameSET)(nil)).Elem()
-	decs["RevokedCertificate"] = reflect.TypeOf((*pkix.RevokedCertificate)(nil)).Elem()
-	decs["TBSCertificateList"] = reflect.TypeOf((*pkix.TBSCertificateList)(nil)).Elem()
+	decs["AlgorithmIdentifier"] = reflect.TypeFor[pkix.AlgorithmIdentifier]()
+	decs["AttributeTypeAndValue"] = reflect.TypeFor[pkix.AttributeTypeAndValue]()
+	decs["AttributeTypeAndValueSET"] = reflect.TypeFor[pkix.AttributeTypeAndValueSET]()
+	decs["CertificateList"] = reflect.TypeFor[pkix.CertificateList]()
+	decs["Extension"] = reflect.TypeFor[pkix.Extension]()
+	decs["Name"] = reflect.TypeFor[pkix.Name]()
+	decs["RDNSequence"] = reflect.TypeFor[pkix.RDNSequence]()
+	decs["RelativeDistinguishedNameSET"] = reflect.TypeFor[pkix.RelativeDistinguishedNameSET]()
+	decs["RevokedCertificate"] = reflect.TypeFor[pkix.RevokedCertificate]()
+	decs["TBSCertificateList"] = reflect.TypeFor[pkix.TBSCertificateList]()
 	packages["crypto/x509/pkix"] = native.Package{
 		Name:         "pkix",
 		Declarations: decs,
 	}
 	// "encoding"
 	decs = make(native.Declarations, 4)
-	decs["BinaryMarshaler"] = reflect.TypeOf((*encoding.BinaryMarshaler)(nil)).Elem()
-	decs["BinaryUnmarshaler"] = reflect.TypeOf((*encoding.BinaryUnmarshaler)(nil)).Elem()
-	decs["TextMarshaler"] = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
-	decs["TextUnmarshaler"] = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+	decs["BinaryMarshaler"] = reflect.TypeFor[encoding.BinaryMarshaler]()
+	decs["BinaryUnmarshaler"] = reflect.TypeFor[encoding.BinaryUnmarshaler]()
+	decs["TextMarshaler"] = reflect.TypeFor[encoding.TextMarshaler]()
+	decs["TextUnmarshaler"] = reflect.TypeFor[encoding.TextUnmarshaler]()
 	packages["encoding"] = native.Package{
 		Name:         "encoding",
 		Declarations: decs,
 	}
 	// "encoding/ascii85"
 	decs = make(native.Declarations, 6)
-	decs["CorruptInputError"] = reflect.TypeOf((*ascii85.CorruptInputError)(nil)).Elem()
+	decs["CorruptInputError"] = reflect.TypeFor[ascii85.CorruptInputError]()
 	decs["Decode"] = ascii85.Decode
 	decs["Encode"] = ascii85.Encode
 	decs["MaxEncodedLen"] = ascii85.MaxEncodedLen
@@ -951,22 +951,22 @@ func init() {
 	}
 	// "encoding/asn1"
 	decs = make(native.Declarations, 36)
-	decs["BitString"] = reflect.TypeOf((*asn1.BitString)(nil)).Elem()
+	decs["BitString"] = reflect.TypeFor[asn1.BitString]()
 	decs["ClassApplication"] = native.UntypedNumericConst("1")
 	decs["ClassContextSpecific"] = native.UntypedNumericConst("2")
 	decs["ClassPrivate"] = native.UntypedNumericConst("3")
 	decs["ClassUniversal"] = native.UntypedNumericConst("0")
-	decs["Enumerated"] = reflect.TypeOf((*asn1.Enumerated)(nil)).Elem()
-	decs["Flag"] = reflect.TypeOf((*asn1.Flag)(nil)).Elem()
+	decs["Enumerated"] = reflect.TypeFor[asn1.Enumerated]()
+	decs["Flag"] = reflect.TypeFor[asn1.Flag]()
 	decs["Marshal"] = asn1.Marshal
 	decs["MarshalWithParams"] = asn1.MarshalWithParams
 	decs["NullBytes"] = &asn1.NullBytes
 	decs["NullRawValue"] = &asn1.NullRawValue
-	decs["ObjectIdentifier"] = reflect.TypeOf((*asn1.ObjectIdentifier)(nil)).Elem()
-	decs["RawContent"] = reflect.TypeOf((*asn1.RawContent)(nil)).Elem()
-	decs["RawValue"] = reflect.TypeOf((*asn1.RawValue)(nil)).Elem()
-	decs["StructuralError"] = reflect.TypeOf((*asn1.StructuralError)(nil)).Elem()
-	decs["SyntaxError"] = reflect.TypeOf((*asn1.SyntaxError)(nil)).Elem()
+	decs["ObjectIdentifier"] = reflect.TypeFor[asn1.ObjectIdentifier]()
+	decs["RawContent"] = reflect.TypeFor[asn1.RawContent]()
+	decs["RawValue"] = reflect.TypeFor[asn1.RawValue]()
+	decs["StructuralError"] = reflect.TypeFor[asn1.StructuralError]()
+	decs["SyntaxError"] = reflect.TypeFor[asn1.SyntaxError]()
 	decs["TagBMPString"] = native.UntypedNumericConst("30")
 	decs["TagBitString"] = native.UntypedNumericConst("3")
 	decs["TagBoolean"] = native.UntypedNumericConst("1")
@@ -993,8 +993,8 @@ func init() {
 	}
 	// "encoding/base32"
 	decs = make(native.Declarations, 9)
-	decs["CorruptInputError"] = reflect.TypeOf((*base32.CorruptInputError)(nil)).Elem()
-	decs["Encoding"] = reflect.TypeOf((*base32.Encoding)(nil)).Elem()
+	decs["CorruptInputError"] = reflect.TypeFor[base32.CorruptInputError]()
+	decs["Encoding"] = reflect.TypeFor[base32.Encoding]()
 	decs["HexEncoding"] = &base32.HexEncoding
 	decs["NewDecoder"] = base32.NewDecoder
 	decs["NewEncoder"] = base32.NewEncoder
@@ -1008,8 +1008,8 @@ func init() {
 	}
 	// "encoding/base64"
 	decs = make(native.Declarations, 11)
-	decs["CorruptInputError"] = reflect.TypeOf((*base64.CorruptInputError)(nil)).Elem()
-	decs["Encoding"] = reflect.TypeOf((*base64.Encoding)(nil)).Elem()
+	decs["CorruptInputError"] = reflect.TypeFor[base64.CorruptInputError]()
+	decs["Encoding"] = reflect.TypeFor[base64.Encoding]()
 	decs["NewDecoder"] = base64.NewDecoder
 	decs["NewEncoder"] = base64.NewEncoder
 	decs["NewEncoding"] = base64.NewEncoding
@@ -1025,11 +1025,11 @@ func init() {
 	}
 	// "encoding/binary"
 	decs = make(native.Declarations, 19)
-	decs["AppendByteOrder"] = reflect.TypeOf((*binary.AppendByteOrder)(nil)).Elem()
+	decs["AppendByteOrder"] = reflect.TypeFor[binary.AppendByteOrder]()
 	decs["AppendUvarint"] = binary.AppendUvarint
 	decs["AppendVarint"] = binary.AppendVarint
 	decs["BigEndian"] = &binary.BigEndian
-	decs["ByteOrder"] = reflect.TypeOf((*binary.ByteOrder)(nil)).Elem()
+	decs["ByteOrder"] = reflect.TypeFor[binary.ByteOrder]()
 	decs["LittleEndian"] = &binary.LittleEndian
 	decs["MaxVarintLen16"] = native.UntypedNumericConst("3")
 	decs["MaxVarintLen32"] = native.UntypedNumericConst("5")
@@ -1056,20 +1056,20 @@ func init() {
 	decs["ErrTrailingComma"] = &csv.ErrTrailingComma
 	decs["NewReader"] = csv.NewReader
 	decs["NewWriter"] = csv.NewWriter
-	decs["ParseError"] = reflect.TypeOf((*csv.ParseError)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*csv.Reader)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*csv.Writer)(nil)).Elem()
+	decs["ParseError"] = reflect.TypeFor[csv.ParseError]()
+	decs["Reader"] = reflect.TypeFor[csv.Reader]()
+	decs["Writer"] = reflect.TypeFor[csv.Writer]()
 	packages["encoding/csv"] = native.Package{
 		Name:         "csv",
 		Declarations: decs,
 	}
 	// "encoding/gob"
 	decs = make(native.Declarations, 9)
-	decs["CommonType"] = reflect.TypeOf((*gob.CommonType)(nil)).Elem()
-	decs["Decoder"] = reflect.TypeOf((*gob.Decoder)(nil)).Elem()
-	decs["Encoder"] = reflect.TypeOf((*gob.Encoder)(nil)).Elem()
-	decs["GobDecoder"] = reflect.TypeOf((*gob.GobDecoder)(nil)).Elem()
-	decs["GobEncoder"] = reflect.TypeOf((*gob.GobEncoder)(nil)).Elem()
+	decs["CommonType"] = reflect.TypeFor[gob.CommonType]()
+	decs["Decoder"] = reflect.TypeFor[gob.Decoder]()
+	decs["Encoder"] = reflect.TypeFor[gob.Encoder]()
+	decs["GobDecoder"] = reflect.TypeFor[gob.GobDecoder]()
+	decs["GobEncoder"] = reflect.TypeFor[gob.GobEncoder]()
 	decs["NewDecoder"] = gob.NewDecoder
 	decs["NewEncoder"] = gob.NewEncoder
 	decs["Register"] = gob.Register
@@ -1089,7 +1089,7 @@ func init() {
 	decs["EncodeToString"] = hex.EncodeToString
 	decs["EncodedLen"] = hex.EncodedLen
 	decs["ErrLength"] = &hex.ErrLength
-	decs["InvalidByteError"] = reflect.TypeOf((*hex.InvalidByteError)(nil)).Elem()
+	decs["InvalidByteError"] = reflect.TypeFor[hex.InvalidByteError]()
 	decs["NewDecoder"] = hex.NewDecoder
 	decs["NewEncoder"] = hex.NewEncoder
 	packages["encoding/hex"] = native.Package{
@@ -1099,29 +1099,29 @@ func init() {
 	// "encoding/json"
 	decs = make(native.Declarations, 25)
 	decs["Compact"] = json.Compact
-	decs["Decoder"] = reflect.TypeOf((*json.Decoder)(nil)).Elem()
-	decs["Delim"] = reflect.TypeOf((*json.Delim)(nil)).Elem()
-	decs["Encoder"] = reflect.TypeOf((*json.Encoder)(nil)).Elem()
+	decs["Decoder"] = reflect.TypeFor[json.Decoder]()
+	decs["Delim"] = reflect.TypeFor[json.Delim]()
+	decs["Encoder"] = reflect.TypeFor[json.Encoder]()
 	decs["HTMLEscape"] = json.HTMLEscape
 	decs["Indent"] = json.Indent
-	decs["InvalidUTF8Error"] = reflect.TypeOf((*json.InvalidUTF8Error)(nil)).Elem()
-	decs["InvalidUnmarshalError"] = reflect.TypeOf((*json.InvalidUnmarshalError)(nil)).Elem()
+	decs["InvalidUTF8Error"] = reflect.TypeFor[json.InvalidUTF8Error]()
+	decs["InvalidUnmarshalError"] = reflect.TypeFor[json.InvalidUnmarshalError]()
 	decs["Marshal"] = json.Marshal
 	decs["MarshalIndent"] = json.MarshalIndent
-	decs["Marshaler"] = reflect.TypeOf((*json.Marshaler)(nil)).Elem()
-	decs["MarshalerError"] = reflect.TypeOf((*json.MarshalerError)(nil)).Elem()
+	decs["Marshaler"] = reflect.TypeFor[json.Marshaler]()
+	decs["MarshalerError"] = reflect.TypeFor[json.MarshalerError]()
 	decs["NewDecoder"] = json.NewDecoder
 	decs["NewEncoder"] = json.NewEncoder
-	decs["Number"] = reflect.TypeOf((*json.Number)(nil)).Elem()
-	decs["RawMessage"] = reflect.TypeOf((*json.RawMessage)(nil)).Elem()
-	decs["SyntaxError"] = reflect.TypeOf((*json.SyntaxError)(nil)).Elem()
-	decs["Token"] = reflect.TypeOf((*json.Token)(nil)).Elem()
+	decs["Number"] = reflect.TypeFor[json.Number]()
+	decs["RawMessage"] = reflect.TypeFor[json.RawMessage]()
+	decs["SyntaxError"] = reflect.TypeFor[json.SyntaxError]()
+	decs["Token"] = reflect.TypeFor[json.Token]()
 	decs["Unmarshal"] = json.Unmarshal
-	decs["UnmarshalFieldError"] = reflect.TypeOf((*json.UnmarshalFieldError)(nil)).Elem()
-	decs["UnmarshalTypeError"] = reflect.TypeOf((*json.UnmarshalTypeError)(nil)).Elem()
-	decs["Unmarshaler"] = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
-	decs["UnsupportedTypeError"] = reflect.TypeOf((*json.UnsupportedTypeError)(nil)).Elem()
-	decs["UnsupportedValueError"] = reflect.TypeOf((*json.UnsupportedValueError)(nil)).Elem()
+	decs["UnmarshalFieldError"] = reflect.TypeFor[json.UnmarshalFieldError]()
+	decs["UnmarshalTypeError"] = reflect.TypeFor[json.UnmarshalTypeError]()
+	decs["Unmarshaler"] = reflect.TypeFor[json.Unmarshaler]()
+	decs["UnsupportedTypeError"] = reflect.TypeFor[json.UnsupportedTypeError]()
+	decs["UnsupportedValueError"] = reflect.TypeFor[json.UnsupportedValueError]()
 	decs["Valid"] = json.Valid
 	packages["encoding/json"] = native.Package{
 		Name:         "json",
@@ -1129,7 +1129,7 @@ func init() {
 	}
 	// "encoding/pem"
 	decs = make(native.Declarations, 4)
-	decs["Block"] = reflect.TypeOf((*pem.Block)(nil)).Elem()
+	decs["Block"] = reflect.TypeFor[pem.Block]()
 	decs["Decode"] = pem.Decode
 	decs["Encode"] = pem.Encode
 	decs["EncodeToMemory"] = pem.EncodeToMemory
@@ -1139,14 +1139,14 @@ func init() {
 	}
 	// "encoding/xml"
 	decs = make(native.Declarations, 32)
-	decs["Attr"] = reflect.TypeOf((*xml.Attr)(nil)).Elem()
-	decs["CharData"] = reflect.TypeOf((*xml.CharData)(nil)).Elem()
-	decs["Comment"] = reflect.TypeOf((*xml.Comment)(nil)).Elem()
+	decs["Attr"] = reflect.TypeFor[xml.Attr]()
+	decs["CharData"] = reflect.TypeFor[xml.CharData]()
+	decs["Comment"] = reflect.TypeFor[xml.Comment]()
 	decs["CopyToken"] = xml.CopyToken
-	decs["Decoder"] = reflect.TypeOf((*xml.Decoder)(nil)).Elem()
-	decs["Directive"] = reflect.TypeOf((*xml.Directive)(nil)).Elem()
-	decs["Encoder"] = reflect.TypeOf((*xml.Encoder)(nil)).Elem()
-	decs["EndElement"] = reflect.TypeOf((*xml.EndElement)(nil)).Elem()
+	decs["Decoder"] = reflect.TypeFor[xml.Decoder]()
+	decs["Directive"] = reflect.TypeFor[xml.Directive]()
+	decs["Encoder"] = reflect.TypeFor[xml.Encoder]()
+	decs["EndElement"] = reflect.TypeFor[xml.EndElement]()
 	decs["Escape"] = xml.Escape
 	decs["EscapeText"] = xml.EscapeText
 	decs["HTMLAutoClose"] = &xml.HTMLAutoClose
@@ -1154,23 +1154,23 @@ func init() {
 	decs["Header"] = native.UntypedStringConst("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
 	decs["Marshal"] = xml.Marshal
 	decs["MarshalIndent"] = xml.MarshalIndent
-	decs["Marshaler"] = reflect.TypeOf((*xml.Marshaler)(nil)).Elem()
-	decs["MarshalerAttr"] = reflect.TypeOf((*xml.MarshalerAttr)(nil)).Elem()
-	decs["Name"] = reflect.TypeOf((*xml.Name)(nil)).Elem()
+	decs["Marshaler"] = reflect.TypeFor[xml.Marshaler]()
+	decs["MarshalerAttr"] = reflect.TypeFor[xml.MarshalerAttr]()
+	decs["Name"] = reflect.TypeFor[xml.Name]()
 	decs["NewDecoder"] = xml.NewDecoder
 	decs["NewEncoder"] = xml.NewEncoder
 	decs["NewTokenDecoder"] = xml.NewTokenDecoder
-	decs["ProcInst"] = reflect.TypeOf((*xml.ProcInst)(nil)).Elem()
-	decs["StartElement"] = reflect.TypeOf((*xml.StartElement)(nil)).Elem()
-	decs["SyntaxError"] = reflect.TypeOf((*xml.SyntaxError)(nil)).Elem()
-	decs["TagPathError"] = reflect.TypeOf((*xml.TagPathError)(nil)).Elem()
-	decs["Token"] = reflect.TypeOf((*xml.Token)(nil)).Elem()
-	decs["TokenReader"] = reflect.TypeOf((*xml.TokenReader)(nil)).Elem()
+	decs["ProcInst"] = reflect.TypeFor[xml.ProcInst]()
+	decs["StartElement"] = reflect.TypeFor[xml.StartElement]()
+	decs["SyntaxError"] = reflect.TypeFor[xml.SyntaxError]()
+	decs["TagPathError"] = reflect.TypeFor[xml.TagPathError]()
+	decs["Token"] = reflect.TypeFor[xml.Token]()
+	decs["TokenReader"] = reflect.TypeFor[xml.TokenReader]()
 	decs["Unmarshal"] = xml.Unmarshal
-	decs["UnmarshalError"] = reflect.TypeOf((*xml.UnmarshalError)(nil)).Elem()
-	decs["Unmarshaler"] = reflect.TypeOf((*xml.Unmarshaler)(nil)).Elem()
-	decs["UnmarshalerAttr"] = reflect.TypeOf((*xml.UnmarshalerAttr)(nil)).Elem()
-	decs["UnsupportedTypeError"] = reflect.TypeOf((*xml.UnsupportedTypeError)(nil)).Elem()
+	decs["UnmarshalError"] = reflect.TypeFor[xml.UnmarshalError]()
+	decs["Unmarshaler"] = reflect.TypeFor[xml.Unmarshaler]()
+	decs["UnmarshalerAttr"] = reflect.TypeFor[xml.UnmarshalerAttr]()
+	decs["UnsupportedTypeError"] = reflect.TypeFor[xml.UnsupportedTypeError]()
 	packages["encoding/xml"] = native.Package{
 		Name:         "xml",
 		Declarations: decs,
@@ -1190,20 +1190,20 @@ func init() {
 	// "expvar"
 	decs = make(native.Declarations, 15)
 	decs["Do"] = expvar.Do
-	decs["Float"] = reflect.TypeOf((*expvar.Float)(nil)).Elem()
-	decs["Func"] = reflect.TypeOf((*expvar.Func)(nil)).Elem()
+	decs["Float"] = reflect.TypeFor[expvar.Float]()
+	decs["Func"] = reflect.TypeFor[expvar.Func]()
 	decs["Get"] = expvar.Get
 	decs["Handler"] = expvar.Handler
-	decs["Int"] = reflect.TypeOf((*expvar.Int)(nil)).Elem()
-	decs["KeyValue"] = reflect.TypeOf((*expvar.KeyValue)(nil)).Elem()
-	decs["Map"] = reflect.TypeOf((*expvar.Map)(nil)).Elem()
+	decs["Int"] = reflect.TypeFor[expvar.Int]()
+	decs["KeyValue"] = reflect.TypeFor[expvar.KeyValue]()
+	decs["Map"] = reflect.TypeFor[expvar.Map]()
 	decs["NewFloat"] = expvar.NewFloat
 	decs["NewInt"] = expvar.NewInt
 	decs["NewMap"] = expvar.NewMap
 	decs["NewString"] = expvar.NewString
 	decs["Publish"] = expvar.Publish
-	decs["String"] = reflect.TypeOf((*expvar.String)(nil)).Elem()
-	decs["Var"] = reflect.TypeOf((*expvar.Var)(nil)).Elem()
+	decs["String"] = reflect.TypeFor[expvar.String]()
+	decs["Var"] = reflect.TypeFor[expvar.Var]()
 	packages["expvar"] = native.Package{
 		Name:         "expvar",
 		Declarations: decs,
@@ -1220,14 +1220,14 @@ func init() {
 	decs["Duration"] = flag.Duration
 	decs["DurationVar"] = flag.DurationVar
 	decs["ErrHelp"] = &flag.ErrHelp
-	decs["ErrorHandling"] = reflect.TypeOf((*flag.ErrorHandling)(nil)).Elem()
+	decs["ErrorHandling"] = reflect.TypeFor[flag.ErrorHandling]()
 	decs["ExitOnError"] = flag.ExitOnError
-	decs["Flag"] = reflect.TypeOf((*flag.Flag)(nil)).Elem()
-	decs["FlagSet"] = reflect.TypeOf((*flag.FlagSet)(nil)).Elem()
+	decs["Flag"] = reflect.TypeFor[flag.Flag]()
+	decs["FlagSet"] = reflect.TypeFor[flag.FlagSet]()
 	decs["Float64"] = flag.Float64
 	decs["Float64Var"] = flag.Float64Var
 	decs["Func"] = flag.Func
-	decs["Getter"] = reflect.TypeOf((*flag.Getter)(nil)).Elem()
+	decs["Getter"] = reflect.TypeFor[flag.Getter]()
 	decs["Int"] = flag.Int
 	decs["Int64"] = flag.Int64
 	decs["Int64Var"] = flag.Int64Var
@@ -1250,7 +1250,7 @@ func init() {
 	decs["UintVar"] = flag.UintVar
 	decs["UnquoteUsage"] = flag.UnquoteUsage
 	decs["Usage"] = &flag.Usage
-	decs["Value"] = reflect.TypeOf((*flag.Value)(nil)).Elem()
+	decs["Value"] = reflect.TypeFor[flag.Value]()
 	decs["Var"] = flag.Var
 	decs["Visit"] = flag.Visit
 	decs["VisitAll"] = flag.VisitAll
@@ -1265,30 +1265,30 @@ func init() {
 	decs["Appendln"] = fmt.Appendln
 	decs["Errorf"] = fmt.Errorf
 	decs["FormatString"] = fmt.FormatString
-	decs["Formatter"] = reflect.TypeOf((*fmt.Formatter)(nil)).Elem()
+	decs["Formatter"] = reflect.TypeFor[fmt.Formatter]()
 	decs["Fprint"] = fmt.Fprint
 	decs["Fprintf"] = fmt.Fprintf
 	decs["Fprintln"] = fmt.Fprintln
 	decs["Fscan"] = fmt.Fscan
 	decs["Fscanf"] = fmt.Fscanf
 	decs["Fscanln"] = fmt.Fscanln
-	decs["GoStringer"] = reflect.TypeOf((*fmt.GoStringer)(nil)).Elem()
+	decs["GoStringer"] = reflect.TypeFor[fmt.GoStringer]()
 	decs["Print"] = fmt.Print
 	decs["Printf"] = fmt.Printf
 	decs["Println"] = fmt.Println
 	decs["Scan"] = fmt.Scan
-	decs["ScanState"] = reflect.TypeOf((*fmt.ScanState)(nil)).Elem()
+	decs["ScanState"] = reflect.TypeFor[fmt.ScanState]()
 	decs["Scanf"] = fmt.Scanf
 	decs["Scanln"] = fmt.Scanln
-	decs["Scanner"] = reflect.TypeOf((*fmt.Scanner)(nil)).Elem()
+	decs["Scanner"] = reflect.TypeFor[fmt.Scanner]()
 	decs["Sprint"] = fmt.Sprint
 	decs["Sprintf"] = fmt.Sprintf
 	decs["Sprintln"] = fmt.Sprintln
 	decs["Sscan"] = fmt.Sscan
 	decs["Sscanf"] = fmt.Sscanf
 	decs["Sscanln"] = fmt.Sscanln
-	decs["State"] = reflect.TypeOf((*fmt.State)(nil)).Elem()
-	decs["Stringer"] = reflect.TypeOf((*fmt.Stringer)(nil)).Elem()
+	decs["State"] = reflect.TypeFor[fmt.State]()
+	decs["Stringer"] = reflect.TypeFor[fmt.Stringer]()
 	packages["fmt"] = native.Package{
 		Name:         "fmt",
 		Declarations: decs,
@@ -1303,8 +1303,8 @@ func init() {
 	decs["Daemon"] = rfc5424.Daemon
 	decs["Debug"] = rfc5424.Debug
 	decs["Emergency"] = rfc5424.Emergency
-	decs["ErrBadFormat"] = reflect.TypeOf((*rfc5424.ErrBadFormat)(nil)).Elem()
-	decs["ErrInvalidValue"] = reflect.TypeOf((*rfc5424.ErrInvalidValue)(nil)).Elem()
+	decs["ErrBadFormat"] = reflect.TypeFor[rfc5424.ErrBadFormat]()
+	decs["ErrInvalidValue"] = reflect.TypeFor[rfc5424.ErrInvalidValue]()
 	decs["Error"] = rfc5424.Error
 	decs["Ftp"] = rfc5424.Ftp
 	decs["Info"] = rfc5424.Info
@@ -1319,12 +1319,12 @@ func init() {
 	decs["Local7"] = rfc5424.Local7
 	decs["Lpr"] = rfc5424.Lpr
 	decs["Mail"] = rfc5424.Mail
-	decs["Message"] = reflect.TypeOf((*rfc5424.Message)(nil)).Elem()
+	decs["Message"] = reflect.TypeFor[rfc5424.Message]()
 	decs["News"] = rfc5424.News
 	decs["Notice"] = rfc5424.Notice
-	decs["Priority"] = reflect.TypeOf((*rfc5424.Priority)(nil)).Elem()
-	decs["SDParam"] = reflect.TypeOf((*rfc5424.SDParam)(nil)).Elem()
-	decs["StructuredData"] = reflect.TypeOf((*rfc5424.StructuredData)(nil)).Elem()
+	decs["Priority"] = reflect.TypeFor[rfc5424.Priority]()
+	decs["SDParam"] = reflect.TypeFor[rfc5424.SDParam]()
+	decs["StructuredData"] = reflect.TypeFor[rfc5424.StructuredData]()
 	decs["Syslog"] = rfc5424.Syslog
 	decs["User"] = rfc5424.User
 	decs["Uucp"] = rfc5424.Uucp
@@ -1336,7 +1336,7 @@ func init() {
 	// "github.com/gobwas/glob"
 	decs = make(native.Declarations, 4)
 	decs["Compile"] = glob.Compile
-	decs["Glob"] = reflect.TypeOf((*glob.Glob)(nil)).Elem()
+	decs["Glob"] = reflect.TypeFor[glob.Glob]()
 	decs["MustCompile"] = glob.MustCompile
 	decs["QuoteMeta"] = glob.QuoteMeta
 	packages["github.com/gobwas/glob"] = native.Package{
@@ -1347,7 +1347,7 @@ func init() {
 	decs = make(native.Declarations, 52)
 	decs["ClockSequence"] = uuid.ClockSequence
 	decs["DisableRandPool"] = uuid.DisableRandPool
-	decs["Domain"] = reflect.TypeOf((*uuid.Domain)(nil)).Elem()
+	decs["Domain"] = reflect.TypeFor[uuid.Domain]()
 	decs["EnableRandPool"] = uuid.EnableRandPool
 	decs["FromBytes"] = uuid.FromBytes
 	decs["Future"] = uuid.Future
@@ -1380,7 +1380,7 @@ func init() {
 	decs["Nil"] = &uuid.Nil
 	decs["NodeID"] = uuid.NodeID
 	decs["NodeInterface"] = uuid.NodeInterface
-	decs["NullUUID"] = reflect.TypeOf((*uuid.NullUUID)(nil)).Elem()
+	decs["NullUUID"] = reflect.TypeFor[uuid.NullUUID]()
 	decs["Org"] = uuid.Org
 	decs["Parse"] = uuid.Parse
 	decs["ParseBytes"] = uuid.ParseBytes
@@ -1391,18 +1391,18 @@ func init() {
 	decs["SetNodeID"] = uuid.SetNodeID
 	decs["SetNodeInterface"] = uuid.SetNodeInterface
 	decs["SetRand"] = uuid.SetRand
-	decs["Time"] = reflect.TypeOf((*uuid.Time)(nil)).Elem()
-	decs["UUID"] = reflect.TypeOf((*uuid.UUID)(nil)).Elem()
-	decs["UUIDs"] = reflect.TypeOf((*uuid.UUIDs)(nil)).Elem()
+	decs["Time"] = reflect.TypeFor[uuid.Time]()
+	decs["UUID"] = reflect.TypeFor[uuid.UUID]()
+	decs["UUIDs"] = reflect.TypeFor[uuid.UUIDs]()
 	decs["Validate"] = uuid.Validate
-	decs["Variant"] = reflect.TypeOf((*uuid.Variant)(nil)).Elem()
-	decs["Version"] = reflect.TypeOf((*uuid.Version)(nil)).Elem()
+	decs["Variant"] = reflect.TypeFor[uuid.Variant]()
+	decs["Version"] = reflect.TypeFor[uuid.Version]()
 	packages["github.com/google/uuid"] = native.Package{
 		Name:         "uuid",
 		Declarations: decs,
 	}
-	// "github.com/gravwell/gravwell/v3/ingest"
-	decs = make(native.Declarations, 177)
+	// "github.com/gravwell/gravwell/v4/ingest"
+	decs = make(native.Declarations, 175)
 	decs["ABSOLUTE_MAX_UNCONFIRMED_WRITES"] = ingest.ABSOLUTE_MAX_UNCONFIRMED_WRITES
 	decs["ACK_SIZE"] = ingest.ACK_SIZE
 	decs["ACK_WRITER_BUFFER_SIZE"] = ingest.ACK_WRITER_BUFFER_SIZE
@@ -1410,7 +1410,7 @@ func init() {
 	decs["API_VERSION_MAJOR"] = ingest.API_VERSION_MAJOR
 	decs["API_VERSION_MINOR"] = ingest.API_VERSION_MINOR
 	decs["API_VER_MAGIC"] = ingest.API_VER_MAGIC
-	decs["AuthHash"] = reflect.TypeOf((*ingest.AuthHash)(nil)).Elem()
+	decs["AuthHash"] = reflect.TypeFor[ingest.AuthHash]()
 	decs["BUFFERED_ACK_READER_SIZE"] = ingest.BUFFERED_ACK_READER_SIZE
 	decs["CHANNEL_BUFFER"] = ingest.CHANNEL_BUFFER
 	decs["CLOSING_SERVICE_ACK_TIMEOUT"] = ingest.CLOSING_SERVICE_ACK_TIMEOUT
@@ -1422,13 +1422,13 @@ func init() {
 	decs["CONFIRM_TAG_MAGIC"] = ingest.CONFIRM_TAG_MAGIC
 	decs["CacheModeAlways"] = native.UntypedStringConst("always")
 	decs["CacheModeFail"] = native.UntypedStringConst("fail")
-	decs["Challenge"] = reflect.TypeOf((*ingest.Challenge)(nil)).Elem()
-	decs["ChallengeResponse"] = reflect.TypeOf((*ingest.ChallengeResponse)(nil)).Elem()
+	decs["Challenge"] = reflect.TypeFor[ingest.Challenge]()
+	decs["ChallengeResponse"] = reflect.TypeFor[ingest.ChallengeResponse]()
 	decs["CheckTag"] = ingest.CheckTag
-	decs["CircularIndex"] = reflect.TypeOf((*ingest.CircularIndex)(nil)).Elem()
+	decs["CircularIndex"] = reflect.TypeFor[ingest.CircularIndex]()
 	decs["CompressNone"] = ingest.CompressNone
 	decs["CompressSnappy"] = ingest.CompressSnappy
-	decs["CompressionType"] = reflect.TypeOf((*ingest.CompressionType)(nil)).Elem()
+	decs["CompressionType"] = reflect.TypeFor[ingest.CompressionType]()
 	decs["ConnectionType"] = ingest.ConnectionType
 	decs["DEFAULT_CLEAR_PORT"] = ingest.DEFAULT_CLEAR_PORT
 	decs["DEFAULT_PIPE_PATH"] = ingest.DEFAULT_PIPE_PATH
@@ -1436,10 +1436,10 @@ func init() {
 	decs["DIAL_TIMEOUT"] = ingest.DIAL_TIMEOUT
 	decs["ERROR_TAG_MAGIC"] = ingest.ERROR_TAG_MAGIC
 	decs["EnableKeepAlive"] = ingest.EnableKeepAlive
-	decs["EntryBuffer"] = reflect.TypeOf((*ingest.EntryBuffer)(nil)).Elem()
-	decs["EntryReader"] = reflect.TypeOf((*ingest.EntryReader)(nil)).Elem()
-	decs["EntryReaderWriterConfig"] = reflect.TypeOf((*ingest.EntryReaderWriterConfig)(nil)).Elem()
-	decs["EntryWriter"] = reflect.TypeOf((*ingest.EntryWriter)(nil)).Elem()
+	decs["EntryBuffer"] = reflect.TypeFor[ingest.EntryBuffer]()
+	decs["EntryReader"] = reflect.TypeFor[ingest.EntryReader]()
+	decs["EntryReaderWriterConfig"] = reflect.TypeFor[ingest.EntryReaderWriterConfig]()
+	decs["EntryWriter"] = reflect.TypeFor[ingest.EntryWriter]()
 	decs["ErrAllConnsDown"] = &ingest.ErrAllConnsDown
 	decs["ErrBadTagCharacter"] = &ingest.ErrBadTagCharacter
 	decs["ErrConnectionTimeout"] = &ingest.ErrConnectionTimeout
@@ -1499,17 +1499,17 @@ func init() {
 	decs["INGESTER_STATE_MAGIC"] = ingest.INGESTER_STATE_MAGIC
 	decs["INGEST_OK_MAGIC"] = ingest.INGEST_OK_MAGIC
 	decs["INVALID_MAGIC"] = ingest.INVALID_MAGIC
-	decs["IngestCommand"] = reflect.TypeOf((*ingest.IngestCommand)(nil)).Elem()
-	decs["IngestConnection"] = reflect.TypeOf((*ingest.IngestConnection)(nil)).Elem()
-	decs["IngestLogger"] = reflect.TypeOf((*ingest.IngestLogger)(nil)).Elem()
-	decs["IngestMuxer"] = reflect.TypeOf((*ingest.IngestMuxer)(nil)).Elem()
-	decs["IngesterState"] = reflect.TypeOf((*ingest.IngesterState)(nil)).Elem()
-	decs["IngesterStateCallback"] = reflect.TypeOf((*ingest.IngesterStateCallback)(nil)).Elem()
+	decs["IngestCommand"] = reflect.TypeFor[ingest.IngestCommand]()
+	decs["IngestConnection"] = reflect.TypeFor[ingest.IngestConnection]()
+	decs["IngestLogger"] = reflect.TypeFor[ingestLog.IngestLogger]()
+	decs["IngestMuxer"] = reflect.TypeFor[ingest.IngestMuxer]()
+	decs["IngesterState"] = reflect.TypeFor[ingest.IngesterState]()
+	decs["IngesterStateCallback"] = reflect.TypeFor[ingest.IngesterStateCallback]()
 	decs["InitializeConnection"] = ingest.InitializeConnection
 	decs["K"] = native.UntypedNumericConst("1000.0")
 	decs["KB"] = ingest.KB
-	decs["LockedSource"] = reflect.TypeOf((*ingest.LockedSource)(nil)).Elem()
-	decs["Logger"] = reflect.TypeOf((*ingest.Logger)(nil)).Elem()
+	decs["LockedSource"] = reflect.TypeFor[ingest.LockedSource]()
+	decs["Logger"] = reflect.TypeFor[ingestLog.Logger]()
 	decs["M"] = native.UntypedNumericConst("1000000.0")
 	decs["MAX_ENTRY_SIZE"] = ingest.MAX_ENTRY_SIZE
 	decs["MAX_TAG_LENGTH"] = ingest.MAX_TAG_LENGTH
@@ -1525,7 +1525,7 @@ func init() {
 	decs["MIN_REMOTE_KEYSIZE"] = ingest.MIN_REMOTE_KEYSIZE
 	decs["MaxTenantNameLength"] = ingest.MaxTenantNameLength
 	decs["MinTenantAuthVersion"] = ingest.MinTenantAuthVersion
-	decs["MuxerConfig"] = reflect.TypeOf((*ingest.MuxerConfig)(nil)).Elem()
+	decs["MuxerConfig"] = reflect.TypeFor[ingest.MuxerConfig]()
 	decs["NEW_ENTRY_MAGIC"] = ingest.NEW_ENTRY_MAGIC
 	decs["NewChallenge"] = ingest.NewChallenge
 	decs["NewCircularIndex"] = ingest.NewCircularIndex
@@ -1546,7 +1546,7 @@ func init() {
 	decs["NewUniformIngestMuxer"] = ingest.NewUniformIngestMuxer
 	decs["NewUniformIngestMuxerExt"] = ingest.NewUniformIngestMuxerExt
 	decs["NewUniformMuxer"] = ingest.NewUniformMuxer
-	decs["NoLogger"] = ingest.NoLogger
+	decs["NoLogger"] = ingestLog.NoLogger
 	decs["NsPerSec"] = ingest.NsPerSec
 	decs["P"] = native.UntypedNumericConst("1000000000000.0")
 	decs["PB"] = ingest.PB
@@ -1561,36 +1561,37 @@ func init() {
 	decs["STATE_HOT"] = ingest.STATE_HOT
 	decs["STATE_NOT_AUTHENTICATED"] = ingest.STATE_NOT_AUTHENTICATED
 	decs["SecureSeed"] = ingest.SecureSeed
-	decs["StateResponse"] = reflect.TypeOf((*ingest.StateResponse)(nil)).Elem()
-	decs["StreamConfiguration"] = reflect.TypeOf((*ingest.StreamConfiguration)(nil)).Elem()
+	decs["StateResponse"] = reflect.TypeFor[ingest.StateResponse]()
+	decs["StreamConfiguration"] = reflect.TypeFor[ingest.StreamConfiguration]()
 	decs["SystemTenant"] = ingest.SystemTenant
 	decs["T"] = native.UntypedNumericConst("1000000000000.0")
 	decs["TAG_MAGIC"] = ingest.TAG_MAGIC
 	decs["TB"] = ingest.TB
 	decs["THROTTLE_MAGIC"] = ingest.THROTTLE_MAGIC
-	decs["TLSCerts"] = reflect.TypeOf((*ingest.TLSCerts)(nil)).Elem()
-	decs["TagManager"] = reflect.TypeOf((*ingest.TagManager)(nil)).Elem()
-	decs["TagRequest"] = reflect.TypeOf((*ingest.TagRequest)(nil)).Elem()
-	decs["TagResponse"] = reflect.TypeOf((*ingest.TagResponse)(nil)).Elem()
-	decs["Target"] = reflect.TypeOf((*ingest.Target)(nil)).Elem()
-	decs["TargetError"] = reflect.TypeOf((*ingest.TargetError)(nil)).Elem()
-	decs["UniformMuxerConfig"] = reflect.TypeOf((*ingest.UniformMuxerConfig)(nil)).Elem()
+	decs["TLSCerts"] = reflect.TypeFor[ingest.TLSCerts]()
+	decs["TagManager"] = reflect.TypeFor[ingest.TagManager]()
+	decs["TagRequest"] = reflect.TypeFor[ingest.TagRequest]()
+	decs["TagResponse"] = reflect.TypeFor[ingest.TagResponse]()
+	decs["Target"] = reflect.TypeFor[ingest.Target]()
+	decs["TargetError"] = reflect.TypeFor[ingest.TargetError]()
+	decs["UniformMuxerConfig"] = reflect.TypeFor[ingest.UniformMuxerConfig]()
 	decs["VERSION"] = ingest.VERSION
 	decs["VerifyResponse"] = ingest.VerifyResponse
 	decs["WRITE_BUFFER_SIZE"] = ingest.WRITE_BUFFER_SIZE
 	decs["Y"] = native.UntypedNumericConst("1000000000000000.0")
 	decs["YB"] = ingest.YB
-	packages["github.com/gravwell/gravwell/v3/ingest"] = native.Package{
+	packages["github.com/gravwell/gravwell/v4/ingest"] = native.Package{
 		Name:         "ingest",
 		Declarations: decs,
 	}
-	// "github.com/gravwell/gravwell/v3/ingest/config"
+
+	// "github.com/gravwell/gravwell/v4/ingest/config"
 	decs = make(native.Declarations, 41)
 	decs["AppendDefaultPort"] = config.AppendDefaultPort
 	decs["CACHE_DEPTH_DEFAULT"] = native.UntypedNumericConst("128")
 	decs["CACHE_MODE_DEFAULT"] = native.UntypedStringConst("always")
 	decs["CACHE_SIZE_DEFAULT"] = native.UntypedNumericConst("1000")
-	decs["CustomTimeFormat"] = reflect.TypeOf((*config.CustomTimeFormat)(nil)).Elem()
+	decs["CustomTimeFormat"] = reflect.TypeFor[config.CustomTimeFormat]()
 	decs["DefaultCleartextPort"] = config.DefaultCleartextPort
 	decs["DefaultTLSPort"] = config.DefaultTLSPort
 	decs["ErrBadMap"] = &config.ErrBadMap
@@ -1614,8 +1615,8 @@ func init() {
 	decs["ErrMissingIngestSecret"] = &config.ErrMissingIngestSecret
 	decs["ErrNoConnections"] = &config.ErrNoConnections
 	decs["ErrNotFound"] = &config.ErrNotFound
-	decs["IngestConfig"] = reflect.TypeOf((*config.IngestConfig)(nil)).Elem()
-	decs["IngestStreamConfig"] = reflect.TypeOf((*config.IngestStreamConfig)(nil)).Elem()
+	decs["IngestConfig"] = reflect.TypeFor[config.IngestConfig]()
+	decs["IngestStreamConfig"] = reflect.TypeFor[config.IngestStreamConfig]()
 	decs["LoadConfigBytes"] = config.LoadConfigBytes
 	decs["LoadConfigFile"] = config.LoadConfigFile
 	decs["LoadConfigOverlays"] = config.LoadConfigOverlays
@@ -1625,14 +1626,14 @@ func init() {
 	decs["ParseRate"] = config.ParseRate
 	decs["ParseSource"] = config.ParseSource
 	decs["ParseUint64"] = config.ParseUint64
-	decs["TimeFormat"] = reflect.TypeOf((*config.TimeFormat)(nil)).Elem()
-	decs["VariableConfig"] = reflect.TypeOf((*config.VariableConfig)(nil)).Elem()
-	packages["github.com/gravwell/gravwell/v3/ingest/config"] = native.Package{
+	decs["TimeFormat"] = reflect.TypeFor[config.TimeFormat]()
+	decs["VariableConfig"] = reflect.TypeFor[config.VariableConfig]()
+	packages["github.com/gravwell/gravwell/v4/ingest/config"] = native.Package{
 		Name:         "config",
 		Declarations: decs,
 	}
-	// "github.com/gravwell/gravwell/v3/ingest/entry"
-	decs = make(native.Declarations, 90)
+	// "github.com/gravwell/gravwell/v4/ingest/entry"
+	decs = make(native.Declarations, 89)
 	decs["BoolEnumData"] = entry.BoolEnumData
 	decs["ByteEnumData"] = entry.ByteEnumData
 	decs["DecodeEVBlockHeader"] = entry.DecodeEVBlockHeader
@@ -1643,18 +1644,18 @@ func init() {
 	decs["DefaultTagName"] = &entry.DefaultTagName
 	decs["DurationEnumData"] = entry.DurationEnumData
 	decs["ENTRY_HEADER_SIZE"] = entry.ENTRY_HEADER_SIZE
-	decs["EVBlock"] = reflect.TypeOf((*entry.EVBlock)(nil)).Elem()
-	decs["EVBlockHeader"] = reflect.TypeOf((*entry.EVBlockHeader)(nil)).Elem()
+	decs["EVBlock"] = reflect.TypeFor[entry.EVBlock]()
+	decs["EVBlockHeader"] = reflect.TypeFor[entry.EVBlockHeader]()
 	decs["EVBlockHeaderLen"] = native.UntypedNumericConst("8")
-	decs["Entry"] = reflect.TypeOf((*entry.Entry)(nil)).Elem()
-	decs["EntryBlock"] = reflect.TypeOf((*entry.EntryBlock)(nil)).Elem()
+	decs["Entry"] = reflect.TypeFor[entry.Entry]()
+	decs["EntryBlock"] = reflect.TypeFor[entry.EntryBlock]()
 	decs["EntryBlockHeaderSize"] = native.UntypedNumericConst("16")
-	decs["EntryKey"] = reflect.TypeOf((*entry.EntryKey)(nil)).Elem()
+	decs["EntryKey"] = reflect.TypeFor[entry.EntryKey]()
 	decs["EntrySize"] = entry.EntrySize
-	decs["EntrySlice"] = reflect.TypeOf((*entry.EntrySlice)(nil)).Elem()
-	decs["EntryTag"] = reflect.TypeOf((*entry.EntryTag)(nil)).Elem()
-	decs["EnumeratedData"] = reflect.TypeOf((*entry.EnumeratedData)(nil)).Elem()
-	decs["EnumeratedValue"] = reflect.TypeOf((*entry.EnumeratedValue)(nil)).Elem()
+	decs["EntrySlice"] = reflect.TypeFor[entry.EntrySlice]()
+	decs["EntryTag"] = reflect.TypeFor[entry.EntryTag]()
+	decs["EnumeratedData"] = reflect.TypeFor[entry.EnumeratedData]()
+	decs["EnumeratedValue"] = reflect.TypeFor[entry.EnumeratedValue]()
 	decs["ErrBadKey"] = &entry.ErrBadKey
 	decs["ErrBlockTooLarge"] = &entry.ErrBlockTooLarge
 	decs["ErrCorruptedEnumeratedValue"] = &entry.ErrCorruptedEnumeratedValue
@@ -1717,25 +1718,25 @@ func init() {
 	decs["StringEnumDataTail"] = entry.StringEnumDataTail
 	decs["TSEnumData"] = entry.TSEnumData
 	decs["TS_SIZE"] = entry.TS_SIZE
-	decs["Timestamp"] = reflect.TypeOf((*entry.Timestamp)(nil)).Elem()
+	decs["Timestamp"] = reflect.TypeFor[entry.Timestamp]()
 	decs["Uint16EnumData"] = entry.Uint16EnumData
 	decs["Uint32EnumData"] = entry.Uint32EnumData
 	decs["Uint64EnumData"] = entry.Uint64EnumData
 	decs["UintEnumData"] = entry.UintEnumData
 	decs["UnixTime"] = entry.UnixTime
-	packages["github.com/gravwell/gravwell/v3/ingest/entry"] = native.Package{
+	packages["github.com/gravwell/gravwell/v4/ingest/entry"] = native.Package{
 		Name:         "entry",
 		Declarations: decs,
 	}
 	// "github.com/gravwell/ipfix"
 	decs = make(native.Declarations, 61)
 	decs["Boolean"] = ipfix.Boolean
-	decs["DataRecord"] = reflect.TypeOf((*ipfix.DataRecord)(nil)).Elem()
+	decs["DataRecord"] = reflect.TypeFor[ipfix.DataRecord]()
 	decs["DateTimeMicroseconds"] = ipfix.DateTimeMicroseconds
 	decs["DateTimeMilliseconds"] = ipfix.DateTimeMilliseconds
 	decs["DateTimeNanoseconds"] = ipfix.DateTimeNanoseconds
 	decs["DateTimeSeconds"] = ipfix.DateTimeSeconds
-	decs["DictionaryEntry"] = reflect.TypeOf((*ipfix.DictionaryEntry)(nil)).Elem()
+	decs["DictionaryEntry"] = reflect.TypeFor[ipfix.DictionaryEntry]()
 	decs["ErrFieldOverflow"] = &ipfix.ErrFieldOverflow
 	decs["ErrNilCallback"] = &ipfix.ErrNilCallback
 	decs["ErrProtocol"] = &ipfix.ErrProtocol
@@ -1743,28 +1744,28 @@ func init() {
 	decs["ErrTooManyTemplates"] = &ipfix.ErrTooManyTemplates
 	decs["ErrUnknownTemplate"] = &ipfix.ErrUnknownTemplate
 	decs["ErrVersion"] = &ipfix.ErrVersion
-	decs["FieldType"] = reflect.TypeOf((*ipfix.FieldType)(nil)).Elem()
+	decs["FieldType"] = reflect.TypeFor[ipfix.FieldType]()
 	decs["FieldTypes"] = &ipfix.FieldTypes
-	decs["Filter"] = reflect.TypeOf((*ipfix.Filter)(nil)).Elem()
+	decs["Filter"] = reflect.TypeFor[ipfix.Filter]()
 	decs["Float32"] = ipfix.Float32
 	decs["Float64"] = ipfix.Float64
-	decs["HeaderFilter"] = reflect.TypeOf((*ipfix.HeaderFilter)(nil)).Elem()
+	decs["HeaderFilter"] = reflect.TypeFor[ipfix.HeaderFilter]()
 	decs["IPfixIDTypeLookup"] = ipfix.IPfixIDTypeLookup
 	decs["Int16"] = ipfix.Int16
 	decs["Int32"] = ipfix.Int32
 	decs["Int64"] = ipfix.Int64
 	decs["Int8"] = ipfix.Int8
-	decs["InterpretedField"] = reflect.TypeOf((*ipfix.InterpretedField)(nil)).Elem()
-	decs["InterpretedTemplateFieldSpecifier"] = reflect.TypeOf((*ipfix.InterpretedTemplateFieldSpecifier)(nil)).Elem()
-	decs["Interpreter"] = reflect.TypeOf((*ipfix.Interpreter)(nil)).Elem()
+	decs["InterpretedField"] = reflect.TypeFor[ipfix.InterpretedField]()
+	decs["InterpretedTemplateFieldSpecifier"] = reflect.TypeFor[ipfix.InterpretedTemplateFieldSpecifier]()
+	decs["Interpreter"] = reflect.TypeFor[ipfix.Interpreter]()
 	decs["IpfixIDLookup"] = ipfix.IpfixIDLookup
 	decs["IpfixNameLookup"] = ipfix.IpfixNameLookup
 	decs["Ipv4Address"] = ipfix.Ipv4Address
 	decs["Ipv6Address"] = ipfix.Ipv6Address
 	decs["LookupAndIdentify"] = ipfix.LookupAndIdentify
 	decs["MacAddress"] = ipfix.MacAddress
-	decs["Message"] = reflect.TypeOf((*ipfix.Message)(nil)).Elem()
-	decs["MessageHeader"] = reflect.TypeOf((*ipfix.MessageHeader)(nil)).Elem()
+	decs["Message"] = reflect.TypeFor[ipfix.Message]()
+	decs["MessageHeader"] = reflect.TypeFor[ipfix.MessageHeader]()
 	decs["NetflowV9IDLookup"] = ipfix.NetflowV9IDLookup
 	decs["NetflowV9IDTypeLookup"] = ipfix.NetflowV9IDTypeLookup
 	decs["NetflowV9NameLookup"] = ipfix.NetflowV9NameLookup
@@ -1773,14 +1774,14 @@ func init() {
 	decs["NewSession"] = ipfix.NewSession
 	decs["NewWalker"] = ipfix.NewWalker
 	decs["OctetArray"] = ipfix.OctetArray
-	decs["Option"] = reflect.TypeOf((*ipfix.Option)(nil)).Elem()
+	decs["Option"] = reflect.TypeFor[ipfix.Option]()
 	decs["Read"] = ipfix.Read
-	decs["Record"] = reflect.TypeOf((*ipfix.Record)(nil)).Elem()
-	decs["RecordCallback"] = reflect.TypeOf((*ipfix.RecordCallback)(nil)).Elem()
-	decs["Session"] = reflect.TypeOf((*ipfix.Session)(nil)).Elem()
+	decs["Record"] = reflect.TypeFor[ipfix.Record]()
+	decs["RecordCallback"] = reflect.TypeFor[ipfix.RecordCallback]()
+	decs["Session"] = reflect.TypeFor[ipfix.Session]()
 	decs["String"] = ipfix.String
-	decs["TemplateFieldSpecifier"] = reflect.TypeOf((*ipfix.TemplateFieldSpecifier)(nil)).Elem()
-	decs["TemplateRecord"] = reflect.TypeOf((*ipfix.TemplateRecord)(nil)).Elem()
+	decs["TemplateFieldSpecifier"] = reflect.TypeFor[ipfix.TemplateFieldSpecifier]()
+	decs["TemplateRecord"] = reflect.TypeFor[ipfix.TemplateRecord]()
 	decs["Uint16"] = ipfix.Uint16
 	decs["Uint24"] = ipfix.Uint24
 	decs["Uint32"] = ipfix.Uint32
@@ -1788,7 +1789,7 @@ func init() {
 	decs["Uint8"] = ipfix.Uint8
 	decs["Unknown"] = ipfix.Unknown
 	decs["VarInt"] = ipfix.VarInt
-	decs["Walker"] = reflect.TypeOf((*ipfix.Walker)(nil)).Elem()
+	decs["Walker"] = reflect.TypeFor[ipfix.Walker]()
 	decs["WithIDAliasing"] = ipfix.WithIDAliasing
 	packages["github.com/gravwell/ipfix"] = native.Package{
 		Name:         "ipfix",
@@ -1845,7 +1846,7 @@ func init() {
 	decs["Unescape"] = jsonparser_2.Unescape
 	decs["Unknown"] = jsonparser_2.Unknown
 	decs["UnknownValueTypeError"] = &jsonparser_2.UnknownValueTypeError
-	decs["ValueType"] = reflect.TypeOf((*jsonparser_2.ValueType)(nil)).Elem()
+	decs["ValueType"] = reflect.TypeFor[jsonparser_2.ValueType]()
 	decs["WriteToBuffer"] = jsonparser_2.WriteToBuffer
 	packages["github.com/gravwell/jsonparser"] = native.Package{
 		Name:         "jsonparser",
@@ -1907,27 +1908,27 @@ func init() {
 	}
 	// "github.com/miekg/dns"
 	decs = make(native.Declarations, 468)
-	decs["A"] = reflect.TypeOf((*dns.A)(nil)).Elem()
-	decs["AAAA"] = reflect.TypeOf((*dns.AAAA)(nil)).Elem()
-	decs["AFSDB"] = reflect.TypeOf((*dns.AFSDB)(nil)).Elem()
-	decs["AMTRELAY"] = reflect.TypeOf((*dns.AMTRELAY)(nil)).Elem()
+	decs["A"] = reflect.TypeFor[dns.A]()
+	decs["AAAA"] = reflect.TypeFor[dns.AAAA]()
+	decs["AFSDB"] = reflect.TypeFor[dns.AFSDB]()
+	decs["AMTRELAY"] = reflect.TypeFor[dns.AMTRELAY]()
 	decs["AMTRELAYHost"] = dns.AMTRELAYHost
 	decs["AMTRELAYIPv4"] = dns.AMTRELAYIPv4
 	decs["AMTRELAYIPv6"] = dns.AMTRELAYIPv6
 	decs["AMTRELAYNone"] = dns.AMTRELAYNone
-	decs["ANY"] = reflect.TypeOf((*dns.ANY)(nil)).Elem()
-	decs["APL"] = reflect.TypeOf((*dns.APL)(nil)).Elem()
-	decs["APLPrefix"] = reflect.TypeOf((*dns.APLPrefix)(nil)).Elem()
-	decs["AVC"] = reflect.TypeOf((*dns.AVC)(nil)).Elem()
+	decs["ANY"] = reflect.TypeFor[dns.ANY]()
+	decs["APL"] = reflect.TypeFor[dns.APL]()
+	decs["APLPrefix"] = reflect.TypeFor[dns.APLPrefix]()
+	decs["AVC"] = reflect.TypeFor[dns.AVC]()
 	decs["ActivateAndServe"] = dns.ActivateAndServe
 	decs["AlgorithmToHash"] = &dns.AlgorithmToHash
 	decs["AlgorithmToString"] = &dns.AlgorithmToString
-	decs["CAA"] = reflect.TypeOf((*dns.CAA)(nil)).Elem()
-	decs["CDNSKEY"] = reflect.TypeOf((*dns.CDNSKEY)(nil)).Elem()
-	decs["CDS"] = reflect.TypeOf((*dns.CDS)(nil)).Elem()
-	decs["CERT"] = reflect.TypeOf((*dns.CERT)(nil)).Elem()
-	decs["CNAME"] = reflect.TypeOf((*dns.CNAME)(nil)).Elem()
-	decs["CSYNC"] = reflect.TypeOf((*dns.CSYNC)(nil)).Elem()
+	decs["CAA"] = reflect.TypeFor[dns.CAA]()
+	decs["CDNSKEY"] = reflect.TypeFor[dns.CDNSKEY]()
+	decs["CDS"] = reflect.TypeFor[dns.CDS]()
+	decs["CERT"] = reflect.TypeFor[dns.CERT]()
+	decs["CNAME"] = reflect.TypeFor[dns.CNAME]()
+	decs["CSYNC"] = reflect.TypeFor[dns.CSYNC]()
 	decs["CanonicalName"] = dns.CanonicalName
 	decs["CertACPKIX"] = native.UntypedNumericConst("7")
 	decs["CertIACPKIX"] = native.UntypedNumericConst("8")
@@ -1941,7 +1942,7 @@ func init() {
 	decs["CertTypeToString"] = &dns.CertTypeToString
 	decs["CertURI"] = native.UntypedNumericConst("253")
 	decs["CertificateToDANE"] = dns.CertificateToDANE
-	decs["Class"] = reflect.TypeOf((*dns.Class)(nil)).Elem()
+	decs["Class"] = reflect.TypeFor[dns.Class]()
 	decs["ClassANY"] = native.UntypedNumericConst("255")
 	decs["ClassCHAOS"] = native.UntypedNumericConst("3")
 	decs["ClassCSNET"] = native.UntypedNumericConst("2")
@@ -1949,25 +1950,25 @@ func init() {
 	decs["ClassINET"] = native.UntypedNumericConst("1")
 	decs["ClassNONE"] = native.UntypedNumericConst("254")
 	decs["ClassToString"] = &dns.ClassToString
-	decs["Client"] = reflect.TypeOf((*dns.Client)(nil)).Elem()
-	decs["ClientConfig"] = reflect.TypeOf((*dns.ClientConfig)(nil)).Elem()
+	decs["Client"] = reflect.TypeFor[dns.Client]()
+	decs["ClientConfig"] = reflect.TypeFor[dns.ClientConfig]()
 	decs["ClientConfigFromFile"] = dns.ClientConfigFromFile
 	decs["ClientConfigFromReader"] = dns.ClientConfigFromReader
 	decs["CompareDomainName"] = dns.CompareDomainName
-	decs["Conn"] = reflect.TypeOf((*dns.Conn)(nil)).Elem()
-	decs["ConnectionStater"] = reflect.TypeOf((*dns.ConnectionStater)(nil)).Elem()
+	decs["Conn"] = reflect.TypeFor[dns.Conn]()
+	decs["ConnectionStater"] = reflect.TypeFor[dns.ConnectionStater]()
 	decs["Copy"] = dns.Copy
 	decs["CountLabel"] = dns.CountLabel
 	decs["DH"] = dns.DH
-	decs["DHCID"] = reflect.TypeOf((*dns.DHCID)(nil)).Elem()
-	decs["DLV"] = reflect.TypeOf((*dns.DLV)(nil)).Elem()
-	decs["DNAME"] = reflect.TypeOf((*dns.DNAME)(nil)).Elem()
-	decs["DNSKEY"] = reflect.TypeOf((*dns.DNSKEY)(nil)).Elem()
-	decs["DS"] = reflect.TypeOf((*dns.DS)(nil)).Elem()
+	decs["DHCID"] = reflect.TypeFor[dns.DHCID]()
+	decs["DLV"] = reflect.TypeFor[dns.DLV]()
+	decs["DNAME"] = reflect.TypeFor[dns.DNAME]()
+	decs["DNSKEY"] = reflect.TypeFor[dns.DNSKEY]()
+	decs["DS"] = reflect.TypeFor[dns.DS]()
 	decs["DSA"] = dns.DSA
 	decs["DSANSEC3SHA1"] = dns.DSANSEC3SHA1
-	decs["DecorateReader"] = reflect.TypeOf((*dns.DecorateReader)(nil)).Elem()
-	decs["DecorateWriter"] = reflect.TypeOf((*dns.DecorateWriter)(nil)).Elem()
+	decs["DecorateReader"] = reflect.TypeFor[dns.DecorateReader]()
+	decs["DecorateWriter"] = reflect.TypeFor[dns.DecorateWriter]()
 	decs["Dedup"] = dns.Dedup
 	decs["DefaultMsgAcceptFunc"] = &dns.DefaultMsgAcceptFunc
 	decs["DefaultMsgSize"] = native.UntypedNumericConst("4096")
@@ -1981,7 +1982,7 @@ func init() {
 	decs["ECDSAP384SHA384"] = dns.ECDSAP384SHA384
 	decs["ED25519"] = dns.ED25519
 	decs["ED448"] = dns.ED448
-	decs["EDNS0"] = reflect.TypeOf((*dns.EDNS0)(nil)).Elem()
+	decs["EDNS0"] = reflect.TypeFor[dns.EDNS0]()
 	decs["EDNS0COOKIE"] = native.UntypedNumericConst("10")
 	decs["EDNS0DAU"] = native.UntypedNumericConst("5")
 	decs["EDNS0DHU"] = native.UntypedNumericConst("6")
@@ -1997,24 +1998,24 @@ func init() {
 	decs["EDNS0SUBNET"] = native.UntypedNumericConst("8")
 	decs["EDNS0TCPKEEPALIVE"] = native.UntypedNumericConst("11")
 	decs["EDNS0UL"] = native.UntypedNumericConst("2")
-	decs["EDNS0_COOKIE"] = reflect.TypeOf((*dns.EDNS0_COOKIE)(nil)).Elem()
-	decs["EDNS0_DAU"] = reflect.TypeOf((*dns.EDNS0_DAU)(nil)).Elem()
-	decs["EDNS0_DHU"] = reflect.TypeOf((*dns.EDNS0_DHU)(nil)).Elem()
-	decs["EDNS0_EDE"] = reflect.TypeOf((*dns.EDNS0_EDE)(nil)).Elem()
-	decs["EDNS0_ESU"] = reflect.TypeOf((*dns.EDNS0_ESU)(nil)).Elem()
-	decs["EDNS0_EXPIRE"] = reflect.TypeOf((*dns.EDNS0_EXPIRE)(nil)).Elem()
-	decs["EDNS0_LLQ"] = reflect.TypeOf((*dns.EDNS0_LLQ)(nil)).Elem()
-	decs["EDNS0_LOCAL"] = reflect.TypeOf((*dns.EDNS0_LOCAL)(nil)).Elem()
-	decs["EDNS0_N3U"] = reflect.TypeOf((*dns.EDNS0_N3U)(nil)).Elem()
-	decs["EDNS0_NSID"] = reflect.TypeOf((*dns.EDNS0_NSID)(nil)).Elem()
-	decs["EDNS0_PADDING"] = reflect.TypeOf((*dns.EDNS0_PADDING)(nil)).Elem()
-	decs["EDNS0_SUBNET"] = reflect.TypeOf((*dns.EDNS0_SUBNET)(nil)).Elem()
-	decs["EDNS0_TCP_KEEPALIVE"] = reflect.TypeOf((*dns.EDNS0_TCP_KEEPALIVE)(nil)).Elem()
-	decs["EDNS0_UL"] = reflect.TypeOf((*dns.EDNS0_UL)(nil)).Elem()
-	decs["EID"] = reflect.TypeOf((*dns.EID)(nil)).Elem()
-	decs["EUI48"] = reflect.TypeOf((*dns.EUI48)(nil)).Elem()
-	decs["EUI64"] = reflect.TypeOf((*dns.EUI64)(nil)).Elem()
-	decs["Envelope"] = reflect.TypeOf((*dns.Envelope)(nil)).Elem()
+	decs["EDNS0_COOKIE"] = reflect.TypeFor[dns.EDNS0_COOKIE]()
+	decs["EDNS0_DAU"] = reflect.TypeFor[dns.EDNS0_DAU]()
+	decs["EDNS0_DHU"] = reflect.TypeFor[dns.EDNS0_DHU]()
+	decs["EDNS0_EDE"] = reflect.TypeFor[dns.EDNS0_EDE]()
+	decs["EDNS0_ESU"] = reflect.TypeFor[dns.EDNS0_ESU]()
+	decs["EDNS0_EXPIRE"] = reflect.TypeFor[dns.EDNS0_EXPIRE]()
+	decs["EDNS0_LLQ"] = reflect.TypeFor[dns.EDNS0_LLQ]()
+	decs["EDNS0_LOCAL"] = reflect.TypeFor[dns.EDNS0_LOCAL]()
+	decs["EDNS0_N3U"] = reflect.TypeFor[dns.EDNS0_N3U]()
+	decs["EDNS0_NSID"] = reflect.TypeFor[dns.EDNS0_NSID]()
+	decs["EDNS0_PADDING"] = reflect.TypeFor[dns.EDNS0_PADDING]()
+	decs["EDNS0_SUBNET"] = reflect.TypeFor[dns.EDNS0_SUBNET]()
+	decs["EDNS0_TCP_KEEPALIVE"] = reflect.TypeFor[dns.EDNS0_TCP_KEEPALIVE]()
+	decs["EDNS0_UL"] = reflect.TypeFor[dns.EDNS0_UL]()
+	decs["EID"] = reflect.TypeFor[dns.EID]()
+	decs["EUI48"] = reflect.TypeFor[dns.EUI48]()
+	decs["EUI64"] = reflect.TypeFor[dns.EUI64]()
+	decs["Envelope"] = reflect.TypeFor[dns.Envelope]()
 	decs["ErrAlg"] = &dns.ErrAlg
 	decs["ErrAuth"] = &dns.ErrAuth
 	decs["ErrBuf"] = &dns.ErrBuf
@@ -2036,7 +2037,7 @@ func init() {
 	decs["ErrSig"] = &dns.ErrSig
 	decs["ErrSoa"] = &dns.ErrSoa
 	decs["ErrTime"] = &dns.ErrTime
-	decs["Error"] = reflect.TypeOf((*dns.Error)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[dns.Error]()
 	decs["Exchange"] = dns.Exchange
 	decs["ExchangeConn"] = dns.ExchangeConn
 	decs["ExchangeContext"] = dns.ExchangeContext
@@ -2068,21 +2069,21 @@ func init() {
 	decs["ExtendedErrorCodeUnsupportedDSDigestType"] = dns.ExtendedErrorCodeUnsupportedDSDigestType
 	decs["Field"] = dns.Field
 	decs["Fqdn"] = dns.Fqdn
-	decs["GID"] = reflect.TypeOf((*dns.GID)(nil)).Elem()
+	decs["GID"] = reflect.TypeFor[dns.GID]()
 	decs["GOST94"] = dns.GOST94
-	decs["GPOS"] = reflect.TypeOf((*dns.GPOS)(nil)).Elem()
-	decs["HINFO"] = reflect.TypeOf((*dns.HINFO)(nil)).Elem()
-	decs["HIP"] = reflect.TypeOf((*dns.HIP)(nil)).Elem()
-	decs["HTTPS"] = reflect.TypeOf((*dns.HTTPS)(nil)).Elem()
+	decs["GPOS"] = reflect.TypeFor[dns.GPOS]()
+	decs["HINFO"] = reflect.TypeFor[dns.HINFO]()
+	decs["HIP"] = reflect.TypeFor[dns.HIP]()
+	decs["HTTPS"] = reflect.TypeFor[dns.HTTPS]()
 	decs["Handle"] = dns.Handle
 	decs["HandleFailed"] = dns.HandleFailed
 	decs["HandleFunc"] = dns.HandleFunc
 	decs["HandleRemove"] = dns.HandleRemove
-	decs["Handler"] = reflect.TypeOf((*dns.Handler)(nil)).Elem()
-	decs["HandlerFunc"] = reflect.TypeOf((*dns.HandlerFunc)(nil)).Elem()
+	decs["Handler"] = reflect.TypeFor[dns.Handler]()
+	decs["HandlerFunc"] = reflect.TypeFor[dns.HandlerFunc]()
 	decs["HashName"] = dns.HashName
 	decs["HashToString"] = &dns.HashToString
-	decs["Header"] = reflect.TypeOf((*dns.Header)(nil)).Elem()
+	decs["Header"] = reflect.TypeFor[dns.Header]()
 	decs["HmacMD5"] = native.UntypedStringConst("hmac-md5.sig-alg.reg.int.")
 	decs["HmacSHA1"] = native.UntypedStringConst("hmac-sha1.")
 	decs["HmacSHA224"] = native.UntypedStringConst("hmac-sha224.")
@@ -2094,7 +2095,7 @@ func init() {
 	decs["IPSECGatewayIPv4"] = dns.IPSECGatewayIPv4
 	decs["IPSECGatewayIPv6"] = dns.IPSECGatewayIPv6
 	decs["IPSECGatewayNone"] = dns.IPSECGatewayNone
-	decs["IPSECKEY"] = reflect.TypeOf((*dns.IPSECKEY)(nil)).Elem()
+	decs["IPSECKEY"] = reflect.TypeFor[dns.IPSECKEY]()
 	decs["Id"] = &dns.Id
 	decs["IsDomainName"] = dns.IsDomainName
 	decs["IsDuplicate"] = dns.IsDuplicate
@@ -2102,55 +2103,55 @@ func init() {
 	decs["IsMsg"] = dns.IsMsg
 	decs["IsRRset"] = dns.IsRRset
 	decs["IsSubDomain"] = dns.IsSubDomain
-	decs["KEY"] = reflect.TypeOf((*dns.KEY)(nil)).Elem()
-	decs["KX"] = reflect.TypeOf((*dns.KX)(nil)).Elem()
-	decs["L32"] = reflect.TypeOf((*dns.L32)(nil)).Elem()
-	decs["L64"] = reflect.TypeOf((*dns.L64)(nil)).Elem()
-	decs["LOC"] = reflect.TypeOf((*dns.LOC)(nil)).Elem()
+	decs["KEY"] = reflect.TypeFor[dns.KEY]()
+	decs["KX"] = reflect.TypeFor[dns.KX]()
+	decs["L32"] = reflect.TypeFor[dns.L32]()
+	decs["L64"] = reflect.TypeFor[dns.L64]()
+	decs["LOC"] = reflect.TypeFor[dns.LOC]()
 	decs["LOC_ALTITUDEBASE"] = native.UntypedNumericConst("100000")
 	decs["LOC_DEGREES"] = native.UntypedNumericConst("3600000")
 	decs["LOC_EQUATOR"] = native.UntypedNumericConst("2147483648")
 	decs["LOC_HOURS"] = native.UntypedNumericConst("60000")
 	decs["LOC_PRIMEMERIDIAN"] = native.UntypedNumericConst("2147483648")
-	decs["LP"] = reflect.TypeOf((*dns.LP)(nil)).Elem()
+	decs["LP"] = reflect.TypeFor[dns.LP]()
 	decs["Len"] = dns.Len
 	decs["ListenAndServe"] = dns.ListenAndServe
 	decs["ListenAndServeTLS"] = dns.ListenAndServeTLS
-	decs["MB"] = reflect.TypeOf((*dns.MB)(nil)).Elem()
-	decs["MD"] = reflect.TypeOf((*dns.MD)(nil)).Elem()
-	decs["MF"] = reflect.TypeOf((*dns.MF)(nil)).Elem()
-	decs["MG"] = reflect.TypeOf((*dns.MG)(nil)).Elem()
-	decs["MINFO"] = reflect.TypeOf((*dns.MINFO)(nil)).Elem()
-	decs["MR"] = reflect.TypeOf((*dns.MR)(nil)).Elem()
-	decs["MX"] = reflect.TypeOf((*dns.MX)(nil)).Elem()
+	decs["MB"] = reflect.TypeFor[dns.MB]()
+	decs["MD"] = reflect.TypeFor[dns.MD]()
+	decs["MF"] = reflect.TypeFor[dns.MF]()
+	decs["MG"] = reflect.TypeFor[dns.MG]()
+	decs["MINFO"] = reflect.TypeFor[dns.MINFO]()
+	decs["MR"] = reflect.TypeFor[dns.MR]()
+	decs["MX"] = reflect.TypeFor[dns.MX]()
 	decs["MaxMsgSize"] = native.UntypedNumericConst("65535")
 	decs["MinMsgSize"] = native.UntypedNumericConst("512")
-	decs["Msg"] = reflect.TypeOf((*dns.Msg)(nil)).Elem()
+	decs["Msg"] = reflect.TypeFor[dns.Msg]()
 	decs["MsgAccept"] = dns.MsgAccept
-	decs["MsgAcceptAction"] = reflect.TypeOf((*dns.MsgAcceptAction)(nil)).Elem()
-	decs["MsgAcceptFunc"] = reflect.TypeOf((*dns.MsgAcceptFunc)(nil)).Elem()
-	decs["MsgHdr"] = reflect.TypeOf((*dns.MsgHdr)(nil)).Elem()
+	decs["MsgAcceptAction"] = reflect.TypeFor[dns.MsgAcceptAction]()
+	decs["MsgAcceptFunc"] = reflect.TypeFor[dns.MsgAcceptFunc]()
+	decs["MsgHdr"] = reflect.TypeFor[dns.MsgHdr]()
 	decs["MsgIgnore"] = dns.MsgIgnore
 	decs["MsgReject"] = dns.MsgReject
 	decs["MsgRejectNotImplemented"] = dns.MsgRejectNotImplemented
-	decs["NAPTR"] = reflect.TypeOf((*dns.NAPTR)(nil)).Elem()
-	decs["NID"] = reflect.TypeOf((*dns.NID)(nil)).Elem()
-	decs["NIMLOC"] = reflect.TypeOf((*dns.NIMLOC)(nil)).Elem()
-	decs["NINFO"] = reflect.TypeOf((*dns.NINFO)(nil)).Elem()
-	decs["NS"] = reflect.TypeOf((*dns.NS)(nil)).Elem()
-	decs["NSAPPTR"] = reflect.TypeOf((*dns.NSAPPTR)(nil)).Elem()
-	decs["NSEC"] = reflect.TypeOf((*dns.NSEC)(nil)).Elem()
-	decs["NSEC3"] = reflect.TypeOf((*dns.NSEC3)(nil)).Elem()
-	decs["NSEC3PARAM"] = reflect.TypeOf((*dns.NSEC3PARAM)(nil)).Elem()
-	decs["NULL"] = reflect.TypeOf((*dns.NULL)(nil)).Elem()
-	decs["Name"] = reflect.TypeOf((*dns.Name)(nil)).Elem()
+	decs["NAPTR"] = reflect.TypeFor[dns.NAPTR]()
+	decs["NID"] = reflect.TypeFor[dns.NID]()
+	decs["NIMLOC"] = reflect.TypeFor[dns.NIMLOC]()
+	decs["NINFO"] = reflect.TypeFor[dns.NINFO]()
+	decs["NS"] = reflect.TypeFor[dns.NS]()
+	decs["NSAPPTR"] = reflect.TypeFor[dns.NSAPPTR]()
+	decs["NSEC"] = reflect.TypeFor[dns.NSEC]()
+	decs["NSEC3"] = reflect.TypeFor[dns.NSEC3]()
+	decs["NSEC3PARAM"] = reflect.TypeFor[dns.NSEC3PARAM]()
+	decs["NULL"] = reflect.TypeFor[dns.NULL]()
+	decs["Name"] = reflect.TypeFor[dns.Name]()
 	decs["NewRR"] = dns.NewRR
 	decs["NewServeMux"] = dns.NewServeMux
 	decs["NewZoneParser"] = dns.NewZoneParser
 	decs["NextLabel"] = dns.NextLabel
 	decs["NumField"] = dns.NumField
-	decs["OPENPGPKEY"] = reflect.TypeOf((*dns.OPENPGPKEY)(nil)).Elem()
-	decs["OPT"] = reflect.TypeOf((*dns.OPT)(nil)).Elem()
+	decs["OPENPGPKEY"] = reflect.TypeFor[dns.OPENPGPKEY]()
+	decs["OPT"] = reflect.TypeFor[dns.OPT]()
 	decs["OpcodeIQuery"] = native.UntypedNumericConst("1")
 	decs["OpcodeNotify"] = native.UntypedNumericConst("4")
 	decs["OpcodeQuery"] = native.UntypedNumericConst("0")
@@ -2159,31 +2160,31 @@ func init() {
 	decs["OpcodeUpdate"] = native.UntypedNumericConst("5")
 	decs["PRIVATEDNS"] = dns.PRIVATEDNS
 	decs["PRIVATEOID"] = dns.PRIVATEOID
-	decs["PTR"] = reflect.TypeOf((*dns.PTR)(nil)).Elem()
-	decs["PX"] = reflect.TypeOf((*dns.PX)(nil)).Elem()
+	decs["PTR"] = reflect.TypeFor[dns.PTR]()
+	decs["PX"] = reflect.TypeFor[dns.PX]()
 	decs["PackDomainName"] = dns.PackDomainName
 	decs["PackRR"] = dns.PackRR
-	decs["PacketConnReader"] = reflect.TypeOf((*dns.PacketConnReader)(nil)).Elem()
-	decs["ParseError"] = reflect.TypeOf((*dns.ParseError)(nil)).Elem()
+	decs["PacketConnReader"] = reflect.TypeFor[dns.PacketConnReader]()
+	decs["ParseError"] = reflect.TypeFor[dns.ParseError]()
 	decs["PrevLabel"] = dns.PrevLabel
 	decs["PrivateHandle"] = dns.PrivateHandle
 	decs["PrivateHandleRemove"] = dns.PrivateHandleRemove
-	decs["PrivateRR"] = reflect.TypeOf((*dns.PrivateRR)(nil)).Elem()
-	decs["PrivateRdata"] = reflect.TypeOf((*dns.PrivateRdata)(nil)).Elem()
-	decs["Question"] = reflect.TypeOf((*dns.Question)(nil)).Elem()
+	decs["PrivateRR"] = reflect.TypeFor[dns.PrivateRR]()
+	decs["PrivateRdata"] = reflect.TypeFor[dns.PrivateRdata]()
+	decs["Question"] = reflect.TypeFor[dns.Question]()
 	decs["REVOKE"] = native.UntypedNumericConst("128")
-	decs["RFC3597"] = reflect.TypeOf((*dns.RFC3597)(nil)).Elem()
-	decs["RKEY"] = reflect.TypeOf((*dns.RKEY)(nil)).Elem()
-	decs["RP"] = reflect.TypeOf((*dns.RP)(nil)).Elem()
-	decs["RR"] = reflect.TypeOf((*dns.RR)(nil)).Elem()
-	decs["RRSIG"] = reflect.TypeOf((*dns.RRSIG)(nil)).Elem()
-	decs["RR_Header"] = reflect.TypeOf((*dns.RR_Header)(nil)).Elem()
+	decs["RFC3597"] = reflect.TypeFor[dns.RFC3597]()
+	decs["RKEY"] = reflect.TypeFor[dns.RKEY]()
+	decs["RP"] = reflect.TypeFor[dns.RP]()
+	decs["RR"] = reflect.TypeFor[dns.RR]()
+	decs["RRSIG"] = reflect.TypeFor[dns.RRSIG]()
+	decs["RR_Header"] = reflect.TypeFor[dns.RR_Header]()
 	decs["RSAMD5"] = dns.RSAMD5
 	decs["RSASHA1"] = dns.RSASHA1
 	decs["RSASHA1NSEC3SHA1"] = dns.RSASHA1NSEC3SHA1
 	decs["RSASHA256"] = dns.RSASHA256
 	decs["RSASHA512"] = dns.RSASHA512
-	decs["RT"] = reflect.TypeOf((*dns.RT)(nil)).Elem()
+	decs["RT"] = reflect.TypeFor[dns.RT]()
 	decs["RcodeBadAlg"] = native.UntypedNumericConst("21")
 	decs["RcodeBadCookie"] = native.UntypedNumericConst("23")
 	decs["RcodeBadKey"] = native.UntypedNumericConst("17")
@@ -2207,33 +2208,33 @@ func init() {
 	decs["RcodeYXRrset"] = native.UntypedNumericConst("7")
 	decs["ReadFromSessionUDP"] = dns.ReadFromSessionUDP
 	decs["ReadRR"] = dns.ReadRR
-	decs["Reader"] = reflect.TypeOf((*dns.Reader)(nil)).Elem()
-	decs["ResponseWriter"] = reflect.TypeOf((*dns.ResponseWriter)(nil)).Elem()
+	decs["Reader"] = reflect.TypeFor[dns.Reader]()
+	decs["ResponseWriter"] = reflect.TypeFor[dns.ResponseWriter]()
 	decs["ReverseAddr"] = dns.ReverseAddr
 	decs["SEP"] = native.UntypedNumericConst("1")
 	decs["SHA1"] = dns.SHA1
 	decs["SHA256"] = dns.SHA256
 	decs["SHA384"] = dns.SHA384
 	decs["SHA512"] = dns.SHA512
-	decs["SIG"] = reflect.TypeOf((*dns.SIG)(nil)).Elem()
-	decs["SMIMEA"] = reflect.TypeOf((*dns.SMIMEA)(nil)).Elem()
+	decs["SIG"] = reflect.TypeFor[dns.SIG]()
+	decs["SMIMEA"] = reflect.TypeFor[dns.SMIMEA]()
 	decs["SMIMEAName"] = dns.SMIMEAName
-	decs["SOA"] = reflect.TypeOf((*dns.SOA)(nil)).Elem()
-	decs["SPF"] = reflect.TypeOf((*dns.SPF)(nil)).Elem()
-	decs["SRV"] = reflect.TypeOf((*dns.SRV)(nil)).Elem()
-	decs["SSHFP"] = reflect.TypeOf((*dns.SSHFP)(nil)).Elem()
-	decs["SVCB"] = reflect.TypeOf((*dns.SVCB)(nil)).Elem()
-	decs["SVCBAlpn"] = reflect.TypeOf((*dns.SVCBAlpn)(nil)).Elem()
-	decs["SVCBDoHPath"] = reflect.TypeOf((*dns.SVCBDoHPath)(nil)).Elem()
-	decs["SVCBECHConfig"] = reflect.TypeOf((*dns.SVCBECHConfig)(nil)).Elem()
-	decs["SVCBIPv4Hint"] = reflect.TypeOf((*dns.SVCBIPv4Hint)(nil)).Elem()
-	decs["SVCBIPv6Hint"] = reflect.TypeOf((*dns.SVCBIPv6Hint)(nil)).Elem()
-	decs["SVCBKey"] = reflect.TypeOf((*dns.SVCBKey)(nil)).Elem()
-	decs["SVCBKeyValue"] = reflect.TypeOf((*dns.SVCBKeyValue)(nil)).Elem()
-	decs["SVCBLocal"] = reflect.TypeOf((*dns.SVCBLocal)(nil)).Elem()
-	decs["SVCBMandatory"] = reflect.TypeOf((*dns.SVCBMandatory)(nil)).Elem()
-	decs["SVCBNoDefaultAlpn"] = reflect.TypeOf((*dns.SVCBNoDefaultAlpn)(nil)).Elem()
-	decs["SVCBPort"] = reflect.TypeOf((*dns.SVCBPort)(nil)).Elem()
+	decs["SOA"] = reflect.TypeFor[dns.SOA]()
+	decs["SPF"] = reflect.TypeFor[dns.SPF]()
+	decs["SRV"] = reflect.TypeFor[dns.SRV]()
+	decs["SSHFP"] = reflect.TypeFor[dns.SSHFP]()
+	decs["SVCB"] = reflect.TypeFor[dns.SVCB]()
+	decs["SVCBAlpn"] = reflect.TypeFor[dns.SVCBAlpn]()
+	decs["SVCBDoHPath"] = reflect.TypeFor[dns.SVCBDoHPath]()
+	decs["SVCBECHConfig"] = reflect.TypeFor[dns.SVCBECHConfig]()
+	decs["SVCBIPv4Hint"] = reflect.TypeFor[dns.SVCBIPv4Hint]()
+	decs["SVCBIPv6Hint"] = reflect.TypeFor[dns.SVCBIPv6Hint]()
+	decs["SVCBKey"] = reflect.TypeFor[dns.SVCBKey]()
+	decs["SVCBKeyValue"] = reflect.TypeFor[dns.SVCBKeyValue]()
+	decs["SVCBLocal"] = reflect.TypeFor[dns.SVCBLocal]()
+	decs["SVCBMandatory"] = reflect.TypeFor[dns.SVCBMandatory]()
+	decs["SVCBNoDefaultAlpn"] = reflect.TypeFor[dns.SVCBNoDefaultAlpn]()
+	decs["SVCBPort"] = reflect.TypeFor[dns.SVCBPort]()
 	decs["SVCB_ALPN"] = dns.SVCB_ALPN
 	decs["SVCB_DOHPATH"] = dns.SVCB_DOHPATH
 	decs["SVCB_ECHCONFIG"] = dns.SVCB_ECHCONFIG
@@ -2242,9 +2243,9 @@ func init() {
 	decs["SVCB_MANDATORY"] = dns.SVCB_MANDATORY
 	decs["SVCB_NO_DEFAULT_ALPN"] = dns.SVCB_NO_DEFAULT_ALPN
 	decs["SVCB_PORT"] = dns.SVCB_PORT
-	decs["ServeMux"] = reflect.TypeOf((*dns.ServeMux)(nil)).Elem()
-	decs["Server"] = reflect.TypeOf((*dns.Server)(nil)).Elem()
-	decs["SessionUDP"] = reflect.TypeOf((*dns.SessionUDP)(nil)).Elem()
+	decs["ServeMux"] = reflect.TypeFor[dns.ServeMux]()
+	decs["Server"] = reflect.TypeFor[dns.Server]()
+	decs["SessionUDP"] = reflect.TypeFor[dns.SessionUDP]()
 	decs["Split"] = dns.Split
 	decs["SplitDomainName"] = dns.SplitDomainName
 	decs["StringToAlgorithm"] = &dns.StringToAlgorithm
@@ -2256,21 +2257,21 @@ func init() {
 	decs["StringToRcode"] = &dns.StringToRcode
 	decs["StringToTime"] = dns.StringToTime
 	decs["StringToType"] = &dns.StringToType
-	decs["TA"] = reflect.TypeOf((*dns.TA)(nil)).Elem()
-	decs["TALINK"] = reflect.TypeOf((*dns.TALINK)(nil)).Elem()
-	decs["TKEY"] = reflect.TypeOf((*dns.TKEY)(nil)).Elem()
-	decs["TLSA"] = reflect.TypeOf((*dns.TLSA)(nil)).Elem()
+	decs["TA"] = reflect.TypeFor[dns.TA]()
+	decs["TALINK"] = reflect.TypeFor[dns.TALINK]()
+	decs["TKEY"] = reflect.TypeFor[dns.TKEY]()
+	decs["TLSA"] = reflect.TypeFor[dns.TLSA]()
 	decs["TLSAName"] = dns.TLSAName
-	decs["TSIG"] = reflect.TypeOf((*dns.TSIG)(nil)).Elem()
-	decs["TXT"] = reflect.TypeOf((*dns.TXT)(nil)).Elem()
+	decs["TSIG"] = reflect.TypeFor[dns.TSIG]()
+	decs["TXT"] = reflect.TypeFor[dns.TXT]()
 	decs["TimeToString"] = dns.TimeToString
-	decs["Transfer"] = reflect.TypeOf((*dns.Transfer)(nil)).Elem()
+	decs["Transfer"] = reflect.TypeFor[dns.Transfer]()
 	decs["TsigGenerate"] = dns.TsigGenerate
 	decs["TsigGenerateWithProvider"] = dns.TsigGenerateWithProvider
-	decs["TsigProvider"] = reflect.TypeOf((*dns.TsigProvider)(nil)).Elem()
+	decs["TsigProvider"] = reflect.TypeFor[dns.TsigProvider]()
 	decs["TsigVerify"] = dns.TsigVerify
 	decs["TsigVerifyWithProvider"] = dns.TsigVerifyWithProvider
-	decs["Type"] = reflect.TypeOf((*dns.Type)(nil)).Elem()
+	decs["Type"] = reflect.TypeFor[dns.Type]()
 	decs["TypeA"] = dns.TypeA
 	decs["TypeAAAA"] = dns.TypeAAAA
 	decs["TypeAFSDB"] = dns.TypeAFSDB
@@ -2359,129 +2360,129 @@ func init() {
 	decs["TypeURI"] = dns.TypeURI
 	decs["TypeX25"] = dns.TypeX25
 	decs["TypeZONEMD"] = dns.TypeZONEMD
-	decs["UID"] = reflect.TypeOf((*dns.UID)(nil)).Elem()
-	decs["UINFO"] = reflect.TypeOf((*dns.UINFO)(nil)).Elem()
-	decs["URI"] = reflect.TypeOf((*dns.URI)(nil)).Elem()
+	decs["UID"] = reflect.TypeFor[dns.UID]()
+	decs["UINFO"] = reflect.TypeFor[dns.UINFO]()
+	decs["URI"] = reflect.TypeFor[dns.URI]()
 	decs["UnpackDomainName"] = dns.UnpackDomainName
 	decs["UnpackRR"] = dns.UnpackRR
 	decs["UnpackRRWithHeader"] = dns.UnpackRRWithHeader
 	decs["Version"] = &dns.Version
 	decs["WriteToSessionUDP"] = dns.WriteToSessionUDP
-	decs["Writer"] = reflect.TypeOf((*dns.Writer)(nil)).Elem()
-	decs["X25"] = reflect.TypeOf((*dns.X25)(nil)).Elem()
+	decs["Writer"] = reflect.TypeFor[dns.Writer]()
+	decs["X25"] = reflect.TypeFor[dns.X25]()
 	decs["ZONE"] = native.UntypedNumericConst("256")
-	decs["ZONEMD"] = reflect.TypeOf((*dns.ZONEMD)(nil)).Elem()
+	decs["ZONEMD"] = reflect.TypeFor[dns.ZONEMD]()
 	decs["ZoneMDHashAlgSHA384"] = native.UntypedNumericConst("1")
 	decs["ZoneMDHashAlgSHA512"] = native.UntypedNumericConst("2")
 	decs["ZoneMDSchemeSimple"] = native.UntypedNumericConst("1")
-	decs["ZoneParser"] = reflect.TypeOf((*dns.ZoneParser)(nil)).Elem()
+	decs["ZoneParser"] = reflect.TypeFor[dns.ZoneParser]()
 	packages["github.com/miekg/dns"] = native.Package{
 		Name:         "dns",
 		Declarations: decs,
 	}
 	// "go/ast"
 	decs = make(native.Declarations, 102)
-	decs["ArrayType"] = reflect.TypeOf((*ast.ArrayType)(nil)).Elem()
-	decs["AssignStmt"] = reflect.TypeOf((*ast.AssignStmt)(nil)).Elem()
+	decs["ArrayType"] = reflect.TypeFor[ast.ArrayType]()
+	decs["AssignStmt"] = reflect.TypeFor[ast.AssignStmt]()
 	decs["Bad"] = ast.Bad
-	decs["BadDecl"] = reflect.TypeOf((*ast.BadDecl)(nil)).Elem()
-	decs["BadExpr"] = reflect.TypeOf((*ast.BadExpr)(nil)).Elem()
-	decs["BadStmt"] = reflect.TypeOf((*ast.BadStmt)(nil)).Elem()
-	decs["BasicLit"] = reflect.TypeOf((*ast.BasicLit)(nil)).Elem()
-	decs["BinaryExpr"] = reflect.TypeOf((*ast.BinaryExpr)(nil)).Elem()
-	decs["BlockStmt"] = reflect.TypeOf((*ast.BlockStmt)(nil)).Elem()
-	decs["BranchStmt"] = reflect.TypeOf((*ast.BranchStmt)(nil)).Elem()
-	decs["CallExpr"] = reflect.TypeOf((*ast.CallExpr)(nil)).Elem()
-	decs["CaseClause"] = reflect.TypeOf((*ast.CaseClause)(nil)).Elem()
-	decs["ChanDir"] = reflect.TypeOf((*ast.ChanDir)(nil)).Elem()
-	decs["ChanType"] = reflect.TypeOf((*ast.ChanType)(nil)).Elem()
-	decs["CommClause"] = reflect.TypeOf((*ast.CommClause)(nil)).Elem()
-	decs["Comment"] = reflect.TypeOf((*ast.Comment)(nil)).Elem()
-	decs["CommentGroup"] = reflect.TypeOf((*ast.CommentGroup)(nil)).Elem()
-	decs["CommentMap"] = reflect.TypeOf((*ast.CommentMap)(nil)).Elem()
-	decs["CompositeLit"] = reflect.TypeOf((*ast.CompositeLit)(nil)).Elem()
+	decs["BadDecl"] = reflect.TypeFor[ast.BadDecl]()
+	decs["BadExpr"] = reflect.TypeFor[ast.BadExpr]()
+	decs["BadStmt"] = reflect.TypeFor[ast.BadStmt]()
+	decs["BasicLit"] = reflect.TypeFor[ast.BasicLit]()
+	decs["BinaryExpr"] = reflect.TypeFor[ast.BinaryExpr]()
+	decs["BlockStmt"] = reflect.TypeFor[ast.BlockStmt]()
+	decs["BranchStmt"] = reflect.TypeFor[ast.BranchStmt]()
+	decs["CallExpr"] = reflect.TypeFor[ast.CallExpr]()
+	decs["CaseClause"] = reflect.TypeFor[ast.CaseClause]()
+	decs["ChanDir"] = reflect.TypeFor[ast.ChanDir]()
+	decs["ChanType"] = reflect.TypeFor[ast.ChanType]()
+	decs["CommClause"] = reflect.TypeFor[ast.CommClause]()
+	decs["Comment"] = reflect.TypeFor[ast.Comment]()
+	decs["CommentGroup"] = reflect.TypeFor[ast.CommentGroup]()
+	decs["CommentMap"] = reflect.TypeFor[ast.CommentMap]()
+	decs["CompositeLit"] = reflect.TypeFor[ast.CompositeLit]()
 	decs["Con"] = ast.Con
-	decs["Decl"] = reflect.TypeOf((*ast.Decl)(nil)).Elem()
-	decs["DeclStmt"] = reflect.TypeOf((*ast.DeclStmt)(nil)).Elem()
-	decs["DeferStmt"] = reflect.TypeOf((*ast.DeferStmt)(nil)).Elem()
-	decs["Ellipsis"] = reflect.TypeOf((*ast.Ellipsis)(nil)).Elem()
-	decs["EmptyStmt"] = reflect.TypeOf((*ast.EmptyStmt)(nil)).Elem()
-	decs["Expr"] = reflect.TypeOf((*ast.Expr)(nil)).Elem()
-	decs["ExprStmt"] = reflect.TypeOf((*ast.ExprStmt)(nil)).Elem()
-	decs["Field"] = reflect.TypeOf((*ast.Field)(nil)).Elem()
-	decs["FieldFilter"] = reflect.TypeOf((*ast.FieldFilter)(nil)).Elem()
-	decs["FieldList"] = reflect.TypeOf((*ast.FieldList)(nil)).Elem()
-	decs["File"] = reflect.TypeOf((*ast.File)(nil)).Elem()
+	decs["Decl"] = reflect.TypeFor[ast.Decl]()
+	decs["DeclStmt"] = reflect.TypeFor[ast.DeclStmt]()
+	decs["DeferStmt"] = reflect.TypeFor[ast.DeferStmt]()
+	decs["Ellipsis"] = reflect.TypeFor[ast.Ellipsis]()
+	decs["EmptyStmt"] = reflect.TypeFor[ast.EmptyStmt]()
+	decs["Expr"] = reflect.TypeFor[ast.Expr]()
+	decs["ExprStmt"] = reflect.TypeFor[ast.ExprStmt]()
+	decs["Field"] = reflect.TypeFor[ast.Field]()
+	decs["FieldFilter"] = reflect.TypeFor[ast.FieldFilter]()
+	decs["FieldList"] = reflect.TypeFor[ast.FieldList]()
+	decs["File"] = reflect.TypeFor[ast.File]()
 	decs["FileExports"] = ast.FileExports
-	decs["Filter"] = reflect.TypeOf((*ast.Filter)(nil)).Elem()
+	decs["Filter"] = reflect.TypeFor[ast.Filter]()
 	decs["FilterDecl"] = ast.FilterDecl
 	decs["FilterFile"] = ast.FilterFile
 	decs["FilterFuncDuplicates"] = ast.FilterFuncDuplicates
 	decs["FilterImportDuplicates"] = ast.FilterImportDuplicates
 	decs["FilterPackage"] = ast.FilterPackage
 	decs["FilterUnassociatedComments"] = ast.FilterUnassociatedComments
-	decs["ForStmt"] = reflect.TypeOf((*ast.ForStmt)(nil)).Elem()
+	decs["ForStmt"] = reflect.TypeFor[ast.ForStmt]()
 	decs["Fprint"] = ast.Fprint
 	decs["Fun"] = ast.Fun
-	decs["FuncDecl"] = reflect.TypeOf((*ast.FuncDecl)(nil)).Elem()
-	decs["FuncLit"] = reflect.TypeOf((*ast.FuncLit)(nil)).Elem()
-	decs["FuncType"] = reflect.TypeOf((*ast.FuncType)(nil)).Elem()
-	decs["GenDecl"] = reflect.TypeOf((*ast.GenDecl)(nil)).Elem()
-	decs["GoStmt"] = reflect.TypeOf((*ast.GoStmt)(nil)).Elem()
-	decs["Ident"] = reflect.TypeOf((*ast.Ident)(nil)).Elem()
-	decs["IfStmt"] = reflect.TypeOf((*ast.IfStmt)(nil)).Elem()
-	decs["ImportSpec"] = reflect.TypeOf((*ast.ImportSpec)(nil)).Elem()
-	decs["Importer"] = reflect.TypeOf((*ast.Importer)(nil)).Elem()
-	decs["IncDecStmt"] = reflect.TypeOf((*ast.IncDecStmt)(nil)).Elem()
-	decs["IndexExpr"] = reflect.TypeOf((*ast.IndexExpr)(nil)).Elem()
-	decs["IndexListExpr"] = reflect.TypeOf((*ast.IndexListExpr)(nil)).Elem()
+	decs["FuncDecl"] = reflect.TypeFor[ast.FuncDecl]()
+	decs["FuncLit"] = reflect.TypeFor[ast.FuncLit]()
+	decs["FuncType"] = reflect.TypeFor[ast.FuncType]()
+	decs["GenDecl"] = reflect.TypeFor[ast.GenDecl]()
+	decs["GoStmt"] = reflect.TypeFor[ast.GoStmt]()
+	decs["Ident"] = reflect.TypeFor[ast.Ident]()
+	decs["IfStmt"] = reflect.TypeFor[ast.IfStmt]()
+	decs["ImportSpec"] = reflect.TypeFor[ast.ImportSpec]()
+	decs["Importer"] = reflect.TypeFor[ast.Importer]()
+	decs["IncDecStmt"] = reflect.TypeFor[ast.IncDecStmt]()
+	decs["IndexExpr"] = reflect.TypeFor[ast.IndexExpr]()
+	decs["IndexListExpr"] = reflect.TypeFor[ast.IndexListExpr]()
 	decs["Inspect"] = ast.Inspect
-	decs["InterfaceType"] = reflect.TypeOf((*ast.InterfaceType)(nil)).Elem()
+	decs["InterfaceType"] = reflect.TypeFor[ast.InterfaceType]()
 	decs["IsExported"] = ast.IsExported
 	decs["IsGenerated"] = ast.IsGenerated
-	decs["KeyValueExpr"] = reflect.TypeOf((*ast.KeyValueExpr)(nil)).Elem()
-	decs["LabeledStmt"] = reflect.TypeOf((*ast.LabeledStmt)(nil)).Elem()
+	decs["KeyValueExpr"] = reflect.TypeFor[ast.KeyValueExpr]()
+	decs["LabeledStmt"] = reflect.TypeFor[ast.LabeledStmt]()
 	decs["Lbl"] = ast.Lbl
-	decs["MapType"] = reflect.TypeOf((*ast.MapType)(nil)).Elem()
-	decs["MergeMode"] = reflect.TypeOf((*ast.MergeMode)(nil)).Elem()
+	decs["MapType"] = reflect.TypeFor[ast.MapType]()
+	decs["MergeMode"] = reflect.TypeFor[ast.MergeMode]()
 	decs["MergePackageFiles"] = ast.MergePackageFiles
 	decs["NewCommentMap"] = ast.NewCommentMap
 	decs["NewIdent"] = ast.NewIdent
 	decs["NewObj"] = ast.NewObj
 	decs["NewPackage"] = ast.NewPackage
 	decs["NewScope"] = ast.NewScope
-	decs["Node"] = reflect.TypeOf((*ast.Node)(nil)).Elem()
+	decs["Node"] = reflect.TypeFor[ast.Node]()
 	decs["NotNilFilter"] = ast.NotNilFilter
-	decs["ObjKind"] = reflect.TypeOf((*ast.ObjKind)(nil)).Elem()
-	decs["Object"] = reflect.TypeOf((*ast.Object)(nil)).Elem()
-	decs["Package"] = reflect.TypeOf((*ast.Package)(nil)).Elem()
+	decs["ObjKind"] = reflect.TypeFor[ast.ObjKind]()
+	decs["Object"] = reflect.TypeFor[ast.Object]()
+	decs["Package"] = reflect.TypeFor[ast.Package]()
 	decs["PackageExports"] = ast.PackageExports
-	decs["ParenExpr"] = reflect.TypeOf((*ast.ParenExpr)(nil)).Elem()
+	decs["ParenExpr"] = reflect.TypeFor[ast.ParenExpr]()
 	decs["Pkg"] = ast.Pkg
 	decs["Print"] = ast.Print
 	decs["RECV"] = ast.RECV
-	decs["RangeStmt"] = reflect.TypeOf((*ast.RangeStmt)(nil)).Elem()
-	decs["ReturnStmt"] = reflect.TypeOf((*ast.ReturnStmt)(nil)).Elem()
+	decs["RangeStmt"] = reflect.TypeFor[ast.RangeStmt]()
+	decs["ReturnStmt"] = reflect.TypeFor[ast.ReturnStmt]()
 	decs["SEND"] = ast.SEND
-	decs["Scope"] = reflect.TypeOf((*ast.Scope)(nil)).Elem()
-	decs["SelectStmt"] = reflect.TypeOf((*ast.SelectStmt)(nil)).Elem()
-	decs["SelectorExpr"] = reflect.TypeOf((*ast.SelectorExpr)(nil)).Elem()
-	decs["SendStmt"] = reflect.TypeOf((*ast.SendStmt)(nil)).Elem()
-	decs["SliceExpr"] = reflect.TypeOf((*ast.SliceExpr)(nil)).Elem()
+	decs["Scope"] = reflect.TypeFor[ast.Scope]()
+	decs["SelectStmt"] = reflect.TypeFor[ast.SelectStmt]()
+	decs["SelectorExpr"] = reflect.TypeFor[ast.SelectorExpr]()
+	decs["SendStmt"] = reflect.TypeFor[ast.SendStmt]()
+	decs["SliceExpr"] = reflect.TypeFor[ast.SliceExpr]()
 	decs["SortImports"] = ast.SortImports
-	decs["Spec"] = reflect.TypeOf((*ast.Spec)(nil)).Elem()
-	decs["StarExpr"] = reflect.TypeOf((*ast.StarExpr)(nil)).Elem()
-	decs["Stmt"] = reflect.TypeOf((*ast.Stmt)(nil)).Elem()
-	decs["StructType"] = reflect.TypeOf((*ast.StructType)(nil)).Elem()
-	decs["SwitchStmt"] = reflect.TypeOf((*ast.SwitchStmt)(nil)).Elem()
+	decs["Spec"] = reflect.TypeFor[ast.Spec]()
+	decs["StarExpr"] = reflect.TypeFor[ast.StarExpr]()
+	decs["Stmt"] = reflect.TypeFor[ast.Stmt]()
+	decs["StructType"] = reflect.TypeFor[ast.StructType]()
+	decs["SwitchStmt"] = reflect.TypeFor[ast.SwitchStmt]()
 	decs["Typ"] = ast.Typ
-	decs["TypeAssertExpr"] = reflect.TypeOf((*ast.TypeAssertExpr)(nil)).Elem()
-	decs["TypeSpec"] = reflect.TypeOf((*ast.TypeSpec)(nil)).Elem()
-	decs["TypeSwitchStmt"] = reflect.TypeOf((*ast.TypeSwitchStmt)(nil)).Elem()
-	decs["UnaryExpr"] = reflect.TypeOf((*ast.UnaryExpr)(nil)).Elem()
-	decs["ValueSpec"] = reflect.TypeOf((*ast.ValueSpec)(nil)).Elem()
+	decs["TypeAssertExpr"] = reflect.TypeFor[ast.TypeAssertExpr]()
+	decs["TypeSpec"] = reflect.TypeFor[ast.TypeSpec]()
+	decs["TypeSwitchStmt"] = reflect.TypeFor[ast.TypeSwitchStmt]()
+	decs["UnaryExpr"] = reflect.TypeFor[ast.UnaryExpr]()
+	decs["ValueSpec"] = reflect.TypeFor[ast.ValueSpec]()
 	decs["Var"] = ast.Var
-	decs["Visitor"] = reflect.TypeOf((*ast.Visitor)(nil)).Elem()
+	decs["Visitor"] = reflect.TypeFor[ast.Visitor]()
 	decs["Walk"] = ast.Walk
 	packages["go/ast"] = native.Package{
 		Name:         "ast",
@@ -2491,19 +2492,19 @@ func init() {
 	decs = make(native.Declarations, 16)
 	decs["AllowBinary"] = build.AllowBinary
 	decs["ArchChar"] = build.ArchChar
-	decs["Context"] = reflect.TypeOf((*build.Context)(nil)).Elem()
+	decs["Context"] = reflect.TypeFor[build.Context]()
 	decs["Default"] = &build.Default
-	decs["Directive"] = reflect.TypeOf((*build.Directive)(nil)).Elem()
+	decs["Directive"] = reflect.TypeFor[build.Directive]()
 	decs["FindOnly"] = build.FindOnly
 	decs["IgnoreVendor"] = build.IgnoreVendor
 	decs["Import"] = build.Import
 	decs["ImportComment"] = build.ImportComment
 	decs["ImportDir"] = build.ImportDir
-	decs["ImportMode"] = reflect.TypeOf((*build.ImportMode)(nil)).Elem()
+	decs["ImportMode"] = reflect.TypeFor[build.ImportMode]()
 	decs["IsLocalImport"] = build.IsLocalImport
-	decs["MultiplePackageError"] = reflect.TypeOf((*build.MultiplePackageError)(nil)).Elem()
-	decs["NoGoError"] = reflect.TypeOf((*build.NoGoError)(nil)).Elem()
-	decs["Package"] = reflect.TypeOf((*build.Package)(nil)).Elem()
+	decs["MultiplePackageError"] = reflect.TypeFor[build.MultiplePackageError]()
+	decs["NoGoError"] = reflect.TypeFor[build.NoGoError]()
+	decs["Package"] = reflect.TypeFor[build.Package]()
 	decs["ToolDir"] = &build.ToolDir
 	packages["go/build"] = native.Package{
 		Name:         "build",
@@ -2525,7 +2526,7 @@ func init() {
 	decs["Imag"] = constant.Imag
 	decs["Int"] = constant.Int
 	decs["Int64Val"] = constant.Int64Val
-	decs["Kind"] = reflect.TypeOf((*constant.Kind)(nil)).Elem()
+	decs["Kind"] = reflect.TypeFor[constant.Kind]()
 	decs["Make"] = constant.Make
 	decs["MakeBool"] = constant.MakeBool
 	decs["MakeFloat64"] = constant.MakeFloat64
@@ -2549,7 +2550,7 @@ func init() {
 	decs["UnaryOp"] = constant.UnaryOp
 	decs["Unknown"] = constant.Unknown
 	decs["Val"] = constant.Val
-	decs["Value"] = reflect.TypeOf((*constant.Value)(nil)).Elem()
+	decs["Value"] = reflect.TypeFor[constant.Value]()
 	packages["go/constant"] = native.Package{
 		Name:         "constant",
 		Declarations: decs,
@@ -2558,23 +2559,23 @@ func init() {
 	decs = make(native.Declarations, 19)
 	decs["AllDecls"] = doc.AllDecls
 	decs["AllMethods"] = doc.AllMethods
-	decs["Example"] = reflect.TypeOf((*doc.Example)(nil)).Elem()
+	decs["Example"] = reflect.TypeFor[doc.Example]()
 	decs["Examples"] = doc.Examples
-	decs["Filter"] = reflect.TypeOf((*doc.Filter)(nil)).Elem()
-	decs["Func"] = reflect.TypeOf((*doc.Func)(nil)).Elem()
+	decs["Filter"] = reflect.TypeFor[doc.Filter]()
+	decs["Func"] = reflect.TypeFor[doc.Func]()
 	decs["IllegalPrefixes"] = &doc.IllegalPrefixes
 	decs["IsPredeclared"] = doc.IsPredeclared
-	decs["Mode"] = reflect.TypeOf((*doc.Mode)(nil)).Elem()
+	decs["Mode"] = reflect.TypeFor[doc.Mode]()
 	decs["New"] = doc.New
 	decs["NewFromFiles"] = doc.NewFromFiles
-	decs["Note"] = reflect.TypeOf((*doc.Note)(nil)).Elem()
-	decs["Package"] = reflect.TypeOf((*doc.Package)(nil)).Elem()
+	decs["Note"] = reflect.TypeFor[doc.Note]()
+	decs["Package"] = reflect.TypeFor[doc.Package]()
 	decs["PreserveAST"] = doc.PreserveAST
 	decs["Synopsis"] = doc.Synopsis
 	decs["ToHTML"] = doc.ToHTML
 	decs["ToText"] = doc.ToText
-	decs["Type"] = reflect.TypeOf((*doc.Type)(nil)).Elem()
-	decs["Value"] = reflect.TypeOf((*doc.Value)(nil)).Elem()
+	decs["Type"] = reflect.TypeFor[doc.Type]()
+	decs["Value"] = reflect.TypeFor[doc.Value]()
 	packages["go/doc"] = native.Package{
 		Name:         "doc",
 		Declarations: decs,
@@ -2592,7 +2593,7 @@ func init() {
 	decs["Default"] = importer.Default
 	decs["For"] = importer.For
 	decs["ForCompiler"] = importer.ForCompiler
-	decs["Lookup"] = reflect.TypeOf((*importer.Lookup)(nil)).Elem()
+	decs["Lookup"] = reflect.TypeFor[importer.Lookup]()
 	packages["go/importer"] = native.Package{
 		Name:         "importer",
 		Declarations: decs,
@@ -2602,7 +2603,7 @@ func init() {
 	decs["AllErrors"] = parser.AllErrors
 	decs["DeclarationErrors"] = parser.DeclarationErrors
 	decs["ImportsOnly"] = parser.ImportsOnly
-	decs["Mode"] = reflect.TypeOf((*parser.Mode)(nil)).Elem()
+	decs["Mode"] = reflect.TypeFor[parser.Mode]()
 	decs["PackageClauseOnly"] = parser.PackageClauseOnly
 	decs["ParseComments"] = parser.ParseComments
 	decs["ParseDir"] = parser.ParseDir
@@ -2618,10 +2619,10 @@ func init() {
 	}
 	// "go/printer"
 	decs = make(native.Declarations, 8)
-	decs["CommentedNode"] = reflect.TypeOf((*printer.CommentedNode)(nil)).Elem()
-	decs["Config"] = reflect.TypeOf((*printer.Config)(nil)).Elem()
+	decs["CommentedNode"] = reflect.TypeFor[printer.CommentedNode]()
+	decs["Config"] = reflect.TypeFor[printer.Config]()
 	decs["Fprint"] = printer.Fprint
-	decs["Mode"] = reflect.TypeOf((*printer.Mode)(nil)).Elem()
+	decs["Mode"] = reflect.TypeFor[printer.Mode]()
 	decs["RawFormat"] = printer.RawFormat
 	decs["SourcePos"] = printer.SourcePos
 	decs["TabIndent"] = printer.TabIndent
@@ -2632,13 +2633,13 @@ func init() {
 	}
 	// "go/scanner"
 	decs = make(native.Declarations, 7)
-	decs["Error"] = reflect.TypeOf((*scanner.Error)(nil)).Elem()
-	decs["ErrorHandler"] = reflect.TypeOf((*scanner.ErrorHandler)(nil)).Elem()
-	decs["ErrorList"] = reflect.TypeOf((*scanner.ErrorList)(nil)).Elem()
-	decs["Mode"] = reflect.TypeOf((*scanner.Mode)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[scanner.Error]()
+	decs["ErrorHandler"] = reflect.TypeFor[scanner.ErrorHandler]()
+	decs["ErrorList"] = reflect.TypeFor[scanner.ErrorList]()
+	decs["Mode"] = reflect.TypeFor[scanner.Mode]()
 	decs["PrintError"] = scanner.PrintError
 	decs["ScanComments"] = scanner.ScanComments
-	decs["Scanner"] = reflect.TypeOf((*scanner.Scanner)(nil)).Elem()
+	decs["Scanner"] = reflect.TypeFor[scanner.Scanner]()
 	packages["go/scanner"] = native.Package{
 		Name:         "scanner",
 		Declarations: decs,
@@ -2674,8 +2675,8 @@ func init() {
 	decs["FLOAT"] = token.FLOAT
 	decs["FOR"] = token.FOR
 	decs["FUNC"] = token.FUNC
-	decs["File"] = reflect.TypeOf((*token.File)(nil)).Elem()
-	decs["FileSet"] = reflect.TypeOf((*token.FileSet)(nil)).Elem()
+	decs["File"] = reflect.TypeFor[token.File]()
+	decs["FileSet"] = reflect.TypeFor[token.FileSet]()
 	decs["GEQ"] = token.GEQ
 	decs["GO"] = token.GO
 	decs["GOTO"] = token.GOTO
@@ -2712,8 +2713,8 @@ func init() {
 	decs["OR_ASSIGN"] = token.OR_ASSIGN
 	decs["PACKAGE"] = token.PACKAGE
 	decs["PERIOD"] = token.PERIOD
-	decs["Pos"] = reflect.TypeOf((*token.Pos)(nil)).Elem()
-	decs["Position"] = reflect.TypeOf((*token.Position)(nil)).Elem()
+	decs["Pos"] = reflect.TypeFor[token.Pos]()
+	decs["Position"] = reflect.TypeFor[token.Position]()
 	decs["QUO"] = token.QUO
 	decs["QUO_ASSIGN"] = token.QUO_ASSIGN
 	decs["RANGE"] = token.RANGE
@@ -2736,7 +2737,7 @@ func init() {
 	decs["SWITCH"] = token.SWITCH
 	decs["TILDE"] = token.TILDE
 	decs["TYPE"] = token.TYPE
-	decs["Token"] = reflect.TypeOf((*token.Token)(nil)).Elem()
+	decs["Token"] = reflect.TypeFor[token.Token]()
 	decs["UnaryPrec"] = native.UntypedNumericConst("6")
 	decs["VAR"] = token.VAR
 	decs["XOR"] = token.XOR
@@ -2747,53 +2748,53 @@ func init() {
 	}
 	// "go/types"
 	decs = make(native.Declarations, 150)
-	decs["ArgumentError"] = reflect.TypeOf((*types.ArgumentError)(nil)).Elem()
-	decs["Array"] = reflect.TypeOf((*types.Array)(nil)).Elem()
+	decs["ArgumentError"] = reflect.TypeFor[types.ArgumentError]()
+	decs["Array"] = reflect.TypeFor[types.Array]()
 	decs["AssertableTo"] = types.AssertableTo
 	decs["AssignableTo"] = types.AssignableTo
-	decs["Basic"] = reflect.TypeOf((*types.Basic)(nil)).Elem()
-	decs["BasicInfo"] = reflect.TypeOf((*types.BasicInfo)(nil)).Elem()
-	decs["BasicKind"] = reflect.TypeOf((*types.BasicKind)(nil)).Elem()
+	decs["Basic"] = reflect.TypeFor[types.Basic]()
+	decs["BasicInfo"] = reflect.TypeFor[types.BasicInfo]()
+	decs["BasicKind"] = reflect.TypeFor[types.BasicKind]()
 	decs["Bool"] = types.Bool
-	decs["Builtin"] = reflect.TypeOf((*types.Builtin)(nil)).Elem()
+	decs["Builtin"] = reflect.TypeFor[types.Builtin]()
 	decs["Byte"] = types.Byte
-	decs["Chan"] = reflect.TypeOf((*types.Chan)(nil)).Elem()
-	decs["ChanDir"] = reflect.TypeOf((*types.ChanDir)(nil)).Elem()
+	decs["Chan"] = reflect.TypeFor[types.Chan]()
+	decs["ChanDir"] = reflect.TypeFor[types.ChanDir]()
 	decs["CheckExpr"] = types.CheckExpr
-	decs["Checker"] = reflect.TypeOf((*types.Checker)(nil)).Elem()
+	decs["Checker"] = reflect.TypeFor[types.Checker]()
 	decs["Comparable"] = types.Comparable
 	decs["Complex128"] = types.Complex128
 	decs["Complex64"] = types.Complex64
-	decs["Config"] = reflect.TypeOf((*types.Config)(nil)).Elem()
-	decs["Const"] = reflect.TypeOf((*types.Const)(nil)).Elem()
-	decs["Context"] = reflect.TypeOf((*types.Context)(nil)).Elem()
+	decs["Config"] = reflect.TypeFor[types.Config]()
+	decs["Const"] = reflect.TypeFor[types.Const]()
+	decs["Context"] = reflect.TypeFor[types.Context]()
 	decs["ConvertibleTo"] = types.ConvertibleTo
 	decs["DefPredeclaredTestFuncs"] = types.DefPredeclaredTestFuncs
 	decs["Default"] = types.Default
-	decs["Error"] = reflect.TypeOf((*types.Error)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[types.Error]()
 	decs["Eval"] = types.Eval
 	decs["ExprString"] = types.ExprString
 	decs["FieldVal"] = types.FieldVal
 	decs["Float32"] = types.Float32
 	decs["Float64"] = types.Float64
-	decs["Func"] = reflect.TypeOf((*types.Func)(nil)).Elem()
+	decs["Func"] = reflect.TypeFor[types.Func]()
 	decs["Id"] = types.Id
 	decs["Identical"] = types.Identical
 	decs["IdenticalIgnoreTags"] = types.IdenticalIgnoreTags
 	decs["Implements"] = types.Implements
-	decs["ImportMode"] = reflect.TypeOf((*types.ImportMode)(nil)).Elem()
-	decs["Importer"] = reflect.TypeOf((*types.Importer)(nil)).Elem()
-	decs["ImporterFrom"] = reflect.TypeOf((*types.ImporterFrom)(nil)).Elem()
-	decs["Info"] = reflect.TypeOf((*types.Info)(nil)).Elem()
-	decs["Initializer"] = reflect.TypeOf((*types.Initializer)(nil)).Elem()
-	decs["Instance"] = reflect.TypeOf((*types.Instance)(nil)).Elem()
+	decs["ImportMode"] = reflect.TypeFor[types.ImportMode]()
+	decs["Importer"] = reflect.TypeFor[types.Importer]()
+	decs["ImporterFrom"] = reflect.TypeFor[types.ImporterFrom]()
+	decs["Info"] = reflect.TypeFor[types.Info]()
+	decs["Initializer"] = reflect.TypeFor[types.Initializer]()
+	decs["Instance"] = reflect.TypeFor[types.Instance]()
 	decs["Instantiate"] = types.Instantiate
 	decs["Int"] = types.Int
 	decs["Int16"] = types.Int16
 	decs["Int32"] = types.Int32
 	decs["Int64"] = types.Int64
 	decs["Int8"] = types.Int8
-	decs["Interface"] = reflect.TypeOf((*types.Interface)(nil)).Elem()
+	decs["Interface"] = reflect.TypeFor[types.Interface]()
 	decs["Invalid"] = types.Invalid
 	decs["IsBoolean"] = types.IsBoolean
 	decs["IsComplex"] = types.IsComplex
@@ -2806,14 +2807,14 @@ func init() {
 	decs["IsString"] = types.IsString
 	decs["IsUnsigned"] = types.IsUnsigned
 	decs["IsUntyped"] = types.IsUntyped
-	decs["Label"] = reflect.TypeOf((*types.Label)(nil)).Elem()
+	decs["Label"] = reflect.TypeFor[types.Label]()
 	decs["LookupFieldOrMethod"] = types.LookupFieldOrMethod
-	decs["Map"] = reflect.TypeOf((*types.Map)(nil)).Elem()
+	decs["Map"] = reflect.TypeFor[types.Map]()
 	decs["MethodExpr"] = types.MethodExpr
-	decs["MethodSet"] = reflect.TypeOf((*types.MethodSet)(nil)).Elem()
+	decs["MethodSet"] = reflect.TypeFor[types.MethodSet]()
 	decs["MethodVal"] = types.MethodVal
 	decs["MissingMethod"] = types.MissingMethod
-	decs["Named"] = reflect.TypeOf((*types.Named)(nil)).Elem()
+	decs["Named"] = reflect.TypeFor[types.Named]()
 	decs["NewArray"] = types.NewArray
 	decs["NewChan"] = types.NewChan
 	decs["NewChecker"] = types.NewChecker
@@ -2842,39 +2843,39 @@ func init() {
 	decs["NewTypeParam"] = types.NewTypeParam
 	decs["NewUnion"] = types.NewUnion
 	decs["NewVar"] = types.NewVar
-	decs["Nil"] = reflect.TypeOf((*types.Nil)(nil)).Elem()
-	decs["Object"] = reflect.TypeOf((*types.Object)(nil)).Elem()
+	decs["Nil"] = reflect.TypeFor[types.Nil]()
+	decs["Object"] = reflect.TypeFor[types.Object]()
 	decs["ObjectString"] = types.ObjectString
-	decs["Package"] = reflect.TypeOf((*types.Package)(nil)).Elem()
-	decs["PkgName"] = reflect.TypeOf((*types.PkgName)(nil)).Elem()
-	decs["Pointer"] = reflect.TypeOf((*types.Pointer)(nil)).Elem()
-	decs["Qualifier"] = reflect.TypeOf((*types.Qualifier)(nil)).Elem()
+	decs["Package"] = reflect.TypeFor[types.Package]()
+	decs["PkgName"] = reflect.TypeFor[types.PkgName]()
+	decs["Pointer"] = reflect.TypeFor[types.Pointer]()
+	decs["Qualifier"] = reflect.TypeFor[types.Qualifier]()
 	decs["RecvOnly"] = types.RecvOnly
 	decs["RelativeTo"] = types.RelativeTo
 	decs["Rune"] = types.Rune
 	decs["Satisfies"] = types.Satisfies
-	decs["Scope"] = reflect.TypeOf((*types.Scope)(nil)).Elem()
-	decs["Selection"] = reflect.TypeOf((*types.Selection)(nil)).Elem()
-	decs["SelectionKind"] = reflect.TypeOf((*types.SelectionKind)(nil)).Elem()
+	decs["Scope"] = reflect.TypeFor[types.Scope]()
+	decs["Selection"] = reflect.TypeFor[types.Selection]()
+	decs["SelectionKind"] = reflect.TypeFor[types.SelectionKind]()
 	decs["SelectionString"] = types.SelectionString
 	decs["SendOnly"] = types.SendOnly
 	decs["SendRecv"] = types.SendRecv
-	decs["Signature"] = reflect.TypeOf((*types.Signature)(nil)).Elem()
-	decs["Sizes"] = reflect.TypeOf((*types.Sizes)(nil)).Elem()
+	decs["Signature"] = reflect.TypeFor[types.Signature]()
+	decs["Sizes"] = reflect.TypeFor[types.Sizes]()
 	decs["SizesFor"] = types.SizesFor
-	decs["Slice"] = reflect.TypeOf((*types.Slice)(nil)).Elem()
-	decs["StdSizes"] = reflect.TypeOf((*types.StdSizes)(nil)).Elem()
+	decs["Slice"] = reflect.TypeFor[types.Slice]()
+	decs["StdSizes"] = reflect.TypeFor[types.StdSizes]()
 	decs["String"] = types.String
-	decs["Struct"] = reflect.TypeOf((*types.Struct)(nil)).Elem()
-	decs["Term"] = reflect.TypeOf((*types.Term)(nil)).Elem()
-	decs["Tuple"] = reflect.TypeOf((*types.Tuple)(nil)).Elem()
+	decs["Struct"] = reflect.TypeFor[types.Struct]()
+	decs["Term"] = reflect.TypeFor[types.Term]()
+	decs["Tuple"] = reflect.TypeFor[types.Tuple]()
 	decs["Typ"] = &types.Typ
-	decs["Type"] = reflect.TypeOf((*types.Type)(nil)).Elem()
-	decs["TypeAndValue"] = reflect.TypeOf((*types.TypeAndValue)(nil)).Elem()
-	decs["TypeList"] = reflect.TypeOf((*types.TypeList)(nil)).Elem()
-	decs["TypeName"] = reflect.TypeOf((*types.TypeName)(nil)).Elem()
-	decs["TypeParam"] = reflect.TypeOf((*types.TypeParam)(nil)).Elem()
-	decs["TypeParamList"] = reflect.TypeOf((*types.TypeParamList)(nil)).Elem()
+	decs["Type"] = reflect.TypeFor[types.Type]()
+	decs["TypeAndValue"] = reflect.TypeFor[types.TypeAndValue]()
+	decs["TypeList"] = reflect.TypeFor[types.TypeList]()
+	decs["TypeName"] = reflect.TypeFor[types.TypeName]()
+	decs["TypeParam"] = reflect.TypeFor[types.TypeParam]()
+	decs["TypeParamList"] = reflect.TypeFor[types.TypeParamList]()
 	decs["TypeString"] = types.TypeString
 	decs["Uint"] = types.Uint
 	decs["Uint16"] = types.Uint16
@@ -2882,7 +2883,7 @@ func init() {
 	decs["Uint64"] = types.Uint64
 	decs["Uint8"] = types.Uint8
 	decs["Uintptr"] = types.Uintptr
-	decs["Union"] = reflect.TypeOf((*types.Union)(nil)).Elem()
+	decs["Union"] = reflect.TypeFor[types.Union]()
 	decs["Universe"] = &types.Universe
 	decs["Unsafe"] = &types.Unsafe
 	decs["UnsafePointer"] = types.UnsafePointer
@@ -2893,7 +2894,7 @@ func init() {
 	decs["UntypedNil"] = types.UntypedNil
 	decs["UntypedRune"] = types.UntypedRune
 	decs["UntypedString"] = types.UntypedString
-	decs["Var"] = reflect.TypeOf((*types.Var)(nil)).Elem()
+	decs["Var"] = reflect.TypeFor[types.Var]()
 	decs["WriteExpr"] = types.WriteExpr
 	decs["WriteSignature"] = types.WriteSignature
 	decs["WriteType"] = types.WriteType
@@ -2913,9 +2914,9 @@ func init() {
 	}
 	// "hash"
 	decs = make(native.Declarations, 3)
-	decs["Hash"] = reflect.TypeOf((*hash.Hash)(nil)).Elem()
-	decs["Hash32"] = reflect.TypeOf((*hash.Hash32)(nil)).Elem()
-	decs["Hash64"] = reflect.TypeOf((*hash.Hash64)(nil)).Elem()
+	decs["Hash"] = reflect.TypeFor[hash.Hash]()
+	decs["Hash32"] = reflect.TypeFor[hash.Hash32]()
+	decs["Hash64"] = reflect.TypeFor[hash.Hash64]()
 	packages["hash"] = native.Package{
 		Name:         "hash",
 		Declarations: decs,
@@ -2941,7 +2942,7 @@ func init() {
 	decs["New"] = crc32.New
 	decs["NewIEEE"] = crc32.NewIEEE
 	decs["Size"] = native.UntypedNumericConst("4")
-	decs["Table"] = reflect.TypeOf((*crc32.Table)(nil)).Elem()
+	decs["Table"] = reflect.TypeFor[crc32.Table]()
 	decs["Update"] = crc32.Update
 	packages["hash/crc32"] = native.Package{
 		Name:         "crc32",
@@ -2955,7 +2956,7 @@ func init() {
 	decs["MakeTable"] = crc64.MakeTable
 	decs["New"] = crc64.New
 	decs["Size"] = native.UntypedNumericConst("8")
-	decs["Table"] = reflect.TypeOf((*crc64.Table)(nil)).Elem()
+	decs["Table"] = reflect.TypeFor[crc64.Table]()
 	decs["Update"] = crc64.Update
 	packages["hash/crc64"] = native.Package{
 		Name:         "crc64",
@@ -2976,9 +2977,9 @@ func init() {
 	// "hash/maphash"
 	decs = make(native.Declarations, 5)
 	decs["Bytes"] = maphash.Bytes
-	decs["Hash"] = reflect.TypeOf((*maphash.Hash)(nil)).Elem()
+	decs["Hash"] = reflect.TypeFor[maphash.Hash]()
 	decs["MakeSeed"] = maphash.MakeSeed
-	decs["Seed"] = reflect.TypeOf((*maphash.Seed)(nil)).Elem()
+	decs["Seed"] = reflect.TypeFor[maphash.Seed]()
 	decs["String"] = maphash.String
 	packages["hash/maphash"] = native.Package{
 		Name:         "maphash",
@@ -2994,7 +2995,7 @@ func init() {
 	}
 	// "html/template"
 	decs = make(native.Declarations, 37)
-	decs["CSS"] = reflect.TypeOf((*template.CSS)(nil)).Elem()
+	decs["CSS"] = reflect.TypeFor[template.CSS]()
 	decs["ErrAmbigContext"] = template.ErrAmbigContext
 	decs["ErrBadHTML"] = template.ErrBadHTML
 	decs["ErrBranchEnd"] = template.ErrBranchEnd
@@ -3007,29 +3008,29 @@ func init() {
 	decs["ErrPredefinedEscaper"] = template.ErrPredefinedEscaper
 	decs["ErrRangeLoopReentry"] = template.ErrRangeLoopReentry
 	decs["ErrSlashAmbig"] = template.ErrSlashAmbig
-	decs["Error"] = reflect.TypeOf((*template.Error)(nil)).Elem()
-	decs["ErrorCode"] = reflect.TypeOf((*template.ErrorCode)(nil)).Elem()
-	decs["FuncMap"] = reflect.TypeOf((*template.FuncMap)(nil)).Elem()
-	decs["HTML"] = reflect.TypeOf((*template.HTML)(nil)).Elem()
-	decs["HTMLAttr"] = reflect.TypeOf((*template.HTMLAttr)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[template.Error]()
+	decs["ErrorCode"] = reflect.TypeFor[template.ErrorCode]()
+	decs["FuncMap"] = reflect.TypeFor[template.FuncMap]()
+	decs["HTML"] = reflect.TypeFor[template.HTML]()
+	decs["HTMLAttr"] = reflect.TypeFor[template.HTMLAttr]()
 	decs["HTMLEscape"] = template.HTMLEscape
 	decs["HTMLEscapeString"] = template.HTMLEscapeString
 	decs["HTMLEscaper"] = template.HTMLEscaper
 	decs["IsTrue"] = template.IsTrue
-	decs["JS"] = reflect.TypeOf((*template.JS)(nil)).Elem()
+	decs["JS"] = reflect.TypeFor[template.JS]()
 	decs["JSEscape"] = template.JSEscape
 	decs["JSEscapeString"] = template.JSEscapeString
 	decs["JSEscaper"] = template.JSEscaper
-	decs["JSStr"] = reflect.TypeOf((*template.JSStr)(nil)).Elem()
+	decs["JSStr"] = reflect.TypeFor[template.JSStr]()
 	decs["Must"] = template.Must
 	decs["New"] = template.New
 	decs["OK"] = template.OK
 	decs["ParseFS"] = template.ParseFS
 	decs["ParseFiles"] = template.ParseFiles
 	decs["ParseGlob"] = template.ParseGlob
-	decs["Srcset"] = reflect.TypeOf((*template.Srcset)(nil)).Elem()
-	decs["Template"] = reflect.TypeOf((*template.Template)(nil)).Elem()
-	decs["URL"] = reflect.TypeOf((*template.URL)(nil)).Elem()
+	decs["Srcset"] = reflect.TypeFor[template.Srcset]()
+	decs["Template"] = reflect.TypeFor[template.Template]()
+	decs["URL"] = reflect.TypeFor[template.URL]()
 	decs["URLQueryEscaper"] = template.URLQueryEscaper
 	packages["html/template"] = native.Package{
 		Name:         "template",
@@ -3037,20 +3038,20 @@ func init() {
 	}
 	// "image"
 	decs = make(native.Declarations, 51)
-	decs["Alpha"] = reflect.TypeOf((*image.Alpha)(nil)).Elem()
-	decs["Alpha16"] = reflect.TypeOf((*image.Alpha16)(nil)).Elem()
+	decs["Alpha"] = reflect.TypeFor[image.Alpha]()
+	decs["Alpha16"] = reflect.TypeFor[image.Alpha16]()
 	decs["Black"] = &image.Black
-	decs["CMYK"] = reflect.TypeOf((*image.CMYK)(nil)).Elem()
-	decs["Config"] = reflect.TypeOf((*image.Config)(nil)).Elem()
+	decs["CMYK"] = reflect.TypeFor[image.CMYK]()
+	decs["Config"] = reflect.TypeFor[image.Config]()
 	decs["Decode"] = image.Decode
 	decs["DecodeConfig"] = image.DecodeConfig
 	decs["ErrFormat"] = &image.ErrFormat
-	decs["Gray"] = reflect.TypeOf((*image.Gray)(nil)).Elem()
-	decs["Gray16"] = reflect.TypeOf((*image.Gray16)(nil)).Elem()
-	decs["Image"] = reflect.TypeOf((*image.Image)(nil)).Elem()
-	decs["NRGBA"] = reflect.TypeOf((*image.NRGBA)(nil)).Elem()
-	decs["NRGBA64"] = reflect.TypeOf((*image.NRGBA64)(nil)).Elem()
-	decs["NYCbCrA"] = reflect.TypeOf((*image.NYCbCrA)(nil)).Elem()
+	decs["Gray"] = reflect.TypeFor[image.Gray]()
+	decs["Gray16"] = reflect.TypeFor[image.Gray16]()
+	decs["Image"] = reflect.TypeFor[image.Image]()
+	decs["NRGBA"] = reflect.TypeFor[image.NRGBA]()
+	decs["NRGBA64"] = reflect.TypeFor[image.NRGBA64]()
+	decs["NYCbCrA"] = reflect.TypeFor[image.NYCbCrA]()
 	decs["NewAlpha"] = image.NewAlpha
 	decs["NewAlpha16"] = image.NewAlpha16
 	decs["NewCMYK"] = image.NewCMYK
@@ -3065,21 +3066,21 @@ func init() {
 	decs["NewUniform"] = image.NewUniform
 	decs["NewYCbCr"] = image.NewYCbCr
 	decs["Opaque"] = &image.Opaque
-	decs["Paletted"] = reflect.TypeOf((*image.Paletted)(nil)).Elem()
-	decs["PalettedImage"] = reflect.TypeOf((*image.PalettedImage)(nil)).Elem()
-	decs["Point"] = reflect.TypeOf((*image.Point)(nil)).Elem()
+	decs["Paletted"] = reflect.TypeFor[image.Paletted]()
+	decs["PalettedImage"] = reflect.TypeFor[image.PalettedImage]()
+	decs["Point"] = reflect.TypeFor[image.Point]()
 	decs["Pt"] = image.Pt
-	decs["RGBA"] = reflect.TypeOf((*image.RGBA)(nil)).Elem()
-	decs["RGBA64"] = reflect.TypeOf((*image.RGBA64)(nil)).Elem()
-	decs["RGBA64Image"] = reflect.TypeOf((*image.RGBA64Image)(nil)).Elem()
+	decs["RGBA"] = reflect.TypeFor[image.RGBA]()
+	decs["RGBA64"] = reflect.TypeFor[image.RGBA64]()
+	decs["RGBA64Image"] = reflect.TypeFor[image.RGBA64Image]()
 	decs["Rect"] = image.Rect
-	decs["Rectangle"] = reflect.TypeOf((*image.Rectangle)(nil)).Elem()
+	decs["Rectangle"] = reflect.TypeFor[image.Rectangle]()
 	decs["RegisterFormat"] = image.RegisterFormat
 	decs["Transparent"] = &image.Transparent
-	decs["Uniform"] = reflect.TypeOf((*image.Uniform)(nil)).Elem()
+	decs["Uniform"] = reflect.TypeFor[image.Uniform]()
 	decs["White"] = &image.White
-	decs["YCbCr"] = reflect.TypeOf((*image.YCbCr)(nil)).Elem()
-	decs["YCbCrSubsampleRatio"] = reflect.TypeOf((*image.YCbCrSubsampleRatio)(nil)).Elem()
+	decs["YCbCr"] = reflect.TypeFor[image.YCbCr]()
+	decs["YCbCrSubsampleRatio"] = reflect.TypeFor[image.YCbCrSubsampleRatio]()
 	decs["YCbCrSubsampleRatio410"] = image.YCbCrSubsampleRatio410
 	decs["YCbCrSubsampleRatio411"] = image.YCbCrSubsampleRatio411
 	decs["YCbCrSubsampleRatio420"] = image.YCbCrSubsampleRatio420
@@ -3094,38 +3095,38 @@ func init() {
 	}
 	// "image/color"
 	decs = make(native.Declarations, 34)
-	decs["Alpha"] = reflect.TypeOf((*color.Alpha)(nil)).Elem()
-	decs["Alpha16"] = reflect.TypeOf((*color.Alpha16)(nil)).Elem()
+	decs["Alpha"] = reflect.TypeFor[color.Alpha]()
+	decs["Alpha16"] = reflect.TypeFor[color.Alpha16]()
 	decs["Alpha16Model"] = &color.Alpha16Model
 	decs["AlphaModel"] = &color.AlphaModel
 	decs["Black"] = &color.Black
-	decs["CMYK"] = reflect.TypeOf((*color.CMYK)(nil)).Elem()
+	decs["CMYK"] = reflect.TypeFor[color.CMYK]()
 	decs["CMYKModel"] = &color.CMYKModel
 	decs["CMYKToRGB"] = color.CMYKToRGB
-	decs["Color"] = reflect.TypeOf((*color.Color)(nil)).Elem()
-	decs["Gray"] = reflect.TypeOf((*color.Gray)(nil)).Elem()
-	decs["Gray16"] = reflect.TypeOf((*color.Gray16)(nil)).Elem()
+	decs["Color"] = reflect.TypeFor[color.Color]()
+	decs["Gray"] = reflect.TypeFor[color.Gray]()
+	decs["Gray16"] = reflect.TypeFor[color.Gray16]()
 	decs["Gray16Model"] = &color.Gray16Model
 	decs["GrayModel"] = &color.GrayModel
-	decs["Model"] = reflect.TypeOf((*color.Model)(nil)).Elem()
+	decs["Model"] = reflect.TypeFor[color.Model]()
 	decs["ModelFunc"] = color.ModelFunc
-	decs["NRGBA"] = reflect.TypeOf((*color.NRGBA)(nil)).Elem()
-	decs["NRGBA64"] = reflect.TypeOf((*color.NRGBA64)(nil)).Elem()
+	decs["NRGBA"] = reflect.TypeFor[color.NRGBA]()
+	decs["NRGBA64"] = reflect.TypeFor[color.NRGBA64]()
 	decs["NRGBA64Model"] = &color.NRGBA64Model
 	decs["NRGBAModel"] = &color.NRGBAModel
-	decs["NYCbCrA"] = reflect.TypeOf((*color.NYCbCrA)(nil)).Elem()
+	decs["NYCbCrA"] = reflect.TypeFor[color.NYCbCrA]()
 	decs["NYCbCrAModel"] = &color.NYCbCrAModel
 	decs["Opaque"] = &color.Opaque
-	decs["Palette"] = reflect.TypeOf((*color.Palette)(nil)).Elem()
-	decs["RGBA"] = reflect.TypeOf((*color.RGBA)(nil)).Elem()
-	decs["RGBA64"] = reflect.TypeOf((*color.RGBA64)(nil)).Elem()
+	decs["Palette"] = reflect.TypeFor[color.Palette]()
+	decs["RGBA"] = reflect.TypeFor[color.RGBA]()
+	decs["RGBA64"] = reflect.TypeFor[color.RGBA64]()
 	decs["RGBA64Model"] = &color.RGBA64Model
 	decs["RGBAModel"] = &color.RGBAModel
 	decs["RGBToCMYK"] = color.RGBToCMYK
 	decs["RGBToYCbCr"] = color.RGBToYCbCr
 	decs["Transparent"] = &color.Transparent
 	decs["White"] = &color.White
-	decs["YCbCr"] = reflect.TypeOf((*color.YCbCr)(nil)).Elem()
+	decs["YCbCr"] = reflect.TypeFor[color.YCbCr]()
 	decs["YCbCrModel"] = &color.YCbCrModel
 	decs["YCbCrToRGB"] = color.YCbCrToRGB
 	packages["image/color"] = native.Package{
@@ -3144,13 +3145,13 @@ func init() {
 	decs = make(native.Declarations, 10)
 	decs["Draw"] = draw.Draw
 	decs["DrawMask"] = draw.DrawMask
-	decs["Drawer"] = reflect.TypeOf((*draw.Drawer)(nil)).Elem()
+	decs["Drawer"] = reflect.TypeFor[draw.Drawer]()
 	decs["FloydSteinberg"] = &draw.FloydSteinberg
-	decs["Image"] = reflect.TypeOf((*draw.Image)(nil)).Elem()
-	decs["Op"] = reflect.TypeOf((*draw.Op)(nil)).Elem()
+	decs["Image"] = reflect.TypeFor[draw.Image]()
+	decs["Op"] = reflect.TypeFor[draw.Op]()
 	decs["Over"] = draw.Over
-	decs["Quantizer"] = reflect.TypeOf((*draw.Quantizer)(nil)).Elem()
-	decs["RGBA64Image"] = reflect.TypeOf((*draw.RGBA64Image)(nil)).Elem()
+	decs["Quantizer"] = reflect.TypeFor[draw.Quantizer]()
+	decs["RGBA64Image"] = reflect.TypeFor[draw.RGBA64Image]()
 	decs["Src"] = draw.Src
 	packages["image/draw"] = native.Package{
 		Name:         "draw",
@@ -3166,8 +3167,8 @@ func init() {
 	decs["DisposalPrevious"] = native.UntypedNumericConst("3")
 	decs["Encode"] = gif.Encode
 	decs["EncodeAll"] = gif.EncodeAll
-	decs["GIF"] = reflect.TypeOf((*gif.GIF)(nil)).Elem()
-	decs["Options"] = reflect.TypeOf((*gif.Options)(nil)).Elem()
+	decs["GIF"] = reflect.TypeFor[gif.GIF]()
+	decs["Options"] = reflect.TypeFor[gif.Options]()
 	packages["image/gif"] = native.Package{
 		Name:         "gif",
 		Declarations: decs,
@@ -3178,10 +3179,10 @@ func init() {
 	decs["DecodeConfig"] = jpeg.DecodeConfig
 	decs["DefaultQuality"] = native.UntypedNumericConst("75")
 	decs["Encode"] = jpeg.Encode
-	decs["FormatError"] = reflect.TypeOf((*jpeg.FormatError)(nil)).Elem()
-	decs["Options"] = reflect.TypeOf((*jpeg.Options)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*jpeg.Reader)(nil)).Elem()
-	decs["UnsupportedError"] = reflect.TypeOf((*jpeg.UnsupportedError)(nil)).Elem()
+	decs["FormatError"] = reflect.TypeFor[jpeg.FormatError]()
+	decs["Options"] = reflect.TypeFor[jpeg.Options]()
+	decs["Reader"] = reflect.TypeFor[jpeg.Reader]()
+	decs["UnsupportedError"] = reflect.TypeFor[jpeg.UnsupportedError]()
 	packages["image/jpeg"] = native.Package{
 		Name:         "jpeg",
 		Declarations: decs,
@@ -3190,24 +3191,24 @@ func init() {
 	decs = make(native.Declarations, 13)
 	decs["BestCompression"] = png.BestCompression
 	decs["BestSpeed"] = png.BestSpeed
-	decs["CompressionLevel"] = reflect.TypeOf((*png.CompressionLevel)(nil)).Elem()
+	decs["CompressionLevel"] = reflect.TypeFor[png.CompressionLevel]()
 	decs["Decode"] = png.Decode
 	decs["DecodeConfig"] = png.DecodeConfig
 	decs["DefaultCompression"] = png.DefaultCompression
 	decs["Encode"] = png.Encode
-	decs["Encoder"] = reflect.TypeOf((*png.Encoder)(nil)).Elem()
-	decs["EncoderBuffer"] = reflect.TypeOf((*png.EncoderBuffer)(nil)).Elem()
-	decs["EncoderBufferPool"] = reflect.TypeOf((*png.EncoderBufferPool)(nil)).Elem()
-	decs["FormatError"] = reflect.TypeOf((*png.FormatError)(nil)).Elem()
+	decs["Encoder"] = reflect.TypeFor[png.Encoder]()
+	decs["EncoderBuffer"] = reflect.TypeFor[png.EncoderBuffer]()
+	decs["EncoderBufferPool"] = reflect.TypeFor[png.EncoderBufferPool]()
+	decs["FormatError"] = reflect.TypeFor[png.FormatError]()
 	decs["NoCompression"] = png.NoCompression
-	decs["UnsupportedError"] = reflect.TypeOf((*png.UnsupportedError)(nil)).Elem()
+	decs["UnsupportedError"] = reflect.TypeFor[png.UnsupportedError]()
 	packages["image/png"] = native.Package{
 		Name:         "png",
 		Declarations: decs,
 	}
 	// "index/suffixarray"
 	decs = make(native.Declarations, 2)
-	decs["Index"] = reflect.TypeOf((*suffixarray.Index)(nil)).Elem()
+	decs["Index"] = reflect.TypeFor[suffixarray.Index]()
 	decs["New"] = suffixarray.New
 	packages["index/suffixarray"] = native.Package{
 		Name:         "suffixarray",
@@ -3215,10 +3216,10 @@ func init() {
 	}
 	// "io"
 	decs = make(native.Declarations, 52)
-	decs["ByteReader"] = reflect.TypeOf((*io.ByteReader)(nil)).Elem()
-	decs["ByteScanner"] = reflect.TypeOf((*io.ByteScanner)(nil)).Elem()
-	decs["ByteWriter"] = reflect.TypeOf((*io.ByteWriter)(nil)).Elem()
-	decs["Closer"] = reflect.TypeOf((*io.Closer)(nil)).Elem()
+	decs["ByteReader"] = reflect.TypeFor[io.ByteReader]()
+	decs["ByteScanner"] = reflect.TypeFor[io.ByteScanner]()
+	decs["ByteWriter"] = reflect.TypeFor[io.ByteWriter]()
+	decs["Closer"] = reflect.TypeFor[io.Closer]()
 	decs["Copy"] = io.Copy
 	decs["CopyBuffer"] = io.CopyBuffer
 	decs["CopyN"] = io.CopyN
@@ -3230,64 +3231,64 @@ func init() {
 	decs["ErrShortWrite"] = &io.ErrShortWrite
 	decs["ErrUnexpectedEOF"] = &io.ErrUnexpectedEOF
 	decs["LimitReader"] = io.LimitReader
-	decs["LimitedReader"] = reflect.TypeOf((*io.LimitedReader)(nil)).Elem()
+	decs["LimitedReader"] = reflect.TypeFor[io.LimitedReader]()
 	decs["MultiReader"] = io.MultiReader
 	decs["MultiWriter"] = io.MultiWriter
 	decs["NewOffsetWriter"] = io.NewOffsetWriter
 	decs["NewSectionReader"] = io.NewSectionReader
 	decs["NopCloser"] = io.NopCloser
-	decs["OffsetWriter"] = reflect.TypeOf((*io.OffsetWriter)(nil)).Elem()
+	decs["OffsetWriter"] = reflect.TypeFor[io.OffsetWriter]()
 	decs["Pipe"] = io.Pipe
-	decs["PipeReader"] = reflect.TypeOf((*io.PipeReader)(nil)).Elem()
-	decs["PipeWriter"] = reflect.TypeOf((*io.PipeWriter)(nil)).Elem()
+	decs["PipeReader"] = reflect.TypeFor[io.PipeReader]()
+	decs["PipeWriter"] = reflect.TypeFor[io.PipeWriter]()
 	decs["ReadAll"] = io.ReadAll
 	decs["ReadAtLeast"] = io.ReadAtLeast
-	decs["ReadCloser"] = reflect.TypeOf((*io.ReadCloser)(nil)).Elem()
+	decs["ReadCloser"] = reflect.TypeFor[io.ReadCloser]()
 	decs["ReadFull"] = io.ReadFull
-	decs["ReadSeekCloser"] = reflect.TypeOf((*io.ReadSeekCloser)(nil)).Elem()
-	decs["ReadSeeker"] = reflect.TypeOf((*io.ReadSeeker)(nil)).Elem()
-	decs["ReadWriteCloser"] = reflect.TypeOf((*io.ReadWriteCloser)(nil)).Elem()
-	decs["ReadWriteSeeker"] = reflect.TypeOf((*io.ReadWriteSeeker)(nil)).Elem()
-	decs["ReadWriter"] = reflect.TypeOf((*io.ReadWriter)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*io.Reader)(nil)).Elem()
-	decs["ReaderAt"] = reflect.TypeOf((*io.ReaderAt)(nil)).Elem()
-	decs["ReaderFrom"] = reflect.TypeOf((*io.ReaderFrom)(nil)).Elem()
-	decs["RuneReader"] = reflect.TypeOf((*io.RuneReader)(nil)).Elem()
-	decs["RuneScanner"] = reflect.TypeOf((*io.RuneScanner)(nil)).Elem()
-	decs["SectionReader"] = reflect.TypeOf((*io.SectionReader)(nil)).Elem()
+	decs["ReadSeekCloser"] = reflect.TypeFor[io.ReadSeekCloser]()
+	decs["ReadSeeker"] = reflect.TypeFor[io.ReadSeeker]()
+	decs["ReadWriteCloser"] = reflect.TypeFor[io.ReadWriteCloser]()
+	decs["ReadWriteSeeker"] = reflect.TypeFor[io.ReadWriteSeeker]()
+	decs["ReadWriter"] = reflect.TypeFor[io.ReadWriter]()
+	decs["Reader"] = reflect.TypeFor[io.Reader]()
+	decs["ReaderAt"] = reflect.TypeFor[io.ReaderAt]()
+	decs["ReaderFrom"] = reflect.TypeFor[io.ReaderFrom]()
+	decs["RuneReader"] = reflect.TypeFor[io.RuneReader]()
+	decs["RuneScanner"] = reflect.TypeFor[io.RuneScanner]()
+	decs["SectionReader"] = reflect.TypeFor[io.SectionReader]()
 	decs["SeekCurrent"] = native.UntypedNumericConst("1")
 	decs["SeekEnd"] = native.UntypedNumericConst("2")
 	decs["SeekStart"] = native.UntypedNumericConst("0")
-	decs["Seeker"] = reflect.TypeOf((*io.Seeker)(nil)).Elem()
-	decs["StringWriter"] = reflect.TypeOf((*io.StringWriter)(nil)).Elem()
+	decs["Seeker"] = reflect.TypeFor[io.Seeker]()
+	decs["StringWriter"] = reflect.TypeFor[io.StringWriter]()
 	decs["TeeReader"] = io.TeeReader
-	decs["WriteCloser"] = reflect.TypeOf((*io.WriteCloser)(nil)).Elem()
-	decs["WriteSeeker"] = reflect.TypeOf((*io.WriteSeeker)(nil)).Elem()
+	decs["WriteCloser"] = reflect.TypeFor[io.WriteCloser]()
+	decs["WriteSeeker"] = reflect.TypeFor[io.WriteSeeker]()
 	decs["WriteString"] = io.WriteString
-	decs["Writer"] = reflect.TypeOf((*io.Writer)(nil)).Elem()
-	decs["WriterAt"] = reflect.TypeOf((*io.WriterAt)(nil)).Elem()
-	decs["WriterTo"] = reflect.TypeOf((*io.WriterTo)(nil)).Elem()
+	decs["Writer"] = reflect.TypeFor[io.Writer]()
+	decs["WriterAt"] = reflect.TypeFor[io.WriterAt]()
+	decs["WriterTo"] = reflect.TypeFor[io.WriterTo]()
 	packages["io"] = native.Package{
 		Name:         "io",
 		Declarations: decs,
 	}
 	// "io/fs"
 	decs = make(native.Declarations, 45)
-	decs["DirEntry"] = reflect.TypeOf((*fs.DirEntry)(nil)).Elem()
+	decs["DirEntry"] = reflect.TypeFor[fs.DirEntry]()
 	decs["ErrClosed"] = &fs.ErrClosed
 	decs["ErrExist"] = &fs.ErrExist
 	decs["ErrInvalid"] = &fs.ErrInvalid
 	decs["ErrNotExist"] = &fs.ErrNotExist
 	decs["ErrPermission"] = &fs.ErrPermission
-	decs["FS"] = reflect.TypeOf((*fs.FS)(nil)).Elem()
-	decs["File"] = reflect.TypeOf((*fs.File)(nil)).Elem()
-	decs["FileInfo"] = reflect.TypeOf((*fs.FileInfo)(nil)).Elem()
+	decs["FS"] = reflect.TypeFor[fs.FS]()
+	decs["File"] = reflect.TypeFor[fs.File]()
+	decs["FileInfo"] = reflect.TypeFor[fs.FileInfo]()
 	decs["FileInfoToDirEntry"] = fs.FileInfoToDirEntry
-	decs["FileMode"] = reflect.TypeOf((*fs.FileMode)(nil)).Elem()
+	decs["FileMode"] = reflect.TypeFor[fs.FileMode]()
 	decs["FormatDirEntry"] = fs.FormatDirEntry
 	decs["FormatFileInfo"] = fs.FormatFileInfo
 	decs["Glob"] = fs.Glob
-	decs["GlobFS"] = reflect.TypeOf((*fs.GlobFS)(nil)).Elem()
+	decs["GlobFS"] = reflect.TypeFor[fs.GlobFS]()
 	decs["ModeAppend"] = fs.ModeAppend
 	decs["ModeCharDevice"] = fs.ModeCharDevice
 	decs["ModeDevice"] = fs.ModeDevice
@@ -3303,21 +3304,21 @@ func init() {
 	decs["ModeSymlink"] = fs.ModeSymlink
 	decs["ModeTemporary"] = fs.ModeTemporary
 	decs["ModeType"] = fs.ModeType
-	decs["PathError"] = reflect.TypeOf((*fs.PathError)(nil)).Elem()
+	decs["PathError"] = reflect.TypeFor[fs.PathError]()
 	decs["ReadDir"] = fs.ReadDir
-	decs["ReadDirFS"] = reflect.TypeOf((*fs.ReadDirFS)(nil)).Elem()
-	decs["ReadDirFile"] = reflect.TypeOf((*fs.ReadDirFile)(nil)).Elem()
+	decs["ReadDirFS"] = reflect.TypeFor[fs.ReadDirFS]()
+	decs["ReadDirFile"] = reflect.TypeFor[fs.ReadDirFile]()
 	decs["ReadFile"] = fs.ReadFile
-	decs["ReadFileFS"] = reflect.TypeOf((*fs.ReadFileFS)(nil)).Elem()
+	decs["ReadFileFS"] = reflect.TypeFor[fs.ReadFileFS]()
 	decs["SkipAll"] = &fs.SkipAll
 	decs["SkipDir"] = &fs.SkipDir
 	decs["Stat"] = fs.Stat
-	decs["StatFS"] = reflect.TypeOf((*fs.StatFS)(nil)).Elem()
+	decs["StatFS"] = reflect.TypeFor[fs.StatFS]()
 	decs["Sub"] = fs.Sub
-	decs["SubFS"] = reflect.TypeOf((*fs.SubFS)(nil)).Elem()
+	decs["SubFS"] = reflect.TypeFor[fs.SubFS]()
 	decs["ValidPath"] = fs.ValidPath
 	decs["WalkDir"] = fs.WalkDir
-	decs["WalkDirFunc"] = reflect.TypeOf((*fs.WalkDirFunc)(nil)).Elem()
+	decs["WalkDirFunc"] = reflect.TypeFor[fs.WalkDirFunc]()
 	packages["io/fs"] = native.Package{
 		Name:         "fs",
 		Declarations: decs,
@@ -3348,7 +3349,7 @@ func init() {
 	decs["Llongfile"] = native.UntypedNumericConst("8")
 	decs["Lmicroseconds"] = native.UntypedNumericConst("4")
 	decs["Lmsgprefix"] = native.UntypedNumericConst("64")
-	decs["Logger"] = reflect.TypeOf((*log.Logger)(nil)).Elem()
+	decs["Logger"] = reflect.TypeFor[log.Logger]()
 	decs["Lshortfile"] = native.UntypedNumericConst("16")
 	decs["LstdFlags"] = native.UntypedNumericConst("3")
 	decs["Ltime"] = native.UntypedNumericConst("2")
@@ -3475,13 +3476,13 @@ func init() {
 	// "math/big"
 	decs = make(native.Declarations, 25)
 	decs["Above"] = big.Above
-	decs["Accuracy"] = reflect.TypeOf((*big.Accuracy)(nil)).Elem()
+	decs["Accuracy"] = reflect.TypeFor[big.Accuracy]()
 	decs["AwayFromZero"] = big.AwayFromZero
 	decs["Below"] = big.Below
-	decs["ErrNaN"] = reflect.TypeOf((*big.ErrNaN)(nil)).Elem()
+	decs["ErrNaN"] = reflect.TypeFor[big.ErrNaN]()
 	decs["Exact"] = big.Exact
-	decs["Float"] = reflect.TypeOf((*big.Float)(nil)).Elem()
-	decs["Int"] = reflect.TypeOf((*big.Int)(nil)).Elem()
+	decs["Float"] = reflect.TypeFor[big.Float]()
+	decs["Int"] = reflect.TypeFor[big.Int]()
 	decs["Jacobi"] = big.Jacobi
 	decs["MaxBase"] = native.UntypedNumericConst("62")
 	decs["MaxExp"] = native.UntypedNumericConst("2147483647")
@@ -3491,14 +3492,14 @@ func init() {
 	decs["NewInt"] = big.NewInt
 	decs["NewRat"] = big.NewRat
 	decs["ParseFloat"] = big.ParseFloat
-	decs["Rat"] = reflect.TypeOf((*big.Rat)(nil)).Elem()
-	decs["RoundingMode"] = reflect.TypeOf((*big.RoundingMode)(nil)).Elem()
+	decs["Rat"] = reflect.TypeFor[big.Rat]()
+	decs["RoundingMode"] = reflect.TypeFor[big.RoundingMode]()
 	decs["ToNearestAway"] = big.ToNearestAway
 	decs["ToNearestEven"] = big.ToNearestEven
 	decs["ToNegativeInf"] = big.ToNegativeInf
 	decs["ToPositiveInf"] = big.ToPositiveInf
 	decs["ToZero"] = big.ToZero
-	decs["Word"] = reflect.TypeOf((*big.Word)(nil)).Elem()
+	decs["Word"] = reflect.TypeFor[big.Word]()
 	packages["math/big"] = native.Package{
 		Name:         "big",
 		Declarations: decs,
@@ -3608,15 +3609,15 @@ func init() {
 	decs["NewZipf"] = rand_2.NewZipf
 	decs["NormFloat64"] = rand_2.NormFloat64
 	decs["Perm"] = rand_2.Perm
-	decs["Rand"] = reflect.TypeOf((*rand_2.Rand)(nil)).Elem()
+	decs["Rand"] = reflect.TypeFor[rand_2.Rand]()
 	decs["Read"] = rand_2.Read
 	decs["Seed"] = rand_2.Seed
 	decs["Shuffle"] = rand_2.Shuffle
-	decs["Source"] = reflect.TypeOf((*rand_2.Source)(nil)).Elem()
-	decs["Source64"] = reflect.TypeOf((*rand_2.Source64)(nil)).Elem()
+	decs["Source"] = reflect.TypeFor[rand_2.Source]()
+	decs["Source64"] = reflect.TypeFor[rand_2.Source64]()
 	decs["Uint32"] = rand_2.Uint32
 	decs["Uint64"] = rand_2.Uint64
-	decs["Zipf"] = reflect.TypeOf((*rand_2.Zipf)(nil)).Elem()
+	decs["Zipf"] = reflect.TypeFor[rand_2.Zipf]()
 	packages["math/rand"] = native.Package{
 		Name:         "rand",
 		Declarations: decs,
@@ -3631,8 +3632,8 @@ func init() {
 	decs["ParseMediaType"] = mime.ParseMediaType
 	decs["QEncoding"] = mime.QEncoding
 	decs["TypeByExtension"] = mime.TypeByExtension
-	decs["WordDecoder"] = reflect.TypeOf((*mime.WordDecoder)(nil)).Elem()
-	decs["WordEncoder"] = reflect.TypeOf((*mime.WordEncoder)(nil)).Elem()
+	decs["WordDecoder"] = reflect.TypeFor[mime.WordDecoder]()
+	decs["WordEncoder"] = reflect.TypeFor[mime.WordEncoder]()
 	packages["mime"] = native.Package{
 		Name:         "mime",
 		Declarations: decs,
@@ -3640,14 +3641,14 @@ func init() {
 	// "mime/multipart"
 	decs = make(native.Declarations, 9)
 	decs["ErrMessageTooLarge"] = &multipart.ErrMessageTooLarge
-	decs["File"] = reflect.TypeOf((*multipart.File)(nil)).Elem()
-	decs["FileHeader"] = reflect.TypeOf((*multipart.FileHeader)(nil)).Elem()
-	decs["Form"] = reflect.TypeOf((*multipart.Form)(nil)).Elem()
+	decs["File"] = reflect.TypeFor[multipart.File]()
+	decs["FileHeader"] = reflect.TypeFor[multipart.FileHeader]()
+	decs["Form"] = reflect.TypeFor[multipart.Form]()
 	decs["NewReader"] = multipart.NewReader
 	decs["NewWriter"] = multipart.NewWriter
-	decs["Part"] = reflect.TypeOf((*multipart.Part)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*multipart.Reader)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*multipart.Writer)(nil)).Elem()
+	decs["Part"] = reflect.TypeFor[multipart.Part]()
+	decs["Reader"] = reflect.TypeFor[multipart.Reader]()
+	decs["Writer"] = reflect.TypeFor[multipart.Writer]()
 	packages["mime/multipart"] = native.Package{
 		Name:         "multipart",
 		Declarations: decs,
@@ -3656,21 +3657,21 @@ func init() {
 	decs = make(native.Declarations, 4)
 	decs["NewReader"] = quotedprintable.NewReader
 	decs["NewWriter"] = quotedprintable.NewWriter
-	decs["Reader"] = reflect.TypeOf((*quotedprintable.Reader)(nil)).Elem()
-	decs["Writer"] = reflect.TypeOf((*quotedprintable.Writer)(nil)).Elem()
+	decs["Reader"] = reflect.TypeFor[quotedprintable.Reader]()
+	decs["Writer"] = reflect.TypeFor[quotedprintable.Writer]()
 	packages["mime/quotedprintable"] = native.Package{
 		Name:         "quotedprintable",
 		Declarations: decs,
 	}
 	// "net"
 	decs = make(native.Declarations, 101)
-	decs["Addr"] = reflect.TypeOf((*net.Addr)(nil)).Elem()
-	decs["AddrError"] = reflect.TypeOf((*net.AddrError)(nil)).Elem()
-	decs["Buffers"] = reflect.TypeOf((*net.Buffers)(nil)).Elem()
+	decs["Addr"] = reflect.TypeFor[net.Addr]()
+	decs["AddrError"] = reflect.TypeFor[net.AddrError]()
+	decs["Buffers"] = reflect.TypeFor[net.Buffers]()
 	decs["CIDRMask"] = net.CIDRMask
-	decs["Conn"] = reflect.TypeOf((*net.Conn)(nil)).Elem()
-	decs["DNSConfigError"] = reflect.TypeOf((*net.DNSConfigError)(nil)).Elem()
-	decs["DNSError"] = reflect.TypeOf((*net.DNSError)(nil)).Elem()
+	decs["Conn"] = reflect.TypeFor[net.Conn]()
+	decs["DNSConfigError"] = reflect.TypeFor[net.DNSConfigError]()
+	decs["DNSError"] = reflect.TypeFor[net.DNSError]()
 	decs["DefaultResolver"] = &net.DefaultResolver
 	decs["Dial"] = net.Dial
 	decs["DialIP"] = net.DialIP
@@ -3678,10 +3679,10 @@ func init() {
 	decs["DialTimeout"] = net.DialTimeout
 	decs["DialUDP"] = net.DialUDP
 	decs["DialUnix"] = net.DialUnix
-	decs["Dialer"] = reflect.TypeOf((*net.Dialer)(nil)).Elem()
+	decs["Dialer"] = reflect.TypeFor[net.Dialer]()
 	decs["ErrClosed"] = &net.ErrClosed
 	decs["ErrWriteToConnected"] = &net.ErrWriteToConnected
-	decs["Error"] = reflect.TypeOf((*net.Error)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[net.Error]()
 	decs["FileConn"] = net.FileConn
 	decs["FileListener"] = net.FileListener
 	decs["FilePacketConn"] = net.FilePacketConn
@@ -3691,13 +3692,13 @@ func init() {
 	decs["FlagPointToPoint"] = net.FlagPointToPoint
 	decs["FlagRunning"] = net.FlagRunning
 	decs["FlagUp"] = net.FlagUp
-	decs["Flags"] = reflect.TypeOf((*net.Flags)(nil)).Elem()
-	decs["HardwareAddr"] = reflect.TypeOf((*net.HardwareAddr)(nil)).Elem()
-	decs["IP"] = reflect.TypeOf((*net.IP)(nil)).Elem()
-	decs["IPAddr"] = reflect.TypeOf((*net.IPAddr)(nil)).Elem()
-	decs["IPConn"] = reflect.TypeOf((*net.IPConn)(nil)).Elem()
-	decs["IPMask"] = reflect.TypeOf((*net.IPMask)(nil)).Elem()
-	decs["IPNet"] = reflect.TypeOf((*net.IPNet)(nil)).Elem()
+	decs["Flags"] = reflect.TypeFor[net.Flags]()
+	decs["HardwareAddr"] = reflect.TypeFor[net.HardwareAddr]()
+	decs["IP"] = reflect.TypeFor[net.IP]()
+	decs["IPAddr"] = reflect.TypeFor[net.IPAddr]()
+	decs["IPConn"] = reflect.TypeFor[net.IPConn]()
+	decs["IPMask"] = reflect.TypeFor[net.IPMask]()
+	decs["IPNet"] = reflect.TypeFor[net.IPNet]()
 	decs["IPv4"] = net.IPv4
 	decs["IPv4Mask"] = net.IPv4Mask
 	decs["IPv4allrouter"] = &net.IPv4allrouter
@@ -3712,15 +3713,15 @@ func init() {
 	decs["IPv6loopback"] = &net.IPv6loopback
 	decs["IPv6unspecified"] = &net.IPv6unspecified
 	decs["IPv6zero"] = &net.IPv6zero
-	decs["Interface"] = reflect.TypeOf((*net.Interface)(nil)).Elem()
+	decs["Interface"] = reflect.TypeFor[net.Interface]()
 	decs["InterfaceAddrs"] = net.InterfaceAddrs
 	decs["InterfaceByIndex"] = net.InterfaceByIndex
 	decs["InterfaceByName"] = net.InterfaceByName
 	decs["Interfaces"] = net.Interfaces
-	decs["InvalidAddrError"] = reflect.TypeOf((*net.InvalidAddrError)(nil)).Elem()
+	decs["InvalidAddrError"] = reflect.TypeFor[net.InvalidAddrError]()
 	decs["JoinHostPort"] = net.JoinHostPort
 	decs["Listen"] = net.Listen
-	decs["ListenConfig"] = reflect.TypeOf((*net.ListenConfig)(nil)).Elem()
+	decs["ListenConfig"] = reflect.TypeFor[net.ListenConfig]()
 	decs["ListenIP"] = net.ListenIP
 	decs["ListenMulticastUDP"] = net.ListenMulticastUDP
 	decs["ListenPacket"] = net.ListenPacket
@@ -3728,7 +3729,7 @@ func init() {
 	decs["ListenUDP"] = net.ListenUDP
 	decs["ListenUnix"] = net.ListenUnix
 	decs["ListenUnixgram"] = net.ListenUnixgram
-	decs["Listener"] = reflect.TypeOf((*net.Listener)(nil)).Elem()
+	decs["Listener"] = reflect.TypeFor[net.Listener]()
 	decs["LookupAddr"] = net.LookupAddr
 	decs["LookupCNAME"] = net.LookupCNAME
 	decs["LookupHost"] = net.LookupHost
@@ -3738,12 +3739,12 @@ func init() {
 	decs["LookupPort"] = net.LookupPort
 	decs["LookupSRV"] = net.LookupSRV
 	decs["LookupTXT"] = net.LookupTXT
-	decs["MX"] = reflect.TypeOf((*net.MX)(nil)).Elem()
-	decs["NS"] = reflect.TypeOf((*net.NS)(nil)).Elem()
-	decs["OpError"] = reflect.TypeOf((*net.OpError)(nil)).Elem()
-	decs["PacketConn"] = reflect.TypeOf((*net.PacketConn)(nil)).Elem()
+	decs["MX"] = reflect.TypeFor[net.MX]()
+	decs["NS"] = reflect.TypeFor[net.NS]()
+	decs["OpError"] = reflect.TypeFor[net.OpError]()
+	decs["PacketConn"] = reflect.TypeFor[net.PacketConn]()
 	decs["ParseCIDR"] = net.ParseCIDR
-	decs["ParseError"] = reflect.TypeOf((*net.ParseError)(nil)).Elem()
+	decs["ParseError"] = reflect.TypeFor[net.ParseError]()
 	decs["ParseIP"] = net.ParseIP
 	decs["ParseMAC"] = net.ParseMAC
 	decs["Pipe"] = net.Pipe
@@ -3751,20 +3752,20 @@ func init() {
 	decs["ResolveTCPAddr"] = net.ResolveTCPAddr
 	decs["ResolveUDPAddr"] = net.ResolveUDPAddr
 	decs["ResolveUnixAddr"] = net.ResolveUnixAddr
-	decs["Resolver"] = reflect.TypeOf((*net.Resolver)(nil)).Elem()
-	decs["SRV"] = reflect.TypeOf((*net.SRV)(nil)).Elem()
+	decs["Resolver"] = reflect.TypeFor[net.Resolver]()
+	decs["SRV"] = reflect.TypeFor[net.SRV]()
 	decs["SplitHostPort"] = net.SplitHostPort
-	decs["TCPAddr"] = reflect.TypeOf((*net.TCPAddr)(nil)).Elem()
+	decs["TCPAddr"] = reflect.TypeFor[net.TCPAddr]()
 	decs["TCPAddrFromAddrPort"] = net.TCPAddrFromAddrPort
-	decs["TCPConn"] = reflect.TypeOf((*net.TCPConn)(nil)).Elem()
-	decs["TCPListener"] = reflect.TypeOf((*net.TCPListener)(nil)).Elem()
-	decs["UDPAddr"] = reflect.TypeOf((*net.UDPAddr)(nil)).Elem()
+	decs["TCPConn"] = reflect.TypeFor[net.TCPConn]()
+	decs["TCPListener"] = reflect.TypeFor[net.TCPListener]()
+	decs["UDPAddr"] = reflect.TypeFor[net.UDPAddr]()
 	decs["UDPAddrFromAddrPort"] = net.UDPAddrFromAddrPort
-	decs["UDPConn"] = reflect.TypeOf((*net.UDPConn)(nil)).Elem()
-	decs["UnixAddr"] = reflect.TypeOf((*net.UnixAddr)(nil)).Elem()
-	decs["UnixConn"] = reflect.TypeOf((*net.UnixConn)(nil)).Elem()
-	decs["UnixListener"] = reflect.TypeOf((*net.UnixListener)(nil)).Elem()
-	decs["UnknownNetworkError"] = reflect.TypeOf((*net.UnknownNetworkError)(nil)).Elem()
+	decs["UDPConn"] = reflect.TypeFor[net.UDPConn]()
+	decs["UnixAddr"] = reflect.TypeFor[net.UnixAddr]()
+	decs["UnixConn"] = reflect.TypeFor[net.UnixConn]()
+	decs["UnixListener"] = reflect.TypeFor[net.UnixListener]()
+	decs["UnknownNetworkError"] = reflect.TypeFor[net.UnknownNetworkError]()
 	packages["net"] = native.Package{
 		Name:         "net",
 		Declarations: decs,
@@ -3773,18 +3774,18 @@ func init() {
 	decs = make(native.Declarations, 177)
 	decs["AllowQuerySemicolons"] = http.AllowQuerySemicolons
 	decs["CanonicalHeaderKey"] = http.CanonicalHeaderKey
-	decs["Client"] = reflect.TypeOf((*http.Client)(nil)).Elem()
-	decs["CloseNotifier"] = reflect.TypeOf((*http.CloseNotifier)(nil)).Elem()
-	decs["ConnState"] = reflect.TypeOf((*http.ConnState)(nil)).Elem()
-	decs["Cookie"] = reflect.TypeOf((*http.Cookie)(nil)).Elem()
-	decs["CookieJar"] = reflect.TypeOf((*http.CookieJar)(nil)).Elem()
+	decs["Client"] = reflect.TypeFor[http.Client]()
+	decs["CloseNotifier"] = reflect.TypeFor[http.CloseNotifier]()
+	decs["ConnState"] = reflect.TypeFor[http.ConnState]()
+	decs["Cookie"] = reflect.TypeFor[http.Cookie]()
+	decs["CookieJar"] = reflect.TypeFor[http.CookieJar]()
 	decs["DefaultClient"] = &http.DefaultClient
 	decs["DefaultMaxHeaderBytes"] = native.UntypedNumericConst("1048576")
 	decs["DefaultMaxIdleConnsPerHost"] = native.UntypedNumericConst("2")
 	decs["DefaultServeMux"] = &http.DefaultServeMux
 	decs["DefaultTransport"] = &http.DefaultTransport
 	decs["DetectContentType"] = http.DetectContentType
-	decs["Dir"] = reflect.TypeOf((*http.Dir)(nil)).Elem()
+	decs["Dir"] = reflect.TypeFor[http.Dir]()
 	decs["ErrAbortHandler"] = &http.ErrAbortHandler
 	decs["ErrBodyNotAllowed"] = &http.ErrBodyNotAllowed
 	decs["ErrBodyReadAfterClose"] = &http.ErrBodyReadAfterClose
@@ -3809,22 +3810,22 @@ func init() {
 	decs["ErrWriteAfterFlush"] = &http.ErrWriteAfterFlush
 	decs["Error"] = http.Error
 	decs["FS"] = http.FS
-	decs["File"] = reflect.TypeOf((*http.File)(nil)).Elem()
+	decs["File"] = reflect.TypeFor[http.File]()
 	decs["FileServer"] = http.FileServer
-	decs["FileSystem"] = reflect.TypeOf((*http.FileSystem)(nil)).Elem()
-	decs["Flusher"] = reflect.TypeOf((*http.Flusher)(nil)).Elem()
+	decs["FileSystem"] = reflect.TypeFor[http.FileSystem]()
+	decs["Flusher"] = reflect.TypeFor[http.Flusher]()
 	decs["Get"] = http.Get
 	decs["Handle"] = http.Handle
 	decs["HandleFunc"] = http.HandleFunc
-	decs["Handler"] = reflect.TypeOf((*http.Handler)(nil)).Elem()
-	decs["HandlerFunc"] = reflect.TypeOf((*http.HandlerFunc)(nil)).Elem()
+	decs["Handler"] = reflect.TypeFor[http.Handler]()
+	decs["HandlerFunc"] = reflect.TypeFor[http.HandlerFunc]()
 	decs["Head"] = http.Head
-	decs["Header"] = reflect.TypeOf((*http.Header)(nil)).Elem()
-	decs["Hijacker"] = reflect.TypeOf((*http.Hijacker)(nil)).Elem()
+	decs["Header"] = reflect.TypeFor[http.Header]()
+	decs["Hijacker"] = reflect.TypeFor[http.Hijacker]()
 	decs["ListenAndServe"] = http.ListenAndServe
 	decs["ListenAndServeTLS"] = http.ListenAndServeTLS
 	decs["LocalAddrContextKey"] = &http.LocalAddrContextKey
-	decs["MaxBytesError"] = reflect.TypeOf((*http.MaxBytesError)(nil)).Elem()
+	decs["MaxBytesError"] = reflect.TypeFor[http.MaxBytesError]()
 	decs["MaxBytesHandler"] = http.MaxBytesHandler
 	decs["MaxBytesReader"] = http.MaxBytesReader
 	decs["MethodConnect"] = native.UntypedStringConst("CONNECT")
@@ -3848,21 +3849,21 @@ func init() {
 	decs["ParseTime"] = http.ParseTime
 	decs["Post"] = http.Post
 	decs["PostForm"] = http.PostForm
-	decs["ProtocolError"] = reflect.TypeOf((*http.ProtocolError)(nil)).Elem()
+	decs["ProtocolError"] = reflect.TypeFor[http.ProtocolError]()
 	decs["ProxyFromEnvironment"] = http.ProxyFromEnvironment
 	decs["ProxyURL"] = http.ProxyURL
-	decs["PushOptions"] = reflect.TypeOf((*http.PushOptions)(nil)).Elem()
-	decs["Pusher"] = reflect.TypeOf((*http.Pusher)(nil)).Elem()
+	decs["PushOptions"] = reflect.TypeFor[http.PushOptions]()
+	decs["Pusher"] = reflect.TypeFor[http.Pusher]()
 	decs["ReadRequest"] = http.ReadRequest
 	decs["ReadResponse"] = http.ReadResponse
 	decs["Redirect"] = http.Redirect
 	decs["RedirectHandler"] = http.RedirectHandler
-	decs["Request"] = reflect.TypeOf((*http.Request)(nil)).Elem()
-	decs["Response"] = reflect.TypeOf((*http.Response)(nil)).Elem()
-	decs["ResponseController"] = reflect.TypeOf((*http.ResponseController)(nil)).Elem()
-	decs["ResponseWriter"] = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
-	decs["RoundTripper"] = reflect.TypeOf((*http.RoundTripper)(nil)).Elem()
-	decs["SameSite"] = reflect.TypeOf((*http.SameSite)(nil)).Elem()
+	decs["Request"] = reflect.TypeFor[http.Request]()
+	decs["Response"] = reflect.TypeFor[http.Response]()
+	decs["ResponseController"] = reflect.TypeFor[http.ResponseController]()
+	decs["ResponseWriter"] = reflect.TypeFor[http.ResponseWriter]()
+	decs["RoundTripper"] = reflect.TypeFor[http.RoundTripper]()
+	decs["SameSite"] = reflect.TypeFor[http.SameSite]()
 	decs["SameSiteDefaultMode"] = http.SameSiteDefaultMode
 	decs["SameSiteLaxMode"] = http.SameSiteLaxMode
 	decs["SameSiteNoneMode"] = http.SameSiteNoneMode
@@ -3870,9 +3871,9 @@ func init() {
 	decs["Serve"] = http.Serve
 	decs["ServeContent"] = http.ServeContent
 	decs["ServeFile"] = http.ServeFile
-	decs["ServeMux"] = reflect.TypeOf((*http.ServeMux)(nil)).Elem()
+	decs["ServeMux"] = reflect.TypeFor[http.ServeMux]()
 	decs["ServeTLS"] = http.ServeTLS
-	decs["Server"] = reflect.TypeOf((*http.Server)(nil)).Elem()
+	decs["Server"] = reflect.TypeFor[http.Server]()
 	decs["ServerContextKey"] = &http.ServerContextKey
 	decs["SetCookie"] = http.SetCookie
 	decs["StateActive"] = http.StateActive
@@ -3947,14 +3948,14 @@ func init() {
 	decs["TimeFormat"] = native.UntypedStringConst("Mon, 02 Jan 2006 15:04:05 GMT")
 	decs["TimeoutHandler"] = http.TimeoutHandler
 	decs["TrailerPrefix"] = native.UntypedStringConst("Trailer:")
-	decs["Transport"] = reflect.TypeOf((*http.Transport)(nil)).Elem()
+	decs["Transport"] = reflect.TypeFor[http.Transport]()
 	packages["net/http"] = native.Package{
 		Name:         "http",
 		Declarations: decs,
 	}
 	// "net/http/cgi"
 	decs = make(native.Declarations, 4)
-	decs["Handler"] = reflect.TypeOf((*cgi.Handler)(nil)).Elem()
+	decs["Handler"] = reflect.TypeFor[cgi.Handler]()
 	decs["Request"] = cgi.Request
 	decs["RequestFromMap"] = cgi.RequestFromMap
 	decs["Serve"] = cgi.Serve
@@ -3964,10 +3965,10 @@ func init() {
 	}
 	// "net/http/cookiejar"
 	decs = make(native.Declarations, 4)
-	decs["Jar"] = reflect.TypeOf((*cookiejar.Jar)(nil)).Elem()
+	decs["Jar"] = reflect.TypeFor[cookiejar.Jar]()
 	decs["New"] = cookiejar.New
-	decs["Options"] = reflect.TypeOf((*cookiejar.Options)(nil)).Elem()
-	decs["PublicSuffixList"] = reflect.TypeOf((*cookiejar.PublicSuffixList)(nil)).Elem()
+	decs["Options"] = reflect.TypeFor[cookiejar.Options]()
+	decs["PublicSuffixList"] = reflect.TypeFor[cookiejar.PublicSuffixList]()
 	packages["net/http/cookiejar"] = native.Package{
 		Name:         "cookiejar",
 		Declarations: decs,
@@ -3990,29 +3991,29 @@ func init() {
 	decs["NewServer"] = httptest.NewServer
 	decs["NewTLSServer"] = httptest.NewTLSServer
 	decs["NewUnstartedServer"] = httptest.NewUnstartedServer
-	decs["ResponseRecorder"] = reflect.TypeOf((*httptest.ResponseRecorder)(nil)).Elem()
-	decs["Server"] = reflect.TypeOf((*httptest.Server)(nil)).Elem()
+	decs["ResponseRecorder"] = reflect.TypeFor[httptest.ResponseRecorder]()
+	decs["Server"] = reflect.TypeFor[httptest.Server]()
 	packages["net/http/httptest"] = native.Package{
 		Name:         "httptest",
 		Declarations: decs,
 	}
 	// "net/http/httptrace"
 	decs = make(native.Declarations, 7)
-	decs["ClientTrace"] = reflect.TypeOf((*httptrace.ClientTrace)(nil)).Elem()
+	decs["ClientTrace"] = reflect.TypeFor[httptrace.ClientTrace]()
 	decs["ContextClientTrace"] = httptrace.ContextClientTrace
-	decs["DNSDoneInfo"] = reflect.TypeOf((*httptrace.DNSDoneInfo)(nil)).Elem()
-	decs["DNSStartInfo"] = reflect.TypeOf((*httptrace.DNSStartInfo)(nil)).Elem()
-	decs["GotConnInfo"] = reflect.TypeOf((*httptrace.GotConnInfo)(nil)).Elem()
+	decs["DNSDoneInfo"] = reflect.TypeFor[httptrace.DNSDoneInfo]()
+	decs["DNSStartInfo"] = reflect.TypeFor[httptrace.DNSStartInfo]()
+	decs["GotConnInfo"] = reflect.TypeFor[httptrace.GotConnInfo]()
 	decs["WithClientTrace"] = httptrace.WithClientTrace
-	decs["WroteRequestInfo"] = reflect.TypeOf((*httptrace.WroteRequestInfo)(nil)).Elem()
+	decs["WroteRequestInfo"] = reflect.TypeFor[httptrace.WroteRequestInfo]()
 	packages["net/http/httptrace"] = native.Package{
 		Name:         "httptrace",
 		Declarations: decs,
 	}
 	// "net/http/httputil"
 	decs = make(native.Declarations, 18)
-	decs["BufferPool"] = reflect.TypeOf((*httputil.BufferPool)(nil)).Elem()
-	decs["ClientConn"] = reflect.TypeOf((*httputil.ClientConn)(nil)).Elem()
+	decs["BufferPool"] = reflect.TypeFor[httputil.BufferPool]()
+	decs["ClientConn"] = reflect.TypeFor[httputil.ClientConn]()
 	decs["DumpRequest"] = httputil.DumpRequest
 	decs["DumpRequestOut"] = httputil.DumpRequestOut
 	decs["DumpResponse"] = httputil.DumpResponse
@@ -4026,9 +4027,9 @@ func init() {
 	decs["NewProxyClientConn"] = httputil.NewProxyClientConn
 	decs["NewServerConn"] = httputil.NewServerConn
 	decs["NewSingleHostReverseProxy"] = httputil.NewSingleHostReverseProxy
-	decs["ProxyRequest"] = reflect.TypeOf((*httputil.ProxyRequest)(nil)).Elem()
-	decs["ReverseProxy"] = reflect.TypeOf((*httputil.ReverseProxy)(nil)).Elem()
-	decs["ServerConn"] = reflect.TypeOf((*httputil.ServerConn)(nil)).Elem()
+	decs["ProxyRequest"] = reflect.TypeFor[httputil.ProxyRequest]()
+	decs["ReverseProxy"] = reflect.TypeFor[httputil.ReverseProxy]()
+	decs["ServerConn"] = reflect.TypeFor[httputil.ServerConn]()
 	packages["net/http/httputil"] = native.Package{
 		Name:         "httputil",
 		Declarations: decs,
@@ -4047,11 +4048,11 @@ func init() {
 	}
 	// "net/mail"
 	decs = make(native.Declarations, 9)
-	decs["Address"] = reflect.TypeOf((*mail.Address)(nil)).Elem()
-	decs["AddressParser"] = reflect.TypeOf((*mail.AddressParser)(nil)).Elem()
+	decs["Address"] = reflect.TypeFor[mail.Address]()
+	decs["AddressParser"] = reflect.TypeFor[mail.AddressParser]()
 	decs["ErrHeaderNotPresent"] = &mail.ErrHeaderNotPresent
-	decs["Header"] = reflect.TypeOf((*mail.Header)(nil)).Elem()
-	decs["Message"] = reflect.TypeOf((*mail.Message)(nil)).Elem()
+	decs["Header"] = reflect.TypeFor[mail.Header]()
+	decs["Message"] = reflect.TypeFor[mail.Message]()
 	decs["ParseAddress"] = mail.ParseAddress
 	decs["ParseAddressList"] = mail.ParseAddressList
 	decs["ParseDate"] = mail.ParseDate
@@ -4063,9 +4064,9 @@ func init() {
 	// "net/rpc"
 	decs = make(native.Declarations, 25)
 	decs["Accept"] = rpc.Accept
-	decs["Call"] = reflect.TypeOf((*rpc.Call)(nil)).Elem()
-	decs["Client"] = reflect.TypeOf((*rpc.Client)(nil)).Elem()
-	decs["ClientCodec"] = reflect.TypeOf((*rpc.ClientCodec)(nil)).Elem()
+	decs["Call"] = reflect.TypeFor[rpc.Call]()
+	decs["Client"] = reflect.TypeFor[rpc.Client]()
+	decs["ClientCodec"] = reflect.TypeFor[rpc.ClientCodec]()
 	decs["DefaultDebugPath"] = native.UntypedStringConst("/debug/rpc")
 	decs["DefaultRPCPath"] = native.UntypedStringConst("/_goRPC_")
 	decs["DefaultServer"] = &rpc.DefaultServer
@@ -4079,14 +4080,14 @@ func init() {
 	decs["NewServer"] = rpc.NewServer
 	decs["Register"] = rpc.Register
 	decs["RegisterName"] = rpc.RegisterName
-	decs["Request"] = reflect.TypeOf((*rpc.Request)(nil)).Elem()
-	decs["Response"] = reflect.TypeOf((*rpc.Response)(nil)).Elem()
+	decs["Request"] = reflect.TypeFor[rpc.Request]()
+	decs["Response"] = reflect.TypeFor[rpc.Response]()
 	decs["ServeCodec"] = rpc.ServeCodec
 	decs["ServeConn"] = rpc.ServeConn
 	decs["ServeRequest"] = rpc.ServeRequest
-	decs["Server"] = reflect.TypeOf((*rpc.Server)(nil)).Elem()
-	decs["ServerCodec"] = reflect.TypeOf((*rpc.ServerCodec)(nil)).Elem()
-	decs["ServerError"] = reflect.TypeOf((*rpc.ServerError)(nil)).Elem()
+	decs["Server"] = reflect.TypeFor[rpc.Server]()
+	decs["ServerCodec"] = reflect.TypeFor[rpc.ServerCodec]()
+	decs["ServerError"] = reflect.TypeFor[rpc.ServerError]()
 	packages["net/rpc"] = native.Package{
 		Name:         "rpc",
 		Declarations: decs,
@@ -4104,14 +4105,14 @@ func init() {
 	}
 	// "net/smtp"
 	decs = make(native.Declarations, 8)
-	decs["Auth"] = reflect.TypeOf((*smtp.Auth)(nil)).Elem()
+	decs["Auth"] = reflect.TypeFor[smtp.Auth]()
 	decs["CRAMMD5Auth"] = smtp.CRAMMD5Auth
-	decs["Client"] = reflect.TypeOf((*smtp.Client)(nil)).Elem()
+	decs["Client"] = reflect.TypeFor[smtp.Client]()
 	decs["Dial"] = smtp.Dial
 	decs["NewClient"] = smtp.NewClient
 	decs["PlainAuth"] = smtp.PlainAuth
 	decs["SendMail"] = smtp.SendMail
-	decs["ServerInfo"] = reflect.TypeOf((*smtp.ServerInfo)(nil)).Elem()
+	decs["ServerInfo"] = reflect.TypeFor[smtp.ServerInfo]()
 	packages["net/smtp"] = native.Package{
 		Name:         "smtp",
 		Declarations: decs,
@@ -4119,28 +4120,28 @@ func init() {
 	// "net/textproto"
 	decs = make(native.Declarations, 14)
 	decs["CanonicalMIMEHeaderKey"] = textproto.CanonicalMIMEHeaderKey
-	decs["Conn"] = reflect.TypeOf((*textproto.Conn)(nil)).Elem()
+	decs["Conn"] = reflect.TypeFor[textproto.Conn]()
 	decs["Dial"] = textproto.Dial
-	decs["Error"] = reflect.TypeOf((*textproto.Error)(nil)).Elem()
-	decs["MIMEHeader"] = reflect.TypeOf((*textproto.MIMEHeader)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[textproto.Error]()
+	decs["MIMEHeader"] = reflect.TypeFor[textproto.MIMEHeader]()
 	decs["NewConn"] = textproto.NewConn
 	decs["NewReader"] = textproto.NewReader
 	decs["NewWriter"] = textproto.NewWriter
-	decs["Pipeline"] = reflect.TypeOf((*textproto.Pipeline)(nil)).Elem()
-	decs["ProtocolError"] = reflect.TypeOf((*textproto.ProtocolError)(nil)).Elem()
-	decs["Reader"] = reflect.TypeOf((*textproto.Reader)(nil)).Elem()
+	decs["Pipeline"] = reflect.TypeFor[textproto.Pipeline]()
+	decs["ProtocolError"] = reflect.TypeFor[textproto.ProtocolError]()
+	decs["Reader"] = reflect.TypeFor[textproto.Reader]()
 	decs["TrimBytes"] = textproto.TrimBytes
 	decs["TrimString"] = textproto.TrimString
-	decs["Writer"] = reflect.TypeOf((*textproto.Writer)(nil)).Elem()
+	decs["Writer"] = reflect.TypeFor[textproto.Writer]()
 	packages["net/textproto"] = native.Package{
 		Name:         "textproto",
 		Declarations: decs,
 	}
 	// "net/url"
 	decs = make(native.Declarations, 16)
-	decs["Error"] = reflect.TypeOf((*url.Error)(nil)).Elem()
-	decs["EscapeError"] = reflect.TypeOf((*url.EscapeError)(nil)).Elem()
-	decs["InvalidHostError"] = reflect.TypeOf((*url.InvalidHostError)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[url.Error]()
+	decs["EscapeError"] = reflect.TypeFor[url.EscapeError]()
+	decs["InvalidHostError"] = reflect.TypeFor[url.InvalidHostError]()
 	decs["JoinPath"] = url.JoinPath
 	decs["Parse"] = url.Parse
 	decs["ParseQuery"] = url.ParseQuery
@@ -4149,11 +4150,11 @@ func init() {
 	decs["PathUnescape"] = url.PathUnescape
 	decs["QueryEscape"] = url.QueryEscape
 	decs["QueryUnescape"] = url.QueryUnescape
-	decs["URL"] = reflect.TypeOf((*url.URL)(nil)).Elem()
+	decs["URL"] = reflect.TypeFor[url.URL]()
 	decs["User"] = url.User
 	decs["UserPassword"] = url.UserPassword
-	decs["Userinfo"] = reflect.TypeOf((*url.Userinfo)(nil)).Elem()
-	decs["Values"] = reflect.TypeOf((*url.Values)(nil)).Elem()
+	decs["Userinfo"] = reflect.TypeFor[url.Userinfo]()
+	decs["Values"] = reflect.TypeFor[url.Values]()
 	packages["net/url"] = native.Package{
 		Name:         "url",
 		Declarations: decs,
@@ -4169,7 +4170,7 @@ func init() {
 	decs["Create"] = os.Create
 	decs["CreateTemp"] = os.CreateTemp
 	decs["DevNull"] = native.UntypedStringConst("/dev/null")
-	decs["DirEntry"] = reflect.TypeOf((*os.DirEntry)(nil)).Elem()
+	decs["DirEntry"] = reflect.TypeFor[os.DirEntry]()
 	decs["DirFS"] = os.DirFS
 	decs["Environ"] = os.Environ
 	decs["ErrClosed"] = &os.ErrClosed
@@ -4184,9 +4185,9 @@ func init() {
 	decs["Exit"] = os.Exit
 	decs["Expand"] = os.Expand
 	decs["ExpandEnv"] = os.ExpandEnv
-	decs["File"] = reflect.TypeOf((*os.File)(nil)).Elem()
-	decs["FileInfo"] = reflect.TypeOf((*os.FileInfo)(nil)).Elem()
-	decs["FileMode"] = reflect.TypeOf((*os.FileMode)(nil)).Elem()
+	decs["File"] = reflect.TypeFor[os.File]()
+	decs["FileInfo"] = reflect.TypeFor[os.FileInfo]()
+	decs["FileMode"] = reflect.TypeFor[os.FileMode]()
 	decs["FindProcess"] = os.FindProcess
 	decs["Getegid"] = os.Getegid
 	decs["Getenv"] = os.Getenv
@@ -4208,7 +4209,7 @@ func init() {
 	decs["Kill"] = &os.Kill
 	decs["Lchown"] = os.Lchown
 	decs["Link"] = os.Link
-	decs["LinkError"] = reflect.TypeOf((*os.LinkError)(nil)).Elem()
+	decs["LinkError"] = reflect.TypeFor[os.LinkError]()
 	decs["LookupEnv"] = os.LookupEnv
 	decs["Lstat"] = os.Lstat
 	decs["Mkdir"] = os.Mkdir
@@ -4241,13 +4242,13 @@ func init() {
 	decs["O_WRONLY"] = os.O_WRONLY
 	decs["Open"] = os.Open
 	decs["OpenFile"] = os.OpenFile
-	decs["PathError"] = reflect.TypeOf((*os.PathError)(nil)).Elem()
+	decs["PathError"] = reflect.TypeFor[os.PathError]()
 	decs["PathListSeparator"] = native.UntypedNumericConst("58")
 	decs["PathSeparator"] = native.UntypedNumericConst("47")
 	decs["Pipe"] = os.Pipe
-	decs["ProcAttr"] = reflect.TypeOf((*os.ProcAttr)(nil)).Elem()
-	decs["Process"] = reflect.TypeOf((*os.Process)(nil)).Elem()
-	decs["ProcessState"] = reflect.TypeOf((*os.ProcessState)(nil)).Elem()
+	decs["ProcAttr"] = reflect.TypeFor[os.ProcAttr]()
+	decs["Process"] = reflect.TypeFor[os.Process]()
+	decs["ProcessState"] = reflect.TypeFor[os.ProcessState]()
 	decs["ReadDir"] = os.ReadDir
 	decs["ReadFile"] = os.ReadFile
 	decs["Readlink"] = os.Readlink
@@ -4259,14 +4260,14 @@ func init() {
 	decs["SEEK_SET"] = os.SEEK_SET
 	decs["SameFile"] = os.SameFile
 	decs["Setenv"] = os.Setenv
-	decs["Signal"] = reflect.TypeOf((*os.Signal)(nil)).Elem()
+	decs["Signal"] = reflect.TypeFor[os.Signal]()
 	decs["StartProcess"] = os.StartProcess
 	decs["Stat"] = os.Stat
 	decs["Stderr"] = &os.Stderr
 	decs["Stdin"] = &os.Stdin
 	decs["Stdout"] = &os.Stdout
 	decs["Symlink"] = os.Symlink
-	decs["SyscallError"] = reflect.TypeOf((*os.SyscallError)(nil)).Elem()
+	decs["SyscallError"] = reflect.TypeFor[os.SyscallError]()
 	decs["TempDir"] = os.TempDir
 	decs["Truncate"] = os.Truncate
 	decs["Unsetenv"] = os.Unsetenv
@@ -4280,14 +4281,14 @@ func init() {
 	}
 	// "os/exec"
 	decs = make(native.Declarations, 9)
-	decs["Cmd"] = reflect.TypeOf((*exec.Cmd)(nil)).Elem()
+	decs["Cmd"] = reflect.TypeFor[exec.Cmd]()
 	decs["Command"] = exec.Command
 	decs["CommandContext"] = exec.CommandContext
 	decs["ErrDot"] = &exec.ErrDot
 	decs["ErrNotFound"] = &exec.ErrNotFound
 	decs["ErrWaitDelay"] = &exec.ErrWaitDelay
-	decs["Error"] = reflect.TypeOf((*exec.Error)(nil)).Elem()
-	decs["ExitError"] = reflect.TypeOf((*exec.ExitError)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[exec.Error]()
+	decs["ExitError"] = reflect.TypeFor[exec.ExitError]()
 	decs["LookPath"] = exec.LookPath
 	packages["os/exec"] = native.Package{
 		Name:         "exec",
@@ -4296,16 +4297,16 @@ func init() {
 	// "os/user"
 	decs = make(native.Declarations, 11)
 	decs["Current"] = user.Current
-	decs["Group"] = reflect.TypeOf((*user.Group)(nil)).Elem()
+	decs["Group"] = reflect.TypeFor[user.Group]()
 	decs["Lookup"] = user.Lookup
 	decs["LookupGroup"] = user.LookupGroup
 	decs["LookupGroupId"] = user.LookupGroupId
 	decs["LookupId"] = user.LookupId
-	decs["UnknownGroupError"] = reflect.TypeOf((*user.UnknownGroupError)(nil)).Elem()
-	decs["UnknownGroupIdError"] = reflect.TypeOf((*user.UnknownGroupIdError)(nil)).Elem()
-	decs["UnknownUserError"] = reflect.TypeOf((*user.UnknownUserError)(nil)).Elem()
-	decs["UnknownUserIdError"] = reflect.TypeOf((*user.UnknownUserIdError)(nil)).Elem()
-	decs["User"] = reflect.TypeOf((*user.User)(nil)).Elem()
+	decs["UnknownGroupError"] = reflect.TypeFor[user.UnknownGroupError]()
+	decs["UnknownGroupIdError"] = reflect.TypeFor[user.UnknownGroupIdError]()
+	decs["UnknownUserError"] = reflect.TypeFor[user.UnknownUserError]()
+	decs["UnknownUserIdError"] = reflect.TypeFor[user.UnknownUserIdError]()
+	decs["User"] = reflect.TypeFor[user.User]()
 	packages["os/user"] = native.Package{
 		Name:         "user",
 		Declarations: decs,
@@ -4352,7 +4353,7 @@ func init() {
 	decs["VolumeName"] = filepath.VolumeName
 	decs["Walk"] = filepath.Walk
 	decs["WalkDir"] = filepath.WalkDir
-	decs["WalkFunc"] = reflect.TypeOf((*filepath.WalkFunc)(nil)).Elem()
+	decs["WalkFunc"] = reflect.TypeFor[filepath.WalkFunc]()
 	packages["path/filepath"] = native.Package{
 		Name:         "filepath",
 		Declarations: decs,
@@ -4366,7 +4367,7 @@ func init() {
 	decs["Bool"] = reflect.Bool
 	decs["BothDir"] = reflect.BothDir
 	decs["Chan"] = reflect.Chan
-	decs["ChanDir"] = reflect.TypeOf((*reflect.ChanDir)(nil)).Elem()
+	decs["ChanDir"] = reflect.TypeFor[reflect.ChanDir]()
 	decs["ChanOf"] = reflect.ChanOf
 	decs["Complex128"] = reflect.Complex128
 	decs["Complex64"] = reflect.Complex64
@@ -4384,41 +4385,41 @@ func init() {
 	decs["Int8"] = reflect.Int8
 	decs["Interface"] = reflect.Interface
 	decs["Invalid"] = reflect.Invalid
-	decs["Kind"] = reflect.TypeOf((*reflect.Kind)(nil)).Elem()
+	decs["Kind"] = reflect.TypeFor[reflect.Kind]()
 	decs["MakeChan"] = reflect.MakeChan
 	decs["MakeFunc"] = reflect.MakeFunc
 	decs["MakeMap"] = reflect.MakeMap
 	decs["MakeMapWithSize"] = reflect.MakeMapWithSize
 	decs["MakeSlice"] = reflect.MakeSlice
 	decs["Map"] = reflect.Map
-	decs["MapIter"] = reflect.TypeOf((*reflect.MapIter)(nil)).Elem()
+	decs["MapIter"] = reflect.TypeFor[reflect.MapIter]()
 	decs["MapOf"] = reflect.MapOf
-	decs["Method"] = reflect.TypeOf((*reflect.Method)(nil)).Elem()
+	decs["Method"] = reflect.TypeFor[reflect.Method]()
 	decs["New"] = reflect.New
 	decs["NewAt"] = reflect.NewAt
 	decs["Pointer"] = reflect.Pointer
 	decs["PointerTo"] = reflect.PointerTo
-	decs["Ptr"] = reflect.Ptr
+	decs["Ptr"] = reflect.Pointer
 	decs["PtrTo"] = reflect.PtrTo
 	decs["RecvDir"] = reflect.RecvDir
 	decs["Select"] = reflect.Select
-	decs["SelectCase"] = reflect.TypeOf((*reflect.SelectCase)(nil)).Elem()
+	decs["SelectCase"] = reflect.TypeFor[reflect.SelectCase]()
 	decs["SelectDefault"] = reflect.SelectDefault
-	decs["SelectDir"] = reflect.TypeOf((*reflect.SelectDir)(nil)).Elem()
+	decs["SelectDir"] = reflect.TypeFor[reflect.SelectDir]()
 	decs["SelectRecv"] = reflect.SelectRecv
 	decs["SelectSend"] = reflect.SelectSend
 	decs["SendDir"] = reflect.SendDir
 	decs["Slice"] = reflect.Slice
-	decs["SliceHeader"] = reflect.TypeOf((*reflect.SliceHeader)(nil)).Elem()
+	decs["SliceHeader"] = reflect.TypeFor[reflect.SliceHeader]()
 	decs["SliceOf"] = reflect.SliceOf
 	decs["String"] = reflect.String
-	decs["StringHeader"] = reflect.TypeOf((*reflect.StringHeader)(nil)).Elem()
+	decs["StringHeader"] = reflect.TypeFor[reflect.StringHeader]()
 	decs["Struct"] = reflect.Struct
-	decs["StructField"] = reflect.TypeOf((*reflect.StructField)(nil)).Elem()
+	decs["StructField"] = reflect.TypeFor[reflect.StructField]()
 	decs["StructOf"] = reflect.StructOf
-	decs["StructTag"] = reflect.TypeOf((*reflect.StructTag)(nil)).Elem()
+	decs["StructTag"] = reflect.TypeFor[reflect.StructTag]()
 	decs["Swapper"] = reflect.Swapper
-	decs["Type"] = reflect.TypeOf((*reflect.Type)(nil)).Elem()
+	decs["Type"] = reflect.TypeFor[reflect.Type]()
 	decs["TypeOf"] = reflect.TypeOf
 	decs["Uint"] = reflect.Uint
 	decs["Uint16"] = reflect.Uint16
@@ -4427,8 +4428,8 @@ func init() {
 	decs["Uint8"] = reflect.Uint8
 	decs["Uintptr"] = reflect.Uintptr
 	decs["UnsafePointer"] = reflect.UnsafePointer
-	decs["Value"] = reflect.TypeOf((*reflect.Value)(nil)).Elem()
-	decs["ValueError"] = reflect.TypeOf((*reflect.ValueError)(nil)).Elem()
+	decs["Value"] = reflect.TypeFor[reflect.Value]()
+	decs["ValueError"] = reflect.TypeFor[reflect.ValueError]()
 	decs["ValueOf"] = reflect.ValueOf
 	decs["VisibleFields"] = reflect.VisibleFields
 	decs["Zero"] = reflect.Zero
@@ -4446,7 +4447,7 @@ func init() {
 	decs["MustCompile"] = regexp.MustCompile
 	decs["MustCompilePOSIX"] = regexp.MustCompilePOSIX
 	decs["QuoteMeta"] = regexp.QuoteMeta
-	decs["Regexp"] = reflect.TypeOf((*regexp.Regexp)(nil)).Elem()
+	decs["Regexp"] = reflect.TypeFor[regexp.Regexp]()
 	packages["regexp"] = native.Package{
 		Name:         "regexp",
 		Declarations: decs,
@@ -4461,7 +4462,7 @@ func init() {
 	decs["EmptyEndLine"] = syntax.EmptyEndLine
 	decs["EmptyEndText"] = syntax.EmptyEndText
 	decs["EmptyNoWordBoundary"] = syntax.EmptyNoWordBoundary
-	decs["EmptyOp"] = reflect.TypeOf((*syntax.EmptyOp)(nil)).Elem()
+	decs["EmptyOp"] = reflect.TypeFor[syntax.EmptyOp]()
 	decs["EmptyOpContext"] = syntax.EmptyOpContext
 	decs["EmptyWordBoundary"] = syntax.EmptyWordBoundary
 	decs["ErrInternalError"] = syntax.ErrInternalError
@@ -4480,11 +4481,11 @@ func init() {
 	decs["ErrNestingDepth"] = syntax.ErrNestingDepth
 	decs["ErrTrailingBackslash"] = syntax.ErrTrailingBackslash
 	decs["ErrUnexpectedParen"] = syntax.ErrUnexpectedParen
-	decs["Error"] = reflect.TypeOf((*syntax.Error)(nil)).Elem()
-	decs["ErrorCode"] = reflect.TypeOf((*syntax.ErrorCode)(nil)).Elem()
-	decs["Flags"] = reflect.TypeOf((*syntax.Flags)(nil)).Elem()
+	decs["Error"] = reflect.TypeFor[syntax.Error]()
+	decs["ErrorCode"] = reflect.TypeFor[syntax.ErrorCode]()
+	decs["Flags"] = reflect.TypeFor[syntax.Flags]()
 	decs["FoldCase"] = syntax.FoldCase
-	decs["Inst"] = reflect.TypeOf((*syntax.Inst)(nil)).Elem()
+	decs["Inst"] = reflect.TypeFor[syntax.Inst]()
 	decs["InstAlt"] = syntax.InstAlt
 	decs["InstAltMatch"] = syntax.InstAltMatch
 	decs["InstCapture"] = syntax.InstCapture
@@ -4492,7 +4493,7 @@ func init() {
 	decs["InstFail"] = syntax.InstFail
 	decs["InstMatch"] = syntax.InstMatch
 	decs["InstNop"] = syntax.InstNop
-	decs["InstOp"] = reflect.TypeOf((*syntax.InstOp)(nil)).Elem()
+	decs["InstOp"] = reflect.TypeFor[syntax.InstOp]()
 	decs["InstRune"] = syntax.InstRune
 	decs["InstRune1"] = syntax.InstRune1
 	decs["InstRuneAny"] = syntax.InstRuneAny
@@ -4502,7 +4503,7 @@ func init() {
 	decs["MatchNL"] = syntax.MatchNL
 	decs["NonGreedy"] = syntax.NonGreedy
 	decs["OneLine"] = syntax.OneLine
-	decs["Op"] = reflect.TypeOf((*syntax.Op)(nil)).Elem()
+	decs["Op"] = reflect.TypeFor[syntax.Op]()
 	decs["OpAlternate"] = syntax.OpAlternate
 	decs["OpAnyChar"] = syntax.OpAnyChar
 	decs["OpAnyCharNotNL"] = syntax.OpAnyCharNotNL
@@ -4526,8 +4527,8 @@ func init() {
 	decs["Parse"] = syntax.Parse
 	decs["Perl"] = syntax.Perl
 	decs["PerlX"] = syntax.PerlX
-	decs["Prog"] = reflect.TypeOf((*syntax.Prog)(nil)).Elem()
-	decs["Regexp"] = reflect.TypeOf((*syntax.Regexp)(nil)).Elem()
+	decs["Prog"] = reflect.TypeFor[syntax.Prog]()
+	decs["Regexp"] = reflect.TypeFor[syntax.Regexp]()
 	decs["Simple"] = syntax.Simple
 	decs["UnicodeGroups"] = syntax.UnicodeGroups
 	decs["WasDollar"] = syntax.WasDollar
@@ -4537,11 +4538,11 @@ func init() {
 	}
 	// "runtime/debug"
 	decs = make(native.Declarations, 17)
-	decs["BuildInfo"] = reflect.TypeOf((*debug.BuildInfo)(nil)).Elem()
-	decs["BuildSetting"] = reflect.TypeOf((*debug.BuildSetting)(nil)).Elem()
+	decs["BuildInfo"] = reflect.TypeFor[debug.BuildInfo]()
+	decs["BuildSetting"] = reflect.TypeFor[debug.BuildSetting]()
 	decs["FreeOSMemory"] = debug.FreeOSMemory
-	decs["GCStats"] = reflect.TypeOf((*debug.GCStats)(nil)).Elem()
-	decs["Module"] = reflect.TypeOf((*debug.Module)(nil)).Elem()
+	decs["GCStats"] = reflect.TypeFor[debug.GCStats]()
+	decs["Module"] = reflect.TypeFor[debug.Module]()
 	decs["ParseBuildInfo"] = debug.ParseBuildInfo
 	decs["PrintStack"] = debug.PrintStack
 	decs["ReadBuildInfo"] = debug.ReadBuildInfo
@@ -4561,11 +4562,11 @@ func init() {
 	// "sort"
 	decs = make(native.Declarations, 22)
 	decs["Find"] = sort.Find
-	decs["Float64Slice"] = reflect.TypeOf((*sort.Float64Slice)(nil)).Elem()
+	decs["Float64Slice"] = reflect.TypeFor[sort.Float64Slice]()
 	decs["Float64s"] = sort.Float64s
 	decs["Float64sAreSorted"] = sort.Float64sAreSorted
-	decs["IntSlice"] = reflect.TypeOf((*sort.IntSlice)(nil)).Elem()
-	decs["Interface"] = reflect.TypeOf((*sort.Interface)(nil)).Elem()
+	decs["IntSlice"] = reflect.TypeFor[sort.IntSlice]()
+	decs["Interface"] = reflect.TypeFor[sort.Interface]()
 	decs["Ints"] = sort.Ints
 	decs["IntsAreSorted"] = sort.IntsAreSorted
 	decs["IsSorted"] = sort.IsSorted
@@ -4579,7 +4580,7 @@ func init() {
 	decs["SliceStable"] = sort.SliceStable
 	decs["Sort"] = sort.Sort
 	decs["Stable"] = sort.Stable
-	decs["StringSlice"] = reflect.TypeOf((*sort.StringSlice)(nil)).Elem()
+	decs["StringSlice"] = reflect.TypeFor[sort.StringSlice]()
 	decs["Strings"] = sort.Strings
 	decs["StringsAreSorted"] = sort.StringsAreSorted
 	packages["sort"] = native.Package{
@@ -4611,7 +4612,7 @@ func init() {
 	decs["IsGraphic"] = strconv.IsGraphic
 	decs["IsPrint"] = strconv.IsPrint
 	decs["Itoa"] = strconv.Itoa
-	decs["NumError"] = reflect.TypeOf((*strconv.NumError)(nil)).Elem()
+	decs["NumError"] = reflect.TypeFor[strconv.NumError]()
 	decs["ParseBool"] = strconv.ParseBool
 	decs["ParseComplex"] = strconv.ParseComplex
 	decs["ParseFloat"] = strconv.ParseFloat
@@ -4632,7 +4633,7 @@ func init() {
 	}
 	// "strings"
 	decs = make(native.Declarations, 55)
-	decs["Builder"] = reflect.TypeOf((*strings.Builder)(nil)).Elem()
+	decs["Builder"] = reflect.TypeFor[strings.Builder]()
 	decs["Clone"] = strings.Clone
 	decs["Compare"] = strings.Compare
 	decs["Contains"] = strings.Contains
@@ -4661,11 +4662,11 @@ func init() {
 	decs["Map"] = strings.Map
 	decs["NewReader"] = strings.NewReader
 	decs["NewReplacer"] = strings.NewReplacer
-	decs["Reader"] = reflect.TypeOf((*strings.Reader)(nil)).Elem()
+	decs["Reader"] = reflect.TypeFor[strings.Reader]()
 	decs["Repeat"] = strings.Repeat
 	decs["Replace"] = strings.Replace
 	decs["ReplaceAll"] = strings.ReplaceAll
-	decs["Replacer"] = reflect.TypeOf((*strings.Replacer)(nil)).Elem()
+	decs["Replacer"] = reflect.TypeFor[strings.Replacer]()
 	decs["Split"] = strings.Split
 	decs["SplitAfter"] = strings.SplitAfter
 	decs["SplitAfterN"] = strings.SplitAfterN
@@ -4693,16 +4694,16 @@ func init() {
 	}
 	// "sync"
 	decs = make(native.Declarations, 12)
-	decs["Cond"] = reflect.TypeOf((*sync.Cond)(nil)).Elem()
-	decs["Locker"] = reflect.TypeOf((*sync.Locker)(nil)).Elem()
-	decs["Map"] = reflect.TypeOf((*sync.Map)(nil)).Elem()
-	decs["Mutex"] = reflect.TypeOf((*sync.Mutex)(nil)).Elem()
+	decs["Cond"] = reflect.TypeFor[sync.Cond]()
+	decs["Locker"] = reflect.TypeFor[sync.Locker]()
+	decs["Map"] = reflect.TypeFor[sync.Map]()
+	decs["Mutex"] = reflect.TypeFor[sync.Mutex]()
 	decs["NewCond"] = sync.NewCond
-	decs["Once"] = reflect.TypeOf((*sync.Once)(nil)).Elem()
+	decs["Once"] = reflect.TypeFor[sync.Once]()
 	decs["OnceFunc"] = sync.OnceFunc
-	decs["Pool"] = reflect.TypeOf((*sync.Pool)(nil)).Elem()
-	decs["RWMutex"] = reflect.TypeOf((*sync.RWMutex)(nil)).Elem()
-	decs["WaitGroup"] = reflect.TypeOf((*sync.WaitGroup)(nil)).Elem()
+	decs["Pool"] = reflect.TypeFor[sync.Pool]()
+	decs["RWMutex"] = reflect.TypeFor[sync.RWMutex]()
+	decs["WaitGroup"] = reflect.TypeFor[sync.WaitGroup]()
 	packages["sync"] = native.Package{
 		Name:         "sync",
 		Declarations: decs,
@@ -4714,15 +4715,15 @@ func init() {
 	decs["AddUint32"] = atomic.AddUint32
 	decs["AddUint64"] = atomic.AddUint64
 	decs["AddUintptr"] = atomic.AddUintptr
-	decs["Bool"] = reflect.TypeOf((*atomic.Bool)(nil)).Elem()
+	decs["Bool"] = reflect.TypeFor[atomic.Bool]()
 	decs["CompareAndSwapInt32"] = atomic.CompareAndSwapInt32
 	decs["CompareAndSwapInt64"] = atomic.CompareAndSwapInt64
 	decs["CompareAndSwapPointer"] = atomic.CompareAndSwapPointer
 	decs["CompareAndSwapUint32"] = atomic.CompareAndSwapUint32
 	decs["CompareAndSwapUint64"] = atomic.CompareAndSwapUint64
 	decs["CompareAndSwapUintptr"] = atomic.CompareAndSwapUintptr
-	decs["Int32"] = reflect.TypeOf((*atomic.Int32)(nil)).Elem()
-	decs["Int64"] = reflect.TypeOf((*atomic.Int64)(nil)).Elem()
+	decs["Int32"] = reflect.TypeFor[atomic.Int32]()
+	decs["Int64"] = reflect.TypeFor[atomic.Int64]()
 	decs["LoadInt32"] = atomic.LoadInt32
 	decs["LoadInt64"] = atomic.LoadInt64
 	decs["LoadPointer"] = atomic.LoadPointer
@@ -4741,10 +4742,10 @@ func init() {
 	decs["SwapUint32"] = atomic.SwapUint32
 	decs["SwapUint64"] = atomic.SwapUint64
 	decs["SwapUintptr"] = atomic.SwapUintptr
-	decs["Uint32"] = reflect.TypeOf((*atomic.Uint32)(nil)).Elem()
-	decs["Uint64"] = reflect.TypeOf((*atomic.Uint64)(nil)).Elem()
-	decs["Uintptr"] = reflect.TypeOf((*atomic.Uintptr)(nil)).Elem()
-	decs["Value"] = reflect.TypeOf((*atomic.Value)(nil)).Elem()
+	decs["Uint32"] = reflect.TypeFor[atomic.Uint32]()
+	decs["Uint64"] = reflect.TypeFor[atomic.Uint64]()
+	decs["Uintptr"] = reflect.TypeFor[atomic.Uintptr]()
+	decs["Value"] = reflect.TypeFor[atomic.Value]()
 	packages["sync/atomic"] = native.Package{
 		Name:         "atomic",
 		Declarations: decs,
@@ -4759,7 +4760,7 @@ func init() {
 	decs["GoWhitespace"] = native.UntypedNumericConst("4294977024")
 	decs["Ident"] = native.UntypedNumericConst("-2")
 	decs["Int"] = native.UntypedNumericConst("-3")
-	decs["Position"] = reflect.TypeOf((*scanner_2.Position)(nil)).Elem()
+	decs["Position"] = reflect.TypeFor[scanner_2.Position]()
 	decs["RawString"] = native.UntypedNumericConst("-7")
 	decs["ScanChars"] = native.UntypedNumericConst("32")
 	decs["ScanComments"] = native.UntypedNumericConst("256")
@@ -4768,7 +4769,7 @@ func init() {
 	decs["ScanInts"] = native.UntypedNumericConst("8")
 	decs["ScanRawStrings"] = native.UntypedNumericConst("128")
 	decs["ScanStrings"] = native.UntypedNumericConst("64")
-	decs["Scanner"] = reflect.TypeOf((*scanner_2.Scanner)(nil)).Elem()
+	decs["Scanner"] = reflect.TypeFor[scanner_2.Scanner]()
 	decs["SkipComments"] = native.UntypedNumericConst("512")
 	decs["String"] = native.UntypedNumericConst("-6")
 	decs["TokenString"] = scanner_2.TokenString
@@ -4786,15 +4787,15 @@ func init() {
 	decs["NewWriter"] = tabwriter.NewWriter
 	decs["StripEscape"] = tabwriter.StripEscape
 	decs["TabIndent"] = tabwriter.TabIndent
-	decs["Writer"] = reflect.TypeOf((*tabwriter.Writer)(nil)).Elem()
+	decs["Writer"] = reflect.TypeFor[tabwriter.Writer]()
 	packages["text/tabwriter"] = native.Package{
 		Name:         "tabwriter",
 		Declarations: decs,
 	}
 	// "text/template"
 	decs = make(native.Declarations, 16)
-	decs["ExecError"] = reflect.TypeOf((*template_2.ExecError)(nil)).Elem()
-	decs["FuncMap"] = reflect.TypeOf((*template_2.FuncMap)(nil)).Elem()
+	decs["ExecError"] = reflect.TypeFor[template_2.ExecError]()
+	decs["FuncMap"] = reflect.TypeFor[template_2.FuncMap]()
 	decs["HTMLEscape"] = template_2.HTMLEscape
 	decs["HTMLEscapeString"] = template_2.HTMLEscapeString
 	decs["HTMLEscaper"] = template_2.HTMLEscaper
@@ -4807,7 +4808,7 @@ func init() {
 	decs["ParseFS"] = template_2.ParseFS
 	decs["ParseFiles"] = template_2.ParseFiles
 	decs["ParseGlob"] = template_2.ParseGlob
-	decs["Template"] = reflect.TypeOf((*template_2.Template)(nil)).Elem()
+	decs["Template"] = reflect.TypeFor[template_2.Template]()
 	decs["URLQueryEscaper"] = template_2.URLQueryEscaper
 	packages["text/template"] = native.Package{
 		Name:         "template",
@@ -4815,25 +4816,25 @@ func init() {
 	}
 	// "text/template/parse"
 	decs = make(native.Declarations, 54)
-	decs["ActionNode"] = reflect.TypeOf((*parse.ActionNode)(nil)).Elem()
-	decs["BoolNode"] = reflect.TypeOf((*parse.BoolNode)(nil)).Elem()
-	decs["BranchNode"] = reflect.TypeOf((*parse.BranchNode)(nil)).Elem()
-	decs["BreakNode"] = reflect.TypeOf((*parse.BreakNode)(nil)).Elem()
-	decs["ChainNode"] = reflect.TypeOf((*parse.ChainNode)(nil)).Elem()
-	decs["CommandNode"] = reflect.TypeOf((*parse.CommandNode)(nil)).Elem()
-	decs["CommentNode"] = reflect.TypeOf((*parse.CommentNode)(nil)).Elem()
-	decs["ContinueNode"] = reflect.TypeOf((*parse.ContinueNode)(nil)).Elem()
-	decs["DotNode"] = reflect.TypeOf((*parse.DotNode)(nil)).Elem()
-	decs["FieldNode"] = reflect.TypeOf((*parse.FieldNode)(nil)).Elem()
-	decs["IdentifierNode"] = reflect.TypeOf((*parse.IdentifierNode)(nil)).Elem()
-	decs["IfNode"] = reflect.TypeOf((*parse.IfNode)(nil)).Elem()
+	decs["ActionNode"] = reflect.TypeFor[parse.ActionNode]()
+	decs["BoolNode"] = reflect.TypeFor[parse.BoolNode]()
+	decs["BranchNode"] = reflect.TypeFor[parse.BranchNode]()
+	decs["BreakNode"] = reflect.TypeFor[parse.BreakNode]()
+	decs["ChainNode"] = reflect.TypeFor[parse.ChainNode]()
+	decs["CommandNode"] = reflect.TypeFor[parse.CommandNode]()
+	decs["CommentNode"] = reflect.TypeFor[parse.CommentNode]()
+	decs["ContinueNode"] = reflect.TypeFor[parse.ContinueNode]()
+	decs["DotNode"] = reflect.TypeFor[parse.DotNode]()
+	decs["FieldNode"] = reflect.TypeFor[parse.FieldNode]()
+	decs["IdentifierNode"] = reflect.TypeFor[parse.IdentifierNode]()
+	decs["IfNode"] = reflect.TypeFor[parse.IfNode]()
 	decs["IsEmptyTree"] = parse.IsEmptyTree
-	decs["ListNode"] = reflect.TypeOf((*parse.ListNode)(nil)).Elem()
-	decs["Mode"] = reflect.TypeOf((*parse.Mode)(nil)).Elem()
+	decs["ListNode"] = reflect.TypeFor[parse.ListNode]()
+	decs["Mode"] = reflect.TypeFor[parse.Mode]()
 	decs["New"] = parse.New
 	decs["NewIdentifier"] = parse.NewIdentifier
-	decs["NilNode"] = reflect.TypeOf((*parse.NilNode)(nil)).Elem()
-	decs["Node"] = reflect.TypeOf((*parse.Node)(nil)).Elem()
+	decs["NilNode"] = reflect.TypeFor[parse.NilNode]()
+	decs["Node"] = reflect.TypeFor[parse.Node]()
 	decs["NodeAction"] = parse.NodeAction
 	decs["NodeBool"] = parse.NodeBool
 	decs["NodeBreak"] = parse.NodeBreak
@@ -4853,22 +4854,22 @@ func init() {
 	decs["NodeString"] = parse.NodeString
 	decs["NodeTemplate"] = parse.NodeTemplate
 	decs["NodeText"] = parse.NodeText
-	decs["NodeType"] = reflect.TypeOf((*parse.NodeType)(nil)).Elem()
+	decs["NodeType"] = reflect.TypeFor[parse.NodeType]()
 	decs["NodeVariable"] = parse.NodeVariable
 	decs["NodeWith"] = parse.NodeWith
-	decs["NumberNode"] = reflect.TypeOf((*parse.NumberNode)(nil)).Elem()
+	decs["NumberNode"] = reflect.TypeFor[parse.NumberNode]()
 	decs["Parse"] = parse.Parse
 	decs["ParseComments"] = parse.ParseComments
-	decs["PipeNode"] = reflect.TypeOf((*parse.PipeNode)(nil)).Elem()
-	decs["Pos"] = reflect.TypeOf((*parse.Pos)(nil)).Elem()
-	decs["RangeNode"] = reflect.TypeOf((*parse.RangeNode)(nil)).Elem()
+	decs["PipeNode"] = reflect.TypeFor[parse.PipeNode]()
+	decs["Pos"] = reflect.TypeFor[parse.Pos]()
+	decs["RangeNode"] = reflect.TypeFor[parse.RangeNode]()
 	decs["SkipFuncCheck"] = parse.SkipFuncCheck
-	decs["StringNode"] = reflect.TypeOf((*parse.StringNode)(nil)).Elem()
-	decs["TemplateNode"] = reflect.TypeOf((*parse.TemplateNode)(nil)).Elem()
-	decs["TextNode"] = reflect.TypeOf((*parse.TextNode)(nil)).Elem()
-	decs["Tree"] = reflect.TypeOf((*parse.Tree)(nil)).Elem()
-	decs["VariableNode"] = reflect.TypeOf((*parse.VariableNode)(nil)).Elem()
-	decs["WithNode"] = reflect.TypeOf((*parse.WithNode)(nil)).Elem()
+	decs["StringNode"] = reflect.TypeFor[parse.StringNode]()
+	decs["TemplateNode"] = reflect.TypeFor[parse.TemplateNode]()
+	decs["TextNode"] = reflect.TypeFor[parse.TextNode]()
+	decs["Tree"] = reflect.TypeFor[parse.Tree]()
+	decs["VariableNode"] = reflect.TypeFor[parse.VariableNode]()
+	decs["WithNode"] = reflect.TypeFor[parse.WithNode]()
 	packages["text/template/parse"] = native.Package{
 		Name:         "parse",
 		Declarations: decs,
@@ -4884,7 +4885,7 @@ func init() {
 	decs["DateOnly"] = native.UntypedStringConst("2006-01-02")
 	decs["DateTime"] = native.UntypedStringConst("2006-01-02 15:04:05")
 	decs["December"] = time.December
-	decs["Duration"] = reflect.TypeOf((*time.Duration)(nil)).Elem()
+	decs["Duration"] = reflect.TypeFor[time.Duration]()
 	decs["February"] = time.February
 	decs["FixedZone"] = time.FixedZone
 	decs["Friday"] = time.Friday
@@ -4897,14 +4898,14 @@ func init() {
 	decs["LoadLocation"] = time.LoadLocation
 	decs["LoadLocationFromTZData"] = time.LoadLocationFromTZData
 	decs["Local"] = &time.Local
-	decs["Location"] = reflect.TypeOf((*time.Location)(nil)).Elem()
+	decs["Location"] = reflect.TypeFor[time.Location]()
 	decs["March"] = time.March
 	decs["May"] = time.May
 	decs["Microsecond"] = time.Microsecond
 	decs["Millisecond"] = time.Millisecond
 	decs["Minute"] = time.Minute
 	decs["Monday"] = time.Monday
-	decs["Month"] = reflect.TypeOf((*time.Month)(nil)).Elem()
+	decs["Month"] = reflect.TypeFor[time.Month]()
 	decs["Nanosecond"] = time.Nanosecond
 	decs["NewTicker"] = time.NewTicker
 	decs["NewTimer"] = time.NewTimer
@@ -4913,7 +4914,7 @@ func init() {
 	decs["October"] = time.October
 	decs["Parse"] = time.Parse
 	decs["ParseDuration"] = time.ParseDuration
-	decs["ParseError"] = reflect.TypeOf((*time.ParseError)(nil)).Elem()
+	decs["ParseError"] = reflect.TypeFor[time.ParseError]()
 	decs["ParseInLocation"] = time.ParseInLocation
 	decs["RFC1123"] = native.UntypedStringConst("Mon, 02 Jan 2006 15:04:05 MST")
 	decs["RFC1123Z"] = native.UntypedStringConst("Mon, 02 Jan 2006 15:04:05 -0700")
@@ -4935,10 +4936,10 @@ func init() {
 	decs["Sunday"] = time.Sunday
 	decs["Thursday"] = time.Thursday
 	decs["Tick"] = time.Tick
-	decs["Ticker"] = reflect.TypeOf((*time.Ticker)(nil)).Elem()
-	decs["Time"] = reflect.TypeOf((*time.Time)(nil)).Elem()
+	decs["Ticker"] = reflect.TypeFor[time.Ticker]()
+	decs["Time"] = reflect.TypeFor[time.Time]()
 	decs["TimeOnly"] = native.UntypedStringConst("15:04:05")
-	decs["Timer"] = reflect.TypeOf((*time.Timer)(nil)).Elem()
+	decs["Timer"] = reflect.TypeFor[time.Timer]()
 	decs["Tuesday"] = time.Tuesday
 	decs["UTC"] = &time.UTC
 	decs["Unix"] = time.Unix
@@ -4947,7 +4948,7 @@ func init() {
 	decs["UnixMilli"] = time.UnixMilli
 	decs["Until"] = time.Until
 	decs["Wednesday"] = time.Wednesday
-	decs["Weekday"] = reflect.TypeOf((*time.Weekday)(nil)).Elem()
+	decs["Weekday"] = reflect.TypeFor[time.Weekday]()
 	packages["time"] = native.Package{
 		Name:         "time",
 		Declarations: decs,
@@ -4977,7 +4978,7 @@ func init() {
 	decs["C"] = &unicode.C
 	decs["Canadian_Aboriginal"] = &unicode.Canadian_Aboriginal
 	decs["Carian"] = &unicode.Carian
-	decs["CaseRange"] = reflect.TypeOf((*unicode.CaseRange)(nil)).Elem()
+	decs["CaseRange"] = reflect.TypeFor[unicode.CaseRange]()
 	decs["CaseRanges"] = &unicode.CaseRanges
 	decs["Categories"] = &unicode.Categories
 	decs["Caucasian_Albanian"] = &unicode.Caucasian_Albanian
@@ -5169,9 +5170,9 @@ func init() {
 	decs["Punct"] = &unicode.Punct
 	decs["Quotation_Mark"] = &unicode.Quotation_Mark
 	decs["Radical"] = &unicode.Radical
-	decs["Range16"] = reflect.TypeOf((*unicode.Range16)(nil)).Elem()
-	decs["Range32"] = reflect.TypeOf((*unicode.Range32)(nil)).Elem()
-	decs["RangeTable"] = reflect.TypeOf((*unicode.RangeTable)(nil)).Elem()
+	decs["Range16"] = reflect.TypeFor[unicode.Range16]()
+	decs["Range32"] = reflect.TypeFor[unicode.Range32]()
+	decs["RangeTable"] = reflect.TypeFor[unicode.RangeTable]()
 	decs["Regional_Indicator"] = &unicode.Regional_Indicator
 	decs["Rejang"] = &unicode.Rejang
 	decs["ReplacementChar"] = native.UntypedNumericConst("65533")
@@ -5197,7 +5198,7 @@ func init() {
 	decs["Sora_Sompeng"] = &unicode.Sora_Sompeng
 	decs["Soyombo"] = &unicode.Soyombo
 	decs["Space"] = &unicode.Space
-	decs["SpecialCase"] = reflect.TypeOf((*unicode.SpecialCase)(nil)).Elem()
+	decs["SpecialCase"] = reflect.TypeFor[unicode.SpecialCase]()
 	decs["Sundanese"] = &unicode.Sundanese
 	decs["Syloti_Nagri"] = &unicode.Syloti_Nagri
 	decs["Symbol"] = &unicode.Symbol
@@ -5286,4 +5287,5 @@ func init() {
 		Name:         "utf8",
 		Declarations: decs,
 	}
+	initLegacy(packages) // bring in the old v3 packages
 }

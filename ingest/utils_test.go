@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 // TestEmergencyQueueClearNilBatchEntry ensures that clear() does not panic when
@@ -47,7 +47,7 @@ func TestEmergencyQueueClearNilBatchEntry(t *testing.T) {
 func TestTagBitMask(t *testing.T) {
 	var tmt tagMaskTracker
 	//make sure its empty
-	for i := 0; i < 0x10000; i++ {
+	for i := range 0x10000 {
 		tg := entry.EntryTag(i)
 		if tmt.has(tg) {
 			t.Fatalf("tag  %d set without being set", i)

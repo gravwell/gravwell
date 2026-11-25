@@ -23,12 +23,12 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -56,13 +56,13 @@ type hecHandler struct {
 }
 
 type hecEvent struct {
-	Event      piaObj                 `json:"event"`
-	Fields     map[string]interface{} `json:"fields,omitempty"`
-	TS         custTime               `json:"time"`
-	Host       string                 `json:"host,omitempty"`
-	Source     string                 `json:"source,omitempty"`
-	Sourcetype string                 `json:"sourcetype,omitempty"`
-	Index      string                 `json:"index,omitempty"`
+	Event      piaObj         `json:"event"`
+	Fields     map[string]any `json:"fields,omitempty"`
+	TS         custTime       `json:"time"`
+	Host       string         `json:"host,omitempty"`
+	Source     string         `json:"source,omitempty"`
+	Sourcetype string         `json:"sourcetype,omitempty"`
+	Index      string         `json:"index,omitempty"`
 }
 
 type custTime time.Time

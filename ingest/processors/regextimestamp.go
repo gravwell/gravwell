@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -120,7 +120,7 @@ type RegexTimestamp struct {
 	bounds   tsBounds
 }
 
-func (rt *RegexTimestamp) Config(v interface{}) (err error) {
+func (rt *RegexTimestamp) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexTimestampConfig); ok {

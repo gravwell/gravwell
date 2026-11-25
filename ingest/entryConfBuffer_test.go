@@ -11,7 +11,7 @@ package ingest
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -31,13 +31,13 @@ func TestOrderedPushPop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := entrySendID(0); i < entrySendID(8); i++ {
+	for i := range entrySendID(8) {
 		err = entcb.Add(&entryConfirmation{i, ent})
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	for i := entrySendID(0); i < entrySendID(8); i++ {
+	for i := range entrySendID(8) {
 		err = entcb.Confirm(i)
 		if err != nil {
 			t.Fatal(err)

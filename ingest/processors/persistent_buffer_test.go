@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -16,8 +15,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func TestPersistentBufferLoadConfig(t *testing.T) {
@@ -78,7 +77,7 @@ func TestPersistentBuffer(t *testing.T) {
 	}
 
 	var origCnt int
-	for i := 0; i < 16; i++ {
+	for range 16 {
 		ents := makeEntry([]byte("this is a test"), 4)
 		origCnt += len(ents)
 		if set, err := d.Process(ents); err != nil {
@@ -134,7 +133,7 @@ func TestPBRollover(t *testing.T) {
 	}
 
 	tags := make([]entry.EntryTag, 4)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if tg, err := tt.NegotiateTag(fmt.Sprintf("TAG%d", i)); err != nil {
 			t.Fatal(err)
 		} else {
@@ -143,8 +142,8 @@ func TestPBRollover(t *testing.T) {
 	}
 
 	// make enough entries that our buffer rolls
-	for i := 0; i < 4096; i++ {
-		for j := 0; j < 4; j++ {
+	for range 4096 {
+		for j := range 4 {
 			ents := makeEntry([]byte("this is a test"), tags[j])
 			if set, err := d.Process(ents); err != nil {
 				t.Fatal(err)

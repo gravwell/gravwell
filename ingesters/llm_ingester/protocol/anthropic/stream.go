@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 // sseReassembler accumulates Anthropic Messages streaming events into a single
@@ -122,7 +122,7 @@ func (r *sseReassembler) Feed(chunk []byte) error {
 // contain several `field: value\n` lines; we only look at `data:` lines (the
 // `event:` line is redundant with the JSON "type" field).
 func (r *sseReassembler) processEvent(event []byte) error {
-	for _, line := range bytes.Split(event, []byte("\n")) {
+	for line := range bytes.SplitSeq(event, []byte("\n")) {
 		if !bytes.HasPrefix(line, []byte("data:")) {
 			continue
 		}

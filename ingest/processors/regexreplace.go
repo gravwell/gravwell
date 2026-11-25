@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -70,7 +70,7 @@ func NewRegexReplacer(cfg RegexReplaceConfig) (*RegexReplacer, error) {
 	}, nil
 }
 
-func (rr *RegexReplacer) Config(v interface{}) (err error) {
+func (rr *RegexReplacer) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexReplaceConfig); ok {

@@ -18,13 +18,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/filewatch"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/filewatch"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -42,7 +42,7 @@ type readerType int
 
 type cfgReadType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -79,7 +79,7 @@ type global struct {
 
 type cfgType struct {
 	global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -233,13 +233,13 @@ func (f follower) TimestampDelimited() (rex string, ok bool, err error) {
 		return
 	}
 	//fixup the regex string to fit on line breaks
-	if strings.HasPrefix(rex, `\A`) {
+	if after, ok0 := strings.CutPrefix(rex, `\A`); ok0 {
 		//remove the "at beginning of text" sequence and replace with newline
-		rex = `\n` + strings.TrimPrefix(rex, `\A`)
+		rex = `\n` + after
 	}
-	if strings.HasPrefix(rex, `^`) {
+	if after, ok0 := strings.CutPrefix(rex, `^`); ok0 {
 		//remove the "at beginning regex and replace with newline
-		rex = `\n` + strings.TrimPrefix(rex, `^`)
+		rex = `\n` + after
 	}
 	if _, err = regexp.Compile(rex); err != nil {
 		return

@@ -48,14 +48,14 @@ type Entry struct {
 	SRC  net.IP
 	Tag  EntryTag
 	Data []byte
-	EVB  EVBlock `json:",omitempty"`
+	EVB  EVBlock
 }
 
 func init() {
-	gob.Register(&EVBlock{})
-	gob.Register(&Entry{})
-	gob.Register([]Entry{})
-	gob.Register([]*Entry{})
+	gob.RegisterName("*EVBlock.v4", &EVBlock{})
+	gob.RegisterName("*Entry.v4", &Entry{})
+	gob.RegisterName("[]Entry.v4", []Entry{})
+	gob.RegisterName("[]*Entry.v4", []*Entry{})
 }
 
 func (ent *Entry) Key() EntryKey {
@@ -105,7 +105,7 @@ func (ent *Entry) AddEnumeratedValues(evs []EnumeratedValue) (err error) {
 // An error is returned if the enumerated value is invalid or adding it would cause
 // the entry to exceed the maximum entry size.  An error is also returned if the
 // the provided value type is not natively supported.
-func (ent *Entry) AddEnumeratedValueEx(name string, val interface{}) error {
+func (ent *Entry) AddEnumeratedValueEx(name string, val any) error {
 	ev, err := NewEnumeratedValue(name, val)
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func (ent *Entry) AddEnumeratedValueEx(name string, val interface{}) error {
 
 // GetEnumeratedValue looks up an enumerated value by name and returns it as a native type
 // if the value is not present the function returns nil and false
-func (ent *Entry) GetEnumeratedValue(name string) (val interface{}, ok bool) {
+func (ent *Entry) GetEnumeratedValue(name string) (val any, ok bool) {
 	var ev EnumeratedValue
 	if ent == nil {
 		return
@@ -594,7 +594,7 @@ func (ent *Entry) Compare(v *Entry) error {
 	} else if ent.Tag != v.Tag {
 		return errors.New("differing tags")
 	} else if !ent.SRC.Equal(v.SRC) {
-		return errors.New("differeing source values")
+		return errors.New("differing source values")
 	} else if !bytes.Equal(ent.Data, v.Data) {
 		return errors.New("differing data")
 	}

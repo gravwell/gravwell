@@ -19,11 +19,11 @@ import (
 	"path"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -268,7 +268,7 @@ func (oh *otelLogsHandler) extractLogBody(logRecord *lpb.LogRecord) []byte {
 	}
 }
 
-func (oh *otelLogsHandler) convertAttributeValue(v *cpb.AnyValue) interface{} {
+func (oh *otelLogsHandler) convertAttributeValue(v *cpb.AnyValue) any {
 	if v == nil {
 		return nil
 	}
@@ -284,13 +284,13 @@ func (oh *otelLogsHandler) convertAttributeValue(v *cpb.AnyValue) interface{} {
 	case *cpb.AnyValue_BytesValue:
 		return value.BytesValue
 	case *cpb.AnyValue_ArrayValue:
-		arr := make([]interface{}, 0, len(value.ArrayValue.Values))
+		arr := make([]any, 0, len(value.ArrayValue.Values))
 		for _, av := range value.ArrayValue.Values {
 			arr = append(arr, oh.convertAttributeValue(av))
 		}
 		return arr
 	case *cpb.AnyValue_KvlistValue:
-		kvMap := make(map[string]interface{})
+		kvMap := make(map[string]any)
 		for _, kv := range value.KvlistValue.Values {
 			kvMap[kv.Key] = oh.convertAttributeValue(kv.Value)
 		}

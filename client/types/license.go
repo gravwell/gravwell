@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -88,8 +88,9 @@ var (
 type LicenseType uint64
 type FeatureOverride uint64
 
-// A LicenseInfo block represents the overall configuration for a license - the
-// type, customer information, expiration, etc.
+// A LicenseInfo block represents the overall configuration for a license,
+// composed primarily of values intrinsic to the license' signature.
+// It does not contain derived/computed values; they may be computed via their respective methods.
 type LicenseInfo struct {
 	Version        uint64
 	CustomerUUID   string `json:",omitempty"`
@@ -102,6 +103,28 @@ type LicenseInfo struct {
 	Metadata  []byte
 	NFR       bool //non-commercial license override
 	Hash      []byte
+}
+
+// LicenseInfoResponse is the response to GET /api/license.
+// It composes the signed LicenseInfo with its derived values for a complete, flat representation.
+type LicenseInfoResponse struct {
+	LicenseInfo
+	Features    Features
+	IngestLimit string
+	Manageable  bool // true if the license subscription can be managed through the billing portal
+	SKU         string
+	Serial      string
+}
+
+// NewLicenseInfoResponse fills in every field that can be derived from li alone.
+// Hash, IngestLimit, and Manageable require the full license and must be set by the caller.
+func NewLicenseInfoResponse(li LicenseInfo) LicenseInfoResponse {
+	return LicenseInfoResponse{
+		LicenseInfo: li,
+		Features:    li.Features(),
+		SKU:         li.SKU(),
+		Serial:      li.Serial(),
+	}
 }
 
 // Features is a list of features present on this license. It's used in the
@@ -119,27 +142,27 @@ type Features struct {
 }
 
 type LicenseIndexerStatus struct {
-	Indexer  string `json:"indexer"`
-	Serviced bool   `json:"ready"`
-	Error    string `json:"error,omitempty"`
+	Indexer  string
+	Serviced bool
+	Error    string `json:",omitempty"`
 }
 
 type LicenseDistributionStatus struct {
-	Status string                 `json:"status"`
-	States []LicenseIndexerStatus `json:"states,omitempty"`
+	Status string
+	States []LicenseIndexerStatus `json:",omitempty"`
 
 	// information about whether the system is allowed to run in unlicensed/free mode
-	UnlicensedAllowed bool `json:"unlicensed_allowed"`
+	UnlicensedAllowed bool
 
 	// if system cannot run in unlicensed mode, a list of reasons will be provided
 	// they may be things like "system is configured as a cluster" or "CBAC is enabled"
-	DisallowUnlicensedReasons []string `json:"disallow_unlicensed_reasons,omitempty"`
+	DisallowUnlicensedReasons []string
 }
 
 type LicenseIndexerInfo struct {
-	Indexer string      `json:"indexer"`
-	Error   error       `json:"error,omitempty"`
-	Info    LicenseInfo `json:"info,omitempty"`
+	Indexer string
+	Error   error `json:",omitempty"`
+	Info    LicenseInfo
 }
 
 // LicenseUsageBucket is a time bucket of license quota activity
@@ -277,7 +300,7 @@ func (li LicenseInfo) CBACEnabled() bool {
 	return li.Overrides.Set(CBAC)
 }
 
-func EncodeMetadata(md map[string]interface{}) ([]byte, error) {
+func EncodeMetadata(md map[string]any) ([]byte, error) {
 	bb := bytes.NewBuffer(nil)
 	if err := gob.NewEncoder(bb).Encode(md); err != nil {
 		return nil, err
@@ -285,7 +308,7 @@ func EncodeMetadata(md map[string]interface{}) ([]byte, error) {
 	return bb.Bytes(), nil
 }
 
-func (li LicenseInfo) decodeMetadata(obj interface{}) error {
+func (li LicenseInfo) decodeMetadata(obj any) error {
 	if len(li.Metadata) == 0 {
 		return ErrNoMetadata
 	}
@@ -293,8 +316,8 @@ func (li LicenseInfo) decodeMetadata(obj interface{}) error {
 	return gob.NewDecoder(bb).Decode(obj)
 }
 
-func (li LicenseInfo) Get(key string) (val interface{}, err error) {
-	var md map[string]interface{}
+func (li LicenseInfo) Get(key string) (val any, err error) {
+	var md map[string]any
 	var ok bool
 	if err = li.decodeMetadata(&md); err != nil {
 		return
@@ -487,7 +510,7 @@ func ParseType(c string) (LicenseType, error) {
 func FeatureOverridesString(fo FeatureOverride) (s string) {
 	mask := FeatureOverride(0x1)
 	var t FeatureOverride
-	for i := 0; i < 63; i++ {
+	for range 63 {
 		t = (fo & mask)
 		if t != 0 {
 			if s == `` {

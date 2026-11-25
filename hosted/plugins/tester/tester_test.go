@@ -1,12 +1,20 @@
+/*************************************************************************
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package tester
 
 import (
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -82,7 +90,7 @@ func TestConfig_Verify_GeneratesUUID(t *testing.T) {
 func TestConfig_Verify_PreservesExistingUUID(t *testing.T) {
 	originalUUID := "550e8400-e29b-41d4-a716-446655440000"
 	cfg := Config{
-		BaseConfig: hosted.BaseConfig{Ingester_UUID: originalUUID},
+		Ingester_UUID: originalUUID,
 	}
 	if err := cfg.Verify(); err != nil {
 		t.Fatalf("Config.Verify() unexpected error: %v", err)
@@ -157,7 +165,7 @@ func TestConfig_UUID(t *testing.T) {
 		{
 			name:         "empty UUID",
 			ingesterUUID: "",
-			want:         uuid.Nil,
+			want:         uuid.Nil(),
 		},
 		{
 			name:         "valid UUID",
@@ -167,19 +175,19 @@ func TestConfig_UUID(t *testing.T) {
 		{
 			name:         "invalid UUID",
 			ingesterUUID: "not-a-uuid",
-			want:         uuid.Nil,
+			want:         uuid.Nil(),
 		},
 		{
 			name:         "malformed UUID",
 			ingesterUUID: "550e8400-e29b-41d4",
-			want:         uuid.Nil,
+			want:         uuid.Nil(),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
-				BaseConfig: hosted.BaseConfig{Ingester_UUID: tt.ingesterUUID},
+				Ingester_UUID: tt.ingesterUUID,
 			}
 			got := cfg.UUID()
 			if got != tt.want {
@@ -192,9 +200,7 @@ func TestConfig_UUID(t *testing.T) {
 func TestTesterIngester_Handle(t *testing.T) {
 	t.Run("is silent", func(t *testing.T) {
 		tester := &TesterIngester{
-			Config: Config{
-				Silent: true,
-			},
+			Silent: true,
 		}
 		rt := &hosted.NativeRuntime{} // wacky, but nothing should be called...
 
@@ -213,10 +219,10 @@ func TestTesterIngester_Handle(t *testing.T) {
 
 func TestConfigEqual(t *testing.T) {
 	configtest.CheckEqual(t, Config{
-		BaseConfig:      hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
-		SingleTagConfig: hosted.SingleTagConfig{Tag_Name: Tag},
-		Interval:        "10s",
-		Silent:          true,
-		Test_Errors:     true,
+		Ingester_UUID: defaultIngesterUUIDStr,
+		Tag_Name:      Tag,
+		Interval:      "10s",
+		Silent:        true,
+		Test_Errors:   true,
 	})
 }

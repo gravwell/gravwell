@@ -20,13 +20,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/filewatch"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/filewatch"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -180,7 +180,7 @@ func getFileList(val *files, st *StateTracker) ([]string, error) {
 	var obj fileStatus
 	mp := map[string]fileStatus{}
 	// populate the list of files that have been handled so far
-	if err := st.GetStates(filesStateType, &obj, func(val interface{}) error {
+	if err := st.GetStates(filesStateType, &obj, func(val any) error {
 		if val == nil {
 			return nil ///ummm ok?
 		}

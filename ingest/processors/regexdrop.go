@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -64,7 +64,7 @@ type RegexDropper struct {
 }
 
 // Config updates the configuration for the regexdrop processor
-func (r *RegexDropper) Config(v interface{}) (err error) {
+func (r *RegexDropper) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexDropConfig); ok {

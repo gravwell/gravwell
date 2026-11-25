@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/jsonparser"
 	"github.com/minio/highwayhash"
 )
@@ -127,7 +127,7 @@ func NewJsonFilter(cfg JsonFilterConfig) (*JsonFilter, error) {
 	}, nil
 }
 
-func (j *JsonFilter) Config(v interface{}) (err error) {
+func (j *JsonFilter) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonFilterConfig); ok {

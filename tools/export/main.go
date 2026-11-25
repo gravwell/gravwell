@@ -20,8 +20,8 @@ import (
 	_ "time/tzdata"
 
 	"github.com/Bowery/prompt"
-	"github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/objlog"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/objlog"
 )
 
 var (
@@ -64,7 +64,7 @@ func main() {
 		log.Fatalf("Failed to log in to %q: %v\n", *server, err)
 	}
 
-	wellData, err := cli.WellData()
+	wellData, err := cli.GetWellData()
 	if err != nil {
 		log.Fatalf("Failed to retrieve data topologies: %v\n", err)
 	}
@@ -99,7 +99,7 @@ func login() (cli *client.Client, err error) {
 		return
 	}
 	loggedIn := false
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		if passwd, err = prompt.Password("Password: "); err != nil {
 			fmt.Fprintf(os.Stderr, "Password error: %v\n", err)
 			return

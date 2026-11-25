@@ -9,13 +9,14 @@
 package types
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
@@ -67,18 +68,10 @@ type ChartableValueSet struct {
 
 // AddKeyComponents preps the ChartableValueSet with the appropriate key material
 func (cvs *ChartableValueSet) AddKeyComponents(name, cat string, keys []string) error {
-	for i := range cvs.Names {
-		if cvs.Names[i] == name {
-			return fmt.Errorf(`Name "%s" already exists`, name)
-		}
+	if slices.Contains(cvs.Names, name) {
+		return fmt.Errorf(`Name "%s" already exists`, name)
 	}
-	addCat := true
-	for i := range cvs.Categories {
-		if cvs.Categories[i] == cat {
-			addCat = false
-			break
-		}
-	}
+	addCat := !slices.Contains(cvs.Categories, cat)
 	cvs.Names = append(cvs.Names, name)
 	if addCat {
 		cvs.Categories = append(cvs.Categories, cat)
@@ -205,7 +198,7 @@ func (s swapper) Swap(i, j int) {
 
 func (cdp ChartableDataPoint) MarshalJSON() ([]byte, error) {
 	if math.IsNaN(float64(cdp)) {
-		return jsonNull, nil
+		return []byte(`null`), nil
 	}
 	return json.Marshal(float64(cdp))
 }
@@ -214,43 +207,21 @@ func (cdp ChartableDataPoint) IsNaN() bool {
 	return math.IsNaN(float64(cdp))
 }
 
-type chartableDataPoints []ChartableDataPoint
-
-func (cd chartableDataPoints) MarshalJSON() ([]byte, error) {
-	if len(cd) == 0 {
-		return emptyList, nil
+func (x ChartResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
 	}
-	return json.Marshal([]ChartableDataPoint(cd))
-}
+	base[len(base)-1] = ','
 
-func (cvs ChartableValueSet) MarshalJSON() ([]byte, error) {
-	type alias ChartableValueSet
-	return json.Marshal(&struct {
-		Names  emptyStrings
-		Values chtbls
+	e, err := json.Marshal(&struct {
+		Entries ChartableValueSet
 	}{
-		Names:  emptyStrings(cvs.Names),
-		Values: chtbls(cvs.Values),
+		Entries: x.Entries,
 	})
-}
-
-type chtbls []Chartable
-
-func (cs chtbls) MarshalJSON() ([]byte, error) {
-	if len(cs) == 0 {
-		return emptyList, nil
+	if err != nil {
+		return nil, err
 	}
-	return json.Marshal([]Chartable(cs))
-}
 
-type chtbl Chartable
-
-func (cs chtbl) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		TS   entry.Timestamp
-		Data chartableDataPoints
-	}{
-		TS:   cs.TS,
-		Data: chartableDataPoints(cs.Data),
-	})
+	return append(base, e[1:]...), nil
 }

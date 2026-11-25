@@ -1,3 +1,5 @@
+//go:build windows
+
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -11,7 +13,7 @@ package processors
 import (
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/config"
 )
 
 func checkProcessorOS(id string) error {
@@ -20,10 +22,9 @@ func checkProcessorOS(id string) error {
 	default:
 		return ErrUnknownProcessor
 	}
-	return nil
 }
 
-func processorLoadConfigOS(vc *config.VariableConfig) (cfg interface{}, err error) {
+func processorLoadConfigOS(vc *config.VariableConfig) (cfg any, err error) {
 	var pb preprocessorBase
 	if err = vc.MapTo(&pb); err != nil {
 		return

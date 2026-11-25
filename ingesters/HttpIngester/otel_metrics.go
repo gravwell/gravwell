@@ -20,12 +20,12 @@ import (
 	"path"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -326,7 +326,7 @@ func (oh *otelHandler) processSummaryDataPoint(p *processors.ProcessorSet, e ent
 	return
 }
 
-func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e entry.Entry, d interface{}) (cnt uint64, bts uint64, err error) {
+func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e entry.Entry, d any) (cnt uint64, bts uint64, err error) {
 	if p == nil || d == nil {
 		return // just do nothing
 	}
@@ -391,14 +391,14 @@ func (oh *otelHandler) processMetricDatapoints(p *processors.ProcessorSet, e ent
 }
 
 func (oh *otelHandler) convertMetricToJSON(metric *mpb.Metric, resource *rpb.Resource, scope *cpb.InstrumentationScope) ([]byte, error) {
-	metricData := map[string]interface{}{
+	metricData := map[string]any{
 		"name":        metric.Name,
 		"description": metric.Description,
 		"unit":        metric.Unit,
 	}
 
 	if resource != nil {
-		resAttrs := make(map[string]interface{})
+		resAttrs := make(map[string]any)
 		for _, attr := range resource.Attributes {
 			resAttrs[attr.Key] = oh.convertAttributeValue(attr.Value)
 		}
@@ -408,7 +408,7 @@ func (oh *otelHandler) convertMetricToJSON(metric *mpb.Metric, resource *rpb.Res
 	}
 
 	if scope != nil {
-		scopeData := map[string]interface{}{
+		scopeData := map[string]any{
 			"name":    scope.Name,
 			"version": scope.Version,
 		}
@@ -440,10 +440,10 @@ func (oh *otelHandler) convertMetricToJSON(metric *mpb.Metric, resource *rpb.Res
 	return json.Marshal(metricData)
 }
 
-func (oh *otelHandler) convertNumberDataPoints(dps []*mpb.NumberDataPoint) []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, len(dps))
+func (oh *otelHandler) convertNumberDataPoints(dps []*mpb.NumberDataPoint) []map[string]any {
+	result := make([]map[string]any, 0, len(dps))
 	for _, dp := range dps {
-		point := map[string]interface{}{
+		point := map[string]any{
 			"start_time_unix_nano": dp.StartTimeUnixNano,
 			"time_unix_nano":       dp.TimeUnixNano,
 			"attributes":           oh.convertAttributes(dp.Attributes),
@@ -461,10 +461,10 @@ func (oh *otelHandler) convertNumberDataPoints(dps []*mpb.NumberDataPoint) []map
 	return result
 }
 
-func (oh *otelHandler) convertHistogramDataPoints(dps []*mpb.HistogramDataPoint) []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, len(dps))
+func (oh *otelHandler) convertHistogramDataPoints(dps []*mpb.HistogramDataPoint) []map[string]any {
+	result := make([]map[string]any, 0, len(dps))
 	for _, dp := range dps {
-		point := map[string]interface{}{
+		point := map[string]any{
 			"start_time_unix_nano": dp.StartTimeUnixNano,
 			"time_unix_nano":       dp.TimeUnixNano,
 			"count":                dp.Count,
@@ -484,10 +484,10 @@ func (oh *otelHandler) convertHistogramDataPoints(dps []*mpb.HistogramDataPoint)
 	return result
 }
 
-func (oh *otelHandler) convertExponentialHistogramDataPoints(dps []*mpb.ExponentialHistogramDataPoint) []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, len(dps))
+func (oh *otelHandler) convertExponentialHistogramDataPoints(dps []*mpb.ExponentialHistogramDataPoint) []map[string]any {
+	result := make([]map[string]any, 0, len(dps))
 	for _, dp := range dps {
-		point := map[string]interface{}{
+		point := map[string]any{
 			"start_time_unix_nano": dp.StartTimeUnixNano,
 			"time_unix_nano":       dp.TimeUnixNano,
 			"count":                dp.Count,
@@ -503,13 +503,13 @@ func (oh *otelHandler) convertExponentialHistogramDataPoints(dps []*mpb.Exponent
 			point["max"] = *dp.Max
 		}
 		if dp.Positive != nil {
-			point["positive"] = map[string]interface{}{
+			point["positive"] = map[string]any{
 				"offset":        dp.Positive.Offset,
 				"bucket_counts": dp.Positive.BucketCounts,
 			}
 		}
 		if dp.Negative != nil {
-			point["negative"] = map[string]interface{}{
+			point["negative"] = map[string]any{
 				"offset":        dp.Negative.Offset,
 				"bucket_counts": dp.Negative.BucketCounts,
 			}
@@ -519,19 +519,19 @@ func (oh *otelHandler) convertExponentialHistogramDataPoints(dps []*mpb.Exponent
 	return result
 }
 
-func (oh *otelHandler) convertSummaryDataPoints(dps []*mpb.SummaryDataPoint) []map[string]interface{} {
-	result := make([]map[string]interface{}, 0, len(dps))
+func (oh *otelHandler) convertSummaryDataPoints(dps []*mpb.SummaryDataPoint) []map[string]any {
+	result := make([]map[string]any, 0, len(dps))
 	for _, dp := range dps {
-		point := map[string]interface{}{
+		point := map[string]any{
 			"start_time_unix_nano": dp.StartTimeUnixNano,
 			"time_unix_nano":       dp.TimeUnixNano,
 			"count":                dp.Count,
 			"sum":                  dp.Sum,
 			"attributes":           oh.convertAttributes(dp.Attributes),
 		}
-		quantiles := make([]map[string]interface{}, 0, len(dp.QuantileValues))
+		quantiles := make([]map[string]any, 0, len(dp.QuantileValues))
 		for _, qv := range dp.QuantileValues {
-			quantiles = append(quantiles, map[string]interface{}{
+			quantiles = append(quantiles, map[string]any{
 				"quantile": qv.Quantile,
 				"value":    qv.Value,
 			})
@@ -542,8 +542,8 @@ func (oh *otelHandler) convertSummaryDataPoints(dps []*mpb.SummaryDataPoint) []m
 	return result
 }
 
-func (oh *otelHandler) convertAttributes(attrs []*cpb.KeyValue) map[string]interface{} {
-	result := make(map[string]interface{})
+func (oh *otelHandler) convertAttributes(attrs []*cpb.KeyValue) map[string]any {
+	result := make(map[string]any)
 	for _, attr := range attrs {
 		if attr != nil {
 			result[attr.Key] = oh.convertAttributeValue(attr.Value)
@@ -552,7 +552,7 @@ func (oh *otelHandler) convertAttributes(attrs []*cpb.KeyValue) map[string]inter
 	return result
 }
 
-func (oh *otelHandler) convertAttributeValue(v *cpb.AnyValue) interface{} {
+func (oh *otelHandler) convertAttributeValue(v *cpb.AnyValue) any {
 	if v == nil {
 		return nil
 	}
@@ -568,13 +568,13 @@ func (oh *otelHandler) convertAttributeValue(v *cpb.AnyValue) interface{} {
 	case *cpb.AnyValue_BytesValue:
 		return value.BytesValue
 	case *cpb.AnyValue_ArrayValue:
-		arr := make([]interface{}, 0, len(value.ArrayValue.Values))
+		arr := make([]any, 0, len(value.ArrayValue.Values))
 		for _, av := range value.ArrayValue.Values {
 			arr = append(arr, oh.convertAttributeValue(av))
 		}
 		return arr
 	case *cpb.AnyValue_KvlistValue:
-		kvMap := make(map[string]interface{})
+		kvMap := make(map[string]any)
 		for _, kv := range value.KvlistValue.Values {
 			kvMap[kv.Key] = oh.convertAttributeValue(kv.Value)
 		}
@@ -646,17 +646,17 @@ func (oh *otelHandler) nanoToTime(nano uint64) time.Time {
 }
 
 type metricsEntry struct {
-	MetricName   string                 `json:"metric_name"`
-	Description  string                 `json:"description,omitempty"`
-	Unit         string                 `json:"unit,omitempty"`
-	Type         string                 `json:"type"`
-	Value        interface{}            `json:"value"`
-	Attributes   map[string]interface{} `json:"attributes,omitempty"`
-	Resource     map[string]interface{} `json:"resource,omitempty"`
-	Timestamp    time.Time              `json:"timestamp"`
-	StartTime    time.Time              `json:"start_time,omitempty"`
-	ScopeName    string                 `json:"scope_name,omitempty"`
-	ScopeVersion string                 `json:"scope_version,omitempty"`
+	MetricName   string         `json:"metric_name"`
+	Description  string         `json:"description,omitempty"`
+	Unit         string         `json:"unit,omitempty"`
+	Type         string         `json:"type"`
+	Value        any            `json:"value"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
+	Resource     map[string]any `json:"resource,omitempty"`
+	Timestamp    time.Time      `json:"timestamp"`
+	StartTime    time.Time      `json:"start_time"`
+	ScopeName    string         `json:"scope_name,omitempty"`
+	ScopeVersion string         `json:"scope_version,omitempty"`
 }
 
 func formatMetricAsString(me *metricsEntry) ([]byte, error) {

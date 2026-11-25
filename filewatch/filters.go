@@ -14,10 +14,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (
@@ -68,7 +68,7 @@ type FilterManager struct {
 	stateFile       string
 	stateFout       *os.File
 	maxFilesWatched int
-	logger          ingest.IngestLogger
+	logger          log.IngestLogger
 }
 
 func NewFilterManager(stateFile string) (*FilterManager, error) {
@@ -87,7 +87,7 @@ func NewFilterManager(stateFile string) (*FilterManager, error) {
 		stateFout: fout,
 		states:    states,
 		followers: map[FileName]*follower{},
-		logger:    ingest.NoLogger(),
+		logger:    log.NoLogger(),
 	}, nil
 }
 
@@ -114,12 +114,12 @@ func (f *FilterManager) SetMaxFilesWatched(max int) {
 	f.maxFilesWatched = max
 }
 
-func (f *FilterManager) SetLogger(lgr ingest.IngestLogger) {
+func (f *FilterManager) SetLogger(lgr log.IngestLogger) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
 	if lgr == nil {
-		f.logger = ingest.NoLogger()
+		f.logger = log.NoLogger()
 	} else {
 		f.logger = lgr
 	}
@@ -240,10 +240,8 @@ func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler,
 		mtchs:                mtchs,
 		lh:                   lh,
 	}
-	for i := range f.filters {
-		if fltr.Equal(f.filters[i]) {
-			return nil
-		}
+	if slices.ContainsFunc(f.filters, fltr.Equal) {
+		return nil
 	}
 	f.filters = append(f.filters, fltr)
 	return nil

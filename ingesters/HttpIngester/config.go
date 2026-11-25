@@ -17,12 +17,12 @@ import (
 	"path"
 	"sort"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils/clientip"
 )
 
 const (
@@ -51,14 +51,17 @@ type gbl struct {
 	Max_Concurrent_Requests int
 	Trusted_Proxy           []string // address or CIDR block allowed to set X-Forwarded-For, repeated for each one
 
-	// Ignore_Untrusted_Forwarded_For turns off the legacy behavior of trusting
-	// X-Forwarded-For from any peer when Trusted_Proxy is empty.
+	// Ignore_Untrusted_Forwarded_For, true by default, makes the client the TCP
+	// peer when Trusted_Proxy is empty. Setting it to false restores the legacy
+	// behavior of trusting X-Forwarded-For from any peer, which lets any client
+	// choose its own address. GetConfig seeds it from the environment, and the
+	// config file overrides that.
 	Ignore_Untrusted_Forwarded_For bool
 }
 
 type cfgReadType struct {
 	Global                         gbl
-	Attach                         attach.AttachConfig
+	Attach                         attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener                       map[string]*lst
 	HEC_Compatible_Listener        map[string]*hecCompatible
 	Amazon_Firehose_Listener       map[string]*afh
@@ -86,7 +89,7 @@ type lst struct {
 
 type cfgType struct {
 	gbl
-	Attach           attach.AttachConfig
+	Attach           attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener         map[string]*lst
 	HECListener      map[string]*hecCompatible
 	AFHListener      map[string]*afh
@@ -100,7 +103,14 @@ type cfgType struct {
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var cr cfgReadType
-	if err := config.LoadConfigFile(&cr, path); err != nil {
+	// seed the default and the environment variable before reading the config,
+	// so that a value in the config file or an overlay takes precedence
+	ignore, err := clientip.LoadIgnoreUntrusted(envIgnoreUntrustedXFF)
+	if err != nil {
+		return nil, err
+	}
+	cr.Global.Ignore_Untrusted_Forwarded_For = ignore
+	if err = config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
 	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
@@ -135,7 +145,7 @@ func (c *cfgType) Verify() error {
 		return err
 	}
 
-	cr, err := clientip.LoadResolver(&c.Trusted_Proxy, &c.Ignore_Untrusted_Forwarded_For, envTrustedProxy, envIgnoreUntrustedXFF)
+	cr, err := clientip.LoadResolver(&c.Trusted_Proxy, c.Ignore_Untrusted_Forwarded_For, envTrustedProxy)
 	if err != nil {
 		return err
 	}

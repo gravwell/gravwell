@@ -16,25 +16,25 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
 	evFilenameName = `file`
 )
 
-type debugOut func(string, ...interface{})
+type debugOut func(string, ...any)
 
 type logger interface {
-	Criticalf(string, ...interface{}) error
-	Errorf(string, ...interface{}) error
-	Warnf(string, ...interface{}) error
-	Infof(string, ...interface{}) error
-	Debugf(string, ...interface{}) error
+	Criticalf(string, ...any) error
+	Errorf(string, ...any) error
+	Warnf(string, ...any) error
+	Infof(string, ...any) error
+	Debugf(string, ...any) error
 
 	Critical(string, ...rfc5424.SDParam) error
 	Error(string, ...rfc5424.SDParam) error

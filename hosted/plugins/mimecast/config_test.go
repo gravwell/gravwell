@@ -3,8 +3,8 @@ package mimecast
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/hosted"
-	"github.com/gravwell/gravwell/v3/hosted/configtest"
+	"github.com/gravwell/gravwell/v4/hosted"
+	"github.com/gravwell/gravwell/v4/hosted/configtest"
 )
 
 func TestConfig_Verify(t *testing.T) {
@@ -189,7 +189,7 @@ func TestConfig_Verify_PrefersExistingValues(t *testing.T) {
 		Client_Secret: "client-secret",
 		Api:           []Api{MtaDeliveryApi},
 		Host:          "https://custom.com",
-		PollingConfig: hosted.PollingConfig{Lookback: 48, Requests_Per_Minute: 10, Request_Interval: 600},
+		Lookback:      48, Requests_Per_Minute: 10, Request_Interval: 600,
 	}
 	if err := cfg.Verify(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -210,17 +210,15 @@ func TestConfig_Verify_PrefersExistingValues(t *testing.T) {
 
 func TestConfigEqual(t *testing.T) {
 	configtest.CheckEqual(t, Config{
-		BaseConfig:     hosted.BaseConfig{Ingester_UUID: defaultIngesterUUIDStr},
-		MultiTagConfig: hosted.MultiTagConfig{Tag_Prefix: "mimecast"},
-		PollingConfig: hosted.PollingConfig{
-			Lookback:            defaultLookback,
-			Requests_Per_Minute: defaultRequestsPerMinute,
-			Request_Interval:    defaultInterval,
-		},
-		Client_Id:     "id",
-		Client_Secret: "secret",
-		Api:           []Api{AuditApi},
-		Host:          defaultHost,
-		Preprocessor:  []string{"pp"},
+		Ingester_UUID:       defaultIngesterUUIDStr,
+		Tag_Prefix:          "mimecast",
+		Lookback:            defaultLookback,
+		Requests_Per_Minute: defaultRequestsPerMinute,
+		Request_Interval:    defaultInterval,
+		Client_Id:           "id",
+		Client_Secret:       "secret",
+		Api:                 []Api{AuditApi},
+		Host:                defaultHost,
+		Preprocessor:        []string{"pp"},
 	})
 }

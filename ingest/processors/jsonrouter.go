@@ -12,8 +12,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/jsonparser"
 )
 
@@ -53,7 +53,7 @@ func NewJsonRouter(cfg JsonRouteConfig, tagger Tagger) (*JsonRouter, error) {
 	return jr, nil
 }
 
-func (jr *JsonRouter) Config(v interface{}, tagger Tagger) (err error) {
+func (jr *JsonRouter) Config(v any, tagger Tagger) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonRouteConfig); ok {

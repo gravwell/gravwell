@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (
@@ -28,7 +28,7 @@ const (
 type StatsItem struct {
 	name string
 	last uint64
-	curr uint64
+	curr atomic.Uint64
 }
 
 type StatsManager struct {
@@ -152,14 +152,14 @@ func (sm *StatsManager) doTick(dur time.Duration) {
 
 func (si *StatsItem) Add(v uint64) {
 	if si != nil {
-		atomic.AddUint64(&si.curr, v)
+		si.curr.Add(v)
 	}
 }
 
 func (si *StatsItem) reset() (curr uint64) {
 	if si != nil {
 		//reset and
-		si.last = atomic.SwapUint64(&si.curr, 0)
+		si.last = si.curr.Swap(0)
 		curr = si.last // this could theoretically race, but reset should be controlled by a ticker, so not a huge worry
 	}
 	return

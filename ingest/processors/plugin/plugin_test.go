@@ -1,5 +1,4 @@
 //go:build !386 && !arm && !mips && !mipsle && !s390x
-// +build !386,!arm,!mips,!mipsle,!s390x
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -20,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func TestBasicPlugin(t *testing.T) {

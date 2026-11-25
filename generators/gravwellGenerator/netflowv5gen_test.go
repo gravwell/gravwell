@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/netflow"
+	"github.com/gravwell/gravwell/v4/netflow"
 )
 
 func TestGenDataNetflowV5(t *testing.T) {
@@ -86,7 +86,7 @@ func TestNetflowV5UptimeSpan(t *testing.T) {
 	ts := time.Now().Add(-120 * 24 * time.Hour)
 	var prevUptime, prevSeq uint32
 	var reboots int
-	for i := 0; i < 4096; i++ {
+	for i := range 4096 {
 		var nf netflow.NFv5
 		if err := nf.Decode(genDataNetflowV5(ts)); err != nil {
 			t.Fatalf("iteration %d: decode failed: %v", i, err)

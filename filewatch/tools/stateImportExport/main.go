@@ -17,7 +17,7 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/filewatch"
+	"github.com/gravwell/gravwell/v4/filewatch"
 )
 
 func main() {
@@ -93,7 +93,7 @@ func exportSet(input, output string) (err error) {
 	return
 }
 
-func writeObject(wtr io.Writer, obj interface{}) (err error) {
+func writeObject(wtr io.Writer, obj any) (err error) {
 	var bts []byte
 	if bts, err = json.Marshal(obj); err != nil {
 		err = fmt.Errorf("failed to marshal object %w", err)

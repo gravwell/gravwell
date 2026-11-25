@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+//go:build linux || darwin || freebsd
 
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
@@ -17,13 +16,13 @@ import (
 	"net"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/debug"
-	"github.com/gravwell/gravwell/v3/filewatch"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/filewatch"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -228,7 +227,7 @@ func main() {
 	}
 }
 
-func debugout(format string, args ...interface{}) {
+func debugout(format string, args ...any) {
 	if debugOn {
 		fmt.Printf(format, args...)
 	}

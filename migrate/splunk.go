@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 )
 
 const (
@@ -254,7 +254,7 @@ func initializeSplunk(cfg *cfgType, st *StateTracker, ctx context.Context) (stop
 	cachedTracker := newSplunkTracker()
 	// Read states from the state file
 	var obj splunkStatus
-	if err := st.GetStates(splunkStateType, &obj, func(val interface{}) error {
+	if err := st.GetStates(splunkStateType, &obj, func(val any) error {
 		if val == nil {
 			return nil ///ummm ok?
 		}

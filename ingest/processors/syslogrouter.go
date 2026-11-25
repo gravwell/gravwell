@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/syslogparser"
 	"github.com/gravwell/syslogparser/rfc3164"
 	"github.com/gravwell/syslogparser/rfc5424"
@@ -83,7 +83,7 @@ func NewSyslogRouter(cfg SyslogRouterConfig, tagger Tagger) (*SyslogRouter, erro
 	}, nil
 }
 
-func (sr *SyslogRouter) Config(v interface{}) (err error) {
+func (sr *SyslogRouter) Config(v any) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(SyslogRouterConfig); ok {
@@ -156,7 +156,7 @@ type getter struct {
 	parts syslogparser.LogParts
 }
 
-func (g getter) Get(v string) interface{} {
+func (g getter) Get(v string) any {
 	if val, ok := g.parts[v]; ok && val != nil {
 		// if its a string and empty, return nil
 		if s, ok := val.(string); ok && s == `-` {

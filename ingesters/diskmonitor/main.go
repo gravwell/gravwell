@@ -26,12 +26,11 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
-
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 const (
@@ -77,15 +76,15 @@ func init() {
 		tags = append(tags, *tagName)
 	}
 	if *clearHeadHole != "" {
-		bits := strings.Split(*clearHeadHole, ",")
-		for _, bit := range bits {
+		bits := strings.SplitSeq(*clearHeadHole, ",")
+		for bit := range bits {
 			bit = strings.TrimSpace(bit)
 			dst = append(dst, fmt.Sprintf("tcp://%s", bit))
 		}
 	}
 	if *pipeHeadHole != "" {
-		bits := strings.Split(*pipeHeadHole, ",")
-		for _, bit := range bits {
+		bits := strings.SplitSeq(*pipeHeadHole, ",")
+		for bit := range bits {
 			bit = strings.TrimSpace(bit)
 			dst = append(dst, fmt.Sprintf("pipe://%s", bit))
 		}

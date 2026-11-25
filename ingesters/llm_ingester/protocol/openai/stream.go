@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gravwell/gravwell/v3/ingesters/llm_ingester/protocol"
+	"github.com/gravwell/gravwell/v4/ingesters/llm_ingester/protocol"
 )
 
 // sseReassembler accumulates OpenAI Server-Sent-Events chunks into a
@@ -66,7 +66,7 @@ type streamDelta struct {
 				Function struct {
 					Name      string `json:"name,omitempty"`
 					Arguments string `json:"arguments,omitempty"`
-				} `json:"function,omitempty"`
+				} `json:"function"`
 			} `json:"tool_calls,omitempty"`
 		} `json:"delta"`
 		FinishReason string `json:"finish_reason,omitempty"`
@@ -109,7 +109,7 @@ func (r *sseReassembler) Feed(chunk []byte) error {
 // processEvent parses one fully-terminated SSE event block. Each event may
 // contain several `field: value\n` lines; we only look at `data:` lines.
 func (r *sseReassembler) processEvent(event []byte) error {
-	for _, line := range bytes.Split(event, []byte("\n")) {
+	for line := range bytes.SplitSeq(event, []byte("\n")) {
 		// Each SSE field line has the form `name: value` or `name:value`. We
 		// only care about `data:`.
 		if !bytes.HasPrefix(line, []byte("data:")) {

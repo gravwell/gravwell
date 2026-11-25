@@ -13,8 +13,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/jsonparser"
 )
 
@@ -181,7 +181,7 @@ func TestBzipJson(t *testing.T) {
 	}
 
 	//compress it 100 times and add 100 decompressors
-	for i := 0; i < 128; i++ {
+	for range 128 {
 		if ent.Data, err = gzipCompress(ent.Data); err != nil {
 			t.Fatal(err)
 		}

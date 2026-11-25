@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 /*************************************************************************
  * Copyright 2023 Gravwell, Inc. All rights reserved.
@@ -16,12 +15,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
 	"golang.org/x/sys/windows"
 
-	"github.com/gravwell/gravwell/v3/winevent/wineventlog"
+	"github.com/gravwell/gravwell/v4/winevent/wineventlog"
 )
 
 const (
@@ -386,10 +386,8 @@ func ChannelAvailable(c string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	for i := range chs {
-		if chs[i] == c {
-			return true, nil
-		}
+	if slices.Contains(chs, c) {
+		return true, nil
 	}
 	return false, nil
 }

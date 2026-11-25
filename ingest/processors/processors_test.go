@@ -19,8 +19,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -129,7 +129,7 @@ func TestMultiProcessorSet(t *testing.T) {
 	}
 
 	//compress it 100 times and add 100 decompressors
-	for i := 0; i < 128; i++ {
+	for range 128 {
 		if ent.Data, err = gzipCompress(ent.Data); err != nil {
 			t.Fatal(err)
 		}
@@ -336,14 +336,12 @@ func TestParallel(t *testing.T) {
 	ps.AddProcessor(p)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 1000; i++ {
-		wg.Add(1)
-		go func() {
+	for range 1000 {
+		wg.Go(func() {
 			if err := ps.Process(&ent); err != nil {
 				t.Error(err)
 			}
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 }
