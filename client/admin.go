@@ -220,8 +220,8 @@ func (c *Client) UploadLicenseFile(f string) ([]types.LicenseUpdateError, error)
 	if err := wtr.Close(); err != nil {
 		return nil, err
 	}
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LICENSE_UPDATE_URL)
-	req, err := http.NewRequest(http.MethodPost, uri, bb)
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, licenseUrl())
+	req, err := http.NewRequest(http.MethodPut, uri, bb)
 	if err != nil {
 		return nil, err
 	}
