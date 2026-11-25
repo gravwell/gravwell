@@ -145,9 +145,23 @@ func (c *Client) get[ResponseT any](url string, params ...urlParam) (response Re
 	return response, nil
 }
 
-// getDownload issues a GET request, but returns a reader on the body instead of trying to unmarshal said body.
-func (c *Client) getDownload(url string, params ...urlParam) (io.ReadCloser, error) {
-	resp, err := c.reqDriver(http.MethodGet, url, nil, nil, params...)
+// requestReader issues a method request, but returns a reader on the body instead of trying to unmarshal said body.
+// Body will be json-marshaled into the request if not nil.
+//
+// Returns an error if the response code is not 200.
+//
+// Unless you have a specific reason to need a raw reader on the body,
+// prefer the generic, method-specific helpers (get, post, etc).
+func (c *Client) requestReader(method, url string, body any, params ...urlParam) (io.ReadCloser, error) {
+	var b []byte
+	if body != nil {
+		var err error
+		b, err = json.Marshal(body, jsoncompat.Opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+	resp, err := c.reqDriver(method, url, b, nil, params...)
 	if err != nil {
 		drainResponse(resp)
 		return nil, err

@@ -202,7 +202,7 @@ func (c *Client) GetResourceEx(name string, opts DownloadResourceOptions) ([]byt
 		return nil, err
 	}
 
-	rc, err := c.getDownload(resourcesIdContentUrl(meta.ID), opts.params()...)
+	rc, err := c.requestReader(http.MethodGet, resourcesIdContentUrl(meta.ID), nil, opts.params()...)
 	if err != nil {
 		return nil, err
 	}
