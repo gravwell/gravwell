@@ -102,6 +102,12 @@ func main() {
 				log.KV("listener", name), log.KVErr(err))
 		}
 
+		// gosnmp reports malformed packets, failed authentication and failed
+		// decryption through its own logger and nowhere else.  Without this
+		// those failures are invisible: the listener simply never produces an
+		// entry.  It is per packet and chatty, so it lands at debug.
+		snmpLog := gosnmp.NewLogger(gosnmpLogger{lg: ib.Logger, listener: name})
+
 		l := gosnmp.NewTrapListener()
 		l.Params = &gosnmp.GoSNMP{
 			Transport:          "udp",
@@ -111,17 +117,32 @@ func main() {
 			ExponentialTimeout: true,
 			MaxOids:            gosnmp.MaxOids,
 			Community:          lcfg.Community,
-			//Logger:             gosnmp.NewLogger(glog.New(os.Stdout, "", 0)),
+			Logger:             snmpLog,
+		}
+		for _, w := range lcfg.securityWarnings(l.Params.Version == gosnmp.Version3) {
+			ib.Logger.Warn(w, log.KV("listener", name))
 		}
 		if l.Params.Version == gosnmp.Version3 {
-			l.Params.SecurityParameters = &gosnmp.UsmSecurityParameters{
+			sp := &gosnmp.UsmSecurityParameters{
 				UserName:                 lcfg.Username,
 				AuthenticationProtocol:   lcfg.getAuthProto(),
 				AuthenticationPassphrase: lcfg.Auth_Passphrase,
 				PrivacyProtocol:          lcfg.getPrivacyProto(),
 				PrivacyPassphrase:        lcfg.Privacy_Passphrase,
-				//Logger:                   gosnmp.NewLogger(glog.New(os.Stdout, "", 0)),
+				Logger:                   snmpLog,
 			}
+			// Derive the keys now rather than on the first trap.  gosnmp's
+			// TrapListener.Listen throws away its own parameter validation, so
+			// a combination it cannot key -- too short a hash for the cipher,
+			// an unusable passphrase -- otherwise binds the socket and then
+			// drops every trap.  The engine ID is not known until a trap
+			// arrives, so these keys are derived against an empty one; gosnmp
+			// clears and re-derives them when it learns the real engine ID.
+			if err := sp.InitSecurityKeys(); err != nil {
+				ib.Logger.FatalCode(0, "invalid SNMP v3 security parameters",
+					log.KV("listener", name), log.KVErr(err))
+			}
+			l.Params.SecurityParameters = sp
 			l.Params.MsgFlags = lcfg.getMsgFlags()
 			l.Params.SecurityModel = gosnmp.UserSecurityModel
 		}
@@ -238,4 +259,20 @@ func safeListen(lg *log.Logger, l *gosnmp.TrapListener, name, bind string) (pani
 		lg.Error("trap listener failed", log.KV("listener", name), log.KVErr(err))
 	}
 	return
+}
+
+// gosnmpLogger adapts the ingester logger to the interface gosnmp wants.
+// gosnmp logs once or more per packet, including for every trap that fails to
+// authenticate or decrypt, so everything lands at debug level.
+type gosnmpLogger struct {
+	lg       *log.Logger
+	listener string
+}
+
+func (g gosnmpLogger) Print(v ...any) {
+	g.lg.Debug(fmt.Sprint(v...), log.KV("listener", g.listener))
+}
+
+func (g gosnmpLogger) Printf(format string, v ...any) {
+	g.lg.Debug(fmt.Sprintf(format, v...), log.KV("listener", g.listener))
 }

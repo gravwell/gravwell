@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gosnmp/gosnmp"
 )
 
 const (
@@ -42,6 +44,37 @@ Log-Level=INFO
 	Auth-Passphrase=` + testAuthPass + `
 	Auth-Protocol=MD5
 	Privacy-Passphrase=` + testPrivacyPass + `
+	Privacy-Protocol=DES
+`
+
+	aesConfig = `
+[Global]
+Ingest-Secret = ` + testIngestPass + `
+Cleartext-Backend-Target=127.0.0.1:4023
+Log-Level=INFO
+
+[Listener "v3"]
+	Tag-Name=snmpv3
+	Bind-String="0.0.0.0:163"
+	Version=3
+	Username=myuser
+	Auth-Passphrase=` + testAuthPass + `
+	Auth-Protocol=sha-256   #inline comment
+	Privacy-Passphrase=` + testPrivacyPass + `
+	Privacy-Protocol=aes-256   #inline comment
+`
+
+	v2cStrayConfig = `
+[Global]
+Ingest-Secret = ` + testIngestPass + `
+Cleartext-Backend-Target=127.0.0.1:4023
+Log-Level=INFO
+
+[Listener "v2"]
+	Tag-Name=snmpv2
+	Bind-String="0.0.0.0:161"
+	Version=2c
+	Community=public
 	Privacy-Protocol=DES
 `
 )
@@ -84,6 +117,244 @@ func TestConfigSecretsNotReported(t *testing.T) {
 	for _, want := range []string{`snmpv2`, `snmpv3`, `0.0.0.0:163`, `myuser`} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("reported config is missing %q: %s", want, s)
+		}
+	}
+}
+
+// TestAuthProtocols makes sure every auth protocol the config accepts maps to
+// the right gosnmp value and that junk is rejected.
+func TestAuthProtocols(t *testing.T) {
+	tests := []struct {
+		name string
+		want gosnmp.SnmpV3AuthProtocol
+	}{
+		{``, gosnmp.NoAuth},
+		{`MD5`, gosnmp.MD5},
+		{`md5`, gosnmp.MD5},
+		{`SHA`, gosnmp.SHA},
+		{`SHA1`, gosnmp.SHA},
+		{`sha-1`, gosnmp.SHA},
+		{`SHA224`, gosnmp.SHA224},
+		{`SHA256`, gosnmp.SHA256},
+		{`sha-256`, gosnmp.SHA256},
+		{`SHA384`, gosnmp.SHA384},
+		{`SHA512`, gosnmp.SHA512},
+	}
+	for _, test := range tests {
+		v := v3auth{Username: `user`, Auth_Protocol: test.name, Auth_Passphrase: `authpass`}
+		if err := v.validate(true); err != nil {
+			t.Fatalf("auth protocol %q rejected: %v", test.name, err)
+		}
+		if got := v.getAuthProto(); got != test.want {
+			t.Fatalf("auth protocol %q mapped to %v, want %v", test.name, got, test.want)
+		}
+	}
+	for _, name := range []string{`SHA2`, `AES`, `SHA 256`, `nope`} {
+		v := v3auth{Username: `user`, Auth_Protocol: name, Auth_Passphrase: `authpass`}
+		if err := v.validate(true); err == nil {
+			t.Fatalf("auth protocol %q was accepted", name)
+		}
+	}
+}
+
+// TestPrivacyProtocols makes sure every privacy protocol the config accepts
+// maps to the right gosnmp value and that junk is rejected.
+func TestPrivacyProtocols(t *testing.T) {
+	tests := []struct {
+		name string
+		want gosnmp.SnmpV3PrivProtocol
+	}{
+		{``, gosnmp.NoPriv},
+		{`DES`, gosnmp.DES},
+		{`des`, gosnmp.DES},
+		{`AES`, gosnmp.AES},
+		{`aes`, gosnmp.AES},
+		{`AES128`, gosnmp.AES},
+		{`aes-128`, gosnmp.AES},
+		{`AES192`, gosnmp.AES192},
+		{`aes-192`, gosnmp.AES192},
+		{`AES256`, gosnmp.AES256},
+		{`AES192C`, gosnmp.AES192C},
+		{`aes-192-c`, gosnmp.AES192C},
+		{`AES256C`, gosnmp.AES256C},
+	}
+	for _, test := range tests {
+		// privacy requires auth, so pair it up
+		v := v3auth{Username: `user`, Auth_Protocol: `SHA`, Auth_Passphrase: `authpass`, Privacy_Protocol: test.name, Privacy_Passphrase: `privpass`}
+		if err := v.validate(true); err != nil {
+			t.Fatalf("privacy protocol %q rejected: %v", test.name, err)
+		}
+		if got := v.getPrivacyProto(); got != test.want {
+			t.Fatalf("privacy protocol %q mapped to %v, want %v", test.name, got, test.want)
+		}
+	}
+	for _, name := range []string{`AES512`, `MD5`, `AES 256`, `nope`} {
+		v := v3auth{Username: `user`, Auth_Protocol: `SHA`, Auth_Passphrase: `authpass`, Privacy_Protocol: name, Privacy_Passphrase: `privpass`}
+		if err := v.validate(true); err == nil {
+			t.Fatalf("privacy protocol %q was accepted", name)
+		}
+	}
+	// SNMPv3 has no privacy without auth, but that is a warning rather than a
+	// rejection: refusing to start would take every other listener with it.
+	v := v3auth{Username: `user`, Privacy_Protocol: `AES`, Privacy_Passphrase: `privpass`}
+	if err := v.validate(true); err != nil {
+		t.Fatalf("privacy without auth was rejected: %v", err)
+	}
+	if warns := v.securityWarnings(true); len(warns) != 1 {
+		t.Fatalf("privacy without auth produced %d warnings, want 1", len(warns))
+	}
+}
+
+// TestSecurityWarnings makes sure the settings that are honored as written but
+// do not do what they look like they do get called out at startup, and that
+// sane configurations stay quiet.
+func TestSecurityWarnings(t *testing.T) {
+	// privacy with no auth resolves to noAuthNoPriv and accepts anything
+	v := v3auth{Username: `user`, Privacy_Protocol: `AES`, Privacy_Passphrase: `privpass`}
+	warns := v.securityWarnings(true)
+	if len(warns) != 1 {
+		t.Fatalf("got %d warnings, want 1: %v", len(warns), warns)
+	}
+	if !strings.Contains(warns[0], `noAuthNoPriv`) {
+		t.Fatalf("warning does not explain the downgrade: %q", warns[0])
+	}
+	// the same settings on a v2c listener are inert and have always been
+	if warns := v.securityWarnings(false); len(warns) != 0 {
+		t.Fatalf("v2c listener warned about v3 security: %v", warns)
+	}
+	// a complete config warns about nothing
+	full := v3auth{
+		Username:           `user`,
+		Auth_Protocol:      `SHA256`,
+		Auth_Passphrase:    `authpass`,
+		Privacy_Protocol:   `AES`,
+		Privacy_Passphrase: `privpass`,
+	}
+	if warns := full.securityWarnings(true); len(warns) != 0 {
+		t.Fatalf("complete v3 config warned: %v", warns)
+	}
+	// so does a deliberate noAuthNoPriv listener
+	if warns := (&v3auth{Username: `user`}).securityWarnings(true); len(warns) != 0 {
+		t.Fatalf("noAuthNoPriv listener warned: %v", warns)
+	}
+}
+
+// TestPrivacyWithoutAuthOnlyAppliesToV3 makes sure the privacy-requires-auth
+// rule does not fire on a v2c listener, where the v3 security settings are
+// inert and have always been ignored.  A typo in a protocol name is still an
+// error on any version.
+func TestPrivacyWithoutAuthOnlyAppliesToV3(t *testing.T) {
+	v := v3auth{Privacy_Protocol: `DES`}
+	if err := v.validate(false); err != nil {
+		t.Fatalf("stray Privacy-Protocol rejected on a non-v3 listener: %v", err)
+	}
+	if err := (&v3auth{Privacy_Protocol: `nope`}).validate(false); err == nil {
+		t.Fatal("invalid Privacy-Protocol was accepted on a non-v3 listener")
+	}
+	if err := (&v3auth{Auth_Protocol: `nope`}).validate(false); err == nil {
+		t.Fatal("invalid Auth-Protocol was accepted on a non-v3 listener")
+	}
+}
+
+// TestConfigV2cStrayPrivacyProtocol makes sure a working v2c config that
+// carries a leftover Privacy-Protocol still loads.  Those lines never did
+// anything on a v2c listener and breaking them would be a silent upgrade
+// failure in the field.
+func TestConfigV2cStrayPrivacyProtocol(t *testing.T) {
+	p := filepath.Join(t.TempDir(), `snmp.conf`)
+	if err := os.WriteFile(p, []byte(v2cStrayConfig), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := GetConfig(p, ``); err != nil {
+		t.Fatalf("v2c config with a stray Privacy-Protocol was rejected: %v", err)
+	}
+}
+
+// TestMsgFlags makes sure the msgFlags track the configured protocols, the
+// trap handler drops traps whose flags do not match.
+func TestMsgFlags(t *testing.T) {
+	tests := []struct {
+		auth string
+		priv string
+		want gosnmp.SnmpV3MsgFlags
+	}{
+		{``, ``, gosnmp.NoAuthNoPriv},
+		{`SHA256`, ``, gosnmp.AuthNoPriv},
+		{`SHA256`, `AES`, gosnmp.AuthPriv},
+		{`md5`, `aes-256`, gosnmp.AuthPriv},
+	}
+	for _, test := range tests {
+		v := v3auth{Auth_Protocol: test.auth, Privacy_Protocol: test.priv}
+		if got := v.getMsgFlags(); got != test.want {
+			t.Fatalf("msgFlags for %q/%q is %v, want %v", test.auth, test.priv, got, test.want)
+		}
+	}
+}
+
+// TestConfigPrivacyProtocol makes sure a privacy protocol set in an actual
+// config file survives the parser, inline comments and all.
+func TestConfigPrivacyProtocol(t *testing.T) {
+	p := filepath.Join(t.TempDir(), `snmp.conf`)
+	if err := os.WriteFile(p, []byte(aesConfig), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := GetConfig(p, ``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, ok := cfg.Listener[`v3`]
+	if !ok {
+		t.Fatal("missing v3 listener")
+	}
+	if got := l.getPrivacyProto(); got != gosnmp.AES256 {
+		t.Fatalf("privacy protocol is %v, want %v", got, gosnmp.AES256)
+	}
+	if got := l.getAuthProto(); got != gosnmp.SHA256 {
+		t.Fatalf("auth protocol is %v, want %v", got, gosnmp.SHA256)
+	}
+	if got := l.getMsgFlags(); got != gosnmp.AuthPriv {
+		t.Fatalf("msgFlags is %v, want %v", got, gosnmp.AuthPriv)
+	}
+}
+
+// TestV3RequiredFields makes sure v3 settings that gosnmp would reject at
+// trap time, and silently drop every trap for, are caught at config load.
+// gosnmp's TrapListener.Listen discards the error from validateParameters,
+// so none of these produce a startup failure on their own.
+func TestV3RequiredFields(t *testing.T) {
+	good := v3auth{
+		Username:           `user`,
+		Auth_Protocol:      `SHA256`,
+		Auth_Passphrase:    `authpass`,
+		Privacy_Protocol:   `AES`,
+		Privacy_Passphrase: `privpass`,
+	}
+	if err := good.validate(true); err != nil {
+		t.Fatalf("valid v3 config rejected: %v", err)
+	}
+	tests := map[string]func(*v3auth){
+		`missing auth passphrase`:    func(v *v3auth) { v.Auth_Passphrase = `` },
+		`missing privacy passphrase`: func(v *v3auth) { v.Privacy_Passphrase = `` },
+		`separator only auth`:        func(v *v3auth) { v.Auth_Protocol = `-` },
+		`separator only privacy`:     func(v *v3auth) { v.Privacy_Protocol = `_` },
+		`separator run privacy`:      func(v *v3auth) { v.Privacy_Protocol = `--` },
+		`whitespace only auth`:       func(v *v3auth) { v.Auth_Protocol = ` ` },
+		`whitespace only privacy`:    func(v *v3auth) { v.Privacy_Protocol = ` ` },
+	}
+	for name, mod := range tests {
+		v := good
+		mod(&v)
+		if err := v.validate(true); err == nil {
+			t.Fatalf("%s was accepted", name)
+		}
+	}
+	// a bare noAuthNoPriv v3 listener is legal, with or without a username.
+	// gosnmp never compares the configured user name against an incoming trap
+	// (unmarshal overwrites it from the packet), so requiring one would break
+	// working listeners without enforcing anything.
+	for _, v := range []v3auth{{Username: `user`}, {}} {
+		if err := v.validate(true); err != nil {
+			t.Fatalf("noAuthNoPriv v3 config rejected: %v", err)
 		}
 	}
 }
