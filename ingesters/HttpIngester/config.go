@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
 )
 
 const (
@@ -34,6 +35,9 @@ const (
 	defaultMaxConnections        = 1024 * 10 // about 10k connections, any modern OS should be able to handle this
 	defaultMaxConcurrentRequests = 1024 * 16 // HTTP2 means concurrent requests on a connection, 16k concurrent request is A LOT
 	defaultBufferSize            = 1024 * 1024
+
+	envTrustedProxy       = `GRAVWELL_HTTP_TRUSTED_PROXY`
+	envIgnoreUntrustedXFF = `GRAVWELL_HTTP_IGNORE_UNTRUSTED_FORWARDED_FOR`
 )
 
 type gbl struct {
@@ -45,6 +49,11 @@ type gbl struct {
 	Health_Check_URL        string
 	Max_Connections         int
 	Max_Concurrent_Requests int
+	Trusted_Proxy           []string // address or CIDR block allowed to set X-Forwarded-For, repeated for each one
+
+	// Ignore_Untrusted_Forwarded_For turns off the legacy behavior of trusting
+	// X-Forwarded-For from any peer when Trusted_Proxy is empty.
+	Ignore_Untrusted_Forwarded_For bool
 }
 
 type cfgReadType struct {
@@ -85,6 +94,8 @@ type cfgType struct {
 	OtelLogsListener map[string]*otelLogsListener
 	Preprocessor     processors.ProcessorConfig
 	TimeFormat       config.CustomTimeFormat
+
+	resolver clientip.Resolver // built from Trusted_Proxy and Ignore_Untrusted_Forwarded_For by Verify
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -123,6 +134,13 @@ func (c *cfgType) Verify() error {
 	if err := c.ValidateTLS(); err != nil {
 		return err
 	}
+
+	cr, err := clientip.LoadResolver(&c.Trusted_Proxy, &c.Ignore_Untrusted_Forwarded_For, envTrustedProxy, envIgnoreUntrustedXFF)
+	if err != nil {
+		return err
+	}
+	c.resolver = cr
+
 	if c.Max_Connections == 0 {
 		c.Max_Connections = defaultMaxConnections
 	}

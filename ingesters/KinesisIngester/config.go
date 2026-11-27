@@ -14,9 +14,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 )
 
 const (
@@ -57,6 +61,16 @@ type cfgType struct {
 	TimeFormat    config.CustomTimeFormat
 }
 
+func applyDefaults(c *cfgType) {
+	if c.Global.State_Store_Location == `` {
+		c.Global.State_Store_Location = defaultStateStore
+	}
+	// Log-File and Log-UDP-Target are mutually exclusive
+	if c.Global.Log_File == `` && c.Global.Log_UDP_Target == `` {
+		c.Global.Log_File = defaultLogFile
+	}
+}
+
 func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var c cfgType
 	if err := config.LoadConfigFile(&c, path); err != nil {
@@ -64,20 +78,14 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	} else if err = config.LoadConfigOverlays(&c, overlayPath); err != nil {
 		return nil, err
 	}
-	//initialize the state store location if its empty
-	if c.Global.State_Store_Location == `` {
-		c.Global.State_Store_Location = defaultStateStore
-	}
-	if c.Global.Log_File == `` {
-		c.Global.Log_File = defaultLogFile
-	}
+	applyDefaults(&c)
 	if err := c.Verify(); err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func (c cfgType) Verify() error {
+func (c *cfgType) Verify() error {
 	if err := c.Global.IngestConfig.Verify(); err != nil {
 		return err
 	} else if err = c.Attach.Verify(); err != nil {
@@ -99,6 +107,9 @@ func (c cfgType) Verify() error {
 	if connCount == 0 {
 		return errors.New("No backend targets specified")
 	}
+	if _, err := sqs_common.GetCredentials(c.Global.Credentials_Type, c.Global.AWS_Access_Key_ID, c.Global.AWS_Secret_Access_Key); err != nil {
+		return fmt.Errorf("Global credentials invalid (Credentials-Type, AWS-Access-Key-ID, AWS-Secret-Access-Key): %w", err)
+	}
 	if len(c.KinesisStream) == 0 {
 		return errors.New("At least one Kinesis stream required.")
 	}
@@ -108,15 +119,48 @@ func (c cfgType) Verify() error {
 		return err
 	}
 	for k, v := range c.KinesisStream {
-		if v == nil {
-			return fmt.Errorf("Kinesis stream %v config is nil", k)
+		if err := verifyStream(k, v); err != nil {
+			return err
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("Kinesis stream %s preprocessor invalid: %v", k, err)
 		}
-		if v.Iterator_Type == `` {
-			// default to LATEST
-			v.Iterator_Type = "LATEST"
+	}
+	return nil
+}
+
+// verifyStream checks a stream definition and fills in its defaults.
+func verifyStream(k string, v *streamDef) error {
+	if v == nil {
+		return fmt.Errorf("Kinesis stream %v config is nil", k)
+	}
+	if v.Stream_Name == `` {
+		return fmt.Errorf("Kinesis stream %v Stream-Name parameter is empty", k)
+	}
+	// An empty Region is left to the AWS SDK (AWS_REGION, AWS_PROFILE, ~/.aws/config) at
+	// startup. Resolving it here would check the environment -validate runs in, which is
+	// often not the service's.
+	if v.Tag_Name == `` {
+		v.Tag_Name = entry.DefaultTagName
+	}
+	if err := ingest.CheckTag(v.Tag_Name); err != nil {
+		return fmt.Errorf("Kinesis stream %v Tag-Name %q is invalid: %w", k, v.Tag_Name, err)
+	}
+	// main.go sets no starting sequence number or timestamp, so only these two work
+	switch it := types.ShardIteratorType(strings.ToUpper(strings.TrimSpace(v.Iterator_Type))); it {
+	case ``:
+		v.Iterator_Type = string(types.ShardIteratorTypeLatest)
+	case types.ShardIteratorTypeLatest, types.ShardIteratorTypeTrimHorizon:
+		v.Iterator_Type = string(it)
+	default:
+		return fmt.Errorf("Kinesis stream %v Iterator-Type %q is invalid, must be %s or %s",
+			k, v.Iterator_Type, types.ShardIteratorTypeLatest, types.ShardIteratorTypeTrimHorizon)
+	}
+	// main.go applies Timezone-Override after Assume-Local-Timezone, so the override
+	// wins when both are set; existing configs that set both keep working
+	if v.Timezone_Override != `` {
+		if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+			return fmt.Errorf("Kinesis stream %v Timezone-Override %q is invalid: %w", k, v.Timezone_Override, err)
 		}
 	}
 	return nil

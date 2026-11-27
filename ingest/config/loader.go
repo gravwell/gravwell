@@ -48,7 +48,7 @@ type VariableConfig struct {
 
 // LoadConfigFile will open a config file, check the file size
 // and load the bytes using LoadConfigBytes
-func LoadConfigFile(v interface{}, p string) (err error) {
+func LoadConfigFile(v any, p string) (err error) {
 	var fin *os.File
 	var fi os.FileInfo
 	var n int64
@@ -78,7 +78,7 @@ func LoadConfigFile(v interface{}, p string) (err error) {
 
 // LoadConfigOverlays scans the given directory path for files that end in .conf
 // if they exist we load them up into the interface
-func LoadConfigOverlays(v interface{}, pth string) (err error) {
+func LoadConfigOverlays(v any, pth string) (err error) {
 	if pth == `` || v == nil {
 		return //just leave
 	}
@@ -152,12 +152,12 @@ func (c *Config) importMaps(v interface{}) error {
 }
 */
 
-func (vc VariableConfig) MapTo(v interface{}) (err error) {
+func (vc VariableConfig) MapTo(v any) (err error) {
 	if vc.Vals == nil {
 		err = ErrBadMap
 	} else if v == nil {
 		err = ErrInvalidImportParameter
-	} else if reflect.ValueOf(v).Kind() != reflect.Ptr {
+	} else if reflect.ValueOf(v).Kind() != reflect.Pointer {
 		return ErrInvalidImportParameter
 	} else {
 		err = vc.mapStruct(v)
@@ -185,8 +185,8 @@ func (vc VariableConfig) getSlice(name string) (v []string, ok bool) {
 	return
 }
 
-func (vc VariableConfig) mapStruct(v interface{}) error {
-	if reflect.ValueOf(v).Kind() != reflect.Ptr {
+func (vc VariableConfig) mapStruct(v any) error {
+	if reflect.ValueOf(v).Kind() != reflect.Pointer {
 		return ErrInvalidImportParameter
 	}
 	// ensure the value is a pointer to a struct
@@ -275,7 +275,7 @@ func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
 }
 
 // just wraps setField with some type handling
-func (vc VariableConfig) valueMapper(name string, v interface{}) (err error) {
+func (vc VariableConfig) valueMapper(name string, v any) (err error) {
 	if v == nil {
 		return ErrInvalidArgument
 	}

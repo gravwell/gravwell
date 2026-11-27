@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/clientip"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -53,7 +54,8 @@ type otelLogsHandler struct {
 	timeWindow timegrinder.TimestampWindow
 }
 
-func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader) {
+	ip := requestIP(r)
 	var entriesCount int
 	var byteCount int64
 
@@ -69,10 +71,8 @@ func (oh *otelLogsHandler) handle(h *handler, cfg routeHandler, w http.ResponseW
 		}()
 	}
 
-	ll := log.NewLoggerWithKV(oh.lgr,
-		log.KV("otel-logs-listener", oh.name),
-		log.KV("remoteaddress", ip),
-	)
+	ll := log.NewLoggerWithKV(oh.lgr, log.KV("otel-logs-listener", oh.name))
+	ll.AddKV(clientip.KVs("remoteaddress", requestClient(r))...)
 
 	bodyReadLimit := int64(maxBody + 256)
 	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
